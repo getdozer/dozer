@@ -1,5 +1,10 @@
-use crate::{connectors::TableInfo, errors::ConnectorError};
+use crate::{
+    connectors::TableInfo,
+    errors::{ConnectorError, ObjectStoreConnectorError},
+};
 
+use dozer_types::types::Operation;
+use tokio::sync::mpsc::Sender;
 use tonic::async_trait;
 
 #[derive(Debug, Eq, Clone)]
@@ -28,18 +33,29 @@ impl PartialEq for FileInfo {
 
 #[async_trait]
 pub trait TableWatcher {
-    async fn watch(&self, id: usize, table: &TableInfo) -> Result<(), ConnectorError> {
-        let seq_no = self.snapshot(id, table).await?;
-        self.ingest(id, table, seq_no).await?;
+    async fn watch(
+        &self,
+        id: usize,
+        table: &TableInfo,
+        sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
+    ) -> Result<(), ConnectorError> {
+        let seq_no = self.snapshot(id, table, sender.clone()).await?;
+        self.ingest(id, table, seq_no, sender).await?;
         Ok(())
     }
 
-    async fn snapshot(&self, id: usize, table: &TableInfo) -> Result<u64, ConnectorError>;
+    async fn snapshot(
+        &self,
+        id: usize,
+        table: &TableInfo,
+        sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
+    ) -> Result<u64, ConnectorError>;
 
     async fn ingest(
         &self,
         id: usize,
         table: &TableInfo,
         seq_no: u64,
+        sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
     ) -> Result<u64, ConnectorError>;
 }

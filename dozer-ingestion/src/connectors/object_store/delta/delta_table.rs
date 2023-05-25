@@ -5,6 +5,7 @@ use dozer_types::{
     types::{Operation, Record, SchemaIdentifier},
 };
 use futures::StreamExt;
+use tokio::sync::mpsc::Sender;
 use tonic::async_trait;
 
 use crate::{
@@ -12,28 +13,26 @@ use crate::{
         object_store::{adapters::DozerObjectStore, table_watcher::TableWatcher},
         TableInfo,
     },
-    errors::ConnectorError,
+    errors::{ConnectorError, ObjectStoreConnectorError},
     ingestion::Ingestor,
 };
 
-pub struct DeltaTable<'a, T: DozerObjectStore> {
+pub struct DeltaTable<T: DozerObjectStore> {
     table_config: DeltaConfig,
     store_config: T,
-    ingestor: &'a Ingestor,
 }
 
-impl<'a, T: DozerObjectStore> DeltaTable<'a, T> {
-    pub fn new(table_config: DeltaConfig, store_config: T, ingestor: &'a Ingestor) -> Self {
+impl<T: DozerObjectStore> DeltaTable<T> {
+    pub fn new(table_config: DeltaConfig, store_config: T) -> Self {
         Self {
             table_config,
             store_config,
-            ingestor,
         }
     }
 }
 
 #[async_trait]
-impl<'a, T: DozerObjectStore> TableWatcher for DeltaTable<'a, T> {
+impl<T: DozerObjectStore> TableWatcher for DeltaTable<T> {
     // async fn watch(
     //     &self,
     //     id: usize,
@@ -117,7 +116,12 @@ impl<'a, T: DozerObjectStore> TableWatcher for DeltaTable<'a, T> {
     //     Ok(())
     // }
 
-    async fn snapshot(&self, id: usize, table: &TableInfo) -> Result<u64, ConnectorError> {
+    async fn snapshot(
+        &self,
+        id: usize,
+        table: &TableInfo,
+        sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
+    ) -> Result<u64, ConnectorError> {
         let params = self.store_config.table_params(&table.name)?;
 
         let delta_table = deltalake::open_table(&params.table_path).await.unwrap();
@@ -125,9 +129,9 @@ impl<'a, T: DozerObjectStore> TableWatcher for DeltaTable<'a, T> {
 
         tokio::pin!(data);
 
-        self.ingestor
-            .handle_message(IngestionMessage::new_snapshotting_started(0_u64, 0))
-            .map_err(ConnectorError::IngestorError)?;
+        // self.ingestor
+        //     .handle_message(IngestionMessage::new_snapshotting_started(0_u64, 0))
+        //     .map_err(ConnectorError::IngestorError)?;
 
         let mut seq_no = 1;
         while let Some(Ok(batch)) = data.next().await {
@@ -150,30 +154,30 @@ impl<'a, T: DozerObjectStore> TableWatcher for DeltaTable<'a, T> {
                     })
                     .collect::<Vec<_>>();
 
-                self.ingestor
-                    .handle_message(IngestionMessage::new_op(
-                        0,
-                        seq_no,
-                        Operation::Insert {
-                            new: Record {
-                                schema_id: Some(SchemaIdentifier {
-                                    id: id as u32,
-                                    version: 0,
-                                }),
-                                values: fields,
-                                lifetime: None,
-                            },
-                        },
-                    ))
-                    .map_err(ConnectorError::IngestorError)?;
+                // self.ingestor
+                //     .handle_message(IngestionMessage::new_op(
+                //         0,
+                //         seq_no,
+                //         Operation::Insert {
+                //             new: Record {
+                //                 schema_id: Some(SchemaIdentifier {
+                //                     id: id as u32,
+                //                     version: 0,
+                //                 }),
+                //                 values: fields,
+                //                 lifetime: None,
+                //             },
+                //         },
+                //     ))
+                //     .map_err(ConnectorError::IngestorError)?;
 
                 seq_no += 1;
             }
         }
 
-        self.ingestor
-            .handle_message(IngestionMessage::new_snapshotting_done(0, seq_no))
-            .map_err(ConnectorError::IngestorError)?;
+        // self.ingestor
+        //     .handle_message(IngestionMessage::new_snapshotting_done(0, seq_no))
+        //     .map_err(ConnectorError::IngestorError)?;
 
         seq_no += 1;
 
@@ -185,7 +189,8 @@ impl<'a, T: DozerObjectStore> TableWatcher for DeltaTable<'a, T> {
         id: usize,
         table: &TableInfo,
         seq_no: u64,
+        sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
     ) -> Result<u64, ConnectorError> {
-        todo!()
+        Ok(0)
     }
 }

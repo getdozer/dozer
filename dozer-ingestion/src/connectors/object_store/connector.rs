@@ -1,3 +1,5 @@
+use dozer_types::ingestion_types::IngestionMessage;
+use tokio::sync::mpsc::channel;
 use tonic::async_trait;
 
 use crate::connectors::object_store::adapters::DozerObjectStore;
@@ -13,6 +15,8 @@ use super::csv::csv_table::CsvTable;
 use super::delta::delta_table::DeltaTable;
 use super::parquet::parquet_table::ParquetTable;
 use super::table_watcher::TableWatcher;
+
+use crate::errors::ObjectStoreConnectorError::RecvError;
 
 type ConnectorResult<T> = Result<T, ConnectorError>;
 
@@ -94,31 +98,46 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
     }
 
     async fn start(&self, ingestor: &Ingestor, tables: Vec<TableInfo>) -> ConnectorResult<()> {
+        let (sender, mut receiver) = channel(16);
+
         for (id, table_info) in tables.iter().enumerate() {
             for table_config in self.config.tables() {
                 if table_info.name == table_config.name {
                     if let Some(config) = &table_config.config {
                         match config {
                             dozer_types::ingestion_types::TableConfig::CSV(config) => {
-                                let table =
-                                    CsvTable::new(config.clone(), self.config.clone(), ingestor);
-                                table.watch(id, table_info).await.unwrap();
+                                let table = CsvTable::new(config.clone(), self.config.clone());
+                                table.watch(id, table_info, sender.clone()).await.unwrap();
                             }
                             dozer_types::ingestion_types::TableConfig::Delta(config) => {
-                                let table =
-                                    DeltaTable::new(config.clone(), self.config.clone(), ingestor);
-                                table.watch(id, table_info).await?;
+                                let table = DeltaTable::new(config.clone(), self.config.clone());
+                                table.watch(id, table_info, sender.clone()).await?;
                             }
                             dozer_types::ingestion_types::TableConfig::Parquet(config) => {
-                                let table = ParquetTable::new(
-                                    config.clone(),
-                                    self.config.clone(),
-                                    ingestor,
-                                );
-                                table.watch(id, table_info).await?;
+                                let table = ParquetTable::new(config.clone(), self.config.clone());
+                                table.watch(id, table_info, sender.clone()).await?;
                             }
                         }
                     }
+                }
+            }
+        }
+
+        let mut seq_no = 2;
+        loop {
+            let message = receiver
+                .recv()
+                .await
+                .ok_or(ConnectorError::ObjectStoreConnectorError(RecvError))??;
+            match message {
+                None => {
+                    break;
+                }
+                Some(evt) => {
+                    ingestor
+                        .handle_message(IngestionMessage::new_op(0, seq_no, evt))
+                        .map_err(ConnectorError::IngestorError)?;
+                    seq_no += 1;
                 }
             }
         }

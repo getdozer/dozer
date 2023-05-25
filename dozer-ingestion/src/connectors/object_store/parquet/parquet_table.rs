@@ -33,19 +33,17 @@ use crate::{
 
 const WATCHER_INTERVAL: Duration = Duration::from_secs(1);
 
-pub struct ParquetTable<'a, T: DozerObjectStore> {
+pub struct ParquetTable<T: DozerObjectStore> {
     table_config: ParquetConfig,
     store_config: T,
-    ingestor: &'a Ingestor,
     update_state: HashMap<DeltaPath, DateTime<Utc>>,
 }
 
-impl<'a, T: DozerObjectStore + Clone + Send + Sync> ParquetTable<'a, T> {
-    pub fn new(table_config: ParquetConfig, store_config: T, ingestor: &'a Ingestor) -> Self {
+impl<T: DozerObjectStore + Clone + Send + Sync> ParquetTable<T> {
+    pub fn new(table_config: ParquetConfig, store_config: T) -> Self {
         Self {
             table_config,
             store_config,
-            ingestor,
             update_state: HashMap::new(),
         }
     }
@@ -170,15 +168,13 @@ impl<'a, T: DozerObjectStore + Clone + Send + Sync> ParquetTable<'a, T> {
 }
 
 #[async_trait]
-impl<'a, T: DozerObjectStore> TableWatcher for ParquetTable<'a, T> {
-    async fn snapshot(&self, _id: usize, _table: &TableInfo) -> Result<u64, ConnectorError> {
-        self.ingestor
-            .handle_message(IngestionMessage::new_snapshotting_started(0, 0))
-            .map_err(ObjectStoreConnectorError::IngestorError)?;
-        self.ingestor
-            .handle_message(IngestionMessage::new_snapshotting_done(0, 1))
-            .map_err(ObjectStoreConnectorError::IngestorError)?;
-
+impl<T: DozerObjectStore> TableWatcher for ParquetTable<T> {
+    async fn snapshot(
+        &self,
+        _id: usize,
+        _table: &TableInfo,
+        sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
+    ) -> Result<u64, ConnectorError> {
         Ok(2)
     }
 
@@ -187,29 +183,9 @@ impl<'a, T: DozerObjectStore> TableWatcher for ParquetTable<'a, T> {
         id: usize,
         table: &TableInfo,
         seq_no: u64,
+        sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
     ) -> Result<u64, ConnectorError> {
-        let (sender, mut receiver) = channel(16);
-
         self.watch(id as u32, table, sender).await?;
-
-        let mut seq_no = seq_no;
-        loop {
-            let message = receiver
-                .recv()
-                .await
-                .ok_or(ConnectorError::ObjectStoreConnectorError(RecvError))??;
-            match message {
-                None => {
-                    break;
-                }
-                Some(evt) => {
-                    self.ingestor
-                        .handle_message(IngestionMessage::new_op(0, seq_no, evt))
-                        .map_err(ConnectorError::IngestorError)?;
-                    seq_no += 1;
-                }
-            }
-        }
 
         Ok(seq_no)
     }

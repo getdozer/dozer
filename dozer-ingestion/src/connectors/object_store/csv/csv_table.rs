@@ -36,19 +36,17 @@ use crate::{
 
 const WATCHER_INTERVAL: Duration = Duration::from_secs(1);
 
-pub struct CsvTable<'a, T: DozerObjectStore> {
+pub struct CsvTable<T: DozerObjectStore> {
     table_config: CsvConfig,
     store_config: T,
-    ingestor: &'a Ingestor,
     update_state: HashMap<DeltaPath, DateTime<Utc>>,
 }
 
-impl<'a, T: DozerObjectStore> CsvTable<'a, T> {
-    pub fn new(table_config: CsvConfig, store_config: T, ingestor: &'a Ingestor) -> Self {
+impl<T: DozerObjectStore> CsvTable<T> {
+    pub fn new(table_config: CsvConfig, store_config: T) -> Self {
         Self {
             table_config,
             store_config,
-            ingestor,
             update_state: HashMap::new(),
         }
     }
@@ -173,16 +171,14 @@ impl<'a, T: DozerObjectStore> CsvTable<'a, T> {
 }
 
 #[async_trait]
-impl<'a, T: DozerObjectStore> TableWatcher for CsvTable<'a, T> {
-    async fn snapshot(&self, _id: usize, _table: &TableInfo) -> Result<u64, ConnectorError> {
-        self.ingestor
-            .handle_message(IngestionMessage::new_snapshotting_started(0, 0))
-            .map_err(ObjectStoreConnectorError::IngestorError)?;
-        self.ingestor
-            .handle_message(IngestionMessage::new_snapshotting_done(0, 1))
-            .map_err(ObjectStoreConnectorError::IngestorError)?;
-
-        Ok(2)
+impl<T: DozerObjectStore> TableWatcher for CsvTable<T> {
+    async fn snapshot(
+        &self,
+        _id: usize,
+        _table: &TableInfo,
+        sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
+    ) -> Result<u64, ConnectorError> {
+        Ok(0)
     }
 
     async fn ingest(
@@ -190,33 +186,11 @@ impl<'a, T: DozerObjectStore> TableWatcher for CsvTable<'a, T> {
         id: usize,
         table: &TableInfo,
         seq_no: u64,
+        sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
     ) -> Result<u64, ConnectorError> {
-        let (sender, mut receiver) = channel(16);
-
         self.watch(id as u32, table, sender).await?;
 
         let mut seq_no = seq_no;
-
-        loop {
-            let message = receiver
-                .recv()
-                .await
-                .ok_or(ConnectorError::ObjectStoreConnectorError(RecvError))
-                .unwrap()
-                .unwrap();
-            match message {
-                None => {
-                    break;
-                }
-                Some(evt) => {
-                    self.ingestor
-                        .handle_message(IngestionMessage::new_op(0, seq_no, evt))
-                        .map_err(ConnectorError::IngestorError)
-                        .unwrap();
-                    seq_no += 1;
-                }
-            }
-        }
 
         Ok(seq_no)
     }
