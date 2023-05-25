@@ -30,6 +30,9 @@ pub enum CloudCommands {
     /// Application version management
     #[command(subcommand)]
     Version(VersionCommand),
+    /// Dozer API server management
+    #[command(subcommand)]
+    Api(ApiCommand),
 }
 
 #[derive(Debug, Args, Clone)]
@@ -95,6 +98,18 @@ pub enum VersionCommand {
     SetCurrent {
         /// The version to set as current
         version: u32,
+        /// The application id.
+        #[clap(short, long)]
+        app_id: String,
+    },
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum ApiCommand {
+    /// Sets the number of replicas to serve Dozer APIs
+    SetNumReplicas {
+        /// The number of replicas to set
+        num_replicas: i32,
         /// The application id.
         #[clap(short, long)]
         app_id: String,
