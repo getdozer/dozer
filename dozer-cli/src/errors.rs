@@ -3,7 +3,10 @@
 use glob::{GlobError, PatternError};
 use std::path::PathBuf;
 
-use dozer_api::errors::{ApiError, AuthError, GenerationError, GrpcError};
+use dozer_api::{
+    errors::{ApiError, AuthError, GenerationError, GrpcError},
+    rest::DOZER_SERVER_NAME_HEADER,
+};
 use dozer_cache::dozer_log::errors::SchemaError;
 use dozer_cache::errors::CacheError;
 use dozer_core::errors::ExecutionError;
@@ -111,6 +114,12 @@ pub enum CloudError {
 
     #[error(transparent)]
     CloudCredentialError(#[from] CloudCredentialError),
+
+    #[error("Reqwest error: {0}")]
+    Reqwest(#[from] reqwest::Error),
+
+    #[error("Response header {DOZER_SERVER_NAME_HEADER} is missing")]
+    MissingResponseHeader,
 }
 
 #[derive(Debug, Error)]

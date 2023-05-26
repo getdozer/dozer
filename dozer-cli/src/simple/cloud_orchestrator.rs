@@ -350,23 +350,34 @@ impl SimpleOrchestrator {
                         .get_status(GetStatusRequest { app_id })
                         .await?
                         .into_inner();
-                    if !status.versions.contains_key(&version) {
+                    let Some(deployment) = status.versions.get(&version) else {
                         info!("Version {} does not exist", version);
                         return Ok(());
-                    }
+                    };
+                    let api_available = get_api_available(&status.deployments, *deployment);
 
-                    let version_status = get_version_status(&status.api_endpoint, version).await;
+                    let version_status =
+                        get_version_status(&status.api_endpoint, version, api_available).await;
                     let mut table = table!();
 
                     if let Some(current_version) = status.current_version {
                         if current_version != version {
+                            let current_api_available = get_api_available(
+                                &status.deployments,
+                                status.versions[&current_version],
+                            );
+
                             table.add_row(row![
                                 format!("v{version}"),
                                 version_status_table(&version_status)
                             ]);
 
-                            let current_version_status =
-                                get_version_status(&status.api_endpoint, current_version).await;
+                            let current_version_status = get_version_status(
+                                &status.api_endpoint,
+                                current_version,
+                                current_api_available,
+                            )
+                            .await;
                             table.add_row(row![
                                 format!("v{current_version} (current)"),
                                 version_status_table(&current_version_status)
@@ -438,4 +449,13 @@ impl SimpleOrchestrator {
 
 fn latest_deployment(deployments: &[DeploymentStatus]) -> Option<u32> {
     deployments.iter().map(|status| status.deployment).max()
+}
+
+fn get_api_available(deployments: &[DeploymentStatus], deployment: u32) -> i32 {
+    deployments
+        .iter()
+        .find(|status| status.deployment == deployment)
+        .expect("Deployment should be found in deployments")
+        .api_available
+        .unwrap_or(1)
 }
