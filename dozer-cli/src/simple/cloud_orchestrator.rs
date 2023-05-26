@@ -1,12 +1,14 @@
 use crate::cli::cloud::{
-    default_num_replicas, ApiCommand, Cloud, DeployCommandArgs, ListCommandArgs, UpdateCommandArgs,
-    VersionCommand,
+    default_num_replicas, ApiCommand, Cloud, DeployCommandArgs, ListCommandArgs, LogCommandArgs,
+    UpdateCommandArgs, VersionCommand,
 };
 use crate::cloud_helper::list_files;
 use crate::errors::CloudError::GRPCCallError;
-use crate::errors::{CloudError, OrchestrationError};
+use crate::errors::{CloudError, CloudLoginError, OrchestrationError};
 use crate::simple::cloud::deployer::{deploy_app, stop_app};
+use crate::simple::cloud::login::CredentialInfo;
 use crate::simple::cloud::monitor::monitor_app;
+use crate::simple::token_layer::TokenLayer;
 use crate::simple::SimpleOrchestrator;
 use crate::CloudOrchestrator;
 use dozer_types::grpc_types::cloud::{
@@ -14,19 +16,28 @@ use dozer_types::grpc_types::cloud::{
     ListAppRequest, LogMessageRequest, UpdateAppRequest,
 };
 use dozer_types::grpc_types::cloud::{
-    SetCurrentVersionRequest, SetNumApiInstancesRequest, UpsertVersionRequest,
+    DeploymentStatus, SetCurrentVersionRequest, SetNumApiInstancesRequest, UpsertVersionRequest,
 };
 use dozer_types::log::info;
 use dozer_types::prettytable::{row, table};
+use futures::{select, FutureExt, StreamExt};
+use tonic::transport::Endpoint;
+use tower::ServiceBuilder;
 
+use super::cloud::login::LoginSvc;
 use super::cloud::version::{get_version_status, version_is_up_to_date, version_status_table};
 
-async fn get_cloud_client(
-    cloud: &Cloud,
-) -> Result<DozerCloudClient<tonic::transport::Channel>, tonic::transport::Error> {
-    info!("Cloud service url: {:?}", &cloud.target_url);
-
-    DozerCloudClient::connect(cloud.target_url.clone()).await
+async fn get_cloud_client(cloud: &Cloud) -> Result<DozerCloudClient<TokenLayer>, CloudError> {
+    let credential = CredentialInfo::load(cloud.profile.to_owned())?;
+    info!("Cloud service url: {:?}", credential.target_url);
+    let target_url = credential.target_url.clone();
+    let endpoint = Endpoint::from_shared(target_url.to_owned())?;
+    let channel = Endpoint::connect(&endpoint).await?;
+    let channel = ServiceBuilder::new()
+        .layer_fn(|channel| TokenLayer::new(channel, credential.clone()))
+        .service(channel);
+    let client = DozerCloudClient::new(channel);
+    Ok(client)
 }
 
 impl CloudOrchestrator for SimpleOrchestrator {
@@ -178,14 +189,22 @@ impl CloudOrchestrator for SimpleOrchestrator {
             let mut deployment_table = table!();
             deployment_table.set_titles(row!["Deployment", "App", "Api", "Version"]);
 
-            for (deployment, status) in response.deployments.iter().enumerate() {
-                let deployment = deployment as u32;
+            for status in response.deployments.iter() {
+                let deployment = status.deployment;
 
                 fn mark(status: bool) -> &'static str {
                     if status {
                         "🟢"
                     } else {
                         "🟠"
+                    }
+                }
+
+                fn number(number: Option<i32>) -> String {
+                    if let Some(n) = number {
+                        n.to_string()
+                    } else {
+                        "-".to_string()
                     }
                 }
 
@@ -204,7 +223,11 @@ impl CloudOrchestrator for SimpleOrchestrator {
                 deployment_table.add_row(row![
                     deployment,
                     mark(status.app_running),
-                    format!("{}/{}", status.api_available, status.api_desired),
+                    format!(
+                        "{}/{}",
+                        number(status.api_available),
+                        number(status.api_desired)
+                    ),
                     version
                 ]);
             }
@@ -223,7 +246,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
             .map_err(crate::errors::OrchestrationError::CloudError)
     }
 
-    fn trace_logs(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError> {
+    fn trace_logs(&mut self, cloud: Cloud, logs: LogCommandArgs) -> Result<(), OrchestrationError> {
         let target_url = cloud.target_url;
 
         self.runtime.block_on(async move {
@@ -232,38 +255,60 @@ impl CloudOrchestrator for SimpleOrchestrator {
 
             let status = client
                 .get_status(GetStatusRequest {
-                    app_id: app_id.clone(),
+                    app_id: logs.app_id.clone(),
                 })
                 .await?
                 .into_inner();
 
             // Show log of the latest deployment for now.
-            if status.deployments.is_empty() {
+            let Some(deployment) = logs.deployment.or_else(|| latest_deployment(&status.deployments)) else {
                 info!("No deployments found");
                 return Ok(());
-            }
-            let deployment = (status.deployments.len() - 1) as u32;
+            };
             let mut response = client
                 .on_log_message(LogMessageRequest {
-                    app_id,
+                    app_id: logs.app_id,
                     deployment,
-                    follow: false,
+                    follow: logs.follow,
                     include_migrate: true,
                     include_app: true,
                     include_api: true,
                 })
                 .await?
-                .into_inner();
+                .into_inner()
+                .fuse();
 
-            while let Some(next_message) = response.message().await? {
-                for line in next_message.message.lines() {
-                    info!("[{}] {line}", next_message.from);
-                }
+            let mut ctrlc = std::pin::pin!(tokio::signal::ctrl_c().fuse());
+            loop {
+                select! {
+                    message = response.next() => {
+                        if let Some(message) = message {
+                            let message = message?;
+                            for line in message.message.lines() {
+                                info!("[{}] {line}", message.from);
+                            }
+                        } else {
+                            break;
+                        }
+                    }
+                    _ = ctrlc => {
+                        break;
+                    }
+                };
             }
 
             Ok::<(), CloudError>(())
         })?;
 
+        Ok(())
+    }
+
+    fn login(&mut self, cloud: Cloud, company_name: String) -> Result<(), OrchestrationError> {
+        self.runtime.block_on(async move {
+            let login_svc = LoginSvc::new(company_name, cloud.target_url).await?;
+            login_svc.login().await?;
+            Ok::<(), CloudLoginError>(())
+        })?;
         Ok(())
     }
 }
@@ -305,23 +350,34 @@ impl SimpleOrchestrator {
                         .get_status(GetStatusRequest { app_id })
                         .await?
                         .into_inner();
-                    if !status.versions.contains_key(&version) {
+                    let Some(deployment) = status.versions.get(&version) else {
                         info!("Version {} does not exist", version);
                         return Ok(());
-                    }
+                    };
+                    let api_available = get_api_available(&status.deployments, *deployment);
 
-                    let version_status = get_version_status(&status.api_endpoint, version).await;
+                    let version_status =
+                        get_version_status(&status.api_endpoint, version, api_available).await;
                     let mut table = table!();
 
                     if let Some(current_version) = status.current_version {
                         if current_version != version {
+                            let current_api_available = get_api_available(
+                                &status.deployments,
+                                status.versions[&current_version],
+                            );
+
                             table.add_row(row![
                                 format!("v{version}"),
                                 version_status_table(&version_status)
                             ]);
 
-                            let current_version_status =
-                                get_version_status(&status.api_endpoint, current_version).await;
+                            let current_version_status = get_version_status(
+                                &status.api_endpoint,
+                                current_version,
+                                current_api_available,
+                            )
+                            .await;
                             table.add_row(row![
                                 format!("v{current_version} (current)"),
                                 version_status_table(&current_version_status)
@@ -372,7 +428,10 @@ impl SimpleOrchestrator {
                         .await?
                         .into_inner();
                     // Update the latest deployment for now.
-                    let deployment = status.deployments.len() as u32 - 1;
+                    let Some(deployment) = latest_deployment(&status.deployments) else {
+                        info!("No deployments found");
+                        return Ok(());
+                    };
                     client
                         .set_num_api_instances(SetNumApiInstancesRequest {
                             app_id,
@@ -386,4 +445,17 @@ impl SimpleOrchestrator {
         })?;
         Ok(())
     }
+}
+
+fn latest_deployment(deployments: &[DeploymentStatus]) -> Option<u32> {
+    deployments.iter().map(|status| status.deployment).max()
+}
+
+fn get_api_available(deployments: &[DeploymentStatus], deployment: u32) -> i32 {
+    deployments
+        .iter()
+        .find(|status| status.deployment == deployment)
+        .expect("Deployment should be found in deployments")
+        .api_available
+        .unwrap_or(1)
 }
