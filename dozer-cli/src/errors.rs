@@ -25,6 +25,8 @@ pub enum OrchestrationError {
     NoMigrationFound(String),
     #[error("Failed to login: {0}")]
     CloudLoginFailed(#[from] CloudLoginError),
+    #[error("Credential Error: {0}")]
+    CredentialError(#[from] CloudCredentialError),
     #[error("Failed to migrate: {0}")]
     MigrateFailed(#[from] MigrationError),
     #[error("Failed to generate token: {0}")]
@@ -106,6 +108,9 @@ pub enum CloudError {
 
     #[error("GRPC request failed, error: {} (GRPC status {})", .0.message(), .0.code())]
     GRPCCallError(#[source] tonic::Status),
+    
+    #[error(transparent)]
+    CloudCredentialError(#[from] CloudCredentialError),
 }
 
 #[derive(Debug, Error)]
@@ -141,4 +146,27 @@ pub enum CloudLoginError {
 
     #[error(transparent)]
     SerializationError(#[from] dozer_types::serde_json::Error),
+
+    #[error("Failed to read input: {0}")]
+    InputError(#[from] std::io::Error),
+    #[error(transparent)]
+    CloudCredentialError(#[from] CloudCredentialError),
+
+}
+#[derive(Debug, Error)]
+
+pub enum  CloudCredentialError {
+    #[error(transparent)]
+    SerializationError(#[from] dozer_types::serde_yaml::Error),
+
+    #[error(transparent)]
+    JsonSerializationError(#[from] dozer_types::serde_json::Error),
+    #[error("Failed to create home directory: {0}")]
+    FailedToCreateDirectory(#[from] std::io::Error),
+
+    #[error("HttpRequest error: {0}")]
+    HttpRequestError(#[from] reqwest::Error),
+    
+    #[error("Missing credentials.yaml file - Please try to login again")]
+    MissingCredentialFile
 }

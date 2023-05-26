@@ -17,7 +17,7 @@ use std::{
     thread::current,
 };
 use tokio::task::JoinHandle;
-// #[cfg(feature = "cloud")]
+#[cfg(feature = "cloud")]
 mod cloud_helper;
 mod console_helper;
 mod utils;
@@ -39,7 +39,7 @@ pub trait Orchestrator {
     fn generate_token(&self) -> Result<String, OrchestrationError>;
 }
 
-// #[cfg(feature = "cloud")]
+#[cfg(feature = "cloud")]
 pub trait CloudOrchestrator {
     fn deploy(&mut self, cloud: Cloud, deploy: DeployCommandArgs)
         -> Result<(), OrchestrationError>;

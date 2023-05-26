@@ -1,15 +1,99 @@
-use crate::errors::{CloudLoginError, OrchestrationError};
+use crate::errors::{CloudCredentialError, CloudLoginError};
 use std::collections::HashMap;
-use std::{io, println as info};
+use std::{env, fs, io, println as info};
 
+use dozer_types::grpc_types::cloud::company_request::Criteria;
+use dozer_types::grpc_types::cloud::dozer_public_client::DozerPublicClient;
+use dozer_types::grpc_types::cloud::CompanyRequest;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::serde_json::{self, Value};
+use dozer_types::serde_yaml;
 
-pub struct MyCompanyInfo {
-    auth_endpoint: String,
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(crate = "dozer_types::serde")]
+pub struct CredentialInfo {
+    pub client_id: String,
+    pub client_secret: String,
+    pub profile_name: String,
+    pub target_url: String,
+    pub auth_url: String,
 }
+impl CredentialInfo {
+    fn get_directory_path() -> String {
+        let home_dir = match env::var("HOME") {
+            Ok(val) => val,
+            Err(e) => panic!("Could not get home directory: {}", e),
+        };
+
+        format!("{}/.dozer", home_dir)
+    }
+    fn get_file_name() -> &'static str {
+        "credentials.yaml"
+    }
+    fn get_file_path() -> String {
+        let file_path = format!(
+            "{}/{}",
+            CredentialInfo::get_directory_path(),
+            CredentialInfo::get_file_name()
+        );
+        file_path
+    }
+    pub fn save(&self) -> Result<(), CloudCredentialError> {
+        let file_path: String = CredentialInfo::get_file_path();
+        fs::create_dir_all(CredentialInfo::get_directory_path())
+            .map_err(CloudCredentialError::FailedToCreateDirectory)?;
+        let f = std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(file_path)?;
+        serde_yaml::to_writer(f, &self)?;
+        Ok(())
+    }
+
+    pub fn load() -> Result<CredentialInfo, CloudCredentialError> {
+        let file_path = CredentialInfo::get_file_path();
+        let file = std::fs::File::open(file_path)
+            .map_err(|_e| CloudCredentialError::MissingCredentialFile)?;
+        let credential_info: CredentialInfo =
+            serde_yaml::from_reader(file).map_err(CloudCredentialError::SerializationError)?;
+        Ok(credential_info)
+    }
+
+    pub async fn get_access_token(&self) -> Result<TokenResponse, CloudCredentialError> {
+        let client = reqwest::Client::builder()
+            .build()
+            .map_err(CloudCredentialError::HttpRequestError)?;
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(
+            "Content-Type",
+            "application/x-www-form-urlencoded".parse().unwrap(),
+        );
+
+        let mut params: HashMap<&str, &str> = HashMap::new();
+        params.insert("grant_type", "client_credentials");
+        params.insert("client_id", self.client_id.as_str());
+        params.insert("client_secret", self.client_secret.as_str());
+        let request = client
+            .request(reqwest::Method::POST, self.auth_url.to_owned())
+            .headers(headers)
+            .form(&params);
+        let response = request
+            .send()
+            .await
+            .map_err(CloudCredentialError::HttpRequestError)?;
+        let json_response: Value = response
+            .json()
+            .await
+            .map_err(CloudCredentialError::HttpRequestError)?;
+        let result: TokenResponse = serde_json::from_value(json_response)
+            .map_err(CloudCredentialError::JsonSerializationError)?;
+        Ok(result)
+    }
+}
+
 pub struct LoginSvc {
-    company_name: String,
+    auth_url: String,
+    target_url: String,
 }
 #[derive(Eq, PartialEq, Clone, Serialize, Deserialize, Debug)]
 #[serde(crate = "dozer_types::serde")]
@@ -19,16 +103,24 @@ pub struct TokenResponse {
     pub expires_in: i32,
 }
 impl LoginSvc {
-    pub fn new(company_name: String) -> Self {
-        Self { company_name }
+    pub async fn new(company_name: String, target_url: String) -> Result<Self, CloudLoginError> {
+        let mut client = DozerPublicClient::connect(target_url.to_owned()).await?;
+        let company_info = client
+            .company_metadata(CompanyRequest {
+                criteria: Some(Criteria::Name(company_name.to_owned())),
+            })
+            .await?;
+        let company_info = company_info.into_inner();
+        Ok(Self {
+            auth_url: company_info.auth_url,
+            target_url,
+        })
     }
-    pub fn login(&self) -> Result<(), OrchestrationError> {
-        info!("Login");
-        // fetch company info
-        Ok(())
+    pub async fn login(&self) -> Result<(), CloudLoginError> {
+        self.login_by_credential().await
     }
 
-    fn login_by_credential(&self) -> Result<(), CloudLoginError> {
+    async fn login_by_credential(&self) -> Result<(), CloudLoginError> {
         let mut profile_name = String::new();
         info!("Please enter login name:");
         io::stdin().read_line(&mut profile_name)?;
@@ -43,38 +135,17 @@ impl LoginSvc {
         info!("Please enter your client_secret:");
         io::stdin().read_line(&mut client_secret)?;
         client_secret = client_secret.trim().to_owned();
+
+        let credential_info = CredentialInfo {
+            client_id,
+            client_secret,
+            profile_name,
+            target_url: self.target_url.to_owned(),
+            auth_url: self.auth_url.to_owned(),
+        };
+        let _ = credential_info.get_access_token().await?;
+        credential_info.save()?;
+        info!("Login success !");
         Ok(())
-    }
-
-    async fn get_access_token_request(
-        client_id: String,
-        client_secret: String,
-        auth_endpoint: String,
-    ) -> Result<TokenResponse, CloudLoginError> {
-        let client = reqwest::Client::builder()
-            .build()
-            .map_err(CloudLoginError::HttpRequestError)?;
-        let mut headers = reqwest::header::HeaderMap::new();
-        headers.insert("Content-Type", "application/x-www-form-urlencoded".parse()?);
-
-        let mut params: HashMap<&str, &str> = HashMap::new();
-        params.insert("grant_type", "client_credentials");
-        params.insert("client_id", client_id.as_str());
-        params.insert("client_secret", client_secret.as_str());
-        let request = client
-            .request(reqwest::Method::POST, auth_endpoint)
-            .headers(headers)
-            .form(&params);
-        let response = request
-            .send()
-            .await
-            .map_err(CloudLoginError::HttpRequestError)?;
-        let json_response: Value = response
-            .json()
-            .await
-            .map_err(CloudLoginError::HttpRequestError)?;
-        let result: TokenResponse =
-            serde_json::from_value(json_response).map_err(CloudLoginError::SerializationError)?;
-        Ok(result)
     }
 }

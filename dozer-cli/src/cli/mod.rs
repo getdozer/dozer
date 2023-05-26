@@ -1,4 +1,4 @@
-// #[cfg(feature = "cloud")]
+#[cfg(feature = "cloud")]
 pub mod cloud;
 mod helper;
 mod init;
