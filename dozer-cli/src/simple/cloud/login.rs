@@ -18,23 +18,20 @@ pub struct CredentialInfo {
     pub target_url: String,
     pub auth_url: String,
 }
+const DOZER_FOLDER: &str = ".dozer";
+const CREDENTIALS_FILE_NAME: &str = "credentials.yaml";
+
 impl CredentialInfo {
     fn get_directory_path() -> String {
-        let home_dir = match env::var("HOME") {
-            Ok(val) => val,
-            Err(e) => panic!("Could not get home directory: {}", e),
-        };
+        let home_dir = env::var("HOME").unwrap_or_else(|_| ".".to_string());
+        format!("{}/{}", home_dir, DOZER_FOLDER)
+    }
 
-        format!("{}/.dozer", home_dir)
-    }
-    fn get_file_name() -> &'static str {
-        "credentials.yaml"
-    }
     fn get_file_path() -> String {
         let file_path = format!(
             "{}/{}",
             CredentialInfo::get_directory_path(),
-            CredentialInfo::get_file_name()
+            CREDENTIALS_FILE_NAME
         );
         file_path
     }
@@ -55,27 +52,28 @@ impl CredentialInfo {
 
     fn read_profile() -> Result<Vec<CredentialInfo>, CloudCredentialError> {
         let file_path = CredentialInfo::get_file_path();
+
         let file = std::fs::File::open(file_path)
             .map_err(|_e| CloudCredentialError::MissingCredentialFile)?;
-        let credential_info: Vec<CredentialInfo> =
-            serde_yaml::from_reader(file).map_err(CloudCredentialError::SerializationError)?;
-        Ok(credential_info)
+        serde_yaml::from_reader::<std::fs::File, Vec<CredentialInfo>>(file)
+            .map_err(CloudCredentialError::SerializationError)
     }
 
     pub fn load(name: Option<String>) -> Result<CredentialInfo, CloudCredentialError> {
         let credential_info: Vec<CredentialInfo> = CredentialInfo::read_profile()?;
-        if let Some(name) = name {
-            let credential_info = credential_info
+        match name {
+            Some(name) => {
+                let credential_info = credential_info
+                    .into_iter()
+                    .find(|info| info.profile_name == name)
+                    .ok_or(CloudCredentialError::MissingProfile)?;
+                Ok(credential_info)
+            }
+            _ => credential_info
                 .into_iter()
-                .find(|info| info.profile_name == name)
-                .ok_or(CloudCredentialError::MissingProfile)?;
-            return Ok(credential_info);
+                .next()
+                .ok_or(CloudCredentialError::MissingProfile),
         }
-        let loaded_profile = credential_info
-            .into_iter()
-            .next()
-            .ok_or(CloudCredentialError::MissingProfile)?;
-        Ok(loaded_profile)
     }
 
     pub async fn get_access_token(&self) -> Result<TokenResponse, CloudCredentialError> {
@@ -104,9 +102,8 @@ impl CredentialInfo {
             .json()
             .await
             .map_err(CloudCredentialError::HttpRequestError)?;
-        let result: TokenResponse = serde_json::from_value(json_response)
-            .map_err(CloudCredentialError::JsonSerializationError)?;
-        Ok(result)
+        serde_json::from_value::<TokenResponse>(json_response)
+            .map_err(CloudCredentialError::JsonSerializationError)
     }
 }
 
@@ -162,7 +159,7 @@ impl LoginSvc {
             target_url: self.target_url.to_owned(),
             auth_url: self.auth_url.to_owned(),
         };
-        let _ = credential_info.get_access_token().await?;
+        credential_info.get_access_token().await?;
         credential_info.save()?;
         info!("Login success !");
         Ok(())
