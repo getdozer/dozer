@@ -2142,7 +2142,7 @@ checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
 
 [[package]]
 name = "dozer-api"
-version = "0.1.22"
+version = "0.1.23"
 dependencies = [
  "Inflector",
  "actix-cors",
@@ -2180,7 +2180,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-cache"
-version = "0.1.22"
+version = "0.1.23"
 dependencies = [
  "ahash 0.8.3",
  "criterion",
@@ -2201,7 +2201,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-cli"
-version = "0.1.22"
+version = "0.1.23"
 dependencies = [
  "atty",
  "clap 4.1.11",
