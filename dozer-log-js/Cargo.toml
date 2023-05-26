@@ -1,6 +1,6 @@
 [package]
 name = "dozer-log-js"
-version = "0.1.22"
+version = "0.1.23"
 description = "Node.js binding for reading Dozer logs"
 authors = ["getdozer/dozer-dev"]
 license = "Apache-2.0"
