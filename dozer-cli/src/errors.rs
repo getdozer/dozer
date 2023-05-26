@@ -108,7 +108,7 @@ pub enum CloudError {
 
     #[error("GRPC request failed, error: {} (GRPC status {})", .0.message(), .0.code())]
     GRPCCallError(#[source] tonic::Status),
-    
+
     #[error(transparent)]
     CloudCredentialError(#[from] CloudCredentialError),
 }
@@ -151,11 +151,10 @@ pub enum CloudLoginError {
     InputError(#[from] std::io::Error),
     #[error(transparent)]
     CloudCredentialError(#[from] CloudCredentialError),
-
 }
 #[derive(Debug, Error)]
 
-pub enum  CloudCredentialError {
+pub enum CloudCredentialError {
     #[error(transparent)]
     SerializationError(#[from] dozer_types::serde_yaml::Error),
 
@@ -166,7 +165,7 @@ pub enum  CloudCredentialError {
 
     #[error("HttpRequest error: {0}")]
     HttpRequestError(#[from] reqwest::Error),
-    
+
     #[error("Missing credentials.yaml file - Please try to login again")]
-    MissingCredentialFile
+    MissingCredentialFile,
 }

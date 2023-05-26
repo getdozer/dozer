@@ -1,5 +1,5 @@
+use super::cloud::login::CredentialInfo;
 use http::{Request, Response};
-use tonic::Status;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -7,8 +7,8 @@ use tonic::body::BoxBody;
 use tonic::codegen::http;
 use tonic::transport::Body;
 use tonic::transport::Channel;
+use tonic::Status;
 use tower::Service;
-use super::cloud::login::CredentialInfo;
 
 pub struct TokenLayer {
     inner: Channel,
@@ -37,7 +37,7 @@ impl Service<Request<BoxBody>> for TokenLayer {
         Box::pin(async move {
             // Do extra async work here...
             let credential_info =
-             CredentialInfo::load().map_err(|e| Status::from_error(Box::new(e)))?;
+                CredentialInfo::load().map_err(|e| Status::from_error(Box::new(e)))?;
             let token = credential_info.get_access_token().await?;
             let mut new_request = req;
             new_request.headers_mut().insert(
