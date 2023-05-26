@@ -164,7 +164,7 @@ fn run() -> Result<(), OrchestrationError> {
                 CloudCommands::Monitor(app) => dozer.monitor(cloud, app.app_id),
                 CloudCommands::Update(update) => dozer.update(cloud, update),
                 CloudCommands::Delete(app) => dozer.delete(cloud, app.app_id),
-                CloudCommands::Logs(app) => dozer.trace_logs(cloud, app.app_id),
+                CloudCommands::Logs(logs) => dozer.trace_logs(cloud, logs),
                 CloudCommands::Version(version) => dozer.version(cloud, version),
                 CloudCommands::Api(api) => dozer.api(cloud, api),
                 CloudCommands::Login(company) => dozer.login(cloud, company.company_name),
