@@ -26,7 +26,8 @@ pub enum CloudCommands {
     List(ListCommandArgs),
     Status(AppCommand),
     Monitor(AppCommand),
-    Logs(AppCommand),
+    /// Inspect application logs
+    Logs(LogCommandArgs),
     /// Application version management
     #[command(subcommand)]
     Version(VersionCommand),
@@ -60,6 +61,19 @@ pub struct UpdateCommandArgs {
 pub struct AppCommand {
     #[arg(short = 'a', long)]
     pub app_id: String,
+}
+
+#[derive(Debug, Args, Clone)]
+pub struct LogCommandArgs {
+    /// The id of the application to update
+    #[arg(short, long)]
+    pub app_id: String,
+    /// Whether to follow the logs
+    #[arg(short, long)]
+    pub follow: bool,
+    /// The deployment to inspect
+    #[arg(short, long)]
+    pub deployment: Option<u32>,
 }
 
 #[derive(Debug, Args, Clone)]
