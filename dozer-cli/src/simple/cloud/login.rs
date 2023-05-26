@@ -12,9 +12,9 @@ use dozer_types::serde_yaml;
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(crate = "dozer_types::serde")]
 pub struct CredentialInfo {
+    pub profile_name: String,
     pub client_id: String,
     pub client_secret: String,
-    pub profile_name: String,
     pub target_url: String,
     pub auth_url: String,
 }
@@ -46,17 +46,36 @@ impl CredentialInfo {
             .create(true)
             .write(true)
             .open(file_path)?;
-        serde_yaml::to_writer(f, &self)?;
+        let mut current_credential_infos: Vec<CredentialInfo> = CredentialInfo::read_profile()?;
+        current_credential_infos.append(&mut vec![self.clone()]);
+        current_credential_infos.dedup_by_key(|key| key.to_owned().profile_name);
+        serde_yaml::to_writer(f, &current_credential_infos)?;
         Ok(())
     }
 
-    pub fn load() -> Result<CredentialInfo, CloudCredentialError> {
+    fn read_profile() -> Result<Vec<CredentialInfo>, CloudCredentialError> {
         let file_path = CredentialInfo::get_file_path();
         let file = std::fs::File::open(file_path)
             .map_err(|_e| CloudCredentialError::MissingCredentialFile)?;
-        let credential_info: CredentialInfo =
+        let credential_info: Vec<CredentialInfo> =
             serde_yaml::from_reader(file).map_err(CloudCredentialError::SerializationError)?;
         Ok(credential_info)
+    }
+
+    pub fn load(name: Option<String>) -> Result<CredentialInfo, CloudCredentialError> {
+        let credential_info: Vec<CredentialInfo> = CredentialInfo::read_profile()?;
+        if let Some(name) = name {
+            let credential_info = credential_info
+                .into_iter()
+                .find(|info| info.profile_name == name)
+                .ok_or(CloudCredentialError::MissingProfile)?;
+            return Ok(credential_info);
+        }
+        let loaded_profile = credential_info
+            .into_iter()
+            .next()
+            .ok_or(CloudCredentialError::MissingProfile)?;
+        Ok(loaded_profile)
     }
 
     pub async fn get_access_token(&self) -> Result<TokenResponse, CloudCredentialError> {
@@ -122,7 +141,7 @@ impl LoginSvc {
 
     async fn login_by_credential(&self) -> Result<(), CloudLoginError> {
         let mut profile_name = String::new();
-        info!("Please enter login name:");
+        info!("Please enter profile name:");
         io::stdin().read_line(&mut profile_name)?;
         profile_name = profile_name.trim().to_owned();
 

@@ -27,14 +27,14 @@ use tower::ServiceBuilder;
 use super::cloud::login::LoginSvc;
 use super::cloud::version::{get_version_status, version_is_up_to_date, version_status_table};
 
-async fn get_cloud_client(_cloud: &Cloud) -> Result<DozerCloudClient<TokenLayer>, CloudError> {
-    let credential = CredentialInfo::load()?;
+async fn get_cloud_client(cloud: &Cloud) -> Result<DozerCloudClient<TokenLayer>, CloudError> {
+    let credential = CredentialInfo::load(cloud.profile.to_owned())?;
     info!("Cloud service url: {:?}", credential.target_url);
     let target_url = credential.target_url.clone();
     let endpoint = Endpoint::from_shared(target_url.to_owned())?;
     let channel = Endpoint::connect(&endpoint).await?;
     let channel = ServiceBuilder::new()
-        .layer_fn(TokenLayer::new)
+        .layer_fn(|channel| TokenLayer::new(channel, credential.clone()))
         .service(channel);
     let client = DozerCloudClient::new(channel);
     Ok(client)

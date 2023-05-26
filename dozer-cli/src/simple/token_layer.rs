@@ -7,16 +7,16 @@ use tonic::body::BoxBody;
 use tonic::codegen::http;
 use tonic::transport::Body;
 use tonic::transport::Channel;
-use tonic::Status;
 use tower::Service;
 
 pub struct TokenLayer {
     inner: Channel,
+    credential: CredentialInfo,
 }
 
 impl TokenLayer {
-    pub fn new(inner: Channel) -> Self {
-        TokenLayer { inner }
+    pub fn new(inner: Channel, credential: CredentialInfo) -> Self {
+        TokenLayer { inner, credential }
     }
 }
 
@@ -33,12 +33,10 @@ impl Service<Request<BoxBody>> for TokenLayer {
     fn call(&mut self, req: Request<BoxBody>) -> Self::Future {
         let clone = self.inner.clone();
         let mut inner = std::mem::replace(&mut self.inner, clone);
-
+        let credential = self.credential.clone();
         Box::pin(async move {
             // Do extra async work here...
-            let credential_info =
-                CredentialInfo::load().map_err(|e| Status::from_error(Box::new(e)))?;
-            let token = credential_info.get_access_token().await?;
+            let token = credential.get_access_token().await?;
             let mut new_request = req;
             new_request.headers_mut().insert(
                 http::header::AUTHORIZATION,

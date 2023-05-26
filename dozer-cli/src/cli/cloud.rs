@@ -12,6 +12,8 @@ pub struct Cloud {
     default_value = DEFAULT_CLOUD_TARGET_URL
     )]
     pub target_url: String,
+    #[arg(global = true, long)]
+    pub profile: Option<String>,
     #[command(subcommand)]
     pub command: CloudCommands,
 }

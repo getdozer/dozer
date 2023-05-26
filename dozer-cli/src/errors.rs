@@ -168,4 +168,6 @@ pub enum CloudCredentialError {
 
     #[error("Missing credentials.yaml file - Please try to login again")]
     MissingCredentialFile,
+    #[error("There's no profile with given name - Please try to login again")]
+    MissingProfile,
 }
