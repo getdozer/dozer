@@ -71,6 +71,9 @@ pub struct LogCommandArgs {
     /// Whether to follow the logs
     #[arg(short, long)]
     pub follow: bool,
+    /// The deployment to inspect
+    #[arg(short, long)]
+    pub deployment: Option<u32>,
 }
 
 #[derive(Debug, Args, Clone)]
