@@ -12,6 +12,8 @@ pub struct Cloud {
     default_value = DEFAULT_CLOUD_TARGET_URL
     )]
     pub target_url: String,
+    #[arg(global = true, long)]
+    pub profile: Option<String>,
     #[command(subcommand)]
     pub command: CloudCommands,
 }
@@ -28,6 +30,7 @@ pub enum CloudCommands {
     Monitor(AppCommand),
     /// Inspect application logs
     Logs(LogCommandArgs),
+    Login(CompanyCommand),
     /// Application version management
     #[command(subcommand)]
     Version(VersionCommand),
@@ -55,6 +58,11 @@ pub struct UpdateCommandArgs {
     /// Number of replicas to serve Dozer APIs
     #[arg(short, long)]
     pub num_replicas: Option<i32>,
+}
+#[derive(Debug, Args, Clone)]
+pub struct CompanyCommand {
+    #[arg(long = "company-name")]
+    pub company_name: String,
 }
 
 #[derive(Debug, Args, Clone)]

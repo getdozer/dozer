@@ -26,6 +26,10 @@ pub enum OrchestrationError {
     FileSystem(PathBuf, std::io::Error),
     #[error("Failed to find migration for endpoint {0}")]
     NoMigrationFound(String),
+    #[error("Failed to login: {0}")]
+    CloudLoginFailed(#[from] CloudLoginError),
+    #[error("Credential Error: {0}")]
+    CredentialError(#[from] CloudCredentialError),
     #[error("Failed to migrate: {0}")]
     MigrateFailed(#[from] MigrationError),
     #[error("Failed to generate token: {0}")]
@@ -108,6 +112,9 @@ pub enum CloudError {
     #[error("GRPC request failed, error: {} (GRPC status {})", .0.message(), .0.code())]
     GRPCCallError(#[source] tonic::Status),
 
+    #[error(transparent)]
+    CloudCredentialError(#[from] CloudCredentialError),
+
     #[error("Reqwest error: {0}")]
     Reqwest(#[from] reqwest::Error),
 
@@ -133,4 +140,43 @@ pub enum MigrationError {
     CannotWriteSchema(#[source] SchemaError),
     #[error("Failed to generate proto files: {0:?}")]
     FailedToGenerateProtoFiles(#[from] GenerationError),
+}
+
+#[derive(Debug, Error)]
+pub enum CloudLoginError {
+    #[error("Tonic error: {0}")]
+    TonicError(#[from] tonic::Status),
+
+    #[error("Transport error: {0}")]
+    Transport(#[from] tonic::transport::Error),
+
+    #[error("HttpRequest error: {0}")]
+    HttpRequestError(#[from] reqwest::Error),
+
+    #[error(transparent)]
+    SerializationError(#[from] dozer_types::serde_json::Error),
+
+    #[error("Failed to read input: {0}")]
+    InputError(#[from] std::io::Error),
+    #[error(transparent)]
+    CloudCredentialError(#[from] CloudCredentialError),
+}
+#[derive(Debug, Error)]
+
+pub enum CloudCredentialError {
+    #[error(transparent)]
+    SerializationError(#[from] dozer_types::serde_yaml::Error),
+
+    #[error(transparent)]
+    JsonSerializationError(#[from] dozer_types::serde_json::Error),
+    #[error("Failed to create home directory: {0}")]
+    FailedToCreateDirectory(#[from] std::io::Error),
+
+    #[error("HttpRequest error: {0}")]
+    HttpRequestError(#[from] reqwest::Error),
+
+    #[error("Missing credentials.yaml file - Please try to login again")]
+    MissingCredentialFile,
+    #[error("There's no profile with given name - Please try to login again")]
+    MissingProfile,
 }

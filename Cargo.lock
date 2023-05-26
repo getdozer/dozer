@@ -2244,6 +2244,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tonic",
+ "tower",
  "uuid",
 ]
 

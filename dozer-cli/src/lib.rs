@@ -50,6 +50,7 @@ pub trait CloudOrchestrator {
     fn status(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError>;
     fn monitor(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError>;
     fn trace_logs(&mut self, cloud: Cloud, logs: LogCommandArgs) -> Result<(), OrchestrationError>;
+    fn login(&mut self, cloud: Cloud, company_name: String) -> Result<(), OrchestrationError>;
 }
 
 // Re-exports

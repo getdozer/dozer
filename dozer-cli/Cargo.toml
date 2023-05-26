@@ -37,6 +37,7 @@ page_size = "0.5.0"
 reqwest = { version = "0.11.16", features = ["rustls-tls", "cookies"], default-features = false }
 glob = "0.3.1"
 atty = "0.2.14"
+tower = "0.4.13"
 
 [[bin]]
 edition = "2021"

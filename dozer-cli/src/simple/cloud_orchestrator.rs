@@ -4,9 +4,11 @@ use crate::cli::cloud::{
 };
 use crate::cloud_helper::list_files;
 use crate::errors::CloudError::GRPCCallError;
-use crate::errors::{CloudError, OrchestrationError};
+use crate::errors::{CloudError, CloudLoginError, OrchestrationError};
 use crate::simple::cloud::deployer::{deploy_app, stop_app};
+use crate::simple::cloud::login::CredentialInfo;
 use crate::simple::cloud::monitor::monitor_app;
+use crate::simple::token_layer::TokenLayer;
 use crate::simple::SimpleOrchestrator;
 use crate::CloudOrchestrator;
 use dozer_types::grpc_types::cloud::{
@@ -19,15 +21,23 @@ use dozer_types::grpc_types::cloud::{
 use dozer_types::log::info;
 use dozer_types::prettytable::{row, table};
 use futures::{select, FutureExt, StreamExt};
+use tonic::transport::Endpoint;
+use tower::ServiceBuilder;
 
+use super::cloud::login::LoginSvc;
 use super::cloud::version::{get_version_status, version_is_up_to_date, version_status_table};
 
-async fn get_cloud_client(
-    cloud: &Cloud,
-) -> Result<DozerCloudClient<tonic::transport::Channel>, tonic::transport::Error> {
-    info!("Cloud service url: {:?}", &cloud.target_url);
-
-    DozerCloudClient::connect(cloud.target_url.clone()).await
+async fn get_cloud_client(cloud: &Cloud) -> Result<DozerCloudClient<TokenLayer>, CloudError> {
+    let credential = CredentialInfo::load(cloud.profile.to_owned())?;
+    info!("Cloud service url: {:?}", credential.target_url);
+    let target_url = credential.target_url.clone();
+    let endpoint = Endpoint::from_shared(target_url.to_owned())?;
+    let channel = Endpoint::connect(&endpoint).await?;
+    let channel = ServiceBuilder::new()
+        .layer_fn(|channel| TokenLayer::new(channel, credential.clone()))
+        .service(channel);
+    let client = DozerCloudClient::new(channel);
+    Ok(client)
 }
 
 impl CloudOrchestrator for SimpleOrchestrator {
@@ -290,6 +300,15 @@ impl CloudOrchestrator for SimpleOrchestrator {
             Ok::<(), CloudError>(())
         })?;
 
+        Ok(())
+    }
+
+    fn login(&mut self, cloud: Cloud, company_name: String) -> Result<(), OrchestrationError> {
+        self.runtime.block_on(async move {
+            let login_svc = LoginSvc::new(company_name, cloud.target_url).await?;
+            login_svc.login().await?;
+            Ok::<(), CloudLoginError>(())
+        })?;
         Ok(())
     }
 }
