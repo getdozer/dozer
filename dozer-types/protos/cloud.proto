@@ -317,15 +317,14 @@ message QueryGraph {
   repeated QueryEdge edges = 2;
 }
 message CompanyRequest {
-    string name = 1;
+  oneof criteria {
+    string iss = 1;
+    string name = 2;
+  }
 }
 message CompanyResponse {
     string name = 1;
-    string cli_client_id = 2;
-    string region = 3;
-    string user_pool_id = 4;
-    string user_pool_name = 5;
-    string redirect_url = 6;
-    string domain_name = 7;
-    string callback_url = 8;
+    string auth_url = 2;
+    string iss = 3;
+    string jwks_url = 4;
 }
