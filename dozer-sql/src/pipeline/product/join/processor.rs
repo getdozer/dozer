@@ -5,8 +5,8 @@ use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::Operation;
 use metrics::{
-    describe_counter, describe_gauge, describe_histogram, gauge, histogram, increment_counter,
-    increment_gauge,
+    counter, describe_counter, describe_gauge, describe_histogram, gauge, histogram,
+    increment_counter,
 };
 
 use crate::pipeline::errors::PipelineError;
@@ -36,7 +36,7 @@ impl ProductProcessor {
             "product.in_ops",
             "Number of records received by the product processor"
         );
-        describe_gauge!(
+        describe_counter!(
             "product.out_ops",
             "Number of records forwarded by the product processor"
         );
@@ -121,7 +121,7 @@ impl Processor for ProductProcessor {
 
         increment_counter!("product.input_operations");
 
-        increment_gauge!("product.output_operations", records.len() as f64);
+        counter!("product.output_operations", records.len() as u64);
 
         gauge!(
             "product.left_lookup_size",
