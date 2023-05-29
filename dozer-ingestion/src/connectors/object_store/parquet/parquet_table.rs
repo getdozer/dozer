@@ -5,7 +5,7 @@ use crate::{
         self,
         object_store::{helper::map_listing_options, table_watcher::FileInfo},
     },
-    errors::{ObjectStoreConnectorError::RecvError, ObjectStoreObjectError},
+    errors::ObjectStoreObjectError,
 };
 use deltalake::{
     datafusion::{datasource::listing::ListingTableUrl, prelude::SessionContext},
@@ -19,7 +19,7 @@ use dozer_types::{
 };
 use futures::StreamExt;
 use object_store::ObjectStore;
-use tokio::sync::mpsc::{channel, Sender};
+use tokio::sync::mpsc::Sender;
 use tonic::async_trait;
 
 use crate::{
@@ -28,18 +28,17 @@ use crate::{
         TableInfo,
     },
     errors::{ConnectorError, ObjectStoreConnectorError},
-    ingestion::Ingestor,
 };
 
 const WATCHER_INTERVAL: Duration = Duration::from_secs(1);
 
-pub struct ParquetTable<T: DozerObjectStore> {
+pub struct ParquetTable<T: DozerObjectStore + Send> {
     table_config: ParquetConfig,
     store_config: T,
     update_state: HashMap<DeltaPath, DateTime<Utc>>,
 }
 
-impl<T: DozerObjectStore + Clone + Send + Sync> ParquetTable<T> {
+impl<T: DozerObjectStore + Send> ParquetTable<T> {
     pub fn new(table_config: ParquetConfig, store_config: T) -> Self {
         Self {
             table_config,
@@ -168,7 +167,7 @@ impl<T: DozerObjectStore + Clone + Send + Sync> ParquetTable<T> {
 }
 
 #[async_trait]
-impl<T: DozerObjectStore> TableWatcher for ParquetTable<T> {
+impl<T: DozerObjectStore + Send> TableWatcher for ParquetTable<T> {
     async fn snapshot(
         &self,
         _id: usize,

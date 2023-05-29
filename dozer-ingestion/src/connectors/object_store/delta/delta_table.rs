@@ -14,17 +14,19 @@ use crate::{
         TableInfo,
     },
     errors::{ConnectorError, ObjectStoreConnectorError},
-    ingestion::Ingestor,
 };
 
-pub struct DeltaTable<T: DozerObjectStore> {
+use crate::errors::ObjectStoreConnectorError::SendError;
+pub struct DeltaTable<T: DozerObjectStore + Send> {
+    id: usize,
     table_config: DeltaConfig,
     store_config: T,
 }
 
-impl<T: DozerObjectStore> DeltaTable<T> {
-    pub fn new(table_config: DeltaConfig, store_config: T) -> Self {
+impl<T: DozerObjectStore + Send> DeltaTable<T> {
+    pub fn new(id: usize, table_config: DeltaConfig, store_config: T) -> Self {
         Self {
+            id,
             table_config,
             store_config,
         }
@@ -32,7 +34,7 @@ impl<T: DozerObjectStore> DeltaTable<T> {
 }
 
 #[async_trait]
-impl<T: DozerObjectStore> TableWatcher for DeltaTable<T> {
+impl<T: DozerObjectStore + Send> TableWatcher for DeltaTable<T> {
     // async fn watch(
     //     &self,
     //     id: usize,

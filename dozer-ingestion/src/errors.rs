@@ -407,6 +407,9 @@ pub enum ObjectStoreConnectorError {
     #[error(transparent)]
     FromArrowError(#[from] FromArrowError),
 
+    #[error("Failed to send message on data read channel")]
+    SendError,
+
     #[error("Failed to receive message on data read channel")]
     RecvError,
 }

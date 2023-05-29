@@ -36,13 +36,13 @@ use crate::{
 
 const WATCHER_INTERVAL: Duration = Duration::from_secs(1);
 
-pub struct CsvTable<T: DozerObjectStore> {
+pub struct CsvTable<T: DozerObjectStore + Send> {
     table_config: CsvConfig,
     store_config: T,
     update_state: HashMap<DeltaPath, DateTime<Utc>>,
 }
 
-impl<T: DozerObjectStore> CsvTable<T> {
+impl<T: DozerObjectStore + Send> CsvTable<T> {
     pub fn new(table_config: CsvConfig, store_config: T) -> Self {
         Self {
             table_config,
@@ -171,7 +171,7 @@ impl<T: DozerObjectStore> CsvTable<T> {
 }
 
 #[async_trait]
-impl<T: DozerObjectStore> TableWatcher for CsvTable<T> {
+impl<T: DozerObjectStore + Send> TableWatcher for CsvTable<T> {
     async fn snapshot(
         &self,
         _id: usize,

@@ -2250,7 +2250,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-core"
-version = "0.1.22"
+version = "0.1.23"
 dependencies = [
  "crossbeam",
  "daggy",
@@ -2263,7 +2263,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-ingestion"
-version = "0.1.22"
+version = "0.1.23"
 dependencies = [
  "base64 0.21.0",
  "bson",
@@ -2303,7 +2303,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-log"
-version = "0.1.22"
+version = "0.1.23"
 dependencies = [
  "dozer-types",
  "futures-util",
@@ -2312,7 +2312,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-log-js"
-version = "0.1.22"
+version = "0.1.23"
 dependencies = [
  "dozer-log",
  "dozer-types",
@@ -2321,7 +2321,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-log-python"
-version = "0.1.22"
+version = "0.1.23"
 dependencies = [
  "dozer-log",
  "dozer-types",
@@ -2330,7 +2330,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-sql"
-version = "0.1.22"
+version = "0.1.23"
 dependencies = [
  "ahash 0.8.3",
  "bloom",
@@ -2356,7 +2356,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-storage"
-version = "0.1.22"
+version = "0.1.23"
 dependencies = [
  "dozer-types",
  "lmdb-rkv",
@@ -2367,7 +2367,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-tests"
-version = "0.1.22"
+version = "0.1.23"
 dependencies = [
  "ahash 0.8.3",
  "async-trait",
@@ -2398,7 +2398,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-tracing"
-version = "0.1.22"
+version = "0.1.23"
 dependencies = [
  "atty",
  "dozer-types",
@@ -2412,7 +2412,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-types"
-version = "0.1.22"
+version = "0.1.23"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -2444,7 +2444,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-utils"
-version = "0.1.22"
+version = "0.1.23"
 dependencies = [
  "dozer-types",
 ]

@@ -106,15 +106,17 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                     if let Some(config) = &table_config.config {
                         match config {
                             dozer_types::ingestion_types::TableConfig::CSV(config) => {
-                                let table = CsvTable::new(config.clone(), self.config.clone());
+                                let mut table = CsvTable::new(config.clone(), self.config.clone());
                                 table.watch(id, table_info, sender.clone()).await.unwrap();
                             }
                             dozer_types::ingestion_types::TableConfig::Delta(config) => {
-                                let table = DeltaTable::new(config.clone(), self.config.clone());
+                                let mut table =
+                                    DeltaTable::new(id, config.clone(), self.config.clone());
                                 table.watch(id, table_info, sender.clone()).await?;
                             }
                             dozer_types::ingestion_types::TableConfig::Parquet(config) => {
-                                let table = ParquetTable::new(config.clone(), self.config.clone());
+                                let mut table =
+                                    ParquetTable::new(config.clone(), self.config.clone());
                                 table.watch(id, table_info, sender.clone()).await?;
                             }
                         }
