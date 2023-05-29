@@ -1,4 +1,7 @@
-use std::fmt::{Display, Formatter};
+use std::{
+    fmt::{Display, Formatter},
+    time::SystemTime,
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -11,19 +14,31 @@ use crate::{
 pub struct Epoch {
     pub id: u64,
     pub details: SourceStates,
+    pub decision_instant: SystemTime,
 }
 
 impl Epoch {
-    pub fn new(id: u64, details: SourceStates) -> Self {
-        Self { id, details }
+    pub fn new(id: u64, details: SourceStates, decision_instant: SystemTime) -> Self {
+        Self {
+            id,
+            details,
+            decision_instant,
+        }
     }
 
-    pub fn from(id: u64, node_handle: NodeHandle, txid: u64, seq_in_tx: u64) -> Self {
+    pub fn from(
+        id: u64,
+        node_handle: NodeHandle,
+        txid: u64,
+        seq_in_tx: u64,
+        decision_instant: SystemTime,
+    ) -> Self {
         Self {
             id,
             details: [(node_handle, OpIdentifier::new(txid, seq_in_tx))]
                 .into_iter()
                 .collect(),
+            decision_instant,
         }
     }
 }
