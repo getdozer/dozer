@@ -12,7 +12,7 @@ pub fn list_files() -> Result<Vec<File>, crate::errors::CloudError> {
         for entry in files_glob {
             let path = entry.map_err(CannotReadFile)?;
             files.push(File {
-                name: format!("{:?}", path.clone().display()),
+                name: path.clone().to_str().unwrap().to_string(),
                 content: fs::read_to_string(path.clone()).map_err(|e| CannotReadConfig(path, e))?,
             });
         }
