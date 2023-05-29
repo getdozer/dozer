@@ -18,30 +18,37 @@ pub struct ProductProcessor {
     join_operator: JoinOperator,
 }
 
+const LEFT_LOOKUP_SIZE: &str = "product.left_lookup_size";
+const RIGHT_LOOKUP_SIZE: &str = "product.right_lookup_size";
+const UNSATISFIED_JOINS: &str = "product.unsatisfied_joins";
+const IN_OPS: &str = "product.in_ops";
+const OUT_OPS: &str = "product.out_ops";
+const LATENCY: &str = "product.latency";
+
 impl ProductProcessor {
     pub fn new(join_operator: JoinOperator) -> Self {
         describe_gauge!(
-            "product.left_lookup_size",
+            LEFT_LOOKUP_SIZE,
             "Total number of items in the left lookup table"
         );
         describe_gauge!(
-            "product.right_lookup_size",
+            RIGHT_LOOKUP_SIZE,
             "Total number of items in the right lookup table"
         );
         describe_counter!(
-            "product.unsatisfied_joins",
+            UNSATISFIED_JOINS,
             "Operations not matching the Join condition"
         );
         describe_counter!(
-            "product.in_ops",
+            IN_OPS,
             "Number of records received by the product processor"
         );
         describe_counter!(
-            "product.out_ops",
+            OUT_OPS,
             "Number of records forwarded by the product processor"
         );
 
-        describe_histogram!("product.latency", "Processing latency");
+        describe_histogram!(LATENCY, "Processing latency");
         Self { join_operator }
     }
 
@@ -117,23 +124,23 @@ impl Processor for ProductProcessor {
         };
 
         let elapsed = now.elapsed();
-        histogram!("product.latency", elapsed);
+        histogram!(LATENCY, elapsed);
 
-        increment_counter!("product.input_operations");
+        increment_counter!(IN_OPS);
 
-        counter!("product.output_operations", records.len() as u64);
+        counter!(OUT_OPS, records.len() as u64);
 
         gauge!(
-            "product.left_lookup_size",
+            LEFT_LOOKUP_SIZE,
             self.join_operator.left_lookup_size() as f64
         );
         gauge!(
-            "product.right_lookup_size",
+            RIGHT_LOOKUP_SIZE,
             self.join_operator.right_lookup_size() as f64
         );
 
         if records.is_empty() {
-            increment_counter!("product.unsatisfied_joins");
+            increment_counter!(UNSATISFIED_JOINS);
         }
 
         for (action, record) in records {
