@@ -4,7 +4,10 @@ use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::Operation;
-use metrics::{describe_gauge, gauge, increment_gauge};
+use metrics::{
+    describe_counter, describe_gauge, describe_histogram, gauge, histogram, increment_counter,
+    increment_gauge,
+};
 
 use crate::pipeline::errors::PipelineError;
 
@@ -25,11 +28,11 @@ impl ProductProcessor {
             "product.right_lookup_size",
             "Total number of items in the right lookup table"
         );
-        describe_gauge!(
+        describe_counter!(
             "product.unsatisfied_joins",
             "Operations not matching the Join condition"
         );
-        describe_gauge!(
+        describe_counter!(
             "product.in_ops",
             "Number of records received by the product processor"
         );
@@ -38,7 +41,7 @@ impl ProductProcessor {
             "Number of records forwarded by the product processor"
         );
 
-        describe_gauge!("product.latency", "Processing latency (ns)");
+        describe_histogram!("product.latency", "Processing latency (ns)");
         Self { join_operator }
     }
 
@@ -114,9 +117,9 @@ impl Processor for ProductProcessor {
         };
 
         let elapsed = now.elapsed();
-        gauge!("product.latency", elapsed.as_nanos() as f64);
+        histogram!("product.latency", elapsed.as_nanos() as f64);
 
-        increment_gauge!("product.input_operations", 1_f64);
+        increment_counter!("product.input_operations");
 
         increment_gauge!("product.output_operations", records.len() as f64);
 
@@ -130,7 +133,7 @@ impl Processor for ProductProcessor {
         );
 
         if records.is_empty() {
-            increment_gauge!("product.unsatisfied_joins", 1.0);
+            increment_counter!("product.unsatisfied_joins");
         }
 
         for (action, record) in records {
