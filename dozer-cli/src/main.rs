@@ -61,10 +61,12 @@ fn compare_versions(v1: Vec<i32>, v2: Vec<i32>) -> bool {
 
 async fn check_update() {
     const VERSION: &str = env!("CARGO_PKG_VERSION");
+    let dozer_env = std::env::var("DOZER_ENV").unwrap_or("local".to_string());
     let query = vec![
         ("version", VERSION),
         ("build", std::env::consts::ARCH),
         ("os", std::env::consts::OS),
+        ("env", &dozer_env),
     ];
 
     let request_url = "https://metadata.dev.getdozer.io/";
