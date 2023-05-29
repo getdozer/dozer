@@ -4,7 +4,7 @@ use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::Operation;
-use metrics::{describe_counter, describe_gauge, gauge, increment_counter, increment_gauge};
+use metrics::{describe_gauge, gauge, increment_gauge};
 
 use crate::pipeline::errors::PipelineError;
 
@@ -116,7 +116,7 @@ impl Processor for ProductProcessor {
         let elapsed = now.elapsed();
         gauge!("product.latency", elapsed.as_nanos() as f64);
 
-        increment_gauge!("product.input_operations", 1 as f64);
+        increment_gauge!("product.input_operations", 1_f64);
 
         increment_gauge!("product.output_operations", records.len() as f64);
 
