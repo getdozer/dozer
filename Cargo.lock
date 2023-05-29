@@ -2345,6 +2345,7 @@ dependencies = [
  "jsonpath-rust",
  "like",
  "linked-hash-map",
+ "metrics",
  "multimap",
  "num-traits",
  "pest",

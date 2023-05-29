@@ -4,6 +4,7 @@ use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::Operation;
+use metrics::{describe_counter, describe_gauge, gauge, increment_counter, increment_gauge};
 
 use crate::pipeline::errors::PipelineError;
 
@@ -16,6 +17,28 @@ pub struct ProductProcessor {
 
 impl ProductProcessor {
     pub fn new(join_operator: JoinOperator) -> Self {
+        describe_gauge!(
+            "product.left_lookup_size",
+            "Total number of items in the left lookup table"
+        );
+        describe_gauge!(
+            "product.right_lookup_size",
+            "Total number of items in the right lookup table"
+        );
+        describe_gauge!(
+            "product.unsatisfied_joins",
+            "Operations not matching the Join condition"
+        );
+        describe_gauge!(
+            "product.in_ops",
+            "Number of records received by the product processor"
+        );
+        describe_gauge!(
+            "product.out_ops",
+            "Number of records forwarded by the product processor"
+        );
+
+        describe_gauge!("product.latency", "Processing latency (ns)");
         Self { join_operator }
     }
 
@@ -48,6 +71,7 @@ impl Processor for ProductProcessor {
             _ => return Err(PipelineError::InvalidPort(from_port).into()),
         };
 
+        let now = std::time::Instant::now();
         let records = match op {
             Operation::Delete { ref old } => {
                 if let Some(lifetime) = &old.lifetime {
@@ -88,6 +112,26 @@ impl Processor for ProductProcessor {
                     .collect()
             }
         };
+
+        let elapsed = now.elapsed();
+        gauge!("product.latency", elapsed.as_nanos() as f64);
+
+        increment_gauge!("product.input_operations", 1 as f64);
+
+        increment_gauge!("product.output_operations", records.len() as f64);
+
+        gauge!(
+            "product.left_lookup_size",
+            self.join_operator.left_lookup_size() as f64
+        );
+        gauge!(
+            "product.right_lookup_size",
+            self.join_operator.right_lookup_size() as f64
+        );
+
+        if records.is_empty() {
+            increment_gauge!("product.unsatisfied_joins", 1.0);
+        }
 
         for (action, record) in records {
             match action {
