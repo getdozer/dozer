@@ -12,6 +12,7 @@ use dozer_types::{
     },
     serde_yaml,
 };
+use rustyline::history::DefaultHistory;
 use rustyline::{
     completion::{Completer, Pair},
     Context,
@@ -124,7 +125,7 @@ type Question = (
     Box<dyn Fn((String, &mut Config)) -> Result<(), OrchestrationError>>,
 );
 pub fn generate_config_repl() -> Result<(), OrchestrationError> {
-    let mut rl = Editor::<InitHelper>::new()
+    let mut rl = Editor::<InitHelper, DefaultHistory>::new()
         .map_err(|e| OrchestrationError::CliError(CliError::ReadlineError(e)))?;
     rl.set_helper(Some(InitHelper {}));
     let mut default_config = Config::default();
