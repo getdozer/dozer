@@ -14,7 +14,7 @@ use dozer_types::node::NodeHandle;
 use dozer_types::types::Operation;
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::{Duration, SystemTime};
 
 #[derive(Debug)]
 pub(crate) struct StateWriter {
@@ -144,7 +144,7 @@ pub(crate) struct SourceChannelManager {
     commit_sz: u32,
     num_uncommitted_ops: u32,
     max_duration_between_commits: Duration,
-    last_commit_instant: Instant,
+    last_commit_instant: SystemTime,
     epoch_manager: Arc<EpochManager>,
 }
 
@@ -175,14 +175,18 @@ impl SourceChannelManager {
             commit_sz,
             num_uncommitted_ops: 0,
             max_duration_between_commits,
-            last_commit_instant: Instant::now(),
+            last_commit_instant: SystemTime::now(),
             epoch_manager,
         }
     }
 
     fn should_participate_in_commit(&self) -> bool {
         self.num_uncommitted_ops >= self.commit_sz
-            || self.last_commit_instant.elapsed() >= self.max_duration_between_commits
+            || self
+                .last_commit_instant
+                .elapsed()
+                .unwrap_or(self.max_duration_between_commits) // In case of system time drift, we just commit
+                >= self.max_duration_between_commits
     }
 
     fn commit(&mut self, request_termination: bool) -> Result<bool, ExecutionError> {
@@ -195,6 +199,7 @@ impl SourceChannelManager {
                 self.source_handle.clone(),
                 self.curr_txid,
                 self.curr_seq_in_tx,
+                decision_instant,
             ))?;
         }
         self.num_uncommitted_ops = 0;

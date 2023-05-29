@@ -7,6 +7,7 @@ use dozer_types::{
     log::debug,
     node::NodeHandle,
 };
+use metrics::{describe_histogram, histogram};
 
 use crate::{
     builder_dag::NodeKind,
@@ -36,6 +37,8 @@ pub struct SinkNode {
     error_manager: Arc<ErrorManager>,
 }
 
+const PIPELINE_LATENCY_HISTOGRAM_NAME: &str = "pipeline_latency";
+
 impl SinkNode {
     pub fn new(dag: &mut ExecutionDag, node_index: NodeIndex) -> Self {
         let Some(node) = dag.node_weight_mut(node_index).take() else {
@@ -49,6 +52,11 @@ impl SinkNode {
         let (port_handles, receivers) = dag.collect_receivers(node_index);
 
         let state_writer = StateWriter::new(HashMap::new());
+
+        describe_histogram!(
+            PIPELINE_LATENCY_HISTOGRAM_NAME,
+            "The pipeline processing latency in seconds"
+        );
 
         Self {
             node_handle,
@@ -98,7 +106,13 @@ impl ReceiverLoop for SinkNode {
         if let Err(e) = self.sink.commit() {
             self.error_manager.report(e);
         }
-        self.state_writer.store_commit_info(epoch)
+        self.state_writer.store_commit_info(epoch)?;
+
+        if let Ok(duration) = epoch.decision_instant.elapsed() {
+            histogram!(PIPELINE_LATENCY_HISTOGRAM_NAME, duration, "endpoint" => self.node_handle.id.clone());
+        }
+
+        Ok(())
     }
 
     fn on_terminate(&mut self) -> Result<(), ExecutionError> {
