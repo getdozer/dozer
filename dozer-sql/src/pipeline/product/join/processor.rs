@@ -41,7 +41,7 @@ impl ProductProcessor {
             "Number of records forwarded by the product processor"
         );
 
-        describe_histogram!("product.latency", "Processing latency (ns)");
+        describe_histogram!("product.latency", "Processing latency");
         Self { join_operator }
     }
 
@@ -117,7 +117,7 @@ impl Processor for ProductProcessor {
         };
 
         let elapsed = now.elapsed();
-        histogram!("product.latency", elapsed.as_nanos() as f64);
+        histogram!("product.latency", elapsed);
 
         increment_counter!("product.input_operations");
 
