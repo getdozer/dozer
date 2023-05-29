@@ -2234,6 +2234,7 @@ dependencies = [
  "glob",
  "handlebars",
  "include_dir",
+ "metrics",
  "page_size",
  "reqwest",
  "rustyline",
@@ -2257,6 +2258,7 @@ dependencies = [
  "dozer-tracing",
  "dozer-types",
  "dyn-clone",
+ "metrics",
  "tempdir",
  "uuid",
 ]
