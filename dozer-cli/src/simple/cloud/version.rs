@@ -34,14 +34,14 @@ pub async fn get_version_status(
         let mut server_status = ServerStatus::default();
         for path in &paths {
             let count = client
-                .post(format!("http://{}/v{}{}/count", endpoint, version, path))
+                .post(format!("{}/v{}{}/count", endpoint, version, path))
                 .send()
                 .await?
                 .error_for_status()?;
             let count = count.json::<usize>().await?;
 
             let phase = client
-                .post(format!("http://{}/v{}{}/phase", endpoint, version, path))
+                .post(format!("{}/v{}{}/phase", endpoint, version, path))
                 .send()
                 .await?
                 .error_for_status()?;
@@ -70,7 +70,7 @@ async fn probe_dozer_servers(
     for _ in 0..count_hint * 5 {
         let client = reqwest::Client::builder().cookie_store(true).build()?;
         let response = client
-            .get(format!("http://{}/v{}/", endpoint, version))
+            .get(format!("{}/v{}/", endpoint, version))
             .send()
             .await?
             .error_for_status()?;
