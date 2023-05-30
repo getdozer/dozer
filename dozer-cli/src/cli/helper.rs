@@ -10,9 +10,9 @@ use std::sync::Arc;
 use std::{collections::BTreeMap, fs};
 use tokio::runtime::Runtime;
 
-pub fn init_dozer(config_path: String) -> Result<Dozer, CliError> {
+pub fn init_dozer(config_path: String, config_token: Option<String>) -> Result<Dozer, CliError> {
     let runtime = Runtime::new().map_err(CliError::FailedToCreateTokioRuntime)?;
-    let mut config = runtime.block_on(load_config(&config_path))?;
+    let mut config = runtime.block_on(load_config(&config_path, config_token))?;
 
     let cache_max_map_size = config
         .cache_max_map_size
@@ -28,8 +28,8 @@ pub fn init_dozer_with_default_config() -> Result<Dozer, CliError> {
     Ok(Dozer::new(Config::default(), Arc::new(runtime)))
 }
 
-pub fn list_sources(config_path: &str) -> Result<(), OrchestrationError> {
-    let dozer = init_dozer(config_path.to_string())?;
+pub fn list_sources(config_path: &str, config_token: Option<String>) -> Result<(), OrchestrationError> {
+    let dozer = init_dozer(config_path.to_string(), config_token)?;
     let connection_map = dozer.list_connectors()?;
     let mut table_parent = Table::new();
     for (connection_name, (tables, schemas)) in connection_map {
@@ -50,16 +50,21 @@ pub fn list_sources(config_path: &str) -> Result<(), OrchestrationError> {
     Ok(())
 }
 
-async fn load_config(config_url_or_path: &str) -> Result<Config, CliError> {
+async fn load_config(config_url_or_path: &str, config_token: Option<String>) -> Result<Config, CliError> {
     if config_url_or_path.starts_with("https://") || config_url_or_path.starts_with("http://") {
-        load_config_from_http_url(config_url_or_path).await
+        load_config_from_http_url(config_url_or_path, config_token).await
     } else {
         load_config_from_file(config_url_or_path)
     }
 }
 
-async fn load_config_from_http_url(config_url: &str) -> Result<Config, CliError> {
-    let response = reqwest::get(config_url).await?.error_for_status()?;
+async fn load_config_from_http_url(config_url: &str, config_token: Option<String>) -> Result<Config, CliError> {
+    let client = reqwest::Client::new();
+    let mut get_request = client.get(config_url);
+    if let Some(token) = config_token {
+        get_request = get_request.bearer_auth(token);
+    }
+    let response: reqwest::Response = get_request.send().await?.error_for_status()?;
     let contents = response.text().await?;
     parse_config(&contents)
 }

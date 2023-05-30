@@ -20,6 +20,11 @@ pub struct Cli {
         default_value = DEFAULT_CONFIG_PATH
     )]
     pub config_path: String,
+    #[arg(
+        global = true,
+        long,
+    )]
+    pub config_token: Option<String>,
 
     #[clap(subcommand)]
     pub cmd: Option<Commands>,
