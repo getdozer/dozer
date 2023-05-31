@@ -155,6 +155,7 @@ pub mod rest;
 // Re-exports
 pub use actix_cors;
 pub use actix_web;
+pub use actix_web_httpauth;
 pub use async_trait;
 use dozer_types::indicatif::MultiProgress;
 use errors::ApiError;
