@@ -156,6 +156,19 @@ impl<T: DozerObjectStore + Send> TableWatcher for DeltaTable<T> {
                     })
                     .collect::<Vec<_>>();
 
+                let evt = Operation::Insert {
+                    new: Record {
+                        schema_id: Some(SchemaIdentifier {
+                            id: id as u32,
+                            version: 0,
+                        }),
+                        values: fields,
+                        lifetime: None,
+                    },
+                };
+
+                sender.send(Ok(Some(evt))).await.unwrap();
+
                 // self.ingestor
                 //     .handle_message(IngestionMessage::new_op(
                 //         0,
