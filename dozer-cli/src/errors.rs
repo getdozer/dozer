@@ -48,6 +48,8 @@ pub enum OrchestrationError {
     CacheInitFailed(#[source] CacheError),
     #[error("Failed to build cache from log: {0}")]
     CacheBuildFailed(#[source] CacheError),
+    #[error("Cache {0} has reached its maximum size. Try to increase `cache_max_map_size` in the config.")]
+    CacheFull(String),
     #[error("Internal thread panic: {0}")]
     JoinError(#[source] tokio::task::JoinError),
     #[error("Connector source factory error: {0}")]
