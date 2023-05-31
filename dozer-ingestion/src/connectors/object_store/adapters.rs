@@ -36,9 +36,15 @@ pub struct DozerObjectStoreParams<T: ObjectStore> {
     pub scheme: String,
     pub host: String,
     pub object_store: T,
+
     pub table_path: String,
     pub folder: String,
     pub data_fusion_table: Table,
+
+    // todo: refactor this datastructure
+    pub aws_region: Option<String>,
+    pub aws_access_key_id: Option<String>,
+    pub aws_secret_access_key: Option<String>,
 }
 
 impl DozerObjectStore for S3Storage {
@@ -81,6 +87,10 @@ impl DozerObjectStore for S3Storage {
             table_path: format!("s3://{}/{folder}/", details.bucket_name),
             folder,
             data_fusion_table: table.clone(),
+
+            aws_region: Some(details.region.clone()),
+            aws_access_key_id: Some(details.access_key_id.clone()),
+            aws_secret_access_key: Some(details.secret_access_key.clone()),
         })
     }
 
@@ -124,6 +134,10 @@ impl DozerObjectStore for LocalStorage {
             table_path: format!("{path}/{folder}/"),
             folder,
             data_fusion_table: table.clone(),
+
+            aws_region: None,
+            aws_access_key_id: None,
+            aws_secret_access_key: None,
         })
     }
 

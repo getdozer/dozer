@@ -8,8 +8,10 @@ use deltalake::datafusion::datasource::file_format::csv::CsvFormat;
 use deltalake::datafusion::datasource::file_format::parquet::ParquetFormat;
 use deltalake::datafusion::datasource::listing::{ListingOptions, ListingTableUrl};
 use deltalake::datafusion::prelude::SessionContext;
+use deltalake::s3_storage_options;
 use dozer_types::log::error;
 use dozer_types::types::{Schema, SchemaIdentifier};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 pub fn map_schema(
@@ -123,7 +125,37 @@ async fn get_delta_schema(
     let table_path = params.table_path;
 
     let ctx = SessionContext::new();
-    let delta_table = deltalake::open_table(table_path).await?;
+    //let delta_table = deltalake::open_table(table_path).await?;
+
+    ctx.runtime_env().register_object_store(
+        params.scheme,
+        params.host,
+        Arc::new(params.object_store),
+    );
+
+    let delta_table = if params.aws_region.is_none() {
+        deltalake::open_table(table_path).await.unwrap()
+    } else {
+        let storage_options = HashMap::from([
+            (
+                s3_storage_options::AWS_REGION.to_string(),
+                params.aws_region.clone().unwrap(),
+            ),
+            (
+                s3_storage_options::AWS_ACCESS_KEY_ID.to_string(),
+                params.aws_access_key_id.clone().unwrap(),
+            ),
+            (
+                s3_storage_options::AWS_SECRET_ACCESS_KEY.to_string(),
+                params.aws_secret_access_key.clone().unwrap(),
+            ),
+        ]);
+
+        deltalake::open_table_with_storage_options(&table_path, storage_options)
+            .await
+            .unwrap()
+    };
+
     let arrow_schema: SchemaRef = (*ctx.read_table(Arc::new(delta_table))?.schema())
         .clone()
         .into();

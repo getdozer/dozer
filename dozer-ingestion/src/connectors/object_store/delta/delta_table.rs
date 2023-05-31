@@ -1,7 +1,11 @@
-use deltalake::DeltaOps;
+use std::{any::TypeId, collections::HashMap, sync::Arc};
+
+use deltalake::{
+    datafusion::prelude::SessionContext, s3_storage_options, storage::s3::S3StorageOptions,
+};
 use dozer_types::{
     arrow_types::from_arrow::{map_schema_to_dozer, map_value_to_dozer_field},
-    ingestion_types::{DeltaConfig, IngestionMessage},
+    ingestion_types::DeltaConfig,
     types::{Operation, Record, SchemaIdentifier},
 };
 use futures::StreamExt;
@@ -126,8 +130,38 @@ impl<T: DozerObjectStore + Send> TableWatcher for DeltaTable<T> {
     ) -> Result<u64, ConnectorError> {
         let params = self.store_config.table_params(&table.name)?;
 
-        let delta_table = deltalake::open_table(&params.table_path).await.unwrap();
-        let (_, data) = DeltaOps(delta_table).load().await?;
+        let ctx = SessionContext::new();
+
+        let delta_table = if params.aws_region.is_none() {
+            deltalake::open_table(&params.table_path).await.unwrap()
+        } else {
+            let storage_options = HashMap::from([
+                (
+                    s3_storage_options::AWS_REGION.to_string(),
+                    params.aws_region.clone().unwrap(),
+                ),
+                (
+                    s3_storage_options::AWS_ACCESS_KEY_ID.to_string(),
+                    params.aws_access_key_id.clone().unwrap(),
+                ),
+                (
+                    s3_storage_options::AWS_SECRET_ACCESS_KEY.to_string(),
+                    params.aws_secret_access_key.clone().unwrap(),
+                ),
+            ]);
+
+            deltalake::open_table_with_storage_options(&params.table_path, storage_options)
+                .await
+                .unwrap()
+        };
+
+        let data = ctx
+            .read_table(Arc::new(delta_table))?
+            //.select_columns(&cols)?
+            .execute_stream()
+            .await?;
+
+        // let (_, data) = DeltaOps(delta_table).load().await?;
 
         tokio::pin!(data);
 
