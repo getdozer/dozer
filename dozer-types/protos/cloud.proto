@@ -134,6 +134,14 @@ message DeploymentStatus {
   bool app_running = 2;
   optional int32 api_desired = 3;
   optional int32 api_available = 4;
+  map<string, PodStatus> api_statuses = 5;
+}
+
+message PodStatus {
+  optional int64 nano_cpus_used = 1;
+  optional int64 nano_cpus_limit = 2;
+  optional int64 memory_used_in_bytes = 3;
+  optional int64 memory_limit_in_bytes = 4;
 }
 
 message UpsertVersionRequest {
