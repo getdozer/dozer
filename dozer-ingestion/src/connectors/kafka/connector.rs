@@ -1,3 +1,4 @@
+use kafka::client::KafkaClient;
 use crate::connectors::{Connector, SourceSchema, SourceSchemaResult, TableIdentifier};
 use crate::ingestion::Ingestor;
 use crate::{connectors::TableInfo, errors::ConnectorError};
@@ -49,7 +50,19 @@ impl Connector for KafkaConnector {
     }
 
     async fn list_tables(&self) -> Result<Vec<TableIdentifier>, ConnectorError> {
-        Ok(vec![])
+        let mut client = KafkaClient::new(vec![self.config.broker.clone()]);
+        client.load_metadata_all().unwrap();
+        let topics = client.topics();
+
+        let mut tables = vec![];
+        for topic in topics {
+            tables.push(TableIdentifier {
+                schema: None,
+                name: topic.name().to_string(),
+            });
+        }
+
+        Ok(tables)
     }
 
     async fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), ConnectorError> {
