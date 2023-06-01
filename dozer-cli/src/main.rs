@@ -61,10 +61,12 @@ fn compare_versions(v1: Vec<i32>, v2: Vec<i32>) -> bool {
 
 async fn check_update() {
     const VERSION: &str = env!("CARGO_PKG_VERSION");
+    let dozer_env = std::env::var("DOZER_ENV").unwrap_or("local".to_string());
     let query = vec![
         ("version", VERSION),
         ("build", std::env::consts::ARCH),
         ("os", std::env::consts::OS),
+        ("env", &dozer_env),
     ];
 
     let request_url = "https://metadata.dev.getdozer.io/";
@@ -148,7 +150,7 @@ fn run() -> Result<(), OrchestrationError> {
                 }
             },
             Commands::Connector(sources) => match sources.command {
-                ConnectorCommands::Ls => list_sources(&cli.config_path),
+                ConnectorCommands::Ls => list_sources(&cli.config_path, cli.config_token),
             },
             Commands::Migrate(migrate) => {
                 let force = migrate.force.is_some();
@@ -208,7 +210,7 @@ fn init_orchestrator(
         let res = if is_cloud_orchestrator {
             init_dozer_with_default_config()
         } else {
-            init_dozer(cli.config_path.clone())
+            init_dozer(cli.config_path.clone(), cli.config_token.clone())
         };
 
         match res {
