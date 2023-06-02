@@ -6,6 +6,7 @@ use deltalake::{
 use dozer_types::{
     arrow_types::from_arrow::{map_schema_to_dozer, map_value_to_dozer_field},
     ingestion_types::DeltaConfig,
+    tracing::error,
     types::{Operation, Record, SchemaIdentifier},
 };
 use futures::StreamExt;
@@ -155,82 +156,86 @@ impl<T: DozerObjectStore + Send> TableWatcher for DeltaTable<T> {
                 .unwrap()
         };
 
-        let data = ctx
-            .read_table(Arc::new(delta_table))?
-            //.select_columns(&cols)?
-            .execute_stream()
-            .await?;
-
-        // let (_, data) = DeltaOps(delta_table).load().await?;
-
-        tokio::pin!(data);
-
-        // self.ingestor
-        //     .handle_message(IngestionMessage::new_snapshotting_started(0_u64, 0))
-        //     .map_err(ConnectorError::IngestorError)?;
-
-        let mut seq_no = 1;
-        while let Some(Ok(batch)) = data.next().await {
-            let dozer_schema = map_schema_to_dozer(&batch.schema())
-                .map_err(|e| ConnectorError::InternalError(Box::new(e)))
+        tokio::spawn(async move {
+            let data = ctx
+                .read_table(Arc::new(delta_table))
+                .unwrap()
+                //.select_columns(&cols)?
+                .execute_stream()
+                .await
                 .unwrap();
-            for row in 0..batch.num_rows() {
-                let fields = batch
-                    .columns()
-                    .iter()
-                    .enumerate()
-                    .map(|(col, column)| {
-                        map_value_to_dozer_field(
-                            column,
-                            &row,
-                            dozer_schema.fields.get(col).unwrap().name.as_str(),
-                            &dozer_schema,
-                        )
-                        .unwrap()
-                    })
-                    .collect::<Vec<_>>();
 
-                let evt = Operation::Insert {
-                    new: Record {
-                        schema_id: Some(SchemaIdentifier {
-                            id: id as u32,
-                            version: 0,
-                        }),
-                        values: fields,
-                        lifetime: None,
-                    },
-                };
+            // let (_, data) = DeltaOps(delta_table).load().await?;
 
-                sender.send(Ok(Some(evt))).await.unwrap();
+            tokio::pin!(data);
 
-                // self.ingestor
-                //     .handle_message(IngestionMessage::new_op(
-                //         0,
-                //         seq_no,
-                //         Operation::Insert {
-                //             new: Record {
-                //                 schema_id: Some(SchemaIdentifier {
-                //                     id: id as u32,
-                //                     version: 0,
-                //                 }),
-                //                 values: fields,
-                //                 lifetime: None,
-                //             },
-                //         },
-                //     ))
-                //     .map_err(ConnectorError::IngestorError)?;
+            // self.ingestor
+            //     .handle_message(IngestionMessage::new_snapshotting_started(0_u64, 0))
+            //     .map_err(ConnectorError::IngestorError)?;
 
-                seq_no += 1;
+            let mut seq_no = 1;
+            while let Some(Ok(batch)) = data.next().await {
+                let dozer_schema = map_schema_to_dozer(&batch.schema())
+                    .map_err(|e| ConnectorError::InternalError(Box::new(e)))
+                    .unwrap();
+                for row in 0..batch.num_rows() {
+                    let fields = batch
+                        .columns()
+                        .iter()
+                        .enumerate()
+                        .map(|(col, column)| {
+                            map_value_to_dozer_field(
+                                column,
+                                &row,
+                                dozer_schema.fields.get(col).unwrap().name.as_str(),
+                                &dozer_schema,
+                            )
+                            .unwrap()
+                        })
+                        .collect::<Vec<_>>();
+
+                    let evt = Operation::Insert {
+                        new: Record {
+                            schema_id: Some(SchemaIdentifier {
+                                id: id as u32,
+                                version: 0,
+                            }),
+                            values: fields,
+                            lifetime: None,
+                        },
+                    };
+
+                    if let Err(e) = sender.send(Ok(Some(evt))).await {
+                        error!("Failed to send ingestion message: {}", e);
+                    }
+
+                    // self.ingestor
+                    //     .handle_message(IngestionMessage::new_op(
+                    //         0,
+                    //         seq_no,
+                    //         Operation::Insert {
+                    //             new: Record {
+                    //                 schema_id: Some(SchemaIdentifier {
+                    //                     id: id as u32,
+                    //                     version: 0,
+                    //                 }),
+                    //                 values: fields,
+                    //                 lifetime: None,
+                    //             },
+                    //         },
+                    //     ))
+                    //     .map_err(ConnectorError::IngestorError)?;
+
+                    seq_no += 1;
+                }
             }
-        }
+        });
 
         // self.ingestor
         //     .handle_message(IngestionMessage::new_snapshotting_done(0, seq_no))
         //     .map_err(ConnectorError::IngestorError)?;
 
-        seq_no += 1;
-
-        Ok(seq_no)
+        Ok(0)
     }
 
     async fn ingest(
