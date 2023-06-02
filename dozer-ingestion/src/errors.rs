@@ -321,7 +321,7 @@ pub enum DebeziumError {
     #[error("Connection error")]
     DebeziumConnectionError(#[source] kafka::Error),
 
-    #[error("JSON decode error")]
+    #[error("JSON decode error. Error: {0}")]
     JsonDecodeError(#[source] serde_json::Error),
 
     #[error("Bytes convert error")]
@@ -332,7 +332,7 @@ pub enum DebeziumError {
     DebeziumStreamError(#[from] DebeziumStreamError),
 
     #[cfg(feature = "kafka")]
-    #[error("Schema registry fetch failed")]
+    #[error("Schema registry fetch failed. Error: {0}")]
     SchemaRegistryFetchError(#[source] SRCError),
 
     #[error("Topic not defined")]

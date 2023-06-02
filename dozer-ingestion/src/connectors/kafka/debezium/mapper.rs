@@ -40,7 +40,7 @@ fn convert_value(
     match schema.name.clone() {
         None => match schema.r#type.clone() {
             Value::String(typ) => match typ.as_str() {
-                "int8" | "int16" | "int32" | "int64" => value
+                "int" | "int8" | "int16" | "int32" | "int64" => value
                     .as_i64()
                     .map_or(Ok(Field::Null), |v| Ok(Field::from(v))),
                 "string" => value
@@ -53,7 +53,7 @@ fn convert_value(
                             .map_err(BinaryDecodeError)?,
                     ))
                 }),
-                "float32" | "float64" | "double" => value
+                "float" | "float32" | "float64" | "double" => value
                     .as_f64()
                     .map_or(Ok(Field::Null), |s| Ok(Field::from(s))),
                 "boolean" => value

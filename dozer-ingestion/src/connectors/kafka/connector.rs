@@ -24,12 +24,12 @@ impl KafkaConnector {
         Self { id, config }
     }
 
-    fn get_schemas_impl(
+    async fn get_schemas_impl(
         &self,
         table_names: Option<&[String]>,
     ) -> Result<Vec<SourceSchema>, ConnectorError> {
         if let Some(schema_registry_url) = &self.config.schema_registry_url {
-            SchemaRegistry::get_schema(table_names, schema_registry_url.clone())
+            SchemaRegistry::get_schema(table_names, schema_registry_url.clone()).await
         } else {
             NoSchemaRegistry::get_schema(table_names, self.config.broker.clone())
         }
@@ -70,7 +70,7 @@ impl Connector for KafkaConnector {
             .iter()
             .map(|table| table.name.clone())
             .collect::<Vec<_>>();
-        self.get_schemas_impl(Some(&table_names)).map(|_| ())
+        self.get_schemas_impl(Some(&table_names)).await.map(|_| ())
     }
 
     async fn list_columns(
@@ -81,7 +81,7 @@ impl Connector for KafkaConnector {
             .iter()
             .map(|table| table.name.clone())
             .collect::<Vec<_>>();
-        let schemas = self.get_schemas_impl(Some(&table_names))?;
+        let schemas = self.get_schemas_impl(Some(&table_names)).await?;
         let mut result = vec![];
         for (table, schema) in tables.into_iter().zip(schemas) {
             let column_names = schema
@@ -108,7 +108,8 @@ impl Connector for KafkaConnector {
             .map(|table| table.name.clone())
             .collect::<Vec<_>>();
         Ok(self
-            .get_schemas_impl(Some(&table_names))?
+            .get_schemas_impl(Some(&table_names))
+            .await?
             .into_iter()
             .map(Ok)
             .collect())
