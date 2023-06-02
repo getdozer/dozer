@@ -4,7 +4,6 @@ use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::aggregate::AggregateFunctionType::Sum;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
 use crate::{argv, calculate_err_field};
-use dozer_core::errors::ExecutionError::InvalidType;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::{DozerDuration, Field, FieldType, Schema, SourceDefinition, TimeUnit};
@@ -222,12 +221,12 @@ pub fn get_sum(
             | FieldType::Timestamp
             | FieldType::Binary
             | FieldType::Json
-            | FieldType::Point => Err(PipelineError::InternalExecutionError(InvalidType(format!(
+            | FieldType::Point => Err(PipelineError::InvalidReturnType(format!(
                 "Not supported return type {typ} for {Sum}"
-            )))),
+            ))),
         },
-        None => Err(PipelineError::InternalExecutionError(InvalidType(format!(
+        None => Err(PipelineError::InvalidReturnType(format!(
             "Not supported None return type for {Sum}"
-        )))),
+        ))),
     }
 }

@@ -1,11 +1,11 @@
 use crate::dag_schemas::{DagHaveSchemas, DagSchemas};
-use crate::errors::ExecutionError;
 use crate::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, SinkFactory, Source,
     SourceFactory,
 };
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 
+use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
 use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
 use std::collections::HashMap;
@@ -23,10 +23,7 @@ macro_rules! chk {
 struct TestUsersSourceFactory {}
 
 impl SourceFactory<NoneContext> for TestUsersSourceFactory {
-    fn get_output_schema(
-        &self,
-        _port: &PortHandle,
-    ) -> Result<(Schema, NoneContext), ExecutionError> {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<(Schema, NoneContext), BoxedError> {
         Ok((
             Schema::empty()
                 .field(
@@ -71,7 +68,7 @@ impl SourceFactory<NoneContext> for TestUsersSourceFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Source>, ExecutionError> {
+    ) -> Result<Box<dyn Source>, BoxedError> {
         todo!()
     }
 }
@@ -80,10 +77,7 @@ impl SourceFactory<NoneContext> for TestUsersSourceFactory {
 struct TestCountriesSourceFactory {}
 
 impl SourceFactory<NoneContext> for TestCountriesSourceFactory {
-    fn get_output_schema(
-        &self,
-        _port: &PortHandle,
-    ) -> Result<(Schema, NoneContext), ExecutionError> {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<(Schema, NoneContext), BoxedError> {
         Ok((
             Schema::empty()
                 .field(
@@ -119,7 +113,7 @@ impl SourceFactory<NoneContext> for TestCountriesSourceFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Source>, ExecutionError> {
+    ) -> Result<Box<dyn Source>, BoxedError> {
         todo!()
     }
 }
@@ -132,7 +126,7 @@ impl ProcessorFactory<NoneContext> for TestJoinProcessorFactory {
         &self,
         _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(Schema, NoneContext), ExecutionError> {
+    ) -> Result<(Schema, NoneContext), BoxedError> {
         let mut joined: Vec<FieldDefinition> = Vec::new();
         joined.extend(input_schemas.get(&1).unwrap().0.fields.clone());
         joined.extend(input_schemas.get(&2).unwrap().0.fields.clone());
@@ -161,7 +155,7 @@ impl ProcessorFactory<NoneContext> for TestJoinProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Processor>, ExecutionError> {
+    ) -> Result<Box<dyn Processor>, BoxedError> {
         todo!()
     }
 }
@@ -177,14 +171,14 @@ impl SinkFactory<NoneContext> for TestSinkFactory {
     fn prepare(
         &self,
         _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), ExecutionError> {
+    ) -> Result<(), BoxedError> {
         Ok(())
     }
 
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn crate::node::Sink>, ExecutionError> {
+    ) -> Result<Box<dyn crate::node::Sink>, BoxedError> {
         todo!()
     }
 }

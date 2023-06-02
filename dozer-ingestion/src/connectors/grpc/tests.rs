@@ -1,6 +1,8 @@
+use std::collections::HashMap;
 use std::{sync::Arc, thread};
 
 use crate::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
+use dozer_types::arrow_types::to_arrow::DOZER_SCHEMA_KEY;
 use dozer_types::{
     arrow::array::{Int32Array, StringArray},
     grpc_types::{
@@ -9,6 +11,7 @@ use dozer_types::{
     },
     ingestion_types::IngestionMessageKind,
     models::connection::{Connection, ConnectionConfig},
+    serde_json,
     serde_json::Value,
     types::Operation,
 };
@@ -17,6 +20,9 @@ use dozer_types::{
     arrow_types::from_arrow::serialize_record_batch,
 };
 
+use dozer_types::json_types::JsonValue as dozer_JsonValue;
+use dozer_types::ordered_float::OrderedFloat;
+use dozer_types::types::{FieldDefinition, FieldType, Schema as DozerSchema, SourceDefinition};
 use dozer_types::{
     ingestion_types::{GrpcConfig, GrpcConfigSchemas},
     serde_json::json,
@@ -112,12 +118,12 @@ async fn ingest_grpc_default() {
         .unwrap();
 
     let msg = iterator.next().unwrap();
-    assert!(msg.identifier.seq_in_tx == 1, "seq_no should be 1");
+    assert_eq!(msg.identifier.seq_in_tx, 1, "seq_no should be 1");
 
     if let IngestionMessageKind::OperationEvent(op) = msg.kind {
         if let Operation::Insert { new: record } = op {
-            assert!(record.values[0].as_int() == Some(1675));
-            assert!(record.values[1].as_string() == Some("dario"));
+            assert_eq!(record.values[0].as_int(), Some(1675));
+            assert_eq!(record.values[1].as_string(), Some("dario"));
         } else {
             panic!("wrong operation kind");
         }
@@ -148,6 +154,39 @@ async fn test_serialize_arrow_schema() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn ingest_grpc_arrow() {
+    let schema_str = serde_json::to_string(
+        &DozerSchema::empty()
+            .field(
+                FieldDefinition::new(
+                    "id".to_string(),
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                true,
+            )
+            .field(
+                FieldDefinition::new(
+                    "name".to_string(),
+                    FieldType::String,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .field(
+                FieldDefinition::new(
+                    "json".to_string(),
+                    FieldType::Json,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+    )
+    .expect("Schema can always be serialized as JSON");
+
     let schemas = json!([{
       "name": "users",
       "schema": {
@@ -167,25 +206,41 @@ async fn ingest_grpc_arrow() {
             "dict_id": 0,
             "dict_is_ordered": false,
             "metadata": {}
+          },
+          {
+            "name": "json",
+            "data_type": "Utf8",
+            "nullable": true,
+            "dict_id": 0,
+            "dict_is_ordered": false,
+            "metadata": {}
           }
         ],
-        "metadata": {}
+        "metadata": { DOZER_SCHEMA_KEY.to_string() : schema_str }
       }
     }]);
 
     let (mut ingest_client, mut iterator) = ingest_grpc(schemas, "arrow".to_string(), 45679).await;
 
     // Ingest a record
-    let schema = arrow_types::Schema::new(vec![
-        arrow_types::Field::new("id", arrow_types::DataType::Int32, false),
-        arrow_types::Field::new("name", arrow_types::DataType::Utf8, false),
-    ]);
+    let schema = arrow_types::Schema::new_with_metadata(
+        vec![
+            arrow_types::Field::new("id", arrow_types::DataType::Int32, false),
+            arrow_types::Field::new("name", arrow_types::DataType::Utf8, false),
+            arrow_types::Field::new("json", arrow_types::DataType::Utf8, false),
+        ],
+        HashMap::from([(DOZER_SCHEMA_KEY.to_string(), schema_str)]),
+    );
 
     let a = Int32Array::from_iter([1675, 1676, 1677]);
     let b = StringArray::from_iter_values(vec!["dario", "mario", "vario"]);
+    let c = StringArray::from_iter_values(vec!["[1, 2, 3]", "{'a': 'b'}", "s"]);
 
-    let record_batch =
-        RecordBatch::try_new(Arc::new(schema), vec![Arc::new(a), Arc::new(b)]).unwrap();
+    let record_batch = RecordBatch::try_new(
+        Arc::new(schema),
+        vec![Arc::new(a), Arc::new(b), Arc::new(c)],
+    )
+    .unwrap();
 
     ingest_client
         .ingest_arrow(IngestArrowRequest {
@@ -198,12 +253,20 @@ async fn ingest_grpc_arrow() {
         .unwrap();
 
     let msg = iterator.next().unwrap();
-    assert!(msg.identifier.seq_in_tx == 1, "seq_no should be 1");
+    assert_eq!(msg.identifier.seq_in_tx, 1, "seq_no should be 1");
 
     if let IngestionMessageKind::OperationEvent(op) = msg.kind {
         if let Operation::Insert { new: record } = op {
-            assert!(record.values[0].as_int() == Some(1675));
-            assert!(record.values[1].as_string() == Some("dario"));
+            assert_eq!(record.values[0].as_int(), Some(1675));
+            assert_eq!(record.values[1].as_string(), Some("dario"));
+            assert_eq!(
+                record.values[2].as_json(),
+                Some(&dozer_JsonValue::Array(vec![
+                    dozer_JsonValue::Number(OrderedFloat(1_f64)),
+                    dozer_JsonValue::Number(OrderedFloat(2_f64)),
+                    dozer_JsonValue::Number(OrderedFloat(3_f64)),
+                ]))
+            );
         } else {
             panic!("wrong operation kind");
         }

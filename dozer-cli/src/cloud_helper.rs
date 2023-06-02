@@ -1,9 +1,9 @@
-use crate::errors::DeployError::{CannotReadConfig, CannotReadFile, WrongPatternOfConfigFilesGlob};
+use crate::errors::CloudError::{CannotReadConfig, CannotReadFile, WrongPatternOfConfigFilesGlob};
 use dozer_types::grpc_types::cloud::File;
 use glob::glob;
 use std::fs;
 
-pub fn list_files() -> Result<Vec<File>, crate::errors::DeployError> {
+pub fn list_files() -> Result<Vec<File>, crate::errors::CloudError> {
     let mut files = vec![];
     let patterns = ["*.yaml", "*.sql"];
     for pattern in patterns {
@@ -12,7 +12,7 @@ pub fn list_files() -> Result<Vec<File>, crate::errors::DeployError> {
         for entry in files_glob {
             let path = entry.map_err(CannotReadFile)?;
             files.push(File {
-                name: format!("{:?}", path.clone().display()),
+                name: path.clone().to_str().unwrap().to_string(),
                 content: fs::read_to_string(path.clone()).map_err(|e| CannotReadConfig(path, e))?,
             });
         }

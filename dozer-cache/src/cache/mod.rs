@@ -1,4 +1,5 @@
 mod lmdb;
+use std::collections::HashSet;
 use std::fmt::Debug;
 
 use self::expression::QueryExpression;
@@ -66,6 +67,7 @@ pub trait RwCacheManager: RoCacheManager {
         labels: Labels,
         schema: Schema,
         indexes: Vec<IndexDefinition>,
+        connections: &HashSet<String>,
         write_options: CacheWriteOptions,
     ) -> Result<Box<dyn RwCache>, CacheError>;
 
@@ -89,6 +91,7 @@ pub trait RoCache: Send + Sync + Debug {
 
     // Cache metadata
     fn get_metadata(&self) -> Result<Option<u64>, CacheError>;
+    fn is_snapshotting_done(&self) -> Result<bool, CacheError>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -138,6 +141,8 @@ pub trait RwCache: RoCache {
 
     /// Sets the metadata of the cache. Implicitly starts a transaction if there's no active transaction.
     fn set_metadata(&mut self, metadata: u64) -> Result<(), CacheError>;
+    fn set_connection_snapshotting_done(&mut self, connection_name: &str)
+        -> Result<(), CacheError>;
 
     /// Commits the current transaction.
     fn commit(&mut self) -> Result<(), CacheError>;

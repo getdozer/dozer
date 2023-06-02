@@ -1,4 +1,4 @@
-use dozer_orchestrator::cli::load_config_from_file;
+use dozer_cli::cli::load_config_from_file;
 use dozer_types::constants::DEFAULT_CONFIG_PATH;
 use std::{
     collections::HashMap,

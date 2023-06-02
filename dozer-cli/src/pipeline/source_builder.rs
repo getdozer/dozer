@@ -4,7 +4,6 @@ use dozer_core::appsource::{AppSource, AppSourceManager};
 use dozer_ingestion::connectors::TableInfo;
 use dozer_sql::pipeline::builder::SchemaSQLContext;
 
-use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
 use dozer_types::indicatif::MultiProgress;
 use dozer_types::models::connection::Connection;
 use dozer_types::models::source::Source;
@@ -15,7 +14,6 @@ use tokio::runtime::Runtime;
 pub struct SourceBuilder<'a> {
     grouped_connections: HashMap<Connection, Vec<Source>>,
     progress: Option<&'a MultiProgress>,
-    notifier: Option<PipelineEventSenders>,
 }
 
 const SOURCE_PORTS_RANGE_START: u16 = 1000;
@@ -24,12 +22,10 @@ impl<'a> SourceBuilder<'a> {
     pub fn new(
         grouped_connections: HashMap<Connection, Vec<Source>>,
         progress: Option<&'a MultiProgress>,
-        notifier: Option<PipelineEventSenders>,
     ) -> Self {
         Self {
             grouped_connections,
             progress,
-            notifier,
         }
     }
 
@@ -77,7 +73,6 @@ impl<'a> SourceBuilder<'a> {
                 connection.clone(),
                 runtime.clone(),
                 self.progress.cloned(),
-                self.notifier.clone(),
             ))?;
 
             asm.add(AppSource::new(

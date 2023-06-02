@@ -1,14 +1,14 @@
 use clap::Parser;
 #[cfg(feature = "cloud")]
-use dozer_orchestrator::cli::cloud::CloudCommands;
-use dozer_orchestrator::cli::generate_config_repl;
-use dozer_orchestrator::cli::types::{ApiCommands, AppCommands, Cli, Commands, ConnectorCommands};
-use dozer_orchestrator::cli::{init_dozer, init_dozer_with_default_config, list_sources, LOGO};
-use dozer_orchestrator::errors::{CliError, OrchestrationError};
-use dozer_orchestrator::simple::SimpleOrchestrator;
+use dozer_cli::cli::cloud::CloudCommands;
+use dozer_cli::cli::generate_config_repl;
+use dozer_cli::cli::types::{ApiCommands, AppCommands, Cli, Commands, ConnectorCommands};
+use dozer_cli::cli::{init_dozer, init_dozer_with_default_config, list_sources, LOGO};
+use dozer_cli::errors::{CliError, OrchestrationError};
+use dozer_cli::simple::SimpleOrchestrator;
 #[cfg(feature = "cloud")]
-use dozer_orchestrator::CloudOrchestrator;
-use dozer_orchestrator::{set_ctrl_handler, set_panic_hook, shutdown, Orchestrator};
+use dozer_cli::CloudOrchestrator;
+use dozer_cli::{set_ctrl_handler, set_panic_hook, shutdown, Orchestrator};
 use dozer_types::models::telemetry::TelemetryConfig;
 use dozer_types::tracing::{error, info};
 use serde::Deserialize;
@@ -61,10 +61,12 @@ fn compare_versions(v1: Vec<i32>, v2: Vec<i32>) -> bool {
 
 async fn check_update() {
     const VERSION: &str = env!("CARGO_PKG_VERSION");
+    let dozer_env = std::env::var("DOZER_ENV").unwrap_or("local".to_string());
     let query = vec![
         ("version", VERSION),
         ("build", std::env::consts::ARCH),
         ("os", std::env::consts::OS),
+        ("env", &dozer_env),
     ];
 
     let request_url = "https://metadata.dev.getdozer.io/";
@@ -148,7 +150,7 @@ fn run() -> Result<(), OrchestrationError> {
                 }
             },
             Commands::Connector(sources) => match sources.command {
-                ConnectorCommands::Ls => list_sources(&cli.config_path),
+                ConnectorCommands::Ls => list_sources(&cli.config_path, cli.config_token),
             },
             Commands::Migrate(migrate) => {
                 let force = migrate.force.is_some();
@@ -158,12 +160,16 @@ fn run() -> Result<(), OrchestrationError> {
             Commands::Clean => dozer.clean(),
             #[cfg(feature = "cloud")]
             Commands::Cloud(cloud) => match cloud.command.clone() {
-                CloudCommands::Deploy => dozer.deploy(cloud),
-                CloudCommands::List => dozer.list(cloud),
-                CloudCommands::Status(ref app) => dozer.status(cloud, app.app_id.clone()),
-                CloudCommands::Monitor(ref app) => dozer.monitor(cloud, app.app_id.clone()),
-                CloudCommands::Update(ref app) => dozer.update(cloud, app.app_id.clone()),
-                CloudCommands::Delete(ref app) => dozer.delete(cloud, app.app_id.clone()),
+                CloudCommands::Deploy(deploy) => dozer.deploy(cloud, deploy),
+                CloudCommands::List(list) => dozer.list(cloud, list),
+                CloudCommands::Status(app) => dozer.status(cloud, app.app_id),
+                CloudCommands::Monitor(app) => dozer.monitor(cloud, app.app_id),
+                CloudCommands::Update(update) => dozer.update(cloud, update),
+                CloudCommands::Delete(app) => dozer.delete(cloud, app.app_id),
+                CloudCommands::Logs(logs) => dozer.trace_logs(cloud, logs),
+                CloudCommands::Version(version) => dozer.version(cloud, version),
+                CloudCommands::Api(api) => dozer.api(cloud, api),
+                CloudCommands::Login(company) => dozer.login(cloud, company.company_name),
             },
             Commands::Init => {
                 panic!("This should not happen as it is handled in parse_and_generate");
@@ -204,7 +210,7 @@ fn init_orchestrator(
         let res = if is_cloud_orchestrator {
             init_dozer_with_default_config()
         } else {
-            init_dozer(cli.config_path.clone())
+            init_dozer(cli.config_path.clone(), cli.config_token.clone())
         };
 
         match res {
@@ -220,11 +226,12 @@ fn init_orchestrator(
     })
 }
 
-struct Telemetry(dozer_tracing::WorkerGuard);
+struct Telemetry();
 
 impl Telemetry {
     fn new(app_name: Option<&str>, config: Option<TelemetryConfig>) -> Self {
-        Self(dozer_tracing::init_telemetry(app_name, config))
+        dozer_tracing::init_telemetry(app_name, config);
+        Self()
     }
 }
 

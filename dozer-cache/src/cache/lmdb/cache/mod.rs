@@ -1,5 +1,6 @@
 use dozer_types::labels::Labels;
 use dozer_types::parking_lot::Mutex;
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::{fmt::Debug, sync::Arc};
 
@@ -82,11 +83,12 @@ pub struct LmdbRwCache {
 impl LmdbRwCache {
     pub fn new(
         schema: Option<&SchemaWithIndex>,
+        connections: Option<&HashSet<String>>,
         options: &CacheOptions,
         write_options: CacheWriteOptions,
         indexing_thread_pool: Arc<Mutex<IndexingThreadPool>>,
     ) -> Result<Self, CacheError> {
-        let rw_main_env = RwMainEnvironment::new(schema, options, write_options)?;
+        let rw_main_env = RwMainEnvironment::new(schema, connections, options, write_options)?;
 
         let options = CacheOptions {
             path: Some((
@@ -145,6 +147,10 @@ impl<C: LmdbCache> RoCache for C {
     fn get_metadata(&self) -> Result<Option<u64>, CacheError> {
         self.main_env().metadata()
     }
+
+    fn is_snapshotting_done(&self) -> Result<bool, CacheError> {
+        self.main_env().is_snapshotting_done()
+    }
 }
 
 impl RwCache for LmdbRwCache {
@@ -164,6 +170,14 @@ impl RwCache for LmdbRwCache {
 
     fn set_metadata(&mut self, metadata: u64) -> Result<(), CacheError> {
         self.main_env.set_metadata(metadata)
+    }
+
+    fn set_connection_snapshotting_done(
+        &mut self,
+        connection_name: &str,
+    ) -> Result<(), CacheError> {
+        self.main_env
+            .set_connection_snapshotting_done(connection_name)
     }
 
     fn commit(&mut self) -> Result<(), CacheError> {

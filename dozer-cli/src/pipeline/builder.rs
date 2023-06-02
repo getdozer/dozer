@@ -3,7 +3,6 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
 use dozer_core::app::App;
 use dozer_core::app::AppPipeline;
 use dozer_core::executor::DagExecutor;
@@ -185,7 +184,6 @@ impl<'a> PipelineBuilder<'a> {
         self,
         runtime: Arc<Runtime>,
         settings: LogSinkSettings,
-        notifier: Option<PipelineEventSenders>,
     ) -> Result<dozer_core::Dag<SchemaSQLContext>, OrchestrationError> {
         let calculated_sources = self.calculate_sources()?;
 
@@ -225,8 +223,7 @@ impl<'a> PipelineBuilder<'a> {
             }
         }
 
-        let source_builder =
-            SourceBuilder::new(grouped_connections, Some(&self.progress), notifier.clone());
+        let source_builder = SourceBuilder::new(grouped_connections, Some(&self.progress));
 
         let conn_ports = source_builder.get_ports();
 
@@ -242,22 +239,19 @@ impl<'a> PipelineBuilder<'a> {
                 settings.clone(),
                 api_endpoint.name.clone(),
                 self.progress.clone(),
-                notifier.clone(),
             ));
 
             match table_info {
                 OutputTableInfo::Transformed(table_info) => {
                     pipeline.add_sink(snk_factory, api_endpoint.name.as_str());
 
-                    pipeline
-                        .connect_nodes(
-                            &table_info.node,
-                            Some(table_info.port),
-                            api_endpoint.name.as_str(),
-                            Some(DEFAULT_PORT_HANDLE),
-                            true,
-                        )
-                        .map_err(ExecutionError)?;
+                    pipeline.connect_nodes(
+                        &table_info.node,
+                        Some(table_info.port),
+                        api_endpoint.name.as_str(),
+                        Some(DEFAULT_PORT_HANDLE),
+                        true,
+                    );
                 }
                 OutputTableInfo::Original(table_info) => {
                     pipeline.add_sink(snk_factory, api_endpoint.name.as_str());
@@ -269,15 +263,13 @@ impl<'a> PipelineBuilder<'a> {
                         ))
                         .expect("port should be present based on source mapping");
 
-                    pipeline
-                        .connect_nodes(
-                            &table_info.connection_name,
-                            Some(*conn_port),
-                            api_endpoint.name.as_str(),
-                            Some(DEFAULT_PORT_HANDLE),
-                            false,
-                        )
-                        .map_err(ExecutionError)?;
+                    pipeline.connect_nodes(
+                        &table_info.connection_name,
+                        Some(*conn_port),
+                        api_endpoint.name.as_str(),
+                        Some(DEFAULT_PORT_HANDLE),
+                        false,
+                    );
                 }
             }
         }

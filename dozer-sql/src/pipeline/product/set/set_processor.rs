@@ -2,9 +2,9 @@ use crate::pipeline::errors::{PipelineError, ProductError};
 use bloom::CountingBloomFilter;
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::epoch::Epoch;
-use dozer_core::errors::ExecutionError;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
+use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::{Operation, Record};
 use std::collections::hash_map::RandomState;
 use std::fmt::{Debug, Formatter};
@@ -83,7 +83,7 @@ impl Debug for SetProcessor {
 }
 
 impl Processor for SetProcessor {
-    fn commit(&self, _epoch: &Epoch) -> Result<(), ExecutionError> {
+    fn commit(&self, _epoch: &Epoch) -> Result<(), BoxedError> {
         Ok(())
     }
 
@@ -92,52 +92,47 @@ impl Processor for SetProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-    ) -> Result<(), ExecutionError> {
+    ) -> Result<(), BoxedError> {
         match op {
             Operation::Delete { ref old } => {
-                let records = self
-                    .delete(old)
-                    .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
+                let records = self.delete(old).map_err(PipelineError::ProductError)?;
 
                 for (action, record) in records.into_iter() {
                     match action {
                         SetAction::Insert => {
-                            let _ = fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
                         }
                         SetAction::Delete => {
-                            let _ = fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
                         }
                     }
                 }
             }
             Operation::Insert { ref new } => {
-                let records = self
-                    .insert(new)
-                    .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
+                let records = self.insert(new).map_err(PipelineError::ProductError)?;
 
                 for (action, record) in records.into_iter() {
                     match action {
                         SetAction::Insert => {
-                            let _ = fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
                         }
                         SetAction::Delete => {
-                            let _ = fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
                         }
                     }
                 }
             }
             Operation::Update { ref old, ref new } => {
-                let (old_records, new_records) = self
-                    .update(old, new)
-                    .map_err(|err| ExecutionError::ProductProcessorError(Box::new(err)))?;
+                let (old_records, new_records) =
+                    self.update(old, new).map_err(PipelineError::ProductError)?;
 
                 for (action, old) in old_records.into_iter() {
                     match action {
                         SetAction::Insert => {
-                            let _ = fw.send(Operation::Insert { new: old }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Insert { new: old }, DEFAULT_PORT_HANDLE);
                         }
                         SetAction::Delete => {
-                            let _ = fw.send(Operation::Delete { old }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Delete { old }, DEFAULT_PORT_HANDLE);
                         }
                     }
                 }
@@ -145,10 +140,10 @@ impl Processor for SetProcessor {
                 for (action, new) in new_records.into_iter() {
                     match action {
                         SetAction::Insert => {
-                            let _ = fw.send(Operation::Insert { new }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Insert { new }, DEFAULT_PORT_HANDLE);
                         }
                         SetAction::Delete => {
-                            let _ = fw.send(Operation::Delete { old: new }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Delete { old: new }, DEFAULT_PORT_HANDLE);
                         }
                     }
                 }

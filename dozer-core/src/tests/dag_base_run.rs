@@ -1,6 +1,5 @@
 use crate::channels::ProcessorChannelForwarder;
 use crate::dag_schemas::DagSchemas;
-use crate::errors::ExecutionError;
 use crate::executor::{DagExecutor, ExecutorOptions};
 use crate::node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory};
 use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
@@ -11,6 +10,7 @@ use crate::tests::sources::{
 };
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use dozer_types::epoch::Epoch;
+use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
 use dozer_types::types::{Operation, Schema};
 
@@ -30,7 +30,7 @@ impl ProcessorFactory<NoneContext> for NoopProcessorFactory {
         &self,
         _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(Schema, NoneContext), ExecutionError> {
+    ) -> Result<(Schema, NoneContext), BoxedError> {
         Ok(input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap().clone())
     }
 
@@ -49,7 +49,7 @@ impl ProcessorFactory<NoneContext> for NoopProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Processor>, ExecutionError> {
+    ) -> Result<Box<dyn Processor>, BoxedError> {
         Ok(Box::new(NoopProcessor {}))
     }
 }
@@ -58,7 +58,7 @@ impl ProcessorFactory<NoneContext> for NoopProcessorFactory {
 pub(crate) struct NoopProcessor {}
 
 impl Processor for NoopProcessor {
-    fn commit(&self, _epoch_details: &Epoch) -> Result<(), ExecutionError> {
+    fn commit(&self, _epoch_details: &Epoch) -> Result<(), BoxedError> {
         Ok(())
     }
 
@@ -67,8 +67,9 @@ impl Processor for NoopProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-    ) -> Result<(), ExecutionError> {
-        fw.send(op, DEFAULT_PORT_HANDLE)
+    ) -> Result<(), BoxedError> {
+        fw.send(op, DEFAULT_PORT_HANDLE);
+        Ok(())
     }
 }
 
@@ -170,7 +171,7 @@ impl ProcessorFactory<NoneContext> for NoopJoinProcessorFactory {
         &self,
         _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(Schema, NoneContext), ExecutionError> {
+    ) -> Result<(Schema, NoneContext), BoxedError> {
         Ok(input_schemas.get(&1).unwrap().clone())
     }
 
@@ -189,7 +190,7 @@ impl ProcessorFactory<NoneContext> for NoopJoinProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Processor>, ExecutionError> {
+    ) -> Result<Box<dyn Processor>, BoxedError> {
         Ok(Box::new(NoopJoinProcessor {}))
     }
 }
@@ -198,7 +199,7 @@ impl ProcessorFactory<NoneContext> for NoopJoinProcessorFactory {
 pub(crate) struct NoopJoinProcessor {}
 
 impl Processor for NoopJoinProcessor {
-    fn commit(&self, _epoch_details: &Epoch) -> Result<(), ExecutionError> {
+    fn commit(&self, _epoch_details: &Epoch) -> Result<(), BoxedError> {
         Ok(())
     }
 
@@ -207,8 +208,9 @@ impl Processor for NoopJoinProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-    ) -> Result<(), ExecutionError> {
-        fw.send(op, DEFAULT_PORT_HANDLE)
+    ) -> Result<(), BoxedError> {
+        fw.send(op, DEFAULT_PORT_HANDLE);
+        Ok(())
     }
 }
 

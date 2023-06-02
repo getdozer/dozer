@@ -162,7 +162,7 @@ fn insert_table_operator_processor_to_pipeline(
             &product_processor_name,
             Some(DEFAULT_PORT_HANDLE),
             true,
-        )?;
+        );
 
         Ok(ConnectionInfo {
             input_nodes,
@@ -206,7 +206,7 @@ fn insert_table_operator_processor_to_pipeline(
             &product_processor_name,
             Some(DEFAULT_PORT_HANDLE),
             true,
-        )?;
+        );
 
         Ok(ConnectionInfo {
             input_nodes,

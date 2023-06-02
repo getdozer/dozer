@@ -2,7 +2,6 @@ use dozer_cache::dozer_log::home_dir::HomeDir;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use tokio::runtime::Runtime;
 
-use dozer_api::grpc::internal::internal_pipeline_server::PipelineEventSenders;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
@@ -78,7 +77,6 @@ impl<'a> Executor<'a> {
         runtime: Arc<Runtime>,
         settings: LogSinkSettings,
         executor_options: ExecutorOptions,
-        notifier: Option<PipelineEventSenders>,
     ) -> Result<DagExecutor, OrchestrationError> {
         let builder = PipelineBuilder::new(
             self.connections,
@@ -88,7 +86,7 @@ impl<'a> Executor<'a> {
             self.multi_pb.clone(),
         );
 
-        let dag = builder.build(runtime, settings, notifier)?;
+        let dag = builder.build(runtime, settings)?;
         let exec = DagExecutor::new(dag, executor_options)?;
 
         Ok(exec)

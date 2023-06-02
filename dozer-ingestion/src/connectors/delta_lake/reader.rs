@@ -3,7 +3,7 @@ use crate::connectors::TableInfo;
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
 use deltalake::datafusion::prelude::SessionContext;
-use dozer_types::arrow_types::from_arrow::map_value_to_dozer_field;
+use dozer_types::arrow_types::from_arrow::{map_schema_to_dozer, map_value_to_dozer_field};
 use dozer_types::ingestion_types::{DeltaLakeConfig, IngestionMessage};
 use dozer_types::types::{Operation, Record, SchemaIdentifier};
 use futures::StreamExt;
@@ -47,14 +47,15 @@ impl DeltaLakeReader {
         tokio::pin!(data);
         while let Some(Ok(batch)) = data.next().await {
             let batch_schema = batch.schema();
-            let metadata = batch_schema.metadata();
+            let dozer_schema = map_schema_to_dozer(&batch_schema)
+                .map_err(|e| ConnectorError::InternalError(Box::new(e)))?;
             for row in 0..batch.num_rows() {
                 let fields = batch
                     .columns()
                     .iter()
                     .enumerate()
                     .map(|(col, column)| {
-                        map_value_to_dozer_field(column, &row, cols[col], metadata).unwrap()
+                        map_value_to_dozer_field(column, &row, cols[col], &dozer_schema).unwrap()
                     })
                     .collect::<Vec<_>>();
 

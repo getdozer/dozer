@@ -1,6 +1,6 @@
 #![allow(clippy::enum_variant_names)]
 
-use dozer_core::errors::ExecutionError;
+use dozer_core::node::PortHandle;
 use dozer_types::chrono::RoundingError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::TypeError;
@@ -33,6 +33,8 @@ pub enum PipelineError {
     InvalidOperandType(String),
     #[error("Invalid input type. Reason: {0}")]
     InvalidInputType(String),
+    #[error("Invalid return type: {0}")]
+    InvalidReturnType(String),
     #[error("Invalid function: {0}")]
     InvalidFunction(String),
     #[error("Invalid operator: {0}")]
@@ -87,8 +89,6 @@ pub enum PipelineError {
     // Error forwarding
     #[error("Internal type error: {0}")]
     InternalTypeError(#[from] TypeError),
-    #[error("Internal execution error: {0}")]
-    InternalExecutionError(#[from] ExecutionError),
     #[error("Internal error: {0}")]
     InternalError(#[from] BoxedError),
 
@@ -97,6 +97,9 @@ pub enum PipelineError {
 
     #[error("Join: {0}")]
     JoinError(#[from] JoinError),
+
+    #[error("Product: {0}")]
+    ProductError(#[from] ProductError),
 
     #[error("Set: {0}")]
     SetError(#[from] SetError),
@@ -152,6 +155,11 @@ pub enum PipelineError {
 
     #[error("Window: {0}")]
     TableOperatorError(#[from] TableOperatorError),
+
+    #[error("Invalid port handle: {0}")]
+    InvalidPortHandle(PortHandle),
+    #[error("JOIN processor received a Record from a wrong input: {0}")]
+    InvalidPort(u16),
 }
 
 #[cfg(feature = "python")]
@@ -217,10 +225,6 @@ pub enum SetError {
     DatabaseUnavailable,
     #[error("History unavailable for SET source [{0}]")]
     HistoryUnavailable(u16),
-    #[error(
-        "Record with key: {0:x?} version: {1} not available in History for SET source[{2}]\n{3}"
-    )]
-    HistoryRecordNotFound(Vec<u8>, u32, u16, dozer_core::errors::ExecutionError),
 }
 
 #[derive(Error, Debug)]

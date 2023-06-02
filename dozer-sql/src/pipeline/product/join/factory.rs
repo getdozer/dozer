@@ -1,19 +1,21 @@
 use std::collections::HashMap;
 
 use dozer_core::{
-    errors::ExecutionError,
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
-use dozer_types::types::{FieldDefinition, Record, Schema};
+use dozer_types::{
+    errors::internal::BoxedError,
+    types::{FieldDefinition, Record, Schema},
+};
 use sqlparser::ast::{
     BinaryOperator, Expr as SqlExpr, Ident, JoinConstraint as SqlJoinConstraint,
     JoinOperator as SqlJoinOperator,
 };
 
-use crate::pipeline::expression::builder::ExpressionBuilder;
 use crate::pipeline::{builder::SchemaSQLContext, expression::builder::extend_schema_source_def};
 use crate::pipeline::{errors::JoinError, expression::builder::NameOrAlias};
+use crate::pipeline::{errors::PipelineError, expression::builder::ExpressionBuilder};
 
 use super::{
     operator::{JoinOperator, JoinType},
@@ -60,10 +62,10 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
         &self,
         _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
+    ) -> Result<(Schema, SchemaSQLContext), BoxedError> {
         let (mut left_schema, _) = input_schemas
             .get(&LEFT_JOIN_PORT)
-            .ok_or(ExecutionError::InternalError(
+            .ok_or(PipelineError::InternalError(
                 "Invalid Product".to_string().into(),
             ))?
             .clone();
@@ -74,7 +76,7 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
 
         let (mut right_schema, _) = input_schemas
             .get(&RIGHT_JOIN_PORT)
-            .ok_or(ExecutionError::InternalError(
+            .ok_or(PipelineError::InternalError(
                 "Invalid Product".to_string().into(),
             ))?
             .clone();
@@ -92,24 +94,20 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
-    ) -> Result<Box<dyn Processor>, ExecutionError> {
+    ) -> Result<Box<dyn Processor>, BoxedError> {
         let (join_type, join_constraint) = match &self.join_operator {
             SqlJoinOperator::Inner(constraint) => (JoinType::Inner, constraint),
             SqlJoinOperator::LeftOuter(constraint) => (JoinType::LeftOuter, constraint),
             SqlJoinOperator::RightOuter(constraint) => (JoinType::RightOuter, constraint),
-            _ => {
-                return Err(ExecutionError::InternalError(Box::new(
-                    JoinError::UnsupportedJoinType,
-                )))
-            }
+            _ => return Err(PipelineError::JoinError(JoinError::UnsupportedJoinType).into()),
         };
 
         let expression = match join_constraint {
             SqlJoinConstraint::On(expression) => expression,
             _ => {
-                return Err(ExecutionError::InternalError(Box::new(
-                    JoinError::UnsupportedJoinConstraintType,
-                )))
+                return Err(
+                    PipelineError::JoinError(JoinError::UnsupportedJoinConstraintType).into(),
+                )
             }
         };
 
@@ -120,7 +118,7 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
 
         let mut left_schema = input_schemas
             .get(&LEFT_JOIN_PORT)
-            .ok_or(ExecutionError::InternalError(
+            .ok_or(PipelineError::InternalError(
                 "Invalid Product".to_string().into(),
             ))?
             .clone();
@@ -141,7 +139,7 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
 
         let mut right_schema = input_schemas
             .get(&RIGHT_JOIN_PORT)
-            .ok_or(ExecutionError::InternalError(
+            .ok_or(PipelineError::InternalError(
                 "Invalid Product".to_string().into(),
             ))?
             .clone();
@@ -161,8 +159,7 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
         };
 
         let (left_join_key_indexes, right_join_key_indexes) =
-            parse_join_constraint(expression, &left_schema, &right_schema)
-                .map_err(|err| ExecutionError::InternalError(Box::new(err)))?;
+            parse_join_constraint(expression, &left_schema, &right_schema)?;
 
         let join_operator = JoinOperator::new(
             join_type,

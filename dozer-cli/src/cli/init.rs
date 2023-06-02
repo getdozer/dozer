@@ -1,4 +1,6 @@
 use crate::errors::{CliError, OrchestrationError};
+use dozer_types::constants::{DEFAULT_LAMBDAS_DIRECTORY, DEFAULT_QUERIES_DIRECTORY};
+use dozer_types::log::warn;
 use dozer_types::models::app_config::{default_cache_dir, default_home_dir, get_cache_dir};
 use dozer_types::{
     constants::DEFAULT_CONFIG_PATH,
@@ -10,12 +12,14 @@ use dozer_types::{
     },
     serde_yaml,
 };
+use rustyline::history::DefaultHistory;
 use rustyline::{
     completion::{Completer, Pair},
     Context,
 };
 use rustyline::{error::ReadlineError, Editor};
 use rustyline_derive::{Helper, Highlighter, Hinter, Validator};
+use std::path::{Path, PathBuf};
 
 #[derive(Helper, Highlighter, Hinter, Validator)]
 pub struct InitHelper {}
@@ -121,7 +125,7 @@ type Question = (
     Box<dyn Fn((String, &mut Config)) -> Result<(), OrchestrationError>>,
 );
 pub fn generate_config_repl() -> Result<(), OrchestrationError> {
-    let mut rl = Editor::<InitHelper>::new()
+    let mut rl = Editor::<InitHelper, DefaultHistory>::new()
         .map_err(|e| OrchestrationError::CliError(CliError::ReadlineError(e)))?;
     rl.set_helper(Some(InitHelper {}));
     let mut default_config = Config::default();
@@ -188,6 +192,20 @@ pub fn generate_config_repl() -> Result<(), OrchestrationError> {
                     .map_err(OrchestrationError::FailedToWriteConfigYaml)?;
                 info!("\nGenerating configuration at: {}\n• More details about our config: https://getdozer.io/docs/reference/configuration/introduction\n• Connector & Sources: https://getdozer.io/docs/reference/configuration/connectors\n• Endpoints: https://getdozer.io/docs/reference/configuration/endpoints/",
                    yaml_path.to_owned());
+
+                let path = PathBuf::from(yaml_path);
+                if let Some(dir) = path.parent() {
+                    let queries_path = Path::new(dir).join(DEFAULT_QUERIES_DIRECTORY);
+                    if let Err(_e) = std::fs::create_dir(queries_path) {
+                        warn!("Cannot create queries directory");
+                    }
+
+                    let lambdas_path = Path::new(dir).join(DEFAULT_LAMBDAS_DIRECTORY);
+                    if let Err(_e) = std::fs::create_dir(lambdas_path) {
+                        warn!("Cannot create lambdas directory");
+                    }
+                }
+
                 Ok(())
             }),
         ),

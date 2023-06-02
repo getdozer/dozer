@@ -104,46 +104,38 @@ pub(crate) fn insert_join_to_pipeline(
 
         match left_join_source {
             JoinSource::Table(_) => {}
-            JoinSource::Operator(ref connection_info) => pipeline
-                .connect_nodes(
-                    &connection_info.output_node.0,
-                    Some(connection_info.output_node.1),
-                    &join_processor_name,
-                    Some(LEFT_JOIN_PORT),
-                    true,
-                )
-                .map_err(PipelineError::InternalExecutionError)?,
-            JoinSource::Join(ref connection_info) => pipeline
-                .connect_nodes(
-                    &connection_info.output_node.0,
-                    Some(connection_info.output_node.1),
-                    &join_processor_name,
-                    Some(LEFT_JOIN_PORT),
-                    true,
-                )
-                .map_err(PipelineError::InternalExecutionError)?,
+            JoinSource::Operator(ref connection_info) => pipeline.connect_nodes(
+                &connection_info.output_node.0,
+                Some(connection_info.output_node.1),
+                &join_processor_name,
+                Some(LEFT_JOIN_PORT),
+                true,
+            ),
+            JoinSource::Join(ref connection_info) => pipeline.connect_nodes(
+                &connection_info.output_node.0,
+                Some(connection_info.output_node.1),
+                &join_processor_name,
+                Some(LEFT_JOIN_PORT),
+                true,
+            ),
         }
 
         match right_join_source {
             JoinSource::Table(_) => {}
-            JoinSource::Operator(connection_info) => pipeline
-                .connect_nodes(
-                    &connection_info.output_node.0,
-                    Some(connection_info.output_node.1),
-                    &join_processor_name,
-                    Some(RIGHT_JOIN_PORT),
-                    true,
-                )
-                .map_err(PipelineError::InternalExecutionError)?,
-            JoinSource::Join(connection_info) => pipeline
-                .connect_nodes(
-                    &connection_info.output_node.0,
-                    Some(connection_info.output_node.1),
-                    &join_processor_name,
-                    Some(RIGHT_JOIN_PORT),
-                    true,
-                )
-                .map_err(PipelineError::InternalExecutionError)?,
+            JoinSource::Operator(connection_info) => pipeline.connect_nodes(
+                &connection_info.output_node.0,
+                Some(connection_info.output_node.1),
+                &join_processor_name,
+                Some(RIGHT_JOIN_PORT),
+                true,
+            ),
+            JoinSource::Join(connection_info) => pipeline.connect_nodes(
+                &connection_info.output_node.0,
+                Some(connection_info.output_node.1),
+                &join_processor_name,
+                Some(RIGHT_JOIN_PORT),
+                true,
+            ),
         }
 
         // TODO: refactor join source name and aliasing logic

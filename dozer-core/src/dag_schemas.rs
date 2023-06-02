@@ -7,7 +7,7 @@ use daggy::petgraph::visit::{EdgeRef, IntoEdges, IntoEdgesDirected, IntoNodeRefe
 use daggy::petgraph::Direction;
 use daggy::{NodeIndex, Walker};
 use dozer_types::types::Schema;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 
 use super::node::OutputPortDef;
@@ -98,23 +98,42 @@ impl<T> DagSchemas<T> {
         self.graph
     }
 
-    pub fn get_sink_schemas(&self) -> HashMap<String, Schema> {
+    /// Returns a map from the sink node id to the schema of sink.
+    ///
+    /// The schema includes:
+    ///
+    /// - The input schema on the default port, panicking if missing.
+    /// - A `Vec` of the id of source nodes ids that are ancestors of this sink.
+    pub fn get_sink_schemas(&self) -> HashMap<String, (Schema, HashSet<String>)> {
         let mut schemas = HashMap::new();
 
         for (node_index, node) in self.graph.node_references() {
             if let NodeKind::Sink(_) = &node.kind {
                 let mut input_schemas = self.get_node_input_schemas(node_index);
+                let schema = input_schemas
+                    .remove(&DEFAULT_PORT_HANDLE)
+                    .expect("Sink must have input schema on default port");
 
-                schemas.insert(
-                    node.handle.id.clone(),
-                    input_schemas
-                        .remove(&DEFAULT_PORT_HANDLE)
-                        .expect("Sink must have input schema on default port"),
-                );
+                let mut sources = Default::default();
+                self.get_ancestor_sources_rec(node_index, &mut sources);
+
+                let old_value = schemas.insert(node.handle.id.clone(), (schema, sources));
+                debug_assert!(old_value.is_none(), "Duplicate sink id");
             }
         }
 
         schemas
+    }
+
+    fn get_ancestor_sources_rec(&self, node_index: NodeIndex, sources: &mut HashSet<String>) {
+        for edge in self.graph.edges_directed(node_index, Direction::Incoming) {
+            let node_index = edge.source();
+            let node = &self.graph[node_index];
+            if let NodeKind::Source(_) = &node.kind {
+                sources.insert(node.handle.id.clone());
+            }
+            self.get_ancestor_sources_rec(node_index, sources);
+        }
     }
 }
 
@@ -225,7 +244,9 @@ fn populate_schemas<T: Clone>(
 
                 for edge in dag.graph().edges(node_index) {
                     let port = find_output_port_def(&ports, edge);
-                    let (schema, ctx) = source.get_output_schema(&port.handle)?;
+                    let (schema, ctx) = source
+                        .get_output_schema(&port.handle)
+                        .map_err(ExecutionError::Factory)?;
                     create_edge(&mut edges, edge, port, schema, ctx);
                 }
             }
@@ -238,8 +259,9 @@ fn populate_schemas<T: Clone>(
 
                 for edge in dag.graph().edges(node_index) {
                     let port = find_output_port_def(&ports, edge);
-                    let (schema, ctx) =
-                        processor.get_output_schema(&port.handle, &input_schemas)?;
+                    let (schema, ctx) = processor
+                        .get_output_schema(&port.handle, &input_schemas)
+                        .map_err(ExecutionError::Factory)?;
                     create_edge(&mut edges, edge, port, schema, ctx);
                 }
             }
@@ -247,7 +269,8 @@ fn populate_schemas<T: Clone>(
             NodeKind::Sink(sink) => {
                 let input_schemas =
                     validate_input_schemas(&dag, &edges, node_index, sink.get_input_ports())?;
-                sink.prepare(input_schemas)?;
+                sink.prepare(input_schemas)
+                    .map_err(ExecutionError::Factory)?;
             }
         }
     }

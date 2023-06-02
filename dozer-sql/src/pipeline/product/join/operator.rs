@@ -85,6 +85,14 @@ impl JoinOperator {
         }
     }
 
+    pub fn left_lookup_size(&self) -> usize {
+        self.left_map.len()
+    }
+
+    pub fn right_lookup_size(&self) -> usize {
+        self.right_map.len()
+    }
+
     fn inner_join_from_left(
         &self,
         action: &JoinAction,

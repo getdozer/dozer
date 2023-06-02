@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::path::Path;
 
 use crate::grpc::types_helper;
@@ -65,6 +66,7 @@ pub fn open_or_create_cache(
     cache_manager: &dyn RwCacheManager,
     labels: Labels,
     schema: SchemaWithIndex,
+    connections: &HashSet<String>,
     write_options: CacheWriteOptions,
 ) -> Result<Box<dyn RwCache>, CacheError> {
     match cache_manager.open_rw_cache(labels.clone(), write_options)? {
@@ -73,7 +75,13 @@ pub fn open_or_create_cache(
             Ok(cache)
         }
         None => {
-            let cache = cache_manager.create_cache(labels, schema.0, schema.1, write_options)?;
+            let cache = cache_manager.create_cache(
+                labels,
+                schema.0,
+                schema.1,
+                connections,
+                write_options,
+            )?;
             Ok(cache)
         }
     }
@@ -164,8 +172,9 @@ fn build_cache_task(
                 cache.set_metadata(offset)?;
                 cache.commit()?;
             }
-            ExecutorOperation::SnapshottingDone {} => {
+            ExecutorOperation::SnapshottingDone { connection_name } => {
                 cache.set_metadata(offset)?;
+                cache.set_connection_snapshotting_done(&connection_name)?;
                 cache.commit()?;
             }
             ExecutorOperation::Terminate => {

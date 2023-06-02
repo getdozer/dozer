@@ -6,7 +6,6 @@ use crate::pipeline::errors::{FieldTypes, PipelineError};
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::aggregate::AggregateFunctionType::Avg;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
-use dozer_core::errors::ExecutionError::InvalidType;
 use dozer_types::arrow::datatypes::ArrowNativeTypeOp;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
@@ -216,12 +215,12 @@ fn get_average(
             | FieldType::Timestamp
             | FieldType::Binary
             | FieldType::Json
-            | FieldType::Point => Err(PipelineError::InternalExecutionError(InvalidType(format!(
+            | FieldType::Point => Err(PipelineError::InvalidReturnType(format!(
                 "Not supported return type {typ} for {Avg}"
-            )))),
+            ))),
         },
-        None => Err(PipelineError::InternalExecutionError(InvalidType(format!(
+        None => Err(PipelineError::InvalidReturnType(format!(
             "Not supported None return type for {Avg}"
-        )))),
+        ))),
     }
 }

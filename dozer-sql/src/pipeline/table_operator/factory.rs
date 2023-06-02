@@ -1,16 +1,18 @@
 use std::{collections::HashMap, time::Duration};
 
 use dozer_core::{
-    errors::ExecutionError,
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
-use dozer_types::types::{DozerDuration, Schema, TimeUnit};
+use dozer_types::{
+    errors::internal::BoxedError,
+    types::{DozerDuration, Schema, TimeUnit},
+};
 use sqlparser::ast::{Expr, FunctionArg, FunctionArgExpr, Value};
 
 use crate::pipeline::{
     builder::SchemaSQLContext,
-    errors::TableOperatorError,
+    errors::{PipelineError, TableOperatorError},
     expression::{builder::ExpressionBuilder, execution::Expression},
     pipeline_builder::from_builder::TableOperatorDescriptor,
 };
@@ -68,26 +70,24 @@ impl ProcessorFactory<SchemaSQLContext> for TableOperatorProcessorFactory {
         &self,
         _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
+    ) -> Result<(Schema, SchemaSQLContext), BoxedError> {
         let (input_schema, _) = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
-            .ok_or(ExecutionError::InternalError(
-                "Invalid Table Operator".to_string().into(),
-            ))?
+            .ok_or(PipelineError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?
             .clone();
 
-        let output_schema = match operator_from_descriptor(&self.table, &input_schema)
-            .map_err(|e| ExecutionError::TableProcessorError(Box::new(e)))?
-        {
-            Some(operator) => operator
-                .get_output_schema(&input_schema)
-                .map_err(|e| ExecutionError::WindowProcessorFactoryError(Box::new(e)))?,
-            None => {
-                return Err(ExecutionError::TableProcessorError(Box::new(
-                    TableOperatorError::InternalError("Invalid Table Operator".into()),
-                )))
-            }
-        };
+        let output_schema =
+            match operator_from_descriptor(&self.table, &input_schema)? {
+                Some(operator) => operator
+                    .get_output_schema(&input_schema)
+                    .map_err(PipelineError::TableOperatorError)?,
+                None => {
+                    return Err(PipelineError::TableOperatorError(
+                        TableOperatorError::InternalError("Invalid Table Operator".into()),
+                    )
+                    .into())
+                }
+            };
 
         Ok((output_schema, SchemaSQLContext::default()))
     }
@@ -96,24 +96,25 @@ impl ProcessorFactory<SchemaSQLContext> for TableOperatorProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
-    ) -> Result<Box<dyn Processor>, ExecutionError> {
+    ) -> Result<Box<dyn Processor>, BoxedError> {
         let input_schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
-            .ok_or(ExecutionError::InternalError(
+            .ok_or(PipelineError::InternalError(
                 "Invalid Window".to_string().into(),
             ))?
             .clone();
 
-        match operator_from_descriptor(&self.table, &input_schema)
-            .map_err(|e| ExecutionError::TableProcessorError(Box::new(e)))?
-        {
+        match operator_from_descriptor(&self.table, &input_schema)? {
             Some(operator) => Ok(Box::new(TableOperatorProcessor::new(
                 operator,
                 input_schema,
             ))),
-            None => Err(ExecutionError::TableProcessorError(Box::new(
-                TableOperatorError::InternalError("Invalid Table Operator".into()),
-            ))),
+            None => Err(
+                PipelineError::TableOperatorError(TableOperatorError::InternalError(
+                    "Invalid Table Operator".into(),
+                ))
+                .into(),
+            ),
         }
     }
 }
@@ -121,16 +122,13 @@ impl ProcessorFactory<SchemaSQLContext> for TableOperatorProcessorFactory {
 pub(crate) fn operator_from_descriptor(
     descriptor: &TableOperatorDescriptor,
     schema: &Schema,
-) -> Result<Option<TableOperatorType>, ExecutionError> {
+) -> Result<Option<TableOperatorType>, PipelineError> {
     if &descriptor.name.to_uppercase() == "TTL" {
-        let operator = lifetime_from_descriptor(descriptor, schema)
-            .map_err(|e| ExecutionError::TableProcessorError(Box::new(e)))?;
+        let operator = lifetime_from_descriptor(descriptor, schema)?;
 
         Ok(Some(operator.into()))
     } else {
-        Err(ExecutionError::InternalError(
-            descriptor.name.clone().into(),
-        ))
+        Err(PipelineError::InternalError(descriptor.name.clone().into()))
     }
 }
 

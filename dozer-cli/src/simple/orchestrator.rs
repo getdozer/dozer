@@ -19,14 +19,13 @@ use dozer_cache::dozer_log::schemas::MigrationSchema;
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::DagSchemas;
 
-use dozer_api::grpc::internal::internal_pipeline_server::start_internal_pipeline_server;
 use dozer_core::errors::ExecutionError;
 use dozer_ingestion::connectors::{SourceSchema, TableInfo};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::crossbeam::channel::{self, Sender};
-use dozer_types::indicatif::MultiProgress;
-use dozer_types::log::{info, warn};
+use dozer_types::indicatif::{MultiProgress, ProgressDrawTarget};
+use dozer_types::log::info;
 use dozer_types::models::app_config::Config;
 use dozer_types::tracing::error;
 use futures::stream::FuturesUnordered;
@@ -48,10 +47,15 @@ pub struct SimpleOrchestrator {
 
 impl SimpleOrchestrator {
     pub fn new(config: Config, runtime: Arc<Runtime>) -> Self {
+        let progress_draw_target = if atty::is(atty::Stream::Stderr) {
+            ProgressDrawTarget::stderr()
+        } else {
+            ProgressDrawTarget::hidden()
+        };
         Self {
             config,
             runtime,
-            multi_pb: MultiProgress::new(),
+            multi_pb: MultiProgress::with_draw_target(progress_draw_target),
         }
     }
 }
@@ -89,10 +93,14 @@ impl Orchestrator for SimpleOrchestrator {
                     Some(self.multi_pb.clone()),
                 )
                 .await?;
-                futures.push(flatten_join_handle(join_handle_map_err(
-                    handle,
-                    OrchestrationError::CacheBuildFailed,
-                )));
+                let cache_name = endpoint.name.clone();
+                futures.push(flatten_join_handle(join_handle_map_err(handle, move |e| {
+                    if e.is_map_full() {
+                        OrchestrationError::CacheFull(cache_name)
+                    } else {
+                        OrchestrationError::CacheBuildFailed(e)
+                    }
+                })));
                 cache_endpoints.push(Arc::new(cache_endpoint));
             }
 
@@ -148,27 +156,25 @@ impl Orchestrator for SimpleOrchestrator {
         api_notifier: Option<Sender<bool>>,
     ) -> Result<(), OrchestrationError> {
         // gRPC notifier channel
-        let (alias_redirected_sender, alias_redirected_receiver) = channel::unbounded();
-        let (operation_sender, operation_receiver) = channel::unbounded();
-        let (status_update_sender, status_update_receiver) = channel::unbounded();
-        let internal_app_config = self.config.clone();
-        let _intern_pipeline_thread = self.runtime.spawn(async move {
-            let result = start_internal_pipeline_server(
-                internal_app_config,
-                (
-                    alias_redirected_receiver,
-                    operation_receiver,
-                    status_update_receiver,
-                ),
-            )
-            .await;
-
-            if let Err(e) = result {
-                std::panic::panic_any(OrchestrationError::InternalServerFailed(e));
-            }
-
-            warn!("Shutting down internal pipeline server");
-        });
+        // let (alias_redirected_sender, alias_redirected_receiver) = channel::unbounded();
+        // let (operation_sender, operation_receiver) = channel::unbounded();
+        // let internal_app_config = self.config.clone();
+        // let _intern_pipeline_thread = self.runtime.spawn(async move {
+        //     let result = start_internal_pipeline_server(
+        //         internal_app_config,
+        //         (
+        //             alias_redirected_receiver,
+        //             operation_receiver,
+        //         ),
+        //     )
+        //     .await;
+        //
+        //     if let Err(e) = result {
+        //         std::panic::panic_any(OrchestrationError::InternalServerFailed(e));
+        //     }
+        //
+        //     warn!("Shutting down internal pipeline server");
+        // });
 
         let home_dir = HomeDir::new(
             self.config.home_dir.as_ref(),
@@ -184,17 +190,12 @@ impl Orchestrator for SimpleOrchestrator {
             self.multi_pb.clone(),
         )?;
         let settings = LogSinkSettings {
-            file_buffer_capacity: get_file_buffer_capacity(&self.config),
+            file_buffer_capacity: get_file_buffer_capacity(&self.config) as usize,
         };
         let dag_executor = executor.create_dag_executor(
             self.runtime.clone(),
             settings,
             get_executor_options(&self.config),
-            Some((
-                alias_redirected_sender,
-                operation_sender,
-                status_update_sender,
-            )),
         )?;
 
         if let Some(api_notifier) = api_notifier {
@@ -261,9 +262,9 @@ impl Orchestrator for SimpleOrchestrator {
             self.multi_pb.clone(),
         );
         let settings = LogSinkSettings {
-            file_buffer_capacity: get_file_buffer_capacity(&self.config),
+            file_buffer_capacity: get_file_buffer_capacity(&self.config) as usize,
         };
-        let dag = builder.build(self.runtime.clone(), settings, None)?;
+        let dag = builder.build(self.runtime.clone(), settings)?;
         // Populate schemas.
         let dag_schemas = DagSchemas::new(dag)?;
 
@@ -281,7 +282,7 @@ impl Orchestrator for SimpleOrchestrator {
             .as_ref()
             .map(|flags| flags.push_events)
             .unwrap_or(false);
-        for (endpoint_name, schema) in &schemas {
+        for (endpoint_name, (schema, connections)) in schemas {
             info!("Migrating endpoint: {endpoint_name}");
             let endpoint = self
                 .config
@@ -289,17 +290,18 @@ impl Orchestrator for SimpleOrchestrator {
                 .iter()
                 .find(|e| e.name == *endpoint_name)
                 .expect("Sink name must be the same as endpoint name");
-            let (schema, secondary_indexes) = modify_schema(schema, endpoint)?;
+            let (schema, secondary_indexes) = modify_schema(&schema, endpoint)?;
             let schema = MigrationSchema {
                 schema,
                 secondary_indexes,
                 enable_token,
                 enable_on_event,
+                connections,
             };
 
-            if let Some(migration_id) = needs_migration(&home_dir, endpoint_name, &schema)? {
+            if let Some(migration_id) = needs_migration(&home_dir, &endpoint_name, &schema)? {
                 let migration_name = migration_id.name().to_string();
-                create_migration(&home_dir, endpoint_name, migration_id, &schema)?;
+                create_migration(&home_dir, &endpoint_name, migration_id, &schema)?;
                 info!("Created new migration {migration_name} for endpoint: {endpoint_name}");
             } else {
                 info!("Migration not needed for endpoint: {endpoint_name}");
