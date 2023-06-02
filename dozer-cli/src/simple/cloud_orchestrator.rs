@@ -247,11 +247,8 @@ impl CloudOrchestrator for SimpleOrchestrator {
     }
 
     fn trace_logs(&mut self, cloud: Cloud, logs: LogCommandArgs) -> Result<(), OrchestrationError> {
-        let target_url = cloud.target_url;
-
         self.runtime.block_on(async move {
-            let mut client: DozerCloudClient<tonic::transport::Channel> =
-                DozerCloudClient::connect(target_url).await?;
+            let mut client = get_cloud_client(&cloud).await?;
 
             let status = client
                 .get_status(GetStatusRequest {
