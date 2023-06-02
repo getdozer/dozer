@@ -12,6 +12,8 @@ use dozer_types::types::{FieldDefinition, FieldType, Schema, SchemaIdentifier, S
 use schema_registry_converter::async_impl::schema_registry::SrSettings;
 use schema_registry_converter::schema_registry_common::SubjectNameStrategy;
 use std::collections::HashMap;
+use schema_registry_converter::async_impl::schema_registry::SrSettings;
+use dozer_types::log::info;
 
 pub struct SchemaRegistry {}
 
@@ -91,44 +93,47 @@ impl SchemaRegistry {
                     let schema_result =
                         SchemaRegistry::fetch_struct(&sr_settings, table, false).await?;
 
-                    let pk_fields = key_result.fields.map_or(vec![], |fields| {
-                        fields
-                            .iter()
-                            .map(|f| f.name.clone().map_or("".to_string(), |name| name))
-                            .collect()
-                    });
+                        let pk_fields = key_result.fields.map_or(vec![], |fields| {
+                            fields
+                                .iter()
+                                .map(|f| f.name.clone().map_or("".to_string(), |name| name))
+                                .collect()
+                        });
 
-                    let fields = schema_result.fields.map_or(vec![], |f| f);
-                    let mut pk_keys_indexes = vec![];
-                    let mut fields_schema_map: HashMap<String, &DebeziumSchemaStruct> =
-                        HashMap::new();
 
-                    let defined_fields: Result<Vec<FieldDefinition>, ConnectorError> = fields
-                        .iter()
-                        .enumerate()
-                        .map(|(idx, f)| {
-                            let (typ, nullable) = Self::map_typ(f).map_err(|e| {
-                                ConnectorError::KafkaError(KafkaError::KafkaSchemaError(e))
-                            })?;
-                            let name = f.name.clone().unwrap();
-                            if pk_fields.contains(&name) {
-                                pk_keys_indexes.push(idx);
-                            }
-                            fields_schema_map.insert(name.clone(), f);
-                            Ok(FieldDefinition {
-                                name,
-                                typ,
-                                nullable,
-                                source: SourceDefinition::Dynamic,
-                            })
-                        })
-                        .collect();
+                        let fields = schema_result.fields.map_or(vec![], |f| f);
+                        let mut pk_keys_indexes = vec![];
+                        let mut fields_schema_map: HashMap<String, &DebeziumSchemaStruct> =
+                            HashMap::new();
 
-                    let schema = Schema {
-                        identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
-                        fields: defined_fields?,
-                        primary_index: pk_keys_indexes,
-                    };
+                        let defined_fields: Result<Vec<FieldDefinition>, ConnectorError> =
+                            fields
+                                .iter()
+                                .enumerate()
+                                .map(|(idx, f)| {
+                                    let (typ, nullable) = Self::map_typ(f).map_err(|e| {
+                                        ConnectorError::KafkaError(KafkaError::KafkaSchemaError(e)
+                                        )
+                                    })?;
+                                    let name = f.name.clone().unwrap();
+                                    if pk_fields.contains(&name) {
+                                        pk_keys_indexes.push(idx);
+                                    }
+                                    fields_schema_map.insert(name.clone(), f);
+                                    Ok(FieldDefinition {
+                                        name,
+                                        typ,
+                                        nullable,
+                                        source: SourceDefinition::Dynamic,
+                                    })
+                                })
+                                .collect();
+
+                        let schema = Schema {
+                            identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
+                            fields: defined_fields?,
+                            primary_index: pk_keys_indexes,
+                        };
 
                     Ok(vec![SourceSchema::new(schema, CdcType::FullChanges)])
                 }
