@@ -1,16 +1,17 @@
-use kafka::client::KafkaClient;
 use crate::connectors::{Connector, SourceSchema, SourceSchemaResult, TableIdentifier};
 use crate::ingestion::Ingestor;
 use crate::{connectors::TableInfo, errors::ConnectorError};
 use dozer_types::ingestion_types::KafkaConfig;
+use kafka::client::KafkaClient;
 
 use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage};
 use tonic::async_trait;
 
 use crate::connectors::kafka::debezium::no_schema_registry::NoSchemaRegistry;
-use crate::connectors::kafka::debezium::schema_registry::SchemaRegistry;
-use crate::connectors::kafka::debezium::stream_consumer::DebeziumStreamConsumer;
+
+use crate::connectors::kafka::schema_registry_basic::SchemaRegistryBasic;
 use crate::connectors::kafka::stream_consumer::StreamConsumer;
+use crate::connectors::kafka::stream_consumer_basic::StreamConsumerBasic;
 use crate::errors::DebeziumError::{DebeziumConnectionError, TopicNotDefined};
 
 #[derive(Debug)]
@@ -29,7 +30,7 @@ impl KafkaConnector {
         table_names: Option<&[String]>,
     ) -> Result<Vec<SourceSchema>, ConnectorError> {
         if let Some(schema_registry_url) = &self.config.schema_registry_url {
-            SchemaRegistry::get_schema(table_names, schema_registry_url.clone()).await
+            SchemaRegistryBasic::get_schema(table_names, schema_registry_url.clone()).await
         } else {
             NoSchemaRegistry::get_schema(table_names, self.config.broker.clone())
         }
@@ -120,23 +121,28 @@ impl Connector for KafkaConnector {
         ingestor: &Ingestor,
         tables: Vec<TableInfo>,
     ) -> Result<(), ConnectorError> {
-        let topic = tables
-            .get(0)
-            .map_or(Err(TopicNotDefined), |table| Ok(&table.name))?;
+        let topic = tables.get(0).map_or(Err(TopicNotDefined), Ok)?;
 
         let broker = self.config.broker.to_owned();
-        run(broker, topic, ingestor).await
+        run(broker, topic, ingestor, &self.config.schema_registry_url).await
     }
 }
 
-async fn run(broker: String, topic: &str, ingestor: &Ingestor) -> Result<(), ConnectorError> {
+async fn run(
+    broker: String,
+    topic: &TableInfo,
+    ingestor: &Ingestor,
+    schema_registry_url: &Option<String>,
+) -> Result<(), ConnectorError> {
     let con = Consumer::from_hosts(vec![broker])
-        .with_topic(topic.to_string())
+        .with_topic(topic.name.clone())
         .with_fallback_offset(FetchOffset::Earliest)
         .with_offset_storage(GroupOffsetStorage::Kafka)
         .create()
         .map_err(DebeziumConnectionError)?;
 
-    let consumer = DebeziumStreamConsumer::default();
-    consumer.run(con, ingestor)
+    let consumer = StreamConsumerBasic::default();
+    consumer
+        .run(con, ingestor, &topic.name, schema_registry_url)
+        .await
 }
