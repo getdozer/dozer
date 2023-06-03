@@ -14,6 +14,7 @@ use dozer_types::parking_lot::Mutex;
 use dozer_types::thiserror::{self, Error};
 use dozer_types::tracing::{span, Level};
 use dozer_types::types::{Operation, Schema, SchemaIdentifier, SourceDefinition};
+use metrics::{describe_counter, increment_counter};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread;
@@ -238,6 +239,10 @@ pub struct ConnectorSource {
     bars: HashMap<PortHandle, ProgressBar>,
 }
 
+const SOURCE_INSERT_COUNTER_NAME: &str = "source_insert";
+const SOURCE_UPDATE_COUNTER_NAME: &str = "source_update";
+const SOURCE_DELETE_COUNTER_NAME: &str = "source_delete";
+
 impl Source for ConnectorSource {
     fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, BoxedError> {
         Ok(false)
@@ -249,6 +254,10 @@ impl Source for ConnectorSource {
         _last_checkpoint: Option<(u64, u64)>,
     ) -> Result<(), BoxedError> {
         thread::scope(|scope| {
+            describe_counter!(SOURCE_INSERT_COUNTER_NAME, "Number of inserts from source");
+            describe_counter!(SOURCE_UPDATE_COUNTER_NAME, "Number of updates from source");
+            describe_counter!(SOURCE_DELETE_COUNTER_NAME, "Number of deletes from source");
+
             let mut counter = HashMap::new();
             let t = scope.spawn(|| {
                 match self
@@ -300,10 +309,27 @@ impl Source for ConnectorSource {
                     }
                 };
                 if let Some(schema_id) = schema_id {
-                    let (port, _) = self
+                    let (port, table_name) = self
                         .schema_port_map
                         .get(&schema_id)
                         .ok_or(ConnectorSourceError::PortError(schema_id))?;
+
+                    let labels = [
+                        ("connection", self.connection_name.clone()),
+                        ("table", table_name.to_string()),
+                    ];
+                    match &kind {
+                        IngestionMessageKind::OperationEvent(Operation::Delete { .. }) => {
+                            increment_counter!(SOURCE_DELETE_COUNTER_NAME, &labels);
+                        }
+                        IngestionMessageKind::OperationEvent(Operation::Insert { .. }) => {
+                            increment_counter!(SOURCE_INSERT_COUNTER_NAME, &labels);
+                        }
+                        IngestionMessageKind::OperationEvent(Operation::Update { .. }) => {
+                            increment_counter!(SOURCE_UPDATE_COUNTER_NAME, &labels);
+                        }
+                        _ => {}
+                    }
 
                     counter
                         .entry(schema_id)
