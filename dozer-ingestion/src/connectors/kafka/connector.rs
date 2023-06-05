@@ -16,13 +16,12 @@ use crate::errors::DebeziumError::{DebeziumConnectionError, TopicNotDefined};
 
 #[derive(Debug)]
 pub struct KafkaConnector {
-    pub id: u64,
     config: KafkaConfig,
 }
 
 impl KafkaConnector {
-    pub fn new(id: u64, config: KafkaConfig) -> Self {
-        Self { id, config }
+    pub fn new(config: KafkaConfig) -> Self {
+        Self { config }
     }
 
     async fn get_schemas_impl(
