@@ -1,34 +1,31 @@
 use crate::errors::DebeziumSchemaError;
-use crate::errors::DebeziumSchemaError::{
-    BinaryDecodeError, DecimalConvertError, FieldNotFound, TypeNotSupported,
-};
+use crate::errors::DebeziumSchemaError::{BinaryDecodeError, FieldNotFound, TypeNotSupported};
 use base64::{engine, Engine};
 
 use crate::connectors::kafka::debezium::stream_consumer::DebeziumSchemaStruct;
 
-use dozer_types::rust_decimal::Decimal;
 use dozer_types::serde_json::Value;
 use dozer_types::types::{Field, Schema};
 use std::collections::HashMap;
 
-fn convert_decimal(value: &str, scale: u32) -> Result<Field, DebeziumSchemaError> {
-    let decoded_value = engine::general_purpose::STANDARD
-        .decode(value)
-        .map_err(BinaryDecodeError)
-        .unwrap();
-
-    let mut multiplier: u64 = 1;
-    let mut result: u64 = 0;
-    decoded_value.iter().rev().for_each(|w| {
-        let number = *w as u64;
-        result += number * multiplier;
-        multiplier *= 256;
-    });
-
-    Ok(Field::from(
-        Decimal::try_new(result as i64, scale).map_err(DecimalConvertError)?,
-    ))
-}
+// fn convert_decimal(value: &str, scale: u32) -> Result<Field, DebeziumSchemaError> {
+//     let decoded_value = engine::general_purpose::STANDARD
+//         .decode(value)
+//         .map_err(BinaryDecodeError)
+//         .unwrap();
+//
+//     let mut multiplier: u64 = 1;
+//     let mut result: u64 = 0;
+//     decoded_value.iter().rev().for_each(|w| {
+//         let number = *w as u64;
+//         result += number * multiplier;
+//         multiplier *= 256;
+//     });
+//
+//     Ok(Field::from(
+//         Decimal::try_new(result as i64, scale).map_err(DecimalConvertError)?,
+//     ))
+// }
 
 fn convert_value(
     value: Value,

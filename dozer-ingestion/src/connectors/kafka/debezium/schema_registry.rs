@@ -100,7 +100,6 @@ impl SchemaRegistry {
                             .collect()
                     });
 
-                    let mut schema_data: Option<Result<Vec<SourceSchema>, ConnectorError>> = None;
                     let fields = schema_result.fields.map_or(vec![], |f| f);
                     let mut pk_keys_indexes = vec![];
                     let mut fields_schema_map: HashMap<String, &DebeziumSchemaStruct> =
@@ -133,13 +132,7 @@ impl SchemaRegistry {
                         primary_index: pk_keys_indexes,
                     };
 
-                    schema_data = Some(Ok(vec![SourceSchema::new(schema, CdcType::FullChanges)]));
-
-                    if let Some(v) = schema_data {
-                        v
-                    } else {
-                        Ok(vec![])
-                    }
+                    Ok(vec![SourceSchema::new(schema, CdcType::FullChanges)])
                 }
             },
         }
