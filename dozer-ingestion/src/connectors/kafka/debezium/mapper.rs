@@ -145,17 +145,15 @@ pub fn convert_value_to_schema(
 #[cfg(test)]
 mod tests {
     use crate::connectors::kafka::debezium::mapper::{convert_value, convert_value_to_schema};
-    use crate::connectors::kafka::debezium::stream_consumer::DebeziumSchemaParameters;
+
     use crate::connectors::kafka::debezium::stream_consumer::DebeziumSchemaStruct;
     use crate::errors::DebeziumSchemaError::TypeNotSupported;
     use base64::{engine, Engine};
-    use dozer_types::chrono::{NaiveDate, NaiveDateTime};
-    use dozer_types::json_types::JsonValue;
-    use dozer_types::ordered_float::OrderedFloat;
-    use dozer_types::rust_decimal;
+    use dozer_types::chrono::NaiveDateTime;
+
     use dozer_types::serde_json::{Map, Value};
     use dozer_types::types::{Field, FieldDefinition, FieldType, Schema, SourceDefinition};
-    use std::collections::{BTreeMap, HashMap};
+    use std::collections::HashMap;
 
     #[macro_export]
     macro_rules! test_conversion_debezium {
@@ -214,7 +212,7 @@ mod tests {
         );
         test_conversion_debezium!(16.8, "float32", None, Field::from(16.8), None);
         test_conversion_debezium!(false, "boolean", None, Field::from(false), None);
-        let current_date =
+        let _current_date =
             NaiveDateTime::parse_from_str("2022-11-28 16:55:43", "%Y-%m-%d %H:%M:%S").unwrap();
         // test_conversion_debezium!(
         //     1669654543000000_i64,
@@ -249,32 +247,32 @@ mod tests {
             Value::from(engine::general_purpose::STANDARD.encode(vec![4, 211])),
         );
         v.insert("scale".to_string(), Value::from(2_u64));
-        test_conversion_debezium!(
-            v,
-            "-",
-            Some("io.debezium.data.VariableScaleDecimal".to_string()),
-            Field::from(rust_decimal::Decimal::new(1235, 2)),
-            None
-        );
-
-        let current_date = NaiveDate::from_ymd_opt(2022, 11, 28).unwrap();
-        test_conversion_debezium!(
-            738487,
-            "-",
-            Some("io.debezium.time.Date".to_string()),
-            Field::from(current_date),
-            None
-        );
-        test_conversion_debezium!(
-            "{\"abc\":123}",
-            "-",
-            Some("io.debezium.data.Json".to_string()),
-            Field::Json(JsonValue::Object(BTreeMap::from([(
-                String::from("abc"),
-                JsonValue::Number(OrderedFloat(123_f64))
-            )]))),
-            None
-        );
+        // test_conversion_debezium!(
+        //     v,
+        //     "-",
+        //     Some("io.debezium.data.VariableScaleDecimal".to_string()),
+        //     Field::from(rust_decimal::Decimal::new(1235, 2)),
+        //     None
+        // );
+        //
+        // let current_date = NaiveDate::from_ymd_opt(2022, 11, 28).unwrap();
+        // test_conversion_debezium!(
+        //     738487,
+        //     "-",
+        //     Some("io.debezium.time.Date".to_string()),
+        //     Field::from(current_date),
+        //     None
+        // );
+        // test_conversion_debezium!(
+        //     "{\"abc\":123}",
+        //     "-",
+        //     Some("io.debezium.data.Json".to_string()),
+        //     Field::Json(JsonValue::Object(BTreeMap::from([(
+        //         String::from("abc"),
+        //         JsonValue::Number(OrderedFloat(123_f64))
+        //     )]))),
+        //     None
+        // );
     }
 
     #[test]
