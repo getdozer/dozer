@@ -93,10 +93,14 @@ impl Orchestrator for SimpleOrchestrator {
                     Some(self.multi_pb.clone()),
                 )
                 .await?;
-                futures.push(flatten_join_handle(join_handle_map_err(
-                    handle,
-                    OrchestrationError::CacheBuildFailed,
-                )));
+                let cache_name = endpoint.name.clone();
+                futures.push(flatten_join_handle(join_handle_map_err(handle, move |e| {
+                    if e.is_map_full() {
+                        OrchestrationError::CacheFull(cache_name)
+                    } else {
+                        OrchestrationError::CacheBuildFailed(e)
+                    }
+                })));
                 cache_endpoints.push(Arc::new(cache_endpoint));
             }
 
