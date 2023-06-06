@@ -14,7 +14,7 @@ use crate::cache::{
 #[test]
 fn test_operation_log_append_only() {
     let mut env = create_env(&Default::default()).unwrap().0;
-    let log = OperationLog::create(&mut env).unwrap();
+    let log = OperationLog::create(&mut env, Default::default()).unwrap();
     let txn = env.txn_mut().unwrap();
     let append_only = true;
 
@@ -57,7 +57,7 @@ fn test_operation_log_append_only() {
 #[test]
 fn test_operation_log_with_primary_key() {
     let mut env = create_env(&Default::default()).unwrap().0;
-    let log = OperationLog::create(&mut env).unwrap();
+    let log = OperationLog::create(&mut env, Default::default()).unwrap();
     let txn = env.txn_mut().unwrap();
     let append_only = false;
 
@@ -180,7 +180,7 @@ fn test_operation_log_with_primary_key() {
 #[test]
 fn test_operation_log_without_primary_key() {
     let mut env = create_env(&Default::default()).unwrap().0;
-    let log = OperationLog::create(&mut env).unwrap();
+    let log = OperationLog::create(&mut env, Default::default()).unwrap();
     let txn = env.txn_mut().unwrap();
     let append_only = false;
 
