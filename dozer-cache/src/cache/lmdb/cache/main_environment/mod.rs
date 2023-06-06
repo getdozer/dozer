@@ -53,11 +53,11 @@ pub trait MainEnvironment: LmdbEnvironment {
     }
 
     fn labels(&self) -> &Labels {
-        &self.common().labels
+        self.common().operation_log.labels()
     }
 
-    fn operation_log(&self) -> OperationLog {
-        self.common().operation_log
+    fn operation_log(&self) -> &OperationLog {
+        &self.common().operation_log
     }
 
     fn intersection_chunk_size(&self) -> usize {
@@ -102,8 +102,6 @@ pub trait MainEnvironment: LmdbEnvironment {
 pub struct MainEnvironmentCommon {
     /// The environment base path.
     base_path: PathBuf,
-    /// The environment labels.
-    labels: Labels,
     /// The schema.
     schema: SchemaWithIndex,
     /// The metadata.
@@ -144,7 +142,7 @@ impl RwMainEnvironment {
     ) -> Result<Self, CacheError> {
         let (mut env, (base_path, labels), temp_dir) = create_env(options)?;
 
-        let operation_log = OperationLog::create(&mut env)?;
+        let operation_log = OperationLog::create(&mut env, labels.clone())?;
         let schema_option = LmdbOption::create(&mut env, Some("schema"))?;
         let metadata = LmdbOption::create(&mut env, Some("metadata"))?;
         let connection_snapshotting_done =
@@ -204,7 +202,6 @@ impl RwMainEnvironment {
             env,
             common: MainEnvironmentCommon {
                 base_path,
-                labels,
                 schema,
                 metadata,
                 connection_snapshotting_done,
@@ -226,7 +223,7 @@ impl RwMainEnvironment {
     pub fn insert(&mut self, record: &Record) -> Result<UpsertResult, CacheError> {
         let txn = self.env.txn_mut()?;
         insert_impl(
-            self.common.operation_log,
+            &self.common.operation_log,
             txn,
             &self.common.schema.0,
             record,
@@ -240,7 +237,7 @@ impl RwMainEnvironment {
         }
 
         let txn = self.env.txn_mut()?;
-        let operation_log = self.common.operation_log;
+        let operation_log = &self.common.operation_log;
         let key = calculate_key(&self.common.schema.0, record);
 
         if let Some((meta, insert_operation_id)) =
@@ -285,7 +282,7 @@ impl RwMainEnvironment {
         // }
 
         let txn = self.env.txn_mut()?;
-        let operation_log = self.common.operation_log;
+        let operation_log = &self.common.operation_log;
         let old_key = calculate_key(&self.common.schema.0, old);
 
         if let Some((old_meta, insert_operation_id)) =
@@ -439,7 +436,7 @@ fn calculate_key<'a>(schema: &Schema, record: &'a Record) -> OwnedMetadataKey<'a
 }
 
 fn insert_impl(
-    operation_log: OperationLog,
+    operation_log: &OperationLog,
     txn: &mut RwTransaction,
     schema: &Schema,
     record: &Record,
@@ -505,7 +502,7 @@ fn insert_impl(
 }
 
 fn get_existing_record_metadata<T: Transaction>(
-    operation_log: OperationLog,
+    operation_log: &OperationLog,
     txn: &T,
     key: &OwnedMetadataKey,
 ) -> Result<Option<(RecordMeta, u64)>, StorageError> {
@@ -542,7 +539,7 @@ impl RoMainEnvironment {
     pub fn new(options: &CacheOptions) -> Result<Self, CacheError> {
         let (env, (base_path, labels), _temp_dir) = open_env(options)?;
 
-        let operation_log = OperationLog::open(&env)?;
+        let operation_log = OperationLog::open(&env, labels.clone())?;
         let schema_option = LmdbOption::open(&env, Some("schema"))?;
         let metadata = LmdbOption::open(&env, Some("metadata"))?;
         let connection_snapshotting_done =
@@ -557,7 +554,6 @@ impl RoMainEnvironment {
             env,
             common: MainEnvironmentCommon {
                 base_path: base_path.to_path_buf(),
-                labels: labels.clone(),
                 schema,
                 metadata,
                 connection_snapshotting_done,
