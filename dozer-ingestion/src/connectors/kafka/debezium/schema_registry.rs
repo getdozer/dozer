@@ -98,7 +98,6 @@ impl SchemaRegistry {
                             .collect()
                     });
 
-
                     let fields = schema_result.fields.map_or(vec![], |f| f);
                     let mut pk_keys_indexes = vec![];
                     let mut fields_schema_map: HashMap<String, &DebeziumSchemaStruct> =
