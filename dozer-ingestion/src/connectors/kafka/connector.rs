@@ -51,7 +51,9 @@ impl Connector for KafkaConnector {
 
     async fn list_tables(&self) -> Result<Vec<TableIdentifier>, ConnectorError> {
         let mut client = KafkaClient::new(vec![self.config.broker.clone()]);
-        client.load_metadata_all().unwrap();
+        client
+            .load_metadata_all()
+            .map_err(DebeziumConnectionError)?;
         let topics = client.topics();
 
         let mut tables = vec![];

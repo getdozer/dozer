@@ -319,7 +319,7 @@ pub enum DebeziumError {
 
     #[cfg(feature = "kafka")]
     #[error("Connection error. Error: {0}")]
-    DebeziumConnectionError(#[source] kafka::Error),
+    DebeziumConnectionError(#[from] kafka::Error),
 
     #[error("JSON decode error. Error: {0}")]
     JsonDecodeError(#[source] serde_json::Error),
