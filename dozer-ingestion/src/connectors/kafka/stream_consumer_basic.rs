@@ -12,9 +12,10 @@ use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::serde_json;
 use dozer_types::serde_json::Value;
-use dozer_types::types::{Operation, Record, SchemaIdentifier};
+use dozer_types::types::{Field, Operation, Record, SchemaIdentifier};
 use rdkafka::consumer::BaseConsumer;
 
+use crate::connectors::kafka::no_schema_registry_basic::NoSchemaRegistryBasic;
 use crate::connectors::kafka::schema_registry_basic::SchemaRegistryBasic;
 use tonic::async_trait;
 
@@ -91,18 +92,27 @@ impl StreamConsumer for StreamConsumerBasic {
     ) -> Result<(), ConnectorError> {
         let mut schemas = HashMap::new();
         for (index, table) in tables.into_iter().enumerate() {
-            schemas.insert(
-                table.name.clone(),
-                (
-                    index as u32,
-                    SchemaRegistryBasic::get_single_schema(
+            if let Some(schema_registry_url) = schema_registry_url {
+                schemas.insert(
+                    table.name.clone(),
+                    (
                         index as u32,
-                        &table.name,
-                        schema_registry_url.as_ref().unwrap(),
-                    )
-                    .await?,
-                ),
-            );
+                        SchemaRegistryBasic::get_single_schema(
+                            index as u32,
+                            &table.name,
+                            schema_registry_url.as_ref().unwrap(),
+                        )
+                            .await?,
+                    ),
+                );
+            } else {
+                let schema = NoSchemaRegistryBasic::get_single_schema();
+
+                schemas.insert(
+                    table.name.clone(),
+                    schema
+                );
+            };
         }
 
         let mut counter = 0;
@@ -113,21 +123,34 @@ impl StreamConsumer for StreamConsumerBasic {
                     None => return Err(ConnectorError::KafkaError(TopicNotDefined)),
                     Some((id, (schema, fields_map))) => {
                         if let (Some(message), Some(key)) = (m.payload(), m.key()) {
-                            let value_struct: Value = serde_json::from_str(
-                                std::str::from_utf8(message).map_err(BytesConvertError)?,
-                            )
-                            .map_err(JsonDecodeError)?;
+                            let new = match schema_registry_url {
+                            None => {
+                                let value =
+                                    std::str::from_utf8(m.value).map_err(BytesConvertError)?;
+                                let key = std::str::from_utf8(m.key).map_err(BytesConvertError)?;
 
-                            let _key_struct: Value = serde_json::from_str(
-                                std::str::from_utf8(key).map_err(BytesConvertError)?,
-                            )
-                            .map_err(JsonDecodeError)?;
+                                vec![
+                                    Field::String(key.to_string()),
+                                    Field::String(value.to_string()),
+                                ]
+                            }
+                            Some(_) => {
+                                let value_struct: Value = serde_json::from_str(
+                                    std::str::from_utf8(message).map_err(BytesConvertError)?,
+                                )
+                                .map_err(JsonDecodeError)?;
+                                let _key_struct: Value = serde_json::from_str(
+                                    std::str::from_utf8(key).map_err(BytesConvertError)?,
+                                )
+                                .map_err(JsonDecodeError)?;
 
-                            let new =
-                                convert_value_to_schema(value_struct, &schema.schema, fields_map)
+                                    convert_value_to_schema(value_struct, &schema.schema, fields_map)
                                     .map_err(|e| {
                                     ConnectorError::KafkaError(KafkaError::KafkaSchemaError(e))
-                                })?;
+
+                                })?
+                            }
+                        };
 
                             ingestor
                                 .handle_message(IngestionMessage::new_op(
