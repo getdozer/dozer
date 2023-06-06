@@ -181,10 +181,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
 
             let mut table = table!();
 
-            table.add_row(row![
-                "Api endpoint",
-                format!("http://{}", response.api_endpoint),
-            ]);
+            table.add_row(row!["Api endpoint", response.api_endpoint,]);
 
             let mut deployment_table = table!();
             deployment_table.set_titles(row!["Deployment", "App", "Api", "Version"]);
