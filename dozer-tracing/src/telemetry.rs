@@ -12,6 +12,7 @@ use tracing_opentelemetry::OpenTelemetryLayer;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{fmt, EnvFilter, Layer};
+use tracing_subscriber::fmt::FormatFields;
 
 use crate::exporter::DozerExporter;
 // Init telemetry by setting a global handler
@@ -83,6 +84,7 @@ fn create_subscriber(
     tracing_subscriber::registry()
         .with(
             fmt::Layer::default()
+                .without_time()
                 .with_target(!stdout_is_tty)
                 .with_ansi(stdout_is_tty)
                 .with_filter(fmt_filter),

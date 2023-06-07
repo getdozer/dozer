@@ -20,6 +20,7 @@ use tokio::task::JoinHandle;
 #[cfg(feature = "cloud")]
 mod cloud_helper;
 mod console_helper;
+mod progress_printer;
 mod utils;
 
 pub trait Orchestrator {
