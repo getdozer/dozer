@@ -4,9 +4,11 @@ use serde::{Deserialize, Serialize};
 pub struct Cloud {
     #[prost(oneof = "UpdateCurrentVersionStrategy", tags = "1,2")]
     pub update_current_version_strategy: Option<UpdateCurrentVersionStrategy>,
+    #[prost(optional, string, tag = "3")]
+    pub instance_type: Option<String>,
 }
 
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, prost::Oneof)]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize, prost::Oneof)]
 pub enum UpdateCurrentVersionStrategy {
     #[prost(message, tag = "1")]
     OnCreate(()),
