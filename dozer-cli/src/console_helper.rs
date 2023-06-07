@@ -1,13 +1,10 @@
-#[macro_export]
-macro_rules! painted {
-    ($a:expr, $b:expr) => {{
-        let mut result = String::from("\u{1b}[");
-        result.push_str($b);
-        result.push_str(";1m"); // End token.
-        result.push_str($a);
-        result.push_str("\u{1b}[0m");
-        result
-    }};
+pub fn get_colored_text(text: &str, color_code: &str) -> String {
+    let mut result = String::from("\u{1b}[");
+    result.push_str(color_code);
+    result.push_str(";1m"); // End token.
+    result.push_str(text);
+    result.push_str("\u{1b}[0m");
+    result
 }
 
 pub const RED: &str = "31";

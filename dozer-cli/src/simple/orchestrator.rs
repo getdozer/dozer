@@ -18,10 +18,10 @@ use dozer_cache::dozer_log::schemas::MigrationSchema;
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::DagSchemas;
 
+use crate::console_helper::get_colored_text;
 use crate::console_helper::GREEN;
 use crate::console_helper::PURPLE;
 use crate::console_helper::RED;
-use crate::painted;
 use dozer_core::errors::ExecutionError;
 use dozer_ingestion::connectors::{SourceSchema, TableInfo};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
@@ -242,7 +242,7 @@ impl Orchestrator for SimpleOrchestrator {
 
         info!(
             "Initiating app: {}",
-            painted!(&self.config.app_name, PURPLE)
+            get_colored_text(&self.config.app_name, PURPLE)
         );
         if force {
             self.clean()?;
@@ -359,7 +359,7 @@ pub fn validate_sql(sql: String) -> Result<(), PipelineError> {
         |e| {
             error!(
                 "[sql][{}] Transforms validation error: {}",
-                painted!("X", RED),
+                get_colored_text("X", RED),
                 e
             );
             Err(e)
@@ -367,7 +367,7 @@ pub fn validate_sql(sql: String) -> Result<(), PipelineError> {
         |_| {
             info!(
                 "[sql][{}]  Transforms validation completed",
-                painted!("✓", GREEN)
+                get_colored_text("✓", GREEN)
             );
             Ok(())
         },

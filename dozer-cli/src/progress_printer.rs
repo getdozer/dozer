@@ -1,6 +1,6 @@
+use crate::console_helper::get_colored_text;
 use crate::console_helper::GREEN;
 use crate::console_helper::YELLOW;
-use crate::painted;
 use dozer_types::indicatif::ProgressBar;
 
 pub struct ProgressPrinter {
@@ -128,7 +128,7 @@ impl ProgressPrinter {
                 self.pb.println(format!(
                     " ✅ [{}] {}",
                     self.step_no,
-                    painted!(&step.completed_text, GREEN)
+                    get_colored_text(&step.completed_text, GREEN)
                 ));
             }
         }
@@ -141,7 +141,7 @@ impl ProgressPrinter {
             self.pb.set_message(format!(
                 "[{}] {}",
                 self.step_no,
-                painted!(&step.in_progress_text, YELLOW)
+                get_colored_text(&step.in_progress_text, YELLOW)
             ));
             self.current_step = Some(step.clone());
         }
@@ -156,8 +156,11 @@ impl ProgressPrinter {
             }
         });
 
-        self.pb
-            .println(format!(" ✅ [{}] {}", self.step_no, painted!(text, GREEN)));
+        self.pb.println(format!(
+            " ✅ [{}] {}",
+            self.step_no,
+            get_colored_text(text, GREEN)
+        ));
         self.current_step = None;
         self.pb.set_message("".to_string());
     }
