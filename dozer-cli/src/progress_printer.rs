@@ -1,3 +1,6 @@
+use crate::console_helper::GREEN;
+use crate::console_helper::YELLOW;
+use crate::painted;
 use dozer_types::indicatif::ProgressBar;
 
 pub struct ProgressPrinter {
@@ -122,8 +125,11 @@ impl ProgressPrinter {
         match &self.current_step {
             None => {}
             Some(step) => {
-                self.pb
-                    .println(format!(" ✅ [{}] {}", self.step_no, step.completed_text));
+                self.pb.println(format!(
+                    " ✅ [{}] {}",
+                    self.step_no,
+                    painted!(&step.completed_text, GREEN)
+                ));
             }
         }
 
@@ -132,8 +138,11 @@ impl ProgressPrinter {
         self.step_no += 1;
 
         if let Some(step) = step_info {
-            self.pb
-                .set_message(format!("[{}] {}", self.step_no, step.in_progress_text));
+            self.pb.set_message(format!(
+                "[{}] {}",
+                self.step_no,
+                painted!(&step.in_progress_text, YELLOW)
+            ));
             self.current_step = Some(step.clone());
         }
     }
@@ -147,7 +156,8 @@ impl ProgressPrinter {
             }
         });
 
-        self.pb.println(format!(" ✅ [{}] {}", self.step_no, text));
+        self.pb
+            .println(format!(" ✅ [{}] {}", self.step_no, painted!(text, GREEN)));
         self.current_step = None;
         self.pb.set_message("".to_string());
     }

@@ -1,5 +1,6 @@
-use crate::console_helper::get_colored_text;
+use crate::console_helper::PURPLE;
 use crate::errors::OrchestrationError;
+use crate::painted;
 use dozer_types::log::info;
 use dozer_types::models::api_config::ApiConfig;
 use dozer_types::models::api_endpoint::ApiEndpoint;
@@ -7,7 +8,7 @@ use dozer_types::models::app_config::Config;
 use dozer_types::prettytable::{row, Table};
 
 pub fn validate_config(config: &Config) -> Result<(), OrchestrationError> {
-    info!("Home dir: {}", get_colored_text(&config.home_dir, "35"));
+    info!("Home dir: {}", painted!(&config.home_dir, PURPLE));
     if let Some(api_config) = &config.api {
         print_api_config(api_config)
     }
@@ -39,7 +40,7 @@ fn print_api_config(api_config: &ApiConfig) {
     }
     info!(
         "[API] {}\n{}",
-        get_colored_text("Configuration", "35"),
+        painted!("Configuration", PURPLE),
         table_parent
     );
 }
@@ -51,9 +52,5 @@ pub fn print_api_endpoints(endpoints: &Vec<ApiEndpoint>) {
     for endpoint in endpoints {
         table_parent.add_row(row![endpoint.path, endpoint.name]);
     }
-    info!(
-        "[API] {}\n{}",
-        get_colored_text("Endpoints", "35"),
-        table_parent
-    );
+    info!("[API] {}\n{}", painted!("Endpoints", PURPLE), table_parent);
 }

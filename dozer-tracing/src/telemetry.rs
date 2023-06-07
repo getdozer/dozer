@@ -12,7 +12,6 @@ use tracing_opentelemetry::OpenTelemetryLayer;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{fmt, EnvFilter, Layer};
-use tracing_subscriber::fmt::FormatFields;
 
 use crate::exporter::DozerExporter;
 // Init telemetry by setting a global handler
