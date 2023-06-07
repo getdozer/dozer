@@ -5,6 +5,9 @@ use crate::cli::cloud::{
 use crate::cloud_helper::list_files;
 use crate::errors::CloudError::GRPCCallError;
 use crate::errors::{CloudError, CloudLoginError, OrchestrationError};
+use crate::progress_printer::{
+    get_delete_steps, get_deploy_steps, get_update_steps, ProgressPrinter,
+};
 use crate::simple::cloud::deployer::{deploy_app, stop_app};
 use crate::simple::cloud::login::CredentialInfo;
 use crate::simple::cloud::monitor::monitor_app;
@@ -18,7 +21,7 @@ use dozer_types::grpc_types::cloud::{
 use dozer_types::grpc_types::cloud::{
     DeploymentStatus, SetCurrentVersionRequest, SetNumApiInstancesRequest, UpsertVersionRequest,
 };
-use dozer_types::log::info;
+use dozer_types::log::{debug, info};
 use dozer_types::prettytable::{row, table};
 use futures::{select, FutureExt, StreamExt};
 use tonic::transport::Endpoint;
@@ -29,7 +32,7 @@ use super::cloud::version::{get_version_status, version_is_up_to_date, version_s
 
 async fn get_cloud_client(cloud: &Cloud) -> Result<DozerCloudClient<TokenLayer>, CloudError> {
     let credential = CredentialInfo::load(cloud.profile.to_owned())?;
-    info!("Cloud service url: {:?}", credential.target_url);
+    debug!("Cloud service url: {:?}", credential.target_url);
     let target_url = credential.target_url.clone();
     let endpoint = Endpoint::from_shared(target_url.to_owned())?;
     let channel = Endpoint::connect(&endpoint).await?;
@@ -47,19 +50,10 @@ impl CloudOrchestrator for SimpleOrchestrator {
         cloud: Cloud,
         deploy: DeployCommandArgs,
     ) -> Result<(), OrchestrationError> {
-        // let username = match deploy.username {
-        //     Some(u) => u,
-        //     None => String::new(),
-        // };
-        // let _password = match deploy.password {
-        //     Some(p) => p,
-        //     None => String::new(),
-        // };
-        // info!("Authenticating for username: {:?}", username);
-        // info!("Local dozer configuration path: {:?}", config_path);
-        // calling the target url with the config fetched
         self.runtime.block_on(async move {
+            let mut steps = ProgressPrinter::new(get_deploy_steps());
             // 1. CREATE application
+            steps.start_next_step();
             let mut client = get_cloud_client(&cloud).await?;
             let files = list_files()?;
             let response = client
@@ -68,12 +62,17 @@ impl CloudOrchestrator for SimpleOrchestrator {
                 .map_err(GRPCCallError)?
                 .into_inner();
 
-            info!("Application created with id: {:?}", &response.app_id);
+            steps.complete_step(Some(&format!(
+                "Application created with id: {:?}",
+                &response.app_id
+            )));
+
             // 2. START application
             deploy_app(
                 &mut client,
                 &response.app_id,
                 deploy.num_replicas.unwrap_or_else(default_num_replicas),
+                &mut steps,
             )
             .await
         })?;
@@ -88,6 +87,10 @@ impl CloudOrchestrator for SimpleOrchestrator {
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud).await?;
             let files = list_files()?;
+
+            let mut steps = ProgressPrinter::new(get_update_steps());
+            steps.start_next_step();
+
             let response = client
                 .update_application(UpdateAppRequest {
                     app_id: update.app_id.clone(),
@@ -97,12 +100,13 @@ impl CloudOrchestrator for SimpleOrchestrator {
                 .map_err(GRPCCallError)?
                 .into_inner();
 
-            info!("Updated {}", &response.app_id);
+            steps.complete_step(Some(&format!("Updated {}", &response.app_id)));
 
             deploy_app(
                 &mut client,
                 &update.app_id,
                 update.num_replicas.unwrap_or_else(default_num_replicas),
+                &mut steps,
             )
             .await
         })?;
@@ -113,11 +117,13 @@ impl CloudOrchestrator for SimpleOrchestrator {
     fn delete(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError> {
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud).await?;
-            info!("Stopping application");
-            stop_app(&mut client, &app_id).await?;
-            info!("Application stopped");
 
-            info!("Deleting application");
+            let mut steps = ProgressPrinter::new(get_delete_steps());
+
+            steps.start_next_step();
+            stop_app(&mut client, &app_id).await?;
+
+            steps.start_next_step();
             let _delete_result = client
                 .delete_application(DeleteAppRequest {
                     app_id: app_id.clone(),
@@ -125,7 +131,8 @@ impl CloudOrchestrator for SimpleOrchestrator {
                 .await
                 .map_err(GRPCCallError)?
                 .into_inner();
-            info!("Deleted {}", &app_id);
+
+            steps.complete_step(Some(&format!("Deleted {}", &app_id)));
 
             Ok::<(), CloudError>(())
         })?;
