@@ -22,6 +22,13 @@ pub struct Cli {
     pub config_path: String,
     #[arg(global = true, long)]
     pub config_token: Option<String>,
+    #[arg(
+        global = true,
+        short = 'e',
+        long,
+        default_value = "0"
+    )]
+    pub err_threshold: String,
 
     #[clap(subcommand)]
     pub cmd: Option<Commands>,
@@ -78,8 +85,13 @@ pub struct App {
     #[command(subcommand)]
     pub command: AppCommands,
 
-    #[arg(global = true, short = 'e', long, default_value = "10")]
-    pub err_threshold: String,
+    // #[arg(
+    //     global = true,
+    //     short = 'e',
+    //     long,
+    //     default_value = "0"
+    // )]
+    // pub err_threshold: String,
 }
 
 #[derive(Debug, Args)]

@@ -160,26 +160,7 @@ impl Orchestrator for SimpleOrchestrator {
         api_notifier: Option<Sender<bool>>,
         err_threshold: String,
     ) -> Result<(), OrchestrationError> {
-        // gRPC notifier channel
-        // let (alias_redirected_sender, alias_redirected_receiver) = channel::unbounded();
-        // let (operation_sender, operation_receiver) = channel::unbounded();
-        // let internal_app_config = self.config.clone();
-        // let _intern_pipeline_thread = self.runtime.spawn(async move {
-        //     let result = start_internal_pipeline_server(
-        //         internal_app_config,
-        //         (
-        //             alias_redirected_receiver,
-        //             operation_receiver,
-        //         ),
-        //     )
-        //     .await;
-        //
-        //     if let Err(e) = result {
-        //         std::panic::panic_any(OrchestrationError::InternalServerFailed(e));
-        //     }
-        //
-        //     warn!("Shutting down internal pipeline server");
-        // });
+        let global_err_threshold = u64::from_str(err_threshold.as_str()).ok();
 
         let home_dir = HomeDir::new(
             self.config.home_dir.as_ref(),
@@ -200,7 +181,7 @@ impl Orchestrator for SimpleOrchestrator {
         let dag_executor = executor.create_dag_executor(
             self.runtime.clone(),
             settings,
-            get_executor_options(&self.config),
+            get_executor_options(&self.config, global_err_threshold),
         )?;
 
         if let Some(api_notifier) = api_notifier {
@@ -334,7 +315,7 @@ impl Orchestrator for SimpleOrchestrator {
         Ok(())
     }
 
-    fn run_all(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError> {
+    fn run_all(&mut self, shutdown: ShutdownReceiver, err_threshold: String) -> Result<(), OrchestrationError> {
         let shutdown_api = shutdown.clone();
 
         let mut dozer_api = self.clone();
@@ -345,7 +326,7 @@ impl Orchestrator for SimpleOrchestrator {
 
         let mut dozer_pipeline = self.clone();
         let pipeline_thread =
-            thread::spawn(move || dozer_pipeline.run_apps(shutdown, Some(tx), String::new()));
+            thread::spawn(move || dozer_pipeline.run_apps(shutdown, Some(tx), err_threshold));
 
         // Wait for pipeline to initialize caches before starting api server
         rx.recv().unwrap();
