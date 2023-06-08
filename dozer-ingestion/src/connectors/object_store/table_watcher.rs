@@ -3,7 +3,7 @@ use crate::{
     errors::{ConnectorError, ObjectStoreConnectorError},
 };
 
-use dozer_types::{ingestion_types::IngestionMessage, types::Operation};
+use dozer_types::types::Operation;
 use tokio::sync::mpsc::Sender;
 use tonic::async_trait;
 

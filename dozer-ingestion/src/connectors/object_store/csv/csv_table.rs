@@ -2,14 +2,14 @@ use std::{collections::HashMap, path::Path, sync::Arc, time::Duration};
 
 use dozer_types::{
     chrono::{DateTime, Utc},
-    ingestion_types::{CsvConfig, IngestionMessage},
+    ingestion_types::CsvConfig,
     tracing::info,
     types::Operation,
 };
 
 use futures::StreamExt;
 use object_store::ObjectStore;
-use tokio::sync::mpsc::{channel, Sender};
+use tokio::sync::mpsc::Sender;
 use tonic::async_trait;
 
 use crate::{
@@ -21,7 +21,6 @@ use crate::{
         TableInfo,
     },
     errors::{ConnectorError, ObjectStoreConnectorError},
-    ingestion::Ingestor,
 };
 
 use deltalake::{
@@ -31,7 +30,7 @@ use deltalake::{
 
 use crate::{
     connectors::{self, object_store::helper::map_listing_options},
-    errors::{ObjectStoreConnectorError::RecvError, ObjectStoreObjectError},
+    errors::ObjectStoreObjectError,
 };
 
 const WATCHER_INTERVAL: Duration = Duration::from_secs(1);
@@ -176,7 +175,7 @@ impl<T: DozerObjectStore + Send> TableWatcher for CsvTable<T> {
         &self,
         _id: usize,
         _table: &TableInfo,
-        sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
+        _sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
     ) -> Result<u64, ConnectorError> {
         Ok(0)
     }
@@ -189,8 +188,6 @@ impl<T: DozerObjectStore + Send> TableWatcher for CsvTable<T> {
         sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
     ) -> Result<u64, ConnectorError> {
         self.watch(id as u32, table, sender).await?;
-
-        let mut seq_no = seq_no;
 
         Ok(seq_no)
     }

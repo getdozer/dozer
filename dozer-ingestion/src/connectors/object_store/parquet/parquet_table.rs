@@ -13,7 +13,7 @@ use deltalake::{
 };
 use dozer_types::{
     chrono::{DateTime, Utc},
-    ingestion_types::{IngestionMessage, ParquetConfig},
+    ingestion_types::ParquetConfig,
     tracing::info,
     types::Operation,
 };
@@ -172,7 +172,7 @@ impl<T: DozerObjectStore + Send> TableWatcher for ParquetTable<T> {
         &self,
         _id: usize,
         _table: &TableInfo,
-        sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
+        _sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
     ) -> Result<u64, ConnectorError> {
         Ok(2)
     }

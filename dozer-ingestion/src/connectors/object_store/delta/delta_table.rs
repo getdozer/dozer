@@ -1,8 +1,6 @@
-use std::{any::TypeId, collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
-use deltalake::{
-    datafusion::prelude::SessionContext, s3_storage_options, storage::s3::S3StorageOptions,
-};
+use deltalake::{datafusion::prelude::SessionContext, s3_storage_options};
 use dozer_types::{
     arrow_types::from_arrow::{map_schema_to_dozer, map_value_to_dozer_field},
     ingestion_types::DeltaConfig,
@@ -21,10 +19,9 @@ use crate::{
     errors::{ConnectorError, ObjectStoreConnectorError},
 };
 
-use crate::errors::ObjectStoreConnectorError::SendError;
 pub struct DeltaTable<T: DozerObjectStore + Send> {
     id: usize,
-    table_config: DeltaConfig,
+    _table_config: DeltaConfig,
     store_config: T,
 }
 
@@ -32,7 +29,7 @@ impl<T: DozerObjectStore + Send> DeltaTable<T> {
     pub fn new(id: usize, table_config: DeltaConfig, store_config: T) -> Self {
         Self {
             id,
-            table_config,
+            _table_config: table_config,
             store_config,
         }
     }
@@ -125,9 +122,9 @@ impl<T: DozerObjectStore + Send> TableWatcher for DeltaTable<T> {
 
     async fn snapshot(
         &self,
-        id: usize,
-        table: &TableInfo,
-        sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
+        _id: usize,
+        _table: &TableInfo,
+        _sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
     ) -> Result<u64, ConnectorError> {
         // let params = self.store_config.table_params(&table.name)?;
 
@@ -240,9 +237,9 @@ impl<T: DozerObjectStore + Send> TableWatcher for DeltaTable<T> {
 
     async fn ingest(
         &self,
-        id: usize,
+        _id: usize,
         table: &TableInfo,
-        seq_no: u64,
+        _seq_no: u64,
         sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
     ) -> Result<u64, ConnectorError> {
         let params = self.store_config.table_params(&table.name)?;
@@ -272,6 +269,7 @@ impl<T: DozerObjectStore + Send> TableWatcher for DeltaTable<T> {
                 .unwrap()
         };
 
+        let identifier = self.id as u32;
         tokio::spawn(async move {
             let data = ctx
                 .read_table(Arc::new(delta_table))
@@ -289,7 +287,6 @@ impl<T: DozerObjectStore + Send> TableWatcher for DeltaTable<T> {
             //     .handle_message(IngestionMessage::new_snapshotting_started(0_u64, 0))
             //     .map_err(ConnectorError::IngestorError)?;
 
-            let mut seq_no = 1;
             while let Some(Ok(batch)) = data.next().await {
                 let dozer_schema = map_schema_to_dozer(&batch.schema())
                     .map_err(|e| ConnectorError::InternalError(Box::new(e)))
@@ -313,7 +310,7 @@ impl<T: DozerObjectStore + Send> TableWatcher for DeltaTable<T> {
                     let evt = Operation::Insert {
                         new: Record {
                             schema_id: Some(SchemaIdentifier {
-                                id: id as u32,
+                                id: identifier,
                                 version: 0,
                             }),
                             values: fields,
@@ -341,8 +338,6 @@ impl<T: DozerObjectStore + Send> TableWatcher for DeltaTable<T> {
                     //         },
                     //     ))
                     //     .map_err(ConnectorError::IngestorError)?;
-
-                    seq_no += 1;
                 }
             }
         });
