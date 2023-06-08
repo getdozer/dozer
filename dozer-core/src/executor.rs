@@ -16,7 +16,6 @@ use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::thread::{self, Builder};
 use std::time::Duration;
-use dozer_types::log::info;
 
 #[derive(Clone)]
 pub struct ExecutorOptions {
