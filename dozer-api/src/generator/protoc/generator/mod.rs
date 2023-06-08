@@ -74,10 +74,11 @@ pub struct DurationDesc {
 #[derive(Debug, Clone)]
 pub struct DecimalDesc {
     pub message: MessageDescriptor,
-    pub flags: FieldDescriptor,
+    pub scale: FieldDescriptor,
     pub lo: FieldDescriptor,
     pub mid: FieldDescriptor,
     pub hi: FieldDescriptor,
+    pub negative: FieldDescriptor,
 }
 
 #[derive(Debug, Clone)]

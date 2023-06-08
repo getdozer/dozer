@@ -61,6 +61,7 @@ fn cache(c: &mut Criterion) {
                 Default::default(),
                 schema.clone(),
                 secondary_indexes,
+                &Default::default(),
                 Default::default(),
             )
             .unwrap(),

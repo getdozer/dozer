@@ -1,6 +1,6 @@
 [package]
 name = "dozer-tests"
-version = "0.1.20"
+version = "0.1.24"
 edition = "2021"
 authors = ["getdozer/dozer-dev"]
 
@@ -22,7 +22,7 @@ path = "src/sql_tests/logic_test.rs"
 dozer-types = { path = "../dozer-types" }
 dozer-api = { path = "../dozer-api" }
 dozer-utils = { path = "../dozer-utils" }
-dozer-orchestrator = { path = "../dozer-orchestrator" }
+dozer-cli = { path = "../dozer-cli" }
 dozer-tracing = { path = "../dozer-tracing" }
 
 reqwest = { version = "0.11.14", features = ["json", "rustls-tls"], default-features = false }

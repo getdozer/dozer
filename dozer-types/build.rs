@@ -35,6 +35,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .protoc_arg("--experimental_allow_proto3_optional")
         .type_attribute(".", "#[derive(serde::Serialize, serde::Deserialize)]")
         .extern_path(
+            ".dozer.cloud.Endpoint",
+            "crate::models::api_endpoint::ApiEndpoint",
+        )
+        .extern_path(".dozer.cloud.Source", "crate::models::source::Source")
+        .extern_path(
             ".dozer.cloud.AppConfig",
             "crate::models::app_config::Config",
         )
@@ -53,6 +58,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .extern_path(
             ".dozer.cloud.EthereumFilter",
             "crate::ingestion_types::EthereumFilter",
+        )
+        .extern_path(
+            ".dozer.cloud.DeltaLakeConfig",
+            "crate::ingestion_types::DeltaLakeConfig",
+        )
+        .extern_path(
+            ".dozer.cloud.LocalStorage",
+            "crate::ingestion_types::LocalStorage",
+        )
+        .extern_path(
+            ".dozer.cloud.S3Storage",
+            "crate::ingestion_types::S3Storage",
         )
         .extern_path(
             ".dozer.cloud.KafkaConfig",

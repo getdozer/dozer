@@ -214,7 +214,7 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
             )))
         }
         #[cfg(feature = "kafka")]
-        ConnectionConfig::Kafka(kafka_config) => Ok(Box::new(KafkaConnector::new(5, kafka_config))),
+        ConnectionConfig::Kafka(kafka_config) => Ok(Box::new(KafkaConnector::new(kafka_config))),
         #[cfg(not(feature = "kafka"))]
         ConnectionConfig::Kafka(_) => Err(ConnectorError::KafkaFeatureNotEnabled),
         ConnectionConfig::S3Storage(object_store_config) => {

@@ -8,7 +8,6 @@ use opentelemetry::sdk;
 use opentelemetry::sdk::trace::{BatchConfig, BatchSpanProcessor, Sampler};
 use opentelemetry::trace::TracerProvider;
 use opentelemetry::{global, sdk::propagation::TraceContextPropagator};
-use tracing_appender::non_blocking::WorkerGuard;
 use tracing_opentelemetry::OpenTelemetryLayer;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -16,10 +15,7 @@ use tracing_subscriber::{fmt, EnvFilter, Layer};
 
 use crate::exporter::DozerExporter;
 // Init telemetry by setting a global handler
-pub fn init_telemetry(
-    app_name: Option<&str>,
-    telemetry_config: Option<TelemetryConfig>,
-) -> WorkerGuard {
+pub fn init_telemetry(app_name: Option<&str>, telemetry_config: Option<TelemetryConfig>) {
     // log errors from open telemetry
     opentelemetry::global::set_error_handler(|e| {
         error!("OpenTelemetry error: {}", e);
@@ -28,7 +24,7 @@ pub fn init_telemetry(
 
     debug!("Initializing telemetry for {:?}", telemetry_config);
 
-    let (subscriber, guard) = create_subscriber(app_name, telemetry_config.as_ref());
+    let subscriber = create_subscriber(app_name, telemetry_config.as_ref());
     subscriber.init();
 
     if let Some(telemetry_config) = telemetry_config {
@@ -38,8 +34,6 @@ pub fn init_telemetry(
                 .expect("Failed to install Prometheus recorder/exporter");
         }
     }
-
-    guard
 }
 
 // Cleanly shutdown telemetry
@@ -53,7 +47,7 @@ pub fn init_telemetry_closure<T>(
     telemetry_config: Option<TelemetryConfig>,
     closure: impl FnOnce() -> T,
 ) -> T {
-    let (subscriber, _guard) = create_subscriber(app_name, telemetry_config.as_ref());
+    let subscriber = create_subscriber(app_name, telemetry_config.as_ref());
 
     dozer_types::tracing::subscriber::with_default(subscriber, closure)
 }
@@ -61,15 +55,10 @@ pub fn init_telemetry_closure<T>(
 fn create_subscriber(
     app_name: Option<&str>,
     telemetry_config: Option<&TelemetryConfig>,
-) -> (impl Subscriber, WorkerGuard) {
+) -> impl Subscriber {
     let app_name = app_name.unwrap_or("dozer");
 
-    let fmt_layer = fmt::layer().with_target(false);
     let fmt_filter = EnvFilter::try_from_default_env()
-        .or_else(|_| EnvFilter::try_new("info"))
-        .unwrap();
-
-    let log_writer_filter = EnvFilter::try_from_default_env()
         .or_else(|_| EnvFilter::try_new("info"))
         .unwrap();
 
@@ -90,21 +79,17 @@ fn create_subscriber(
         }
     });
 
-    let file_appender = tracing_appender::rolling::never("./log", format!("{app_name}.log"));
-    let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
-
-    let subscriber = tracing_subscriber::registry()
-        .with(fmt_layer.with_filter(fmt_filter))
+    let stdout_is_tty = atty::is(atty::Stream::Stdout);
+    tracing_subscriber::registry()
         .with(
             fmt::Layer::default()
-                .with_ansi(false)
-                .with_writer(non_blocking)
-                .with_filter(log_writer_filter),
+                .without_time()
+                .with_target(!stdout_is_tty)
+                .with_ansi(stdout_is_tty)
+                .with_filter(fmt_filter),
         )
         .with(layers.0)
-        .with(layers.1);
-
-    (subscriber, guard)
+        .with(layers.1)
 }
 
 fn get_jaeger_tracer<S>(

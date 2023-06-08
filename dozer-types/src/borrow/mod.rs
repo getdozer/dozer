@@ -75,7 +75,7 @@ macro_rules! impl_borrow_for_clone_type {
     };
 }
 
-impl_borrow_for_clone_type!(u8, u32, u64, Record, IndexDefinition, SchemaWithIndex);
+impl_borrow_for_clone_type!(bool, u8, u32, u64, Record, IndexDefinition, SchemaWithIndex);
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Cow<'a, B: Borrow + 'a> {

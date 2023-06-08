@@ -6,7 +6,15 @@ service DozerCloud {
   rpc create_application(CreateAppRequest) returns (AppResponse);
   rpc update_application(UpdateAppRequest) returns (AppResponse);
   rpc delete_application(DeleteAppRequest) returns (DeleteAppResponse);
+  rpc clone_application(CloneAppRequest) returns (AppResponse);
   rpc list_applications(ListAppRequest) returns (ListAppResponse);
+  rpc list_app_connections(ListAppConnectionRequest) returns (GetAllConnectionResponse);
+  rpc list_app_sources(ListSourceRequest) returns (ListSourceResponse);
+  rpc list_app_endpoints(ListEndpointRequest) returns (ListEndpointResponse);
+
+  rpc get_connection(GetConnectionRequest) returns (ConnectionResponse);
+  rpc create_app_connection(AppConnectionRequest) returns (ConnectionResponse);
+  rpc create_source(CreateSourceRequest) returns (SourceResponse);
 
   rpc parse_sql(ParseRequest) returns (ParseResponse);
   rpc parse_yaml(ParseYamlRequest) returns (ParseYamlResponse);
@@ -21,12 +29,18 @@ service DozerCloud {
   rpc get_tables(GetTablesRequest) returns (GetTablesResponse);
   rpc update_connection(UpdateConnectionRequest) returns (ConnectionResponse);
 
-  rpc start_dozer(StartRequest) returns (StartResponse);
+  rpc StartDozer(StartRequest) returns (stream StartUpdate);
   rpc stop_dozer(StopRequest) returns (StopResponse);
   rpc get_status(GetStatusRequest) returns (GetStatusResponse);
+  rpc upsert_version(UpsertVersionRequest) returns (UpsertVersionResponse);
+  rpc set_current_version(SetCurrentVersionRequest) returns (SetCurrentVersionResponse);
+  rpc set_num_api_instances(SetNumApiInstancesRequest) returns (SetNumApiInstancesResponse);
 
   rpc list_files(ListFilesRequest) returns (ListFilesResponse);
+  rpc update_files(UpdateFileRequest) returns (UpdateFileResponse);
   rpc save_files(SaveFilesRequest) returns (SaveFilesResponse);
+  rpc delete_files(DeleteFileRequest) returns (DeleteFileResponse);
+
   rpc OnLogMessage(LogMessageRequest) returns (stream LogMessage);
   rpc OnStatusUpdate(StatusUpdateRequest) returns (stream StatusUpdate);
 }
@@ -35,22 +49,115 @@ service DozerPublic {
   rpc company_metadata(CompanyRequest) returns (CompanyResponse);
 }
 
-message StartRequest { string id = 1; }
+message AppConnectionRequest {
+  string app_id = 1;
+  oneof input {
+    Connection connection = 2;
+    string connection_yaml = 3;
+  }
+}
+
+message CreateSourceRequest {
+  string app_id = 1;
+  Source source = 2;
+}
+
+message ListEndpointRequest {
+  string app_id = 1;
+  optional uint32 limit = 2;
+  optional uint32 offset = 3;
+}
+
+message ListEndpointResponse {
+    repeated EndpointResponse endpoints = 1;
+    Pagination pagination = 2;
+}
+
+message EndpointResponse {
+  string id = 1;
+  Endpoint endpoint = 2;
+  string yaml_content = 3; 
+}
+
+message ListSourceRequest {
+  string app_id = 1;
+  optional uint32 limit = 2;
+  optional uint32 offset = 3;
+}
+
+message ListSourceResponse {
+    repeated SourceResponse sources = 1;
+    Pagination pagination = 2;
+}
+
+message SourceResponse {
+  string id = 1;
+  Source source = 2;
+  string yaml_content = 3;
+}
+
+message ListAppConnectionRequest {
+  string app_id = 1;
+  optional uint32 limit = 2;
+  optional uint32 offset = 3;
+}
+
+message StartRequest {
+  string app_id = 1;
+  int32 num_api_instances = 2;
+}
+
 message StartResponse {
   bool success = 1;
-  string id = 2;
-  optional string api_endpoint = 3;
+  string app_id = 2;
+  string api_endpoint = 3;
+  optional string error = 4;
 }
-message StopRequest { string id = 1; }
+message StartUpdate {
+  optional StartResponse result = 1;
+  uint32 current_step = 2;
+  uint32 total_steps = 3;
+}
+message StopRequest { string app_id = 1; }
 message StopResponse { bool success = 1; }
 
-message GetStatusRequest { string id = 1; }
+message GetStatusRequest { string app_id = 1; }
 message GetStatusResponse {
-  string state = 1;
-  optional string api_endpoint = 2;
-  optional uint32 rest_port = 3;
-  optional string grpc_port = 4;
+  string api_endpoint = 1;
+  repeated DeploymentStatus deployments = 2;
+  map<uint32, uint32> versions = 3;
+  optional uint32 current_version = 4;
 }
+
+message DeploymentStatus {
+  uint32 deployment = 1;
+  bool app_running = 2;
+  optional int32 api_desired = 3;
+  optional int32 api_available = 4;
+}
+
+message UpsertVersionRequest {
+  string app_id = 1;
+  uint32 version = 2;
+  uint32 deployment = 3;
+}
+
+message UpsertVersionResponse {}
+
+message SetCurrentVersionRequest {
+  string app_id = 1;
+  uint32 version = 2;
+}
+
+message SetCurrentVersionResponse {}
+
+message SetNumApiInstancesRequest {
+  string app_id = 1;
+  uint32 deployment = 2;
+  int32 num_api_instances = 3;
+}
+
+message SetNumApiInstancesResponse {}
 
 message CreateAppRequest {
   repeated File files = 3;
@@ -77,13 +184,16 @@ message GenerateYamlResponse {
 }
 
 message AppResponse {
-  string id = 1;
+  string app_id = 1;
   AppConfig app = 2;
+  optional string repository_url = 3;
 }
 
 message ListAppRequest {
   optional uint32 limit = 1;
   optional uint32 offset = 2;
+  optional string name = 3;
+  optional string uuid = 4;
 }
 message ListAppResponse {
   repeated AppResponse apps = 1;
@@ -91,21 +201,28 @@ message ListAppResponse {
 }
 
 message UpdateAppRequest {
-  string id = 1;
+  string app_id = 1;
   repeated File files = 2;
 }
 
 message DeleteAppRequest {
-  string id = 1;
+  string app_id = 1;
+}
+message CloneAppRequest {
+  string app_id = 1;
 }
 message DeleteAppResponse { bool success = 1; }
 
 message GetAppRequest { optional string app_id = 1; }
 message ConnectionRequest { Connection connection = 1; }
+message GetConnectionRequest {
+  string connection_id = 1;
+}
 message ValidateConnectionResponse { bool success = 1; }
 message ConnectionResponse {
   string id = 1;
   Connection connection = 2;
+  string yaml_content = 3;
 }
 
 message GetTablesRequest { string connection_id = 2; }
@@ -128,17 +245,42 @@ message UpdateConnectionRequest {
   string connection_id = 3;
 }
 message ListFilesRequest {
+  string app_id = 1;
 }
 message ListFilesResponse {
-  repeated File files = 1;
+  repeated FileInfo files = 1;
+}
+message FileInfo {
+  string id = 1;
+  File file = 2;
+}
+message DeleteFileRequest {
+  string app_id = 1;
+  repeated string file_ids = 2;
+}
+message DeleteFileResponse {
+}
+message UpdateFileRequest {
+  string app_id = 1;
+  repeated FileInfo files = 2;
+}
+message UpdateFileResponse {
+  repeated FileInfo files = 1; 
 }
 message SaveFilesRequest {
-  repeated File files = 1;
+  string app_id = 1;
+  repeated File files = 2;
 }
 message SaveFilesResponse {
+  repeated FileInfo files = 1;
 }
 message LogMessageRequest {
   string app_id = 1;
+  uint32 deployment = 2;
+  bool follow = 3;
+  bool include_migrate = 4;
+  bool include_app = 5;
+  bool include_api = 6;
 }
 message StatusUpdateRequest {
   string app_id = 1;
@@ -175,15 +317,14 @@ message QueryGraph {
   repeated QueryEdge edges = 2;
 }
 message CompanyRequest {
-    string name = 1;
+  oneof criteria {
+    string iss = 1;
+    string name = 2;
+  }
 }
 message CompanyResponse {
     string name = 1;
-    string cli_client_id = 2;
-    string region = 3;
-    string user_pool_id = 4;
-    string user_pool_name = 5;
-    string redirect_url = 6;
-    string domain_name = 7;
-    string callback_url = 8;
+    string auth_url = 2;
+    string iss = 3;
+    string jwks_url = 4;
 }

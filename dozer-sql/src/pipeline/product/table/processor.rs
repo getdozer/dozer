@@ -1,8 +1,8 @@
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::epoch::Epoch;
-use dozer_core::errors::ExecutionError;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
+use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::Operation;
 
 #[derive(Debug)]
@@ -15,7 +15,7 @@ impl TableProcessor {
 }
 
 impl Processor for TableProcessor {
-    fn commit(&self, _epoch: &Epoch) -> Result<(), ExecutionError> {
+    fn commit(&self, _epoch: &Epoch) -> Result<(), BoxedError> {
         Ok(())
     }
 
@@ -24,8 +24,8 @@ impl Processor for TableProcessor {
         _from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-    ) -> Result<(), ExecutionError> {
-        fw.send(op, DEFAULT_PORT_HANDLE)?;
+    ) -> Result<(), BoxedError> {
+        fw.send(op, DEFAULT_PORT_HANDLE);
         Ok(())
     }
 }

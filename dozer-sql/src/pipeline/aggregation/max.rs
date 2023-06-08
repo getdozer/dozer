@@ -4,7 +4,6 @@ use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::aggregate::AggregateFunctionType::Max;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
 use crate::{argv, calculate_err, calculate_err_field};
-use dozer_core::errors::ExecutionError::InvalidType;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
 use std::collections::BTreeMap;
@@ -130,13 +129,13 @@ fn get_max(
                 | FieldType::Text
                 | FieldType::Binary
                 | FieldType::Json
-                | FieldType::Point => Err(PipelineError::InternalExecutionError(InvalidType(
-                    format!("Not supported return type {typ} for {Max}"),
+                | FieldType::Point => Err(PipelineError::InvalidReturnType(format!(
+                    "Not supported return type {typ} for {Max}"
                 ))),
             },
-            None => Err(PipelineError::InternalExecutionError(InvalidType(format!(
+            None => Err(PipelineError::InvalidReturnType(format!(
                 "Not supported None return type for {Max}"
-            )))),
+            ))),
         }
     }
 }

@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::path::Path;
 
 use crate::grpc::types_helper;
@@ -65,6 +66,7 @@ pub fn open_or_create_cache(
     cache_manager: &dyn RwCacheManager,
     labels: Labels,
     schema: SchemaWithIndex,
+    connections: &HashSet<String>,
     write_options: CacheWriteOptions,
 ) -> Result<Box<dyn RwCache>, CacheError> {
     match cache_manager.open_rw_cache(labels.clone(), write_options)? {
@@ -73,7 +75,13 @@ pub fn open_or_create_cache(
             Ok(cache)
         }
         None => {
-            let cache = cache_manager.create_cache(labels, schema.0, schema.1, write_options)?;
+            let cache = cache_manager.create_cache(
+                labels,
+                schema.0,
+                schema.1,
+                connections,
+                write_options,
+            )?;
             Ok(cache)
         }
     }
@@ -106,10 +114,22 @@ fn build_cache_task(
 ) -> Result<(), CacheError> {
     let schema = cache.get_schema().0.clone();
 
-    const BUILD_CACHE_COUNTER_NAME: &str = "build_cache";
+    const CACHE_INSERT_COUNTER_NAME: &str = "cache_insert";
     describe_counter!(
-        BUILD_CACHE_COUNTER_NAME,
-        "Number of operations processed by cache builder"
+        CACHE_INSERT_COUNTER_NAME,
+        "Number of inserts processed by cache builder"
+    );
+
+    const CACHE_DELETE_COUNTER_NAME: &str = "cache_delete";
+    describe_counter!(
+        CACHE_DELETE_COUNTER_NAME,
+        "Number of deletes processed by cache builder"
+    );
+
+    const CACHE_UPDATE_COUNTER_NAME: &str = "cache_update";
+    describe_counter!(
+        CACHE_UPDATE_COUNTER_NAME,
+        "Number of updates processed by cache builder"
     );
 
     while let Some((op, offset)) = receiver.blocking_recv() {
@@ -127,10 +147,12 @@ fn build_cache_task(
                             send_and_log_error(operations_sender, operation);
                         }
                     }
+                    increment_counter!(CACHE_DELETE_COUNTER_NAME, cache.labels().clone());
                 }
                 Operation::Insert { mut new } => {
                     new.schema_id = schema.identifier;
                     let result = cache.insert(&new)?;
+                    increment_counter!(CACHE_INSERT_COUNTER_NAME, cache.labels().clone());
 
                     if let Some((endpoint_name, operations_sender)) = operations_sender.as_ref() {
                         send_upsert_result(
@@ -147,6 +169,7 @@ fn build_cache_task(
                     old.schema_id = schema.identifier;
                     new.schema_id = schema.identifier;
                     let upsert_result = cache.update(&old, &new)?;
+                    increment_counter!(CACHE_UPDATE_COUNTER_NAME, cache.labels().clone());
 
                     if let Some((endpoint_name, operations_sender)) = operations_sender.as_ref() {
                         send_upsert_result(
@@ -164,16 +187,15 @@ fn build_cache_task(
                 cache.set_metadata(offset)?;
                 cache.commit()?;
             }
-            ExecutorOperation::SnapshottingDone {} => {
+            ExecutorOperation::SnapshottingDone { connection_name } => {
                 cache.set_metadata(offset)?;
+                cache.set_connection_snapshotting_done(&connection_name)?;
                 cache.commit()?;
             }
             ExecutorOperation::Terminate => {
                 break;
             }
         }
-
-        increment_counter!(BUILD_CACHE_COUNTER_NAME, cache.labels().clone());
     }
 
     Ok(())

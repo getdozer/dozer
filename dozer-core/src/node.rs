@@ -1,7 +1,7 @@
 use crate::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
-use crate::errors::ExecutionError;
 
 use dozer_types::epoch::Epoch;
+use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
@@ -38,23 +38,23 @@ impl OutputPortDef {
 }
 
 pub trait SourceFactory<T>: Send + Sync + Debug {
-    fn get_output_schema(&self, port: &PortHandle) -> Result<(Schema, T), ExecutionError>;
+    fn get_output_schema(&self, port: &PortHandle) -> Result<(Schema, T), BoxedError>;
     fn get_output_ports(&self) -> Vec<OutputPortDef>;
     fn build(
         &self,
         output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Source>, ExecutionError>;
+    ) -> Result<Box<dyn Source>, BoxedError>;
 }
 
 pub trait Source: Send + Sync + Debug {
     /// Checks if the source can start from the given checkpoint.
     /// If this function returns false, the executor will start the source from the beginning.
-    fn can_start_from(&self, last_checkpoint: (u64, u64)) -> Result<bool, ExecutionError>;
+    fn can_start_from(&self, last_checkpoint: (u64, u64)) -> Result<bool, BoxedError>;
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
         last_checkpoint: Option<(u64, u64)>,
-    ) -> Result<(), ExecutionError>;
+    ) -> Result<(), BoxedError>;
 }
 
 pub trait ProcessorFactory<T>: Send + Sync + Debug {
@@ -62,41 +62,38 @@ pub trait ProcessorFactory<T>: Send + Sync + Debug {
         &self,
         output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, (Schema, T)>,
-    ) -> Result<(Schema, T), ExecutionError>;
+    ) -> Result<(Schema, T), BoxedError>;
     fn get_input_ports(&self) -> Vec<PortHandle>;
     fn get_output_ports(&self) -> Vec<OutputPortDef>;
     fn build(
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
         output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Processor>, ExecutionError>;
+    ) -> Result<Box<dyn Processor>, BoxedError>;
 }
 
 pub trait Processor: Send + Sync + Debug {
-    fn commit(&self, epoch_details: &Epoch) -> Result<(), ExecutionError>;
+    fn commit(&self, epoch_details: &Epoch) -> Result<(), BoxedError>;
     fn process(
         &mut self,
         from_port: PortHandle,
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
-    ) -> Result<(), ExecutionError>;
+    ) -> Result<(), BoxedError>;
 }
 
 pub trait SinkFactory<T>: Send + Sync + Debug {
     fn get_input_ports(&self) -> Vec<PortHandle>;
-    fn prepare(
-        &self,
-        input_schemas: HashMap<PortHandle, (Schema, T)>,
-    ) -> Result<(), ExecutionError>;
+    fn prepare(&self, input_schemas: HashMap<PortHandle, (Schema, T)>) -> Result<(), BoxedError>;
     fn build(
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Sink>, ExecutionError>;
+    ) -> Result<Box<dyn Sink>, BoxedError>;
 }
 
 pub trait Sink: Send + Sync + Debug {
-    fn commit(&mut self) -> Result<(), ExecutionError>;
-    fn process(&mut self, from_port: PortHandle, op: Operation) -> Result<(), ExecutionError>;
+    fn commit(&mut self) -> Result<(), BoxedError>;
+    fn process(&mut self, from_port: PortHandle, op: Operation) -> Result<(), BoxedError>;
 
-    fn on_source_snapshotting_done(&mut self) -> Result<(), ExecutionError>;
+    fn on_source_snapshotting_done(&mut self, connection_name: String) -> Result<(), BoxedError>;
 }

@@ -22,8 +22,9 @@ pub fn map_executor_operation(
         ExecutorOperation::Commit { .. } => {
             result.set_item("type", "commit")?;
         }
-        ExecutorOperation::SnapshottingDone {} => {
+        ExecutorOperation::SnapshottingDone { connection_name } => {
             result.set_item("type", "snapshotting_done")?;
+            result.set_item("connection_name", connection_name)?;
         }
         ExecutorOperation::Terminate => {
             result.set_item("type", "terminate")?;

@@ -56,7 +56,7 @@ impl Node for SourceSenderNode {
                 .map(|op_id| (op_id.txid, op_id.seq_in_tx)),
         );
         debug!("[{}-sender] Quit", self.node_handle);
-        result
+        result.map_err(ExecutionError::Source)
     }
 }
 
@@ -177,6 +177,7 @@ pub fn create_source_nodes(
         options.commit_sz,
         options.commit_time_threshold,
         dag.epoch_manager().clone(),
+        dag.error_manager().clone(),
     );
     let source_listener_node = SourceListenerNode {
         node_handle,

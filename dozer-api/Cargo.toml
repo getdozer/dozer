@@ -1,6 +1,6 @@
 [package]
 name = "dozer-api"
-version = "0.1.20"
+version = "0.1.24"
 
 edition = "2021"
 authors = ["getdozer/dozer-dev"]
@@ -17,7 +17,7 @@ actix-cors = "0.6.3"
 actix-http = { version = "3.3.0", default-features = false, features = ["rustls"] }
 actix-web = { version = "4.2.1", default-features = false, features = ["macros", "compress-brotli", "compress-gzip", "compress-zstd", "cookies", "rustls"] }
 actix-web-httpauth = "0.8.0"
-handlebars = "4.3.5"
+handlebars = "4.3.7"
 openapiv3 = "1.0.2"
 tonic-build = "0.8.2"
 tokio = { version = "1", features = ["full"] }
@@ -39,6 +39,7 @@ hyper = "0.14.24"
 tower-http = {version = "0.3.5", features = ["full"]}
 arc-swap = "1.6.0"
 metrics = "0.21.0"
+gethostname = "0.4.3"
 
 [dev-dependencies]
 tempdir = "0.3.7"

@@ -182,10 +182,11 @@ impl<'a> ProtoGeneratorImpl<'a> {
                                 },
                                 decimal_field: DecimalDesc {
                                     message: decimal_values.clone(),
-                                    flags: get_field(&decimal_values, "flags")?,
+                                    scale: get_field(&decimal_values, "scale")?,
                                     lo: get_field(&decimal_values, "lo")?,
                                     mid: get_field(&decimal_values, "mid")?,
                                     hi: get_field(&decimal_values, "hi")?,
+                                    negative: get_field(&decimal_values, "negative")?,
                                 },
                                 duration_field: DurationDesc {
                                     message: durv.clone(),

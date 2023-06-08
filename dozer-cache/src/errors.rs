@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::path::PathBuf;
 
 use dozer_storage::errors::StorageError;
@@ -7,6 +8,13 @@ use dozer_types::thiserror::Error;
 use dozer_log::errors::ReaderError;
 use dozer_types::errors::types::{DeserializationError, SerializationError, TypeError};
 use dozer_types::types::{IndexDefinition, SchemaWithIndex};
+
+#[derive(Debug)]
+pub struct ConnectionMismatch {
+    pub name: String,
+    pub given: HashSet<String>,
+    pub stored: HashSet<String>,
+}
 
 #[derive(Error, Debug)]
 pub enum CacheError {
@@ -34,6 +42,8 @@ pub enum CacheError {
         given: Box<SchemaWithIndex>,
         stored: Box<SchemaWithIndex>,
     },
+    #[error("Connections for {} mismatch, give: {:?}, stored: {:?})", .0.name, .0.given, .0.stored)]
+    ConnectionsMismatch(Box<ConnectionMismatch>),
     #[error("Index definition {0} is not found")]
     IndexDefinitionNotFound(String),
     #[error("Index definition {name} mismatch: given {given:?}, stored {stored:?}")]

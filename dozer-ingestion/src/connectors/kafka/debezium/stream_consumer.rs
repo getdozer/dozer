@@ -12,7 +12,9 @@ use dozer_types::serde_json::Value;
 use dozer_types::types::{Operation, Record, SchemaIdentifier};
 use kafka::consumer::Consumer;
 
-#[derive(Debug, Serialize, Deserialize)]
+use tonic::async_trait;
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(crate = "dozer_types::serde")]
 #[serde(untagged)]
 pub enum DebeziumFieldType {
@@ -28,7 +30,7 @@ pub enum DebeziumFieldType {
     String(String),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(crate = "dozer_types::serde")]
 pub struct DebeziumField {
     pub r#type: String,
@@ -37,7 +39,7 @@ pub struct DebeziumField {
     pub field: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 #[serde(crate = "dozer_types::serde")]
 pub struct DebeziumSchemaParameters {
     pub scale: Option<String>,
@@ -45,7 +47,7 @@ pub struct DebeziumSchemaParameters {
     pub precision: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[serde(crate = "dozer_types::serde")]
 pub struct DebeziumSchemaStruct {
     pub r#type: Value,
@@ -57,7 +59,7 @@ pub struct DebeziumSchemaStruct {
     pub parameters: Option<DebeziumSchemaParameters>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(crate = "dozer_types::serde")]
 pub struct DebeziumPayload {
     pub before: Option<Value>,
@@ -65,7 +67,7 @@ pub struct DebeziumPayload {
     pub op: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(crate = "dozer_types::serde")]
 pub struct DebeziumMessage {
     pub schema: DebeziumSchemaStruct,
@@ -77,8 +79,15 @@ pub struct DebeziumStreamConsumer {}
 
 impl DebeziumStreamConsumer {}
 
+#[async_trait]
 impl StreamConsumer for DebeziumStreamConsumer {
-    fn run(&self, mut con: Consumer, ingestor: &Ingestor) -> Result<(), ConnectorError> {
+    async fn run(
+        &self,
+        mut con: Consumer,
+        ingestor: &Ingestor,
+        _topic: &str,
+        _schema_registry_url: &Option<String>,
+    ) -> Result<(), ConnectorError> {
         loop {
             let mss = con.poll().map_err(|e| {
                 DebeziumError::DebeziumStreamError(DebeziumStreamError::PollingError(e))
@@ -114,26 +123,20 @@ impl StreamConsumer for DebeziumStreamConsumer {
 
                         match (value_struct.payload.after, value_struct.payload.before) {
                             (Some(new_payload), Some(old_payload)) => {
-                                let new = convert_value_to_schema(
-                                    new_payload,
-                                    schema.clone(),
-                                    fields_map.clone(),
-                                )
-                                .map_err(|e| {
-                                    ConnectorError::DebeziumError(
-                                        DebeziumError::DebeziumSchemaError(e),
-                                    )
-                                })?;
-                                let old = convert_value_to_schema(
-                                    old_payload,
-                                    schema.clone(),
-                                    fields_map,
-                                )
-                                .map_err(|e| {
-                                    ConnectorError::DebeziumError(
-                                        DebeziumError::DebeziumSchemaError(e),
-                                    )
-                                })?;
+                                let new =
+                                    convert_value_to_schema(new_payload, &schema, &fields_map)
+                                        .map_err(|e| {
+                                            ConnectorError::DebeziumError(
+                                                DebeziumError::DebeziumSchemaError(e),
+                                            )
+                                        })?;
+                                let old =
+                                    convert_value_to_schema(old_payload, &schema, &fields_map)
+                                        .map_err(|e| {
+                                            ConnectorError::DebeziumError(
+                                                DebeziumError::DebeziumSchemaError(e),
+                                            )
+                                        })?;
 
                                 ingestor
                                     .handle_message(IngestionMessage::new_op(
@@ -161,12 +164,13 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                     .map_err(ConnectorError::IngestorError)?;
                             }
                             (None, Some(old_payload)) => {
-                                let old = convert_value_to_schema(old_payload, schema, fields_map)
-                                    .map_err(|e| {
-                                        ConnectorError::DebeziumError(
-                                            DebeziumError::DebeziumSchemaError(e),
-                                        )
-                                    })?;
+                                let old =
+                                    convert_value_to_schema(old_payload, &schema, &fields_map)
+                                        .map_err(|e| {
+                                            ConnectorError::DebeziumError(
+                                                DebeziumError::DebeziumSchemaError(e),
+                                            )
+                                        })?;
 
                                 ingestor
                                     .handle_message(IngestionMessage::new_op(
@@ -186,16 +190,13 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                     .map_err(ConnectorError::IngestorError)?;
                             }
                             (Some(new_payload), None) => {
-                                let new = convert_value_to_schema(
-                                    new_payload,
-                                    schema.clone(),
-                                    fields_map.clone(),
-                                )
-                                .map_err(|e| {
-                                    ConnectorError::DebeziumError(
-                                        DebeziumError::DebeziumSchemaError(e),
-                                    )
-                                })?;
+                                let new =
+                                    convert_value_to_schema(new_payload, &schema, &fields_map)
+                                        .map_err(|e| {
+                                            ConnectorError::DebeziumError(
+                                                DebeziumError::DebeziumSchemaError(e),
+                                            )
+                                        })?;
 
                                 ingestor
                                     .handle_message(IngestionMessage::new_op(

@@ -1,11 +1,13 @@
 use std::collections::HashMap;
 
 use dozer_core::{
-    errors::ExecutionError,
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
-use dozer_types::types::{FieldDefinition, Schema};
+use dozer_types::{
+    errors::internal::BoxedError,
+    types::{FieldDefinition, Schema},
+};
 use sqlparser::ast::{Expr, Ident, SelectItem};
 
 use crate::pipeline::builder::SchemaSQLContext;
@@ -46,7 +48,7 @@ impl ProcessorFactory<SchemaSQLContext> for ProjectionProcessorFactory {
         &self,
         _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(Schema, SchemaSQLContext), ExecutionError> {
+    ) -> Result<(Schema, SchemaSQLContext), BoxedError> {
         let (input_schema, context) = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap();
 
         let mut select_expr: Vec<(String, Expression)> = vec![];
@@ -82,9 +84,7 @@ impl ProcessorFactory<SchemaSQLContext> for ProjectionProcessorFactory {
         let mut fields = vec![];
         for e in select_expr.iter() {
             let field_name = e.0.clone();
-            let field_type =
-                e.1.get_type(input_schema)
-                    .map_err(|e| ExecutionError::InternalError(Box::new(e)))?;
+            let field_type = e.1.get_type(input_schema)?;
             fields.push(FieldDefinition::new(
                 field_name,
                 field_type.return_type,
@@ -101,12 +101,10 @@ impl ProcessorFactory<SchemaSQLContext> for ProjectionProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Processor>, ExecutionError> {
+    ) -> Result<Box<dyn Processor>, BoxedError> {
         let schema = match input_schemas.get(&DEFAULT_PORT_HANDLE) {
             Some(schema) => Ok(schema),
-            None => Err(ExecutionError::InternalStringError(
-                "Invalid Projection input port".to_string(),
-            )),
+            None => Err(PipelineError::InvalidPortHandle(DEFAULT_PORT_HANDLE)),
         }?;
 
         match self
@@ -119,7 +117,7 @@ impl ProcessorFactory<SchemaSQLContext> for ProjectionProcessorFactory {
                 schema.clone(),
                 expressions.into_iter().map(|e| e.1).collect(),
             ))),
-            Err(error) => Err(ExecutionError::InternalStringError(error.to_string())),
+            Err(error) => Err(error.into()),
         }
     }
 }

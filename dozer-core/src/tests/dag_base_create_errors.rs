@@ -1,4 +1,3 @@
-use crate::errors::ExecutionError;
 use crate::executor::{DagExecutor, ExecutorOptions};
 use crate::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Source, SourceFactory,
@@ -9,6 +8,7 @@ use crate::tests::dag_base_run::NoopProcessorFactory;
 use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 
+use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
 use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
 
@@ -30,10 +30,7 @@ impl CreateErrSourceFactory {
 }
 
 impl SourceFactory<NoneContext> for CreateErrSourceFactory {
-    fn get_output_schema(
-        &self,
-        _port: &PortHandle,
-    ) -> Result<(Schema, NoneContext), ExecutionError> {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<(Schema, NoneContext), BoxedError> {
         Ok((
             Schema::empty()
                 .field(
@@ -60,13 +57,11 @@ impl SourceFactory<NoneContext> for CreateErrSourceFactory {
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Source>, ExecutionError> {
+    ) -> Result<Box<dyn Source>, BoxedError> {
         if self.panic {
             panic!("Generated error");
         } else {
-            Err(ExecutionError::InvalidOperation(
-                "Generated Error".to_string(),
-            ))
+            Err("Generated Error".to_string().into())
         }
     }
 }
@@ -171,7 +166,7 @@ impl ProcessorFactory<NoneContext> for CreateErrProcessorFactory {
         &self,
         _port: &PortHandle,
         _input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(Schema, NoneContext), ExecutionError> {
+    ) -> Result<(Schema, NoneContext), BoxedError> {
         Ok((
             Schema::empty()
                 .field(
@@ -203,13 +198,11 @@ impl ProcessorFactory<NoneContext> for CreateErrProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Processor>, ExecutionError> {
+    ) -> Result<Box<dyn Processor>, BoxedError> {
         if self.panic {
             panic!("Generated error");
         } else {
-            Err(ExecutionError::InvalidOperation(
-                "Generated Error".to_string(),
-            ))
+            Err("Generated Error".to_string().into())
         }
     }
 }
