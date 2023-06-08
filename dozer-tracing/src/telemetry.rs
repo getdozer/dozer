@@ -83,6 +83,7 @@ fn create_subscriber(
     tracing_subscriber::registry()
         .with(
             fmt::Layer::default()
+                .without_time()
                 .with_target(!stdout_is_tty)
                 .with_ansi(stdout_is_tty)
                 .with_filter(fmt_filter),

@@ -8,6 +8,7 @@ use dozer_types::{
     labels::Labels,
     log::{debug, error},
     parking_lot::Mutex,
+    types::IndexDefinition,
 };
 use metrics::describe_counter;
 
@@ -155,6 +156,7 @@ fn index_and_log_error(
 ) {
     let mut labels = main_env.labels().clone();
     labels.push("secondary_index", secondary_index.to_string());
+    labels.push("secondary_index_type", secondary_index_type(&secondary_env));
 
     // Loop until map full or up to date.
     loop {
@@ -205,10 +207,17 @@ fn run_indexing(
 
     let result = secondary_env.index(
         &txn,
-        main_env.operation_log(),
+        main_env.operation_log().clone(),
         BUILD_INDEX_COUNTER_NAME,
         labels,
     )?;
     secondary_env.commit()?;
     Ok(result)
+}
+
+fn secondary_index_type(secondary_env: &Mutex<RwSecondaryEnvironment>) -> &'static str {
+    match secondary_env.lock().index_definition() {
+        IndexDefinition::SortedInverted(_) => "SortedInverted",
+        IndexDefinition::FullText(_) => "FullText",
+    }
 }

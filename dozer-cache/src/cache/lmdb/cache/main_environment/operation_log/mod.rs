@@ -5,9 +5,11 @@ use dozer_storage::{
 };
 use dozer_types::{
     borrow::{Borrow, Cow, IntoOwned},
+    labels::Labels,
     serde::{Deserialize, Serialize},
     types::Record,
 };
+use metrics::{describe_counter, increment_counter};
 
 use crate::cache::{CacheRecord, RecordMeta};
 
@@ -37,7 +39,7 @@ pub enum OperationBorrow<'a> {
     },
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct OperationLog {
     /// Record primary key -> RecordMetadata, empty if schema is append only or has no primary index.
     primary_key_metadata: PrimaryKeyMetadata,
@@ -49,6 +51,8 @@ pub struct OperationLog {
     next_operation_id: LmdbCounter,
     /// Operation_id -> operation.
     operation_id_to_operation: LmdbMap<u64, Operation>,
+    /// The cache labels.
+    labels: Labels,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -57,8 +61,15 @@ pub enum MetadataKey<'a> {
     Hash(&'a Record, u64),
 }
 
+const CACHE_OPERATION_COUNTER_NAME: &str = "cache_operation";
+
 impl OperationLog {
-    pub fn create(env: &mut RwLmdbEnvironment) -> Result<Self, StorageError> {
+    pub fn create(env: &mut RwLmdbEnvironment, labels: Labels) -> Result<Self, StorageError> {
+        describe_counter!(
+            CACHE_OPERATION_COUNTER_NAME,
+            "Number of operations stored in the cache"
+        );
+
         let primary_key_metadata = PrimaryKeyMetadata::create(env)?;
         let hash_metadata = HashMetadata::create(env)?;
         let present_operation_ids = LmdbSet::create(env, Some("present_operation_ids"))?;
@@ -70,10 +81,11 @@ impl OperationLog {
             present_operation_ids,
             next_operation_id,
             operation_id_to_operation,
+            labels,
         })
     }
 
-    pub fn open<E: LmdbEnvironment>(env: &E) -> Result<Self, StorageError> {
+    pub fn open<E: LmdbEnvironment>(env: &E, labels: Labels) -> Result<Self, StorageError> {
         let primary_key_metadata = PrimaryKeyMetadata::open(env)?;
         let hash_metadata = HashMetadata::open(env)?;
         let present_operation_ids = LmdbSet::open(env, Some("present_operation_ids"))?;
@@ -85,7 +97,12 @@ impl OperationLog {
             present_operation_ids,
             next_operation_id,
             operation_id_to_operation,
+            labels,
         })
+    }
+
+    pub fn labels(&self) -> &Labels {
+        &self.labels
     }
 
     pub fn count_present_records<T: Transaction>(
@@ -235,6 +252,7 @@ impl OperationLog {
                     record,
                 },
             )?;
+            increment_counter!(CACHE_OPERATION_COUNTER_NAME, self.labels.clone());
             Ok(record_meta)
         }
     }
@@ -332,6 +350,7 @@ impl OperationLog {
                 record,
             },
         )?;
+        increment_counter!(CACHE_OPERATION_COUNTER_NAME, self.labels.clone());
         Ok(())
     }
 
@@ -396,7 +415,9 @@ impl OperationLog {
             OperationBorrow::Delete {
                 operation_id: insert_operation_id,
             },
-        )
+        )?;
+        increment_counter!(CACHE_OPERATION_COUNTER_NAME, self.labels.clone());
+        Ok(())
     }
 
     /// Deletes an existing record. The given `record_meta` and `insert_operation_id` must match what is stored in metadata.

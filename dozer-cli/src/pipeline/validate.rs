@@ -8,7 +8,10 @@ use dozer_types::{
     models::source::Source,
 };
 
-use crate::{console_helper::get_colored_text, errors::OrchestrationError};
+use crate::console_helper::get_colored_text;
+use crate::console_helper::GREEN;
+use crate::console_helper::RED;
+use crate::errors::OrchestrationError;
 
 pub async fn validate_grouped_connections(
     grouped_connections: &HashMap<&str, Vec<&Source>>,
@@ -39,7 +42,7 @@ pub async fn validate_grouped_connections(
                     error!(
                         "[{}] {} Connection validation error: {}",
                         connection.name,
-                        get_colored_text("X", "31"),
+                        get_colored_text("X", RED),
                         e
                     );
                     OrchestrationError::SourceValidationError
@@ -48,7 +51,7 @@ pub async fn validate_grouped_connections(
                     info!(
                         "[{}] {} Connection validation completed",
                         connection.name,
-                        get_colored_text("✓", "32")
+                        get_colored_text("✓", GREEN)
                     );
                 })?;
 
@@ -65,7 +68,7 @@ pub async fn validate_grouped_connections(
                     error!(
                         "[{}] {} Schema validation error: {}",
                         connection.name,
-                        get_colored_text("X", "31"),
+                        get_colored_text("X", RED),
                         e
                     );
                     Err(OrchestrationError::SourceValidationError)
@@ -79,7 +82,7 @@ pub async fn validate_grouped_connections(
                                     "[{}][{}] {} Schema validation completed",
                                     connection.name,
                                     table.name,
-                                    get_colored_text("✓", "32")
+                                    get_colored_text("✓", GREEN)
                                 );
                             }
                             Err(e) => {
@@ -88,7 +91,7 @@ pub async fn validate_grouped_connections(
                                     "[{}][{}] {} Schema validation error: {}",
                                     connection.name,
                                     table.name,
-                                    get_colored_text("X", "31"),
+                                    get_colored_text("X", RED),
                                     e
                                 );
                             }
