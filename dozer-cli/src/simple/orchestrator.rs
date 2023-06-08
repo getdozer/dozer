@@ -160,7 +160,11 @@ impl Orchestrator for SimpleOrchestrator {
         api_notifier: Option<Sender<bool>>,
         err_threshold: String,
     ) -> Result<(), OrchestrationError> {
-        let global_err_threshold = u64::from_str(err_threshold.as_str()).ok();
+        let mut global_err_threshold: Option<u64> = self.config.err_threshold;
+        let command_err_threshold = u64::from_str(err_threshold.as_str()).ok();
+        if command_err_threshold.is_some() {
+            global_err_threshold = command_err_threshold;
+        }
 
         let home_dir = HomeDir::new(
             self.config.home_dir.as_ref(),
