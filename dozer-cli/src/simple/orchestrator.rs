@@ -315,7 +315,11 @@ impl Orchestrator for SimpleOrchestrator {
         Ok(())
     }
 
-    fn run_all(&mut self, shutdown: ShutdownReceiver, err_threshold: String) -> Result<(), OrchestrationError> {
+    fn run_all(
+        &mut self,
+        shutdown: ShutdownReceiver,
+        err_threshold: String,
+    ) -> Result<(), OrchestrationError> {
         let shutdown_api = shutdown.clone();
 
         let mut dozer_api = self.clone();
