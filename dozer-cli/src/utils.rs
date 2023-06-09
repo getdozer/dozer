@@ -10,7 +10,6 @@ use dozer_types::models::{
 };
 use std::time::Duration;
 
-
 fn get_cache_max_map_size(config: &Config) -> u64 {
     config
         .cache_max_map_size
