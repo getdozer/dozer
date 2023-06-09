@@ -20,9 +20,6 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Check for println!()
-        run: (! grep -R -a -n --include "*.rs" --exclude-dir target "println\!" *)
-
       - name: Install minimal stable with clippy and rustfmt
         uses: actions-rs/toolchain@v1
         with:

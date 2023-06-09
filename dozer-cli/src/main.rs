@@ -28,11 +28,10 @@ fn main() {
 }
 
 fn render_logo() {
-    use std::println as info;
     const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-    info!("{LOGO}");
-    info!("\nDozer Version: {VERSION}\n");
+    println!("{LOGO}");
+    println!("\nDozer Version: {VERSION}\n");
 }
 
 #[derive(Deserialize, Debug)]

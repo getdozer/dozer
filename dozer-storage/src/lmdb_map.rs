@@ -1,8 +1,7 @@
 use std::ops::Bound;
 
 use dozer_types::borrow::Cow;
-use lmdb::{Cursor, Database, DatabaseFlags, RoCursor, RwTransaction, Transaction, WriteFlags};
-use lmdb_sys::MDB_LAST;
+use lmdb::{Database, DatabaseFlags, RoCursor, RwTransaction, Transaction, WriteFlags};
 
 use crate::{
     errors::StorageError,
@@ -111,16 +110,10 @@ impl<K: LmdbKey, V: LmdbVal> LmdbMap<K, V> {
         key: K::Encode<'_>,
         value: V::Encode<'_>,
     ) -> Result<(), StorageError> {
-        let mut cursor = txn.open_rw_cursor(self.db)?;
-        match cursor.get(None, None, MDB_LAST) {
-            // Not found means the database is empty, and that's OK.
-            Ok(_) | Err(lmdb::Error::NotFound) => (),
-            Err(e) => return Err(e.into()),
-        };
         let key = key.encode()?;
         let data = value.encode()?;
-        cursor.put(&key, &data, WriteFlags::APPEND | WriteFlags::NO_OVERWRITE)?;
-        Ok(())
+        txn.put(self.db, &key, &data, WriteFlags::APPEND)
+            .map_err(Into::into)
     }
 
     /// Returns if the key was actually removed.
@@ -268,5 +261,28 @@ mod tests {
             }
             assert_eq!(map.get(txn, &(i + 1)).unwrap(), None);
         }
+    }
+
+    #[test]
+    fn test_lmdb_map_illegal_append() {
+        let temp_dir = TempDir::new("test_lmdb_map_illegal_append").unwrap();
+        let mut env = LmdbEnvironmentManager::create_rw(
+            temp_dir.path(),
+            "env",
+            LmdbEnvironmentOptions::default(),
+        )
+        .unwrap();
+        let map = LmdbMap::<u64, u64>::create(&mut env, None).unwrap();
+
+        let txn = env.txn_mut().unwrap();
+        map.append(txn, &1, &1).unwrap();
+        assert!(matches!(
+            map.append(txn, &1, &2).unwrap_err(),
+            StorageError::Lmdb(lmdb::Error::KeyExist)
+        ));
+        assert!(matches!(
+            map.append(txn, &0, &0).unwrap_err(),
+            StorageError::Lmdb(lmdb::Error::KeyExist)
+        ));
     }
 }

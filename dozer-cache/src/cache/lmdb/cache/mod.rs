@@ -14,6 +14,7 @@ use crate::cache::expression::QueryExpression;
 use crate::cache::{CacheRecord, CacheWriteOptions, RecordMeta, UpsertResult};
 use crate::errors::CacheError;
 
+pub mod dump_restore;
 mod main_environment;
 mod query;
 mod secondary_environment;
@@ -56,8 +57,8 @@ impl Default for CacheOptions {
 
 #[derive(Debug, Clone)]
 pub struct LmdbRoCache {
-    pub(crate) main_env: RoMainEnvironment,
-    pub(crate) secondary_envs: Vec<RoSecondaryEnvironment>,
+    pub main_env: RoMainEnvironment,
+    pub secondary_envs: Vec<RoSecondaryEnvironment>,
 }
 
 impl LmdbRoCache {

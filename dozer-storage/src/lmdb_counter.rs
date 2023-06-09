@@ -1,5 +1,5 @@
 use dozer_types::borrow::IntoOwned;
-use lmdb::{RwTransaction, Transaction};
+use lmdb::{Database, RwTransaction, Transaction};
 
 use crate::{
     errors::StorageError,
@@ -33,6 +33,10 @@ impl LmdbCounter {
         let current = self.load(txn)?;
         self.store(txn, current + value)?;
         Ok(current)
+    }
+
+    pub fn database(&self) -> Database {
+        self.0.database()
     }
 }
 

@@ -55,8 +55,7 @@ impl AsyncDB for Dozer {
     type Error = DozerSqlLogicTestError;
 
     async fn run(&mut self, sql: &str) -> Result<DBOutput> {
-        use std::println as info;
-        info!("SQL [{}] is running", sql);
+        println!("SQL [{}] is running", sql);
 
         let ast = SqlParser::parse_sql(&AnsiDialect {}, sql)?;
         let statement: &Statement = &ast[0];
