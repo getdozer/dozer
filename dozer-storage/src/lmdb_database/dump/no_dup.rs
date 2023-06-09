@@ -23,29 +23,37 @@ pub async fn dump<'txn, T: Transaction>(
     db: Database,
     flags: DatabaseFlags,
     context: &FutureGeneratorContext<Result<DumpItem<'txn>, StorageError>>,
-) {
+) -> Result<(), ()> {
     let count = yield_return_if_err!(context, txn.stat(db)).entries() as u64;
     dump_u64(count, context).await;
 
     let cursor = yield_return_if_err!(context, txn.open_ro_cursor(db));
     let mut iter = yield_return_if_err!(context, RawIterator::new(cursor, Bound::Unbounded, true));
 
+    // Get first key value pair
+    let Some(result) = iter.next() else {
+        return Ok(());
+    };
+    let (key, value) = yield_return_if_err!(context, result);
+
+    // Write key length if integer key
     let key_len = if flags.contains(DatabaseFlags::INTEGER_KEY) {
-        // Dump key length only once
-        if let Some(result) = iter.next() {
-            let (key, value) = yield_return_if_err!(context, result);
-            let key_len = key.len() as u64;
-            dump_u64(key_len, context).await;
-            dump_array(key, key_len, context).await;
-            dump_slice(value, context).await;
-            Some(key_len)
-        } else {
-            None
-        }
+        let key_len = key.len() as u64;
+        dump_u64(key_len, context).await;
+        Some(key_len)
     } else {
         None
     };
 
+    // Write first key value pair
+    if let Some(key_len) = key_len {
+        dump_array(key, key_len, context).await;
+    } else {
+        dump_slice(key, context).await;
+    }
+    dump_slice(value, context).await;
+
+    // Write remaining key value pairs
     for result in iter {
         let (key, value) = yield_return_if_err!(context, result);
         if let Some(key_len) = key_len {
@@ -55,6 +63,8 @@ pub async fn dump<'txn, T: Transaction>(
         }
         dump_slice(value, context).await;
     }
+
+    Ok(())
 }
 
 pub async fn restore<'txn, R: AsyncRead + Unpin>(
@@ -68,6 +78,10 @@ pub async fn restore<'txn, R: AsyncRead + Unpin>(
 
     let count = restore_u64(reader).await?;
     info!("Restoring {count} items");
+
+    if count == 0 {
+        return Ok(db);
+    }
 
     let key_len = if flags.contains(DatabaseFlags::INTEGER_KEY) {
         let key_len = restore_u64(reader).await?;
@@ -123,7 +137,7 @@ mod tests {
             db: Database,
             flags: DatabaseFlags,
             context: &FutureGeneratorContext<Result<DumpItem<'txn>, StorageError>>,
-        ) {
+        ) -> Result<(), ()> {
             dump(txn, db, flags, context).await
         }
     }
@@ -175,5 +189,15 @@ mod tests {
             (b"0009", b"10"),
         ];
         test_dump_restore(Dumper, Restorer, DatabaseFlags::empty(), &data).await;
+    }
+
+    #[tokio::test]
+    async fn test_dump_no_dup_empty() {
+        test_dump_restore(Dumper, Restorer, DatabaseFlags::empty(), &[]).await;
+    }
+
+    #[tokio::test]
+    async fn test_dump_no_dup_integer_key_empty() {
+        test_dump_restore(Dumper, Restorer, DatabaseFlags::INTEGER_KEY, &[]).await;
     }
 }

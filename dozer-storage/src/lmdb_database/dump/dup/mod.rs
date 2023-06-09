@@ -24,7 +24,7 @@ pub async fn dump<'txn, T: Transaction>(
     db: Database,
     flags: DatabaseFlags,
     context: &FutureGeneratorContext<Result<DumpItem<'txn>, StorageError>>,
-) {
+) -> Result<(), ()> {
     let cursor = yield_return_if_err!(context, txn.open_ro_cursor(db));
 
     // Do one run to find and write the number of keys.
@@ -32,7 +32,7 @@ pub async fn dump<'txn, T: Transaction>(
     let generator =
         pin!((|context| async move { dup_data(cursor, &context).await }).into_generator());
     let mut iter = generator.into_iter();
-    while let Some(result) = iter.next() {
+    for result in iter.by_ref() {
         let dup_data = yield_return_if_err!(context, result);
         if matches!(dup_data, DupData::First { .. }) {
             key_count += 1;
@@ -43,7 +43,7 @@ pub async fn dump<'txn, T: Transaction>(
         .expect("Generator iterator must have return when exhausted");
     dump_u64(key_count, context).await;
     if key_count == 0 {
-        return;
+        return Ok(());
     }
 
     // Construct data iterator.
@@ -96,8 +96,9 @@ pub async fn dump<'txn, T: Transaction>(
     // Write following values.
     let (mut key, mut value) = match dump_following_values(&mut data_iter, value_len, context).await
     {
-        ControlFlow::Continue((key, value)) => (key, value),
-        ControlFlow::Break(()) => return,
+        Ok(ControlFlow::Continue((key, value))) => (key, value),
+        Ok(ControlFlow::Break(())) => return Ok(()),
+        Err(()) => return Err(()),
     };
 
     loop {
@@ -124,11 +125,12 @@ pub async fn dump<'txn, T: Transaction>(
 
         // Write following values.
         match dump_following_values(&mut data_iter, value_len, context).await {
-            ControlFlow::Continue((next_key, next_value)) => {
+            Ok(ControlFlow::Continue((next_key, next_value))) => {
                 key = next_key;
                 value = next_value;
             }
-            ControlFlow::Break(()) => return,
+            Ok(ControlFlow::Break(())) => return Ok(()),
+            Err(()) => return Err(()),
         }
     }
 }
@@ -206,18 +208,22 @@ pub async fn restore<'txn, R: AsyncRead + Unpin>(
         restore_values(txn, db, &key, value_count, value_len, reader).await?;
     }
 
+    env.commit()?;
+    info!("Committed transaction");
+
     Ok(db)
 }
 
-/// If the iterator is complete or any error happens, return `ControlFlow::Break`,
-/// otherwise return `ControlFlow::Continue((key, value))`, where the key value is the first pair of next key.
+/// If the iterator is exhausted, return `Ok(ControlFlow::Break)`.
+/// If the iterator is not exhausted, return `Ok(ControlFlow::Continue((key, value)))`, where the key value is the first pair of next key.
+/// If there's an error, return `Err(())`.
 ///
 /// Any error is already yielded to the context.
 async fn dump_following_values<'txn, I: Iterator<Item = Result<DupData<'txn>, lmdb::Error>>>(
     iter: &mut I,
     value_len: Option<u64>,
     context: &FutureGeneratorContext<Result<DumpItem<'txn>, StorageError>>,
-) -> ControlFlow<(), (&'txn [u8], &'txn [u8])> {
+) -> Result<ControlFlow<(), (&'txn [u8], &'txn [u8])>, ()> {
     loop {
         match iter.next() {
             Some(Ok(DupData::Following { value })) => {
@@ -228,14 +234,14 @@ async fn dump_following_values<'txn, I: Iterator<Item = Result<DupData<'txn>, lm
                 }
             }
             Some(Ok(DupData::First { key, value })) => {
-                return ControlFlow::Continue((key, value));
+                return Ok(ControlFlow::Continue((key, value)));
             }
             Some(Err(e)) => {
                 context.yield_(Err(e.into())).await;
-                return ControlFlow::Break(());
+                return Err(());
             }
             None => {
-                return ControlFlow::Break(());
+                return Ok(ControlFlow::Break(()));
             }
         }
     }
@@ -287,7 +293,7 @@ mod tests {
             db: Database,
             flags: DatabaseFlags,
             context: &FutureGeneratorContext<Result<DumpItem<'txn>, StorageError>>,
-        ) {
+        ) -> Result<(), ()> {
             dump(txn, db, flags, context).await
         }
     }

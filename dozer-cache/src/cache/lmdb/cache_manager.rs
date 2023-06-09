@@ -9,6 +9,7 @@ use dozer_types::{
     types::{IndexDefinition, Schema},
 };
 use tempdir::TempDir;
+use tokio::io::AsyncRead;
 
 use crate::cache::CacheWriteOptions;
 use crate::{
@@ -17,7 +18,7 @@ use crate::{
 };
 
 use super::{
-    cache::{CacheOptions, LmdbRoCache, LmdbRwCache},
+    cache::{dump_restore, CacheOptions, LmdbCache, LmdbRoCache, LmdbRwCache},
     indexing::IndexingThreadPool,
 };
 
@@ -71,11 +72,20 @@ impl LmdbRoCacheManager {
         let base_path = base_path.to_path_buf();
         Ok(Self { options, base_path })
     }
+
+    // HACK: We're leaking internal types here.
+    pub fn open_lmdb_cache(&self, labels: Labels) -> Result<Option<impl LmdbCache>, CacheError> {
+        open_ro_cache(self.base_path.clone(), labels, &self.options)
+    }
 }
+
+// HACK: We're leaking internal types here.
+pub use super::cache::dump_restore::{begin_dump_txn, dump};
 
 impl RoCacheManager for LmdbRoCacheManager {
     fn open_ro_cache(&self, labels: Labels) -> Result<Option<Box<dyn RoCache>>, CacheError> {
-        open_ro_cache(self.base_path.clone(), labels, &self.options)
+        self.open_lmdb_cache(labels)
+            .map(|cache| cache.map(|cache| Box::new(cache) as _))
     }
 }
 
@@ -130,16 +140,33 @@ impl LmdbRwCacheManager {
     pub fn wait_until_indexing_catchup(&self) {
         self.indexing_thread_pool.lock().wait_until_catchup();
     }
+
+    pub async fn restore_cache(
+        &self,
+        labels: Labels,
+        write_options: CacheWriteOptions,
+        reader: &mut (impl AsyncRead + Unpin),
+    ) -> Result<(), CacheError> {
+        dump_restore::restore(
+            &cache_options(&self.options, self.base_path.clone(), labels),
+            write_options,
+            self.indexing_thread_pool.clone(),
+            reader,
+        )
+        .await?;
+        Ok(())
+    }
 }
 
 impl RoCacheManager for LmdbRwCacheManager {
     fn open_ro_cache(&self, labels: Labels) -> Result<Option<Box<dyn RoCache>>, CacheError> {
         // Check if the cache is already opened.
         if let Some(cache) = self.indexing_thread_pool.lock().find_cache(&labels) {
-            return Ok(Some(Box::new(cache)));
+            return Ok(Some(Box::new(cache) as _));
         }
 
         open_ro_cache(self.base_path.clone(), labels, &self.options)
+            .map(|cache| cache.map(|cache| Box::new(cache) as _))
     }
 }
 
@@ -212,14 +239,13 @@ fn open_ro_cache(
     base_path: PathBuf,
     labels: Labels,
     options: &CacheManagerOptions,
-) -> Result<Option<Box<dyn RoCache>>, CacheError> {
-    let cache: Option<Box<dyn RoCache>> =
-        if LmdbEnvironmentManager::exists(&base_path, &labels.to_non_empty_string()) {
-            let cache = LmdbRoCache::new(&cache_options(options, base_path, labels))?;
-            Some(Box::new(cache))
-        } else {
-            None
-        };
+) -> Result<Option<LmdbRoCache>, CacheError> {
+    let cache = if LmdbEnvironmentManager::exists(&base_path, &labels.to_non_empty_string()) {
+        let cache = LmdbRoCache::new(&cache_options(options, base_path, labels))?;
+        Some(cache)
+    } else {
+        None
+    };
     Ok(cache)
 }
 

@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::ops::{Bound, Deref};
 
 use dozer_types::thiserror::{self, Error};
 use lmdb::{Database, DatabaseFlags, Transaction};
@@ -9,6 +9,8 @@ use crate::{
     generator::{FutureGeneratorContext, Once},
     yield_return_if_err, LmdbEnvironment, RwLmdbEnvironment,
 };
+
+use super::raw_iterator::RawIterator;
 
 #[derive(Debug)]
 pub enum DumpItem<'txn> {
@@ -48,16 +50,16 @@ pub async fn dump<'txn, T: Transaction>(
     name: &'txn str,
     db: Database,
     context: &FutureGeneratorContext<Result<DumpItem<'txn>, StorageError>>,
-) {
+) -> Result<(), ()> {
     dump_string(name, context).await;
 
     let flags = yield_return_if_err!(context, txn.db_flags(db));
     dump_u32(flags.bits(), context).await;
 
     if flags.contains(DatabaseFlags::DUP_SORT) {
-        dup::dump(txn, db, flags, context).await;
+        dup::dump(txn, db, flags, context).await
     } else {
-        no_dup::dump(txn, db, flags, context).await;
+        no_dup::dump(txn, db, flags, context).await
     }
 }
 
@@ -166,8 +168,8 @@ async fn restore_slice(reader: &mut (impl AsyncRead + Unpin)) -> Result<Vec<u8>,
 }
 
 #[cfg(test)]
-mod tests {
-    use std::{ops::Bound, path::Path, pin::pin};
+pub mod tests {
+    use std::{path::Path, pin::pin};
 
     use super::*;
 
@@ -178,7 +180,6 @@ mod tests {
 
     use crate::{
         generator::{Generator, IntoGenerator},
-        lmdb_database::raw_iterator::RawIterator,
         lmdb_storage::{LmdbEnvironmentManager, LmdbEnvironmentOptions},
     };
 
@@ -209,7 +210,7 @@ mod tests {
             db: Database,
             flags: DatabaseFlags,
             context: &FutureGeneratorContext<Result<DumpItem<'txn>, StorageError>>,
-        );
+        ) -> Result<(), ()>;
     }
 
     async fn dump_database(
@@ -223,7 +224,7 @@ mod tests {
         let txn = env.begin_txn().unwrap();
         let txn_borrow = &txn;
         let generator =
-            (|context| async move { dumper.dump(txn_borrow, db, flags, &context).await })
+            (|context| async move { dumper.dump(txn_borrow, db, flags, &context).await.unwrap() })
                 .into_generator();
         for item in pin!(generator).into_iter() {
             let item = item.unwrap();
@@ -270,17 +271,6 @@ mod tests {
         restore_database(restorer, env, restore_name, flags, dump_path).await
     }
 
-    fn check_data_sorted<E: LmdbEnvironment>(env: &E, db: Database, data: &[(&[u8], &[u8])]) {
-        let txn = env.begin_txn().unwrap();
-        let cursor = txn.open_ro_cursor(db).unwrap();
-        let iter = RawIterator::new(cursor, Bound::Unbounded, true).unwrap();
-        for ((key, value), result) in data.into_iter().copied().zip(iter) {
-            let (key2, value2) = result.unwrap();
-            assert_eq!(key, key2);
-            assert_eq!(value, value2);
-        }
-    }
-
     pub async fn test_dump_restore(
         dumper: impl Dump,
         restorer: impl Restore,
@@ -307,6 +297,29 @@ mod tests {
         .await;
 
         // Check the restored database.
-        check_data_sorted(&env, restore_db, data);
+        let txn = env.begin_txn().unwrap();
+        assert_database_equal(&txn, db, &txn, restore_db);
+    }
+}
+
+pub fn assert_database_equal<T1: Transaction, T2: Transaction>(
+    txn1: &T1,
+    db1: Database,
+    txn2: &T2,
+    db2: Database,
+) {
+    assert_eq!(
+        txn1.stat(db1).unwrap().entries(),
+        txn2.stat(db2).unwrap().entries()
+    );
+    let cursor1 = txn1.open_ro_cursor(db1).unwrap();
+    let cursor2 = txn2.open_ro_cursor(db2).unwrap();
+    let iter1 = RawIterator::new(cursor1, Bound::Unbounded, true).unwrap();
+    let iter2 = RawIterator::new(cursor2, Bound::Unbounded, true).unwrap();
+    for (result1, result2) in iter1.zip(iter2) {
+        let (key1, value1) = result1.unwrap();
+        let (key2, value2) = result2.unwrap();
+        assert_eq!(key1, key2);
+        assert_eq!(value1, value2);
     }
 }

@@ -4,8 +4,8 @@ pub use lmdb_storage::{LmdbEnvironment, RoLmdbEnvironment, RwLmdbEnvironment};
 
 mod lmdb_database;
 pub use lmdb_database::{
-    dump, restore, BorrowEncode, Decode, DumpItem, Encode, Encoded, Iterator, KeyIterator, LmdbKey,
-    LmdbKeyType, LmdbVal, RestoreError, ValueIterator,
+    assert_database_equal, dump, restore, BorrowEncode, Decode, DumpItem, Encode, Encoded,
+    Iterator, KeyIterator, LmdbKey, LmdbKeyType, LmdbVal, RestoreError, ValueIterator,
 };
 mod lmdb_map;
 pub use lmdb_map::LmdbMap;
@@ -19,7 +19,7 @@ mod lmdb_option;
 pub use lmdb_option::LmdbOption;
 
 #[cfg(test)]
-mod tests;
+pub mod tests;
 
 pub use lmdb;
 pub use lmdb_sys;

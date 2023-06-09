@@ -46,7 +46,7 @@ pub async fn dup_data<'txn, C: Cursor<'txn>>(
 pub async fn dup_value_counts<'txn, C: Cursor<'txn>>(
     cursor: C,
     context: &FutureGeneratorContext<Result<u64, lmdb::Error>>,
-) {
+) -> Result<(), ()> {
     let generator =
         pin!((|context| async move { dup_data(cursor, &context).await }).into_generator());
     let mut iter = generator.into_iter();
@@ -68,7 +68,7 @@ pub async fn dup_value_counts<'txn, C: Cursor<'txn>>(
                 if let Some(count) = current_count {
                     context.yield_(Ok(count)).await;
                 }
-                return;
+                return Ok(());
             }
         }
     }
@@ -108,7 +108,7 @@ async fn get_one_dup_data<'txn, C: Cursor<'txn>>(
         }
         Err(lmdb::Error::NotFound) => Ok(None),
         Err(e) => {
-            context.yield_(Err(e.into())).await;
+            context.yield_(Err(e)).await;
             Err(())
         }
     }
@@ -225,13 +225,14 @@ mod tests {
 
         let txn = env.begin_txn().unwrap();
         let cursor = txn.open_ro_cursor(db).unwrap();
-        let generator = pin!(
-            (|context| async move { dup_value_counts(cursor, &context).await }).into_generator()
-        );
+        let generator =
+            pin!(
+                (|context| async move { dup_value_counts(cursor, &context).await.unwrap() })
+                    .into_generator()
+            );
         assert_eq!(
             generator
                 .into_iter()
-                .take(2)
                 .collect::<Result<Vec<_>, _>>()
                 .unwrap(),
             vec![2, 3]
