@@ -3,7 +3,7 @@
 use crate::connectors::kafka::debezium::stream_consumer::DebeziumSchemaStruct;
 use crate::connectors::{CdcType, SourceSchema};
 
-use crate::errors::{ConnectorError, DebeziumError};
+use crate::errors::{ConnectorError, KafkaError};
 
 use dozer_types::types::{FieldDefinition, Schema, SchemaIdentifier, SourceDefinition};
 
@@ -39,9 +39,8 @@ impl SchemaRegistryBasic {
             .to_owned()
             .enumerate()
             .map(|(idx, f)| {
-                let (typ, nullable) = SchemaRegistry::map_typ(f).map_err(|e| {
-                    ConnectorError::DebeziumError(DebeziumError::DebeziumSchemaError(e))
-                })?;
+                let (typ, nullable) = SchemaRegistry::map_typ(f)
+                    .map_err(|e| ConnectorError::KafkaError(KafkaError::KafkaSchemaError(e)))?;
                 let name = f.name.clone().unwrap();
                 if pk_fields.contains(&name) {
                     pk_keys_indexes.push(idx);

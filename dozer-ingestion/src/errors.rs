@@ -6,7 +6,6 @@ use dozer_types::ingestion_types::IngestorError;
 use dozer_types::thiserror::Error;
 use dozer_types::{bincode, serde_json};
 use dozer_types::{rust_decimal, thiserror};
-use rdkafka::error::KafkaError;
 
 use base64::DecodeError;
 
@@ -59,7 +58,7 @@ pub enum ConnectorError {
     SnowflakeError(#[from] SnowflakeError),
 
     #[error(transparent)]
-    DebeziumError(#[from] DebeziumError),
+    KafkaError(#[from] KafkaError),
 
     #[error(transparent)]
     ObjectStoreConnectorError(#[from] ObjectStoreConnectorError),
@@ -313,12 +312,12 @@ pub enum SnowflakeStreamError {
 }
 
 #[derive(Error, Debug)]
-pub enum DebeziumError {
+pub enum KafkaError {
     #[error(transparent)]
-    DebeziumSchemaError(#[from] DebeziumSchemaError),
+    KafkaSchemaError(#[from] KafkaSchemaError),
 
     #[error("Connection error. Error: {0}")]
-    DebeziumConnectionError(#[from] KafkaError),
+    KafkaConnectionError(#[from] rdkafka::error::KafkaError),
 
     #[error("JSON decode error. Error: {0}")]
     JsonDecodeError(#[source] serde_json::Error),
@@ -327,7 +326,7 @@ pub enum DebeziumError {
     BytesConvertError(#[source] Utf8Error),
 
     #[error(transparent)]
-    DebeziumStreamError(#[from] DebeziumStreamError),
+    KafkaStreamError(#[from] KafkaStreamError),
 
     #[error("Schema registry fetch failed. Error: {0}")]
     SchemaRegistryFetchError(#[source] SRCError),
@@ -337,19 +336,19 @@ pub enum DebeziumError {
 }
 
 #[derive(Error, Debug)]
-pub enum DebeziumStreamError {
+pub enum KafkaStreamError {
     #[error("Consume commit error")]
-    ConsumeCommitError(#[source] KafkaError),
+    ConsumeCommitError(#[source] rdkafka::error::KafkaError),
 
     #[error("Message consume error")]
-    MessageConsumeError(#[source] KafkaError),
+    MessageConsumeError(#[source] rdkafka::error::KafkaError),
 
     #[error("Polling error")]
-    PollingError(#[source] KafkaError),
+    PollingError(#[source] rdkafka::error::KafkaError),
 }
 
 #[derive(Error, Debug, PartialEq)]
-pub enum DebeziumSchemaError {
+pub enum KafkaSchemaError {
     #[error("Schema definition not found")]
     SchemaDefinitionNotFound,
 

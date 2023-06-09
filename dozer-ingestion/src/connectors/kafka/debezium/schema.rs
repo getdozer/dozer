@@ -3,12 +3,12 @@ use std::collections::HashMap;
 
 use crate::connectors::kafka::debezium::stream_consumer::DebeziumSchemaStruct;
 
-use crate::errors::DebeziumSchemaError;
-use crate::errors::DebeziumSchemaError::{SchemaDefinitionNotFound, TypeNotSupported};
+use crate::errors::KafkaSchemaError;
+use crate::errors::KafkaSchemaError::{SchemaDefinitionNotFound, TypeNotSupported};
 use dozer_types::types::{FieldDefinition, FieldType, Schema, SchemaIdentifier, SourceDefinition};
 
 // Reference: https://debezium.io/documentation/reference/0.9/connectors/postgresql.html
-pub fn map_type(schema: &DebeziumSchemaStruct) -> Result<FieldType, DebeziumSchemaError> {
+pub fn map_type(schema: &DebeziumSchemaStruct) -> Result<FieldType, KafkaSchemaError> {
     match schema.name.clone() {
         None => match schema.r#type.clone() {
             Value::String(typ) => match typ.as_str() {
@@ -40,7 +40,7 @@ pub fn map_type(schema: &DebeziumSchemaStruct) -> Result<FieldType, DebeziumSche
 pub fn map_schema(
     schema: &DebeziumSchemaStruct,
     key_schema: &DebeziumSchemaStruct,
-) -> Result<(Schema, HashMap<String, DebeziumSchemaStruct>), DebeziumSchemaError> {
+) -> Result<(Schema, HashMap<String, DebeziumSchemaStruct>), KafkaSchemaError> {
     let pk_fields = match &key_schema.fields {
         None => vec![],
         Some(fields) => fields.iter().map(|f| f.field.clone().unwrap()).collect(),
@@ -102,8 +102,8 @@ pub fn map_schema(
 mod tests {
     use crate::connectors::kafka::debezium::schema::{map_schema, map_type};
     use crate::connectors::kafka::debezium::stream_consumer::DebeziumSchemaStruct;
-    use crate::errors::DebeziumSchemaError::SchemaDefinitionNotFound;
-    use crate::errors::DebeziumSchemaError::TypeNotSupported;
+    use crate::errors::KafkaSchemaError::SchemaDefinitionNotFound;
+    use crate::errors::KafkaSchemaError::TypeNotSupported;
     use dozer_types::serde_json::Value;
     use dozer_types::types::{
         FieldDefinition, FieldType, Schema, SchemaIdentifier, SourceDefinition,

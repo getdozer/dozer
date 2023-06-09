@@ -1,8 +1,8 @@
 use crate::connectors::kafka::debezium::schema::map_schema;
 use crate::connectors::kafka::debezium::stream_consumer::DebeziumMessage;
 use crate::connectors::SourceSchema;
-use crate::errors::DebeziumError::{BytesConvertError, DebeziumConnectionError, JsonDecodeError};
-use crate::errors::{ConnectorError, DebeziumError, DebeziumStreamError};
+use crate::errors::KafkaError::{BytesConvertError, JsonDecodeError, KafkaConnectionError};
+use crate::errors::{ConnectorError, KafkaError, KafkaStreamError};
 use dozer_types::serde_json;
 use rdkafka::config::RDKafkaLogLevel;
 use rdkafka::consumer::{Consumer, DefaultConsumerContext};
@@ -32,12 +32,12 @@ impl NoSchemaRegistry {
                         .set("enable.auto.commit", "true")
                         .set_log_level(RDKafkaLogLevel::Debug)
                         .create_with_context(context)
-                        .map_err(DebeziumConnectionError)?;
+                        .map_err(KafkaConnectionError)?;
 
-                    con.subscribe(&[table]).map_err(DebeziumConnectionError)?;
+                    con.subscribe(&[table]).map_err(KafkaConnectionError)?;
 
                     let m = con.recv().await.map_err(|e| {
-                        DebeziumError::DebeziumStreamError(DebeziumStreamError::PollingError(e))
+                        KafkaError::KafkaStreamError(KafkaStreamError::PollingError(e))
                     })?;
 
                     if let (Some(message), Some(key)) = (m.payload(), m.key()) {
@@ -52,7 +52,7 @@ impl NoSchemaRegistry {
 
                         let (mapped_schema, _fields_map) =
                             map_schema(&value_struct.schema, &key_struct.schema).map_err(|e| {
-                                ConnectorError::DebeziumError(DebeziumError::DebeziumSchemaError(e))
+                                ConnectorError::KafkaError(KafkaError::KafkaSchemaError(e))
                             })?;
 
                         schemas.push(SourceSchema::new(mapped_schema, FullChanges));

@@ -2,8 +2,10 @@ use crate::connectors::kafka::debezium::mapper::convert_value_to_schema;
 use std::collections::HashMap;
 
 use crate::connectors::kafka::stream_consumer::StreamConsumer;
-use crate::errors::DebeziumError::{BytesConvertError, JsonDecodeError, TopicNotDefined};
-use crate::errors::{ConnectorError, DebeziumError};
+use crate::errors::KafkaError::{
+    BytesConvertError, JsonDecodeError, KafkaStreamError, TopicNotDefined,
+};
+use crate::errors::{ConnectorError, KafkaError};
 use crate::ingestion::Ingestor;
 use dozer_types::ingestion_types::IngestionMessage;
 
@@ -16,9 +18,9 @@ use rdkafka::consumer::BaseConsumer;
 use crate::connectors::kafka::schema_registry_basic::SchemaRegistryBasic;
 use tonic::async_trait;
 
-use rdkafka::Message;
-
 use crate::connectors::TableInfo;
+use crate::errors::KafkaStreamError::PollingError;
+use rdkafka::Message;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(crate = "dozer_types::serde")]
@@ -105,45 +107,47 @@ impl StreamConsumer for StreamConsumerBasic {
 
         let mut counter = 0;
         loop {
-            let m = con.poll(None).unwrap().unwrap();
+            if let Some(result) = con.poll(None) {
+                let m = result.map_err(|e| KafkaStreamError(PollingError(e)))?;
+                match schemas.get(m.topic()) {
+                    None => return Err(ConnectorError::KafkaError(TopicNotDefined)),
+                    Some((id, (schema, fields_map))) => {
+                        if let (Some(message), Some(key)) = (m.payload(), m.key()) {
+                            let value_struct: Value = serde_json::from_str(
+                                std::str::from_utf8(message).map_err(BytesConvertError)?,
+                            )
+                            .map_err(JsonDecodeError)?;
 
-            match schemas.get(m.topic()) {
-                None => return Err(ConnectorError::DebeziumError(TopicNotDefined)),
-                Some((id, (schema, fields_map))) => {
-                    if let (Some(message), Some(key)) = (m.payload(), m.key()) {
-                        let value_struct: Value = serde_json::from_str(
-                            std::str::from_utf8(message).map_err(BytesConvertError)?,
-                        )
-                        .map_err(JsonDecodeError)?;
+                            let _key_struct: Value = serde_json::from_str(
+                                std::str::from_utf8(key).map_err(BytesConvertError)?,
+                            )
+                            .map_err(JsonDecodeError)?;
 
-                        let _key_struct: Value = serde_json::from_str(
-                            std::str::from_utf8(key).map_err(BytesConvertError)?,
-                        )
-                        .map_err(JsonDecodeError)?;
+                            let new =
+                                convert_value_to_schema(value_struct, &schema.schema, fields_map)
+                                    .map_err(|e| {
+                                    ConnectorError::KafkaError(KafkaError::KafkaSchemaError(e))
+                                })?;
 
-                        let new = convert_value_to_schema(value_struct, &schema.schema, fields_map)
-                            .map_err(|e| {
-                                ConnectorError::DebeziumError(DebeziumError::DebeziumSchemaError(e))
-                            })?;
-
-                        ingestor
-                            .handle_message(IngestionMessage::new_op(
-                                0,
-                                counter,
-                                Operation::Insert {
-                                    new: Record {
-                                        schema_id: Some(SchemaIdentifier {
-                                            id: *id,
-                                            version: 1,
-                                        }),
-                                        values: new,
-                                        lifetime: None,
+                            ingestor
+                                .handle_message(IngestionMessage::new_op(
+                                    0,
+                                    counter,
+                                    Operation::Insert {
+                                        new: Record {
+                                            schema_id: Some(SchemaIdentifier {
+                                                id: *id,
+                                                version: 1,
+                                            }),
+                                            values: new,
+                                            lifetime: None,
+                                        },
                                     },
-                                },
-                            ))
-                            .map_err(ConnectorError::IngestorError)?;
+                                ))
+                                .map_err(ConnectorError::IngestorError)?;
 
-                        counter += 1;
+                            counter += 1;
+                        }
                     }
                 }
             }

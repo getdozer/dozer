@@ -15,7 +15,7 @@ use crate::connectors::kafka::debezium::no_schema_registry::NoSchemaRegistry;
 use crate::connectors::kafka::schema_registry_basic::SchemaRegistryBasic;
 use crate::connectors::kafka::stream_consumer::StreamConsumer;
 use crate::connectors::kafka::stream_consumer_basic::StreamConsumerBasic;
-use crate::errors::DebeziumError::DebeziumConnectionError;
+use crate::errors::KafkaError::KafkaConnectionError;
 
 #[derive(Debug)]
 pub struct KafkaConnector {
@@ -57,11 +57,11 @@ impl Connector for KafkaConnector {
             .set("bootstrap.servers", &self.config.broker.clone())
             .set("api.version.request", "true")
             .create::<BaseConsumer>()
-            .unwrap();
+            .map_err(KafkaConnectionError)?;
 
         let metadata = consumer
             .fetch_metadata(None, Timeout::After(std::time::Duration::new(60, 0)))
-            .unwrap();
+            .map_err(KafkaConnectionError)?;
         let topics = metadata.topics();
 
         let mut tables = vec![];
@@ -146,11 +146,11 @@ async fn run(
         .set("group.id", "dozer")
         .set("enable.auto.commit", "true")
         .create()
-        .map_err(DebeziumConnectionError)?;
+        .map_err(KafkaConnectionError)?;
 
     let topics: Vec<&str> = tables.iter().map(|t| t.name.as_ref()).collect();
     con.subscribe(topics.iter().as_slice())
-        .map_err(DebeziumConnectionError)?;
+        .map_err(KafkaConnectionError)?;
 
     let consumer = StreamConsumerBasic::default();
     consumer

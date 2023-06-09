@@ -1,8 +1,8 @@
 use crate::connectors::kafka::debezium::mapper::convert_value_to_schema;
 use crate::connectors::kafka::debezium::schema::map_schema;
 use crate::connectors::kafka::stream_consumer::StreamConsumer;
-use crate::errors::DebeziumError::{BytesConvertError, JsonDecodeError};
-use crate::errors::{ConnectorError, DebeziumError, DebeziumStreamError};
+use crate::errors::KafkaError::{BytesConvertError, JsonDecodeError};
+use crate::errors::{ConnectorError, KafkaError, KafkaStreamError};
 use crate::ingestion::Ingestor;
 use dozer_types::ingestion_types::IngestionMessage;
 
@@ -91,9 +91,10 @@ impl StreamConsumer for DebeziumStreamConsumer {
         _schema_registry_url: &Option<String>,
     ) -> Result<(), ConnectorError> {
         loop {
-            let m = con.poll(None).unwrap().map_err(|e| {
-                DebeziumError::DebeziumStreamError(DebeziumStreamError::PollingError(e))
-            })?;
+            let m = con
+                .poll(None)
+                .unwrap()
+                .map_err(|e| KafkaError::KafkaStreamError(KafkaStreamError::PollingError(e)))?;
 
             if let (Some(message), Some(key)) = (m.payload(), m.key()) {
                 let mut value_struct: DebeziumMessage =
@@ -104,9 +105,7 @@ impl StreamConsumer for DebeziumStreamConsumer {
                         .map_err(JsonDecodeError)?;
 
                 let (schema, fields_map) = map_schema(&value_struct.schema, &key_struct.schema)
-                    .map_err(|e| {
-                        ConnectorError::DebeziumError(DebeziumError::DebeziumSchemaError(e))
-                    })?;
+                    .map_err(|e| ConnectorError::KafkaError(KafkaError::KafkaSchemaError(e)))?;
 
                 // When update happens before is null.
                 // If PK value changes, then debezium creates two events - delete and insert
@@ -120,11 +119,11 @@ impl StreamConsumer for DebeziumStreamConsumer {
                     (Some(new_payload), Some(old_payload)) => {
                         let new = convert_value_to_schema(new_payload, &schema, &fields_map)
                             .map_err(|e| {
-                                ConnectorError::DebeziumError(DebeziumError::DebeziumSchemaError(e))
+                                ConnectorError::KafkaError(KafkaError::KafkaSchemaError(e))
                             })?;
                         let old = convert_value_to_schema(old_payload, &schema, &fields_map)
                             .map_err(|e| {
-                                ConnectorError::DebeziumError(DebeziumError::DebeziumSchemaError(e))
+                                ConnectorError::KafkaError(KafkaError::KafkaSchemaError(e))
                             })?;
 
                         ingestor
@@ -149,7 +148,7 @@ impl StreamConsumer for DebeziumStreamConsumer {
                     (None, Some(old_payload)) => {
                         let old = convert_value_to_schema(old_payload, &schema, &fields_map)
                             .map_err(|e| {
-                                ConnectorError::DebeziumError(DebeziumError::DebeziumSchemaError(e))
+                                ConnectorError::KafkaError(KafkaError::KafkaSchemaError(e))
                             })?;
 
                         ingestor
@@ -169,7 +168,7 @@ impl StreamConsumer for DebeziumStreamConsumer {
                     (Some(new_payload), None) => {
                         let new = convert_value_to_schema(new_payload, &schema, &fields_map)
                             .map_err(|e| {
-                                ConnectorError::DebeziumError(DebeziumError::DebeziumSchemaError(e))
+                                ConnectorError::KafkaError(KafkaError::KafkaSchemaError(e))
                             })?;
 
                         ingestor
