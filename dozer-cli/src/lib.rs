@@ -27,12 +27,17 @@ mod utils;
 pub trait Orchestrator {
     fn migrate(&mut self, force: bool) -> Result<(), OrchestrationError>;
     fn clean(&mut self) -> Result<(), OrchestrationError>;
-    fn run_all(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError>;
+    fn run_all(
+        &mut self,
+        shutdown: ShutdownReceiver,
+        err_threshold: Option<u32>,
+    ) -> Result<(), OrchestrationError>;
     fn run_api(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError>;
     fn run_apps(
         &mut self,
         shutdown: ShutdownReceiver,
         api_notifier: Option<Sender<bool>>,
+        err_threshold: Option<u32>,
     ) -> Result<(), OrchestrationError>;
     #[allow(clippy::type_complexity)]
     fn list_connectors(

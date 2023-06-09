@@ -89,6 +89,11 @@ pub struct Config {
     /// Dozer Cloud specific configuration
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cloud: Option<Cloud>,
+
+    #[prost(message, tag = "18")]
+    /// Dozer Cloud specific configuration
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub err_threshold: Option<u32>,
 }
 
 pub fn default_home_dir() -> String {
@@ -124,6 +129,10 @@ pub fn default_commit_size() -> u32 {
 
 pub fn default_commit_timeout() -> u64 {
     50
+}
+
+pub fn default_err_threshold() -> u32 {
+    0
 }
 
 impl Config {
@@ -187,6 +196,7 @@ impl<'de> Deserialize<'de> for Config {
                 let mut app_buffer_size: Option<u32> = Some(default_app_buffer_size());
                 let mut commit_size: Option<u32> = Some(default_commit_size());
                 let mut commit_timeout: Option<u64> = Some(default_commit_timeout());
+                let mut err_threshold: Option<u32> = Some(default_err_threshold());
 
                 while let Some(key) = access.next_key()? {
                     match key {
@@ -237,6 +247,9 @@ impl<'de> Deserialize<'de> for Config {
                         }
                         "cloud" => {
                             cloud = access.next_value::<Option<Cloud>>()?;
+                        }
+                        "err_threshold" => {
+                            err_threshold = access.next_value::<Option<u32>>()?;
                         }
                         _ => {
                             access.next_value::<IgnoredAny>()?;
@@ -311,6 +324,7 @@ impl<'de> Deserialize<'de> for Config {
                     commit_timeout,
                     telemetry,
                     cloud,
+                    err_threshold,
                 })
             }
         }
