@@ -9,6 +9,7 @@ use dozer_types::models::{
     },
 };
 use std::time::Duration;
+use futures::future::err;
 
 fn get_cache_max_map_size(config: &Config) -> u64 {
     config
@@ -58,7 +59,7 @@ pub fn get_executor_options(config: &Config, err_threshold: Option<u32>) -> Exec
         commit_sz: get_commit_size(config),
         channel_buffer_sz: get_buffer_size(config) as usize,
         commit_time_threshold: get_commit_time_threshold(config),
-        error_threshold: err_threshold,
+        error_threshold: Some(err_threshold.unwrap_or(0_u32)),
     }
 }
 
