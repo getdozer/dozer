@@ -20,6 +20,7 @@ use tokio::task::JoinHandle;
 #[cfg(feature = "cloud")]
 mod cloud_helper;
 pub mod console_helper;
+#[cfg(feature = "cloud")]
 mod progress_printer;
 mod utils;
 
