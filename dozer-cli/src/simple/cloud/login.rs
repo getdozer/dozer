@@ -1,6 +1,6 @@
 use crate::errors::{CloudCredentialError, CloudLoginError};
 use std::collections::HashMap;
-use std::{env, fs, io, println as info};
+use std::{env, fs, io};
 
 use dozer_types::grpc_types::cloud::company_request::Criteria;
 use dozer_types::grpc_types::cloud::dozer_public_client::DozerPublicClient;
@@ -138,17 +138,17 @@ impl LoginSvc {
 
     async fn login_by_credential(&self) -> Result<(), CloudLoginError> {
         let mut profile_name = String::new();
-        info!("Please enter profile name:");
+        println!("Please enter profile name:");
         io::stdin().read_line(&mut profile_name)?;
         profile_name = profile_name.trim().to_owned();
 
         let mut client_id = String::new();
-        info!("Please enter your client_id:");
+        println!("Please enter your client_id:");
         io::stdin().read_line(&mut client_id)?;
         client_id = client_id.trim().to_owned();
 
         let mut client_secret = String::new();
-        info!("Please enter your client_secret:");
+        println!("Please enter your client_secret:");
         io::stdin().read_line(&mut client_secret)?;
         client_secret = client_secret.trim().to_owned();
 
@@ -161,7 +161,7 @@ impl LoginSvc {
         };
         credential_info.get_access_token().await?;
         credential_info.save()?;
-        info!("Login success !");
+        println!("Login success !");
         Ok(())
     }
 }
