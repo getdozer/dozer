@@ -53,7 +53,7 @@ pub fn get_api_security_config(config: Config) -> Option<ApiSecurity> {
     get_api_config(config).api_security
 }
 
-pub fn get_executor_options(config: &Config, err_threshold: Option<u64>) -> ExecutorOptions {
+pub fn get_executor_options(config: &Config, err_threshold: Option<u32>) -> ExecutorOptions {
     ExecutorOptions {
         commit_sz: get_commit_size(config),
         channel_buffer_sz: get_buffer_size(config) as usize,

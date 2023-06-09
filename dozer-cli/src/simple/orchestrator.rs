@@ -158,12 +158,11 @@ impl Orchestrator for SimpleOrchestrator {
         &mut self,
         shutdown: ShutdownReceiver,
         api_notifier: Option<Sender<bool>>,
-        err_threshold: String,
+        err_threshold: Option<u32>,
     ) -> Result<(), OrchestrationError> {
-        let mut global_err_threshold: Option<u64> = self.config.err_threshold;
-        let command_err_threshold = u64::from_str(err_threshold.as_str()).ok();
-        if command_err_threshold.is_some() {
-            global_err_threshold = command_err_threshold;
+        let mut global_err_threshold: Option<u32> = self.config.err_threshold;
+        if err_threshold.is_some() {
+            global_err_threshold = err_threshold;
         }
 
         let home_dir = HomeDir::new(
@@ -322,7 +321,7 @@ impl Orchestrator for SimpleOrchestrator {
     fn run_all(
         &mut self,
         shutdown: ShutdownReceiver,
-        err_threshold: String,
+        err_threshold: Option<u32>,
     ) -> Result<(), OrchestrationError> {
         let shutdown_api = shutdown.clone();
 

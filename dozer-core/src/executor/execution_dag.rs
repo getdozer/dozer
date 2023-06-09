@@ -51,7 +51,7 @@ impl ExecutionDag {
     pub fn new(
         builder_dag: BuilderDag,
         channel_buffer_sz: usize,
-        error_threshold: Option<u64>,
+        error_threshold: Option<u32>,
     ) -> Result<Self, ExecutionError> {
         // Count number of sources.
         let num_sources = builder_dag

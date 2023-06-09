@@ -29,14 +29,14 @@ pub trait Orchestrator {
     fn run_all(
         &mut self,
         shutdown: ShutdownReceiver,
-        err_threshold: String,
+        err_threshold: Option<u32>,
     ) -> Result<(), OrchestrationError>;
     fn run_api(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError>;
     fn run_apps(
         &mut self,
         shutdown: ShutdownReceiver,
         api_notifier: Option<Sender<bool>>,
-        err_threshold: String,
+        err_threshold: Option<u32>,
     ) -> Result<(), OrchestrationError>;
     #[allow(clippy::type_complexity)]
     fn list_connectors(
