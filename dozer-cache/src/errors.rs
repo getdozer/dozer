@@ -31,8 +31,6 @@ pub enum CacheError {
     Type(#[from] TypeError),
     #[error("Restore error: {0}")]
     Restore(#[from] RestoreError),
-    #[error("Failed to dump to writer: {0}")]
-    FailedToDumpToWriter(#[source] std::io::Error),
 
     #[error("Log error: {0}")]
     ReaderError(#[from] ReaderError),

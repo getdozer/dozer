@@ -169,14 +169,13 @@ async fn restore_slice(reader: &mut (impl AsyncRead + Unpin)) -> Result<Vec<u8>,
 
 #[cfg(test)]
 pub mod tests {
-    use std::{path::Path, pin::pin};
+    use std::pin::pin;
 
     use super::*;
 
     use dozer_types::tonic::async_trait;
     use lmdb::WriteFlags;
     use tempdir::TempDir;
-    use tokio::io::AsyncWriteExt;
 
     use crate::{
         generator::{Generator, IntoGenerator},
@@ -209,7 +208,7 @@ pub mod tests {
             txn: &'txn T,
             db: Database,
             flags: DatabaseFlags,
-            context: &FutureGeneratorContext<Result<DumpItem<'txn>, StorageError>>,
+            context: FutureGeneratorContext<Result<DumpItem<'txn>, StorageError>>,
         ) -> Result<(), ()>;
     }
 
@@ -218,19 +217,14 @@ pub mod tests {
         env: &mut RwLmdbEnvironment,
         db: Database,
         flags: DatabaseFlags,
-        dump_path: &Path,
-    ) {
-        let mut file = pin!(tokio::fs::File::create(dump_path).await.unwrap());
-        let txn = env.begin_txn().unwrap();
-        let txn_borrow = &txn;
-        let generator =
-            (|context| async move { dumper.dump(txn_borrow, db, flags, &context).await.unwrap() })
-                .into_generator();
+    ) -> Vec<u8> {
+        let mut result = vec![];
+        let txn = &env.begin_txn().unwrap();
+        let generator = (|context| dumper.dump(txn, db, flags, context)).into_generator();
         for item in pin!(generator).into_iter() {
-            let item = item.unwrap();
-            file.write_all(&item).await.unwrap();
+            result.extend_from_slice(&item.unwrap());
         }
-        file.flush().await.unwrap();
+        result
     }
 
     #[async_trait(?Send)]
@@ -249,11 +243,10 @@ pub mod tests {
         env: &mut RwLmdbEnvironment,
         restore_name: &str,
         flags: DatabaseFlags,
-        dump_path: &Path,
+        mut data: &[u8],
     ) -> Database {
-        let mut file = pin!(tokio::fs::File::open(dump_path).await.unwrap());
         restorer
-            .restore(env, restore_name, flags, &mut file)
+            .restore(env, restore_name, flags, &mut data)
             .await
             .unwrap()
     }
@@ -264,11 +257,10 @@ pub mod tests {
         env: &mut RwLmdbEnvironment,
         db: Database,
         flags: DatabaseFlags,
-        dump_path: &Path,
         restore_name: &str,
     ) -> Database {
-        dump_database(dumper, env, db, flags, dump_path).await;
-        restore_database(restorer, env, restore_name, flags, dump_path).await
+        let data = dump_database(dumper, env, db, flags).await;
+        restore_database(restorer, env, restore_name, flags, &data).await
     }
 
     pub async fn test_dump_restore(
@@ -278,7 +270,7 @@ pub mod tests {
         data: &[(&[u8], &[u8])],
     ) {
         // Create database.
-        let (temp_dir, mut env) = create_env();
+        let (_temp_dir, mut env) = create_env();
         let db = env
             .create_database(Some("test_dump_restore"), flags)
             .unwrap();
@@ -291,7 +283,6 @@ pub mod tests {
             &mut env,
             db,
             flags,
-            &temp_dir.path().join("dump"),
             "test_dump_restore_restore",
         )
         .await;

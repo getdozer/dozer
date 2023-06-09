@@ -29,8 +29,7 @@ pub async fn dump<'txn, T: Transaction>(
 
     // Do one run to find and write the number of keys.
     let mut key_count = 0u64;
-    let generator =
-        pin!((|context| async move { dup_data(cursor, &context).await }).into_generator());
+    let generator = pin!((|context| dup_data(cursor, context)).into_generator());
     let mut iter = generator.into_iter();
     for result in iter.by_ref() {
         let dup_data = yield_return_if_err!(context, result);
@@ -48,8 +47,7 @@ pub async fn dump<'txn, T: Transaction>(
 
     // Construct data iterator.
     let data_cursor = yield_return_if_err!(context, txn.open_ro_cursor(db));
-    let data_generator =
-        pin!((|context| async move { dup_data(data_cursor, &context).await }).into_generator());
+    let data_generator = pin!((|context| dup_data(data_cursor, context)).into_generator());
     let mut data_iter = data_generator.into_iter();
 
     // Find first key value pair.
@@ -71,10 +69,7 @@ pub async fn dump<'txn, T: Transaction>(
 
     // Construct value count iterator.
     let count_generator =
-        pin!(
-            (|context| async move { dup_value_counts(count_cursor, &context).await })
-                .into_generator()
-        );
+        pin!((|context| dup_value_counts(count_cursor, context)).into_generator());
     let mut count_iter = count_generator.into_iter();
 
     // Write first value count.
@@ -292,9 +287,9 @@ mod tests {
             txn: &'txn T,
             db: Database,
             flags: DatabaseFlags,
-            context: &FutureGeneratorContext<Result<DumpItem<'txn>, StorageError>>,
+            context: FutureGeneratorContext<Result<DumpItem<'txn>, StorageError>>,
         ) -> Result<(), ()> {
-            dump(txn, db, flags, context).await
+            dump(txn, db, flags, &context).await
         }
     }
 

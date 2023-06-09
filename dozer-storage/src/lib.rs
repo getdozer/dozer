@@ -19,7 +19,7 @@ mod lmdb_option;
 pub use lmdb_option::LmdbOption;
 
 #[cfg(test)]
-pub mod tests;
+mod tests;
 
 pub use lmdb;
 pub use lmdb_sys;

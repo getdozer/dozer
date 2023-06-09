@@ -136,9 +136,9 @@ mod tests {
             txn: &'txn T,
             db: Database,
             flags: DatabaseFlags,
-            context: &FutureGeneratorContext<Result<DumpItem<'txn>, StorageError>>,
+            context: FutureGeneratorContext<Result<DumpItem<'txn>, StorageError>>,
         ) -> Result<(), ()> {
-            dump(txn, db, flags, context).await
+            dump(txn, db, flags, &context).await
         }
     }
 

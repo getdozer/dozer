@@ -19,22 +19,22 @@ pub enum DupData<'txn> {
 /// The cursor must be opened with a database that has `DUP_SORT` enabled.
 pub async fn dup_data<'txn, C: Cursor<'txn>>(
     cursor: C,
-    context: &FutureGeneratorContext<Result<DupData<'txn>, lmdb::Error>>,
+    context: FutureGeneratorContext<Result<DupData<'txn>, lmdb::Error>>,
 ) -> C {
-    match get_one_dup_data(&cursor, MDB_FIRST, context, true).await {
+    match get_one_dup_data(&cursor, MDB_FIRST, &context, true).await {
         Ok(Some(())) => (),
         _ => return cursor,
     }
-    if let Err(()) = get_following_dup_data(&cursor, context).await {
+    if let Err(()) = get_following_dup_data(&cursor, &context).await {
         return cursor;
     }
 
     loop {
-        match get_one_dup_data(&cursor, MDB_NEXT, context, true).await {
+        match get_one_dup_data(&cursor, MDB_NEXT, &context, true).await {
             Ok(Some(())) => (),
             _ => return cursor,
         }
-        if let Err(()) = get_following_dup_data(&cursor, context).await {
+        if let Err(()) = get_following_dup_data(&cursor, &context).await {
             return cursor;
         }
     }
@@ -45,10 +45,9 @@ pub async fn dup_data<'txn, C: Cursor<'txn>>(
 /// The cursor must be opened with a database that has `DUP_SORT` enabled.
 pub async fn dup_value_counts<'txn, C: Cursor<'txn>>(
     cursor: C,
-    context: &FutureGeneratorContext<Result<u64, lmdb::Error>>,
+    context: FutureGeneratorContext<Result<u64, lmdb::Error>>,
 ) -> Result<(), ()> {
-    let generator =
-        pin!((|context| async move { dup_data(cursor, &context).await }).into_generator());
+    let generator = pin!((|context| dup_data(cursor, context)).into_generator());
     let mut iter = generator.into_iter();
     let mut current_count = None;
     loop {
@@ -185,8 +184,7 @@ mod tests {
 
         let txn = env.begin_txn().unwrap();
         let cursor = txn.open_ro_cursor(db).unwrap();
-        let generator =
-            pin!((|context| async move { dup_data(cursor, &context).await }).into_generator());
+        let generator = pin!((|context| dup_data(cursor, context)).into_generator());
         let mut iter = generator.into_iter();
 
         let DupData::First { key, value } = iter.next().unwrap().unwrap() else {
@@ -225,11 +223,7 @@ mod tests {
 
         let txn = env.begin_txn().unwrap();
         let cursor = txn.open_ro_cursor(db).unwrap();
-        let generator =
-            pin!(
-                (|context| async move { dup_value_counts(cursor, &context).await.unwrap() })
-                    .into_generator()
-            );
+        let generator = pin!((|context| dup_value_counts(cursor, context)).into_generator());
         assert_eq!(
             generator
                 .into_iter()
