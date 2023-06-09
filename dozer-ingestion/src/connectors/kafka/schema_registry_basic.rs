@@ -15,6 +15,7 @@ pub struct SchemaRegistryBasic {}
 
 impl SchemaRegistryBasic {
     pub async fn get_single_schema(
+        id: u32,
         table_name: &str,
         schema_registry_url: &str,
     ) -> Result<(SourceSchema, HashMap<String, DebeziumSchemaStruct>), ConnectorError> {
@@ -56,7 +57,7 @@ impl SchemaRegistryBasic {
             .collect();
 
         let schema = Schema {
-            identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
+            identifier: Some(SchemaIdentifier { id, version: 1 }),
             fields: defined_fields?,
             primary_index: pk_keys_indexes,
         };
@@ -71,15 +72,15 @@ impl SchemaRegistryBasic {
         table_names: Option<&[String]>,
         schema_registry_url: String,
     ) -> Result<Vec<SourceSchema>, ConnectorError> {
-        match table_names {
-            None => Ok(vec![]),
-            Some(tables) => match tables.get(0) {
-                None => Ok(vec![]),
-                Some(table) => {
-                    let (schema, _) = Self::get_single_schema(table, &schema_registry_url).await?;
-                    Ok(vec![schema])
-                }
-            },
+        let mut schemas = vec![];
+        if let Some(tables) = table_names {
+            for (index, table_name) in tables.iter().enumerate() {
+                let (schema, _) =
+                    Self::get_single_schema(index as u32, table_name, &schema_registry_url).await?;
+                schemas.push(schema);
+            }
         }
+
+        Ok(schemas)
     }
 }

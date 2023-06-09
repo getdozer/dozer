@@ -1,7 +1,6 @@
 #[cfg(feature = "ethereum")]
 pub mod ethereum;
 pub mod grpc;
-#[cfg(feature = "kafka")]
 pub mod kafka;
 pub mod object_store;
 pub mod postgres;
@@ -10,7 +9,6 @@ use crate::connectors::postgres::connection::helper::map_connection_config;
 
 use std::fmt::Debug;
 
-#[cfg(feature = "kafka")]
 use crate::connectors::kafka::connector::KafkaConnector;
 use crate::connectors::postgres::connector::{PostgresConfig, PostgresConnector};
 use crate::errors::ConnectorError;
@@ -213,10 +211,7 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
                 snowflake_config,
             )))
         }
-        #[cfg(feature = "kafka")]
         ConnectionConfig::Kafka(kafka_config) => Ok(Box::new(KafkaConnector::new(kafka_config))),
-        #[cfg(not(feature = "kafka"))]
-        ConnectionConfig::Kafka(_) => Err(ConnectorError::KafkaFeatureNotEnabled),
         ConnectionConfig::S3Storage(object_store_config) => {
             Ok(Box::new(ObjectStoreConnector::new(5, object_store_config)))
         }

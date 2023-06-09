@@ -1,61 +1,66 @@
 use crate::connectors::kafka::debezium::schema::map_schema;
 use crate::connectors::kafka::debezium::stream_consumer::DebeziumMessage;
-use crate::connectors::{CdcType, SourceSchema};
+use crate::connectors::SourceSchema;
 use crate::errors::DebeziumError::{BytesConvertError, DebeziumConnectionError, JsonDecodeError};
 use crate::errors::{ConnectorError, DebeziumError, DebeziumStreamError};
 use dozer_types::serde_json;
+use rdkafka::config::RDKafkaLogLevel;
+use rdkafka::consumer::{Consumer, DefaultConsumerContext};
+use rdkafka::{ClientConfig, Message};
 
-use kafka::client::{FetchOffset, GroupOffsetStorage};
-use kafka::consumer::Consumer;
+use crate::connectors::CdcType::FullChanges;
+use rdkafka::consumer::stream_consumer::StreamConsumer as RdkafkaStreamConsumer;
 
 pub struct NoSchemaRegistry {}
 
 impl NoSchemaRegistry {
-    pub fn get_schema(
+    pub async fn get_schema(
         table_names: Option<&[String]>,
         broker: String,
     ) -> Result<Vec<SourceSchema>, ConnectorError> {
-        table_names.map_or(Ok(vec![]), |tables| {
-            tables.get(0).map_or(Ok(vec![]), |table| {
-                let mut con = Consumer::from_hosts(vec![broker])
-                    .with_topic(table.clone())
-                    .with_fallback_offset(FetchOffset::Earliest)
-                    .with_offset_storage(GroupOffsetStorage::Kafka)
-                    .create()
-                    .map_err(DebeziumConnectionError)?;
+        let mut schemas = vec![];
+        match table_names {
+            None => {}
+            Some(tables) => {
+                for table in tables {
+                    let context = DefaultConsumerContext;
 
-                let mut schemas = vec![];
-                let mss = con.poll().map_err(|e| {
-                    DebeziumError::DebeziumStreamError(DebeziumStreamError::PollingError(e))
-                })?;
+                    let con: RdkafkaStreamConsumer = ClientConfig::new()
+                        .set("bootstrap.servers", broker.clone())
+                        .set("enable.partition.eof", "false")
+                        .set("session.timeout.ms", "6000")
+                        .set("enable.auto.commit", "true")
+                        .set_log_level(RDKafkaLogLevel::Debug)
+                        .create_with_context(context)
+                        .map_err(DebeziumConnectionError)?;
 
-                if !mss.is_empty() {
-                    for ms in mss.iter() {
-                        for m in ms.messages() {
-                            let value_struct: DebeziumMessage = serde_json::from_str(
-                                std::str::from_utf8(m.value).map_err(BytesConvertError)?,
-                            )
-                            .map_err(JsonDecodeError)?;
-                            let key_struct: DebeziumMessage = serde_json::from_str(
-                                std::str::from_utf8(m.key).map_err(BytesConvertError)?,
-                            )
-                            .map_err(JsonDecodeError)?;
+                    con.subscribe(&[table]).map_err(DebeziumConnectionError)?;
 
-                            let (mapped_schema, _fields_map) = map_schema(
-                                &value_struct.schema,
-                                &key_struct.schema,
-                            )
-                            .map_err(|e| {
+                    let m = con.recv().await.map_err(|e| {
+                        DebeziumError::DebeziumStreamError(DebeziumStreamError::PollingError(e))
+                    })?;
+
+                    if let (Some(message), Some(key)) = (m.payload(), m.key()) {
+                        let value_struct: DebeziumMessage = serde_json::from_str(
+                            std::str::from_utf8(message).map_err(BytesConvertError)?,
+                        )
+                        .map_err(JsonDecodeError)?;
+                        let key_struct: DebeziumMessage = serde_json::from_str(
+                            std::str::from_utf8(key).map_err(BytesConvertError)?,
+                        )
+                        .map_err(JsonDecodeError)?;
+
+                        let (mapped_schema, _fields_map) =
+                            map_schema(&value_struct.schema, &key_struct.schema).map_err(|e| {
                                 ConnectorError::DebeziumError(DebeziumError::DebeziumSchemaError(e))
                             })?;
 
-                            schemas.push(SourceSchema::new(mapped_schema, CdcType::FullChanges));
-                        }
+                        schemas.push(SourceSchema::new(mapped_schema, FullChanges));
                     }
                 }
+            }
+        }
 
-                Ok(schemas)
-            })
-        })
+        Ok(schemas)
     }
 }

@@ -6,6 +6,7 @@ use dozer_types::ingestion_types::IngestorError;
 use dozer_types::thiserror::Error;
 use dozer_types::{bincode, serde_json};
 use dozer_types::{rust_decimal, thiserror};
+use rdkafka::error::KafkaError;
 
 use base64::DecodeError;
 
@@ -21,7 +22,6 @@ use dozer_types::log::error;
 use odbc::DiagnosticRecord;
 
 use dozer_types::arrow_types::errors::FromArrowError;
-#[cfg(feature = "kafka")]
 use schema_registry_converter::error::SRCError;
 use tokio_postgres::Error;
 
@@ -317,9 +317,8 @@ pub enum DebeziumError {
     #[error(transparent)]
     DebeziumSchemaError(#[from] DebeziumSchemaError),
 
-    #[cfg(feature = "kafka")]
     #[error("Connection error. Error: {0}")]
-    DebeziumConnectionError(#[from] kafka::Error),
+    DebeziumConnectionError(#[from] KafkaError),
 
     #[error("JSON decode error. Error: {0}")]
     JsonDecodeError(#[source] serde_json::Error),
@@ -327,11 +326,9 @@ pub enum DebeziumError {
     #[error("Bytes convert error")]
     BytesConvertError(#[source] Utf8Error),
 
-    #[cfg(feature = "kafka")]
     #[error(transparent)]
     DebeziumStreamError(#[from] DebeziumStreamError),
 
-    #[cfg(feature = "kafka")]
     #[error("Schema registry fetch failed. Error: {0}")]
     SchemaRegistryFetchError(#[source] SRCError),
 
@@ -339,17 +336,16 @@ pub enum DebeziumError {
     TopicNotDefined,
 }
 
-#[cfg(feature = "kafka")]
 #[derive(Error, Debug)]
 pub enum DebeziumStreamError {
     #[error("Consume commit error")]
-    ConsumeCommitError(#[source] kafka::Error),
+    ConsumeCommitError(#[source] KafkaError),
 
     #[error("Message consume error")]
-    MessageConsumeError(#[source] kafka::Error),
+    MessageConsumeError(#[source] KafkaError),
 
     #[error("Polling error")]
-    PollingError(#[source] kafka::Error),
+    PollingError(#[source] KafkaError),
 }
 
 #[derive(Error, Debug, PartialEq)]
