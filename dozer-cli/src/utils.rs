@@ -9,7 +9,7 @@ use dozer_types::models::{
     },
 };
 use std::time::Duration;
-use futures::future::err;
+
 
 fn get_cache_max_map_size(config: &Config) -> u64 {
     config
