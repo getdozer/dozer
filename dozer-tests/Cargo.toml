@@ -33,7 +33,7 @@ futures = { version = "0.3.26", optional = true }
 env_logger = "0.10.0"
 clap = { version = "4.1.11", features = ["derive"] }
 rusqlite = { version = "0.28.0", features = ["bundled", "column_decltype", "hooks"] }
-sqllogictest = "0.11.1"
+sqllogictest = "0.14.0"
 async-trait = "0.1.53"
 dozer-core = { path = "../dozer-core" }
 dozer-sql = { path = "../dozer-sql" }
