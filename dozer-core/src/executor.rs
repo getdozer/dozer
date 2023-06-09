@@ -22,7 +22,7 @@ pub struct ExecutorOptions {
     pub commit_sz: u32,
     pub channel_buffer_sz: usize,
     pub commit_time_threshold: Duration,
-    pub error_threshold: Option<u64>,
+    pub error_threshold: Option<u32>,
 }
 
 impl Default for ExecutorOptions {

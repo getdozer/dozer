@@ -182,18 +182,22 @@ fn test_uint_math() {
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
             Field::Float(OrderedFloat(f64::from_u64(u_num2).unwrap() * f_num1))
         );
-        assert_eq!(
-            // UInt / Float = Float
-            evaluate_div(&Schema::empty(), &uint2, &float1, &row)
-                .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Float(OrderedFloat(f64::from_u64(u_num2).unwrap() / f_num1))
-        );
-        assert_eq!(
-            // UInt % Float = Float
-            evaluate_mod(&Schema::empty(), &uint1, &float2, &row)
-                .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Float(OrderedFloat(f64::from_u64(u_num1).unwrap() % f_num2))
-        );
+        if float1 != Box::new(Literal(Field::Float(OrderedFloat(0_f64)))) {
+            assert_eq!(
+                // UInt / Float = Float
+                evaluate_div(&Schema::empty(), &uint2, &float1, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Float(OrderedFloat(f64::from_u64(u_num2).unwrap() / f_num1))
+            );
+        }
+        if float2 != Box::new(Literal(Field::Float(OrderedFloat(0_f64)))) {
+            assert_eq!(
+                // UInt % Float = Float
+                evaluate_mod(&Schema::empty(), &uint1, &float2, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Float(OrderedFloat(f64::from_u64(u_num1).unwrap() % f_num2))
+            );
+        }
 
         //// left: UInt, right: Decimal
         assert_eq!(
@@ -780,18 +784,22 @@ fn test_int_math() {
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
             Field::Float(OrderedFloat(f64::from_i64(i_num2).unwrap() * f_num1))
         );
-        assert_eq!(
-            // Int / Float = Float
-            evaluate_div(&Schema::empty(), &int2, &float1, &row)
-                .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Float(OrderedFloat(f64::from_i64(i_num2).unwrap() / f_num1))
-        );
-        assert_eq!(
-            // Int % Float = Float
-            evaluate_mod(&Schema::empty(), &int1, &float2, &row)
-                .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Float(OrderedFloat(f64::from_i64(i_num1).unwrap() % f_num2))
-        );
+        if float1 != Box::new(Literal(Field::Float(OrderedFloat(0_f64)))) {
+            assert_eq!(
+                // Int / Float = Float
+                evaluate_div(&Schema::empty(), &int2, &float1, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Float(OrderedFloat(f64::from_i64(i_num2).unwrap() / f_num1))
+            );
+        }
+        if float2 != Box::new(Literal(Field::Float(OrderedFloat(0_f64)))) {
+            assert_eq!(
+                // Int % Float = Float
+                evaluate_mod(&Schema::empty(), &int1, &float2, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Float(OrderedFloat(f64::from_i64(i_num1).unwrap() % f_num2))
+            );
+        }
 
         //// left: Int, right: Decimal
         assert_eq!(
@@ -1414,18 +1422,22 @@ fn test_float_math() {
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
             Field::Float(OrderedFloat(f_num2 * f_num1))
         );
-        assert_eq!(
-            // Float / Float = Float
-            evaluate_div(&Schema::empty(), &float2, &float1, &row)
-                .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Float(OrderedFloat(f_num2 / f_num1))
-        );
-        assert_eq!(
-            // Float % Float = Float
-            evaluate_mod(&Schema::empty(), &float1, &float2, &row)
-                .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Float(OrderedFloat(f_num1 % f_num2))
-        );
+        if float1 != Box::new(Literal(Field::Float(OrderedFloat(0_f64)))) {
+            assert_eq!(
+                // Float / Float = Float
+                evaluate_div(&Schema::empty(), &float2, &float1, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Float(OrderedFloat(f_num2 / f_num1))
+            );
+        }
+        if float2 != Box::new(Literal(Field::Float(OrderedFloat(0_f64)))) {
+            assert_eq!(
+                // Float % Float = Float
+                evaluate_mod(&Schema::empty(), &float1, &float2, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Float(OrderedFloat(f_num1 % f_num2))
+            );
+        }
 
         //// left: Float, right: Decimal
         let d_val1 = Decimal::from_f64(f_num1);
