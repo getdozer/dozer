@@ -12,7 +12,9 @@ use dozer_types::{
     serde::{Deserialize, Serialize},
     types::{IndexDefinition, Record, Schema, SchemaWithIndex},
 };
-pub use lmdb::cache_manager::{CacheManagerOptions, LmdbRoCacheManager, LmdbRwCacheManager};
+pub use lmdb::cache_manager::{
+    begin_dump_txn, dump, CacheManagerOptions, LmdbRoCacheManager, LmdbRwCacheManager,
+};
 pub mod expression;
 mod index;
 mod plan;

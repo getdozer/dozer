@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 
 use dozer_storage::errors::StorageError;
+use dozer_storage::RestoreError;
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
 
@@ -28,6 +29,8 @@ pub enum CacheError {
     Plan(#[from] PlanError),
     #[error("Type error: {0}")]
     Type(#[from] TypeError),
+    #[error("Restore error: {0}")]
+    Restore(#[from] RestoreError),
 
     #[error("Log error: {0}")]
     ReaderError(#[from] ReaderError),
