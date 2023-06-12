@@ -48,6 +48,13 @@ pub trait SecondaryEnvironment: LmdbEnvironment {
         let txn = self.begin_txn()?;
         self.database().count_data(&txn).map_err(Into::into)
     }
+
+    fn next_operation_id<T: Transaction>(&self, txn: &T) -> Result<u64, CacheError> {
+        self.common()
+            .next_operation_id
+            .load(txn)
+            .map_err(Into::into)
+    }
 }
 
 #[derive(Debug)]

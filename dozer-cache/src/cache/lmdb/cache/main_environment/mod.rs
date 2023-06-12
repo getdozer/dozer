@@ -79,12 +79,7 @@ pub trait MainEnvironment: LmdbEnvironment {
     }
 
     fn metadata(&self) -> Result<Option<u64>, CacheError> {
-        let txn = self.begin_txn()?;
-        self.common()
-            .metadata
-            .load(&txn)
-            .map(|data| data.map(IntoOwned::into_owned))
-            .map_err(Into::into)
+        self.metadata_with_txn(&self.begin_txn()?)
     }
 
     fn is_snapshotting_done(&self) -> Result<bool, CacheError> {
@@ -95,6 +90,14 @@ pub trait MainEnvironment: LmdbEnvironment {
             }
         }
         Ok(true)
+    }
+
+    fn metadata_with_txn<T: Transaction>(&self, txn: &T) -> Result<Option<u64>, CacheError> {
+        self.common()
+            .metadata
+            .load(txn)
+            .map(|data| data.map(IntoOwned::into_owned))
+            .map_err(Into::into)
     }
 }
 
