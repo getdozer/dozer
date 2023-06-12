@@ -7,12 +7,14 @@ use dozer_types::thiserror::Error;
 use dozer_types::{bincode, serde_json};
 use dozer_types::{rust_decimal, thiserror};
 
+#[cfg(feature = "kafka")]
 use base64::DecodeError;
 
 use deltalake::datafusion::error::DataFusionError;
 use deltalake::DeltaTableError;
 #[cfg(feature = "snowflake")]
 use std::num::TryFromIntError;
+#[cfg(feature = "kafka")]
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 
@@ -21,6 +23,7 @@ use dozer_types::log::error;
 use odbc::DiagnosticRecord;
 
 use dozer_types::arrow_types::errors::FromArrowError;
+#[cfg(feature = "kafka")]
 use schema_registry_converter::error::SRCError;
 use tokio_postgres::Error;
 
@@ -57,6 +60,7 @@ pub enum ConnectorError {
     #[error(transparent)]
     SnowflakeError(#[from] SnowflakeError),
 
+    #[cfg(feature = "kafka")]
     #[error(transparent)]
     KafkaError(#[from] KafkaError),
 
@@ -310,7 +314,7 @@ pub enum SnowflakeStreamError {
     #[error("Stream not found")]
     StreamNotFound,
 }
-
+#[cfg(feature = "kafka")]
 #[derive(Error, Debug)]
 pub enum KafkaError {
     #[error(transparent)]
@@ -335,6 +339,7 @@ pub enum KafkaError {
     TopicNotDefined,
 }
 
+#[cfg(feature = "kafka")]
 #[derive(Error, Debug)]
 pub enum KafkaStreamError {
     #[error("Consume commit error")]
@@ -347,6 +352,7 @@ pub enum KafkaStreamError {
     PollingError(#[source] rdkafka::error::KafkaError),
 }
 
+#[cfg(feature = "kafka")]
 #[derive(Error, Debug, PartialEq)]
 pub enum KafkaSchemaError {
     #[error("Schema definition not found")]
