@@ -3,9 +3,9 @@
 use crate::connectors::kafka::debezium::schema::map_type;
 use crate::connectors::kafka::debezium::stream_consumer::DebeziumSchemaStruct;
 use crate::connectors::{CdcType, SourceSchema};
-use crate::errors::DebeziumError::{JsonDecodeError, SchemaRegistryFetchError};
-use crate::errors::DebeziumSchemaError::TypeNotSupported;
-use crate::errors::{ConnectorError, DebeziumError, DebeziumSchemaError};
+use crate::errors::KafkaError::{JsonDecodeError, SchemaRegistryFetchError};
+use crate::errors::KafkaSchemaError::TypeNotSupported;
+use crate::errors::{ConnectorError, KafkaError, KafkaSchemaError};
 use dozer_types::serde_json;
 use dozer_types::serde_json::Value;
 use dozer_types::types::{FieldDefinition, FieldType, Schema, SchemaIdentifier, SourceDefinition};
@@ -16,9 +16,7 @@ use std::collections::HashMap;
 pub struct SchemaRegistry {}
 
 impl SchemaRegistry {
-    pub fn map_typ(
-        schema: &DebeziumSchemaStruct,
-    ) -> Result<(FieldType, bool), DebeziumSchemaError> {
+    pub fn map_typ(schema: &DebeziumSchemaStruct) -> Result<(FieldType, bool), KafkaSchemaError> {
         let nullable = schema.optional.map_or(false, |o| !o);
         match schema.r#type.clone() {
             Value::String(_) => map_type(&DebeziumSchemaStruct {
@@ -66,7 +64,7 @@ impl SchemaRegistry {
         sr_settings: &SrSettings,
         table_name: &str,
         is_key: bool,
-    ) -> Result<DebeziumSchemaStruct, DebeziumError> {
+    ) -> Result<DebeziumSchemaStruct, KafkaError> {
         let schema_result =
             schema_registry_converter::async_impl::schema_registry::get_schema_by_subject(
                 sr_settings,
@@ -110,7 +108,7 @@ impl SchemaRegistry {
                         .enumerate()
                         .map(|(idx, f)| {
                             let (typ, nullable) = Self::map_typ(f).map_err(|e| {
-                                ConnectorError::DebeziumError(DebeziumError::DebeziumSchemaError(e))
+                                ConnectorError::KafkaError(KafkaError::KafkaSchemaError(e))
                             })?;
                             let name = f.name.clone().unwrap();
                             if pk_fields.contains(&name) {
