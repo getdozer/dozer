@@ -16,12 +16,24 @@ use crate::{
 
 use super::{
     main_environment, secondary_environment, secondary_environment_name, CacheOptions, LmdbCache,
-    LmdbRwCache, MainEnvironment,
+    LmdbRwCache, MainEnvironment, SecondaryEnvironment,
 };
 
 pub struct DumpTransaction<T: Transaction> {
     main_txn: T,
+    main_env_metadata: Option<u64>,
     secondary_txns: Vec<T>,
+    secondary_metadata: Vec<u64>,
+}
+
+impl<T: Transaction> DumpTransaction<T> {
+    pub fn main_env_metadata(&self) -> Option<u64> {
+        self.main_env_metadata
+    }
+
+    pub fn secondary_metadata(&self) -> &[u64] {
+        &self.secondary_metadata
+    }
 }
 
 pub fn begin_dump_txn<C: LmdbCache>(
@@ -29,16 +41,23 @@ pub fn begin_dump_txn<C: LmdbCache>(
 ) -> Result<DumpTransaction<RoTransaction>, CacheError> {
     let main_env = cache.main_env();
     let main_txn = main_env.begin_txn()?;
-    let secondary_txns = (0..main_env.schema().1.len())
-        .map(|index| {
-            let secondary_env = cache.secondary_env(index);
-            secondary_env.begin_txn()
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+    let main_env_metadata = main_env.metadata_with_txn(&main_txn)?;
+
+    let mut secondary_txns = vec![];
+    let mut secondary_metadata = vec![];
+    for index in 0..cache.get_schema().1.len() {
+        let secondary_env = cache.secondary_env(index);
+        let txn = secondary_env.begin_txn()?;
+        let metadata = secondary_env.next_operation_id(&txn)?;
+        secondary_txns.push(txn);
+        secondary_metadata.push(metadata);
+    }
 
     Ok(DumpTransaction {
         main_txn,
+        main_env_metadata,
         secondary_txns,
+        secondary_metadata,
     })
 }
 
