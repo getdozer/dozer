@@ -79,12 +79,7 @@ pub trait MainEnvironment: LmdbEnvironment {
     }
 
     fn metadata(&self) -> Result<Option<u64>, CacheError> {
-        let txn = self.begin_txn()?;
-        self.common()
-            .metadata
-            .load(&txn)
-            .map(|data| data.map(IntoOwned::into_owned))
-            .map_err(Into::into)
+        self.metadata_with_txn(&self.begin_txn()?)
     }
 
     fn is_snapshotting_done(&self) -> Result<bool, CacheError> {
@@ -96,7 +91,19 @@ pub trait MainEnvironment: LmdbEnvironment {
         }
         Ok(true)
     }
+
+    fn metadata_with_txn<T: Transaction>(&self, txn: &T) -> Result<Option<u64>, CacheError> {
+        self.common()
+            .metadata
+            .load(txn)
+            .map(|data| data.map(IntoOwned::into_owned))
+            .map_err(Into::into)
+    }
 }
+
+const SCHEMA_DB_NAME: &str = "schema";
+const METADATA_DB_NAME: &str = "metadata";
+const CONNECTION_SNAPSHOTTING_DONE_DB_NAME: &str = "connection_snapshotting_done";
 
 #[derive(Debug, Clone)]
 pub struct MainEnvironmentCommon {
@@ -104,6 +111,8 @@ pub struct MainEnvironmentCommon {
     base_path: PathBuf,
     /// The schema.
     schema: SchemaWithIndex,
+    /// The schema database, used for dumping.
+    schema_option: LmdbOption<SchemaWithIndex>,
     /// The metadata.
     metadata: LmdbOption<u64>,
     /// The source status.
@@ -143,10 +152,10 @@ impl RwMainEnvironment {
         let (mut env, (base_path, labels), temp_dir) = create_env(options)?;
 
         let operation_log = OperationLog::create(&mut env, labels.clone())?;
-        let schema_option = LmdbOption::create(&mut env, Some("schema"))?;
-        let metadata = LmdbOption::create(&mut env, Some("metadata"))?;
+        let schema_option = LmdbOption::create(&mut env, Some(SCHEMA_DB_NAME))?;
+        let metadata = LmdbOption::create(&mut env, Some(METADATA_DB_NAME))?;
         let connection_snapshotting_done =
-            LmdbMap::create(&mut env, Some("connection_snapshotting_done"))?;
+            LmdbMap::create(&mut env, Some(CONNECTION_SNAPSHOTTING_DONE_DB_NAME))?;
 
         let old_schema = schema_option
             .load(&env.begin_txn()?)?
@@ -203,6 +212,7 @@ impl RwMainEnvironment {
             common: MainEnvironmentCommon {
                 base_path,
                 schema,
+                schema_option,
                 metadata,
                 connection_snapshotting_done,
                 operation_log,
@@ -540,10 +550,10 @@ impl RoMainEnvironment {
         let (env, (base_path, labels), _temp_dir) = open_env(options)?;
 
         let operation_log = OperationLog::open(&env, labels.clone())?;
-        let schema_option = LmdbOption::open(&env, Some("schema"))?;
-        let metadata = LmdbOption::open(&env, Some("metadata"))?;
+        let schema_option = LmdbOption::open(&env, Some(SCHEMA_DB_NAME))?;
+        let metadata = LmdbOption::open(&env, Some(METADATA_DB_NAME))?;
         let connection_snapshotting_done =
-            LmdbMap::open(&env, Some("connection_snapshotting_done"))?;
+            LmdbMap::open(&env, Some(CONNECTION_SNAPSHOTTING_DONE_DB_NAME))?;
 
         let schema = schema_option
             .load(&env.begin_txn()?)?
@@ -555,6 +565,7 @@ impl RoMainEnvironment {
             common: MainEnvironmentCommon {
                 base_path: base_path.to_path_buf(),
                 schema,
+                schema_option,
                 metadata,
                 connection_snapshotting_done,
                 operation_log,
@@ -563,6 +574,8 @@ impl RoMainEnvironment {
         })
     }
 }
+
+pub mod dump_restore;
 
 fn debug_check_schema_record_consistency(schema: &Schema, record: &Record) {
     debug_assert_eq!(schema.identifier, record.schema_id);

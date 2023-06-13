@@ -22,12 +22,12 @@ object_store = { version = "0.5", features = ["aws"] }
 # Eth connector
 web3 = { version = "0.18.0", optional = true }
 # Kafka connector
-kafka = {version = "0.9.0", optional = true }
+rdkafka = {version = "0.31.0", optional = true }
 # odbc connector
 odbc = { version = "0.17.0", optional = true }
 base64 = "0.21.0"
 include_dir = {version = "0.7.3", optional = true }
-schema_registry_converter = { version = "3.1.0", features = ["blocking", "avro"], optional = true }
+schema_registry_converter = { version = "3.1.0", features = ["avro"], optional = true }
 regex = "1"
 tonic = {version = "0.8.3"}
 tonic-web = "0.4.0"
@@ -53,8 +53,8 @@ hex = "0.4.3"
 [features]
 # Defines a feature named `odbc` that does not enable any other features.
 snowflake = ["dep:odbc", "dep:include_dir"]
-kafka = ["dep:kafka", "dep:schema_registry_converter"]
 ethereum = ["dep:web3"]
+kafka = ["dep:rdkafka", "dep:schema_registry_converter"]
 
 [[bench]]
 name = "connectors"

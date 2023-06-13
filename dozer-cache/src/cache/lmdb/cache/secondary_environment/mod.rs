@@ -21,22 +21,46 @@ mod indexer;
 
 pub type SecondaryIndexDatabase = LmdbMultimap<Vec<u8>, u64>;
 
+#[derive(Debug, Clone)]
+pub struct SecondaryEnvironmentCommon {
+    pub index_definition: IndexDefinition,
+    pub index_definition_option: LmdbOption<IndexDefinition>,
+    pub database: SecondaryIndexDatabase,
+    pub next_operation_id: LmdbCounter,
+}
+
+const INDEX_DEFINITION_DB_NAME: &str = "index_definition";
+const DATABASE_DB_NAME: &str = "database";
+const NEXT_OPERATION_ID_DB_NAME: &str = "next_operation_id";
+
 pub trait SecondaryEnvironment: LmdbEnvironment {
-    fn index_definition(&self) -> &IndexDefinition;
-    fn database(&self) -> SecondaryIndexDatabase;
+    fn common(&self) -> &SecondaryEnvironmentCommon;
+
+    fn index_definition(&self) -> &IndexDefinition {
+        &self.common().index_definition
+    }
+
+    fn database(&self) -> SecondaryIndexDatabase {
+        self.common().database
+    }
 
     fn count_data(&self) -> Result<usize, CacheError> {
         let txn = self.begin_txn()?;
         self.database().count_data(&txn).map_err(Into::into)
     }
+
+    fn next_operation_id<T: Transaction>(&self, txn: &T) -> Result<u64, CacheError> {
+        self.common()
+            .next_operation_id
+            .load(txn)
+            .map_err(Into::into)
+    }
 }
 
 #[derive(Debug)]
 pub struct RwSecondaryEnvironment {
-    index_definition: IndexDefinition,
     env: RwLmdbEnvironment,
-    database: SecondaryIndexDatabase,
-    next_operation_id: LmdbCounter,
+    common: SecondaryEnvironmentCommon,
 }
 
 impl LmdbEnvironment for RwSecondaryEnvironment {
@@ -46,12 +70,8 @@ impl LmdbEnvironment for RwSecondaryEnvironment {
 }
 
 impl SecondaryEnvironment for RwSecondaryEnvironment {
-    fn index_definition(&self) -> &IndexDefinition {
-        &self.index_definition
-    }
-
-    fn database(&self) -> SecondaryIndexDatabase {
-        self.database
+    fn common(&self) -> &SecondaryEnvironmentCommon {
+        &self.common
     }
 }
 
@@ -63,9 +83,9 @@ impl RwSecondaryEnvironment {
     ) -> Result<Self, CacheError> {
         let mut env = create_env(&get_cache_options(name.clone(), options))?.0;
 
-        let database = LmdbMultimap::create(&mut env, Some("database"))?;
-        let next_operation_id = LmdbCounter::create(&mut env, Some("next_operation_id"))?;
-        let index_definition_option = LmdbOption::create(&mut env, Some("index_definition"))?;
+        let database = LmdbMultimap::create(&mut env, Some(DATABASE_DB_NAME))?;
+        let next_operation_id = LmdbCounter::create(&mut env, Some(NEXT_OPERATION_ID_DB_NAME))?;
+        let index_definition_option = LmdbOption::create(&mut env, Some(INDEX_DEFINITION_DB_NAME))?;
 
         let old_index_definition = index_definition_option
             .load(&env.begin_txn()?)?
@@ -89,18 +109,20 @@ impl RwSecondaryEnvironment {
         set_comparator(&env, &index_definition, database)?;
 
         Ok(Self {
-            index_definition,
             env,
-            database,
-            next_operation_id,
+            common: SecondaryEnvironmentCommon {
+                index_definition,
+                index_definition_option,
+                database,
+                next_operation_id,
+            },
         })
     }
 
     pub fn share(&self) -> RoSecondaryEnvironment {
         RoSecondaryEnvironment {
-            index_definition: self.index_definition.clone(),
             env: self.env.share(),
-            database: self.database,
+            common: self.common.clone(),
         }
     }
 
@@ -117,7 +139,7 @@ impl RwSecondaryEnvironment {
         let txn = self.env.txn_mut()?;
         loop {
             // Start from `next_operation_id`.
-            let operation_id = self.next_operation_id.load(txn)?;
+            let operation_id = self.common.next_operation_id.load(txn)?;
             if operation_id >= main_env_next_operation_id {
                 return Ok(true);
             }
@@ -132,9 +154,9 @@ impl RwSecondaryEnvironment {
                     // Build secondary index.
                     indexer::build_index(
                         txn,
-                        self.database,
+                        self.common.database,
                         &record,
-                        &self.index_definition,
+                        &self.common.index_definition,
                         operation_id,
                     )?;
                 }
@@ -151,14 +173,14 @@ impl RwSecondaryEnvironment {
                     // Delete secondary index.
                     indexer::delete_index(
                         txn,
-                        self.database,
+                        self.common.database,
                         &record,
-                        &self.index_definition,
+                        &self.common.index_definition,
                         operation_id,
                     )?;
                 }
             }
-            self.next_operation_id.store(txn, operation_id + 1)?;
+            self.common.next_operation_id.store(txn, operation_id + 1)?;
 
             increment_counter!(counter_name, labels.clone());
         }
@@ -171,9 +193,8 @@ impl RwSecondaryEnvironment {
 
 #[derive(Debug, Clone)]
 pub struct RoSecondaryEnvironment {
-    index_definition: IndexDefinition,
     env: RoLmdbEnvironment,
-    database: SecondaryIndexDatabase,
+    common: SecondaryEnvironmentCommon,
 }
 
 impl LmdbEnvironment for RoSecondaryEnvironment {
@@ -183,12 +204,8 @@ impl LmdbEnvironment for RoSecondaryEnvironment {
 }
 
 impl SecondaryEnvironment for RoSecondaryEnvironment {
-    fn index_definition(&self) -> &IndexDefinition {
-        &self.index_definition
-    }
-
-    fn database(&self) -> SecondaryIndexDatabase {
-        self.database
+    fn common(&self) -> &SecondaryEnvironmentCommon {
+        &self.common
     }
 }
 
@@ -196,8 +213,9 @@ impl RoSecondaryEnvironment {
     pub fn new(name: String, options: &CacheOptions) -> Result<Self, CacheError> {
         let env = open_env(&get_cache_options(name.clone(), options))?.0;
 
-        let database = LmdbMultimap::open(&env, Some("database"))?;
-        let index_definition_option = LmdbOption::open(&env, Some("index_definition"))?;
+        let database = LmdbMultimap::open(&env, Some(DATABASE_DB_NAME))?;
+        let index_definition_option = LmdbOption::open(&env, Some(INDEX_DEFINITION_DB_NAME))?;
+        let next_operation_id = LmdbCounter::open(&env, Some(NEXT_OPERATION_ID_DB_NAME))?;
 
         let index_definition = index_definition_option
             .load(&env.begin_txn()?)?
@@ -207,11 +225,17 @@ impl RoSecondaryEnvironment {
         set_comparator(&env, &index_definition, database)?;
         Ok(Self {
             env,
-            database,
-            index_definition,
+            common: SecondaryEnvironmentCommon {
+                index_definition,
+                index_definition_option,
+                database,
+                next_operation_id,
+            },
         })
     }
 }
+
+pub mod dump_restore;
 
 fn get_cache_options(name: String, options: &CacheOptions) -> CacheOptions {
     let path = options.path.as_ref().map(|(main_base_path, main_labels)| {

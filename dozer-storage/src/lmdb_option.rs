@@ -1,5 +1,5 @@
 use dozer_types::borrow::Cow;
-use lmdb::{RwTransaction, Transaction};
+use lmdb::{Database, RwTransaction, Transaction};
 
 use crate::{
     errors::StorageError,
@@ -38,6 +38,10 @@ impl<V: LmdbVal> LmdbOption<V> {
 
     pub fn store(&self, txn: &mut RwTransaction, value: V::Encode<'_>) -> Result<(), StorageError> {
         self.0.insert_overwrite(txn, &KEY, value)
+    }
+
+    pub fn database(&self) -> Database {
+        self.0.database()
     }
 }
 

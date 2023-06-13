@@ -28,11 +28,10 @@ fn main() {
 }
 
 fn render_logo() {
-    use std::println as info;
     const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-    info!("{LOGO}");
-    info!("\nDozer Version: {VERSION}\n");
+    println!("{LOGO}");
+    println!("\nDozer Version: {VERSION}\n");
 }
 
 #[derive(Deserialize, Debug)]
@@ -146,7 +145,7 @@ fn run() -> Result<(), OrchestrationError> {
                 AppCommands::Run => {
                     render_logo();
 
-                    dozer.run_apps(shutdown_receiver, None)
+                    dozer.run_apps(shutdown_receiver, None, cli.err_threshold)
                 }
             },
             Commands::Connector(sources) => match sources.command {
@@ -178,7 +177,7 @@ fn run() -> Result<(), OrchestrationError> {
     } else {
         render_logo();
 
-        dozer.run_all(shutdown_receiver)
+        dozer.run_all(shutdown_receiver, cli.err_threshold)
     }
 }
 

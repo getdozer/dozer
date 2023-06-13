@@ -1,5 +1,7 @@
 use dozer_storage::{
-    errors::StorageError, lmdb::Transaction, LmdbEnvironment, LmdbMap, RwLmdbEnvironment,
+    errors::StorageError,
+    lmdb::{Database, Transaction},
+    LmdbEnvironment, LmdbMap, RwLmdbEnvironment,
 };
 use dozer_types::borrow::IntoOwned;
 
@@ -10,11 +12,11 @@ pub struct PrimaryKeyMetadata(LmdbMap<Vec<u8>, RecordMetadata>);
 
 impl PrimaryKeyMetadata {
     pub fn create(env: &mut RwLmdbEnvironment) -> Result<Self, StorageError> {
-        LmdbMap::create(env, Some("primary_key_metadata")).map(Self)
+        LmdbMap::create(env, Some(Self::DATABASE_NAME)).map(Self)
     }
 
     pub fn open<E: LmdbEnvironment>(env: &E) -> Result<Self, StorageError> {
-        LmdbMap::open(env, Some("primary_key_metadata")).map(Self)
+        LmdbMap::open(env, Some(Self::DATABASE_NAME)).map(Self)
     }
 
     fn get<T: Transaction>(
@@ -25,6 +27,12 @@ impl PrimaryKeyMetadata {
         self.0
             .get(txn, key)
             .map(|metadata| metadata.map(|metadata| metadata.into_owned()))
+    }
+
+    pub const DATABASE_NAME: &str = "primary_key_metadata";
+
+    pub fn database(&self) -> Database {
+        self.0.database()
     }
 }
 

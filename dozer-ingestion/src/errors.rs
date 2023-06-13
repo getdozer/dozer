@@ -7,12 +7,14 @@ use dozer_types::thiserror::Error;
 use dozer_types::{bincode, serde_json};
 use dozer_types::{rust_decimal, thiserror};
 
+#[cfg(feature = "kafka")]
 use base64::DecodeError;
 
 use deltalake::datafusion::error::DataFusionError;
 use deltalake::DeltaTableError;
 #[cfg(feature = "snowflake")]
 use std::num::TryFromIntError;
+#[cfg(feature = "kafka")]
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 
@@ -58,8 +60,9 @@ pub enum ConnectorError {
     #[error(transparent)]
     SnowflakeError(#[from] SnowflakeError),
 
+    #[cfg(feature = "kafka")]
     #[error(transparent)]
-    DebeziumError(#[from] DebeziumError),
+    KafkaError(#[from] KafkaError),
 
     #[error(transparent)]
     ObjectStoreConnectorError(#[from] ObjectStoreConnectorError),
@@ -311,15 +314,14 @@ pub enum SnowflakeStreamError {
     #[error("Stream not found")]
     StreamNotFound,
 }
-
+#[cfg(feature = "kafka")]
 #[derive(Error, Debug)]
-pub enum DebeziumError {
+pub enum KafkaError {
     #[error(transparent)]
-    DebeziumSchemaError(#[from] DebeziumSchemaError),
+    KafkaSchemaError(#[from] KafkaSchemaError),
 
-    #[cfg(feature = "kafka")]
     #[error("Connection error. Error: {0}")]
-    DebeziumConnectionError(#[from] kafka::Error),
+    KafkaConnectionError(#[from] rdkafka::error::KafkaError),
 
     #[error("JSON decode error. Error: {0}")]
     JsonDecodeError(#[source] serde_json::Error),
@@ -327,11 +329,9 @@ pub enum DebeziumError {
     #[error("Bytes convert error")]
     BytesConvertError(#[source] Utf8Error),
 
-    #[cfg(feature = "kafka")]
     #[error(transparent)]
-    DebeziumStreamError(#[from] DebeziumStreamError),
+    KafkaStreamError(#[from] KafkaStreamError),
 
-    #[cfg(feature = "kafka")]
     #[error("Schema registry fetch failed. Error: {0}")]
     SchemaRegistryFetchError(#[source] SRCError),
 
@@ -341,19 +341,20 @@ pub enum DebeziumError {
 
 #[cfg(feature = "kafka")]
 #[derive(Error, Debug)]
-pub enum DebeziumStreamError {
+pub enum KafkaStreamError {
     #[error("Consume commit error")]
-    ConsumeCommitError(#[source] kafka::Error),
+    ConsumeCommitError(#[source] rdkafka::error::KafkaError),
 
     #[error("Message consume error")]
-    MessageConsumeError(#[source] kafka::Error),
+    MessageConsumeError(#[source] rdkafka::error::KafkaError),
 
     #[error("Polling error")]
-    PollingError(#[source] kafka::Error),
+    PollingError(#[source] rdkafka::error::KafkaError),
 }
 
+#[cfg(feature = "kafka")]
 #[derive(Error, Debug, PartialEq)]
-pub enum DebeziumSchemaError {
+pub enum KafkaSchemaError {
     #[error("Schema definition not found")]
     SchemaDefinitionNotFound,
 

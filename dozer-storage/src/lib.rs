@@ -4,8 +4,8 @@ pub use lmdb_storage::{LmdbEnvironment, RoLmdbEnvironment, RwLmdbEnvironment};
 
 mod lmdb_database;
 pub use lmdb_database::{
-    BorrowEncode, Decode, Encode, Encoded, Iterator, KeyIterator, LmdbKey, LmdbKeyType, LmdbVal,
-    ValueIterator,
+    assert_database_equal, dump, restore, BorrowEncode, Decode, DumpItem, Encode, Encoded,
+    Iterator, KeyIterator, LmdbKey, LmdbKeyType, LmdbVal, RestoreError, ValueIterator,
 };
 mod lmdb_map;
 pub use lmdb_map::LmdbMap;
@@ -23,3 +23,5 @@ mod tests;
 
 pub use lmdb;
 pub use lmdb_sys;
+
+pub mod generator;

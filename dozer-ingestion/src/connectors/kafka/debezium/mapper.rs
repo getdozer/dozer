@@ -1,5 +1,5 @@
-use crate::errors::DebeziumSchemaError;
-use crate::errors::DebeziumSchemaError::{BinaryDecodeError, FieldNotFound, TypeNotSupported};
+use crate::errors::KafkaSchemaError;
+use crate::errors::KafkaSchemaError::{BinaryDecodeError, FieldNotFound, TypeNotSupported};
 use base64::{engine, Engine};
 
 use crate::connectors::kafka::debezium::stream_consumer::DebeziumSchemaStruct;
@@ -27,10 +27,7 @@ use std::collections::HashMap;
 //     ))
 // }
 
-fn convert_value(
-    value: Value,
-    schema: &DebeziumSchemaStruct,
-) -> Result<Field, DebeziumSchemaError> {
+fn convert_value(value: Value, schema: &DebeziumSchemaStruct) -> Result<Field, KafkaSchemaError> {
     // match schema.name.clone() {
     match schema.r#type.clone() {
         Value::String(typ) => match typ.as_str() {
@@ -126,7 +123,7 @@ pub fn convert_value_to_schema(
     value: Value,
     schema: &Schema,
     fields_map: &HashMap<String, DebeziumSchemaStruct>,
-) -> Result<Vec<Field>, DebeziumSchemaError> {
+) -> Result<Vec<Field>, KafkaSchemaError> {
     schema
         .fields
         .iter()
@@ -147,7 +144,7 @@ mod tests {
     use crate::connectors::kafka::debezium::mapper::{convert_value, convert_value_to_schema};
 
     use crate::connectors::kafka::debezium::stream_consumer::DebeziumSchemaStruct;
-    use crate::errors::DebeziumSchemaError::TypeNotSupported;
+    use crate::errors::KafkaSchemaError::TypeNotSupported;
     use base64::{engine, Engine};
     use dozer_types::chrono::NaiveDateTime;
 
