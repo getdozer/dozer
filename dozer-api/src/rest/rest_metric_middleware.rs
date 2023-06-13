@@ -49,11 +49,9 @@ where
 
         Box::pin(async move {
             let start_time = std::time::Instant::now();
-            let res = fut.await?;
-            let end_time = std::time::Instant::now();
-            let latency_ms = end_time.duration_since(start_time).as_millis();
-            histogram!(API_LATENCY_HISTOGRAM_NAME, latency_ms as f64);
-            Ok(res)
+            let res = fut.await;
+            histogram!(API_LATENCY_HISTOGRAM_NAME, start_time.elapsed());
+            res
         })
     }
 }

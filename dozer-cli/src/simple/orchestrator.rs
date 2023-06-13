@@ -69,7 +69,7 @@ impl Orchestrator for SimpleOrchestrator {
     fn run_api(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError> {
         describe_histogram!(
             dozer_api::API_LATENCY_HISTOGRAM_NAME,
-            "The api processing latency in miliseconds"
+            "The api processing latency in seconds"
         );
         self.runtime.block_on(async {
             let mut futures = FuturesUnordered::new();

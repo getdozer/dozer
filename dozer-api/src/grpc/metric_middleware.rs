@@ -49,11 +49,9 @@ where
         let mut inner = std::mem::replace(&mut self.inner, clone);
         Box::pin(async move {
             let start_time = Instant::now();
-            let response = inner.call(req).await?;
-            let end_time = Instant::now();
-            let latency_ms = end_time.duration_since(start_time).as_millis();
-            histogram!(API_LATENCY_HISTOGRAM_NAME, latency_ms as f64);
-            Ok(response)
+            let response = inner.call(req).await;
+            histogram!(API_LATENCY_HISTOGRAM_NAME, start_time.elapsed());
+            response
         })
     }
 }
