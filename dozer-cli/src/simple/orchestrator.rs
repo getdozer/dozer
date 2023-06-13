@@ -33,6 +33,7 @@ use dozer_types::models::app_config::Config;
 use dozer_types::tracing::error;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
+use metrics::{describe_counter, describe_histogram};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -66,6 +67,14 @@ impl SimpleOrchestrator {
 
 impl Orchestrator for SimpleOrchestrator {
     fn run_api(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError> {
+        describe_histogram!(
+            dozer_api::API_LATENCY_HISTOGRAM_NAME,
+            "The api processing latency in seconds"
+        );
+        describe_counter!(
+            dozer_api::API_REQUEST_COUNTER_NAME,
+            "Number of requests processed by the api"
+        );
         self.runtime.block_on(async {
             let mut futures = FuturesUnordered::new();
 

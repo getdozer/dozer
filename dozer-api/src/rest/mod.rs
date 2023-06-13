@@ -25,6 +25,7 @@ use futures_util::Future;
 use tracing_actix_web::TracingLogger;
 
 mod api_generator;
+mod rest_metric_middleware;
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 #[serde(crate = "self::serde")]
@@ -123,6 +124,7 @@ impl ApiServer {
                 let scope = &endpoint.path;
                 app.service(
                     web::scope(scope)
+                        .wrap(rest_metric_middleware::RestMetric)
                         // Inject cache_endpoint for generated functions
                         .wrap_fn(move |req, srv| {
                             req.extensions_mut().insert(cache_endpoint.clone());
