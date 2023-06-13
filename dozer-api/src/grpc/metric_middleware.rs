@@ -1,6 +1,6 @@
 use futures_util::future::BoxFuture;
 use hyper::Body;
-use metrics::histogram;
+use metrics::{histogram, increment_counter};
 use std::{
     task::{Context, Poll},
     time::Instant,
@@ -8,7 +8,7 @@ use std::{
 use tonic::{body::BoxBody, transport::NamedService};
 use tower::{Layer, Service};
 
-use crate::api_helper::API_LATENCY_HISTOGRAM_NAME;
+use crate::api_helper::{API_LATENCY_HISTOGRAM_NAME, API_REQUEST_COUNTER_NAME};
 
 #[derive(Debug, Clone, Default)]
 pub struct MetricMiddlewareLayer {}
@@ -51,6 +51,7 @@ where
             let start_time = Instant::now();
             let response = inner.call(req).await;
             histogram!(API_LATENCY_HISTOGRAM_NAME, start_time.elapsed());
+            increment_counter!(API_REQUEST_COUNTER_NAME);
             response
         })
     }

@@ -5,9 +5,9 @@ use actix_web::{
     Error,
 };
 use futures_util::future::LocalBoxFuture;
-use metrics::histogram;
+use metrics::{histogram, increment_counter};
 
-use crate::api_helper::API_LATENCY_HISTOGRAM_NAME;
+use crate::api_helper::{API_LATENCY_HISTOGRAM_NAME, API_REQUEST_COUNTER_NAME};
 
 pub struct RestMetric;
 
@@ -51,6 +51,7 @@ where
             let start_time = std::time::Instant::now();
             let res = fut.await;
             histogram!(API_LATENCY_HISTOGRAM_NAME, start_time.elapsed());
+            increment_counter!(API_REQUEST_COUNTER_NAME);
             res
         })
     }
