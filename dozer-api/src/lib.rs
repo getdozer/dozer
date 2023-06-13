@@ -156,6 +156,7 @@ pub mod rest;
 pub use actix_cors;
 pub use actix_web;
 pub use actix_web_httpauth;
+pub use api_helper::API_LATENCY_HISTOGRAM_NAME;
 pub use async_trait;
 use dozer_types::indicatif::MultiProgress;
 use errors::ApiError;
@@ -164,6 +165,5 @@ pub use tokio;
 use tokio::{sync::broadcast::Sender, task::JoinHandle};
 pub use tonic;
 pub use tracing_actix_web;
-
 #[cfg(test)]
 mod test_utils;
