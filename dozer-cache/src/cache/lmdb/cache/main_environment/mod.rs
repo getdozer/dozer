@@ -259,11 +259,11 @@ impl RwMainEnvironment {
         } else {
             // The record does not exist. Resolve the conflict.
             match self.write_options.delete_resolution {
-                OnDeleteResolutionTypes::Nothing => {
+                OnDeleteResolutionTypes::Nothing(()) => {
                     warn!("Record (Key: {:?}) not found, ignoring delete", key);
                     Ok(None)
                 }
-                OnDeleteResolutionTypes::Panic => Err(CacheError::PrimaryKeyNotFound),
+                OnDeleteResolutionTypes::Panic(()) => Err(CacheError::PrimaryKeyNotFound),
             }
         }
     }
@@ -319,7 +319,8 @@ impl RwMainEnvironment {
                         ..
                     }) => {
                         // Case 5, 6, 7.
-                        if self.write_options.update_resolution == OnUpdateResolutionTypes::Nothing
+                        if self.write_options.update_resolution
+                            == OnUpdateResolutionTypes::Nothing(())
                         {
                             // Case 5.
                             warn!("Old record (Key: {:?}) and new record (Key: {:?}) both exist, ignoring update", old_key, new_key);
@@ -361,22 +362,22 @@ impl RwMainEnvironment {
         } else {
             // Case 2, 3, 4, 9, 10, 11, 12, 13.
             match self.write_options.update_resolution {
-                OnUpdateResolutionTypes::Nothing => {
+                OnUpdateResolutionTypes::Nothing(()) => {
                     // Case 2, 9, 12.
                     warn!("Old record (Key: {:?}) not found, ignoring update", old_key);
                     Ok(UpsertResult::Ignored)
                 }
-                OnUpdateResolutionTypes::Upsert => {
+                OnUpdateResolutionTypes::Upsert(()) => {
                     // Case 3, 10, 13.
                     insert_impl(
                         operation_log,
                         txn,
                         &self.common.schema.0,
                         new,
-                        OnInsertResolutionTypes::Panic,
+                        OnInsertResolutionTypes::Panic(()),
                     )
                 }
-                OnUpdateResolutionTypes::Panic => {
+                OnUpdateResolutionTypes::Panic(()) => {
                     // Case 4, 11, 14.
                     Err(CacheError::PrimaryKeyNotFound)
                 }
@@ -473,12 +474,12 @@ fn insert_impl(
                 } else {
                     // Resolve the conflict.
                     match insert_resolution {
-                        OnInsertResolutionTypes::Nothing => {
+                        OnInsertResolutionTypes::Nothing(()) => {
                             warn!("Record (Key: {:?}) already exist, ignoring insert", key);
                             Ok(UpsertResult::Ignored)
                         }
-                        OnInsertResolutionTypes::Panic => Err(CacheError::PrimaryKeyExists),
-                        OnInsertResolutionTypes::Update => {
+                        OnInsertResolutionTypes::Panic(()) => Err(CacheError::PrimaryKeyExists),
+                        OnInsertResolutionTypes::Update(()) => {
                             let new_meta = operation_log.update(
                                 txn,
                                 key.as_ref(),
