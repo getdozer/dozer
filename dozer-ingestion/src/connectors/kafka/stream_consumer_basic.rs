@@ -92,15 +92,13 @@ impl StreamConsumer for StreamConsumerBasic {
     ) -> Result<(), ConnectorError> {
         let mut schemas = HashMap::new();
         for (index, table) in tables.into_iter().enumerate() {
-            let schema = if let Some(schema_registry_url) = schema_registry_url {
-                SchemaRegistryBasic::get_single_schema(
-                    index as u32,
-                    &table.name,
-                    schema_registry_url.as_ref().unwrap(),
-                )
-                    .await?
+            let schema = if let Some(url) = schema_registry_url {
+                SchemaRegistryBasic::get_single_schema(index as u32, &table.name, url).await?
             } else {
-                (NoSchemaRegistryBasic::get_single_schema(index as u32), HashMap::new())
+                (
+                    NoSchemaRegistryBasic::get_single_schema(index as u32),
+                    HashMap::new(),
+                )
             };
 
             schemas.insert(table.name.clone(), (index as u32, schema));
@@ -115,33 +113,37 @@ impl StreamConsumer for StreamConsumerBasic {
                     Some((id, (schema, fields_map))) => {
                         if let (Some(message), Some(key)) = (m.payload(), m.key()) {
                             let new = match schema_registry_url {
-                            None => {
-                                let value =
-                                    std::str::from_utf8(message).map_err(BytesConvertError)?;
-                                let key = std::str::from_utf8(key).map_err(BytesConvertError)?;
+                                None => {
+                                    let value =
+                                        std::str::from_utf8(message).map_err(BytesConvertError)?;
+                                    let key =
+                                        std::str::from_utf8(key).map_err(BytesConvertError)?;
 
-                                vec![
-                                    Field::String(key.to_string()),
-                                    Field::String(value.to_string()),
-                                ]
-                            }
-                            Some(_) => {
-                                let value_struct: Value = serde_json::from_str(
-                                    std::str::from_utf8(message).map_err(BytesConvertError)?,
-                                )
-                                .map_err(JsonDecodeError)?;
-                                let _key_struct: Value = serde_json::from_str(
-                                    std::str::from_utf8(key).map_err(BytesConvertError)?,
-                                )
-                                .map_err(JsonDecodeError)?;
+                                    vec![
+                                        Field::String(key.to_string()),
+                                        Field::String(value.to_string()),
+                                    ]
+                                }
+                                Some(_) => {
+                                    let value_struct: Value = serde_json::from_str(
+                                        std::str::from_utf8(message).map_err(BytesConvertError)?,
+                                    )
+                                    .map_err(JsonDecodeError)?;
+                                    let _key_struct: Value = serde_json::from_str(
+                                        std::str::from_utf8(key).map_err(BytesConvertError)?,
+                                    )
+                                    .map_err(JsonDecodeError)?;
 
-                                    convert_value_to_schema(value_struct, &schema.schema, fields_map)
+                                    convert_value_to_schema(
+                                        value_struct,
+                                        &schema.schema,
+                                        fields_map,
+                                    )
                                     .map_err(|e| {
-                                    ConnectorError::KafkaError(KafkaError::KafkaSchemaError(e))
-
-                                })?
-                            }
-                        };
+                                        ConnectorError::KafkaError(KafkaError::KafkaSchemaError(e))
+                                    })?
+                                }
+                            };
 
                             ingestor
                                 .handle_message(IngestionMessage::new_op(

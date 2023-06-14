@@ -34,7 +34,7 @@ impl KafkaConnector {
         if let Some(schema_registry_url) = &self.config.schema_registry_url {
             SchemaRegistryBasic::get_schema(table_names, schema_registry_url.clone()).await
         } else {
-            NoSchemaRegistryBasic::get_schema(table_names).await
+            NoSchemaRegistryBasic::get_schema(table_names)
         }
     }
 }
