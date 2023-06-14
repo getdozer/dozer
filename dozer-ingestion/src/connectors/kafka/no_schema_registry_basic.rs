@@ -9,9 +9,9 @@ use dozer_types::types::{FieldDefinition, FieldType, Schema, SchemaIdentifier, S
 pub struct NoSchemaRegistryBasic {}
 
 impl NoSchemaRegistryBasic {
-    pub fn get_single_schema() -> SourceSchema {
+    pub fn get_single_schema(id: u32) -> SourceSchema {
         let schema = Schema {
-            identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
+            identifier: Some(SchemaIdentifier { id, version: 1 }),
             fields: vec![
                 FieldDefinition {
                     name: "key".to_string(),
@@ -33,16 +33,14 @@ impl NoSchemaRegistryBasic {
     }
 
     pub fn get_schema(table_names: Option<&[String]>) -> Result<Vec<SourceSchema>, ConnectorError> {
-        match table_names {
-            None => Ok(vec![]),
-            Some(tables) => match tables.get(0) {
-                None => Ok(vec![]),
-                Some(_table) => {
-                    let schema = Self::get_single_schema();
-
-                    Ok(vec![schema])
-                }
-            },
+        let mut schemas = vec![];
+        if let Some(tables) = table_names {
+            for (id, _table_name) in tables.iter().enumerate() {
+                let schema = Self::get_single_schema(id as u32);
+                schemas.push(schema);
+            }
         }
+
+        Ok(schemas)
     }
 }

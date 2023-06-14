@@ -92,27 +92,18 @@ impl StreamConsumer for StreamConsumerBasic {
     ) -> Result<(), ConnectorError> {
         let mut schemas = HashMap::new();
         for (index, table) in tables.into_iter().enumerate() {
-            if let Some(schema_registry_url) = schema_registry_url {
-                schemas.insert(
-                    table.name.clone(),
-                    (
-                        index as u32,
-                        SchemaRegistryBasic::get_single_schema(
-                            index as u32,
-                            &table.name,
-                            schema_registry_url.as_ref().unwrap(),
-                        )
-                            .await?,
-                    ),
-                );
+            let schema = if let Some(schema_registry_url) = schema_registry_url {
+                SchemaRegistryBasic::get_single_schema(
+                    index as u32,
+                    &table.name,
+                    schema_registry_url.as_ref().unwrap(),
+                )
+                    .await?
             } else {
-                let schema = NoSchemaRegistryBasic::get_single_schema();
-
-                schemas.insert(
-                    table.name.clone(),
-                    schema
-                );
+                (NoSchemaRegistryBasic::get_single_schema(index as u32), HashMap::new())
             };
+
+            schemas.insert(table.name.clone(), (index as u32, schema));
         }
 
         let mut counter = 0;
@@ -126,8 +117,8 @@ impl StreamConsumer for StreamConsumerBasic {
                             let new = match schema_registry_url {
                             None => {
                                 let value =
-                                    std::str::from_utf8(m.value).map_err(BytesConvertError)?;
-                                let key = std::str::from_utf8(m.key).map_err(BytesConvertError)?;
+                                    std::str::from_utf8(message).map_err(BytesConvertError)?;
+                                let key = std::str::from_utf8(key).map_err(BytesConvertError)?;
 
                                 vec![
                                     Field::String(key.to_string()),
