@@ -3,9 +3,9 @@
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::{SerializationError, TypeError};
 use dozer_types::ingestion_types::IngestorError;
+use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
 use dozer_types::{bincode, serde_json};
-use dozer_types::{rust_decimal, thiserror};
 
 #[cfg(feature = "kafka")]
 use base64::DecodeError;
@@ -26,6 +26,9 @@ use dozer_types::arrow_types::errors::FromArrowError;
 #[cfg(feature = "kafka")]
 use schema_registry_converter::error::SRCError;
 use tokio_postgres::Error;
+
+#[cfg(any(feature = "kafka", feature = "snowflake"))]
+use dozer_types::rust_decimal::Error as RustDecimalError;
 
 #[derive(Error, Debug)]
 pub enum ConnectorError {
@@ -297,7 +300,7 @@ pub enum SnowflakeSchemaError {
     SchemaConversionError(#[source] TryFromIntError),
 
     #[error("Decimal convert error")]
-    DecimalConvertError(#[source] rust_decimal::Error),
+    DecimalConvertError(#[source] RustDecimalError),
 }
 
 #[derive(Error, Debug)]
@@ -374,7 +377,7 @@ pub enum KafkaSchemaError {
     ScaleIsInvalid,
 
     #[error("Decimal convert error")]
-    DecimalConvertError(#[source] rust_decimal::Error),
+    DecimalConvertError(#[source] RustDecimalError),
 
     #[error("Invalid date")]
     InvalidDateError,

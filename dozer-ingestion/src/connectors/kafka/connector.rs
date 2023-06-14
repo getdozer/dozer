@@ -10,7 +10,7 @@ use rdkafka::util::Timeout;
 
 use tonic::async_trait;
 
-use crate::connectors::kafka::debezium::no_schema_registry::NoSchemaRegistry;
+use crate::connectors::kafka::no_schema_registry_basic::NoSchemaRegistryBasic;
 
 use crate::connectors::kafka::schema_registry_basic::SchemaRegistryBasic;
 use crate::connectors::kafka::stream_consumer::StreamConsumer;
@@ -34,7 +34,7 @@ impl KafkaConnector {
         if let Some(schema_registry_url) = &self.config.schema_registry_url {
             SchemaRegistryBasic::get_schema(table_names, schema_registry_url.clone()).await
         } else {
-            NoSchemaRegistry::get_schema(table_names, self.config.broker.clone()).await
+            NoSchemaRegistryBasic::get_schema(table_names)
         }
     }
 }
