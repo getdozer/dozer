@@ -125,7 +125,14 @@ pub fn postgres_type_to_dozer_type(column_type: Type) -> Result<FieldType, Postg
         Type::BYTEA => Ok(FieldType::Binary),
         Type::TIMESTAMP | Type::TIMESTAMPTZ => Ok(FieldType::Timestamp),
         Type::NUMERIC => Ok(FieldType::Decimal),
-        Type::JSONB | Type::JSON | Type::JSONB_ARRAY | Type::JSON_ARRAY => Ok(FieldType::Json),
+        Type::JSONB
+        | Type::JSON
+        | Type::JSONB_ARRAY
+        | Type::JSON_ARRAY
+        | Type::TEXT_ARRAY
+        | Type::CHAR_ARRAY
+        | Type::VARCHAR_ARRAY
+        | Type::BPCHAR_ARRAY => Ok(FieldType::Json),
         Type::DATE => Ok(FieldType::Date),
         Type::POINT => Ok(FieldType::Point),
         _ => Err(ColumnTypeNotSupported(column_type.name().to_string())),
@@ -190,6 +197,16 @@ pub fn value_to_field(
                     lst.push(serde_json_to_json_value(v).map_err(|e| {
                         PostgresSchemaError::TypeError(TypeError::DeserializationError(e))
                     })?);
+                }
+                Ok(Field::Json(JsonValue::Array(lst)))
+            })
+        }
+        &Type::CHAR_ARRAY | &Type::TEXT_ARRAY | &Type::VARCHAR_ARRAY | &Type::BPCHAR_ARRAY => {
+            let value: Result<Vec<String>, _> = row.try_get(idx);
+            value.map_or_else(handle_error, |val| {
+                let mut lst = vec![];
+                for v in val {
+                    lst.push(JsonValue::String(v));
                 }
                 Ok(Field::Json(JsonValue::Array(lst)))
             })
