@@ -339,7 +339,12 @@ jobs:
             ${{ runner.os }}-cargo-release-
 
       - name: Build package
+        if: matrix.os != 'ubuntu-20-16-cores'
         run: cargo build --release --bin ${{ matrix.file_name }}
+
+      - name: Build package for ubuntu (with kafka)
+        if: matrix.os == 'ubuntu-20-16-cores'
+        run: cargo build --release --bin  ${{ matrix.file_name }} --features=kafka
 
       - name: Install cargo-deb
         if: matrix.os == 'ubuntu-20-16-cores'
