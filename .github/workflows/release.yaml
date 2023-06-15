@@ -338,14 +338,6 @@ jobs:
             ${{ runner.os }}-cargo-release-${{ hashFiles('Cargo.lock') }}
             ${{ runner.os }}-cargo-release-
 
-      - name: Build package
-        if: matrix.os != 'ubuntu-20-16-cores'
-        run: cargo build --release --bin ${{ matrix.file_name }}
-
-      - name: Build package for ubuntu (with kafka)
-        if: matrix.os == 'ubuntu-20-16-cores'
-        run: cargo build --release --bin  ${{ matrix.file_name }} --features=kafka
-
       - name: Install cargo-deb
         if: matrix.os == 'ubuntu-20-16-cores'
         run: cargo install cargo-deb
@@ -353,6 +345,14 @@ jobs:
       - name: Compile deb file
         if: matrix.os == 'ubuntu-20-16-cores'
         run: cargo-deb -p dozer-cli  --output ./deb/${{matrix.asset_name}}.deb
+
+      - name: Build package
+        if: matrix.os != 'ubuntu-20-16-cores'
+        run: cargo build --release --bin ${{ matrix.file_name }}
+
+      - name: Build package for ubuntu (with kafka)
+        if: matrix.os == 'ubuntu-20-16-cores'
+        run: cargo build --release --bin  ${{ matrix.file_name }} --features=kafka
 
       # - name: Build Linux binary
       #   if: matrix.os == 'ubuntu-20-16-cores'
