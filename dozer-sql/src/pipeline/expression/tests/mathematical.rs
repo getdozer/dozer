@@ -15,7 +15,6 @@ use num_traits::FromPrimitive;
 use proptest::prelude::*;
 use std::num::Wrapping;
 
-#[ignore(unused_allocation)]
 #[test]
 fn test_uint_math() {
     proptest!(ProptestConfig::with_cases(1000), move |(u_num1: u64, u_num2: u64, u128_num1: u128, u128_num2: u128, i_num1: i64, i_num2: i64, i128_num1: i128, i128_num2: i128, f_num1: f64, f_num2: f64, d_num1: ArbitraryDecimal, d_num2: ArbitraryDecimal)| {
@@ -183,7 +182,7 @@ fn test_uint_math() {
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
             Field::Float(OrderedFloat(f64::from_u64(u_num2).unwrap() * f_num1))
         );
-        if float1 != Box::new(Literal(Field::Float(OrderedFloat(0_f64)))) {
+        if float1 != &Literal(Field::Float(OrderedFloat(0_f64))) {
             assert_eq!(
                 // UInt / Float = Float
                 evaluate_div(&Schema::empty(), &uint2, &float1, &row)
@@ -191,7 +190,7 @@ fn test_uint_math() {
                 Field::Float(OrderedFloat(f64::from_u64(u_num2).unwrap() / f_num1))
             );
         }
-        if float2 != Box::new(Literal(Field::Float(OrderedFloat(0_f64)))) {
+        if float2 != &Literal(Field::Float(OrderedFloat(0_f64))) {
             assert_eq!(
                 // UInt % Float = Float
                 evaluate_mod(&Schema::empty(), &uint1, &float2, &row)
@@ -785,7 +784,7 @@ fn test_int_math() {
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
             Field::Float(OrderedFloat(f64::from_i64(i_num2).unwrap() * f_num1))
         );
-        if float1 != Box::new(Literal(Field::Float(OrderedFloat(0_f64)))) {
+        if float1 != &Literal(Field::Float(OrderedFloat(0_f64))) {
             assert_eq!(
                 // Int / Float = Float
                 evaluate_div(&Schema::empty(), &int2, &float1, &row)
@@ -793,7 +792,7 @@ fn test_int_math() {
                 Field::Float(OrderedFloat(f64::from_i64(i_num2).unwrap() / f_num1))
             );
         }
-        if float2 != Box::new(Literal(Field::Float(OrderedFloat(0_f64)))) {
+        if float2 != &Literal(Field::Float(OrderedFloat(0_f64))) {
             assert_eq!(
                 // Int % Float = Float
                 evaluate_mod(&Schema::empty(), &int1, &float2, &row)
@@ -1423,7 +1422,7 @@ fn test_float_math() {
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
             Field::Float(OrderedFloat(f_num2 * f_num1))
         );
-        if float1 != Box::new(Literal(Field::Float(OrderedFloat(0_f64)))) {
+        if float1 != &Literal(Field::Float(OrderedFloat(0_f64))) {
             assert_eq!(
                 // Float / Float = Float
                 evaluate_div(&Schema::empty(), &float2, &float1, &row)
