@@ -1,11 +1,10 @@
-use std::{collections::HashMap, path::Path, sync::Arc, time::Duration};
-
 use dozer_types::{
     chrono::{DateTime, Utc},
     ingestion_types::CsvConfig,
     tracing::info,
     types::Operation,
 };
+use std::{collections::HashMap, path::Path, sync::Arc, time::Duration};
 
 use futures::StreamExt;
 use object_store::ObjectStore;
@@ -27,7 +26,9 @@ use deltalake::{
     datafusion::{datasource::listing::ListingTableUrl, prelude::SessionContext},
     Path as DeltaPath,
 };
+use dozer_types::ingestion_types::IngestionMessage;
 
+use crate::ingestion::Ingestor;
 use crate::{
     connectors::{self, object_store::helper::map_listing_options},
     errors::ObjectStoreObjectError,
@@ -176,7 +177,17 @@ impl<T: DozerObjectStore + Send> TableWatcher for CsvTable<T> {
         _id: usize,
         _table: &TableInfo,
         _sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
+        ingestor: &Ingestor,
     ) -> Result<u64, ConnectorError> {
+        ingestor
+            .handle_message(IngestionMessage::new_snapshotting_started(0_u64, 0))
+            .map_err(ObjectStoreConnectorError::IngestorError)?;
+
+        // snapshot
+
+        ingestor
+            .handle_message(IngestionMessage::new_snapshotting_done(0_u64, 1))
+            .map_err(ObjectStoreConnectorError::IngestorError)?;
         Ok(0)
     }
 

@@ -11,6 +11,7 @@ use futures::StreamExt;
 use tokio::sync::mpsc::Sender;
 use tonic::async_trait;
 
+use crate::ingestion::Ingestor;
 use crate::{
     connectors::{
         object_store::{adapters::DozerObjectStore, table_watcher::TableWatcher},
@@ -125,6 +126,7 @@ impl<T: DozerObjectStore + Send> TableWatcher for DeltaTable<T> {
         _id: usize,
         _table: &TableInfo,
         _sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
+        _ingestor: &Ingestor,
     ) -> Result<u64, ConnectorError> {
         // let params = self.store_config.table_params(&table.name)?;
 

@@ -1,5 +1,3 @@
-use std::{collections::HashMap, path::Path, sync::Arc, time::Duration};
-
 use crate::{
     connectors::{
         self,
@@ -11,6 +9,7 @@ use deltalake::{
     datafusion::{datasource::listing::ListingTableUrl, prelude::SessionContext},
     Path as DeltaPath,
 };
+use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::{
     chrono::{DateTime, Utc},
     ingestion_types::ParquetConfig,
@@ -19,9 +18,11 @@ use dozer_types::{
 };
 use futures::StreamExt;
 use object_store::ObjectStore;
+use std::{collections::HashMap, path::Path, sync::Arc, time::Duration};
 use tokio::sync::mpsc::Sender;
 use tonic::async_trait;
 
+use crate::ingestion::Ingestor;
 use crate::{
     connectors::{
         object_store::{adapters::DozerObjectStore, table_watcher::TableWatcher},
@@ -173,8 +174,18 @@ impl<T: DozerObjectStore + Send> TableWatcher for ParquetTable<T> {
         _id: usize,
         _table: &TableInfo,
         _sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
+        ingestor: &Ingestor,
     ) -> Result<u64, ConnectorError> {
-        Ok(2)
+        ingestor
+            .handle_message(IngestionMessage::new_snapshotting_started(0_u64, 0))
+            .map_err(ObjectStoreConnectorError::IngestorError)?;
+
+        // snapshot
+
+        ingestor
+            .handle_message(IngestionMessage::new_snapshotting_done(0_u64, 1))
+            .map_err(ObjectStoreConnectorError::IngestorError)?;
+        Ok(0)
     }
 
     async fn ingest(
