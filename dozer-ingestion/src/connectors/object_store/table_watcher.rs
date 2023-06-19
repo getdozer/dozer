@@ -39,9 +39,8 @@ pub trait TableWatcher {
         id: usize,
         table: &TableInfo,
         sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
-        ingestor: &Ingestor,
     ) -> Result<(), ConnectorError> {
-        let seq_no = self.snapshot(id, table, sender.clone(), ingestor).await?;
+        let seq_no = self.snapshot(id, table, sender.clone()).await?;
         self.ingest(id, table, seq_no, sender.clone()).await?;
         Ok(())
     }
@@ -51,7 +50,6 @@ pub trait TableWatcher {
         id: usize,
         table: &TableInfo,
         sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
-        ingestor: &Ingestor,
     ) -> Result<u64, ConnectorError>;
 
     async fn ingest(

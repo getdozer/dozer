@@ -177,12 +177,8 @@ impl<T: DozerObjectStore + Send> TableWatcher for CsvTable<T> {
         id: usize,
         table: &TableInfo,
         sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
-        ingestor: &Ingestor,
     ) -> Result<u64, ConnectorError> {
         self.watch(id as u32, table, sender).await.unwrap();
-        ingestor
-            .handle_message(IngestionMessage::new_snapshotting_done(0_u64, 1))
-            .map_err(ObjectStoreConnectorError::IngestorError)?;
         Ok(0)
     }
 

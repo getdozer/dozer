@@ -135,6 +135,10 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
             }
         }
 
+        ingestor
+            .handle_message(IngestionMessage::new_snapshotting_done(0_u64, 1))
+            .map_err(ObjectStoreConnectorError::IngestorError)?;
+
         let mut seq_no = 2;
         loop {
             let message = receiver
