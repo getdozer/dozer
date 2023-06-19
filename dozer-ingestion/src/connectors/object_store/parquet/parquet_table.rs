@@ -176,13 +176,7 @@ impl<T: DozerObjectStore + Send> TableWatcher for ParquetTable<T> {
         sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
         ingestor: &Ingestor,
     ) -> Result<u64, ConnectorError> {
-        ingestor
-            .handle_message(IngestionMessage::new_snapshotting_started(0_u64, 0))
-            .map_err(ObjectStoreConnectorError::IngestorError)?;
-
-        // snapshot
         self.watch(id as u32, table, sender).await.unwrap();
-
         ingestor
             .handle_message(IngestionMessage::new_snapshotting_done(0_u64, 1))
             .map_err(ObjectStoreConnectorError::IngestorError)?;

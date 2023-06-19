@@ -7,7 +7,7 @@ use crate::connectors::object_store::schema_mapper;
 use crate::connectors::{
     Connector, ListOrFilterColumns, SourceSchemaResult, TableIdentifier, TableInfo,
 };
-use crate::errors::ConnectorError;
+use crate::errors::{ConnectorError, ObjectStoreConnectorError};
 use crate::ingestion::Ingestor;
 
 use super::connection::validator::validate_connection;
@@ -99,6 +99,10 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
 
     async fn start(&self, ingestor: &Ingestor, tables: Vec<TableInfo>) -> ConnectorResult<()> {
         let (sender, mut receiver) = channel(16);
+
+        ingestor
+            .handle_message(IngestionMessage::new_snapshotting_started(0_u64, 0))
+            .map_err(ObjectStoreConnectorError::IngestorError)?;
 
         for (id, table_info) in tables.iter().enumerate() {
             for table_config in self.config.tables() {
