@@ -34,7 +34,10 @@ pub fn get_local_storage_config(typ: &str) -> LocalStorage {
             details: Some(LocalDetails {
                 path: p.to_str().unwrap().to_string(),
             }),
-            tables: vec![],
+            tables: vec![Table {
+                config: None,
+                name: format!(""),
+            }],
         }
     }
 }
