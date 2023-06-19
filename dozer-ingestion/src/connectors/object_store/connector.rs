@@ -112,7 +112,7 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                             dozer_types::ingestion_types::TableConfig::CSV(config) => {
                                 let table = CsvTable::new(config.clone(), self.config.clone());
                                 table
-                                    .watch(id, table_info, sender.clone(), ingestor)
+                                    .watch(id, table_info, sender.clone())
                                     .await
                                     .unwrap();
                             }
@@ -120,13 +120,13 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                                 let table =
                                     DeltaTable::new(id, config.clone(), self.config.clone());
                                 table
-                                    .watch(id, table_info, sender.clone(), ingestor)
+                                    .watch(id, table_info, sender.clone())
                                     .await?;
                             }
                             dozer_types::ingestion_types::TableConfig::Parquet(config) => {
                                 let table = ParquetTable::new(config.clone(), self.config.clone());
                                 table
-                                    .watch(id, table_info, sender.clone(), ingestor)
+                                    .watch(id, table_info, sender.clone())
                                     .await?;
                             }
                         }

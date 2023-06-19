@@ -9,7 +9,7 @@ use deltalake::{
     datafusion::{datasource::listing::ListingTableUrl, prelude::SessionContext},
     Path as DeltaPath,
 };
-use dozer_types::ingestion_types::IngestionMessage;
+
 use dozer_types::{
     chrono::{DateTime, Utc},
     ingestion_types::ParquetConfig,
@@ -22,7 +22,7 @@ use std::{collections::HashMap, path::Path, sync::Arc, time::Duration};
 use tokio::sync::mpsc::Sender;
 use tonic::async_trait;
 
-use crate::ingestion::Ingestor;
+
 use crate::{
     connectors::{
         object_store::{adapters::DozerObjectStore, table_watcher::TableWatcher},
@@ -176,10 +176,6 @@ impl<T: DozerObjectStore + Send> TableWatcher for ParquetTable<T> {
         sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
     ) -> Result<u64, ConnectorError> {
         self.watch(id as u32, table, sender).await.unwrap();
-        ingestor
-            .handle_message(IngestionMessage::new_snapshotting_done(0_u64, 1))
-            .map_err(ObjectStoreConnectorError::IngestorError)?;
-
         Ok(0)
     }
 
