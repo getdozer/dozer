@@ -141,6 +141,8 @@ Check out Dozer's [samples repository](https://github.com/getdozer/dozer-samples
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | Connectors       | [Postgres](https://github.com/getdozer/dozer-samples/tree/main/connectors/postgres)                                        | Load data using Postgres CDC                                                 |
 |                  | [Local Storage](https://github.com/getdozer/dozer-samples/tree/main/connectors/local-storage)                              | Load data from local files                                                   |
+|                  | [Ethereum](https://github.com/getdozer/dozer-samples/tree/main/connectors/ethereum)                              | Load data from Ethereum                                                   |
+|                  | [Kafka](https://github.com/getdozer/dozer-samples/tree/main/connectors/kafka)                              | Load data from kafka stream                                                   |
 |                  | Snowflake (Coming soon)                                                                                                    | Load data using Snowflake table streams                                      |
 | SQL              | [Using JOINs](https://github.com/getdozer/dozer-samples/tree/main/sql/join)                                                | Dozer APIs over multiple sources using JOIN                                  |
 |                  | [Using Aggregations](https://github.com/getdozer/dozer-samples/tree/main/sql/aggregations)                                 | How to aggregate using Dozer                                                 |
@@ -150,26 +152,26 @@ Check out Dozer's [samples repository](https://github.com/getdozer/dozer-samples
 |                  | Real Time Model Scoring (Coming soon)                                                                                      | Deploy trained models to get real time insights as APIs                      |
 | Client Libraries | [Dozer React Starter](https://github.com/getdozer/dozer-samples/tree/main/usecases/react)                                                                                          | Instantly start building real time views using Dozer and React               |
 |                  | [Ingest Polars/Pandas Dataframes](https://github.com/getdozer/dozer-samples/tree/main/client-samples/ingest-python-sample) | Instantly ingest Polars/Pandas dataframes using Arrow format and deploy APIs |
-| Authorization    | Dozer Authorziation (Coming soon)                                                                                          | How to apply JWT Auth on Dozer                                               |
+| Authorization    | [Dozer Authorziation](https://github.com/getdozer/dozer-samples/tree/main/usecases/api-auth)                                                                                          | How to apply JWT Auth on Dozer                                               |
 
 ## Connectors
 
 Refer to the full list of connectors and example configurations [here](https://getdozer.io/docs/configuration/connectors).
 
-| Connector                          |   Status    | Type           |  Schema Mapping   | Frequency | Implemented Via |
-| :--------------------------------- | :---------: | :------------- | :---------------: | :-------- | :-------------- |
-| Postgres                           | Available ✅ | Relational     |      Source       | Real Time | Direct          |
-| Snowflake                          | Available ✅ | Data Warehouse |      Source       | Polling   | Direct          |
-| Local Files (CSV, Parquet)         | Available ✅ | Object Storage |      Source       | Polling   | Data Fusion     |
-| Delta Lake                         |    Alpha    | Data Warehouse |      Source       | Polling   | Direct          |
-| AWS S3 (CSV, Parquet)              |    Alpha    | Object Storage |      Source       | Polling   | Data Fusion     |
+| Connector                                                   |   Status    | Type           |  Schema Mapping   | Frequency | Implemented Via |
+| :---------------------------------------------------------- | :---------: | :------------- | :---------------: | :-------- | :-------------- |
+| Postgres                                       | Available ✅ | Relational     |      Source       | Real Time | Direct          |
+| Snowflake                                     | Available ✅ | Data Warehouse |      Source       | Polling   | Direct          |
+| Local Files (CSV, Parquet)                  | Available ✅ | Object Storage |      Source       | Polling   | Data Fusion     |
+| Delta Lake                                    |    Alpha    | Data Warehouse |      Source       | Polling   | Direct          |
+| AWS S3 (CSV, Parquet)                            |    Alpha    | Object Storage |      Source       | Polling   | Data Fusion     |
 | Google Cloud Storage(CSV, Parquet) |    Alpha    | Object Storage |      Source       | Polling   | Data Fusion     |
-| Ethereum                           | Available ✅ | Blockchain     | Logs/Contract ABI | Real Time | Direct          |
-| MySQL                              | In Roadmap  | Relational     |      Source       | Real Time | Debezium        |
-| Kafka                              | In Roadmap  | Stream         |  Schema Registry  | Real Time | Debezium        |
-| Google Sheets                      | In Roadmap  | Applications   |      Source       |           |                 |
-| Excel                              | In Roadmap  | Applications   |      Source       |           |                 |
-| Airtable                           | In Roadmap  | Applications   |      Source       |           |                 |
+| Ethereum                                       | Available ✅ | Blockchain     | Logs/Contract ABI | Real Time | Direct          |
+| Kafka Stream                                                      | Available ✅  |          |  Schema Registry  | Real Time | Debezium        |
+| MySQL                                                       | In Roadmap  | Relational     |      Source       | Real Time | Debezium        |
+| Google Sheets                                               | In Roadmap  | Applications   |      Source       |           |                 |
+| Excel                                                       | In Roadmap  | Applications   |      Source       |           |                 |
+| Airtable                                                    | In Roadmap  | Applications   |      Source       |           |                 |
 
 ## Pipeline Log Reader Bindings
 
@@ -179,7 +181,7 @@ Refer to the full list of connectors and example configurations [here](https://g
 | [dozer-log-js](./dozer-log-js)         | Node.js binding for reading Dozer logs                   | Apache-2.0     |
 
 [**Python**](./dozer-log-python)
-
+> we support CPython >= 3.10 on Windows, MacOS and Linux, both amd and arm architectures.
 ```python
 import pydozer_log
 
