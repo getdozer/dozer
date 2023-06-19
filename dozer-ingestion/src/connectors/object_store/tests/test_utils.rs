@@ -36,8 +36,8 @@ pub fn get_local_storage_config(typ: &str) -> LocalStorage {
             }),
             tables: vec![Table {
                 config: None,
-                name: format!(""),
+                name: String::new(),
             }],
-        }
+        },
     }
 }
