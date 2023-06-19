@@ -3,7 +3,6 @@ use crate::{
     errors::{ConnectorError, ObjectStoreConnectorError},
 };
 
-use crate::ingestion::Ingestor;
 use dozer_types::types::Operation;
 use tokio::sync::mpsc::Sender;
 use tonic::async_trait;
@@ -40,8 +39,7 @@ pub trait TableWatcher {
         table: &TableInfo,
         sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
     ) -> Result<(), ConnectorError> {
-        let seq_no = self.snapshot(id, table, sender.clone()).await?;
-        self.ingest(id, table, seq_no, sender.clone()).await?;
+        self.ingest(id, table, sender.clone()).await?;
         Ok(())
     }
 
@@ -50,13 +48,12 @@ pub trait TableWatcher {
         id: usize,
         table: &TableInfo,
         sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
-    ) -> Result<u64, ConnectorError>;
+    ) -> Result<(), ConnectorError>;
 
     async fn ingest(
         &self,
         id: usize,
         table: &TableInfo,
-        seq_no: u64,
         sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
-    ) -> Result<u64, ConnectorError>;
+    ) -> Result<(), ConnectorError>;
 }

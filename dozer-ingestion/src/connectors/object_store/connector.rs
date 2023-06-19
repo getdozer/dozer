@@ -112,22 +112,18 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                             dozer_types::ingestion_types::TableConfig::CSV(config) => {
                                 let table = CsvTable::new(config.clone(), self.config.clone());
                                 table
-                                    .watch(id, table_info, sender.clone())
+                                    .snapshot(id, table_info, sender.clone())
                                     .await
                                     .unwrap();
                             }
                             dozer_types::ingestion_types::TableConfig::Delta(config) => {
                                 let table =
                                     DeltaTable::new(id, config.clone(), self.config.clone());
-                                table
-                                    .watch(id, table_info, sender.clone())
-                                    .await?;
+                                table.snapshot(id, table_info, sender.clone()).await?;
                             }
                             dozer_types::ingestion_types::TableConfig::Parquet(config) => {
                                 let table = ParquetTable::new(config.clone(), self.config.clone());
-                                table
-                                    .watch(id, table_info, sender.clone())
-                                    .await?;
+                                table.snapshot(id, table_info, sender.clone()).await?;
                             }
                         }
                     }
@@ -138,6 +134,30 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
         ingestor
             .handle_message(IngestionMessage::new_snapshotting_done(0_u64, 1))
             .map_err(ObjectStoreConnectorError::IngestorError)?;
+
+        for (id, table_info) in tables.iter().enumerate() {
+            for table_config in self.config.tables() {
+                if table_info.name == table_config.name {
+                    if let Some(config) = &table_config.config {
+                        match config {
+                            dozer_types::ingestion_types::TableConfig::CSV(config) => {
+                                let table = CsvTable::new(config.clone(), self.config.clone());
+                                table.watch(id, table_info, sender.clone()).await.unwrap();
+                            }
+                            dozer_types::ingestion_types::TableConfig::Delta(config) => {
+                                let table =
+                                    DeltaTable::new(id, config.clone(), self.config.clone());
+                                table.watch(id, table_info, sender.clone()).await?;
+                            }
+                            dozer_types::ingestion_types::TableConfig::Parquet(config) => {
+                                let table = ParquetTable::new(config.clone(), self.config.clone());
+                                table.watch(id, table_info, sender.clone()).await?;
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         let mut seq_no = 2;
         loop {
