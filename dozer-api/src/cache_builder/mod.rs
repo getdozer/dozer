@@ -22,7 +22,7 @@ use futures_util::{
     future::{select, Either},
     Future,
 };
-use metrics::{describe_counter, increment_counter};
+use metrics::{describe_counter, describe_histogram, histogram, increment_counter};
 use tokio::sync::broadcast::Sender;
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
@@ -132,6 +132,12 @@ fn build_cache_task(
         "Number of updates processed by cache builder"
     );
 
+    const DATA_LATENCY_HISTOGRAM_NAME: &str = "data_latency";
+    describe_histogram!(
+        DATA_LATENCY_HISTOGRAM_NAME,
+        "End-to-end data latency in seconds"
+    );
+
     while let Some((op, offset)) = receiver.blocking_recv() {
         match op {
             ExecutorOperation::Op { op } => match op {
@@ -183,9 +189,16 @@ fn build_cache_task(
                     }
                 }
             },
-            ExecutorOperation::Commit { .. } => {
+            ExecutorOperation::Commit { epoch } => {
                 cache.set_metadata(offset)?;
                 cache.commit()?;
+                if let Ok(duration) = epoch.decision_instant.elapsed() {
+                    histogram!(
+                        DATA_LATENCY_HISTOGRAM_NAME,
+                        duration,
+                        cache.labels().clone()
+                    );
+                }
             }
             ExecutorOperation::SnapshottingDone { connection_name } => {
                 cache.set_metadata(offset)?;
