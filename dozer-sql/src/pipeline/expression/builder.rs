@@ -490,8 +490,8 @@ impl ExpressionBuilder {
         &mut self,
         parse_aggregations: bool,
         operand: &Option<Box<Expr>>,
-        conditions: &Vec<Expr>,
-        results: &Vec<Expr>,
+        conditions: &[Expr],
+        results: &[Expr],
         else_result: &Option<Box<Expr>>,
         schema: &Schema,
     ) -> Result<Expression, PipelineError> {
