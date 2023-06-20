@@ -250,3 +250,29 @@ pub(crate) fn evaluate_like(
         .map_err(|e| PipelineError::InvalidArgument(e.to_string()))?;
     Ok(result)
 }
+
+pub(crate) fn evaluate_to_char(
+    schema: &Schema,
+    arg: &Expression,
+    pattern: &Expression,
+    record: &Record,
+) -> Result<Field, PipelineError> {
+    let arg_field = arg.evaluate(record, schema)?;
+
+    let pattern_field = pattern.evaluate(record, schema)?;
+    let pattern_value = arg_str!(pattern_field, "TO_CHAR", 0)?;
+
+    let output = match arg_field {
+        Field::Timestamp(value) => value.format(pattern_value.as_str()).to_string(),
+        Field::Date(value) => value.format(pattern_value.as_str()).to_string(),
+        Field::Null => return Ok(Field::Null),
+        _ => {
+            return Err(PipelineError::InvalidArgument(format!(
+                "TO_CHAR({}, ...)",
+                arg_field
+            )))
+        }
+    };
+
+    Ok(Field::String(output))
+}
