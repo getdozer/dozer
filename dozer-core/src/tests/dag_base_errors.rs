@@ -33,6 +33,10 @@ struct ErrorProcessorFactory {
 }
 
 impl ProcessorFactory<NoneContext> for ErrorProcessorFactory {
+    fn name(&self) -> String {
+        "Error".to_owned()
+    }
+
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,

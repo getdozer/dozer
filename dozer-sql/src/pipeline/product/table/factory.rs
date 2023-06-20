@@ -33,7 +33,7 @@ impl ProcessorFactory<SchemaSQLContext> for TableProcessorFactory {
     fn name(&self) -> String {
         "Table".to_string()
     }
-    
+
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }

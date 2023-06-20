@@ -26,6 +26,10 @@ use crate::tests::app::NoneContext;
 pub(crate) struct NoopProcessorFactory {}
 
 impl ProcessorFactory<NoneContext> for NoopProcessorFactory {
+    fn name(&self) -> String {
+        "Noop".to_owned()
+    }
+
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
@@ -167,6 +171,10 @@ pub const NOOP_JOIN_LEFT_INPUT_PORT: u16 = 1;
 pub const NOOP_JOIN_RIGHT_INPUT_PORT: u16 = 2;
 
 impl ProcessorFactory<NoneContext> for NoopJoinProcessorFactory {
+    fn name(&self) -> String {
+        "NoopJoin".to_owned()
+    }
+
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,

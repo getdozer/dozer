@@ -81,6 +81,10 @@ impl ProcessorFactory<NoneContext> for DynPortsProcessorFactory {
     ) -> Result<Box<dyn Processor>, BoxedError> {
         todo!()
     }
+
+    fn name(&self) -> String {
+        "DynPorts".to_owned()
+    }
 }
 
 macro_rules! test_ports {
