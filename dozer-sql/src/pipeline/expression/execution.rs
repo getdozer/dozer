@@ -92,6 +92,11 @@ pub enum Expression {
         args: Vec<Expression>,
         return_type: FieldType,
     },
+    ONNXUDF {
+        name: String,
+        args: Vec<Expression>,
+        return_type: FieldType,
+    },
 }
 
 impl Expression {
@@ -148,6 +153,17 @@ impl Expression {
             }
             #[cfg(feature = "python")]
             Expression::PythonUDF { name, args, .. } => {
+                name.to_string()
+                    + "("
+                    + args
+                        .iter()
+                        .map(|expr| expr.to_string(schema))
+                        .collect::<Vec<String>>()
+                        .join(",")
+                        .as_str()
+                    + ")"
+            }
+            Expression::ONNXUDF { name, args, .. } => {
                 name.to_string()
                     + "("
                     + args
@@ -305,6 +321,15 @@ impl ExpressionExecutor for Expression {
             } => {
                 use crate::pipeline::expression::python_udf::evaluate_py_udf;
                 evaluate_py_udf(schema, name, args, return_type, record)
+            }
+            Expression::ONNXUDF {
+                name,
+                args,
+                return_type,
+                ..
+            } => {
+                use crate::pipeline::expression::onnx_udf::evaluate_onnx_udf;
+                evaluate_onnx_udf(schema, name, args, return_type, record)
             }
             Expression::UnaryOperator { operator, arg } => operator.evaluate(schema, arg, record),
             Expression::AggregateFunction { fun, args: _ } => {
