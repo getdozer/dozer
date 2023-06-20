@@ -33,6 +33,10 @@ impl ProjectionProcessorFactory {
 }
 
 impl ProcessorFactory<SchemaSQLContext> for ProjectionProcessorFactory {
+    fn name(&self) -> String {
+        "Projection".to_string()
+    }
+    
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }

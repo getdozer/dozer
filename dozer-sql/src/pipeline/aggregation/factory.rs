@@ -33,6 +33,9 @@ impl AggregationProcessorFactory {
 }
 
 impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
+    fn name(&self) -> String {
+        "Aggregation".to_string()
+    }
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }

@@ -33,6 +33,10 @@ impl WindowProcessorFactory {
 }
 
 impl ProcessorFactory<SchemaSQLContext> for WindowProcessorFactory {
+    fn name(&self) -> String {
+        "Window".to_string()
+    }
+    
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
