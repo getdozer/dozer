@@ -33,7 +33,7 @@ impl ProjectionProcessorFactory {
 }
 
 impl ProcessorFactory<SchemaSQLContext> for ProjectionProcessorFactory {
-    fn name(&self) -> String {
+    fn type_name(&self) -> String {
         "Projection".to_string()
     }
 

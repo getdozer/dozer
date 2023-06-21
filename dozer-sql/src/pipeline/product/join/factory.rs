@@ -47,7 +47,7 @@ impl JoinProcessorFactory {
 }
 
 impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
-    fn name(&self) -> String {
+    fn type_name(&self) -> String {
         "Join".to_string()
     }
     fn get_input_ports(&self) -> Vec<PortHandle> {

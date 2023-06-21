@@ -33,7 +33,7 @@ impl WindowProcessorFactory {
 }
 
 impl ProcessorFactory<SchemaSQLContext> for WindowProcessorFactory {
-    fn name(&self) -> String {
+    fn type_name(&self) -> String {
         "Window".to_string()
     }
 

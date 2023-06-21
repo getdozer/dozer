@@ -162,7 +162,7 @@ impl CreateErrProcessorFactory {
 }
 
 impl ProcessorFactory<NoneContext> for CreateErrProcessorFactory {
-    fn name(&self) -> String {
+    fn type_name(&self) -> String {
         "CreateErr".to_owned()
     }
 

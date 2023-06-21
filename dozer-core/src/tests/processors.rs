@@ -13,7 +13,7 @@ use super::app::NoneContext;
 pub struct ConnectivityTestProcessorFactory;
 
 impl ProcessorFactory<NoneContext> for ConnectivityTestProcessorFactory {
-    fn name(&self) -> String {
+    fn type_name(&self) -> String {
         "ConnectivityTest".to_owned()
     }
     fn get_input_ports(&self) -> Vec<PortHandle> {
@@ -83,7 +83,7 @@ impl ProcessorFactory<NoneContext> for NoInputPortProcessorFactory {
         )
     }
 
-    fn name(&self) -> String {
+    fn type_name(&self) -> String {
         "NoInput".to_owned()
     }
 }

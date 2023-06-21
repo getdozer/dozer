@@ -33,7 +33,7 @@ struct ErrorProcessorFactory {
 }
 
 impl ProcessorFactory<NoneContext> for ErrorProcessorFactory {
-    fn name(&self) -> String {
+    fn type_name(&self) -> String {
         "Error".to_owned()
     }
 

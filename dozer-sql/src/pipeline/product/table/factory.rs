@@ -30,7 +30,7 @@ impl TableProcessorFactory {
 }
 
 impl ProcessorFactory<SchemaSQLContext> for TableProcessorFactory {
-    fn name(&self) -> String {
+    fn type_name(&self) -> String {
         "Table".to_string()
     }
 

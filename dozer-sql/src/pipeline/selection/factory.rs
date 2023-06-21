@@ -24,7 +24,7 @@ impl SelectionProcessorFactory {
 }
 
 impl ProcessorFactory<SchemaSQLContext> for SelectionProcessorFactory {
-    fn name(&self) -> String {
+    fn type_name(&self) -> String {
         "Selection".to_string()
     }
     fn get_input_ports(&self) -> Vec<PortHandle> {

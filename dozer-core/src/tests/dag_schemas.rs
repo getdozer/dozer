@@ -159,7 +159,7 @@ impl ProcessorFactory<NoneContext> for TestJoinProcessorFactory {
         todo!()
     }
 
-    fn name(&self) -> String {
+    fn type_name(&self) -> String {
         "TestJoin".to_owned()
     }
 }

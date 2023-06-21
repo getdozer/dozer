@@ -28,7 +28,7 @@ impl SetProcessorFactory {
 }
 
 impl ProcessorFactory<SchemaSQLContext> for SetProcessorFactory {
-    fn name(&self) -> String {
+    fn type_name(&self) -> String {
         "Set".to_string()
     }
     fn get_input_ports(&self) -> Vec<PortHandle> {

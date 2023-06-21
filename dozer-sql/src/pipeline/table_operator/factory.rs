@@ -55,7 +55,7 @@ impl TableOperatorProcessorFactory {
 }
 
 impl ProcessorFactory<SchemaSQLContext> for TableOperatorProcessorFactory {
-    fn name(&self) -> String {
+    fn type_name(&self) -> String {
         self.name.clone()
     }
     fn get_input_ports(&self) -> Vec<PortHandle> {
