@@ -57,7 +57,7 @@ pub(crate) fn insert_join_to_pipeline(
             right_name_or_alias,
             join.join_operator.clone(),
         );
-        let join_processor_name = format!("join_{}", uuid::Uuid::new_v4());
+        let join_processor_name = format!("join_{}", query_context.get_next_processor_id());
 
         let mut pipeline_entry_points = vec![];
         if let JoinSource::Table(ref source_table) = left_join_source {
@@ -223,7 +223,7 @@ fn insert_table_operator_to_pipeline(
     {
         // for now, we only support window operators
         let window_processor_factory = WindowProcessorFactory::new(table_operator.clone());
-        let window_processor_name = format!("window_{}", uuid::Uuid::new_v4());
+        let window_processor_name = format!("window_{}", query_context.get_next_processor_id());
         let window_source_name = window_processor_factory.get_source_name()?;
         let mut window_entry_points = vec![];
 
