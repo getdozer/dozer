@@ -158,6 +158,10 @@ impl ProcessorFactory<NoneContext> for TestJoinProcessorFactory {
     ) -> Result<Box<dyn Processor>, BoxedError> {
         todo!()
     }
+
+    fn type_name(&self) -> String {
+        "TestJoin".to_owned()
+    }
 }
 
 #[derive(Debug)]
