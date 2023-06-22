@@ -277,7 +277,8 @@ fn select_to_pipeline(
         }
     }
 
-    let aggregation = AggregationProcessorFactory::new(select.clone(), stateful);
+    let aggregation =
+        AggregationProcessorFactory::new(gen_agg_name.clone(), select.clone(), stateful);
 
     pipeline.add_processor(Arc::new(aggregation), &gen_agg_name, vec![]);
 
@@ -452,11 +453,11 @@ fn set_to_pipeline(
         }
     };
 
-    let set_proc_fac = SetProcessorFactory::new(set_quantifier);
-
     if table_info.override_name.is_some() {
         gen_set_name = table_info.override_name.to_owned().unwrap();
     }
+
+    let set_proc_fac = SetProcessorFactory::new(gen_set_name.clone(), set_quantifier);
 
     pipeline.add_processor(Arc::new(set_proc_fac), &gen_set_name, vec![]);
 
