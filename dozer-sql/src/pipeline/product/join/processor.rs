@@ -3,6 +3,7 @@ use dozer_core::epoch::Epoch;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
+use dozer_types::labels::Labels;
 use dozer_types::types::Operation;
 use metrics::{
     counter, describe_counter, describe_gauge, describe_histogram, gauge, histogram,
@@ -16,6 +17,7 @@ use super::operator::{JoinAction, JoinBranch, JoinOperator};
 #[derive(Debug)]
 pub struct ProductProcessor {
     join_operator: JoinOperator,
+    labels: Labels,
 }
 
 const LEFT_LOOKUP_SIZE: &str = "product.left_lookup_size";
@@ -26,7 +28,7 @@ const OUT_OPS: &str = "product.out_ops";
 const LATENCY: &str = "product.latency";
 
 impl ProductProcessor {
-    pub fn new(join_operator: JoinOperator) -> Self {
+    pub fn new(id: String, join_operator: JoinOperator) -> Self {
         describe_gauge!(
             LEFT_LOOKUP_SIZE,
             "Total number of items in the left lookup table"
@@ -49,7 +51,13 @@ impl ProductProcessor {
         );
 
         describe_histogram!(LATENCY, "Processing latency");
-        Self { join_operator }
+
+        let mut labels = Labels::empty();
+        labels.push("pid", id);
+        Self {
+            join_operator,
+            labels,
+        }
     }
 
     fn update_eviction_index(&mut self, lifetime: &dozer_types::types::Lifetime) {
@@ -124,23 +132,25 @@ impl Processor for ProductProcessor {
         };
 
         let elapsed = now.elapsed();
-        histogram!(LATENCY, elapsed);
+        histogram!(LATENCY, elapsed, self.labels.clone());
 
-        increment_counter!(IN_OPS);
+        increment_counter!(IN_OPS, self.labels.clone());
 
-        counter!(OUT_OPS, records.len() as u64);
+        counter!(OUT_OPS, records.len() as u64, self.labels.clone());
 
         gauge!(
             LEFT_LOOKUP_SIZE,
-            self.join_operator.left_lookup_size() as f64
+            self.join_operator.left_lookup_size() as f64,
+            self.labels.clone()
         );
         gauge!(
             RIGHT_LOOKUP_SIZE,
-            self.join_operator.right_lookup_size() as f64
+            self.join_operator.right_lookup_size() as f64,
+            self.labels.clone()
         );
 
         if records.is_empty() {
-            increment_counter!(UNSATISFIED_JOINS);
+            increment_counter!(UNSATISFIED_JOINS, self.labels.clone());
         }
 
         for (action, record) in records {

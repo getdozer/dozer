@@ -17,13 +17,14 @@ use super::set_processor::SetProcessor;
 
 #[derive(Debug)]
 pub struct SetProcessorFactory {
+    id: String,
     set_quantifier: SetQuantifier,
 }
 
 impl SetProcessorFactory {
     /// Creates a new [`FromProcessorFactory`].
-    pub fn new(set_quantifier: SetQuantifier) -> Self {
-        Self { set_quantifier }
+    pub fn new(id: String, set_quantifier: SetQuantifier) -> Self {
+        Self { id, set_quantifier }
     }
 }
 
@@ -74,10 +75,13 @@ impl ProcessorFactory<SchemaSQLContext> for SetProcessorFactory {
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Processor>, BoxedError> {
-        Ok(Box::new(SetProcessor::new(SetOperation {
-            op: SetOperator::Union,
-            quantifier: self.set_quantifier,
-        })?))
+        Ok(Box::new(SetProcessor::new(
+            self.id.clone(),
+            SetOperation {
+                op: SetOperator::Union,
+                quantifier: self.set_quantifier,
+            },
+        )?))
     }
 }
 

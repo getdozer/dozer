@@ -13,13 +13,15 @@ use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct AggregationProcessorFactory {
+    id: String,
     projection: Select,
     _stateful: bool,
 }
 
 impl AggregationProcessorFactory {
-    pub fn new(projection: Select, stateful: bool) -> Self {
+    pub fn new(id: String, projection: Select, stateful: bool) -> Self {
         Self {
+            id,
             projection,
             _stateful: stateful,
         }
@@ -79,6 +81,7 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
             ))
         } else {
             Box::new(AggregationProcessor::new(
+                self.id.clone(),
                 planner.groupby,
                 planner.aggregation_output,
                 planner.projection_output,
