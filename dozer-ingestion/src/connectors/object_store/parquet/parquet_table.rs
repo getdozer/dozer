@@ -30,7 +30,7 @@ use crate::{
     errors::{ConnectorError, ObjectStoreConnectorError},
 };
 
-const WATCHER_INTERVAL: Duration = Duration::from_secs(1);
+const _WATCHER_INTERVAL: Duration = Duration::from_secs(1);
 
 pub struct ParquetTable<T: DozerObjectStore + Send> {
     table_config: ParquetConfig,
@@ -158,7 +158,7 @@ impl<T: DozerObjectStore + Send> ParquetTable<T> {
                 }
 
                 // Wait for 10 seconds before checking again
-                tokio::time::sleep(WATCHER_INTERVAL).await;
+                tokio::time::sleep(_WATCHER_INTERVAL).await;
             }
         });
 
