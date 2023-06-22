@@ -140,7 +140,7 @@ fn add_dozer_service(
             image: Some(get_dozer_image()),
             build: None,
             ports: vec![],
-            environment: vec!["ETH_WSS_URL".to_string(), "ETH_HTTPS_URL".to_string(), "DOZER_DEV".to_string()],
+            environment: vec!["ETH_WSS_URL".to_string(), "ETH_HTTPS_URL".to_string(), "DOZER_DEV=ci".to_string()],
             volumes: vec![format!("{current_dir}:{current_dir}")],
             user: None,
             working_dir: Some(current_dir.to_string()),
