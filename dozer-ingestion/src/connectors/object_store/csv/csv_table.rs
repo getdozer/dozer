@@ -282,11 +282,11 @@ impl<T: DozerObjectStore + Send> TableWatcher for CsvTable<T> {
 
     async fn ingest(
         &self,
-        id: usize,
-        table: &TableInfo,
-        sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
+        _id: usize,
+        _table: &TableInfo,
+        _sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
     ) -> Result<(), ConnectorError> {
-        self.read(id as u32, table, sender).await?;
+        // self.read(id as u32, table, sender).await?;
         Ok(())
     }
 }
