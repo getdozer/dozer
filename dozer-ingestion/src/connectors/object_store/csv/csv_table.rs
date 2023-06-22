@@ -32,7 +32,7 @@ use crate::{
     errors::ObjectStoreObjectError,
 };
 
-const _WATCHER_INTERVAL: Duration = Duration::from_secs(1);
+const WATCHER_INTERVAL: Duration = Duration::from_secs(1);
 
 pub struct CsvTable<T: DozerObjectStore + Send> {
     table_config: CsvConfig,

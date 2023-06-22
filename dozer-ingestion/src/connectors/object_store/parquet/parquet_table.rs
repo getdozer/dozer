@@ -30,7 +30,7 @@ use crate::{
     errors::{ConnectorError, ObjectStoreConnectorError},
 };
 
-const _WATCHER_INTERVAL: Duration = Duration::from_secs(1);
+const WATCHER_INTERVAL: Duration = Duration::from_secs(1);
 
 pub struct ParquetTable<T: DozerObjectStore + Send> {
     table_config: ParquetConfig,
