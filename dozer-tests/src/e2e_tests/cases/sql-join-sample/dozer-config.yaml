@@ -5,14 +5,14 @@ connections:
       tables:
         - !Table
           name: taxi_zone_lookup
-          prefix: /zones
-          file_type: csv
-          extension: .csv
+          config: !CSV
+            path: zones
+            extension: .csv
         - !Table
           name: yellow_trips
-          prefix: /yellow_trips
-          file_type: parquet
-          extension: .parquet
+          config: !Parquet
+            path: yellow_trips
+            extension: .parquet
     name: yellow_taxi
 
 sql: |
