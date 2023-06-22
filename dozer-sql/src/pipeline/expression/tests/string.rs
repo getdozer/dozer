@@ -711,4 +711,40 @@ fn test_to_char() {
         ))],
     );
     assert_eq!(f, Field::String("1970-01-20".to_string()));
+
+    let f = run_fct(
+        "SELECT TO_CHAR(ts, '%H:%M') FROM transactions",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("ts"),
+                    FieldType::Timestamp,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Timestamp(DateTime::from(
+            Utc.timestamp_millis_opt(1672531200).unwrap(),
+        ))],
+    );
+    assert_eq!(f, Field::String("08:35".to_string()));
+
+    let f = run_fct(
+        "SELECT TO_CHAR(ts, '%H:%M') FROM transactions",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("ts"),
+                    FieldType::Timestamp,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Null],
+    );
+    assert_eq!(f, Field::Null);
 }
