@@ -67,4 +67,5 @@ jobs:
         env:
           ETH_WSS_URL: ${{ secrets.ETH_WSS_URL }}
           ETH_HTTPS_URL: ${{ secrets.ETH_HTTPS_URL }}
+          DOZER_DEV: "ci"
         run: cargo run --bin dozer-tests
