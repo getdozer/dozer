@@ -5,9 +5,9 @@ connections:
       tables:
         - !Table
           name: yellow_trips
-          prefix: /yellow_trips
-          file_type: parquet
-          extension: .parquet
+          config: !Parquet
+            path: yellow_trips
+            extension: .parquet
     name: yellow_taxi
 
 sql: |
