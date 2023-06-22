@@ -1,4 +1,5 @@
 use crate::arg_str;
+use std::fmt::Write;
 use std::fmt::{Display, Formatter};
 
 use crate::pipeline::errors::PipelineError;
@@ -264,7 +265,15 @@ pub(crate) fn evaluate_to_char(
 
     let output = match arg_field {
         Field::Timestamp(value) => value.format(pattern_value.as_str()).to_string(),
-        Field::Date(value) => value.format(pattern_value.as_str()).to_string(),
+        Field::Date(value) => {
+            let mut formatted = String::new();
+            let format_result = write!(formatted, "{}", value.format(pattern_value.as_str()));
+            if format_result.is_ok() {
+                formatted
+            } else {
+                pattern_value
+            }
+        }
         Field::Null => return Ok(Field::Null),
         _ => {
             return Err(PipelineError::InvalidArgument(format!(

@@ -4,7 +4,7 @@ use crate::pipeline::expression::scalar::string::{
     TrimType,
 };
 use crate::pipeline::expression::tests::test_common::*;
-use dozer_types::chrono::{DateTime, TimeZone, Utc};
+use dozer_types::chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition};
 use proptest::prelude::*;
 
@@ -747,4 +747,38 @@ fn test_to_char() {
         vec![Field::Null],
     );
     assert_eq!(f, Field::Null);
+
+    let f = run_fct(
+        "SELECT TO_CHAR(ts, '%Y-%m-%d') FROM transactions",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("ts"),
+                    FieldType::Date,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Date(NaiveDate::from_ymd_opt(2020, 1, 2).unwrap())],
+    );
+    assert_eq!(f, Field::String("2020-01-02".to_string()));
+
+    let f = run_fct(
+        "SELECT TO_CHAR(ts, '%H:%M') FROM transactions",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("ts"),
+                    FieldType::Date,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Date(NaiveDate::from_ymd_opt(2020, 1, 2).unwrap())],
+    );
+    assert_eq!(f, Field::String("%H:%M".to_string()));
 }
