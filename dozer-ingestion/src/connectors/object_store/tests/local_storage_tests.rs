@@ -90,8 +90,19 @@ async fn test_read_parquet_file() {
         panic!("Unexpected message");
     }
 
-    let mut i = 1;
-    while i < 9 {
+    let row = iterator.next();
+    if let Some(IngestionMessage {
+        identifier: OpIdentifier { seq_in_tx, .. },
+        kind: IngestionMessageKind::SnapshottingDone,
+    }) = row
+    {
+        assert_eq!(seq_in_tx, 1);
+    } else {
+        panic!("Unexpected message");
+    }
+
+    let mut i = 2;
+    while i < 10 {
         let row = iterator.next();
         if let Some(IngestionMessage {
             identifier: OpIdentifier { seq_in_tx, .. },
@@ -150,8 +161,19 @@ async fn test_csv_read() {
         panic!("Unexpected message");
     }
 
-    let mut i = 1;
-    while i < 9 {
+    let row = iterator.next();
+    if let Some(IngestionMessage {
+        identifier: OpIdentifier { seq_in_tx, .. },
+        kind: IngestionMessageKind::SnapshottingDone,
+    }) = row
+    {
+        assert_eq!(seq_in_tx, 1);
+    } else {
+        panic!("Unexpected message");
+    }
+
+    let mut i = 2;
+    while i < 20 {
         let row = iterator.next();
         if let Some(IngestionMessage {
             identifier: OpIdentifier { seq_in_tx, .. },
@@ -172,7 +194,7 @@ async fn test_csv_read() {
             test_type_conversion!(values, 8, Field::String(_));
 
             if let Field::Int(id) = values.get(0).unwrap() {
-                if *id < 3 {
+                if *id == 2 || *id == 12 {
                     test_type_conversion!(values, 9, Field::Float(_));
                 } else {
                     test_type_conversion!(values, 9, Field::Null);

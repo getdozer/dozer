@@ -11,13 +11,15 @@ use super::operator::{TableOperator, TableOperatorType};
 
 #[derive(Debug)]
 pub struct TableOperatorProcessor {
+    _id: String,
     operator: TableOperatorType,
     input_schema: Schema,
 }
 
 impl TableOperatorProcessor {
-    pub fn new(operator: TableOperatorType, input_schema: Schema) -> Self {
+    pub fn new(id: String, operator: TableOperatorType, input_schema: Schema) -> Self {
         Self {
+            _id: id,
             operator,
             input_schema,
         }

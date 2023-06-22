@@ -24,29 +24,36 @@ pub trait DozerObjectStore: Clone + Send + Sync + Debug {
         self.store_params(table)
     }
 
-    fn store_params<'a>(
-        &'a self,
-        table: &'a Table,
-    ) -> Result<DozerObjectStoreParams<'a, Self::ObjectStore>, ConnectorError>;
+    fn store_params(
+        &self,
+        table: &Table,
+    ) -> Result<DozerObjectStoreParams<Self::ObjectStore>, ConnectorError>;
 
     fn tables(&self) -> &[Table];
 }
 
-pub struct DozerObjectStoreParams<'a, T: ObjectStore> {
-    pub scheme: &'static str,
-    pub host: &'a str,
+pub struct DozerObjectStoreParams<T: ObjectStore> {
+    pub scheme: String,
+    pub host: String,
     pub object_store: T,
+
     pub table_path: String,
-    pub data_fusion_table: &'a Table,
+    pub folder: String,
+    pub data_fusion_table: Table,
+
+    // todo: refactor this datastructure
+    pub aws_region: Option<String>,
+    pub aws_access_key_id: Option<String>,
+    pub aws_secret_access_key: Option<String>,
 }
 
 impl DozerObjectStore for S3Storage {
     type ObjectStore = AmazonS3;
 
-    fn store_params<'a>(
-        &'a self,
-        table: &'a Table,
-    ) -> Result<DozerObjectStoreParams<'a, Self::ObjectStore>, ConnectorError> {
+    fn store_params(
+        &self,
+        table: &Table,
+    ) -> Result<DozerObjectStoreParams<Self::ObjectStore>, ConnectorError> {
         let details = get_details(&self.details)?;
 
         let object_store = AmazonS3Builder::new()
@@ -57,12 +64,33 @@ impl DozerObjectStore for S3Storage {
             .build()
             .map_err(|e| ConnectorError::InitializationError(e.to_string()))?;
 
+        let folder = if let Some(config) = &table.config {
+            match config {
+                dozer_types::ingestion_types::TableConfig::CSV(csv_config) => {
+                    csv_config.path.clone()
+                }
+                dozer_types::ingestion_types::TableConfig::Delta(delta_config) => {
+                    delta_config.path.clone()
+                }
+                dozer_types::ingestion_types::TableConfig::Parquet(parquet_config) => {
+                    parquet_config.path.clone()
+                }
+            }
+        } else {
+            return Err(ConnectorError::TableNotFound(table.name.clone()));
+        };
+
         Ok(DozerObjectStoreParams {
-            scheme: "s3",
-            host: &details.bucket_name,
+            scheme: "s3".to_string(),
+            host: details.bucket_name.clone(),
             object_store,
-            table_path: format!("s3://{}/{}/", details.bucket_name, table.prefix),
-            data_fusion_table: table,
+            table_path: format!("s3://{}/{folder}/", details.bucket_name),
+            folder,
+            data_fusion_table: table.clone(),
+
+            aws_region: Some(details.region.clone()),
+            aws_access_key_id: Some(details.access_key_id.clone()),
+            aws_secret_access_key: Some(details.secret_access_key.clone()),
         })
     }
 
@@ -74,21 +102,42 @@ impl DozerObjectStore for S3Storage {
 impl DozerObjectStore for LocalStorage {
     type ObjectStore = LocalFileSystem;
 
-    fn store_params<'a>(
-        &'a self,
-        table: &'a Table,
-    ) -> Result<DozerObjectStoreParams<'a, Self::ObjectStore>, ConnectorError> {
+    fn store_params(
+        &self,
+        table: &Table,
+    ) -> Result<DozerObjectStoreParams<Self::ObjectStore>, ConnectorError> {
         let path = get_details(&self.details)?.path.as_str();
 
         let object_store = LocalFileSystem::new_with_prefix(path)
             .map_err(|e| ConnectorError::InitializationError(e.to_string()))?;
 
+        let folder = if let Some(config) = &table.config {
+            match config {
+                dozer_types::ingestion_types::TableConfig::CSV(csv_config) => {
+                    csv_config.path.clone()
+                }
+                dozer_types::ingestion_types::TableConfig::Delta(delta_config) => {
+                    delta_config.path.clone()
+                }
+                dozer_types::ingestion_types::TableConfig::Parquet(parquet_config) => {
+                    parquet_config.path.clone()
+                }
+            }
+        } else {
+            return Err(ConnectorError::TableNotFound(table.name.clone()));
+        };
+
         Ok(DozerObjectStoreParams {
-            scheme: "local",
-            host: path,
+            scheme: "local".to_string(),
+            host: path.to_owned(),
             object_store,
-            table_path: format!("{path}/{}/", table.prefix),
-            data_fusion_table: table,
+            table_path: format!("{path}/{folder}/"),
+            folder,
+            data_fusion_table: table.clone(),
+
+            aws_region: None,
+            aws_access_key_id: None,
+            aws_secret_access_key: None,
         })
     }
 

@@ -27,20 +27,18 @@ const SOURCE_TABLE_ARGUMENT: usize = 0;
 
 #[derive(Debug)]
 pub struct TableOperatorProcessorFactory {
+    id: String,
     table: TableOperatorDescriptor,
     name: String,
 }
 
 impl TableOperatorProcessorFactory {
-    pub fn new(table: TableOperatorDescriptor) -> Self {
+    pub fn new(id: String, table: TableOperatorDescriptor) -> Self {
         Self {
-            table: table.to_owned(),
-            name: format!("TOP_{0}_{1}", table.name, uuid::Uuid::new_v4()),
+            id: id.clone(),
+            table,
+            name: id,
         }
-    }
-
-    pub fn get_name(&self) -> String {
-        self.name.clone()
     }
 
     pub(crate) fn get_source_name(&self) -> Result<String, TableOperatorError> {
@@ -55,6 +53,9 @@ impl TableOperatorProcessorFactory {
 }
 
 impl ProcessorFactory<SchemaSQLContext> for TableOperatorProcessorFactory {
+    fn type_name(&self) -> String {
+        self.name.clone()
+    }
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
@@ -106,6 +107,7 @@ impl ProcessorFactory<SchemaSQLContext> for TableOperatorProcessorFactory {
 
         match operator_from_descriptor(&self.table, &input_schema)? {
             Some(operator) => Ok(Box::new(TableOperatorProcessor::new(
+                self.id.clone(),
                 operator,
                 input_schema,
             ))),

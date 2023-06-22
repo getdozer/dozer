@@ -10,12 +10,13 @@ use super::operator::WindowType;
 
 #[derive(Debug)]
 pub struct WindowProcessor {
+    _id: String,
     window: WindowType,
 }
 
 impl WindowProcessor {
-    pub fn new(window: WindowType) -> Self {
-        Self { window }
+    pub fn new(id: String, window: WindowType) -> Self {
+        Self { _id: id, window }
     }
 
     fn execute(&self, record: &Record) -> Result<Vec<Record>, WindowError> {
