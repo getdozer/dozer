@@ -52,12 +52,13 @@ pub(crate) fn insert_join_to_pipeline(
             query_context,
         )?;
 
+        let join_processor_name = format!("join_{}", query_context.get_next_processor_id());
         let join_processor_factory = JoinProcessorFactory::new(
+            join_processor_name.clone(),
             left_name_or_alias.clone(),
             right_name_or_alias,
             join.join_operator.clone(),
         );
-        let join_processor_name = format!("join_{}", uuid::Uuid::new_v4());
 
         let mut pipeline_entry_points = vec![];
         if let JoinSource::Table(ref source_table) = left_join_source {
@@ -192,8 +193,14 @@ fn insert_table_operator_to_pipeline(
     let mut input_nodes = vec![];
 
     if table_operator.name.to_uppercase() == "TTL" {
-        let processor = TableOperatorProcessorFactory::new(table_operator.clone());
-        let processor_name = processor.get_name();
+        let processor_name = format!(
+            "TOP_{0}_{1}",
+            table_operator.name,
+            query_context.get_next_processor_id()
+        );
+        let processor =
+            TableOperatorProcessorFactory::new(processor_name.clone(), table_operator.clone());
+
         let source_name = processor
             .get_source_name()
             .map_err(PipelineError::TableOperatorError)?;
@@ -222,8 +229,9 @@ fn insert_table_operator_to_pipeline(
         || table_operator.name.to_uppercase() == "HOP"
     {
         // for now, we only support window operators
-        let window_processor_factory = WindowProcessorFactory::new(table_operator.clone());
-        let window_processor_name = format!("window_{}", uuid::Uuid::new_v4());
+        let window_processor_name = format!("window_{}", query_context.get_next_processor_id());
+        let window_processor_factory =
+            WindowProcessorFactory::new(window_processor_name.clone(), table_operator.clone());
         let window_source_name = window_processor_factory.get_source_name()?;
         let mut window_entry_points = vec![];
 

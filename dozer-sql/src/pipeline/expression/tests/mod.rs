@@ -4,6 +4,8 @@ mod execution;
 mod expression_builder_test;
 
 #[cfg(test)]
+mod case;
+#[cfg(test)]
 mod cast;
 #[cfg(test)]
 mod comparison;

@@ -123,6 +123,19 @@ impl ExpressionBuilder {
             } => {
                 self.parse_sql_interval_expression(parse_aggregations, value, leading_field, schema)
             }
+            SqlExpr::Case {
+                operand,
+                conditions,
+                results,
+                else_result,
+            } => self.parse_sql_case_expression(
+                parse_aggregations,
+                operand,
+                conditions,
+                results,
+                else_result,
+                schema,
+            ),
             _ => Err(InvalidExpression(format!("{expression:?}"))),
         }
     }
@@ -471,6 +484,48 @@ impl ExpressionBuilder {
                 Err(InvalidArgument(format!("{argument:?}")))
             }
         }
+    }
+
+    fn parse_sql_case_expression(
+        &mut self,
+        parse_aggregations: bool,
+        operand: &Option<Box<Expr>>,
+        conditions: &[Expr],
+        results: &[Expr],
+        else_result: &Option<Box<Expr>>,
+        schema: &Schema,
+    ) -> Result<Expression, PipelineError> {
+        let op = match operand {
+            Some(o) => Some(Box::new(self.parse_sql_expression(
+                parse_aggregations,
+                o,
+                schema,
+            )?)),
+            None => None,
+        };
+        let conds = conditions
+            .iter()
+            .map(|cond| self.parse_sql_expression(parse_aggregations, cond, schema))
+            .collect::<Result<Vec<_>, PipelineError>>()?;
+        let res = results
+            .iter()
+            .map(|r| self.parse_sql_expression(parse_aggregations, r, schema))
+            .collect::<Result<Vec<_>, PipelineError>>()?;
+        let else_res = match else_result {
+            Some(r) => Some(Box::new(self.parse_sql_expression(
+                parse_aggregations,
+                r,
+                schema,
+            )?)),
+            None => None,
+        };
+
+        Ok(Expression::Case {
+            operand: op,
+            conditions: conds,
+            results: res,
+            else_result: else_res,
+        })
     }
 
     fn parse_sql_interval_expression(

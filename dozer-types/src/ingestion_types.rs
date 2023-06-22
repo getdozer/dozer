@@ -272,15 +272,55 @@ impl DataFusionConfig {
     }
 }
 
+// #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
+// pub struct Table {
+//     #[prost(string, tag = "1")]
+//     pub name: String,
+//     #[prost(string, tag = "2")]
+//     pub prefix: String,
+//     #[prost(string, tag = "3")]
+//     pub file_type: String,
+//     #[prost(string, tag = "4")]
+//     pub extension: String,
+// }
+
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
 pub struct Table {
-    #[prost(string, tag = "1")]
-    pub name: String,
-    #[prost(string, tag = "2")]
-    pub prefix: String,
-    #[prost(string, tag = "3")]
-    pub file_type: String,
+    #[prost(oneof = "TableConfig", tags = "1,2,3")]
+    pub config: Option<TableConfig>,
     #[prost(string, tag = "4")]
+    pub name: String,
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Oneof, Hash)]
+pub enum TableConfig {
+    #[prost(message, tag = "1")]
+    CSV(CsvConfig),
+    #[prost(message, tag = "2")]
+    Delta(DeltaConfig),
+    #[prost(message, tag = "3")]
+    Parquet(ParquetConfig),
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
+pub struct CsvConfig {
+    #[prost(string, tag = "1")]
+    pub path: String,
+    #[prost(string, tag = "2")]
+    pub extension: String,
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
+pub struct DeltaConfig {
+    #[prost(string, tag = "1")]
+    pub path: String,
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
+pub struct ParquetConfig {
+    #[prost(string, tag = "1")]
+    pub path: String,
+    #[prost(string, tag = "2")]
     pub extension: String,
 }
 

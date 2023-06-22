@@ -6,14 +6,14 @@ connections:
       tables:
         - !Table
           name: trips
-          prefix: trips
-          file_type: parquet
-          extension: .parquet
+          config: !Parquet
+            path: trips
+            extension: .parquet
         - !Table
           name: zones
-          prefix: zones
-          file_type: csv
-          extension: .csv
+          config: !CSV
+            path: zones
+            extension: .csv
     name: ny_taxi
 
 api:
