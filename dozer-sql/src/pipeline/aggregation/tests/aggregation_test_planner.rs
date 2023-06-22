@@ -77,6 +77,7 @@ fn test_planner_with_aggregator() {
     projection_planner.plan(*statement).unwrap();
 
     let mut processor = AggregationProcessor::new(
+        "".to_string(),
         projection_planner.groupby,
         projection_planner.aggregation_output,
         projection_planner.projection_output,

@@ -19,12 +19,13 @@ use super::{
 
 #[derive(Debug)]
 pub struct WindowProcessorFactory {
+    id: String,
     table: TableOperatorDescriptor,
 }
 
 impl WindowProcessorFactory {
-    pub fn new(table: TableOperatorDescriptor) -> Self {
-        Self { table }
+    pub fn new(id: String, table: TableOperatorDescriptor) -> Self {
+        Self { id, table }
     }
 
     pub(crate) fn get_source_name(&self) -> Result<String, PipelineError> {
@@ -87,7 +88,7 @@ impl ProcessorFactory<SchemaSQLContext> for WindowProcessorFactory {
         match window_from_table_operator(&self.table, &input_schema)
             .map_err(PipelineError::WindowError)?
         {
-            Some(window) => Ok(Box::new(WindowProcessor::new(window))),
+            Some(window) => Ok(Box::new(WindowProcessor::new(self.id.clone(), window))),
             None => Err(PipelineError::WindowError(WindowError::InvalidWindow()).into()),
         }
     }

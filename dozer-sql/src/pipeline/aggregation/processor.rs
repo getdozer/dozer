@@ -46,6 +46,7 @@ impl AggregationState {
 
 #[derive(Debug)]
 pub struct AggregationProcessor {
+    _id: String,
     dimensions: Vec<Expression>,
     measures: Vec<Vec<Expression>>,
     measures_types: Vec<AggregatorType>,
@@ -67,6 +68,7 @@ enum AggregatorOperation {
 
 impl AggregationProcessor {
     pub fn new(
+        id: String,
         dimensions: Vec<Expression>,
         measures: Vec<Expression>,
         projections: Vec<Expression>,
@@ -93,6 +95,7 @@ impl AggregationProcessor {
         having_eval_schema_fields.extend(aggregation_schema.fields.clone());
 
         Ok(Self {
+            _id: id,
             dimensions,
             projections,
             input_schema,

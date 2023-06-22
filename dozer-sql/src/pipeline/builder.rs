@@ -53,6 +53,16 @@ pub struct QueryContext {
 
     // Used Sources
     pub used_sources: Vec<String>,
+
+    // Processors counter
+    pub processor_counter: usize,
+}
+
+impl QueryContext {
+    pub fn get_next_processor_id(&mut self) -> usize {
+        self.processor_counter += 1;
+        self.processor_counter
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -70,7 +80,7 @@ pub fn statement_to_pipeline(
 
     let ast = Parser::parse_sql(&dialect, sql)
         .map_err(|err| PipelineError::InternalError(Box::new(err)))?;
-    let query_name = NameOrAlias(format!("query_{}", uuid::Uuid::new_v4()), None);
+    let query_name = NameOrAlias(format!("query_{}", ctx.get_next_processor_id()), None);
 
     for (idx, statement) in ast.iter().enumerate() {
         match statement {
@@ -170,7 +180,7 @@ fn query_to_pipeline(
             )?;
         }
         SetExpr::Query(query) => {
-            let query_name = format!("subquery_{}", uuid::Uuid::new_v4());
+            let query_name = format!("subquery_{}", query_ctx.get_next_processor_id());
             let mut ctx = QueryContext::default();
             query_to_pipeline(
                 &TableInfo {
@@ -244,8 +254,9 @@ fn select_to_pipeline(
     let input_nodes = connection_info.input_nodes;
     let output_node = connection_info.output_node;
 
-    let gen_agg_name = format!("agg_{}", uuid::Uuid::new_v4());
-    let gen_selection_name = format!("select_{}", uuid::Uuid::new_v4());
+    let gen_agg_name = format!("agg_{}", query_ctx.get_next_processor_id());
+
+    let gen_selection_name = format!("select_{}", query_ctx.get_next_processor_id());
     let (gen_product_name, product_output_port) = output_node;
 
     for (source_name, processor_name, processor_port) in input_nodes.iter() {
@@ -266,7 +277,8 @@ fn select_to_pipeline(
         }
     }
 
-    let aggregation = AggregationProcessorFactory::new(select.clone(), stateful);
+    let aggregation =
+        AggregationProcessorFactory::new(gen_agg_name.clone(), select.clone(), stateful);
 
     pipeline.add_processor(Arc::new(aggregation), &gen_agg_name, vec![]);
 
@@ -340,13 +352,13 @@ fn set_to_pipeline(
     stateful: bool,
     pipeline_idx: usize,
 ) -> Result<String, PipelineError> {
-    let gen_left_set_name = format!("set_left_{}", uuid::Uuid::new_v4());
+    let gen_left_set_name = format!("set_left_{}", query_ctx.get_next_processor_id());
     let left_table_info = TableInfo {
         name: NameOrAlias(gen_left_set_name.clone(), None),
         override_name: None,
         is_derived: false,
     };
-    let gen_right_set_name = format!("set_right_{}", uuid::Uuid::new_v4());
+    let gen_right_set_name = format!("set_right_{}", query_ctx.get_next_processor_id());
     let right_table_info = TableInfo {
         name: NameOrAlias(gen_right_set_name.clone(), None),
         override_name: None,
@@ -415,6 +427,8 @@ fn set_to_pipeline(
         }
     };
 
+    let mut gen_set_name = format!("set_{}", query_ctx.get_next_processor_id());
+
     let left_pipeline_output_node = match query_ctx
         .pipeline_map
         .get(&(pipeline_idx, gen_left_set_name))
@@ -439,13 +453,11 @@ fn set_to_pipeline(
         }
     };
 
-    let set_proc_fac = SetProcessorFactory::new(set_quantifier);
-
-    let mut gen_set_name = format!("set_{}", uuid::Uuid::new_v4());
-
     if table_info.override_name.is_some() {
         gen_set_name = table_info.override_name.to_owned().unwrap();
     }
+
+    let set_proc_fac = SetProcessorFactory::new(gen_set_name.clone(), set_quantifier);
 
     pipeline.add_processor(Arc::new(set_proc_fac), &gen_set_name, vec![]);
 
@@ -574,7 +586,7 @@ pub fn get_from_source(
             subquery,
             alias,
         } => {
-            let name = format!("derived_{}", uuid::Uuid::new_v4());
+            let name = format!("derived_{}", query_ctx.get_next_processor_id());
             let alias_name = alias.as_ref().map(|alias_ident| {
                 ExpressionBuilder::fullname_from_ident(&[alias_ident.name.clone()])
             });
