@@ -32,7 +32,7 @@ use crate::{
     errors::ObjectStoreObjectError,
 };
 
-const WATCHER_INTERVAL: Duration = Duration::from_secs(1);
+const _WATCHER_INTERVAL: Duration = Duration::from_secs(1);
 
 pub struct CsvTable<T: DozerObjectStore + Send> {
     table_config: CsvConfig,
@@ -49,7 +49,7 @@ impl<T: DozerObjectStore + Send> CsvTable<T> {
         }
     }
 
-    async fn read(
+    async fn _read(
         &self,
         id: u32,
         table: &TableInfo,
