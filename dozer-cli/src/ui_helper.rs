@@ -126,7 +126,7 @@ fn transform_to_ui_graph(
         let source_by_port = port_connection_source.get(&from);
         if let Some(source_by_port) = source_by_port {
             let source_name = source_by_port.1;
-            let new_node_idx = (nodes.len() - 1) as u32;
+            let new_node_idx = (nodes.len()) as u32;
             nodes.push(QueryNode {
                 name: source_name.to_string(),
                 node_type: QueryNodeType::Source as i32,
