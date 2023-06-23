@@ -47,7 +47,7 @@ impl<T: DozerObjectStore + Send> ParquetTable<T> {
         }
     }
 
-    async fn _read(
+    async fn read(
         &self,
         id: u32,
         table: &TableInfo,
@@ -280,11 +280,11 @@ impl<T: DozerObjectStore + Send> TableWatcher for ParquetTable<T> {
 
     async fn ingest(
         &self,
-        _id: usize,
-        _table: &TableInfo,
-        _sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
+        id: usize,
+        table: &TableInfo,
+        sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
     ) -> Result<(), ConnectorError> {
-        // self.read(id as u32, table, sender).await?;
+        self.read(id as u32, table, sender).await?;
         Ok(())
     }
 }

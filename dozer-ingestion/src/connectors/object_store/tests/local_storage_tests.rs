@@ -5,7 +5,6 @@ use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::ingestion_types::IngestionMessageKind;
 use dozer_types::ingestion_types::LocalDetails;
 use dozer_types::node::OpIdentifier;
-use tokio::runtime::Runtime;
 
 use crate::connectors::object_store::helper::map_listing_options;
 use crate::connectors::object_store::tests::test_utils::get_local_storage_config;
