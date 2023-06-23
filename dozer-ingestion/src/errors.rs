@@ -123,6 +123,9 @@ pub enum ConfigurationError {
 
 #[derive(Error, Debug)]
 pub enum PostgresConnectorError {
+    #[error("Invalid SslMode: {0}")]
+    InvalidSslError(String),
+
     #[error("Query failed in connector: {0}")]
     InvalidQueryError(#[source] tokio_postgres::Error),
 

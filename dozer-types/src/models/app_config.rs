@@ -52,7 +52,7 @@ pub struct Config {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     #[prost(message, tag = "10")]
-    /// flags to enable/disable features
+    /// flags to enable/Disable features
     pub flags: Option<Flags>,
 
     /// Cache lmdb max map size

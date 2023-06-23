@@ -336,8 +336,8 @@ fn write_dozer_config_for_running_in_docker_compose(
 
         match config {
             ConnectionConfig::Postgres(postgres) => {
-                postgres.host = connection.name.clone();
-                postgres.port = map_port(postgres.port as u16) as u32;
+                postgres.host = Some(connection.name.clone());
+                postgres.port = Some(map_port(postgres.port.unwrap() as u16) as u32);
             }
             ConnectionConfig::Ethereum(_) => (),
             ConnectionConfig::Grpc(_) => (),

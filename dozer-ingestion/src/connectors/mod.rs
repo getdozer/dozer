@@ -231,7 +231,9 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
 
 pub fn get_connector_info_table(connection: &Connection) -> Option<Table> {
     match &connection.config {
-        Some(ConnectionConfig::Postgres(config)) => Some(config.convert_to_table()),
+        Some(ConnectionConfig::Postgres(config)) => {
+            Some(config.replenish().convert_to_table())
+        },
         Some(ConnectionConfig::Ethereum(config)) => Some(config.convert_to_table()),
         Some(ConnectionConfig::Snowflake(config)) => Some(config.convert_to_table()),
         Some(ConnectionConfig::Kafka(config)) => Some(config.convert_to_table()),
