@@ -4,7 +4,8 @@ use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::builder::ExpressionBuilder;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use dozer_types::types::{FieldDefinition, Schema};
-use sqlparser::ast::{Expr, Ident, Select, SelectItem};
+use sqlparser::ast::{Expr, Ident, Select, SelectItem, TableWithJoins};
+use crate::pipeline::pipeline_builder::from_builder::string_from_sql_object_name;
 
 #[derive(Clone, Copy)]
 pub enum PrimaryKeyAction {
@@ -42,11 +43,20 @@ impl CommonPlanner {
         Ok(())
     }
 
-    fn add_select_item(&mut self, item: SelectItem) -> Result<(), PipelineError> {
+    fn add_select_item(&mut self, item: SelectItem, from: Vec<TableWithJoins>) -> Result<(), PipelineError> {
         let expr_items: Vec<(Expr, Option<String>)> = match item {
             SelectItem::UnnamedExpr(expr) => vec![(expr, None)],
             SelectItem::ExprWithAlias { expr, alias } => vec![(expr, Some(alias.value))],
-            SelectItem::QualifiedWildcard(_, _) => panic!("not supported yet"),
+            SelectItem::QualifiedWildcard(alias, _) => {
+                self
+                    .input_schema
+                    .fields
+                    .iter()
+                    .map(|col| (Expr::CompoundIdentifier(
+                        vec![Ident::from(string_from_sql_object_name(&alias).as_str()), Ident::new(col.to_owned().name)]
+                    ), None))
+                    .collect()
+            },
             SelectItem::Wildcard(_) => self
                 .input_schema
                 .fields
@@ -177,8 +187,8 @@ impl CommonPlanner {
     }
 
     pub fn plan(&mut self, select: Select) -> Result<(), PipelineError> {
-        for expr in select.projection {
-            self.add_select_item(expr)?;
+        for expr in select.clone().projection {
+            self.add_select_item(expr, select.clone().from)?;
         }
         if !select.group_by.is_empty() {
             self.add_groupby_items(select.group_by)?;
