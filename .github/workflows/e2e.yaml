@@ -64,7 +64,7 @@ jobs:
       - name: Build dozer-tests
         run: cargo build --bin dozer-tests
 
-      - name: Run dozer-tests
+      - name: Run dozer-tests updated
         run: DOZER_DEV=ci cargo run --bin dozer-tests
         env:
           DOZER_DEV: ci
