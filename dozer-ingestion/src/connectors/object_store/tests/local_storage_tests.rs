@@ -1,4 +1,3 @@
-use tokio::runtime::Runtime;
 use crate::connectors::object_store::connector::ObjectStoreConnector;
 use crate::connectors::Connector;
 use crate::ingestion::{IngestionConfig, Ingestor};
@@ -6,6 +5,7 @@ use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::ingestion_types::IngestionMessageKind;
 use dozer_types::ingestion_types::LocalDetails;
 use dozer_types::node::OpIdentifier;
+use tokio::runtime::Runtime;
 
 use crate::connectors::object_store::helper::map_listing_options;
 use crate::connectors::object_store::tests::test_utils::get_local_storage_config;
@@ -147,13 +147,9 @@ async fn test_csv_read() {
         .await
         .unwrap();
 
-    let rt = Runtime::new().unwrap();
-    rt.block_on(
-        async move {
-            connector.start(&ingestor, tables).await.unwrap();
-        }
-    );
-
+    tokio::spawn(async move {
+        connector.start(&ingestor, tables).await.unwrap();
+    });
 
     let row = iterator.next();
     if let Some(IngestionMessage {
