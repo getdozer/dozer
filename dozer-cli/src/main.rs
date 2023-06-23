@@ -70,6 +70,7 @@ async fn check_update() {
         ("dev", &dozer_dev),
     ];
 
+    println!("Query: {:#?}", query);
     let request_url = "https://metadata.dev.getdozer.io/";
 
     let client = reqwest::Client::new();
@@ -216,6 +217,7 @@ fn init_orchestrator(
 
         match res {
             Ok(dozer) => {
+                println!("nx bbd");
                 dozer.runtime.spawn(check_update());
                 Ok(dozer)
             }
