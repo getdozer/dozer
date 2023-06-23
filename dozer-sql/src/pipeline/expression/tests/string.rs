@@ -4,6 +4,7 @@ use crate::pipeline::expression::scalar::string::{
     TrimType,
 };
 use crate::pipeline::expression::tests::test_common::*;
+use dozer_types::chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition};
 use proptest::prelude::*;
 
@@ -688,4 +689,96 @@ fn test_like_escape() {
         vec![Field::String("J%".to_string())],
     );
     assert_eq!(f, Field::String("J%".to_string()));
+}
+
+#[test]
+fn test_to_char() {
+    let f = run_fct(
+        "SELECT TO_CHAR(ts, '%Y-%m-%d') FROM transactions",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("ts"),
+                    FieldType::Timestamp,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Timestamp(DateTime::from(
+            Utc.timestamp_millis_opt(1672531200).unwrap(),
+        ))],
+    );
+    assert_eq!(f, Field::String("1970-01-20".to_string()));
+
+    let f = run_fct(
+        "SELECT TO_CHAR(ts, '%H:%M') FROM transactions",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("ts"),
+                    FieldType::Timestamp,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Timestamp(DateTime::from(
+            Utc.timestamp_millis_opt(1672531200).unwrap(),
+        ))],
+    );
+    assert_eq!(f, Field::String("08:35".to_string()));
+
+    let f = run_fct(
+        "SELECT TO_CHAR(ts, '%H:%M') FROM transactions",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("ts"),
+                    FieldType::Timestamp,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Null],
+    );
+    assert_eq!(f, Field::Null);
+
+    let f = run_fct(
+        "SELECT TO_CHAR(ts, '%Y-%m-%d') FROM transactions",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("ts"),
+                    FieldType::Date,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Date(NaiveDate::from_ymd_opt(2020, 1, 2).unwrap())],
+    );
+    assert_eq!(f, Field::String("2020-01-02".to_string()));
+
+    let f = run_fct(
+        "SELECT TO_CHAR(ts, '%H:%M') FROM transactions",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("ts"),
+                    FieldType::Date,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Date(NaiveDate::from_ymd_opt(2020, 1, 2).unwrap())],
+    );
+    assert_eq!(f, Field::String("%H:%M".to_string()));
 }
