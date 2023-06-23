@@ -144,7 +144,9 @@ fn add_dozer_service(
             volumes: vec![format!("{current_dir}:{current_dir}")],
             user: None,
             working_dir: Some(current_dir.to_string()),
-            command: Some(format!("dozer --config-path {dozer_config_path}")),
+            command: Some(format!(
+                "DOZER_DEV=ci dozer --config-path {dozer_config_path}"
+            )),
             depends_on,
             healthcheck: None,
         },
