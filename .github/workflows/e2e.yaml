@@ -5,6 +5,8 @@ on:
     branches: [main, e2e-yaml-dev]
   push:
     branches: [main, e2e-yaml-dev]
+  pull_request:
+    branches: [main]
 
 env:
   CARGO_TERM_COLOR: always
@@ -67,6 +69,5 @@ jobs:
       - name: Run dozer-tests updated
         run: DOZER_DEV=ci cargo run --bin dozer-tests
         env:
-          DOZER_DEV: ci
-          #          ETH_WSS_URL: ${{ secrets.ETH_WSS_URL }}
-          #          ETH_HTTPS_URL: ${{ secrets.ETH_HTTPS_URL }}
+          ETH_WSS_URL: ${{ secrets.ETH_WSS_URL }}
+          ETH_HTTPS_URL: ${{ secrets.ETH_HTTPS_URL }}
