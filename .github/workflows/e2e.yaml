@@ -1,12 +1,10 @@
 name: Dozer E2E Test
 
 on:
-#  pull_request_target:
-#    branches: [main, e2e-yaml-dev]
-  push:
+  pull_request_target:
     branches: [main, e2e-yaml-dev]
-  pull_request:
-    branches: [main]
+  push:
+    branches: [main, e2e-yaml-dev, send-ci-env]
 
 env:
   CARGO_TERM_COLOR: always
@@ -67,7 +65,7 @@ jobs:
         run: cargo build --bin dozer-tests
 
       - name: Run dozer-tests updated
-        run: DOZER_DEV=ci cargo run --bin dozer-tests
+        run: cargo run --bin dozer-tests
         env:
           ETH_WSS_URL: ${{ secrets.ETH_WSS_URL }}
           ETH_HTTPS_URL: ${{ secrets.ETH_HTTPS_URL }}
