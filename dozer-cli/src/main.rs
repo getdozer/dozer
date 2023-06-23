@@ -217,7 +217,6 @@ fn init_orchestrator(
 
         match res {
             Ok(dozer) => {
-                println!("nx bbd");
                 dozer.runtime.spawn(check_update());
                 Ok(dozer)
             }
