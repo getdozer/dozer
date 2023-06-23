@@ -1,3 +1,4 @@
+use tokio::runtime::Runtime;
 use crate::connectors::object_store::connector::ObjectStoreConnector;
 use crate::connectors::Connector;
 use crate::ingestion::{IngestionConfig, Ingestor};
@@ -146,9 +147,13 @@ async fn test_csv_read() {
         .await
         .unwrap();
 
-    tokio::spawn(async move {
-        connector.start(&ingestor, tables).await.unwrap();
-    });
+    let rt = Runtime::new().unwrap();
+    rt.block_on(
+        async move {
+            connector.start(&ingestor, tables).await.unwrap();
+        }
+    );
+
 
     let row = iterator.next();
     if let Some(IngestionMessage {

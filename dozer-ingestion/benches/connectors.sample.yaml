@@ -30,8 +30,8 @@
         path: ./taxi-objectstore
       tables:
         - !Table
-          name: trips
-          prefix: data
-          file_type: parquet
-          extension: .parquet
+            name: trips
+            config: !Parquet
+              path: data
+              extension: .parquet
     name: ny_taxi
