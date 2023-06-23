@@ -64,6 +64,10 @@ impl DozerObjectStore for S3Storage {
             .build()
             .map_err(|e| ConnectorError::InitializationError(e.to_string()))?;
 
+        if table.config.is_none() {
+            return Err(ConnectorError::TableNotFound(format!("{} - Table configuration for Parquet and CSV is changed since v0.1.26, please check our documentation at https://getdozer.io/docs/configuration/connectors/#source-table-types-for-connectors", table.name.clone())));
+        }
+
         let folder = if let Some(config) = &table.config {
             match config {
                 dozer_types::ingestion_types::TableConfig::CSV(csv_config) => {
@@ -110,6 +114,10 @@ impl DozerObjectStore for LocalStorage {
 
         let object_store = LocalFileSystem::new_with_prefix(path)
             .map_err(|e| ConnectorError::InitializationError(e.to_string()))?;
+
+        if table.config.is_none() {
+            return Err(ConnectorError::TableNotFound(format!("`{}` - Table configuration for Parquet and CSV is changed since v0.1.26, please check our documentation at https://getdozer.io/docs/configuration/connectors/#source-table-types-for-connectors", table.name.clone())));
+        }
 
         let folder = if let Some(config) = &table.config {
             match config {
