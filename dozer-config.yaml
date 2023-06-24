@@ -1,0 +1,36 @@
+connections:
+  - name: ny_taxi
+    config: !MySQLCDC
+      host: <MySQL_Host>
+      port: <MySQL_Port>
+      database: <MySQL_Database>
+      username: <MySQL_Username>
+      password: <MySQL_Password>
+      server_id: <Server_ID>
+
+sql: |
+  SELECT 
+    PULocationID as pickup_location, 
+    DOLocationID as dropoff_location, 
+    COUNT(PULocationID, DOLocationID) as total_trips, 
+    MIN(trip_time) as min_trip_time,  
+    MAX(trip_time) as max_trip_time 
+  INTO trips_cache
+  FROM trips
+  GROUP BY PULocationID, DOLocationID
+  HAVING COUNT(PULocationID, DOLocationID) > 1000;
+
+sources:
+  - name: trips
+    table_name: trips
+    connection: !Ref ny_taxi
+    columns:
+
+endpoints:
+  - name: trips_cache
+    path: /trips
+    table_name: trips_cache
+    index:
+      primary_key: 
+        - pickup_location
+        - dropoff_location
