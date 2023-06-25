@@ -734,15 +734,14 @@ impl ExpressionBuilder {
             .map(|argument| self.parse_sql_function_arg(false, argument, schema))
             .collect::<Result<Vec<_>, PipelineError>>()?;
 
-        let last_arg = args
-            .last()
-            .ok_or_else(|| InvalidQuery("Can't get python udf return type".to_string()))?;
+        let return_type = {
+            let ident = function
+                .return_type
+                .as_ref()
+                .ok_or_else(|| InvalidQuery("Python UDF must have a return type. The syntax is: function_name<return_type>(arguments)".to_string()))?;
 
-        let return_type = match last_arg {
-            Expression::Literal(Field::String(s)) => {
-                FieldType::try_from(s.as_str()).map_err(|e| InvalidQuery(format!("Failed to parse Python UDF return type: {e}")))?
-            }
-            _ => return Err(InvalidArgument("The last arg for python udf should be a string literal, which represents return type".to_string())),
+            FieldType::try_from(ident.value.as_str())
+                .map_err(|e| InvalidQuery(format!("Failed to parse Python UDF return type: {e}")))?
         };
 
         Ok(Expression::PythonUDF {

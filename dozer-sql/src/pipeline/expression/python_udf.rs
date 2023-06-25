@@ -19,10 +19,9 @@ pub fn evaluate_py_udf(
     record: &Record,
 ) -> Result<Field, PipelineError> {
     let values = args
-        .iter()
-        .take(args.len() - 1)
-        .map(|arg| arg.evaluate(record, schema))
-        .collect::<Result<Vec<_>, PipelineError>>()?;
+    .iter()
+    .map(|arg| arg.evaluate(record, schema))
+    .collect::<Result<Vec<_>, PipelineError>>()?;
 
     // Get the path of the Python interpreter in your virtual environment
     let env_path = env::var("VIRTUAL_ENV").map_err(|_| {
