@@ -601,6 +601,7 @@ impl ExpressionBuilder {
         })
     }
 
+    #[cfg(not(feature = "bigdecimal"))]
     fn parse_sql_number(n: &str) -> Result<Expression, PipelineError> {
         match n.parse::<i64>() {
             Ok(n) => Ok(Expression::Literal(Field::Int(n))),
@@ -608,6 +609,19 @@ impl ExpressionBuilder {
                 Ok(f) => Ok(Expression::Literal(Field::Float(OrderedFloat(f)))),
                 Err(_) => Err(InvalidValue(n.to_string())),
             },
+        }
+    }
+
+    #[cfg(feature = "bigdecimal")]
+    fn parse_sql_number(n: &bigdecimal::BigDecimal) -> Result<Expression, PipelineError> {
+        use bigdecimal::ToPrimitive;
+        if n.is_integer() {
+            Ok(Expression::Literal(Field::Int(n.to_i64().unwrap())))
+        } else {
+            match n.to_f64() {
+                Some(f) => Ok(Expression::Literal(Field::Float(OrderedFloat(f)))),
+                None => Err(InvalidValue(n.to_string())),
+            }
         }
     }
 
