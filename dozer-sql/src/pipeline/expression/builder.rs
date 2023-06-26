@@ -4,8 +4,8 @@ use dozer_types::{
 };
 use sqlparser::ast::{
     BinaryOperator as SqlBinaryOperator, DataType, DateTimeField, Expr as SqlExpr, Expr, Function,
-    FunctionArg, FunctionArgExpr, Ident, TrimWhereField, UnaryOperator as SqlUnaryOperator,
-    Value as SqlValue,
+    FunctionArg, FunctionArgExpr, Ident, Interval, TrimWhereField,
+    UnaryOperator as SqlUnaryOperator, Value as SqlValue,
 };
 
 use crate::pipeline::errors::PipelineError::{
@@ -114,13 +114,13 @@ impl ExpressionBuilder {
             SqlExpr::Extract { field, expr } => {
                 self.parse_sql_extract_operator(parse_aggregations, field, expr, schema)
             }
-            SqlExpr::Interval {
+            SqlExpr::Interval(Interval {
                 value,
                 leading_field,
                 leading_precision: _,
                 last_field: _,
                 fractional_seconds_precision: _,
-            } => {
+            }) => {
                 self.parse_sql_interval_expression(parse_aggregations, value, leading_field, schema)
             }
             SqlExpr::Case {
