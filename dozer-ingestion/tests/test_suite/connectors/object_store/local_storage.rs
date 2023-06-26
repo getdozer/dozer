@@ -91,7 +91,7 @@ fn create_connector(
         }),
         tables: vec![Table {
             config: Some(TableConfig::Parquet(ParquetConfig {
-                path: format!("/{table_name}"),
+                path: table_name.to_string(),
                 extension: ".parquet".to_string(),
             })),
             name: table_name,

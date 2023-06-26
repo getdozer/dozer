@@ -2,7 +2,9 @@ use crate::{
     connectors::TableInfo,
     errors::{ConnectorError, ObjectStoreConnectorError},
 };
+use std::collections::HashMap;
 
+use dozer_types::chrono::{DateTime, Utc};
 use dozer_types::ingestion_types::IngestionMessageKind;
 use tokio::sync::mpsc::Sender;
 use tokio::task::JoinHandle;
@@ -49,7 +51,7 @@ pub trait TableWatcher {
         id: usize,
         table: &TableInfo,
         sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
-    ) -> Result<JoinHandle<()>, ConnectorError>;
+    ) -> Result<JoinHandle<(usize, HashMap<object_store::path::Path, DateTime<Utc>>)>, ConnectorError>;
 
     async fn ingest(
         &self,

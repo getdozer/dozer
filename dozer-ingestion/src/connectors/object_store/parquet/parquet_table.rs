@@ -36,8 +36,7 @@ const _WATCHER_INTERVAL: Duration = Duration::from_secs(1);
 pub struct ParquetTable<T: DozerObjectStore + Send> {
     table_config: ParquetConfig,
     store_config: T,
-    update_state: HashMap<DeltaPath, DateTime<Utc>>,
-    file_state: Vec<FileInfo>,
+    pub update_state: HashMap<DeltaPath, DateTime<Utc>>,
 }
 
 impl<T: DozerObjectStore + Send> ParquetTable<T> {
@@ -46,7 +45,6 @@ impl<T: DozerObjectStore + Send> ParquetTable<T> {
             table_config,
             store_config,
             update_state: HashMap::new(),
-            file_state: vec![],
         }
     }
 
@@ -74,7 +72,6 @@ impl<T: DozerObjectStore + Send> ParquetTable<T> {
 
         // Get the table state after snapshot
         let mut update_state = self.update_state.clone();
-        let mut new_files = self.file_state.clone();
         let extension = self.table_config.extension.clone();
 
         tokio::spawn(async move {
@@ -84,6 +81,8 @@ impl<T: DozerObjectStore + Send> ParquetTable<T> {
                     .list(Some(&DeltaPath::from(source_folder.to_owned())))
                     .await
                     .unwrap();
+
+                let mut new_files = vec![];
 
                 while let Some(item) = stream.next().await {
                     // Check if any objects have been added or modified
@@ -173,7 +172,8 @@ impl<T: DozerObjectStore + Send> TableWatcher for ParquetTable<T> {
         id: usize,
         table: &TableInfo,
         sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
-    ) -> Result<JoinHandle<()>, ConnectorError> {
+    ) -> Result<JoinHandle<(usize, HashMap<object_store::path::Path, DateTime<Utc>>)>, ConnectorError>
+    {
         let params = self.store_config.table_params(&table.name)?;
         let store = Arc::new(params.object_store);
 
@@ -192,7 +192,6 @@ impl<T: DozerObjectStore + Send> TableWatcher for ParquetTable<T> {
 
         // Get the table state after snapshot
         let mut update_state = self.update_state.clone();
-        let mut new_files = self.file_state.clone();
         let extension = self.table_config.extension.clone();
 
         let h = tokio::spawn(async move {
@@ -201,6 +200,8 @@ impl<T: DozerObjectStore + Send> TableWatcher for ParquetTable<T> {
                 .list(Some(&DeltaPath::from(source_folder.to_owned())))
                 .await
                 .unwrap();
+
+            let mut new_files = vec![];
 
             while let Some(item) = stream.next().await {
                 // Check if any objects have been added or modified
@@ -270,6 +271,7 @@ impl<T: DozerObjectStore + Send> TableWatcher for ParquetTable<T> {
                     sender.send(Err(e)).await.unwrap();
                 }
             }
+            (id, update_state)
         });
 
         Ok(h)

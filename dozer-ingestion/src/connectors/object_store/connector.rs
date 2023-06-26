@@ -1,5 +1,6 @@
 use dozer_types::ingestion_types::{IngestionMessage, IngestionMessageKind};
 use futures::future::join_all;
+use std::collections::HashMap;
 use tokio::sync::mpsc::channel;
 use tonic::async_trait;
 
@@ -155,6 +156,7 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
             .unwrap();
 
         let mut handles = vec![];
+        // let mut csv_tables: HashMap<usize, HashMap<Path, DateTime<Utc>>> = vec![];
 
         for (id, table_info) in tables.iter().enumerate() {
             for table_config in self.config.tables() {
@@ -185,7 +187,13 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
             }
         }
 
-        join_all(handles).await;
+        let updated_state = join_all(handles).await;
+        let mut state_hash = HashMap::new();
+        for res in updated_state {
+            if let Ok((id, state)) = res {
+                state_hash.insert(id, state);
+            }
+        }
 
         sender
             .send(Ok(Some(IngestionMessageKind::SnapshottingDone)))
@@ -198,7 +206,8 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                     if let Some(config) = &table_config.config {
                         match config {
                             dozer_types::ingestion_types::TableConfig::CSV(config) => {
-                                let table = CsvTable::new(config.clone(), self.config.clone());
+                                let mut table = CsvTable::new(config.clone(), self.config.clone());
+                                table.update_state = state_hash.get(&id).unwrap().clone();
                                 table.watch(id, table_info, sender.clone()).await.unwrap();
                             }
                             dozer_types::ingestion_types::TableConfig::Delta(config) => {
@@ -207,7 +216,9 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                                 table.watch(id, table_info, sender.clone()).await?;
                             }
                             dozer_types::ingestion_types::TableConfig::Parquet(config) => {
-                                let table = ParquetTable::new(config.clone(), self.config.clone());
+                                let mut table =
+                                    ParquetTable::new(config.clone(), self.config.clone());
+                                table.update_state = state_hash.get(&id).unwrap().clone();
                                 table.watch(id, table_info, sender.clone()).await?;
                             }
                         }

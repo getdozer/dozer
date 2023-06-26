@@ -1,6 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use deltalake::{datafusion::prelude::SessionContext, s3_storage_options};
+use dozer_types::chrono::{DateTime, Utc};
 use dozer_types::ingestion_types::IngestionMessageKind;
 use dozer_types::{
     arrow_types::from_arrow::{map_schema_to_dozer, map_value_to_dozer_field},
@@ -124,10 +125,11 @@ impl<T: DozerObjectStore + Send> TableWatcher for DeltaTable<T> {
 
     async fn snapshot(
         &self,
-        _id: usize,
+        id: usize,
         table: &TableInfo,
         sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
-    ) -> Result<JoinHandle<()>, ConnectorError> {
+    ) -> Result<JoinHandle<(usize, HashMap<object_store::path::Path, DateTime<Utc>>)>, ConnectorError>
+    {
         let params = self.store_config.table_params(&table.name)?;
 
         let ctx = SessionContext::new();
@@ -229,6 +231,7 @@ impl<T: DozerObjectStore + Send> TableWatcher for DeltaTable<T> {
                     //     .map_err(ConnectorError::IngestorError)?;
                 }
             }
+            (id, HashMap::new())
         });
 
         // self.ingestor

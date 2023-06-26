@@ -74,7 +74,7 @@ pub async fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>() {
     }
 
     // There should be at least one message.
-    // assert!(num_operations > 0);
+    assert!(num_operations > 0);
 }
 
 pub async fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
