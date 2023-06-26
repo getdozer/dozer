@@ -212,6 +212,9 @@ pub enum PostgresConnectorError {
 
     #[error("Failed to send message on snapshot read channel")]
     SnapshotReadError,
+
+    #[error("Failed to load native certs: {0}")]
+    LoadNativeCerts(#[source] std::io::Error),
 }
 
 #[derive(Error, Debug)]
