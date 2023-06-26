@@ -39,6 +39,7 @@ pub struct CsvTable<T: DozerObjectStore + Send> {
     table_config: CsvConfig,
     store_config: T,
     update_state: HashMap<DeltaPath, DateTime<Utc>>,
+    file_state: Vec<FileInfo>,
 }
 
 impl<T: DozerObjectStore + Send> CsvTable<T> {
@@ -47,6 +48,7 @@ impl<T: DozerObjectStore + Send> CsvTable<T> {
             table_config,
             store_config,
             update_state: HashMap::new(),
+            file_state: vec![],
         }
     }
 
@@ -74,7 +76,7 @@ impl<T: DozerObjectStore + Send> CsvTable<T> {
 
         // Get the table state after snapshot
         let mut update_state = self.update_state.clone();
-
+        let mut new_files = self.file_state.clone();
         let extension = self.table_config.extension.clone();
 
         tokio::spawn(async move {
@@ -84,9 +86,6 @@ impl<T: DozerObjectStore + Send> CsvTable<T> {
                     .list(Some(&DeltaPath::from(source_folder.to_owned())))
                     .await
                     .unwrap();
-
-                // Contains added files as FileInfo
-                let mut new_files = vec![];
 
                 while let Some(item) = stream.next().await {
                     // Check if any objects have been added or modified
@@ -134,7 +133,7 @@ impl<T: DozerObjectStore + Send> CsvTable<T> {
                 }
 
                 new_files.sort();
-                for file in new_files {
+                for file in &new_files {
                     let file_path = ListingTableUrl::parse(&file.name)
                         .map_err(|e| {
                             ObjectStoreConnectorError::DataFusionStorageObjectError(
@@ -195,7 +194,7 @@ impl<T: DozerObjectStore + Send> TableWatcher for CsvTable<T> {
 
         // Get the table state after snapshot
         let mut update_state = self.update_state.clone();
-
+        let mut new_files = self.file_state.clone();
         let extension = self.table_config.extension.clone();
 
         let h = tokio::spawn(async move {
@@ -204,9 +203,6 @@ impl<T: DozerObjectStore + Send> TableWatcher for CsvTable<T> {
                 .list(Some(&DeltaPath::from(source_folder.to_owned())))
                 .await
                 .unwrap();
-
-            // Contains added files as FileInfo
-            let mut new_files = vec![];
 
             while let Some(item) = stream.next().await {
                 // Check if any objects have been added or modified
@@ -254,7 +250,7 @@ impl<T: DozerObjectStore + Send> TableWatcher for CsvTable<T> {
             }
 
             new_files.sort();
-            for file in new_files {
+            for file in &new_files {
                 let file_path = ListingTableUrl::parse(&file.name)
                     .map_err(|e| {
                         ObjectStoreConnectorError::DataFusionStorageObjectError(
