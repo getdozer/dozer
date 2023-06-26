@@ -265,6 +265,12 @@ pub enum PostgresSchemaError {
 
     #[error("Type error: {0}")]
     TypeError(#[from] TypeError),
+
+    #[error("Failed to read string from utf8. Error: {0}")]
+    StringReadError(#[from] FromUtf8Error),
+
+    #[error("Failed to read date. Error: {0}")]
+    DateReadError(#[from] dozer_types::chrono::ParseError),
 }
 
 #[cfg(feature = "snowflake")]
