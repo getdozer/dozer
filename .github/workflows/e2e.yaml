@@ -2,9 +2,9 @@ name: Dozer E2E Test
 
 on:
   pull_request_target:
-    branches: [main, e2e-yaml-dev]
-  push:
-    branches: [main, e2e-yaml-dev]
+    branches: [main]
+  workflow_dispatch:
+  merge_group:
 
 env:
   CARGO_TERM_COLOR: always
