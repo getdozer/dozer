@@ -87,10 +87,9 @@ impl PostgresConfig {
 fn get_ssl_mode(mode: Option<String>) -> SslMode {
     match mode {
         Some(m) => match m.as_str() {
+            "disable" | "Disable" | "" => SslMode::Disable,
             "prefer" | "Prefer" => SslMode::Prefer,
             "require" | "Require" => SslMode::Require,
-            "verify-ca" | "VerifyCa" | "verify_ca" | "verifyCa" => SslMode::VerifyCa,
-            "verify-full" | "VerifyFull" | "verify_full" | "verifyFull" => SslMode::VerifyFull,
             &_ => SslMode::Disable,
         },
         None => SslMode::Disable,
