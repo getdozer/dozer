@@ -40,7 +40,7 @@ fn standard_with_ssl_mode() {
     host: localhost
     port: 5432
     database: users
-    sslmode: verify-full
+    sslmode: require
   "#;
     let deserializer_result = serde_yaml::from_str::<ConnectionConfig>(postgres_config).unwrap();
     let postgres_auth = PostgresConfig {
@@ -49,7 +49,7 @@ fn standard_with_ssl_mode() {
         host: Some("localhost".to_string()),
         port: Some(5432),
         database: Some("users".to_string()),
-        sslmode: Some("verify-full".to_string()),
+        sslmode: Some("require".to_string()),
         connection_url: None,
     };
     let expected = ConnectionConfig::Postgres(postgres_auth);
