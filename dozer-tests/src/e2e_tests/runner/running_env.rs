@@ -1,4 +1,4 @@
-use dozer_api::actix_web::web::post;
+
 use std::{
     collections::HashMap,
     env::{self, current_dir},
@@ -341,7 +341,7 @@ fn write_dozer_config_for_running_in_docker_compose(
             ConnectionConfig::Postgres(postgres) => {
                 let config = postgres.replenish();
                 postgres.host = Some(connection.name.clone());
-                postgres.port = Some(map_port(config.port.unwrap() as u16) as u32);
+                postgres.port = Some(map_port(config.port as u16) as u32);
             }
             ConnectionConfig::Ethereum(_) => (),
             ConnectionConfig::Grpc(_) => (),
