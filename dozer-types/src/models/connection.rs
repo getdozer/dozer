@@ -71,13 +71,13 @@ impl PostgresConfig {
                 ssl_mode: get_ssl_mode(self.sslmode.clone()),
             }
         } else {
-            let map = connection_url_map(self.connection_url.as_ref().unwrap());
+            let map = connection_url_map(self.connection_url.as_ref().unwrap(), self);
             PostgresConfigReplenished {
-                user: map.get("user").unwrap().to_string(),
-                password: map.get("password").unwrap().to_string(),
-                host: map.get("host").unwrap().to_string(),
-                port: u32::from_str(map.get("port").unwrap()).unwrap(),
-                database: map.get("database").unwrap().to_string(),
+                user: map.get("user").expect("user is missing from connection url").to_string(),
+                password: map.get("password").expect("password is missing from connection url").to_string(),
+                host: map.get("host").expect("host is missing from connection url").to_string(),
+                port: u32::from_str(map.get("port").expect("port is missing from connection url")).unwrap(),
+                database: map.get("database").expect("database is missing from connection url").to_string(),
                 ssl_mode: get_ssl_mode(map.get("sslmode").cloned()),
             }
         }
@@ -96,8 +96,8 @@ fn get_ssl_mode(mode: Option<String>) -> SslMode {
     }
 }
 
-pub fn connection_url_map(url: &str) -> HashMap<String, String> {
-    let re = Regex::new(r"((?P<protocol>[^:/\s]+)?(:/{2}){0,1})?(?P<user>[^:\s]+)?:{1}(?P<password>[^@\s]+)?@{1}(?P<host>[^:\s]+)?:{1}(?P<port>[^/\s]+)?(?P<db>/{1}(?P<database>[^?/\s]+)?)+\?{0,1}(?P<arg>[^\s]+)?").unwrap();
+pub fn connection_url_map(url: &str, config: &PostgresConfig) -> HashMap<String, String> {
+    let re = Regex::new(r"(?P<protocol>[^/\s]+)?(:/{2})((?P<user>[^:\s]+)?:{1}(?P<password>[^@\s]+)?@{1}){0,1}(?P<host>[^:\s]+)?:{1}(?P<port>[^/\s]+)?(?P<db>/{1}(?P<database>[^?/\s]+)?)+\?{0,1}(?P<arg>[^\s]+)?").unwrap();
     let matches = re.captures(url);
     let mut entities = HashMap::new();
     if let Some(cap) = matches {
@@ -105,26 +105,61 @@ pub fn connection_url_map(url: &str) -> HashMap<String, String> {
             String::from("protocol"),
             cap.name("protocol").unwrap().as_str().to_string(),
         );
-        entities.insert(
-            String::from("user"),
-            cap.name("user").unwrap().as_str().to_string(),
-        );
-        entities.insert(
-            String::from("password"),
-            cap.name("password").unwrap().as_str().to_string(),
-        );
-        entities.insert(
-            String::from("host"),
-            cap.name("host").unwrap().as_str().to_string(),
-        );
-        entities.insert(
-            String::from("port"),
-            cap.name("port").unwrap().as_str().to_string(),
-        );
-        entities.insert(
-            String::from("database"),
-            cap.name("database").unwrap().as_str().to_string(),
-        );
+        if cap.name("user").is_none() && config.user.is_some() {
+            entities.insert(
+                String::from("user"),
+                config.user.clone().unwrap().as_str().to_string(),
+            );
+        } else if cap.name("user").is_some() && config.user.is_none() {
+            entities.insert(
+                String::from("user"),
+                cap.name("user").unwrap().as_str().to_string(),
+            );
+        }
+        if cap.name("password").is_none() && config.password.is_some() {
+            entities.insert(
+                String::from("password"),
+                config.password.clone().unwrap().as_str().to_string(),
+            );
+        } else if cap.name("password").is_some() && config.password.is_none(){
+            entities.insert(
+                String::from("password"),
+                cap.name("password").unwrap().as_str().to_string(),
+            );
+        }
+        if cap.name("host").is_none() && config.host.is_some() {
+            entities.insert(
+                String::from("host"),
+                config.host.clone().unwrap().as_str().to_string(),
+            );
+        } else if cap.name("host").is_some() && config.host.is_none(){
+            entities.insert(
+                String::from("host"),
+                cap.name("host").unwrap().as_str().to_string(),
+            );
+        }
+        if cap.name("port").is_none() && config.port.is_some() {
+            entities.insert(
+                String::from("port"),
+                config.port.unwrap().to_string(),
+            );
+        } else if cap.name("port").is_some() && config.port.is_none() {
+            entities.insert(
+                String::from("port"),
+                cap.name("port").unwrap().as_str().to_string(),
+            );
+        }
+        if cap.name("database").is_none() && config.database.is_some() {
+            entities.insert(
+                String::from("database"),
+                config.database.clone().unwrap().as_str().to_string(),
+            );
+        } else if cap.name("database").is_some() && config.database.is_none(){
+            entities.insert(
+                String::from("database"),
+                cap.name("database").unwrap().as_str().to_string(),
+            );
+        }
 
         if let Some(arg) = cap.name("arg") {
             let sp = arg.as_str().split(',');
