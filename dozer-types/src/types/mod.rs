@@ -49,6 +49,14 @@ impl FieldDefinition {
             source,
         }
     }
+
+    pub fn check_from(&self, table_name: String) -> bool {
+        match &self.source {
+            SourceDefinition::Table { name, .. } => *name == table_name,
+            SourceDefinition::Alias { name } => *name == table_name,
+            SourceDefinition::Dynamic => false,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq, Hash)]
