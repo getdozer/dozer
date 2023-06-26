@@ -9,7 +9,9 @@ use dozer_types::{
 };
 use futures::StreamExt;
 use tokio::sync::mpsc::Sender;
+use tokio::task::JoinHandle;
 use tonic::async_trait;
+use dozer_types::ingestion_types::IngestionMessageKind;
 
 use crate::{
     connectors::{
@@ -124,8 +126,8 @@ impl<T: DozerObjectStore + Send> TableWatcher for DeltaTable<T> {
         &self,
         _id: usize,
         table: &TableInfo,
-        sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
-    ) -> Result<(), ConnectorError> {
+        sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
+    ) -> Result<JoinHandle<()>, ConnectorError> {
         let params = self.store_config.table_params(&table.name)?;
 
         let ctx = SessionContext::new();
@@ -154,7 +156,7 @@ impl<T: DozerObjectStore + Send> TableWatcher for DeltaTable<T> {
         };
 
         let identifier = self.id as u32;
-        tokio::spawn(async move {
+        let h = tokio::spawn(async move {
             let data = ctx
                 .read_table(Arc::new(delta_table))
                 .unwrap()
@@ -202,7 +204,7 @@ impl<T: DozerObjectStore + Send> TableWatcher for DeltaTable<T> {
                         },
                     };
 
-                    if let Err(e) = sender.send(Ok(Some(evt))).await {
+                    if let Err(e) = sender.send(Ok(Some(IngestionMessageKind::OperationEvent(evt)))).await {
                         error!("Failed to send ingestion message: {}", e);
                     }
 
@@ -230,14 +232,14 @@ impl<T: DozerObjectStore + Send> TableWatcher for DeltaTable<T> {
         //     .handle_message(IngestionMessage::new_snapshotting_done(0, seq_no))
         //     .map_err(ConnectorError::IngestorError)?;
 
-        Ok(())
+        Ok(h)
     }
 
     async fn ingest(
         &self,
         _id: usize,
         _table: &TableInfo,
-        _sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
+        _sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
     ) -> Result<(), ConnectorError> {
         Ok(())
     }

@@ -1,4 +1,5 @@
-use dozer_types::ingestion_types::IngestionMessage;
+use futures::future::join_all;
+use dozer_types::ingestion_types::{IngestionMessage, IngestionMessageKind};
 use tokio::sync::mpsc::channel;
 use tonic::async_trait;
 
@@ -98,11 +99,48 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
     }
 
     async fn start(&self, ingestor: &Ingestor, tables: Vec<TableInfo>) -> ConnectorResult<()> {
-        let (sender, mut receiver) = channel(16);
+        let (sender, mut receiver) = channel::<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>(100); // todo: increase buffer size
 
-        ingestor
-            .handle_message(IngestionMessage::new_snapshotting_started(0_u64, 0))
-            .map_err(ObjectStoreConnectorError::IngestorError)?;
+        // Ingestor loop - generating operation message out
+        tokio::spawn(async move {
+            let mut seq_no = 0;
+            loop {
+                let message = receiver
+                    .recv()
+                    .await
+                    .ok_or(ConnectorError::ObjectStoreConnectorError(RecvError)).unwrap().unwrap();
+                match message {
+                    None => {
+                        break;
+                    }
+                    Some(evt) => {
+                        match evt {
+                            IngestionMessageKind::SnapshottingStarted => {
+                                ingestor
+                                    .handle_message(IngestionMessage::new_snapshotting_started(0, seq_no))
+                                    .map_err(ConnectorError::IngestorError).unwrap();
+                            },
+                            IngestionMessageKind::SnapshottingDone => {
+                                ingestor
+                                    .handle_message(IngestionMessage::new_snapshotting_done(0, seq_no))
+                                    .map_err(ConnectorError::IngestorError).unwrap();
+                            },
+                            IngestionMessageKind::OperationEvent(op) => {
+                                ingestor
+                                    .handle_message(IngestionMessage::new_op(0, seq_no, op))
+                                    .map_err(ConnectorError::IngestorError).unwrap();
+                            }
+                        }
+                        seq_no += 1;
+                    }
+                }
+            }
+        });
+
+        // sender sending out message for pipeline
+        sender.send(Ok(Some(IngestionMessageKind::SnapshottingStarted)));
+
+        let mut handles = vec![];
 
         for (id, table_info) in tables.iter().enumerate() {
             for table_config in self.config.tables() {
@@ -111,10 +149,10 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                         match config {
                             dozer_types::ingestion_types::TableConfig::CSV(config) => {
                                 let table = CsvTable::new(config.clone(), self.config.clone());
-                                table
+                                handles.push(table
                                     .snapshot(id, table_info, sender.clone())
                                     .await
-                                    .unwrap();
+                                    .unwrap());
                             }
                             dozer_types::ingestion_types::TableConfig::Delta(config) => {
                                 let table =
@@ -131,9 +169,9 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
             }
         }
 
-        ingestor
-            .handle_message(IngestionMessage::new_snapshotting_done(0_u64, 1))
-            .map_err(ObjectStoreConnectorError::IngestorError)?;
+        join_all(handles).await;
+
+        sender.send(Ok(Some(IngestionMessageKind::SnapshottingDone)));
 
         for (id, table_info) in tables.iter().enumerate() {
             for table_config in self.config.tables() {
@@ -159,24 +197,6 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
             }
         }
 
-        let mut seq_no = 2;
-        loop {
-            let message = receiver
-                .recv()
-                .await
-                .ok_or(ConnectorError::ObjectStoreConnectorError(RecvError))??;
-            match message {
-                None => {
-                    break;
-                }
-                Some(evt) => {
-                    ingestor
-                        .handle_message(IngestionMessage::new_op(0, seq_no, evt))
-                        .map_err(ConnectorError::IngestorError)?;
-                    seq_no += 1;
-                }
-            }
-        }
         Ok(())
     }
 }

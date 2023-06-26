@@ -14,13 +14,14 @@ use dozer_types::{
     chrono::{DateTime, Utc},
     ingestion_types::ParquetConfig,
     tracing::info,
-    types::Operation,
 };
 use futures::StreamExt;
 use object_store::ObjectStore;
 use std::{collections::HashMap, path::Path, sync::Arc, time::Duration};
 use tokio::sync::mpsc::Sender;
+use tokio::task::JoinHandle;
 use tonic::async_trait;
+use dozer_types::ingestion_types::IngestionMessageKind;
 
 use crate::{
     connectors::{
@@ -51,7 +52,7 @@ impl<T: DozerObjectStore + Send> ParquetTable<T> {
         &self,
         id: u32,
         table: &TableInfo,
-        sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
+        sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
     ) -> Result<(), ConnectorError> {
         let params = self.store_config.table_params(&table.name)?;
         let store = Arc::new(params.object_store);
@@ -172,8 +173,8 @@ impl<T: DozerObjectStore + Send> TableWatcher for ParquetTable<T> {
         &self,
         id: usize,
         table: &TableInfo,
-        sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
-    ) -> Result<(), ConnectorError> {
+        sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
+    ) -> Result<JoinHandle<()>, ConnectorError> {
         let params = self.store_config.table_params(&table.name)?;
         let store = Arc::new(params.object_store);
 
@@ -195,7 +196,7 @@ impl<T: DozerObjectStore + Send> TableWatcher for ParquetTable<T> {
 
         let extension = self.table_config.extension.clone();
 
-        tokio::spawn(async move {
+        let h = tokio::spawn(async move {
             // List objects in the S3 bucket with the specified prefix
             let mut stream = store
                 .list(Some(&DeltaPath::from(source_folder.to_owned())))
@@ -275,14 +276,14 @@ impl<T: DozerObjectStore + Send> TableWatcher for ParquetTable<T> {
             }
         });
 
-        Ok(())
+        Ok(h)
     }
 
     async fn ingest(
         &self,
         id: usize,
         table: &TableInfo,
-        sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
+        sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
     ) -> Result<(), ConnectorError> {
         self.read(id as u32, table, sender).await?;
         Ok(())
