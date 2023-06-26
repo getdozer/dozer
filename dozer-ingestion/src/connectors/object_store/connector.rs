@@ -1,5 +1,5 @@
-use futures::future::join_all;
 use dozer_types::ingestion_types::{IngestionMessage, IngestionMessageKind};
+use futures::future::join_all;
 use tokio::sync::mpsc::channel;
 use tonic::async_trait;
 
@@ -99,7 +99,9 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
     }
 
     async fn start(&self, ingestor: &Ingestor, tables: Vec<TableInfo>) -> ConnectorResult<()> {
-        let (sender, mut receiver) = channel::<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>(100); // todo: increase buffer size
+        let (sender, mut receiver) =
+            channel::<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>(100); // todo: increase buffer size
+        let ingestor_clone = ingestor.clone();
 
         // Ingestor loop - generating operation message out
         tokio::spawn(async move {
@@ -108,7 +110,9 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                 let message = receiver
                     .recv()
                     .await
-                    .ok_or(ConnectorError::ObjectStoreConnectorError(RecvError)).unwrap().unwrap();
+                    .ok_or(ConnectorError::ObjectStoreConnectorError(RecvError))
+                    .unwrap()
+                    .unwrap();
                 match message {
                     None => {
                         break;
@@ -116,19 +120,26 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                     Some(evt) => {
                         match evt {
                             IngestionMessageKind::SnapshottingStarted => {
-                                ingestor
-                                    .handle_message(IngestionMessage::new_snapshotting_started(0, seq_no))
-                                    .map_err(ConnectorError::IngestorError).unwrap();
-                            },
+                                ingestor_clone
+                                    .handle_message(IngestionMessage::new_snapshotting_started(
+                                        0, seq_no,
+                                    ))
+                                    .map_err(ConnectorError::IngestorError)
+                                    .unwrap();
+                            }
                             IngestionMessageKind::SnapshottingDone => {
-                                ingestor
-                                    .handle_message(IngestionMessage::new_snapshotting_done(0, seq_no))
-                                    .map_err(ConnectorError::IngestorError).unwrap();
-                            },
+                                ingestor_clone
+                                    .handle_message(IngestionMessage::new_snapshotting_done(
+                                        0, seq_no,
+                                    ))
+                                    .map_err(ConnectorError::IngestorError)
+                                    .unwrap();
+                            }
                             IngestionMessageKind::OperationEvent(op) => {
-                                ingestor
+                                ingestor_clone
                                     .handle_message(IngestionMessage::new_op(0, seq_no, op))
-                                    .map_err(ConnectorError::IngestorError).unwrap();
+                                    .map_err(ConnectorError::IngestorError)
+                                    .unwrap();
                             }
                         }
                         seq_no += 1;
@@ -138,7 +149,10 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
         });
 
         // sender sending out message for pipeline
-        sender.send(Ok(Some(IngestionMessageKind::SnapshottingStarted)));
+        sender
+            .send(Ok(Some(IngestionMessageKind::SnapshottingStarted)))
+            .await
+            .unwrap();
 
         let mut handles = vec![];
 
@@ -149,19 +163,21 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                         match config {
                             dozer_types::ingestion_types::TableConfig::CSV(config) => {
                                 let table = CsvTable::new(config.clone(), self.config.clone());
-                                handles.push(table
-                                    .snapshot(id, table_info, sender.clone())
-                                    .await
-                                    .unwrap());
+                                handles.push(
+                                    table
+                                        .snapshot(id, table_info, sender.clone())
+                                        .await
+                                        .unwrap(),
+                                );
                             }
                             dozer_types::ingestion_types::TableConfig::Delta(config) => {
                                 let table =
                                     DeltaTable::new(id, config.clone(), self.config.clone());
-                                table.snapshot(id, table_info, sender.clone()).await?;
+                                handles.push(table.snapshot(id, table_info, sender.clone()).await?);
                             }
                             dozer_types::ingestion_types::TableConfig::Parquet(config) => {
                                 let table = ParquetTable::new(config.clone(), self.config.clone());
-                                table.snapshot(id, table_info, sender.clone()).await?;
+                                handles.push(table.snapshot(id, table_info, sender.clone()).await?);
                             }
                         }
                     }
@@ -171,7 +187,10 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
 
         join_all(handles).await;
 
-        sender.send(Ok(Some(IngestionMessageKind::SnapshottingDone)));
+        sender
+            .send(Ok(Some(IngestionMessageKind::SnapshottingDone)))
+            .await
+            .unwrap();
 
         for (id, table_info) in tables.iter().enumerate() {
             for table_config in self.config.tables() {

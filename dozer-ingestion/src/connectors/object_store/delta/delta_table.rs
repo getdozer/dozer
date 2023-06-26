@@ -1,6 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use deltalake::{datafusion::prelude::SessionContext, s3_storage_options};
+use dozer_types::ingestion_types::IngestionMessageKind;
 use dozer_types::{
     arrow_types::from_arrow::{map_schema_to_dozer, map_value_to_dozer_field},
     ingestion_types::DeltaConfig,
@@ -11,7 +12,6 @@ use futures::StreamExt;
 use tokio::sync::mpsc::Sender;
 use tokio::task::JoinHandle;
 use tonic::async_trait;
-use dozer_types::ingestion_types::IngestionMessageKind;
 
 use crate::{
     connectors::{
@@ -204,7 +204,10 @@ impl<T: DozerObjectStore + Send> TableWatcher for DeltaTable<T> {
                         },
                     };
 
-                    if let Err(e) = sender.send(Ok(Some(IngestionMessageKind::OperationEvent(evt)))).await {
+                    if let Err(e) = sender
+                        .send(Ok(Some(IngestionMessageKind::OperationEvent(evt))))
+                        .await
+                    {
                         error!("Failed to send ingestion message: {}", e);
                     }
 

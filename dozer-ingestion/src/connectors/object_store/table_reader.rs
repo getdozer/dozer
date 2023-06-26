@@ -104,7 +104,10 @@ impl<T: Clone + Send + Sync> TableReader<T> {
                     },
                 };
 
-                sender.send(Ok(Some(IngestionMessageKind::OperationEvent(evt)))).await.unwrap();
+                sender
+                    .send(Ok(Some(IngestionMessageKind::OperationEvent(evt))))
+                    .await
+                    .unwrap();
             }
         }
 

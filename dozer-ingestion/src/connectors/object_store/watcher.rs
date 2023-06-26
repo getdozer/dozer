@@ -15,8 +15,8 @@ use crate::{
     errors::{ConnectorError, ObjectStoreConnectorError, ObjectStoreObjectError},
 };
 
-use std::path::Path;
 use dozer_types::ingestion_types::IngestionMessageKind;
+use std::path::Path;
 
 use super::{adapters::DozerObjectStore, table_reader::TableReader};
 

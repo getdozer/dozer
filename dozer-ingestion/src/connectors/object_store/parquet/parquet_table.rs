@@ -10,6 +10,7 @@ use deltalake::{
     Path as DeltaPath,
 };
 
+use dozer_types::ingestion_types::IngestionMessageKind;
 use dozer_types::{
     chrono::{DateTime, Utc},
     ingestion_types::ParquetConfig,
@@ -21,7 +22,6 @@ use std::{collections::HashMap, path::Path, sync::Arc, time::Duration};
 use tokio::sync::mpsc::Sender;
 use tokio::task::JoinHandle;
 use tonic::async_trait;
-use dozer_types::ingestion_types::IngestionMessageKind;
 
 use crate::{
     connectors::{

@@ -25,8 +25,8 @@ use deltalake::{
     datafusion::{datasource::listing::ListingTableUrl, prelude::SessionContext},
     Path as DeltaPath,
 };
-use tokio::task::JoinHandle;
 use dozer_types::ingestion_types::IngestionMessageKind;
+use tokio::task::JoinHandle;
 
 use crate::{
     connectors::{self, object_store::helper::map_listing_options},

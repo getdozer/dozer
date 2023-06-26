@@ -3,10 +3,10 @@ use crate::{
     errors::{ConnectorError, ObjectStoreConnectorError},
 };
 
+use dozer_types::ingestion_types::IngestionMessageKind;
 use tokio::sync::mpsc::Sender;
 use tokio::task::JoinHandle;
 use tonic::async_trait;
-use dozer_types::ingestion_types::IngestionMessageKind;
 
 #[derive(Debug, Eq, Clone)]
 pub struct FileInfo {
