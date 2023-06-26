@@ -189,10 +189,8 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
 
         let updated_state = join_all(handles).await;
         let mut state_hash = HashMap::new();
-        for res in updated_state {
-            if let Ok((id, state)) = res {
-                state_hash.insert(id, state);
-            }
+        for (id, state) in updated_state.into_iter().flatten() {
+            state_hash.insert(id, state);
         }
 
         sender
