@@ -137,3 +137,32 @@ fn error_missing_field_connection_ref_in_source() {
         .to_string()
         .starts_with("sources[0]: missing connection ref"));
 }
+
+#[test]
+fn error_missing_field_inner() {
+    let input_config = r#"
+    app_name: working_app
+    home_dir: './.dozer'
+    connections:
+    - config: !Postgres
+        user: postgres
+        host: localhost
+        port: 5432
+        database: users
+      name: users
+    sources:
+    - name: users
+      table_name: users
+      columns:
+      - id
+      - email
+      - phone
+  "#;
+    let deserialize_result = serde_yaml::from_str::<Config>(input_config);
+    let error = deserialize_result.err();
+    assert!(error.is_some());
+    assert!(error
+        .unwrap()
+        .to_string()
+        .starts_with("sources[0]: missing connection ref"));
+}

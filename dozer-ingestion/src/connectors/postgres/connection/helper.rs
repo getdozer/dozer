@@ -101,6 +101,6 @@ pub async fn connect(config: tokio_postgres::Config) -> Result<Client, PostgresC
             });
             Ok(client)
         }
-        ssl_mode => Err(InvalidSslError(format!("{:?}", ssl_mode))),
+        ssl_mode => Err(InvalidSslError(ssl_mode)),
     }
 }

@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::str::FromStr;
 
+use crate::errors::types::DeserializationError;
+use crate::errors::types::DeserializationError::UnknownSslMode;
 use prettytable::Table;
 use regex::Regex;
 use tokio_postgres::config::SslMode;
@@ -63,12 +65,25 @@ impl PostgresConfig {
     pub fn replenish(&self) -> PostgresConfigReplenished {
         if self.connection_url.is_none() {
             PostgresConfigReplenished {
-                user: self.user.clone().unwrap(),
-                password: self.password.clone().unwrap(),
-                host: self.host.clone().unwrap(),
-                port: self.port.unwrap(),
-                database: self.database.clone().unwrap(),
-                ssl_mode: get_ssl_mode(self.sslmode.clone()),
+                user: self
+                    .user
+                    .clone()
+                    .expect("user is missing from connection url"),
+                password: self
+                    .password
+                    .clone()
+                    .expect("user is missing from connection url"),
+                host: self
+                    .host
+                    .clone()
+                    .expect("host is missing from connection url"),
+                port: self.port.expect("port is missing from connection url"),
+                database: self
+                    .database
+                    .clone()
+                    .expect("database is missing from connection url"),
+                ssl_mode: get_ssl_mode(self.sslmode.clone())
+                    .expect("unknown sslmode from connection url"),
             }
         } else {
             let map = connection_url_map(self.connection_url.as_ref().unwrap(), self);
@@ -94,21 +109,22 @@ impl PostgresConfig {
                     .get("database")
                     .expect("database is missing from connection url")
                     .to_string(),
-                ssl_mode: get_ssl_mode(map.get("sslmode").cloned()),
+                ssl_mode: get_ssl_mode(map.get("sslmode").cloned())
+                    .expect("unknown sslmode from connection url"),
             }
         }
     }
 }
 
-fn get_ssl_mode(mode: Option<String>) -> SslMode {
+fn get_ssl_mode(mode: Option<String>) -> Result<SslMode, DeserializationError> {
     match mode {
         Some(m) => match m.as_str() {
-            "disable" | "Disable" | "" => SslMode::Disable,
-            "prefer" | "Prefer" => SslMode::Prefer,
-            "require" | "Require" => SslMode::Require,
-            &_ => SslMode::Disable,
+            "disable" | "Disable" | "" => Ok(SslMode::Disable),
+            "prefer" | "Prefer" => Ok(SslMode::Prefer),
+            "require" | "Require" => Ok(SslMode::Require),
+            &_ => Err(UnknownSslMode(m)),
         },
-        None => SslMode::Disable,
+        None => Ok(SslMode::Disable),
     }
 }
 

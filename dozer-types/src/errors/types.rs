@@ -59,4 +59,6 @@ pub enum DeserializationError {
     Utf8(#[from] std::str::Utf8Error),
     #[error("Failed to convert type due to json numbers being out of the f64 range")]
     F64TypeConversionError,
+    #[error("Unknown SSL mode: {0}")]
+    UnknownSslMode(String),
 }
