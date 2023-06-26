@@ -212,6 +212,9 @@ pub enum PostgresConnectorError {
 
     #[error("Failed to send message on snapshot read channel")]
     SnapshotReadError,
+
+    #[error("Failed to load native certs: {0}")]
+    LoadNativeCerts(#[source] std::io::Error),
 }
 
 #[derive(Error, Debug)]
@@ -262,6 +265,12 @@ pub enum PostgresSchemaError {
 
     #[error("Type error: {0}")]
     TypeError(#[from] TypeError),
+
+    #[error("Failed to read string from utf8. Error: {0}")]
+    StringReadError(#[from] FromUtf8Error),
+
+    #[error("Failed to read date. Error: {0}")]
+    DateReadError(#[from] dozer_types::chrono::ParseError),
 }
 
 #[cfg(feature = "snowflake")]

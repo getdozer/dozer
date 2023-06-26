@@ -52,11 +52,13 @@ pub fn postgres_type_to_field(
                     .unwrap(),
                 )),
                 Type::TIMESTAMP => {
-                    let date = NaiveDateTime::parse_from_str(
-                        String::from_utf8(v.to_vec()).unwrap().as_str(),
-                        "%Y-%m-%d %H:%M:%S",
-                    )
-                    .unwrap();
+                    let date_string = String::from_utf8(v.to_vec())?;
+                    let format = if date_string.len() == 19 {
+                        "%Y-%m-%d %H:%M:%S"
+                    } else {
+                        "%Y-%m-%d %H:%M:%S%.f"
+                    };
+                    let date = NaiveDateTime::parse_from_str(date_string.as_str(), format)?;
                     Ok(Field::Timestamp(DateTime::from_utc(date, Utc.fix())))
                 }
                 Type::TIMESTAMPTZ => {
@@ -337,6 +339,19 @@ mod tests {
         );
         test_conversion!(
             "2022-09-16 05:56:29",
+            Type::TIMESTAMP,
+            Field::Timestamp(value)
+        );
+
+        let value = DateTime::from_utc(
+            NaiveDate::from_ymd_opt(2022, 9, 16)
+                .unwrap()
+                .and_hms_milli_opt(7, 59, 29, 321)
+                .unwrap(),
+            Utc.fix(),
+        );
+        test_conversion!(
+            "2022-09-16 07:59:29.321",
             Type::TIMESTAMP,
             Field::Timestamp(value)
         );
