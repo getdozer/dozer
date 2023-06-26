@@ -1,10 +1,10 @@
 name: Dozer Coverage
 
 on:
-  push:
-    branches: [main, coverage-yaml-dev]
+  workflow_dispatch:
   pull_request:
     branches: [main]
+  merge_group:
 
 env:
   CARGO_TERM_COLOR: always
