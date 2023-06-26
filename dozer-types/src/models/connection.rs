@@ -73,11 +73,27 @@ impl PostgresConfig {
         } else {
             let map = connection_url_map(self.connection_url.as_ref().unwrap(), self);
             PostgresConfigReplenished {
-                user: map.get("user").expect("user is missing from connection url").to_string(),
-                password: map.get("password").expect("password is missing from connection url").to_string(),
-                host: map.get("host").expect("host is missing from connection url").to_string(),
-                port: u32::from_str(map.get("port").expect("port is missing from connection url")).unwrap(),
-                database: map.get("database").expect("database is missing from connection url").to_string(),
+                user: map
+                    .get("user")
+                    .expect("user is missing from connection url")
+                    .to_string(),
+                password: map
+                    .get("password")
+                    .expect("password is missing from connection url")
+                    .to_string(),
+                host: map
+                    .get("host")
+                    .expect("host is missing from connection url")
+                    .to_string(),
+                port: u32::from_str(
+                    map.get("port")
+                        .expect("port is missing from connection url"),
+                )
+                .unwrap(),
+                database: map
+                    .get("database")
+                    .expect("database is missing from connection url")
+                    .to_string(),
                 ssl_mode: get_ssl_mode(map.get("sslmode").cloned()),
             }
         }
@@ -121,7 +137,7 @@ pub fn connection_url_map(url: &str, config: &PostgresConfig) -> HashMap<String,
                 String::from("password"),
                 config.password.clone().unwrap().as_str().to_string(),
             );
-        } else if cap.name("password").is_some() && config.password.is_none(){
+        } else if cap.name("password").is_some() && config.password.is_none() {
             entities.insert(
                 String::from("password"),
                 cap.name("password").unwrap().as_str().to_string(),
@@ -132,17 +148,14 @@ pub fn connection_url_map(url: &str, config: &PostgresConfig) -> HashMap<String,
                 String::from("host"),
                 config.host.clone().unwrap().as_str().to_string(),
             );
-        } else if cap.name("host").is_some() && config.host.is_none(){
+        } else if cap.name("host").is_some() && config.host.is_none() {
             entities.insert(
                 String::from("host"),
                 cap.name("host").unwrap().as_str().to_string(),
             );
         }
         if cap.name("port").is_none() && config.port.is_some() {
-            entities.insert(
-                String::from("port"),
-                config.port.unwrap().to_string(),
-            );
+            entities.insert(String::from("port"), config.port.unwrap().to_string());
         } else if cap.name("port").is_some() && config.port.is_none() {
             entities.insert(
                 String::from("port"),
@@ -154,7 +167,7 @@ pub fn connection_url_map(url: &str, config: &PostgresConfig) -> HashMap<String,
                 String::from("database"),
                 config.database.clone().unwrap().as_str().to_string(),
             );
-        } else if cap.name("database").is_some() && config.database.is_none(){
+        } else if cap.name("database").is_some() && config.database.is_none() {
             entities.insert(
                 String::from("database"),
                 cap.name("database").unwrap().as_str().to_string(),
