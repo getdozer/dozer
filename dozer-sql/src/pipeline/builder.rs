@@ -12,7 +12,7 @@ use sqlparser::ast::{Join, SetOperator, SetQuantifier, TableFactor, TableWithJoi
 
 use sqlparser::{
     ast::{Query, Select, SetExpr, Statement},
-    dialect::AnsiDialect,
+    dialect::DozerDialect,
     parser::Parser,
 };
 use std::collections::HashMap;
@@ -75,7 +75,7 @@ pub fn statement_to_pipeline(
     pipeline: &mut AppPipeline<SchemaSQLContext>,
     override_name: Option<String>,
 ) -> Result<QueryContext, PipelineError> {
-    let dialect = AnsiDialect {};
+    let dialect = DozerDialect {};
     let mut ctx = QueryContext::default();
 
     let ast = Parser::parse_sql(&dialect, sql)

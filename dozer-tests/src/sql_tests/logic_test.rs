@@ -10,7 +10,7 @@ use clap::Parser;
 // use arg::SqlLogicTestArgs;
 // use clap::Parser;
 use dozer_sql::sqlparser::ast::Statement;
-use dozer_sql::sqlparser::dialect::AnsiDialect;
+use dozer_sql::sqlparser::dialect::DozerDialect;
 use dozer_sql::sqlparser::parser::Parser as SqlParser;
 use dozer_types::types::Operation;
 use error::DozerSqlLogicTestError;
@@ -57,7 +57,7 @@ impl AsyncDB for Dozer {
     async fn run(&mut self, sql: &str) -> Result<DBOutput> {
         println!("SQL [{}] is running", sql);
 
-        let ast = SqlParser::parse_sql(&AnsiDialect {}, sql)?;
+        let ast = SqlParser::parse_sql(&DozerDialect {}, sql)?;
         let statement: &Statement = &ast[0];
         match statement {
             // If sql is create table, run `source_db` to get table schema

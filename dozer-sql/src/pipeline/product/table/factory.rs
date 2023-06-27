@@ -103,5 +103,8 @@ pub fn get_name_or_alias(relation: &TableFactor) -> Result<NameOrAlias, Pipeline
             }
             Ok(NameOrAlias("dozer_nested".to_string(), None))
         }
+        TableFactor::Pivot { .. } => {
+            Err(PipelineError::ProductError(ProductError::UnsupportedPivot))
+        }
     }
 }
