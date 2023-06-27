@@ -2,9 +2,12 @@ use crate::{
     connectors::TableInfo,
     errors::{ConnectorError, ObjectStoreConnectorError},
 };
+use std::collections::HashMap;
 
-use dozer_types::types::Operation;
+use dozer_types::chrono::{DateTime, Utc};
+use dozer_types::ingestion_types::IngestionMessageKind;
 use tokio::sync::mpsc::Sender;
+use tokio::task::JoinHandle;
 use tonic::async_trait;
 
 #[derive(Debug, Eq, Clone)]
@@ -37,7 +40,7 @@ pub trait TableWatcher {
         &self,
         id: usize,
         table: &TableInfo,
-        sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
+        sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
     ) -> Result<(), ConnectorError> {
         self.ingest(id, table, sender.clone()).await?;
         Ok(())
@@ -47,13 +50,13 @@ pub trait TableWatcher {
         &self,
         id: usize,
         table: &TableInfo,
-        sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
-    ) -> Result<(), ConnectorError>;
+        sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
+    ) -> Result<JoinHandle<(usize, HashMap<object_store::path::Path, DateTime<Utc>>)>, ConnectorError>;
 
     async fn ingest(
         &self,
         id: usize,
         table: &TableInfo,
-        sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
+        sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
     ) -> Result<(), ConnectorError>;
 }

@@ -17,10 +17,10 @@ connections:
           bucket_name: {{ BUCKET }}
         tables:
           - !Table
-            name: userdata
-            prefix: userdata_parquet
-            file_type: parquet
-            extension: .parquet #optional
+              name: userdata
+              config: !Parquet
+                path: userdata_parquet
+                extension: .parquet #optional
 
   - db_type: ObjectStore
     name: data_local
@@ -30,7 +30,7 @@ connections:
       tables:
         - !Table
             name: taxi_data
-            prefix: taxi_data
-            file_type: csv
-            extension: .csv
+            config: !CSV
+              path: taxi_data
+              extension: .csv
 ```

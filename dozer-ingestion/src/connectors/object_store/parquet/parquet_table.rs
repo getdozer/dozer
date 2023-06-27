@@ -10,16 +10,17 @@ use deltalake::{
     Path as DeltaPath,
 };
 
+use dozer_types::ingestion_types::IngestionMessageKind;
 use dozer_types::{
     chrono::{DateTime, Utc},
     ingestion_types::ParquetConfig,
     tracing::info,
-    types::Operation,
 };
 use futures::StreamExt;
 use object_store::ObjectStore;
 use std::{collections::HashMap, path::Path, sync::Arc, time::Duration};
 use tokio::sync::mpsc::Sender;
+use tokio::task::JoinHandle;
 use tonic::async_trait;
 
 use crate::{
@@ -35,7 +36,7 @@ const _WATCHER_INTERVAL: Duration = Duration::from_secs(1);
 pub struct ParquetTable<T: DozerObjectStore + Send> {
     table_config: ParquetConfig,
     store_config: T,
-    update_state: HashMap<DeltaPath, DateTime<Utc>>,
+    pub update_state: HashMap<DeltaPath, DateTime<Utc>>,
 }
 
 impl<T: DozerObjectStore + Send> ParquetTable<T> {
@@ -47,11 +48,11 @@ impl<T: DozerObjectStore + Send> ParquetTable<T> {
         }
     }
 
-    async fn _read(
+    async fn read(
         &self,
         id: u32,
         table: &TableInfo,
-        sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
+        sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
     ) -> Result<(), ConnectorError> {
         let params = self.store_config.table_params(&table.name)?;
         let store = Arc::new(params.object_store);
@@ -71,7 +72,6 @@ impl<T: DozerObjectStore + Send> ParquetTable<T> {
 
         // Get the table state after snapshot
         let mut update_state = self.update_state.clone();
-
         let extension = self.table_config.extension.clone();
 
         tokio::spawn(async move {
@@ -82,7 +82,6 @@ impl<T: DozerObjectStore + Send> ParquetTable<T> {
                     .await
                     .unwrap();
 
-                // Contains added files as FileInfo
                 let mut new_files = vec![];
 
                 while let Some(item) = stream.next().await {
@@ -131,7 +130,7 @@ impl<T: DozerObjectStore + Send> ParquetTable<T> {
                 }
 
                 new_files.sort();
-                for file in new_files {
+                for file in &new_files {
                     let file_path = ListingTableUrl::parse(&file.name)
                         .map_err(|e| {
                             ObjectStoreConnectorError::DataFusionStorageObjectError(
@@ -172,8 +171,9 @@ impl<T: DozerObjectStore + Send> TableWatcher for ParquetTable<T> {
         &self,
         id: usize,
         table: &TableInfo,
-        sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
-    ) -> Result<(), ConnectorError> {
+        sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
+    ) -> Result<JoinHandle<(usize, HashMap<object_store::path::Path, DateTime<Utc>>)>, ConnectorError>
+    {
         let params = self.store_config.table_params(&table.name)?;
         let store = Arc::new(params.object_store);
 
@@ -192,17 +192,15 @@ impl<T: DozerObjectStore + Send> TableWatcher for ParquetTable<T> {
 
         // Get the table state after snapshot
         let mut update_state = self.update_state.clone();
-
         let extension = self.table_config.extension.clone();
 
-        tokio::spawn(async move {
+        let h = tokio::spawn(async move {
             // List objects in the S3 bucket with the specified prefix
             let mut stream = store
                 .list(Some(&DeltaPath::from(source_folder.to_owned())))
                 .await
                 .unwrap();
 
-            // Contains added files as FileInfo
             let mut new_files = vec![];
 
             while let Some(item) = stream.next().await {
@@ -251,7 +249,7 @@ impl<T: DozerObjectStore + Send> TableWatcher for ParquetTable<T> {
             }
 
             new_files.sort();
-            for file in new_files {
+            for file in &new_files {
                 let file_path = ListingTableUrl::parse(&file.name)
                     .map_err(|e| {
                         ObjectStoreConnectorError::DataFusionStorageObjectError(
@@ -273,18 +271,19 @@ impl<T: DozerObjectStore + Send> TableWatcher for ParquetTable<T> {
                     sender.send(Err(e)).await.unwrap();
                 }
             }
+            (id, update_state)
         });
 
-        Ok(())
+        Ok(h)
     }
 
     async fn ingest(
         &self,
-        _id: usize,
-        _table: &TableInfo,
-        _sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
+        id: usize,
+        table: &TableInfo,
+        sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
     ) -> Result<(), ConnectorError> {
-        // self.read(id as u32, table, sender).await?;
+        self.read(id as u32, table, sender).await?;
         Ok(())
     }
 }

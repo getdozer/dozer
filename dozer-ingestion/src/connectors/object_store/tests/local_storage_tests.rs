@@ -90,19 +90,8 @@ async fn test_read_parquet_file() {
         panic!("Unexpected message");
     }
 
-    let row = iterator.next();
-    if let Some(IngestionMessage {
-        identifier: OpIdentifier { seq_in_tx, .. },
-        kind: IngestionMessageKind::SnapshottingDone,
-    }) = row
-    {
-        assert_eq!(seq_in_tx, 1);
-    } else {
-        panic!("Unexpected message");
-    }
-
-    let mut i = 2;
-    while i < 10 {
+    let mut i = 1;
+    while i < 9 {
         let row = iterator.next();
         if let Some(IngestionMessage {
             identifier: OpIdentifier { seq_in_tx, .. },
@@ -129,6 +118,17 @@ async fn test_read_parquet_file() {
         }
 
         i += 1;
+    }
+
+    let row = iterator.next();
+    if let Some(IngestionMessage {
+        identifier: OpIdentifier { seq_in_tx, .. },
+        kind: IngestionMessageKind::SnapshottingDone,
+    }) = row
+    {
+        assert_eq!(seq_in_tx, 9);
+    } else {
+        panic!("Unexpected message");
     }
 }
 
@@ -161,19 +161,9 @@ async fn test_csv_read() {
         panic!("Unexpected message");
     }
 
-    let row = iterator.next();
-    if let Some(IngestionMessage {
-        identifier: OpIdentifier { seq_in_tx, .. },
-        kind: IngestionMessageKind::SnapshottingDone,
-    }) = row
-    {
-        assert_eq!(seq_in_tx, 1);
-    } else {
-        panic!("Unexpected message");
-    }
-
-    let mut i = 2;
-    while i < 20 {
+    let mut i = 1;
+    while i < 21 {
+        // no. of row in the csv data
         let row = iterator.next();
         if let Some(IngestionMessage {
             identifier: OpIdentifier { seq_in_tx, .. },
@@ -205,6 +195,17 @@ async fn test_csv_read() {
         }
 
         i += 1;
+    }
+
+    let row = iterator.next();
+    if let Some(IngestionMessage {
+        identifier: OpIdentifier { seq_in_tx, .. },
+        kind: IngestionMessageKind::SnapshottingDone,
+    }) = row
+    {
+        assert_eq!(seq_in_tx, 21);
+    } else {
+        panic!("Unexpected message");
     }
 }
 
