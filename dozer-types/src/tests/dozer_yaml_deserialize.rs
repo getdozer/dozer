@@ -139,7 +139,7 @@ fn error_missing_field_connection_ref_in_source() {
 }
 
 #[test]
-fn error_missing_field_inner() {
+fn error_missing_connection_ref() {
     let input_config = r#"
     app_name: working_app
     home_dir: './.dozer'
@@ -156,7 +156,7 @@ fn error_missing_field_inner() {
       columns:
       - id
       - email
-      - phone   
+      - phone
   "#;
     let deserialize_result = serde_yaml::from_str::<Config>(input_config);
     let error = deserialize_result.err();
@@ -164,5 +164,5 @@ fn error_missing_field_inner() {
     assert!(error
         .unwrap()
         .to_string()
-        .starts_with("connections[0].config: missing field `password`"));
+        .starts_with("sources[0]: missing connection ref"));
 }
