@@ -4,10 +4,10 @@ connections:
         path: data
       tables:
         - !Table
-          name: trips
-          config: !Parquet
-            path: trips
-            extension: .parquet
+            name: trips
+            config: !Parquet
+              path: trips
+              extension: .parquet
     name: ny_taxi
 
 sql: |
