@@ -106,11 +106,13 @@ pub fn generate_connection(connection_name: &str) -> Connection {
         }
         _ => {
             let postgres_config = PostgresConfig {
-                user: "postgres".to_owned(),
-                password: "postgres".to_owned(),
-                host: "localhost".to_owned(),
-                port: 5432,
-                database: "users".to_owned(),
+                user: Some("postgres".to_owned()),
+                password: Some("postgres".to_owned()),
+                host: Some("localhost".to_owned()),
+                port: Some(5432),
+                database: Some("users".to_owned()),
+                sslmode: None,
+                connection_url: None,
             };
             let connection: Connection = Connection {
                 name: "postgres".to_owned(),

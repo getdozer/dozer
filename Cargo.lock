@@ -1087,6 +1087,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a8241f3ebb85c056b509d4327ad0358fbbba6ffb340bf388f26350aeda225b1"
 
 [[package]]
+name = "bigdecimal"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a6773ddc0eafc0e509fb60e48dff7f450f8e674a0686ae8605e8d9901bd5eefa"
+dependencies = [
+ "num-bigint",
+ "num-integer",
+ "num-traits",
+ "serde",
+]
+
+[[package]]
 name = "bincode"
 version = "1.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2385,6 +2397,7 @@ name = "dozer-sql"
 version = "0.1.26"
 dependencies = [
  "ahash 0.8.3",
+ "bigdecimal",
  "bloom",
  "dozer-core",
  "dozer-tracing",
@@ -2402,7 +2415,7 @@ dependencies = [
  "pest_derive",
  "proptest",
  "regex",
- "sqlparser 0.32.0",
+ "sqlparser 0.35.0",
  "tempdir",
  "uuid",
 ]
@@ -2445,7 +2458,7 @@ dependencies = [
  "reqwest",
  "rusqlite",
  "sqllogictest",
- "sqlparser 0.32.0",
+ "sqlparser 0.35.0",
  "tempdir",
  "tokio",
  "walkdir",
@@ -2492,6 +2505,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "thiserror",
+ "tokio-postgres",
  "tonic",
  "tonic-build",
  "tracing",
@@ -6483,10 +6497,10 @@ dependencies = [
 
 [[package]]
 name = "sqlparser"
-version = "0.32.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0366f270dbabb5cc2e4c88427dc4c08bba144f81e32fbd459a013f26a4d16aa0"
+version = "0.35.0"
+source = "git+https://github.com/getdozer/sqlparser-rs.git#3dd4e9f14a9631c9707c40d7e497ffe0558a88cd"
 dependencies = [
+ "bigdecimal",
  "log",
 ]
 

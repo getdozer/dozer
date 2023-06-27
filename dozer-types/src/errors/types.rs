@@ -1,7 +1,9 @@
 use super::internal::BoxedError;
 use crate::types::FieldType;
 use geo::vincenty_distance::FailedToConvergeError;
+use std::num::ParseIntError;
 use thiserror::Error;
+use tokio_postgres::Error;
 
 #[derive(Error, Debug)]
 pub enum TypeError {
@@ -59,4 +61,14 @@ pub enum DeserializationError {
     Utf8(#[from] std::str::Utf8Error),
     #[error("Failed to convert type due to json numbers being out of the f64 range")]
     F64TypeConversionError,
+    #[error("Unknown SSL mode: {0}")]
+    UnknownSslMode(String),
+    #[error("Unable to Parse Postgres configuration: {0}")]
+    UnableToParseConnectionUrl(ParseIntError),
+    #[error("Invalid connection url for Postgres configuration: {0}")]
+    InvalidConnectionUrl(Error),
+    #[error("{0} is missing in Postgres configuration")]
+    MissingFieldInPostgresConfig(String),
+    #[error("{0} is mismatching in Postgres configuration")]
+    MismatchingFieldInPostgresConfig(String),
 }

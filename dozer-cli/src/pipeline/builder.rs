@@ -77,7 +77,7 @@ impl<'a> PipelineBuilder<'a> {
         for connection in self.connections {
             let connector = get_connector(connection.clone())?;
 
-            if let Some(info_table) = get_connector_info_table(connection) {
+            if let Ok(info_table) = get_connector_info_table(connection) {
                 info!("[{}] Connection parameters\n{info_table}", connection.name);
             }
 
