@@ -114,22 +114,10 @@ fn build_cache_task(
 ) -> Result<(), CacheError> {
     let schema = cache.get_schema().0.clone();
 
-    const CACHE_INSERT_COUNTER_NAME: &str = "cache_insert";
+    const CACHE_OPERATION_COUNTER_NAME: &str = "cache_operation";
     describe_counter!(
-        CACHE_INSERT_COUNTER_NAME,
-        "Number of inserts processed by cache builder"
-    );
-
-    const CACHE_DELETE_COUNTER_NAME: &str = "cache_delete";
-    describe_counter!(
-        CACHE_DELETE_COUNTER_NAME,
-        "Number of deletes processed by cache builder"
-    );
-
-    const CACHE_UPDATE_COUNTER_NAME: &str = "cache_update";
-    describe_counter!(
-        CACHE_UPDATE_COUNTER_NAME,
-        "Number of updates processed by cache builder"
+        CACHE_OPERATION_COUNTER_NAME,
+        "Number of message processed by cache builder"
     );
 
     const DATA_LATENCY_HISTOGRAM_NAME: &str = "data_latency";
@@ -153,12 +141,16 @@ fn build_cache_task(
                             send_and_log_error(operations_sender, operation);
                         }
                     }
-                    increment_counter!(CACHE_DELETE_COUNTER_NAME, cache.labels().clone());
+                    let mut labels = cache.labels().clone();
+                    labels.push("operation_type", "delete");
+                    increment_counter!(CACHE_OPERATION_COUNTER_NAME, labels);
                 }
                 Operation::Insert { mut new } => {
                     new.schema_id = schema.identifier;
                     let result = cache.insert(&new)?;
-                    increment_counter!(CACHE_INSERT_COUNTER_NAME, cache.labels().clone());
+                    let mut labels = cache.labels().clone();
+                    labels.push("operation_type", "insert");
+                    increment_counter!(CACHE_OPERATION_COUNTER_NAME, labels);
 
                     if let Some((endpoint_name, operations_sender)) = operations_sender.as_ref() {
                         send_upsert_result(
@@ -175,7 +167,9 @@ fn build_cache_task(
                     old.schema_id = schema.identifier;
                     new.schema_id = schema.identifier;
                     let upsert_result = cache.update(&old, &new)?;
-                    increment_counter!(CACHE_UPDATE_COUNTER_NAME, cache.labels().clone());
+                    let mut labels = cache.labels().clone();
+                    labels.push("operation_type", "update");
+                    increment_counter!(CACHE_OPERATION_COUNTER_NAME, labels);
 
                     if let Some((endpoint_name, operations_sender)) = operations_sender.as_ref() {
                         send_upsert_result(
