@@ -248,6 +248,7 @@ pub fn is_table_operator(
         TableFactor::TableFunction { .. } => Err(PipelineError::UnsupportedTableFunction),
         TableFactor::UNNEST { .. } => Err(PipelineError::UnsupportedUnnest),
         TableFactor::NestedJoin { .. } => Err(PipelineError::UnsupportedNestedJoin),
+        TableFactor::Pivot { .. } => Err(PipelineError::UnsupportedPivot),
     }
 }
 

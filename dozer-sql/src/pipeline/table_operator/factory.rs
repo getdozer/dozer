@@ -53,6 +53,10 @@ impl TableOperatorProcessorFactory {
 }
 
 impl ProcessorFactory<SchemaSQLContext> for TableOperatorProcessorFactory {
+    fn id(&self) -> String {
+        self.id.clone()
+    }
+
     fn type_name(&self) -> String {
         self.name.clone()
     }

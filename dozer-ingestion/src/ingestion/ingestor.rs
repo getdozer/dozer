@@ -50,7 +50,7 @@ impl IngestionIterator {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /// `Ingestor` is the sender side of a spsc channel. The receiver side is `IngestionIterator`.
 ///
 /// `IngestionMessage` is the message type that is sent over the channel.
