@@ -162,6 +162,10 @@ impl ProcessorFactory<NoneContext> for TestJoinProcessorFactory {
     fn type_name(&self) -> String {
         "TestJoin".to_owned()
     }
+
+    fn id(&self) -> String {
+        "TestJoin".to_owned()
+    }
 }
 
 #[derive(Debug)]

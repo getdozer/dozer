@@ -71,6 +71,7 @@ pub trait ProcessorFactory<T>: Send + Sync + Debug {
         output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Processor>, BoxedError>;
     fn type_name(&self) -> String;
+    fn id(&self) -> String;
 }
 
 pub trait Processor: Send + Sync + Debug {

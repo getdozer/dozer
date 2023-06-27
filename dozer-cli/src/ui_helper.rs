@@ -100,10 +100,11 @@ fn transform_to_ui_graph(
         match weight.kind {
             dozer_core::NodeKind::Source(_) => {
                 nodes.push(QueryNode {
-                    name: weight.handle.id,
+                    name: weight.handle.id.to_owned(),
                     node_type: QueryNodeType::Connection as i32,
                     idx: idx as u32,
                     id: idx as u32,
+                    data: weight.handle.id,
                 });
             }
             dozer_core::NodeKind::Processor(processor) => {
@@ -112,6 +113,7 @@ fn transform_to_ui_graph(
                     node_type: QueryNodeType::Transformer as i32,
                     idx: idx as u32,
                     id: idx as u32,
+                    data: processor.id(),
                 });
             }
             dozer_core::NodeKind::Sink(_) => {}
@@ -132,6 +134,7 @@ fn transform_to_ui_graph(
                 node_type: QueryNodeType::Source as i32,
                 idx: new_node_idx,
                 id: new_node_idx,
+                data: source_name.to_string(),
             });
             edges.push(QueryEdge {
                 from: sn.index() as u32,

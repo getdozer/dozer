@@ -62,7 +62,6 @@ impl ProductProcessor {
 
     fn update_eviction_index(&mut self, lifetime: &dozer_types::types::Lifetime) {
         let now = &lifetime.reference;
-
         let old_instants = self.join_operator.evict_index(&JoinBranch::Left, now);
         self.join_operator
             .clean_evict_index(&JoinBranch::Left, &old_instants);
@@ -133,7 +132,6 @@ impl Processor for ProductProcessor {
 
         let elapsed = now.elapsed();
         histogram!(LATENCY, elapsed, self.labels.clone());
-
         increment_counter!(IN_OPS, self.labels.clone());
 
         counter!(OUT_OPS, records.len() as u64, self.labels.clone());
