@@ -46,6 +46,10 @@ impl ProcessorFactory<NoneContext> for ConnectivityTestProcessorFactory {
             "This struct is for connectivity test, only input and output ports are defined"
         )
     }
+
+    fn id(&self) -> String {
+        "ConnectivityTest".to_owned()
+    }
 }
 
 #[derive(Debug)]
@@ -84,6 +88,10 @@ impl ProcessorFactory<NoneContext> for NoInputPortProcessorFactory {
     }
 
     fn type_name(&self) -> String {
+        "NoInput".to_owned()
+    }
+
+    fn id(&self) -> String {
         "NoInput".to_owned()
     }
 }

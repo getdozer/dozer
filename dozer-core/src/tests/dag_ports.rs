@@ -85,6 +85,10 @@ impl ProcessorFactory<NoneContext> for DynPortsProcessorFactory {
     fn type_name(&self) -> String {
         "DynPorts".to_owned()
     }
+
+    fn id(&self) -> String {
+        "DynPorts".to_owned()
+    }
 }
 
 macro_rules! test_ports {
