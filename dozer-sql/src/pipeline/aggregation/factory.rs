@@ -92,4 +92,8 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
         };
         Ok(processor)
     }
+
+    fn id(&self) -> String {
+        self.id.clone()
+    }
 }

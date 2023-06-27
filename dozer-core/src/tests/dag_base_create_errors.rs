@@ -209,6 +209,10 @@ impl ProcessorFactory<NoneContext> for CreateErrProcessorFactory {
             Err("Generated Error".to_string().into())
         }
     }
+
+    fn id(&self) -> String {
+        "CreateErr".to_owned()
+    }
 }
 
 #[test]

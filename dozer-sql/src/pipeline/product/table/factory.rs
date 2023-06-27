@@ -31,6 +31,10 @@ impl TableProcessorFactory {
 }
 
 impl ProcessorFactory<SchemaSQLContext> for TableProcessorFactory {
+    fn id(&self) -> String {
+        self.id.clone()
+    }
+
     fn type_name(&self) -> String {
         "Table".to_string()
     }
@@ -98,6 +102,9 @@ pub fn get_name_or_alias(relation: &TableFactor) -> Result<NameOrAlias, Pipeline
                 return Ok(NameOrAlias("dozer_nested".to_string(), Some(alias)));
             }
             Ok(NameOrAlias("dozer_nested".to_string(), None))
+        }
+        TableFactor::Pivot { .. } => {
+            Err(PipelineError::ProductError(ProductError::UnsupportedPivot))
         }
     }
 }

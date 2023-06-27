@@ -67,6 +67,10 @@ impl ProcessorFactory<NoneContext> for ErrorProcessorFactory {
             panic: self.panic,
         }))
     }
+
+    fn id(&self) -> String {
+        "Error".to_owned()
+    }
 }
 
 #[derive(Debug)]

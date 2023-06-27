@@ -34,6 +34,10 @@ impl WindowProcessorFactory {
 }
 
 impl ProcessorFactory<SchemaSQLContext> for WindowProcessorFactory {
+    fn id(&self) -> String {
+        self.id.clone()
+    }
+
     fn type_name(&self) -> String {
         "Window".to_string()
     }
