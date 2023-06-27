@@ -12,6 +12,7 @@ use crate::errors::SnowflakeSchemaError::{
 };
 use crate::errors::SnowflakeStreamError::TimeTravelNotAvailableError;
 use dozer_types::chrono::{NaiveDate, NaiveDateTime, NaiveTime};
+use dozer_types::indexmap::IndexMap;
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::*;
 use odbc::ffi::{SqlDataType, SQL_DATE_STRUCT, SQL_TIMESTAMP_STRUCT};
@@ -439,8 +440,8 @@ impl Client {
 
                 let schema = schema_result?;
 
-                let mut schemas: HashMap<String, Result<Schema, SnowflakeSchemaError>> =
-                    HashMap::new();
+                let mut schemas: IndexMap<String, Result<Schema, SnowflakeSchemaError>> =
+                    IndexMap::new();
                 let iterator = ResultIterator {
                     cols,
                     stmt: Some(data),
@@ -512,6 +513,15 @@ impl Client {
                         }
                     }
                 }
+
+                schemas.sort_by(|_, a, _, b| {
+                    a.as_ref()
+                        .unwrap()
+                        .identifier
+                        .unwrap()
+                        .id
+                        .cmp(&b.as_ref().unwrap().identifier.unwrap().id)
+                });
 
                 Ok(schemas
                     .into_iter()
