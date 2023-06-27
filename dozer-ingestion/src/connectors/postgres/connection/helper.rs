@@ -8,12 +8,16 @@ use std::sync::Arc;
 use std::time::SystemTime;
 use tokio_postgres::config::SslMode;
 use tokio_postgres::{Client, NoTls};
+use crate::errors::ConnectorError::WrongConnectionConfiguration;
 
 pub fn map_connection_config(
     auth_details: &ConnectionConfig,
 ) -> Result<tokio_postgres::Config, ConnectorError> {
     if let ConnectionConfig::Postgres(postgres) = auth_details {
-        let config_replenished = postgres.replenish().unwrap();
+        let config_replenished = match postgres.replenish() {
+            Ok(conf) => conf,
+            Err(_) => return Err(WrongConnectionConfiguration),
+        };
         let mut config = tokio_postgres::Config::new();
         config
             .host(&config_replenished.host)
