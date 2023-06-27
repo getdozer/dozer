@@ -319,17 +319,19 @@ impl Source for ConnectorSource {
                     ];
                     match &kind {
                         IngestionMessageKind::OperationEvent(Operation::Delete { .. }) => {
-                            labels.push(("operation_type", "delete".to_string()))
+                            labels.push(("operation_type", "delete".to_string()));
+                            increment_counter!(SOURCE_OPERATION_COUNTER_NAME, &labels);
                         }
                         IngestionMessageKind::OperationEvent(Operation::Insert { .. }) => {
-                            labels.push(("operation_type", "insert".to_string()))
+                            labels.push(("operation_type", "insert".to_string()));
+                            increment_counter!(SOURCE_OPERATION_COUNTER_NAME, &labels);
                         }
                         IngestionMessageKind::OperationEvent(Operation::Update { .. }) => {
-                            labels.push(("operation_type", "update".to_string()))
+                            labels.push(("operation_type", "update".to_string()));
+                            increment_counter!(SOURCE_OPERATION_COUNTER_NAME, &labels);
                         }
                         _ => {}
                     }
-                    increment_counter!(SOURCE_OPERATION_COUNTER_NAME, &labels);
                     counter
                         .entry(schema_id)
                         .and_modify(|e| *e += 1)
