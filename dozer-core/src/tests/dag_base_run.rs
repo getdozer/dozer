@@ -56,6 +56,10 @@ impl ProcessorFactory<NoneContext> for NoopProcessorFactory {
     ) -> Result<Box<dyn Processor>, BoxedError> {
         Ok(Box::new(NoopProcessor {}))
     }
+
+    fn id(&self) -> String {
+        "Noop".to_owned()
+    }
 }
 
 #[derive(Debug)]
@@ -200,6 +204,10 @@ impl ProcessorFactory<NoneContext> for NoopJoinProcessorFactory {
         _output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         Ok(Box::new(NoopJoinProcessor {}))
+    }
+
+    fn id(&self) -> String {
+        "NoopJoin".to_owned()
     }
 }
 
