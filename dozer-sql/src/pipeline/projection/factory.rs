@@ -11,7 +11,6 @@ use dozer_types::{
 use sqlparser::ast::{Expr, Ident, SelectItem};
 
 use crate::pipeline::builder::SchemaSQLContext;
-use crate::pipeline::window::builder::string_from_sql_object_name;
 use crate::pipeline::{
     errors::PipelineError,
     expression::{
@@ -67,25 +66,6 @@ impl ProcessorFactory<SchemaSQLContext> for ProjectionProcessorFactory {
                             SelectItem::UnnamedExpr(Expr::Identifier(Ident::new(
                                 col.to_owned().name,
                             )))
-                        })
-                        .collect();
-                    for f in fields {
-                        let res = parse_sql_select_item(&f, input_schema);
-                        if let Ok(..) = res {
-                            select_expr.push(res.unwrap())
-                        }
-                    }
-                }
-                SelectItem::QualifiedWildcard(alias, _) => {
-                    let fields: Vec<SelectItem> = input_schema
-                        .fields
-                        .iter()
-                        .filter(|c| c.check_from(alias.to_string()))
-                        .map(|col| {
-                            SelectItem::UnnamedExpr(Expr::CompoundIdentifier(vec![
-                                Ident::new(string_from_sql_object_name(alias)),
-                                Ident::new(col.to_owned().name),
-                            ]))
                         })
                         .collect();
                     for f in fields {
