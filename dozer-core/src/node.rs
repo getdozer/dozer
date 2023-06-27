@@ -70,6 +70,7 @@ pub trait ProcessorFactory<T>: Send + Sync + Debug {
         input_schemas: HashMap<PortHandle, Schema>,
         output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Processor>, BoxedError>;
+    fn type_name(&self) -> String;
 }
 
 pub trait Processor: Send + Sync + Debug {

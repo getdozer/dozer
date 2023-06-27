@@ -13,6 +13,9 @@ use crate::pipeline::expression::json_functions::JsonFunctionType;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::scalar::common::{get_scalar_function_type, ScalarFunctionType};
 use crate::pipeline::expression::scalar::string::{evaluate_trim, validate_trim, TrimType};
+use std::iter::zip;
+
+use crate::pipeline::expression::case::evaluate_case;
 
 use dozer_types::types::{Field, FieldType, Record, Schema, SourceDefinition};
 use uuid::Uuid;
@@ -76,6 +79,12 @@ pub enum Expression {
     Json {
         fun: JsonFunctionType,
         args: Vec<Expression>,
+    },
+    Case {
+        operand: Option<Box<Expression>>,
+        conditions: Vec<Expression>,
+        results: Vec<Expression>,
+        else_result: Option<Box<Expression>>,
     },
     #[cfg(feature = "python")]
     PythonUDF {
@@ -155,6 +164,37 @@ impl Expression {
                     + " AS "
                     + typ.to_string().as_str()
                     + ")"
+            }
+            Expression::Case {
+                operand,
+                conditions,
+                results,
+                else_result,
+            } => {
+                let mut op_str = String::new();
+                if let Some(op) = operand {
+                    op_str += " ";
+                    op_str += op.to_string(schema).as_str();
+                }
+                let mut when_then_str = String::new();
+                let iter = zip(conditions, results);
+                for (cond, res) in iter {
+                    when_then_str += " WHEN ";
+                    when_then_str += cond.to_string(schema).as_str();
+                    when_then_str += " THEN ";
+                    when_then_str += res.to_string(schema).as_str();
+                }
+                let mut else_str = String::new();
+                if let Some(else_res) = else_result {
+                    else_str += " ELSE ";
+                    else_str += else_res.to_string(schema).as_str();
+                }
+
+                "CASE".to_string()
+                    + op_str.as_str()
+                    + when_then_str.as_str()
+                    + else_str.as_str()
+                    + " END"
             }
             Expression::Trim { typ, what, arg } => {
                 "TRIM(".to_string()
@@ -284,6 +324,12 @@ impl ExpressionExecutor for Expression {
             Expression::DateTimeFunction { fun, arg } => fun.evaluate(schema, arg, record),
             Expression::Now { fun } => fun.evaluate_now(),
             Expression::Json { fun, args } => fun.evaluate(schema, args, record),
+            Expression::Case {
+                operand,
+                conditions,
+                results,
+                else_result,
+            } => evaluate_case(schema, operand, conditions, results, else_result, record),
         }
     }
 
@@ -355,6 +401,20 @@ impl ExpressionExecutor for Expression {
                 dozer_types::types::SourceDefinition::Dynamic,
                 false,
             )),
+            Expression::Case {
+                operand: _,
+                conditions: _,
+                results,
+                else_result: _,
+            } => {
+                let typ = results.get(0).unwrap().get_type(schema)?;
+                Ok(ExpressionType::new(
+                    typ.return_type,
+                    true,
+                    dozer_types::types::SourceDefinition::Dynamic,
+                    false,
+                ))
+            }
             #[cfg(feature = "python")]
             Expression::PythonUDF { return_type, .. } => Ok(ExpressionType::new(
                 *return_type,

@@ -12,6 +12,7 @@ use std::fmt::{Debug, Formatter};
 use super::operator::{SetAction, SetOperation};
 
 pub struct SetProcessor {
+    _id: String,
     /// Set operations
     operator: SetOperation,
     /// Hashmap containing records with its occurrence
@@ -24,9 +25,10 @@ const EXPECTED_NUM_ITEMS: u32 = 10000000;
 
 impl SetProcessor {
     /// Creates a new [`SetProcessor`].
-    pub fn new(operator: SetOperation) -> Result<Self, PipelineError> {
+    pub fn new(id: String, operator: SetOperation) -> Result<Self, PipelineError> {
         let _s = RandomState::new();
         Ok(Self {
+            _id: id,
             operator,
             record_map: CountingBloomFilter::with_rate(
                 BITS_PER_ENTRY,

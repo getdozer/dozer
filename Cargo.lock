@@ -2203,7 +2203,7 @@ checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
 
 [[package]]
 name = "dozer-api"
-version = "0.1.25"
+version = "0.1.26"
 dependencies = [
  "Inflector",
  "actix-cors",
@@ -2241,7 +2241,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-cache"
-version = "0.1.25"
+version = "0.1.26"
 dependencies = [
  "ahash 0.8.3",
  "clap 4.3.2",
@@ -2264,7 +2264,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-cli"
-version = "0.1.25"
+version = "0.1.26"
 dependencies = [
  "atty",
  "clap 4.3.2",
@@ -2298,7 +2298,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-core"
-version = "0.1.25"
+version = "0.1.26"
 dependencies = [
  "crossbeam",
  "daggy",
@@ -2312,7 +2312,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-ingestion"
-version = "0.1.25"
+version = "0.1.26"
 dependencies = [
  "base64 0.21.0",
  "bson",
@@ -2337,11 +2337,14 @@ dependencies = [
  "rand 0.8.5",
  "rdkafka",
  "regex",
+ "rustls 0.21.0",
+ "rustls-native-certs 0.6.2",
  "schema_registry_converter",
  "serial_test",
  "tempdir",
  "tokio",
  "tokio-postgres",
+ "tokio-postgres-rustls",
  "tonic",
  "tonic-reflection",
  "tonic-web",
@@ -2352,7 +2355,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-log"
-version = "0.1.25"
+version = "0.1.26"
 dependencies = [
  "dozer-types",
  "futures-util",
@@ -2361,7 +2364,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-log-js"
-version = "0.1.25"
+version = "0.1.26"
 dependencies = [
  "dozer-log",
  "dozer-types",
@@ -2370,7 +2373,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-log-python"
-version = "0.1.25"
+version = "0.1.26"
 dependencies = [
  "dozer-log",
  "dozer-types",
@@ -2379,7 +2382,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-sql"
-version = "0.1.25"
+version = "0.1.26"
 dependencies = [
  "ahash 0.8.3",
  "bloom",
@@ -2406,7 +2409,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-storage"
-version = "0.1.25"
+version = "0.1.26"
 dependencies = [
  "dozer-types",
  "lmdb-rkv",
@@ -2419,7 +2422,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-tests"
-version = "0.1.25"
+version = "0.1.26"
 dependencies = [
  "ahash 0.8.3",
  "async-trait",
@@ -2450,7 +2453,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-tracing"
-version = "0.1.25"
+version = "0.1.26"
 dependencies = [
  "atty",
  "dozer-types",
@@ -2464,7 +2467,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-types"
-version = "0.1.25"
+version = "0.1.26"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -2496,7 +2499,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-utils"
-version = "0.1.25"
+version = "0.1.26"
 dependencies = [
  "dozer-types",
 ]
@@ -5858,6 +5861,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustls"
+version = "0.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "07180898a28ed6a7f7ba2311594308f595e3dd2e3c3812fa0a80a47b45f17e5d"
+dependencies = [
+ "log",
+ "ring",
+ "rustls-webpki",
+ "sct 0.7.0",
+]
+
+[[package]]
 name = "rustls-native-certs"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5888,6 +5903,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d194b56d58803a43635bdc398cd17e383d6f71f9182b9a192c127ca42494a59b"
 dependencies = [
  "base64 0.21.0",
+]
+
+[[package]]
+name = "rustls-webpki"
+version = "0.100.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d6207cd5ed3d8dca7816f8f3725513a34609c0c765bf652b8c3cb4cfd87db46b"
+dependencies = [
+ "ring",
+ "untrusted",
 ]
 
 [[package]]
@@ -6852,6 +6877,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokio-postgres-rustls"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dd5831152cb0d3f79ef5523b357319ba154795d64c7078b2daa95a803b54057f"
+dependencies = [
+ "futures",
+ "ring",
+ "rustls 0.21.0",
+ "tokio",
+ "tokio-postgres",
+ "tokio-rustls 0.24.0",
+]
+
+[[package]]
 name = "tokio-rustls"
 version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6871,6 +6910,16 @@ dependencies = [
  "rustls 0.20.8",
  "tokio",
  "webpki 0.22.0",
+]
+
+[[package]]
+name = "tokio-rustls"
+version = "0.24.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e0d409377ff5b1e3ca6437aa86c1eb7d40c134bfec254e44c830defa92669db5"
+dependencies = [
+ "rustls 0.21.0",
+ "tokio",
 ]
 
 [[package]]
