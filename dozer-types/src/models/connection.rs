@@ -2,7 +2,6 @@ use crate::ingestion_types::{
     DeltaLakeConfig, EthConfig, GrpcConfig, KafkaConfig, LocalStorage, S3Storage, SnowflakeConfig,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::str::FromStr;
 
 use crate::errors::types::DeserializationError;
@@ -11,7 +10,6 @@ use crate::errors::types::DeserializationError::{
     UnknownSslMode,
 };
 use prettytable::Table;
-use regex::Regex;
 use tokio_postgres::config::SslMode;
 use tokio_postgres::Config;
 
@@ -71,7 +69,8 @@ impl PostgresConfig {
             user: self.lookup("user")?,
             password: self.lookup("password")?,
             host: self.lookup("host")?,
-            port: u32::from_str(self.lookup("port")?.as_str()).map_err(|_| InvalidConnectionUrl)?,
+            port: u32::from_str(self.lookup("port")?.as_str())
+                .map_err(|e| InvalidConnectionUrl(e.to_string()))?,
             database: self.lookup("database")?,
             sslmode: get_sslmode(self.lookup("sslmode")?)?,
         })
@@ -80,7 +79,8 @@ impl PostgresConfig {
     fn lookup(&self, field: &str) -> Result<String, DeserializationError> {
         let connection_url_val: String = match self.connection_url.clone() {
             Some(url) => {
-                let val = Config::from_str(url.as_str()).map_err(|_| InvalidConnectionUrl)?;
+                let val = Config::from_str(url.as_str())
+                    .map_err(|e| InvalidConnectionUrl(e.to_string()))?;
                 match field {
                     "user" => match val.get_user() {
                         Some(usr) => usr.to_string(),
@@ -163,83 +163,6 @@ fn get_sslmode(mode: String) -> Result<SslMode, DeserializationError> {
         "require" | "Require" => Ok(SslMode::Require),
         &_ => Err(UnknownSslMode(mode)),
     }
-}
-
-pub fn connection_url_map(url: &str, config: &PostgresConfig) -> HashMap<String, String> {
-    let re = Regex::new(r"(?P<protocol>[^/\s]+)?(:/{2})((?P<user>[^:\s]+)?:{1}(?P<password>[^@\s]+)?@{1}){0,1}(?P<host>[^:\s]+)?:{1}(?P<port>[^/\s]+)?(?P<db>/{1}(?P<database>[^?/\s]+)?)+\?{0,1}(?P<arg>[^\s]+)?").unwrap();
-    let matches = re.captures(url);
-    let mut entities = HashMap::new();
-    if let Some(cap) = matches {
-        entities.insert(
-            String::from("protocol"),
-            cap.name("protocol").unwrap().as_str().to_string(),
-        );
-        if cap.name("user").is_none() && config.user.is_some() {
-            entities.insert(
-                String::from("user"),
-                config.user.clone().unwrap().as_str().to_string(),
-            );
-        } else if cap.name("user").is_some() && config.user.is_none() {
-            entities.insert(
-                String::from("user"),
-                cap.name("user").unwrap().as_str().to_string(),
-            );
-        }
-        if cap.name("password").is_none() && config.password.is_some() {
-            entities.insert(
-                String::from("password"),
-                config.password.clone().unwrap().as_str().to_string(),
-            );
-        } else if cap.name("password").is_some() && config.password.is_none() {
-            entities.insert(
-                String::from("password"),
-                cap.name("password").unwrap().as_str().to_string(),
-            );
-        }
-        if cap.name("host").is_none() && config.host.is_some() {
-            entities.insert(
-                String::from("host"),
-                config.host.clone().unwrap().as_str().to_string(),
-            );
-        } else if cap.name("host").is_some() && config.host.is_none() {
-            entities.insert(
-                String::from("host"),
-                cap.name("host").unwrap().as_str().to_string(),
-            );
-        }
-        if cap.name("port").is_none() && config.port.is_some() {
-            entities.insert(String::from("port"), config.port.unwrap().to_string());
-        } else if cap.name("port").is_some() && config.port.is_none() {
-            entities.insert(
-                String::from("port"),
-                cap.name("port").unwrap().as_str().to_string(),
-            );
-        }
-        if cap.name("database").is_none() && config.database.is_some() {
-            entities.insert(
-                String::from("database"),
-                config.database.clone().unwrap().as_str().to_string(),
-            );
-        } else if cap.name("database").is_some() && config.database.is_none() {
-            entities.insert(
-                String::from("database"),
-                cap.name("database").unwrap().as_str().to_string(),
-            );
-        }
-
-        if let Some(arg) = cap.name("arg") {
-            let sp = arg.as_str().split(',');
-            for s in sp {
-                if let Some((key, val)) = s.split_once('=') {
-                    if key == "ssl-mode" {
-                        entities.insert(key.to_string(), val.to_string());
-                    }
-                }
-            }
-        }
-    }
-
-    entities
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Oneof, Hash)]
