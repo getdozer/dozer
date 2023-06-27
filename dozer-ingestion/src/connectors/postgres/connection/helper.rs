@@ -1,3 +1,4 @@
+use crate::errors::ConnectorError::WrongConnectionConfiguration;
 use crate::errors::PostgresConnectorError::InvalidSslError;
 use crate::errors::{ConnectorError, PostgresConnectorError};
 use dozer_types::log::{debug, error};
@@ -8,7 +9,6 @@ use std::sync::Arc;
 use std::time::SystemTime;
 use tokio_postgres::config::SslMode;
 use tokio_postgres::{Client, NoTls};
-use crate::errors::ConnectorError::WrongConnectionConfiguration;
 
 pub fn map_connection_config(
     auth_details: &ConnectionConfig,
