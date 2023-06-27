@@ -139,7 +139,7 @@ fn error_missing_field_connection_ref_in_source() {
 }
 
 #[test]
-fn error_missing_field_inner() {
+fn error_missing_connection_ref() {
     let input_config = r#"
     app_name: working_app
     home_dir: './.dozer'
