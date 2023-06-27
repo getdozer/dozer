@@ -3,6 +3,7 @@
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::builder::ExpressionBuilder;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
+use crate::pipeline::pipeline_builder::from_builder::string_from_sql_object_name;
 use dozer_types::types::{FieldDefinition, Schema};
 use sqlparser::ast::{Expr, Ident, Select, SelectItem};
 
@@ -46,7 +47,21 @@ impl CommonPlanner {
         let expr_items: Vec<(Expr, Option<String>)> = match item {
             SelectItem::UnnamedExpr(expr) => vec![(expr, None)],
             SelectItem::ExprWithAlias { expr, alias } => vec![(expr, Some(alias.value))],
-            SelectItem::QualifiedWildcard(_, _) => panic!("not supported yet"),
+            SelectItem::QualifiedWildcard(alias, _) => self
+                .input_schema
+                .fields
+                .iter()
+                .filter(|c| c.check_from(alias.to_string()))
+                .map(|col| {
+                    (
+                        Expr::CompoundIdentifier(vec![
+                            Ident::new(string_from_sql_object_name(&alias)),
+                            Ident::new(col.to_owned().name),
+                        ]),
+                        None,
+                    )
+                })
+                .collect(),
             SelectItem::Wildcard(_) => self
                 .input_schema
                 .fields

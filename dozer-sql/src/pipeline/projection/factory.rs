@@ -81,9 +81,11 @@ impl ProcessorFactory<SchemaSQLContext> for ProjectionProcessorFactory {
                         .fields
                         .iter()
                         .filter(|c| c.check_from(alias.to_string()))
-                        .map(|col| SelectItem::ExprWithAlias {
-                            expr: Expr::Identifier(Ident::new(col.to_owned().name)),
-                            alias: Ident::new(string_from_sql_object_name(alias)),
+                        .map(|col| {
+                            SelectItem::UnnamedExpr(Expr::CompoundIdentifier(vec![
+                                Ident::new(string_from_sql_object_name(alias)),
+                                Ident::new(col.to_owned().name),
+                            ]))
                         })
                         .collect();
                     for f in fields {
