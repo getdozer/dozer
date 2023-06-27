@@ -1,7 +1,9 @@
 use super::internal::BoxedError;
 use crate::types::FieldType;
 use geo::vincenty_distance::FailedToConvergeError;
+use std::num::ParseIntError;
 use thiserror::Error;
+use tokio_postgres::Error;
 
 #[derive(Error, Debug)]
 pub enum TypeError {
@@ -61,8 +63,10 @@ pub enum DeserializationError {
     F64TypeConversionError,
     #[error("Unknown SSL mode: {0}")]
     UnknownSslMode(String),
+    #[error("Unable to Parse Postgres configuration: {0}")]
+    UnableToParseConnectionUrl(ParseIntError),
     #[error("Invalid connection url for Postgres configuration: {0}")]
-    InvalidConnectionUrl(String),
+    InvalidConnectionUrl(Error),
     #[error("{0} is missing in Postgres configuration")]
     MissingFieldInPostgresConfig(String),
     #[error("{0} is mismatching in Postgres configuration")]

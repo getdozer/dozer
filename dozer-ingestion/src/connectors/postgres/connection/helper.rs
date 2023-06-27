@@ -16,7 +16,7 @@ pub fn map_connection_config(
     if let ConnectionConfig::Postgres(postgres) = auth_details {
         let config_replenished = match postgres.replenish() {
             Ok(conf) => conf,
-            Err(_) => return Err(WrongConnectionConfiguration),
+            Err(e) => return Err(WrongConnectionConfiguration(e)),
         };
         let mut config = tokio_postgres::Config::new();
         config
@@ -28,7 +28,9 @@ pub fn map_connection_config(
             .ssl_mode(config_replenished.sslmode);
         Ok(config)
     } else {
-        Err(ConnectorError::WrongConnectionConfiguration)
+        Err(ConnectorError::UnavailableConnectionConfiguration(
+            "Unable to map connection config".to_string(),
+        ))
     }
 }
 

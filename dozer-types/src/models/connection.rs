@@ -7,11 +7,11 @@ use std::str::FromStr;
 use crate::errors::types::DeserializationError;
 use crate::errors::types::DeserializationError::{
     InvalidConnectionUrl, MismatchingFieldInPostgresConfig, MissingFieldInPostgresConfig,
-    UnknownSslMode,
+    UnableToParseConnectionUrl, UnknownSslMode,
 };
 use prettytable::Table;
 use tokio_postgres::config::SslMode;
-use tokio_postgres::Config;
+use tokio_postgres::{Config};
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
 pub struct Connection {
@@ -70,7 +70,7 @@ impl PostgresConfig {
             password: self.lookup("password")?,
             host: self.lookup("host")?,
             port: u32::from_str(self.lookup("port")?.as_str())
-                .map_err(|e| InvalidConnectionUrl(e.to_string()))?,
+                .map_err(UnableToParseConnectionUrl)?,
             database: self.lookup("database")?,
             sslmode: get_sslmode(self.lookup("sslmode")?)?,
         })
@@ -79,8 +79,7 @@ impl PostgresConfig {
     fn lookup(&self, field: &str) -> Result<String, DeserializationError> {
         let connection_url_val: String = match self.connection_url.clone() {
             Some(url) => {
-                let val = Config::from_str(url.as_str())
-                    .map_err(|e| InvalidConnectionUrl(e.to_string()))?;
+                let val = Config::from_str(url.as_str()).map_err(InvalidConnectionUrl)?;
                 match field {
                     "user" => match val.get_user() {
                         Some(usr) => usr.to_string(),

@@ -234,7 +234,7 @@ pub fn get_connector_info_table(connection: &Connection) -> Result<Table, Connec
     match &connection.config {
         Some(ConnectionConfig::Postgres(config)) => match config.replenish() {
             Ok(conf) => Ok(conf.convert_to_table()),
-            Err(_) => Err(WrongConnectionConfiguration),
+            Err(e) => Err(WrongConnectionConfiguration(e)),
         },
         Some(ConnectionConfig::Ethereum(config)) => Ok(config.convert_to_table()),
         Some(ConnectionConfig::Snowflake(config)) => Ok(config.convert_to_table()),

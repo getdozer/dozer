@@ -1,7 +1,7 @@
 #![allow(clippy::enum_variant_names)]
 
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::errors::types::{SerializationError, TypeError};
+use dozer_types::errors::types::{DeserializationError, SerializationError, TypeError};
 use dozer_types::ingestion_types::IngestorError;
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
@@ -37,8 +37,14 @@ pub enum ConnectorError {
     #[error("Missing `config` for connector {0}")]
     MissingConfiguration(String),
 
-    #[error("Failed to map configuration")]
-    WrongConnectionConfiguration,
+    #[error("Failed to map configuration: {0}")]
+    WrongConnectionConfiguration(DeserializationError),
+
+    #[error("Failed to map configuration: {0}")]
+    UnavailableConnectionConfiguration(String),
+
+    #[error("Failed to map configuration: {0}")]
+    UnableToInferSchema(DataFusionError),
 
     #[error("Unsupported grpc adapter: {0} {1}")]
     UnsupportedGrpcAdapter(String, String),
