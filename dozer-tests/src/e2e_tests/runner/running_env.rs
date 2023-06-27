@@ -338,7 +338,7 @@ fn write_dozer_config_for_running_in_docker_compose(
 
         match config {
             ConnectionConfig::Postgres(postgres) => {
-                let config = postgres.replenish();
+                let config = postgres.replenish().unwrap();
                 postgres.host = Some(connection.name.clone());
                 postgres.port = Some(map_port(config.port as u16) as u32);
             }

@@ -6,10 +6,14 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 use crate::errors::types::DeserializationError;
-use crate::errors::types::DeserializationError::UnknownSslMode;
+use crate::errors::types::DeserializationError::{
+    InvalidConnectionUrl, MismatchingFieldInPostgresConfig, MissingFieldInPostgresConfig,
+    UnknownSslMode,
+};
 use prettytable::Table;
 use regex::Regex;
 use tokio_postgres::config::SslMode;
+use tokio_postgres::Config;
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
 pub struct Connection {
@@ -45,7 +49,7 @@ pub struct PostgresConfigReplenished {
     pub host: String,
     pub port: u32,
     pub database: String,
-    pub ssl_mode: SslMode,
+    pub sslmode: SslMode,
 }
 
 impl PostgresConfigReplenished {
@@ -56,75 +60,108 @@ impl PostgresConfigReplenished {
             ["host", self.host],
             ["port", self.port],
             ["database", self.database],
-            ["sslmode", format!("{:?}", self.ssl_mode)]
+            ["sslmode", format!("{:?}", self.sslmode)]
         )
     }
 }
 
 impl PostgresConfig {
-    pub fn replenish(&self) -> PostgresConfigReplenished {
-        if self.connection_url.is_none() {
-            PostgresConfigReplenished {
-                user: self
-                    .user
-                    .clone()
-                    .expect("user is missing from connection url"),
-                password: self
-                    .password
-                    .clone()
-                    .expect("user is missing from connection url"),
-                host: self
-                    .host
-                    .clone()
-                    .expect("host is missing from connection url"),
-                port: self.port.expect("port is missing from connection url"),
-                database: self
-                    .database
-                    .clone()
-                    .expect("database is missing from connection url"),
-                ssl_mode: get_ssl_mode(self.sslmode.clone())
-                    .expect("unknown sslmode from connection url"),
+    pub fn replenish(&self) -> Result<PostgresConfigReplenished, DeserializationError> {
+        Ok(PostgresConfigReplenished {
+            user: self.lookup("user")?,
+            password: self.lookup("password")?,
+            host: self.lookup("host")?,
+            port: u32::from_str(self.lookup("port")?.as_str()).map_err(|_| InvalidConnectionUrl)?,
+            database: self.lookup("database")?,
+            sslmode: get_sslmode(self.lookup("sslmode")?)?,
+        })
+    }
+
+    fn lookup(&self, field: &str) -> Result<String, DeserializationError> {
+        let connection_url_val: String = match self.connection_url.clone() {
+            Some(url) => {
+                let val = Config::from_str(url.as_str()).map_err(|_| InvalidConnectionUrl)?;
+                match field {
+                    "user" => match val.get_user() {
+                        Some(usr) => usr.to_string(),
+                        None => String::new(),
+                    },
+                    "password" => match val.get_password() {
+                        Some(pw) => String::from_utf8(pw.to_owned()).unwrap(),
+                        None => String::new(),
+                    },
+                    "host" => match val.get_hosts().first() {
+                        Some(h) => format!("{:?}", h),
+                        None => String::new(),
+                    },
+                    "port" => match val.get_ports().first() {
+                        Some(p) => format!("{:?}", p),
+                        None => String::new(),
+                    },
+                    "database" => match val.get_dbname() {
+                        Some(db) => db.to_string(),
+                        None => String::new(),
+                    },
+                    "sslmode" => format!("{:?}", val.get_ssl_mode()),
+                    &_ => String::new(),
+                }
             }
+            None => String::new(),
+        };
+        let field_val = match field {
+            "user" => match self.user.clone() {
+                Some(usr) => usr,
+                None => String::new(),
+            },
+            "password" => match self.password.clone() {
+                Some(pw) => pw,
+                None => String::new(),
+            },
+            "host" => match self.host.clone() {
+                Some(h) => h,
+                None => String::new(),
+            },
+            "port" => match self.port {
+                Some(p) => p.to_string(),
+                None => String::new(),
+            },
+            "database" => match self.database.clone() {
+                Some(db) => db,
+                None => String::new(),
+            },
+            "sslmode" => match self.sslmode.clone() {
+                Some(ssl) => ssl,
+                None => String::new(),
+            },
+            &_ => String::new(),
+        };
+        if connection_url_val.is_empty() && field_val.is_empty() {
+            if field == "sslmode" {
+                Ok(format!("{:?}", SslMode::Disable))
+            } else {
+                Err(MissingFieldInPostgresConfig(field.to_string()))
+            }
+        } else if !connection_url_val.is_empty() && field_val.is_empty() {
+            Ok(connection_url_val)
+        } else if connection_url_val.is_empty() && !field_val.is_empty() {
+            Ok(field_val)
+        } else if !connection_url_val.is_empty()
+            && !field_val.is_empty()
+            && connection_url_val == field_val
+        {
+            Ok(connection_url_val)
         } else {
-            let map = connection_url_map(self.connection_url.as_ref().unwrap(), self);
-            PostgresConfigReplenished {
-                user: map
-                    .get("user")
-                    .expect("user is missing from connection url")
-                    .to_string(),
-                password: map
-                    .get("password")
-                    .expect("password is missing from connection url")
-                    .to_string(),
-                host: map
-                    .get("host")
-                    .expect("host is missing from connection url")
-                    .to_string(),
-                port: u32::from_str(
-                    map.get("port")
-                        .expect("port is missing from connection url"),
-                )
-                .unwrap(),
-                database: map
-                    .get("database")
-                    .expect("database is missing from connection url")
-                    .to_string(),
-                ssl_mode: get_ssl_mode(map.get("sslmode").cloned())
-                    .expect("unknown sslmode from connection url"),
-            }
+            Err(MismatchingFieldInPostgresConfig(field.to_string()))
         }
     }
 }
 
-fn get_ssl_mode(mode: Option<String>) -> Result<SslMode, DeserializationError> {
-    match mode {
-        Some(m) => match m.as_str() {
-            "disable" | "Disable" | "" => Ok(SslMode::Disable),
-            "prefer" | "Prefer" => Ok(SslMode::Prefer),
-            "require" | "Require" => Ok(SslMode::Require),
-            &_ => Err(UnknownSslMode(m)),
-        },
-        None => Ok(SslMode::Disable),
+fn get_sslmode(mode: String) -> Result<SslMode, DeserializationError> {
+    match mode.as_str() {
+        "disable" | "Disable" => Ok(SslMode::Disable),
+        "prefer" | "Prefer" => Ok(SslMode::Prefer),
+        "require" | "Require" => Ok(SslMode::Require),
+        &_ => Err(UnknownSslMode(mode)),
     }
 }
 

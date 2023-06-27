@@ -61,4 +61,10 @@ pub enum DeserializationError {
     F64TypeConversionError,
     #[error("Unknown SSL mode: {0}")]
     UnknownSslMode(String),
+    #[error("Invalid connection url for Postgres configuration")]
+    InvalidConnectionUrl,
+    #[error("{0} is missing in Postgres configuration")]
+    MissingFieldInPostgresConfig(String),
+    #[error("{0} is mismatching in Postgres configuration")]
+    MismatchingFieldInPostgresConfig(String),
 }

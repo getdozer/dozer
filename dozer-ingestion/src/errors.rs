@@ -25,6 +25,7 @@ use odbc::DiagnosticRecord;
 use dozer_types::arrow_types::errors::FromArrowError;
 #[cfg(feature = "kafka")]
 use schema_registry_converter::error::SRCError;
+use tokio_postgres::config::SslMode;
 
 use tokio_postgres::Error;
 
@@ -124,8 +125,8 @@ pub enum ConfigurationError {
 
 #[derive(Error, Debug)]
 pub enum PostgresConnectorError {
-    #[error("Invalid SslMode: {0}")]
-    InvalidSslError(String),
+    #[error("Invalid SslMode: {0:?}")]
+    InvalidSslError(SslMode),
 
     #[error("Query failed in connector: {0}")]
     InvalidQueryError(#[source] tokio_postgres::Error),

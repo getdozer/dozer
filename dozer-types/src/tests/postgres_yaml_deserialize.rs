@@ -23,9 +23,9 @@ fn standard() {
     assert_eq!(expected, deserializer_result);
 
     if let ConnectionConfig::Postgres(config) = expected {
-        let expected_replenished = config.replenish();
+        let expected_replenished = config.replenish().unwrap();
         if let ConnectionConfig::Postgres(deserialized) = deserializer_result {
-            let deserialized_replenished = deserialized.replenish();
+            let deserialized_replenished = deserialized.replenish().unwrap();
             assert_eq!(expected_replenished, deserialized_replenished);
         }
     }
@@ -56,9 +56,9 @@ fn standard_with_ssl_mode() {
     assert_eq!(expected, deserializer_result);
 
     if let ConnectionConfig::Postgres(config) = expected {
-        let expected_replenished = config.replenish();
+        let expected_replenished = config.replenish().unwrap();
         if let ConnectionConfig::Postgres(deserialized) = deserializer_result {
-            let deserialized_replenished = deserialized.replenish();
+            let deserialized_replenished = deserialized.replenish().unwrap();
             assert_eq!(expected_replenished, deserialized_replenished);
         }
     }
@@ -68,7 +68,7 @@ fn standard_with_ssl_mode() {
 fn standard_url() {
     let postgres_config = r#"
     !Postgres
-    connection_url: postgres://postgres:postgres@ep-silent-bread-370191.ap-southeast-1.aws.neon.tech:5432/neondb?sslmode=verify-ca
+    connection_url: postgres://postgres:postgres@ep-silent-bread-370191.ap-southeast-1.aws.neon.tech:5432/neondb?sslmode=prefer
   "#;
     let deserializer_result = serde_yaml::from_str::<ConnectionConfig>(postgres_config).unwrap();
     let postgres_auth = PostgresConfig {
@@ -78,26 +78,26 @@ fn standard_url() {
         port: None,
         database: None,
         sslmode: None,
-        connection_url: Some("postgres://postgres:postgres@ep-silent-bread-370191.ap-southeast-1.aws.neon.tech:5432/neondb?sslmode=verify-ca".to_string()),
+        connection_url: Some("postgres://postgres:postgres@ep-silent-bread-370191.ap-southeast-1.aws.neon.tech:5432/neondb?sslmode=prefer".to_string()),
     };
     let expected = ConnectionConfig::Postgres(postgres_auth);
     assert_eq!(expected, deserializer_result);
 
     if let ConnectionConfig::Postgres(config) = expected {
-        let expected_replenished = config.replenish();
+        let expected_replenished = config.replenish().unwrap();
         if let ConnectionConfig::Postgres(deserialized) = deserializer_result {
-            let deserialized_replenished = deserialized.replenish();
+            let deserialized_replenished = deserialized.replenish().unwrap();
             assert_eq!(expected_replenished, deserialized_replenished);
         }
     }
 }
 
 #[test]
-#[should_panic(expected = "user is missing from connection url")]
+#[should_panic(expected = "MissingFieldInPostgresConfig(\"user\")")]
 fn standard_url_missing_user() {
     let postgres_config = r#"
     !Postgres
-    connection_url: jdbc:postgresql://localhost:5432/stocks?sslmode=prefer
+    connection_url: postgresql://localhost:5432/stocks?sslmode=prefer
   "#;
     let deserializer_result = serde_yaml::from_str::<ConnectionConfig>(postgres_config).unwrap();
     let postgres_auth = PostgresConfig {
@@ -107,27 +107,27 @@ fn standard_url_missing_user() {
         port: None,
         database: None,
         sslmode: None,
-        connection_url: Some("jdbc:postgresql://localhost:5432/stocks?sslmode=prefer".to_string()),
+        connection_url: Some("postgresql://localhost:5432/stocks?sslmode=prefer".to_string()),
     };
     let expected = ConnectionConfig::Postgres(postgres_auth);
     assert_eq!(expected, deserializer_result);
 
     if let ConnectionConfig::Postgres(config) = expected {
-        let expected_replenished = config.replenish();
+        let expected_replenished = config.replenish().unwrap();
         if let ConnectionConfig::Postgres(deserialized) = deserializer_result {
-            let deserialized_replenished = deserialized.replenish();
+            let deserialized_replenished = deserialized.replenish().unwrap();
             assert_eq!(expected_replenished, deserialized_replenished);
         }
     }
 }
 
 #[test]
-#[should_panic(expected = "password is missing from connection url")]
+#[should_panic(expected = "MissingFieldInPostgresConfig(\"password\")")]
 fn standard_url_missing_password() {
     let postgres_config = r#"
     !Postgres
     user: postgres
-    connection_url: jdbc:postgresql://localhost:5432/stocks?sslmode=prefer
+    connection_url: postgresql://localhost:5432/stocks?sslmode=prefer
   "#;
     let deserializer_result = serde_yaml::from_str::<ConnectionConfig>(postgres_config).unwrap();
     let postgres_auth = PostgresConfig {
@@ -137,15 +137,15 @@ fn standard_url_missing_password() {
         port: None,
         database: None,
         sslmode: None,
-        connection_url: Some("jdbc:postgresql://localhost:5432/stocks?sslmode=prefer".to_string()),
+        connection_url: Some("postgresql://localhost:5432/stocks?sslmode=prefer".to_string()),
     };
     let expected = ConnectionConfig::Postgres(postgres_auth);
     assert_eq!(expected, deserializer_result);
 
     if let ConnectionConfig::Postgres(config) = expected {
-        let expected_replenished = config.replenish();
+        let expected_replenished = config.replenish().unwrap();
         if let ConnectionConfig::Postgres(deserialized) = deserializer_result {
-            let deserialized_replenished = deserialized.replenish();
+            let deserialized_replenished = deserialized.replenish().unwrap();
             assert_eq!(expected_replenished, deserialized_replenished);
         }
     }
@@ -157,7 +157,7 @@ fn standard_url_2() {
     !Postgres
     user: postgres
     password: postgres
-    connection_url: jdbc:postgresql://localhost:5432/stocks?sslmode=prefer
+    connection_url: postgresql://localhost:5432/stocks?sslmode=prefer
   "#;
     let deserializer_result = serde_yaml::from_str::<ConnectionConfig>(postgres_config).unwrap();
     let postgres_auth = PostgresConfig {
@@ -167,15 +167,15 @@ fn standard_url_2() {
         port: None,
         database: None,
         sslmode: None,
-        connection_url: Some("jdbc:postgresql://localhost:5432/stocks?sslmode=prefer".to_string()),
+        connection_url: Some("postgresql://localhost:5432/stocks?sslmode=prefer".to_string()),
     };
     let expected = ConnectionConfig::Postgres(postgres_auth);
     assert_eq!(expected, deserializer_result);
 
     if let ConnectionConfig::Postgres(config) = expected {
-        let expected_replenished = config.replenish();
+        let expected_replenished = config.replenish().unwrap();
         if let ConnectionConfig::Postgres(deserialized) = deserializer_result {
-            let deserialized_replenished = deserialized.replenish();
+            let deserialized_replenished = deserialized.replenish().unwrap();
             assert_eq!(expected_replenished, deserialized_replenished);
         }
     }

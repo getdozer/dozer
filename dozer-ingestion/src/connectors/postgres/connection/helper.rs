@@ -13,7 +13,7 @@ pub fn map_connection_config(
     auth_details: &ConnectionConfig,
 ) -> Result<tokio_postgres::Config, ConnectorError> {
     if let ConnectionConfig::Postgres(postgres) = auth_details {
-        let config_replenished = postgres.replenish();
+        let config_replenished = postgres.replenish().unwrap();
         let mut config = tokio_postgres::Config::new();
         config
             .host(&config_replenished.host)
@@ -21,7 +21,7 @@ pub fn map_connection_config(
             .user(&config_replenished.user)
             .dbname(&config_replenished.database)
             .password(&config_replenished.password)
-            .ssl_mode(config_replenished.ssl_mode);
+            .ssl_mode(config_replenished.sslmode);
         Ok(config)
     } else {
         Err(ConnectorError::WrongConnectionConfiguration)
@@ -101,6 +101,6 @@ pub async fn connect(config: tokio_postgres::Config) -> Result<Client, PostgresC
             });
             Ok(client)
         }
-        ssl_mode => Err(InvalidSslError(format!("{:?}", ssl_mode))),
+        ssl_mode => Err(InvalidSslError(ssl_mode)),
     }
 }

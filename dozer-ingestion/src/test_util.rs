@@ -12,13 +12,13 @@ async fn warm_up(app_config: &Config) {
     let connection = app_config.connections.get(0).unwrap();
     if let Some(ConnectionConfig::Postgres(connection_config)) = connection.config.clone() {
         let mut config = tokio_postgres::Config::new();
-        let replenished_config = connection_config.replenish();
+        let replenished_config = connection_config.replenish().unwrap();
         config
             .user(&replenished_config.user)
             .host(&replenished_config.host)
             .password(&replenished_config.password)
             .port(replenished_config.port as u16)
-            .ssl_mode(replenished_config.ssl_mode);
+            .ssl_mode(replenished_config.sslmode);
 
         let client = TestPostgresClient::new_with_postgres_config(config).await;
         client
@@ -52,7 +52,7 @@ pub fn get_config(app_config: Config) -> tokio_postgres::Config {
     if let Some(ConnectionConfig::Postgres(connection)) =
         &app_config.connections.get(0).unwrap().config
     {
-        let config_replenished = connection.replenish();
+        let config_replenished = connection.replenish().unwrap();
         let mut config = tokio_postgres::Config::new();
         config
             .dbname(&config_replenished.database)
@@ -60,7 +60,7 @@ pub fn get_config(app_config: Config) -> tokio_postgres::Config {
             .host(&config_replenished.host)
             .password(&config_replenished.password)
             .port(config_replenished.port as u16)
-            .ssl_mode(config_replenished.ssl_mode)
+            .ssl_mode(config_replenished.sslmode)
             .deref()
             .clone()
     } else {
