@@ -1,4 +1,6 @@
-use dozer_types::ingestion_types::IngestionMessage;
+use dozer_types::ingestion_types::{IngestionMessage, IngestionMessageKind};
+use futures::future::join_all;
+use std::collections::HashMap;
 use tokio::sync::mpsc::channel;
 use tonic::async_trait;
 
@@ -98,11 +100,63 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
     }
 
     async fn start(&self, ingestor: &Ingestor, tables: Vec<TableInfo>) -> ConnectorResult<()> {
-        let (sender, mut receiver) = channel(16);
+        let (sender, mut receiver) =
+            channel::<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>(100); // todo: increase buffer size
+        let ingestor_clone = ingestor.clone();
 
-        ingestor
-            .handle_message(IngestionMessage::new_snapshotting_started(0_u64, 0))
-            .map_err(ObjectStoreConnectorError::IngestorError)?;
+        // Ingestor loop - generating operation message out
+        tokio::spawn(async move {
+            let mut seq_no = 0;
+            loop {
+                let message = receiver
+                    .recv()
+                    .await
+                    .ok_or(ConnectorError::ObjectStoreConnectorError(RecvError))
+                    .unwrap()
+                    .unwrap();
+                match message {
+                    None => {
+                        break;
+                    }
+                    Some(evt) => {
+                        match evt {
+                            IngestionMessageKind::SnapshottingStarted => {
+                                ingestor_clone
+                                    .handle_message(IngestionMessage::new_snapshotting_started(
+                                        0, seq_no,
+                                    ))
+                                    .map_err(ConnectorError::IngestorError)
+                                    .unwrap();
+                            }
+                            IngestionMessageKind::SnapshottingDone => {
+                                ingestor_clone
+                                    .handle_message(IngestionMessage::new_snapshotting_done(
+                                        0, seq_no,
+                                    ))
+                                    .map_err(ConnectorError::IngestorError)
+                                    .unwrap();
+                            }
+                            IngestionMessageKind::OperationEvent(op) => {
+                                ingestor_clone
+                                    .handle_message(IngestionMessage::new_op(0, seq_no, op))
+                                    .map_err(ConnectorError::IngestorError)
+                                    .unwrap();
+                            }
+                        }
+                        seq_no += 1;
+                    }
+                }
+            }
+        });
+
+        // sender sending out message for pipeline
+        sender
+            .send(Ok(Some(IngestionMessageKind::SnapshottingStarted)))
+            .await
+            .unwrap();
+
+        let mut handles = vec![];
+        // let mut csv_tables: HashMap<usize, HashMap<Path, DateTime<Utc>>> = vec![];
 
         for (id, table_info) in tables.iter().enumerate() {
             for table_config in self.config.tables() {
@@ -111,19 +165,21 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                         match config {
                             dozer_types::ingestion_types::TableConfig::CSV(config) => {
                                 let table = CsvTable::new(config.clone(), self.config.clone());
-                                table
-                                    .snapshot(id, table_info, sender.clone())
-                                    .await
-                                    .unwrap();
+                                handles.push(
+                                    table
+                                        .snapshot(id, table_info, sender.clone())
+                                        .await
+                                        .unwrap(),
+                                );
                             }
                             dozer_types::ingestion_types::TableConfig::Delta(config) => {
                                 let table =
                                     DeltaTable::new(id, config.clone(), self.config.clone());
-                                table.snapshot(id, table_info, sender.clone()).await?;
+                                handles.push(table.snapshot(id, table_info, sender.clone()).await?);
                             }
                             dozer_types::ingestion_types::TableConfig::Parquet(config) => {
                                 let table = ParquetTable::new(config.clone(), self.config.clone());
-                                table.snapshot(id, table_info, sender.clone()).await?;
+                                handles.push(table.snapshot(id, table_info, sender.clone()).await?);
                             }
                         }
                     }
@@ -131,9 +187,16 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
             }
         }
 
-        ingestor
-            .handle_message(IngestionMessage::new_snapshotting_done(0_u64, 1))
-            .map_err(ObjectStoreConnectorError::IngestorError)?;
+        let updated_state = join_all(handles).await;
+        let mut state_hash = HashMap::new();
+        for (id, state) in updated_state.into_iter().flatten() {
+            state_hash.insert(id, state);
+        }
+
+        sender
+            .send(Ok(Some(IngestionMessageKind::SnapshottingDone)))
+            .await
+            .unwrap();
 
         for (id, table_info) in tables.iter().enumerate() {
             for table_config in self.config.tables() {
@@ -141,7 +204,8 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                     if let Some(config) = &table_config.config {
                         match config {
                             dozer_types::ingestion_types::TableConfig::CSV(config) => {
-                                let table = CsvTable::new(config.clone(), self.config.clone());
+                                let mut table = CsvTable::new(config.clone(), self.config.clone());
+                                table.update_state = state_hash.get(&id).unwrap().clone();
                                 table.watch(id, table_info, sender.clone()).await.unwrap();
                             }
                             dozer_types::ingestion_types::TableConfig::Delta(config) => {
@@ -150,7 +214,9 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                                 table.watch(id, table_info, sender.clone()).await?;
                             }
                             dozer_types::ingestion_types::TableConfig::Parquet(config) => {
-                                let table = ParquetTable::new(config.clone(), self.config.clone());
+                                let mut table =
+                                    ParquetTable::new(config.clone(), self.config.clone());
+                                table.update_state = state_hash.get(&id).unwrap().clone();
                                 table.watch(id, table_info, sender.clone()).await?;
                             }
                         }
@@ -159,24 +225,6 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
             }
         }
 
-        let mut seq_no = 2;
-        loop {
-            let message = receiver
-                .recv()
-                .await
-                .ok_or(ConnectorError::ObjectStoreConnectorError(RecvError))??;
-            match message {
-                None => {
-                    break;
-                }
-                Some(evt) => {
-                    ingestor
-                        .handle_message(IngestionMessage::new_op(0, seq_no, evt))
-                        .map_err(ConnectorError::IngestorError)?;
-                    seq_no += 1;
-                }
-            }
-        }
         Ok(())
     }
 }
