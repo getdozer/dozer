@@ -11,7 +11,7 @@ use crate::errors::types::DeserializationError::{
 };
 use prettytable::Table;
 use tokio_postgres::config::SslMode;
-use tokio_postgres::{Config};
+use tokio_postgres::Config;
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
 pub struct Connection {
