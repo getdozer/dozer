@@ -31,6 +31,10 @@ impl TableProcessorFactory {
 }
 
 impl ProcessorFactory<SchemaSQLContext> for TableProcessorFactory {
+    fn id(&self) -> String {
+        self.id.clone()
+    }
+
     fn type_name(&self) -> String {
         "Table".to_string()
     }

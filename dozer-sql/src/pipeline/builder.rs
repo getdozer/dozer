@@ -284,7 +284,7 @@ fn select_to_pipeline(
 
     // Where clause
     if let Some(selection) = select.selection {
-        let selection = SelectionProcessorFactory::new(selection);
+        let selection = SelectionProcessorFactory::new(gen_selection_name.to_owned(), selection);
 
         pipeline.add_processor(Arc::new(selection), &gen_selection_name, vec![]);
 

@@ -305,6 +305,7 @@ message QueryNode {
   QueryNodeType node_type = 2;
   uint32 idx = 3;
   uint32 id = 4;
+  string data = 5;
 }
 
 message QueryEdge {
