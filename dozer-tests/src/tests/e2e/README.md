@@ -1,4 +1,4 @@
-# Adding a New Test Cases
+# Adding New Test Cases
 
 All test cases are located under `dozer-tests/src/tests/e2e`. Each detailed `.yaml` with each test case is located under `dozer-tests/src/tests/e2e/fixtures`.  
 
