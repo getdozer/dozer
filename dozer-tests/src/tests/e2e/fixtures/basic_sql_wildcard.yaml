@@ -1,7 +1,7 @@
 app_name: wildcard-test
 connections:
   - config: !Grpc
-      port: 8086
+      port: 8087
       schemas: !Inline |
         {
           "table1": {
