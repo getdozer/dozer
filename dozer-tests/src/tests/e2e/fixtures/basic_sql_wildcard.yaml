@@ -50,12 +50,12 @@ api:
 sql: |
   SELECT 
     t2.* 
-  INTO table1_endpoint 
+  INTO wildcard_res 
   FROM table1 
   LEFT JOIN table2 AS t2
     ON table1.id = table2.table1_id;
 
 endpoints:
-  - name: table1_endpoint
-    table_name: table1_endpoint
-    path: /table1_endpoint
+  - name: wildcard_res
+    table_name: wildcard_res
+    path: /wildcard_res
