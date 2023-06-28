@@ -128,8 +128,6 @@ async fn run(
     ingestor: &Ingestor,
     from_seq: Option<(u64, u64)>,
 ) -> Result<(), ConnectorError> {
-    let client = Client::new(&config);
-
     // SNAPSHOT part - run it when stream table doesn't exist
     let stream_client = Client::new(&config);
     let mut interval = time::interval(Duration::from_secs(5));
@@ -143,15 +141,15 @@ async fn run(
                 match from_seq {
                     None | Some((0, _)) => {
                         info!("[{}][{}] Creating new stream", name, table.name);
-                        StreamConsumer::drop_stream(&client, &table.name)?;
-                        StreamConsumer::create_stream(&client, &table.name)?;
+                        StreamConsumer::drop_stream(&stream_client, &table.name)?;
+                        StreamConsumer::create_stream(&stream_client, &table.name)?;
                     }
                     Some((lsn, seq)) => {
                         info!(
                             "[{}][{}] Continuing ingestion from {}/{}",
                             name, table.name, lsn, seq
                         );
-                        if let Ok(false) = StreamConsumer::is_stream_created(&client, &table.name) {
+                        if let Ok(false) = StreamConsumer::is_stream_created(&stream_client, &table.name) {
                             return Err(ConnectorError::SnowflakeError(
                                 SnowflakeError::SnowflakeStreamError(
                                     SnowflakeStreamError::StreamNotFound,
