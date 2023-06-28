@@ -24,10 +24,10 @@ pub enum CloudCommands {
     Deploy(DeployCommandArgs),
     /// Update existing application on Dozer Cloud
     Update(UpdateCommandArgs),
-    Delete(AppCommand),
+    Delete,
     List(ListCommandArgs),
-    Status(AppCommand),
-    Monitor(AppCommand),
+    Status,
+    Monitor,
     /// Inspect application logs
     Logs(LogCommandArgs),
     Login(CompanyCommand),
@@ -40,6 +40,9 @@ pub enum CloudCommands {
     /// Dozer app secrets management
     #[command(subcommand)]
     Secrets(SecretsCommand),
+    /// Dozer app secrets management
+    #[command(subcommand)]
+    App(AppCommand),
 }
 
 #[derive(Debug, Args, Clone)]
@@ -55,9 +58,6 @@ pub fn default_num_replicas() -> i32 {
 
 #[derive(Debug, Args, Clone)]
 pub struct UpdateCommandArgs {
-    /// The id of the application to update
-    #[arg(short, long)]
-    pub app_id: String,
     /// Number of replicas to serve Dozer APIs
     #[arg(short, long)]
     pub num_replicas: Option<i32>,
@@ -68,17 +68,13 @@ pub struct CompanyCommand {
     pub company_name: String,
 }
 
-#[derive(Debug, Args, Clone)]
-pub struct AppCommand {
-    #[arg(short = 'a', long)]
-    pub app_id: String,
+#[derive(Debug, Subcommand, Clone)]
+pub enum AppCommand {
+    Use { app_id: String },
 }
 
 #[derive(Debug, Args, Clone)]
 pub struct LogCommandArgs {
-    /// The id of the application to update
-    #[arg(short, long)]
-    pub app_id: String,
     /// Whether to follow the logs
     #[arg(short, long)]
     pub follow: bool,
@@ -105,17 +101,11 @@ pub enum VersionCommand {
     Status {
         /// The version to inspect
         version: u32,
-        /// The application id.
-        #[clap(short, long)]
-        app_id: String,
     },
     /// Creates a new version of the application with the given deployment
     Create {
         /// The deployment of the application to create a new version from
         deployment: u32,
-        /// The application id.
-        #[clap(short, long)]
-        app_id: String,
     },
     /// Sets a version as the "current" version of the application
     ///
@@ -123,9 +113,6 @@ pub enum VersionCommand {
     SetCurrent {
         /// The version to set as current
         version: u32,
-        /// The application id.
-        #[clap(short, long)]
-        app_id: String,
     },
 }
 
@@ -135,9 +122,6 @@ pub enum ApiCommand {
     SetNumReplicas {
         /// The number of replicas to set
         num_replicas: i32,
-        /// The application id.
-        #[clap(short, long)]
-        app_id: String,
     },
 }
 
@@ -150,10 +134,6 @@ pub enum SecretsCommand {
 
         /// Value of secret
         value: String,
-
-        /// The application id.
-        #[clap(short, long)]
-        app_id: String,
     },
     /// Update secret value
     Update {
@@ -162,33 +142,17 @@ pub enum SecretsCommand {
 
         /// Value of secret
         value: String,
-
-        /// The application id.
-        #[clap(short, long)]
-        app_id: String,
     },
     /// Delete secret
     Delete {
         /// Name of secret
         name: String,
-
-        /// The application id.
-        #[clap(short, long)]
-        app_id: String,
     },
     /// Get secret
     Get {
         /// Name of secret
         name: String,
-
-        /// The application id.
-        #[clap(short, long)]
-        app_id: String,
     },
     /// List all app secrets
-    List {
-        /// The application id.
-        #[clap(short, long)]
-        app_id: String,
-    },
+    List {},
 }

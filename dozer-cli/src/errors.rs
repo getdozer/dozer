@@ -2,6 +2,7 @@
 
 use glob::{GlobError, PatternError};
 use std::path::PathBuf;
+use std::string::FromUtf8Error;
 
 use dozer_api::{
     errors::{ApiError, AuthError, GenerationError, GrpcError},
@@ -72,6 +73,8 @@ pub enum OrchestrationError {
     DuplicateTable(String),
     #[error("No endpoints initialized in the config provided")]
     EmptyEndpoints,
+    #[error(transparent)]
+    CloudContextError(#[from] CloudContextError),
 }
 
 #[derive(Error, Debug)]
@@ -122,6 +125,9 @@ pub enum CloudError {
 
     #[error("Response header {DOZER_SERVER_NAME_HEADER} is missing")]
     MissingResponseHeader,
+
+    #[error(transparent)]
+    CloudContextError(#[from] CloudContextError),
 }
 
 #[derive(Debug, Error)]
@@ -163,8 +169,8 @@ pub enum CloudLoginError {
     #[error(transparent)]
     CloudCredentialError(#[from] CloudCredentialError),
 }
-#[derive(Debug, Error)]
 
+#[derive(Debug, Error)]
 pub enum CloudCredentialError {
     #[error(transparent)]
     SerializationError(#[from] dozer_types::serde_yaml::Error),
@@ -181,4 +187,16 @@ pub enum CloudCredentialError {
     MissingCredentialFile,
     #[error("There's no profile with given name - Please try to login again")]
     MissingProfile,
+}
+
+#[derive(Debug, Error)]
+pub enum CloudContextError {
+    #[error("Failed to create access directory: {0}")]
+    FailedToAccessDirectory(#[from] std::io::Error),
+
+    #[error("Failed to get current directory path")]
+    FailedToGetDirectoryPath,
+
+    #[error("Failed to get current directory path")]
+    FailedToReadAppId(#[from] FromUtf8Error),
 }
