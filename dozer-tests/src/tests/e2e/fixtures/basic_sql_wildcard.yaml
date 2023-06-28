@@ -41,11 +41,11 @@ connections:
 
 api:
   rest:
-    port: 7505
+    port: 7508
   grpc:
-    port: 7506
+    port: 7509
   app_grpc:
-    port: 7507
+    port: 7510
 
 sql: |
   SELECT 
