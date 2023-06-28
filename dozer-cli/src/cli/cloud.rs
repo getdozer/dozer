@@ -37,6 +37,9 @@ pub enum CloudCommands {
     /// Dozer API server management
     #[command(subcommand)]
     Api(ApiCommand),
+    /// Dozer app secrets management
+    #[command(subcommand)]
+    Secrets(SecretsCommand),
 }
 
 #[derive(Debug, Args, Clone)]
@@ -132,6 +135,58 @@ pub enum ApiCommand {
     SetNumReplicas {
         /// The number of replicas to set
         num_replicas: i32,
+        /// The application id.
+        #[clap(short, long)]
+        app_id: String,
+    },
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum SecretsCommand {
+    /// Creates new secret
+    Create {
+        /// Name of secret
+        name: String,
+
+        /// Value of secret
+        value: String,
+
+        /// The application id.
+        #[clap(short, long)]
+        app_id: String,
+    },
+    /// Update secret value
+    Update {
+        /// Name of secret
+        name: String,
+
+        /// Value of secret
+        value: String,
+
+        /// The application id.
+        #[clap(short, long)]
+        app_id: String,
+    },
+    /// Delete secret
+    Delete {
+        /// Name of secret
+        name: String,
+
+        /// The application id.
+        #[clap(short, long)]
+        app_id: String,
+    },
+    /// Get secret
+    Get {
+        /// Name of secret
+        name: String,
+
+        /// The application id.
+        #[clap(short, long)]
+        app_id: String,
+    },
+    /// List all app secrets
+    List {
         /// The application id.
         #[clap(short, long)]
         app_id: String,
