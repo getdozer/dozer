@@ -10,7 +10,7 @@ async fn test_e2e_wildcard() {
 
     ingest_client
         .ingest(IngestRequest {
-            schema_name: "table1".to_string(),
+            schema_name: "table3".to_string(),
             new: Some(types::Record {
                 values: vec![
                     types::Value {
@@ -27,9 +27,10 @@ async fn test_e2e_wildcard() {
         })
         .await
         .unwrap();
+
     ingest_client
         .ingest(IngestRequest {
-            schema_name: "table2".to_string(),
+            schema_name: "table4".to_string(),
             new: Some(types::Record {
                 values: vec![
                     types::Value {
@@ -48,5 +49,5 @@ async fn test_e2e_wildcard() {
         .unwrap();
 
     // Wait for api to process the records.
-    tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+    tokio::time::sleep(std::time::Duration::from_millis(5000)).await;
 }

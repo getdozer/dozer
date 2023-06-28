@@ -1,10 +1,10 @@
 app_name: wildcard-test
 connections:
   - config: !Grpc
-      port: 8087
+      port: 8088
       schemas: !Inline |
         {
-          "table1": {
+          "table3": {
             "schema": {
               "fields": [
                 {
@@ -20,16 +20,16 @@ connections:
               ]
             } 
           },
-          "table2": {
+          "table4": {
             "schema": {
               "fields": [
                 {
-                  "name": "table1_id",
+                  "name": "table3_id",
                   "typ": "Int",
                   "nullable": false
                 },
                 {
-                  "name": "table1_age",
+                  "name": "table3_age",
                   "typ": "Int",
                   "nullable": false
                 }
@@ -41,19 +41,18 @@ connections:
 
 api:
   rest:
-    port: 7508
+    port: 7511
   grpc:
-    port: 7509
+    port: 7512
   app_grpc:
-    port: 7510
+    port: 7513
 
 sql: |
-  SELECT 
-    t2.* 
+  SELECT table4.* 
   INTO wildcard_res 
-  FROM table1 
-  LEFT JOIN table2 AS t2
-    ON table1.id = table2.table1_id;
+  FROM table3
+  LEFT JOIN table4
+    ON table3.id = table4.table3_id;
 
 endpoints:
   - name: wildcard_res
