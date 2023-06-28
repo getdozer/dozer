@@ -32,6 +32,9 @@ use tokio_postgres::Error;
 #[cfg(any(feature = "kafka", feature = "snowflake"))]
 use dozer_types::rust_decimal::Error as RustDecimalError;
 
+#[cfg(feature = "mongodb")]
+use crate::connectors::mongodb::MongodbConnectorError;
+
 #[derive(Error, Debug)]
 pub enum ConnectorError {
     #[error("Missing `config` for connector {0}")]
@@ -75,6 +78,10 @@ pub enum ConnectorError {
     #[error(transparent)]
     KafkaError(#[from] KafkaError),
 
+    #[cfg(feature = "mongodb")]
+    #[error(transparent)]
+    MongodbError(#[from] MongodbConnectorError),
+
     #[error(transparent)]
     ObjectStoreConnectorError(#[from] ObjectStoreConnectorError),
 
@@ -108,6 +115,9 @@ pub enum ConnectorError {
 
     #[error("ethereum feature is not enabled")]
     EthereumFeatureNotEnabled,
+
+    #[error("mongodb feature is not enabled")]
+    MongodbFeatureNotEnabled,
 }
 impl ConnectorError {
     pub fn map_serialization_error(e: serde_json::Error) -> ConnectorError {

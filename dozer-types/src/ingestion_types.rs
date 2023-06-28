@@ -414,6 +414,12 @@ pub struct DeltaLakeConfig {
     pub tables: Vec<DeltaTable>,
 }
 
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
+pub struct MongodbConfig {
+    #[prost(string, tag = "1")]
+    pub connection_string: String,
+}
+
 fn default_false() -> bool {
     false
 }
