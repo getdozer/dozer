@@ -336,14 +336,14 @@ message CompanyResponse {
     string jwks_url = 4;
 }
 
+message Secret {
+  string name = 1;
+}
+
 message CreateSecretRequest {
   string app_id = 1;
   string name = 2;
   string value = 3;
-}
-
-message Secret {
-  string name = 1;
 }
 
 message CreateSecretResponse {
