@@ -22,7 +22,7 @@ pub async fn validate_grouped_connections(
         if let Some(connection) = &first_source.connection {
             let connector = get_connector(connection.clone())?;
 
-            if let Some(info_table) = get_connector_info_table(connection) {
+            if let Ok(info_table) = get_connector_info_table(connection) {
                 info!(
                     "[{}] Connection parameters\n{}",
                     connection.name, info_table

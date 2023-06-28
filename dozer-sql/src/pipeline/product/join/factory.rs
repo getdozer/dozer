@@ -50,6 +50,10 @@ impl JoinProcessorFactory {
 }
 
 impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
+    fn id(&self) -> String {
+        self.id.clone()
+    }
+
     fn type_name(&self) -> String {
         "Join".to_string()
     }

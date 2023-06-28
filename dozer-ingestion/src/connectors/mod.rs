@@ -38,6 +38,7 @@ use self::ethereum::{EthLogConnector, EthTraceConnector};
 use self::grpc::connector::GrpcConnector;
 use self::grpc::{ArrowAdapter, DefaultAdapter};
 use crate::connectors::snowflake::connector::SnowflakeConnector;
+use crate::errors::ConnectorError::{MissingConfiguration, WrongConnectionConfiguration};
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug, Eq, PartialEq, Default)]
 #[serde(crate = "dozer_types::serde")]
@@ -229,15 +230,18 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
     }
 }
 
-pub fn get_connector_info_table(connection: &Connection) -> Option<Table> {
+pub fn get_connector_info_table(connection: &Connection) -> Result<Table, ConnectorError> {
     match &connection.config {
-        Some(ConnectionConfig::Postgres(config)) => Some(config.convert_to_table()),
-        Some(ConnectionConfig::Ethereum(config)) => Some(config.convert_to_table()),
-        Some(ConnectionConfig::Snowflake(config)) => Some(config.convert_to_table()),
-        Some(ConnectionConfig::Kafka(config)) => Some(config.convert_to_table()),
-        Some(ConnectionConfig::S3Storage(config)) => Some(config.convert_to_table()),
-        Some(ConnectionConfig::LocalStorage(config)) => Some(config.convert_to_table()),
-        _ => None,
+        Some(ConnectionConfig::Postgres(config)) => match config.replenish() {
+            Ok(conf) => Ok(conf.convert_to_table()),
+            Err(e) => Err(WrongConnectionConfiguration(e)),
+        },
+        Some(ConnectionConfig::Ethereum(config)) => Ok(config.convert_to_table()),
+        Some(ConnectionConfig::Snowflake(config)) => Ok(config.convert_to_table()),
+        Some(ConnectionConfig::Kafka(config)) => Ok(config.convert_to_table()),
+        Some(ConnectionConfig::S3Storage(config)) => Ok(config.convert_to_table()),
+        Some(ConnectionConfig::LocalStorage(config)) => Ok(config.convert_to_table()),
+        _ => Err(MissingConfiguration(connection.name.clone())),
     }
 }
 

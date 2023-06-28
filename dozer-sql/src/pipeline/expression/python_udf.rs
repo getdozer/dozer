@@ -20,7 +20,6 @@ pub fn evaluate_py_udf(
 ) -> Result<Field, PipelineError> {
     let values = args
         .iter()
-        .take(args.len() - 1)
         .map(|arg| arg.evaluate(record, schema))
         .collect::<Result<Vec<_>, PipelineError>>()?;
 

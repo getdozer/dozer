@@ -29,6 +29,10 @@ impl SetProcessorFactory {
 }
 
 impl ProcessorFactory<SchemaSQLContext> for SetProcessorFactory {
+    fn id(&self) -> String {
+        self.id.clone()
+    }
+
     fn type_name(&self) -> String {
         "Set".to_string()
     }
