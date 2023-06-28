@@ -40,7 +40,7 @@ pub enum CloudCommands {
     /// Dozer app secrets management
     #[command(subcommand)]
     Secrets(SecretsCommand),
-    /// Dozer app secrets management
+    /// Dozer app context management
     #[command(subcommand)]
     App(AppCommand),
 }
