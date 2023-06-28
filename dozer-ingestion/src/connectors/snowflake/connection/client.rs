@@ -21,11 +21,10 @@ use odbc::{
     ColumnDescriptor, Connection, Cursor, Data, DiagnosticRecord, Executed, HasResult, NoData,
     ResultSetState, Statement,
 };
-use std::collections::HashMap;
-use std::fmt::Write;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
-
+use std::collections::HashMap;
+use std::fmt::Write;
 
 fn convert_decimal(bytes: &[u8], scale: u16) -> Result<Field, SnowflakeSchemaError> {
     let is_negative = bytes[bytes.len() - 4] == 255;
@@ -106,14 +105,14 @@ pub fn convert_data(
                         value.month as u32,
                         value.day as u32,
                     )
-                        .map_or_else(|| Err(InvalidDateError), Ok)?;
+                    .map_or_else(|| Err(InvalidDateError), Ok)?;
                     let time = NaiveTime::from_hms_nano_opt(
                         value.hour as u32,
                         value.minute as u32,
                         value.second as u32,
                         value.fraction,
                     )
-                        .map_or_else(|| Err(InvalidTimeError), Ok)?;
+                    .map_or_else(|| Err(InvalidTimeError), Ok)?;
                     Ok(Field::from(NaiveDateTime::new(date, time)))
                 }
             }
@@ -130,7 +129,7 @@ pub fn convert_data(
                         value.month as u32,
                         value.day as u32,
                     )
-                        .map_or_else(|| Err(InvalidDateError), Ok)?;
+                    .map_or_else(|| Err(InvalidDateError), Ok)?;
                     Ok(Field::from(date))
                 }
             }

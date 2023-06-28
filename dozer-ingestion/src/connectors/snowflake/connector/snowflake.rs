@@ -149,7 +149,9 @@ async fn run(
                             "[{}][{}] Continuing ingestion from {}/{}",
                             name, table.name, lsn, seq
                         );
-                        if let Ok(false) = StreamConsumer::is_stream_created(&stream_client, &table.name) {
+                        if let Ok(false) =
+                            StreamConsumer::is_stream_created(&stream_client, &table.name)
+                        {
                             return Err(ConnectorError::SnowflakeError(
                                 SnowflakeError::SnowflakeStreamError(
                                     SnowflakeStreamError::StreamNotFound,

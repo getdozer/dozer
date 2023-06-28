@@ -31,7 +31,10 @@ impl StreamConsumer {
             .unwrap();
 
         client
-            .stream_exist(&conn, &Self::get_stream_table_name(table_name, &client.get_name()))
+            .stream_exist(
+                &conn,
+                &Self::get_stream_table_name(table_name, &client.get_name()),
+            )
             .map_err(ConnectorError::SnowflakeError)
     }
 
