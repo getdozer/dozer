@@ -41,11 +41,11 @@ service DozerCloud {
   rpc save_files(SaveFilesRequest) returns (SaveFilesResponse);
   rpc delete_files(DeleteFileRequest) returns (DeleteFileResponse);
 
-  rpc create_secret(CreateSecretRequest) returns (CreateSecretResponse);
-  rpc update_secret(UpdateSecretRequest) returns (UpdateSecretResponse);
-  rpc delete_secret(DeleteSecretRequest) returns (DeleteSecretResponse);
-  rpc get_secret(GetSecretRequest) returns (GetSecretResponse);
-  rpc list_secrets(ListSecretsRequest) returns (ListSecretsResponse);
+//  rpc create_secret(CreateSecretRequest) returns (CreateSecretResponse);
+//  rpc update_secret(UpdateSecretRequest) returns (UpdateSecretResponse);
+//  rpc delete_secret(DeleteSecretRequest) returns (DeleteSecretResponse);
+//  rpc get_secret(GetSecretRequest) returns (GetSecretResponse);
+//  rpc list_secrets(ListSecretsRequest) returns (ListSecretsResponse);
 
   rpc OnLogMessage(LogMessageRequest) returns (stream LogMessage);
   rpc OnStatusUpdate(StatusUpdateRequest) returns (stream StatusUpdate);
@@ -335,51 +335,51 @@ message CompanyResponse {
     string iss = 3;
     string jwks_url = 4;
 }
-
-message Secret {
-  string name = 1;
-}
-
-message CreateSecretRequest {
-  string app_id = 1;
-  string name = 2;
-  string value = 3;
-}
-
-message CreateSecretResponse {
-}
-
-message UpdateSecretRequest {
-  string app_id = 1;
-  string name = 2;
-  string value = 3;
-}
-
-message UpdateSecretResponse {
-}
-
-message DeleteSecretRequest {
-  string app_id = 1;
-  string name = 2;
-}
-
-message DeleteSecretResponse {
-}
-
-message GetSecretRequest {
-  string app_id = 1;
-  string name = 2;
-}
-
-message GetSecretResponse {
-  string name = 1;
-  string value = 2;
-}
-
-message ListSecretsRequest {
-  string app_id = 1;
-}
-
-message ListSecretsResponse {
-  repeated Secret secrets = 1;
-}
+//
+//message Secret {
+//  string name = 1;
+//}
+//
+//message CreateSecretRequest {
+//  string app_id = 1;
+//  string name = 2;
+//  string value = 3;
+//}
+//
+//message CreateSecretResponse {
+//}
+//
+//message UpdateSecretRequest {
+//  string app_id = 1;
+//  string name = 2;
+//  string value = 3;
+//}
+//
+//message UpdateSecretResponse {
+//}
+//
+//message DeleteSecretRequest {
+//  string app_id = 1;
+//  string name = 2;
+//}
+//
+//message DeleteSecretResponse {
+//}
+//
+//message GetSecretRequest {
+//  string app_id = 1;
+//  string name = 2;
+//}
+//
+//message GetSecretResponse {
+//  string name = 1;
+//  string value = 2;
+//}
+//
+//message ListSecretsRequest {
+//  string app_id = 1;
+//}
+//
+//message ListSecretsResponse {
+//  repeated Secret secrets = 1;
+//}
