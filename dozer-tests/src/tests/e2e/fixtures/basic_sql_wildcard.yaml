@@ -8,12 +8,12 @@ connections:
             "schema": {
               "fields": [
                 {
-                  "name": "id",
+                  "name": "table3_id",
                   "typ": "Int",
                   "nullable": false
                 },
                 {
-                  "name": "age",
+                  "name": "table3_age",
                   "typ": "Int",
                   "nullable": false
                 }
@@ -24,12 +24,12 @@ connections:
             "schema": {
               "fields": [
                 {
-                  "name": "table3_id",
+                  "name": "table4_id",
                   "typ": "Int",
                   "nullable": false
                 },
                 {
-                  "name": "table3_age",
+                  "name": "table4_age",
                   "typ": "Int",
                   "nullable": false
                 }
@@ -52,7 +52,7 @@ sql: |
   INTO wildcard_res 
   FROM table3
   LEFT JOIN table4
-    ON table3.id = table4.table3_id;
+    ON table3.table3_id = table4.table4_id;
 
 endpoints:
   - name: wildcard_res
