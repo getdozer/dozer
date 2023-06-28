@@ -53,6 +53,8 @@ Otherwise, if `error.json` is found, the framework expects `dozer` fails to star
 
 For all supported error expectation checks, see `expectations.rs`.
 
+In case of addition of new test case, be aware of non-colliding ports from the connection that you are creating for each test cases.
+
 ## Add a Connection
 
 Test cases may need to establish various kinds of connections. Connection services can run as a docker compose service.
