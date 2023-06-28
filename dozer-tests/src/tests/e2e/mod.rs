@@ -19,6 +19,7 @@ use tokio::runtime::Runtime;
 
 mod basic;
 mod basic_sql;
+mod basic_sql_wildcard;
 mod left_join;
 
 struct DozerE2eTest {
