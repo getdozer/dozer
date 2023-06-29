@@ -1,6 +1,6 @@
 use crate::cli::cloud::{
     default_num_replicas, ApiCommand, AppCommand, Cloud, DeployCommandArgs, ListCommandArgs,
-    LogCommandArgs, UpdateCommandArgs, VersionCommand,
+    LogCommandArgs, SecretsCommand, UpdateCommandArgs, VersionCommand,
 };
 use crate::cloud_app_context::CloudAppContext;
 use crate::cloud_helper::list_files;
@@ -16,8 +16,9 @@ use crate::simple::token_layer::TokenLayer;
 use crate::simple::SimpleOrchestrator;
 use crate::CloudOrchestrator;
 use dozer_types::grpc_types::cloud::{
-    dozer_cloud_client::DozerCloudClient, CreateAppRequest, DeleteAppRequest, GetStatusRequest,
-    ListAppRequest, LogMessageRequest, UpdateAppRequest,
+    dozer_cloud_client::DozerCloudClient, CreateAppRequest, CreateSecretRequest, DeleteAppRequest,
+    DeleteSecretRequest, GetSecretRequest, GetStatusRequest, ListAppRequest, ListSecretsRequest,
+    LogMessageRequest, UpdateAppRequest, UpdateSecretRequest,
 };
 use dozer_types::grpc_types::cloud::{
     DeploymentStatus, SetCurrentVersionRequest, SetNumApiInstancesRequest, UpsertVersionRequest,
@@ -325,6 +326,79 @@ impl CloudOrchestrator for SimpleOrchestrator {
             login_svc.login().await?;
             Ok::<(), CloudLoginError>(())
         })?;
+        Ok(())
+    }
+
+    fn execute_secrets_command(
+        &mut self,
+        cloud: Cloud,
+        command: SecretsCommand,
+    ) -> Result<(), OrchestrationError> {
+        self.runtime.block_on(async move {
+            let mut client = get_cloud_client(&cloud).await?;
+
+            let app_id = CloudAppContext::get_app_id()?;
+
+            match command {
+                SecretsCommand::Create { name, value } => {
+                    client
+                        .create_secret(CreateSecretRequest {
+                            app_id,
+                            name,
+                            value,
+                        })
+                        .await?;
+
+                    info!("Secret created");
+                }
+                SecretsCommand::Update { name, value } => {
+                    client
+                        .update_secret(UpdateSecretRequest {
+                            app_id,
+                            name,
+                            value,
+                        })
+                        .await?;
+
+                    info!("Secret updated");
+                }
+                SecretsCommand::Delete { name } => {
+                    client
+                        .delete_secret(DeleteSecretRequest { app_id, name })
+                        .await?;
+
+                    info!("Secret deleted")
+                }
+                SecretsCommand::Get { name } => {
+                    let response = client
+                        .get_secret(GetSecretRequest { app_id, name })
+                        .await?
+                        .into_inner();
+
+                    info!(
+                        "Secret \"{}\" value is \"{}\"",
+                        response.name, response.value
+                    );
+                }
+                SecretsCommand::List {} => {
+                    let response = client
+                        .list_secrets(ListSecretsRequest { app_id })
+                        .await?
+                        .into_inner();
+
+                    info!("Secrets:");
+                    let mut table = table!();
+
+                    for secret in response.secrets {
+                        table.add_row(row![secret.name, secret.value]);
+                    }
+
+                    table.printstd();
+                }
+            }
+            Ok::<_, CloudError>(())
+        })?;
+
         Ok(())
     }
 
