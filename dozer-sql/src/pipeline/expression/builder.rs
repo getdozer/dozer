@@ -108,6 +108,12 @@ impl ExpressionBuilder {
                 escape_char,
                 schema,
             ),
+            SqlExpr::InList {
+                expr,
+                list,
+                negated,
+            } => self.parse_sql_in_list_operator(parse_aggregations, expr, list, *negated, schema),
+
             SqlExpr::Cast { expr, data_type } => {
                 self.parse_sql_cast_operator(parse_aggregations, expr, data_type, schema)
             }
@@ -763,6 +769,31 @@ impl ExpressionBuilder {
             args,
             return_type,
         })
+    }
+
+    fn parse_sql_in_list_operator(
+        &mut self,
+        parse_aggregations: bool,
+        expr: &Expr,
+        list: &[Expr],
+        negated: bool,
+        schema: &Schema,
+    ) -> Result<Expression, PipelineError> {
+        let expr = self.parse_sql_expression(parse_aggregations, expr, schema)?;
+        let list = list
+            .iter()
+            .map(|expr| self.parse_sql_expression(parse_aggregations, expr, schema))
+            .collect::<Result<Vec<_>, PipelineError>>()?;
+        let in_list_expression = Expression::InList {
+            expr: Box::new(expr),
+            list,
+        };
+        if negated {
+            // TODO
+            unimplemented!("Negated IN operator is not supported yet")
+        } else {
+            Ok(in_list_expression)
+        }
     }
 }
 
