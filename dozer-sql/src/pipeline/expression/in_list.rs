@@ -7,17 +7,21 @@ pub(crate) fn evaluate_in_list(
     schema: &Schema,
     expr: &Expression,
     list: &[Expression],
+    negated: bool,
     record: &Record,
 ) -> Result<Field, PipelineError> {
-    let expr_value = expr.evaluate(record, schema)?;
-    let mut found = false;
+    let field = expr.evaluate(record, schema)?;
+    let mut result = false;
     for item in list {
-        let item_value = item.evaluate(record, schema)?;
-        if item_value == expr_value {
-            found = true;
+        let item = item.evaluate(record, schema)?;
+        if field == item {
+            result = true;
             break;
         }
     }
-
-    Ok(Field::Boolean(found))
+    // Negate the result if the IN list was negated.
+    if negated {
+        result = !result;
+    }
+    Ok(Field::Boolean(result))
 }

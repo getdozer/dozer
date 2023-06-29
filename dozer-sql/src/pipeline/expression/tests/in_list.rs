@@ -16,10 +16,7 @@ fn test_in_list() {
         vec![],
     );
     assert_eq!(f, Field::Boolean(true));
-}
 
-#[test]
-fn test_expression_in_list() {
     let f = run_fct(
         "SELECT age IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10) FROM PERSON",
         Schema::empty()
@@ -53,4 +50,123 @@ fn test_expression_in_list() {
         vec![Field::Int(42)],
     );
     assert_eq!(f, Field::Boolean(true));
+
+    let f = run_fct(
+        "SELECT age FROM PERSON WHERE age IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("age"),
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Int(42)],
+    );
+    assert_eq!(f, Field::Null);
+
+    let f = run_fct(
+        "SELECT age FROM PERSON WHERE age IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 42)",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("age"),
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Int(42)],
+    );
+    assert_eq!(f, Field::Int(42));
+}
+
+#[test]
+fn test_not_in_list() {
+    let f = run_fct(
+        "SELECT 42 NOT IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)",
+        Schema::empty(),
+        vec![],
+    );
+    assert_eq!(f, Field::Boolean(true));
+
+    let f = run_fct(
+        "SELECT 42 NOT IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 42)",
+        Schema::empty(),
+        vec![],
+    );
+    assert_eq!(f, Field::Boolean(false));
+
+    let f = run_fct(
+        "SELECT age NOT IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10) FROM PERSON",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("age"),
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Int(42)],
+    );
+    assert_eq!(f, Field::Boolean(true));
+
+    let f = run_fct(
+        "SELECT age NOT IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 42) FROM PERSON",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("age"),
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Int(42)],
+    );
+    assert_eq!(f, Field::Boolean(false));
+
+    let f = run_fct(
+        "SELECT age FROM PERSON WHERE age NOT IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("age"),
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Int(42)],
+    );
+    assert_eq!(f, Field::Int(42));
+
+    let f = run_fct(
+        "SELECT age FROM PERSON WHERE age NOT IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 42)",
+        Schema::empty()
+            .field(
+                FieldDefinition::new(
+                    String::from("age"),
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Int(42)],
+    );
+    assert_eq!(f, Field::Null);
 }

@@ -77,6 +77,7 @@ pub enum Expression {
     InList {
         expr: Box<Expression>,
         list: Vec<Expression>,
+        negated: bool,
     },
     Now {
         fun: DateTimeFunctionType,
@@ -224,8 +225,13 @@ impl Expression {
                 pattern,
                 escape: _,
             } => arg.to_string(schema) + " LIKE " + pattern.to_string(schema).as_str(),
-            Expression::InList { expr, list } => {
+            Expression::InList {
+                expr,
+                list,
+                negated,
+            } => {
                 expr.to_string(schema)
+                    + if *negated { " NOT" } else { "" }
                     + " IN ("
                     + list
                         .iter()
@@ -334,7 +340,11 @@ impl ExpressionExecutor for Expression {
                 pattern,
                 escape,
             } => evaluate_like(schema, arg, pattern, *escape, record),
-            Expression::InList { expr, list } => evaluate_in_list(schema, expr, list, record),
+            Expression::InList {
+                expr,
+                list,
+                negated,
+            } => evaluate_in_list(schema, expr, list, *negated, record),
             Expression::Cast { arg, typ } => typ.evaluate(schema, arg, record),
             Expression::GeoFunction { fun, args } => fun.evaluate(schema, args, record),
             Expression::ConditionalExpression { fun, args } => fun.evaluate(schema, args, record),
@@ -401,7 +411,11 @@ impl ExpressionExecutor for Expression {
                 pattern,
                 escape: _,
             } => get_like_operator_type(arg, pattern, schema),
-            Expression::InList { expr: _, list: _ } => Ok(ExpressionType::new(
+            Expression::InList {
+                expr: _,
+                list: _,
+                negated: _,
+            } => Ok(ExpressionType::new(
                 FieldType::Boolean,
                 false,
                 SourceDefinition::Dynamic,

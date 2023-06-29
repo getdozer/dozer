@@ -787,13 +787,10 @@ impl ExpressionBuilder {
         let in_list_expression = Expression::InList {
             expr: Box::new(expr),
             list,
+            negated,
         };
-        if negated {
-            // TODO
-            unimplemented!("Negated IN operator is not supported yet")
-        } else {
-            Ok(in_list_expression)
-        }
+
+        Ok(in_list_expression)
     }
 }
 
