@@ -18,7 +18,7 @@ fn test_in_list() {
     assert_eq!(f, Field::Boolean(true));
 
     let f = run_fct(
-        "SELECT age IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10) FROM PERSON",
+        "SELECT age IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10) FROM users",
         Schema::empty()
             .field(
                 FieldDefinition::new(
@@ -35,7 +35,7 @@ fn test_in_list() {
     assert_eq!(f, Field::Boolean(false));
 
     let f = run_fct(
-        "SELECT age IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 42) FROM PERSON",
+        "SELECT age IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 42) FROM users",
         Schema::empty()
             .field(
                 FieldDefinition::new(
@@ -52,7 +52,7 @@ fn test_in_list() {
     assert_eq!(f, Field::Boolean(true));
 
     let f = run_fct(
-        "SELECT age FROM PERSON WHERE age IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)",
+        "SELECT age FROM users WHERE age > 44",
         Schema::empty()
             .field(
                 FieldDefinition::new(
@@ -69,7 +69,7 @@ fn test_in_list() {
     assert_eq!(f, Field::Null);
 
     let f = run_fct(
-        "SELECT age FROM PERSON WHERE age IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 42)",
+        "SELECT age FROM users WHERE age IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 42)",
         Schema::empty()
             .field(
                 FieldDefinition::new(
@@ -103,7 +103,7 @@ fn test_not_in_list() {
     assert_eq!(f, Field::Boolean(false));
 
     let f = run_fct(
-        "SELECT age NOT IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10) FROM PERSON",
+        "SELECT age NOT IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10) FROM users",
         Schema::empty()
             .field(
                 FieldDefinition::new(
@@ -120,7 +120,7 @@ fn test_not_in_list() {
     assert_eq!(f, Field::Boolean(true));
 
     let f = run_fct(
-        "SELECT age NOT IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 42) FROM PERSON",
+        "SELECT age NOT IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 42) FROM users",
         Schema::empty()
             .field(
                 FieldDefinition::new(
@@ -137,7 +137,7 @@ fn test_not_in_list() {
     assert_eq!(f, Field::Boolean(false));
 
     let f = run_fct(
-        "SELECT age FROM PERSON WHERE age NOT IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)",
+        "SELECT age FROM users WHERE age NOT IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)",
         Schema::empty()
             .field(
                 FieldDefinition::new(
@@ -154,7 +154,7 @@ fn test_not_in_list() {
     assert_eq!(f, Field::Int(42));
 
     let f = run_fct(
-        "SELECT age FROM PERSON WHERE age NOT IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 42)",
+        "SELECT age FROM users WHERE age NOT IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 42)",
         Schema::empty()
             .field(
                 FieldDefinition::new(
