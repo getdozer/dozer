@@ -60,6 +60,11 @@ pub trait CloudOrchestrator {
     fn monitor(&mut self, cloud: Cloud) -> Result<(), OrchestrationError>;
     fn trace_logs(&mut self, cloud: Cloud, logs: LogCommandArgs) -> Result<(), OrchestrationError>;
     fn login(&mut self, cloud: Cloud, company_name: String) -> Result<(), OrchestrationError>;
+    fn execute_secrets_command(
+        &mut self,
+        cloud: Cloud,
+        command: SecretsCommand,
+    ) -> Result<(), OrchestrationError>;
     fn set_app(&mut self, command: AppCommand) -> Result<(), OrchestrationError>;
 }
 
@@ -77,7 +82,7 @@ pub fn wrapped_statement_to_pipeline(sql: &str) -> Result<QueryContext, Pipeline
 
 #[cfg(feature = "cloud")]
 use crate::cli::cloud::{
-    AppCommand, Cloud, DeployCommandArgs, ListCommandArgs, LogCommandArgs, UpdateCommandArgs,
+    AppCommand, Cloud, DeployCommandArgs, ListCommandArgs, LogCommandArgs, UpdateCommandArgs, SecretsCommand
 };
 pub use dozer_types::models::connection::Connection;
 use dozer_types::tracing::error;

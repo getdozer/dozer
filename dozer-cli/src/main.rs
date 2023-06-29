@@ -171,7 +171,7 @@ fn run() -> Result<(), OrchestrationError> {
                 CloudCommands::Version(version) => dozer.version(cloud, version),
                 CloudCommands::Api(api) => dozer.api(cloud, api),
                 CloudCommands::Login(company) => dozer.login(cloud, company.company_name),
-                CloudCommands::Secrets(_) => Ok(()),
+                CloudCommands::Secrets(command) => dozer.execute_secrets_command(cloud, command),
                 CloudCommands::App(command) => dozer.set_app(command),
             },
             Commands::Init => {
