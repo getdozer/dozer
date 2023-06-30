@@ -2215,7 +2215,7 @@ checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
 
 [[package]]
 name = "dozer-api"
-version = "0.1.26"
+version = "0.1.27"
 dependencies = [
  "Inflector",
  "actix-cors",
@@ -2253,7 +2253,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-cache"
-version = "0.1.26"
+version = "0.1.27"
 dependencies = [
  "ahash 0.8.3",
  "clap 4.3.2",
@@ -2276,7 +2276,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-cli"
-version = "0.1.26"
+version = "0.1.27"
 dependencies = [
  "atty",
  "clap 4.3.2",
@@ -2310,7 +2310,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-core"
-version = "0.1.26"
+version = "0.1.27"
 dependencies = [
  "crossbeam",
  "daggy",
@@ -2324,7 +2324,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-ingestion"
-version = "0.1.26"
+version = "0.1.27"
 dependencies = [
  "base64 0.21.0",
  "bson",
@@ -2367,7 +2367,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-log"
-version = "0.1.26"
+version = "0.1.27"
 dependencies = [
  "dozer-types",
  "futures-util",
@@ -2376,7 +2376,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-log-js"
-version = "0.1.26"
+version = "0.1.27"
 dependencies = [
  "dozer-log",
  "dozer-types",
@@ -2385,7 +2385,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-log-python"
-version = "0.1.26"
+version = "0.1.27"
 dependencies = [
  "dozer-log",
  "dozer-types",
@@ -2394,7 +2394,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-sql"
-version = "0.1.26"
+version = "0.1.27"
 dependencies = [
  "ahash 0.8.3",
  "bigdecimal",
@@ -2422,7 +2422,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-storage"
-version = "0.1.26"
+version = "0.1.27"
 dependencies = [
  "dozer-types",
  "lmdb-rkv",
@@ -2435,7 +2435,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-tests"
-version = "0.1.26"
+version = "0.1.27"
 dependencies = [
  "ahash 0.8.3",
  "async-trait",
@@ -2466,7 +2466,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-tracing"
-version = "0.1.26"
+version = "0.1.27"
 dependencies = [
  "atty",
  "dozer-types",
@@ -2480,7 +2480,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-types"
-version = "0.1.26"
+version = "0.1.27"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -2513,7 +2513,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-utils"
-version = "0.1.26"
+version = "0.1.27"
 dependencies = [
  "dozer-types",
 ]
