@@ -55,7 +55,7 @@ pub struct DeployCommandArgs {
     pub num_replicas: Option<i32>,
 
     #[arg(short, value_parser = parse_key_val)]
-    pub secrets: Option<Vec<Secret>>,
+    pub secrets: Vec<Secret>,
 }
 
 pub fn default_num_replicas() -> i32 {
@@ -69,7 +69,7 @@ pub struct UpdateCommandArgs {
     pub num_replicas: Option<i32>,
 
     #[arg(short, value_parser = parse_key_val)]
-    pub secrets: Option<Vec<Secret>>,
+    pub secrets: Vec<Secret>,
 }
 #[derive(Debug, Args, Clone)]
 pub struct CompanyCommand {

@@ -16,13 +16,13 @@ pub async fn deploy_app(
     app_id: &str,
     num_api_instances: i32,
     steps: &mut ProgressPrinter,
-    secrets: Option<Vec<Secret>>,
+    secrets: Vec<Secret>,
 ) -> Result<(), CloudError> {
     let mut response = client
         .start_dozer(StartRequest {
             app_id: app_id.to_string(),
             num_api_instances,
-            secrets: secrets.unwrap_or(vec![]),
+            secrets,
         })
         .await?
         .into_inner();
