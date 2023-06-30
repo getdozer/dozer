@@ -1,5 +1,7 @@
 use crate::errors::CloudContextError;
-use crate::errors::CloudContextError::{FailedToGetDirectoryPath, FailedToReadAppId};
+use crate::errors::CloudContextError::{
+    ContextFileNotFound, FailedToGetDirectoryPath, FailedToReadAppId,
+};
 use std::io::Write;
 use std::{env, fs};
 
@@ -19,10 +21,15 @@ impl CloudAppContext {
 
     pub fn get_app_id() -> Result<String, CloudContextError> {
         let file_path = Self::get_file_path()?;
-        let content = fs::read(file_path)?;
-        match String::from_utf8(content) {
-            Ok(app_id) => Ok(app_id),
-            Err(e) => Err(FailedToReadAppId(e)),
+        match fs::metadata(&file_path) {
+            Ok(_) => {
+                let content = fs::read(file_path)?;
+                match String::from_utf8(content) {
+                    Ok(app_id) => Ok(app_id),
+                    Err(e) => Err(FailedToReadAppId(e)),
+                }
+            }
+            Err(_) => Err(ContextFileNotFound),
         }
     }
 

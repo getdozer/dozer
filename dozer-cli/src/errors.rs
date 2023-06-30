@@ -197,6 +197,9 @@ pub enum CloudContextError {
     #[error("Failed to get current directory path")]
     FailedToGetDirectoryPath,
 
-    #[error("Failed to get current directory path")]
+    #[error("Failed to read cloud app id. Error: {0}")]
     FailedToReadAppId(#[from] FromUtf8Error),
+
+    #[error("Context file not found. You need to run \"deploy\" or \"app use\" first")]
+    ContextFileNotFound,
 }
