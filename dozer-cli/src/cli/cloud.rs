@@ -2,6 +2,9 @@ use clap::{Args, Subcommand};
 
 use dozer_types::constants::DEFAULT_CLOUD_TARGET_URL;
 
+use dozer_types::grpc_types::cloud::Secret;
+use std::error::Error;
+
 #[derive(Debug, Args)]
 #[command(args_conflicts_with_subcommands = true)]
 pub struct Cloud {
@@ -50,6 +53,9 @@ pub struct DeployCommandArgs {
     /// Number of replicas to serve Dozer APIs
     #[arg(short, long)]
     pub num_replicas: Option<i32>,
+
+    #[arg(short, value_parser = parse_key_val)]
+    pub secrets: Option<Vec<Secret>>,
 }
 
 pub fn default_num_replicas() -> i32 {
@@ -61,6 +67,9 @@ pub struct UpdateCommandArgs {
     /// Number of replicas to serve Dozer APIs
     #[arg(short, long)]
     pub num_replicas: Option<i32>,
+
+    #[arg(short, value_parser = parse_key_val)]
+    pub secrets: Option<Vec<Secret>>,
 }
 #[derive(Debug, Args, Clone)]
 pub struct CompanyCommand {
@@ -155,4 +164,15 @@ pub enum SecretsCommand {
     },
     /// List all app secrets
     List {},
+}
+
+fn parse_key_val(s: &str) -> Result<Secret, Box<dyn Error + Send + Sync + 'static>> {
+    let pos = s
+        .find('=')
+        .ok_or_else(|| format!("invalid KEY=value: no `=` found in `{s}`"))?;
+
+    Ok(Secret {
+        name: s[..pos].parse()?,
+        value: s[pos + 1..].parse()?,
+    })
 }

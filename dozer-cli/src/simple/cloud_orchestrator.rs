@@ -77,6 +77,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
                 &response.app_id,
                 deploy.num_replicas.unwrap_or_else(default_num_replicas),
                 &mut steps,
+                deploy.secrets,
             )
             .await
         })?;
@@ -112,6 +113,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
                 &app_id,
                 update.num_replicas.unwrap_or_else(default_num_replicas),
                 &mut steps,
+                update.secrets,
             )
             .await
         })?;
@@ -375,10 +377,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
                         .await?
                         .into_inner();
 
-                    info!(
-                        "Secret \"{}\" value is \"{}\"",
-                        response.name, response.value
-                    );
+                    info!("Secret \"{}\" exist", response.name);
                 }
                 SecretsCommand::List {} => {
                     let response = client
@@ -390,7 +389,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
                     let mut table = table!();
 
                     for secret in response.secrets {
-                        table.add_row(row![secret.name, secret.value]);
+                        table.add_row(row![secret]);
                     }
 
                     table.printstd();
