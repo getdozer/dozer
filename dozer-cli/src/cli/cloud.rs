@@ -23,29 +23,18 @@ pub struct Cloud {
 
 #[derive(Debug, Subcommand, Clone)]
 pub enum CloudCommands {
+    Login(CompanyCommand),
     /// Deploy application to Dozer Cloud
     Deploy(DeployCommandArgs),
-    /// Update existing application on Dozer Cloud
-    Update(UpdateCommandArgs),
-    Delete,
-    List(ListCommandArgs),
-    Status,
-    Monitor,
-    /// Inspect application logs
-    Logs(LogCommandArgs),
-    Login(CompanyCommand),
-    /// Application version management
+    /// Dozer app context management
     #[command(subcommand)]
-    Version(VersionCommand),
+    App(AppCommand),
     /// Dozer API server management
     #[command(subcommand)]
     Api(ApiCommand),
     /// Dozer app secrets management
     #[command(subcommand)]
     Secrets(SecretsCommand),
-    /// Dozer app context management
-    #[command(subcommand)]
-    App(AppCommand),
 }
 
 #[derive(Debug, Args, Clone)]
@@ -79,7 +68,20 @@ pub struct CompanyCommand {
 
 #[derive(Debug, Subcommand, Clone)]
 pub enum AppCommand {
-    Use { app_id: String },
+    /// Update existing application on Dozer Cloud
+    Update(UpdateCommandArgs),
+    Delete,
+    Status,
+    Monitor,
+    /// Inspect application logs
+    Logs(LogCommandArgs),
+    /// Application version management
+    #[command(subcommand)]
+    Version(VersionCommand),
+    Use {
+        app_id: String,
+    },
+    List(ListCommandArgs),
 }
 
 #[derive(Debug, Args, Clone)]

@@ -2,7 +2,7 @@ use clap::Parser;
 #[cfg(feature = "cloud")]
 use dozer_cli::cli::cloud::CloudCommands;
 use dozer_cli::cli::generate_config_repl;
-use dozer_cli::cli::types::{ApiCommands, AppCommands, Cli, Commands, ConnectorCommands};
+use dozer_cli::cli::types::{ApiCommands, AppCommands, Cli, Commands};
 use dozer_cli::cli::{init_dozer, init_dozer_with_default_config, list_sources, LOGO};
 use dozer_cli::errors::{CliError, OrchestrationError};
 use dozer_cli::simple::SimpleOrchestrator;
@@ -149,11 +149,9 @@ fn run() -> Result<(), OrchestrationError> {
 
                     dozer.run_apps(shutdown_receiver, None, cli.err_threshold)
                 }
+                AppCommands::Connectors => list_sources(&cli.config_path, cli.config_token),
             },
-            Commands::Connector(sources) => match sources.command {
-                ConnectorCommands::Ls => list_sources(&cli.config_path, cli.config_token),
-            },
-            Commands::Migrate(migrate) => {
+            Commands::Build(migrate) => {
                 let force = migrate.force.is_some();
 
                 dozer.migrate(force)
@@ -162,17 +160,10 @@ fn run() -> Result<(), OrchestrationError> {
             #[cfg(feature = "cloud")]
             Commands::Cloud(cloud) => match cloud.command.clone() {
                 CloudCommands::Deploy(deploy) => dozer.deploy(cloud, deploy),
-                CloudCommands::List(list) => dozer.list(cloud, list),
-                CloudCommands::Status => dozer.status(cloud),
-                CloudCommands::Monitor => dozer.monitor(cloud),
-                CloudCommands::Update(update) => dozer.update(cloud, update),
-                CloudCommands::Delete => dozer.delete(cloud),
-                CloudCommands::Logs(logs) => dozer.trace_logs(cloud, logs),
-                CloudCommands::Version(version) => dozer.version(cloud, version),
                 CloudCommands::Api(api) => dozer.api(cloud, api),
                 CloudCommands::Login(company) => dozer.login(cloud, company.company_name),
                 CloudCommands::Secrets(command) => dozer.execute_secrets_command(cloud, command),
-                CloudCommands::App(command) => dozer.set_app(command),
+                CloudCommands::App(command) => dozer.execute_app_command(cloud, command),
             },
             Commands::Init => {
                 panic!("This should not happen as it is handled in parse_and_generate");

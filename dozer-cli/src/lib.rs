@@ -65,7 +65,11 @@ pub trait CloudOrchestrator {
         cloud: Cloud,
         command: SecretsCommand,
     ) -> Result<(), OrchestrationError>;
-    fn set_app(&mut self, command: AppCommand) -> Result<(), OrchestrationError>;
+    fn execute_app_command(
+        &mut self,
+        cloud: Cloud,
+        command: AppCommand,
+    ) -> Result<(), OrchestrationError>;
 }
 
 // Re-exports

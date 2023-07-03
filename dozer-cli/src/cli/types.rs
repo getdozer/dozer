@@ -38,16 +38,14 @@ pub enum Commands {
     #[command(
         about = "Initialize and lock schema definitions. Once initialized, schemas cannot be changed"
     )]
-    Migrate(Migrate),
+    Build(Build),
+    #[command(about = "Run App Server")]
+    App(App),
+    #[command(about = "Run Api Server")]
+    Api(Api),
     #[cfg(feature = "cloud")]
     #[command(about = "Deploy cloud applications")]
     Cloud(Cloud),
-    #[command(about = "Run Api Server")]
-    Api(Api),
-    #[command(about = "Run App Server")]
-    App(App),
-    #[command(about = "Show Sources")]
-    Connector(Connector),
 }
 
 #[derive(Debug, Args)]
@@ -59,7 +57,7 @@ pub struct Api {
 
 #[derive(Debug, Args)]
 #[command(args_conflicts_with_subcommands = true)]
-pub struct Migrate {
+pub struct Build {
     #[arg(short = 'f')]
     pub force: Option<Option<String>>,
 }
@@ -81,13 +79,6 @@ pub struct App {
     pub command: AppCommands,
 }
 
-#[derive(Debug, Args)]
-#[command(args_conflicts_with_subcommands = true)]
-pub struct Connector {
-    #[command(subcommand)]
-    pub command: ConnectorCommands,
-}
-
 #[derive(Debug, Subcommand)]
 pub enum ApiCommands {
     Run,
@@ -104,6 +95,8 @@ pub enum ApiCommands {
 #[derive(Debug, Subcommand)]
 pub enum AppCommands {
     Run,
+    #[command(subcommand, about = "Show Sources")]
+    Connectors,
 }
 
 #[derive(Debug, Subcommand)]

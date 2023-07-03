@@ -34,7 +34,10 @@ use super::cloud::version::{get_version_status, version_is_up_to_date, version_s
 
 async fn get_cloud_client(cloud: &Cloud) -> Result<DozerCloudClient<TokenLayer>, CloudError> {
     let credential = CredentialInfo::load(cloud.profile.to_owned())?;
-    info!("Connecting to cloud service \"{:?}\"", credential.target_url);
+    info!(
+        "Connecting to cloud service \"{:?}\"",
+        credential.target_url
+    );
     let target_url = credential.target_url.clone();
     let endpoint = Endpoint::from_shared(target_url.to_owned())?;
     let channel = Endpoint::connect(&endpoint).await?;
@@ -401,12 +404,23 @@ impl CloudOrchestrator for SimpleOrchestrator {
         Ok(())
     }
 
-    fn set_app(&mut self, command: AppCommand) -> Result<(), OrchestrationError> {
+    fn execute_app_command(
+        &mut self,
+        cloud: Cloud,
+        command: AppCommand,
+    ) -> Result<(), OrchestrationError> {
         match command {
             AppCommand::Use { app_id } => {
                 CloudAppContext::save_app_id(app_id.clone())?;
                 info!("Using \"{app_id}\" app");
             }
+            AppCommand::Update(update) => self.update(cloud, update)?,
+            AppCommand::Delete => self.delete(cloud)?,
+            AppCommand::Status => self.status(cloud)?,
+            AppCommand::Monitor => self.monitor(cloud)?,
+            AppCommand::Logs(logs) => self.trace_logs(cloud, logs)?,
+            AppCommand::Version(version) => self.version(cloud, version)?,
+            AppCommand::List(list) => self.list(cloud, list)?,
         }
 
         Ok(())
