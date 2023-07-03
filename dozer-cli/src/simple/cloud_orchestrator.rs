@@ -23,7 +23,7 @@ use dozer_types::grpc_types::cloud::{
 use dozer_types::grpc_types::cloud::{
     DeploymentStatus, SetCurrentVersionRequest, SetNumApiInstancesRequest, UpsertVersionRequest,
 };
-use dozer_types::log::{debug, info};
+use dozer_types::log::info;
 use dozer_types::prettytable::{row, table};
 use futures::{select, FutureExt, StreamExt};
 use tonic::transport::Endpoint;
@@ -34,7 +34,7 @@ use super::cloud::version::{get_version_status, version_is_up_to_date, version_s
 
 async fn get_cloud_client(cloud: &Cloud) -> Result<DozerCloudClient<TokenLayer>, CloudError> {
     let credential = CredentialInfo::load(cloud.profile.to_owned())?;
-    debug!("Cloud service url: {:?}", credential.target_url);
+    info!("Connecting to cloud service \"{:?}\"", credential.target_url);
     let target_url = credential.target_url.clone();
     let endpoint = Endpoint::from_shared(target_url.to_owned())?;
     let channel = Endpoint::connect(&endpoint).await?;
