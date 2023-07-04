@@ -14,6 +14,7 @@ use dozer_types::tracing::{error, info};
 use serde::Deserialize;
 use tokio::time;
 
+use dozer_cli::cli::cloud::OrganisationCommand;
 use std::cmp::Ordering;
 use std::process;
 use std::time::Duration;
@@ -163,7 +164,9 @@ fn run() -> Result<(), OrchestrationError> {
             Commands::Cloud(cloud) => match cloud.command.clone() {
                 CloudCommands::Deploy(deploy) => dozer.deploy(cloud, deploy),
                 CloudCommands::Api(api) => dozer.api(cloud, api),
-                CloudCommands::Login(company) => dozer.login(cloud, company.company_name),
+                CloudCommands::Login(OrganisationCommand { organisation_name }) => {
+                    dozer.login(cloud, organisation_name)
+                }
                 CloudCommands::Secrets(command) => dozer.execute_secrets_command(cloud, command),
                 CloudCommands::App(command) => dozer.execute_app_command(cloud, command),
             },

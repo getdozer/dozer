@@ -15,7 +15,7 @@ pub struct Cloud {
     default_value = DEFAULT_CLOUD_TARGET_URL
     )]
     pub target_url: String,
-    #[arg(global = true, long)]
+    #[arg(global = true, short)]
     pub profile: Option<String>,
     #[command(subcommand)]
     pub command: CloudCommands,
@@ -23,7 +23,7 @@ pub struct Cloud {
 
 #[derive(Debug, Subcommand, Clone)]
 pub enum CloudCommands {
-    Login(CompanyCommand),
+    Login(OrganisationCommand),
     /// Deploy application to Dozer Cloud
     Deploy(DeployCommandArgs),
     /// Dozer app context management
@@ -61,9 +61,9 @@ pub struct UpdateCommandArgs {
     pub secrets: Vec<Secret>,
 }
 #[derive(Debug, Args, Clone)]
-pub struct CompanyCommand {
-    #[arg(long = "company-name")]
-    pub company_name: String,
+pub struct OrganisationCommand {
+    #[arg(long = "organisation-name")]
+    pub organisation_name: String,
 }
 
 #[derive(Debug, Subcommand, Clone)]
