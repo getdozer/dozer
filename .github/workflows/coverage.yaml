@@ -2,7 +2,7 @@ name: Dozer Coverage
 
 on:
   workflow_dispatch:
-  pull_request:
+  pull_request_target:
     branches: [main]
   merge_group:
 
@@ -38,7 +38,20 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          role-session-name: deployer
+          aws-region: us-east-2
+
+      - if: github.event_name == 'pull_request_target'
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - if: github.event_name == 'push'
+        uses: actions/checkout@v3
 
       - name: Install stable with llvm-tools-preview
         uses: actions-rs/toolchain@v1
