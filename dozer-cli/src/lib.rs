@@ -52,23 +52,32 @@ pub trait Orchestrator {
 pub trait CloudOrchestrator {
     fn deploy(&mut self, cloud: Cloud, deploy: DeployCommandArgs)
         -> Result<(), OrchestrationError>;
-    fn update(&mut self, cloud: Cloud, update: UpdateCommandArgs)
-        -> Result<(), OrchestrationError>;
-    fn delete(&mut self, cloud: Cloud) -> Result<(), OrchestrationError>;
+    fn update(
+        &mut self,
+        cloud: Cloud,
+        update: UpdateCommandArgs,
+        app_id: Option<String>,
+    ) -> Result<(), OrchestrationError>;
+    fn delete(&mut self, cloud: Cloud, app_id: Option<String>) -> Result<(), OrchestrationError>;
     fn list(&mut self, cloud: Cloud, list: ListCommandArgs) -> Result<(), OrchestrationError>;
-    fn status(&mut self, cloud: Cloud) -> Result<(), OrchestrationError>;
-    fn monitor(&mut self, cloud: Cloud) -> Result<(), OrchestrationError>;
-    fn trace_logs(&mut self, cloud: Cloud, logs: LogCommandArgs) -> Result<(), OrchestrationError>;
+    fn status(&mut self, cloud: Cloud, app_id: Option<String>) -> Result<(), OrchestrationError>;
+    fn monitor(&mut self, cloud: Cloud, app_id: Option<String>) -> Result<(), OrchestrationError>;
+    fn trace_logs(
+        &mut self,
+        cloud: Cloud,
+        logs: LogCommandArgs,
+        app_id: Option<String>,
+    ) -> Result<(), OrchestrationError>;
     fn login(&mut self, cloud: Cloud, company_name: String) -> Result<(), OrchestrationError>;
     fn execute_secrets_command(
         &mut self,
         cloud: Cloud,
-        command: SecretsCommand,
+        command: SecretsCommandWrapper,
     ) -> Result<(), OrchestrationError>;
     fn execute_app_command(
         &mut self,
         cloud: Cloud,
-        command: AppCommand,
+        command: AppCommandsWrapper,
     ) -> Result<(), OrchestrationError>;
 }
 
@@ -86,8 +95,8 @@ pub fn wrapped_statement_to_pipeline(sql: &str) -> Result<QueryContext, Pipeline
 
 #[cfg(feature = "cloud")]
 use crate::cli::cloud::{
-    AppCommand, Cloud, DeployCommandArgs, ListCommandArgs, LogCommandArgs, SecretsCommand,
-    UpdateCommandArgs,
+    AppCommandsWrapper, Cloud, DeployCommandArgs, ListCommandArgs, LogCommandArgs,
+    UpdateCommandArgs, SecretsCommandWrapper
 };
 pub use dozer_types::models::connection::Connection;
 use dozer_types::tracing::error;

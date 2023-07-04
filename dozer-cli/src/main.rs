@@ -1,6 +1,6 @@
 use clap::Parser;
 #[cfg(feature = "cloud")]
-use dozer_cli::cli::cloud::CloudCommands;
+use dozer_cli::cli::cloud::{CloudCommands, OrganisationCommand};
 use dozer_cli::cli::generate_config_repl;
 use dozer_cli::cli::types::{ApiCommands, AppCommands, Cli, Commands, ConnectorCommand};
 use dozer_cli::cli::{init_dozer, init_dozer_with_default_config, list_sources, LOGO};
@@ -14,7 +14,6 @@ use dozer_types::tracing::{error, info};
 use serde::Deserialize;
 use tokio::time;
 
-use dozer_cli::cli::cloud::OrganisationCommand;
 use std::cmp::Ordering;
 use std::process;
 use std::time::Duration;

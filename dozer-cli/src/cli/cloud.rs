@@ -8,6 +8,9 @@ use std::error::Error;
 #[derive(Debug, Args)]
 #[command(args_conflicts_with_subcommands = true)]
 pub struct Cloud {
+    // Workaround to hide config_path from help in cloud
+    #[arg(hide = true)]
+    pub config_path: Option<String>,
     #[arg(
     global = true,
     short = 't',
@@ -27,14 +30,12 @@ pub enum CloudCommands {
     /// Deploy application to Dozer Cloud
     Deploy(DeployCommandArgs),
     /// Dozer app context management
-    #[command(subcommand)]
-    App(AppCommand),
+    App(AppCommandsWrapper),
     /// Dozer API server management
     #[command(subcommand)]
     Api(ApiCommand),
     /// Dozer app secrets management
-    #[command(subcommand)]
-    Secrets(SecretsCommand),
+    Secrets(SecretsCommandWrapper),
 }
 
 #[derive(Debug, Args, Clone)]
@@ -60,10 +61,20 @@ pub struct UpdateCommandArgs {
     #[arg(short, value_parser = parse_key_val)]
     pub secrets: Vec<Secret>,
 }
+
 #[derive(Debug, Args, Clone)]
 pub struct OrganisationCommand {
     #[arg(long = "organisation-name")]
     pub organisation_name: String,
+}
+
+#[derive(Debug, Args, Clone)]
+pub struct AppCommandsWrapper {
+    #[arg(global = true, short)]
+    pub app_id: Option<String>,
+
+    #[command(subcommand)]
+    pub command: AppCommand,
 }
 
 #[derive(Debug, Subcommand, Clone)]
@@ -134,6 +145,15 @@ pub enum ApiCommand {
         /// The number of replicas to set
         num_replicas: i32,
     },
+}
+
+#[derive(Debug, Args, Clone)]
+pub struct SecretsCommandWrapper {
+    #[arg(global = true, short)]
+    pub app_id: Option<String>,
+
+    #[command(subcommand)]
+    pub command: SecretsCommand,
 }
 
 #[derive(Debug, Clone, Subcommand)]

@@ -1,6 +1,7 @@
 use crate::cli::cloud::{
-    default_num_replicas, ApiCommand, AppCommand, Cloud, DeployCommandArgs, ListCommandArgs,
-    LogCommandArgs, SecretsCommand, UpdateCommandArgs, VersionCommand,
+    default_num_replicas, ApiCommand, AppCommand, AppCommandsWrapper, Cloud, DeployCommandArgs,
+    ListCommandArgs, LogCommandArgs, SecretsCommand, SecretsCommandWrapper, UpdateCommandArgs,
+    VersionCommand,
 };
 use crate::cloud_app_context::CloudAppContext;
 use crate::cloud_helper::list_files;
@@ -88,6 +89,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
         &mut self,
         cloud: Cloud,
         update: UpdateCommandArgs,
+        app_id: Option<String>,
     ) -> Result<(), OrchestrationError> {
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud).await?;
@@ -96,7 +98,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
             let mut steps = ProgressPrinter::new(get_update_steps());
             steps.start_next_step();
 
-            let app_id = CloudAppContext::get_app_id()?;
+            let app_id = app_id.unwrap_or(CloudAppContext::get_app_id()?);
             let response = client
                 .update_application(UpdateAppRequest {
                     app_id: app_id.clone(),
@@ -121,7 +123,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
         Ok(())
     }
 
-    fn delete(&mut self, cloud: Cloud) -> Result<(), OrchestrationError> {
+    fn delete(&mut self, cloud: Cloud, app_id: Option<String>) -> Result<(), OrchestrationError> {
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud).await?;
 
@@ -129,7 +131,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
 
             steps.start_next_step();
 
-            let app_id = CloudAppContext::get_app_id()?;
+            let app_id = app_id.unwrap_or(CloudAppContext::get_app_id()?);
 
             stop_app(&mut client, &app_id).await?;
 
@@ -187,8 +189,8 @@ impl CloudOrchestrator for SimpleOrchestrator {
         Ok(())
     }
 
-    fn status(&mut self, cloud: Cloud) -> Result<(), OrchestrationError> {
-        let app_id = CloudAppContext::get_app_id()?;
+    fn status(&mut self, cloud: Cloud, app_id: Option<String>) -> Result<(), OrchestrationError> {
+        let app_id = app_id.unwrap_or(CloudAppContext::get_app_id()?);
 
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud).await?;
@@ -257,17 +259,21 @@ impl CloudOrchestrator for SimpleOrchestrator {
         Ok(())
     }
 
-    fn monitor(&mut self, cloud: Cloud) -> Result<(), OrchestrationError> {
-        let app_id = CloudAppContext::get_app_id()?;
+    fn monitor(&mut self, cloud: Cloud, app_id: Option<String>) -> Result<(), OrchestrationError> {
+        let app_id = app_id.unwrap_or(CloudAppContext::get_app_id()?);
 
         monitor_app(app_id, cloud.target_url, self.runtime.clone())
             .map_err(crate::errors::OrchestrationError::CloudError)
     }
 
-    fn trace_logs(&mut self, cloud: Cloud, logs: LogCommandArgs) -> Result<(), OrchestrationError> {
+    fn trace_logs(
+        &mut self,
+        cloud: Cloud,
+        logs: LogCommandArgs,
+        app_id: Option<String>,
+    ) -> Result<(), OrchestrationError> {
         self.runtime.block_on(async move {
-
-            let app_id = CloudAppContext::get_app_id()?;
+            let app_id = app_id.unwrap_or(CloudAppContext::get_app_id()?);
 
             let mut client = get_cloud_client(&cloud).await?;
 
@@ -334,14 +340,14 @@ impl CloudOrchestrator for SimpleOrchestrator {
     fn execute_secrets_command(
         &mut self,
         cloud: Cloud,
-        command: SecretsCommand,
+        command: SecretsCommandWrapper,
     ) -> Result<(), OrchestrationError> {
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud).await?;
 
-            let app_id = CloudAppContext::get_app_id()?;
+            let app_id = command.app_id.unwrap_or(CloudAppContext::get_app_id()?);
 
-            match command {
+            match command.command {
                 SecretsCommand::Create { name, value } => {
                     client
                         .create_secret(CreateSecretRequest {
@@ -404,19 +410,19 @@ impl CloudOrchestrator for SimpleOrchestrator {
     fn execute_app_command(
         &mut self,
         cloud: Cloud,
-        command: AppCommand,
+        command: AppCommandsWrapper,
     ) -> Result<(), OrchestrationError> {
-        match command {
+        match command.command {
             AppCommand::Use { app_id } => {
                 CloudAppContext::save_app_id(app_id.clone())?;
                 info!("Using \"{app_id}\" app");
             }
-            AppCommand::Update(update) => self.update(cloud, update)?,
-            AppCommand::Delete => self.delete(cloud)?,
-            AppCommand::Status => self.status(cloud)?,
-            AppCommand::Monitor => self.monitor(cloud)?,
-            AppCommand::Logs(logs) => self.trace_logs(cloud, logs)?,
-            AppCommand::Version(version) => self.version(cloud, version)?,
+            AppCommand::Update(update) => self.update(cloud, update, command.app_id)?,
+            AppCommand::Delete => self.delete(cloud, command.app_id)?,
+            AppCommand::Status => self.status(cloud, command.app_id)?,
+            AppCommand::Monitor => self.monitor(cloud, command.app_id)?,
+            AppCommand::Logs(logs) => self.trace_logs(cloud, logs, command.app_id)?,
+            AppCommand::Version(version) => self.version(cloud, version, command.app_id)?,
             AppCommand::List(list) => self.list(cloud, list)?,
         }
 
@@ -429,11 +435,12 @@ impl SimpleOrchestrator {
         &mut self,
         cloud: Cloud,
         version: VersionCommand,
+        app_id: Option<String>,
     ) -> Result<(), OrchestrationError> {
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud).await?;
 
-            let app_id = CloudAppContext::get_app_id()?;
+            let app_id = app_id.unwrap_or(CloudAppContext::get_app_id()?);
 
             match version {
                 VersionCommand::Create { deployment } => {
