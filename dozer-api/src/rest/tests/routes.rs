@@ -1,14 +1,12 @@
 use std::{fmt::Debug, sync::Arc};
 
 use super::super::{ApiServer, CorsOptions};
-use crate::{
-    generator::oapi::generator::OpenApiGenerator, test_utils, CacheEndpoint,
-};
+use crate::{generator::oapi::generator::OpenApiGenerator, test_utils, CacheEndpoint};
 use actix_http::{body::MessageBody, Request};
 use actix_web::dev::{Service, ServiceResponse};
 use dozer_cache::Phase;
+use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::serde_json::{json, Value};
-use dozer_types::models::api_endpoint::{ApiEndpoint};
 
 #[test]
 fn test_generate_oapi() {
