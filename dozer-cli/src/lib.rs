@@ -96,7 +96,7 @@ pub fn wrapped_statement_to_pipeline(sql: &str) -> Result<QueryContext, Pipeline
 #[cfg(feature = "cloud")]
 use crate::cli::cloud::{
     AppCommandsWrapper, Cloud, DeployCommandArgs, ListCommandArgs, LogCommandArgs,
-    UpdateCommandArgs, SecretsCommandWrapper
+    SecretsCommandWrapper, UpdateCommandArgs,
 };
 pub use dozer_types::models::connection::Connection;
 use dozer_types::tracing::error;
