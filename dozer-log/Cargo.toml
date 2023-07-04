@@ -7,6 +7,7 @@ edition = "2021"
 
 
 [dependencies]
+camino = "1.1.4"
 dozer-types = {path = "../dozer-types"}
 futures-util = "0.3.27"
 tokio = { version = "1", features = ["full"] }

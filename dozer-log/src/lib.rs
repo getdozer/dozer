@@ -3,6 +3,7 @@ pub mod home_dir;
 pub mod reader;
 pub mod schemas;
 pub mod writer;
+pub use camino;
 
 use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 pub use tokio;

@@ -1381,6 +1381,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "camino"
+version = "1.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c530edf18f37068ac2d977409ed5cd50d53d73bc653c7647b48eb78976ac9ae2"
+
+[[package]]
 name = "cast"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2369,6 +2375,7 @@ dependencies = [
 name = "dozer-log"
 version = "0.1.27"
 dependencies = [
+ "camino",
  "dozer-types",
  "futures-util",
  "tokio",

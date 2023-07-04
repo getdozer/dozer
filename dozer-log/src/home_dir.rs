@@ -1,24 +1,22 @@
-use std::{
-    fs::ReadDir,
-    path::{Path, PathBuf},
-};
+use camino::{ReadDirUtf8, Utf8Path, Utf8PathBuf};
 
 #[derive(Debug, Clone)]
 pub struct HomeDir {
-    api_dir: PathBuf,
-    cache_dir: PathBuf,
-    log_dir: PathBuf,
+    api_dir: Utf8PathBuf,
+    cache_dir: Utf8PathBuf,
+    log_dir: Utf8PathBuf,
 }
 
-pub type Error = (PathBuf, std::io::Error);
+pub type Error = (Utf8PathBuf, std::io::Error);
 
 impl HomeDir {
-    pub fn new(home_dir: &Path, cache_dir: PathBuf) -> Self {
+    pub fn new(home_dir: &str, cache_dir: String) -> Self {
+        let home_dir = AsRef::<Utf8Path>::as_ref(home_dir);
         let api_dir = home_dir.join("api");
         let log_dir = home_dir.join("pipeline").join("logs");
         Self {
             api_dir,
-            cache_dir,
+            cache_dir: cache_dir.into(),
             log_dir,
         }
     }
@@ -106,11 +104,11 @@ impl HomeDir {
         }
     }
 
-    fn get_endpoint_api_dir(&self, endpoint_name: &str) -> PathBuf {
+    fn get_endpoint_api_dir(&self, endpoint_name: &str) -> Utf8PathBuf {
         self.api_dir.join(endpoint_name)
     }
 
-    fn get_endpoint_log_dir(&self, endpoint_name: &str) -> PathBuf {
+    fn get_endpoint_log_dir(&self, endpoint_name: &str) -> Utf8PathBuf {
         self.log_dir.join(endpoint_name)
     }
 
@@ -172,12 +170,12 @@ impl MigrationId {
 }
 
 struct ListSubDir {
-    parent_dir: PathBuf,
-    read_dir: ReadDir,
+    parent_dir: Utf8PathBuf,
+    read_dir: ReadDirUtf8,
 }
 
 struct SubDir {
-    _path: PathBuf,
+    _path: Utf8PathBuf,
     name: String,
 }
 
@@ -194,23 +192,24 @@ impl Iterator for ListSubDir {
 
             let path = entry.path();
             if path.is_dir() {
-                if let Ok(name) = entry.file_name().into_string() {
-                    return Some(Ok(SubDir { _path: path, name }));
-                }
+                return Some(Ok(SubDir {
+                    _path: path.to_path_buf(),
+                    name: entry.file_name().to_string(),
+                }));
             }
         }
     }
 }
 
-fn list_sub_dir(dir: PathBuf) -> Result<ListSubDir, Error> {
-    let read_dir = std::fs::read_dir(&dir).map_err(|e| (dir.clone(), e))?;
+fn list_sub_dir(dir: Utf8PathBuf) -> Result<ListSubDir, Error> {
+    let read_dir = dir.read_dir_utf8().map_err(|e| (dir.clone(), e))?;
     Ok(ListSubDir {
         parent_dir: dir,
         read_dir,
     })
 }
 
-fn find_latest_migration_id(dir: PathBuf) -> Result<Option<MigrationId>, Error> {
+fn find_latest_migration_id(dir: Utf8PathBuf) -> Result<Option<MigrationId>, Error> {
     if !dir.exists() {
         return Ok(None);
     }
@@ -234,11 +233,11 @@ fn find_latest_migration_id(dir: PathBuf) -> Result<Option<MigrationId>, Error> 
 #[derive(Debug, Clone)]
 pub struct MigrationPath {
     pub id: MigrationId,
-    pub api_dir: PathBuf,
-    pub descriptor_path: PathBuf,
-    log_dir: PathBuf,
-    pub schema_path: PathBuf,
-    pub log_path: PathBuf,
+    pub api_dir: Utf8PathBuf,
+    pub descriptor_path: Utf8PathBuf,
+    log_dir: Utf8PathBuf,
+    pub schema_path: Utf8PathBuf,
+    pub log_path: Utf8PathBuf,
 }
 
 impl MigrationPath {
