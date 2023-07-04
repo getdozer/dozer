@@ -147,7 +147,7 @@ fn run() -> Result<(), OrchestrationError> {
                 AppCommands::Run => {
                     render_logo();
 
-                    dozer.run_apps(shutdown_receiver, None, cli.err_threshold)
+                    dozer.run_apps(shutdown_receiver, None, None)
                 }
                 AppCommands::Connectors => list_sources(&cli.config_path, cli.config_token),
             },
@@ -172,7 +172,7 @@ fn run() -> Result<(), OrchestrationError> {
     } else {
         render_logo();
 
-        dozer.run_all(shutdown_receiver, cli.err_threshold)
+        dozer.run_all(shutdown_receiver, None)
     }
 }
 

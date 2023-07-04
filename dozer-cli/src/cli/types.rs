@@ -22,8 +22,6 @@ pub struct Cli {
     pub config_path: String,
     #[arg(global = true, long)]
     pub config_token: Option<String>,
-    #[arg(global = true, short = 'e', long, default_value = None)]
-    pub err_threshold: Option<u32>,
 
     #[clap(subcommand)]
     pub cmd: Option<Commands>,
