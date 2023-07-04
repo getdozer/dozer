@@ -93,11 +93,12 @@ pub enum ApiCommands {
 #[derive(Debug, Subcommand)]
 pub enum AppCommands {
     Run,
-    #[command(subcommand, about = "Show Sources")]
-    Connectors,
+    #[command(about = "Show Sources")]
+    Connectors(ConnectorCommand),
 }
 
-#[derive(Debug, Subcommand)]
-pub enum ConnectorCommands {
-    Ls,
+#[derive(Debug, Args)]
+pub struct ConnectorCommand {
+    #[arg(short = 'f')]
+    pub filter: Option<String>,
 }

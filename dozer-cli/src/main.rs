@@ -2,7 +2,7 @@ use clap::Parser;
 #[cfg(feature = "cloud")]
 use dozer_cli::cli::cloud::CloudCommands;
 use dozer_cli::cli::generate_config_repl;
-use dozer_cli::cli::types::{ApiCommands, AppCommands, Cli, Commands};
+use dozer_cli::cli::types::{ApiCommands, AppCommands, Cli, Commands, ConnectorCommand};
 use dozer_cli::cli::{init_dozer, init_dozer_with_default_config, list_sources, LOGO};
 use dozer_cli::errors::{CliError, OrchestrationError};
 use dozer_cli::simple::SimpleOrchestrator;
@@ -149,7 +149,9 @@ fn run() -> Result<(), OrchestrationError> {
 
                     dozer.run_apps(shutdown_receiver, None, None)
                 }
-                AppCommands::Connectors => list_sources(&cli.config_path, cli.config_token),
+                AppCommands::Connectors(ConnectorCommand { filter }) => {
+                    list_sources(&cli.config_path, cli.config_token, filter)
+                }
             },
             Commands::Build(migrate) => {
                 let force = migrate.force.is_some();
