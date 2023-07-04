@@ -1,8 +1,9 @@
-use std::{io::SeekFrom, path::Path, time::Duration};
+use std::{io::SeekFrom, time::Duration};
 
 use crate::attach_progress;
 
 use super::errors::ReaderError;
+use camino::Utf8Path;
 use dozer_types::epoch::ExecutorOperation;
 use dozer_types::indicatif::{MultiProgress, ProgressBar};
 use dozer_types::{bincode, log::trace};
@@ -21,7 +22,7 @@ pub struct LogReader {
 const SLEEP_TIME_MS: u16 = 300;
 impl LogReader {
     pub async fn new(
-        path: &Path,
+        path: &Utf8Path,
         name: String,
         pos: u64,
         multi_pb: Option<MultiProgress>,
@@ -30,7 +31,7 @@ impl LogReader {
             .read(true)
             .open(path)
             .await
-            .map_err(|_| ReaderError::LogFileNotFound(path.to_path_buf()))?;
+            .map_err(|_| ReaderError::LogFileNotFound(path.to_string().into()))?;
 
         let mut reader = BufReader::new(file);
 
