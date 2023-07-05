@@ -1,43 +1,20 @@
 app_name: wildcard-test
 connections:
-  - config: !Grpc
-      port: 8088
-      schemas: !Inline |
-        {
-          "table3": {
-            "schema": {
-              "fields": [
-                {
-                  "name": "table3_id",
-                  "typ": "Int",
-                  "nullable": false
-                },
-                {
-                  "name": "table3_age",
-                  "typ": "Int",
-                  "nullable": false
-                }
-              ]
-            } 
-          },
-          "table4": {
-            "schema": {
-              "fields": [
-                {
-                  "name": "table4_id",
-                  "typ": "Int",
-                  "nullable": false
-                },
-                {
-                  "name": "table4_age",
-                  "typ": "Int",
-                  "nullable": false
-                }
-              ]
-            }
-          }
-        }
-    name: two-tables
+  - config: !LocalStorage
+      details:
+        path: ./src/tests/e2e/fixtures
+      tables:
+        - !Table
+          name: actors
+          config: !CSV
+            path: actors
+            extension: .csv
+        - !Table
+          name: films
+          config: !CSV
+            path: films
+            extension: .csv
+    name: movie
 
 api:
   rest:
@@ -48,11 +25,11 @@ api:
     port: 7513
 
 sql: |
-  SELECT table4.* 
-  INTO wildcard_res 
-  FROM table3
-  LEFT JOIN table4
-    ON table3.table3_id = table4.table4_id;
+  SELECT films.*
+  INTO wildcard_res
+  FROM actors
+  INNER JOIN films
+  ON actors.id = films.actor_id;
 
 endpoints:
   - name: wildcard_res
