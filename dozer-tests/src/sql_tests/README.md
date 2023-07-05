@@ -4,12 +4,12 @@ This is Dozer's [sqllogictest](https://www.sqlite.org/sqllogictest/doc/trunk/abo
 ### Basic usage
 Run all tests
 ```shell
-cargo test --test sql-tests
+cargo test --bin sql-tests
 ```
 
 Auto complete test file which is very convenient. It will use the validator database (currently sqlite) to produce the expected output for the test file.
 ```shell
-cargo test --test sql-tests -- --complete
+cargo test --bin sql-tests -- --complete
 ```
 
 ### Sqllogictest
@@ -30,6 +30,6 @@ query <type_string> <sort_mode> <label>
 ----
 <expected_result>
 ```
-The SQL for the query is found on second an subsequent lines of the record up to first line of the form "----" or until the end of the record. Lines following the "----" are expected results of the query, one value per line. If the "----" and/or the results are omitted, then the query is expected to return an empty set.
+The SQL for the query is found on second and subsequent lines of the record up to first line of the form "----" or until the end of the record. Lines following the "----" are expected results of the query, one value per line. If the "----" and/or the results are omitted, then the query is expected to return an empty set.
 
 For more information about arguments, such as <type_string>, <sort_mode>, <label> please refer to [sqllogictest](https://www.sqlite.org/sqllogictest/doc/trunk/about.wiki).
