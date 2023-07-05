@@ -103,7 +103,7 @@ impl ReceiverLoop for SinkNode {
 
     fn on_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError> {
         debug!("[{}] Checkpointing - {}", self.node_handle, epoch);
-        if let Err(e) = self.sink.commit() {
+        if let Err(e) = self.sink.commit(epoch) {
             self.error_manager.report(e);
         }
         self.state_writer.store_commit_info(epoch)?;
