@@ -49,7 +49,7 @@ api:
 
 sql: |
   SELECT table4.* 
-  INTO wildcard_res 
+  INTO wildcard_res_err 
   FROM table3
   LEFT JOIN table4
     ON table3.table3_id = table4.table4_id;

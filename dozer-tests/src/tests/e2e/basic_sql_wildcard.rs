@@ -70,7 +70,7 @@ async fn test_e2e_wildcard() {
         .unwrap();
 
     // Wait for api to process the records.
-    tokio::time::sleep(std::time::Duration::from_millis(2000)).await;
+    tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
 
     let common_client = &mut test.common_service_client;
 
