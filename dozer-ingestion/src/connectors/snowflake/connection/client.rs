@@ -21,6 +21,8 @@ use odbc::{
     ColumnDescriptor, Connection, Cursor, Data, DiagnosticRecord, Executed, HasResult, NoData,
     ResultSetState, Statement,
 };
+use rand::distributions::Alphanumeric;
+use rand::Rng;
 use std::collections::HashMap;
 use std::fmt::Write;
 
@@ -190,6 +192,7 @@ impl Iterator for ResultIterator<'_, '_> {
 
 pub struct Client {
     conn_string: String,
+    name: String,
 }
 
 impl Client {
@@ -218,12 +221,20 @@ impl Client {
         let conn_string = parts.join(";");
 
         debug!("Snowflake conn string: {:?}", conn_string);
-
-        Self { conn_string }
+        let name = rand::thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(7)
+            .map(char::from)
+            .collect();
+        Self { conn_string, name }
     }
 
     pub fn get_conn_string(&self) -> String {
         self.conn_string.clone()
+    }
+
+    pub fn get_name(&self) -> String {
+        self.name.clone()
     }
 
     pub fn exec(

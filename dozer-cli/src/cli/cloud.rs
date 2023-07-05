@@ -2,6 +2,9 @@ use clap::{Args, Subcommand};
 
 use dozer_types::constants::DEFAULT_CLOUD_TARGET_URL;
 
+use dozer_types::grpc_types::cloud::Secret;
+use std::error::Error;
+
 #[derive(Debug, Args)]
 #[command(args_conflicts_with_subcommands = true)]
 pub struct Cloud {
@@ -24,10 +27,10 @@ pub enum CloudCommands {
     Deploy(DeployCommandArgs),
     /// Update existing application on Dozer Cloud
     Update(UpdateCommandArgs),
-    Delete(AppCommand),
+    Delete,
     List(ListCommandArgs),
-    Status(AppCommand),
-    Monitor(AppCommand),
+    Status,
+    Monitor,
     /// Inspect application logs
     Logs(LogCommandArgs),
     Login(CompanyCommand),
@@ -37,6 +40,12 @@ pub enum CloudCommands {
     /// Dozer API server management
     #[command(subcommand)]
     Api(ApiCommand),
+    /// Dozer app secrets management
+    #[command(subcommand)]
+    Secrets(SecretsCommand),
+    /// Dozer app context management
+    #[command(subcommand)]
+    App(AppCommand),
 }
 
 #[derive(Debug, Args, Clone)]
@@ -44,6 +53,9 @@ pub struct DeployCommandArgs {
     /// Number of replicas to serve Dozer APIs
     #[arg(short, long)]
     pub num_replicas: Option<i32>,
+
+    #[arg(short, value_parser = parse_key_val)]
+    pub secrets: Vec<Secret>,
 }
 
 pub fn default_num_replicas() -> i32 {
@@ -52,12 +64,12 @@ pub fn default_num_replicas() -> i32 {
 
 #[derive(Debug, Args, Clone)]
 pub struct UpdateCommandArgs {
-    /// The id of the application to update
-    #[arg(short, long)]
-    pub app_id: String,
     /// Number of replicas to serve Dozer APIs
     #[arg(short, long)]
     pub num_replicas: Option<i32>,
+
+    #[arg(short, value_parser = parse_key_val)]
+    pub secrets: Vec<Secret>,
 }
 #[derive(Debug, Args, Clone)]
 pub struct CompanyCommand {
@@ -65,17 +77,13 @@ pub struct CompanyCommand {
     pub company_name: String,
 }
 
-#[derive(Debug, Args, Clone)]
-pub struct AppCommand {
-    #[arg(short = 'a', long)]
-    pub app_id: String,
+#[derive(Debug, Subcommand, Clone)]
+pub enum AppCommand {
+    Use { app_id: String },
 }
 
 #[derive(Debug, Args, Clone)]
 pub struct LogCommandArgs {
-    /// The id of the application to update
-    #[arg(short, long)]
-    pub app_id: String,
     /// Whether to follow the logs
     #[arg(short, long)]
     pub follow: bool,
@@ -102,17 +110,11 @@ pub enum VersionCommand {
     Status {
         /// The version to inspect
         version: u32,
-        /// The application id.
-        #[clap(short, long)]
-        app_id: String,
     },
     /// Creates a new version of the application with the given deployment
     Create {
         /// The deployment of the application to create a new version from
         deployment: u32,
-        /// The application id.
-        #[clap(short, long)]
-        app_id: String,
     },
     /// Sets a version as the "current" version of the application
     ///
@@ -120,9 +122,6 @@ pub enum VersionCommand {
     SetCurrent {
         /// The version to set as current
         version: u32,
-        /// The application id.
-        #[clap(short, long)]
-        app_id: String,
     },
 }
 
@@ -132,8 +131,48 @@ pub enum ApiCommand {
     SetNumReplicas {
         /// The number of replicas to set
         num_replicas: i32,
-        /// The application id.
-        #[clap(short, long)]
-        app_id: String,
     },
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum SecretsCommand {
+    /// Creates new secret
+    Create {
+        /// Name of secret
+        name: String,
+
+        /// Value of secret
+        value: String,
+    },
+    /// Update secret value
+    Update {
+        /// Name of secret
+        name: String,
+
+        /// Value of secret
+        value: String,
+    },
+    /// Delete secret
+    Delete {
+        /// Name of secret
+        name: String,
+    },
+    /// Get secret
+    Get {
+        /// Name of secret
+        name: String,
+    },
+    /// List all app secrets
+    List {},
+}
+
+fn parse_key_val(s: &str) -> Result<Secret, Box<dyn Error + Send + Sync + 'static>> {
+    let pos = s
+        .find('=')
+        .ok_or_else(|| format!("invalid KEY=value: no `=` found in `{s}`"))?;
+
+    Ok(Secret {
+        name: s[..pos].parse()?,
+        value: s[pos + 1..].parse()?,
+    })
 }

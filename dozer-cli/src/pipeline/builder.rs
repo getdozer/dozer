@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::path::PathBuf;
 use std::sync::Arc;
 
+use dozer_cache::dozer_log::camino::Utf8PathBuf;
 use dozer_core::app::App;
 use dozer_core::app::AppPipeline;
 use dozer_core::executor::DagExecutor;
@@ -45,7 +45,7 @@ pub struct PipelineBuilder<'a> {
     sources: &'a [Source],
     sql: Option<&'a str>,
     /// `ApiEndpoint` and its log path.
-    endpoint_and_log_paths: Vec<(ApiEndpoint, PathBuf)>,
+    endpoint_and_log_paths: Vec<(ApiEndpoint, Utf8PathBuf)>,
     progress: MultiProgress,
 }
 impl<'a> PipelineBuilder<'a> {
@@ -53,7 +53,7 @@ impl<'a> PipelineBuilder<'a> {
         connections: &'a [Connection],
         sources: &'a [Source],
         sql: Option<&'a str>,
-        endpoint_and_log_paths: Vec<(ApiEndpoint, PathBuf)>,
+        endpoint_and_log_paths: Vec<(ApiEndpoint, Utf8PathBuf)>,
         progress: MultiProgress,
     ) -> Self {
         Self {
@@ -235,7 +235,7 @@ impl<'a> PipelineBuilder<'a> {
                 .ok_or_else(|| OrchestrationError::EndpointTableNotFound(table_name.clone()))?;
 
             let snk_factory = Arc::new(LogSinkFactory::new(
-                log_path,
+                log_path.into(),
                 settings.clone(),
                 api_endpoint.name.clone(),
                 self.progress.clone(),

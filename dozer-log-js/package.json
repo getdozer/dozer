@@ -1,6 +1,6 @@
 {
   "name": "@dozerjs/log",
-  "version": "0.1.26",
+  "version": "0.1.27",
   "description": "Node.js binding for reading Dozer logs",
   "main": "build/log.node",
   "scripts": {

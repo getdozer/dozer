@@ -1,12 +1,13 @@
 [package]
 name = "dozer-log"
-version = "0.1.26"
+version = "0.1.27"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 
 [dependencies]
+camino = "1.1.4"
 dozer-types = {path = "../dozer-types"}
 futures-util = "0.3.27"
 tokio = { version = "1", features = ["full"] }

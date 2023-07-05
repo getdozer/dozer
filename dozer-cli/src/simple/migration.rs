@@ -23,7 +23,7 @@ pub fn needs_migration(
 ) -> Result<Option<MigrationId>, MigrationError> {
     let migration_path = home_dir
         .find_latest_migration_path(endpoint_name)
-        .map_err(|(path, error)| MigrationError::FileSystem(path, error))?;
+        .map_err(|(path, error)| MigrationError::FileSystem(path.into(), error))?;
     let Some(migration_path) = migration_path else {
         return Ok(Some(MigrationId::first()));
     };
@@ -49,11 +49,12 @@ pub fn create_migration(
 ) -> Result<(), MigrationError> {
     let migration_path = home_dir
         .create_migration_dir_all(endpoint_name, migration_id)
-        .map_err(|(path, error)| MigrationError::FileSystem(path, error))?;
+        .map_err(|(path, error)| MigrationError::FileSystem(path.into(), error))?;
 
-    write_schema(schema, &migration_path.schema_path).map_err(MigrationError::CannotWriteSchema)?;
+    write_schema(schema, migration_path.schema_path.as_ref())
+        .map_err(MigrationError::CannotWriteSchema)?;
 
-    let proto_folder_path = &migration_path.api_dir;
+    let proto_folder_path = migration_path.api_dir.as_ref();
     ProtoGenerator::generate(proto_folder_path, endpoint_name, schema)?;
 
     let mut resources = Vec::new();
@@ -67,7 +68,7 @@ pub fn create_migration(
     // Generate a descriptor based on all proto files generated within sink.
     ProtoGenerator::generate_descriptor(
         proto_folder_path,
-        &migration_path.descriptor_path,
+        migration_path.descriptor_path.as_ref(),
         &resources,
     )?;
 

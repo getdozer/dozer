@@ -16,12 +16,12 @@ impl StreamConsumer {
         Self {}
     }
 
-    pub fn get_stream_table_name(table_name: &str) -> String {
-        format!("dozer_{table_name}_stream")
+    pub fn get_stream_table_name(table_name: &str, client_name: &str) -> String {
+        format!("dozer_{table_name}_{client_name}_stream")
     }
 
-    pub fn get_stream_temp_table_name(table_name: &str) -> String {
-        format!("dozer_{table_name}_stream_temp")
+    pub fn get_stream_temp_table_name(table_name: &str, client_name: &str) -> String {
+        format!("dozer_{table_name}_{client_name}_stream_temp")
     }
 
     pub fn is_stream_created(client: &Client, table_name: &str) -> Result<bool, ConnectorError> {
@@ -31,7 +31,10 @@ impl StreamConsumer {
             .unwrap();
 
         client
-            .stream_exist(&conn, &Self::get_stream_table_name(table_name))
+            .stream_exist(
+                &conn,
+                &Self::get_stream_table_name(table_name, &client.get_name()),
+            )
             .map_err(ConnectorError::SnowflakeError)
     }
 
@@ -43,7 +46,7 @@ impl StreamConsumer {
 
         let query = format!(
             "DROP STREAM IF EXISTS {}",
-            Self::get_stream_table_name(table_name),
+            Self::get_stream_table_name(table_name, &client.get_name()),
         );
 
         client.exec(&conn, query)
@@ -57,7 +60,7 @@ impl StreamConsumer {
 
         let query = format!(
             "CREATE STREAM {} on table {} SHOW_INITIAL_ROWS = TRUE",
-            Self::get_stream_table_name(table_name),
+            Self::get_stream_table_name(table_name, &client.get_name()),
             table_name,
         );
 
@@ -66,7 +69,7 @@ impl StreamConsumer {
         if !result {
             let query = format!(
                 "CREATE STREAM {} on view {} SHOW_INITIAL_ROWS = TRUE",
-                Self::get_stream_table_name(table_name),
+                Self::get_stream_table_name(table_name, &client.get_name()),
                 table_name
             );
             client.exec(&conn, query)?;
@@ -132,8 +135,8 @@ impl StreamConsumer {
             .connect_with_connection_string(&client.get_conn_string())
             .unwrap();
 
-        let temp_table_name = Self::get_stream_temp_table_name(table_name);
-        let stream_name = Self::get_stream_table_name(table_name);
+        let temp_table_name = Self::get_stream_temp_table_name(table_name, &client.get_name());
+        let stream_name = Self::get_stream_table_name(table_name, &client.get_name());
         let temp_table_exist = client.table_exist(&conn, &temp_table_name)?;
 
         if !temp_table_exist {
