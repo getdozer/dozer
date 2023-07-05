@@ -81,7 +81,7 @@ impl ApiServer {
     fn create_app_entry(
         security: Option<ApiSecurity>,
         cors: CorsOptions,
-        cache_endpoints: Vec<Arc<CacheEndpoint>>,
+        mut cache_endpoints: Vec<Arc<CacheEndpoint>>,
     ) -> App<
         impl ServiceFactory<
             ServiceRequest,
@@ -116,6 +116,9 @@ impl ApiServer {
             Condition::new(is_auth_configured, HttpAuthentication::bearer(validate));
 
         let cors_middleware = Self::get_cors(cors);
+
+        //reverse sort cache endpoints by path length to ensure that the most specific path is matched first
+        cache_endpoints.sort_by(|a, b| b.endpoint.path.len().cmp(&a.endpoint.path.len()));
 
         cache_endpoints
             .into_iter()

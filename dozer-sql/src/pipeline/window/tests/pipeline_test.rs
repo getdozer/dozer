@@ -8,6 +8,7 @@ use dozer_core::node::{
 
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::chrono::{TimeZone, Utc};
+use dozer_types::epoch::Epoch;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::tracing::{debug, info};
@@ -428,7 +429,7 @@ impl Sink for TestSink {
         Ok(())
     }
 
-    fn commit(&mut self) -> Result<(), BoxedError> {
+    fn commit(&mut self, _epoch_details: &Epoch) -> Result<(), BoxedError> {
         Ok(())
     }
 
