@@ -1,4 +1,5 @@
 use dozer_types::grpc_types::{ingest::IngestRequest, types};
+use dozer_types::grpc_types::common::QueryRequest;
 
 use super::DozerE2eTest;
 
@@ -39,4 +40,17 @@ async fn test_e2e_left_join() {
 
     // Wait for api to process the records.
     tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+
+    let common_client = &mut test.common_service_client;
+
+    let res = common_client
+        .query(QueryRequest {
+            endpoint: "table1_endpoint".to_string(),
+            query: None,
+        })
+        .await
+        .unwrap();
+    let res = res.into_inner();
+
+    assert_eq!(res.records.len(), 1);
 }
