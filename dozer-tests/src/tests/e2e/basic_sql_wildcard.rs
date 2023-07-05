@@ -1,7 +1,7 @@
 use dozer_types::grpc_types::common::QueryRequest;
-use std::time::Duration;
 use dozer_types::grpc_types::ingest::IngestRequest;
 use dozer_types::grpc_types::types;
+use std::time::Duration;
 
 use super::DozerE2eTest;
 
