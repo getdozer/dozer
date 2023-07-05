@@ -136,7 +136,15 @@ jobs:
             ${{ steps.coverage.outputs.report }}
           retention-days: 10
 
-      - id: coveralls
+      - if: github.event_name == 'pull_request_target'
+        name: Coveralls upload
+        uses: coverallsapp/github-action@master
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path-to-lcov: ${{ steps.coverage.outputs.report }}
+          git-commit: ${{ github.event.pull_request.head.sha }}
+
+      - if: github.event_name != 'pull_request_target'
         name: Coveralls upload
         uses: coverallsapp/github-action@master
         with:
