@@ -45,12 +45,13 @@ where
     forward_ready!(service);
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
-        let fut = self.service.call(req);
-
+        let request_path = req.path().to_string();
+        let fut: <S as Service<ServiceRequest>>::Future = self.service.call(req);
         Box::pin(async move {
             let start_time = std::time::Instant::now();
-            let res = fut.await;
-            histogram!(API_LATENCY_HISTOGRAM_NAME, start_time.elapsed());
+            let res: Result<ServiceResponse<B>, Error> = fut.await;
+            let labels = [("endpoint", request_path), ("api_type", "rest".to_owned())];
+            histogram!(API_LATENCY_HISTOGRAM_NAME, start_time.elapsed(), &labels);
             increment_counter!(API_REQUEST_COUNTER_NAME);
             res
         })
