@@ -14,16 +14,16 @@ use dozer_types::{
     },
 };
 
-use crate::errors::MigrationError;
+use crate::errors::BuildError;
 
 pub fn needs_migration(
     home_dir: &HomeDir,
     endpoint_name: &str,
     schema: &MigrationSchema,
-) -> Result<Option<MigrationId>, MigrationError> {
+) -> Result<Option<MigrationId>, BuildError> {
     let migration_path = home_dir
         .find_latest_migration_path(endpoint_name)
-        .map_err(|(path, error)| MigrationError::FileSystem(path.into(), error))?;
+        .map_err(|(path, error)| BuildError::FileSystem(path.into(), error))?;
     let Some(migration_path) = migration_path else {
         return Ok(Some(MigrationId::first()));
     };
@@ -32,8 +32,8 @@ pub fn needs_migration(
         return Ok(Some(migration_path.id.next()));
     }
 
-    let existing_schema = load_schema(&migration_path.schema_path)
-        .map_err(MigrationError::CannotLoadExistingSchema)?;
+    let existing_schema =
+        load_schema(&migration_path.schema_path).map_err(BuildError::CannotLoadExistingSchema)?;
     if existing_schema == *schema {
         Ok(None)
     } else {
@@ -46,13 +46,13 @@ pub fn create_migration(
     endpoint_name: &str,
     migration_id: MigrationId,
     schema: &MigrationSchema,
-) -> Result<(), MigrationError> {
+) -> Result<(), BuildError> {
     let migration_path = home_dir
         .create_migration_dir_all(endpoint_name, migration_id)
-        .map_err(|(path, error)| MigrationError::FileSystem(path.into(), error))?;
+        .map_err(|(path, error)| BuildError::FileSystem(path.into(), error))?;
 
     write_schema(schema, migration_path.schema_path.as_ref())
-        .map_err(MigrationError::CannotWriteSchema)?;
+        .map_err(BuildError::CannotWriteSchema)?;
 
     let proto_folder_path = migration_path.api_dir.as_ref();
     ProtoGenerator::generate(proto_folder_path, endpoint_name, schema)?;
@@ -78,7 +78,7 @@ pub fn create_migration(
 pub fn modify_schema(
     schema: &Schema,
     api_endpoint: &ApiEndpoint,
-) -> Result<SchemaWithIndex, MigrationError> {
+) -> Result<SchemaWithIndex, BuildError> {
     let mut schema = schema.clone();
     // Generated Cache index based on api_index
     let configured_index = create_primary_indexes(
@@ -97,7 +97,7 @@ pub fn modify_schema(
         (false, true) => configured_index,
         (false, false) => {
             if !upstream_index.eq(&configured_index) {
-                return Err(MigrationError::MismatchPrimaryKey {
+                return Err(BuildError::MismatchPrimaryKey {
                     endpoint_name: api_endpoint.name.clone(),
                     expected: get_field_names(&schema, &upstream_index),
                     actual: get_field_names(&schema, &configured_index),
@@ -139,7 +139,7 @@ fn get_secondary_index_config(api_endpoint: &ApiEndpoint) -> Cow<SecondaryIndexC
 fn create_primary_indexes(
     field_definitions: &[FieldDefinition],
     primary_key: Option<&[String]>,
-) -> Result<Vec<usize>, MigrationError> {
+) -> Result<Vec<usize>, BuildError> {
     let mut primary_index = Vec::new();
     if let Some(primary_key) = primary_key {
         for name in primary_key {
@@ -152,7 +152,7 @@ fn create_primary_indexes(
 fn generate_secondary_indexes(
     field_definitions: &[FieldDefinition],
     config: &SecondaryIndexConfig,
-) -> Result<Vec<IndexDefinition>, MigrationError> {
+) -> Result<Vec<IndexDefinition>, BuildError> {
     let mut result = vec![];
 
     // Create default indexes unless skipped.
@@ -211,9 +211,9 @@ fn generate_secondary_indexes(
 fn field_index_from_field_name(
     fields: &[FieldDefinition],
     field_name: &str,
-) -> Result<usize, MigrationError> {
+) -> Result<usize, BuildError> {
     fields
         .iter()
         .position(|field| field.name == field_name)
-        .ok_or(MigrationError::FieldNotFound(field_name.to_string()))
+        .ok_or(BuildError::FieldNotFound(field_name.to_string()))
 }

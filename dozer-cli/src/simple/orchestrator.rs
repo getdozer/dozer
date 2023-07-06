@@ -224,7 +224,7 @@ impl Orchestrator for SimpleOrchestrator {
         Err(OrchestrationError::MissingSecurityConfig)
     }
 
-    fn migrate(&mut self, force: bool) -> Result<(), OrchestrationError> {
+    fn build(&mut self, force: bool) -> Result<(), OrchestrationError> {
         let home_dir = HomeDir::new(self.config.home_dir.as_ref(), self.config.cache_dir.clone());
 
         info!(
@@ -330,7 +330,7 @@ impl Orchestrator for SimpleOrchestrator {
 
         let (tx, rx) = channel::unbounded::<bool>();
 
-        self.migrate(false)?;
+        self.build(false)?;
 
         let mut dozer_pipeline = self.clone();
         let pipeline_thread =

@@ -155,10 +155,10 @@ fn run() -> Result<(), OrchestrationError> {
                     list_sources(&cli.config_path, cli.config_token, filter)
                 }
             },
-            Commands::Build(migrate) => {
-                let force = migrate.force.is_some();
+            Commands::Build(build) => {
+                let force = build.force.is_some();
 
-                dozer.migrate(force)
+                dozer.build(force)
             }
             Commands::Clean => dozer.clean(),
             #[cfg(feature = "cloud")]

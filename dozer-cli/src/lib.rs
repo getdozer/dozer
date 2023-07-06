@@ -27,7 +27,7 @@ mod progress_printer;
 mod utils;
 
 pub trait Orchestrator {
-    fn migrate(&mut self, force: bool) -> Result<(), OrchestrationError>;
+    fn build(&mut self, force: bool) -> Result<(), OrchestrationError>;
     fn clean(&mut self) -> Result<(), OrchestrationError>;
     fn run_all(
         &mut self,
