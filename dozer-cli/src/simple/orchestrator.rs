@@ -6,7 +6,7 @@ use crate::simple::helper::validate_config;
 use crate::simple::migration::{create_migration, modify_schema, needs_migration};
 use crate::utils::{
     get_api_security_config, get_app_grpc_config, get_cache_manager_options, get_executor_options,
-    get_grpc_config, get_log_entry_max_size, get_rest_config,
+    get_grpc_config, get_log_options, get_rest_config,
 };
 
 use crate::{flatten_join_handle, join_handle_map_err, Orchestrator};
@@ -16,7 +16,6 @@ use dozer_api::{grpc, rest, CacheEndpoint};
 use dozer_cache::cache::LmdbRwCacheManager;
 use dozer_cache::dozer_log::home_dir::HomeDir;
 use dozer_cache::dozer_log::schemas::MigrationSchema;
-use dozer_cache::dozer_log::storage::{LocalStorage, Storage};
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::DagSchemas;
 
@@ -31,13 +30,12 @@ use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::crossbeam::channel::{self, Sender};
 use dozer_types::indicatif::{MultiProgress, ProgressDrawTarget};
 use dozer_types::log::info;
-use dozer_types::models::app_config::Config;
+use dozer_types::models::config::Config;
 use dozer_types::tracing::error;
 use futures::stream::FuturesUnordered;
 use futures::{FutureExt, StreamExt, TryFutureExt};
 use metrics::{describe_counter, describe_histogram};
 use std::collections::HashMap;
-use std::fmt::Debug;
 use std::fs;
 use std::path::PathBuf;
 
@@ -96,6 +94,11 @@ impl Orchestrator for SimpleOrchestrator {
             );
             let home_dir =
                 HomeDir::new(self.config.home_dir.as_ref(), self.config.cache_dir.clone());
+            let internal_grpc_config = get_app_grpc_config(&self.config);
+            let log_server_addr = format!(
+                "http://{}:{}",
+                internal_grpc_config.host, internal_grpc_config.port
+            );
             let mut cache_endpoints = vec![];
             for endpoint in &self.config.endpoints {
                 let (cache_endpoint, handle) = CacheEndpoint::new(
@@ -103,6 +106,7 @@ impl Orchestrator for SimpleOrchestrator {
                     &*cache_manager,
                     endpoint.clone(),
                     Box::pin(shutdown.create_shutdown_future()),
+                    log_server_addr.clone(),
                     operations_sender.clone(),
                     Some(self.multi_pb.clone()),
                 )
@@ -164,29 +168,28 @@ impl Orchestrator for SimpleOrchestrator {
         Ok(())
     }
 
-    fn run_apps<S: Storage + Debug>(
+    fn run_apps(
         &mut self,
         shutdown: ShutdownReceiver,
         api_notifier: Option<Sender<bool>>,
         err_threshold: Option<u32>,
     ) -> Result<(), OrchestrationError> {
-        let mut global_err_threshold: Option<u32> = self.config.err_threshold;
+        let mut global_err_threshold: Option<u32> =
+            self.config.app.as_ref().and_then(|app| app.err_threshold);
         if err_threshold.is_some() {
             global_err_threshold = err_threshold;
         }
 
         let home_dir = HomeDir::new(self.config.home_dir.as_ref(), self.config.cache_dir.clone());
-        let executor = self
-            .runtime
-            .block_on(Executor::<LocalStorage>::new_with_local_storage(
-                &home_dir,
-                &self.config.connections,
-                &self.config.sources,
-                self.config.sql.as_deref(),
-                &self.config.endpoints,
-                get_log_entry_max_size(&self.config),
-                self.multi_pb.clone(),
-            ))?;
+        let executor = self.runtime.block_on(Executor::new(
+            &home_dir,
+            &self.config.connections,
+            &self.config.sources,
+            self.config.sql.as_deref(),
+            &self.config.endpoints,
+            get_log_options(&self.config),
+            self.multi_pb.clone(),
+        ))?;
         let dag_executor = executor.create_dag_executor(
             self.runtime.clone(),
             get_executor_options(&self.config, global_err_threshold),
@@ -274,7 +277,7 @@ impl Orchestrator for SimpleOrchestrator {
             // We're not really going to run the pipeline, so we don't create logs.
             .map(|endpoint| (endpoint.clone(), None))
             .collect();
-        let builder = PipelineBuilder::<LocalStorage>::new(
+        let builder = PipelineBuilder::new(
             &self.config.connections,
             &self.config.sources,
             self.config.sql.as_deref(),
@@ -360,9 +363,8 @@ impl Orchestrator for SimpleOrchestrator {
         self.build(false)?;
 
         let mut dozer_pipeline = self.clone();
-        let pipeline_thread = thread::spawn(move || {
-            dozer_pipeline.run_apps::<LocalStorage>(shutdown, Some(tx), err_threshold)
-        });
+        let pipeline_thread =
+            thread::spawn(move || dozer_pipeline.run_apps(shutdown, Some(tx), err_threshold));
 
         // Wait for pipeline to initialize caches before starting api server
         if rx.recv().is_err() {

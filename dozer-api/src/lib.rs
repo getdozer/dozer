@@ -25,13 +25,15 @@ pub struct CacheEndpoint {
     endpoint: ApiEndpoint,
 }
 
+pub const ENDPOINT_LABEL: &str = "endpoint";
+
 impl CacheEndpoint {
-    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         home_dir: &HomeDir,
         cache_manager: &dyn RwCacheManager,
         endpoint: ApiEndpoint,
         cancel: impl Future<Output = ()> + Unpin + Send + 'static,
+        log_server_addr: String,
         operations_sender: Option<Sender<Operation>>,
         multi_pb: Option<MultiProgress>,
     ) -> Result<(Self, JoinHandle<Result<(), CacheError>>), ApiError> {
@@ -49,7 +51,7 @@ impl CacheEndpoint {
 
         // Open or create cache.
         let mut cache_labels = Labels::new();
-        cache_labels.push("endpoint", endpoint.name.clone());
+        cache_labels.push(ENDPOINT_LABEL, endpoint.name.clone());
         cache_labels.push("migration", migration_path.id.name().to_string());
         let schema = load_schema(&migration_path.schema_path)?;
         let conflict_resolution = endpoint.conflict_resolution.unwrap_or_default();
@@ -79,7 +81,7 @@ impl CacheEndpoint {
                 cache_builder::build_cache(
                     cache,
                     cancel,
-                    &migration_path.log_path,
+                    log_server_addr.clone(),
                     operations_sender,
                     multi_pb,
                 )

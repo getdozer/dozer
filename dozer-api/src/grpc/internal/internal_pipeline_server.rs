@@ -1,10 +1,9 @@
 use dozer_cache::dozer_log::replication::Log;
-use dozer_cache::dozer_log::storage::Storage;
 use dozer_types::bincode;
 use dozer_types::grpc_types::internal::internal_pipeline_service_server::{
-    self, InternalPipelineService,
+    InternalPipelineService, InternalPipelineServiceServer,
 };
-use dozer_types::grpc_types::internal::{LogRequest, LogResponse};
+use dozer_types::grpc_types::internal::{LogRequest, LogResponse, StorageRequest, StorageResponse};
 use dozer_types::log::info;
 use dozer_types::models::api_config::AppGrpcOptions;
 use dozer_types::models::api_endpoint::ApiEndpoint;
@@ -19,18 +18,30 @@ use tonic::{Request, Response, Status, Streaming};
 
 use crate::errors::GrpcError;
 
-pub struct InternalPipelineServer<S: Storage> {
-    endpoints: HashMap<String, Arc<Mutex<Log<S>>>>,
+pub struct InternalPipelineServer {
+    endpoints: HashMap<String, Arc<Mutex<Log>>>,
 }
 
-impl<S: Storage> InternalPipelineServer<S> {
-    pub fn new(endpoints: HashMap<String, Arc<Mutex<Log<S>>>>) -> Self {
+impl InternalPipelineServer {
+    pub fn new(endpoints: HashMap<String, Arc<Mutex<Log>>>) -> Self {
         Self { endpoints }
     }
 }
 
 #[tonic::async_trait]
-impl<S: Storage> InternalPipelineService for InternalPipelineServer<S> {
+impl InternalPipelineService for InternalPipelineServer {
+    async fn describe_storage(
+        &self,
+        request: Request<StorageRequest>,
+    ) -> Result<Response<StorageResponse>, Status> {
+        let endpoint = request.into_inner().endpoint;
+        let log = find_log(&self.endpoints, &endpoint)?;
+        let storage = log.lock().await.describe_storage();
+        Ok(Response::new(StorageResponse {
+            storage: Some(storage),
+        }))
+    }
+
     type GetLogStream = BoxStream<'static, Result<LogResponse, Status>>;
 
     async fn get_log(
@@ -42,14 +53,9 @@ impl<S: Storage> InternalPipelineService for InternalPipelineServer<S> {
             requests
                 .into_inner()
                 .and_then(move |request| {
-                    let log = match endpoints.get(&request.endpoint) {
-                        Some(log) => log,
-                        None => {
-                            return Either::Left(std::future::ready(Err(Status::new(
-                                tonic::Code::NotFound,
-                                format!("Endpoint {} not found", request.endpoint),
-                            ))))
-                        }
+                    let log = match find_log(&endpoints, &request.endpoint) {
+                        Ok(log) => log,
+                        Err(e) => return Either::Left(std::future::ready(Err(e))),
                     };
                     Either::Right(get_log(log.clone(), request))
                 })
@@ -58,10 +64,19 @@ impl<S: Storage> InternalPipelineService for InternalPipelineServer<S> {
     }
 }
 
-async fn get_log<S: Storage>(
-    log: Arc<Mutex<Log<S>>>,
-    request: LogRequest,
-) -> Result<LogResponse, Status> {
+fn find_log<'a>(
+    endpoints: &'a HashMap<String, Arc<Mutex<Log>>>,
+    endpoint: &str,
+) -> Result<&'a Arc<Mutex<Log>>, Status> {
+    endpoints.get(endpoint).ok_or_else(|| {
+        Status::new(
+            tonic::Code::NotFound,
+            format!("Endpoint {} not found", endpoint),
+        )
+    })
+}
+
+async fn get_log(log: Arc<Mutex<Log>>, request: LogRequest) -> Result<LogResponse, Status> {
     let mut log = log.lock().await;
     let response = log.read(request.start as usize..request.end as usize);
     // Must drop log before awaiting response, otherwise we will deadlock.
@@ -78,8 +93,8 @@ async fn get_log<S: Storage>(
     Ok(LogResponse { data })
 }
 
-pub async fn start_internal_pipeline_server<S: Storage>(
-    endpoint_and_logs: &[(ApiEndpoint, Arc<Mutex<Log<S>>>)],
+pub async fn start_internal_pipeline_server(
+    endpoint_and_logs: &[(ApiEndpoint, Arc<Mutex<Log>>)],
     options: &AppGrpcOptions,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> Result<(), GrpcError> {
@@ -103,8 +118,7 @@ pub async fn start_internal_pipeline_server<S: Storage>(
     let addr = addr
         .parse()
         .map_err(|e| GrpcError::AddrParse(addr.clone(), e))?;
-    let server = Server::builder()
-        .add_service(internal_pipeline_service_server::InternalPipelineServiceServer::new(server));
+    let server = Server::builder().add_service(InternalPipelineServiceServer::new(server));
     match Abortable::new(server.serve(addr), abort_registration).await {
         Ok(result) => result.map_err(GrpcError::Transport),
         Err(Aborted) => Ok(()),

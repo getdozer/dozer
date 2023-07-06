@@ -3,8 +3,28 @@ syntax = "proto3";
 package dozer.internal;
 
 service InternalPipelineService {
+  rpc DescribeStorage(StorageRequest) returns (StorageResponse);
   /// For every `LogRequest` sent, the server will reply one `LogResponse`.
   rpc GetLog(stream LogRequest) returns (stream LogResponse);
+}
+
+message StorageRequest {
+  string endpoint = 1;
+}
+
+message LocalStorage {
+  string root = 1;
+}
+
+message S3Storage {
+  string bucket_name = 1;
+}
+
+message StorageResponse {
+  oneof storage {
+    LocalStorage local = 1;
+    S3Storage s3 = 2;
+  };
 }
 
 message LogRequest {

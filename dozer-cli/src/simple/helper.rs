@@ -4,7 +4,7 @@ use crate::errors::OrchestrationError;
 use dozer_types::log::info;
 use dozer_types::models::api_config::ApiConfig;
 use dozer_types::models::api_endpoint::ApiEndpoint;
-use dozer_types::models::app_config::Config;
+use dozer_types::models::config::Config;
 use dozer_types::prettytable::{row, Table};
 
 pub fn validate_config(config: &Config) -> Result<(), OrchestrationError> {

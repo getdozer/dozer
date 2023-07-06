@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
-use dozer_cache::dozer_log::{attach_progress, replication::Log, storage::Storage};
+use dozer_cache::dozer_log::{attach_progress, replication::Log};
 use dozer_core::{
     epoch::Epoch,
     node::{PortHandle, Sink, SinkFactory},
@@ -13,17 +13,17 @@ use dozer_types::{epoch::ExecutorOperation, errors::internal::BoxedError};
 use tokio::{runtime::Runtime, sync::Mutex};
 
 #[derive(Debug)]
-pub struct LogSinkFactory<S: Storage> {
+pub struct LogSinkFactory {
     runtime: Arc<Runtime>,
-    log: Arc<Mutex<Log<S>>>,
+    log: Arc<Mutex<Log>>,
     endpoint_name: String,
     multi_pb: MultiProgress,
 }
 
-impl<S: Storage> LogSinkFactory<S> {
+impl LogSinkFactory {
     pub fn new(
         runtime: Arc<Runtime>,
-        log: Arc<Mutex<Log<S>>>,
+        log: Arc<Mutex<Log>>,
         endpoint_name: String,
         multi_pb: MultiProgress,
     ) -> Self {
@@ -36,7 +36,7 @@ impl<S: Storage> LogSinkFactory<S> {
     }
 }
 
-impl<S: Storage + Debug> SinkFactory<SchemaSQLContext> for LogSinkFactory<S> {
+impl SinkFactory<SchemaSQLContext> for LogSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
@@ -63,17 +63,17 @@ impl<S: Storage + Debug> SinkFactory<SchemaSQLContext> for LogSinkFactory<S> {
 }
 
 #[derive(Debug)]
-pub struct LogSink<S: Storage> {
+pub struct LogSink {
     runtime: Arc<Runtime>,
-    log: Arc<Mutex<Log<S>>>,
+    log: Arc<Mutex<Log>>,
     pb: ProgressBar,
     counter: u64,
 }
 
-impl<S: Storage> LogSink<S> {
+impl LogSink {
     pub fn new(
         runtime: Arc<Runtime>,
-        log: Arc<Mutex<Log<S>>>,
+        log: Arc<Mutex<Log>>,
         endpoint_name: String,
         multi_pb: Option<MultiProgress>,
     ) -> Self {
@@ -93,7 +93,7 @@ impl<S: Storage> LogSink<S> {
     }
 }
 
-impl<S: Storage + Debug> Sink for LogSink<S> {
+impl Sink for LogSink {
     fn process(&mut self, _from_port: PortHandle, op: Operation) -> Result<(), BoxedError> {
         self.runtime.block_on(async {
             let mut log = self.log.lock().await;

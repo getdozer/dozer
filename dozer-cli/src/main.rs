@@ -1,5 +1,4 @@
 use clap::Parser;
-use dozer_cache::dozer_log::storage::LocalStorage;
 #[cfg(feature = "cloud")]
 use dozer_cli::cli::cloud::{CloudCommands, OrganisationCommand};
 use dozer_cli::cli::generate_config_repl;
@@ -153,7 +152,7 @@ fn run() -> Result<(), OrchestrationError> {
                     warn!("DEPRECATED. Please use \"dozer run app\" command");
                     render_logo();
 
-                    dozer.run_apps::<LocalStorage>(shutdown_receiver, None, None)
+                    dozer.run_apps(shutdown_receiver, None, None)
                 }
             },
             Commands::Run(run) => match run.command {

@@ -4,9 +4,9 @@ use crate::{errors::CliError, Orchestrator};
 
 use crate::config_helper::combine_config;
 use crate::errors::CliError::{ConfigurationFilePathNotProvided, FailedToFindConfigurationFiles};
-use dozer_types::models::app_config::default_cache_max_map_size;
+use dozer_types::models::config::default_cache_max_map_size;
 use dozer_types::prettytable::{row, Table};
-use dozer_types::{models::app_config::Config, serde_yaml};
+use dozer_types::{models::config::Config, serde_yaml};
 use handlebars::Handlebars;
 use std::collections::BTreeMap;
 use std::sync::Arc;

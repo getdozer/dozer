@@ -1,10 +1,8 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::fmt::Debug;
 use std::sync::Arc;
 
 use dozer_cache::dozer_log::replication::Log;
-use dozer_cache::dozer_log::storage::Storage;
 use dozer_core::app::App;
 use dozer_core::app::AppPipeline;
 use dozer_core::executor::DagExecutor;
@@ -46,23 +44,23 @@ pub struct CalculatedSources {
     pub query_context: Option<QueryContext>,
 }
 
-type OptionLog<S> = Option<Arc<Mutex<Log<S>>>>;
+type OptionLog = Option<Arc<Mutex<Log>>>;
 
-pub struct PipelineBuilder<'a, S: Storage> {
+pub struct PipelineBuilder<'a> {
     connections: &'a [Connection],
     sources: &'a [Source],
     sql: Option<&'a str>,
     /// `ApiEndpoint` and its log.
-    endpoint_and_logs: Vec<(ApiEndpoint, OptionLog<S>)>,
+    endpoint_and_logs: Vec<(ApiEndpoint, OptionLog)>,
     progress: MultiProgress,
 }
 
-impl<'a, S: Storage + Debug> PipelineBuilder<'a, S> {
+impl<'a> PipelineBuilder<'a> {
     pub fn new(
         connections: &'a [Connection],
         sources: &'a [Source],
         sql: Option<&'a str>,
-        endpoint_and_logs: Vec<(ApiEndpoint, OptionLog<S>)>,
+        endpoint_and_logs: Vec<(ApiEndpoint, OptionLog)>,
         progress: MultiProgress,
     ) -> Self {
         Self {

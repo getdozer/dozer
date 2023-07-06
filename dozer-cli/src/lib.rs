@@ -4,7 +4,6 @@ pub mod pipeline;
 pub mod shutdown;
 pub mod simple;
 mod ui_helper;
-use dozer_cache::dozer_log::storage::Storage;
 use dozer_core::{app::AppPipeline, errors::ExecutionError};
 use dozer_ingestion::connectors::SourceSchema;
 use dozer_sql::pipeline::{builder::statement_to_pipeline, errors::PipelineError};
@@ -14,7 +13,6 @@ use shutdown::{ShutdownReceiver, ShutdownSender};
 use std::{
     backtrace::{Backtrace, BacktraceStatus},
     collections::HashMap,
-    fmt::Debug,
     panic, process,
     thread::current,
 };
@@ -38,7 +36,7 @@ pub trait Orchestrator {
         err_threshold: Option<u32>,
     ) -> Result<(), OrchestrationError>;
     fn run_api(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError>;
-    fn run_apps<S: Storage + Debug>(
+    fn run_apps(
         &mut self,
         shutdown: ShutdownReceiver,
         api_notifier: Option<Sender<bool>>,

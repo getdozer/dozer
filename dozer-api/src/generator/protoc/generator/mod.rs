@@ -197,7 +197,6 @@ fn create_descriptor_set<T: AsRef<str>>(
     tonic_build::configure()
         .protoc_arg("--experimental_allow_proto3_optional")
         .file_descriptor_set_path(descriptor_path)
-        // .extern_path(".google.protobuf.Value", "::prost_wkt_types::Value")
         .build_client(false)
         .build_server(false)
         .emit_rerun_if_changed(false)

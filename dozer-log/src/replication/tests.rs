@@ -1,23 +1,22 @@
 use std::sync::Arc;
 
-use dozer_types::epoch::ExecutorOperation;
+use dozer_types::{epoch::ExecutorOperation, models::app_config::LogStorage};
 use tempdir::TempDir;
 use tokio::sync::Mutex;
 
-use crate::{
-    replication::{Log, LogResponse},
-    storage::LocalStorage,
-};
+use crate::replication::{Log, LogResponse};
 
 #[tokio::test]
 async fn write_read_mutable() {
     let temp_dir = TempDir::new("write_read_mutable").unwrap();
-    let storage = LocalStorage::new(temp_dir.path().to_str().unwrap().to_string())
-        .await
-        .unwrap();
-    let log = Log::new(storage, "migration".to_string(), false, 10)
-        .await
-        .unwrap();
+    let log = Log::new(
+        LogStorage::Local(()),
+        temp_dir.path().to_str().unwrap().to_string(),
+        false,
+        10,
+    )
+    .await
+    .unwrap();
     let log = Arc::new(Mutex::new(log));
 
     let ops = vec![
@@ -46,12 +45,14 @@ async fn write_read_mutable() {
 #[tokio::test]
 async fn watch_write_mutable() {
     let temp_dir = TempDir::new("watch_write_mutable").unwrap();
-    let storage = LocalStorage::new(temp_dir.path().to_str().unwrap().to_string())
-        .await
-        .unwrap();
-    let mut log = Log::new(storage, "migration".to_string(), false, 10)
-        .await
-        .unwrap();
+    let mut log = Log::new(
+        LogStorage::Local(()),
+        temp_dir.path().to_str().unwrap().to_string(),
+        false,
+        10,
+    )
+    .await
+    .unwrap();
 
     let range = 1..3;
     let handle = tokio::spawn(log.read(range.clone()));
@@ -80,12 +81,14 @@ async fn watch_write_mutable() {
 #[tokio::test]
 async fn watch_partial_write_mutable() {
     let temp_dir = TempDir::new("watch_partial_write_mutable").unwrap();
-    let storage = LocalStorage::new(temp_dir.path().to_str().unwrap().to_string())
-        .await
-        .unwrap();
-    let mut log = Log::new(storage, "migration".to_string(), false, 2)
-        .await
-        .unwrap();
+    let mut log = Log::new(
+        LogStorage::Local(()),
+        temp_dir.path().to_str().unwrap().to_string(),
+        false,
+        2,
+    )
+    .await
+    .unwrap();
 
     let handle = tokio::spawn(log.read(1..3));
 
@@ -113,12 +116,14 @@ async fn watch_partial_write_mutable() {
 #[tokio::test]
 async fn watch_out_of_range_write_mutable() {
     let temp_dir = TempDir::new("watch_out_of_range_write_mutable").unwrap();
-    let storage = LocalStorage::new(temp_dir.path().to_str().unwrap().to_string())
-        .await
-        .unwrap();
-    let mut log = Log::new(storage, "migration".to_string(), false, 2)
-        .await
-        .unwrap();
+    let mut log = Log::new(
+        LogStorage::Local(()),
+        temp_dir.path().to_str().unwrap().to_string(),
+        false,
+        2,
+    )
+    .await
+    .unwrap();
 
     let range = 2..3;
     let handle = tokio::spawn(log.read(range.clone()));
@@ -147,12 +152,14 @@ async fn watch_out_of_range_write_mutable() {
 #[tokio::test]
 async fn immutable_gets_evict() {
     let temp_dir = TempDir::new("immutable_gets_evict").unwrap();
-    let storage = LocalStorage::new(temp_dir.path().to_str().unwrap().to_string())
-        .await
-        .unwrap();
-    let log = Log::new(storage, "migration".to_string(), true, 2)
-        .await
-        .unwrap();
+    let log = Log::new(
+        LogStorage::Local(()),
+        temp_dir.path().to_str().unwrap().to_string(),
+        true,
+        2,
+    )
+    .await
+    .unwrap();
     let log = Arc::new(Mutex::new(log));
 
     let ops = vec![

@@ -1,17 +1,16 @@
 use dozer_cache::dozer_log::home_dir::HomeDir;
-use dozer_cache::dozer_log::replication::{self, Log};
-use dozer_cache::dozer_log::storage::{LocalStorage, Storage};
+use dozer_cache::dozer_log::replication::Log;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use tokio::runtime::Runtime;
 use tokio::sync::Mutex;
 
-use std::fmt::Debug;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use dozer_types::models::source::Source;
 
 use crate::pipeline::PipelineBuilder;
+use crate::utils::LogOptions;
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 
 use dozer_types::indicatif::MultiProgress;
@@ -21,35 +20,38 @@ use OrchestrationError::ExecutionError;
 
 use crate::errors::OrchestrationError;
 
-pub struct Executor<'a, S: Storage> {
+pub struct Executor<'a> {
     connections: &'a [Connection],
     sources: &'a [Source],
     sql: Option<&'a str>,
     /// `ApiEndpoint` and its log path.
-    endpoint_and_logs: Vec<(ApiEndpoint, Arc<Mutex<Log<S>>>)>,
+    endpoint_and_logs: Vec<(ApiEndpoint, Arc<Mutex<Log>>)>,
     multi_pb: MultiProgress,
 }
 
-impl<'a, S: Storage + Debug> Executor<'a, S> {
-    pub async fn new_with_local_storage(
+impl<'a> Executor<'a> {
+    pub async fn new(
         home_dir: &'a HomeDir,
         connections: &'a [Connection],
         sources: &'a [Source],
         sql: Option<&'a str>,
         api_endpoints: &'a [ApiEndpoint],
-        log_entry_max_size: usize,
+        log_options: LogOptions,
         multi_pb: MultiProgress,
-    ) -> Result<Executor<'a, LocalStorage>, OrchestrationError> {
+    ) -> Result<Executor<'a>, OrchestrationError> {
         let mut endpoint_and_logs = vec![];
         for endpoint in api_endpoints {
             let migration_path = home_dir
                 .find_latest_migration_path(&endpoint.name)
                 .map_err(|(path, error)| OrchestrationError::FileSystem(path.into(), error))?
                 .ok_or(OrchestrationError::NoMigrationFound(endpoint.name.clone()))?;
-            let storage = LocalStorage::new(migration_path.log_path.to_string())
-                .await
-                .map_err(replication::Error::Storage)?;
-            let log = Log::new(storage, "".into(), false, log_entry_max_size).await?;
+            let log = Log::new(
+                log_options.storage.clone(),
+                migration_path.log_path.into(),
+                false,
+                log_options.entry_max_size,
+            )
+            .await?;
             let log = Arc::new(Mutex::new(log));
             endpoint_and_logs.push((endpoint.clone(), log));
         }
@@ -63,7 +65,7 @@ impl<'a, S: Storage + Debug> Executor<'a, S> {
         })
     }
 
-    pub fn endpoint_and_logs(&self) -> &[(ApiEndpoint, Arc<Mutex<Log<S>>>)] {
+    pub fn endpoint_and_logs(&self) -> &[(ApiEndpoint, Arc<Mutex<Log>>)] {
         &self.endpoint_and_logs
     }
 

@@ -1,4 +1,4 @@
-use crate::models::app_config::Config;
+use crate::models::config::Config;
 
 #[test]
 #[ignore = "We removed the connection name validation, but should add it back in the future as part of a `validation` step"]

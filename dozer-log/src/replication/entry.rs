@@ -1,9 +1,9 @@
 use std::ops::Range;
 
 use camino::Utf8Path;
-use dozer_types::{bincode, epoch::ExecutorOperation, log::debug};
+use dozer_types::{bincode, epoch::ExecutorOperation, log::debug, models::app_config::LogStorage};
 
-use crate::storage::Storage;
+use crate::storage::{LocalStorage, S3Storage, Storage};
 
 use super::{Error, PersistedLogEntry};
 
@@ -11,25 +11,46 @@ use super::{Error, PersistedLogEntry};
 /// - objects.is_empty() || objects[0].range.start == 0
 /// - objects[i + 1].range.start == objects[i].range.end
 #[derive(Debug)]
-pub struct PersistedLogEntries<S: Storage> {
-    pub storage: S,
-    pub migration_dir: String,
+pub struct PersistedLogEntries {
+    pub storage: Box<dyn Storage>,
+    pub prefix: String,
     pub objects: Vec<PersistedLogEntry>,
 }
 
-impl<S: Storage> PersistedLogEntries<S> {
-    pub async fn load(storage: S, migration_dir: String) -> Result<Self, Error> {
+impl PersistedLogEntries {
+    pub async fn load_from_config(
+        storage_config: LogStorage,
+        migration_dir: String,
+    ) -> Result<Self, Error> {
+        // Create storage.
+        let (storage, prefix): (Box<dyn Storage>, _) = {
+            match storage_config {
+                LogStorage::Local(()) => {
+                    (Box::new(LocalStorage::new(migration_dir).await?), "".into())
+                }
+                LogStorage::S3(bucket_name) => {
+                    (Box::new(S3Storage::new(bucket_name).await?), migration_dir)
+                }
+            }
+        };
+        Self::load_from_storage(storage, prefix).await
+    }
+
+    pub async fn load_from_storage(
+        storage: Box<dyn Storage>,
+        prefix: String,
+    ) -> Result<Self, Error> {
         // Load all objects.
         let mut objects = vec![];
         let mut continuation_token = None;
         loop {
             let list_output = storage
-                .list_objects(migration_dir.clone(), continuation_token)
+                .list_objects(prefix.clone(), continuation_token)
                 .await?;
 
             for output in list_output.objects {
                 let name = AsRef::<Utf8Path>::as_ref(&output.key)
-                    .strip_prefix(&migration_dir)
+                    .strip_prefix(&prefix)
                     .map_err(|_| Error::UnrecognizedLogEntry(output.key.clone()))?;
                 let range = parse_log_entry_name(name.as_str())
                     .ok_or(Error::UnrecognizedLogEntry(output.key.clone()))?;
@@ -62,7 +83,7 @@ impl<S: Storage> PersistedLogEntries<S> {
 
         Ok(Self {
             storage,
-            migration_dir,
+            prefix,
             objects,
         })
     }
@@ -98,15 +119,9 @@ impl LogEntry {
     }
 }
 
-pub async fn persist<S: Storage>(
-    entry: &LogEntry,
-    storage: &S,
-    migration_dir: &str,
-) -> Result<(), Error> {
+pub async fn persist(entry: &LogEntry, storage: &dyn Storage, prefix: &str) -> Result<(), Error> {
     let name = log_entry_name(&(entry.start..entry.end()));
-    let key = AsRef::<Utf8Path>::as_ref(migration_dir)
-        .join(name)
-        .to_string();
+    let key = AsRef::<Utf8Path>::as_ref(prefix).join(name).to_string();
     let data = bincode::serialize(&entry.ops)?;
     storage.put_object(key, data).await.map_err(Into::into)
 }

@@ -3,15 +3,15 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use dozer_types::epoch::ExecutorOperation;
+use dozer_types::grpc_types::internal::storage_response;
 use dozer_types::log::{debug, error};
+use dozer_types::models::app_config::LogStorage;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::{bincode, thiserror};
 use pin_project::pin_project;
 use tokio::sync::oneshot::error::RecvError;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
-
-use crate::storage::Storage;
 
 use self::entry::{persist, LogEntry, PersistedLogEntries};
 
@@ -47,8 +47,8 @@ pub enum Error {
 /// - mutable.ops.len() < entry_max_size
 /// - watchers[i].start >= mutable.start && watchers[i].end > mutable.start + mutable.ops.len()
 #[derive(Debug)]
-pub struct Log<S: Storage> {
-    persisted: PersistedLogEntries<S>,
+pub struct Log {
+    persisted: PersistedLogEntries,
     immutable: Vec<LogEntry>,
     mutable: LogEntry,
     watchers: Vec<Watcher>,
@@ -62,14 +62,19 @@ struct Watcher {
     sender: Option<tokio::sync::oneshot::Sender<Vec<ExecutorOperation>>>,
 }
 
-impl<S: Storage> Log<S> {
+impl Log {
+    pub fn describe_storage(&self) -> storage_response::Storage {
+        self.persisted.storage.describe()
+    }
+
     pub async fn new(
-        storage: S,
+        storage_config: LogStorage,
         migration_dir: String,
         readonly: bool,
         entry_max_size: usize,
     ) -> Result<Self, Error> {
-        let persisted = PersistedLogEntries::load(storage, migration_dir).await?;
+        let persisted =
+            PersistedLogEntries::load_from_config(storage_config, migration_dir).await?;
         let end = persisted.end();
         if !readonly && end.is_some() {
             return Err(Error::NonEmptyWritableLog);
@@ -93,7 +98,7 @@ impl<S: Storage> Log<S> {
     pub fn write(
         &mut self,
         op: ExecutorOperation,
-        log_to_evict_immutable: Arc<Mutex<Log<S>>>,
+        log_to_evict_immutable: Arc<Mutex<Log>>,
     ) -> Option<JoinHandle<()>> {
         // Record operation.
         self.mutable.ops.push(op);
@@ -134,18 +139,18 @@ impl<S: Storage> Log<S> {
             self.immutable.push(log_entry);
 
             // Persist immutable entries, reload persisted data and evict immutable entries.
-            let storage = self.persisted.storage.clone();
-            let migration_dir = self.persisted.migration_dir.clone();
+            let storage = dyn_clone::clone_box(&*self.persisted.storage);
+            let prefix = self.persisted.prefix.clone();
             let immutable = self.immutable.clone();
             Some(tokio::spawn(async move {
                 for entry in immutable {
-                    if let Err(e) = persist(&entry, &storage, &migration_dir).await {
+                    if let Err(e) = persist(&entry, &*storage, &prefix).await {
                         error!("Failed to persist log entry: {:?}", e);
                         return;
                     }
                 }
 
-                match PersistedLogEntries::load(storage, migration_dir).await {
+                match PersistedLogEntries::load_from_storage(storage, prefix).await {
                     Ok(persisted) => log_to_evict_immutable
                         .lock()
                         .await
@@ -239,8 +244,8 @@ impl Future for LogResponseFuture {
     }
 }
 
-impl<S: Storage> Log<S> {
-    fn evict_immutable_if_possible(&mut self, persisted: PersistedLogEntries<S>) {
+impl Log {
+    fn evict_immutable_if_possible(&mut self, persisted: PersistedLogEntries) {
         // Find the immutable entry whose end is `persisted.end()`.
         let mut index = None;
         if let Some(end) = persisted.end() {

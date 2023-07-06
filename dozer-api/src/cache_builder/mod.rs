@@ -1,7 +1,8 @@
 use std::collections::HashSet;
+use std::time::Duration;
 
 use crate::grpc::types_helper;
-use dozer_cache::dozer_log::camino::Utf8Path;
+use crate::ENDPOINT_LABEL;
 use dozer_cache::dozer_log::reader::LogReader;
 use dozer_cache::{
     cache::{CacheRecord, CacheWriteOptions, RwCache, RwCacheManager, UpsertResult},
@@ -22,7 +23,7 @@ use futures_util::{
     future::{select, Either},
     Future,
 };
-use metrics::{describe_counter, describe_histogram, histogram, increment_counter};
+use metrics::{describe_counter, describe_histogram, histogram, increment_counter, IntoLabels};
 use tokio::sync::broadcast::Sender;
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
@@ -30,15 +31,20 @@ use tokio_stream::StreamExt;
 pub async fn build_cache(
     cache: Box<dyn RwCache>,
     cancel: impl Future<Output = ()> + Unpin + Send + 'static,
-    log_path: &Utf8Path,
+    log_server_addr: String,
     operations_sender: Option<(String, Sender<GrpcOperation>)>,
     multi_pb: Option<MultiProgress>,
 ) -> Result<(), CacheError> {
     // Create log reader.
+    let labels = cache.labels().clone().into_labels();
+    let endpoint = labels
+        .iter()
+        .find(|label| label.key() == ENDPOINT_LABEL)
+        .expect("Cache must have endpoint label")
+        .value();
     let pos = cache.get_metadata()?.unwrap_or(0);
-    let reader_name = cache.labels().to_string();
-    debug!("Starting log reader {reader_name} from position {pos}");
-    let log_reader = LogReader::new(log_path, reader_name, pos, multi_pb).await?;
+    debug!("Starting log reader {endpoint} from position {pos}");
+    let log_reader = LogReader::new(log_server_addr, endpoint.to_string(), pos, multi_pb).await?;
 
     // Spawn tasks
     let mut futures = FuturesUnordered::new();
@@ -87,6 +93,8 @@ pub fn open_or_create_cache(
     }
 }
 
+const READ_LOG_RETRY_INTERVAL: Duration = Duration::from_secs(1);
+
 async fn read_log_task(
     mut cancel: impl Future<Output = ()> + Unpin + Send + 'static,
     mut log_reader: LogReader,
@@ -96,6 +104,18 @@ async fn read_log_task(
         let next_op = std::pin::pin!(log_reader.next_op());
         match select(next_op, cancel).await {
             Either::Left((op, c)) => {
+                let op = match op {
+                    Ok(op) => op,
+                    Err(e) => {
+                        error!(
+                            "Failed to read log: {e}, retrying after {READ_LOG_RETRY_INTERVAL:?}"
+                        );
+                        tokio::time::sleep(READ_LOG_RETRY_INTERVAL).await;
+                        cancel = c;
+                        continue;
+                    }
+                };
+
                 cancel = c;
                 if sender.send(op).await.is_err() {
                     debug!("Stop reading log because receiver is dropped");
@@ -126,7 +146,7 @@ fn build_cache_task(
         "End-to-end data latency in seconds"
     );
 
-    while let Some((op, offset)) = receiver.blocking_recv() {
+    while let Some((op, pos)) = receiver.blocking_recv() {
         match op {
             ExecutorOperation::Op { op } => match op {
                 Operation::Delete { mut old } => {
@@ -184,7 +204,7 @@ fn build_cache_task(
                 }
             },
             ExecutorOperation::Commit { epoch } => {
-                cache.set_metadata(offset)?;
+                cache.set_metadata(pos)?;
                 cache.commit()?;
                 if let Ok(duration) = epoch.decision_instant.elapsed() {
                     histogram!(
@@ -195,7 +215,7 @@ fn build_cache_task(
                 }
             }
             ExecutorOperation::SnapshottingDone { connection_name } => {
-                cache.set_metadata(offset)?;
+                cache.set_metadata(pos)?;
                 cache.set_connection_snapshotting_done(&connection_name)?;
                 cache.commit()?;
             }

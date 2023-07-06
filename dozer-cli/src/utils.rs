@@ -7,9 +7,10 @@ use dozer_types::models::{
     },
     api_security::ApiSecurity,
     app_config::{
-        default_app_buffer_size, default_cache_max_map_size, default_commit_size,
-        default_commit_timeout, default_log_entry_max_size, Config,
+        default_app_buffer_size, default_commit_size, default_commit_timeout,
+        default_log_entry_max_size, LogStorage,
     },
+    config::{default_cache_max_map_size, Config},
 };
 use std::time::Duration;
 
@@ -20,27 +21,49 @@ fn get_cache_max_map_size(config: &Config) -> u64 {
 }
 
 fn get_commit_time_threshold(config: &Config) -> Duration {
-    if let Some(commit_time_threshold) = config.commit_timeout {
-        Duration::from_millis(commit_time_threshold)
-    } else {
-        Duration::from_millis(default_commit_timeout())
-    }
+    Duration::from_millis(
+        config
+            .app
+            .as_ref()
+            .and_then(|app| app.commit_timeout)
+            .unwrap_or_else(default_commit_timeout),
+    )
 }
 
 fn get_buffer_size(config: &Config) -> u32 {
     config
-        .app_buffer_size
+        .app
+        .as_ref()
+        .and_then(|app| app.app_buffer_size)
         .unwrap_or_else(default_app_buffer_size)
 }
 
 fn get_commit_size(config: &Config) -> u32 {
-    config.commit_size.unwrap_or_else(default_commit_size)
+    config
+        .app
+        .as_ref()
+        .and_then(|app| app.commit_size)
+        .unwrap_or_else(default_commit_size)
 }
 
-pub fn get_log_entry_max_size(config: &Config) -> usize {
-    config
-        .log_entry_max_size
-        .unwrap_or_else(default_log_entry_max_size) as usize
+#[derive(Debug)]
+pub struct LogOptions {
+    pub storage: LogStorage,
+    pub entry_max_size: usize,
+}
+
+pub fn get_log_options(config: &Config) -> LogOptions {
+    let app = config.app.as_ref();
+    let storage = app
+        .and_then(|app| app.log_storage.clone())
+        .unwrap_or_default();
+    let entry_max_size = app
+        .and_then(|app| app.log_entry_max_size)
+        .unwrap_or_else(default_log_entry_max_size) as usize;
+    LogOptions {
+        storage,
+        entry_max_size,
+    }
 }
 
 pub fn get_grpc_config(config: &Config) -> GrpcApiOptions {
