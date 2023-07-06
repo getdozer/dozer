@@ -1,150 +1,112 @@
-use crossbeam::channel::{Receiver, Sender};
-use dozer_types::models::api_config::AppGrpcOptions;
-use dozer_types::{crossbeam, log::info, tracing::warn};
-use dozer_types::{
-    grpc_types::{
-        internal::{
-            internal_pipeline_service_server::{self, InternalPipelineService},
-            AliasEventsRequest, AliasRedirected, OperationsRequest,
-        },
-        types::Operation,
-    },
-    log::debug,
+use dozer_cache::dozer_log::replication::Log;
+use dozer_cache::dozer_log::storage::Storage;
+use dozer_types::bincode;
+use dozer_types::grpc_types::internal::internal_pipeline_service_server::{
+    self, InternalPipelineService,
 };
-use std::{fmt::Debug, net::ToSocketAddrs, pin::Pin, thread};
-use tokio::sync::broadcast;
-use tokio_stream::wrappers::ReceiverStream;
-use tonic::{codegen::futures_core::Stream, transport::Server, Response, Status};
+use dozer_types::grpc_types::internal::{LogRequest, LogResponse};
+use dozer_types::log::info;
+use dozer_types::models::api_config::AppGrpcOptions;
+use dozer_types::models::api_endpoint::ApiEndpoint;
+use futures_util::future::Either;
+use futures_util::stream::{AbortHandle, Abortable, Aborted, BoxStream};
+use futures_util::{Future, StreamExt, TryStreamExt};
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use tonic::transport::Server;
+use tonic::{Request, Response, Status, Streaming};
 
-pub type PipelineEventSenders = (Sender<AliasRedirected>, Sender<Operation>);
-pub type PipelineEventReceivers = (Receiver<AliasRedirected>, Receiver<Operation>);
+use crate::errors::GrpcError;
 
-pub struct InternalPipelineServer {
-    alias_redirected_receiver: broadcast::Receiver<AliasRedirected>,
-    operation_receiver: broadcast::Receiver<Operation>,
+pub struct InternalPipelineServer<S: Storage> {
+    endpoints: HashMap<String, Arc<Mutex<Log<S>>>>,
 }
-impl InternalPipelineServer {
-    pub fn new(pipeline_event_receivers: PipelineEventReceivers) -> Self {
-        let alias_redirected_receiver =
-            crossbeam_mpsc_receiver_to_tokio_broadcast_receiver(pipeline_event_receivers.0);
-        let operation_receiver =
-            crossbeam_mpsc_receiver_to_tokio_broadcast_receiver(pipeline_event_receivers.1);
-        Self {
-            alias_redirected_receiver,
-            operation_receiver,
-        }
+
+impl<S: Storage> InternalPipelineServer<S> {
+    pub fn new(endpoints: HashMap<String, Arc<Mutex<Log<S>>>>) -> Self {
+        Self { endpoints }
     }
 }
-
-fn crossbeam_mpsc_receiver_to_tokio_broadcast_receiver<T: Clone + Debug + Send + 'static>(
-    crossbeam_receiver: Receiver<T>,
-) -> broadcast::Receiver<T> {
-    let (broadcast_sender, broadcast_receiver) = broadcast::channel(16);
-    thread::Builder::new().name("crossbeam_mpsc_receiver_to_tokio_broadcast_receiver".to_string()).spawn(move || loop {
-        let message = crossbeam_receiver.recv();
-        match message {
-            Ok(message) => {
-                let result = broadcast_sender.send(message);
-                if let Err(e) = result {
-                    warn!("Internal Pipeline server - Error sending message to broadcast channel: {:?}", e);
-                }
-            }
-            Err(err) => {
-                debug!(
-                    "Error receiving: {:?}. Exiting crossbeam_mpsc_receiver_to_tokio_broadcast_receiver thread",
-                    err
-                );
-                break;
-            }
-        }
-    }).expect("Failed to spawn crossbeam_mpsc_receiver_to_tokio_broadcast_receiver thread");
-    broadcast_receiver
-}
-
-type OperationsStream = Pin<Box<dyn Stream<Item = Result<Operation, Status>> + Send>>;
-type AliasEventsStream = Pin<Box<dyn Stream<Item = Result<AliasRedirected, Status>> + Send>>;
 
 #[tonic::async_trait]
-impl InternalPipelineService for InternalPipelineServer {
-    type StreamOperationsStream = OperationsStream;
-    async fn stream_operations(
-        &self,
-        _request: tonic::Request<OperationsRequest>,
-    ) -> Result<Response<OperationsStream>, Status> {
-        let (operation_sender, operation_receiver) = tokio::sync::mpsc::channel(1000);
-        let mut receiver = self.operation_receiver.resubscribe();
-        tokio::spawn(async move {
-            loop {
-                let result = receiver.try_recv();
-                match result {
-                    Ok(operation) => {
-                        let result = operation_sender.send(Ok(operation)).await;
-                        if let Err(e) = result {
-                            warn!("Error sending message to mpsc channel: {:?}", e);
-                            break;
-                        }
-                    }
-                    Err(err) => {
-                        if err == broadcast::error::TryRecvError::Closed {
-                            break;
-                        }
-                    }
-                }
-                tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
-            }
-        });
-        let output_stream = ReceiverStream::new(operation_receiver);
-        Ok(Response::new(Box::pin(output_stream)))
-    }
+impl<S: Storage> InternalPipelineService for InternalPipelineServer<S> {
+    type GetLogStream = BoxStream<'static, Result<LogResponse, Status>>;
 
-    type StreamAliasEventsStream = AliasEventsStream;
-
-    async fn stream_alias_events(
+    async fn get_log(
         &self,
-        _request: tonic::Request<AliasEventsRequest>,
-    ) -> Result<Response<Self::StreamAliasEventsStream>, Status> {
-        let (alias_redirected_sender, alias_redirected_receiver) = tokio::sync::mpsc::channel(1000);
-        let mut receiver = self.alias_redirected_receiver.resubscribe();
-        tokio::spawn(async move {
-            loop {
-                let result = receiver.try_recv();
-                match result {
-                    Ok(alias_redirected) => {
-                        let result = alias_redirected_sender.send(Ok(alias_redirected)).await;
-                        if let Err(e) = result {
-                            warn!("Error sending message to mpsc channel: {:?}", e);
-                            break;
+        requests: Request<Streaming<LogRequest>>,
+    ) -> Result<Response<Self::GetLogStream>, Status> {
+        let endpoints = self.endpoints.clone();
+        Ok(Response::new(
+            requests
+                .into_inner()
+                .and_then(move |request| {
+                    let log = match endpoints.get(&request.endpoint) {
+                        Some(log) => log,
+                        None => {
+                            return Either::Left(std::future::ready(Err(Status::new(
+                                tonic::Code::NotFound,
+                                format!("Endpoint {} not found", request.endpoint),
+                            ))))
                         }
-                    }
-                    Err(err) => {
-                        if err == broadcast::error::TryRecvError::Closed {
-                            break;
-                        }
-                    }
-                }
-                tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
-            }
-        });
-        let output_stream = ReceiverStream::new(alias_redirected_receiver);
-        Ok(Response::new(Box::pin(output_stream)))
+                    };
+                    Either::Right(get_log(log.clone(), request))
+                })
+                .boxed(),
+        ))
     }
 }
 
-pub async fn start_internal_pipeline_server(
-    options: &AppGrpcOptions,
-    receivers: PipelineEventReceivers,
-) -> Result<(), tonic::transport::Error> {
-    let server = InternalPipelineServer::new(receivers);
-
-    info!(
-        "Starting Internal Server on http://{}:{}",
-        options.host, options.port,
-    );
-    let mut addr = format!("{}:{}", options.host, options.port)
-        .to_socket_addrs()
-        .unwrap();
-    Server::builder()
-        .add_service(internal_pipeline_service_server::InternalPipelineServiceServer::new(server))
-        .serve(addr.next().unwrap())
+async fn get_log<S: Storage>(
+    log: Arc<Mutex<Log<S>>>,
+    request: LogRequest,
+) -> Result<LogResponse, Status> {
+    let mut log = log.lock().await;
+    let response = log.read(request.start as usize..request.end as usize);
+    // Must drop log before awaiting response, otherwise we will deadlock.
+    drop(log);
+    let response = response
         .await
+        .map_err(|e| Status::new(tonic::Code::Internal, e.to_string()))?;
+    let data = bincode::serialize(&response).map_err(|e| {
+        Status::new(
+            tonic::Code::Internal,
+            format!("Failed to serialize response: {}", e),
+        )
+    })?;
+    Ok(LogResponse { data })
+}
+
+pub async fn start_internal_pipeline_server<S: Storage>(
+    endpoint_and_logs: &[(ApiEndpoint, Arc<Mutex<Log<S>>>)],
+    options: &AppGrpcOptions,
+    shutdown: impl Future<Output = ()> + Send + 'static,
+) -> Result<(), GrpcError> {
+    let endpoints = endpoint_and_logs
+        .iter()
+        .map(|(endpoint, log)| (endpoint.name.clone(), log.clone()))
+        .collect();
+    let server = InternalPipelineServer::new(endpoints);
+
+    // Tonic graceful shutdown doesn't allow us to set a timeout, resulting in hanging if a client doesn't close the connection.
+    // So we just abort the server when the shutdown signal is received.
+    let (abort_handle, abort_registration) = AbortHandle::new_pair();
+    tokio::spawn(async move {
+        shutdown.await;
+        abort_handle.abort();
+    });
+
+    // Run server.
+    let addr = format!("{}:{}", options.host, options.port);
+    info!("Starting Internal Server on {addr}");
+    let addr = addr
+        .parse()
+        .map_err(|e| GrpcError::AddrParse(addr.clone(), e))?;
+    let server = Server::builder()
+        .add_service(internal_pipeline_service_server::InternalPipelineServiceServer::new(server));
+    match Abortable::new(server.serve(addr), abort_registration).await {
+        Ok(result) => result.map_err(GrpcError::Transport),
+        Err(Aborted) => Ok(()),
+    }
 }

@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use dozer_types::epoch::ExecutorOperation;
 use dozer_types::log::{debug, error};
+use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::{bincode, thiserror};
 use pin_project::pin_project;
 use tokio::sync::oneshot::error::RecvError;
@@ -16,7 +17,8 @@ use self::entry::{persist, LogEntry, PersistedLogEntries};
 
 mod entry;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(crate = "dozer_types::serde")]
 pub struct PersistedLogEntry {
     pub key: String,
     pub range: Range<usize>,
@@ -193,7 +195,8 @@ impl<S: Storage> Log<S> {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[serde(crate = "dozer_types::serde")]
 pub enum LogResponse {
     Persisted(PersistedLogEntry),
     Operations(Vec<ExecutorOperation>),

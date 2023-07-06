@@ -1,7 +1,10 @@
 use dozer_cache::cache::CacheManagerOptions;
 use dozer_core::executor::ExecutorOptions;
 use dozer_types::models::{
-    api_config::{default_api_grpc, default_api_rest, GrpcApiOptions, RestApiOptions},
+    api_config::{
+        default_api_grpc, default_api_rest, default_app_grpc, AppGrpcOptions, GrpcApiOptions,
+        RestApiOptions,
+    },
     api_security::ApiSecurity,
     app_config::{
         default_app_buffer_size, default_cache_max_map_size, default_commit_size,
@@ -54,6 +57,14 @@ pub fn get_rest_config(config: &Config) -> RestApiOptions {
         .as_ref()
         .and_then(|api| api.rest.clone())
         .unwrap_or_else(default_api_rest)
+}
+
+pub fn get_app_grpc_config(config: &Config) -> AppGrpcOptions {
+    config
+        .api
+        .as_ref()
+        .and_then(|api| api.app_grpc.clone())
+        .unwrap_or_else(default_app_grpc)
 }
 
 pub fn get_api_security_config(config: &Config) -> Option<&ApiSecurity> {

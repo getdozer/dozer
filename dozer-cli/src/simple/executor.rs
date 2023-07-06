@@ -27,7 +27,6 @@ pub struct Executor<'a, S: Storage> {
     sql: Option<&'a str>,
     /// `ApiEndpoint` and its log path.
     endpoint_and_logs: Vec<(ApiEndpoint, Arc<Mutex<Log<S>>>)>,
-    running: Arc<AtomicBool>,
     multi_pb: MultiProgress,
 }
 
@@ -38,7 +37,6 @@ impl<'a, S: Storage + Debug> Executor<'a, S> {
         sources: &'a [Source],
         sql: Option<&'a str>,
         api_endpoints: &'a [ApiEndpoint],
-        running: Arc<AtomicBool>,
         log_entry_max_size: usize,
         multi_pb: MultiProgress,
     ) -> Result<Executor<'a, LocalStorage>, OrchestrationError> {
@@ -61,9 +59,12 @@ impl<'a, S: Storage + Debug> Executor<'a, S> {
             sources,
             sql,
             endpoint_and_logs,
-            running,
             multi_pb,
         })
+    }
+
+    pub fn endpoint_and_logs(&self) -> &[(ApiEndpoint, Arc<Mutex<Log<S>>>)] {
+        &self.endpoint_and_logs
     }
 
     pub fn create_dag_executor(
@@ -87,9 +88,12 @@ impl<'a, S: Storage + Debug> Executor<'a, S> {
 
         Ok(exec)
     }
+}
 
-    pub fn run_dag_executor(&self, dag_executor: DagExecutor) -> Result<(), OrchestrationError> {
-        let join_handle = dag_executor.start(self.running.clone())?;
-        join_handle.join().map_err(ExecutionError)
-    }
+pub fn run_dag_executor(
+    dag_executor: DagExecutor,
+    running: Arc<AtomicBool>,
+) -> Result<(), OrchestrationError> {
+    let join_handle = dag_executor.start(running)?;
+    join_handle.join().map_err(ExecutionError)
 }

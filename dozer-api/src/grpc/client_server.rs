@@ -44,17 +44,6 @@ impl ApiServer {
         ),
         GrpcError,
     > {
-        info!(
-            "Starting gRPC server on http://{}:{} with security: {}",
-            self.host,
-            self.port,
-            self.security
-                .as_ref()
-                .map_or("None".to_string(), |s| match s {
-                    ApiSecurity::Jwt(_) => "JWT".to_string(),
-                })
-        );
-
         let mut all_descriptor_bytes = vec![];
         for cache_endpoint in &cache_endpoints {
             let descriptor_path = cache_endpoint.descriptor_path();
@@ -183,7 +172,19 @@ impl ApiServer {
         });
 
         // Run server.
-        let addr = format!("{:}:{:}", self.host, self.port).parse().unwrap();
+        let addr = format!("{}:{}", self.host, self.port);
+        info!(
+            "Starting gRPC server on {addr} with security: {}",
+            self.security
+                .as_ref()
+                .map_or("None".to_string(), |s| match s {
+                    ApiSecurity::Jwt(_) => "JWT".to_string(),
+                })
+        );
+
+        let addr = addr
+            .parse()
+            .map_err(|e| GrpcError::AddrParse(addr.clone(), e))?;
         match Abortable::new(grpc_router.serve(addr), abort_registration).await {
             Ok(result) => result.map_err(GrpcError::Transport),
             Err(Aborted) => Ok(()),

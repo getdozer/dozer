@@ -1,4 +1,5 @@
 #![allow(clippy::enum_variant_names)]
+use std::net::AddrParseError;
 use std::path::PathBuf;
 
 use actix_web::http::header::ContentType;
@@ -64,8 +65,6 @@ impl ApiError {
 
 #[derive(Error, Debug)]
 pub enum GrpcError {
-    #[error("Internal gRPC server error: {0}")]
-    InternalError(#[from] BoxedError),
     #[error("Cannot send to broadcast channel")]
     CannotSendToBroadcastChannel,
     #[error("Generation error: {0}")]
@@ -74,6 +73,8 @@ pub enum GrpcError {
     SchemaNotFound(#[from] CacheError),
     #[error("Server reflection error: {0}")]
     ServerReflectionError(#[from] tonic_reflection::server::Error),
+    #[error("Addr parse error: {0}: {1}")]
+    AddrParse(String, #[source] AddrParseError),
     #[error("Transport error: {0}")]
     Transport(#[from] tonic::transport::Error),
 }

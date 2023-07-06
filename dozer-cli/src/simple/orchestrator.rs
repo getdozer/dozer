@@ -1,16 +1,17 @@
-use super::executor::Executor;
+use super::executor::{run_dag_executor, Executor};
 use crate::errors::OrchestrationError;
 use crate::pipeline::PipelineBuilder;
 use crate::shutdown::ShutdownReceiver;
 use crate::simple::helper::validate_config;
 use crate::simple::migration::{create_migration, modify_schema, needs_migration};
 use crate::utils::{
-    get_api_security_config, get_cache_manager_options, get_executor_options, get_grpc_config,
-    get_log_entry_max_size, get_rest_config,
+    get_api_security_config, get_app_grpc_config, get_cache_manager_options, get_executor_options,
+    get_grpc_config, get_log_entry_max_size, get_rest_config,
 };
 
 use crate::{flatten_join_handle, join_handle_map_err, Orchestrator};
 use dozer_api::auth::{Access, Authorizer};
+use dozer_api::grpc::internal::internal_pipeline_server::start_internal_pipeline_server;
 use dozer_api::{grpc, rest, CacheEndpoint};
 use dozer_cache::cache::LmdbRwCacheManager;
 use dozer_cache::dozer_log::home_dir::HomeDir;
@@ -33,7 +34,7 @@ use dozer_types::log::info;
 use dozer_types::models::app_config::Config;
 use dozer_types::tracing::error;
 use futures::stream::FuturesUnordered;
-use futures::StreamExt;
+use futures::{FutureExt, StreamExt, TryFutureExt};
 use metrics::{describe_counter, describe_histogram};
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -183,7 +184,6 @@ impl Orchestrator for SimpleOrchestrator {
                 &self.config.sources,
                 self.config.sql.as_deref(),
                 &self.config.endpoints,
-                shutdown.get_running_flag(),
                 get_log_entry_max_size(&self.config),
                 self.multi_pb.clone(),
             ))?;
@@ -192,13 +192,34 @@ impl Orchestrator for SimpleOrchestrator {
             get_executor_options(&self.config, global_err_threshold),
         )?;
 
+        let app_grpc_config = get_app_grpc_config(&self.config);
+        let internal_server_future = start_internal_pipeline_server(
+            executor.endpoint_and_logs(),
+            &app_grpc_config,
+            shutdown.create_shutdown_future(),
+        );
+
         if let Some(api_notifier) = api_notifier {
             api_notifier
                 .send(true)
                 .expect("Failed to notify API server");
         }
 
-        executor.run_dag_executor(dag_executor)
+        let running = shutdown.get_running_flag();
+        let pipeline_future = self
+            .runtime
+            .spawn_blocking(|| run_dag_executor(dag_executor, running));
+
+        let mut futures = FuturesUnordered::new();
+        futures.push(internal_server_future.map_err(Into::into).boxed());
+        futures.push(flatten_join_handle(pipeline_future).boxed());
+
+        self.runtime.block_on(async move {
+            while let Some(result) = futures.next().await {
+                result?;
+            }
+            Ok(())
+        })
     }
 
     fn list_connectors(
