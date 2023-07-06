@@ -337,7 +337,16 @@ impl Orchestrator for SimpleOrchestrator {
             thread::spawn(move || dozer_pipeline.run_apps(shutdown, Some(tx), err_threshold));
 
         // Wait for pipeline to initialize caches before starting api server
-        rx.recv().unwrap();
+        if rx.recv().is_err() {
+            // This means the pipeline thread returned before sending a message. Either an error happened or it panicked.
+            return match pipeline_thread.join() {
+                Ok(Err(e)) => Err(e),
+                Ok(Ok(())) => panic!("An error must have happened"),
+                Err(e) => {
+                    std::panic::panic_any(e);
+                }
+            };
+        }
 
         dozer_api.run_api(shutdown_api)?;
 
