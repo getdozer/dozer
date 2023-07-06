@@ -44,6 +44,7 @@ pub enum Error {
 /// - immutable.is_empty() || mutable.start == immutable.last().range.start + immutable.last().ops.len()
 /// - mutable.ops.len() < entry_max_size
 /// - watchers[i].start >= mutable.start && watchers[i].end > mutable.start + mutable.ops.len()
+#[derive(Debug)]
 pub struct Log<S: Storage> {
     persisted: PersistedLogEntries<S>,
     immutable: Vec<LogEntry>,
@@ -52,6 +53,7 @@ pub struct Log<S: Storage> {
     entry_max_size: usize,
 }
 
+#[derive(Debug)]
 struct Watcher {
     request: Range<usize>,
     /// Only `None` after the watcher is triggered.

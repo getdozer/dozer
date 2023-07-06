@@ -79,10 +79,10 @@ pub struct Config {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub commit_timeout: Option<u64>,
 
-    /// Buffer capacity for Log Writer
+    /// Max number of operations in one log entry.
     #[prost(uint64, optional, tag = "15")]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub file_buffer_capacity: Option<u64>,
+    pub log_entry_max_size: Option<u64>,
 
     #[prost(message, tag = "16")]
     /// Instrument using Dozer
@@ -115,8 +115,8 @@ pub fn default_cache_dir() -> String {
     get_cache_dir(DEFAULT_HOME_DIR)
 }
 
-pub fn default_file_buffer_capacity() -> u64 {
-    1024 * 1024 * 1024
+pub fn default_log_entry_max_size() -> u64 {
+    100_000
 }
 
 pub fn default_cache_max_map_size() -> u64 {

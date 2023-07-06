@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use crate::pipeline::source_builder::SourceBuilder;
 use crate::pipeline::PipelineBuilder;
+use dozer_cache::dozer_log::storage::LocalStorage;
 use dozer_types::ingestion_types::{GrpcConfig, GrpcConfigSchemas};
 use dozer_types::models::app_config::Config;
 
@@ -59,14 +60,14 @@ fn load_multi_sources() {
         .map(|s| s.name.clone())
         .collect::<Vec<_>>();
 
-    let builder = PipelineBuilder::new(
+    let builder = PipelineBuilder::<LocalStorage>::new(
         &config.connections,
         &config.sources,
         config.sql.as_deref(),
         config
             .endpoints
             .into_iter()
-            .map(|endpoint| (endpoint, Default::default()))
+            .map(|endpoint| (endpoint, None))
             .collect(),
         MultiProgress::new(),
     );

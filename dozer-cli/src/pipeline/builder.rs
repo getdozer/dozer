@@ -1,11 +1,14 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::fmt::Debug;
 use std::sync::Arc;
 
-use dozer_cache::dozer_log::camino::Utf8PathBuf;
+use dozer_cache::dozer_log::replication::Log;
+use dozer_cache::dozer_log::storage::Storage;
 use dozer_core::app::App;
 use dozer_core::app::AppPipeline;
 use dozer_core::executor::DagExecutor;
+use dozer_core::node::SinkFactory;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_ingestion::connectors::{get_connector, get_connector_info_table};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
@@ -17,8 +20,10 @@ use dozer_types::models::connection::Connection;
 use dozer_types::models::source::Source;
 use std::hash::Hash;
 use tokio::runtime::Runtime;
+use tokio::sync::Mutex;
 
-use crate::pipeline::{LogSinkFactory, LogSinkSettings};
+use crate::pipeline::dummy_sink::DummySinkFactory;
+use crate::pipeline::LogSinkFactory;
 
 use super::source_builder::SourceBuilder;
 use crate::errors::OrchestrationError;
@@ -40,27 +45,31 @@ pub struct CalculatedSources {
     pub transformed_sources: Vec<String>,
     pub query_context: Option<QueryContext>,
 }
-pub struct PipelineBuilder<'a> {
+
+type OptionLog<S> = Option<Arc<Mutex<Log<S>>>>;
+
+pub struct PipelineBuilder<'a, S: Storage> {
     connections: &'a [Connection],
     sources: &'a [Source],
     sql: Option<&'a str>,
-    /// `ApiEndpoint` and its log path.
-    endpoint_and_log_paths: Vec<(ApiEndpoint, Utf8PathBuf)>,
+    /// `ApiEndpoint` and its log.
+    endpoint_and_logs: Vec<(ApiEndpoint, OptionLog<S>)>,
     progress: MultiProgress,
 }
-impl<'a> PipelineBuilder<'a> {
+
+impl<'a, S: Storage + Debug> PipelineBuilder<'a, S> {
     pub fn new(
         connections: &'a [Connection],
         sources: &'a [Source],
         sql: Option<&'a str>,
-        endpoint_and_log_paths: Vec<(ApiEndpoint, Utf8PathBuf)>,
+        endpoint_and_logs: Vec<(ApiEndpoint, OptionLog<S>)>,
         progress: MultiProgress,
     ) -> Self {
         Self {
             connections,
             sources,
             sql,
-            endpoint_and_log_paths,
+            endpoint_and_logs,
             progress,
         }
     }
@@ -160,7 +169,7 @@ impl<'a> PipelineBuilder<'a> {
         }
 
         // Add Used Souces if direct from source
-        for (api_endpoint, _) in &self.endpoint_and_log_paths {
+        for (api_endpoint, _) in &self.endpoint_and_logs {
             let table_name = &api_endpoint.table_name;
 
             // Don't add if the table is a result of SQL
@@ -182,7 +191,6 @@ impl<'a> PipelineBuilder<'a> {
     pub fn build(
         self,
         runtime: Arc<Runtime>,
-        settings: LogSinkSettings,
     ) -> Result<dozer_core::Dag<SchemaSQLContext>, OrchestrationError> {
         let calculated_sources = self.calculate_sources()?;
 
@@ -226,19 +234,23 @@ impl<'a> PipelineBuilder<'a> {
 
         let conn_ports = source_builder.get_ports();
 
-        for (api_endpoint, log_path) in self.endpoint_and_log_paths {
+        for (api_endpoint, log) in self.endpoint_and_logs {
             let table_name = &api_endpoint.table_name;
 
             let table_info = available_output_tables
                 .get(table_name)
                 .ok_or_else(|| OrchestrationError::EndpointTableNotFound(table_name.clone()))?;
 
-            let snk_factory = Arc::new(LogSinkFactory::new(
-                log_path.into(),
-                settings.clone(),
-                api_endpoint.name.clone(),
-                self.progress.clone(),
-            ));
+            let snk_factory: Arc<dyn SinkFactory<SchemaSQLContext>> = if let Some(log) = log {
+                Arc::new(LogSinkFactory::new(
+                    runtime.clone(),
+                    log,
+                    api_endpoint.name.clone(),
+                    self.progress.clone(),
+                ))
+            } else {
+                Arc::new(DummySinkFactory)
+            };
 
             match table_info {
                 OutputTableInfo::Transformed(table_info) => {

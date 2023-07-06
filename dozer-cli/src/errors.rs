@@ -26,6 +26,8 @@ pub enum OrchestrationError {
     FileSystem(PathBuf, std::io::Error),
     #[error("Failed to find migration for endpoint {0}")]
     NoMigrationFound(String),
+    #[error("Failed to create log: {0}")]
+    CreateLog(#[from] dozer_cache::dozer_log::replication::Error),
     #[error("Failed to login: {0}")]
     CloudLoginFailed(#[from] CloudLoginError),
     #[error("Credential Error: {0}")]

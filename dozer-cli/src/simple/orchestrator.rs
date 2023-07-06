@@ -1,12 +1,12 @@
 use super::executor::Executor;
 use crate::errors::OrchestrationError;
-use crate::pipeline::{LogSinkSettings, PipelineBuilder};
+use crate::pipeline::PipelineBuilder;
 use crate::shutdown::ShutdownReceiver;
 use crate::simple::helper::validate_config;
 use crate::simple::migration::{create_migration, modify_schema, needs_migration};
 use crate::utils::{
-    get_api_security_config, get_cache_manager_options, get_executor_options,
-    get_file_buffer_capacity, get_grpc_config, get_rest_config,
+    get_api_security_config, get_cache_manager_options, get_executor_options, get_grpc_config,
+    get_log_entry_max_size, get_rest_config,
 };
 
 use crate::{flatten_join_handle, join_handle_map_err, Orchestrator};
@@ -15,6 +15,7 @@ use dozer_api::{grpc, rest, CacheEndpoint};
 use dozer_cache::cache::LmdbRwCacheManager;
 use dozer_cache::dozer_log::home_dir::HomeDir;
 use dozer_cache::dozer_log::schemas::MigrationSchema;
+use dozer_cache::dozer_log::storage::{LocalStorage, Storage};
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::DagSchemas;
 
@@ -23,7 +24,7 @@ use crate::console_helper::GREEN;
 use crate::console_helper::PURPLE;
 use crate::console_helper::RED;
 use dozer_core::errors::ExecutionError;
-use dozer_ingestion::connectors::{SourceSchema, TableInfo};
+use dozer_ingestion::connectors::{get_connector, SourceSchema, TableInfo};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::crossbeam::channel::{self, Sender};
@@ -35,6 +36,7 @@ use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use metrics::{describe_counter, describe_histogram};
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::fs;
 use std::path::PathBuf;
 
@@ -161,7 +163,7 @@ impl Orchestrator for SimpleOrchestrator {
         Ok(())
     }
 
-    fn run_apps(
+    fn run_apps<S: Storage + Debug>(
         &mut self,
         shutdown: ShutdownReceiver,
         api_notifier: Option<Sender<bool>>,
@@ -173,21 +175,20 @@ impl Orchestrator for SimpleOrchestrator {
         }
 
         let home_dir = HomeDir::new(self.config.home_dir.as_ref(), self.config.cache_dir.clone());
-        let executor = Executor::new(
-            &home_dir,
-            &self.config.connections,
-            &self.config.sources,
-            self.config.sql.as_deref(),
-            &self.config.endpoints,
-            shutdown.get_running_flag(),
-            self.multi_pb.clone(),
-        )?;
-        let settings = LogSinkSettings {
-            file_buffer_capacity: get_file_buffer_capacity(&self.config) as usize,
-        };
+        let executor = self
+            .runtime
+            .block_on(Executor::<LocalStorage>::new_with_local_storage(
+                &home_dir,
+                &self.config.connections,
+                &self.config.sources,
+                self.config.sql.as_deref(),
+                &self.config.endpoints,
+                shutdown.get_running_flag(),
+                get_log_entry_max_size(&self.config),
+                self.multi_pb.clone(),
+            ))?;
         let dag_executor = executor.create_dag_executor(
             self.runtime.clone(),
-            settings,
             get_executor_options(&self.config, global_err_threshold),
         )?;
 
@@ -203,8 +204,16 @@ impl Orchestrator for SimpleOrchestrator {
     fn list_connectors(
         &self,
     ) -> Result<HashMap<String, (Vec<TableInfo>, Vec<SourceSchema>)>, OrchestrationError> {
-        self.runtime
-            .block_on(Executor::get_tables(&self.config.connections))
+        self.runtime.block_on(async {
+            let mut schema_map = HashMap::new();
+            for connection in &self.config.connections {
+                let connector = get_connector(connection.clone())?;
+                let schema_tuples = connector.list_all_schemas().await?;
+                schema_map.insert(connection.name.clone(), schema_tuples);
+            }
+
+            Ok(schema_map)
+        })
     }
 
     fn generate_token(&self) -> Result<String, OrchestrationError> {
@@ -237,24 +246,21 @@ impl Orchestrator for SimpleOrchestrator {
         validate_config(&self.config)?;
 
         // Calculate schemas.
-        let endpoint_and_log_paths = self
+        let endpoint_and_logs = self
             .config
             .endpoints
             .iter()
-            // We're not really going to run the pipeline, so we put dummy log paths.
-            .map(|endpoint| (endpoint.clone(), Default::default()))
+            // We're not really going to run the pipeline, so we don't create logs.
+            .map(|endpoint| (endpoint.clone(), None))
             .collect();
-        let builder = PipelineBuilder::new(
+        let builder = PipelineBuilder::<LocalStorage>::new(
             &self.config.connections,
             &self.config.sources,
             self.config.sql.as_deref(),
-            endpoint_and_log_paths,
+            endpoint_and_logs,
             self.multi_pb.clone(),
         );
-        let settings = LogSinkSettings {
-            file_buffer_capacity: get_file_buffer_capacity(&self.config) as usize,
-        };
-        let dag = builder.build(self.runtime.clone(), settings)?;
+        let dag = builder.build(self.runtime.clone())?;
         // Populate schemas.
         let dag_schemas = DagSchemas::new(dag)?;
 
@@ -333,8 +339,9 @@ impl Orchestrator for SimpleOrchestrator {
         self.build(false)?;
 
         let mut dozer_pipeline = self.clone();
-        let pipeline_thread =
-            thread::spawn(move || dozer_pipeline.run_apps(shutdown, Some(tx), err_threshold));
+        let pipeline_thread = thread::spawn(move || {
+            dozer_pipeline.run_apps::<LocalStorage>(shutdown, Some(tx), err_threshold)
+        });
 
         // Wait for pipeline to initialize caches before starting api server
         if rx.recv().is_err() {

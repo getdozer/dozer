@@ -5,7 +5,7 @@ use dozer_types::models::{
     api_security::ApiSecurity,
     app_config::{
         default_app_buffer_size, default_cache_max_map_size, default_commit_size,
-        default_commit_timeout, default_file_buffer_capacity, Config,
+        default_commit_timeout, default_log_entry_max_size, Config,
     },
 };
 use std::time::Duration;
@@ -34,10 +34,10 @@ fn get_commit_size(config: &Config) -> u32 {
     config.commit_size.unwrap_or_else(default_commit_size)
 }
 
-pub fn get_file_buffer_capacity(config: &Config) -> u64 {
+pub fn get_log_entry_max_size(config: &Config) -> usize {
     config
-        .file_buffer_capacity
-        .unwrap_or_else(default_file_buffer_capacity)
+        .log_entry_max_size
+        .unwrap_or_else(default_log_entry_max_size) as usize
 }
 
 pub fn get_grpc_config(config: &Config) -> GrpcApiOptions {

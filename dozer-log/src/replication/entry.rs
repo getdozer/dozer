@@ -10,6 +10,7 @@ use super::{Error, PersistedLogEntry};
 /// Invariant:
 /// - objects.is_empty() || objects[0].range.start == 0
 /// - objects[i + 1].range.start == objects[i].range.end
+#[derive(Debug)]
 pub struct PersistedLogEntries<S: Storage> {
     pub storage: S,
     pub migration_dir: String,
