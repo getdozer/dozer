@@ -18,8 +18,13 @@ pub struct Cloud {
     default_value = DEFAULT_CLOUD_TARGET_URL
     )]
     pub target_url: String,
+
+    #[arg(global = true, short)]
+    pub app_id: Option<String>,
+
     #[arg(global = true, short)]
     pub profile: Option<String>,
+
     #[command(subcommand)]
     pub command: CloudCommands,
 }
@@ -30,12 +35,14 @@ pub enum CloudCommands {
     /// Deploy application to Dozer Cloud
     Deploy(DeployCommandArgs),
     /// Dozer app context management
-    App(AppCommandsWrapper),
+    #[command(subcommand)]
+    App(AppCommand),
     /// Dozer API server management
     #[command(subcommand)]
     Api(ApiCommand),
     /// Dozer app secrets management
-    Secrets(SecretsCommandWrapper),
+    #[command(subcommand)]
+    Secrets(SecretsCommand),
 }
 
 #[derive(Debug, Args, Clone)]
@@ -53,34 +60,13 @@ pub fn default_num_replicas() -> i32 {
 }
 
 #[derive(Debug, Args, Clone)]
-pub struct UpdateCommandArgs {
-    /// Number of replicas to serve Dozer APIs
-    #[arg(short, long)]
-    pub num_replicas: Option<i32>,
-
-    #[arg(short, value_parser = parse_key_val)]
-    pub secrets: Vec<Secret>,
-}
-
-#[derive(Debug, Args, Clone)]
 pub struct OrganisationCommand {
     #[arg(long = "organisation-name")]
     pub organisation_name: String,
 }
 
-#[derive(Debug, Args, Clone)]
-pub struct AppCommandsWrapper {
-    #[arg(global = true, short)]
-    pub app_id: Option<String>,
-
-    #[command(subcommand)]
-    pub command: AppCommand,
-}
-
 #[derive(Debug, Subcommand, Clone)]
 pub enum AppCommand {
-    /// Update existing application on Dozer Cloud
-    Update(UpdateCommandArgs),
     Delete,
     Status,
     Monitor,
@@ -89,7 +75,7 @@ pub enum AppCommand {
     /// Application version management
     #[command(subcommand)]
     Version(VersionCommand),
-    Use {
+    SetApp {
         app_id: String,
     },
     List(ListCommandArgs),
@@ -145,15 +131,6 @@ pub enum ApiCommand {
         /// The number of replicas to set
         num_replicas: i32,
     },
-}
-
-#[derive(Debug, Args, Clone)]
-pub struct SecretsCommandWrapper {
-    #[arg(global = true, short)]
-    pub app_id: Option<String>,
-
-    #[command(subcommand)]
-    pub command: SecretsCommand,
 }
 
 #[derive(Debug, Clone, Subcommand)]
