@@ -35,8 +35,18 @@ pub enum CloudCommands {
     /// Deploy application to Dozer Cloud
     Deploy(DeployCommandArgs),
     /// Dozer app context management
+    Delete,
+    Status,
+    Monitor,
+    /// Inspect application logs
+    Logs(LogCommandArgs),
+    /// Application version management
     #[command(subcommand)]
-    App(AppCommand),
+    Version(VersionCommand),
+    SetApp {
+        app_id: String,
+    },
+    List(ListCommandArgs),
     /// Dozer API server management
     #[command(subcommand)]
     Api(ApiCommand),
@@ -63,22 +73,6 @@ pub fn default_num_replicas() -> i32 {
 pub struct OrganisationCommand {
     #[arg(long = "organisation-name")]
     pub organisation_name: String,
-}
-
-#[derive(Debug, Subcommand, Clone)]
-pub enum AppCommand {
-    Delete,
-    Status,
-    Monitor,
-    /// Inspect application logs
-    Logs(LogCommandArgs),
-    /// Application version management
-    #[command(subcommand)]
-    Version(VersionCommand),
-    SetApp {
-        app_id: String,
-    },
-    List(ListCommandArgs),
 }
 
 #[derive(Debug, Args, Clone)]

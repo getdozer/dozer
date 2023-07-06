@@ -14,6 +14,8 @@ use dozer_types::tracing::{error, info};
 use serde::Deserialize;
 use tokio::time;
 
+#[cfg(feature = "cloud")]
+use dozer_cli::cloud_app_context::CloudAppContext;
 use std::cmp::Ordering;
 use std::process;
 use std::time::Duration;
@@ -167,7 +169,17 @@ fn run() -> Result<(), OrchestrationError> {
                     dozer.login(cloud, organisation_name)
                 }
                 CloudCommands::Secrets(command) => dozer.execute_secrets_command(cloud, command),
-                CloudCommands::App(command) => dozer.execute_app_command(cloud, command),
+                CloudCommands::Delete => dozer.delete(cloud),
+                CloudCommands::Status => dozer.status(cloud),
+                CloudCommands::Monitor => dozer.monitor(cloud),
+                CloudCommands::Logs(logs) => dozer.trace_logs(cloud, logs),
+                CloudCommands::Version(version) => dozer.version(cloud, version),
+                CloudCommands::List(list) => dozer.list(cloud, list),
+                CloudCommands::SetApp { app_id } => {
+                    CloudAppContext::save_app_id(app_id.clone())?;
+                    info!("Using \"{app_id}\" app");
+                    Ok(())
+                }
             },
             Commands::Init => {
                 panic!("This should not happen as it is handled in parse_and_generate");
