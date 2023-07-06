@@ -1,7 +1,10 @@
 use crate::errors::CloudContextError;
 use crate::errors::CloudContextError::{
-    ContextFileNotFound, FailedToGetDirectoryPath, FailedToReadAppId,
+    AppIdNotFound, ContextFileNotFound, FailedToGetDirectoryPath, FailedToReadAppId,
 };
+use dozer_types::models::app_config::Config;
+use dozer_types::models::cloud::Cloud;
+use dozer_types::serde_yaml;
 use std::io::Write;
 use std::{env, fs};
 
@@ -15,7 +18,7 @@ impl CloudAppContext {
                 .into_os_string()
                 .into_string()
                 .map_err(|_| FailedToGetDirectoryPath)?,
-            ".dozer-cloud"
+            "dozer-cloud.yaml"
         ))
     }
 
@@ -25,7 +28,10 @@ impl CloudAppContext {
             Ok(_) => {
                 let content = fs::read(file_path)?;
                 match String::from_utf8(content) {
-                    Ok(app_id) => Ok(app_id),
+                    Ok(app_id) => {
+                        let c: Config = serde_yaml::from_str(&app_id).map_err(|_| AppIdNotFound)?;
+                        c.cloud.ok_or(AppIdNotFound)?.app_id.ok_or(AppIdNotFound)
+                    }
                     Err(e) => Err(FailedToReadAppId(e)),
                 }
             }
@@ -41,7 +47,16 @@ impl CloudAppContext {
             .truncate(true)
             .open(file_path)?;
 
-        f.write_all(app_id.as_bytes())?;
+        let config = Config {
+            cloud: Some(Cloud {
+                app_id: Some(app_id),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let config_string = serde_yaml::to_string(&config).unwrap();
+        f.write_all(config_string.as_bytes())?;
 
         Ok(())
     }

@@ -202,4 +202,7 @@ pub enum CloudContextError {
 
     #[error("Context file not found. You need to run \"deploy\" or \"app use\" first")]
     ContextFileNotFound,
+
+    #[error("App id not found in configuration")]
+    AppIdNotFound,
 }
