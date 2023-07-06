@@ -37,10 +37,16 @@ pub enum Commands {
         about = "Initialize and lock schema definitions. Once initialized, schemas cannot be changed"
     )]
     Build(Build),
-    #[command(about = "Run App Server")]
+    #[command(about = "Run App Server", hide = true)]
     App(App),
-    #[command(about = "Run Api Server")]
+    #[command(about = "Run Api Server", hide = true)]
     Api(Api),
+    #[command(about = "Run App or Api Server")]
+    Run(Run),
+    #[command(about = "Show Sources")]
+    Connectors(ConnectorCommand),
+    #[command(about = "Change security settings")]
+    Security(Security),
     #[cfg(feature = "cloud")]
     #[command(about = "Deploy cloud applications")]
     Cloud(Cloud),
@@ -58,6 +64,37 @@ pub struct Api {
 pub struct Build {
     #[arg(short = 'f')]
     pub force: Option<Option<String>>,
+}
+
+#[derive(Debug, Args)]
+pub struct Run {
+    #[command(subcommand)]
+    pub command: RunCommands,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum RunCommands {
+    Api,
+    App,
+}
+
+#[derive(Debug, Args)]
+pub struct Security {
+    #[command(subcommand)]
+    pub command: SecurityCommands,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum SecurityCommands {
+    #[command(
+        author,
+        version,
+        about = "Generate master token",
+        long_about = "Master Token can be used to create other run time tokens \
+        that encapsulate different permissions.",
+        alias = "nx"
+    )]
+    GenerateToken,
 }
 
 #[derive(Debug, Args)]
@@ -93,8 +130,6 @@ pub enum ApiCommands {
 #[derive(Debug, Subcommand)]
 pub enum AppCommands {
     Run,
-    #[command(about = "Show Sources")]
-    Connectors(ConnectorCommand),
 }
 
 #[derive(Debug, Args)]
