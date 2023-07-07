@@ -8,10 +8,10 @@ use dozer_core::app::PipelineEntryPoint;
 use dozer_core::appsource::AppSourceId;
 use dozer_core::node::PortHandle;
 use dozer_core::DEFAULT_PORT_HANDLE;
-use sqlparser::ast::{Join, SetOperator, SetQuantifier, TableFactor, TableWithJoins};
+use sqlparser::ast::{Expr, Join, SetOperator, SetQuantifier, TableFactor, TableWithJoins};
 
 use sqlparser::{
-    ast::{Query, Select, SetExpr, Statement},
+    ast::{JoinConstraint, JoinOperator, Query, Select, SetExpr, Statement},
     dialect::DozerDialect,
     parser::Parser,
 };
@@ -21,6 +21,7 @@ use std::sync::Arc;
 use super::errors::UnsupportedSqlError;
 use super::pipeline_builder::from_builder::insert_from_to_pipeline;
 
+use super::product::join::factory::JoinProcessorFactory;
 use super::product::set::set_factory::SetProcessorFactory;
 
 #[derive(Debug, Clone, Default)]
@@ -284,25 +285,87 @@ fn select_to_pipeline(
 
     // Where clause
     if let Some(selection) = select.selection {
-        let selection = SelectionProcessorFactory::new(gen_selection_name.to_owned(), selection);
+        if let Expr::InSubquery {
+            expr,
+            subquery,
+            negated,
+        } = selection.clone()
+        {
+            // Subuery to join
+            let subquery_name = format!("subquery_{}", query_ctx.get_next_processor_id());
+            let mut ctx = QueryContext::default();
+            let table_info = &TableInfo {
+                name: NameOrAlias(subquery_name.clone(), None),
+                is_derived: true,
+                override_name: None,
+            };
+            query_to_pipeline(
+                table_info,
+                &subquery,
+                pipeline,
+                &mut ctx,
+                stateful,
+                pipeline_idx,
+            )?;
 
-        pipeline.add_processor(Arc::new(selection), &gen_selection_name, vec![]);
+            let join_processor_name = format!("join_{}", query_ctx.get_next_processor_id());
+            let join_operator = if negated {
+                unimplemented!("Negated IN subquery")
+            } else {
+                JoinOperator::Inner(JoinConstraint::On(*expr))
+            };
+            let join_processor_factory = JoinProcessorFactory::new(
+                join_processor_name.clone(),
+                Some(table_info.name.clone()),
+                Some(table_info.name.clone()),
+                join_operator,
+            );
 
-        pipeline.connect_nodes(
-            &gen_product_name,
-            Some(product_output_port),
-            &gen_selection_name,
-            Some(DEFAULT_PORT_HANDLE),
-            true,
-        );
+            pipeline.add_processor(
+                Arc::new(join_processor_factory),
+                &join_processor_name,
+                vec![],
+            );
 
-        pipeline.connect_nodes(
-            &gen_selection_name,
-            Some(DEFAULT_PORT_HANDLE),
-            &gen_agg_name,
-            Some(DEFAULT_PORT_HANDLE),
-            true,
-        );
+            // Connect join processor to aggregation
+            pipeline.connect_nodes(
+                &join_processor_name,
+                Some(DEFAULT_PORT_HANDLE),
+                &gen_agg_name,
+                Some(DEFAULT_PORT_HANDLE),
+                true,
+            );
+
+            // Connect subquery to join processor
+            pipeline.connect_nodes(
+                &subquery_name,
+                Some(DEFAULT_PORT_HANDLE),
+                &join_processor_name,
+                Some(DEFAULT_PORT_HANDLE),
+                true,
+            );
+        } else {
+            let selection =
+                SelectionProcessorFactory::new(gen_selection_name.to_owned(), selection);
+
+            pipeline.add_processor(Arc::new(selection), &gen_selection_name, vec![]);
+
+            pipeline.connect_nodes(
+                &gen_product_name,
+                Some(product_output_port),
+                &gen_selection_name,
+                Some(DEFAULT_PORT_HANDLE),
+                true,
+            );
+
+            pipeline.connect_nodes(
+                &gen_selection_name,
+                Some(DEFAULT_PORT_HANDLE),
+                &gen_agg_name,
+                Some(DEFAULT_PORT_HANDLE),
+                true,
+            );
+        }
     } else {
         pipeline.connect_nodes(
             &gen_product_name,
