@@ -224,7 +224,7 @@ impl Orchestrator for SimpleOrchestrator {
         Err(OrchestrationError::MissingSecurityConfig)
     }
 
-    fn migrate(&mut self, force: bool) -> Result<(), OrchestrationError> {
+    fn build(&mut self, force: bool) -> Result<(), OrchestrationError> {
         let home_dir = HomeDir::new(self.config.home_dir.as_ref(), self.config.cache_dir.clone());
 
         info!(
@@ -330,14 +330,23 @@ impl Orchestrator for SimpleOrchestrator {
 
         let (tx, rx) = channel::unbounded::<bool>();
 
-        self.migrate(false)?;
+        self.build(false)?;
 
         let mut dozer_pipeline = self.clone();
         let pipeline_thread =
             thread::spawn(move || dozer_pipeline.run_apps(shutdown, Some(tx), err_threshold));
 
         // Wait for pipeline to initialize caches before starting api server
-        rx.recv().unwrap();
+        if rx.recv().is_err() {
+            // This means the pipeline thread returned before sending a message. Either an error happened or it panicked.
+            return match pipeline_thread.join() {
+                Ok(Err(e)) => Err(e),
+                Ok(Ok(())) => panic!("An error must have happened"),
+                Err(e) => {
+                    std::panic::panic_any(e);
+                }
+            };
+        }
 
         dozer_api.run_api(shutdown_api)?;
 

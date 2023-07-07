@@ -27,7 +27,7 @@ mod progress_printer;
 mod utils;
 
 pub trait Orchestrator {
-    fn migrate(&mut self, force: bool) -> Result<(), OrchestrationError>;
+    fn build(&mut self, force: bool) -> Result<(), OrchestrationError>;
     fn clean(&mut self) -> Result<(), OrchestrationError>;
     fn run_all(
         &mut self,
@@ -52,8 +52,6 @@ pub trait Orchestrator {
 pub trait CloudOrchestrator {
     fn deploy(&mut self, cloud: Cloud, deploy: DeployCommandArgs)
         -> Result<(), OrchestrationError>;
-    fn update(&mut self, cloud: Cloud, update: UpdateCommandArgs)
-        -> Result<(), OrchestrationError>;
     fn delete(&mut self, cloud: Cloud) -> Result<(), OrchestrationError>;
     fn list(&mut self, cloud: Cloud, list: ListCommandArgs) -> Result<(), OrchestrationError>;
     fn status(&mut self, cloud: Cloud) -> Result<(), OrchestrationError>;
@@ -65,7 +63,6 @@ pub trait CloudOrchestrator {
         cloud: Cloud,
         command: SecretsCommand,
     ) -> Result<(), OrchestrationError>;
-    fn set_app(&mut self, command: AppCommand) -> Result<(), OrchestrationError>;
 }
 
 // Re-exports
@@ -82,8 +79,7 @@ pub fn wrapped_statement_to_pipeline(sql: &str) -> Result<QueryContext, Pipeline
 
 #[cfg(feature = "cloud")]
 use crate::cli::cloud::{
-    AppCommand, Cloud, DeployCommandArgs, ListCommandArgs, LogCommandArgs, SecretsCommand,
-    UpdateCommandArgs,
+    Cloud, DeployCommandArgs, ListCommandArgs, LogCommandArgs, SecretsCommand,
 };
 pub use dozer_types::models::connection::Connection;
 use dozer_types::tracing::error;
