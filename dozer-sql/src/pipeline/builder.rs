@@ -294,7 +294,7 @@ fn select_to_pipeline(
             // Subuery to join
             let subquery_name = format!("subquery_{}", query_ctx.get_next_processor_id());
             let mut ctx = QueryContext::default();
-            let table_info = &TableInfo {
+            let subquery_table_info = &TableInfo {
                 name: NameOrAlias(subquery_name.clone(), None),
                 is_derived: true,
                 override_name: None,
@@ -310,14 +310,14 @@ fn select_to_pipeline(
 
             let join_processor_name = format!("join_{}", query_ctx.get_next_processor_id());
             let join_operator = if negated {
-                unimplemented!("Negated IN subquery")
+                JoinOperator::LeftAnti(JoinConstraint::On(*expr))
             } else {
-                JoinOperator::Inner(JoinConstraint::On(*expr))
+                JoinOperator::LeftSemi(JoinConstraint::On(*expr))
             };
-            let join_processor_factory = JoinProcessorFactory::new(
+            let join_processor_factory: JoinProcessorFactory = JoinProcessorFactory::new(
                 join_processor_name.clone(),
                 Some(table_info.name.clone()),
-                Some(table_info.name.clone()),
+                Some(subquery_table_info.name.clone()),
                 join_operator,
             );
 
