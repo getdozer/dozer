@@ -15,27 +15,34 @@ use serde::{
 /// The configuration for the app
 pub struct Config {
     #[prost(string, tag = "2")]
+    #[serde(skip_serializing_if = "String::is_empty")]
     /// name of the app
     pub app_name: String,
 
     #[prost(string, tag = "3")]
-    #[serde(default = "default_home_dir")]
+    #[serde(skip_serializing_if = "String::is_empty", default = "default_home_dir")]
     ///directory for all process; Default: ./.dozer
     pub home_dir: String,
 
     #[prost(string, tag = "4")]
-    #[serde(default = "default_cache_dir")]
+    #[serde(
+        skip_serializing_if = "String::is_empty",
+        default = "default_cache_dir"
+    )]
     ///directory for cache. Default: ./.dozer/cache
     pub cache_dir: String,
 
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     #[prost(message, repeated, tag = "5")]
     /// connections to databases: Eg: Postgres, Snowflake, etc
     pub connections: Vec<Connection>,
 
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     #[prost(message, repeated, tag = "6")]
     /// sources to ingest data related to particular connection
     pub sources: Vec<Source>,
 
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     #[prost(message, repeated, tag = "7")]
     /// api endpoints to expose
     pub endpoints: Vec<ApiEndpoint>,

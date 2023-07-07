@@ -27,13 +27,13 @@ pub async fn check_error_expectation(
     error_expectation: &ErrorExpectation,
 ) {
     match error_expectation {
-        ErrorExpectation::MigrateFailure { message } => {
-            check_migrate_failure(dozer_command, dozer_config_path, message.as_deref());
+        ErrorExpectation::BuildFailure { message } => {
+            check_build_failure(dozer_command, dozer_config_path, message.as_deref());
         }
     }
 }
 
-fn check_migrate_failure(
+fn check_build_failure(
     mut dozer_command: impl FnMut() -> (Command, Vec<Cleanup>),
     dozer_config_path: &str,
     message: Option<&str>,
@@ -45,7 +45,7 @@ fn check_migrate_failure(
     }
     {
         let (mut command, _cleanups) = dozer_command();
-        command.args(["--config-path", dozer_config_path, "migrate"]);
+        command.args(["--config-path", dozer_config_path, "build"]);
         assert_command_fails(command, message);
     }
 }
