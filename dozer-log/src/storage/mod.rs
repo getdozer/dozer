@@ -67,7 +67,7 @@ mod s3;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("create bucket: {0}")]
+    #[error("create bucket: {0:?}")]
     CreateBucket(#[from] SdkError<CreateBucketError>),
     #[error("delete objects: {0}")]
     DeleteObjects(#[from] SdkError<DeleteObjectsError>),
