@@ -300,7 +300,7 @@ fn select_to_pipeline(
                 override_name: None,
             };
             query_to_pipeline(
-                table_info,
+                subquery_table_info,
                 &subquery,
                 pipeline,
                 &mut ctx,
