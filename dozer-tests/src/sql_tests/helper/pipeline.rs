@@ -14,6 +14,7 @@ use dozer_core::executor::{DagExecutor, ExecutorOptions};
 use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 use dozer_types::crossbeam::channel::{Receiver, Sender};
 
+use dozer_types::epoch::Epoch;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::types::{Operation, Record, Schema, SourceDefinition};
@@ -227,7 +228,7 @@ impl Sink for TestSink {
         Ok(())
     }
 
-    fn commit(&mut self) -> Result<(), BoxedError> {
+    fn commit(&mut self, _epoch_details: &Epoch) -> Result<(), BoxedError> {
         Ok(())
     }
 

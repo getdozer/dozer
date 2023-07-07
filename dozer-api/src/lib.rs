@@ -43,7 +43,7 @@ impl CacheEndpoint {
         } else {
             home_dir
                 .find_latest_migration_path(&endpoint.name)
-                .map_err(|(path, error)| SchemaError::Filesystem(path, error))?
+                .map_err(|(path, error)| SchemaError::Filesystem(path.into(), error))?
                 .ok_or(ApiError::NoMigrationFound(endpoint.name.clone()))?
         };
 
@@ -90,7 +90,7 @@ impl CacheEndpoint {
         Ok((
             Self {
                 cache_reader: ArcSwap::from_pointee(cache_reader),
-                descriptor_path: migration_path.descriptor_path,
+                descriptor_path: migration_path.descriptor_path.into(),
                 endpoint,
             },
             handle,

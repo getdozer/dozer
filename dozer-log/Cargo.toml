@@ -1,12 +1,23 @@
 [package]
 name = "dozer-log"
-version = "0.1.26"
+version = "0.1.28"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 
 [dependencies]
+aws-config = "0.55.3"
+aws-sdk-s3 = "0.28.0"
+aws-smithy-http = "0.55.3"
+aws-smithy-types = "0.55.3"
+camino = "1.1.4"
 dozer-types = {path = "../dozer-types"}
 futures-util = "0.3.27"
+pin-project = "1.1.2"
+tempdir = "0.3.7"
 tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7.8", features = ["io"] }
+
+[dev-dependencies]
+env_logger = "0.10.0"

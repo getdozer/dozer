@@ -2,6 +2,7 @@
 
 use glob::{GlobError, PatternError};
 use std::path::PathBuf;
+use std::string::FromUtf8Error;
 
 use dozer_api::{
     errors::{ApiError, AuthError, GenerationError, GrpcError},
@@ -30,8 +31,8 @@ pub enum OrchestrationError {
     CloudLoginFailed(#[from] CloudLoginError),
     #[error("Credential Error: {0}")]
     CredentialError(#[from] CloudCredentialError),
-    #[error("Failed to migrate: {0}")]
-    MigrateFailed(#[from] MigrationError),
+    #[error("Failed to build: {0}")]
+    BuildFailed(#[from] BuildError),
     #[error("Failed to generate token: {0}")]
     GenerateTokenFailed(#[source] AuthError),
     #[error("Missing api config or security input")]
@@ -44,7 +45,7 @@ pub enum OrchestrationError {
     GrpcServerFailed(#[from] GrpcError),
     #[error("Failed to initialize internal server: {0}")]
     InternalServerFailed(#[source] tonic::transport::Error),
-    #[error("{0}: Failed to initialize cache. Have you run `dozer migrate`?")]
+    #[error("{0}: Failed to initialize cache. Have you run `dozer build`?")]
     CacheInitFailed(#[source] CacheError),
     #[error("Failed to build cache from log: {0}")]
     CacheBuildFailed(#[source] CacheError),
@@ -72,6 +73,8 @@ pub enum OrchestrationError {
     DuplicateTable(String),
     #[error("No endpoints initialized in the config provided")]
     EmptyEndpoints,
+    #[error(transparent)]
+    CloudContextError(#[from] CloudContextError),
 }
 
 #[derive(Error, Debug)]
@@ -122,10 +125,13 @@ pub enum CloudError {
 
     #[error("Response header {DOZER_SERVER_NAME_HEADER} is missing")]
     MissingResponseHeader,
+
+    #[error(transparent)]
+    CloudContextError(#[from] CloudContextError),
 }
 
 #[derive(Debug, Error)]
-pub enum MigrationError {
+pub enum BuildError {
     #[error("Got mismatching primary key for `{endpoint_name}`. Expected: `{expected:?}`, got: `{actual:?}`")]
     MismatchPrimaryKey {
         endpoint_name: String,
@@ -163,8 +169,8 @@ pub enum CloudLoginError {
     #[error(transparent)]
     CloudCredentialError(#[from] CloudCredentialError),
 }
-#[derive(Debug, Error)]
 
+#[derive(Debug, Error)]
 pub enum CloudCredentialError {
     #[error(transparent)]
     SerializationError(#[from] dozer_types::serde_yaml::Error),
@@ -181,4 +187,22 @@ pub enum CloudCredentialError {
     MissingCredentialFile,
     #[error("There's no profile with given name - Please try to login again")]
     MissingProfile,
+}
+
+#[derive(Debug, Error)]
+pub enum CloudContextError {
+    #[error("Failed to create access directory: {0}")]
+    FailedToAccessDirectory(#[from] std::io::Error),
+
+    #[error("Failed to get current directory path")]
+    FailedToGetDirectoryPath,
+
+    #[error("Failed to read cloud app id. Error: {0}")]
+    FailedToReadAppId(#[from] FromUtf8Error),
+
+    #[error("Context file not found. You need to run \"deploy\" or \"app use\" first")]
+    ContextFileNotFound,
+
+    #[error("App id not found in configuration")]
+    AppIdNotFound,
 }

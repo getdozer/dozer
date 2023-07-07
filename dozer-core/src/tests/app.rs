@@ -43,7 +43,7 @@ impl SourceFactory<NoneContext> for NoneSourceFactory {
 }
 
 #[test]
-fn test_apps_sorce_smanager_connection_exists() {
+fn test_apps_source_manager_connection_exists() {
     let mut asm = AppSourceManager::new();
     let app_src = AppSource::new(
         "conn1".to_string(),
@@ -61,7 +61,7 @@ fn test_apps_sorce_smanager_connection_exists() {
 }
 
 #[test]
-fn test_apps_sorce_smanager_lookup() {
+fn test_apps_source_manager_lookup() {
     let mut asm = AppSourceManager::new();
     let app_src = AppSource::new(
         "conn1".to_string(),

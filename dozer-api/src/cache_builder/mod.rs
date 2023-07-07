@@ -1,7 +1,7 @@
 use std::collections::HashSet;
-use std::path::Path;
 
 use crate::grpc::types_helper;
+use dozer_cache::dozer_log::camino::Utf8Path;
 use dozer_cache::dozer_log::reader::LogReader;
 use dozer_cache::{
     cache::{CacheRecord, CacheWriteOptions, RwCache, RwCacheManager, UpsertResult},
@@ -30,7 +30,7 @@ use tokio_stream::StreamExt;
 pub async fn build_cache(
     cache: Box<dyn RwCache>,
     cancel: impl Future<Output = ()> + Unpin + Send + 'static,
-    log_path: &Path,
+    log_path: &Utf8Path,
     operations_sender: Option<(String, Sender<GrpcOperation>)>,
     multi_pb: Option<MultiProgress>,
 ) -> Result<(), CacheError> {

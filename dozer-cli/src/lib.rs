@@ -18,6 +18,8 @@ use std::{
 };
 use tokio::task::JoinHandle;
 #[cfg(feature = "cloud")]
+pub mod cloud_app_context;
+#[cfg(feature = "cloud")]
 mod cloud_helper;
 pub mod console_helper;
 #[cfg(feature = "cloud")]
@@ -25,7 +27,7 @@ mod progress_printer;
 mod utils;
 
 pub trait Orchestrator {
-    fn migrate(&mut self, force: bool) -> Result<(), OrchestrationError>;
+    fn build(&mut self, force: bool) -> Result<(), OrchestrationError>;
     fn clean(&mut self) -> Result<(), OrchestrationError>;
     fn run_all(
         &mut self,
@@ -50,14 +52,17 @@ pub trait Orchestrator {
 pub trait CloudOrchestrator {
     fn deploy(&mut self, cloud: Cloud, deploy: DeployCommandArgs)
         -> Result<(), OrchestrationError>;
-    fn update(&mut self, cloud: Cloud, update: UpdateCommandArgs)
-        -> Result<(), OrchestrationError>;
-    fn delete(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError>;
+    fn delete(&mut self, cloud: Cloud) -> Result<(), OrchestrationError>;
     fn list(&mut self, cloud: Cloud, list: ListCommandArgs) -> Result<(), OrchestrationError>;
-    fn status(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError>;
-    fn monitor(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError>;
+    fn status(&mut self, cloud: Cloud) -> Result<(), OrchestrationError>;
+    fn monitor(&mut self, cloud: Cloud) -> Result<(), OrchestrationError>;
     fn trace_logs(&mut self, cloud: Cloud, logs: LogCommandArgs) -> Result<(), OrchestrationError>;
     fn login(&mut self, cloud: Cloud, company_name: String) -> Result<(), OrchestrationError>;
+    fn execute_secrets_command(
+        &mut self,
+        cloud: Cloud,
+        command: SecretsCommand,
+    ) -> Result<(), OrchestrationError>;
 }
 
 // Re-exports
@@ -74,7 +79,7 @@ pub fn wrapped_statement_to_pipeline(sql: &str) -> Result<QueryContext, Pipeline
 
 #[cfg(feature = "cloud")]
 use crate::cli::cloud::{
-    Cloud, DeployCommandArgs, ListCommandArgs, LogCommandArgs, UpdateCommandArgs,
+    Cloud, DeployCommandArgs, ListCommandArgs, LogCommandArgs, SecretsCommand,
 };
 pub use dozer_types::models::connection::Connection;
 use dozer_types::tracing::error;

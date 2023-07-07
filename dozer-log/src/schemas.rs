@@ -1,5 +1,6 @@
 use std::{collections::HashSet, fs::OpenOptions, path::Path};
 
+use camino::Utf8Path;
 use dozer_types::{
     serde::{Deserialize, Serialize},
     serde_json,
@@ -31,9 +32,9 @@ pub fn write_schema(schema: &MigrationSchema, schema_path: &Path) -> Result<(), 
     Ok(())
 }
 
-pub fn load_schema(schema_path: &Path) -> Result<MigrationSchema, SchemaError> {
+pub fn load_schema(schema_path: &Utf8Path) -> Result<MigrationSchema, SchemaError> {
     let schema_str = std::fs::read_to_string(schema_path)
-        .map_err(|e| SchemaError::Filesystem(schema_path.to_path_buf(), e))?;
+        .map_err(|e| SchemaError::Filesystem(schema_path.to_string().into(), e))?;
 
     serde_json::from_str(&schema_str).map_err(Into::into)
 }
