@@ -97,8 +97,9 @@ impl Sink for LogSink {
     fn process(&mut self, _from_port: PortHandle, op: Operation) -> Result<(), BoxedError> {
         self.runtime.block_on(async {
             let mut log = self.log.lock().await;
-            log.write(ExecutorOperation::Op { op }, self.log.clone());
-        });
+            log.write(ExecutorOperation::Op { op }, self.log.clone())
+                .await
+        })?;
         self.update_counter();
         Ok(())
     }
@@ -111,8 +112,9 @@ impl Sink for LogSink {
                     epoch: epoch_details.clone(),
                 },
                 self.log.clone(),
-            );
-        });
+            )
+            .await
+        })?;
         self.update_counter();
         Ok(())
     }
@@ -123,8 +125,9 @@ impl Sink for LogSink {
             log.write(
                 ExecutorOperation::SnapshottingDone { connection_name },
                 self.log.clone(),
-            );
-        });
+            )
+            .await
+        })?;
         self.update_counter();
         Ok(())
     }

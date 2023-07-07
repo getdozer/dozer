@@ -1,5 +1,5 @@
 use dozer_cache::dozer_log::home_dir::HomeDir;
-use dozer_cache::dozer_log::replication::Log;
+use dozer_cache::dozer_log::replication::{Log, LogOptions};
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use tokio::runtime::Runtime;
 use tokio::sync::Mutex;
@@ -10,7 +10,6 @@ use std::sync::Arc;
 use dozer_types::models::source::Source;
 
 use crate::pipeline::PipelineBuilder;
-use crate::utils::LogOptions;
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 
 use dozer_types::indicatif::MultiProgress;
@@ -45,13 +44,7 @@ impl<'a> Executor<'a> {
                 .find_latest_migration_path(&endpoint.name)
                 .map_err(|(path, error)| OrchestrationError::FileSystem(path.into(), error))?
                 .ok_or(OrchestrationError::NoMigrationFound(endpoint.name.clone()))?;
-            let log = Log::new(
-                log_options.storage.clone(),
-                migration_path.log_path.into(),
-                false,
-                log_options.entry_max_size,
-            )
-            .await?;
+            let log = Log::new(log_options.clone(), migration_path.log_path.into(), false).await?;
             let log = Arc::new(Mutex::new(log));
             endpoint_and_logs.push((endpoint.clone(), log));
         }

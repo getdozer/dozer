@@ -22,6 +22,10 @@ pub struct AppConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub log_entry_max_size: Option<u64>,
 
+    #[prost(uint32, optional)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub log_max_num_immutable_entries: Option<u32>,
+
     /// The storage to use for the log.
     #[prost(oneof = "LogStorage", tags = "7,8")]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -47,6 +51,14 @@ impl Default for LogStorage {
     }
 }
 
+pub fn default_log_entry_max_size() -> u64 {
+    100_000
+}
+
+pub fn default_log_max_num_immutable_entries() -> u32 {
+    100
+}
+
 pub fn default_app_buffer_size() -> u32 {
     20_000
 }
@@ -57,10 +69,6 @@ pub fn default_commit_size() -> u32 {
 
 pub fn default_commit_timeout() -> u64 {
     50
-}
-
-pub fn default_log_entry_max_size() -> u64 {
-    100_000
 }
 
 pub fn default_err_threshold() -> u32 {

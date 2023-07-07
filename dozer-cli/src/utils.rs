@@ -1,4 +1,4 @@
-use dozer_cache::cache::CacheManagerOptions;
+use dozer_cache::{cache::CacheManagerOptions, dozer_log::replication::LogOptions};
 use dozer_core::executor::ExecutorOptions;
 use dozer_types::models::{
     api_config::{
@@ -8,7 +8,7 @@ use dozer_types::models::{
     api_security::ApiSecurity,
     app_config::{
         default_app_buffer_size, default_commit_size, default_commit_timeout,
-        default_log_entry_max_size, LogStorage,
+        default_log_entry_max_size, default_log_max_num_immutable_entries,
     },
     config::{default_cache_max_map_size, Config},
 };
@@ -46,23 +46,21 @@ fn get_commit_size(config: &Config) -> u32 {
         .unwrap_or_else(default_commit_size)
 }
 
-#[derive(Debug)]
-pub struct LogOptions {
-    pub storage: LogStorage,
-    pub entry_max_size: usize,
-}
-
 pub fn get_log_options(config: &Config) -> LogOptions {
     let app = config.app.as_ref();
-    let storage = app
+    let storage_config = app
         .and_then(|app| app.log_storage.clone())
         .unwrap_or_default();
     let entry_max_size = app
         .and_then(|app| app.log_entry_max_size)
         .unwrap_or_else(default_log_entry_max_size) as usize;
+    let max_num_immutable_entries =
+        app.and_then(|app| app.log_max_num_immutable_entries)
+            .unwrap_or_else(default_log_max_num_immutable_entries) as usize;
     LogOptions {
-        storage,
+        storage_config,
         entry_max_size,
+        max_num_immutable_entries,
     }
 }
 

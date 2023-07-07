@@ -6,17 +6,27 @@ use tokio::sync::Mutex;
 
 use crate::replication::{Log, LogResponse};
 
-#[tokio::test]
-async fn write_read_mutable() {
-    let temp_dir = TempDir::new("write_read_mutable").unwrap();
+use super::LogOptions;
+
+async fn create_test_log(temp_dir_prefix: &str, entry_max_size: usize) -> (TempDir, Log) {
+    let temp_dir = TempDir::new(temp_dir_prefix).unwrap();
     let log = Log::new(
-        LogStorage::Local(()),
+        LogOptions {
+            storage_config: LogStorage::Local(()),
+            max_num_immutable_entries: 10,
+            entry_max_size,
+        },
         temp_dir.path().to_str().unwrap().to_string(),
         false,
-        10,
     )
     .await
     .unwrap();
+    (temp_dir, log)
+}
+
+#[tokio::test]
+async fn write_read_mutable() {
+    let (_temp_dir, log) = create_test_log("write_read_mutable", 10).await;
     let log = Arc::new(Mutex::new(log));
 
     let ops = vec![
@@ -33,7 +43,7 @@ async fn write_read_mutable() {
 
     let mut log_mut = log.lock().await;
     for op in &ops {
-        log_mut.write(op.clone(), log.clone());
+        log_mut.write(op.clone(), log.clone()).await.unwrap();
     }
     drop(log_mut);
 
@@ -44,15 +54,7 @@ async fn write_read_mutable() {
 
 #[tokio::test]
 async fn watch_write_mutable() {
-    let temp_dir = TempDir::new("watch_write_mutable").unwrap();
-    let mut log = Log::new(
-        LogStorage::Local(()),
-        temp_dir.path().to_str().unwrap().to_string(),
-        false,
-        10,
-    )
-    .await
-    .unwrap();
+    let (_temp_dir, mut log) = create_test_log("watch_write_mutable", 10).await;
 
     let range = 1..3;
     let handle = tokio::spawn(log.read(range.clone()));
@@ -71,7 +73,7 @@ async fn watch_write_mutable() {
     ];
     let mut log_mut = log.lock().await;
     for op in &ops {
-        log_mut.write(op.clone(), log.clone());
+        log_mut.write(op.clone(), log.clone()).await.unwrap();
     }
 
     let ops_read = handle.await.unwrap().unwrap();
@@ -80,15 +82,7 @@ async fn watch_write_mutable() {
 
 #[tokio::test]
 async fn watch_partial_write_mutable() {
-    let temp_dir = TempDir::new("watch_partial_write_mutable").unwrap();
-    let mut log = Log::new(
-        LogStorage::Local(()),
-        temp_dir.path().to_str().unwrap().to_string(),
-        false,
-        2,
-    )
-    .await
-    .unwrap();
+    let (_temp_dir, mut log) = create_test_log("watch_partial_write_mutable", 2).await;
 
     let handle = tokio::spawn(log.read(1..3));
 
@@ -106,7 +100,7 @@ async fn watch_partial_write_mutable() {
     ];
     let mut log_mut = log.lock().await;
     for op in &ops {
-        log_mut.write(op.clone(), log.clone());
+        log_mut.write(op.clone(), log.clone()).await.unwrap();
     }
 
     let ops_read = handle.await.unwrap().unwrap();
@@ -115,15 +109,7 @@ async fn watch_partial_write_mutable() {
 
 #[tokio::test]
 async fn watch_out_of_range_write_mutable() {
-    let temp_dir = TempDir::new("watch_out_of_range_write_mutable").unwrap();
-    let mut log = Log::new(
-        LogStorage::Local(()),
-        temp_dir.path().to_str().unwrap().to_string(),
-        false,
-        2,
-    )
-    .await
-    .unwrap();
+    let (_temp_dir, mut log) = create_test_log("watch_out_of_range_write_mutable", 2).await;
 
     let range = 2..3;
     let handle = tokio::spawn(log.read(range.clone()));
@@ -142,7 +128,7 @@ async fn watch_out_of_range_write_mutable() {
     ];
     let mut log_mut = log.lock().await;
     for op in &ops {
-        log_mut.write(op.clone(), log.clone());
+        log_mut.write(op.clone(), log.clone()).await.unwrap();
     }
 
     let ops_read = handle.await.unwrap().unwrap();
@@ -150,16 +136,8 @@ async fn watch_out_of_range_write_mutable() {
 }
 
 #[tokio::test]
-async fn immutable_gets_evict() {
-    let temp_dir = TempDir::new("immutable_gets_evict").unwrap();
-    let log = Log::new(
-        LogStorage::Local(()),
-        temp_dir.path().to_str().unwrap().to_string(),
-        true,
-        2,
-    )
-    .await
-    .unwrap();
+async fn in_memory_log_should_shrink() {
+    let (_temp_dir, log) = create_test_log("in_memory_log_should_shrink", 2).await;
     let log = Arc::new(Mutex::new(log));
 
     let ops = vec![
@@ -174,9 +152,21 @@ async fn immutable_gets_evict() {
         },
     ];
     let mut log_mut = log.lock().await;
-    assert!(log_mut.write(ops[0].clone(), log.clone()).is_none());
-    let handle = log_mut.write(ops[1].clone(), log.clone()).unwrap();
-    assert!(log_mut.write(ops[2].clone(), log.clone()).is_none());
+    assert!(log_mut
+        .write(ops[0].clone(), log.clone())
+        .await
+        .unwrap()
+        .is_none());
+    let handle = log_mut
+        .write(ops[1].clone(), log.clone())
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(log_mut
+        .write(ops[2].clone(), log.clone())
+        .await
+        .unwrap()
+        .is_none());
     drop(log_mut);
     handle.await.unwrap();
     assert!(matches!(

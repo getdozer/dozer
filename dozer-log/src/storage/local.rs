@@ -9,7 +9,7 @@ use dozer_types::{
     grpc_types::internal::{self, storage_response},
     parking_lot::Mutex,
     tonic::async_trait,
-    tracing::info,
+    tracing::debug,
 };
 use futures_util::{stream::BoxStream, StreamExt};
 use tempdir::TempDir;
@@ -57,7 +57,7 @@ impl Storage for LocalStorage {
 
     async fn put_object(&self, key: String, data: Vec<u8>) -> Result<(), Error> {
         let path = self.get_path(&key).await?;
-        info!("putting object to {}", path);
+        debug!("putting object to {}", path);
         write(path, &data).await
     }
 
