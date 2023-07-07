@@ -118,12 +118,7 @@ fn run() -> Result<(), OrchestrationError> {
     // and then initializing it after reading the configuration. This is a hacky workaround, but it works.
 
     let cli = parse_and_generate()?;
-    #[cfg(feature = "cloud")]
-    let is_cloud_orchestrator = matches!(cli.cmd, Some(Commands::Cloud(_)));
-    #[cfg(not(feature = "cloud"))]
-    let is_cloud_orchestrator = false;
-
-    let mut dozer = init_orchestrator(&cli, is_cloud_orchestrator)?;
+    let mut dozer = init_orchestrator(&cli)?;
 
     let (shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
     set_ctrl_handler(shutdown_sender);
@@ -238,16 +233,9 @@ fn parse_and_generate() -> Result<Cli, OrchestrationError> {
     })
 }
 
-fn init_orchestrator(
-    cli: &Cli,
-    is_cloud_orchestrator: bool,
-) -> Result<SimpleOrchestrator, CliError> {
+fn init_orchestrator(cli: &Cli) -> Result<SimpleOrchestrator, CliError> {
     dozer_tracing::init_telemetry_closure(None, None, || -> Result<SimpleOrchestrator, CliError> {
-        let res = init_dozer(
-            cli.config_path.clone(),
-            cli.config_token.clone(),
-            !is_cloud_orchestrator,
-        );
+        let res = init_dozer(cli.config_path.clone(), cli.config_token.clone());
 
         match res {
             Ok(dozer) => {

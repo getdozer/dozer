@@ -7,21 +7,13 @@ use dozer_types::models::app_config::default_cache_max_map_size;
 use dozer_types::prettytable::{row, Table};
 use dozer_types::{models::app_config::Config, serde_yaml};
 use handlebars::Handlebars;
+use std::collections::BTreeMap;
 use std::sync::Arc;
-use std::{collections::BTreeMap, fs};
 use tokio::runtime::Runtime;
 
-pub fn init_dozer(
-    config_path: String,
-    config_token: Option<String>,
-    prepare_environment_fs: bool,
-) -> Result<Dozer, CliError> {
+pub fn init_dozer(config_path: String, config_token: Option<String>) -> Result<Dozer, CliError> {
     let runtime = Runtime::new().map_err(CliError::FailedToCreateTokioRuntime)?;
-    let mut config = runtime.block_on(load_config(
-        &config_path,
-        config_token,
-        prepare_environment_fs,
-    ))?;
+    let mut config = runtime.block_on(load_config(&config_path, config_token))?;
 
     let cache_max_map_size = config
         .cache_max_map_size
@@ -37,7 +29,7 @@ pub fn list_sources(
     config_token: Option<String>,
     filter: Option<String>,
 ) -> Result<(), OrchestrationError> {
-    let dozer = init_dozer(config_path.to_string(), config_token, false)?;
+    let dozer = init_dozer(config_path.to_string(), config_token)?;
     let connection_map = dozer.list_connectors()?;
     let mut table_parent = Table::new();
     for (connection_name, (tables, schemas)) in connection_map {
@@ -73,19 +65,17 @@ pub fn list_sources(
 async fn load_config(
     config_url_or_path: &str,
     config_token: Option<String>,
-    prepare_environment_fs: bool,
 ) -> Result<Config, CliError> {
     if config_url_or_path.starts_with("https://") || config_url_or_path.starts_with("http://") {
-        load_config_from_http_url(config_url_or_path, config_token, prepare_environment_fs).await
+        load_config_from_http_url(config_url_or_path, config_token).await
     } else {
-        load_config_from_file(config_url_or_path, prepare_environment_fs)
+        load_config_from_file(config_url_or_path)
     }
 }
 
 async fn load_config_from_http_url(
     config_url: &str,
     config_token: Option<String>,
-    prepare_environment_fs: bool,
 ) -> Result<Config, CliError> {
     let client = reqwest::Client::new();
     let mut get_request = client.get(config_url);
@@ -94,18 +84,15 @@ async fn load_config_from_http_url(
     }
     let response: reqwest::Response = get_request.send().await?.error_for_status()?;
     let contents = response.text().await?;
-    parse_config(&contents, prepare_environment_fs)
+    parse_config(&contents)
 }
 
-pub fn load_config_from_file(
-    config_path: &str,
-    prepare_environment_fs: bool,
-) -> Result<Config, CliError> {
+pub fn load_config_from_file(config_path: &str) -> Result<Config, CliError> {
     let config_test = combine_config(config_path)?;
-    parse_config(&config_test, prepare_environment_fs)
+    parse_config(&config_test)
 }
 
-fn parse_config(config_template: &str, prepare_environment_fs: bool) -> Result<Config, CliError> {
+fn parse_config(config_template: &str) -> Result<Config, CliError> {
     let mut handlebars = Handlebars::new();
     handlebars
         .register_template_string("config", config_template)
@@ -123,12 +110,6 @@ fn parse_config(config_template: &str, prepare_environment_fs: bool) -> Result<C
 
     let config: Config = serde_yaml::from_str(&config_str)
         .map_err(|e: serde_yaml::Error| CliError::FailedToParseYaml(Box::new(e)))?;
-
-    if prepare_environment_fs {
-        // Create home_dir if not exists.
-        fs::create_dir_all(&config.home_dir)
-            .map_err(|e| CliError::FileSystem(config.home_dir.clone().into(), e))?;
-    }
 
     Ok(config)
 }
