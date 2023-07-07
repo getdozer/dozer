@@ -185,7 +185,7 @@ impl<'a> PipelineBuilder<'a> {
         })
     }
 
-    // This function is used by both migrate and actual execution
+    // This function is used by both building and actual execution
     pub fn build(
         self,
         runtime: Arc<Runtime>,

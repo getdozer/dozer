@@ -4,19 +4,26 @@ use dozer_types::{epoch::ExecutorOperation, models::app_config::LogStorage};
 use tempdir::TempDir;
 use tokio::sync::Mutex;
 
-use crate::replication::{Log, LogResponse};
+use crate::{
+    home_dir::{BuildId, HomeDir},
+    replication::{Log, LogResponse},
+};
 
 use super::LogOptions;
 
 async fn create_test_log(temp_dir_prefix: &str, entry_max_size: usize) -> (TempDir, Log) {
     let temp_dir = TempDir::new(temp_dir_prefix).unwrap();
+    let home_dir = HomeDir::new(temp_dir.path().to_str().unwrap(), String::default()); // We don't care about the cache dir.
+    let build_path = home_dir
+        .create_build_dir_all("endpoint", BuildId::first())
+        .unwrap();
     let log = Log::new(
         LogOptions {
             storage_config: LogStorage::Local(()),
             max_num_immutable_entries: 10,
             entry_max_size,
         },
-        temp_dir.path().to_str().unwrap().to_string(),
+        &build_path,
         false,
     )
     .await

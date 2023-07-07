@@ -56,18 +56,16 @@ impl LogReader {
     pub async fn next_op(&mut self) -> Result<(ExecutorOperation, u64), ReaderError> {
         if let Some(result) = self.op_receiver.recv().await {
             Ok(result)
-        } else {
-            if let Some(worker) = self.worker.take() {
-                match worker.await {
-                    Ok(Ok(())) => panic!(
-                        "Worker never quit without an error because we're holding the receiver"
-                    ),
-                    Ok(Err(e)) => Err(e),
-                    Err(e) => Err(ReaderError::ReaderThreadQuit(Some(e))),
+        } else if let Some(worker) = self.worker.take() {
+            match worker.await {
+                Ok(Ok(())) => {
+                    panic!("Worker never quit without an error because we're holding the receiver")
                 }
-            } else {
-                Err(ReaderError::ReaderThreadQuit(None))
+                Ok(Err(e)) => Err(e),
+                Err(e) => Err(ReaderError::ReaderThreadQuit(Some(e))),
             }
+        } else {
+            Err(ReaderError::ReaderThreadQuit(None))
         }
     }
 }

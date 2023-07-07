@@ -9,21 +9,25 @@ use dozer_types::{
 };
 use tokio::task::JoinHandle;
 
-use crate::storage::{LocalStorage, S3Storage, Storage};
+use crate::{
+    home_dir::BuildPath,
+    storage::{self, LocalStorage, S3Storage, Storage},
+};
 
 use super::{Error, PersistedLogEntry};
 
-pub async fn create_storage(
+pub async fn create_log_storage(
     storage_config: LogStorage,
-    migration_dir: String,
-) -> Result<(Box<dyn Storage>, String), Error> {
+    build_path: &BuildPath,
+) -> Result<(Box<dyn Storage>, String), storage::Error> {
+    let build_dir = build_path.log_path.to_string();
     match storage_config {
         LogStorage::Local(()) => Ok((
-            Box::new(LocalStorage::new(migration_dir).await?),
+            Box::new(LocalStorage::new(build_dir).await?),
             String::default(),
         )),
         LogStorage::S3(bucket_name) => {
-            Ok((Box::new(S3Storage::new(bucket_name).await?), migration_dir))
+            Ok((Box::new(S3Storage::new(bucket_name).await?), build_dir))
         }
     }
 }

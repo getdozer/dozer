@@ -44,23 +44,23 @@ impl CacheEndpoint {
         operations_sender: Option<Sender<Operation>>,
         multi_pb: Option<MultiProgress>,
     ) -> Result<(Self, JoinHandle<Result<(), CacheError>>), ApiError> {
-        // Find migration.
-        let migration_path = if let Some(version) = endpoint.version {
+        // Find build.
+        let build_path = if let Some(version) = endpoint.version {
             home_dir
-                .find_migration_path(&endpoint.name, version)
-                .ok_or(ApiError::MigrationNotFound(endpoint.name.clone(), version))?
+                .find_build_path(&endpoint.name, version)
+                .ok_or(ApiError::BuildNotFound(endpoint.name.clone(), version))?
         } else {
             home_dir
-                .find_latest_migration_path(&endpoint.name)
+                .find_latest_build_path(&endpoint.name)
                 .map_err(|(path, error)| SchemaError::Filesystem(path.into(), error))?
-                .ok_or(ApiError::NoMigrationFound(endpoint.name.clone()))?
+                .ok_or(ApiError::NoBuildFound(endpoint.name.clone()))?
         };
 
         // Open or create cache.
         let mut cache_labels = Labels::new();
         cache_labels.push(ENDPOINT_LABEL, endpoint.name.clone());
-        cache_labels.push("migration", migration_path.id.name().to_string());
-        let schema = load_schema(&migration_path.schema_path)?;
+        cache_labels.push("build", build_path.id.name().to_string());
+        let schema = load_schema(&build_path.schema_path)?;
         let conflict_resolution = endpoint.conflict_resolution.unwrap_or_default();
         let write_options = CacheWriteOptions {
             insert_resolution: conflict_resolution.on_insert.unwrap_or_default(),
@@ -101,7 +101,7 @@ impl CacheEndpoint {
         Ok((
             Self {
                 cache_reader: ArcSwap::from_pointee(cache_reader),
-                descriptor_path: migration_path.descriptor_path.into(),
+                descriptor_path: build_path.descriptor_path.into(),
                 endpoint,
             },
             handle,

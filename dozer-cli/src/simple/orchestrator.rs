@@ -2,8 +2,8 @@ use super::executor::{run_dag_executor, Executor};
 use crate::errors::OrchestrationError;
 use crate::pipeline::PipelineBuilder;
 use crate::shutdown::ShutdownReceiver;
+use crate::simple::build;
 use crate::simple::helper::validate_config;
-use crate::simple::migration::{create_migration, modify_schema, needs_migration};
 use crate::utils::{
     get_api_security_config, get_app_grpc_config, get_cache_manager_options, get_executor_options,
     get_grpc_config, get_log_options, get_rest_config,
@@ -15,9 +15,10 @@ use dozer_api::grpc::internal::internal_pipeline_server::start_internal_pipeline
 use dozer_api::{grpc, rest, CacheEndpoint};
 use dozer_cache::cache::LmdbRwCacheManager;
 use dozer_cache::dozer_log::home_dir::HomeDir;
-use dozer_cache::dozer_log::schemas::MigrationSchema;
+use dozer_cache::dozer_log::schemas::BuildSchema;
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::DagSchemas;
+use futures::future::join_all;
 
 use crate::console_helper::get_colored_text;
 use crate::console_helper::GREEN;
@@ -288,7 +289,7 @@ impl Orchestrator for SimpleOrchestrator {
         // Populate schemas.
         let dag_schemas = DagSchemas::new(dag)?;
 
-        // Migrate endpoints one by one.
+        // Build endpoints one by one.
         let schemas = dag_schemas.get_sink_schemas();
         let enable_token = self
             .config
@@ -302,16 +303,18 @@ impl Orchestrator for SimpleOrchestrator {
             .as_ref()
             .map(|flags| flags.push_events)
             .unwrap_or(false);
+        let storage_config = get_log_options(&self.config).storage_config;
+        let mut futures = vec![];
         for (endpoint_name, (schema, connections)) in schemas {
-            info!("Migrating endpoint: {endpoint_name}");
+            info!("Building endpoint: {endpoint_name}");
             let endpoint = self
                 .config
                 .endpoints
                 .iter()
                 .find(|e| e.name == *endpoint_name)
                 .expect("Sink name must be the same as endpoint name");
-            let (schema, secondary_indexes) = modify_schema(&schema, endpoint)?;
-            let schema = MigrationSchema {
+            let (schema, secondary_indexes) = build::modify_schema(&schema, endpoint)?;
+            let schema = BuildSchema {
                 schema,
                 secondary_indexes,
                 enable_token,
@@ -319,13 +322,17 @@ impl Orchestrator for SimpleOrchestrator {
                 connections,
             };
 
-            if let Some(migration_id) = needs_migration(&home_dir, &endpoint_name, &schema)? {
-                let migration_name = migration_id.name().to_string();
-                create_migration(&home_dir, &endpoint_name, migration_id, &schema)?;
-                info!("Created new migration {migration_name} for endpoint: {endpoint_name}");
-            } else {
-                info!("Migration not needed for endpoint: {endpoint_name}");
-            }
+            futures.push(build::build(
+                &home_dir,
+                endpoint_name,
+                schema,
+                storage_config.clone(),
+            ));
+        }
+
+        let results = self.runtime.block_on(join_all(futures.into_iter()));
+        for result in results {
+            result?;
         }
 
         Ok(())

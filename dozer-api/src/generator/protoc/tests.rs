@@ -2,7 +2,7 @@ use std::path::Path;
 
 use super::generator::{ProtoGenerator, ServiceDesc};
 use crate::test_utils;
-use dozer_cache::dozer_log::schemas::MigrationSchema;
+use dozer_cache::dozer_log::schemas::BuildSchema;
 use tempdir::TempDir;
 
 fn read_service_desc(proto_folder_path: &Path, endpoint_name: &str) -> ServiceDesc {
@@ -16,7 +16,7 @@ fn read_service_desc(proto_folder_path: &Path, endpoint_name: &str) -> ServiceDe
 fn test_generate_proto_and_descriptor() {
     let schema_name = "films";
     let (schema, secondary_indexes) = test_utils::get_schema();
-    let schema = MigrationSchema {
+    let schema = BuildSchema {
         schema,
         secondary_indexes,
         enable_token: false,
@@ -50,7 +50,7 @@ fn test_generate_proto_and_descriptor() {
 fn test_generate_proto_and_descriptor_with_security() {
     let schema_name = "films";
     let (schema, secondary_indexes) = test_utils::get_schema();
-    let schema = MigrationSchema {
+    let schema = BuildSchema {
         schema,
         secondary_indexes,
         enable_token: true,
@@ -92,7 +92,7 @@ fn test_generate_proto_and_descriptor_with_security() {
 fn test_generate_proto_and_descriptor_with_push_event_off() {
     let schema_name = "films";
     let (schema, secondary_indexes) = test_utils::get_schema();
-    let schema = MigrationSchema {
+    let schema = BuildSchema {
         schema,
         secondary_indexes,
         enable_token: true,

@@ -40,11 +40,11 @@ impl<'a> Executor<'a> {
     ) -> Result<Executor<'a>, OrchestrationError> {
         let mut endpoint_and_logs = vec![];
         for endpoint in api_endpoints {
-            let migration_path = home_dir
-                .find_latest_migration_path(&endpoint.name)
+            let build_path = home_dir
+                .find_latest_build_path(&endpoint.name)
                 .map_err(|(path, error)| OrchestrationError::FileSystem(path.into(), error))?
-                .ok_or(OrchestrationError::NoMigrationFound(endpoint.name.clone()))?;
-            let log = Log::new(log_options.clone(), migration_path.log_path.into(), false).await?;
+                .ok_or(OrchestrationError::NoBuildFound(endpoint.name.clone()))?;
+            let log = Log::new(log_options.clone(), &build_path, false).await?;
             let log = Arc::new(Mutex::new(log));
             endpoint_and_logs.push((endpoint.clone(), log));
         }
