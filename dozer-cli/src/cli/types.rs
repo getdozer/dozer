@@ -34,7 +34,8 @@ pub enum Commands {
     #[command(about = "Clean home directory")]
     Clean,
     #[command(
-        about = "Initialize and lock schema definitions. Once initialized, schemas cannot be changed"
+        about = "Initialize and lock schema definitions. Once initialized, schemas cannot be changed",
+        alias = "migrate"
     )]
     Build(Build),
     #[command(about = "Run App Server", hide = true)]
