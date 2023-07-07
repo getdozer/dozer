@@ -1,6 +1,6 @@
 use crate::errors::ConfigCombineError;
 use crate::errors::ConfigCombineError::{
-    CannotReadConfig, CannotReadFile, WrongPatternOfConfigFilesGlob,
+    CannotReadConfig, CannotReadFile, CannotSerializeToString, WrongPatternOfConfigFilesGlob,
 };
 use dozer_types::serde_yaml;
 use dozer_types::serde_yaml::mapping::Entry;
@@ -17,22 +17,23 @@ pub fn combine_config(config_path: &str) -> Result<String, ConfigCombineError> {
 
         for entry in files_glob {
             let path = entry.map_err(CannotReadFile)?;
-            let name = path.clone().to_str().unwrap().to_string();
-            let content =
-                fs::read_to_string(path.clone()).map_err(|e| CannotReadConfig(path, e))?;
+            if let Some(name) = path.clone().to_str() {
+                let content =
+                    fs::read_to_string(path.clone()).map_err(|e| CannotReadConfig(path, e))?;
 
-            if name.contains(".yml") || name.contains(".yaml") {
-                let yaml: serde_yaml::Value = serde_yaml::from_str(&content)
-                    .map_err(|e| ConfigCombineError::ParseYaml(name.clone(), e))?;
-                merge_yaml(yaml, &mut combined_yaml)?;
-            } else if name.contains(".sql") {
-                let sql = if content.ends_with(';') {
-                    content.clone()
-                } else {
-                    content.clone() + ";"
-                };
+                if name.contains(".yml") || name.contains(".yaml") {
+                    let yaml: serde_yaml::Value = serde_yaml::from_str(&content)
+                        .map_err(|e| ConfigCombineError::ParseYaml(name.to_string(), e))?;
+                    merge_yaml(yaml, &mut combined_yaml)?;
+                } else if name.contains(".sql") {
+                    let sql = if content.ends_with(';') {
+                        content.clone()
+                    } else {
+                        content.clone() + ";"
+                    };
 
-                sqls.push(sql);
+                    sqls.push(sql);
+                }
             }
         }
     }
@@ -47,8 +48,7 @@ pub fn combine_config(config_path: &str) -> Result<String, ConfigCombineError> {
     }
 
     // `serde_yaml::from_value` will return deserialization error, not sure why.
-    let combined_yaml_string = serde_yaml::to_string(&combined_yaml).unwrap();
-    Ok(combined_yaml_string)
+    serde_yaml::to_string(&combined_yaml).map_err(CannotSerializeToString)
 }
 
 fn merge_yaml(

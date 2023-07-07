@@ -147,6 +147,9 @@ pub enum ConfigCombineError {
 
     #[error("Cannot read file: {0}")]
     CannotReadFile(#[from] GlobError),
+
+    #[error("Cannot serialize config to string: {0}")]
+    CannotSerializeToString(#[source] serde_yaml::Error),
 }
 
 #[derive(Debug, Error)]
