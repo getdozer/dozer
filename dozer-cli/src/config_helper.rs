@@ -7,6 +7,7 @@ use dozer_types::serde_yaml::mapping::Entry;
 use dozer_types::serde_yaml::Mapping;
 use glob::glob;
 use std::fs;
+use dozer_types::log::warn;
 
 pub fn combine_config(config_path: &str) -> Result<String, ConfigCombineError> {
     let mut combined_yaml = serde_yaml::Value::Mapping(Mapping::new());
@@ -17,22 +18,27 @@ pub fn combine_config(config_path: &str) -> Result<String, ConfigCombineError> {
 
         for entry in files_glob {
             let path = entry.map_err(CannotReadFile)?;
-            if let Some(name) = path.clone().to_str() {
-                let content =
-                    fs::read_to_string(path.clone()).map_err(|e| CannotReadConfig(path, e))?;
+            match path.clone().to_str() {
+                None => {
+                    warn!("Path {:?} is not valid", path)
+                }
+                Some(name) => {
+                    let content =
+                        fs::read_to_string(path.clone()).map_err(|e| CannotReadConfig(path, e))?;
 
-                if name.contains(".yml") || name.contains(".yaml") {
-                    let yaml: serde_yaml::Value = serde_yaml::from_str(&content)
-                        .map_err(|e| ConfigCombineError::ParseYaml(name.to_string(), e))?;
-                    merge_yaml(yaml, &mut combined_yaml)?;
-                } else if name.contains(".sql") {
-                    let sql = if content.ends_with(';') {
-                        content.clone()
-                    } else {
-                        content.clone() + ";"
-                    };
+                    if name.contains(".yml") || name.contains(".yaml") {
+                        let yaml: serde_yaml::Value = serde_yaml::from_str(&content)
+                            .map_err(|e| ConfigCombineError::ParseYaml(name.to_string(), e))?;
+                        merge_yaml(yaml, &mut combined_yaml)?;
+                    } else if name.contains(".sql") {
+                        let sql = if content.ends_with(';') {
+                            content.clone()
+                        } else {
+                            content.clone() + ";"
+                        };
 
-                    sqls.push(sql);
+                        sqls.push(sql);
+                    }
                 }
             }
         }
