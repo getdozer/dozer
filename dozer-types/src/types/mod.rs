@@ -115,9 +115,14 @@ impl Schema {
 
     pub fn print(&self) -> Table {
         let mut table = Table::new();
-        table.add_row(row!["Field", "Type", "Nullable"]);
-        for f in &self.fields {
-            table.add_row(row![f.name, format!("{:?}", f.typ), f.nullable]);
+        table.add_row(row!["Field", "Type", "Nullable", "PK"]);
+        for (index, field) in self.fields.iter().enumerate() {
+            table.add_row(row![
+                field.name,
+                format!("{:?}", field.typ),
+                field.nullable,
+                self.primary_index.contains(&index)
+            ]);
         }
         table
     }
