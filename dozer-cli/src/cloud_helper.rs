@@ -1,4 +1,6 @@
-use crate::errors::CloudError::{CannotReadConfig, CannotReadFile, WrongPatternOfConfigFilesGlob};
+use crate::errors::ConfigCombineError::{
+    CannotReadConfig, CannotReadFile, WrongPatternOfConfigFilesGlob,
+};
 use dozer_types::grpc_types::cloud::File;
 use glob::glob;
 use std::fs;

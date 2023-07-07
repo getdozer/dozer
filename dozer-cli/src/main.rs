@@ -5,7 +5,7 @@ use dozer_cli::cli::generate_config_repl;
 use dozer_cli::cli::types::{
     ApiCommands, AppCommands, Cli, Commands, ConnectorCommand, RunCommands, SecurityCommands,
 };
-use dozer_cli::cli::{init_dozer, init_dozer_with_default_config, list_sources, LOGO};
+use dozer_cli::cli::{init_dozer, list_sources, LOGO};
 use dozer_cli::errors::{CliError, OrchestrationError};
 use dozer_cli::simple::SimpleOrchestrator;
 #[cfg(feature = "cloud")]
@@ -243,11 +243,11 @@ fn init_orchestrator(
     is_cloud_orchestrator: bool,
 ) -> Result<SimpleOrchestrator, CliError> {
     dozer_tracing::init_telemetry_closure(None, None, || -> Result<SimpleOrchestrator, CliError> {
-        let res = if is_cloud_orchestrator {
-            init_dozer_with_default_config()
-        } else {
-            init_dozer(cli.config_path.clone(), cli.config_token.clone())
-        };
+        let res = init_dozer(
+            cli.config_path.clone(),
+            cli.config_token.clone(),
+            !is_cloud_orchestrator,
+        );
 
         match res {
             Ok(dozer) => {
