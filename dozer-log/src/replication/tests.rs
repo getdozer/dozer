@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use dozer_types::{epoch::ExecutorOperation, models::app_config::LogStorage};
 use tempdir::TempDir;
@@ -48,7 +48,12 @@ async fn write_read_mutable() {
     drop(log_mut);
 
     let range = 1..ops.len();
-    let ops_read = log.lock().await.read(range.clone()).await.unwrap();
+    let ops_read = log
+        .lock()
+        .await
+        .read(range.clone(), Duration::from_secs(1))
+        .await
+        .unwrap();
     assert_eq!(ops_read, LogResponse::Operations(ops[range].to_vec()));
 }
 
@@ -57,7 +62,7 @@ async fn watch_write_mutable() {
     let (_temp_dir, mut log) = create_test_log("watch_write_mutable", 10).await;
 
     let range = 1..3;
-    let handle = tokio::spawn(log.read(range.clone()));
+    let handle = tokio::spawn(log.read(range.clone(), Duration::from_secs(1)));
 
     let log = Arc::new(Mutex::new(log));
     let ops = vec![
@@ -84,7 +89,7 @@ async fn watch_write_mutable() {
 async fn watch_partial_write_mutable() {
     let (_temp_dir, mut log) = create_test_log("watch_partial_write_mutable", 2).await;
 
-    let handle = tokio::spawn(log.read(1..3));
+    let handle = tokio::spawn(log.read(1..3, Duration::from_secs(1)));
 
     let log = Arc::new(Mutex::new(log));
     let ops = vec![
@@ -112,7 +117,7 @@ async fn watch_out_of_range_write_mutable() {
     let (_temp_dir, mut log) = create_test_log("watch_out_of_range_write_mutable", 2).await;
 
     let range = 2..3;
-    let handle = tokio::spawn(log.read(range.clone()));
+    let handle = tokio::spawn(log.read(range.clone(), Duration::from_secs(1)));
 
     let log = Arc::new(Mutex::new(log));
     let ops = vec![
@@ -170,7 +175,28 @@ async fn in_memory_log_should_shrink() {
     drop(log_mut);
     handle.await.unwrap();
     assert!(matches!(
-        log.lock().await.read(0..1).await.unwrap(),
+        log.lock()
+            .await
+            .read(0..1, Duration::from_secs(1))
+            .await
+            .unwrap(),
         LogResponse::Persisted(_)
     ));
+}
+
+#[tokio::test]
+async fn watch_partial_timeout() {
+    let (_temp_dir, mut log) = create_test_log("watch_partial_timeout", 10).await;
+
+    let handle = tokio::spawn(log.read(0..2, Duration::from_secs(0)));
+
+    let log = Arc::new(Mutex::new(log));
+    let op = ExecutorOperation::SnapshottingDone {
+        connection_name: "0".to_string(),
+    };
+    let mut log_mut = log.lock().await;
+    log_mut.write(op.clone(), log.clone()).await.unwrap();
+
+    let ops_read = handle.await.unwrap().unwrap();
+    assert_eq!(ops_read, LogResponse::Operations(vec![op]));
 }

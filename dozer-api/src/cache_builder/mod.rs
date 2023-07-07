@@ -2,8 +2,7 @@ use std::collections::HashSet;
 use std::time::Duration;
 
 use crate::grpc::types_helper;
-use crate::ENDPOINT_LABEL;
-use dozer_cache::dozer_log::reader::LogReader;
+use dozer_cache::dozer_log::reader::{LogReader, LogReaderOptions};
 use dozer_cache::{
     cache::{CacheRecord, CacheWriteOptions, RwCache, RwCacheManager, UpsertResult},
     errors::CacheError,
@@ -23,7 +22,7 @@ use futures_util::{
     future::{select, Either},
     Future,
 };
-use metrics::{describe_counter, describe_histogram, histogram, increment_counter, IntoLabels};
+use metrics::{describe_counter, describe_histogram, histogram, increment_counter};
 use tokio::sync::broadcast::Sender;
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
@@ -32,19 +31,17 @@ pub async fn build_cache(
     cache: Box<dyn RwCache>,
     cancel: impl Future<Output = ()> + Unpin + Send + 'static,
     log_server_addr: String,
+    log_reader_options: LogReaderOptions,
     operations_sender: Option<(String, Sender<GrpcOperation>)>,
     multi_pb: Option<MultiProgress>,
 ) -> Result<(), CacheError> {
     // Create log reader.
-    let labels = cache.labels().clone().into_labels();
-    let endpoint = labels
-        .iter()
-        .find(|label| label.key() == ENDPOINT_LABEL)
-        .expect("Cache must have endpoint label")
-        .value();
     let pos = cache.get_metadata()?.unwrap_or(0);
-    debug!("Starting log reader {endpoint} from position {pos}");
-    let log_reader = LogReader::new(log_server_addr, endpoint.to_string(), pos, multi_pb).await?;
+    debug!(
+        "Starting log reader {} from position {pos}",
+        log_reader_options.endpoint
+    );
+    let log_reader = LogReader::new(log_server_addr, log_reader_options, pos, multi_pb).await?;
 
     // Spawn tasks
     let mut futures = FuturesUnordered::new();

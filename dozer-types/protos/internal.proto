@@ -34,6 +34,8 @@ message LogRequest {
   uint64 start = 2;
   /// [start, end) interval.
   uint64 end = 3;
+  /// Send back any data that's available within the timeout, unless there's no data available.
+  uint32 timeout_in_millis = 4;
 }
 
 message LogResponse {

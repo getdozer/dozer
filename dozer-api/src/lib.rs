@@ -2,12 +2,16 @@ use arc_swap::ArcSwap;
 use cache_builder::open_or_create_cache;
 use dozer_cache::{
     cache::{CacheWriteOptions, RwCacheManager},
-    dozer_log::{errors::SchemaError, home_dir::HomeDir, schemas::load_schema},
+    dozer_log::{
+        errors::SchemaError, home_dir::HomeDir, reader::LogReaderOptions, schemas::load_schema,
+    },
     errors::CacheError,
     CacheReader,
 };
 use dozer_types::{
-    grpc_types::types::Operation, labels::Labels, models::api_endpoint::ApiEndpoint,
+    grpc_types::types::Operation,
+    labels::Labels,
+    models::api_endpoint::{default_log_reader_timeout_in_millis, ApiEndpoint},
 };
 use futures_util::Future;
 use std::{
@@ -25,7 +29,7 @@ pub struct CacheEndpoint {
     endpoint: ApiEndpoint,
 }
 
-pub const ENDPOINT_LABEL: &str = "endpoint";
+const ENDPOINT_LABEL: &str = "endpoint";
 
 impl CacheEndpoint {
     pub async fn new(
@@ -76,12 +80,14 @@ impl CacheEndpoint {
 
         // Start cache builder.
         let handle = {
+            let log_reader_options = get_log_reader_options(&endpoint);
             let operations_sender = operations_sender.map(|sender| (endpoint.name.clone(), sender));
             tokio::spawn(async move {
                 cache_builder::build_cache(
                     cache,
                     cancel,
                     log_server_addr.clone(),
+                    log_reader_options,
                     operations_sender,
                     multi_pb,
                 )
@@ -141,6 +147,15 @@ fn open_existing_cache_reader(
     labels: Labels,
 ) -> Result<CacheReader, ApiError> {
     open_cache_reader(cache_manager, labels.clone())?.ok_or_else(|| ApiError::CacheNotFound(labels))
+}
+
+fn get_log_reader_options(endpoint: &ApiEndpoint) -> LogReaderOptions {
+    LogReaderOptions {
+        endpoint: endpoint.name.clone(),
+        timeout_in_millis: endpoint
+            .log_reader_timeout_in_millis
+            .unwrap_or_else(default_log_reader_timeout_in_millis),
+    }
 }
 
 // Exports

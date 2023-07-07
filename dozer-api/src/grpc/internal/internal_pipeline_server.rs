@@ -12,6 +12,7 @@ use futures_util::stream::{AbortHandle, Abortable, Aborted, BoxStream};
 use futures_util::{Future, StreamExt, TryStreamExt};
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::Mutex;
 use tonic::transport::Server;
 use tonic::{Request, Response, Status, Streaming};
@@ -78,7 +79,10 @@ fn find_log<'a>(
 
 async fn get_log(log: Arc<Mutex<Log>>, request: LogRequest) -> Result<LogResponse, Status> {
     let mut log = log.lock().await;
-    let response = log.read(request.start as usize..request.end as usize);
+    let response = log.read(
+        request.start as usize..request.end as usize,
+        Duration::from_millis(request.timeout_in_millis as u64),
+    );
     // Must drop log before awaiting response, otherwise we will deadlock.
     drop(log);
     let response = response

@@ -1,6 +1,7 @@
 use std::future::Future;
 use std::ops::Range;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use dozer_types::epoch::ExecutorOperation;
 use dozer_types::grpc_types::internal::storage_response;
@@ -69,6 +70,7 @@ pub struct Log {
 #[derive(Debug)]
 struct Watcher {
     request: Range<usize>,
+    deadline: Instant,
     /// Only `None` after the watcher is triggered.
     sender: Option<tokio::sync::oneshot::Sender<Vec<ExecutorOperation>>>,
 }
@@ -123,11 +125,14 @@ impl Log {
         self.in_memory.ops.push(op);
 
         // Check watchers.
-        // If watcher.end == self.mutable.end(), send the operations and remove the watcher.
+        // If watcher.end == self.mutable.end() or after deadline and have some data, send the operations and remove the watcher.
+        let now = Instant::now();
         self.watchers.retain_mut(|watcher| {
             debug_assert!(!watcher.request.is_empty());
             debug_assert!(self.in_memory.start <= watcher.request.start);
-            if watcher.request.end == self.in_memory.end() {
+            if watcher.request.end == self.in_memory.end()
+                || (self.in_memory.contains(watcher.request.start) && now > watcher.deadline)
+            {
                 trigger_watcher(watcher, &self.in_memory);
                 false
             } else {
@@ -187,7 +192,7 @@ impl Log {
     }
 
     /// Returned `LogResponse` is guaranteed to contain `request.start`, but may actually contain less then `request.end`.
-    pub fn read(&mut self, request: Range<usize>) -> LogResponseFuture {
+    pub fn read(&mut self, request: Range<usize>, timeout: Duration) -> LogResponseFuture {
         if request.is_empty() {
             return LogResponseFuture::Ready(vec![]);
         }
@@ -209,6 +214,7 @@ impl Log {
         let (sender, receiver) = tokio::sync::oneshot::channel();
         self.watchers.push(Watcher {
             request,
+            deadline: Instant::now() + timeout,
             sender: Some(sender),
         });
         LogResponseFuture::Watching(receiver)

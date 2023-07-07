@@ -106,23 +106,31 @@ pub struct ConflictResolution {
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message)]
 pub struct ApiEndpoint {
-    #[prost(string, tag = "1")]
+    #[prost(string)]
     pub name: String,
-    #[prost(string, tag = "2")]
+    #[prost(string)]
     /// name of the table in source database; Type: String
     pub table_name: String,
 
-    #[prost(string, tag = "3")]
+    #[prost(string)]
     /// path of endpoint - e.g: /stocks
     pub path: String,
-    #[prost(message, tag = "4")]
+    #[prost(message)]
     pub index: Option<ApiIndex>,
 
-    #[prost(message, tag = "5")]
+    #[prost(message)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub conflict_resolution: Option<ConflictResolution>,
 
-    #[prost(optional, uint32, tag = "6")]
+    #[prost(optional, uint32)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<u32>,
+
+    #[prost(optional, uint32)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub log_reader_timeout_in_millis: Option<u32>,
+}
+
+pub fn default_log_reader_timeout_in_millis() -> u32 {
+    300
 }

@@ -20,6 +20,11 @@ struct PersistedOps {
     ops: Vec<ExecutorOperation>,
 }
 
+pub struct LogReaderOptions {
+    pub endpoint: String,
+    pub timeout_in_millis: u32,
+}
+
 #[derive(Debug)]
 pub struct LogReader {
     pos: u64,
@@ -33,18 +38,18 @@ pub struct LogReader {
 impl LogReader {
     pub async fn new(
         server_addr: String,
-        endpoint: String,
+        options: LogReaderOptions,
         pos: u64,
         multi_pb: Option<MultiProgress>,
     ) -> Result<Self, ReaderError> {
         let pb = attach_progress(multi_pb);
-        pb.set_message(format!("reader: {}", endpoint));
+        pb.set_message(format!("reader: {}", options.endpoint));
         pb.set_position(pos);
 
         let mut client = InternalPipelineServiceClient::connect(server_addr).await?;
         let storage = client
             .describe_storage(StorageRequest {
-                endpoint: endpoint.clone(),
+                endpoint: options.endpoint.clone(),
             })
             .await?
             .into_inner();
@@ -57,9 +62,10 @@ impl LogReader {
 
         let (request_sender, request_receiver) = tokio::sync::mpsc::channel::<Range<usize>>(1);
         let request_stream = ReceiverStream::new(request_receiver).map(move |request| LogRequest {
-            endpoint: endpoint.clone(),
+            endpoint: options.endpoint.clone(),
             start: request.start as u64,
             end: request.end as u64,
+            timeout_in_millis: options.timeout_in_millis,
         });
         let response_stream = client.get_log(request_stream).await?.into_inner();
 
