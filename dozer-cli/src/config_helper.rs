@@ -2,12 +2,12 @@ use crate::errors::ConfigCombineError;
 use crate::errors::ConfigCombineError::{
     CannotReadConfig, CannotReadFile, CannotSerializeToString, WrongPatternOfConfigFilesGlob,
 };
+use dozer_types::log::warn;
 use dozer_types::serde_yaml;
 use dozer_types::serde_yaml::mapping::Entry;
 use dozer_types::serde_yaml::Mapping;
 use glob::glob;
 use std::fs;
-use dozer_types::log::warn;
 
 pub fn combine_config(config_path: &str) -> Result<String, ConfigCombineError> {
     let mut combined_yaml = serde_yaml::Value::Mapping(Mapping::new());
