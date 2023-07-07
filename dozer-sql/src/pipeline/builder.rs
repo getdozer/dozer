@@ -310,9 +310,9 @@ fn select_to_pipeline(
 
             let join_processor_name = format!("join_{}", query_ctx.get_next_processor_id());
             let join_operator = if negated {
-                JoinOperator::LeftAnti(JoinConstraint::On(*expr))
+                unimplemented!("Negated subquery not supported")
             } else {
-                JoinOperator::LeftSemi(JoinConstraint::On(*expr))
+                JoinOperator::Inner(JoinConstraint::On(*expr))
             };
             let join_processor_factory: JoinProcessorFactory = JoinProcessorFactory::new(
                 join_processor_name.clone(),
