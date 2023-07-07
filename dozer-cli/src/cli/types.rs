@@ -16,7 +16,7 @@ pub struct Cli {
     #[arg(
         global = true,
         short = 'c',
-        long,
+        long = "config-path",
         default_values = DEFAULT_CONFIG_PATH_PATTERNS
     )]
     pub config_paths: Vec<String>,
