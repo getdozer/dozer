@@ -20,7 +20,7 @@ pub fn combine_config(config_path: &str) -> Result<String, ConfigCombineError> {
             let path = entry.map_err(CannotReadFile)?;
             match path.clone().to_str() {
                 None => {
-                    warn!("Path {:?} is not valid", path)
+                    warn!("[Config] Path {:?} is not valid", path)
                 }
                 Some(name) => {
                     let content =
@@ -38,6 +38,8 @@ pub fn combine_config(config_path: &str) -> Result<String, ConfigCombineError> {
                         };
 
                         sqls.push(sql);
+                    } else {
+                        warn!("Config file \"{name}\" extension not supported");
                     }
                 }
             }
