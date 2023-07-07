@@ -78,6 +78,8 @@ pub enum OrchestrationError {
 
 #[derive(Error, Debug)]
 pub enum CliError {
+    #[error("Configuration file path not provided")]
+    ConfigurationFilePathNotProvided,
     #[error("Can't find the configuration file at: {0:?}")]
     FailedToLoadFile(String),
     #[error("Unknown Command: {0:?}")]

@@ -3,6 +3,7 @@ use crate::simple::SimpleOrchestrator as Dozer;
 use crate::{errors::CliError, Orchestrator};
 
 use crate::config_helper::combine_config;
+use crate::errors::CliError::ConfigurationFilePathNotProvided;
 use dozer_types::models::app_config::default_cache_max_map_size;
 use dozer_types::prettytable::{row, Table};
 use dozer_types::{models::app_config::Config, serde_yaml};
@@ -11,9 +12,12 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 
-pub fn init_dozer(config_path: String, config_token: Option<String>) -> Result<Dozer, CliError> {
+pub fn init_dozer(
+    config_paths: Vec<String>,
+    config_token: Option<String>,
+) -> Result<Dozer, CliError> {
     let runtime = Runtime::new().map_err(CliError::FailedToCreateTokioRuntime)?;
-    let mut config = runtime.block_on(load_config(&config_path, config_token))?;
+    let mut config = runtime.block_on(load_config(config_paths, config_token))?;
 
     let cache_max_map_size = config
         .cache_max_map_size
@@ -25,11 +29,11 @@ pub fn init_dozer(config_path: String, config_token: Option<String>) -> Result<D
 }
 
 pub fn list_sources(
-    config_path: &str,
+    config_paths: Vec<String>,
     config_token: Option<String>,
     filter: Option<String>,
 ) -> Result<(), OrchestrationError> {
-    let dozer = init_dozer(config_path.to_string(), config_token)?;
+    let dozer = init_dozer(config_paths, config_token)?;
     let connection_map = dozer.list_connectors()?;
     let mut table_parent = Table::new();
     for (connection_name, (tables, schemas)) in connection_map {
@@ -63,13 +67,19 @@ pub fn list_sources(
 }
 
 async fn load_config(
-    config_url_or_path: &str,
+    config_url_or_paths: Vec<String>,
     config_token: Option<String>,
 ) -> Result<Config, CliError> {
-    if config_url_or_path.starts_with("https://") || config_url_or_path.starts_with("http://") {
-        load_config_from_http_url(config_url_or_path, config_token).await
-    } else {
-        load_config_from_file(config_url_or_path)
+    let first_config_path = config_url_or_paths.get(0);
+    match first_config_path {
+        None => Err(ConfigurationFilePathNotProvided),
+        Some(path) => {
+            if path.starts_with("https://") || path.starts_with("http://") {
+                load_config_from_http_url(path, config_token).await
+            } else {
+                load_config_from_file(config_url_or_paths)
+            }
+        }
     }
 }
 
@@ -87,7 +97,7 @@ async fn load_config_from_http_url(
     parse_config(&contents)
 }
 
-pub fn load_config_from_file(config_path: &str) -> Result<Config, CliError> {
+pub fn load_config_from_file(config_path: Vec<String>) -> Result<Config, CliError> {
     let config_test = combine_config(config_path)?;
     parse_config(&config_test)
 }

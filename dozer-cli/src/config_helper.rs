@@ -9,12 +9,11 @@ use dozer_types::serde_yaml::Mapping;
 use glob::glob;
 use std::fs;
 
-pub fn combine_config(config_path: &str) -> Result<String, ConfigCombineError> {
+pub fn combine_config(config_paths: Vec<String>) -> Result<String, ConfigCombineError> {
     let mut combined_yaml = serde_yaml::Value::Mapping(Mapping::new());
     let mut sqls = vec![];
-    let patterns: Vec<_> = config_path.split(',').collect();
-    for pattern in patterns {
-        let files_glob = glob(pattern).map_err(WrongPatternOfConfigFilesGlob)?;
+    for pattern in config_paths {
+        let files_glob = glob(&pattern).map_err(WrongPatternOfConfigFilesGlob)?;
 
         for entry in files_glob {
             let path = entry.map_err(CannotReadFile)?;
