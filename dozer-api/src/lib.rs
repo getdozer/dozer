@@ -11,7 +11,10 @@ use dozer_cache::{
 use dozer_types::{
     grpc_types::types::Operation,
     labels::Labels,
-    models::api_endpoint::{default_log_reader_timeout_in_millis, ApiEndpoint},
+    models::api_endpoint::{
+        default_log_reader_batch_size, default_log_reader_buffer_size,
+        default_log_reader_timeout_in_millis, ApiEndpoint,
+    },
 };
 use futures_util::Future;
 use std::{
@@ -152,9 +155,21 @@ fn open_existing_cache_reader(
 fn get_log_reader_options(endpoint: &ApiEndpoint) -> LogReaderOptions {
     LogReaderOptions {
         endpoint: endpoint.name.clone(),
+        batch_size: endpoint
+            .log_reader_options
+            .as_ref()
+            .and_then(|options| options.batch_size)
+            .unwrap_or_else(default_log_reader_batch_size),
         timeout_in_millis: endpoint
-            .log_reader_timeout_in_millis
+            .log_reader_options
+            .as_ref()
+            .and_then(|options| options.timeout_in_millis)
             .unwrap_or_else(default_log_reader_timeout_in_millis),
+        buffer_size: endpoint
+            .log_reader_options
+            .as_ref()
+            .and_then(|options| options.buffer_size)
+            .unwrap_or_else(default_log_reader_buffer_size),
     }
 }
 

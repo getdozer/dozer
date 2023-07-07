@@ -105,6 +105,21 @@ pub struct ConflictResolution {
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message)]
+pub struct LogReaderOptions {
+    #[prost(optional, uint32)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub batch_size: Option<u32>,
+
+    #[prost(optional, uint32)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout_in_millis: Option<u32>,
+
+    #[prost(optional, uint32)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub buffer_size: Option<u32>,
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message)]
 pub struct ApiEndpoint {
     #[prost(string)]
     pub name: String,
@@ -126,11 +141,19 @@ pub struct ApiEndpoint {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<u32>,
 
-    #[prost(optional, uint32)]
+    #[prost(optional, message)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub log_reader_timeout_in_millis: Option<u32>,
+    pub log_reader_options: Option<LogReaderOptions>,
+}
+
+pub fn default_log_reader_batch_size() -> u32 {
+    1000
 }
 
 pub fn default_log_reader_timeout_in_millis() -> u32 {
     300
+}
+
+pub fn default_log_reader_buffer_size() -> u32 {
+    1000
 }

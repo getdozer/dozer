@@ -99,8 +99,9 @@ async fn read_log_task(
 ) {
     loop {
         let next_op = std::pin::pin!(log_reader.next_op());
-        match select(next_op, cancel).await {
-            Either::Left((op, c)) => {
+        match select(cancel, next_op).await {
+            Either::Left(_) => break,
+            Either::Right((op, c)) => {
                 let op = match op {
                     Ok(op) => op,
                     Err(e) => {
@@ -119,7 +120,6 @@ async fn read_log_task(
                     break;
                 }
             }
-            Either::Right(_) => break,
         }
     }
 }

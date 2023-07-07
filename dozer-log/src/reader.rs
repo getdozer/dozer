@@ -1,38 +1,32 @@
-use std::ops::Range;
-
 use crate::attach_progress;
-use crate::replication::LogResponse;
 use crate::storage::{LocalStorage, S3Storage, Storage};
 
 use super::errors::ReaderError;
 use dozer_types::bincode;
 use dozer_types::epoch::ExecutorOperation;
 use dozer_types::grpc_types::internal::internal_pipeline_service_client::InternalPipelineServiceClient;
-use dozer_types::grpc_types::internal::{storage_response, LogRequest, StorageRequest};
+use dozer_types::grpc_types::internal::{
+    storage_response, LogRequest, LogResponse, StorageRequest,
+};
 use dozer_types::indicatif::{MultiProgress, ProgressBar};
+use dozer_types::log::debug;
 use dozer_types::tonic::Streaming;
+use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::task::JoinHandle;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
 
-#[derive(Debug)]
-struct PersistedOps {
-    range: Range<usize>,
-    ops: Vec<ExecutorOperation>,
-}
-
 pub struct LogReaderOptions {
     pub endpoint: String,
+    pub batch_size: u32,
     pub timeout_in_millis: u32,
+    pub buffer_size: u32,
 }
 
 #[derive(Debug)]
 pub struct LogReader {
-    pos: u64,
-    request_sender: tokio::sync::mpsc::Sender<Range<usize>>,
-    response_stream: Streaming<dozer_types::grpc_types::internal::LogResponse>,
-    storage: Box<dyn Storage>,
-    persisted: Option<PersistedOps>,
-    pb: ProgressBar,
+    op_receiver: Receiver<(ExecutorOperation, u64)>,
+    worker: Option<JoinHandle<Result<(), ReaderError>>>,
 }
 
 impl LogReader {
@@ -46,11 +40,49 @@ impl LogReader {
         pb.set_message(format!("reader: {}", options.endpoint));
         pb.set_position(pos);
 
+        let client = LogClient::new(server_addr, options.endpoint.clone()).await?;
+
+        let (op_sender, op_receiver) =
+            tokio::sync::mpsc::channel::<(ExecutorOperation, u64)>(options.buffer_size as usize);
+        let worker = tokio::spawn(log_reader_worker(client, pos, pb, options, op_sender));
+
+        Ok(Self {
+            op_receiver,
+            worker: Some(worker),
+        })
+    }
+
+    /// Returns an op and the position of next op.
+    pub async fn next_op(&mut self) -> Result<(ExecutorOperation, u64), ReaderError> {
+        if let Some(result) = self.op_receiver.recv().await {
+            Ok(result)
+        } else {
+            if let Some(worker) = self.worker.take() {
+                match worker.await {
+                    Ok(Ok(())) => panic!(
+                        "Worker never quit without an error because we're holding the receiver"
+                    ),
+                    Ok(Err(e)) => Err(e),
+                    Err(e) => Err(ReaderError::ReaderThreadQuit(Some(e))),
+                }
+            } else {
+                Err(ReaderError::ReaderThreadQuit(None))
+            }
+        }
+    }
+}
+
+struct LogClient {
+    request_sender: Sender<LogRequest>,
+    response_stream: Streaming<LogResponse>,
+    storage: Box<dyn Storage>,
+}
+
+impl LogClient {
+    async fn new(server_addr: String, endpoint: String) -> Result<Self, ReaderError> {
         let mut client = InternalPipelineServiceClient::connect(server_addr).await?;
         let storage = client
-            .describe_storage(StorageRequest {
-                endpoint: options.endpoint.clone(),
-            })
+            .describe_storage(StorageRequest { endpoint })
             .await?
             .into_inner();
         let storage: Box<dyn Storage> = match storage.storage.expect("Must not be None") {
@@ -60,40 +92,22 @@ impl LogReader {
             }
         };
 
-        let (request_sender, request_receiver) = tokio::sync::mpsc::channel::<Range<usize>>(1);
-        let request_stream = ReceiverStream::new(request_receiver).map(move |request| LogRequest {
-            endpoint: options.endpoint.clone(),
-            start: request.start as u64,
-            end: request.end as u64,
-            timeout_in_millis: options.timeout_in_millis,
-        });
+        let (request_sender, request_receiver) = tokio::sync::mpsc::channel::<LogRequest>(1);
+        let request_stream = ReceiverStream::new(request_receiver);
         let response_stream = client.get_log(request_stream).await?.into_inner();
 
         Ok(Self {
             request_sender,
             response_stream,
-            pos,
             storage,
-            persisted: None,
-            pb,
         })
     }
 
-    pub async fn next_op(&mut self) -> Result<(ExecutorOperation, u64), ReaderError> {
-        let pos = self.pos as usize;
-
-        // First check if we have any persisted ops.
-        if let Some(persisted) = self.persisted.as_ref() {
-            if persisted.range.contains(&pos) {
-                return Ok((
-                    op_from_persisted(persisted, &mut self.pos, &self.pb),
-                    self.pos,
-                ));
-            }
-        }
-
+    async fn get_log(
+        &mut self,
+        request: LogRequest,
+    ) -> Result<Vec<ExecutorOperation>, ReaderError> {
         // Send the request.
-        let request = pos..pos + 1;
         self.request_sender
             .send(request)
             .await
@@ -103,6 +117,7 @@ impl LogReader {
             .next()
             .await
             .ok_or(ReaderError::UnexpectedEndOfStream)??;
+        use crate::replication::LogResponse;
         let response: LogResponse =
             bincode::deserialize(&response.data).map_err(ReaderError::DeserializeLogResponse)?;
 
@@ -110,35 +125,37 @@ impl LogReader {
         match response {
             LogResponse::Persisted(persisted) => {
                 let data = self.storage.download_object(persisted.key).await?;
-                let ops: Vec<ExecutorOperation> =
-                    bincode::deserialize(&data).map_err(ReaderError::DeserializeLogEntry)?;
-                let persisted = PersistedOps {
-                    range: persisted.range,
-                    ops,
-                };
-                let op = op_from_persisted(&persisted, &mut self.pos, &self.pb);
-                self.persisted = Some(persisted);
-                Ok((op, self.pos))
+                bincode::deserialize(&data).map_err(ReaderError::DeserializeLogEntry)
             }
-            LogResponse::Operations(mut ops) => {
-                debug_assert!(ops.len() == 1);
-                self.pb.set_position(self.pos);
-                self.pos += 1;
-                Ok((ops.remove(0), self.pos))
-            }
+            LogResponse::Operations(ops) => Ok(ops),
         }
     }
 }
 
-fn op_from_persisted(
-    persisted: &PersistedOps,
-    pos: &mut u64,
-    pb: &ProgressBar,
-) -> ExecutorOperation {
-    let pos_usize = *pos as usize;
-    debug_assert!(persisted.range.contains(&pos_usize));
-    let op = persisted.ops[pos_usize - persisted.range.start].clone();
-    pb.set_position(*pos);
-    *pos += 1;
-    op
+async fn log_reader_worker(
+    mut log_client: LogClient,
+    mut pos: u64,
+    pb: ProgressBar,
+    options: LogReaderOptions,
+    op_sender: Sender<(ExecutorOperation, u64)>,
+) -> Result<(), ReaderError> {
+    loop {
+        // Request ops.
+        let request = LogRequest {
+            endpoint: options.endpoint.clone(),
+            start: pos,
+            end: pos + options.batch_size as u64,
+            timeout_in_millis: options.timeout_in_millis,
+        };
+        let ops = log_client.get_log(request).await?;
+
+        for op in ops {
+            pos += 1;
+            pb.set_position(pos);
+            if op_sender.send((op, pos)).await.is_err() {
+                debug!("Log reader thread quit because LogReader was dropped");
+                return Ok(());
+            }
+        }
+    }
 }

@@ -41,7 +41,7 @@ pub enum Error {
     LogEntryNotConsecutive(PersistedLogEntry, PersistedLogEntry),
     #[error("Serialization error: {0}")]
     Serialization(#[from] bincode::Error),
-    #[error("Persisting thread has quit")]
+    #[error("Persisting thread has quit: {0:?}")]
     PersistingThreadQuit(#[source] Option<JoinError>),
 }
 

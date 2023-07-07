@@ -17,6 +17,8 @@ pub enum ReaderError {
     DeserializeLogEntry(#[source] bincode::Error),
     #[error("Storage error: {0}")]
     Storage(#[from] crate::storage::Error),
+    #[error("Reader thread has quit: {0:?}")]
+    ReaderThreadQuit(#[source] Option<tokio::task::JoinError>),
 }
 
 #[derive(Debug, Error)]
