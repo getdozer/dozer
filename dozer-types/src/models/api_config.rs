@@ -35,14 +35,19 @@ pub struct RestApiOptions {
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, prost::Message)]
 pub struct GrpcApiOptions {
     #[prost(uint32, tag = "1")]
+    #[serde(default = "default_grpc_port")]
     pub port: u32,
     #[prost(string, tag = "2")]
+    #[serde(default = "default_host")]
     pub host: String,
     #[prost(bool, tag = "3")]
+    #[serde(default = "default_cors")]
     pub cors: bool,
     #[prost(bool, tag = "4")]
+    #[serde(default = "default_enable_web")]
     pub web: bool,
     #[prost(bool, tag = "5")]
+    #[serde(default = "default_enabled")]
     pub enabled: bool,
 }
 

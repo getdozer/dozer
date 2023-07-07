@@ -1,28 +1,18 @@
 use crate::{
     auth::{Access, Authorizer},
-    errors::GrpcError,
-    grpc::{
-        auth_middleware::AuthMiddlewareLayer,
-        internal::internal_pipeline_client::InternalPipelineClient,
-        typed::{
-            tests::fake_internal_pipeline_server::start_fake_internal_grpc_pipeline, TypedService,
-        },
-    },
+    grpc::{auth_middleware::AuthMiddlewareLayer, typed::TypedService},
     CacheEndpoint,
 };
 use dozer_cache::cache::expression::{FilterExpression, QueryExpression};
-use dozer_types::models::api_security::ApiSecurity;
-use dozer_types::{
-    grpc_types::{
-        generated::films::FilmEventRequest,
-        generated::films::{
-            films_client::FilmsClient, CountFilmsResponse, FilmEvent, QueryFilmsRequest,
-            QueryFilmsResponse,
-        },
-        types::{EventType, Operation},
+use dozer_types::grpc_types::{
+    generated::films::FilmEventRequest,
+    generated::films::{
+        films_client::FilmsClient, CountFilmsResponse, FilmEvent, QueryFilmsRequest,
+        QueryFilmsResponse,
     },
-    models::api_config::default_app_grpc,
+    types::{value, EventType, Operation, OperationType, Record, Value},
 };
+use dozer_types::models::api_security::ApiSecurity;
 use futures_util::FutureExt;
 use std::{env, str::FromStr, sync::Arc, time::Duration};
 
@@ -41,14 +31,6 @@ use tonic::{
     Code, Request,
 };
 
-async fn start_internal_pipeline_client() -> Result<Receiver<Operation>, GrpcError> {
-    let default_api_internal = default_app_grpc();
-    let mut client = InternalPipelineClient::new(&default_api_internal).await?;
-    let (receiver, future) = client.stream_operations().await?;
-    tokio::spawn(future);
-    Ok(receiver)
-}
-
 pub async fn setup_pipeline() -> (Vec<Arc<CacheEndpoint>>, Receiver<Operation>) {
     // Copy this file from dozer-tests output directory if it changes
     let res = env::current_dir().unwrap();
@@ -61,9 +43,34 @@ pub async fn setup_pipeline() -> (Vec<Arc<CacheEndpoint>>, Receiver<Operation>) 
     )
     .unwrap();
 
-    let receiver = start_internal_pipeline_client()
-        .await
-        .unwrap_or(broadcast::channel::<Operation>(1).1);
+    let (sender, receiver) = broadcast::channel::<Operation>(1);
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            let op = Operation {
+                typ: OperationType::Insert as i32,
+                old: None,
+                new: Some(Record {
+                    values: vec![
+                        Value {
+                            value: Some(value::Value::UintValue(32)),
+                        },
+                        Value {
+                            value: Some(value::Value::StringValue("description".to_string())),
+                        },
+                        Value { value: None },
+                        Value { value: None },
+                    ],
+                    version: 1,
+                }),
+                new_id: Some(0),
+                endpoint_name: "films".to_string(),
+            };
+            if sender.send(op).is_err() {
+                break;
+            }
+        }
+    });
 
     (vec![Arc::new(cache_endpoint)], receiver)
 }
@@ -80,14 +87,6 @@ async fn test_grpc_count_and_query_common(
     api_security: Option<ApiSecurity>,
     access_token: Option<String>,
 ) -> Result<(CountFilmsResponse, QueryFilmsResponse), tonic::Status> {
-    let (sender_shutdown_internal, rx_internal) = oneshot::channel::<()>();
-    let default_pipeline_internal = default_app_grpc();
-    let _jh1 = tokio::spawn(start_fake_internal_grpc_pipeline(
-        default_pipeline_internal.host,
-        default_pipeline_internal.port,
-        rx_internal,
-    ));
-
     let typed_service = setup_typed_service(api_security.to_owned()).await;
     let (_tx, rx) = oneshot::channel::<()>();
     // middleware
@@ -119,7 +118,6 @@ async fn test_grpc_count_and_query_common(
         let count_response = res.into_inner();
         let res = client.query(Request::new(request)).await?;
         let query_response = res.into_inner();
-        _ = sender_shutdown_internal.send(());
         Ok((count_response, query_response))
     } else {
         let mut client = FilmsClient::new(channel);
@@ -127,7 +125,6 @@ async fn test_grpc_count_and_query_common(
         let count_response = res.into_inner();
         let res = client.query(Request::new(request)).await?;
         let query_response = res.into_inner();
-        _ = sender_shutdown_internal.send(());
         Ok((count_response, query_response))
     }
 }
@@ -223,13 +220,6 @@ async fn test_grpc_query_empty_body() {
 
 #[tokio::test]
 async fn test_typed_streaming1() {
-    let (sender_shutdown_internal, rx_internal) = oneshot::channel::<()>();
-    let default_pipeline_internal = default_app_grpc();
-    let _jh1 = tokio::spawn(start_fake_internal_grpc_pipeline(
-        default_pipeline_internal.host,
-        default_pipeline_internal.port,
-        rx_internal,
-    ));
     let (_tx, rx) = oneshot::channel::<()>();
     let _jh = tokio::spawn(async move {
         let typed_service = setup_typed_service(None).await;
@@ -257,18 +247,10 @@ async fn test_typed_streaming1() {
         let response: FilmEvent = item.unwrap();
         assert!(response.new.is_some());
     }
-    _ = sender_shutdown_internal.send(());
 }
 
 #[tokio::test]
 async fn test_typed_streaming2() {
-    let (sender_shutdown_internal, rx_internal) = oneshot::channel::<()>();
-    let default_pipeline_internal = default_app_grpc();
-    let _jh1 = tokio::spawn(start_fake_internal_grpc_pipeline(
-        default_pipeline_internal.host,
-        default_pipeline_internal.port,
-        rx_internal,
-    ));
     let (_tx, rx) = oneshot::channel::<()>();
     let _jh = tokio::spawn(async move {
         let typed_service = setup_typed_service(None).await;
@@ -295,18 +277,10 @@ async fn test_typed_streaming2() {
         let response: FilmEvent = item.unwrap();
         assert!(response.new.is_some());
     }
-    _ = sender_shutdown_internal.send(());
 }
 
 #[tokio::test]
 async fn test_typed_streaming3() {
-    let (sender_shutdown_internal, rx_internal) = oneshot::channel::<()>();
-    let default_pipeline_internal = default_app_grpc();
-    let _jh1 = tokio::spawn(start_fake_internal_grpc_pipeline(
-        default_pipeline_internal.host,
-        default_pipeline_internal.port,
-        rx_internal,
-    ));
     let (_tx, rx) = oneshot::channel::<()>();
     let _jh = tokio::spawn(async move {
         let typed_service = setup_typed_service(None).await;
@@ -330,5 +304,4 @@ async fn test_typed_streaming3() {
         .into_inner();
     let error_timeout = timeout(Duration::from_secs(1), stream.next()).await;
     assert!(error_timeout.is_err() || error_timeout.unwrap().is_none());
-    _ = sender_shutdown_internal.send(());
 }
