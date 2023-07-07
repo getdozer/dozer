@@ -1,9 +1,9 @@
+use dozer_cache::dozer_log::camino::Utf8PathBuf;
 use dozer_cache::dozer_log::home_dir::HomeDir;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use tokio::runtime::Runtime;
 
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
@@ -25,7 +25,7 @@ pub struct Executor<'a> {
     sources: &'a [Source],
     sql: Option<&'a str>,
     /// `ApiEndpoint` and its log path.
-    endpoint_and_log_paths: Vec<(ApiEndpoint, PathBuf)>,
+    endpoint_and_log_paths: Vec<(ApiEndpoint, Utf8PathBuf)>,
     running: Arc<AtomicBool>,
     multi_pb: MultiProgress,
 }
@@ -43,7 +43,7 @@ impl<'a> Executor<'a> {
         for endpoint in api_endpoints {
             let migration_path = home_dir
                 .find_latest_migration_path(&endpoint.name)
-                .map_err(|(path, error)| OrchestrationError::FileSystem(path, error))?
+                .map_err(|(path, error)| OrchestrationError::FileSystem(path.into(), error))?
                 .ok_or(OrchestrationError::NoMigrationFound(endpoint.name.clone()))?;
             endpoint_and_log_paths.push((endpoint.clone(), migration_path.log_path));
         }

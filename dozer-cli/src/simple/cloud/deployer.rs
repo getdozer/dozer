@@ -4,7 +4,9 @@ use crate::simple::token_layer::TokenLayer;
 use dozer_types::grpc_types::cloud::dozer_cloud_client::DozerCloudClient;
 
 use crate::errors::CloudError::GRPCCallError;
-use dozer_types::grpc_types::cloud::{StartRequest, StartUpdate, StopRequest, StopResponse};
+use dozer_types::grpc_types::cloud::{
+    Secret, StartRequest, StartUpdate, StopRequest, StopResponse,
+};
 use dozer_types::log::warn;
 
 use crate::progress_printer::ProgressPrinter;
@@ -14,11 +16,13 @@ pub async fn deploy_app(
     app_id: &str,
     num_api_instances: i32,
     steps: &mut ProgressPrinter,
+    secrets: Vec<Secret>,
 ) -> Result<(), CloudError> {
     let mut response = client
         .start_dozer(StartRequest {
             app_id: app_id.to_string(),
             num_api_instances,
+            secrets,
         })
         .await?
         .into_inner();

@@ -48,9 +48,14 @@ where
         let clone = self.inner.clone();
         let mut inner = std::mem::replace(&mut self.inner, clone);
         Box::pin(async move {
-            let start_time = Instant::now();
+            let request_path = req
+                .uri()
+                .path_and_query()
+                .map_or("".to_string(), |v| v.as_str().to_string());
+            let labels = [("endpoint", request_path), ("api_type", "grpc".to_owned())];
+            let start_time: Instant = Instant::now();
             let response = inner.call(req).await;
-            histogram!(API_LATENCY_HISTOGRAM_NAME, start_time.elapsed());
+            histogram!(API_LATENCY_HISTOGRAM_NAME, start_time.elapsed(), &labels);
             increment_counter!(API_REQUEST_COUNTER_NAME);
             response
         })

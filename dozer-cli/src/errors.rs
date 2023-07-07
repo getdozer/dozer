@@ -31,8 +31,8 @@ pub enum OrchestrationError {
     CloudLoginFailed(#[from] CloudLoginError),
     #[error("Credential Error: {0}")]
     CredentialError(#[from] CloudCredentialError),
-    #[error("Failed to migrate: {0}")]
-    MigrateFailed(#[from] MigrationError),
+    #[error("Failed to build: {0}")]
+    BuildFailed(#[from] BuildError),
     #[error("Failed to generate token: {0}")]
     GenerateTokenFailed(#[source] AuthError),
     #[error("Missing api config or security input")]
@@ -45,7 +45,7 @@ pub enum OrchestrationError {
     GrpcServerFailed(#[from] GrpcError),
     #[error("Failed to initialize internal server: {0}")]
     InternalServerFailed(#[source] tonic::transport::Error),
-    #[error("{0}: Failed to initialize cache. Have you run `dozer migrate`?")]
+    #[error("{0}: Failed to initialize cache. Have you run `dozer build`?")]
     CacheInitFailed(#[source] CacheError),
     #[error("Failed to build cache from log: {0}")]
     CacheBuildFailed(#[source] CacheError),
@@ -131,7 +131,7 @@ pub enum CloudError {
 }
 
 #[derive(Debug, Error)]
-pub enum MigrationError {
+pub enum BuildError {
     #[error("Got mismatching primary key for `{endpoint_name}`. Expected: `{expected:?}`, got: `{actual:?}`")]
     MismatchPrimaryKey {
         endpoint_name: String,
@@ -197,6 +197,12 @@ pub enum CloudContextError {
     #[error("Failed to get current directory path")]
     FailedToGetDirectoryPath,
 
-    #[error("Failed to get current directory path")]
+    #[error("Failed to read cloud app id. Error: {0}")]
     FailedToReadAppId(#[from] FromUtf8Error),
+
+    #[error("Context file not found. You need to run \"deploy\" or \"app use\" first")]
+    ContextFileNotFound,
+
+    #[error("App id not found in configuration")]
+    AppIdNotFound,
 }

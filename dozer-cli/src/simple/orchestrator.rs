@@ -91,10 +91,8 @@ impl Orchestrator for SimpleOrchestrator {
                 LmdbRwCacheManager::new(get_cache_manager_options(&self.config))
                     .map_err(OrchestrationError::CacheInitFailed)?,
             );
-            let home_dir = HomeDir::new(
-                self.config.home_dir.as_ref(),
-                self.config.cache_dir.clone().into(),
-            );
+            let home_dir =
+                HomeDir::new(self.config.home_dir.as_ref(), self.config.cache_dir.clone());
             let mut cache_endpoints = vec![];
             for endpoint in &self.config.endpoints {
                 let (cache_endpoint, handle) = CacheEndpoint::new(
@@ -174,10 +172,7 @@ impl Orchestrator for SimpleOrchestrator {
             global_err_threshold = err_threshold;
         }
 
-        let home_dir = HomeDir::new(
-            self.config.home_dir.as_ref(),
-            self.config.cache_dir.clone().into(),
-        );
+        let home_dir = HomeDir::new(self.config.home_dir.as_ref(), self.config.cache_dir.clone());
         let executor = Executor::new(
             &home_dir,
             &self.config.connections,
@@ -229,11 +224,8 @@ impl Orchestrator for SimpleOrchestrator {
         Err(OrchestrationError::MissingSecurityConfig)
     }
 
-    fn migrate(&mut self, force: bool) -> Result<(), OrchestrationError> {
-        let home_dir = HomeDir::new(
-            self.config.home_dir.as_ref(),
-            self.config.cache_dir.clone().into(),
-        );
+    fn build(&mut self, force: bool) -> Result<(), OrchestrationError> {
+        let home_dir = HomeDir::new(self.config.home_dir.as_ref(), self.config.cache_dir.clone());
 
         info!(
             "Initiating app: {}",
@@ -338,7 +330,7 @@ impl Orchestrator for SimpleOrchestrator {
 
         let (tx, rx) = channel::unbounded::<bool>();
 
-        self.migrate(false)?;
+        self.build(false)?;
 
         let mut dozer_pipeline = self.clone();
         let pipeline_thread =

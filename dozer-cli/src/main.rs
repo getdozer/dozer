@@ -1,8 +1,10 @@
 use clap::Parser;
 #[cfg(feature = "cloud")]
-use dozer_cli::cli::cloud::CloudCommands;
+use dozer_cli::cli::cloud::{CloudCommands, OrganisationCommand};
 use dozer_cli::cli::generate_config_repl;
-use dozer_cli::cli::types::{ApiCommands, AppCommands, Cli, Commands, ConnectorCommands};
+use dozer_cli::cli::types::{
+    ApiCommands, AppCommands, Cli, Commands, ConnectorCommand, RunCommands, SecurityCommands,
+};
 use dozer_cli::cli::{init_dozer, init_dozer_with_default_config, list_sources, LOGO};
 use dozer_cli::errors::{CliError, OrchestrationError};
 use dozer_cli::simple::SimpleOrchestrator;
@@ -14,6 +16,9 @@ use dozer_types::tracing::{error, info};
 use serde::Deserialize;
 use tokio::time;
 
+#[cfg(feature = "cloud")]
+use dozer_cli::cloud_app_context::CloudAppContext;
+use dozer_types::log::warn;
 use std::cmp::Ordering;
 use std::process;
 use std::time::Duration;
@@ -133,11 +138,14 @@ fn run() -> Result<(), OrchestrationError> {
         match cmd {
             Commands::Api(api) => match api.command {
                 ApiCommands::Run => {
+                    warn!("DEPRECATED. Please use \"dozer run api\" command");
                     render_logo();
 
                     dozer.run_api(shutdown_receiver)
                 }
                 ApiCommands::GenerateToken => {
+                    warn!("DEPRECATED. Please use \"dozer security generate-token\" command");
+
                     let token = dozer.generate_token()?;
                     info!("token: {:?} ", token);
                     Ok(())
@@ -145,34 +153,59 @@ fn run() -> Result<(), OrchestrationError> {
             },
             Commands::App(apps) => match apps.command {
                 AppCommands::Run => {
+                    warn!("DEPRECATED. Please use \"dozer run app\" command");
                     render_logo();
 
-                    dozer.run_apps(shutdown_receiver, None, cli.err_threshold)
+                    dozer.run_apps(shutdown_receiver, None, None)
                 }
             },
-            Commands::Connector(sources) => match sources.command {
-                ConnectorCommands::Ls => list_sources(&cli.config_path, cli.config_token),
-            },
-            Commands::Migrate(migrate) => {
-                let force = migrate.force.is_some();
+            Commands::Run(run) => match run.command {
+                RunCommands::Api => {
+                    render_logo();
 
-                dozer.migrate(force)
+                    dozer.run_api(shutdown_receiver)
+                }
+                RunCommands::App => {
+                    render_logo();
+
+                    dozer.run_apps(shutdown_receiver, None, None)
+                }
+            },
+            Commands::Security(security) => match security.command {
+                SecurityCommands::GenerateToken => {
+                    let token = dozer.generate_token()?;
+                    info!("token: {:?} ", token);
+                    Ok(())
+                }
+            },
+            Commands::Build(build) => {
+                let force = build.force.is_some();
+
+                dozer.build(force)
+            }
+            Commands::Connectors(ConnectorCommand { filter }) => {
+                list_sources(&cli.config_path, cli.config_token, filter)
             }
             Commands::Clean => dozer.clean(),
             #[cfg(feature = "cloud")]
             Commands::Cloud(cloud) => match cloud.command.clone() {
                 CloudCommands::Deploy(deploy) => dozer.deploy(cloud, deploy),
-                CloudCommands::List(list) => dozer.list(cloud, list),
+                CloudCommands::Api(api) => dozer.api(cloud, api),
+                CloudCommands::Login(OrganisationCommand { organisation_name }) => {
+                    dozer.login(cloud, organisation_name)
+                }
+                CloudCommands::Secrets(command) => dozer.execute_secrets_command(cloud, command),
+                CloudCommands::Delete => dozer.delete(cloud),
                 CloudCommands::Status => dozer.status(cloud),
                 CloudCommands::Monitor => dozer.monitor(cloud),
-                CloudCommands::Update(update) => dozer.update(cloud, update),
-                CloudCommands::Delete => dozer.delete(cloud),
                 CloudCommands::Logs(logs) => dozer.trace_logs(cloud, logs),
                 CloudCommands::Version(version) => dozer.version(cloud, version),
-                CloudCommands::Api(api) => dozer.api(cloud, api),
-                CloudCommands::Login(company) => dozer.login(cloud, company.company_name),
-                CloudCommands::Secrets(_) => Ok(()),
-                CloudCommands::App(command) => dozer.set_app(command),
+                CloudCommands::List(list) => dozer.list(cloud, list),
+                CloudCommands::SetApp { app_id } => {
+                    CloudAppContext::save_app_id(app_id.clone())?;
+                    info!("Using \"{app_id}\" app");
+                    Ok(())
+                }
             },
             Commands::Init => {
                 panic!("This should not happen as it is handled in parse_and_generate");
@@ -181,7 +214,7 @@ fn run() -> Result<(), OrchestrationError> {
     } else {
         render_logo();
 
-        dozer.run_all(shutdown_receiver, cli.err_threshold)
+        dozer.run_all(shutdown_receiver, None)
     }
 }
 

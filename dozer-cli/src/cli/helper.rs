@@ -31,23 +31,36 @@ pub fn init_dozer_with_default_config() -> Result<Dozer, CliError> {
 pub fn list_sources(
     config_path: &str,
     config_token: Option<String>,
+    filter: Option<String>,
 ) -> Result<(), OrchestrationError> {
     let dozer = init_dozer(config_path.to_string(), config_token)?;
     let connection_map = dozer.list_connectors()?;
     let mut table_parent = Table::new();
     for (connection_name, (tables, schemas)) in connection_map {
-        table_parent.add_row(row!["Connection", "Table", "Columns"]);
+        let mut first_table_found = false;
 
         for (table, schema) in tables.into_iter().zip(schemas) {
-            let schema_table = schema.schema.print();
-
             let name = table.schema.map_or(table.name.clone(), |schema_name| {
                 format!("{schema_name}.{}", table.name)
             });
 
-            table_parent.add_row(row![connection_name, name, schema_table]);
+            if filter
+                .as_ref()
+                .map_or(true, |name_part| name.contains(name_part))
+            {
+                if !first_table_found {
+                    table_parent.add_row(row!["Connection", "Table", "Columns"]);
+                    first_table_found = true;
+                }
+                let schema_table = schema.schema.print();
+
+                table_parent.add_row(row![connection_name, name, schema_table]);
+            }
         }
-        table_parent.add_empty_row();
+
+        if first_table_found {
+            table_parent.add_empty_row();
+        }
     }
     table_parent.printstd();
     Ok(())

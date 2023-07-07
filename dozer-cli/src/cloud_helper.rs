@@ -5,7 +5,7 @@ use std::fs;
 
 pub fn list_files() -> Result<Vec<File>, crate::errors::CloudError> {
     let mut files = vec![];
-    let patterns = ["*.yaml", "*.sql"];
+    let patterns = ["*.yaml", "*.sql", "*.json"];
     for pattern in patterns {
         let files_glob = glob(pattern).map_err(WrongPatternOfConfigFilesGlob)?;
 
