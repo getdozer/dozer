@@ -21,3 +21,6 @@ postgres = { git = "https://github.com/getdozer/rust-postgres" }
 postgres-protocol = { git = "https://github.com/getdozer/rust-postgres" }
 postgres-types = { git = "https://github.com/getdozer/rust-postgres" }
 tokio-postgres = { git = "https://github.com/getdozer/rust-postgres" }
+[dependencies]
+mysql_async = "0.28.0"
+tokio = { version = "1.14.0", features = ["full"] }
