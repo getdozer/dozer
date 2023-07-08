@@ -89,25 +89,22 @@ impl Orchestrator for SimpleOrchestrator {
                 (None, None)
             };
 
+            let internal_grpc_config = get_app_grpc_config(&self.config);
+            let app_server_addr = format!(
+                "http://{}:{}",
+                internal_grpc_config.host, internal_grpc_config.port
+            );
             let cache_manager = Arc::new(
                 LmdbRwCacheManager::new(get_cache_manager_options(&self.config))
                     .map_err(OrchestrationError::CacheInitFailed)?,
             );
-            let home_dir =
-                HomeDir::new(self.config.home_dir.as_ref(), self.config.cache_dir.clone());
-            let internal_grpc_config = get_app_grpc_config(&self.config);
-            let log_server_addr = format!(
-                "http://{}:{}",
-                internal_grpc_config.host, internal_grpc_config.port
-            );
             let mut cache_endpoints = vec![];
             for endpoint in &self.config.endpoints {
                 let (cache_endpoint, handle) = CacheEndpoint::new(
-                    &home_dir,
+                    app_server_addr.clone(),
                     &*cache_manager,
                     endpoint.clone(),
                     Box::pin(shutdown.create_shutdown_future()),
-                    log_server_addr.clone(),
                     operations_sender.clone(),
                     Some(self.multi_pb.clone()),
                 )
@@ -198,7 +195,7 @@ impl Orchestrator for SimpleOrchestrator {
 
         let app_grpc_config = get_app_grpc_config(&self.config);
         let internal_server_future = start_internal_pipeline_server(
-            executor.endpoint_and_logs(),
+            executor.endpoint_and_logs().to_vec(),
             &app_grpc_config,
             shutdown.create_shutdown_future(),
         );

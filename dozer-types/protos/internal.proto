@@ -4,6 +4,7 @@ package dozer.internal;
 
 service InternalPipelineService {
   rpc DescribeStorage(StorageRequest) returns (StorageResponse);
+  rpc DescribeBuild(BuildRequest) returns (BuildResponse);
   /// For every `LogRequest` sent, the server will reply one `LogResponse`.
   rpc GetLog(stream LogRequest) returns (stream LogResponse);
 }
@@ -25,6 +26,16 @@ message StorageResponse {
     LocalStorage local = 1;
     S3Storage s3 = 2;
   };
+}
+
+message BuildRequest {
+  string endpoint = 1;
+}
+
+message BuildResponse {
+  string name = 1;
+  string schema_string = 2;
+  bytes descriptor_bytes = 3;
 }
 
 message LogRequest {

@@ -9,7 +9,8 @@ fn read_service_desc(proto_folder_path: &Path, endpoint_name: &str) -> ServiceDe
     let descriptor_path = proto_folder_path.join("descriptor.bin");
     ProtoGenerator::generate_descriptor(proto_folder_path, &descriptor_path, &[endpoint_name])
         .unwrap();
-    ProtoGenerator::read_schema(&descriptor_path, endpoint_name).unwrap()
+    let descriptor_bytes = std::fs::read(&descriptor_path).unwrap();
+    ProtoGenerator::read_schema(&descriptor_bytes, endpoint_name).unwrap()
 }
 
 #[test]

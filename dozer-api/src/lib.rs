@@ -2,9 +2,7 @@ use arc_swap::ArcSwap;
 use cache_builder::open_or_create_cache;
 use dozer_cache::{
     cache::{CacheWriteOptions, RwCacheManager},
-    dozer_log::{
-        errors::SchemaError, home_dir::HomeDir, reader::LogReaderOptions, schemas::load_schema,
-    },
+    dozer_log::reader::{LogReaderBuilder, LogReaderOptions},
     errors::CacheError,
     CacheReader,
 };
@@ -17,18 +15,14 @@ use dozer_types::{
     },
 };
 use futures_util::Future;
-use std::{
-    ops::Deref,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{ops::Deref, sync::Arc};
 
 mod api_helper;
 
 #[derive(Debug)]
 pub struct CacheEndpoint {
     cache_reader: ArcSwap<CacheReader>,
-    descriptor_path: PathBuf,
+    descriptor: Vec<u8>,
     endpoint: ApiEndpoint,
 }
 
@@ -36,31 +30,23 @@ const ENDPOINT_LABEL: &str = "endpoint";
 
 impl CacheEndpoint {
     pub async fn new(
-        home_dir: &HomeDir,
+        app_server_addr: String,
         cache_manager: &dyn RwCacheManager,
         endpoint: ApiEndpoint,
         cancel: impl Future<Output = ()> + Unpin + Send + 'static,
-        log_server_addr: String,
         operations_sender: Option<Sender<Operation>>,
         multi_pb: Option<MultiProgress>,
     ) -> Result<(Self, JoinHandle<Result<(), CacheError>>), ApiError> {
-        // Find build.
-        let build_path = if let Some(version) = endpoint.version {
-            home_dir
-                .find_build_path(&endpoint.name, version)
-                .ok_or(ApiError::BuildNotFound(endpoint.name.clone(), version))?
-        } else {
-            home_dir
-                .find_latest_build_path(&endpoint.name)
-                .map_err(|(path, error)| SchemaError::Filesystem(path.into(), error))?
-                .ok_or(ApiError::NoBuildFound(endpoint.name.clone()))?
-        };
+        // Create log reader builder.
+        let log_reader_builder =
+            LogReaderBuilder::new(app_server_addr, get_log_reader_options(&endpoint)).await?;
+        let descriptor = log_reader_builder.descriptor.clone();
 
         // Open or create cache.
         let mut cache_labels = Labels::new();
         cache_labels.push(ENDPOINT_LABEL, endpoint.name.clone());
-        cache_labels.push("build", build_path.id.name().to_string());
-        let schema = load_schema(&build_path.schema_path)?;
+        cache_labels.push("build", log_reader_builder.build_name.clone());
+        let schema = log_reader_builder.schema.clone();
         let conflict_resolution = endpoint.conflict_resolution.unwrap_or_default();
         let write_options = CacheWriteOptions {
             insert_resolution: conflict_resolution.on_insert.unwrap_or_default(),
@@ -83,14 +69,12 @@ impl CacheEndpoint {
 
         // Start cache builder.
         let handle = {
-            let log_reader_options = get_log_reader_options(&endpoint);
             let operations_sender = operations_sender.map(|sender| (endpoint.name.clone(), sender));
             tokio::spawn(async move {
                 cache_builder::build_cache(
                     cache,
                     cancel,
-                    log_server_addr.clone(),
-                    log_reader_options,
+                    log_reader_builder,
                     operations_sender,
                     multi_pb,
                 )
@@ -101,7 +85,7 @@ impl CacheEndpoint {
         Ok((
             Self {
                 cache_reader: ArcSwap::from_pointee(cache_reader),
-                descriptor_path: build_path.descriptor_path.into(),
+                descriptor,
                 endpoint,
             },
             handle,
@@ -110,14 +94,14 @@ impl CacheEndpoint {
 
     pub fn open(
         cache_manager: &dyn RwCacheManager,
-        descriptor_path: PathBuf,
+        descriptor: Vec<u8>,
         endpoint: ApiEndpoint,
     ) -> Result<Self, ApiError> {
         let mut labels = Labels::new();
         labels.push(endpoint.name.clone(), endpoint.name.clone());
         Ok(Self {
             cache_reader: ArcSwap::from_pointee(open_existing_cache_reader(cache_manager, labels)?),
-            descriptor_path,
+            descriptor,
             endpoint,
         })
     }
@@ -126,8 +110,8 @@ impl CacheEndpoint {
         self.cache_reader.load()
     }
 
-    pub fn descriptor_path(&self) -> &Path {
-        &self.descriptor_path
+    pub fn descriptor(&self) -> &[u8] {
+        &self.descriptor
     }
 
     pub fn endpoint(&self) -> &ApiEndpoint {

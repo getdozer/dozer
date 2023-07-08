@@ -3,11 +3,7 @@ use dozer_cache::dozer_log::schemas::BuildSchema;
 use prost_reflect::{
     DescriptorPool, FieldDescriptor, MessageDescriptor, MethodDescriptor, ServiceDescriptor,
 };
-use std::{
-    fs::File,
-    io::{self, BufReader, Read},
-    path::Path,
-};
+use std::{io, path::Path};
 
 #[derive(Debug, Clone)]
 pub struct ServiceDesc {
@@ -165,18 +161,11 @@ impl ProtoGenerator {
             .map_err(GenerationError::FailedToCreateProtoDescriptor)
     }
 
-    pub fn read_descriptor_bytes(descriptor_path: &Path) -> Result<Vec<u8>, GenerationError> {
-        read_file_as_byte(descriptor_path).map_err(|e| {
-            GenerationError::FailedToReadProtoDescriptor(descriptor_path.to_path_buf(), e)
-        })
-    }
-
     pub fn read_schema(
-        descriptor_path: &Path,
+        descriptor_bytes: &[u8],
         schema_name: &str,
     ) -> Result<ServiceDesc, GenerationError> {
-        let descriptor_bytes = Self::read_descriptor_bytes(descriptor_path)?;
-        let descriptor = DescriptorPool::decode(descriptor_bytes.as_slice())
+        let descriptor = DescriptorPool::decode(descriptor_bytes)
             .map_err(GenerationError::FailedToDecodeProtoDescriptor)?;
         ProtoGeneratorImpl::read(&descriptor, schema_name)
     }
@@ -203,14 +192,6 @@ fn create_descriptor_set<T: AsRef<str>>(
         .out_dir(proto_folder_path)
         .compile_with_config(prost_build_config, &resources, &[proto_folder_path])?;
     Ok(())
-}
-
-fn read_file_as_byte(path: &Path) -> Result<Vec<u8>, io::Error> {
-    let f = File::open(path)?;
-    let mut reader = BufReader::new(f);
-    let mut buffer = Vec::new();
-    reader.read_to_end(&mut buffer)?;
-    Ok(buffer)
 }
 
 mod implementation;

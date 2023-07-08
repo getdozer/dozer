@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use actix_web::http::header::ContentType;
 use actix_web::http::StatusCode;
 use actix_web::HttpResponse;
-use dozer_cache::dozer_log::errors::SchemaError;
+use dozer_cache::dozer_log::errors::ReaderError;
 use dozer_types::labels::Labels;
 use dozer_types::thiserror::Error;
 use dozer_types::{serde_json, thiserror};
@@ -20,6 +20,8 @@ use prost_reflect::{DescriptorError, Kind};
 pub enum ApiError {
     #[error("Authentication error: {0}")]
     ApiAuthError(#[from] AuthError),
+    #[error("Failed to create log reader builder: {0}")]
+    CreateLogReaderBuilder(#[from] ReaderError),
     #[error("Failed to open or create cache: {0}")]
     OpenOrCreateCache(#[source] CacheError),
     #[error("Failed to find cache: {0}")]
@@ -42,8 +44,6 @@ pub enum ApiError {
     TypeError(#[from] TypeError),
     #[error("Failed to bind to address {0}: {1}")]
     FailedToBindToAddress(String, #[source] std::io::Error),
-    #[error("Failed to load schema: {0}")]
-    FailedToLoadSchema(#[from] SchemaError),
     #[error("Failed to find build for endpoint {0}")]
     NoBuildFound(String),
     #[error("Failed to find build for endpoint {0} with version {1}")]
@@ -160,7 +160,7 @@ impl actix_web::error::ResponseError for ApiError {
             | ApiError::CountFailed(_)
             | ApiError::GetPhaseFailed(_)
             | ApiError::FailedToBindToAddress(_, _)
-            | ApiError::FailedToLoadSchema(_)
+            | ApiError::CreateLogReaderBuilder(_)
             | ApiError::NoBuildFound(_)
             | ApiError::BuildNotFound(_, _) => StatusCode::INTERNAL_SERVER_ERROR,
         }

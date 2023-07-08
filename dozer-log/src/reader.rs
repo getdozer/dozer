@@ -1,21 +1,28 @@
 use crate::attach_progress;
+use crate::schemas::BuildSchema;
 use crate::storage::{LocalStorage, S3Storage, Storage};
 
 use super::errors::ReaderError;
-use dozer_types::bincode;
 use dozer_types::epoch::ExecutorOperation;
 use dozer_types::grpc_types::internal::internal_pipeline_service_client::InternalPipelineServiceClient;
 use dozer_types::grpc_types::internal::{
-    storage_response, LogRequest, LogResponse, StorageRequest,
+    storage_response, BuildRequest, LogRequest, LogResponse, StorageRequest,
 };
 use dozer_types::indicatif::{MultiProgress, ProgressBar};
 use dozer_types::log::debug;
+use dozer_types::models::api_endpoint::{
+    default_log_reader_batch_size, default_log_reader_buffer_size,
+    default_log_reader_timeout_in_millis,
+};
+use dozer_types::tonic::transport::Channel;
 use dozer_types::tonic::Streaming;
+use dozer_types::{bincode, serde_json};
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::task::JoinHandle;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
 
+#[derive(Debug)]
 pub struct LogReaderOptions {
     pub endpoint: String,
     pub batch_size: u32,
@@ -23,35 +30,89 @@ pub struct LogReaderOptions {
     pub buffer_size: u32,
 }
 
+impl LogReaderOptions {
+    pub fn new(endpoint: String) -> Self {
+        Self {
+            endpoint,
+            batch_size: default_log_reader_batch_size(),
+            timeout_in_millis: default_log_reader_timeout_in_millis(),
+            buffer_size: default_log_reader_buffer_size(),
+        }
+    }
+}
+
 #[derive(Debug)]
+pub struct LogReaderBuilder {
+    /// Log server runs on a specific build of the endpoint. This is the name of the build.
+    pub build_name: String,
+    /// Schema of this endpoint.
+    pub schema: BuildSchema,
+    /// Protobuf descriptor of this endpoint's API.
+    pub descriptor: Vec<u8>,
+    pub options: LogReaderOptions,
+    client: LogClient,
+}
+
 pub struct LogReader {
+    /// Log server runs on a specific build of the endpoint. This is the name of the build.
+    pub build_name: String,
+    /// Schema of this endpoint.
+    pub schema: BuildSchema,
+    /// Protobuf descriptor of this endpoint's API.
+    pub descriptor: Vec<u8>,
     op_receiver: Receiver<(ExecutorOperation, u64)>,
     worker: Option<JoinHandle<Result<(), ReaderError>>>,
 }
 
-impl LogReader {
-    pub async fn new(
-        server_addr: String,
-        options: LogReaderOptions,
-        pos: u64,
-        multi_pb: Option<MultiProgress>,
-    ) -> Result<Self, ReaderError> {
+impl LogReaderBuilder {
+    pub async fn new(server_addr: String, options: LogReaderOptions) -> Result<Self, ReaderError> {
+        let mut client = InternalPipelineServiceClient::connect(server_addr).await?;
+        let build = client
+            .describe_build(BuildRequest {
+                endpoint: options.endpoint.clone(),
+            })
+            .await?
+            .into_inner();
+        let build_name = build.name;
+        let schema = serde_json::from_str(&build.schema_string)?;
+
+        let client = LogClient::new(&mut client, options.endpoint.clone()).await?;
+
+        Ok(Self {
+            build_name,
+            schema,
+            descriptor: build.descriptor_bytes,
+            client,
+            options,
+        })
+    }
+
+    pub fn build(self, pos: u64, multi_pb: Option<MultiProgress>) -> LogReader {
+        let LogReaderBuilder {
+            build_name,
+            schema,
+            descriptor,
+            client,
+            options,
+        } = self;
         let pb = attach_progress(multi_pb);
         pb.set_message(format!("reader: {}", options.endpoint));
         pb.set_position(pos);
 
-        let client = LogClient::new(server_addr, options.endpoint.clone()).await?;
-
         let (op_sender, op_receiver) =
             tokio::sync::mpsc::channel::<(ExecutorOperation, u64)>(options.buffer_size as usize);
         let worker = tokio::spawn(log_reader_worker(client, pos, pb, options, op_sender));
-
-        Ok(Self {
+        LogReader {
+            build_name,
+            schema,
+            descriptor,
             op_receiver,
             worker: Some(worker),
-        })
+        }
     }
+}
 
+impl LogReader {
     /// Returns an op and the position of next op.
     pub async fn next_op(&mut self) -> Result<(ExecutorOperation, u64), ReaderError> {
         if let Some(result) = self.op_receiver.recv().await {
@@ -70,6 +131,7 @@ impl LogReader {
     }
 }
 
+#[derive(Debug)]
 struct LogClient {
     request_sender: Sender<LogRequest>,
     response_stream: Streaming<LogResponse>,
@@ -77,8 +139,10 @@ struct LogClient {
 }
 
 impl LogClient {
-    async fn new(server_addr: String, endpoint: String) -> Result<Self, ReaderError> {
-        let mut client = InternalPipelineServiceClient::connect(server_addr).await?;
+    async fn new(
+        client: &mut InternalPipelineServiceClient<Channel>,
+        endpoint: String,
+    ) -> Result<Self, ReaderError> {
         let storage = client
             .describe_storage(StorageRequest { endpoint })
             .await?

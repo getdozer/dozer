@@ -3,7 +3,7 @@ use super::{auth_middleware::AuthMiddlewareLayer, common::CommonService, typed::
 use crate::grpc::auth::AuthService;
 use crate::grpc::health::HealthService;
 use crate::grpc::{common, typed};
-use crate::{errors::GrpcError, generator::protoc::generator::ProtoGenerator, CacheEndpoint};
+use crate::{errors::GrpcError, CacheEndpoint};
 use dozer_types::grpc_types::health::health_check_response::ServingStatus;
 use dozer_types::grpc_types::types::Operation;
 use dozer_types::grpc_types::{
@@ -46,9 +46,7 @@ impl ApiServer {
     > {
         let mut all_descriptor_bytes = vec![];
         for cache_endpoint in &cache_endpoints {
-            let descriptor_path = cache_endpoint.descriptor_path();
-            let descriptor_bytes = ProtoGenerator::read_descriptor_bytes(descriptor_path)?;
-            all_descriptor_bytes.push(descriptor_bytes);
+            all_descriptor_bytes.push(cache_endpoint.descriptor().to_vec());
         }
 
         let mut builder = tonic_reflection::server::Builder::configure();

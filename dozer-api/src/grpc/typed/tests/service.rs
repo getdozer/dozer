@@ -35,10 +35,11 @@ pub async fn setup_pipeline() -> (Vec<Arc<CacheEndpoint>>, Receiver<Operation>) 
     // Copy this file from dozer-tests output directory if it changes
     let res = env::current_dir().unwrap();
     let descriptor_path = res.join("src/grpc/typed/tests/generated_films.bin");
+    let descriptor_bytes = tokio::fs::read(&descriptor_path).await.unwrap();
     let endpoint = test_utils::get_endpoint();
     let cache_endpoint = CacheEndpoint::open(
         &*test_utils::initialize_cache(&endpoint.name, None),
-        descriptor_path,
+        descriptor_bytes,
         endpoint,
     )
     .unwrap();

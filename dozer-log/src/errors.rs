@@ -19,6 +19,8 @@ pub enum ReaderError {
     Storage(#[from] crate::storage::Error),
     #[error("Reader thread has quit: {0:?}")]
     ReaderThreadQuit(#[source] Option<tokio::task::JoinError>),
+    #[error("Deserialize schema: {0}")]
+    DeserializeSchema(#[from] serde_json::Error),
 }
 
 #[derive(Debug, Error)]

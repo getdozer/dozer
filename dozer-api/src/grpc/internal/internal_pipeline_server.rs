@@ -1,9 +1,12 @@
+use dozer_cache::dozer_log::home_dir::BuildPath;
 use dozer_cache::dozer_log::replication::Log;
 use dozer_types::bincode;
 use dozer_types::grpc_types::internal::internal_pipeline_service_server::{
     InternalPipelineService, InternalPipelineServiceServer,
 };
-use dozer_types::grpc_types::internal::{LogRequest, LogResponse, StorageRequest, StorageResponse};
+use dozer_types::grpc_types::internal::{
+    BuildRequest, BuildResponse, LogRequest, LogResponse, StorageRequest, StorageResponse,
+};
 use dozer_types::log::info;
 use dozer_types::models::api_config::AppGrpcOptions;
 use dozer_types::models::api_endpoint::ApiEndpoint;
@@ -19,12 +22,19 @@ use tonic::{Request, Response, Status, Streaming};
 
 use crate::errors::GrpcError;
 
+#[derive(Debug, Clone)]
+pub struct BuildAndLog {
+    pub build: BuildPath,
+    pub log: Arc<Mutex<Log>>,
+}
+
+#[derive(Debug)]
 pub struct InternalPipelineServer {
-    endpoints: HashMap<String, Arc<Mutex<Log>>>,
+    endpoints: HashMap<String, BuildAndLog>,
 }
 
 impl InternalPipelineServer {
-    pub fn new(endpoints: HashMap<String, Arc<Mutex<Log>>>) -> Self {
+    pub fn new(endpoints: HashMap<String, BuildAndLog>) -> Self {
         Self { endpoints }
     }
 }
@@ -36,10 +46,38 @@ impl InternalPipelineService for InternalPipelineServer {
         request: Request<StorageRequest>,
     ) -> Result<Response<StorageResponse>, Status> {
         let endpoint = request.into_inner().endpoint;
-        let log = find_log(&self.endpoints, &endpoint)?;
+        let log = &find_build_and_log(&self.endpoints, &endpoint)?.log;
         let storage = log.lock().await.describe_storage();
         Ok(Response::new(StorageResponse {
             storage: Some(storage),
+        }))
+    }
+
+    async fn describe_build(
+        &self,
+        request: Request<BuildRequest>,
+    ) -> Result<Response<BuildResponse>, Status> {
+        let endpoint = request.into_inner().endpoint;
+        let build = &find_build_and_log(&self.endpoints, &endpoint)?.build;
+        let name = build.id.name().to_string();
+        let schema_string = tokio::fs::read_to_string(&build.schema_path)
+            .await
+            .map_err(|e| {
+                Status::new(
+                    tonic::Code::Internal,
+                    format!("Failed to read schema: {}", e),
+                )
+            })?;
+        let descriptor_bytes = tokio::fs::read(&build.descriptor_path).await.map_err(|e| {
+            Status::new(
+                tonic::Code::Internal,
+                format!("Failed to read descriptor: {}", e),
+            )
+        })?;
+        Ok(Response::new(BuildResponse {
+            name,
+            schema_string,
+            descriptor_bytes,
         }))
     }
 
@@ -54,10 +92,11 @@ impl InternalPipelineService for InternalPipelineServer {
             requests
                 .into_inner()
                 .and_then(move |request| {
-                    let log = match find_log(&endpoints, &request.endpoint) {
+                    let log = &match find_build_and_log(&endpoints, &request.endpoint) {
                         Ok(log) => log,
                         Err(e) => return Either::Left(std::future::ready(Err(e))),
-                    };
+                    }
+                    .log;
                     Either::Right(get_log(log.clone(), request))
                 })
                 .boxed(),
@@ -65,10 +104,10 @@ impl InternalPipelineService for InternalPipelineServer {
     }
 }
 
-fn find_log<'a>(
-    endpoints: &'a HashMap<String, Arc<Mutex<Log>>>,
+fn find_build_and_log<'a>(
+    endpoints: &'a HashMap<String, BuildAndLog>,
     endpoint: &str,
-) -> Result<&'a Arc<Mutex<Log>>, Status> {
+) -> Result<&'a BuildAndLog, Status> {
     endpoints.get(endpoint).ok_or_else(|| {
         Status::new(
             tonic::Code::NotFound,
@@ -99,13 +138,13 @@ async fn get_log(log: Arc<Mutex<Log>>, request: LogRequest) -> Result<LogRespons
 }
 
 pub async fn start_internal_pipeline_server(
-    endpoint_and_logs: &[(ApiEndpoint, Arc<Mutex<Log>>)],
+    endpoint_and_logs: Vec<(ApiEndpoint, BuildAndLog)>,
     options: &AppGrpcOptions,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> Result<(), GrpcError> {
     let endpoints = endpoint_and_logs
-        .iter()
-        .map(|(endpoint, log)| (endpoint.name.clone(), log.clone()))
+        .into_iter()
+        .map(|(endpoint, log)| (endpoint.name, log))
         .collect();
     let server = InternalPipelineServer::new(endpoints);
 

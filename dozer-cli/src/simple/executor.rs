@@ -1,3 +1,4 @@
+use dozer_api::grpc::internal::internal_pipeline_server::BuildAndLog;
 use dozer_cache::dozer_log::home_dir::HomeDir;
 use dozer_cache::dozer_log::replication::{Log, LogOptions};
 use dozer_types::models::api_endpoint::ApiEndpoint;
@@ -23,8 +24,8 @@ pub struct Executor<'a> {
     connections: &'a [Connection],
     sources: &'a [Source],
     sql: Option<&'a str>,
-    /// `ApiEndpoint` and its log path.
-    endpoint_and_logs: Vec<(ApiEndpoint, Arc<Mutex<Log>>)>,
+    /// `ApiEndpoint` and its log.
+    endpoint_and_logs: Vec<(ApiEndpoint, BuildAndLog)>,
     multi_pb: MultiProgress,
 }
 
@@ -46,7 +47,13 @@ impl<'a> Executor<'a> {
                 .ok_or(OrchestrationError::NoBuildFound(endpoint.name.clone()))?;
             let log = Log::new(log_options.clone(), &build_path, false).await?;
             let log = Arc::new(Mutex::new(log));
-            endpoint_and_logs.push((endpoint.clone(), log));
+            endpoint_and_logs.push((
+                endpoint.clone(),
+                BuildAndLog {
+                    build: build_path,
+                    log,
+                },
+            ));
         }
 
         Ok(Executor {
@@ -58,7 +65,7 @@ impl<'a> Executor<'a> {
         })
     }
 
-    pub fn endpoint_and_logs(&self) -> &[(ApiEndpoint, Arc<Mutex<Log>>)] {
+    pub fn endpoint_and_logs(&self) -> &[(ApiEndpoint, BuildAndLog)] {
         &self.endpoint_and_logs
     }
 
@@ -73,7 +80,7 @@ impl<'a> Executor<'a> {
             self.sql,
             self.endpoint_and_logs
                 .iter()
-                .map(|(endpoint, log)| (endpoint.clone(), Some(log.clone())))
+                .map(|(endpoint, log)| (endpoint.clone(), Some(log.log.clone())))
                 .collect(),
             self.multi_pb.clone(),
         );

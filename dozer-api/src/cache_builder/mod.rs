@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::time::Duration;
 
 use crate::grpc::types_helper;
-use dozer_cache::dozer_log::reader::{LogReader, LogReaderOptions};
+use dozer_cache::dozer_log::reader::{LogReader, LogReaderBuilder};
 use dozer_cache::{
     cache::{CacheRecord, CacheWriteOptions, RwCache, RwCacheManager, UpsertResult},
     errors::CacheError,
@@ -30,8 +30,7 @@ use tokio_stream::StreamExt;
 pub async fn build_cache(
     cache: Box<dyn RwCache>,
     cancel: impl Future<Output = ()> + Unpin + Send + 'static,
-    log_server_addr: String,
-    log_reader_options: LogReaderOptions,
+    log_reader_builder: LogReaderBuilder,
     operations_sender: Option<(String, Sender<GrpcOperation>)>,
     multi_pb: Option<MultiProgress>,
 ) -> Result<(), CacheError> {
@@ -39,9 +38,9 @@ pub async fn build_cache(
     let pos = cache.get_metadata()?.unwrap_or(0);
     debug!(
         "Starting log reader {} from position {pos}",
-        log_reader_options.endpoint
+        log_reader_builder.options.endpoint
     );
-    let log_reader = LogReader::new(log_server_addr, log_reader_options, pos, multi_pb).await?;
+    let log_reader = log_reader_builder.build(pos, multi_pb);
 
     // Spawn tasks
     let mut futures = FuturesUnordered::new();
