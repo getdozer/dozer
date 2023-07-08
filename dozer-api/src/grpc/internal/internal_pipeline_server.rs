@@ -78,13 +78,14 @@ fn find_log<'a>(
 }
 
 async fn get_log(log: Arc<Mutex<Log>>, request: LogRequest) -> Result<LogResponse, Status> {
-    let mut log = log.lock().await;
-    let response = log.read(
+    let mut log_mut = log.lock().await;
+    let response = log_mut.read(
         request.start as usize..request.end as usize,
         Duration::from_millis(request.timeout_in_millis as u64),
+        log.clone(),
     );
     // Must drop log before awaiting response, otherwise we will deadlock.
-    drop(log);
+    drop(log_mut);
     let response = response
         .await
         .map_err(|e| Status::new(tonic::Code::Internal, e.to_string()))?;

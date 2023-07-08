@@ -1,7 +1,7 @@
 use std::future::Future;
-use std::ops::Range;
+use std::ops::{DerefMut, Range};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use dozer_types::epoch::ExecutorOperation;
 use dozer_types::grpc_types::internal::storage_response;
@@ -63,16 +63,22 @@ pub struct LogOptions {
 pub struct Log {
     persisted: Vec<PersistedLogEntry>,
     in_memory: InMemoryLog,
+    next_watcher_id: WatcherId,
+    /// There'll only be a few watchers so we don't use HashMap.
     watchers: Vec<Watcher>,
     queue: PersistingQueue,
     storage: storage_response::Storage,
     entry_max_size: usize,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct WatcherId(u64);
+
 #[derive(Debug)]
 struct Watcher {
+    id: WatcherId,
     request: Range<usize>,
-    deadline: Instant,
+    timeout: bool,
     /// Only `None` after the watcher is triggered.
     sender: Option<tokio::sync::oneshot::Sender<Vec<ExecutorOperation>>>,
 }
@@ -111,6 +117,7 @@ impl Log {
         Ok(Self {
             persisted,
             in_memory,
+            next_watcher_id: WatcherId(0),
             watchers,
             queue,
             storage: storage_description,
@@ -127,13 +134,12 @@ impl Log {
         self.in_memory.ops.push(op);
 
         // Check watchers.
-        // If watcher.end == self.mutable.end() or after deadline and have some data, send the operations and remove the watcher.
-        let now = Instant::now();
+        // If watcher.end == self.mutable.end() or after timeout and have some data, send the operations and remove the watcher.
         self.watchers.retain_mut(|watcher| {
             debug_assert!(!watcher.request.is_empty());
             debug_assert!(self.in_memory.start <= watcher.request.start);
             if watcher.request.end == self.in_memory.end()
-                || (self.in_memory.contains(watcher.request.start) && now > watcher.deadline)
+                || (self.in_memory.contains(watcher.request.start) && watcher.timeout)
             {
                 trigger_watcher(watcher, &self.in_memory);
                 false
@@ -194,7 +200,12 @@ impl Log {
     }
 
     /// Returned `LogResponse` is guaranteed to contain `request.start`, but may actually contain less then `request.end`.
-    pub fn read(&mut self, request: Range<usize>, timeout: Duration) -> LogResponseFuture {
+    pub fn read(
+        &mut self,
+        request: Range<usize>,
+        timeout: Duration,
+        this: Arc<Mutex<Log>>,
+    ) -> LogResponseFuture {
         if request.is_empty() {
             return LogResponseFuture::Ready(vec![]);
         }
@@ -213,13 +224,52 @@ impl Log {
         }
 
         // Otherwise add watcher.
-        let (sender, receiver) = tokio::sync::oneshot::channel();
-        self.watchers.push(Watcher {
-            request,
-            deadline: Instant::now() + timeout,
-            sender: Some(sender),
+        let (watcher_id, receiver) = self.add_watcher(request);
+        tokio::spawn(async move {
+            // Try to trigger watcher when timeout.
+            tokio::time::sleep(timeout).await;
+            let mut this = this.lock().await;
+            let this = this.deref_mut();
+            // Find the watcher. It may have been triggered by slice fulfillment or persisting.
+            if let Some((index, watcher)) = this
+                .watchers
+                .iter_mut()
+                .enumerate()
+                .find(|(_, watcher)| watcher.id == watcher_id)
+            {
+                debug_assert!(this.in_memory.start <= watcher.request.start);
+                if this.in_memory.contains(watcher.request.start) {
+                    // If there's any data, trigger the watcher.
+                    trigger_watcher(watcher, &this.in_memory);
+                    this.watchers.remove(index);
+                } else {
+                    // Otherwise set the timeout flag and let next write trigger the watcher.
+                    watcher.timeout = true;
+                }
+            }
         });
+
         LogResponseFuture::Watching(receiver)
+    }
+
+    fn add_watcher(
+        &mut self,
+        request: Range<usize>,
+    ) -> (
+        WatcherId,
+        tokio::sync::oneshot::Receiver<Vec<ExecutorOperation>>,
+    ) {
+        let (sender, receiver) = tokio::sync::oneshot::channel();
+        let id = self.next_watcher_id;
+        let watcher = Watcher {
+            id,
+            request,
+            timeout: false,
+            sender: Some(sender),
+        };
+        self.next_watcher_id.0 += 1;
+        self.watchers.push(watcher);
+        (id, receiver)
     }
 }
 
