@@ -62,14 +62,22 @@ fn runtime_create_reader(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let runtime_for_reader = (**runtime).clone();
     let channel = runtime.channel.clone();
     runtime.runtime.spawn(async move {
-        // Create the reader.
-        let reader = LogReaderBuilder::new(server_addr, LogReaderOptions::new(endpoint_name)).await;
-
-        // Resolve the promise.
-        deferred.settle_with(&channel, move |mut cx| match reader {
-            Ok(reader) => new_reader(&mut cx, runtime_for_reader, reader.build(0, None)),
-            Err(error) => cx.throw_error(error.to_string()),
-        });
+        // Create the builder.
+        let reader_builder =
+            LogReaderBuilder::new(server_addr, LogReaderOptions::new(endpoint_name)).await;
+        match reader_builder {
+            Ok(reader) => {
+                // Create the reader and resolve the promise.
+                let reader = reader.build(0, None);
+                deferred.settle_with(&channel, move |mut cx| {
+                    new_reader(&mut cx, runtime_for_reader, reader)
+                })
+            }
+            // Resolve the promise on error.
+            Err(e) => deferred.settle_with(&channel, move |mut cx: TaskContext<'_>| {
+                cx.throw_error::<_, Handle<JsObject>>(e.to_string())
+            }),
+        }
     });
     Ok(promise)
 }

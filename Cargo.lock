@@ -1825,9 +1825,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.3.2"
+version = "4.3.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "401a4694d2bf92537b6867d94de48c4842089645fdcdf6c71865b175d836e9c2"
+checksum = "1640e5cc7fb47dbb8338fd471b105e7ed6c3cb2aeb00c2e067127ffd3764a05d"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -1836,13 +1836,12 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.3.1"
+version = "4.3.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72394f3339a76daf211e57d4bcb374410f3965dcc606dd0e03738c7888766980"
+checksum = "98c59138d527eeaf9b53f35a77fcc1fad9d883116070c63d5de1c7dc7b00c72b"
 dependencies = [
  "anstream",
  "anstyle",
- "bitflags",
  "clap_lex 0.5.0",
  "strsim",
 ]
@@ -2632,7 +2631,7 @@ name = "dozer-cache"
 version = "0.1.28"
 dependencies = [
  "ahash 0.8.3",
- "clap 4.3.2",
+ "clap 4.3.11",
  "criterion",
  "dozer-log",
  "dozer-storage",
@@ -2655,7 +2654,7 @@ name = "dozer-cli"
 version = "0.1.28"
 dependencies = [
  "atty",
- "clap 4.3.2",
+ "clap 4.3.11",
  "ctrlc",
  "dozer-api",
  "dozer-cache",
@@ -2750,6 +2749,7 @@ dependencies = [
  "aws-smithy-http 0.55.3",
  "aws-smithy-types 0.55.3",
  "camino",
+ "clap 4.3.11",
  "dozer-types",
  "dyn-clone",
  "env_logger",
@@ -2827,7 +2827,7 @@ dependencies = [
  "ahash 0.8.3",
  "async-trait",
  "bson",
- "clap 4.3.2",
+ "clap 4.3.11",
  "csv",
  "dozer-api",
  "dozer-cache",
@@ -4150,7 +4150,7 @@ version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d7b603516767d1ab23d0de09d023e62966c3322f7148297c35cf3d97aa8b37fa"
 dependencies = [
- "clap 4.3.2",
+ "clap 4.3.11",
  "termcolor",
  "threadpool",
 ]
