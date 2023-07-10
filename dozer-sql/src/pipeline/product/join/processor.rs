@@ -62,8 +62,8 @@ impl ProductProcessor {
 }
 
 impl Processor for ProductProcessor {
-    fn commit(&self, _epoch: &Epoch) -> Result<(), BoxedError> {
-        Ok(())
+    fn commit(&mut self, _epoch: &Epoch) -> Result<(), BoxedError> {
+        self.join_operator.commit().map_err(Into::into)
     }
 
     fn process(
@@ -114,12 +114,12 @@ impl Processor for ProductProcessor {
 
         gauge!(
             LEFT_LOOKUP_SIZE,
-            self.join_operator.left_lookup_size() as f64,
+            self.join_operator.left_lookup_size()? as f64,
             self.labels.clone()
         );
         gauge!(
             RIGHT_LOOKUP_SIZE,
-            self.join_operator.right_lookup_size() as f64,
+            self.join_operator.right_lookup_size()? as f64,
             self.labels.clone()
         );
 

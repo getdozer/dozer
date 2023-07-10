@@ -75,7 +75,7 @@ pub trait ProcessorFactory<T>: Send + Sync + Debug {
 }
 
 pub trait Processor: Send + Sync + Debug {
-    fn commit(&self, epoch_details: &Epoch) -> Result<(), BoxedError>;
+    fn commit(&mut self, epoch_details: &Epoch) -> Result<(), BoxedError>;
     fn process(
         &mut self,
         from_port: PortHandle,

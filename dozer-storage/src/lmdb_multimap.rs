@@ -118,6 +118,18 @@ impl<K: LmdbKey, V: LmdbKey> LmdbMultimap<K, V> {
         }
     }
 
+    pub fn insert_dup(
+        &self,
+        txn: &mut RwTransaction,
+        key: K::Encode<'_>,
+        value: V::Encode<'_>,
+    ) -> Result<(), StorageError> {
+        let key = key.encode()?;
+        let value = value.encode()?;
+        txn.put(self.db, &key, &value, WriteFlags::empty())
+            .map_err(Into::into)
+    }
+
     /// Returns if the key-value pair was actually removed.
     pub fn remove(
         &self,
@@ -129,6 +141,25 @@ impl<K: LmdbKey, V: LmdbKey> LmdbMultimap<K, V> {
         let value = value.encode()?;
         match txn.del(self.db, &key, Some(value.as_ref())) {
             Ok(()) => Ok(true),
+            Err(lmdb::Error::NotFound) => Ok(false),
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    /// Returns if any key-value pair was actually removed.
+    pub fn remove_first(
+        &self,
+        txn: &mut RwTransaction,
+        key: K::Encode<'_>,
+    ) -> Result<bool, StorageError> {
+        let key = key.encode()?;
+        let mut cursor = txn.open_rw_cursor(self.db)?;
+
+        match cursor.get(Some(key.as_ref()), None, MDB_SET) {
+            Ok(_) => {
+                cursor.del(WriteFlags::empty())?;
+                Ok(true)
+            }
             Err(lmdb::Error::NotFound) => Ok(false),
             Err(err) => Err(err.into()),
         }
@@ -191,12 +222,14 @@ mod tests {
         assert!(map.get_last(txn, &0).unwrap().is_none());
         assert!(map.insert(txn, &1u64, &2u64).unwrap());
         assert!(!map.insert(txn, &1u64, &2u64).unwrap());
+        map.insert_dup(txn, &1, &2).unwrap();
         assert!(map.insert(txn, &1u64, &3u64).unwrap());
         assert!(map.get_first(txn, &0).unwrap().is_none());
         assert!(map.get_last(txn, &0).unwrap().is_none());
         assert_eq!(map.get_first(txn, &1).unwrap().unwrap().into_owned(), 2);
         assert_eq!(map.get_last(txn, &1).unwrap().unwrap().into_owned(), 3);
         assert!(map.remove(txn, &1u64, &2u64).unwrap());
+        assert!(map.remove_first(txn, &1u64).unwrap());
         assert!(!map.remove(txn, &1u64, &2u64).unwrap());
     }
 }

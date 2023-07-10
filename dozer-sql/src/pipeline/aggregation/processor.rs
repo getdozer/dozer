@@ -560,7 +560,7 @@ fn get_key(
 }
 
 impl Processor for AggregationProcessor {
-    fn commit(&self, _epoch: &Epoch) -> Result<(), BoxedError> {
+    fn commit(&mut self, _epoch: &Epoch) -> Result<(), BoxedError> {
         Ok(())
     }
 
