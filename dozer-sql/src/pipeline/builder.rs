@@ -285,15 +285,14 @@ fn select_to_pipeline(
 
     // Where clause
     if let Some(selection) = select.selection {
+        // If there is a subquery in the selection, we need to convert it to a join.
         if let Expr::InSubquery {
             expr,
             subquery,
             negated,
         } = selection.clone()
         {
-            // Subuery to join
             let subquery_name = format!("subquery_{}", query_ctx.get_next_processor_id());
-            let mut ctx = QueryContext::default();
             let subquery_table_info = &TableInfo {
                 name: NameOrAlias(subquery_name.clone(), None),
                 is_derived: true,
@@ -303,7 +302,7 @@ fn select_to_pipeline(
                 subquery_table_info,
                 &subquery,
                 pipeline,
-                &mut ctx,
+                query_ctx,
                 stateful,
                 pipeline_idx,
             )?;
