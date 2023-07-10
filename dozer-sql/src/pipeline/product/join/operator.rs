@@ -565,9 +565,17 @@ fn evict_join_record(
 
 fn get_record_key(record: &Record, key_indexes: &[usize]) -> Vec<u8> {
     let mut hasher = AHasher::default();
-    for index in key_indexes.iter() {
-        record.values[*index].hash(&mut hasher);
+
+    if key_indexes.is_empty() {
+        for value in record.values.iter() {
+            value.hash(&mut hasher);
+        }
+    } else {
+        for index in key_indexes.iter() {
+            record.values[*index].hash(&mut hasher);
+        }
     }
+
     let join_key = hasher.finish();
 
     join_key.to_be_bytes().to_vec()
