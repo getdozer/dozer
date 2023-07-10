@@ -1,16 +1,10 @@
 use ahash::AHasher;
-use dozer_types::{
-    chrono,
-    types::{Field, Lifetime, Record},
-};
-use linked_hash_map::LinkedHashMap;
+use dozer_types::types::Record;
 use std::{
     collections::HashMap,
     fmt::Debug,
     hash::{Hash, Hasher},
 };
-
-use crate::pipeline::errors::JoinError;
 
 use super::JoinResult;
 
@@ -38,8 +32,6 @@ pub enum JoinAction {
     Delete,
 }
 
-type IndexKey = (Vec<u8>, Vec<u8>); // (join_key, primary_key)
-
 #[derive(Debug, Clone)]
 pub struct JoinOperator {
     join_type: JoinType,
@@ -55,9 +47,6 @@ pub struct JoinOperator {
 
     left_map: HashMap<Vec<u8>, HashMap<Vec<u8>, Vec<Record>>>,
     right_map: HashMap<Vec<u8>, HashMap<Vec<u8>, Vec<Record>>>,
-
-    left_lifetime_map: LinkedHashMap<Field, Vec<IndexKey>>,
-    right_lifetime_map: LinkedHashMap<Field, Vec<IndexKey>>,
 }
 
 impl JoinOperator {
@@ -80,8 +69,6 @@ impl JoinOperator {
             right_default_record,
             left_map: HashMap::new(),
             right_map: HashMap::new(),
-            left_lifetime_map: LinkedHashMap::new(),
-            right_lifetime_map: LinkedHashMap::new(),
         }
     }
 
@@ -277,75 +264,6 @@ impl JoinOperator {
         Ok(matching_count)
     }
 
-    pub fn evict_index(&mut self, from_branch: &JoinBranch, now: &Field) -> Vec<Field> {
-        let (eviction_index, join_index) = match from_branch {
-            JoinBranch::Left => (&self.left_lifetime_map, &mut self.left_map),
-            JoinBranch::Right => (&self.right_lifetime_map, &mut self.right_map),
-        };
-
-        let mut old_instants = vec![];
-        for (eviction_instant, join_index_keys) in eviction_index.iter() {
-            if eviction_instant <= now {
-                old_instants.push(eviction_instant.clone());
-                for (join_key, primary_key) in join_index_keys.iter() {
-                    evict_join_record(join_index, join_key, primary_key);
-                }
-            } else {
-                break;
-            }
-        }
-        old_instants
-    }
-
-    pub fn insert_evict_index(
-        &mut self,
-        from_branch: &JoinBranch,
-        lifetime: Lifetime,
-        join_key: &[u8],
-        primary_key: &[u8],
-    ) -> JoinResult<()> {
-        let eviction_index = match from_branch {
-            JoinBranch::Left => &mut self.left_lifetime_map,
-            JoinBranch::Right => &mut self.right_lifetime_map,
-        };
-
-        let eviction_time = match (lifetime.reference,) {
-            (Field::Timestamp(reference),) => {
-                let eviction_time_result = reference.checked_add_signed(
-                    chrono::Duration::nanoseconds(lifetime.duration.0.as_nanos() as i64),
-                );
-
-                if let Some(eviction_time) = eviction_time_result {
-                    Field::Timestamp(eviction_time)
-                } else {
-                    return Err(JoinError::EvictionTimeOverflow);
-                }
-            }
-            _ => return Err(JoinError::EvictionTypeOverflow),
-        };
-
-        if let Some(join_index_keys) = eviction_index.get_mut(&eviction_time) {
-            join_index_keys.push((join_key.to_owned(), primary_key.to_owned()));
-        } else {
-            eviction_index.insert(
-                eviction_time,
-                vec![(join_key.to_owned(), primary_key.to_owned())],
-            );
-        }
-
-        Ok(())
-    }
-
-    pub fn clean_evict_index(&mut self, from_branch: &JoinBranch, old_instants: &[Field]) {
-        let eviction_index = match from_branch {
-            JoinBranch::Left => &mut self.left_lifetime_map,
-            JoinBranch::Right => &mut self.right_lifetime_map,
-        };
-        for old_instant in old_instants {
-            eviction_index.remove(old_instant);
-        }
-    }
-
     pub fn delete(
         &mut self,
         from: &JoinBranch,
@@ -437,10 +355,6 @@ impl JoinOperator {
 
                 add_join_record(&mut self.left_map, &join_key, &primary_key, new);
 
-                if let Some(lifetime) = new.lifetime.clone() {
-                    self.insert_evict_index(from, lifetime, &join_key, &primary_key)?
-                }
-
                 let records = self.inner_join_from_left(&JoinAction::Insert, &join_key, new)?;
                 Ok(records)
             }
@@ -449,10 +363,6 @@ impl JoinOperator {
                 let primary_key: Vec<u8> = get_record_key(new, &self.right_primary_key_indexes);
 
                 add_join_record(&mut self.right_map, &join_key, &primary_key, new);
-
-                if let Some(lifetime) = new.lifetime.clone() {
-                    self.insert_evict_index(from, lifetime, &join_key, &primary_key)?
-                }
 
                 let records = self.inner_join_from_right(&JoinAction::Insert, &join_key, new)?;
 
@@ -464,10 +374,6 @@ impl JoinOperator {
 
                 add_join_record(&mut self.left_map, &join_key, &primary_key, new);
 
-                if let Some(lifetime) = new.lifetime.clone() {
-                    self.insert_evict_index(from, lifetime, &join_key, &primary_key)?
-                }
-
                 let records = self.left_join_from_left(&JoinAction::Insert, &join_key, new)?;
 
                 Ok(records)
@@ -477,10 +383,6 @@ impl JoinOperator {
                 let primary_key: Vec<u8> = get_record_key(new, &self.right_primary_key_indexes);
 
                 add_join_record(&mut self.right_map, &join_key, &primary_key, new);
-
-                if let Some(lifetime) = new.lifetime.clone() {
-                    self.insert_evict_index(from, lifetime, &join_key, &primary_key)?
-                }
 
                 let records = self.left_join_from_right(&JoinAction::Insert, &join_key, new)?;
 
@@ -492,10 +394,6 @@ impl JoinOperator {
 
                 add_join_record(&mut self.left_map, &join_key, &primary_key, new);
 
-                if let Some(lifetime) = new.lifetime.clone() {
-                    self.insert_evict_index(from, lifetime, &join_key, &primary_key)?
-                }
-
                 let records = self.right_join_from_left(&JoinAction::Insert, &join_key, new)?;
 
                 Ok(records)
@@ -505,10 +403,6 @@ impl JoinOperator {
                 let primary_key: Vec<u8> = get_record_key(new, &self.right_primary_key_indexes);
 
                 add_join_record(&mut self.right_map, &join_key, &primary_key, new);
-
-                if let Some(lifetime) = new.lifetime.clone() {
-                    self.insert_evict_index(from, lifetime, &join_key, &primary_key)?
-                }
 
                 let records = self.right_join_from_right(&JoinAction::Insert, &join_key, new)?;
 
@@ -546,18 +440,6 @@ fn remove_join_record(
     if let Some(record_map) = join_map.get_mut(join_key) {
         let record_key = get_record_key(record, primary_key_indexes);
         if let Some(record_vec) = record_map.get_mut(&record_key) {
-            record_vec.pop();
-        }
-    }
-}
-
-fn evict_join_record(
-    join_map: &mut HashMap<Vec<u8>, HashMap<Vec<u8>, Vec<Record>>>,
-    join_key: &[u8],
-    primary_key: &[u8],
-) {
-    if let Some(record_map) = join_map.get_mut(join_key) {
-        if let Some(record_vec) = record_map.get_mut(primary_key) {
             record_vec.pop();
         }
     }

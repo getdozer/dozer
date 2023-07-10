@@ -59,16 +59,6 @@ impl ProductProcessor {
             labels,
         }
     }
-
-    fn update_eviction_index(&mut self, lifetime: &dozer_types::types::Lifetime) {
-        let now = &lifetime.reference;
-        let old_instants = self.join_operator.evict_index(&JoinBranch::Left, now);
-        self.join_operator
-            .clean_evict_index(&JoinBranch::Left, &old_instants);
-        let old_instants = self.join_operator.evict_index(&JoinBranch::Right, now);
-        self.join_operator
-            .clean_evict_index(&JoinBranch::Right, &old_instants);
-    }
 }
 
 impl Processor for ProductProcessor {
@@ -90,29 +80,15 @@ impl Processor for ProductProcessor {
 
         let now = std::time::Instant::now();
         let records = match op {
-            Operation::Delete { ref old } => {
-                if let Some(lifetime) = &old.lifetime {
-                    self.update_eviction_index(lifetime);
-                }
-
-                self.join_operator
-                    .delete(from_branch, old)
-                    .map_err(PipelineError::JoinError)?
-            }
-            Operation::Insert { ref new } => {
-                if let Some(lifetime) = &new.lifetime {
-                    self.update_eviction_index(lifetime);
-                }
-
-                self.join_operator
-                    .insert(from_branch, new)
-                    .map_err(PipelineError::JoinError)?
-            }
+            Operation::Delete { ref old } => self
+                .join_operator
+                .delete(from_branch, old)
+                .map_err(PipelineError::JoinError)?,
+            Operation::Insert { ref new } => self
+                .join_operator
+                .insert(from_branch, new)
+                .map_err(PipelineError::JoinError)?,
             Operation::Update { ref old, ref new } => {
-                if let Some(lifetime) = &old.lifetime {
-                    self.update_eviction_index(lifetime);
-                }
-
                 let old_records = self
                     .join_operator
                     .delete(from_branch, old)
