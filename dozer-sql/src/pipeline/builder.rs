@@ -257,7 +257,6 @@ fn select_to_pipeline(
 
     let gen_agg_name = format!("agg_{}", query_ctx.get_next_processor_id());
 
-    let gen_selection_name = format!("select_{}", query_ctx.get_next_processor_id());
     let (gen_product_name, product_output_port) = output_node;
 
     for (source_name, processor_name, processor_port) in input_nodes.iter() {
@@ -307,43 +306,38 @@ fn select_to_pipeline(
                 pipeline_idx,
             )?;
 
-            let join_processor_name = format!("join_{}", query_ctx.get_next_processor_id());
             let join_operator = if negated {
                 unimplemented!("Negated subquery not supported")
             } else {
                 JoinOperator::Inner(JoinConstraint::On(*expr))
             };
             let join_processor_factory: JoinProcessorFactory = JoinProcessorFactory::new(
-                join_processor_name.clone(),
+                subquery_name.clone(),
                 Some(table_info.name.clone()),
                 Some(subquery_table_info.name.clone()),
                 join_operator,
             );
 
-            pipeline.add_processor(
-                Arc::new(join_processor_factory),
-                &join_processor_name,
-                vec![],
+            pipeline.add_processor(Arc::new(join_processor_factory), &subquery_name, vec![]);
+
+            pipeline.connect_nodes(
+                &gen_product_name,
+                Some(product_output_port),
+                &subquery_name,
+                Some(DEFAULT_PORT_HANDLE),
+                true,
             );
 
-            // Connect join processor to aggregation
             pipeline.connect_nodes(
-                &join_processor_name,
+                &subquery_name,
                 Some(DEFAULT_PORT_HANDLE),
                 &gen_agg_name,
                 Some(DEFAULT_PORT_HANDLE),
                 true,
             );
-
-            // Connect subquery to join processor
-            pipeline.connect_nodes(
-                &subquery_name,
-                Some(DEFAULT_PORT_HANDLE),
-                &join_processor_name,
-                Some(DEFAULT_PORT_HANDLE),
-                true,
-            );
         } else {
+            let gen_selection_name = format!("select_{}", query_ctx.get_next_processor_id());
+
             let selection =
                 SelectionProcessorFactory::new(gen_selection_name.to_owned(), selection);
 
