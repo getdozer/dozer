@@ -8,6 +8,7 @@ pub mod conditional;
 mod datetime;
 pub mod execution;
 pub mod geo;
+pub mod in_list;
 mod json_functions;
 pub mod logical;
 pub mod mathematical;
