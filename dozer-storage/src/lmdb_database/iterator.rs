@@ -108,18 +108,21 @@ pub struct Iterator<'txn, C: Cursor<'txn>, K, V> {
 }
 
 impl<'txn, C: Cursor<'txn>, K: BorrowEncode, V> Iterator<'txn, C, K, V> {
-    pub fn new(
+    pub fn new<'a>(
         cursor: C,
-        starting_key: Bound<K::Encode<'_>>,
+        starting_key: Bound<K::Encode<'a>>,
         ascending: bool,
-    ) -> Result<Self, StorageError> {
+    ) -> Result<(Self, Bound<Encoded<'a>>), StorageError> {
         let starting_key = encode_bound(starting_key)?;
         let inner = RawIterator::new(cursor, bound_as_ref(&starting_key), ascending)?;
-        Ok(Self {
-            inner,
-            _key: std::marker::PhantomData,
-            _value: std::marker::PhantomData,
-        })
+        Ok((
+            Self {
+                inner,
+                _key: std::marker::PhantomData,
+                _value: std::marker::PhantomData,
+            },
+            starting_key,
+        ))
     }
 }
 

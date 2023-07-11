@@ -5,7 +5,10 @@ use dozer_storage::{
     lmdb_storage::{LmdbEnvironmentManager, LmdbEnvironmentOptions},
     LmdbMap, LmdbMultimap, RwLmdbEnvironment,
 };
-use dozer_types::{borrow::IntoOwned, types::Record};
+use dozer_types::{
+    borrow::{Borrow, IntoOwned},
+    types::Record,
+};
 use std::{
     fmt::Debug,
     hash::{Hash, Hasher},
@@ -472,8 +475,8 @@ struct TableForJoin {
     join_key_indexes: Vec<usize>,
     primary_key_indexes: Vec<usize>,
     default_record: Record,
-    join_key_to_primary_key: LmdbMap<u64, u64>,
-    primary_key_to_records: LmdbMultimap<u64, Record>,
+    join_key_to_record_key: LmdbMultimap<u64, u64>,
+    record_key_to_records: LmdbMap<u64, Record>,
 }
 
 impl TableForJoin {
@@ -484,11 +487,11 @@ impl TableForJoin {
         environment: &mut RwLmdbEnvironment,
         database_name_prefix: &str,
     ) -> Result<Self, StorageError> {
-        let join_key_to_primary_key = LmdbMap::create(
+        let join_key_to_record_key = LmdbMultimap::create(
             environment,
             Some(&format!("{}-join-key-to-primary-key", database_name_prefix)),
         )?;
-        let primary_key_to_records = LmdbMultimap::create(
+        let record_key_to_records = LmdbMap::create(
             environment,
             Some(&format!("{}-primary-key-to-records", database_name_prefix)),
         )?;
@@ -496,13 +499,13 @@ impl TableForJoin {
             join_key_indexes,
             primary_key_indexes,
             default_record,
-            join_key_to_primary_key,
-            primary_key_to_records,
+            join_key_to_record_key,
+            record_key_to_records,
         })
     }
 
     fn lookup_size<T: Transaction>(&self, txn: &T) -> Result<usize, StorageError> {
-        self.primary_key_to_records.count_data(txn)
+        self.record_key_to_records.count(txn)
     }
 
     fn get_records_from_join_key<T: Transaction>(
@@ -510,24 +513,14 @@ impl TableForJoin {
         txn: &T,
         join_key: u64,
     ) -> Result<Vec<Record>, StorageError> {
-        let primary_key = match self.join_key_to_primary_key.get(txn, &join_key)? {
-            Some(primary_key) => primary_key.into_owned(),
-            None => return Ok(vec![]),
-        };
-
-        let mut records = vec![];
-        for result in
-            self.primary_key_to_records
-                .range(txn, std::ops::Bound::Included(&primary_key), true)?
-        {
-            let (key, value) = result?;
-            if key.into_owned() != primary_key {
-                return Ok(records);
+        let mut result = vec![];
+        for primary_key in self.join_key_to_record_key.iter_dup(txn, &join_key)? {
+            let primary_key = primary_key?;
+            if let Some(record) = self.record_key_to_records.get(txn, primary_key.borrow())? {
+                result.push(record.into_owned());
             }
-            records.push(value.into_owned());
         }
-
-        Ok(records)
+        Ok(result)
     }
 
     fn count_records_from_join_key<T: Transaction>(
@@ -535,33 +528,29 @@ impl TableForJoin {
         txn: &T,
         join_key: u64,
     ) -> Result<usize, StorageError> {
-        let primary_key = match self.join_key_to_primary_key.get(txn, &join_key)? {
-            Some(primary_key) => primary_key.into_owned(),
-            None => return Ok(0),
-        };
-
-        let mut count = 0;
-        for result in
-            self.primary_key_to_records
-                .range(txn, std::ops::Bound::Included(&primary_key), true)?
-        {
-            let (key, _) = result?;
-            if key.into_owned() != primary_key {
-                return Ok(count);
+        let mut result = 0;
+        for primary_key in self.join_key_to_record_key.iter_dup(txn, &join_key)? {
+            let primary_key = primary_key?;
+            if self
+                .record_key_to_records
+                .contains(txn, primary_key.borrow())?
+            {
+                result += 1;
             }
-            count += 1;
         }
-
-        Ok(count)
+        Ok(result)
     }
 
-    fn remove_record(
-        &self,
-        txn: &mut RwTransaction,
-        record: &Record,
-    ) -> Result<bool, StorageError> {
+    fn remove_record(&self, txn: &mut RwTransaction, record: &Record) -> Result<(), JoinError> {
         let primary_key = get_record_key(record, &self.primary_key_indexes);
-        self.primary_key_to_records.remove_first(txn, &primary_key)
+        if !self.record_key_to_records.remove(txn, &primary_key)? {
+            return Err(JoinError::MissingPrimaryKey {
+                primary_indexes: self.primary_key_indexes.clone(),
+                record: record.clone(),
+                key: primary_key,
+            });
+        }
+        Ok(())
     }
 
     fn add_record(
@@ -569,12 +558,21 @@ impl TableForJoin {
         txn: &mut RwTransaction,
         join_key: u64,
         record: &Record,
-    ) -> Result<(), StorageError> {
+    ) -> Result<(), JoinError> {
         let primary_key = get_record_key(record, &self.primary_key_indexes);
-        self.join_key_to_primary_key
-            .insert_overwrite(txn, &join_key, &primary_key)?;
-        self.primary_key_to_records
-            .insert_dup(txn, &primary_key, record)
+        self.join_key_to_record_key
+            .insert(txn, &join_key, &primary_key)?;
+        if !self
+            .record_key_to_records
+            .insert(txn, &primary_key, record)?
+        {
+            return Err(JoinError::DuplicatePrimaryKey {
+                primary_indexes: self.primary_key_indexes.clone(),
+                record: record.clone(),
+                key: primary_key,
+            });
+        }
+        Ok(())
     }
 }
 

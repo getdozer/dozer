@@ -74,6 +74,19 @@ impl<K: LmdbKey, V: LmdbVal> LmdbMap<K, V> {
         }
     }
 
+    pub fn contains<T: Transaction>(
+        &self,
+        txn: &T,
+        key: K::Encode<'_>,
+    ) -> Result<bool, StorageError> {
+        let key = key.encode()?;
+        match txn.get(self.db, &key) {
+            Ok(_) => Ok(true),
+            Err(lmdb::Error::NotFound) => Ok(false),
+            Err(e) => Err(e.into()),
+        }
+    }
+
     /// Returns if the key was actually inserted.
     pub fn insert(
         &self,
@@ -139,7 +152,7 @@ impl<K: LmdbKey, V: LmdbVal> LmdbMap<K, V> {
         txn: &'txn T,
     ) -> Result<Iterator<'txn, RoCursor<'txn>, K, V>, StorageError> {
         let cursor = txn.open_ro_cursor(self.db)?;
-        Iterator::new(cursor, Bound::Unbounded, true)
+        Ok(Iterator::new(cursor, Bound::Unbounded, true)?.0)
     }
 
     pub fn keys<'txn, T: Transaction>(
@@ -218,6 +231,9 @@ mod tests {
             .unwrap());
         assert_eq!(map.count(env.txn_mut().unwrap()).unwrap(), 1);
 
+        assert!(map
+            .contains(env.txn_mut().unwrap(), [1u8].as_slice())
+            .unwrap());
         assert_eq!(
             map.get(env.txn_mut().unwrap(), [1u8].as_slice())
                 .unwrap()
@@ -225,6 +241,9 @@ mod tests {
                 .into_owned(),
             vec![2]
         );
+        assert!(!map
+            .contains(env.txn_mut().unwrap(), [2u8].as_slice())
+            .unwrap());
         assert!(map
             .get(env.txn_mut().unwrap(), [2u8].as_slice())
             .unwrap()
