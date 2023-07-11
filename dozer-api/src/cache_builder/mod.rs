@@ -7,7 +7,6 @@ use dozer_cache::{
     cache::{CacheRecord, CacheWriteOptions, RwCache, RwCacheManager, UpsertResult},
     errors::CacheError,
 };
-use dozer_tracing::{CACHE_OPERATION_COUNTER_NAME, DATA_LATENCY_HISTOGRAM_NAME};
 use dozer_types::epoch::ExecutorOperation;
 use dozer_types::indicatif::MultiProgress;
 use dozer_types::labels::Labels;
@@ -115,11 +114,13 @@ fn build_cache_task(
 ) -> Result<(), CacheError> {
     let schema = cache.get_schema().0.clone();
 
+    const CACHE_OPERATION_COUNTER_NAME: &str = "cache_operation";
     describe_counter!(
         CACHE_OPERATION_COUNTER_NAME,
         "Number of message processed by cache builder"
     );
 
+    const DATA_LATENCY_HISTOGRAM_NAME: &str = "data_latency";
     describe_histogram!(
         DATA_LATENCY_HISTOGRAM_NAME,
         "End-to-end data latency in seconds"

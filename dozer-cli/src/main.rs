@@ -5,7 +5,7 @@ use dozer_cli::cli::generate_config_repl;
 use dozer_cli::cli::types::{
     ApiCommands, AppCommands, Cli, Commands, ConnectorCommand, RunCommands, SecurityCommands,
 };
-use dozer_cli::cli::{init_dozer, init_dozer_with_default_config, list_sources, LOGO};
+use dozer_cli::cli::{init_dozer, list_sources, LOGO};
 use dozer_cli::errors::{CliError, OrchestrationError};
 use dozer_cli::simple::SimpleOrchestrator;
 #[cfg(feature = "cloud")]
@@ -118,12 +118,7 @@ fn run() -> Result<(), OrchestrationError> {
     // and then initializing it after reading the configuration. This is a hacky workaround, but it works.
 
     let cli = parse_and_generate()?;
-    #[cfg(feature = "cloud")]
-    let is_cloud_orchestrator = matches!(cli.cmd, Some(Commands::Cloud(_)));
-    #[cfg(not(feature = "cloud"))]
-    let is_cloud_orchestrator = false;
-
-    let mut dozer = init_orchestrator(&cli, is_cloud_orchestrator)?;
+    let mut dozer = init_orchestrator(&cli)?;
 
     let (shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
     set_ctrl_handler(shutdown_sender);
@@ -184,7 +179,7 @@ fn run() -> Result<(), OrchestrationError> {
                 dozer.build(force)
             }
             Commands::Connectors(ConnectorCommand { filter }) => {
-                list_sources(&cli.config_path, cli.config_token, filter)
+                list_sources(cli.config_paths, cli.config_token, filter)
             }
             Commands::Clean => dozer.clean(),
             #[cfg(feature = "cloud")]
@@ -238,16 +233,9 @@ fn parse_and_generate() -> Result<Cli, OrchestrationError> {
     })
 }
 
-fn init_orchestrator(
-    cli: &Cli,
-    is_cloud_orchestrator: bool,
-) -> Result<SimpleOrchestrator, CliError> {
+fn init_orchestrator(cli: &Cli) -> Result<SimpleOrchestrator, CliError> {
     dozer_tracing::init_telemetry_closure(None, None, || -> Result<SimpleOrchestrator, CliError> {
-        let res = if is_cloud_orchestrator {
-            init_dozer_with_default_config()
-        } else {
-            init_dozer(cli.config_path.clone(), cli.config_token.clone())
-        };
+        let res = init_dozer(cli.config_paths.clone(), cli.config_token.clone());
 
         match res {
             Ok(dozer) => {
