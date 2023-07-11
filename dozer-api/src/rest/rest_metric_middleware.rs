@@ -4,10 +4,9 @@ use actix_web::{
     dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
     Error,
 };
+use dozer_tracing::{API_LATENCY_HISTOGRAM_NAME, API_REQUEST_COUNTER_NAME};
 use futures_util::future::LocalBoxFuture;
 use metrics::{histogram, increment_counter};
-
-use crate::api_helper::{API_LATENCY_HISTOGRAM_NAME, API_REQUEST_COUNTER_NAME};
 
 pub struct RestMetric;
 
