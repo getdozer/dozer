@@ -1,3 +1,4 @@
+use dozer_tracing::{API_LATENCY_HISTOGRAM_NAME, API_REQUEST_COUNTER_NAME};
 use futures_util::future::BoxFuture;
 use hyper::Body;
 use metrics::{histogram, increment_counter};
@@ -7,9 +8,6 @@ use std::{
 };
 use tonic::{body::BoxBody, transport::NamedService};
 use tower::{Layer, Service};
-
-use crate::api_helper::{API_LATENCY_HISTOGRAM_NAME, API_REQUEST_COUNTER_NAME};
-
 #[derive(Debug, Clone, Default)]
 pub struct MetricMiddlewareLayer {}
 impl MetricMiddlewareLayer {
