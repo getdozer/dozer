@@ -121,8 +121,8 @@ pub fn initialize_cache(
         )
         .unwrap();
     let records = get_sample_records(schema);
-    for mut record in records {
-        cache.insert(&mut record.record).unwrap();
+    for record in records {
+        cache.insert(&record.record).unwrap();
     }
     cache.commit().unwrap();
     cache_manager.wait_until_indexing_catchup();

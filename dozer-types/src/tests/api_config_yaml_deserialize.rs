@@ -138,7 +138,6 @@ fn override_grpc_enabled() {
         host: default_api_grpc.host,
         cors: default_api_grpc.cors,
         web: default_api_grpc.web,
-        ..Default::default()
     };
     assert_eq!(api_config.rest.unwrap(), default_api_rest);
     assert_eq!(api_config.grpc.unwrap(), expected_grpc_config);

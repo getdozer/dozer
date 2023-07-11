@@ -80,8 +80,8 @@ pub enum OrchestrationError {
 pub enum CliError {
     #[error("Configuration file path not provided")]
     ConfigurationFilePathNotProvided,
-    #[error("Can't find the configuration file at: {0:?}")]
-    FailedToLoadFile(String),
+    #[error("Can't find the configuration file(s) at: {0:?}")]
+    FailedToFindConfigurationFiles(String),
     #[error("Unknown Command: {0:?}")]
     UnknownCommand(String),
     #[error("Failed to parse dozer config: {0:?}")]

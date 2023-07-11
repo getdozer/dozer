@@ -16,6 +16,7 @@ use dozer_types::tracing::{error, info};
 use serde::Deserialize;
 use tokio::time;
 
+use clap::CommandFactory;
 #[cfg(feature = "cloud")]
 use dozer_cli::cloud_app_context::CloudAppContext;
 use dozer_types::log::warn;
@@ -243,6 +244,17 @@ fn init_orchestrator(cli: &Cli) -> Result<SimpleOrchestrator, CliError> {
                 Ok(dozer)
             }
             Err(e) => {
+                if let CliError::FailedToFindConfigurationFiles(_) = &e {
+                    let description = "Dozer was not able to find configuration files. \n\n\
+                    Please use \"dozer init\" to create project or \"dozer -c {path}\" with path to your configuration.\n\
+                    Configuration documentation can be found in https://getdozer.io/docs/configuration";
+
+                    let mut command = Cli::command();
+                    command = command.about(format!("\n\n\n{} \n {}", LOGO, description));
+
+                    println!("{}", command.render_help());
+                }
+
                 error!("{}", e);
                 Err(e)
             }

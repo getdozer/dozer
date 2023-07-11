@@ -9,9 +9,11 @@ use dozer_types::serde_yaml::Mapping;
 use glob::glob;
 use std::fs;
 
-pub fn combine_config(config_paths: Vec<String>) -> Result<String, ConfigCombineError> {
+pub fn combine_config(config_paths: Vec<String>) -> Result<Option<String>, ConfigCombineError> {
     let mut combined_yaml = serde_yaml::Value::Mapping(Mapping::new());
     let mut sqls = vec![];
+
+    let mut config_found = false;
     for pattern in config_paths {
         let files_glob = glob(&pattern).map_err(WrongPatternOfConfigFilesGlob)?;
 
@@ -29,6 +31,7 @@ pub fn combine_config(config_paths: Vec<String>) -> Result<String, ConfigCombine
                         let yaml: serde_yaml::Value = serde_yaml::from_str(&content)
                             .map_err(|e| ConfigCombineError::ParseYaml(name.to_string(), e))?;
                         merge_yaml(yaml, &mut combined_yaml)?;
+                        config_found = true;
                     } else if name.contains(".sql") {
                         let sql = if content.ends_with(';') {
                             content.clone()
@@ -54,8 +57,14 @@ pub fn combine_config(config_paths: Vec<String>) -> Result<String, ConfigCombine
         merge_yaml(yaml, &mut combined_yaml)?;
     }
 
-    // `serde_yaml::from_value` will return deserialization error, not sure why.
-    serde_yaml::to_string(&combined_yaml).map_err(CannotSerializeToString)
+    if config_found {
+        // `serde_yaml::from_value` will return deserialization error, not sure why.
+        serde_yaml::to_string(&combined_yaml)
+            .map_err(CannotSerializeToString)
+            .map(Some)
+    } else {
+        Ok(None)
+    }
 }
 
 fn merge_yaml(
