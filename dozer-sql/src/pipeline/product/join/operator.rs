@@ -476,7 +476,7 @@ struct TableForJoin {
     primary_key_indexes: Vec<usize>,
     default_record: Record,
     join_key_to_record_key: LmdbMultimap<u64, u64>,
-    record_key_to_records: LmdbMap<u64, Record>,
+    record_key_to_records: LmdbMap<u64, Vec<Record>>,
 }
 
 impl TableForJoin {
@@ -516,8 +516,8 @@ impl TableForJoin {
         let mut result = vec![];
         for primary_key in self.join_key_to_record_key.iter_dup(txn, &join_key)? {
             let primary_key = primary_key?;
-            if let Some(record) = self.record_key_to_records.get(txn, primary_key.borrow())? {
-                result.push(record.into_owned());
+            if let Some(records) = self.record_key_to_records.get(txn, primary_key.borrow())? {
+                result.extend(records.into_owned());
             }
         }
         Ok(result)
@@ -531,26 +531,28 @@ impl TableForJoin {
         let mut result = 0;
         for primary_key in self.join_key_to_record_key.iter_dup(txn, &join_key)? {
             let primary_key = primary_key?;
-            if self
-                .record_key_to_records
-                .contains(txn, primary_key.borrow())?
-            {
-                result += 1;
+            if let Some(records) = self.record_key_to_records.get(txn, primary_key.borrow())? {
+                result += records.borrow().len();
             }
         }
         Ok(result)
     }
 
-    fn remove_record(&self, txn: &mut RwTransaction, record: &Record) -> Result<(), JoinError> {
+    fn remove_record(&self, txn: &mut RwTransaction, record: &Record) -> Result<(), StorageError> {
         let primary_key = get_record_key(record, &self.primary_key_indexes);
-        if !self.record_key_to_records.remove(txn, &primary_key)? {
-            return Err(JoinError::MissingPrimaryKey {
-                primary_indexes: self.primary_key_indexes.clone(),
-                record: record.clone(),
-                key: primary_key,
-            });
+        if let Some(records) = self.record_key_to_records.get(txn, &primary_key)? {
+            let mut records = records.into_owned();
+            records.pop();
+            if records.is_empty() {
+                assert!(self.record_key_to_records.remove(txn, &primary_key)?);
+                Ok(())
+            } else {
+                self.record_key_to_records
+                    .insert_overwrite(txn, &primary_key, &records)
+            }
+        } else {
+            Ok(())
         }
-        Ok(())
     }
 
     fn add_record(
@@ -558,21 +560,18 @@ impl TableForJoin {
         txn: &mut RwTransaction,
         join_key: u64,
         record: &Record,
-    ) -> Result<(), JoinError> {
+    ) -> Result<(), StorageError> {
         let primary_key = get_record_key(record, &self.primary_key_indexes);
         self.join_key_to_record_key
             .insert(txn, &join_key, &primary_key)?;
-        if !self
+        let mut records = self
             .record_key_to_records
-            .insert(txn, &primary_key, record)?
-        {
-            return Err(JoinError::DuplicatePrimaryKey {
-                primary_indexes: self.primary_key_indexes.clone(),
-                record: record.clone(),
-                key: primary_key,
-            });
-        }
-        Ok(())
+            .get(txn, &primary_key)?
+            .map(|records| records.into_owned())
+            .unwrap_or_default();
+        records.push(record.clone());
+        self.record_key_to_records
+            .insert_overwrite(txn, &primary_key, &records)
     }
 }
 

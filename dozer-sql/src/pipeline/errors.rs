@@ -7,7 +7,7 @@ use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::TypeError;
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
-use dozer_types::types::{Field, FieldType, Record};
+use dozer_types::types::{Field, FieldType};
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone)]
@@ -265,22 +265,6 @@ pub enum JoinError {
 
     #[error("Storage error: {0}")]
     Storage(#[from] StorageError),
-
-    #[error("Duplicate primary key: primary_indexes: {primary_indexes:?}, record: {record:?}, key: {key}")]
-    DuplicatePrimaryKey {
-        primary_indexes: Vec<usize>,
-        record: Record,
-        key: u64,
-    },
-
-    #[error(
-        "Missing primary key: primary_indexes: {primary_indexes:?}, record: {record:?}, key: {key}"
-    )]
-    MissingPrimaryKey {
-        primary_indexes: Vec<usize>,
-        record: Record,
-        key: u64,
-    },
 }
 
 #[derive(Error, Debug)]
