@@ -71,8 +71,8 @@ fn build_indices_full_text(
     values: &[Field],
 ) -> Result<Vec<Vec<u8>>, CacheError> {
     let Some(field) = values.get(field_index) else {
-            return Err(CacheError::Index(IndexError::FieldIndexOutOfRange));
-        };
+        return Err(CacheError::Index(IndexError::FieldIndexOutOfRange));
+    };
 
     let string = match field {
         Field::String(string) => string,

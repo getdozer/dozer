@@ -96,9 +96,7 @@ impl ConnectorSourceFactory {
         let source_schemas = connector.get_schemas(&tables).await?;
 
         let mut tables = vec![];
-        for ((table, port), source_schema) in
-            table_and_ports.into_iter().zip(source_schemas.into_iter())
-        {
+        for ((table, port), source_schema) in table_and_ports.into_iter().zip(source_schemas) {
             let name = table.name;
             let columns = table.column_names;
             let source_schema = source_schema?;

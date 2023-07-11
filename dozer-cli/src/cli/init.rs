@@ -162,7 +162,7 @@ pub fn generate_config_repl() -> Result<(), OrchestrationError> {
             "question: Connection Type - one of: [P]ostgres, [E]thereum, [S]nowflake (Postgres): "
                 .to_string(),
             Box::new(move |(connection, config)| {
-                let connections_available = vec!["Postgres", "Ethereum", "Snowflake"];
+                let connections_available = ["Postgres", "Ethereum", "Snowflake"];
                 if connections_available.contains(&connection.as_str()) {
                     let sample_connection = generate_connection(&connection);
                     config.connections.push(sample_connection);

@@ -235,7 +235,7 @@ impl<'a> ProtoGeneratorImpl<'a> {
                     let Kind::Message(record_with_id_message) = records_filed_kind else {
                         return Err(GenerationError::ExpectedMessageField {
                             filed_name: records_field.full_name().to_string(),
-                            actual: records_filed_kind
+                            actual: records_filed_kind,
                         });
                     };
                     let id_field = get_field(&record_with_id_message, "id")?;
@@ -244,7 +244,7 @@ impl<'a> ProtoGeneratorImpl<'a> {
                     let Kind::Message(record_message) = record_field_kind else {
                         return Err(GenerationError::ExpectedMessageField {
                             filed_name: record_field.full_name().to_string(),
-                            actual: record_field_kind
+                            actual: record_field_kind,
                         });
                     };
                     query = Some(QueryMethodDesc {
@@ -271,7 +271,7 @@ impl<'a> ProtoGeneratorImpl<'a> {
                     let Kind::Message(record_message) = old_field_kind else {
                         return Err(GenerationError::ExpectedMessageField {
                             filed_name: old_field.full_name().to_string(),
-                            actual: old_field_kind
+                            actual: old_field_kind,
                         });
                     };
                     on_event = Some(OnEventMethodDesc {
@@ -306,10 +306,14 @@ impl<'a> ProtoGeneratorImpl<'a> {
         }
 
         let Some(count) = count else {
-            return Err(GenerationError::MissingCountMethod(service.full_name().to_string()));
+            return Err(GenerationError::MissingCountMethod(
+                service.full_name().to_string(),
+            ));
         };
         let Some(query) = query else {
-            return Err(GenerationError::MissingQueryMethod(service.full_name().to_string()));
+            return Err(GenerationError::MissingQueryMethod(
+                service.full_name().to_string(),
+            ));
         };
 
         Ok(ServiceDesc {

@@ -202,7 +202,8 @@ impl OperationLog {
         let Some(Cow::Owned(Operation::Insert {
             record_meta,
             record,
-        })) = self.operation_id_to_operation.get(txn, &operation_id)? else {
+        })) = self.operation_id_to_operation.get(txn, &operation_id)?
+        else {
             panic!(
                 "Inconsistent state: primary_key_metadata, hash_metadata or present_operation_ids contains an insert operation id that is not an Insert operation"
             );

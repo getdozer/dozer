@@ -120,10 +120,7 @@ impl Processor for ProductProcessor {
                     .insert(from_branch, new)
                     .map_err(PipelineError::JoinError)?;
 
-                old_records
-                    .into_iter()
-                    .chain(new_records.into_iter())
-                    .collect()
+                old_records.into_iter().chain(new_records).collect()
             }
         };
 
