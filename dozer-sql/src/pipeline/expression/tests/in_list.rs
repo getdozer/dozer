@@ -37,7 +37,7 @@ fn test_in_list() {
 
     let f = run_fct(
         "SELECT age IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 42) FROM users",
-        schema.clone(),
+        schema,
         vec![Field::Int(42)],
     );
     assert_eq!(f, Field::Boolean(true));
@@ -79,7 +79,7 @@ fn test_not_in_list() {
 
     let f = run_fct(
         "SELECT age NOT IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 42) FROM users",
-        schema.clone(),
+        schema,
         vec![Field::Int(42)],
     );
     assert_eq!(f, Field::Boolean(false));

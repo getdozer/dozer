@@ -4,6 +4,8 @@ use dozer_cache::cache::expression::QueryExpression;
 use dozer_cache::cache::CacheRecord;
 use dozer_cache::{AccessFilter, CacheReader};
 
+pub const API_LATENCY_HISTOGRAM_NAME: &str = "api_latency";
+pub const API_REQUEST_COUNTER_NAME: &str = "api_requests";
 pub fn get_record(
     cache_reader: &CacheReader,
     key: &[u8],

@@ -2,10 +2,6 @@ use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::epoch::Epoch;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_tracing::{
-    IN_OPS_COUNTER_NAME, LATENCY_HISTOGRAME_NAME, LEFT_LOOKUP_SIZE_GAUGE_NAME,
-    OUT_OPS_COUNTER_NAME, RIGHT_LOOKUP_SIZE_GAUGE_NAME, UNSATISFIED_JOINS_COUNTER_NAME,
-};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::labels::Labels;
 use dozer_types::types::Operation;
@@ -24,30 +20,37 @@ pub struct ProductProcessor {
     labels: Labels,
 }
 
+const LEFT_LOOKUP_SIZE: &str = "product.left_lookup_size";
+const RIGHT_LOOKUP_SIZE: &str = "product.right_lookup_size";
+const UNSATISFIED_JOINS: &str = "product.unsatisfied_joins";
+const IN_OPS: &str = "product.in_ops";
+const OUT_OPS: &str = "product.out_ops";
+const LATENCY: &str = "product.latency";
+
 impl ProductProcessor {
     pub fn new(id: String, join_operator: JoinOperator) -> Self {
         describe_gauge!(
-            LEFT_LOOKUP_SIZE_GAUGE_NAME,
+            LEFT_LOOKUP_SIZE,
             "Total number of items in the left lookup table"
         );
         describe_gauge!(
-            RIGHT_LOOKUP_SIZE_GAUGE_NAME,
+            RIGHT_LOOKUP_SIZE,
             "Total number of items in the right lookup table"
         );
         describe_counter!(
-            UNSATISFIED_JOINS_COUNTER_NAME,
+            UNSATISFIED_JOINS,
             "Operations not matching the Join condition"
         );
         describe_counter!(
-            IN_OPS_COUNTER_NAME,
+            IN_OPS,
             "Number of records received by the product processor"
         );
         describe_counter!(
-            OUT_OPS_COUNTER_NAME,
+            OUT_OPS,
             "Number of records forwarded by the product processor"
         );
 
-        describe_histogram!(LATENCY_HISTOGRAME_NAME, "Processing latency");
+        describe_histogram!(LATENCY, "Processing latency");
 
         let mut labels = Labels::empty();
         labels.push("pid", id);
@@ -125,28 +128,24 @@ impl Processor for ProductProcessor {
         };
 
         let elapsed = now.elapsed();
-        histogram!(LATENCY_HISTOGRAME_NAME, elapsed, self.labels.clone());
-        increment_counter!(IN_OPS_COUNTER_NAME, self.labels.clone());
+        histogram!(LATENCY, elapsed, self.labels.clone());
+        increment_counter!(IN_OPS, self.labels.clone());
 
-        counter!(
-            OUT_OPS_COUNTER_NAME,
-            records.len() as u64,
-            self.labels.clone()
-        );
+        counter!(OUT_OPS, records.len() as u64, self.labels.clone());
 
         gauge!(
-            LEFT_LOOKUP_SIZE_GAUGE_NAME,
+            LEFT_LOOKUP_SIZE,
             self.join_operator.left_lookup_size() as f64,
             self.labels.clone()
         );
         gauge!(
-            RIGHT_LOOKUP_SIZE_GAUGE_NAME,
+            RIGHT_LOOKUP_SIZE,
             self.join_operator.right_lookup_size() as f64,
             self.labels.clone()
         );
 
         if records.is_empty() {
-            increment_counter!(UNSATISFIED_JOINS_COUNTER_NAME, self.labels.clone());
+            increment_counter!(UNSATISFIED_JOINS, self.labels.clone());
         }
 
         for (action, record) in records {
