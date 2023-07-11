@@ -3,7 +3,7 @@ pub mod errors;
 pub mod pipeline;
 pub mod shutdown;
 pub mod simple;
-
+mod ui_helper;
 use dozer_core::{app::AppPipeline, errors::ExecutionError};
 use dozer_ingestion::connectors::SourceSchema;
 use dozer_sql::pipeline::{builder::statement_to_pipeline, errors::PipelineError};
@@ -18,19 +18,28 @@ use std::{
 };
 use tokio::task::JoinHandle;
 #[cfg(feature = "cloud")]
+pub mod cloud_app_context;
+#[cfg(feature = "cloud")]
 mod cloud_helper;
-mod console_helper;
+pub mod console_helper;
+#[cfg(feature = "cloud")]
+mod progress_printer;
 mod utils;
 
 pub trait Orchestrator {
-    fn migrate(&mut self, force: bool) -> Result<(), OrchestrationError>;
+    fn build(&mut self, force: bool) -> Result<(), OrchestrationError>;
     fn clean(&mut self) -> Result<(), OrchestrationError>;
-    fn run_all(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError>;
+    fn run_all(
+        &mut self,
+        shutdown: ShutdownReceiver,
+        err_threshold: Option<u32>,
+    ) -> Result<(), OrchestrationError>;
     fn run_api(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError>;
     fn run_apps(
         &mut self,
         shutdown: ShutdownReceiver,
         api_notifier: Option<Sender<bool>>,
+        err_threshold: Option<u32>,
     ) -> Result<(), OrchestrationError>;
     #[allow(clippy::type_complexity)]
     fn list_connectors(
@@ -43,13 +52,17 @@ pub trait Orchestrator {
 pub trait CloudOrchestrator {
     fn deploy(&mut self, cloud: Cloud, deploy: DeployCommandArgs)
         -> Result<(), OrchestrationError>;
-    fn update(&mut self, cloud: Cloud, update: UpdateCommandArgs)
-        -> Result<(), OrchestrationError>;
-    fn delete(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError>;
+    fn delete(&mut self, cloud: Cloud) -> Result<(), OrchestrationError>;
     fn list(&mut self, cloud: Cloud, list: ListCommandArgs) -> Result<(), OrchestrationError>;
-    fn status(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError>;
-    fn monitor(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError>;
-    fn trace_logs(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError>;
+    fn status(&mut self, cloud: Cloud) -> Result<(), OrchestrationError>;
+    fn monitor(&mut self, cloud: Cloud) -> Result<(), OrchestrationError>;
+    fn trace_logs(&mut self, cloud: Cloud, logs: LogCommandArgs) -> Result<(), OrchestrationError>;
+    fn login(&mut self, cloud: Cloud, company_name: String) -> Result<(), OrchestrationError>;
+    fn execute_secrets_command(
+        &mut self,
+        cloud: Cloud,
+        command: SecretsCommand,
+    ) -> Result<(), OrchestrationError>;
 }
 
 // Re-exports
@@ -58,13 +71,16 @@ pub use dozer_ingestion::{
     errors::ConnectorError,
 };
 pub use dozer_sql::pipeline::builder::QueryContext;
-
+pub use ui_helper::config_to_ui_dag;
 pub fn wrapped_statement_to_pipeline(sql: &str) -> Result<QueryContext, PipelineError> {
     let mut pipeline = AppPipeline::new();
     statement_to_pipeline(sql, &mut pipeline, None)
 }
+
 #[cfg(feature = "cloud")]
-use crate::cli::cloud::{Cloud, DeployCommandArgs, ListCommandArgs, UpdateCommandArgs};
+use crate::cli::cloud::{
+    Cloud, DeployCommandArgs, ListCommandArgs, LogCommandArgs, SecretsCommand,
+};
 pub use dozer_types::models::connection::Connection;
 use dozer_types::tracing::error;
 

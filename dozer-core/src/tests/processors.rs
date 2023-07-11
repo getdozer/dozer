@@ -13,6 +13,9 @@ use super::app::NoneContext;
 pub struct ConnectivityTestProcessorFactory;
 
 impl ProcessorFactory<NoneContext> for ConnectivityTestProcessorFactory {
+    fn type_name(&self) -> String {
+        "ConnectivityTest".to_owned()
+    }
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
@@ -42,6 +45,10 @@ impl ProcessorFactory<NoneContext> for ConnectivityTestProcessorFactory {
         unimplemented!(
             "This struct is for connectivity test, only input and output ports are defined"
         )
+    }
+
+    fn id(&self) -> String {
+        "ConnectivityTest".to_owned()
     }
 }
 
@@ -78,5 +85,13 @@ impl ProcessorFactory<NoneContext> for NoInputPortProcessorFactory {
         unimplemented!(
             "This struct is for connectivity test, only input and output ports are defined"
         )
+    }
+
+    fn type_name(&self) -> String {
+        "NoInput".to_owned()
+    }
+
+    fn id(&self) -> String {
+        "NoInput".to_owned()
     }
 }

@@ -72,8 +72,10 @@ fn insert_table_processor_to_pipeline(
     // let relation_name_or_alias = get_name_or_alias(relation)?;
     let relation_name_or_alias = get_from_source(relation, pipeline, query_context, pipeline_idx)?;
 
-    let product_processor_factory = TableProcessorFactory::new(relation.to_owned());
-    let product_processor_name = format!("from_{}", uuid::Uuid::new_v4());
+    let product_processor_name = format!("from_{}", query_context.get_next_processor_id());
+    let product_processor_factory =
+        TableProcessorFactory::new(product_processor_name.clone(), relation.to_owned());
+
     let product_input_name = relation_name_or_alias.0;
 
     let mut input_nodes = vec![];
@@ -124,14 +126,21 @@ fn insert_table_operator_processor_to_pipeline(
     // the sources names that are used in this pipeline
     let mut input_nodes = vec![];
 
-    let product_processor = TableProcessorFactory::new(relation.clone());
-    let product_processor_name = format!("product_{}", uuid::Uuid::new_v4());
+    let product_processor_name = format!("product_{}", query_context.get_next_processor_id());
+    let product_processor =
+        TableProcessorFactory::new(product_processor_name.clone(), relation.clone());
 
     pipeline.add_processor(Arc::new(product_processor), &product_processor_name, vec![]);
 
     if operator.name.to_uppercase() == "TTL" {
-        let processor = TableOperatorProcessorFactory::new(operator.clone());
-        let processor_name = processor.get_name();
+        let processor_name = format!(
+            "TOP_{0}_{1}",
+            operator.name,
+            query_context.get_next_processor_id()
+        );
+        let processor =
+            TableOperatorProcessorFactory::new(processor_name.clone(), operator.clone());
+
         let source_name = processor
             .get_source_name()
             .map_err(PipelineError::TableOperatorError)?;
@@ -169,8 +178,10 @@ fn insert_table_operator_processor_to_pipeline(
             output_node: (product_processor_name, DEFAULT_PORT_HANDLE),
         })
     } else if operator.name.to_uppercase() == "TUMBLE" || operator.name.to_uppercase() == "HOP" {
-        let window_processor = WindowProcessorFactory::new(operator.clone());
-        let window_processor_name = format!("window_{}", uuid::Uuid::new_v4());
+        let window_processor_name = format!("window_{}", query_context.get_next_processor_id());
+        let window_processor =
+            WindowProcessorFactory::new(window_processor_name.clone(), operator.clone());
+
         let window_source_name = window_processor.get_source_name()?;
         let mut window_entry_points = vec![];
 
@@ -237,6 +248,7 @@ pub fn is_table_operator(
         TableFactor::TableFunction { .. } => Err(PipelineError::UnsupportedTableFunction),
         TableFactor::UNNEST { .. } => Err(PipelineError::UnsupportedUnnest),
         TableFactor::NestedJoin { .. } => Err(PipelineError::UnsupportedNestedJoin),
+        TableFactor::Pivot { .. } => Err(PipelineError::UnsupportedPivot),
     }
 }
 

@@ -16,7 +16,6 @@ service DozerCloud {
   rpc create_app_connection(AppConnectionRequest) returns (ConnectionResponse);
   rpc create_source(CreateSourceRequest) returns (SourceResponse);
 
-
   rpc parse_sql(ParseRequest) returns (ParseResponse);
   rpc parse_yaml(ParseYamlRequest) returns (ParseYamlResponse);
   rpc generate_yaml(GenerateYamlRequest) returns (GenerateYamlResponse);
@@ -35,11 +34,20 @@ service DozerCloud {
   rpc get_status(GetStatusRequest) returns (GetStatusResponse);
   rpc upsert_version(UpsertVersionRequest) returns (UpsertVersionResponse);
   rpc set_current_version(SetCurrentVersionRequest) returns (SetCurrentVersionResponse);
+  rpc set_num_api_instances(SetNumApiInstancesRequest) returns (SetNumApiInstancesResponse);
+
+  rpc list_deployments(ListDeploymentRequest) returns (ListDeploymentResponse);
 
   rpc list_files(ListFilesRequest) returns (ListFilesResponse);
   rpc update_files(UpdateFileRequest) returns (UpdateFileResponse);
   rpc save_files(SaveFilesRequest) returns (SaveFilesResponse);
   rpc delete_files(DeleteFileRequest) returns (DeleteFileResponse);
+
+  rpc create_secret(CreateSecretRequest) returns (CreateSecretResponse);
+  rpc update_secret(UpdateSecretRequest) returns (UpdateSecretResponse);
+  rpc delete_secret(DeleteSecretRequest) returns (DeleteSecretResponse);
+  rpc get_secret(GetSecretRequest) returns (GetSecretResponse);
+  rpc list_secrets(ListSecretsRequest) returns (ListSecretsResponse);
 
   rpc OnLogMessage(LogMessageRequest) returns (stream LogMessage);
   rpc OnStatusUpdate(StatusUpdateRequest) returns (stream StatusUpdate);
@@ -105,6 +113,7 @@ message ListAppConnectionRequest {
 message StartRequest {
   string app_id = 1;
   int32 num_api_instances = 2;
+  repeated Secret secrets = 3;
 }
 
 message StartResponse {
@@ -130,8 +139,19 @@ message GetStatusResponse {
 }
 
 message DeploymentStatus {
-  bool app_running = 1;
-  bool api_running = 2;
+  uint32 deployment = 1;
+  bool app_running = 2;
+  optional int32 api_desired = 3;
+  optional int32 api_available = 4;
+}
+
+message ListDeploymentRequest {
+  string app_id = 1;
+}
+
+message ListDeploymentResponse {
+  string app_id = 1;
+  repeated int32 deployment = 2;
 }
 
 message UpsertVersionRequest {
@@ -148,6 +168,14 @@ message SetCurrentVersionRequest {
 }
 
 message SetCurrentVersionResponse {}
+
+message SetNumApiInstancesRequest {
+  string app_id = 1;
+  uint32 deployment = 2;
+  int32 num_api_instances = 3;
+}
+
+message SetNumApiInstancesResponse {}
 
 message CreateAppRequest {
   repeated File files = 3;
@@ -295,6 +323,7 @@ message QueryNode {
   QueryNodeType node_type = 2;
   uint32 idx = 3;
   uint32 id = 4;
+  string data = 5;
 }
 
 message QueryEdge {
@@ -307,15 +336,62 @@ message QueryGraph {
   repeated QueryEdge edges = 2;
 }
 message CompanyRequest {
-    string name = 1;
+  oneof criteria {
+    string iss = 1;
+    string name = 2;
+  }
 }
 message CompanyResponse {
     string name = 1;
-    string cli_client_id = 2;
-    string region = 3;
-    string user_pool_id = 4;
-    string user_pool_name = 5;
-    string redirect_url = 6;
-    string domain_name = 7;
-    string callback_url = 8;
+    string auth_url = 2;
+    string iss = 3;
+    string jwks_url = 4;
+}
+
+message Secret {
+  string name = 1;
+  string value = 2;
+}
+
+message CreateSecretRequest {
+  string app_id = 1;
+  string name = 2;
+  string value = 3;
+}
+
+message CreateSecretResponse {
+}
+
+message UpdateSecretRequest {
+  string app_id = 1;
+  string name = 2;
+  string value = 3;
+}
+
+message UpdateSecretResponse {
+}
+
+message DeleteSecretRequest {
+  string app_id = 1;
+  string name = 2;
+}
+
+message DeleteSecretResponse {
+}
+
+message GetSecretRequest {
+  string app_id = 1;
+  string name = 2;
+}
+
+message GetSecretResponse {
+  string name = 1;
+}
+
+message ListSecretsRequest {
+  string app_id = 1;
+}
+
+message ListSecretsResponse {
+  repeated string secrets = 1;
 }

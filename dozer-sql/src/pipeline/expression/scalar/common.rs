@@ -3,7 +3,8 @@ use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
 use crate::pipeline::expression::scalar::number::{evaluate_abs, evaluate_round};
 use crate::pipeline::expression::scalar::string::{
-    evaluate_concat, evaluate_length, evaluate_ucase, validate_concat, validate_ucase,
+    evaluate_concat, evaluate_length, evaluate_to_char, evaluate_ucase, validate_concat,
+    validate_ucase,
 };
 use dozer_types::types::{Field, FieldType, Record, Schema};
 use std::fmt::{Display, Formatter};
@@ -15,6 +16,7 @@ pub enum ScalarFunctionType {
     Ucase,
     Concat,
     Length,
+    ToChar,
 }
 
 impl Display for ScalarFunctionType {
@@ -25,6 +27,7 @@ impl Display for ScalarFunctionType {
             ScalarFunctionType::Ucase => f.write_str("UCASE"),
             ScalarFunctionType::Concat => f.write_str("CONCAT"),
             ScalarFunctionType::Length => f.write_str("LENGTH"),
+            ScalarFunctionType::ToChar => f.write_str("TO_CHAR"),
         }
     }
 }
@@ -57,6 +60,7 @@ pub(crate) fn get_scalar_function_type(
             dozer_types::types::SourceDefinition::Dynamic,
             false,
         )),
+        ScalarFunctionType::ToChar => argv!(args, 0, ScalarFunctionType::ToChar)?.get_type(schema),
     }
 }
 
@@ -68,6 +72,7 @@ impl ScalarFunctionType {
             "ucase" => Ok(ScalarFunctionType::Ucase),
             "concat" => Ok(ScalarFunctionType::Concat),
             "length" => Ok(ScalarFunctionType::Length),
+            "to_char" => Ok(ScalarFunctionType::ToChar),
             _ => Err(PipelineError::InvalidFunction(name.to_string())),
         }
     }
@@ -95,6 +100,12 @@ impl ScalarFunctionType {
             ScalarFunctionType::Length => {
                 evaluate_length(schema, argv!(args, 0, ScalarFunctionType::Length)?, record)
             }
+            ScalarFunctionType::ToChar => evaluate_to_char(
+                schema,
+                argv!(args, 0, ScalarFunctionType::ToChar)?,
+                argv!(args, 1, ScalarFunctionType::ToChar)?,
+                record,
+            ),
         }
     }
 }

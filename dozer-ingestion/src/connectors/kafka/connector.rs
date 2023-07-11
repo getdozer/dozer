@@ -1,36 +1,40 @@
+use rdkafka::consumer::BaseConsumer;
+use rdkafka::ClientConfig;
+
 use crate::connectors::{Connector, SourceSchema, SourceSchemaResult, TableIdentifier};
 use crate::ingestion::Ingestor;
 use crate::{connectors::TableInfo, errors::ConnectorError};
 use dozer_types::ingestion_types::KafkaConfig;
+use rdkafka::consumer::Consumer;
+use rdkafka::util::Timeout;
 
-use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage};
 use tonic::async_trait;
 
-use crate::connectors::kafka::debezium::no_schema_registry::NoSchemaRegistry;
-use crate::connectors::kafka::debezium::schema_registry::SchemaRegistry;
-use crate::connectors::kafka::debezium::stream_consumer::DebeziumStreamConsumer;
+use crate::connectors::kafka::no_schema_registry_basic::NoSchemaRegistryBasic;
+
+use crate::connectors::kafka::schema_registry_basic::SchemaRegistryBasic;
 use crate::connectors::kafka::stream_consumer::StreamConsumer;
-use crate::errors::DebeziumError::{DebeziumConnectionError, TopicNotDefined};
+use crate::connectors::kafka::stream_consumer_basic::StreamConsumerBasic;
+use crate::errors::KafkaError::KafkaConnectionError;
 
 #[derive(Debug)]
 pub struct KafkaConnector {
-    pub id: u64,
     config: KafkaConfig,
 }
 
 impl KafkaConnector {
-    pub fn new(id: u64, config: KafkaConfig) -> Self {
-        Self { id, config }
+    pub fn new(config: KafkaConfig) -> Self {
+        Self { config }
     }
 
-    fn get_schemas_impl(
+    async fn get_schemas_impl(
         &self,
         table_names: Option<&[String]>,
     ) -> Result<Vec<SourceSchema>, ConnectorError> {
         if let Some(schema_registry_url) = &self.config.schema_registry_url {
-            SchemaRegistry::get_schema(table_names, schema_registry_url.clone())
+            SchemaRegistryBasic::get_schema(table_names, schema_registry_url.clone()).await
         } else {
-            NoSchemaRegistry::get_schema(table_names, self.config.broker.clone())
+            NoSchemaRegistryBasic::get_schema(table_names)
         }
     }
 }
@@ -49,7 +53,26 @@ impl Connector for KafkaConnector {
     }
 
     async fn list_tables(&self) -> Result<Vec<TableIdentifier>, ConnectorError> {
-        Ok(vec![])
+        let consumer = ClientConfig::new()
+            .set("bootstrap.servers", &self.config.broker.clone())
+            .set("api.version.request", "true")
+            .create::<BaseConsumer>()
+            .map_err(KafkaConnectionError)?;
+
+        let metadata = consumer
+            .fetch_metadata(None, Timeout::After(std::time::Duration::new(60, 0)))
+            .map_err(KafkaConnectionError)?;
+        let topics = metadata.topics();
+
+        let mut tables = vec![];
+        for topic in topics {
+            tables.push(TableIdentifier {
+                schema: None,
+                name: topic.name().to_string(),
+            });
+        }
+
+        Ok(tables)
     }
 
     async fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), ConnectorError> {
@@ -57,7 +80,7 @@ impl Connector for KafkaConnector {
             .iter()
             .map(|table| table.name.clone())
             .collect::<Vec<_>>();
-        self.get_schemas_impl(Some(&table_names)).map(|_| ())
+        self.get_schemas_impl(Some(&table_names)).await.map(|_| ())
     }
 
     async fn list_columns(
@@ -68,7 +91,7 @@ impl Connector for KafkaConnector {
             .iter()
             .map(|table| table.name.clone())
             .collect::<Vec<_>>();
-        let schemas = self.get_schemas_impl(Some(&table_names))?;
+        let schemas = self.get_schemas_impl(Some(&table_names)).await?;
         let mut result = vec![];
         for (table, schema) in tables.into_iter().zip(schemas) {
             let column_names = schema
@@ -95,7 +118,8 @@ impl Connector for KafkaConnector {
             .map(|table| table.name.clone())
             .collect::<Vec<_>>();
         Ok(self
-            .get_schemas_impl(Some(&table_names))?
+            .get_schemas_impl(Some(&table_names))
+            .await?
             .into_iter()
             .map(Ok)
             .collect())
@@ -106,23 +130,30 @@ impl Connector for KafkaConnector {
         ingestor: &Ingestor,
         tables: Vec<TableInfo>,
     ) -> Result<(), ConnectorError> {
-        let topic = tables
-            .get(0)
-            .map_or(Err(TopicNotDefined), |table| Ok(&table.name))?;
-
         let broker = self.config.broker.to_owned();
-        run(broker, topic, ingestor).await
+        run(broker, tables, ingestor, &self.config.schema_registry_url).await
     }
 }
 
-async fn run(broker: String, topic: &str, ingestor: &Ingestor) -> Result<(), ConnectorError> {
-    let con = Consumer::from_hosts(vec![broker])
-        .with_topic(topic.to_string())
-        .with_fallback_offset(FetchOffset::Earliest)
-        .with_offset_storage(GroupOffsetStorage::Kafka)
+async fn run(
+    broker: String,
+    tables: Vec<TableInfo>,
+    ingestor: &Ingestor,
+    schema_registry_url: &Option<String>,
+) -> Result<(), ConnectorError> {
+    let con: BaseConsumer = ClientConfig::new()
+        .set("bootstrap.servers", broker)
+        .set("group.id", "dozer")
+        .set("enable.auto.commit", "true")
         .create()
-        .map_err(DebeziumConnectionError)?;
+        .map_err(KafkaConnectionError)?;
 
-    let consumer = DebeziumStreamConsumer::default();
-    consumer.run(con, ingestor)
+    let topics: Vec<&str> = tables.iter().map(|t| t.name.as_ref()).collect();
+    con.subscribe(topics.iter().as_slice())
+        .map_err(KafkaConnectionError)?;
+
+    let consumer = StreamConsumerBasic::default();
+    consumer
+        .run(con, ingestor, tables, schema_registry_url)
+        .await
 }

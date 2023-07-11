@@ -23,16 +23,24 @@ use super::processor::ProjectionProcessor;
 #[derive(Debug)]
 pub struct ProjectionProcessorFactory {
     select: Vec<SelectItem>,
+    id: String,
 }
 
 impl ProjectionProcessorFactory {
     /// Creates a new [`ProjectionProcessorFactory`].
-    pub fn _new(select: Vec<SelectItem>) -> Self {
-        Self { select }
+    pub fn _new(id: String, select: Vec<SelectItem>) -> Self {
+        Self { select, id }
     }
 }
 
 impl ProcessorFactory<SchemaSQLContext> for ProjectionProcessorFactory {
+    fn id(&self) -> String {
+        self.id.clone()
+    }
+    fn type_name(&self) -> String {
+        "Projection".to_string()
+    }
+
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }

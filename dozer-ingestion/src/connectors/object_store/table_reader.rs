@@ -1,8 +1,6 @@
 use crate::connectors::object_store::adapters::DozerObjectStore;
-use crate::connectors::object_store::helper::map_listing_options;
 use crate::connectors::TableInfo;
-use crate::errors::ObjectStoreConnectorError::{RecvError, TableReaderError};
-use crate::errors::ObjectStoreObjectError::ListingPathParsingError;
+use crate::errors::ObjectStoreConnectorError::TableReaderError;
 use crate::errors::ObjectStoreTableReaderError::{
     ColumnsSelectFailed, StreamExecutionError, TableReadFailed,
 };
@@ -11,22 +9,23 @@ use crate::ingestion::Ingestor;
 use deltalake::datafusion::datasource::listing::{
     ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl,
 };
+
 use deltalake::datafusion::prelude::SessionContext;
 use dozer_types::arrow_types::from_arrow::{map_schema_to_dozer, map_value_to_dozer_field};
-use dozer_types::ingestion_types::IngestionMessage;
+use dozer_types::ingestion_types::IngestionMessageKind;
 use dozer_types::log::error;
 use dozer_types::types::{Operation, Record, SchemaIdentifier};
 use futures::StreamExt;
 use std::sync::Arc;
-use tokio::sync::mpsc::{channel, Sender};
+use tokio::sync::mpsc::Sender;
 use tonic::async_trait;
 
 pub struct TableReader<T: Clone + Send + Sync> {
-    config: T,
+    pub(crate) config: T,
 }
 
 impl<T: Clone + Send + Sync> TableReader<T> {
-    pub fn new(config: T) -> TableReader<T> {
+    pub fn _new(config: T) -> TableReader<T> {
         Self { config }
     }
 
@@ -36,7 +35,7 @@ impl<T: Clone + Send + Sync> TableReader<T> {
         table_path: ListingTableUrl,
         listing_options: ListingOptions,
         table: &TableInfo,
-        sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
+        sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
     ) -> Result<(), ObjectStoreConnectorError> {
         let resolved_schema = listing_options
             .infer_schema(&ctx.state(), &table_path)
@@ -105,11 +104,14 @@ impl<T: Clone + Send + Sync> TableReader<T> {
                     },
                 };
 
-                sender.send(Ok(Some(evt))).await.unwrap();
+                sender
+                    .send(Ok(Some(IngestionMessageKind::OperationEvent(evt))))
+                    .await
+                    .unwrap();
             }
         }
 
-        sender.send(Ok(None)).await.unwrap();
+        // sender.send(Ok(None)).await.unwrap();
 
         Ok(())
     }
@@ -128,82 +130,9 @@ pub trait Reader<T> {
 impl<T: DozerObjectStore> Reader<T> for TableReader<T> {
     async fn read_tables(
         &self,
-        tables: &[TableInfo],
-        ingestor: &Ingestor,
+        _tables: &[TableInfo],
+        _ingestor: &Ingestor,
     ) -> Result<(), ConnectorError> {
-        ingestor
-            .handle_message(IngestionMessage::new_snapshotting_started(0_u64, 0))
-            .map_err(ObjectStoreConnectorError::IngestorError)?;
-
-        let mut left_tables_count = tables.len();
-        let (tx, mut rx) = channel(16);
-
-        for (id, table) in tables.iter().enumerate() {
-            let params = self.config.table_params(&table.name)?;
-
-            let table_path = ListingTableUrl::parse(&params.table_path).map_err(|e| {
-                ObjectStoreConnectorError::DataFusionStorageObjectError(ListingPathParsingError(
-                    params.table_path.clone(),
-                    e,
-                ))
-            })?;
-
-            let listing_options = map_listing_options(params.data_fusion_table)
-                .map_err(ObjectStoreConnectorError::DataFusionStorageObjectError)?;
-
-            let ctx = SessionContext::new();
-
-            ctx.runtime_env().register_object_store(
-                params.scheme,
-                params.host,
-                Arc::new(params.object_store),
-            );
-
-            let sender = tx.clone();
-            let t = table.clone();
-
-            tokio::spawn(async move {
-                let result = Self::read(
-                    id as u32,
-                    ctx,
-                    table_path,
-                    listing_options,
-                    &t,
-                    sender.clone(),
-                )
-                .await;
-                if let Err(e) = result {
-                    sender.send(Err(e)).await.unwrap();
-                }
-            });
-        }
-
-        let mut idx = 1;
-        loop {
-            let message = rx
-                .recv()
-                .await
-                .ok_or(ConnectorError::ObjectStoreConnectorError(RecvError))??;
-            match message {
-                None => {
-                    left_tables_count -= 1;
-                    if left_tables_count == 0 {
-                        break;
-                    }
-                }
-                Some(evt) => {
-                    ingestor
-                        .handle_message(IngestionMessage::new_op(0, idx, evt))
-                        .map_err(ConnectorError::IngestorError)?;
-                    idx += 1;
-                }
-            }
-        }
-
-        ingestor
-            .handle_message(IngestionMessage::new_snapshotting_done(0, idx))
-            .map_err(ObjectStoreConnectorError::IngestorError)?;
-
         Ok(())
     }
 }

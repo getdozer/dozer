@@ -25,6 +25,7 @@ use futures_util::Future;
 use tracing_actix_web::TracingLogger;
 
 mod api_generator;
+mod rest_metric_middleware;
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 #[serde(crate = "self::serde")]
@@ -80,7 +81,7 @@ impl ApiServer {
     fn create_app_entry(
         security: Option<ApiSecurity>,
         cors: CorsOptions,
-        cache_endpoints: Vec<Arc<CacheEndpoint>>,
+        mut cache_endpoints: Vec<Arc<CacheEndpoint>>,
     ) -> App<
         impl ServiceFactory<
             ServiceRequest,
@@ -116,6 +117,9 @@ impl ApiServer {
 
         let cors_middleware = Self::get_cors(cors);
 
+        //reverse sort cache endpoints by path length to ensure that the most specific path is matched first
+        cache_endpoints.sort_by(|a, b| b.endpoint.path.len().cmp(&a.endpoint.path.len()));
+
         cache_endpoints
             .into_iter()
             .fold(app, |app, cache_endpoint| {
@@ -123,6 +127,7 @@ impl ApiServer {
                 let scope = &endpoint.path;
                 app.service(
                     web::scope(scope)
+                        .wrap(rest_metric_middleware::RestMetric)
                         // Inject cache_endpoint for generated functions
                         .wrap_fn(move |req, srv| {
                             req.extensions_mut().insert(cache_endpoint.clone());

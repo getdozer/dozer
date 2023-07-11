@@ -162,6 +162,10 @@ impl CreateErrProcessorFactory {
 }
 
 impl ProcessorFactory<NoneContext> for CreateErrProcessorFactory {
+    fn type_name(&self) -> String {
+        "CreateErr".to_owned()
+    }
+
     fn get_output_schema(
         &self,
         _port: &PortHandle,
@@ -204,6 +208,10 @@ impl ProcessorFactory<NoneContext> for CreateErrProcessorFactory {
         } else {
             Err("Generated Error".to_string().into())
         }
+    }
+
+    fn id(&self) -> String {
+        "CreateErr".to_owned()
     }
 }
 

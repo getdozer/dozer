@@ -6,11 +6,13 @@ use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::Operation;
 
 #[derive(Debug)]
-pub struct TableProcessor {}
+pub struct TableProcessor {
+    _id: String,
+}
 
 impl TableProcessor {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(id: String) -> Self {
+        Self { _id: id }
     }
 }
 
@@ -25,7 +27,7 @@ impl Processor for TableProcessor {
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
-        fw.send(op, DEFAULT_PORT_HANDLE)?;
+        fw.send(op, DEFAULT_PORT_HANDLE);
         Ok(())
     }
 }

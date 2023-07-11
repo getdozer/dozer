@@ -12,6 +12,7 @@ use crate::errors::SnowflakeSchemaError::{
 };
 use crate::errors::SnowflakeStreamError::TimeTravelNotAvailableError;
 use dozer_types::chrono::{NaiveDate, NaiveDateTime, NaiveTime};
+use dozer_types::indexmap::IndexMap;
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::*;
 use odbc::ffi::{SqlDataType, SQL_DATE_STRUCT, SQL_TIMESTAMP_STRUCT};
@@ -20,6 +21,8 @@ use odbc::{
     ColumnDescriptor, Connection, Cursor, Data, DiagnosticRecord, Executed, HasResult, NoData,
     ResultSetState, Statement,
 };
+use rand::distributions::Alphanumeric;
+use rand::Rng;
 use std::collections::HashMap;
 use std::fmt::Write;
 
@@ -189,6 +192,7 @@ impl Iterator for ResultIterator<'_, '_> {
 
 pub struct Client {
     conn_string: String,
+    name: String,
 }
 
 impl Client {
@@ -217,12 +221,20 @@ impl Client {
         let conn_string = parts.join(";");
 
         debug!("Snowflake conn string: {:?}", conn_string);
-
-        Self { conn_string }
+        let name = rand::thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(7)
+            .map(char::from)
+            .collect();
+        Self { conn_string, name }
     }
 
     pub fn get_conn_string(&self) -> String {
         self.conn_string.clone()
+    }
+
+    pub fn get_name(&self) -> String {
+        self.name.clone()
     }
 
     pub fn exec(
@@ -439,8 +451,8 @@ impl Client {
 
                 let schema = schema_result?;
 
-                let mut schemas: HashMap<String, Result<Schema, SnowflakeSchemaError>> =
-                    HashMap::new();
+                let mut schemas: IndexMap<String, Result<Schema, SnowflakeSchemaError>> =
+                    IndexMap::new();
                 let iterator = ResultIterator {
                     cols,
                     stmt: Some(data),
@@ -512,6 +524,15 @@ impl Client {
                         }
                     }
                 }
+
+                schemas.sort_by(|_, a, _, b| {
+                    a.as_ref()
+                        .unwrap()
+                        .identifier
+                        .unwrap()
+                        .id
+                        .cmp(&b.as_ref().unwrap().identifier.unwrap().id)
+                });
 
                 Ok(schemas
                     .into_iter()

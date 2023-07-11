@@ -33,6 +33,10 @@ struct ErrorProcessorFactory {
 }
 
 impl ProcessorFactory<NoneContext> for ErrorProcessorFactory {
+    fn type_name(&self) -> String {
+        "Error".to_owned()
+    }
+
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
@@ -63,6 +67,10 @@ impl ProcessorFactory<NoneContext> for ErrorProcessorFactory {
             panic: self.panic,
         }))
     }
+
+    fn id(&self) -> String {
+        "Error".to_owned()
+    }
 }
 
 #[derive(Debug)]
@@ -92,7 +100,8 @@ impl Processor for ErrorProcessor {
             }
         }
 
-        fw.send(op, DEFAULT_PORT_HANDLE).map_err(Into::into)
+        fw.send(op, DEFAULT_PORT_HANDLE);
+        Ok(())
     }
 }
 
@@ -144,124 +153,122 @@ fn test_run_dag_proc_err_panic() {
         .unwrap();
 }
 
-// These tests doesnt pass anymore because processor is not panicing
-// TODO: Enable tests when errors threshold is implemented
-// #[test]
-// #[should_panic]
-// fn test_run_dag_proc_err_2() {
-//     let count: u64 = 1_000_000;
-//
-//     let mut dag = Dag::new();
-//     let latch = Arc::new(AtomicBool::new(true));
-//
-//     let source_handle = NodeHandle::new(None, 1.to_string());
-//     let proc_handle = NodeHandle::new(Some(1), 1.to_string());
-//     let proc_err_handle = NodeHandle::new(Some(1), 2.to_string());
-//     let sink_handle = NodeHandle::new(Some(1), 3.to_string());
-//
-//     dag.add_source(
-//         source_handle.clone(),
-//         Arc::new(GeneratorSourceFactory::new(count, latch.clone(), false)),
-//     );
-//     dag.add_processor(proc_handle.clone(), Arc::new(NoopProcessorFactory {}));
-//
-//     dag.add_processor(
-//         proc_err_handle.clone(),
-//         Arc::new(ErrorProcessorFactory {
-//             err_on: 800_000,
-//             panic: false,
-//         }),
-//     );
-//
-//     dag.add_sink(
-//         sink_handle.clone(),
-//         Arc::new(CountingSinkFactory::new(count, latch)),
-//     );
-//
-//     dag.connect(
-//         Endpoint::new(source_handle, GENERATOR_SOURCE_OUTPUT_PORT),
-//         Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
-//     ).unwrap();
-//
-//     dag.connect(
-//         Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
-//         Endpoint::new(proc_err_handle.clone(), DEFAULT_PORT_HANDLE),
-//     ).unwrap();
-//
-//     dag.connect(
-//         Endpoint::new(proc_err_handle, DEFAULT_PORT_HANDLE),
-//         Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
-//     ).unwrap();
-//
-//     DagExecutor::new(
-//         dag,
-//         ExecutorOptions::default(),
-//     )
-//     .unwrap()
-//     .start(Arc::new(AtomicBool::new(true)))
-//     .unwrap()
-//     .join()
-//     .unwrap();
-// }
-//
-// #[test]
-// #[should_panic]
-// fn test_run_dag_proc_err_3() {
-//     let count: u64 = 1_000_000;
-//
-//     let mut dag = Dag::new();
-//     let latch = Arc::new(AtomicBool::new(true));
-//
-//     let source_handle = NodeHandle::new(None, 1.to_string());
-//     let proc_handle = NodeHandle::new(Some(1), 1.to_string());
-//     let proc_err_handle = NodeHandle::new(Some(1), 2.to_string());
-//     let sink_handle = NodeHandle::new(Some(1), 3.to_string());
-//
-//     dag.add_source(
-//         source_handle.clone(),
-//         Arc::new(GeneratorSourceFactory::new(count, latch.clone(), false)),
-//     );
-//
-//     dag.add_processor(
-//         proc_err_handle.clone(),
-//         Arc::new(ErrorProcessorFactory {
-//             err_on: 800_000,
-//             panic: false,
-//         }),
-//     );
-//
-//     dag.add_processor(proc_handle.clone(), Arc::new(NoopProcessorFactory {}));
-//
-//     dag.add_sink(
-//         sink_handle.clone(),
-//         Arc::new(CountingSinkFactory::new(count, latch)),
-//     );
-//
-//     dag.connect(
-//         Endpoint::new(source_handle, GENERATOR_SOURCE_OUTPUT_PORT),
-//         Endpoint::new(proc_err_handle.clone(), DEFAULT_PORT_HANDLE),
-//     ).unwrap();
-//
-//     dag.connect(
-//         Endpoint::new(proc_err_handle, DEFAULT_PORT_HANDLE),
-//         Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
-//     ).unwrap();
-//
-//     dag.connect(
-//         Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
-//         Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
-//     ).unwrap();
-//
-//     DagExecutor::new(
-//         dag,
-//         ExecutorOptions::default(),
-//     )
-//     .unwrap()
-//     .start(Arc::new(AtomicBool::new(true)))
-//     .unwrap()
-//     .join()
-//     .unwrap();
-// }
+#[test]
+#[should_panic]
+fn test_run_dag_proc_err_2() {
+    let count: u64 = 1_000_000;
+
+    let mut dag = Dag::new();
+    let latch = Arc::new(AtomicBool::new(true));
+
+    let source_handle = NodeHandle::new(None, 1.to_string());
+    let proc_handle = NodeHandle::new(Some(1), 1.to_string());
+    let proc_err_handle = NodeHandle::new(Some(1), 2.to_string());
+    let sink_handle = NodeHandle::new(Some(1), 3.to_string());
+
+    dag.add_source(
+        source_handle.clone(),
+        Arc::new(GeneratorSourceFactory::new(count, latch.clone(), false)),
+    );
+    dag.add_processor(proc_handle.clone(), Arc::new(NoopProcessorFactory {}));
+
+    dag.add_processor(
+        proc_err_handle.clone(),
+        Arc::new(ErrorProcessorFactory {
+            err_on: 800_000,
+            panic: false,
+        }),
+    );
+
+    dag.add_sink(
+        sink_handle.clone(),
+        Arc::new(CountingSinkFactory::new(count, latch)),
+    );
+
+    dag.connect(
+        Endpoint::new(source_handle, GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
+    )
+    .unwrap();
+
+    dag.connect(
+        Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
+        Endpoint::new(proc_err_handle.clone(), DEFAULT_PORT_HANDLE),
+    )
+    .unwrap();
+
+    dag.connect(
+        Endpoint::new(proc_err_handle, DEFAULT_PORT_HANDLE),
+        Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
+    )
+    .unwrap();
+
+    DagExecutor::new(dag, ExecutorOptions::default())
+        .unwrap()
+        .start(Arc::new(AtomicBool::new(true)))
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+#[test]
+#[should_panic]
+fn test_run_dag_proc_err_3() {
+    let count: u64 = 1_000_000;
+
+    let mut dag = Dag::new();
+    let latch = Arc::new(AtomicBool::new(true));
+
+    let source_handle = NodeHandle::new(None, 1.to_string());
+    let proc_handle = NodeHandle::new(Some(1), 1.to_string());
+    let proc_err_handle = NodeHandle::new(Some(1), 2.to_string());
+    let sink_handle = NodeHandle::new(Some(1), 3.to_string());
+
+    dag.add_source(
+        source_handle.clone(),
+        Arc::new(GeneratorSourceFactory::new(count, latch.clone(), false)),
+    );
+
+    dag.add_processor(
+        proc_err_handle.clone(),
+        Arc::new(ErrorProcessorFactory {
+            err_on: 800_000,
+            panic: false,
+        }),
+    );
+
+    dag.add_processor(proc_handle.clone(), Arc::new(NoopProcessorFactory {}));
+
+    dag.add_sink(
+        sink_handle.clone(),
+        Arc::new(CountingSinkFactory::new(count, latch)),
+    );
+
+    dag.connect(
+        Endpoint::new(source_handle, GENERATOR_SOURCE_OUTPUT_PORT),
+        Endpoint::new(proc_err_handle.clone(), DEFAULT_PORT_HANDLE),
+    )
+    .unwrap();
+
+    dag.connect(
+        Endpoint::new(proc_err_handle, DEFAULT_PORT_HANDLE),
+        Endpoint::new(proc_handle.clone(), DEFAULT_PORT_HANDLE),
+    )
+    .unwrap();
+
+    dag.connect(
+        Endpoint::new(proc_handle, DEFAULT_PORT_HANDLE),
+        Endpoint::new(sink_handle, COUNTING_SINK_INPUT_PORT),
+    )
+    .unwrap();
+
+    DagExecutor::new(dag, ExecutorOptions::default())
+        .unwrap()
+        .start(Arc::new(AtomicBool::new(true)))
+        .unwrap()
+        .join()
+        .unwrap();
+}
 
 // Test when error is generated by a source
 
@@ -447,7 +454,7 @@ pub(crate) struct ErrSink {
     panic: bool,
 }
 impl Sink for ErrSink {
-    fn commit(&mut self) -> Result<(), BoxedError> {
+    fn commit(&mut self, _epoch_details: &Epoch) -> Result<(), BoxedError> {
         Ok(())
     }
 

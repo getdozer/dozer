@@ -32,7 +32,7 @@ async fn ingest_and_test() {
     assert_eq!(res.into_inner().seq_no, 1);
 
     // wait for the record to be processed
-    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
 
     // Query common service
     let common_client = &mut test.common_service_client;

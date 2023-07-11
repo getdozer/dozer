@@ -1,7 +1,7 @@
 use dozer_types::parking_lot::Mutex;
 use std::sync::{Arc, Barrier};
 use std::thread::sleep;
-use std::time::{Duration, Instant};
+use std::time::{Duration, SystemTime};
 
 pub use dozer_types::epoch::Epoch;
 
@@ -25,7 +25,7 @@ enum EpochManagerState {
         /// Closed epoch id.
         epoch_id: u64,
         /// Instant when the epoch was closed.
-        instant: Instant,
+        instant: SystemTime,
         /// Number of sources that have confirmed the epoch close.
         num_source_confirmations: usize,
     },
@@ -63,7 +63,7 @@ impl EpochManager {
         &self,
         request_termination: bool,
         request_commit: bool,
-    ) -> (bool, Option<u64>, Instant) {
+    ) -> (bool, Option<u64>, SystemTime) {
         let barrier = loop {
             let mut state = self.state.lock();
             match &mut *state {
@@ -102,7 +102,7 @@ impl EpochManager {
                 terminating: *should_terminate,
                 committing: *should_commit,
                 epoch_id: *epoch_id,
-                instant: Instant::now(),
+                instant: SystemTime::now(),
                 num_source_confirmations: 0,
             };
         }
@@ -156,7 +156,7 @@ mod tests {
     fn run_epoch_manager(
         termination_gen: &(impl Fn(u16) -> bool + Sync),
         commit_gen: &(impl Fn(u16) -> bool + Sync),
-    ) -> (bool, Option<u64>, Instant) {
+    ) -> (bool, Option<u64>, SystemTime) {
         let epoch_manager = EpochManager::new(NUM_THREADS as usize);
         let epoch_manager = &epoch_manager;
         scope(|scope| {

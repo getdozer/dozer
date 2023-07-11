@@ -1,5 +1,4 @@
 use super::executor::Executor;
-use crate::console_helper::get_colored_text;
 use crate::errors::OrchestrationError;
 use crate::pipeline::{LogSinkSettings, PipelineBuilder};
 use crate::shutdown::ShutdownReceiver;
@@ -18,7 +17,12 @@ use dozer_cache::dozer_log::home_dir::HomeDir;
 use dozer_cache::dozer_log::schemas::MigrationSchema;
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::DagSchemas;
+use dozer_tracing::{API_LATENCY_HISTOGRAM_NAME, API_REQUEST_COUNTER_NAME};
 
+use crate::console_helper::get_colored_text;
+use crate::console_helper::GREEN;
+use crate::console_helper::PURPLE;
+use crate::console_helper::RED;
 use dozer_core::errors::ExecutionError;
 use dozer_ingestion::connectors::{SourceSchema, TableInfo};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
@@ -30,9 +34,11 @@ use dozer_types::models::app_config::Config;
 use dozer_types::tracing::error;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
+use metrics::{describe_counter, describe_histogram};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
+
 use std::sync::Arc;
 use std::thread;
 use tokio::runtime::Runtime;
@@ -62,6 +68,14 @@ impl SimpleOrchestrator {
 
 impl Orchestrator for SimpleOrchestrator {
     fn run_api(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError> {
+        describe_histogram!(
+            API_LATENCY_HISTOGRAM_NAME,
+            "The api processing latency in seconds"
+        );
+        describe_counter!(
+            API_REQUEST_COUNTER_NAME,
+            "Number of requests processed by the api"
+        );
         self.runtime.block_on(async {
             let mut futures = FuturesUnordered::new();
 
@@ -78,10 +92,8 @@ impl Orchestrator for SimpleOrchestrator {
                 LmdbRwCacheManager::new(get_cache_manager_options(&self.config))
                     .map_err(OrchestrationError::CacheInitFailed)?,
             );
-            let home_dir = HomeDir::new(
-                self.config.home_dir.as_ref(),
-                self.config.cache_dir.clone().into(),
-            );
+            let home_dir =
+                HomeDir::new(self.config.home_dir.as_ref(), self.config.cache_dir.clone());
             let mut cache_endpoints = vec![];
             for endpoint in &self.config.endpoints {
                 let (cache_endpoint, handle) = CacheEndpoint::new(
@@ -93,10 +105,14 @@ impl Orchestrator for SimpleOrchestrator {
                     Some(self.multi_pb.clone()),
                 )
                 .await?;
-                futures.push(flatten_join_handle(join_handle_map_err(
-                    handle,
-                    OrchestrationError::CacheBuildFailed,
-                )));
+                let cache_name = endpoint.name.clone();
+                futures.push(flatten_join_handle(join_handle_map_err(handle, move |e| {
+                    if e.is_map_full() {
+                        OrchestrationError::CacheFull(cache_name)
+                    } else {
+                        OrchestrationError::CacheBuildFailed(e)
+                    }
+                })));
                 cache_endpoints.push(Arc::new(cache_endpoint));
             }
 
@@ -150,32 +166,14 @@ impl Orchestrator for SimpleOrchestrator {
         &mut self,
         shutdown: ShutdownReceiver,
         api_notifier: Option<Sender<bool>>,
+        err_threshold: Option<u32>,
     ) -> Result<(), OrchestrationError> {
-        // gRPC notifier channel
-        // let (alias_redirected_sender, alias_redirected_receiver) = channel::unbounded();
-        // let (operation_sender, operation_receiver) = channel::unbounded();
-        // let internal_app_config = self.config.clone();
-        // let _intern_pipeline_thread = self.runtime.spawn(async move {
-        //     let result = start_internal_pipeline_server(
-        //         internal_app_config,
-        //         (
-        //             alias_redirected_receiver,
-        //             operation_receiver,
-        //         ),
-        //     )
-        //     .await;
-        //
-        //     if let Err(e) = result {
-        //         std::panic::panic_any(OrchestrationError::InternalServerFailed(e));
-        //     }
-        //
-        //     warn!("Shutting down internal pipeline server");
-        // });
+        let mut global_err_threshold: Option<u32> = self.config.err_threshold;
+        if err_threshold.is_some() {
+            global_err_threshold = err_threshold;
+        }
 
-        let home_dir = HomeDir::new(
-            self.config.home_dir.as_ref(),
-            self.config.cache_dir.clone().into(),
-        );
+        let home_dir = HomeDir::new(self.config.home_dir.as_ref(), self.config.cache_dir.clone());
         let executor = Executor::new(
             &home_dir,
             &self.config.connections,
@@ -191,7 +189,7 @@ impl Orchestrator for SimpleOrchestrator {
         let dag_executor = executor.create_dag_executor(
             self.runtime.clone(),
             settings,
-            get_executor_options(&self.config),
+            get_executor_options(&self.config, global_err_threshold),
         )?;
 
         if let Some(api_notifier) = api_notifier {
@@ -227,15 +225,12 @@ impl Orchestrator for SimpleOrchestrator {
         Err(OrchestrationError::MissingSecurityConfig)
     }
 
-    fn migrate(&mut self, force: bool) -> Result<(), OrchestrationError> {
-        let home_dir = HomeDir::new(
-            self.config.home_dir.as_ref(),
-            self.config.cache_dir.clone().into(),
-        );
+    fn build(&mut self, force: bool) -> Result<(), OrchestrationError> {
+        let home_dir = HomeDir::new(self.config.home_dir.as_ref(), self.config.cache_dir.clone());
 
         info!(
             "Initiating app: {}",
-            get_colored_text(&self.config.app_name, "35")
+            get_colored_text(&self.config.app_name, PURPLE)
         );
         if force {
             self.clean()?;
@@ -325,20 +320,34 @@ impl Orchestrator for SimpleOrchestrator {
         Ok(())
     }
 
-    fn run_all(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError> {
+    fn run_all(
+        &mut self,
+        shutdown: ShutdownReceiver,
+        err_threshold: Option<u32>,
+    ) -> Result<(), OrchestrationError> {
         let shutdown_api = shutdown.clone();
 
         let mut dozer_api = self.clone();
 
         let (tx, rx) = channel::unbounded::<bool>();
 
-        self.migrate(false)?;
+        self.build(false)?;
 
         let mut dozer_pipeline = self.clone();
-        let pipeline_thread = thread::spawn(move || dozer_pipeline.run_apps(shutdown, Some(tx)));
+        let pipeline_thread =
+            thread::spawn(move || dozer_pipeline.run_apps(shutdown, Some(tx), err_threshold));
 
         // Wait for pipeline to initialize caches before starting api server
-        rx.recv().unwrap();
+        if rx.recv().is_err() {
+            // This means the pipeline thread returned before sending a message. Either an error happened or it panicked.
+            return match pipeline_thread.join() {
+                Ok(Err(e)) => Err(e),
+                Ok(Ok(())) => panic!("An error must have happened"),
+                Err(e) => {
+                    std::panic::panic_any(e);
+                }
+            };
+        }
 
         dozer_api.run_api(shutdown_api)?;
 
@@ -352,7 +361,7 @@ pub fn validate_sql(sql: String) -> Result<(), PipelineError> {
         |e| {
             error!(
                 "[sql][{}] Transforms validation error: {}",
-                get_colored_text("X", "31"),
+                get_colored_text("X", RED),
                 e
             );
             Err(e)
@@ -360,7 +369,7 @@ pub fn validate_sql(sql: String) -> Result<(), PipelineError> {
         |_| {
             info!(
                 "[sql][{}]  Transforms validation completed",
-                get_colored_text("✓", "32")
+                get_colored_text("✓", GREEN)
             );
             Ok(())
         },

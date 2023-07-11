@@ -14,7 +14,7 @@ mod json;
 mod top;
 
 /// The trait defining the behaviour of processing every separated element.
-/// type Data usually stands for json [[Value]]
+/// type Data usually stands for json [[JsonValue]]
 /// The trait also requires to have a root json to process.
 /// It needs in case if in the filter there will be a pointer to the absolute path
 pub trait Path<'a> {

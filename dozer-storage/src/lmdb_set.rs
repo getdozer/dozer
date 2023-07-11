@@ -1,4 +1,4 @@
-use lmdb::{RoCursor, RwTransaction, Transaction};
+use lmdb::{Database, RoCursor, RwTransaction, Transaction};
 
 use crate::{
     errors::StorageError,
@@ -65,6 +65,10 @@ impl<K: LmdbKey> LmdbSet<K> {
         txn: &'txn T,
     ) -> Result<KeyIterator<'txn, RoCursor<'txn>, K>, StorageError> {
         self.0.keys(txn)
+    }
+
+    pub fn database(&self) -> Database {
+        self.0.database()
     }
 }
 

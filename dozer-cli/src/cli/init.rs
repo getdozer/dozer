@@ -12,6 +12,7 @@ use dozer_types::{
     },
     serde_yaml,
 };
+use rustyline::history::DefaultHistory;
 use rustyline::{
     completion::{Completer, Pair},
     Context,
@@ -105,11 +106,13 @@ pub fn generate_connection(connection_name: &str) -> Connection {
         }
         _ => {
             let postgres_config = PostgresConfig {
-                user: "postgres".to_owned(),
-                password: "postgres".to_owned(),
-                host: "localhost".to_owned(),
-                port: 5432,
-                database: "users".to_owned(),
+                user: Some("postgres".to_owned()),
+                password: Some("postgres".to_owned()),
+                host: Some("localhost".to_owned()),
+                port: Some(5432),
+                database: Some("users".to_owned()),
+                sslmode: None,
+                connection_url: None,
             };
             let connection: Connection = Connection {
                 name: "postgres".to_owned(),
@@ -124,7 +127,7 @@ type Question = (
     Box<dyn Fn((String, &mut Config)) -> Result<(), OrchestrationError>>,
 );
 pub fn generate_config_repl() -> Result<(), OrchestrationError> {
-    let mut rl = Editor::<InitHelper>::new()
+    let mut rl = Editor::<InitHelper, DefaultHistory>::new()
         .map_err(|e| OrchestrationError::CliError(CliError::ReadlineError(e)))?;
     rl.set_helper(Some(InitHelper {}));
     let mut default_config = Config::default();

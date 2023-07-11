@@ -29,6 +29,7 @@ pub(crate) fn init_processor(
     projection_planner.plan(*statement).unwrap();
 
     let processor = AggregationProcessor::new(
+        "".to_string(),
         projection_planner.groupby,
         projection_planner.aggregation_output,
         projection_planner.projection_output,

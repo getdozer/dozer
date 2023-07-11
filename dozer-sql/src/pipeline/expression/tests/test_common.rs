@@ -16,19 +16,15 @@ struct TestChannelForwarder {
 }
 
 impl ProcessorChannelForwarder for TestChannelForwarder {
-    fn send(
-        &mut self,
-        op: dozer_types::types::Operation,
-        _port: dozer_core::node::PortHandle,
-    ) -> Result<(), dozer_core::errors::ExecutionError> {
+    fn send(&mut self, op: dozer_types::types::Operation, _port: dozer_core::node::PortHandle) {
         self.operations.push(op);
-        Ok(())
     }
 }
 
 pub(crate) fn run_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Field {
     let select = get_select(sql).unwrap();
-    let processor_factory = ProjectionProcessorFactory::_new(select.projection);
+    let processor_factory =
+        ProjectionProcessorFactory::_new("projection_id".to_owned(), select.projection);
     processor_factory
         .get_output_schema(
             &DEFAULT_PORT_HANDLE,

@@ -119,6 +119,17 @@ async fn test_read_parquet_file() {
 
         i += 1;
     }
+
+    let row = iterator.next();
+    if let Some(IngestionMessage {
+        identifier: OpIdentifier { seq_in_tx, .. },
+        kind: IngestionMessageKind::SnapshottingDone,
+    }) = row
+    {
+        assert_eq!(seq_in_tx, 9);
+    } else {
+        panic!("Unexpected message");
+    }
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -151,7 +162,8 @@ async fn test_csv_read() {
     }
 
     let mut i = 1;
-    while i < 9 {
+    while i < 21 {
+        // no. of row in the csv data
         let row = iterator.next();
         if let Some(IngestionMessage {
             identifier: OpIdentifier { seq_in_tx, .. },
@@ -172,7 +184,7 @@ async fn test_csv_read() {
             test_type_conversion!(values, 8, Field::String(_));
 
             if let Field::Int(id) = values.get(0).unwrap() {
-                if *id < 3 {
+                if *id == 2 || *id == 12 {
                     test_type_conversion!(values, 9, Field::Float(_));
                 } else {
                     test_type_conversion!(values, 9, Field::Null);
@@ -183,6 +195,17 @@ async fn test_csv_read() {
         }
 
         i += 1;
+    }
+
+    let row = iterator.next();
+    if let Some(IngestionMessage {
+        identifier: OpIdentifier { seq_in_tx, .. },
+        kind: IngestionMessageKind::SnapshottingDone,
+    }) = row
+    {
+        assert_eq!(seq_in_tx, 21);
+    } else {
+        panic!("Unexpected message");
     }
 }
 

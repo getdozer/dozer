@@ -1,5 +1,6 @@
 use crate::node::{PortHandle, Sink, SinkFactory};
 use crate::DEFAULT_PORT_HANDLE;
+use dozer_types::epoch::Epoch;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::{Operation, Schema};
 
@@ -58,7 +59,7 @@ pub(crate) struct CountingSink {
     running: Arc<AtomicBool>,
 }
 impl Sink for CountingSink {
-    fn commit(&mut self) -> Result<(), BoxedError> {
+    fn commit(&mut self, _epoch_details: &Epoch) -> Result<(), BoxedError> {
         // if self.current == self.expected {
         //     info!(
         //         "Received {} messages. Notifying sender to exit!",

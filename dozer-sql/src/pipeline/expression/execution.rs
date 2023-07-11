@@ -13,12 +13,16 @@ use crate::pipeline::expression::json_functions::JsonFunctionType;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::scalar::common::{get_scalar_function_type, ScalarFunctionType};
 use crate::pipeline::expression::scalar::string::{evaluate_trim, validate_trim, TrimType};
+use std::iter::zip;
+
+use crate::pipeline::expression::case::evaluate_case;
 
 use dozer_types::types::{Field, FieldType, Record, Schema, SourceDefinition};
 use uuid::Uuid;
 
 use super::aggregate::AggregateFunctionType;
 use super::cast::CastOperatorType;
+use super::in_list::evaluate_in_list;
 use super::scalar::string::{evaluate_like, get_like_operator_type};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -70,12 +74,23 @@ pub enum Expression {
         pattern: Box<Expression>,
         escape: Option<char>,
     },
+    InList {
+        expr: Box<Expression>,
+        list: Vec<Expression>,
+        negated: bool,
+    },
     Now {
         fun: DateTimeFunctionType,
     },
     Json {
         fun: JsonFunctionType,
         args: Vec<Expression>,
+    },
+    Case {
+        operand: Option<Box<Expression>>,
+        conditions: Vec<Expression>,
+        results: Vec<Expression>,
+        else_result: Option<Box<Expression>>,
     },
     #[cfg(feature = "python")]
     PythonUDF {
@@ -156,6 +171,37 @@ impl Expression {
                     + typ.to_string().as_str()
                     + ")"
             }
+            Expression::Case {
+                operand,
+                conditions,
+                results,
+                else_result,
+            } => {
+                let mut op_str = String::new();
+                if let Some(op) = operand {
+                    op_str += " ";
+                    op_str += op.to_string(schema).as_str();
+                }
+                let mut when_then_str = String::new();
+                let iter = zip(conditions, results);
+                for (cond, res) in iter {
+                    when_then_str += " WHEN ";
+                    when_then_str += cond.to_string(schema).as_str();
+                    when_then_str += " THEN ";
+                    when_then_str += res.to_string(schema).as_str();
+                }
+                let mut else_str = String::new();
+                if let Some(else_res) = else_result {
+                    else_str += " ELSE ";
+                    else_str += else_res.to_string(schema).as_str();
+                }
+
+                "CASE".to_string()
+                    + op_str.as_str()
+                    + when_then_str.as_str()
+                    + else_str.as_str()
+                    + " END"
+            }
             Expression::Trim { typ, what, arg } => {
                 "TRIM(".to_string()
                     + if let Some(t) = typ {
@@ -179,6 +225,22 @@ impl Expression {
                 pattern,
                 escape: _,
             } => arg.to_string(schema) + " LIKE " + pattern.to_string(schema).as_str(),
+            Expression::InList {
+                expr,
+                list,
+                negated,
+            } => {
+                expr.to_string(schema)
+                    + if *negated { " NOT" } else { "" }
+                    + " IN ("
+                    + list
+                        .iter()
+                        .map(|e| e.to_string(schema))
+                        .collect::<Vec<String>>()
+                        .join(",")
+                        .as_str()
+                    + ")"
+            }
             Expression::GeoFunction { fun, args } => {
                 fun.to_string()
                     + "("
@@ -278,12 +340,23 @@ impl ExpressionExecutor for Expression {
                 pattern,
                 escape,
             } => evaluate_like(schema, arg, pattern, *escape, record),
+            Expression::InList {
+                expr,
+                list,
+                negated,
+            } => evaluate_in_list(schema, expr, list, *negated, record),
             Expression::Cast { arg, typ } => typ.evaluate(schema, arg, record),
             Expression::GeoFunction { fun, args } => fun.evaluate(schema, args, record),
             Expression::ConditionalExpression { fun, args } => fun.evaluate(schema, args, record),
             Expression::DateTimeFunction { fun, arg } => fun.evaluate(schema, arg, record),
             Expression::Now { fun } => fun.evaluate_now(),
             Expression::Json { fun, args } => fun.evaluate(schema, args, record),
+            Expression::Case {
+                operand,
+                conditions,
+                results,
+                else_result,
+            } => evaluate_case(schema, operand, conditions, results, else_result, record),
         }
     }
 
@@ -338,6 +411,16 @@ impl ExpressionExecutor for Expression {
                 pattern,
                 escape: _,
             } => get_like_operator_type(arg, pattern, schema),
+            Expression::InList {
+                expr: _,
+                list: _,
+                negated: _,
+            } => Ok(ExpressionType::new(
+                FieldType::Boolean,
+                false,
+                SourceDefinition::Dynamic,
+                false,
+            )),
             Expression::Cast { arg, typ } => typ.get_return_type(schema, arg),
             Expression::GeoFunction { fun, args } => get_geo_function_type(fun, args, schema),
             Expression::DateTimeFunction { fun, arg } => {
@@ -355,6 +438,20 @@ impl ExpressionExecutor for Expression {
                 dozer_types::types::SourceDefinition::Dynamic,
                 false,
             )),
+            Expression::Case {
+                operand: _,
+                conditions: _,
+                results,
+                else_result: _,
+            } => {
+                let typ = results.get(0).unwrap().get_type(schema)?;
+                Ok(ExpressionType::new(
+                    typ.return_type,
+                    true,
+                    dozer_types::types::SourceDefinition::Dynamic,
+                    false,
+                ))
+            }
             #[cfg(feature = "python")]
             Expression::PythonUDF { return_type, .. } => Ok(ExpressionType::new(
                 *return_type,

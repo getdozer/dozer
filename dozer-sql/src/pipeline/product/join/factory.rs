@@ -27,6 +27,7 @@ pub(crate) const RIGHT_JOIN_PORT: PortHandle = 1;
 
 #[derive(Debug)]
 pub struct JoinProcessorFactory {
+    id: String,
     left: Option<NameOrAlias>,
     right: Option<NameOrAlias>,
     join_operator: SqlJoinOperator,
@@ -34,11 +35,13 @@ pub struct JoinProcessorFactory {
 
 impl JoinProcessorFactory {
     pub fn new(
+        id: String,
         left: Option<NameOrAlias>,
         right: Option<NameOrAlias>,
         join_operator: SqlJoinOperator,
     ) -> Self {
         Self {
+            id,
             left,
             right,
             join_operator,
@@ -47,6 +50,13 @@ impl JoinProcessorFactory {
 }
 
 impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
+    fn id(&self) -> String {
+        self.id.clone()
+    }
+
+    fn type_name(&self) -> String {
+        "Join".to_string()
+    }
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![LEFT_JOIN_PORT, RIGHT_JOIN_PORT]
     }
@@ -171,7 +181,10 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
             Record::from_schema(&right_schema),
         );
 
-        Ok(Box::new(ProductProcessor::new(join_operator)))
+        Ok(Box::new(ProductProcessor::new(
+            self.id.clone(),
+            join_operator,
+        )))
     }
 }
 

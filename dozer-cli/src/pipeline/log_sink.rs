@@ -92,9 +92,9 @@ impl Sink for LogSink {
             .map_err(Into::into)
     }
 
-    fn commit(&mut self) -> Result<(), BoxedError> {
+    fn commit(&mut self, epoch_details: &Epoch) -> Result<(), BoxedError> {
         self.0.write_op(&ExecutorOperation::Commit {
-            epoch: Epoch::new(0, Default::default()),
+            epoch: epoch_details.clone(),
         })?;
         self.0.flush()?;
         Ok(())

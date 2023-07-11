@@ -1,7 +1,17 @@
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
-use kafka::consumer::Consumer;
 
+use crate::connectors::TableInfo;
+use rdkafka::consumer::BaseConsumer;
+use tonic::async_trait;
+
+#[async_trait]
 pub trait StreamConsumer {
-    fn run(&self, con: Consumer, ingestor: &Ingestor) -> Result<(), ConnectorError>;
+    async fn run(
+        &self,
+        con: BaseConsumer,
+        ingestor: &Ingestor,
+        tables: Vec<TableInfo>,
+        schema_registry_url: &Option<String>,
+    ) -> Result<(), ConnectorError>;
 }

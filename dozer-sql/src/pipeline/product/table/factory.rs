@@ -20,16 +20,25 @@ use super::processor::TableProcessor;
 
 #[derive(Debug)]
 pub struct TableProcessorFactory {
+    id: String,
     relation: TableFactor,
 }
 
 impl TableProcessorFactory {
-    pub fn new(relation: TableFactor) -> Self {
-        Self { relation }
+    pub fn new(id: String, relation: TableFactor) -> Self {
+        Self { id, relation }
     }
 }
 
 impl ProcessorFactory<SchemaSQLContext> for TableProcessorFactory {
+    fn id(&self) -> String {
+        self.id.clone()
+    }
+
+    fn type_name(&self) -> String {
+        "Table".to_string()
+    }
+
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
@@ -60,7 +69,7 @@ impl ProcessorFactory<SchemaSQLContext> for TableProcessorFactory {
         _input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
     ) -> Result<Box<dyn Processor>, BoxedError> {
-        Ok(Box::new(TableProcessor::new()))
+        Ok(Box::new(TableProcessor::new(self.id.clone())))
     }
 }
 
@@ -93,6 +102,9 @@ pub fn get_name_or_alias(relation: &TableFactor) -> Result<NameOrAlias, Pipeline
                 return Ok(NameOrAlias("dozer_nested".to_string(), Some(alias)));
             }
             Ok(NameOrAlias("dozer_nested".to_string(), None))
+        }
+        TableFactor::Pivot { .. } => {
+            Err(PipelineError::ProductError(ProductError::UnsupportedPivot))
         }
     }
 }

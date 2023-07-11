@@ -1,9 +1,10 @@
 use crate::channels::ProcessorChannelForwarder;
 use crate::epoch::EpochManager;
+use crate::error_manager::ErrorManager;
 use crate::errors::ExecutionError;
 use crate::errors::ExecutionError::InvalidPortHandle;
 use crate::node::PortHandle;
-use crate::record_store::RecordWriter;
+use crate::record_store::{RecordWriter, RecordWriterError};
 
 use crossbeam::channel::Sender;
 use dozer_types::epoch::{Epoch, ExecutorOperation};
@@ -13,7 +14,7 @@ use dozer_types::node::NodeHandle;
 use dozer_types::types::Operation;
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::{Duration, SystemTime};
 
 #[derive(Debug)]
 pub(crate) struct StateWriter {
@@ -25,7 +26,11 @@ impl StateWriter {
         Self { record_writers }
     }
 
-    fn store_op(&mut self, op: Operation, port: &PortHandle) -> Result<Operation, ExecutionError> {
+    fn store_op(
+        &mut self,
+        op: Operation,
+        port: &PortHandle,
+    ) -> Result<Operation, RecordWriterError> {
         if let Some(writer) = self.record_writers.get_mut(port) {
             writer.write(op)
         } else {
@@ -44,13 +49,20 @@ struct ChannelManager {
     senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
     state_writer: StateWriter,
     stateful: bool,
+    error_manager: Arc<ErrorManager>,
 }
 
 impl ChannelManager {
     #[inline]
     fn send_op(&mut self, mut op: Operation, port_id: PortHandle) -> Result<(), ExecutionError> {
         if self.stateful {
-            op = self.state_writer.store_op(op, &port_id)?;
+            match self.state_writer.store_op(op, &port_id) {
+                Ok(new_op) => op = new_op,
+                Err(e) => {
+                    self.error_manager.report(e.into());
+                    return Ok(());
+                }
+            }
         }
 
         let senders = self
@@ -111,12 +123,14 @@ impl ChannelManager {
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
         state_writer: StateWriter,
         stateful: bool,
+        error_manager: Arc<ErrorManager>,
     ) -> Self {
         Self {
             owner,
             senders,
             state_writer,
             stateful,
+            error_manager,
         }
     }
 }
@@ -130,7 +144,7 @@ pub(crate) struct SourceChannelManager {
     commit_sz: u32,
     num_uncommitted_ops: u32,
     max_duration_between_commits: Duration,
-    last_commit_instant: Instant,
+    last_commit_instant: SystemTime,
     epoch_manager: Arc<EpochManager>,
 }
 
@@ -144,9 +158,16 @@ impl SourceChannelManager {
         commit_sz: u32,
         max_duration_between_commits: Duration,
         epoch_manager: Arc<EpochManager>,
+        error_manager: Arc<ErrorManager>,
     ) -> Self {
         Self {
-            manager: ChannelManager::new(owner.clone(), senders, state_writer, stateful),
+            manager: ChannelManager::new(
+                owner.clone(),
+                senders,
+                state_writer,
+                stateful,
+                error_manager,
+            ),
             // FIXME: Read curr_txid and curr_seq_in_tx from persisted state.
             curr_txid: 0,
             curr_seq_in_tx: 0,
@@ -154,14 +175,18 @@ impl SourceChannelManager {
             commit_sz,
             num_uncommitted_ops: 0,
             max_duration_between_commits,
-            last_commit_instant: Instant::now(),
+            last_commit_instant: SystemTime::now(),
             epoch_manager,
         }
     }
 
     fn should_participate_in_commit(&self) -> bool {
         self.num_uncommitted_ops >= self.commit_sz
-            || self.last_commit_instant.elapsed() >= self.max_duration_between_commits
+            || self
+                .last_commit_instant
+                .elapsed()
+                .unwrap_or(self.max_duration_between_commits) // In case of system time drift, we just commit
+                >= self.max_duration_between_commits
     }
 
     fn commit(&mut self, request_termination: bool) -> Result<bool, ExecutionError> {
@@ -174,6 +199,7 @@ impl SourceChannelManager {
                 self.source_handle.clone(),
                 self.curr_txid,
                 self.curr_seq_in_tx,
+                decision_instant,
             ))?;
         }
         self.num_uncommitted_ops = 0;
@@ -236,9 +262,10 @@ impl ProcessorChannelManager {
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
         state_writer: StateWriter,
         stateful: bool,
+        error_manager: Arc<ErrorManager>,
     ) -> Self {
         Self {
-            manager: ChannelManager::new(owner, senders, state_writer, stateful),
+            manager: ChannelManager::new(owner, senders, state_writer, stateful, error_manager),
         }
     }
 
@@ -256,7 +283,9 @@ impl ProcessorChannelManager {
 }
 
 impl ProcessorChannelForwarder for ProcessorChannelManager {
-    fn send(&mut self, op: Operation, port: PortHandle) -> Result<(), ExecutionError> {
-        self.manager.send_op(op, port)
+    fn send(&mut self, op: Operation, port: PortHandle) {
+        self.manager
+            .send_op(op, port)
+            .unwrap_or_else(|e| panic!("Failed to send operation: {e}"))
     }
 }

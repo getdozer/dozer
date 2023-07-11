@@ -1,9 +1,13 @@
+use crate::exporter::DozerExporter;
+use crate::{
+    API_LATENCY_HISTOGRAM_NAME, DATA_LATENCY_HISTOGRAM_NAME, PIPELINE_LATENCY_HISTOGRAM_NAME,
+};
 use dozer_types::log::{debug, error};
 use dozer_types::models::telemetry::{
     DozerTelemetryConfig, JaegerTelemetryConfig, TelemetryConfig, TelemetryTraceConfig,
 };
 use dozer_types::tracing::Subscriber;
-use metrics_exporter_prometheus::PrometheusBuilder;
+use metrics_exporter_prometheus::{Matcher, PrometheusBuilder};
 use opentelemetry::sdk;
 use opentelemetry::sdk::trace::{BatchConfig, BatchSpanProcessor, Sampler};
 use opentelemetry::trace::TracerProvider;
@@ -12,8 +16,6 @@ use tracing_opentelemetry::OpenTelemetryLayer;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{fmt, EnvFilter, Layer};
-
-use crate::exporter::DozerExporter;
 // Init telemetry by setting a global handler
 pub fn init_telemetry(app_name: Option<&str>, telemetry_config: Option<TelemetryConfig>) {
     // log errors from open telemetry
@@ -29,7 +31,32 @@ pub fn init_telemetry(app_name: Option<&str>, telemetry_config: Option<Telemetry
 
     if let Some(telemetry_config) = telemetry_config {
         if telemetry_config.metrics.is_some() {
-            PrometheusBuilder::new()
+            let mut prom_builder = PrometheusBuilder::new();
+            prom_builder = prom_builder
+                .set_buckets_for_metric(
+                    Matcher::Full(API_LATENCY_HISTOGRAM_NAME.to_owned()),
+                    &[0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 30.0],
+                )
+                .unwrap();
+            prom_builder = prom_builder
+                .set_buckets_for_metric(
+                    Matcher::Full(DATA_LATENCY_HISTOGRAM_NAME.to_owned()),
+                    &[
+                        0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.00, 5.0, 10.0, 30.0,
+                        40.0, 50.0, 60.0,
+                    ],
+                )
+                .unwrap();
+            prom_builder = prom_builder
+                .set_buckets_for_metric(
+                    Matcher::Full(PIPELINE_LATENCY_HISTOGRAM_NAME.to_owned()),
+                    &[
+                        0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.00, 5.0, 10.0, 30.0,
+                        40.0, 50.0, 60.0,
+                    ],
+                )
+                .unwrap();
+            prom_builder
                 .install()
                 .expect("Failed to install Prometheus recorder/exporter");
         }
@@ -83,6 +110,7 @@ fn create_subscriber(
     tracing_subscriber::registry()
         .with(
             fmt::Layer::default()
+                .without_time()
                 .with_target(!stdout_is_tty)
                 .with_ansi(stdout_is_tty)
                 .with_filter(fmt_filter),

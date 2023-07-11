@@ -70,6 +70,8 @@ pub trait ProcessorFactory<T>: Send + Sync + Debug {
         input_schemas: HashMap<PortHandle, Schema>,
         output_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Processor>, BoxedError>;
+    fn type_name(&self) -> String;
+    fn id(&self) -> String;
 }
 
 pub trait Processor: Send + Sync + Debug {
@@ -92,7 +94,7 @@ pub trait SinkFactory<T>: Send + Sync + Debug {
 }
 
 pub trait Sink: Send + Sync + Debug {
-    fn commit(&mut self) -> Result<(), BoxedError>;
+    fn commit(&mut self, epoch_details: &Epoch) -> Result<(), BoxedError>;
     fn process(&mut self, from_port: PortHandle, op: Operation) -> Result<(), BoxedError>;
 
     fn on_source_snapshotting_done(&mut self, connection_name: String) -> Result<(), BoxedError>;

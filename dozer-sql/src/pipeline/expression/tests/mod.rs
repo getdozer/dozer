@@ -4,6 +4,8 @@ mod execution;
 mod expression_builder_test;
 
 #[cfg(test)]
+mod case;
+#[cfg(test)]
 mod cast;
 #[cfg(test)]
 mod comparison;
@@ -13,6 +15,7 @@ mod conditional;
 mod datetime;
 #[cfg(test)]
 mod distance;
+mod in_list;
 #[cfg(test)]
 mod json_functions;
 #[cfg(test)]

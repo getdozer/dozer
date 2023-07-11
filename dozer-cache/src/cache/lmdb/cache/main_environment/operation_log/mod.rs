@@ -5,9 +5,12 @@ use dozer_storage::{
 };
 use dozer_types::{
     borrow::{Borrow, Cow, IntoOwned},
+    labels::Labels,
+    log::info,
     serde::{Deserialize, Serialize},
     types::Record,
 };
+use metrics::{describe_counter, increment_counter};
 
 use crate::cache::{CacheRecord, RecordMeta};
 
@@ -37,7 +40,7 @@ pub enum OperationBorrow<'a> {
     },
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct OperationLog {
     /// Record primary key -> RecordMetadata, empty if schema is append only or has no primary index.
     primary_key_metadata: PrimaryKeyMetadata,
@@ -49,6 +52,8 @@ pub struct OperationLog {
     next_operation_id: LmdbCounter,
     /// Operation_id -> operation.
     operation_id_to_operation: LmdbMap<u64, Operation>,
+    /// The cache labels.
+    labels: Labels,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -57,35 +62,54 @@ pub enum MetadataKey<'a> {
     Hash(&'a Record, u64),
 }
 
+const PRESENT_OPERATION_IDS_DB_NAME: &str = "present_operation_ids";
+const NEXT_OPERATION_ID_DB_NAME: &str = "next_operation_id";
+const OPERATION_ID_TO_OPERATION_DB_NAME: &str = "operation_id_to_operation";
+
+const CACHE_OPERATION_LOG_COUNTER_NAME: &str = "cache_operation_log";
+
 impl OperationLog {
-    pub fn create(env: &mut RwLmdbEnvironment) -> Result<Self, StorageError> {
+    pub fn create(env: &mut RwLmdbEnvironment, labels: Labels) -> Result<Self, StorageError> {
+        describe_counter!(
+            CACHE_OPERATION_LOG_COUNTER_NAME,
+            "Number of operations stored in the cache"
+        );
+
         let primary_key_metadata = PrimaryKeyMetadata::create(env)?;
         let hash_metadata = HashMetadata::create(env)?;
-        let present_operation_ids = LmdbSet::create(env, Some("present_operation_ids"))?;
-        let next_operation_id = LmdbCounter::create(env, Some("next_operation_id"))?;
-        let operation_id_to_operation = LmdbMap::create(env, Some("operation_id_to_operation"))?;
+        let present_operation_ids = LmdbSet::create(env, Some(PRESENT_OPERATION_IDS_DB_NAME))?;
+        let next_operation_id = LmdbCounter::create(env, Some(NEXT_OPERATION_ID_DB_NAME))?;
+        let operation_id_to_operation =
+            LmdbMap::create(env, Some(OPERATION_ID_TO_OPERATION_DB_NAME))?;
         Ok(Self {
             primary_key_metadata,
             hash_metadata,
             present_operation_ids,
             next_operation_id,
             operation_id_to_operation,
+            labels,
         })
     }
 
-    pub fn open<E: LmdbEnvironment>(env: &E) -> Result<Self, StorageError> {
+    pub fn open<E: LmdbEnvironment>(env: &E, labels: Labels) -> Result<Self, StorageError> {
         let primary_key_metadata = PrimaryKeyMetadata::open(env)?;
         let hash_metadata = HashMetadata::open(env)?;
-        let present_operation_ids = LmdbSet::open(env, Some("present_operation_ids"))?;
-        let next_operation_id = LmdbCounter::open(env, Some("next_operation_id"))?;
-        let operation_id_to_operation = LmdbMap::open(env, Some("operation_id_to_operation"))?;
+        let present_operation_ids = LmdbSet::open(env, Some(PRESENT_OPERATION_IDS_DB_NAME))?;
+        let next_operation_id = LmdbCounter::open(env, Some(NEXT_OPERATION_ID_DB_NAME))?;
+        let operation_id_to_operation =
+            LmdbMap::open(env, Some(OPERATION_ID_TO_OPERATION_DB_NAME))?;
         Ok(Self {
             primary_key_metadata,
             hash_metadata,
             present_operation_ids,
             next_operation_id,
             operation_id_to_operation,
+            labels,
         })
+    }
+
+    pub fn labels(&self) -> &Labels {
+        &self.labels
     }
 
     pub fn count_present_records<T: Transaction>(
@@ -235,6 +259,7 @@ impl OperationLog {
                     record,
                 },
             )?;
+            increment_counter!(CACHE_OPERATION_LOG_COUNTER_NAME, self.labels.clone());
             Ok(record_meta)
         }
     }
@@ -332,6 +357,7 @@ impl OperationLog {
                 record,
             },
         )?;
+        increment_counter!(CACHE_OPERATION_LOG_COUNTER_NAME, self.labels.clone());
         Ok(())
     }
 
@@ -396,7 +422,9 @@ impl OperationLog {
             OperationBorrow::Delete {
                 operation_id: insert_operation_id,
             },
-        )
+        )?;
+        increment_counter!(CACHE_OPERATION_LOG_COUNTER_NAME, self.labels.clone());
+        Ok(())
     }
 
     /// Deletes an existing record. The given `record_meta` and `insert_operation_id` must match what is stored in metadata.
@@ -429,6 +457,68 @@ impl OperationLog {
             }
         }
     }
+
+    pub async fn dump<'txn, T: Transaction>(
+        &self,
+        txn: &'txn T,
+        context: &dozer_storage::generator::FutureGeneratorContext<
+            Result<dozer_storage::DumpItem<'txn>, StorageError>,
+        >,
+    ) -> Result<(), ()> {
+        dozer_storage::dump(
+            txn,
+            PrimaryKeyMetadata::DATABASE_NAME,
+            self.primary_key_metadata.database(),
+            context,
+        )
+        .await?;
+        dozer_storage::dump(
+            txn,
+            HashMetadata::DATABASE_NAME,
+            self.hash_metadata.database(),
+            context,
+        )
+        .await?;
+        dozer_storage::dump(
+            txn,
+            PRESENT_OPERATION_IDS_DB_NAME,
+            self.present_operation_ids.database(),
+            context,
+        )
+        .await?;
+        dozer_storage::dump(
+            txn,
+            NEXT_OPERATION_ID_DB_NAME,
+            self.next_operation_id.database(),
+            context,
+        )
+        .await?;
+        dozer_storage::dump(
+            txn,
+            OPERATION_ID_TO_OPERATION_DB_NAME,
+            self.operation_id_to_operation.database(),
+            context,
+        )
+        .await
+    }
+
+    pub async fn restore<'txn, R: tokio::io::AsyncRead + Unpin>(
+        env: &mut RwLmdbEnvironment,
+        reader: &mut R,
+        labels: Labels,
+    ) -> Result<Self, dozer_storage::RestoreError> {
+        info!("Restoring primary key metadata");
+        dozer_storage::restore(env, reader).await?;
+        info!("Restoring hash metadata");
+        dozer_storage::restore(env, reader).await?;
+        info!("Restoring present operation ids");
+        dozer_storage::restore(env, reader).await?;
+        info!("Restoring next operation id");
+        dozer_storage::restore(env, reader).await?;
+        info!("Restoring operation id to operation");
+        dozer_storage::restore(env, reader).await?;
+        Self::open(env, labels).map_err(Into::into)
+    }
 }
 
 const INITIAL_RECORD_VERSION: u32 = 1_u32;
@@ -445,4 +535,4 @@ use metadata::Metadata;
 use primary_key_metadata::PrimaryKeyMetadata;
 
 #[cfg(test)]
-mod tests;
+pub mod tests;

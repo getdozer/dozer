@@ -1,6 +1,6 @@
 use dozer_storage::{
     errors::StorageError,
-    lmdb::{RwTransaction, Transaction},
+    lmdb::{Database, RwTransaction, Transaction},
     LmdbEnvironment, LmdbMultimap, RwLmdbEnvironment,
 };
 use dozer_types::{borrow::IntoOwned, types::Record};
@@ -12,11 +12,17 @@ pub struct HashMetadata(LmdbMultimap<u64, RecordMetadata>);
 
 impl HashMetadata {
     pub fn create(env: &mut RwLmdbEnvironment) -> Result<Self, StorageError> {
-        LmdbMultimap::create(env, Some("hash_metadata")).map(Self)
+        LmdbMultimap::create(env, Some(Self::DATABASE_NAME)).map(Self)
     }
 
     pub fn open<E: LmdbEnvironment>(env: &E) -> Result<Self, StorageError> {
-        LmdbMultimap::open(env, Some("hash_metadata")).map(Self)
+        LmdbMultimap::open(env, Some(Self::DATABASE_NAME)).map(Self)
+    }
+
+    pub const DATABASE_NAME: &str = "hash_metadata";
+
+    pub fn database(&self) -> Database {
+        self.0.database()
     }
 }
 

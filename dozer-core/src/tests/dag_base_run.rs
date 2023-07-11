@@ -26,6 +26,10 @@ use crate::tests::app::NoneContext;
 pub(crate) struct NoopProcessorFactory {}
 
 impl ProcessorFactory<NoneContext> for NoopProcessorFactory {
+    fn type_name(&self) -> String {
+        "Noop".to_owned()
+    }
+
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
@@ -52,6 +56,10 @@ impl ProcessorFactory<NoneContext> for NoopProcessorFactory {
     ) -> Result<Box<dyn Processor>, BoxedError> {
         Ok(Box::new(NoopProcessor {}))
     }
+
+    fn id(&self) -> String {
+        "Noop".to_owned()
+    }
 }
 
 #[derive(Debug)]
@@ -68,7 +76,8 @@ impl Processor for NoopProcessor {
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
-        fw.send(op, DEFAULT_PORT_HANDLE).map_err(Into::into)
+        fw.send(op, DEFAULT_PORT_HANDLE);
+        Ok(())
     }
 }
 
@@ -166,6 +175,10 @@ pub const NOOP_JOIN_LEFT_INPUT_PORT: u16 = 1;
 pub const NOOP_JOIN_RIGHT_INPUT_PORT: u16 = 2;
 
 impl ProcessorFactory<NoneContext> for NoopJoinProcessorFactory {
+    fn type_name(&self) -> String {
+        "NoopJoin".to_owned()
+    }
+
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
@@ -192,6 +205,10 @@ impl ProcessorFactory<NoneContext> for NoopJoinProcessorFactory {
     ) -> Result<Box<dyn Processor>, BoxedError> {
         Ok(Box::new(NoopJoinProcessor {}))
     }
+
+    fn id(&self) -> String {
+        "NoopJoin".to_owned()
+    }
 }
 
 #[derive(Debug)]
@@ -208,7 +225,8 @@ impl Processor for NoopJoinProcessor {
         op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
-        fw.send(op, DEFAULT_PORT_HANDLE).map_err(Into::into)
+        fw.send(op, DEFAULT_PORT_HANDLE);
+        Ok(())
     }
 }
 

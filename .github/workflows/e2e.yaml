@@ -2,12 +2,13 @@ name: Dozer E2E Test
 
 on:
   pull_request_target:
-    branches: [main, e2e-yaml-dev]
-  push:
-    branches: [main, e2e-yaml-dev]
+    branches: [main]
+  workflow_dispatch:
+  merge_group:
 
 env:
   CARGO_TERM_COLOR: always
+  DOZER_DEV: ci
 
 concurrency:
   group: e2e/${{ github.head_ref || github.run_id }}
@@ -27,7 +28,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - if: github.event_name == 'push'
+      - if: github.event_name != 'pull_request_target'
         uses: actions/checkout@v3
 
       - name: Install rust toolchain
@@ -64,7 +65,7 @@ jobs:
         run: cargo build --bin dozer-tests
 
       - name: Run dozer-tests
+        run: cargo run --bin dozer-tests
         env:
           ETH_WSS_URL: ${{ secrets.ETH_WSS_URL }}
           ETH_HTTPS_URL: ${{ secrets.ETH_HTTPS_URL }}
-        run: cargo run --bin dozer-tests

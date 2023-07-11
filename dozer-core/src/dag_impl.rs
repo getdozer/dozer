@@ -120,8 +120,7 @@ impl<T> Dag<T> {
 
     /// Print the DAG in DOT format.
     pub fn print_dot(&self) {
-        use std::println as info;
-        info!("{}", dot::Dot::new(&self.graph));
+        println!("{}", dot::Dot::new(&self.graph));
     }
 
     /// Adds a source. Panics if the `handle` exists in the `Dag`.

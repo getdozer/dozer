@@ -4,8 +4,8 @@ use dozer_types::{
 };
 use sqlparser::ast::{
     BinaryOperator as SqlBinaryOperator, DataType, DateTimeField, Expr as SqlExpr, Expr, Function,
-    FunctionArg, FunctionArgExpr, Ident, TrimWhereField, UnaryOperator as SqlUnaryOperator,
-    Value as SqlValue,
+    FunctionArg, FunctionArgExpr, Ident, Interval, TrimWhereField,
+    UnaryOperator as SqlUnaryOperator, Value as SqlValue,
 };
 
 use crate::pipeline::errors::PipelineError::{
@@ -108,21 +108,40 @@ impl ExpressionBuilder {
                 escape_char,
                 schema,
             ),
+            SqlExpr::InList {
+                expr,
+                list,
+                negated,
+            } => self.parse_sql_in_list_operator(parse_aggregations, expr, list, *negated, schema),
+
             SqlExpr::Cast { expr, data_type } => {
                 self.parse_sql_cast_operator(parse_aggregations, expr, data_type, schema)
             }
             SqlExpr::Extract { field, expr } => {
                 self.parse_sql_extract_operator(parse_aggregations, field, expr, schema)
             }
-            SqlExpr::Interval {
+            SqlExpr::Interval(Interval {
                 value,
                 leading_field,
                 leading_precision: _,
                 last_field: _,
                 fractional_seconds_precision: _,
-            } => {
+            }) => {
                 self.parse_sql_interval_expression(parse_aggregations, value, leading_field, schema)
             }
+            SqlExpr::Case {
+                operand,
+                conditions,
+                results,
+                else_result,
+            } => self.parse_sql_case_expression(
+                parse_aggregations,
+                operand,
+                conditions,
+                results,
+                else_result,
+                schema,
+            ),
             _ => Err(InvalidExpression(format!("{expression:?}"))),
         }
     }
@@ -473,6 +492,48 @@ impl ExpressionBuilder {
         }
     }
 
+    fn parse_sql_case_expression(
+        &mut self,
+        parse_aggregations: bool,
+        operand: &Option<Box<Expr>>,
+        conditions: &[Expr],
+        results: &[Expr],
+        else_result: &Option<Box<Expr>>,
+        schema: &Schema,
+    ) -> Result<Expression, PipelineError> {
+        let op = match operand {
+            Some(o) => Some(Box::new(self.parse_sql_expression(
+                parse_aggregations,
+                o,
+                schema,
+            )?)),
+            None => None,
+        };
+        let conds = conditions
+            .iter()
+            .map(|cond| self.parse_sql_expression(parse_aggregations, cond, schema))
+            .collect::<Result<Vec<_>, PipelineError>>()?;
+        let res = results
+            .iter()
+            .map(|r| self.parse_sql_expression(parse_aggregations, r, schema))
+            .collect::<Result<Vec<_>, PipelineError>>()?;
+        let else_res = match else_result {
+            Some(r) => Some(Box::new(self.parse_sql_expression(
+                parse_aggregations,
+                r,
+                schema,
+            )?)),
+            None => None,
+        };
+
+        Ok(Expression::Case {
+            operand: op,
+            conditions: conds,
+            results: res,
+            else_result: else_res,
+        })
+    }
+
     fn parse_sql_interval_expression(
         &mut self,
         parse_aggregations: bool,
@@ -546,6 +607,7 @@ impl ExpressionBuilder {
         })
     }
 
+    #[cfg(not(feature = "bigdecimal"))]
     fn parse_sql_number(n: &str) -> Result<Expression, PipelineError> {
         match n.parse::<i64>() {
             Ok(n) => Ok(Expression::Literal(Field::Int(n))),
@@ -553,6 +615,19 @@ impl ExpressionBuilder {
                 Ok(f) => Ok(Expression::Literal(Field::Float(OrderedFloat(f)))),
                 Err(_) => Err(InvalidValue(n.to_string())),
             },
+        }
+    }
+
+    #[cfg(feature = "bigdecimal")]
+    fn parse_sql_number(n: &bigdecimal::BigDecimal) -> Result<Expression, PipelineError> {
+        use bigdecimal::ToPrimitive;
+        if n.is_integer() {
+            Ok(Expression::Literal(Field::Int(n.to_i64().unwrap())))
+        } else {
+            match n.to_f64() {
+                Some(f) => Ok(Expression::Literal(Field::Float(OrderedFloat(f)))),
+                None => Err(InvalidValue(n.to_string())),
+            }
         }
     }
 
@@ -679,15 +754,14 @@ impl ExpressionBuilder {
             .map(|argument| self.parse_sql_function_arg(false, argument, schema))
             .collect::<Result<Vec<_>, PipelineError>>()?;
 
-        let last_arg = args
-            .last()
-            .ok_or_else(|| InvalidQuery("Can't get python udf return type".to_string()))?;
+        let return_type = {
+            let ident = function
+                .return_type
+                .as_ref()
+                .ok_or_else(|| InvalidQuery("Python UDF must have a return type. The syntax is: function_name<return_type>(arguments)".to_string()))?;
 
-        let return_type = match last_arg {
-            Expression::Literal(Field::String(s)) => {
-                FieldType::try_from(s.as_str()).map_err(|e| InvalidQuery(format!("Failed to parse Python UDF return type: {e}")))?
-            }
-            _ => return Err(InvalidArgument("The last arg for python udf should be a string literal, which represents return type".to_string())),
+            FieldType::try_from(ident.value.as_str())
+                .map_err(|e| InvalidQuery(format!("Failed to parse Python UDF return type: {e}")))?
         };
 
         Ok(Expression::PythonUDF {
@@ -695,6 +769,28 @@ impl ExpressionBuilder {
             args,
             return_type,
         })
+    }
+
+    fn parse_sql_in_list_operator(
+        &mut self,
+        parse_aggregations: bool,
+        expr: &Expr,
+        list: &[Expr],
+        negated: bool,
+        schema: &Schema,
+    ) -> Result<Expression, PipelineError> {
+        let expr = self.parse_sql_expression(parse_aggregations, expr, schema)?;
+        let list = list
+            .iter()
+            .map(|expr| self.parse_sql_expression(parse_aggregations, expr, schema))
+            .collect::<Result<Vec<_>, PipelineError>>()?;
+        let in_list_expression = Expression::InList {
+            expr: Box::new(expr),
+            list,
+            negated,
+        };
+
+        Ok(in_list_expression)
     }
 }
 

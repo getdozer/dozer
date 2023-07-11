@@ -1,3 +1,4 @@
+use dozer_storage::{assert_database_equal, lmdb::Transaction};
 use dozer_types::{borrow::IntoOwned, types::Record};
 
 use crate::cache::{
@@ -11,10 +12,48 @@ use crate::cache::{
     CacheRecord,
 };
 
+pub fn assert_operation_log_equal<T1: Transaction, T2: Transaction>(
+    log1: &OperationLog,
+    txn1: &T1,
+    log2: &OperationLog,
+    txn2: &T2,
+) {
+    assert_database_equal(
+        txn1,
+        log1.primary_key_metadata.database(),
+        txn2,
+        log2.primary_key_metadata.database(),
+    );
+    assert_database_equal(
+        txn1,
+        log1.hash_metadata.database(),
+        txn2,
+        log2.hash_metadata.database(),
+    );
+    assert_database_equal(
+        txn1,
+        log1.present_operation_ids.database(),
+        txn2,
+        log2.present_operation_ids.database(),
+    );
+    assert_database_equal(
+        txn1,
+        log1.next_operation_id.database(),
+        txn2,
+        log2.next_operation_id.database(),
+    );
+    assert_database_equal(
+        txn1,
+        log1.operation_id_to_operation.database(),
+        txn2,
+        log2.operation_id_to_operation.database(),
+    );
+}
+
 #[test]
 fn test_operation_log_append_only() {
     let mut env = create_env(&Default::default()).unwrap().0;
-    let log = OperationLog::create(&mut env).unwrap();
+    let log = OperationLog::create(&mut env, Default::default()).unwrap();
     let txn = env.txn_mut().unwrap();
     let append_only = true;
 
@@ -57,7 +96,7 @@ fn test_operation_log_append_only() {
 #[test]
 fn test_operation_log_with_primary_key() {
     let mut env = create_env(&Default::default()).unwrap().0;
-    let log = OperationLog::create(&mut env).unwrap();
+    let log = OperationLog::create(&mut env, Default::default()).unwrap();
     let txn = env.txn_mut().unwrap();
     let append_only = false;
 
@@ -180,7 +219,7 @@ fn test_operation_log_with_primary_key() {
 #[test]
 fn test_operation_log_without_primary_key() {
     let mut env = create_env(&Default::default()).unwrap().0;
-    let log = OperationLog::create(&mut env).unwrap();
+    let log = OperationLog::create(&mut env, Default::default()).unwrap();
     let txn = env.txn_mut().unwrap();
     let append_only = false;
 

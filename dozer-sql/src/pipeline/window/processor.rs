@@ -10,12 +10,13 @@ use super::operator::WindowType;
 
 #[derive(Debug)]
 pub struct WindowProcessor {
+    _id: String,
     window: WindowType,
 }
 
 impl WindowProcessor {
-    pub fn new(window: WindowType) -> Self {
-        Self { window }
+    pub fn new(id: String, window: WindowType) -> Self {
+        Self { _id: id, window }
     }
 
     fn execute(&self, record: &Record) -> Result<Vec<Record>, WindowError> {
@@ -38,24 +39,24 @@ impl Processor for WindowProcessor {
             Operation::Delete { ref old } => {
                 let records = self.execute(old).map_err(PipelineError::WindowError)?;
                 for record in records {
-                    fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE)?;
+                    fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
                 }
             }
             Operation::Insert { ref new } => {
                 let records = self.execute(new).map_err(PipelineError::WindowError)?;
                 for record in records {
-                    fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE)?;
+                    fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
                 }
             }
             Operation::Update { ref old, ref new } => {
                 let old_records = self.execute(old).map_err(PipelineError::WindowError)?;
                 for record in old_records {
-                    fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE)?;
+                    fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
                 }
 
                 let new_records = self.execute(new).map_err(PipelineError::WindowError)?;
                 for record in new_records {
-                    fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE)?;
+                    fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
                 }
             }
         }

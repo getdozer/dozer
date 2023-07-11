@@ -12,6 +12,7 @@ use std::fmt::{Debug, Formatter};
 use super::operator::{SetAction, SetOperation};
 
 pub struct SetProcessor {
+    _id: String,
     /// Set operations
     operator: SetOperation,
     /// Hashmap containing records with its occurrence
@@ -24,9 +25,10 @@ const EXPECTED_NUM_ITEMS: u32 = 10000000;
 
 impl SetProcessor {
     /// Creates a new [`SetProcessor`].
-    pub fn new(operator: SetOperation) -> Result<Self, PipelineError> {
+    pub fn new(id: String, operator: SetOperation) -> Result<Self, PipelineError> {
         let _s = RandomState::new();
         Ok(Self {
+            _id: id,
             operator,
             record_map: CountingBloomFilter::with_rate(
                 BITS_PER_ENTRY,
@@ -100,10 +102,10 @@ impl Processor for SetProcessor {
                 for (action, record) in records.into_iter() {
                     match action {
                         SetAction::Insert => {
-                            let _ = fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
                         }
                         SetAction::Delete => {
-                            let _ = fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
                         }
                     }
                 }
@@ -114,10 +116,10 @@ impl Processor for SetProcessor {
                 for (action, record) in records.into_iter() {
                     match action {
                         SetAction::Insert => {
-                            let _ = fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
                         }
                         SetAction::Delete => {
-                            let _ = fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
                         }
                     }
                 }
@@ -129,10 +131,10 @@ impl Processor for SetProcessor {
                 for (action, old) in old_records.into_iter() {
                     match action {
                         SetAction::Insert => {
-                            let _ = fw.send(Operation::Insert { new: old }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Insert { new: old }, DEFAULT_PORT_HANDLE);
                         }
                         SetAction::Delete => {
-                            let _ = fw.send(Operation::Delete { old }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Delete { old }, DEFAULT_PORT_HANDLE);
                         }
                     }
                 }
@@ -140,10 +142,10 @@ impl Processor for SetProcessor {
                 for (action, new) in new_records.into_iter() {
                     match action {
                         SetAction::Insert => {
-                            let _ = fw.send(Operation::Insert { new }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Insert { new }, DEFAULT_PORT_HANDLE);
                         }
                         SetAction::Delete => {
-                            let _ = fw.send(Operation::Delete { old: new }, DEFAULT_PORT_HANDLE);
+                            fw.send(Operation::Delete { old: new }, DEFAULT_PORT_HANDLE);
                         }
                     }
                 }

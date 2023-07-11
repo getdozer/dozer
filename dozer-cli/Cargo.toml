@@ -1,6 +1,6 @@
 [package]
 name = "dozer-cli"
-version = "0.1.22"
+version = "0.1.28"
 edition = "2021"
 default-run = "dozer"
 authors = ["getdozer/dozer-dev"]
@@ -29,14 +29,16 @@ ctrlc = "3.2.5"
 tonic = { version = "0.8.3", features = ["tls", "tls-roots"]}
 tokio-stream = "0.1.12"
 include_dir = "0.7.3"
-handlebars = "4.3.6"
-rustyline = "10.1.1"
+handlebars = "4.3.7"
+rustyline = "11.0.0"
 rustyline-derive = "0.8.0"
 futures = "0.3.26"
 page_size = "0.5.0"
-reqwest = { version = "0.11.16", features = ["rustls-tls"], default-features = false }
+reqwest = { version = "0.11.16", features = ["rustls-tls", "cookies"], default-features = false }
 glob = "0.3.1"
 atty = "0.2.14"
+tower = "0.4.13"
+metrics = "0.21.0"
 
 [[bin]]
 edition = "2021"

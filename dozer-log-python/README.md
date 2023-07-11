@@ -6,6 +6,23 @@ This is the Python binding for reading Dozer logs.
 
 `pip install pydozer_log`
 
+### Troubleshoot
+
+This library contains native code so have limited platform support. 
+
+If above command gives you:
+
+```text
+ERROR: Could not find a version that satisfies the requirement pydozer_log (from versions: none)
+ERROR: No matching distribution found for pydozer_log
+```
+
+it means your platform is not supported.
+
+As a general rule, we support CPython >= 3.10 on Windows, MacOS and Linux, both amd and arm architectures. Meanwhile, some other versions of PyPy and CPython with certain platform combinations are also supported.
+
+To see all supported platforms, please check the file list at <https://pypi.org/project/pydozer-log/#files>.
+
 ## Usage
 
 Assume your Dozer home directory is `.dozer` and you have an endpoint named `trips`. You can read the Dozer logs in Python as follows:

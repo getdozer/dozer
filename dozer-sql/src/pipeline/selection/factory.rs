@@ -14,16 +14,23 @@ use super::processor::SelectionProcessor;
 #[derive(Debug)]
 pub struct SelectionProcessorFactory {
     statement: SqlExpr,
+    id: String,
 }
 
 impl SelectionProcessorFactory {
     /// Creates a new [`SelectionProcessorFactory`].
-    pub fn new(statement: SqlExpr) -> Self {
-        Self { statement }
+    pub fn new(id: String, statement: SqlExpr) -> Self {
+        Self { statement, id }
     }
 }
 
 impl ProcessorFactory<SchemaSQLContext> for SelectionProcessorFactory {
+    fn id(&self) -> String {
+        self.id.clone()
+    }
+    fn type_name(&self) -> String {
+        "Selection".to_string()
+    }
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }

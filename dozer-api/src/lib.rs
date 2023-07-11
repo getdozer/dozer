@@ -7,11 +7,7 @@ use dozer_cache::{
     CacheReader,
 };
 use dozer_types::{
-    grpc_types::types::Operation,
-    labels::Labels,
-    models::api_endpoint::{
-        ApiEndpoint, OnDeleteResolutionTypes, OnInsertResolutionTypes, OnUpdateResolutionTypes,
-    },
+    grpc_types::types::Operation, labels::Labels, models::api_endpoint::ApiEndpoint,
 };
 use futures_util::Future;
 use std::{
@@ -47,7 +43,7 @@ impl CacheEndpoint {
         } else {
             home_dir
                 .find_latest_migration_path(&endpoint.name)
-                .map_err(|(path, error)| SchemaError::Filesystem(path, error))?
+                .map_err(|(path, error)| SchemaError::Filesystem(path.into(), error))?
                 .ok_or(ApiError::NoMigrationFound(endpoint.name.clone()))?
         };
 
@@ -58,9 +54,9 @@ impl CacheEndpoint {
         let schema = load_schema(&migration_path.schema_path)?;
         let conflict_resolution = endpoint.conflict_resolution.unwrap_or_default();
         let write_options = CacheWriteOptions {
-            insert_resolution: OnInsertResolutionTypes::from(conflict_resolution.on_insert),
-            delete_resolution: OnDeleteResolutionTypes::from(conflict_resolution.on_delete),
-            update_resolution: OnUpdateResolutionTypes::from(conflict_resolution.on_update),
+            insert_resolution: conflict_resolution.on_insert.unwrap_or_default(),
+            delete_resolution: conflict_resolution.on_delete.unwrap_or_default(),
+            update_resolution: conflict_resolution.on_update.unwrap_or_default(),
             ..Default::default()
         };
         let cache = open_or_create_cache(
@@ -94,7 +90,7 @@ impl CacheEndpoint {
         Ok((
             Self {
                 cache_reader: ArcSwap::from_pointee(cache_reader),
-                descriptor_path: migration_path.descriptor_path,
+                descriptor_path: migration_path.descriptor_path.into(),
                 endpoint,
             },
             handle,
@@ -155,6 +151,7 @@ pub mod rest;
 // Re-exports
 pub use actix_cors;
 pub use actix_web;
+pub use actix_web_httpauth;
 pub use async_trait;
 use dozer_types::indicatif::MultiProgress;
 use errors::ApiError;
@@ -163,6 +160,5 @@ pub use tokio;
 use tokio::{sync::broadcast::Sender, task::JoinHandle};
 pub use tonic;
 pub use tracing_actix_web;
-
 #[cfg(test)]
 mod test_utils;

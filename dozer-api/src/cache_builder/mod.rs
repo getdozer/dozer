@@ -1,12 +1,13 @@
 use std::collections::HashSet;
-use std::path::Path;
 
 use crate::grpc::types_helper;
+use dozer_cache::dozer_log::camino::Utf8Path;
 use dozer_cache::dozer_log::reader::LogReader;
 use dozer_cache::{
     cache::{CacheRecord, CacheWriteOptions, RwCache, RwCacheManager, UpsertResult},
     errors::CacheError,
 };
+use dozer_tracing::{CACHE_OPERATION_COUNTER_NAME, DATA_LATENCY_HISTOGRAM_NAME};
 use dozer_types::epoch::ExecutorOperation;
 use dozer_types::indicatif::MultiProgress;
 use dozer_types::labels::Labels;
@@ -22,7 +23,7 @@ use futures_util::{
     future::{select, Either},
     Future,
 };
-use metrics::{describe_counter, increment_counter};
+use metrics::{describe_counter, describe_histogram, histogram, increment_counter};
 use tokio::sync::broadcast::Sender;
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
@@ -30,7 +31,7 @@ use tokio_stream::StreamExt;
 pub async fn build_cache(
     cache: Box<dyn RwCache>,
     cancel: impl Future<Output = ()> + Unpin + Send + 'static,
-    log_path: &Path,
+    log_path: &Utf8Path,
     operations_sender: Option<(String, Sender<GrpcOperation>)>,
     multi_pb: Option<MultiProgress>,
 ) -> Result<(), CacheError> {
@@ -114,10 +115,14 @@ fn build_cache_task(
 ) -> Result<(), CacheError> {
     let schema = cache.get_schema().0.clone();
 
-    const BUILD_CACHE_COUNTER_NAME: &str = "build_cache";
     describe_counter!(
-        BUILD_CACHE_COUNTER_NAME,
-        "Number of operations processed by cache builder"
+        CACHE_OPERATION_COUNTER_NAME,
+        "Number of message processed by cache builder"
+    );
+
+    describe_histogram!(
+        DATA_LATENCY_HISTOGRAM_NAME,
+        "End-to-end data latency in seconds"
     );
 
     while let Some((op, offset)) = receiver.blocking_recv() {
@@ -135,10 +140,16 @@ fn build_cache_task(
                             send_and_log_error(operations_sender, operation);
                         }
                     }
+                    let mut labels = cache.labels().clone();
+                    labels.push("operation_type", "delete");
+                    increment_counter!(CACHE_OPERATION_COUNTER_NAME, labels);
                 }
                 Operation::Insert { mut new } => {
                     new.schema_id = schema.identifier;
                     let result = cache.insert(&new)?;
+                    let mut labels = cache.labels().clone();
+                    labels.push("operation_type", "insert");
+                    increment_counter!(CACHE_OPERATION_COUNTER_NAME, labels);
 
                     if let Some((endpoint_name, operations_sender)) = operations_sender.as_ref() {
                         send_upsert_result(
@@ -155,6 +166,9 @@ fn build_cache_task(
                     old.schema_id = schema.identifier;
                     new.schema_id = schema.identifier;
                     let upsert_result = cache.update(&old, &new)?;
+                    let mut labels = cache.labels().clone();
+                    labels.push("operation_type", "update");
+                    increment_counter!(CACHE_OPERATION_COUNTER_NAME, labels);
 
                     if let Some((endpoint_name, operations_sender)) = operations_sender.as_ref() {
                         send_upsert_result(
@@ -168,9 +182,16 @@ fn build_cache_task(
                     }
                 }
             },
-            ExecutorOperation::Commit { .. } => {
+            ExecutorOperation::Commit { epoch } => {
                 cache.set_metadata(offset)?;
                 cache.commit()?;
+                if let Ok(duration) = epoch.decision_instant.elapsed() {
+                    histogram!(
+                        DATA_LATENCY_HISTOGRAM_NAME,
+                        duration,
+                        cache.labels().clone()
+                    );
+                }
             }
             ExecutorOperation::SnapshottingDone { connection_name } => {
                 cache.set_metadata(offset)?;
@@ -181,8 +202,6 @@ fn build_cache_task(
                 break;
             }
         }
-
-        increment_counter!(BUILD_CACHE_COUNTER_NAME, cache.labels().clone());
     }
 
     Ok(())

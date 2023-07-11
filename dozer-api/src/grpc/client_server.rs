@@ -1,3 +1,4 @@
+use super::metric_middleware::MetricMiddlewareLayer;
 use super::{auth_middleware::AuthMiddlewareLayer, common::CommonService, typed::TypedService};
 use crate::grpc::auth::AuthService;
 use crate::grpc::health::HealthService;
@@ -148,7 +149,7 @@ impl ApiServer {
             )));
             auth_service = Some(auth_middleware.layer(service));
         }
-
+        let metric_middleware = MetricMiddlewareLayer::new();
         // Add services to server.
         let mut grpc_router = Server::builder()
             .layer(
@@ -157,6 +158,7 @@ impl ApiServer {
                     .on_response(trace::DefaultOnResponse::new().level(Level::INFO))
                     .on_failure(trace::DefaultOnFailure::new().level(Level::ERROR)),
             )
+            .layer(metric_middleware)
             .accept_http1(true)
             .concurrency_limit_per_connection(32)
             .add_service(common_service)

@@ -13,13 +13,15 @@ use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct AggregationProcessorFactory {
+    id: String,
     projection: Select,
     _stateful: bool,
 }
 
 impl AggregationProcessorFactory {
-    pub fn new(projection: Select, stateful: bool) -> Self {
+    pub fn new(id: String, projection: Select, stateful: bool) -> Self {
         Self {
+            id,
             projection,
             _stateful: stateful,
         }
@@ -33,6 +35,9 @@ impl AggregationProcessorFactory {
 }
 
 impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
+    fn type_name(&self) -> String {
+        "Aggregation".to_string()
+    }
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
@@ -76,6 +81,7 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
             ))
         } else {
             Box::new(AggregationProcessor::new(
+                self.id.clone(),
                 planner.groupby,
                 planner.aggregation_output,
                 planner.projection_output,
@@ -85,5 +91,9 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
             )?)
         };
         Ok(processor)
+    }
+
+    fn id(&self) -> String {
+        self.id.clone()
     }
 }

@@ -1,18 +1,20 @@
 #![allow(clippy::enum_variant_names)]
 
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::errors::types::{SerializationError, TypeError};
+use dozer_types::errors::types::{DeserializationError, SerializationError, TypeError};
 use dozer_types::ingestion_types::IngestorError;
+use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
 use dozer_types::{bincode, serde_json};
-use dozer_types::{rust_decimal, thiserror};
 
+#[cfg(feature = "kafka")]
 use base64::DecodeError;
 
 use deltalake::datafusion::error::DataFusionError;
 use deltalake::DeltaTableError;
 #[cfg(feature = "snowflake")]
 use std::num::TryFromIntError;
+#[cfg(feature = "kafka")]
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 
@@ -23,15 +25,26 @@ use odbc::DiagnosticRecord;
 use dozer_types::arrow_types::errors::FromArrowError;
 #[cfg(feature = "kafka")]
 use schema_registry_converter::error::SRCError;
+use tokio_postgres::config::SslMode;
+
 use tokio_postgres::Error;
+
+#[cfg(any(feature = "kafka", feature = "snowflake"))]
+use dozer_types::rust_decimal::Error as RustDecimalError;
 
 #[derive(Error, Debug)]
 pub enum ConnectorError {
     #[error("Missing `config` for connector {0}")]
     MissingConfiguration(String),
 
-    #[error("Failed to map configuration")]
-    WrongConnectionConfiguration,
+    #[error("Failed to map configuration: {0}")]
+    WrongConnectionConfiguration(DeserializationError),
+
+    #[error("Failed to map configuration: {0}")]
+    UnavailableConnectionConfiguration(String),
+
+    #[error("Failed to map configuration: {0}")]
+    UnableToInferSchema(DataFusionError),
 
     #[error("Unsupported grpc adapter: {0} {1}")]
     UnsupportedGrpcAdapter(String, String),
@@ -58,8 +71,9 @@ pub enum ConnectorError {
     #[error(transparent)]
     SnowflakeError(#[from] SnowflakeError),
 
+    #[cfg(feature = "kafka")]
     #[error(transparent)]
-    DebeziumError(#[from] DebeziumError),
+    KafkaError(#[from] KafkaError),
 
     #[error(transparent)]
     ObjectStoreConnectorError(#[from] ObjectStoreConnectorError),
@@ -117,6 +131,9 @@ pub enum ConfigurationError {
 
 #[derive(Error, Debug)]
 pub enum PostgresConnectorError {
+    #[error("Invalid SslMode: {0:?}")]
+    InvalidSslError(SslMode),
+
     #[error("Query failed in connector: {0}")]
     InvalidQueryError(#[source] tokio_postgres::Error),
 
@@ -206,6 +223,9 @@ pub enum PostgresConnectorError {
 
     #[error("Failed to send message on snapshot read channel")]
     SnapshotReadError,
+
+    #[error("Failed to load native certs: {0}")]
+    LoadNativeCerts(#[source] std::io::Error),
 }
 
 #[derive(Error, Debug)]
@@ -256,6 +276,12 @@ pub enum PostgresSchemaError {
 
     #[error("Type error: {0}")]
     TypeError(#[from] TypeError),
+
+    #[error("Failed to read string from utf8. Error: {0}")]
+    StringReadError(#[from] FromUtf8Error),
+
+    #[error("Failed to read date. Error: {0}")]
+    DateReadError(#[from] dozer_types::chrono::ParseError),
 }
 
 #[cfg(feature = "snowflake")]
@@ -294,7 +320,7 @@ pub enum SnowflakeSchemaError {
     SchemaConversionError(#[source] TryFromIntError),
 
     #[error("Decimal convert error")]
-    DecimalConvertError(#[source] rust_decimal::Error),
+    DecimalConvertError(#[source] RustDecimalError),
 }
 
 #[derive(Error, Debug)]
@@ -311,28 +337,25 @@ pub enum SnowflakeStreamError {
     #[error("Stream not found")]
     StreamNotFound,
 }
-
+#[cfg(feature = "kafka")]
 #[derive(Error, Debug)]
-pub enum DebeziumError {
+pub enum KafkaError {
     #[error(transparent)]
-    DebeziumSchemaError(#[from] DebeziumSchemaError),
+    KafkaSchemaError(#[from] KafkaSchemaError),
 
-    #[cfg(feature = "kafka")]
-    #[error("Connection error")]
-    DebeziumConnectionError(#[source] kafka::Error),
+    #[error("Connection error. Error: {0}")]
+    KafkaConnectionError(#[from] rdkafka::error::KafkaError),
 
-    #[error("JSON decode error")]
+    #[error("JSON decode error. Error: {0}")]
     JsonDecodeError(#[source] serde_json::Error),
 
     #[error("Bytes convert error")]
     BytesConvertError(#[source] Utf8Error),
 
-    #[cfg(feature = "kafka")]
     #[error(transparent)]
-    DebeziumStreamError(#[from] DebeziumStreamError),
+    KafkaStreamError(#[from] KafkaStreamError),
 
-    #[cfg(feature = "kafka")]
-    #[error("Schema registry fetch failed")]
+    #[error("Schema registry fetch failed. Error: {0}")]
     SchemaRegistryFetchError(#[source] SRCError),
 
     #[error("Topic not defined")]
@@ -341,19 +364,20 @@ pub enum DebeziumError {
 
 #[cfg(feature = "kafka")]
 #[derive(Error, Debug)]
-pub enum DebeziumStreamError {
+pub enum KafkaStreamError {
     #[error("Consume commit error")]
-    ConsumeCommitError(#[source] kafka::Error),
+    ConsumeCommitError(#[source] rdkafka::error::KafkaError),
 
     #[error("Message consume error")]
-    MessageConsumeError(#[source] kafka::Error),
+    MessageConsumeError(#[source] rdkafka::error::KafkaError),
 
     #[error("Polling error")]
-    PollingError(#[source] kafka::Error),
+    PollingError(#[source] rdkafka::error::KafkaError),
 }
 
+#[cfg(feature = "kafka")]
 #[derive(Error, Debug, PartialEq)]
-pub enum DebeziumSchemaError {
+pub enum KafkaSchemaError {
     #[error("Schema definition not found")]
     SchemaDefinitionNotFound,
 
@@ -373,7 +397,7 @@ pub enum DebeziumSchemaError {
     ScaleIsInvalid,
 
     #[error("Decimal convert error")]
-    DecimalConvertError(#[source] rust_decimal::Error),
+    DecimalConvertError(#[source] RustDecimalError),
 
     #[error("Invalid date")]
     InvalidDateError,
@@ -406,6 +430,9 @@ pub enum ObjectStoreConnectorError {
 
     #[error(transparent)]
     FromArrowError(#[from] FromArrowError),
+
+    #[error("Failed to send message on data read channel")]
+    SendError,
 
     #[error("Failed to receive message on data read channel")]
     RecvError,
@@ -442,6 +469,9 @@ pub enum ObjectStoreObjectError {
 
     #[error("File format unsupported: {0}")]
     FileFormatUnsupportedError(String),
+
+    #[error("Listing path {0} error: {1}")]
+    ListingPathError(String, #[source] DataFusionError),
 }
 
 #[derive(Error, Debug)]

@@ -58,7 +58,6 @@ jobs:
         with:
           target: ${{ matrix.target }}
           args: --release --out dist --find-interpreter --features python-extension-module
-          sccache: 'true'
           manylinux: auto
           container: off
           working-directory: dozer-log-python
@@ -90,7 +89,6 @@ jobs:
         with:
           target: ${{ matrix.target }}
           args: --release --out dist --find-interpreter --features python-extension-module
-          sccache: 'true'
           working-directory: dozer-log-python
       - name: Upload wheels
         uses: actions/upload-artifact@v3
@@ -119,7 +117,6 @@ jobs:
         with:
           target: ${{ matrix.target }}
           args: --release --out dist --find-interpreter --features python-extension-module
-          sccache: 'true'
           working-directory: dozer-log-python
       - name: Upload wheels
         uses: actions/upload-artifact@v3

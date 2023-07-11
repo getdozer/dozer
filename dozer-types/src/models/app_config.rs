@@ -15,27 +15,34 @@ use serde::{
 /// The configuration for the app
 pub struct Config {
     #[prost(string, tag = "2")]
+    #[serde(skip_serializing_if = "String::is_empty")]
     /// name of the app
     pub app_name: String,
 
     #[prost(string, tag = "3")]
-    #[serde(default = "default_home_dir")]
+    #[serde(skip_serializing_if = "String::is_empty", default = "default_home_dir")]
     ///directory for all process; Default: ./.dozer
     pub home_dir: String,
 
     #[prost(string, tag = "4")]
-    #[serde(default = "default_cache_dir")]
+    #[serde(
+        skip_serializing_if = "String::is_empty",
+        default = "default_cache_dir"
+    )]
     ///directory for cache. Default: ./.dozer/cache
     pub cache_dir: String,
 
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     #[prost(message, repeated, tag = "5")]
     /// connections to databases: Eg: Postgres, Snowflake, etc
     pub connections: Vec<Connection>,
 
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     #[prost(message, repeated, tag = "6")]
     /// sources to ingest data related to particular connection
     pub sources: Vec<Source>,
 
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     #[prost(message, repeated, tag = "7")]
     /// api endpoints to expose
     pub endpoints: Vec<ApiEndpoint>,
@@ -89,6 +96,11 @@ pub struct Config {
     /// Dozer Cloud specific configuration
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cloud: Option<Cloud>,
+
+    #[prost(message, tag = "18")]
+    /// Dozer Cloud specific configuration
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub err_threshold: Option<u32>,
 }
 
 pub fn default_home_dir() -> String {
@@ -124,6 +136,10 @@ pub fn default_commit_size() -> u32 {
 
 pub fn default_commit_timeout() -> u64 {
     50
+}
+
+pub fn default_err_threshold() -> u32 {
+    0
 }
 
 impl Config {
@@ -187,6 +203,7 @@ impl<'de> Deserialize<'de> for Config {
                 let mut app_buffer_size: Option<u32> = Some(default_app_buffer_size());
                 let mut commit_size: Option<u32> = Some(default_commit_size());
                 let mut commit_timeout: Option<u64> = Some(default_commit_timeout());
+                let mut err_threshold: Option<u32> = Some(default_err_threshold());
 
                 while let Some(key) = access.next_key()? {
                     match key {
@@ -237,6 +254,9 @@ impl<'de> Deserialize<'de> for Config {
                         }
                         "cloud" => {
                             cloud = access.next_value::<Option<Cloud>>()?;
+                        }
+                        "err_threshold" => {
+                            err_threshold = access.next_value::<Option<u32>>()?;
                         }
                         _ => {
                             access.next_value::<IgnoredAny>()?;
@@ -311,6 +331,7 @@ impl<'de> Deserialize<'de> for Config {
                     commit_timeout,
                     telemetry,
                     cloud,
+                    err_threshold,
                 })
             }
         }

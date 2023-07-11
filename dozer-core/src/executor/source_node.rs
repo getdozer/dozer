@@ -177,6 +177,7 @@ pub fn create_source_nodes(
         options.commit_sz,
         options.commit_time_threshold,
         dag.epoch_manager().clone(),
+        dag.error_manager().clone(),
     );
     let source_listener_node = SourceListenerNode {
         node_handle,

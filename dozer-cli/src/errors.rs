@@ -2,8 +2,12 @@
 
 use glob::{GlobError, PatternError};
 use std::path::PathBuf;
+use std::string::FromUtf8Error;
 
-use dozer_api::errors::{ApiError, AuthError, GenerationError, GrpcError};
+use dozer_api::{
+    errors::{ApiError, AuthError, GenerationError, GrpcError},
+    rest::DOZER_SERVER_NAME_HEADER,
+};
 use dozer_cache::dozer_log::errors::SchemaError;
 use dozer_cache::errors::CacheError;
 use dozer_core::errors::ExecutionError;
@@ -23,8 +27,12 @@ pub enum OrchestrationError {
     FileSystem(PathBuf, std::io::Error),
     #[error("Failed to find migration for endpoint {0}")]
     NoMigrationFound(String),
-    #[error("Failed to migrate: {0}")]
-    MigrateFailed(#[from] MigrationError),
+    #[error("Failed to login: {0}")]
+    CloudLoginFailed(#[from] CloudLoginError),
+    #[error("Credential Error: {0}")]
+    CredentialError(#[from] CloudCredentialError),
+    #[error("Failed to build: {0}")]
+    BuildFailed(#[from] BuildError),
     #[error("Failed to generate token: {0}")]
     GenerateTokenFailed(#[source] AuthError),
     #[error("Missing api config or security input")]
@@ -37,10 +45,12 @@ pub enum OrchestrationError {
     GrpcServerFailed(#[from] GrpcError),
     #[error("Failed to initialize internal server: {0}")]
     InternalServerFailed(#[source] tonic::transport::Error),
-    #[error("{0}: Failed to initialize cache. Have you run `dozer migrate`?")]
+    #[error("{0}: Failed to initialize cache. Have you run `dozer build`?")]
     CacheInitFailed(#[source] CacheError),
     #[error("Failed to build cache from log: {0}")]
     CacheBuildFailed(#[source] CacheError),
+    #[error("Cache {0} has reached its maximum size. Try to increase `cache_max_map_size` in the config.")]
+    CacheFull(String),
     #[error("Internal thread panic: {0}")]
     JoinError(#[source] tokio::task::JoinError),
     #[error("Connector source factory error: {0}")]
@@ -63,6 +73,8 @@ pub enum OrchestrationError {
     DuplicateTable(String),
     #[error("No endpoints initialized in the config provided")]
     EmptyEndpoints,
+    #[error(transparent)]
+    CloudContextError(#[from] CloudContextError),
 }
 
 #[derive(Error, Debug)]
@@ -104,10 +116,22 @@ pub enum CloudError {
 
     #[error("GRPC request failed, error: {} (GRPC status {})", .0.message(), .0.code())]
     GRPCCallError(#[source] tonic::Status),
+
+    #[error(transparent)]
+    CloudCredentialError(#[from] CloudCredentialError),
+
+    #[error("Reqwest error: {0}")]
+    Reqwest(#[from] reqwest::Error),
+
+    #[error("Response header {DOZER_SERVER_NAME_HEADER} is missing")]
+    MissingResponseHeader,
+
+    #[error(transparent)]
+    CloudContextError(#[from] CloudContextError),
 }
 
 #[derive(Debug, Error)]
-pub enum MigrationError {
+pub enum BuildError {
     #[error("Got mismatching primary key for `{endpoint_name}`. Expected: `{expected:?}`, got: `{actual:?}`")]
     MismatchPrimaryKey {
         endpoint_name: String,
@@ -124,4 +148,61 @@ pub enum MigrationError {
     CannotWriteSchema(#[source] SchemaError),
     #[error("Failed to generate proto files: {0:?}")]
     FailedToGenerateProtoFiles(#[from] GenerationError),
+}
+
+#[derive(Debug, Error)]
+pub enum CloudLoginError {
+    #[error("Tonic error: {0}")]
+    TonicError(#[from] tonic::Status),
+
+    #[error("Transport error: {0}")]
+    Transport(#[from] tonic::transport::Error),
+
+    #[error("HttpRequest error: {0}")]
+    HttpRequestError(#[from] reqwest::Error),
+
+    #[error(transparent)]
+    SerializationError(#[from] dozer_types::serde_json::Error),
+
+    #[error("Failed to read input: {0}")]
+    InputError(#[from] std::io::Error),
+    #[error(transparent)]
+    CloudCredentialError(#[from] CloudCredentialError),
+}
+
+#[derive(Debug, Error)]
+pub enum CloudCredentialError {
+    #[error(transparent)]
+    SerializationError(#[from] dozer_types::serde_yaml::Error),
+
+    #[error(transparent)]
+    JsonSerializationError(#[from] dozer_types::serde_json::Error),
+    #[error("Failed to create home directory: {0}")]
+    FailedToCreateDirectory(#[from] std::io::Error),
+
+    #[error("HttpRequest error: {0}")]
+    HttpRequestError(#[from] reqwest::Error),
+
+    #[error("Missing credentials.yaml file - Please try to login again")]
+    MissingCredentialFile,
+    #[error("There's no profile with given name - Please try to login again")]
+    MissingProfile,
+}
+
+#[derive(Debug, Error)]
+pub enum CloudContextError {
+    #[error("Failed to create access directory: {0}")]
+    FailedToAccessDirectory(#[from] std::io::Error),
+
+    #[error("Failed to get current directory path")]
+    FailedToGetDirectoryPath,
+
+    #[error("Failed to read cloud app id. Error: {0}")]
+    FailedToReadAppId(#[from] FromUtf8Error),
+
+    #[error("Context file not found. You need to run \"deploy\" or \"app use\" first")]
+    ContextFileNotFound,
+
+    #[error("App id not found in configuration")]
+    AppIdNotFound,
 }

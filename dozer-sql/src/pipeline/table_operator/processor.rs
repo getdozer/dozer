@@ -11,13 +11,15 @@ use super::operator::{TableOperator, TableOperatorType};
 
 #[derive(Debug)]
 pub struct TableOperatorProcessor {
+    _id: String,
     operator: TableOperatorType,
     input_schema: Schema,
 }
 
 impl TableOperatorProcessor {
-    pub fn new(operator: TableOperatorType, input_schema: Schema) -> Self {
+    pub fn new(id: String, operator: TableOperatorType, input_schema: Schema) -> Self {
         Self {
+            _id: id,
             operator,
             input_schema,
         }
@@ -45,7 +47,7 @@ impl Processor for TableOperatorProcessor {
                     .execute(old, &self.input_schema)
                     .map_err(PipelineError::TableOperatorError)?;
                 for record in records {
-                    fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE)?;
+                    fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
                 }
             }
             Operation::Insert { ref new } => {
@@ -53,7 +55,7 @@ impl Processor for TableOperatorProcessor {
                     .execute(new, &self.input_schema)
                     .map_err(PipelineError::TableOperatorError)?;
                 for record in records {
-                    fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE)?;
+                    fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
                 }
             }
             Operation::Update { ref old, ref new } => {
@@ -61,14 +63,14 @@ impl Processor for TableOperatorProcessor {
                     .execute(old, &self.input_schema)
                     .map_err(PipelineError::TableOperatorError)?;
                 for record in old_records {
-                    fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE)?;
+                    fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
                 }
 
                 let new_records = self
                     .execute(new, &self.input_schema)
                     .map_err(PipelineError::TableOperatorError)?;
                 for record in new_records {
-                    fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE)?;
+                    fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
                 }
             }
         }
