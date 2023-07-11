@@ -4,7 +4,7 @@ use super::helper::{DESCRIPTION, LOGO};
 
 #[cfg(feature = "cloud")]
 use crate::cli::cloud::Cloud;
-use dozer_types::constants::DEFAULT_CONFIG_PATH;
+use dozer_types::constants::DEFAULT_CONFIG_PATH_PATTERNS;
 
 #[derive(Parser, Debug)]
 #[command(author, version, name = "dozer")]
@@ -16,10 +16,10 @@ pub struct Cli {
     #[arg(
         global = true,
         short = 'c',
-        long,
-        default_value = DEFAULT_CONFIG_PATH
+        long = "config-path",
+        default_values = DEFAULT_CONFIG_PATH_PATTERNS
     )]
-    pub config_path: String,
+    pub config_paths: Vec<String>,
     #[arg(global = true, long, hide = true)]
     pub config_token: Option<String>,
 

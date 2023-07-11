@@ -17,7 +17,6 @@ use dozer_cache::dozer_log::home_dir::HomeDir;
 use dozer_cache::dozer_log::schemas::MigrationSchema;
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::DagSchemas;
-use dozer_tracing::{API_LATENCY_HISTOGRAM_NAME, API_REQUEST_COUNTER_NAME};
 
 use crate::console_helper::get_colored_text;
 use crate::console_helper::GREEN;
@@ -69,11 +68,11 @@ impl SimpleOrchestrator {
 impl Orchestrator for SimpleOrchestrator {
     fn run_api(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError> {
         describe_histogram!(
-            API_LATENCY_HISTOGRAM_NAME,
+            dozer_api::API_LATENCY_HISTOGRAM_NAME,
             "The api processing latency in seconds"
         );
         describe_counter!(
-            API_REQUEST_COUNTER_NAME,
+            dozer_api::API_REQUEST_COUNTER_NAME,
             "Number of requests processed by the api"
         );
         self.runtime.block_on(async {
