@@ -2,7 +2,6 @@ use std::{borrow::Cow, collections::HashMap, mem::swap, sync::Arc};
 
 use crossbeam::channel::Receiver;
 use daggy::NodeIndex;
-use dozer_tracing::PIPELINE_LATENCY_HISTOGRAM_NAME;
 use dozer_types::{
     epoch::{Epoch, ExecutorOperation},
     log::debug,
@@ -37,6 +36,8 @@ pub struct SinkNode {
     /// The error manager, for reporting non-fatal errors.
     error_manager: Arc<ErrorManager>,
 }
+
+const PIPELINE_LATENCY_HISTOGRAM_NAME: &str = "pipeline_latency";
 
 impl SinkNode {
     pub fn new(dag: &mut ExecutionDag, node_index: NodeIndex) -> Self {
