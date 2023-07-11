@@ -354,9 +354,9 @@ jobs:
         if: matrix.os == 'ubuntu-20-16-cores'
         run: cargo build --release --bin  ${{ matrix.file_name }} --features=kafka
 
-      # - name: Build Linux binary
-      #   if: matrix.os == 'ubuntu-20-16-cores'
-      #   run: cargo build --features=snowflake --release
+      - name: Build package for ubuntu (with snowflake)
+        if: matrix.os == 'ubuntu-20-16-cores'
+        run: cargo build --release --bin  ${{ matrix.file_name }} --features=snowflake
 
       - name: Prepare release assets
         shell: bash
