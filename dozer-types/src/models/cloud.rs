@@ -16,10 +16,10 @@ pub struct Cloud {
     pub profile: Option<String>,
     #[prost(optional, uint32, tag = "6")]
     #[serde(
-        default = "default_num_replicas",
+        default = "default_num_api_instances",
         skip_serializing_if = "Option::is_none"
     )]
-    pub num_replicas: Option<u32>,
+    pub num_api_instances: Option<u32>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize, prost::Oneof)]
@@ -36,6 +36,6 @@ impl Default for UpdateCurrentVersionStrategy {
     }
 }
 
-fn default_num_replicas() -> Option<u32> {
+fn default_num_api_instances() -> Option<u32> {
     Some(2)
 }

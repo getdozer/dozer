@@ -1,6 +1,6 @@
 use crate::cli::cloud::{
-    default_num_replicas, ApiCommand, Cloud, DeployCommandArgs, ListCommandArgs, LogCommandArgs,
-    SecretsCommand, VersionCommand,
+    default_num_api_instances, ApiCommand, Cloud, DeployCommandArgs, ListCommandArgs,
+    LogCommandArgs, SecretsCommand, VersionCommand,
 };
 use crate::cloud_app_context::CloudAppContext;
 use crate::cloud_helper::list_files;
@@ -116,7 +116,9 @@ impl CloudOrchestrator for SimpleOrchestrator {
             deploy_app(
                 &mut client,
                 &app_id_to_start,
-                deploy.num_replicas.unwrap_or_else(default_num_replicas),
+                deploy
+                    .num_api_instances
+                    .unwrap_or_else(default_num_api_instances),
                 &mut steps,
                 deploy.secrets,
             )
@@ -534,7 +536,7 @@ impl SimpleOrchestrator {
             let mut client = get_cloud_client(&cloud, self.config.cloud.as_ref()).await?;
 
             match api {
-                ApiCommand::SetNumReplicas { num_replicas } => {
+                ApiCommand::SetNumApiInstances { num_api_instances } => {
                     let status = client
                         .get_status(GetStatusRequest {
                             app_id: app_id.clone(),
@@ -550,7 +552,7 @@ impl SimpleOrchestrator {
                         .set_num_api_instances(SetNumApiInstancesRequest {
                             app_id,
                             deployment,
-                            num_api_instances: num_replicas,
+                            num_api_instances,
                         })
                         .await?;
                 }
