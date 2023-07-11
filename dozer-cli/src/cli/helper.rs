@@ -3,7 +3,7 @@ use crate::simple::SimpleOrchestrator as Dozer;
 use crate::{errors::CliError, Orchestrator};
 
 use crate::config_helper::combine_config;
-use crate::errors::CliError::ConfigurationFilePathNotProvided;
+use crate::errors::CliError::{ConfigurationFilePathNotProvided, FailedToFindConfigurationFiles};
 use dozer_types::models::app_config::default_cache_max_map_size;
 use dozer_types::prettytable::{row, Table};
 use dozer_types::{models::app_config::Config, serde_yaml};
@@ -98,8 +98,11 @@ async fn load_config_from_http_url(
 }
 
 pub fn load_config_from_file(config_path: Vec<String>) -> Result<Config, CliError> {
-    let config_test = combine_config(config_path)?;
-    parse_config(&config_test)
+    let config_template = combine_config(config_path.clone())?;
+    match config_template {
+        Some(template) => parse_config(&template),
+        None => Err(FailedToFindConfigurationFiles(config_path.join(", "))),
+    }
 }
 
 fn parse_config(config_template: &str) -> Result<Config, CliError> {
