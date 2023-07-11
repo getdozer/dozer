@@ -4,14 +4,11 @@ use super::{
     api_config::ApiConfig, api_endpoint::ApiEndpoint, cloud::Cloud, connection::Connection,
     flags::Flags, source::Source, telemetry::TelemetryConfig,
 };
-use crate::{constants::DEFAULT_HOME_DIR, models::api_config::default_api_config};
+use crate::constants::DEFAULT_HOME_DIR;
 use prettytable::Table as PrettyTable;
-use serde::{
-    de::{self, IgnoredAny, Visitor},
-    Deserialize, Deserializer, Serialize,
-};
+use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, PartialEq, Eq, Clone, prost::Message)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Clone, prost::Message)]
 /// The configuration for the app
 pub struct Config {
     #[prost(string, tag = "2")]
@@ -32,17 +29,17 @@ pub struct Config {
     ///directory for cache. Default: ./.dozer/cache
     pub cache_dir: String,
 
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[prost(message, repeated, tag = "5")]
     /// connections to databases: Eg: Postgres, Snowflake, etc
     pub connections: Vec<Connection>,
 
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[prost(message, repeated, tag = "6")]
     /// sources to ingest data related to particular connection
     pub sources: Vec<Source>,
 
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[prost(message, repeated, tag = "7")]
     /// api endpoints to expose
     pub endpoints: Vec<ApiEndpoint>,
@@ -164,178 +161,5 @@ impl Config {
         }
 
         table
-    }
-}
-
-impl<'de> Deserialize<'de> for Config {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct ConfigVisitor;
-
-        impl<'de> Visitor<'de> for ConfigVisitor {
-            type Value = Config;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-                formatter.write_str("Dozer Config")
-            }
-
-            fn visit_map<A>(self, mut access: A) -> Result<Self::Value, A::Error>
-            where
-                A: serde::de::MapAccess<'de>,
-            {
-                let mut api: Option<ApiConfig> = Some(default_api_config());
-                let mut flags: Option<Flags> = Some(Flags::default());
-                let mut connections: Vec<Connection> = vec![];
-                let mut sources_value: Vec<serde_yaml::Value> = vec![];
-                let mut endpoints_value: Vec<serde_yaml::Value> = vec![];
-                let mut telemetry: Option<TelemetryConfig> = None;
-                let mut cloud: Option<Cloud> = None;
-
-                let mut app_name = "".to_owned();
-                let mut sql = None;
-                let mut home_dir: String = default_home_dir();
-                let mut cache_dir: String = default_cache_dir();
-
-                let mut file_buffer_capacity: Option<u64> = Some(default_file_buffer_capacity());
-                let mut cache_max_map_size: Option<u64> = Some(default_cache_max_map_size());
-                let mut app_buffer_size: Option<u32> = Some(default_app_buffer_size());
-                let mut commit_size: Option<u32> = Some(default_commit_size());
-                let mut commit_timeout: Option<u64> = Some(default_commit_timeout());
-                let mut err_threshold: Option<u32> = Some(default_err_threshold());
-
-                while let Some(key) = access.next_key()? {
-                    match key {
-                        "app_name" => {
-                            app_name = access.next_value::<String>()?;
-                        }
-                        "api" => {
-                            api = Some(access.next_value::<ApiConfig>()?);
-                        }
-                        "flags" => {
-                            flags = Some(access.next_value::<Flags>()?);
-                        }
-                        "connections" => {
-                            connections = access.next_value::<Vec<Connection>>()?;
-                        }
-                        "sources" => {
-                            sources_value = access.next_value::<Vec<serde_yaml::Value>>()?;
-                        }
-                        "sql" => {
-                            sql = access.next_value::<Option<String>>()?;
-                        }
-                        "endpoints" => {
-                            endpoints_value = access.next_value::<Vec<serde_yaml::Value>>()?;
-                        }
-                        "home_dir" => {
-                            home_dir = access.next_value::<String>()?;
-                        }
-                        "cache_dir" => {
-                            cache_dir = access.next_value::<String>()?;
-                        }
-                        "cache_max_map_size" => {
-                            cache_max_map_size = access.next_value::<Option<u64>>()?;
-                        }
-                        "app_buffer_size" => {
-                            app_buffer_size = access.next_value::<Option<u32>>()?;
-                        }
-                        "file_buffer_capacity" => {
-                            file_buffer_capacity = access.next_value::<Option<u64>>()?;
-                        }
-                        "commit_size" => {
-                            commit_size = access.next_value::<Option<u32>>()?;
-                        }
-                        "commit_timeout" => {
-                            commit_timeout = access.next_value::<Option<u64>>()?;
-                        }
-                        "telemetry" => {
-                            telemetry = access.next_value::<Option<TelemetryConfig>>()?;
-                        }
-                        "cloud" => {
-                            cloud = access.next_value::<Option<Cloud>>()?;
-                        }
-                        "err_threshold" => {
-                            err_threshold = access.next_value::<Option<u32>>()?;
-                        }
-                        _ => {
-                            access.next_value::<IgnoredAny>()?;
-                        }
-                    }
-                }
-
-                let result_sources: Result<Vec<Source>, A::Error> = sources_value
-                    .iter()
-                    .enumerate()
-                    .map(|(idx, source_value)| -> Result<Source, A::Error> {
-                        let connection_ref = source_value["connection"].to_owned();
-                        if connection_ref.is_null() {
-                            return Err(de::Error::custom(format!(
-                                "sources[{idx:}]: missing connection ref"
-                            )));
-                        }
-                        let connection_ref: super::source::Value = serde_yaml::from_value(
-                            source_value["connection"].to_owned(),
-                        )
-                        .map_err(|err| {
-                            de::Error::custom(format!(
-                                "sources[{idx:}]: connection ref - {err:} "
-                            ))
-                        })?;
-                        let super::source::Value::Ref(connection_name) = connection_ref;
-                        let mut source: Source = serde_yaml::from_value(source_value.to_owned())
-                            .map_err(|err| {
-                                de::Error::custom(format!("sources[{idx:}]: {err:} "))
-                            })?;
-                        let connection = connections
-                            .iter()
-                            .find(|c| c.name == connection_name)
-                            .ok_or_else(|| {
-                                de::Error::custom(format!(
-                                    "sources[{idx:}]: Cannot find Ref connection name: {connection_name:}"
-                                ))
-                            })?;
-                        source.connection = Some(connection.to_owned());
-                        Ok(source)
-                    })
-                    .collect();
-
-                let sources = result_sources?;
-
-                let endpoints = endpoints_value
-                    .iter()
-                    .enumerate()
-                    .map(|(idx, endpoint_value)| -> Result<ApiEndpoint, A::Error> {
-                        let endpoint: ApiEndpoint =
-                            serde_yaml::from_value(endpoint_value.to_owned()).map_err(|err| {
-                                de::Error::custom(format!("api_endpoints[{idx:}]: {err:} "))
-                            })?;
-                        Ok(endpoint)
-                    })
-                    .collect::<Result<Vec<ApiEndpoint>, A::Error>>()?;
-
-                Ok(Config {
-                    app_name,
-                    home_dir,
-                    cache_dir,
-                    api,
-                    connections,
-                    sources,
-                    endpoints,
-                    sql,
-                    flags,
-                    cache_max_map_size,
-                    app_buffer_size,
-                    file_buffer_capacity,
-                    commit_size,
-                    commit_timeout,
-                    telemetry,
-                    cloud,
-                    err_threshold,
-                })
-            }
-        }
-
-        deserializer.deserialize_map(ConfigVisitor)
     }
 }

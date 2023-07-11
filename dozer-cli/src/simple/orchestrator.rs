@@ -116,9 +116,9 @@ impl Orchestrator for SimpleOrchestrator {
             }
 
             // Initialize API Server
-            let rest_config = get_rest_config(self.config.to_owned());
+            let rest_config = get_rest_config(&self.config);
             let rest_handle = if rest_config.enabled {
-                let security = get_api_security_config(self.config.to_owned());
+                let security = get_api_security_config(&self.config).cloned();
                 let cache_endpoints_for_rest = cache_endpoints.clone();
                 let shutdown_for_rest = shutdown.create_shutdown_future();
                 tokio::spawn(async move {
@@ -133,9 +133,9 @@ impl Orchestrator for SimpleOrchestrator {
             };
 
             // Initialize gRPC Server
-            let grpc_config = get_grpc_config(self.config.to_owned());
+            let grpc_config = get_grpc_config(&self.config);
             let grpc_handle = if grpc_config.enabled {
-                let api_security = get_api_security_config(self.config.to_owned());
+                let api_security = get_api_security_config(&self.config).cloned();
                 let grpc_server = grpc::ApiServer::new(grpc_config, api_security, flags);
                 let shutdown = shutdown.create_shutdown_future();
                 tokio::spawn(async move {

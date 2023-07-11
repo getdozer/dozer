@@ -98,6 +98,12 @@ pub enum CliError {
     Reqwest(#[from] reqwest::Error),
     #[error(transparent)]
     ConfigCombineError(#[from] ConfigCombineError),
+    #[error("Failed to serialize config to json: {0}")]
+    SerializeConfigToJson(#[source] serde_json::Error),
+    #[error("Missing config options to be overridden: {0}")]
+    MissingConfigOverride(String),
+    #[error("Failed to deserialize config from json: {0}")]
+    DeserializeConfigFromJson(#[source] serde_json::Error),
 }
 
 #[derive(Error, Debug)]
