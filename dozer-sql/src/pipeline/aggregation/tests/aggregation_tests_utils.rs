@@ -83,6 +83,47 @@ pub(crate) fn init_input_schema(field_type: FieldType, aggregator_name: &str) ->
         .clone()
 }
 
+pub(crate) fn init_max_val_input_schema(field_type: FieldType, aggregator_name: &str) -> Schema {
+    Schema::empty()
+        .field(
+            FieldDefinition::new(
+                String::from("ID"),
+                FieldType::Int,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                String::from("Country"),
+                FieldType::String,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                String::from("Salary"),
+                field_type,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                format!("{aggregator_name}(Salary, Country)"),
+                FieldType::String,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .clone()
+}
+
 pub(crate) fn insert_field(country: &str, insert_field: &Field) -> Operation {
     Operation::Insert {
         new: Record::new(
@@ -136,6 +177,25 @@ pub(crate) fn update_field(
                 new.clone(),
             ],
         ),
+    }
+}
+
+pub(crate) fn insert_max_val_exp(inserted_field: &Field) -> Operation {
+    Operation::Insert {
+        new: Record::new(None, vec![inserted_field.clone()]),
+    }
+}
+
+pub(crate) fn delete_max_val_exp(deleted_field: &Field) -> Operation {
+    Operation::Delete {
+        old: Record::new(None, vec![deleted_field.clone()]),
+    }
+}
+
+pub(crate) fn update_max_val_exp(old: &Field, new: &Field) -> Operation {
+    Operation::Update {
+        old: Record::new(None, vec![old.clone()]),
+        new: Record::new(None, vec![new.clone()]),
     }
 }
 

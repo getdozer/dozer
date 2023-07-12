@@ -7,6 +7,8 @@ mod aggregation_having_tests;
 #[cfg(test)]
 mod aggregation_max_tests;
 #[cfg(test)]
+mod aggregation_max_value_tests;
+#[cfg(test)]
 mod aggregation_min_tests;
 #[cfg(test)]
 mod aggregation_null;

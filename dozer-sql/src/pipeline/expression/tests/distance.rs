@@ -154,7 +154,7 @@ fn test_validate_distance() {
         &schema,
     );
 
-    let _expected_types = vec![FieldType::Point];
+    let _expected_types = [FieldType::Point];
     assert!(result.is_err());
     assert!(matches!(
         result,

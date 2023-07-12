@@ -297,7 +297,10 @@ impl CloudOrchestrator for SimpleOrchestrator {
                 .into_inner();
 
             // Show log of the latest deployment for now.
-            let Some(deployment) = logs.deployment.or_else(|| latest_deployment(&status.deployments)) else {
+            let Some(deployment) = logs
+                .deployment
+                .or_else(|| latest_deployment(&status.deployments))
+            else {
                 info!("No deployments found");
                 return Ok(());
             };
