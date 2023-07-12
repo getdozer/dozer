@@ -47,9 +47,7 @@ pub enum CloudCommands {
     #[command(subcommand)]
     Version(VersionCommand),
     /// Set application, which will be used for all commands
-    SetApp {
-        app_id: String,
-    },
+    SetApp { app_id: String },
     /// List all dozer application in Dozer Cloud
     List(ListCommandArgs),
     /// Dozer API server management
