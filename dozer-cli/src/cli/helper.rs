@@ -155,13 +155,13 @@ fn apply_overrides(
     Ok(config)
 }
 
-pub const LOGO: &str = r#"
+pub const LOGO: &str = r"
 .____   ___ __________ ____
 |  _ \ / _ \__  / ____|  _ \
 | | | | | | |/ /|  _| | |_) |
 | |_| | |_| / /_| |___|  _ <
 |____/ \___/____|_____|_| \_\
-"#;
+";
 
 pub const DESCRIPTION: &str = r#"Open-source platform to build, publish and manage blazing-fast real-time data APIs in minutes. 
 
