@@ -179,9 +179,12 @@ fn run() -> Result<(), OrchestrationError> {
 
                 dozer.build(force)
             }
-            Commands::Connectors(ConnectorCommand { filter }) => {
-                list_sources(cli.config_paths, cli.config_token, filter)
-            }
+            Commands::Connectors(ConnectorCommand { filter }) => list_sources(
+                cli.config_paths,
+                cli.config_token,
+                cli.config_overrides,
+                filter,
+            ),
             Commands::Clean => dozer.clean(),
             #[cfg(feature = "cloud")]
             Commands::Cloud(cloud) => match cloud.command.clone() {
@@ -236,7 +239,11 @@ fn parse_and_generate() -> Result<Cli, OrchestrationError> {
 
 fn init_orchestrator(cli: &Cli) -> Result<SimpleOrchestrator, CliError> {
     dozer_tracing::init_telemetry_closure(None, None, || -> Result<SimpleOrchestrator, CliError> {
-        let res = init_dozer(cli.config_paths.clone(), cli.config_token.clone());
+        let res = init_dozer(
+            cli.config_paths.clone(),
+            cli.config_token.clone(),
+            cli.config_overrides.clone(),
+        );
 
         match res {
             Ok(dozer) => {
