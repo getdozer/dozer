@@ -19,10 +19,10 @@ pub struct Cloud {
     )]
     pub target_url: String,
 
-    #[arg(global = true, short)]
+    #[arg(global = true, short, long)]
     pub app_id: Option<String>,
 
-    #[arg(global = true, short)]
+    #[arg(global = true, short, long)]
     pub profile: Option<String>,
 
     #[command(subcommand)]
