@@ -1,14 +1,18 @@
 use aws_sdk_s3::{
     operation::create_bucket::CreateBucketError,
-    primitives::ByteStreamError,
     types::{
         BucketLocationConstraint, CompletedMultipartUpload, CompletedPart,
         CreateBucketConfiguration, Delete, ObjectIdentifier,
     },
     Client,
 };
-use aws_smithy_http::{byte_stream::ByteStream, result::SdkError};
-use dozer_types::tonic::async_trait;
+use aws_smithy_http::result::SdkError;
+use dozer_types::{
+    bytes::Bytes,
+    grpc_types::internal::{self, storage_response},
+    tonic::async_trait,
+};
+use futures_util::{stream::BoxStream, StreamExt, TryStreamExt};
 
 use super::{Error, ListObjectsOutput, Object, Storage};
 
@@ -72,6 +76,12 @@ impl S3Storage {
 
 #[async_trait]
 impl Storage for S3Storage {
+    fn describe(&self) -> storage_response::Storage {
+        storage_response::Storage::S3(internal::S3Storage {
+            bucket_name: self.bucket_name.clone(),
+        })
+    }
+
     async fn put_object(&self, key: String, data: Vec<u8>) -> Result<(), Error> {
         self.client
             .put_object()
@@ -175,17 +185,17 @@ impl Storage for S3Storage {
         })
     }
 
-    type StreamError = ByteStreamError;
-    type Stream = ByteStream;
-
-    async fn get_object(&self, key: String) -> Result<Self::Stream, Error> {
+    async fn get_object(
+        &self,
+        key: String,
+    ) -> Result<BoxStream<Result<Bytes, std::io::Error>>, Error> {
         self.client
             .get_object()
             .bucket(&self.bucket_name)
             .key(key)
             .send()
             .await
-            .map(|output| output.body)
+            .map(|output| output.body.map_err(Into::into).boxed())
             .map_err(Into::into)
     }
 }

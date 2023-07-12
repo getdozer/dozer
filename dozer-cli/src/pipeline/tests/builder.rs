@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::pipeline::source_builder::SourceBuilder;
 use crate::pipeline::PipelineBuilder;
 use dozer_types::ingestion_types::{GrpcConfig, GrpcConfigSchemas};
-use dozer_types::models::app_config::Config;
+use dozer_types::models::config::Config;
 
 use dozer_core::appsource::{AppSourceId, AppSourceMappings};
 use dozer_sql::pipeline::builder::SchemaSQLContext;
@@ -66,7 +66,7 @@ fn load_multi_sources() {
         config
             .endpoints
             .into_iter()
-            .map(|endpoint| (endpoint, Default::default()))
+            .map(|endpoint| (endpoint, None))
             .collect(),
         MultiProgress::new(),
     );

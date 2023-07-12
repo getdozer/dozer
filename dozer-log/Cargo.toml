@@ -13,11 +13,14 @@ aws-smithy-http = "0.55.3"
 aws-smithy-types = "0.55.3"
 camino = "1.1.4"
 dozer-types = {path = "../dozer-types"}
+dyn-clone = "1.0.11"
 futures-util = "0.3.27"
 pin-project = "1.1.2"
 tempdir = "0.3.7"
 tokio = { version = "1", features = ["full"] }
+tokio-stream = "0.1.14"
 tokio-util = { version = "0.7.8", features = ["io"] }
 
 [dev-dependencies]
+clap = "4.3.11"
 env_logger = "0.10.0"

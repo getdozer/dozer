@@ -1,4 +1,4 @@
-use std::{path::PathBuf, time::SystemTime};
+use std::{fmt::Debug, path::PathBuf, time::SystemTime};
 
 use aws_sdk_s3::{
     error::SdkError,
@@ -12,9 +12,7 @@ use aws_sdk_s3::{
 };
 use aws_smithy_types::date_time::ConversionError;
 use dozer_types::{
-    bytes::Bytes,
-    thiserror,
-    tonic::{async_trait, codegen::futures_core::Stream},
+    bytes::Bytes, grpc_types::internal::storage_response, thiserror, tonic::async_trait,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -30,7 +28,9 @@ pub struct ListObjectsOutput {
 }
 
 #[async_trait]
-pub trait Storage: Clone + Send + Sync + 'static {
+pub trait Storage: Debug + DynClone + Send + Sync + 'static {
+    fn describe(&self) -> storage_response::Storage;
+
     async fn put_object(&self, key: String, data: Vec<u8>) -> Result<(), Error>;
 
     /// Returns the upload id.
@@ -57,10 +57,20 @@ pub trait Storage: Clone + Send + Sync + 'static {
         continuation_token: Option<String>,
     ) -> Result<ListObjectsOutput, Error>;
 
-    type StreamError: Into<std::io::Error> + std::fmt::Debug;
-    type Stream: Stream<Item = Result<Bytes, Self::StreamError>> + Unpin;
+    async fn get_object(
+        &self,
+        key: String,
+    ) -> Result<BoxStream<Result<Bytes, std::io::Error>>, Error>;
 
-    async fn get_object(&self, key: String) -> Result<Self::Stream, Error>;
+    async fn download_object(&self, key: String) -> Result<Vec<u8>, Error> {
+        let mut stream = self.get_object(key).await?;
+        let mut data = vec![];
+        while let Some(result) = stream.next().await {
+            let bytes = result.map_err(Error::StreamObject)?;
+            data.extend_from_slice(&bytes);
+        }
+        Ok(data)
+    }
 }
 
 mod s3;
@@ -87,6 +97,8 @@ pub enum Error {
     Conversion(#[from] ConversionError),
     #[error("get object: {0}")]
     GetObject(#[from] SdkError<GetObjectError>),
+    #[error("stream object: {0}")]
+    StreamObject(#[source] std::io::Error),
     #[error("file system: {0}: {1}")]
     FileSystem(String, #[source] std::io::Error),
     #[error("temp dir: {0}: {1}")]
@@ -97,6 +109,8 @@ pub enum Error {
     UploadNotFound { key: String, upload_id: String },
 }
 
+use dyn_clone::DynClone;
+use futures_util::{stream::BoxStream, StreamExt};
 pub use s3::S3Storage;
 
 mod local;

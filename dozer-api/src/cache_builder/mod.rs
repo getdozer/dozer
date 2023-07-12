@@ -1,8 +1,8 @@
 use std::collections::HashSet;
+use std::time::Duration;
 
 use crate::grpc::types_helper;
-use dozer_cache::dozer_log::camino::Utf8Path;
-use dozer_cache::dozer_log::reader::LogReader;
+use dozer_cache::dozer_log::reader::{LogReader, LogReaderBuilder};
 use dozer_cache::{
     cache::{CacheRecord, CacheWriteOptions, RwCache, RwCacheManager, UpsertResult},
     errors::CacheError,
@@ -30,15 +30,17 @@ use tokio_stream::StreamExt;
 pub async fn build_cache(
     cache: Box<dyn RwCache>,
     cancel: impl Future<Output = ()> + Unpin + Send + 'static,
-    log_path: &Utf8Path,
+    log_reader_builder: LogReaderBuilder,
     operations_sender: Option<(String, Sender<GrpcOperation>)>,
     multi_pb: Option<MultiProgress>,
 ) -> Result<(), CacheError> {
     // Create log reader.
     let pos = cache.get_metadata()?.unwrap_or(0);
-    let reader_name = cache.labels().to_string();
-    debug!("Starting log reader {reader_name} from position {pos}");
-    let log_reader = LogReader::new(log_path, reader_name, pos, multi_pb).await?;
+    debug!(
+        "Starting log reader {} from position {pos}",
+        log_reader_builder.options.endpoint
+    );
+    let log_reader = log_reader_builder.build(pos, multi_pb);
 
     // Spawn tasks
     let mut futures = FuturesUnordered::new();
@@ -87,6 +89,8 @@ pub fn open_or_create_cache(
     }
 }
 
+const READ_LOG_RETRY_INTERVAL: Duration = Duration::from_secs(1);
+
 async fn read_log_task(
     mut cancel: impl Future<Output = ()> + Unpin + Send + 'static,
     mut log_reader: LogReader,
@@ -94,15 +98,27 @@ async fn read_log_task(
 ) {
     loop {
         let next_op = std::pin::pin!(log_reader.next_op());
-        match select(next_op, cancel).await {
-            Either::Left((op, c)) => {
+        match select(cancel, next_op).await {
+            Either::Left(_) => break,
+            Either::Right((op, c)) => {
+                let op = match op {
+                    Ok(op) => op,
+                    Err(e) => {
+                        error!(
+                            "Failed to read log: {e}, retrying after {READ_LOG_RETRY_INTERVAL:?}"
+                        );
+                        tokio::time::sleep(READ_LOG_RETRY_INTERVAL).await;
+                        cancel = c;
+                        continue;
+                    }
+                };
+
                 cancel = c;
                 if sender.send(op).await.is_err() {
                     debug!("Stop reading log because receiver is dropped");
                     break;
                 }
             }
-            Either::Right(_) => break,
         }
     }
 }
@@ -126,7 +142,7 @@ fn build_cache_task(
         "End-to-end data latency in seconds"
     );
 
-    while let Some((op, offset)) = receiver.blocking_recv() {
+    while let Some((op, pos)) = receiver.blocking_recv() {
         match op {
             ExecutorOperation::Op { op } => match op {
                 Operation::Delete { mut old } => {
@@ -184,7 +200,7 @@ fn build_cache_task(
                 }
             },
             ExecutorOperation::Commit { epoch } => {
-                cache.set_metadata(offset)?;
+                cache.set_metadata(pos)?;
                 cache.commit()?;
                 if let Ok(duration) = epoch.decision_instant.elapsed() {
                     histogram!(
@@ -195,7 +211,7 @@ fn build_cache_task(
                 }
             }
             ExecutorOperation::SnapshottingDone { connection_name } => {
-                cache.set_metadata(offset)?;
+                cache.set_metadata(pos)?;
                 cache.set_connection_snapshotting_done(&connection_name)?;
                 cache.commit()?;
             }

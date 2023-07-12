@@ -1,20 +1,26 @@
 use std::path::PathBuf;
 
 use dozer_types::thiserror::Error;
-use dozer_types::{bincode, serde_json, thiserror};
+use dozer_types::{bincode, serde_json, thiserror, tonic};
 
 #[derive(Error, Debug)]
 pub enum ReaderError {
-    #[error("Cannot find log file {0:?}")]
-    LogFileNotFound(PathBuf),
-    #[error("Cannot read log {0:?}")]
-    LogReadError(#[source] std::io::Error),
-    #[error("Error reading log: {0}")]
-    ReadError(#[source] std::io::Error),
-    #[error("Error seeking file log: {0},pos: {1}, error: {2}")]
-    SeekError(String, u64, #[source] std::io::Error),
-    #[error("Error deserializing log: {0}")]
-    DeserializationError(#[from] bincode::Error),
+    #[error("Tonic transport error: {0}")]
+    TonicTransport(#[from] tonic::transport::Error),
+    #[error("Tonic status: {0}")]
+    TonicStatus(#[from] tonic::Status),
+    #[error("Unexpected end of stream")]
+    UnexpectedEndOfStream,
+    #[error("Failed to deserialize log response: {0}")]
+    DeserializeLogResponse(#[source] bincode::Error),
+    #[error("Failed to deserialize log entry: {0}")]
+    DeserializeLogEntry(#[source] bincode::Error),
+    #[error("Storage error: {0}")]
+    Storage(#[from] crate::storage::Error),
+    #[error("Reader thread has quit: {0:?}")]
+    ReaderThreadQuit(#[source] Option<tokio::task::JoinError>),
+    #[error("Deserialize schema: {0}")]
+    DeserializeSchema(#[from] serde_json::Error),
 }
 
 #[derive(Debug, Error)]

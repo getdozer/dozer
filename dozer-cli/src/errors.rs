@@ -7,7 +7,7 @@ use dozer_api::{
     errors::{ApiError, AuthError, GenerationError, GrpcError},
     rest::DOZER_SERVER_NAME_HEADER,
 };
-use dozer_cache::dozer_log::errors::SchemaError;
+use dozer_cache::dozer_log::{errors::SchemaError, storage};
 use dozer_cache::errors::CacheError;
 use dozer_core::errors::ExecutionError;
 use dozer_ingestion::errors::ConnectorError;
@@ -24,8 +24,10 @@ pub enum OrchestrationError {
     FailedToWriteConfigYaml(#[source] serde_yaml::Error),
     #[error("File system error {0:?}: {1}")]
     FileSystem(PathBuf, std::io::Error),
-    #[error("Failed to find migration for endpoint {0}")]
-    NoMigrationFound(String),
+    #[error("Failed to find build for endpoint {0}")]
+    NoBuildFound(String),
+    #[error("Failed to create log: {0}")]
+    CreateLog(#[from] dozer_cache::dozer_log::replication::Error),
     #[error("Failed to login: {0}")]
     CloudLoginFailed(#[from] CloudLoginError),
     #[error("Credential Error: {0}")]
@@ -178,6 +180,8 @@ pub enum BuildError {
     CannotWriteSchema(#[source] SchemaError),
     #[error("Failed to generate proto files: {0:?}")]
     FailedToGenerateProtoFiles(#[from] GenerationError),
+    #[error("Storage error: {0}")]
+    Storage(#[from] storage::Error),
 }
 
 #[derive(Debug, Error)]

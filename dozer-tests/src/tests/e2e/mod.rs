@@ -11,7 +11,7 @@ use dozer_types::{
         common::common_grpc_service_client::CommonGrpcServiceClient,
         ingest::ingest_service_client::IngestServiceClient,
     },
-    models::{api_config::default_api_grpc, app_config::Config, connection::ConnectionConfig},
+    models::{api_config::default_api_grpc, config::Config, connection::ConnectionConfig},
     serde_yaml,
 };
 use tempdir::TempDir;
