@@ -59,13 +59,13 @@ pub enum CloudCommands {
 pub struct DeployCommandArgs {
     /// Number of replicas to serve Dozer APIs
     #[arg(short, long)]
-    pub num_replicas: Option<i32>,
+    pub num_api_instances: Option<i32>,
 
     #[arg(short, value_parser = parse_key_val)]
     pub secrets: Vec<Secret>,
 }
 
-pub fn default_num_replicas() -> i32 {
+pub fn default_num_api_instances() -> i32 {
     2
 }
 
@@ -121,9 +121,9 @@ pub enum VersionCommand {
 #[derive(Debug, Clone, Subcommand)]
 pub enum ApiCommand {
     /// Sets the number of replicas to serve Dozer APIs
-    SetNumReplicas {
+    SetNumApiInstances {
         /// The number of replicas to set
-        num_replicas: i32,
+        num_api_instances: i32,
     },
 }
 

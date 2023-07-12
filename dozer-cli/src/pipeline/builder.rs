@@ -89,15 +89,14 @@ impl<'a> PipelineBuilder<'a> {
                 .map(|table| {
                     match self.sources.iter().find(|s| {
                         // TODO: @dario - Replace this line with the actual schema parsed from SQL
-                        s.connection.as_ref().unwrap().name == connection.name
-                            && s.table_name == table.name
+                        s.connection == connection.name && s.table_name == table.name
                     }) {
                         Some(source) => source.clone(),
                         None => Source {
                             name: table.name.clone(),
                             table_name: table.name.clone(),
                             schema: table.schema.clone(),
-                            connection: Some(connection.clone()),
+                            connection: connection.name.clone(),
                             ..Default::default()
                         },
                     }

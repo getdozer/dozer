@@ -1,7 +1,7 @@
 use dozer_cache::cache::CacheManagerOptions;
 use dozer_core::executor::ExecutorOptions;
 use dozer_types::models::{
-    api_config::{ApiConfig, GrpcApiOptions, RestApiOptions},
+    api_config::{default_api_grpc, default_api_rest, GrpcApiOptions, RestApiOptions},
     api_security::ApiSecurity,
     app_config::{
         default_app_buffer_size, default_cache_max_map_size, default_commit_size,
@@ -40,17 +40,27 @@ pub fn get_file_buffer_capacity(config: &Config) -> u64 {
         .unwrap_or_else(default_file_buffer_capacity)
 }
 
-pub fn get_grpc_config(config: Config) -> GrpcApiOptions {
-    config.api.unwrap_or_default().grpc.unwrap_or_default()
+pub fn get_grpc_config(config: &Config) -> GrpcApiOptions {
+    config
+        .api
+        .as_ref()
+        .and_then(|api| api.grpc.clone())
+        .unwrap_or_else(default_api_grpc)
 }
-pub fn get_api_config(config: Config) -> ApiConfig {
-    config.api.unwrap_or_default()
+
+pub fn get_rest_config(config: &Config) -> RestApiOptions {
+    config
+        .api
+        .as_ref()
+        .and_then(|api| api.rest.clone())
+        .unwrap_or_else(default_api_rest)
 }
-pub fn get_rest_config(config: Config) -> RestApiOptions {
-    config.api.unwrap_or_default().rest.unwrap_or_default()
-}
-pub fn get_api_security_config(config: Config) -> Option<ApiSecurity> {
-    get_api_config(config).api_security
+
+pub fn get_api_security_config(config: &Config) -> Option<&ApiSecurity> {
+    config
+        .api
+        .as_ref()
+        .and_then(|api| api.api_security.as_ref())
 }
 
 pub fn get_executor_options(config: &Config, err_threshold: Option<u32>) -> ExecutorOptions {
