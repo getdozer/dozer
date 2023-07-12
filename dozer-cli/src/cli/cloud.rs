@@ -31,21 +31,26 @@ pub struct Cloud {
 
 #[derive(Debug, Subcommand, Clone)]
 pub enum CloudCommands {
+    /// Login to Dozer Cloud service
     Login(OrganisationCommand),
     /// Deploy application to Dozer Cloud
     Deploy(DeployCommandArgs),
-    /// Dozer app context management
+    /// Stop and delete application from Dozer Cloud
     Delete,
+    /// Get status of running application in Dozer Cloud
     Status,
+    /// Monitor processed data amount in Dozer Cloud
     Monitor,
     /// Inspect application logs
     Logs(LogCommandArgs),
-    /// Application version management
+    /// Dozer application version management
     #[command(subcommand)]
     Version(VersionCommand),
+    /// Set application, which will be used for all commands
     SetApp {
         app_id: String,
     },
+    /// List all dozer application in Dozer Cloud
     List(ListCommandArgs),
     /// Dozer API server management
     #[command(subcommand)]
