@@ -40,12 +40,21 @@ fn parse_config_override(
 
 #[derive(Debug, Subcommand)]
 pub enum Commands {
-    #[command(about = "Initialize an app using a template")]
+    #[command(
+        about = "Initialize an app using a template",
+        long_about = "Initialize dozer app workspace. It will generate dozer configuration and \
+            folder structure."
+    )]
     Init,
-    #[command(about = "Clean home directory")]
+    #[command(
+        about = "Clean home directory",
+        long_about = "Clean home directory. It removes all data, schemas and other files in app \
+            directory"
+    )]
     Clean,
     #[command(
-        about = "Initialize and lock schema definitions. Once initialized, schemas cannot be changed",
+        about = "Initialize and lock schema definitions. Once initialized, schemas cannot \
+            be changed",
         alias = "migrate"
     )]
     Build(Build),
@@ -55,7 +64,10 @@ pub enum Commands {
     Api(Api),
     #[command(about = "Run App or Api Server")]
     Run(Run),
-    #[command(about = "Show Sources")]
+    #[command(
+        about = "Show Sources",
+        long_about = "Show available tables schemas in external sources"
+    )]
     Connectors(ConnectorCommand),
     #[command(about = "Change security settings")]
     Security(Security),
@@ -86,8 +98,18 @@ pub struct Run {
 
 #[derive(Debug, Subcommand)]
 pub enum RunCommands {
-    Api,
+    #[command(
+        about = "Run app instance",
+        long_about = "Run app instance. App instance is responsible for ingesting data and \
+            passing it through pipeline"
+    )]
     App,
+    #[command(
+        about = "Run api instance",
+        long_about = "Run api instance. Api instance runs server which creates access to \
+            API endpoints through REST and GRPC (depends on configuration)"
+    )]
+    Api,
 }
 
 #[derive(Debug, Args)]
@@ -103,8 +125,7 @@ pub enum SecurityCommands {
         version,
         about = "Generate master token",
         long_about = "Master Token can be used to create other run time tokens \
-        that encapsulate different permissions.",
-        alias = "nx"
+        that encapsulate different permissions."
     )]
     GenerateToken,
 }
