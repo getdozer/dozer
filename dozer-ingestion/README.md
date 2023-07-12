@@ -61,7 +61,7 @@ That part of configuration looks like this:
 
 ```yaml
   name: users
-  connection: !Ref pg_data_connection
+  connection: pg_data_connection
   table_name: userdata      
   columns:
     - gender        

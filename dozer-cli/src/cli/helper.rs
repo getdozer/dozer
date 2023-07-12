@@ -15,9 +15,12 @@ use tokio::runtime::Runtime;
 pub fn init_dozer(
     config_paths: Vec<String>,
     config_token: Option<String>,
+    config_overrides: Vec<(String, serde_json::Value)>,
 ) -> Result<Dozer, CliError> {
     let runtime = Runtime::new().map_err(CliError::FailedToCreateTokioRuntime)?;
     let mut config = runtime.block_on(load_config(config_paths, config_token))?;
+
+    config = apply_overrides(&config, config_overrides)?;
 
     let cache_max_map_size = config
         .cache_max_map_size
@@ -31,9 +34,10 @@ pub fn init_dozer(
 pub fn list_sources(
     config_paths: Vec<String>,
     config_token: Option<String>,
+    config_overrides: Vec<(String, serde_json::Value)>,
     filter: Option<String>,
 ) -> Result<(), OrchestrationError> {
-    let dozer = init_dozer(config_paths, config_token)?;
+    let dozer = init_dozer(config_paths, config_token, config_overrides)?;
     let connection_map = dozer.list_connectors()?;
     let mut table_parent = Table::new();
     for (connection_name, (tables, schemas)) in connection_map {
@@ -127,15 +131,84 @@ fn parse_config(config_template: &str) -> Result<Config, CliError> {
     Ok(config)
 }
 
-pub const LOGO: &str = r"
+/// Convert `config` to JSON, apply JSON pointer overrides, then convert back to `Config`.
+fn apply_overrides(
+    config: &Config,
+    config_overrides: Vec<(String, serde_json::Value)>,
+) -> Result<Config, CliError> {
+    let mut config_json = serde_json::to_value(config).map_err(CliError::SerializeConfigToJson)?;
+
+    for (pointer, value) in config_overrides {
+        if let Some(pointee) = config_json.pointer_mut(&pointer) {
+            *pointee = value;
+        } else {
+            return Err(CliError::MissingConfigOverride(pointer));
+        }
+    }
+
+    // Directly convert `config_json` to `Config` fails, not sure why.
+    let config_json_string =
+        serde_json::to_string(&config_json).map_err(CliError::SerializeConfigToJson)?;
+    let config: Config =
+        serde_json::from_str(&config_json_string).map_err(CliError::DeserializeConfigFromJson)?;
+
+    Ok(config)
+}
+
+pub const LOGO: &str = r#"
 .____   ___ __________ ____
 |  _ \ / _ \__  / ____|  _ \
 | | | | | | |/ /|  _| | |_) |
 | |_| | |_| / /_| |___|  _ <
 |____/ \___/____|_____|_| \_\
-";
+"#;
 
 pub const DESCRIPTION: &str = r#"Open-source platform to build, publish and manage blazing-fast real-time data APIs in minutes. 
 
  If no sub commands are passed, dozer will bring up both app and api services.
 "#;
+
+#[cfg(test)]
+mod tests {
+    use dozer_types::models::{api_config::ApiConfig, api_security::ApiSecurity};
+
+    use super::*;
+
+    #[test]
+    fn test_override_top_level() {
+        let mut config = Config {
+            app_name: "test_override_top_level".to_string(),
+            ..Default::default()
+        };
+        config.sql = Some("sql1".to_string());
+        let sql = "sql2".to_string();
+        let config = apply_overrides(
+            &config,
+            vec![("/sql".to_string(), serde_json::to_value(&sql).unwrap())],
+        )
+        .unwrap();
+        assert_eq!(config.sql.unwrap(), sql);
+    }
+
+    #[test]
+    fn test_override_nested() {
+        let mut config = Config {
+            app_name: "test_override_nested".to_string(),
+            ..Default::default()
+        };
+        config.api = Some(ApiConfig {
+            api_security: Some(ApiSecurity::Jwt("secret1".to_string())),
+            ..Default::default()
+        });
+        let api_security = ApiSecurity::Jwt("secret2".to_string());
+        let config = apply_overrides(
+            &config,
+            vec![(
+                "/api/api_security".to_string(),
+                serde_json::to_value(&api_security).unwrap(),
+            )],
+        )
+        .unwrap();
+        assert_eq!(config.api.unwrap().api_security.unwrap(), api_security);
+    }
+}

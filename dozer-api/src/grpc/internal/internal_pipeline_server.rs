@@ -1,5 +1,6 @@
 use crossbeam::channel::{Receiver, Sender};
-use dozer_types::{crossbeam, log::info, models::app_config::Config, tracing::warn};
+use dozer_types::models::api_config::AppGrpcOptions;
+use dozer_types::{crossbeam, log::info, tracing::warn};
 use dozer_types::{
     grpc_types::{
         internal::{
@@ -130,22 +131,16 @@ impl InternalPipelineService for InternalPipelineServer {
 }
 
 pub async fn start_internal_pipeline_server(
-    app_config: Config,
+    options: &AppGrpcOptions,
     receivers: PipelineEventReceivers,
 ) -> Result<(), tonic::transport::Error> {
     let server = InternalPipelineServer::new(receivers);
 
-    let internal_config = app_config
-        .api
-        .unwrap_or_default()
-        .app_grpc
-        .unwrap_or_default();
-
     info!(
         "Starting Internal Server on http://{}:{}",
-        internal_config.host, internal_config.port,
+        options.host, options.port,
     );
-    let mut addr = format!("{}:{}", internal_config.host, internal_config.port)
+    let mut addr = format!("{}:{}", options.host, options.port)
         .to_socket_addrs()
         .unwrap();
     Server::builder()

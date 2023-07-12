@@ -75,7 +75,7 @@ fn test_yml_content_full() -> (&'static str, Config) {
           - id
           - email
           - phone
-        connection: !Ref users
+        connection: users
     endpoints:
       - id: null
         name: users
@@ -107,7 +107,7 @@ fn test_yml_content_missing_api_config() -> &'static str {
           - id
           - email
           - phone
-        connection: !Ref users
+        connection: users
     endpoints:
       - id: null
         name: users
@@ -148,7 +148,7 @@ fn test_yml_content_missing_internal_config() -> &'static str {
           - id
           - email
           - phone
-        connection: !Ref users
+        connection: users
     endpoints:
       - id: null
         name: users

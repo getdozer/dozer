@@ -68,6 +68,7 @@ message AppConnectionRequest {
 message CreateSourceRequest {
   string app_id = 1;
   Source source = 2;
+  Connection connection = 3;
 }
 
 message ListEndpointRequest {

@@ -9,7 +9,7 @@ use dozer_types::{
         types::Operation,
     },
     log::debug,
-    models::api_config::GrpcApiOptions,
+    models::api_config::AppGrpcOptions,
 };
 use futures_util::{Future, StreamExt};
 use tokio::sync::broadcast::{Receiver, Sender};
@@ -23,7 +23,7 @@ pub struct InternalPipelineClient {
 }
 
 impl InternalPipelineClient {
-    pub async fn new(app_grpc_config: &GrpcApiOptions) -> Result<Self, GrpcError> {
+    pub async fn new(app_grpc_config: &AppGrpcOptions) -> Result<Self, GrpcError> {
         let address = format!(
             "http://{:}:{:}",
             &app_grpc_config.host, app_grpc_config.port

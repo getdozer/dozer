@@ -1,7 +1,6 @@
-use super::connection::Connection;
-use serde::{ser::SerializeStruct, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Eq, PartialEq, Clone, ::prost::Message)]
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message)]
 pub struct Source {
     #[prost(string, tag = "1")]
     /// name of the source - to distinguish between multiple sources; Type: String
@@ -10,12 +9,12 @@ pub struct Source {
     /// name of the table in source database; Type: String
     pub table_name: String,
     #[prost(string, repeated, tag = "3")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     /// list of columns gonna be used in the source table; Type: String[]
     pub columns: Vec<String>,
-    #[prost(message, tag = "4")]
-    #[serde(skip_deserializing)]
-    /// reference to pre-defined connection name - syntax: `!Ref <connection_name>`; Type: `Ref!` tag
-    pub connection: Option<Connection>,
+    #[prost(string, tag = "4")]
+    /// reference to pre-defined connection name; Type: String
+    pub connection: String,
     /// name of schema source database; Type: String
     #[prost(string, optional, tag = "5")]
     #[serde(default)]
@@ -30,24 +29,7 @@ pub struct Source {
 fn default_refresh_config() -> Option<RefreshConfig> {
     Some(RefreshConfig::default())
 }
-impl Serialize for Source {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let mut state = serializer.serialize_struct("Source", 5)?;
-        state.serialize_field("name", &self.name)?;
-        state.serialize_field("table_name", &self.table_name)?;
-        state.serialize_field("columns", &self.columns)?;
-        state.serialize_field("schema", &self.schema)?;
-        state.serialize_field(
-            "connection",
-            &Value::Ref(self.connection.to_owned().unwrap_or_default().name),
-        )?;
-        state.serialize_field("refresh_config", &self.refresh_config)?;
-        state.end()
-    }
-}
+
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub enum Value {
     Ref(String),
