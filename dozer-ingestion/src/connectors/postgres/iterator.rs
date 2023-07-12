@@ -9,6 +9,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use crate::connectors::postgres::connection::helper;
+use crate::connectors::postgres::connector::REPLICATION_SLOT_PREFIX;
 use crate::connectors::postgres::replication_slot_helper::ReplicationSlotHelper;
 use crate::connectors::postgres::replicator::CDCHandler;
 use crate::connectors::postgres::snapshotter::PostgresSnapshotter;
@@ -110,6 +111,12 @@ impl<'a> PostgresIteratorHandler<'a> {
         // - When snapshot replication is not completed
         // - When there is gap between available lsn (in case when slot dropped and new created) and last lsn
         // - When publication tables changes
+
+        // We clear inactive replication slots before starting replication
+        ReplicationSlotHelper::clear_inactive_slots(&client, REPLICATION_SLOT_PREFIX)
+            .await
+            .map_err(ConnectorError::PostgresConnectorError)?;
+
         if self.lsn.is_none() {
             debug!("\nCreating Slot....");
             let slot_exist =
