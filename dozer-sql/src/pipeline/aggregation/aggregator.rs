@@ -13,6 +13,7 @@ use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::execution::Expression;
 
 use crate::pipeline::aggregation::max_value::MaxValueAggregator;
+use crate::pipeline::aggregation::min_value::MinValueAggregator;
 use crate::pipeline::errors::PipelineError::{InvalidFunctionArgument, InvalidValue};
 use crate::pipeline::expression::aggregate::AggregateFunctionType::MaxValue;
 use dozer_types::types::{Field, FieldType, Schema};
@@ -31,6 +32,7 @@ pub trait Aggregator: Send + Sync {
 pub enum AggregatorEnum {
     AvgAggregator,
     MinAggregator,
+    MinValueAggregator,
     MaxAggregator,
     MaxValueAggregator,
     SumAggregator,
@@ -50,6 +52,7 @@ pub enum AggregatorType {
     Max,
     MaxValue,
     Min,
+    MinValue,
     Sum,
 }
 
@@ -61,6 +64,7 @@ impl Display for AggregatorType {
             AggregatorType::Max => f.write_str("max"),
             AggregatorType::MaxValue => f.write_str("max_value"),
             AggregatorType::Min => f.write_str("min"),
+            AggregatorType::MinValue => f.write_str("min_value"),
             AggregatorType::Sum => f.write_str("sum"),
         }
     }
@@ -73,6 +77,7 @@ pub fn get_aggregator_from_aggregator_type(typ: AggregatorType) -> AggregatorEnu
         AggregatorType::Max => MaxAggregator::new().into(),
         AggregatorType::MaxValue => MaxValueAggregator::new().into(),
         AggregatorType::Min => MinAggregator::new().into(),
+        AggregatorType::MinValue => MinValueAggregator::new().into(),
         AggregatorType::Sum => SumAggregator::new().into(),
     }
 }
@@ -125,16 +130,42 @@ pub fn get_aggregator_type_from_aggregation_expression(
             vec![
                 args.get(0)
                     .ok_or_else(|| {
-                        PipelineError::NotEnoughArguments(AggregateFunctionType::Max.to_string())
+                        PipelineError::NotEnoughArguments(
+                            AggregateFunctionType::MaxValue.to_string(),
+                        )
                     })?
                     .clone(),
                 args.get(1)
                     .ok_or_else(|| {
-                        PipelineError::NotEnoughArguments(AggregateFunctionType::Max.to_string())
+                        PipelineError::NotEnoughArguments(
+                            AggregateFunctionType::MaxValue.to_string(),
+                        )
                     })?
                     .clone(),
             ],
             AggregatorType::MaxValue,
+        )),
+        Expression::AggregateFunction {
+            fun: AggregateFunctionType::MinValue,
+            args,
+        } => Ok((
+            vec![
+                args.get(0)
+                    .ok_or_else(|| {
+                        PipelineError::NotEnoughArguments(
+                            AggregateFunctionType::MinValue.to_string(),
+                        )
+                    })?
+                    .clone(),
+                args.get(1)
+                    .ok_or_else(|| {
+                        PipelineError::NotEnoughArguments(
+                            AggregateFunctionType::MinValue.to_string(),
+                        )
+                    })?
+                    .clone(),
+            ],
+            AggregatorType::MinValue,
         )),
         Expression::AggregateFunction {
             fun: AggregateFunctionType::Avg,
@@ -198,7 +229,7 @@ pub fn update_map(
     }
 }
 
-pub fn update_max_val_map(
+pub fn update_val_map(
     fields: &[Field],
     val_delta: u64,
     decr: bool,

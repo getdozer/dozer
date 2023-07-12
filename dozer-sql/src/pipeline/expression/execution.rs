@@ -18,6 +18,7 @@ use std::iter::zip;
 use crate::pipeline::expression::case::evaluate_case;
 
 use crate::pipeline::aggregation::max_value::validate_max_value;
+use crate::pipeline::aggregation::min_value::validate_min_value;
 use dozer_types::types::{Field, FieldType, Record, Schema, SourceDefinition};
 use uuid::Uuid;
 
@@ -738,6 +739,7 @@ fn get_aggregate_function_type(
         AggregateFunctionType::Max => validate_max(args, schema),
         AggregateFunctionType::MaxValue => validate_max_value(args, schema),
         AggregateFunctionType::Min => validate_min(args, schema),
+        AggregateFunctionType::MinValue => validate_min_value(args, schema),
         AggregateFunctionType::Sum => validate_sum(args, schema),
     }
 }

@@ -1,18 +1,18 @@
 use crate::pipeline::aggregation::aggregator::{update_val_map, Aggregator};
 use crate::pipeline::errors::PipelineError::InvalidReturnType;
 use crate::pipeline::errors::{FieldTypes, PipelineError};
-use crate::pipeline::expression::aggregate::AggregateFunctionType::MaxValue;
+use crate::pipeline::expression::aggregate::AggregateFunctionType::MinValue;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
 use crate::{argv, calculate_err};
 use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
 use std::collections::BTreeMap;
 
-pub fn validate_max_value(
+pub fn validate_min_value(
     args: &[Expression],
     schema: &Schema,
 ) -> Result<ExpressionType, PipelineError> {
-    let base_arg = &argv!(args, 0, MaxValue)?.get_type(schema)?;
-    let arg = &argv!(args, 1, MaxValue)?.get_type(schema)?;
+    let base_arg = &argv!(args, 0, MinValue)?.get_type(schema)?;
+    let arg = &argv!(args, 1, MinValue)?.get_type(schema)?;
 
     match base_arg.return_type {
         FieldType::UInt => FieldType::UInt,
@@ -31,7 +31,7 @@ pub fn validate_max_value(
         | FieldType::Json
         | FieldType::Point => {
             return Err(PipelineError::InvalidFunctionArgumentType(
-                MaxValue.to_string(),
+                MinValue.to_string(),
                 arg.return_type,
                 FieldTypes::new(vec![
                     FieldType::Decimal,
@@ -58,13 +58,13 @@ pub fn validate_max_value(
 }
 
 #[derive(Debug)]
-pub struct MaxValueAggregator {
+pub struct MinValueAggregator {
     current_state: BTreeMap<Field, u64>,
     return_state: BTreeMap<Field, Vec<Field>>,
     return_type: Option<FieldType>,
 }
 
-impl MaxValueAggregator {
+impl MinValueAggregator {
     pub fn new() -> Self {
         Self {
             current_state: BTreeMap::new(),
@@ -74,7 +74,7 @@ impl MaxValueAggregator {
     }
 }
 
-impl Aggregator for MaxValueAggregator {
+impl Aggregator for MinValueAggregator {
     fn init(&mut self, return_type: FieldType) {
         self.return_type = Some(return_type);
     }
@@ -92,7 +92,7 @@ impl Aggregator for MaxValueAggregator {
             &mut self.current_state,
             &mut self.return_state,
         )?;
-        get_max_value(&self.current_state, &self.return_state, self.return_type)
+        get_min_value(&self.current_state, &self.return_state, self.return_type)
     }
 
     fn insert(&mut self, new: &[Field]) -> Result<Field, PipelineError> {
@@ -103,11 +103,11 @@ impl Aggregator for MaxValueAggregator {
             &mut self.current_state,
             &mut self.return_state,
         )?;
-        get_max_value(&self.current_state, &self.return_state, self.return_type)
+        get_min_value(&self.current_state, &self.return_state, self.return_type)
     }
 }
 
-fn get_max_value(
+fn get_min_value(
     field_map: &BTreeMap<Field, u64>,
     return_map: &BTreeMap<Field, Vec<Field>>,
     return_type: Option<FieldType>,
@@ -115,7 +115,7 @@ fn get_max_value(
     if field_map.is_empty() {
         Ok(Field::Null)
     } else {
-        let val = calculate_err!(field_map.keys().max(), MaxValue).clone();
+        let val = calculate_err!(field_map.keys().min(), MinValue).clone();
 
         match return_map.get(&val) {
             Some(v) => match v.get(0) {
