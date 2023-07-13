@@ -2,7 +2,6 @@
 
 use glob::{GlobError, PatternError};
 use std::path::PathBuf;
-use std::string::FromUtf8Error;
 
 use dozer_api::{
     errors::{ApiError, AuthError, GenerationError, GrpcError},
@@ -79,8 +78,10 @@ pub enum OrchestrationError {
 
 #[derive(Error, Debug)]
 pub enum CliError {
-    #[error("Can't find the configuration file at: {0:?}")]
-    FailedToLoadFile(String),
+    #[error("Configuration file path not provided")]
+    ConfigurationFilePathNotProvided,
+    #[error("Can't find the configuration file(s) at: {0:?}")]
+    FailedToFindConfigurationFiles(String),
     #[error("Unknown Command: {0:?}")]
     UnknownCommand(String),
     #[error("Failed to parse dozer config: {0:?}")]
@@ -95,6 +96,14 @@ pub enum CliError {
     FailedToCreateTokioRuntime(#[source] std::io::Error),
     #[error("Reqwest error: {0}")]
     Reqwest(#[from] reqwest::Error),
+    #[error(transparent)]
+    ConfigCombineError(#[from] ConfigCombineError),
+    #[error("Failed to serialize config to json: {0}")]
+    SerializeConfigToJson(#[source] serde_json::Error),
+    #[error("Missing config options to be overridden: {0}")]
+    MissingConfigOverride(String),
+    #[error("Failed to deserialize config from json: {0}")]
+    DeserializeConfigFromJson(#[source] serde_json::Error),
 }
 
 #[derive(Error, Debug)]
@@ -104,15 +113,6 @@ pub enum CloudError {
 
     #[error("Cloud service returned error: {0:?}")]
     CloudServiceError(#[from] tonic::Status),
-
-    #[error("Cannot read configuration: {0:?}")]
-    CannotReadConfig(PathBuf, #[source] std::io::Error),
-
-    #[error("Wrong pattern of config files read glob: {0}")]
-    WrongPatternOfConfigFilesGlob(#[from] PatternError),
-
-    #[error("Cannot read file: {0}")]
-    CannotReadFile(#[from] GlobError),
 
     #[error("GRPC request failed, error: {} (GRPC status {})", .0.message(), .0.code())]
     GRPCCallError(#[source] tonic::Status),
@@ -128,6 +128,36 @@ pub enum CloudError {
 
     #[error(transparent)]
     CloudContextError(#[from] CloudContextError),
+
+    #[error(transparent)]
+    ConfigCombineError(#[from] ConfigCombineError),
+}
+
+#[derive(Debug, Error)]
+pub enum ConfigCombineError {
+    #[error("Failed to parse yaml file {0}: {1}")]
+    ParseYaml(String, #[source] serde_yaml::Error),
+
+    #[error("Cannot merge yaml value {from:?} to {to:?}")]
+    CannotMerge {
+        from: serde_yaml::Value,
+        to: serde_yaml::Value,
+    },
+
+    #[error("Failed to parse config: {0}")]
+    ParseConfig(#[source] serde_yaml::Error),
+
+    #[error("Cannot read configuration: {0:?}")]
+    CannotReadConfig(PathBuf, #[source] std::io::Error),
+
+    #[error("Wrong pattern of config files read glob: {0}")]
+    WrongPatternOfConfigFilesGlob(#[from] PatternError),
+
+    #[error("Cannot read file: {0}")]
+    CannotReadFile(#[from] GlobError),
+
+    #[error("Cannot serialize config to string: {0}")]
+    CannotSerializeToString(#[source] serde_yaml::Error),
 }
 
 #[derive(Debug, Error)]
@@ -197,12 +227,6 @@ pub enum CloudContextError {
     #[error("Failed to get current directory path")]
     FailedToGetDirectoryPath,
 
-    #[error("Failed to read cloud app id. Error: {0}")]
-    FailedToReadAppId(#[from] FromUtf8Error),
-
-    #[error("Context file not found. You need to run \"deploy\" or \"app use\" first")]
-    ContextFileNotFound,
-
-    #[error("App id not found in configuration")]
+    #[error("App id not found in configuration. You need to run \"deploy\" or \"set-app\" first")]
     AppIdNotFound,
 }

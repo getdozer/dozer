@@ -19,10 +19,11 @@ dozer-sql/data
 workspaces/
 
 # Local configuration for development
-/dozer-config.yaml
+/dozer-config.*
 dozer-config.test.*
 log4rs.yaml
 .DS_Store
+queries
 
 .dozer/
 logs/

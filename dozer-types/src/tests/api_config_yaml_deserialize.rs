@@ -21,8 +21,7 @@ fn override_rest_port() {
     assert!(api_config.is_some());
     let api_config = api_config.unwrap();
     assert!(api_config.rest.is_some());
-    let default_api_rest = default_api_rest().unwrap();
-    let default_api_grpc = default_api_grpc().unwrap();
+    let default_api_rest = default_api_rest();
     let expected_rest_config = RestApiOptions {
         port: 9876,
         host: default_api_rest.host,
@@ -30,7 +29,6 @@ fn override_rest_port() {
         enabled: true,
     };
     assert_eq!(api_config.rest.unwrap(), expected_rest_config);
-    assert_eq!(api_config.grpc.unwrap(), default_api_grpc);
 }
 
 #[test]
@@ -48,8 +46,7 @@ fn override_rest_host() {
     assert!(api_config.is_some());
     let api_config = api_config.unwrap();
     assert!(api_config.rest.is_some());
-    let default_api_rest = default_api_rest().unwrap();
-    let default_api_grpc = default_api_grpc().unwrap();
+    let default_api_rest = default_api_rest();
     let expected_rest_config = RestApiOptions {
         port: default_api_rest.port,
         host: "localhost".to_owned(),
@@ -57,7 +54,6 @@ fn override_rest_host() {
         enabled: true,
     };
     assert_eq!(api_config.rest.unwrap(), expected_rest_config);
-    assert_eq!(api_config.grpc.unwrap(), default_api_grpc);
 }
 
 #[test]
@@ -75,8 +71,7 @@ fn override_rest_enabled() {
     assert!(api_config.is_some());
     let api_config = api_config.unwrap();
     assert!(api_config.rest.is_some());
-    let default_api_rest = default_api_rest().unwrap();
-    let default_api_grpc = default_api_grpc().unwrap();
+    let default_api_rest = default_api_rest();
     let expected_rest_config = RestApiOptions {
         port: default_api_rest.port,
         host: default_api_rest.host,
@@ -84,7 +79,6 @@ fn override_rest_enabled() {
         enabled: false,
     };
     assert_eq!(api_config.rest.unwrap(), expected_rest_config);
-    assert_eq!(api_config.grpc.unwrap(), default_api_grpc);
 }
 
 #[test]
@@ -101,9 +95,7 @@ fn override_grpc_port() {
     let api_config = deserialize_result.unwrap().api;
     assert!(api_config.is_some());
     let api_config = api_config.unwrap();
-    assert!(api_config.rest.is_some());
-    let default_api_rest = default_api_rest().unwrap();
-    let default_api_grpc = default_api_grpc().unwrap();
+    let default_api_grpc = default_api_grpc();
     let expected_grpc_config = GrpcApiOptions {
         port: 4232,
         host: default_api_grpc.host,
@@ -111,7 +103,6 @@ fn override_grpc_port() {
         web: default_api_grpc.web,
         enabled: true,
     };
-    assert_eq!(api_config.rest.unwrap(), default_api_rest);
     assert_eq!(api_config.grpc.unwrap(), expected_grpc_config);
 }
 
@@ -129,18 +120,14 @@ fn override_grpc_enabled() {
     let api_config = deserialize_result.unwrap().api;
     assert!(api_config.is_some());
     let api_config = api_config.unwrap();
-    assert!(api_config.rest.is_some());
-    let default_api_rest = default_api_rest().unwrap();
-    let default_api_grpc = default_api_grpc().unwrap();
+    let default_api_grpc = default_api_grpc();
     let expected_grpc_config = GrpcApiOptions {
         enabled: false,
         port: default_api_grpc.port,
         host: default_api_grpc.host,
         cors: default_api_grpc.cors,
         web: default_api_grpc.web,
-        ..Default::default()
     };
-    assert_eq!(api_config.rest.unwrap(), default_api_rest);
     assert_eq!(api_config.grpc.unwrap(), expected_grpc_config);
 }
 
@@ -161,8 +148,8 @@ fn override_grpc_and_rest_port() {
     assert!(api_config.is_some());
     let api_config = api_config.unwrap();
     assert!(api_config.rest.is_some());
-    let default_api_rest = default_api_rest().unwrap();
-    let default_api_grpc = default_api_grpc().unwrap();
+    let default_api_rest = default_api_rest();
+    let default_api_grpc = default_api_grpc();
     let expected_grpc_config = GrpcApiOptions {
         port: 4232,
         host: default_api_grpc.host,
@@ -199,8 +186,8 @@ fn override_grpc_and_rest_port_jwt() {
     assert!(api_config.is_some());
     let api_config = api_config.unwrap();
     assert!(api_config.rest.is_some());
-    let default_api_rest = default_api_rest().unwrap();
-    let default_api_grpc = default_api_grpc().unwrap();
+    let default_api_rest = default_api_rest();
+    let default_api_grpc = default_api_grpc();
     let expected_grpc_config = GrpcApiOptions {
         port: 4232,
         host: default_api_grpc.host,
@@ -247,8 +234,8 @@ fn override_grpc_and_rest_port_jwt_pipeline_home_dir() {
     assert!(api_config.is_some());
     let api_config = api_config.unwrap();
     assert!(api_config.rest.is_some());
-    let default_api_rest = default_api_rest().unwrap();
-    let default_api_grpc = default_api_grpc().unwrap();
+    let default_api_rest = default_api_rest();
+    let default_api_grpc = default_api_grpc();
     let expected_grpc_config = GrpcApiOptions {
         port: 4232,
         host: default_api_grpc.host,
@@ -271,7 +258,7 @@ fn override_grpc_and_rest_port_jwt_pipeline_home_dir() {
     assert_eq!(api_security, expected_api_security);
 
     let app_grpc = api_config.app_grpc.unwrap();
-    let default_app_grpc = default_app_grpc().unwrap();
+    let default_app_grpc = default_app_grpc();
     assert_eq!(app_grpc.port, 3993);
     assert_eq!(app_grpc.host, default_app_grpc.host);
 }

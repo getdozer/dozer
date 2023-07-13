@@ -75,28 +75,23 @@ sql: |
 sources:
   - name: b_tickets
     table_name: tickets
-    columns:
-    connection: !Ref bookings_conn
+    connection: bookings_conn
 
   - name: b_bookings
     table_name: bookings
-    columns:
-    connection: !Ref bookings_conn
+    connection: bookings_conn
 
   - name: b_ticket_flights
     table_name: ticket_flights
-    columns:
-    connection: !Ref bookings_conn
+    connection: bookings_conn
 
   - name: f_airports
     table_name: airports
-    columns:
-    connection: !Ref bookings_conn
+    connection: bookings_conn
 
   - name: f_flights
     table_name: flights
-    columns:
-    connection: !Ref bookings_conn
+    connection: bookings_conn
 
 endpoints:
   - name: bookings_details

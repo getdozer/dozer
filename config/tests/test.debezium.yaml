@@ -25,7 +25,7 @@ connections:
 sources:
   - name: products
     table_name: ${DEBEZIUM_TABLE_NAME}
-    connection: !Ref products
+    connection: products
     columns:
       - id
 

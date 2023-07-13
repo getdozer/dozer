@@ -4,14 +4,16 @@ use crate::grpc::typed::tests::{
     fake_internal_pipeline_server::start_fake_internal_grpc_pipeline, service::setup_pipeline,
 };
 
-use dozer_types::grpc_types::{
-    common::{
-        common_grpc_service_server::CommonGrpcService, GetEndpointsRequest, GetFieldsRequest,
-        OnEventRequest, QueryRequest,
+use dozer_types::{
+    grpc_types::{
+        common::{
+            common_grpc_service_server::CommonGrpcService, GetEndpointsRequest, GetFieldsRequest,
+            OnEventRequest, QueryRequest,
+        },
+        types::{value, EventType, FieldDefinition, OperationType, RecordWithId, Type, Value},
     },
-    types::{value, EventType, FieldDefinition, OperationType, RecordWithId, Type, Value},
+    models::api_config::default_app_grpc,
 };
-use dozer_types::models::api_config::default_api_config;
 use tokio::sync::oneshot;
 use tonic::Request;
 
@@ -138,7 +140,7 @@ async fn test_grpc_common_get_fields() {
 async fn test_grpc_common_on_event() {
     // start fake internal pipeline
     let (sender_shutdown_internal, rx_internal) = oneshot::channel::<()>();
-    let default_pipeline_internal = default_api_config().app_grpc.unwrap_or_default();
+    let default_pipeline_internal = default_app_grpc();
     let _jh = tokio::spawn(start_fake_internal_grpc_pipeline(
         default_pipeline_internal.host,
         default_pipeline_internal.port,

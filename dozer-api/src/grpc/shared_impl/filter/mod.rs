@@ -37,7 +37,7 @@ fn record_satisfies_filter(record: &Record, filter: &FilterExpression, schema: &
                 .iter()
                 .enumerate()
                 .find(|(_, field)| field.name == *field_name)
-             else {
+            else {
                 return false;
             };
 
@@ -45,7 +45,11 @@ fn record_satisfies_filter(record: &Record, filter: &FilterExpression, schema: &
                 return false;
             };
 
-            let Ok(value) = json_value_to_field(value.clone(), field_definition.typ, field_definition.nullable) else {
+            let Ok(value) = json_value_to_field(
+                value.clone(),
+                field_definition.typ,
+                field_definition.nullable,
+            ) else {
                 return false;
             };
 

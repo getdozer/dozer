@@ -2,17 +2,25 @@ use crate::errors::OrchestrationError;
 use crate::simple::SimpleOrchestrator as Dozer;
 use crate::{errors::CliError, Orchestrator};
 
+use crate::config_helper::combine_config;
+use crate::errors::CliError::{ConfigurationFilePathNotProvided, FailedToFindConfigurationFiles};
 use dozer_types::models::app_config::default_cache_max_map_size;
 use dozer_types::prettytable::{row, Table};
 use dozer_types::{models::app_config::Config, serde_yaml};
 use handlebars::Handlebars;
+use std::collections::BTreeMap;
 use std::sync::Arc;
-use std::{collections::BTreeMap, fs};
 use tokio::runtime::Runtime;
 
-pub fn init_dozer(config_path: String, config_token: Option<String>) -> Result<Dozer, CliError> {
+pub fn init_dozer(
+    config_paths: Vec<String>,
+    config_token: Option<String>,
+    config_overrides: Vec<(String, serde_json::Value)>,
+) -> Result<Dozer, CliError> {
     let runtime = Runtime::new().map_err(CliError::FailedToCreateTokioRuntime)?;
-    let mut config = runtime.block_on(load_config(&config_path, config_token))?;
+    let mut config = runtime.block_on(load_config(config_paths, config_token))?;
+
+    config = apply_overrides(&config, config_overrides)?;
 
     let cache_max_map_size = config
         .cache_max_map_size
@@ -23,17 +31,13 @@ pub fn init_dozer(config_path: String, config_token: Option<String>) -> Result<D
     Ok(Dozer::new(config, Arc::new(runtime)))
 }
 
-pub fn init_dozer_with_default_config() -> Result<Dozer, CliError> {
-    let runtime = Runtime::new().map_err(CliError::FailedToCreateTokioRuntime)?;
-    Ok(Dozer::new(Config::default(), Arc::new(runtime)))
-}
-
 pub fn list_sources(
-    config_path: &str,
+    config_paths: Vec<String>,
     config_token: Option<String>,
+    config_overrides: Vec<(String, serde_json::Value)>,
     filter: Option<String>,
 ) -> Result<(), OrchestrationError> {
-    let dozer = init_dozer(config_path.to_string(), config_token)?;
+    let dozer = init_dozer(config_paths, config_token, config_overrides)?;
     let connection_map = dozer.list_connectors()?;
     let mut table_parent = Table::new();
     for (connection_name, (tables, schemas)) in connection_map {
@@ -67,13 +71,19 @@ pub fn list_sources(
 }
 
 async fn load_config(
-    config_url_or_path: &str,
+    config_url_or_paths: Vec<String>,
     config_token: Option<String>,
 ) -> Result<Config, CliError> {
-    if config_url_or_path.starts_with("https://") || config_url_or_path.starts_with("http://") {
-        load_config_from_http_url(config_url_or_path, config_token).await
-    } else {
-        load_config_from_file(config_url_or_path)
+    let first_config_path = config_url_or_paths.get(0);
+    match first_config_path {
+        None => Err(ConfigurationFilePathNotProvided),
+        Some(path) => {
+            if path.starts_with("https://") || path.starts_with("http://") {
+                load_config_from_http_url(path, config_token).await
+            } else {
+                load_config_from_file(config_url_or_paths)
+            }
+        }
     }
 }
 
@@ -91,10 +101,12 @@ async fn load_config_from_http_url(
     parse_config(&contents)
 }
 
-pub fn load_config_from_file(config_path: &str) -> Result<Config, CliError> {
-    let contents = fs::read_to_string(config_path)
-        .map_err(|e| CliError::FileSystem(config_path.to_string().into(), e))?;
-    parse_config(&contents)
+pub fn load_config_from_file(config_path: Vec<String>) -> Result<Config, CliError> {
+    let config_template = combine_config(config_path.clone())?;
+    match config_template {
+        Some(template) => parse_config(&template),
+        None => Err(FailedToFindConfigurationFiles(config_path.join(", "))),
+    }
 }
 
 fn parse_config(config_template: &str) -> Result<Config, CliError> {
@@ -116,9 +128,29 @@ fn parse_config(config_template: &str) -> Result<Config, CliError> {
     let config: Config = serde_yaml::from_str(&config_str)
         .map_err(|e: serde_yaml::Error| CliError::FailedToParseYaml(Box::new(e)))?;
 
-    // Create home_dir if not exists.
-    fs::create_dir_all(&config.home_dir)
-        .map_err(|e| CliError::FileSystem(config.home_dir.clone().into(), e))?;
+    Ok(config)
+}
+
+/// Convert `config` to JSON, apply JSON pointer overrides, then convert back to `Config`.
+fn apply_overrides(
+    config: &Config,
+    config_overrides: Vec<(String, serde_json::Value)>,
+) -> Result<Config, CliError> {
+    let mut config_json = serde_json::to_value(config).map_err(CliError::SerializeConfigToJson)?;
+
+    for (pointer, value) in config_overrides {
+        if let Some(pointee) = config_json.pointer_mut(&pointer) {
+            *pointee = value;
+        } else {
+            return Err(CliError::MissingConfigOverride(pointer));
+        }
+    }
+
+    // Directly convert `config_json` to `Config` fails, not sure why.
+    let config_json_string =
+        serde_json::to_string(&config_json).map_err(CliError::SerializeConfigToJson)?;
+    let config: Config =
+        serde_json::from_str(&config_json_string).map_err(CliError::DeserializeConfigFromJson)?;
 
     Ok(config)
 }
@@ -135,3 +167,48 @@ pub const DESCRIPTION: &str = r#"Open-source platform to build, publish and mana
 
  If no sub commands are passed, dozer will bring up both app and api services.
 "#;
+
+#[cfg(test)]
+mod tests {
+    use dozer_types::models::{api_config::ApiConfig, api_security::ApiSecurity};
+
+    use super::*;
+
+    #[test]
+    fn test_override_top_level() {
+        let mut config = Config {
+            app_name: "test_override_top_level".to_string(),
+            ..Default::default()
+        };
+        config.sql = Some("sql1".to_string());
+        let sql = "sql2".to_string();
+        let config = apply_overrides(
+            &config,
+            vec![("/sql".to_string(), serde_json::to_value(&sql).unwrap())],
+        )
+        .unwrap();
+        assert_eq!(config.sql.unwrap(), sql);
+    }
+
+    #[test]
+    fn test_override_nested() {
+        let mut config = Config {
+            app_name: "test_override_nested".to_string(),
+            ..Default::default()
+        };
+        config.api = Some(ApiConfig {
+            api_security: Some(ApiSecurity::Jwt("secret1".to_string())),
+            ..Default::default()
+        });
+        let api_security = ApiSecurity::Jwt("secret2".to_string());
+        let config = apply_overrides(
+            &config,
+            vec![(
+                "/api/api_security".to_string(),
+                serde_json::to_value(&api_security).unwrap(),
+            )],
+        )
+        .unwrap();
+        assert_eq!(config.api.unwrap().api_security.unwrap(), api_security);
+    }
+}
