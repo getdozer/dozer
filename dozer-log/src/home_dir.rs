@@ -21,81 +21,70 @@ impl HomeDir {
         }
     }
 
-    pub fn create_migration_dir_all(
+    pub fn create_build_dir_all(
         &self,
         endpoint_name: &str,
-        migration_id: MigrationId,
-    ) -> Result<MigrationPath, Error> {
+        build_id: BuildId,
+    ) -> Result<BuildPath, Error> {
         std::fs::create_dir_all(&self.cache_dir).map_err(|e| (self.cache_dir.clone(), e))?;
 
-        let migration_path = self.get_migration_path(endpoint_name, migration_id);
+        let build_path = self.get_build_path(endpoint_name, build_id);
 
-        std::fs::create_dir_all(&migration_path.api_dir)
-            .map_err(|e| (migration_path.api_dir.clone(), e))?;
-        std::fs::create_dir_all(&migration_path.log_dir)
-            .map_err(|e: std::io::Error| (migration_path.log_dir.clone(), e))?;
+        std::fs::create_dir_all(&build_path.api_dir)
+            .map_err(|e| (build_path.api_dir.clone(), e))?;
+        std::fs::create_dir_all(&build_path.log_dir)
+            .map_err(|e: std::io::Error| (build_path.log_dir.clone(), e))?;
 
-        Ok(migration_path)
+        Ok(build_path)
     }
 
-    pub fn find_migration_path(
-        &self,
-        endpoint_name: &str,
-        migration_id: u32,
-    ) -> Option<MigrationPath> {
-        let migration_path =
-            self.get_migration_path(endpoint_name, MigrationId::from_id(migration_id));
-        if migration_path.exists() {
-            Some(migration_path)
+    pub fn find_build_path(&self, endpoint_name: &str, build_id: u32) -> Option<BuildPath> {
+        let build_path = self.get_build_path(endpoint_name, BuildId::from_id(build_id));
+        if build_path.exists() {
+            Some(build_path)
         } else {
             None
         }
     }
 
-    pub fn find_latest_migration_path(
-        &self,
-        endpoint_name: &str,
-    ) -> Result<Option<MigrationPath>, Error> {
+    pub fn find_latest_build_path(&self, endpoint_name: &str) -> Result<Option<BuildPath>, Error> {
         Ok(self
-            .find_latest_migration_id(endpoint_name)?
-            .map(|migration_id| self.get_migration_path(endpoint_name, migration_id)))
+            .find_latest_build_id(endpoint_name)?
+            .map(|build_id| self.get_build_path(endpoint_name, build_id)))
     }
 
-    pub fn find_latest_migration_id(
-        &self,
-        endpoint_name: &str,
-    ) -> Result<Option<MigrationId>, Error> {
+    pub fn find_latest_build_id(&self, endpoint_name: &str) -> Result<Option<BuildId>, Error> {
         let api_dir = self.get_endpoint_api_dir(endpoint_name);
-        let migration1 = find_latest_migration_id(api_dir)?;
+        let build1 = find_latest_build_id(api_dir)?;
         let log_dir = self.get_endpoint_log_dir(endpoint_name);
-        let migration2 = find_latest_migration_id(log_dir)?;
+        let build2 = find_latest_build_id(log_dir)?;
 
-        match (migration1, migration2) {
-            (Some(migration1), Some(migration2)) => {
-                if migration1.id > migration2.id {
-                    Ok(Some(migration1))
+        match (build1, build2) {
+            (Some(build1), Some(build2)) => {
+                if build1.id > build2.id {
+                    Ok(Some(build1))
                 } else {
-                    Ok(Some(migration2))
+                    Ok(Some(build2))
                 }
             }
-            (Some(migration1), None) => Ok(Some(migration1)),
-            (None, Some(migration2)) => Ok(Some(migration2)),
+            (Some(build1), None) => Ok(Some(build1)),
+            (None, Some(build2)) => Ok(Some(build2)),
             (None, None) => Ok(None),
         }
     }
 
-    fn get_migration_path(&self, endpoint_name: &str, migration_id: MigrationId) -> MigrationPath {
+    fn get_build_path(&self, endpoint_name: &str, build_id: BuildId) -> BuildPath {
         let api_dir = self
             .get_endpoint_api_dir(endpoint_name)
-            .join(&migration_id.name);
+            .join(&build_id.name);
         let descriptor_path = api_dir.join("file_descriptor_set.bin");
         let log_dir = self
             .get_endpoint_log_dir(endpoint_name)
-            .join(&migration_id.name);
+            .join(&build_id.name);
         let schema_path = log_dir.join("schema.json");
         let log_path = log_dir.join("log");
-        MigrationPath {
-            id: migration_id,
+        BuildPath {
+            id: build_id,
             api_dir,
             descriptor_path,
             log_dir,
@@ -131,12 +120,12 @@ impl HomeDir {
 }
 
 #[derive(Debug, Clone)]
-pub struct MigrationId {
+pub struct BuildId {
     id: u32,
     name: String,
 }
 
-impl MigrationId {
+impl BuildId {
     fn from_id(id: u32) -> Self {
         Self {
             id,
@@ -209,7 +198,7 @@ fn list_sub_dir(dir: Utf8PathBuf) -> Result<ListSubDir, Error> {
     })
 }
 
-fn find_latest_migration_id(dir: Utf8PathBuf) -> Result<Option<MigrationId>, Error> {
+fn find_latest_build_id(dir: Utf8PathBuf) -> Result<Option<BuildId>, Error> {
     if !dir.exists() {
         return Ok(None);
     }
@@ -217,13 +206,13 @@ fn find_latest_migration_id(dir: Utf8PathBuf) -> Result<Option<MigrationId>, Err
     let mut result = None;
     for sub_dir in list_sub_dir(dir)? {
         let sub_dir = sub_dir?;
-        if let Some(migration) = MigrationId::from_name(&sub_dir.name) {
-            if let Some(MigrationId { id, .. }) = result {
-                if migration.id > id {
-                    result = Some(migration);
+        if let Some(build) = BuildId::from_name(&sub_dir.name) {
+            if let Some(BuildId { id, .. }) = result {
+                if build.id > id {
+                    result = Some(build);
                 }
             } else {
-                result = Some(migration);
+                result = Some(build);
             }
         }
     }
@@ -231,8 +220,8 @@ fn find_latest_migration_id(dir: Utf8PathBuf) -> Result<Option<MigrationId>, Err
 }
 
 #[derive(Debug, Clone)]
-pub struct MigrationPath {
-    pub id: MigrationId,
+pub struct BuildPath {
+    pub id: BuildId,
     pub api_dir: Utf8PathBuf,
     pub descriptor_path: Utf8PathBuf,
     log_dir: Utf8PathBuf,
@@ -240,7 +229,7 @@ pub struct MigrationPath {
     pub log_path: Utf8PathBuf,
 }
 
-impl MigrationPath {
+impl BuildPath {
     pub fn exists(&self) -> bool {
         self.api_dir.exists() && self.log_dir.exists()
     }

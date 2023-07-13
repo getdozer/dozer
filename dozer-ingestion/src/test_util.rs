@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use crate::connectors::postgres::tests::client::TestPostgresClient;
 use dozer_types::constants::DEFAULT_CONFIG_PATH;
-use dozer_types::models::app_config::Config;
+use dozer_types::models::config::Config;
 use dozer_types::models::connection::ConnectionConfig;
 use futures::Future;
 

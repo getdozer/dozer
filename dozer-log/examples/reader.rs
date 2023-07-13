@@ -1,22 +1,25 @@
-use std::env;
+use clap::Parser;
+use dozer_log::reader::{LogReaderBuilder, LogReaderOptions};
 
-use dozer_log::reader::LogReader;
+#[derive(Parser)]
+struct Cli {
+    server_addr: String,
+    endpoint: String,
+}
 
 #[tokio::main]
 async fn main() {
-    let args: Vec<String> = env::args().collect();
+    let cli = Cli::parse();
 
-    let mut path = ".dozer/pipeline/logs/trips";
-    if args.len() == 2 {
-        path = &args[1];
-    };
-    let mut log_reader = LogReader::new(path.as_ref(), "logs".to_string(), 0, None)
-        .await
-        .unwrap();
+    let mut log_reader =
+        LogReaderBuilder::new(cli.server_addr, LogReaderOptions::new(cli.endpoint))
+            .await
+            .unwrap()
+            .build(0, None);
 
     let mut counter = 0;
     loop {
-        log_reader.next_op().await;
+        log_reader.next_op().await.unwrap();
         counter += 1;
 
         if counter > 100000 {

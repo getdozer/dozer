@@ -12,13 +12,13 @@ npm install @dozerjs/log
 
 ## Usage
 
-Assume your Dozer home directory is `.dozer` and you have an endpoint named `trips`. You can read the Dozer logs in Node.js as follows:
+Assume your have Dozer running and the app is listening to `http://127.0.0.1:50053`, and you have an endpoint named `trips`. You can read the Dozer logs in Node.js as follows:
 
 ```javascript
 const dozer_log = require('@dozerjs/log');
 
 const runtime = dozer_log.Runtime();
-reader = await runtime.create_reader('.dozer', 'trips');
+reader = await runtime.create_reader('http://127.0.0.1:50053', 'trips');
 console.log(await reader.next_op());
 ```
 
@@ -38,7 +38,8 @@ After building dozer-log-js, you can run dozer-log-js example with:
 
 ```sh
 npm run build
-node examples/reader.js
+cd ..
+node dozer-log-js/examples/reader.js
 ```
 
 ## Available Scripts
