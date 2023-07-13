@@ -110,12 +110,12 @@ impl Processor for ProductProcessor {
         counter!(OUT_OPS, records.len() as u64, self.labels.clone());
 
         gauge!(
-            LEFT_LOOKUP_SIZE_GAUGE_NAME,
+            LEFT_LOOKUP_SIZE,
             self.join_operator.left_lookup_size()? as f64,
             self.labels.clone()
         );
         gauge!(
-            RIGHT_LOOKUP_SIZE_GAUGE_NAME,
+            RIGHT_LOOKUP_SIZE,
             self.join_operator.right_lookup_size()? as f64,
             self.labels.clone()
         );
