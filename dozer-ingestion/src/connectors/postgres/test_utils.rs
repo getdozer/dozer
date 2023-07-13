@@ -3,7 +3,7 @@ use postgres_types::PgLsn;
 use std::error::Error;
 
 use crate::connectors::postgres::replication_slot_helper::ReplicationSlotHelper;
-use dozer_types::models::app_config::Config;
+use dozer_types::models::config::Config;
 use std::str::FromStr;
 use tokio_postgres::{error::DbError, Client, Error as PostgresError, SimpleQueryMessage};
 

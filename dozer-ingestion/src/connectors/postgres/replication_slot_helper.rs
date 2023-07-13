@@ -1,5 +1,5 @@
 use crate::errors::ConnectorError::UnexpectedQueryMessageError;
-use crate::errors::PostgresConnectorError::FetchReplicationSlotError;
+use crate::errors::PostgresConnectorError::{FetchReplicationSlotError, InvalidQueryError};
 use crate::errors::{ConnectorError, PostgresConnectorError};
 use dozer_types::log::debug;
 use tokio_postgres::{Client, Error, SimpleQueryMessage};
@@ -63,6 +63,42 @@ impl ReplicationSlotHelper {
             slot_query_row.get(0),
             Some(SimpleQueryMessage::Row(_))
         ))
+    }
+
+    pub async fn clear_inactive_slots(
+        client: &Client,
+        slot_name_prefix: &str,
+    ) -> Result<(), PostgresConnectorError> {
+        let inactive_slots_query = format!(
+            r#"SELECT * FROM pg_replication_slots where active = false AND slot_name LIKE '{slot_name_prefix}%';"#
+        );
+
+        let slots = client
+            .simple_query(&inactive_slots_query)
+            .await
+            .map_err(FetchReplicationSlotError)?;
+
+        let column_index = if let Some(SimpleQueryMessage::Row(row)) = slots.get(0) {
+            row.columns().iter().position(|c| c.name() == "slot_name")
+        } else {
+            None
+        };
+
+        for slot_message in slots {
+            if let SimpleQueryMessage::Row(row) = slot_message {
+                if let Some(index) = column_index {
+                    let slot_name = row.get(index);
+
+                    if let Some(name) = slot_name {
+                        Self::drop_replication_slot(client, name)
+                            .await
+                            .map_err(InvalidQueryError)?;
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 

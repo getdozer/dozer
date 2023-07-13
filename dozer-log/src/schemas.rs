@@ -12,7 +12,7 @@ use crate::errors::SchemaError;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(crate = "dozer_types::serde")]
-pub struct MigrationSchema {
+pub struct BuildSchema {
     pub schema: Schema,
     pub secondary_indexes: Vec<IndexDefinition>,
     pub enable_token: bool,
@@ -20,7 +20,7 @@ pub struct MigrationSchema {
     pub connections: HashSet<String>,
 }
 
-pub fn write_schema(schema: &MigrationSchema, schema_path: &Path) -> Result<(), SchemaError> {
+pub fn write_schema(schema: &BuildSchema, schema_path: &Path) -> Result<(), SchemaError> {
     let mut file = OpenOptions::new()
         .create(true)
         .write(true)
@@ -32,7 +32,7 @@ pub fn write_schema(schema: &MigrationSchema, schema_path: &Path) -> Result<(), 
     Ok(())
 }
 
-pub fn load_schema(schema_path: &Utf8Path) -> Result<MigrationSchema, SchemaError> {
+pub fn load_schema(schema_path: &Utf8Path) -> Result<BuildSchema, SchemaError> {
     let schema_str = std::fs::read_to_string(schema_path)
         .map_err(|e| SchemaError::Filesystem(schema_path.to_string().into(), e))?;
 

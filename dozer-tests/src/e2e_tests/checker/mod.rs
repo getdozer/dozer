@@ -2,7 +2,7 @@ use std::process::Command;
 
 use dozer_types::{
     log::{error, info},
-    models::app_config::Config,
+    models::config::Config,
 };
 use dozer_utils::Cleanup;
 

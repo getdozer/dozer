@@ -7,6 +7,8 @@ use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
 use dozer_types::tracing::info;
 use postgres_types::PgLsn;
+use rand::distributions::Alphanumeric;
+use rand::Rng;
 use tonic::async_trait;
 
 use crate::connectors::postgres::schema::helper::SchemaHelper;
@@ -36,6 +38,8 @@ pub struct ReplicationSlotInfo {
     pub name: String,
     pub start_lsn: PgLsn,
 }
+
+pub const REPLICATION_SLOT_PREFIX: &str = "dozer_slot";
 
 impl PostgresConnector {
     pub fn new(config: PostgresConfig) -> PostgresConnector {
@@ -201,7 +205,17 @@ impl PostgresConnector {
     }
 
     pub fn get_slot_name(&self) -> String {
-        format!("dozer_slot_{}", self.name)
+        let rand_name_suffix: String = rand::thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(7)
+            .map(char::from)
+            .collect();
+
+        format!(
+            "{REPLICATION_SLOT_PREFIX}_{}_{}",
+            self.name,
+            rand_name_suffix.to_lowercase()
+        )
     }
 
     pub async fn create_publication(

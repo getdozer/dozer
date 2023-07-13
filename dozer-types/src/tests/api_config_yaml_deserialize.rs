@@ -3,7 +3,7 @@ use crate::models::{
         default_api_grpc, default_api_rest, default_app_grpc, GrpcApiOptions, RestApiOptions,
     },
     api_security::ApiSecurity,
-    app_config::Config,
+    config::Config,
 };
 
 #[test]

@@ -1825,9 +1825,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.3.2"
+version = "4.3.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "401a4694d2bf92537b6867d94de48c4842089645fdcdf6c71865b175d836e9c2"
+checksum = "1640e5cc7fb47dbb8338fd471b105e7ed6c3cb2aeb00c2e067127ffd3764a05d"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -1836,13 +1836,12 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.3.1"
+version = "4.3.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72394f3339a76daf211e57d4bcb374410f3965dcc606dd0e03738c7888766980"
+checksum = "98c59138d527eeaf9b53f35a77fcc1fad9d883116070c63d5de1c7dc7b00c72b"
 dependencies = [
  "anstream",
  "anstyle",
- "bitflags",
  "clap_lex 0.5.0",
  "strsim",
 ]
@@ -2632,7 +2631,7 @@ name = "dozer-cache"
 version = "0.1.28"
 dependencies = [
  "ahash 0.8.3",
- "clap 4.3.2",
+ "clap 4.3.11",
  "criterion",
  "dozer-log",
  "dozer-storage",
@@ -2655,7 +2654,7 @@ name = "dozer-cli"
 version = "0.1.28"
 dependencies = [
  "atty",
- "clap 4.3.2",
+ "clap 4.3.11",
  "ctrlc",
  "dozer-api",
  "dozer-cache",
@@ -2750,12 +2749,15 @@ dependencies = [
  "aws-smithy-http 0.55.3",
  "aws-smithy-types 0.55.3",
  "camino",
+ "clap 4.3.11",
  "dozer-types",
+ "dyn-clone",
  "env_logger",
  "futures-util",
  "pin-project",
  "tempdir",
  "tokio",
+ "tokio-stream",
  "tokio-util 0.7.8",
 ]
 
@@ -2826,7 +2828,7 @@ dependencies = [
  "ahash 0.8.3",
  "async-trait",
  "bson",
- "clap 4.3.2",
+ "clap 4.3.11",
  "csv",
  "dozer-api",
  "dozer-cache",
@@ -4149,7 +4151,7 @@ version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d7b603516767d1ab23d0de09d023e62966c3322f7148297c35cf3d97aa8b37fa"
 dependencies = [
- "clap 4.3.2",
+ "clap 4.3.11",
  "termcolor",
  "threadpool",
 ]
@@ -6984,9 +6986,9 @@ dependencies = [
 
 [[package]]
 name = "syn-mid"
-version = "0.5.3"
+version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "baa8e7560a164edb1621a55d18a0c59abf49d360f47aa7b821061dd7eea7fac9"
+checksum = "fea305d57546cc8cd04feb14b62ec84bf17f50e3f7b12560d7bfa9265f39d9ed"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -7323,9 +7325,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-stream"
-version = "0.1.12"
+version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fb52b74f05dbf495a8fba459fdc331812b96aa086d9eb78101fa0d4569c3313"
+checksum = "397c988d37662c7dda6d2208364a706264bf3d6138b11d436cbac0ad38832842"
 dependencies = [
  "futures-core",
  "pin-project-lite",

@@ -1,7 +1,7 @@
 use crate::errors::CloudContextError;
 use crate::errors::CloudContextError::{AppIdNotFound, FailedToGetDirectoryPath};
-use dozer_types::models::app_config::Config;
 use dozer_types::models::cloud::Cloud;
+use dozer_types::models::config::Config;
 use dozer_types::serde_yaml;
 use std::io::Write;
 use std::{env, fs};

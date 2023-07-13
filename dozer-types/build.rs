@@ -39,10 +39,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "crate::models::api_endpoint::ApiEndpoint",
         )
         .extern_path(".dozer.cloud.Source", "crate::models::source::Source")
-        .extern_path(
-            ".dozer.cloud.AppConfig",
-            "crate::models::app_config::Config",
-        )
+        .extern_path(".dozer.cloud.AppConfig", "crate::models::config::Config")
         .extern_path(
             ".dozer.cloud.ConnectionConfig",
             "crate::models::connection::ConnectionConfig",

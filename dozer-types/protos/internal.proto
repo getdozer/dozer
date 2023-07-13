@@ -1,20 +1,57 @@
-
 syntax = "proto3";
 
 package dozer.internal;
-import "types.proto";
 
 service InternalPipelineService {
-  rpc StreamOperations(OperationsRequest) returns (stream dozer.types.Operation);
-  rpc StreamAliasEvents(AliasEventsRequest) returns (stream AliasRedirected);
+  rpc DescribeStorage(StorageRequest) returns (StorageResponse);
+  rpc DescribeBuild(BuildRequest) returns (BuildResponse);
+  /// For every `LogRequest` sent, the server will reply one `LogResponse`.
+  rpc GetLog(stream LogRequest) returns (stream LogResponse);
 }
 
-// ---------------- Api ------------------------
-message OperationsRequest {}
+message StorageRequest {
+  string endpoint = 1;
+}
 
-message AliasEventsRequest {}
+message LocalStorage {
+  string root = 1;
+}
 
-message AliasRedirected {
-  string real_name = 1;
-  string alias = 2;
+message S3Storage {
+  string bucket_name = 1;
+}
+
+message StorageResponse {
+  oneof storage {
+    LocalStorage local = 1;
+    S3Storage s3 = 2;
+  };
+}
+
+message BuildRequest {
+  string endpoint = 1;
+}
+
+message BuildResponse {
+  string name = 1;
+  string schema_string = 2;
+  bytes descriptor_bytes = 3;
+}
+
+message LogRequest {
+  /// The endpoint name.
+  string endpoint = 1;
+  /// [start, end) interval.
+  uint64 start = 2;
+  /// [start, end) interval.
+  uint64 end = 3;
+  /// Send back any data that's available within the timeout, unless there's no data available.
+  uint32 timeout_in_millis = 4;
+}
+
+message LogResponse {
+  /// This is the bincode serialzied `LogResponse` struct.
+  ///
+  /// It's a dirty way to make things work quickly. We'll properly define the protobuf message later.
+  bytes data = 1;
 }

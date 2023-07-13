@@ -10,9 +10,10 @@ use std::env;
 fn test_records_to_typed_response() {
     let res = env::current_dir().unwrap();
     let path = res.join("src/grpc/typed/tests/generated_films.bin");
+    let bytes = std::fs::read(&path).unwrap();
 
     let (schema, _) = test_utils::get_schema();
-    let service_desc = ProtoGenerator::read_schema(&path, "films").unwrap();
+    let service_desc = ProtoGenerator::read_schema(&bytes, "films").unwrap();
 
     let records = get_sample_records(schema);
     let res = query_response_to_typed_response(records, service_desc.query.response_desc.clone())
@@ -27,9 +28,10 @@ fn test_records_to_typed_response() {
 fn test_count_records_to_typed_response() {
     let res = env::current_dir().unwrap();
     let path = res.join("src/grpc/typed/tests/generated_films.bin");
+    let bytes = std::fs::read(&path).unwrap();
 
     let (schema, _) = test_utils::get_schema();
-    let service_desc = ProtoGenerator::read_schema(&path, "films").unwrap();
+    let service_desc = ProtoGenerator::read_schema(&bytes, "films").unwrap();
 
     let records = get_sample_records(schema);
     let res =
