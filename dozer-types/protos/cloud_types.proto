@@ -5,7 +5,6 @@ message AppConfig {
   string app_name = 2;
   string home_dir = 3;
   string cache_dir = 4;
-
   repeated Connection connections = 5;
   repeated Source sources = 6;
   repeated Endpoint endpoints = 7;
@@ -13,10 +12,6 @@ message AppConfig {
   optional string sql = 9;
   Flags flags = 10;
   optional uint64 cache_max_map_size = 11;
-  optional uint32 app_max_map_size = 12;
-  optional uint32 commit_size = 13;
-  optional uint64 commit_timeout = 14;
-  optional uint64 file_buffer_capacity = 15;
 }
 message Flags {
   bool dynamic = 1;
@@ -159,8 +154,9 @@ message Source {
   string name = 1;
   string table_name = 2;
   repeated string columns = 3;
-  Connection connection = 4;
-  RefreshConfig refresh_config = 5;
+  string connection = 4;
+  optional string schema = 5;
+  RefreshConfig refresh_config = 7;
 }
 
 message ApiConfig {
