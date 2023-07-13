@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use dozer_types::models::app_config::Config;
+use dozer_types::models::config::Config;
 
 use super::{
     docker_compose::Service,

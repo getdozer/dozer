@@ -12,7 +12,7 @@ use dozer_sql::pipeline::{
 };
 use dozer_types::{
     grpc_types::cloud::{QueryEdge, QueryGraph, QueryNode, QueryNodeType},
-    models::{app_config::Config, connection::Connection, source::Source},
+    models::{config::Config, connection::Connection, source::Source},
 };
 
 use crate::{errors::OrchestrationError, pipeline::source_builder::SourceBuilder};

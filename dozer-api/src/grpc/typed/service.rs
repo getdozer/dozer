@@ -66,7 +66,7 @@ impl TypedService {
             .into_iter()
             .map(|cache_endpoint| {
                 let service_desc = ProtoGenerator::read_schema(
-                    cache_endpoint.descriptor_path(),
+                    cache_endpoint.descriptor(),
                     &cache_endpoint.endpoint.name,
                 )?;
                 Ok::<_, GenerationError>((

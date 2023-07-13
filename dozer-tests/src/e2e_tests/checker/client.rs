@@ -15,7 +15,7 @@ use dozer_types::{
     },
     models::{
         api_config::{default_api_grpc, default_api_rest},
-        app_config::Config,
+        config::Config,
     },
     types::{FieldDefinition, FieldType, DATE_FORMAT},
 };

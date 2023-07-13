@@ -4,7 +4,7 @@ use crate::generator::protoc::generator::{
     CountMethodDesc, DecimalDesc, DurationDesc, EventDesc, OnEventMethodDesc, PointDesc,
     QueryMethodDesc, RecordWithIdDesc, TokenMethodDesc, TokenResponseDesc,
 };
-use dozer_cache::dozer_log::schemas::MigrationSchema;
+use dozer_cache::dozer_log::schemas::BuildSchema;
 use dozer_types::log::error;
 use dozer_types::serde::{self, Deserialize, Serialize};
 use dozer_types::types::{FieldType, Schema};
@@ -37,7 +37,7 @@ struct ProtoMetadata {
 
 pub struct ProtoGeneratorImpl<'a> {
     handlebars: Handlebars<'a>,
-    schema: &'a MigrationSchema,
+    schema: &'a BuildSchema,
     names: Names,
     folder_path: &'a Path,
 }
@@ -45,7 +45,7 @@ pub struct ProtoGeneratorImpl<'a> {
 impl<'a> ProtoGeneratorImpl<'a> {
     pub fn new(
         schema_name: &str,
-        schema: &'a MigrationSchema,
+        schema: &'a BuildSchema,
         folder_path: &'a Path,
     ) -> Result<Self, GenerationError> {
         let names = Names::new(schema_name, &schema.schema);

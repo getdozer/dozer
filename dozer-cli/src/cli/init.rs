@@ -1,13 +1,13 @@
 use crate::errors::{CliError, OrchestrationError};
 use dozer_types::constants::{DEFAULT_LAMBDAS_DIRECTORY, DEFAULT_QUERIES_DIRECTORY};
 use dozer_types::log::warn;
-use dozer_types::models::app_config::{default_cache_dir, default_home_dir, get_cache_dir};
+use dozer_types::models::config::{default_cache_dir, default_home_dir, get_cache_dir};
 use dozer_types::{
     constants::DEFAULT_CONFIG_PATH,
     ingestion_types::{EthConfig, EthFilter, EthLogConfig, EthProviderConfig, SnowflakeConfig},
     log::info,
     models::{
-        app_config::Config,
+        config::Config,
         connection::{Connection, ConnectionConfig, PostgresConfig},
     },
     serde_yaml,
