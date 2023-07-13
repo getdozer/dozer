@@ -11,16 +11,16 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, PartialEq, Eq, Clone, prost::Message)]
 /// The configuration for the app
 pub struct Config {
-    #[prost(string)]
+    #[prost(string, tag = "2")]
     /// name of the app
     pub app_name: String,
 
-    #[prost(string)]
+    #[prost(string, tag = "3")]
     #[serde(skip_serializing_if = "String::is_empty", default = "default_home_dir")]
     ///directory for all process; Default: ./.dozer
     pub home_dir: String,
 
-    #[prost(string)]
+    #[prost(string, tag = "4")]
     #[serde(
         skip_serializing_if = "String::is_empty",
         default = "default_cache_dir"
@@ -29,51 +29,49 @@ pub struct Config {
     pub cache_dir: String,
 
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[prost(message, repeated)]
+    #[prost(message, repeated, tag = "5")]
     /// connections to databases: Eg: Postgres, Snowflake, etc
     pub connections: Vec<Connection>,
 
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[prost(message, repeated)]
+    #[prost(message, repeated, tag = "6")]
     /// sources to ingest data related to particular connection
     pub sources: Vec<Source>,
 
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[prost(message, repeated)]
+    #[prost(message, repeated, tag = "7")]
     /// api endpoints to expose
     pub endpoints: Vec<ApiEndpoint>,
 
-    #[prost(message)]
+    #[prost(message, optional, tag = "8")]
     /// Api server config related: port, host, etc
     #[serde(skip_serializing_if = "Option::is_none")]
     pub api: Option<ApiConfig>,
 
-    #[prost(string, optional)]
+    #[prost(string, optional, tag = "9")]
     #[serde(skip_serializing_if = "Option::is_none")]
     /// transformations to apply to source data in SQL format as multiple queries
     pub sql: Option<String>,
-
-    #[prost(message)]
-    /// App runtime config: behaviour of pipeline and log
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub app: Option<AppConfig>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[prost(message)]
+    #[prost(message, optional, tag = "10")]
     /// flags to enable/disable features
     pub flags: Option<Flags>,
 
     /// Cache lmdb max map size
-    #[prost(uint64, optional)]
+    #[prost(uint64, optional, tag = "11")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_max_map_size: Option<u64>,
 
-    #[prost(message)]
+    #[prost(message, optional, tag = "12")]
+    /// App runtime config: behaviour of pipeline and log
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub app: Option<AppConfig>,
+
+    #[prost(message, optional, tag = "13")]
     /// Instrument using Dozer
     #[serde(skip_serializing_if = "Option::is_none")]
     pub telemetry: Option<TelemetryConfig>,
-
-    #[prost(message)]
+    #[prost(message, optional, tag = "14")]
     /// Dozer Cloud specific configuration
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cloud: Option<Cloud>,
