@@ -1,3 +1,5 @@
+app_name: dozer-samples-connectors-postgres
+
 connections:
   - name: pagila_conn
     config: !Postgres
@@ -11,11 +13,10 @@ connections:
 sources:
   - name: actors
     table_name: actor
-    connection: !Ref pagila_conn
-    columns:
+    connection: pagila_conn
   - name: films
     table_name: film
-    connection: !Ref pagila_conn
+    connection: pagila_conn
     columns:
       - film_id
       - title

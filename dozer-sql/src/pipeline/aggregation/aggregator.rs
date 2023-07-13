@@ -12,6 +12,9 @@ use std::collections::BTreeMap;
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::execution::Expression;
 
+use crate::pipeline::aggregation::max_value::MaxValueAggregator;
+use crate::pipeline::errors::PipelineError::{InvalidFunctionArgument, InvalidValue};
+use crate::pipeline::expression::aggregate::AggregateFunctionType::MaxValue;
 use dozer_types::types::{Field, FieldType, Schema};
 use std::fmt::{Debug, Display, Formatter};
 
@@ -29,6 +32,7 @@ pub enum AggregatorEnum {
     AvgAggregator,
     MinAggregator,
     MaxAggregator,
+    MaxValueAggregator,
     SumAggregator,
     CountAggregator,
 }
@@ -44,6 +48,7 @@ pub enum AggregatorType {
     Avg,
     Count,
     Max,
+    MaxValue,
     Min,
     Sum,
 }
@@ -54,6 +59,7 @@ impl Display for AggregatorType {
             AggregatorType::Avg => f.write_str("avg"),
             AggregatorType::Count => f.write_str("count"),
             AggregatorType::Max => f.write_str("max"),
+            AggregatorType::MaxValue => f.write_str("max_value"),
             AggregatorType::Min => f.write_str("min"),
             AggregatorType::Sum => f.write_str("sum"),
         }
@@ -65,6 +71,7 @@ pub fn get_aggregator_from_aggregator_type(typ: AggregatorType) -> AggregatorEnu
         AggregatorType::Avg => AvgAggregator::new().into(),
         AggregatorType::Count => CountAggregator::new().into(),
         AggregatorType::Max => MaxAggregator::new().into(),
+        AggregatorType::MaxValue => MaxValueAggregator::new().into(),
         AggregatorType::Min => MinAggregator::new().into(),
         AggregatorType::Sum => SumAggregator::new().into(),
     }
@@ -110,6 +117,24 @@ pub fn get_aggregator_type_from_aggregation_expression(
                 })?
                 .clone()],
             AggregatorType::Max,
+        )),
+        Expression::AggregateFunction {
+            fun: AggregateFunctionType::MaxValue,
+            args,
+        } => Ok((
+            vec![
+                args.get(0)
+                    .ok_or_else(|| {
+                        PipelineError::NotEnoughArguments(AggregateFunctionType::Max.to_string())
+                    })?
+                    .clone(),
+                args.get(1)
+                    .ok_or_else(|| {
+                        PipelineError::NotEnoughArguments(AggregateFunctionType::Max.to_string())
+                    })?
+                    .clone(),
+            ],
+            AggregatorType::MaxValue,
         )),
         Expression::AggregateFunction {
             fun: AggregateFunctionType::Avg,
@@ -171,6 +196,86 @@ pub fn update_map(
             field_map.insert(field.clone(), new_count);
         }
     }
+}
+
+pub fn update_max_val_map(
+    fields: &[Field],
+    val_delta: u64,
+    decr: bool,
+    field_map: &mut BTreeMap<Field, u64>,
+    return_map: &mut BTreeMap<Field, Vec<Field>>,
+) -> Result<(), PipelineError> {
+    let field = match fields.get(0) {
+        Some(v) => v,
+        None => {
+            return Err(InvalidFunctionArgument(
+                MaxValue.to_string(),
+                Field::Null,
+                0,
+            ))
+        }
+    };
+    let return_field = match fields.get(1) {
+        Some(v) => v.clone(),
+        None => {
+            return Err(InvalidFunctionArgument(
+                MaxValue.to_string(),
+                Field::Null,
+                0,
+            ))
+        }
+    };
+
+    if field == &Field::Null {
+        return Ok(());
+    }
+
+    let get_prev_count = field_map.get(field);
+    let prev_count = match get_prev_count {
+        Some(v) => *v,
+        None => 0_u64,
+    };
+    let mut new_count = prev_count;
+    if decr {
+        new_count = new_count.wrapping_sub(val_delta);
+    } else {
+        new_count = new_count.wrapping_add(val_delta);
+    }
+    if new_count < 1 {
+        field_map.remove(field);
+    } else if field_map.contains_key(field) {
+        if let Some(val) = field_map.get_mut(field) {
+            *val = new_count;
+        }
+    } else {
+        field_map.insert(field.clone(), new_count);
+    }
+
+    if !decr {
+        if return_map.contains_key(field) {
+            if let Some(val) = return_map.get_mut(field) {
+                val.insert(0, return_field);
+            }
+        } else {
+            return_map.insert(field.clone(), vec![return_field]);
+        }
+    } else if return_map.contains_key(field) {
+        if let Some(val) = return_map.get_mut(field) {
+            let idx = match val.iter().position(|r| r.clone() == return_field) {
+                Some(id) => id,
+                None => return Err(InvalidValue(format!("{:?}", val))),
+            };
+            val.remove(idx);
+            if val.is_empty() {
+                return_map.remove(field);
+            }
+        }
+    }
+
+    let _res = format!("{:?}", field_map);
+    let _res_return = format!("{:?}", return_map);
+
+    Ok(())
 }
 
 #[macro_export]

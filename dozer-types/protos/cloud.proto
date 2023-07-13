@@ -68,6 +68,7 @@ message AppConnectionRequest {
 message CreateSourceRequest {
   string app_id = 1;
   Source source = 2;
+  Connection connection = 3;
 }
 
 message ListEndpointRequest {
@@ -124,8 +125,9 @@ message StartResponse {
 }
 message StartUpdate {
   optional StartResponse result = 1;
-  uint32 current_step = 2;
-  uint32 total_steps = 3;
+  optional uint32 current_step = 2;
+  optional uint32 total_steps = 3;
+  optional LogMessage last_message = 4;
 }
 message StopRequest { string app_id = 1; }
 message StopResponse { bool success = 1; }

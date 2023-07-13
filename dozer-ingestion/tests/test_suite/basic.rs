@@ -93,7 +93,9 @@ pub async fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
             table_name.clone(),
             (fields.clone(), primary_index.clone()),
             records.clone(),
-        ).await else {
+        )
+        .await
+        else {
             warn!("Connector does not support schema name {schema_name:?} or primary index {primary_index:?}.");
             continue;
         };

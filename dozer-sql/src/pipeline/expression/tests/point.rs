@@ -82,7 +82,7 @@ fn test_validate_point(x: i64, y: i64) {
         &schema,
     );
 
-    let _expected_types = vec![FieldType::Float];
+    let _expected_types = [FieldType::Float];
     assert!(result.is_err());
     assert!(matches!(
         result,

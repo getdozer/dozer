@@ -55,6 +55,7 @@ fn _test_bool_bool_and(bool1: bool, bool2: bool) {
     let l = Box::new(Literal(Field::Boolean(bool1)));
     let r = Box::new(Literal(Field::Boolean(bool2)));
     let _ans = bool1 & bool2;
+
     assert!(
         matches!(
             evaluate_and(&Schema::empty(), &l, &r, &row)

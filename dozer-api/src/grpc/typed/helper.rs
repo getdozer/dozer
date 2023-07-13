@@ -48,7 +48,7 @@ fn internal_record_to_pb(
 
     // `record_desc` has more fields than `record.values` because it also contains the version field.
     // Here `zip` handles the case.
-    for (field, value) in record_desc.message.fields().zip(record.values.into_iter()) {
+    for (field, value) in record_desc.message.fields().zip(record.values) {
         if let Some(v) = interval_value_to_pb(value, record_desc) {
             msg.try_set_field(&field, v)?;
         }
