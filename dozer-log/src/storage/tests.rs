@@ -1,5 +1,4 @@
 use super::Storage;
-use futures_util::StreamExt;
 
 pub async fn test_storage_basic<S: Storage>(storage: &S) {
     assert!(storage
@@ -20,14 +19,7 @@ pub async fn test_storage_basic<S: Storage>(storage: &S) {
         .objects;
     assert_eq!(objects[0].key, key);
 
-    let stream = storage.get_object(key).await.unwrap();
-    let downloaded_data = stream
-        .map(|result| result.unwrap())
-        .fold(Vec::new(), |mut data, bytes| {
-            data.extend_from_slice(&bytes);
-            async move { data }
-        })
-        .await;
+    let downloaded_data = storage.download_object(key).await.unwrap();
     assert_eq!(downloaded_data, data);
 }
 
@@ -50,14 +42,7 @@ pub async fn test_storage_multipart<S: Storage>(storage: &S) {
         .await
         .unwrap();
 
-    let stream = storage.get_object(key).await.unwrap();
-    let downloaded_data = stream
-        .map(|result| result.unwrap())
-        .fold(Vec::new(), |mut data, bytes| {
-            data.extend_from_slice(&bytes);
-            async move { data }
-        })
-        .await;
+    let downloaded_data = storage.download_object(key).await.unwrap();
     assert_eq!(
         downloaded_data,
         data.into_iter()

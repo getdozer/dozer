@@ -162,10 +162,11 @@ impl RwSecondaryEnvironment {
                 }
                 Operation::Delete { operation_id } => {
                     // If the operation is a `Delete`, find the deleted record.
-                    let Some(operation) = operation_log.get_operation(log_txn, operation_id)? else {
+                    let Some(operation) = operation_log.get_operation(log_txn, operation_id)?
+                    else {
                         // We're not able to read this operation yet, try again later.
                         debug!("Operation {} not found", operation_id);
-                        return Ok(false)
+                        return Ok(false);
                     };
                     let Operation::Insert { record, .. } = operation else {
                         panic!("Insert operation {} not found", operation_id);

@@ -8,7 +8,7 @@ use std::{
 use dozer_types::constants::DEFAULT_CONFIG_PATH;
 use dozer_types::{
     log::info,
-    models::{app_config::Config, connection::ConnectionConfig},
+    models::{config::Config, connection::ConnectionConfig},
 };
 
 use crate::e2e_tests::{

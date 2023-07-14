@@ -1,10 +1,15 @@
 use crate::errors::CloudContextError;
 use crate::errors::CloudContextError::{AppIdNotFound, FailedToGetDirectoryPath};
-use dozer_types::models::app_config::Config;
 use dozer_types::models::cloud::Cloud;
 use dozer_types::serde_yaml;
+use serde::Serialize;
 use std::io::Write;
 use std::{env, fs};
+
+#[derive(Serialize)]
+pub struct CloudConfig {
+    pub cloud: Cloud,
+}
 
 pub struct CloudAppContext {}
 
@@ -35,12 +40,11 @@ impl CloudAppContext {
             .truncate(true)
             .open(file_path)?;
 
-        let config = Config {
-            cloud: Some(Cloud {
+        let config = CloudConfig {
+            cloud: Cloud {
                 app_id: Some(app_id),
                 ..Default::default()
-            }),
-            ..Default::default()
+            },
         };
 
         let config_string = serde_yaml::to_string(&config).unwrap();

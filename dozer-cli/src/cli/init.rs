@@ -1,13 +1,13 @@
 use crate::errors::{CliError, OrchestrationError};
 use dozer_types::constants::{DEFAULT_LAMBDAS_DIRECTORY, DEFAULT_QUERIES_DIRECTORY};
 use dozer_types::log::warn;
-use dozer_types::models::app_config::{default_cache_dir, default_home_dir, get_cache_dir};
+use dozer_types::models::config::{default_cache_dir, default_home_dir, get_cache_dir};
 use dozer_types::{
     constants::DEFAULT_CONFIG_PATH,
     ingestion_types::{EthConfig, EthFilter, EthLogConfig, EthProviderConfig, SnowflakeConfig},
     log::info,
     models::{
-        app_config::Config,
+        config::Config,
         connection::{Connection, ConnectionConfig, PostgresConfig},
     },
     serde_yaml,
@@ -162,7 +162,7 @@ pub fn generate_config_repl() -> Result<(), OrchestrationError> {
             "question: Connection Type - one of: [P]ostgres, [E]thereum, [S]nowflake (Postgres): "
                 .to_string(),
             Box::new(move |(connection, config)| {
-                let connections_available = vec!["Postgres", "Ethereum", "Snowflake"];
+                let connections_available = ["Postgres", "Ethereum", "Snowflake"];
                 if connections_available.contains(&connection.as_str()) {
                     let sample_connection = generate_connection(&connection);
                     config.connections.push(sample_connection);

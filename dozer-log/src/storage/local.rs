@@ -4,7 +4,14 @@ use std::{
 };
 
 use camino::Utf8Path;
-use dozer_types::{parking_lot::Mutex, tonic::async_trait, tracing::info};
+use dozer_types::{
+    bytes::Bytes,
+    grpc_types::internal::{self, storage_response},
+    parking_lot::Mutex,
+    tonic::async_trait,
+    tracing::debug,
+};
+use futures_util::{stream::BoxStream, StreamExt};
 use tempdir::TempDir;
 use tokio::io::{AsyncWriteExt, BufReader};
 use tokio_util::io::ReaderStream;
@@ -42,9 +49,15 @@ impl LocalStorage {
 
 #[async_trait]
 impl Storage for LocalStorage {
+    fn describe(&self) -> storage_response::Storage {
+        storage_response::Storage::Local(internal::LocalStorage {
+            root: self.root.clone(),
+        })
+    }
+
     async fn put_object(&self, key: String, data: Vec<u8>) -> Result<(), Error> {
         let path = self.get_path(&key).await?;
-        info!("putting object to {}", path);
+        debug!("putting object to {}", path);
         write(path, &data).await
     }
 
@@ -136,16 +149,16 @@ impl Storage for LocalStorage {
         })
     }
 
-    type StreamError = std::io::Error;
-    type Stream = ReaderStream<BufReader<tokio::fs::File>>;
-
-    async fn get_object(&self, key: String) -> Result<Self::Stream, Error> {
+    async fn get_object(
+        &self,
+        key: String,
+    ) -> Result<BoxStream<Result<Bytes, std::io::Error>>, Error> {
         let path = self.get_path(&key).await?;
         let file = tokio::fs::File::open(&path)
             .await
             .map_err(|e| Error::FileSystem(path.clone(), e))?;
         let file = BufReader::new(file);
-        Ok(ReaderStream::new(file))
+        Ok(ReaderStream::new(file).boxed())
     }
 }
 
