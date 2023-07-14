@@ -9,7 +9,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   DOZER_DEV: ci
-  RUSTUP_TOOLCHAIN_VERSION: 1.70.0
+  RUSTC_VERSION: 1.70.0
 
 concurrency:
   group: e2e/${{ github.head_ref || github.run_id }}
@@ -36,7 +36,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: ${{ env.RUSTUP_TOOLCHAIN_VERSION }}
+          toolchain: ${{ env.RUSTC_VERSION }}
 
       - name: Install Protoc
         uses: arduino/setup-protoc@v1

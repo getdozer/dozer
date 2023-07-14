@@ -7,7 +7,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  RUSTUP_TOOLCHAIN_VERSION: 1.70.0
+  RUSTC_VERSION: 1.70.0
 
 concurrency:
   group: ci/${{ github.ref }}
@@ -26,7 +26,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: ${{ env.RUSTUP_TOOLCHAIN_VERSION }}
+          toolchain: ${{ env.RUSTC_VERSION }}
           components: rustfmt, clippy
 
       - name: Install Protoc
