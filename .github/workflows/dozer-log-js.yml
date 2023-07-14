@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 env:
-  RUSTUP_TOOLCHAIN_VERSION: 1.26.0
+  RUSTUP_TOOLCHAIN_VERSION: 1.70.0
 
 concurrency:
   group: dozer-log-js/${{ github.head_ref || github.run_id }}
