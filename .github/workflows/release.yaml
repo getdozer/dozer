@@ -11,7 +11,7 @@ env:
   ECR_REPOSITORY: dozer
   DOCKERHUB_REGISTRY: getdozer
   DOCKERHUB_REPOSITORY: dozer
-  RUSTUP_TOOLCHAIN_VERSION: 1.25.2
+  RUSTUP_TOOLCHAIN_VERSION: 1.26.0
 
 permissions:
   id-token: write # This is required for requesting the JWT
