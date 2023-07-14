@@ -170,6 +170,7 @@ impl LogClient {
         request: LogRequest,
     ) -> Result<Vec<ExecutorOperation>, ReaderError> {
         // Send the request.
+        let request_range = request.start..request.end;
         self.request_sender
             .send(request)
             .await
@@ -186,10 +187,26 @@ impl LogClient {
         // Load response.
         match response {
             LogResponse::Persisted(persisted) => {
+                debug!(
+                    "Loading persisted log entry {}, entry range {:?}, requested range {:?}",
+                    persisted.key, persisted.range, request_range
+                );
+                // Load the persisted log entry.
                 let data = self.storage.download_object(persisted.key).await?;
-                bincode::deserialize(&data).map_err(ReaderError::DeserializeLogEntry)
+                let mut ops: Vec<ExecutorOperation> =
+                    bincode::deserialize(&data).map_err(ReaderError::DeserializeLogEntry)?;
+                // Discard the ops that are before the requested range.
+                ops.drain(..request_range.start as usize - persisted.range.start);
+                Ok(ops)
             }
-            LogResponse::Operations(ops) => Ok(ops),
+            LogResponse::Operations(ops) => {
+                debug!(
+                    "Got {} ops for request range {:?}",
+                    ops.len(),
+                    request_range
+                );
+                Ok(ops)
+            }
         }
     }
 }

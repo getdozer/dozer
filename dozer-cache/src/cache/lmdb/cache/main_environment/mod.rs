@@ -293,13 +293,14 @@ impl RwMainEnvironment {
 
         let txn = self.env.txn_mut()?;
         let operation_log = &self.common.operation_log;
-        let old_key = calculate_key(&self.common.schema.0, old);
+        let schema = &self.common.schema.0;
+        let old_key = calculate_key(schema, old);
 
         if let Some((old_meta, insert_operation_id)) =
             get_existing_record_metadata(operation_log, txn, &old_key)?
         {
             // Case 1, 5, 6, 7, 8.
-            let new_key = calculate_key(&self.common.schema.0, new);
+            let new_key = calculate_key(schema, new);
             if new_key.equal(&old_key) {
                 // Case 1.
                 let new_meta = operation_log.update(
@@ -315,19 +316,23 @@ impl RwMainEnvironment {
                 let new_metadata = operation_log.get_deleted_metadata(txn, new_key.as_ref())?;
                 match new_metadata {
                     Some(RecordMetadata {
-                        insert_operation_id: Some(_),
-                        ..
+                        insert_operation_id: Some(insert_operation_id),
+                        meta,
                     }) => {
                         // Case 5, 6, 7.
                         if self.write_options.update_resolution
                             == OnUpdateResolutionTypes::Nothing(())
                         {
                             // Case 5.
-                            warn!("Old record (Key: {:?}) and new record (Key: {:?}) both exist, ignoring update", old_key, new_key);
+                            warn!("Old record (Key: {:?}) and new record (Key: {:?}) both exist, ignoring update", get_key_fields(old, schema), get_key_fields(new, schema));
                             Ok(UpsertResult::Ignored)
                         } else {
                             // Case 6, 7.
-                            Err(CacheError::PrimaryKeyExists)
+                            Err(CacheError::PrimaryKeyExists {
+                                key: get_key_fields(new, schema),
+                                meta,
+                                insert_operation_id,
+                            })
                         }
                     }
                     Some(RecordMetadata {
@@ -446,6 +451,28 @@ fn calculate_key<'a>(schema: &Schema, record: &'a Record) -> OwnedMetadataKey<'a
     }
 }
 
+fn get_key_fields(record: &Record, schema: &Schema) -> Vec<(String, Field)> {
+    if schema.primary_index.is_empty() {
+        schema
+            .fields
+            .iter()
+            .zip(record.values.iter())
+            .map(|(field, value)| (field.name.clone(), value.clone()))
+            .collect()
+    } else {
+        schema
+            .primary_index
+            .iter()
+            .map(|idx| {
+                (
+                    schema.fields[*idx].name.clone(),
+                    record.values[*idx].clone(),
+                )
+            })
+            .collect()
+    }
+}
+
 fn insert_impl(
     operation_log: &OperationLog,
     txn: &mut RwTransaction,
@@ -475,10 +502,17 @@ fn insert_impl(
                     // Resolve the conflict.
                     match insert_resolution {
                         OnInsertResolutionTypes::Nothing(()) => {
-                            warn!("Record (Key: {:?}) already exist, ignoring insert", key);
+                            warn!(
+                                "Record (Key: {:?}) already exist, ignoring insert",
+                                get_key_fields(record, schema)
+                            );
                             Ok(UpsertResult::Ignored)
                         }
-                        OnInsertResolutionTypes::Panic(()) => Err(CacheError::PrimaryKeyExists),
+                        OnInsertResolutionTypes::Panic(()) => Err(CacheError::PrimaryKeyExists {
+                            key: get_key_fields(record, schema),
+                            meta,
+                            insert_operation_id,
+                        }),
                         OnInsertResolutionTypes::Update(()) => {
                             let new_meta = operation_log.update(
                                 txn,

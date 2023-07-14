@@ -75,7 +75,7 @@ pub enum GrpcError {
     ServerReflectionError(#[from] tonic_reflection::server::Error),
     #[error("Addr parse error: {0}: {1}")]
     AddrParse(String, #[source] AddrParseError),
-    #[error("Transport error: {0}")]
+    #[error("Transport error: {0:?}")]
     Transport(#[from] tonic::transport::Error),
 }
 impl From<GrpcError> for tonic::Status {
