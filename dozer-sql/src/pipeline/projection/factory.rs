@@ -73,16 +73,14 @@ impl ProcessorFactory<SchemaSQLContext> for ProjectionProcessorFactory {
                         })
                         .collect();
                     for f in fields {
-                        let res = parse_sql_select_item(&f, input_schema);
-                        if let Ok(..) = res {
-                            select_expr.push(res.unwrap())
+                        if let Ok(res) = parse_sql_select_item(&f, input_schema) {
+                            select_expr.push(res)
                         }
                     }
                 }
                 _ => {
-                    let res = parse_sql_select_item(s, input_schema);
-                    if let Ok(..) = res {
-                        select_expr.push(res.unwrap())
+                    if let Ok(res) = parse_sql_select_item(s, input_schema) {
+                        select_expr.push(res)
                     }
                 }
             }
