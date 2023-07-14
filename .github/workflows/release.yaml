@@ -11,6 +11,7 @@ env:
   ECR_REPOSITORY: dozer
   DOCKERHUB_REGISTRY: getdozer
   DOCKERHUB_REPOSITORY: dozer
+  RUSTUP_TOOLCHAIN_VERSION: 1.25.2
 
 permissions:
   id-token: write # This is required for requesting the JWT
@@ -86,7 +87,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: stable
+          toolchain: ${{ env.RUSTUP_TOOLCHAIN_VERSION }}
           target: ${{ matrix.target }}
           components: rustfmt, clippy
       - name: APT update
@@ -215,7 +216,7 @@ jobs:
       - name: Installing Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: ${{ env.RUSTUP_TOOLCHAIN_VERSION }}
           profile: minimal
           target: ${{ matrix.target }}
           override: true
@@ -316,7 +317,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: stable
+          toolchain: ${{ env.RUSTUP_TOOLCHAIN_VERSION }}
           target: ${{ matrix.target }}
           components: rustfmt, clippy
       - name: Install Protoc
