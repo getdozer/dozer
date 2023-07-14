@@ -127,7 +127,7 @@ fn return_insert_error_when_type_panic() {
 
     // Try insert same data again
     let result = env.insert(&record.record);
-    assert!(matches!(result, Err(CacheError::PrimaryKeyExists)));
+    assert!(matches!(result, Err(CacheError::PrimaryKeyExists { .. })));
 }
 
 #[test]

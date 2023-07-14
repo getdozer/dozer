@@ -114,7 +114,7 @@ impl Orchestrator for SimpleOrchestrator {
                     if e.is_map_full() {
                         OrchestrationError::CacheFull(cache_name)
                     } else {
-                        OrchestrationError::CacheBuildFailed(e)
+                        OrchestrationError::CacheBuildFailed(cache_name, e)
                     }
                 })));
                 cache_endpoints.push(Arc::new(cache_endpoint));
