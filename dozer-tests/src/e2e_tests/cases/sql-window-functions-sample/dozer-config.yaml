@@ -30,10 +30,8 @@ endpoints:
   - name: tumble
     path: /tumble
     table_name: tumble
-    index:
   - name: hop
     path: /hop
     table_name: hop
-    index:
 
 cache_max_map_size: 2147483648

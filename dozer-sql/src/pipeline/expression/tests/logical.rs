@@ -78,7 +78,6 @@ fn _test_bool_bool_or(bool1: bool, bool2: bool) {
     let row = Record::new(None, vec![]);
     let l = Box::new(Literal(Field::Boolean(bool1)));
     let r = Box::new(Literal(Field::Boolean(bool2)));
-    let _ans = bool1 | bool2;
     assert!(matches!(
         evaluate_or(&Schema::empty(), &l, &r, &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::Boolean(_ans)
@@ -108,7 +107,6 @@ fn _test_null_bool_or(_bool: bool) {
 fn _test_bool_not(bool: bool) {
     let row = Record::new(None, vec![]);
     let v = Box::new(Literal(Field::Boolean(bool)));
-    let _ans = !bool;
     assert!(matches!(
         evaluate_not(&Schema::empty(), &v, &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::Boolean(_ans)
@@ -119,7 +117,6 @@ fn _test_bool_non_bool_and(f1: Field, f2: Field) {
     let row = Record::new(None, vec![]);
     let l = Box::new(Literal(f1));
     let r = Box::new(Literal(f2));
-    let _ans = evaluate_and(&Schema::empty(), &l, &r, &row);
     assert!(evaluate_and(&Schema::empty(), &l, &r, &row).is_err());
 }
 
