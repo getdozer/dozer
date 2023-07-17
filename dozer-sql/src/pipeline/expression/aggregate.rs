@@ -9,6 +9,7 @@ pub enum AggregateFunctionType {
     Max,
     MaxValue,
     Min,
+    MinValue,
     Sum,
 }
 
@@ -20,6 +21,7 @@ impl AggregateFunctionType {
             "max" => Ok(AggregateFunctionType::Max),
             "max_value" => Ok(AggregateFunctionType::MaxValue),
             "min" => Ok(AggregateFunctionType::Min),
+            "min_value" => Ok(AggregateFunctionType::MinValue),
             "sum" => Ok(AggregateFunctionType::Sum),
             _ => Err(InvalidFunction(name.to_string())),
         }
@@ -34,6 +36,7 @@ impl Display for AggregateFunctionType {
             AggregateFunctionType::Max => f.write_str("MAX"),
             AggregateFunctionType::MaxValue => f.write_str("MAX_VALUE"),
             AggregateFunctionType::Min => f.write_str("MIN"),
+            AggregateFunctionType::MinValue => f.write_str("MIN_VALUE"),
             AggregateFunctionType::Sum => f.write_str("SUM"),
         }
     }

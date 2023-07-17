@@ -5,6 +5,7 @@ pub mod factory;
 pub mod max;
 pub mod max_value;
 pub mod min;
+pub mod min_value;
 pub mod processor;
 pub mod sum;
 mod tests;

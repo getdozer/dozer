@@ -8,6 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  RUSTC_VERSION: 1.70.0
 
 concurrency:
   group: coverage/${{ github.head_ref || github.run_id }}
@@ -61,7 +62,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: stable
+          toolchain: ${{ env.RUSTC_VERSION }}
           components: llvm-tools-preview
 
       - name: Download grcov

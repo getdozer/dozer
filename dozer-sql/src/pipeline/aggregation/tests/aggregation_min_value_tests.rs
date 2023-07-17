@@ -3,8 +3,8 @@ use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
     delete_field, delete_val_exp, get_date_field, get_decimal_field, get_duration_field,
     get_ts_field, init_input_schema, init_processor, init_val_input_schema, insert_field,
     insert_val_exp, update_field, update_val_exp, DATE16, DATE4, DATE8, FIELD_100_FLOAT,
-    FIELD_100_INT, FIELD_100_UINT, FIELD_150_FLOAT, FIELD_150_INT, FIELD_150_UINT, FIELD_200_FLOAT,
-    FIELD_200_INT, FIELD_200_UINT, FIELD_NULL, ITALY, SINGAPORE,
+    FIELD_100_INT, FIELD_100_UINT, FIELD_50_FLOAT, FIELD_50_INT, FIELD_50_UINT, FIELD_75_FLOAT,
+    FIELD_75_INT, FIELD_75_UINT, FIELD_NULL, ITALY, SINGAPORE,
 };
 use dozer_core::DEFAULT_PORT_HANDLE;
 
@@ -13,10 +13,10 @@ use dozer_types::types::FieldType::{Date, Decimal, Duration, Float, Int, Timesta
 use std::collections::HashMap;
 
 #[test]
-fn test_max_aggregation_float() {
-    let schema = init_val_input_schema(Float, "MAX_VALUE");
+fn test_min_aggregation_float() {
+    let schema = init_val_input_schema(Float, "MIN_VALUE");
     let mut processor = init_processor(
-        "SELECT MAX_VALUE(Salary, Country) FROM Users",
+        "SELECT MIN_VALUE(Salary, Country) FROM Users",
         HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
     )
     .unwrap();
@@ -25,7 +25,7 @@ fn test_max_aggregation_float() {
     /*
         Italy, 100.0
         -----------------
-        MAX_VALUE = Italy
+        MIN_VALUE = Italy
     */
     let mut inp = insert_field(ITALY, FIELD_100_FLOAT);
     let mut out = output!(processor, inp);
@@ -37,7 +37,7 @@ fn test_max_aggregation_float() {
         Italy, 100.0
         Singapore, 100.0
         -----------------
-        MAX_VALUE = Singapore
+        MIN_VALUE = Singapore
     */
     inp = insert_field(SINGAPORE, FIELD_100_FLOAT);
     out = output!(processor, inp);
@@ -47,15 +47,15 @@ fn test_max_aggregation_float() {
     )];
     assert_eq!(out, exp);
 
-    // Insert 50 for segment Singapore
+    // Insert 75 for segment Singapore
     /*
         Italy, 100.0
         Singapore, 100.0
-        Singapore, 150.0
+        Singapore, 75.0
         ---------------
-        MAX_VALUE = Singapore
+        MIN_VALUE = Singapore
     */
-    inp = insert_field(SINGAPORE, FIELD_150_FLOAT);
+    inp = insert_field(SINGAPORE, FIELD_75_FLOAT);
     out = output!(processor, inp);
     exp = vec![update_val_exp(
         &Field::String(SINGAPORE.to_string()),
@@ -67,11 +67,11 @@ fn test_max_aggregation_float() {
     /*
         Italy, 100.0
         Singapore, 100.0
-        Italy, 150.0
+        Italy, 75.0
         ---------------
-        MAX_VALUE = Italy
+        MIN_VALUE = Italy
     */
-    inp = update_field(SINGAPORE, ITALY, FIELD_150_FLOAT, FIELD_150_FLOAT);
+    inp = update_field(SINGAPORE, ITALY, FIELD_75_FLOAT, FIELD_75_FLOAT);
     out = output!(processor, inp);
     exp = vec![update_val_exp(
         &Field::String(SINGAPORE.to_string()),
@@ -79,15 +79,15 @@ fn test_max_aggregation_float() {
     )];
     assert_eq!(out, exp);
 
-    // Update Singapore value 100 -> 200
+    // Update Singapore value 100 -> 50
     /*
         Italy, 100.0
-        Singapore, 200.0
-        Italy, 150.0
+        Singapore, 50.0
+        Italy, 75.0
         ---------------
-        MAX_VALUE = Singapore
+        MIN_VALUE = Singapore
     */
-    inp = update_field(SINGAPORE, SINGAPORE, FIELD_100_FLOAT, FIELD_200_FLOAT);
+    inp = update_field(SINGAPORE, SINGAPORE, FIELD_100_FLOAT, FIELD_50_FLOAT);
     out = output!(processor, inp);
     exp = vec![update_val_exp(
         &Field::String(ITALY.to_string()),
@@ -95,14 +95,14 @@ fn test_max_aggregation_float() {
     )];
     assert_eq!(out, exp);
 
-    // Delete 1 record (200)
+    // Delete 1 record (50)
     /*
         Italy, 100.0
-        Italy, 150.0
+        Italy, 75.0
         ---------------
-        MAX_VALUE = Italy
+        MIN_VALUE = Italy
     */
-    inp = delete_field(SINGAPORE, FIELD_200_FLOAT);
+    inp = delete_field(SINGAPORE, FIELD_50_FLOAT);
     out = output!(processor, inp);
     exp = vec![update_val_exp(
         &Field::String(SINGAPORE.to_string()),
@@ -113,11 +113,11 @@ fn test_max_aggregation_float() {
     // Update Italy segment to Singapore
     /*
         Italy, 100.0
-        Singapore, 150.0
+        Singapore, 75.0
         ---------------
-        MAX_VALUE = Singapore
+        MIN_VALUE = Singapore
     */
-    inp = update_field(ITALY, SINGAPORE, FIELD_150_FLOAT, FIELD_150_FLOAT);
+    inp = update_field(ITALY, SINGAPORE, FIELD_75_FLOAT, FIELD_75_FLOAT);
     out = output!(processor, inp);
     exp = vec![update_val_exp(
         &Field::String(ITALY.to_string()),
@@ -125,13 +125,13 @@ fn test_max_aggregation_float() {
     )];
     assert_eq!(out, exp);
 
-    // Delete another record (150)
+    // Delete another record (75)
     /*
         Italy, 100.0
         -------------
-        MAX_VALUE = Italy
+        MIN_VALUE = Italy
     */
-    inp = delete_field(SINGAPORE, FIELD_150_FLOAT);
+    inp = delete_field(SINGAPORE, FIELD_75_FLOAT);
     out = output!(processor, inp);
     exp = vec![update_val_exp(
         &Field::String(SINGAPORE.to_string()),
@@ -142,7 +142,7 @@ fn test_max_aggregation_float() {
     // Delete last record
     /*
         -------------
-        MAX_VALUE = Null
+        MIN_VALUE = Null
     */
     inp = delete_field(ITALY, FIELD_100_FLOAT);
     out = output!(processor, inp);
@@ -151,10 +151,10 @@ fn test_max_aggregation_float() {
 }
 
 #[test]
-fn test_max_aggregation_int() {
-    let schema = init_val_input_schema(Int, "MAX_VALUE");
+fn test_min_aggregation_int() {
+    let schema = init_val_input_schema(Int, "MIN_VALUE");
     let mut processor = init_processor(
-        "SELECT MAX_VALUE(Salary, Country) FROM Users",
+        "SELECT MIN_VALUE(Salary, Country) FROM Users",
         HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
     )
     .unwrap();
@@ -163,7 +163,7 @@ fn test_max_aggregation_int() {
     /*
         Italy, 100.0
         -----------------
-        MAX_VALUE = Italy
+        MIN_VALUE = Italy
     */
     let mut inp = insert_field(ITALY, FIELD_100_INT);
     let mut out = output!(processor, inp);
@@ -175,7 +175,7 @@ fn test_max_aggregation_int() {
         Italy, 100.0
         Singapore, 100.0
         -----------------
-        MAX_VALUE = Singapore
+        MIN_VALUE = Singapore
     */
     inp = insert_field(SINGAPORE, FIELD_100_INT);
     out = output!(processor, inp);
@@ -185,15 +185,15 @@ fn test_max_aggregation_int() {
     )];
     assert_eq!(out, exp);
 
-    // Insert 50 for segment Singapore
+    // Insert 75 for segment Singapore
     /*
         Italy, 100.0
         Singapore, 100.0
-        Singapore, 150.0
+        Singapore, 75.0
         ---------------
-        MAX_VALUE = Singapore
+        MIN_VALUE = Singapore
     */
-    inp = insert_field(SINGAPORE, FIELD_150_INT);
+    inp = insert_field(SINGAPORE, FIELD_75_INT);
     out = output!(processor, inp);
     exp = vec![update_val_exp(
         &Field::String(SINGAPORE.to_string()),
@@ -205,11 +205,11 @@ fn test_max_aggregation_int() {
     /*
         Italy, 100.0
         Singapore, 100.0
-        Italy, 150.0
+        Italy, 75.0
         ---------------
-        MAX_VALUE = Italy
+        MIN_VALUE = Italy
     */
-    inp = update_field(SINGAPORE, ITALY, FIELD_150_INT, FIELD_150_INT);
+    inp = update_field(SINGAPORE, ITALY, FIELD_75_INT, FIELD_75_INT);
     out = output!(processor, inp);
     exp = vec![update_val_exp(
         &Field::String(SINGAPORE.to_string()),
@@ -217,15 +217,15 @@ fn test_max_aggregation_int() {
     )];
     assert_eq!(out, exp);
 
-    // Update Singapore value 100 -> 200
+    // Update Singapore value 100 -> 50
     /*
         Italy, 100.0
-        Singapore, 200.0
-        Italy, 150.0
+        Singapore, 50.0
+        Italy, 75.0
         ---------------
-        MAX_VALUE = Singapore
+        MIN_VALUE = Singapore
     */
-    inp = update_field(SINGAPORE, SINGAPORE, FIELD_100_INT, FIELD_200_INT);
+    inp = update_field(SINGAPORE, SINGAPORE, FIELD_100_INT, FIELD_50_INT);
     out = output!(processor, inp);
     exp = vec![update_val_exp(
         &Field::String(ITALY.to_string()),
@@ -233,14 +233,14 @@ fn test_max_aggregation_int() {
     )];
     assert_eq!(out, exp);
 
-    // Delete 1 record (200)
+    // Delete 1 record (50)
     /*
         Italy, 100.0
-        Italy, 150.0
+        Italy, 75.0
         ---------------
-        MAX_VALUE = Italy
+        MIN_VALUE = Italy
     */
-    inp = delete_field(SINGAPORE, FIELD_200_INT);
+    inp = delete_field(SINGAPORE, FIELD_50_INT);
     out = output!(processor, inp);
     exp = vec![update_val_exp(
         &Field::String(SINGAPORE.to_string()),
@@ -251,11 +251,11 @@ fn test_max_aggregation_int() {
     // Update Italy segment to Singapore
     /*
         Italy, 100.0
-        Singapore, 150.0
+        Singapore, 75.0
         ---------------
-        MAX_VALUE = Singapore
+        MIN_VALUE = Singapore
     */
-    inp = update_field(ITALY, SINGAPORE, FIELD_150_INT, FIELD_150_INT);
+    inp = update_field(ITALY, SINGAPORE, FIELD_75_INT, FIELD_75_INT);
     out = output!(processor, inp);
     exp = vec![update_val_exp(
         &Field::String(ITALY.to_string()),
@@ -263,13 +263,13 @@ fn test_max_aggregation_int() {
     )];
     assert_eq!(out, exp);
 
-    // Delete another record (150)
+    // Delete another record (75)
     /*
         Italy, 100.0
         -------------
-        MAX_VALUE = Italy
+        MIN_VALUE = Italy
     */
-    inp = delete_field(SINGAPORE, FIELD_150_INT);
+    inp = delete_field(SINGAPORE, FIELD_75_INT);
     out = output!(processor, inp);
     exp = vec![update_val_exp(
         &Field::String(SINGAPORE.to_string()),
@@ -280,7 +280,7 @@ fn test_max_aggregation_int() {
     // Delete last record
     /*
         -------------
-        MAX_VALUE = Null
+        MIN_VALUE = Null
     */
     inp = delete_field(ITALY, FIELD_100_INT);
     out = output!(processor, inp);
@@ -289,10 +289,10 @@ fn test_max_aggregation_int() {
 }
 
 #[test]
-fn test_max_aggregation_uint() {
-    let schema = init_val_input_schema(UInt, "MAX_VALUE");
+fn test_min_aggregation_uint() {
+    let schema = init_val_input_schema(UInt, "MIN_VALUE");
     let mut processor = init_processor(
-        "SELECT MAX_VALUE(Salary, Country) FROM Users",
+        "SELECT MIN_VALUE(Salary, Country) FROM Users",
         HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
     )
     .unwrap();
@@ -301,7 +301,7 @@ fn test_max_aggregation_uint() {
     /*
         Italy, 100.0
         -----------------
-        MAX_VALUE = Italy
+        MIN_VALUE = Italy
     */
     let mut inp = insert_field(ITALY, FIELD_100_UINT);
     let mut out = output!(processor, inp);
@@ -313,7 +313,7 @@ fn test_max_aggregation_uint() {
         Italy, 100.0
         Singapore, 100.0
         -----------------
-        MAX_VALUE = Singapore
+        MIN_VALUE = Singapore
     */
     inp = insert_field(SINGAPORE, FIELD_100_UINT);
     out = output!(processor, inp);
@@ -323,15 +323,15 @@ fn test_max_aggregation_uint() {
     )];
     assert_eq!(out, exp);
 
-    // Insert 50 for segment Singapore
+    // Insert 75 for segment Singapore
     /*
         Italy, 100.0
         Singapore, 100.0
-        Singapore, 150.0
+        Singapore, 75.0
         ---------------
-        MAX_VALUE = Singapore
+        MIN_VALUE = Singapore
     */
-    inp = insert_field(SINGAPORE, FIELD_150_UINT);
+    inp = insert_field(SINGAPORE, FIELD_75_UINT);
     out = output!(processor, inp);
     exp = vec![update_val_exp(
         &Field::String(SINGAPORE.to_string()),
@@ -343,11 +343,11 @@ fn test_max_aggregation_uint() {
     /*
         Italy, 100.0
         Singapore, 100.0
-        Italy, 150.0
+        Italy, 75.0
         ---------------
-        MAX_VALUE = Italy
+        MIN_VALUE = Italy
     */
-    inp = update_field(SINGAPORE, ITALY, FIELD_150_UINT, FIELD_150_UINT);
+    inp = update_field(SINGAPORE, ITALY, FIELD_75_UINT, FIELD_75_UINT);
     out = output!(processor, inp);
     exp = vec![update_val_exp(
         &Field::String(SINGAPORE.to_string()),
@@ -355,15 +355,15 @@ fn test_max_aggregation_uint() {
     )];
     assert_eq!(out, exp);
 
-    // Update Singapore value 100 -> 200
+    // Update Singapore value 100 -> 50
     /*
         Italy, 100.0
-        Singapore, 200.0
-        Italy, 150.0
+        Singapore, 50.0
+        Italy, 75.0
         ---------------
-        MAX_VALUE = Singapore
+        MIN_VALUE = Singapore
     */
-    inp = update_field(SINGAPORE, SINGAPORE, FIELD_100_UINT, FIELD_200_UINT);
+    inp = update_field(SINGAPORE, SINGAPORE, FIELD_100_UINT, FIELD_50_UINT);
     out = output!(processor, inp);
     exp = vec![update_val_exp(
         &Field::String(ITALY.to_string()),
@@ -371,14 +371,14 @@ fn test_max_aggregation_uint() {
     )];
     assert_eq!(out, exp);
 
-    // Delete 1 record (200)
+    // Delete 1 record (50)
     /*
         Italy, 100.0
-        Italy, 150.0
+        Italy, 75.0
         ---------------
-        MAX_VALUE = Italy
+        MIN_VALUE = Italy
     */
-    inp = delete_field(SINGAPORE, FIELD_200_UINT);
+    inp = delete_field(SINGAPORE, FIELD_50_UINT);
     out = output!(processor, inp);
     exp = vec![update_val_exp(
         &Field::String(SINGAPORE.to_string()),
@@ -389,11 +389,11 @@ fn test_max_aggregation_uint() {
     // Update Italy segment to Singapore
     /*
         Italy, 100.0
-        Singapore, 150.0
+        Singapore, 75.0
         ---------------
-        MAX_VALUE = Singapore
+        MIN_VALUE = Singapore
     */
-    inp = update_field(ITALY, SINGAPORE, FIELD_150_UINT, FIELD_150_UINT);
+    inp = update_field(ITALY, SINGAPORE, FIELD_75_UINT, FIELD_75_UINT);
     out = output!(processor, inp);
     exp = vec![update_val_exp(
         &Field::String(ITALY.to_string()),
@@ -401,13 +401,13 @@ fn test_max_aggregation_uint() {
     )];
     assert_eq!(out, exp);
 
-    // Delete another record (150)
+    // Delete another record (75)
     /*
         Italy, 100.0
         -------------
-        MAX_VALUE = Italy
+        MIN_VALUE = Italy
     */
-    inp = delete_field(SINGAPORE, FIELD_150_UINT);
+    inp = delete_field(SINGAPORE, FIELD_75_UINT);
     out = output!(processor, inp);
     exp = vec![update_val_exp(
         &Field::String(SINGAPORE.to_string()),
@@ -418,7 +418,7 @@ fn test_max_aggregation_uint() {
     // Delete last record
     /*
         -------------
-        MAX_VALUE = Null
+        MIN_VALUE = Null
     */
     inp = delete_field(ITALY, FIELD_100_UINT);
     out = output!(processor, inp);
@@ -427,10 +427,10 @@ fn test_max_aggregation_uint() {
 }
 
 #[test]
-fn test_max_aggregation_decimal() {
-    let schema = init_val_input_schema(Decimal, "MAX_VALUE");
+fn test_min_aggregation_decimal() {
+    let schema = init_val_input_schema(Decimal, "MIN_VALUE");
     let mut processor = init_processor(
-        "SELECT MAX_VALUE(Salary, Country) FROM Users",
+        "SELECT MIN_VALUE(Salary, Country) FROM Users",
         HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
     )
     .unwrap();
@@ -439,7 +439,7 @@ fn test_max_aggregation_decimal() {
     /*
         Italy, 100.0
         -----------------
-        MAX_VALUE = Italy
+        MIN_VALUE = Italy
     */
     let mut inp = insert_field(ITALY, &get_decimal_field(100));
     let mut out = output!(processor, inp);
@@ -451,7 +451,7 @@ fn test_max_aggregation_decimal() {
         Italy, 100.0
         Singapore, 100.0
         -----------------
-        MAX_VALUE = Singapore
+        MIN_VALUE = Singapore
     */
     inp = insert_field(SINGAPORE, &get_decimal_field(100));
     out = output!(processor, inp);
@@ -461,15 +461,15 @@ fn test_max_aggregation_decimal() {
     )];
     assert_eq!(out, exp);
 
-    // Insert 50 for segment Singapore
+    // Insert 75 for segment Singapore
     /*
         Italy, 100.0
         Singapore, 100.0
-        Singapore, 150.0
+        Singapore, 75.0
         ---------------
-        MAX_VALUE = Singapore
+        MIN_VALUE = Singapore
     */
-    inp = insert_field(SINGAPORE, &get_decimal_field(150));
+    inp = insert_field(SINGAPORE, &get_decimal_field(75));
     out = output!(processor, inp);
     exp = vec![update_val_exp(
         &Field::String(SINGAPORE.to_string()),
@@ -481,15 +481,15 @@ fn test_max_aggregation_decimal() {
     /*
         Italy, 100.0
         Singapore, 100.0
-        Italy, 150.0
+        Italy, 75.0
         ---------------
-        MAX_VALUE = Italy
+        MIN_VALUE = Italy
     */
     inp = update_field(
         SINGAPORE,
         ITALY,
-        &get_decimal_field(150),
-        &get_decimal_field(150),
+        &get_decimal_field(75),
+        &get_decimal_field(75),
     );
     out = output!(processor, inp);
     exp = vec![update_val_exp(
@@ -498,19 +498,19 @@ fn test_max_aggregation_decimal() {
     )];
     assert_eq!(out, exp);
 
-    // Update Singapore value 100 -> 200
+    // Update Singapore value 100 -> 50
     /*
         Italy, 100.0
-        Singapore, 200.0
-        Italy, 150.0
+        Singapore, 50.0
+        Italy, 75.0
         ---------------
-        MAX_VALUE = Singapore
+        MIN_VALUE = Singapore
     */
     inp = update_field(
         SINGAPORE,
         SINGAPORE,
         &get_decimal_field(100),
-        &get_decimal_field(200),
+        &get_decimal_field(50),
     );
     out = output!(processor, inp);
     exp = vec![update_val_exp(
@@ -519,14 +519,14 @@ fn test_max_aggregation_decimal() {
     )];
     assert_eq!(out, exp);
 
-    // Delete 1 record (200)
+    // Delete 1 record (50)
     /*
         Italy, 100.0
-        Italy, 150.0
+        Italy, 75.0
         ---------------
-        MAX_VALUE = Italy
+        MIN_VALUE = Italy
     */
-    inp = delete_field(SINGAPORE, &get_decimal_field(200));
+    inp = delete_field(SINGAPORE, &get_decimal_field(50));
     out = output!(processor, inp);
     exp = vec![update_val_exp(
         &Field::String(SINGAPORE.to_string()),
@@ -537,15 +537,15 @@ fn test_max_aggregation_decimal() {
     // Update Italy segment to Singapore
     /*
         Italy, 100.0
-        Singapore, 150.0
+        Singapore, 75.0
         ---------------
-        MAX_VALUE = Singapore
+        MIN_VALUE = Singapore
     */
     inp = update_field(
         ITALY,
         SINGAPORE,
-        &get_decimal_field(150),
-        &get_decimal_field(150),
+        &get_decimal_field(75),
+        &get_decimal_field(75),
     );
     out = output!(processor, inp);
     exp = vec![update_val_exp(
@@ -554,13 +554,13 @@ fn test_max_aggregation_decimal() {
     )];
     assert_eq!(out, exp);
 
-    // Delete another record (150)
+    // Delete another record (75)
     /*
         Italy, 100.0
         -------------
-        MAX_VALUE = Italy
+        MIN_VALUE = Italy
     */
-    inp = delete_field(SINGAPORE, &get_decimal_field(150));
+    inp = delete_field(SINGAPORE, &get_decimal_field(75));
     out = output!(processor, inp);
     exp = vec![update_val_exp(
         &Field::String(SINGAPORE.to_string()),
@@ -571,7 +571,7 @@ fn test_max_aggregation_decimal() {
     // Delete last record
     /*
         -------------
-        MAX_VALUE = Null
+        MIN_VALUE = Null
     */
     inp = delete_field(ITALY, &get_decimal_field(100));
     out = output!(processor, inp);
@@ -580,10 +580,10 @@ fn test_max_aggregation_decimal() {
 }
 
 #[test]
-fn test_max_aggregation_duration() {
-    let schema = init_val_input_schema(Duration, "MAX_VALUE");
+fn test_min_aggregation_duration() {
+    let schema = init_val_input_schema(Duration, "MIN_VALUE");
     let mut processor = init_processor(
-        "SELECT MAX_VALUE(Salary, Country) FROM Users",
+        "SELECT MIN_VALUE(Salary, Country) FROM Users",
         HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
     )
     .unwrap();
@@ -592,7 +592,7 @@ fn test_max_aggregation_duration() {
     /*
         Italy, 100.0
         -----------------
-        MAX_VALUE = Italy
+        MIN_VALUE = Italy
     */
     let mut inp = insert_field(ITALY, &get_duration_field(100));
     let mut out = output!(processor, inp);
@@ -604,7 +604,7 @@ fn test_max_aggregation_duration() {
         Italy, 100.0
         Singapore, 100.0
         -----------------
-        MAX_VALUE = Singapore
+        MIN_VALUE = Singapore
     */
     inp = insert_field(SINGAPORE, &get_duration_field(100));
     out = output!(processor, inp);
@@ -614,15 +614,15 @@ fn test_max_aggregation_duration() {
     )];
     assert_eq!(out, exp);
 
-    // Insert 50 for segment Singapore
+    // Insert 75 for segment Singapore
     /*
         Italy, 100.0
         Singapore, 100.0
-        Singapore, 150.0
+        Singapore, 75.0
         ---------------
-        MAX_VALUE = Singapore
+        MIN_VALUE = Singapore
     */
-    inp = insert_field(SINGAPORE, &get_duration_field(150));
+    inp = insert_field(SINGAPORE, &get_duration_field(75));
     out = output!(processor, inp);
     exp = vec![update_val_exp(
         &Field::String(SINGAPORE.to_string()),
@@ -634,15 +634,15 @@ fn test_max_aggregation_duration() {
     /*
         Italy, 100.0
         Singapore, 100.0
-        Italy, 150.0
+        Italy, 75.0
         ---------------
-        MAX_VALUE = Italy
+        MIN_VALUE = Italy
     */
     inp = update_field(
         SINGAPORE,
         ITALY,
-        &get_duration_field(150),
-        &get_duration_field(150),
+        &get_duration_field(75),
+        &get_duration_field(75),
     );
     out = output!(processor, inp);
     exp = vec![update_val_exp(
@@ -651,19 +651,19 @@ fn test_max_aggregation_duration() {
     )];
     assert_eq!(out, exp);
 
-    // Update Singapore value 100 -> 200
+    // Update Singapore value 100 -> 50
     /*
         Italy, 100.0
-        Singapore, 200.0
-        Italy, 150.0
+        Singapore, 50.0
+        Italy, 75.0
         ---------------
-        MAX_VALUE = Singapore
+        MIN_VALUE = Singapore
     */
     inp = update_field(
         SINGAPORE,
         SINGAPORE,
         &get_duration_field(100),
-        &get_duration_field(200),
+        &get_duration_field(50),
     );
     out = output!(processor, inp);
     exp = vec![update_val_exp(
@@ -672,14 +672,14 @@ fn test_max_aggregation_duration() {
     )];
     assert_eq!(out, exp);
 
-    // Delete 1 record (200)
+    // Delete 1 record (50)
     /*
         Italy, 100.0
-        Italy, 150.0
+        Italy, 75.0
         ---------------
-        MAX_VALUE = Italy
+        MIN_VALUE = Italy
     */
-    inp = delete_field(SINGAPORE, &get_duration_field(200));
+    inp = delete_field(SINGAPORE, &get_duration_field(50));
     out = output!(processor, inp);
     exp = vec![update_val_exp(
         &Field::String(SINGAPORE.to_string()),
@@ -690,15 +690,15 @@ fn test_max_aggregation_duration() {
     // Update Italy segment to Singapore
     /*
         Italy, 100.0
-        Singapore, 150.0
+        Singapore, 75.0
         ---------------
-        MAX_VALUE = Singapore
+        MIN_VALUE = Singapore
     */
     inp = update_field(
         ITALY,
         SINGAPORE,
-        &get_duration_field(150),
-        &get_duration_field(150),
+        &get_duration_field(75),
+        &get_duration_field(75),
     );
     out = output!(processor, inp);
     exp = vec![update_val_exp(
@@ -707,13 +707,13 @@ fn test_max_aggregation_duration() {
     )];
     assert_eq!(out, exp);
 
-    // Delete another record (150)
+    // Delete another record (75)
     /*
         Italy, 100.0
         -------------
-        MAX_VALUE = Italy
+        MIN_VALUE = Italy
     */
-    inp = delete_field(SINGAPORE, &get_duration_field(150));
+    inp = delete_field(SINGAPORE, &get_duration_field(75));
     out = output!(processor, inp);
     exp = vec![update_val_exp(
         &Field::String(SINGAPORE.to_string()),
@@ -724,7 +724,7 @@ fn test_max_aggregation_duration() {
     // Delete last record
     /*
         -------------
-        MAX_VALUE = Null
+        MIN_VALUE = Null
     */
     inp = delete_field(ITALY, &get_duration_field(100));
     out = output!(processor, inp);
@@ -733,10 +733,10 @@ fn test_max_aggregation_duration() {
 }
 
 #[test]
-fn test_max_aggregation_timestamp() {
-    let schema = init_val_input_schema(Timestamp, "MAX_VALUE");
+fn test_min_aggregation_timestamp() {
+    let schema = init_val_input_schema(Timestamp, "MIN_VALUE");
     let mut processor = init_processor(
-        "SELECT MAX_VALUE(Salary, Country) FROM Users",
+        "SELECT MIN_VALUE(Salary, Country) FROM Users",
         HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
     )
     .unwrap();
@@ -745,7 +745,7 @@ fn test_max_aggregation_timestamp() {
     /*
         Italy, 100.0
         -----------------
-        MAX_VALUE = Italy
+        MIN_VALUE = Italy
     */
     let mut inp = insert_field(ITALY, &get_ts_field(100));
     let mut out = output!(processor, inp);
@@ -757,7 +757,7 @@ fn test_max_aggregation_timestamp() {
         Italy, 100.0
         Singapore, 100.0
         -----------------
-        MAX_VALUE = Singapore
+        MIN_VALUE = Singapore
     */
     inp = insert_field(SINGAPORE, &get_ts_field(100));
     out = output!(processor, inp);
@@ -767,15 +767,15 @@ fn test_max_aggregation_timestamp() {
     )];
     assert_eq!(out, exp);
 
-    // Insert 50 for segment Singapore
+    // Insert 75 for segment Singapore
     /*
         Italy, 100.0
         Singapore, 100.0
-        Singapore, 150.0
+        Singapore, 75.0
         ---------------
-        MAX_VALUE = Singapore
+        MIN_VALUE = Singapore
     */
-    inp = insert_field(SINGAPORE, &get_ts_field(150));
+    inp = insert_field(SINGAPORE, &get_ts_field(75));
     out = output!(processor, inp);
     exp = vec![update_val_exp(
         &Field::String(SINGAPORE.to_string()),
@@ -787,11 +787,11 @@ fn test_max_aggregation_timestamp() {
     /*
         Italy, 100.0
         Singapore, 100.0
-        Italy, 150.0
+        Italy, 75.0
         ---------------
-        MAX_VALUE = Italy
+        MIN_VALUE = Italy
     */
-    inp = update_field(SINGAPORE, ITALY, &get_ts_field(150), &get_ts_field(150));
+    inp = update_field(SINGAPORE, ITALY, &get_ts_field(75), &get_ts_field(75));
     out = output!(processor, inp);
     exp = vec![update_val_exp(
         &Field::String(SINGAPORE.to_string()),
@@ -799,15 +799,15 @@ fn test_max_aggregation_timestamp() {
     )];
     assert_eq!(out, exp);
 
-    // Update Singapore value 100 -> 200
+    // Update Singapore value 100 -> 50
     /*
         Italy, 100.0
-        Singapore, 200.0
-        Italy, 150.0
+        Singapore, 50.0
+        Italy, 75.0
         ---------------
-        MAX_VALUE = Singapore
+        MIN_VALUE = Singapore
     */
-    inp = update_field(SINGAPORE, SINGAPORE, &get_ts_field(100), &get_ts_field(200));
+    inp = update_field(SINGAPORE, SINGAPORE, &get_ts_field(100), &get_ts_field(50));
     out = output!(processor, inp);
     exp = vec![update_val_exp(
         &Field::String(ITALY.to_string()),
@@ -815,14 +815,14 @@ fn test_max_aggregation_timestamp() {
     )];
     assert_eq!(out, exp);
 
-    // Delete 1 record (200)
+    // Delete 1 record (50)
     /*
         Italy, 100.0
-        Italy, 150.0
+        Italy, 75.0
         ---------------
-        MAX_VALUE = Italy
+        MIN_VALUE = Italy
     */
-    inp = delete_field(SINGAPORE, &get_ts_field(200));
+    inp = delete_field(SINGAPORE, &get_ts_field(50));
     out = output!(processor, inp);
     exp = vec![update_val_exp(
         &Field::String(SINGAPORE.to_string()),
@@ -833,11 +833,11 @@ fn test_max_aggregation_timestamp() {
     // Update Italy segment to Singapore
     /*
         Italy, 100.0
-        Singapore, 150.0
+        Singapore, 75.0
         ---------------
-        MAX_VALUE = Singapore
+        MIN_VALUE = Singapore
     */
-    inp = update_field(ITALY, SINGAPORE, &get_ts_field(150), &get_ts_field(150));
+    inp = update_field(ITALY, SINGAPORE, &get_ts_field(75), &get_ts_field(75));
     out = output!(processor, inp);
     exp = vec![update_val_exp(
         &Field::String(ITALY.to_string()),
@@ -845,13 +845,13 @@ fn test_max_aggregation_timestamp() {
     )];
     assert_eq!(out, exp);
 
-    // Delete another record (150)
+    // Delete another record (75)
     /*
         Italy, 100.0
         -------------
-        MAX_VALUE = Italy
+        MIN_VALUE = Italy
     */
-    inp = delete_field(SINGAPORE, &get_ts_field(150));
+    inp = delete_field(SINGAPORE, &get_ts_field(75));
     out = output!(processor, inp);
     exp = vec![update_val_exp(
         &Field::String(SINGAPORE.to_string()),
@@ -862,7 +862,7 @@ fn test_max_aggregation_timestamp() {
     // Delete last record
     /*
         -------------
-        MAX_VALUE = Null
+        MIN_VALUE = Null
     */
     inp = delete_field(ITALY, &get_ts_field(100));
     out = output!(processor, inp);
@@ -871,10 +871,10 @@ fn test_max_aggregation_timestamp() {
 }
 
 #[test]
-fn test_max_aggregation_date() {
-    let schema = init_val_input_schema(Date, "MAX_VALUE");
+fn test_min_aggregation_date() {
+    let schema = init_val_input_schema(Date, "MIN_VALUE");
     let mut processor = init_processor(
-        "SELECT MAX_VALUE(Salary, Country) FROM Users",
+        "SELECT MIN_VALUE(Salary, Country) FROM Users",
         HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
     )
     .unwrap();
@@ -883,9 +883,9 @@ fn test_max_aggregation_date() {
     /*
         Italy, 100.0
         -----------------
-        MAX_VALUE = Italy
+        MIN_VALUE = Italy
     */
-    let mut inp = insert_field(ITALY, &get_date_field(DATE4));
+    let mut inp = insert_field(ITALY, &get_date_field(DATE16));
     let mut out = output!(processor, inp);
     let mut exp = vec![insert_val_exp(&Field::String(ITALY.to_string()))];
     assert_eq!(out, exp);
@@ -895,9 +895,9 @@ fn test_max_aggregation_date() {
         Italy, 100.0
         Singapore, 100.0
         -----------------
-        MAX_VALUE = Singapore
+        MIN_VALUE = Singapore
     */
-    inp = insert_field(SINGAPORE, &get_date_field(DATE4));
+    inp = insert_field(SINGAPORE, &get_date_field(DATE16));
     out = output!(processor, inp);
     exp = vec![update_val_exp(
         &Field::String(ITALY.to_string()),
@@ -905,13 +905,13 @@ fn test_max_aggregation_date() {
     )];
     assert_eq!(out, exp);
 
-    // Insert 50 for segment Singapore
+    // Insert 75 for segment Singapore
     /*
         Italy, 100.0
         Singapore, 100.0
-        Singapore, 150.0
+        Singapore, 75.0
         ---------------
-        MAX_VALUE = Singapore
+        MIN_VALUE = Singapore
     */
     inp = insert_field(SINGAPORE, &get_date_field(DATE8));
     out = output!(processor, inp);
@@ -925,9 +925,9 @@ fn test_max_aggregation_date() {
     /*
         Italy, 100.0
         Singapore, 100.0
-        Italy, 150.0
+        Italy, 75.0
         ---------------
-        MAX_VALUE = Italy
+        MIN_VALUE = Italy
     */
     inp = update_field(
         SINGAPORE,
@@ -942,19 +942,19 @@ fn test_max_aggregation_date() {
     )];
     assert_eq!(out, exp);
 
-    // Update Singapore value 100 -> 200
+    // Update Singapore value 100 -> 50
     /*
         Italy, 100.0
-        Singapore, 200.0
-        Italy, 150.0
+        Singapore, 50.0
+        Italy, 75.0
         ---------------
-        MAX_VALUE = Singapore
+        MIN_VALUE = Singapore
     */
     inp = update_field(
         SINGAPORE,
         SINGAPORE,
-        &get_date_field(DATE4),
         &get_date_field(DATE16),
+        &get_date_field(DATE4),
     );
     out = output!(processor, inp);
     exp = vec![update_val_exp(
@@ -963,14 +963,14 @@ fn test_max_aggregation_date() {
     )];
     assert_eq!(out, exp);
 
-    // Delete 1 record (200)
+    // Delete 1 record (50)
     /*
         Italy, 100.0
-        Italy, 150.0
+        Italy, 75.0
         ---------------
-        MAX_VALUE = Italy
+        MIN_VALUE = Italy
     */
-    inp = delete_field(SINGAPORE, &get_date_field(DATE16));
+    inp = delete_field(SINGAPORE, &get_date_field(DATE4));
     out = output!(processor, inp);
     exp = vec![update_val_exp(
         &Field::String(SINGAPORE.to_string()),
@@ -981,9 +981,9 @@ fn test_max_aggregation_date() {
     // Update Italy segment to Singapore
     /*
         Italy, 100.0
-        Singapore, 150.0
+        Singapore, 75.0
         ---------------
-        MAX_VALUE = Singapore
+        MIN_VALUE = Singapore
     */
     inp = update_field(
         ITALY,
@@ -998,11 +998,11 @@ fn test_max_aggregation_date() {
     )];
     assert_eq!(out, exp);
 
-    // Delete another record (150)
+    // Delete another record (75)
     /*
         Italy, 100.0
         -------------
-        MAX_VALUE = Italy
+        MIN_VALUE = Italy
     */
     inp = delete_field(SINGAPORE, &get_date_field(DATE8));
     out = output!(processor, inp);
@@ -1015,19 +1015,19 @@ fn test_max_aggregation_date() {
     // Delete last record
     /*
         -------------
-        MAX_VALUE = Null
+        MIN_VALUE = Null
     */
-    inp = delete_field(ITALY, &get_date_field(DATE4));
+    inp = delete_field(ITALY, &get_date_field(DATE16));
     out = output!(processor, inp);
     exp = vec![delete_val_exp(&Field::String(ITALY.to_string()))];
     assert_eq!(out, exp);
 }
 
 #[test]
-fn test_max_aggregation_int_null() {
-    let schema = init_input_schema(Int, "MAX_VALUE");
+fn test_min_aggregation_int_null() {
+    let schema = init_input_schema(Int, "MIN_VALUE");
     let mut processor = init_processor(
-        "SELECT MAX_VALUE(Salary, Country) FROM Users",
+        "SELECT MIN_VALUE(Salary, Country) FROM Users",
         HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
     )
     .unwrap();
@@ -1036,7 +1036,7 @@ fn test_max_aggregation_int_null() {
     /*
         Italy, NULL
         ----------------
-        MAX_VALUE = NULL
+        MIN_VALUE = NULL
     */
     let mut inp = insert_field(ITALY, FIELD_NULL);
     let mut out = output!(processor, inp);
@@ -1048,7 +1048,7 @@ fn test_max_aggregation_int_null() {
         Italy, NULL
         Italy, 100
         -------------
-        MAX_VALUE = 100
+        MIN_VALUE = 100
     */
     inp = insert_field(ITALY, FIELD_100_INT);
     out = output!(processor, inp);
@@ -1063,7 +1063,7 @@ fn test_max_aggregation_int_null() {
         Italy, NULL
         Italy, NULL
         -------------
-        MAX_VALUE = 0
+        MIN_VALUE = 0
     */
     inp = update_field(ITALY, ITALY, FIELD_100_INT, FIELD_NULL);
     out = output!(processor, inp);
@@ -1077,7 +1077,7 @@ fn test_max_aggregation_int_null() {
     /*
         Italy, NULL
         -------------
-        MAX_VALUE = 0
+        MIN_VALUE = 0
     */
     inp = delete_field(ITALY, FIELD_NULL);
     out = output!(processor, inp);
@@ -1087,7 +1087,7 @@ fn test_max_aggregation_int_null() {
     // Delete last record
     /*
         -------------
-        MAX_VALUE = 0
+        MIN_VALUE = 0
     */
     inp = delete_field(ITALY, FIELD_NULL);
     out = output!(processor, inp);
@@ -1096,10 +1096,10 @@ fn test_max_aggregation_int_null() {
 }
 
 #[test]
-fn test_max_aggregation_float_null() {
-    let schema = init_input_schema(Float, "MAX_VALUE");
+fn test_min_aggregation_float_null() {
+    let schema = init_input_schema(Float, "MIN_VALUE");
     let mut processor = init_processor(
-        "SELECT MAX_VALUE(Salary, Country) FROM Users",
+        "SELECT MIN_VALUE(Salary, Country) FROM Users",
         HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
     )
     .unwrap();
@@ -1108,7 +1108,7 @@ fn test_max_aggregation_float_null() {
     /*
         Italy, NULL
         -------------
-        MAX_VALUE = NULL
+        MIN_VALUE = NULL
     */
     let mut inp = insert_field(ITALY, FIELD_NULL);
     let mut out = output!(processor, inp);
@@ -1120,7 +1120,7 @@ fn test_max_aggregation_float_null() {
         Italy, NULL
         Italy, 100.0
         -------------
-        MAX_VALUE = 100.0
+        MIN_VALUE = 100.0
     */
     inp = insert_field(ITALY, FIELD_100_FLOAT);
     out = output!(processor, inp);
@@ -1135,7 +1135,7 @@ fn test_max_aggregation_float_null() {
         Italy, NULL
         Italy, NULL
         -------------
-        MAX_VALUE = 0.0
+        MIN_VALUE = 0.0
     */
     inp = update_field(ITALY, ITALY, FIELD_100_FLOAT, FIELD_NULL);
     out = output!(processor, inp);
@@ -1149,7 +1149,7 @@ fn test_max_aggregation_float_null() {
     /*
         Italy, NULL
         -------------
-        MAX_VALUE = 0.0
+        MIN_VALUE = 0.0
     */
     inp = delete_field(ITALY, FIELD_NULL);
     out = output!(processor, inp);
@@ -1159,7 +1159,7 @@ fn test_max_aggregation_float_null() {
     // Delete last record
     /*
         -------------
-        MAX_VALUE = 0.0
+        MIN_VALUE = 0.0
     */
     inp = delete_field(ITALY, FIELD_NULL);
     out = output!(processor, inp);
@@ -1168,10 +1168,10 @@ fn test_max_aggregation_float_null() {
 }
 
 #[test]
-fn test_max_aggregation_decimal_null() {
-    let schema = init_input_schema(Decimal, "MAX_VALUE");
+fn test_min_aggregation_decimal_null() {
+    let schema = init_input_schema(Decimal, "MIN_VALUE");
     let mut processor = init_processor(
-        "SELECT MAX_VALUE(Salary, Country) FROM Users",
+        "SELECT MIN_VALUE(Salary, Country) FROM Users",
         HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
     )
     .unwrap();
@@ -1180,7 +1180,7 @@ fn test_max_aggregation_decimal_null() {
     /*
         Italy, NULL
         -------------
-        MAX_VALUE = NULL
+        MIN_VALUE = NULL
     */
     let mut inp = insert_field(ITALY, FIELD_NULL);
     let mut out = output!(processor, inp);
@@ -1192,7 +1192,7 @@ fn test_max_aggregation_decimal_null() {
         Italy, NULL
         Italy, 100.0
         -------------
-        MAX_VALUE = 100.0
+        MIN_VALUE = 100.0
     */
     inp = insert_field(ITALY, &get_decimal_field(100));
     out = output!(processor, inp);
@@ -1207,13 +1207,13 @@ fn test_max_aggregation_decimal_null() {
         Italy, NULL
         Italy, NULL
         -------------
-        MAX_VALUE = 0.0
+        MIN_VALUE = 0.0
     */
-    inp = update_field(ITALY, ITALY, &Field::String(ITALY.to_string()), FIELD_NULL);
+    inp = update_field(ITALY, ITALY, &get_decimal_field(100), FIELD_NULL);
     out = output!(processor, inp);
     exp = vec![update_val_exp(
         &Field::String(ITALY.to_string()),
-        &Field::String(ITALY.to_string()),
+        FIELD_NULL,
     )];
     assert_eq!(out, exp);
 
@@ -1221,32 +1221,29 @@ fn test_max_aggregation_decimal_null() {
     /*
         Italy, NULL
         -------------
-        MAX_VALUE = 0.0
+        MIN_VALUE = 0.0
     */
     inp = delete_field(ITALY, FIELD_NULL);
     out = output!(processor, inp);
-    exp = vec![update_val_exp(
-        &Field::String(ITALY.to_string()),
-        &Field::String(ITALY.to_string()),
-    )];
+    exp = vec![update_val_exp(FIELD_NULL, FIELD_NULL)];
     assert_eq!(out, exp);
 
     // Delete last record
     /*
         -------------
-        MAX_VALUE = 0.0
+        MIN_VALUE = 0.0
     */
     inp = delete_field(ITALY, FIELD_NULL);
     out = output!(processor, inp);
-    exp = vec![delete_val_exp(&Field::String(ITALY.to_string()))];
+    exp = vec![delete_val_exp(FIELD_NULL)];
     assert_eq!(out, exp);
 }
 
 #[test]
-fn test_max_aggregation_duration_null() {
-    let schema = init_input_schema(Duration, "MAX_VALUE");
+fn test_min_aggregation_duration_null() {
+    let schema = init_input_schema(Duration, "MIN_VALUE");
     let mut processor = init_processor(
-        "SELECT MAX_VALUE(Salary, Country) FROM Users",
+        "SELECT MIN_VALUE(Salary, Country) FROM Users",
         HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
     )
     .unwrap();
@@ -1255,7 +1252,7 @@ fn test_max_aggregation_duration_null() {
     /*
         Italy, NULL
         -------------
-        MAX_VALUE = NULL
+        MIN_VALUE = NULL
     */
     let mut inp = insert_field(ITALY, FIELD_NULL);
     let mut out = output!(processor, inp);
@@ -1267,7 +1264,7 @@ fn test_max_aggregation_duration_null() {
         Italy, NULL
         Italy, 100.0
         -------------
-        MAX_VALUE = 100.0
+        MIN_VALUE = 100.0
     */
     inp = insert_field(ITALY, &get_duration_field(100));
     out = output!(processor, inp);
@@ -1282,7 +1279,7 @@ fn test_max_aggregation_duration_null() {
         Italy, NULL
         Italy, NULL
         -------------
-        MAX_VALUE = 0.0
+        MIN_VALUE = 0.0
     */
     inp = update_field(ITALY, ITALY, &get_duration_field(100), FIELD_NULL);
     out = output!(processor, inp);
@@ -1296,7 +1293,7 @@ fn test_max_aggregation_duration_null() {
     /*
         Italy, NULL
         -------------
-        MAX_VALUE = 0.0
+        MIN_VALUE = 0.0
     */
     inp = delete_field(ITALY, FIELD_NULL);
     out = output!(processor, inp);
@@ -1306,7 +1303,7 @@ fn test_max_aggregation_duration_null() {
     // Delete last record
     /*
         -------------
-        MAX_VALUE = 0.0
+        MIN_VALUE = 0.0
     */
     inp = delete_field(ITALY, FIELD_NULL);
     out = output!(processor, inp);
@@ -1315,10 +1312,10 @@ fn test_max_aggregation_duration_null() {
 }
 
 #[test]
-fn test_max_aggregation_timestamp_null() {
-    let schema = init_input_schema(Timestamp, "MAX_VALUE");
+fn test_min_aggregation_timestamp_null() {
+    let schema = init_input_schema(Timestamp, "MIN_VALUE");
     let mut processor = init_processor(
-        "SELECT MAX_VALUE(Salary, Country) FROM Users",
+        "SELECT MIN_VALUE(Salary, Country) FROM Users",
         HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
     )
     .unwrap();
@@ -1327,7 +1324,7 @@ fn test_max_aggregation_timestamp_null() {
     /*
         Italy, NULL
         -------------
-        MAX_VALUE = NULL
+        MIN_VALUE = NULL
     */
     let mut inp = insert_field(ITALY, FIELD_NULL);
     let mut out = output!(processor, inp);
@@ -1339,7 +1336,7 @@ fn test_max_aggregation_timestamp_null() {
         Italy, NULL
         Italy, 100
         -------------
-        MAX_VALUE = 100
+        MIN_VALUE = 100
     */
     inp = insert_field(ITALY, &get_ts_field(100));
     out = output!(processor, inp);
@@ -1354,7 +1351,7 @@ fn test_max_aggregation_timestamp_null() {
         Italy, NULL
         Italy, NULL
         -------------
-        MAX_VALUE = 0
+        MIN_VALUE = 0
     */
     inp = update_field(ITALY, ITALY, &get_ts_field(100), FIELD_NULL);
     out = output!(processor, inp);
@@ -1368,7 +1365,7 @@ fn test_max_aggregation_timestamp_null() {
     /*
         Italy, NULL
         -------------
-        MAX_VALUE = 0
+        MIN_VALUE = 0
     */
     inp = delete_field(ITALY, FIELD_NULL);
     out = output!(processor, inp);
@@ -1378,7 +1375,7 @@ fn test_max_aggregation_timestamp_null() {
     // Delete last record
     /*
         -------------
-        MAX_VALUE = 0
+        MIN_VALUE = 0
     */
     inp = delete_field(ITALY, FIELD_NULL);
     out = output!(processor, inp);
@@ -1387,10 +1384,10 @@ fn test_max_aggregation_timestamp_null() {
 }
 
 #[test]
-fn test_max_aggregation_date_null() {
-    let schema = init_input_schema(Date, "MAX_VALUE");
+fn test_min_aggregation_date_null() {
+    let schema = init_input_schema(Date, "MIN_VALUE");
     let mut processor = init_processor(
-        "SELECT MAX_VALUE(Salary, Country) FROM Users",
+        "SELECT MIN_VALUE(Salary, Country) FROM Users",
         HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
     )
     .unwrap();
@@ -1399,7 +1396,7 @@ fn test_max_aggregation_date_null() {
     /*
         Italy, NULL
         -------------
-        MAX_VALUE = NULL
+        MIN_VALUE = NULL
     */
     let mut inp = insert_field(ITALY, FIELD_NULL);
     let mut out = output!(processor, inp);
@@ -1411,7 +1408,7 @@ fn test_max_aggregation_date_null() {
         Italy, NULL
         Italy, 2015-10-08
         -------------
-        MAX_VALUE = 2015-10-08
+        MIN_VALUE = 2015-10-08
     */
     inp = insert_field(ITALY, &get_date_field(DATE8));
     out = output!(processor, inp);
@@ -1426,7 +1423,7 @@ fn test_max_aggregation_date_null() {
         Italy, NULL
         Italy, NULL
         -------------
-        MAX_VALUE = 0
+        MIN_VALUE = 0
     */
     inp = update_field(ITALY, ITALY, &get_date_field(DATE8), FIELD_NULL);
     out = output!(processor, inp);
@@ -1440,7 +1437,7 @@ fn test_max_aggregation_date_null() {
     /*
         Italy, NULL
         -------------
-        MAX_VALUE = 0
+        MIN_VALUE = 0
     */
     inp = delete_field(ITALY, FIELD_NULL);
     out = output!(processor, inp);
@@ -1450,7 +1447,7 @@ fn test_max_aggregation_date_null() {
     // Delete last record
     /*
         -------------
-        MAX_VALUE = 0
+        MIN_VALUE = 0
     */
     inp = delete_field(ITALY, FIELD_NULL);
     out = output!(processor, inp);

@@ -48,8 +48,8 @@ pub enum OrchestrationError {
     InternalServerFailed(#[source] tonic::transport::Error),
     #[error("{0}: Failed to initialize cache. Have you run `dozer build`?")]
     CacheInitFailed(#[source] CacheError),
-    #[error("Failed to build cache from log: {0}")]
-    CacheBuildFailed(#[source] CacheError),
+    #[error("Failed to build cache {0} from log: {1}")]
+    CacheBuildFailed(String, #[source] CacheError),
     #[error("Cache {0} has reached its maximum size. Try to increase `cache_max_map_size` in the config.")]
     CacheFull(String),
     #[error("Internal thread panic: {0}")]

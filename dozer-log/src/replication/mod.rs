@@ -213,6 +213,10 @@ impl Log {
         // If start falls in persisted range, return persisted data.
         for persisted in &self.persisted {
             if persisted.range.contains(&request.start) {
+                debug!(
+                    "Sending persisted log entry key {}, range {:?} for request {request:?}",
+                    persisted.key, persisted.range
+                );
                 return LogResponseFuture::Persisted(persisted.clone());
             }
         }

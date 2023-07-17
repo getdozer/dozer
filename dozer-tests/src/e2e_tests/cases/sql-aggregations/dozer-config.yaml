@@ -27,4 +27,3 @@ endpoints:
   - name: total_distance
     path: /total_distance
     table_name: total_distance
-    index:

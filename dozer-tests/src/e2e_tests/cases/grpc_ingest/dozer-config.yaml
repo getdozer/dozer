@@ -36,4 +36,3 @@ endpoints:
   - name: users
     path: /users
     table_name: users
-    index:
