@@ -125,9 +125,15 @@ fn run() -> Result<(), OrchestrationError> {
     set_ctrl_handler(shutdown_sender);
 
     // Now we have access to telemetry configuration. Telemetry must be initialized in tokio runtime.
-    let _telemetry = dozer.runtime.block_on(async {
-        Telemetry::new(Some(&dozer.config.app_name), dozer.config.telemetry.clone())
-    });
+    let app_name = dozer.config.app_name.clone();
+    let app_id = dozer
+        .config
+        .cloud
+        .as_ref()
+        .map(|cloud| cloud.app_id.clone().unwrap_or(app_name));
+    let _telemetry = dozer
+        .runtime
+        .block_on(async { Telemetry::new(app_id.as_deref(), dozer.config.telemetry.clone()) });
 
     if let Some(cmd) = cli.cmd {
         // run individual servers
