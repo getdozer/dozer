@@ -1,6 +1,7 @@
-use crate::models::app_config::Config;
+use crate::models::config::Config;
 
 #[test]
+#[ignore = "We removed the connection name validation, but should add it back in the future as part of a `validation` step"]
 fn error_wrong_reference_connection_name() {
     let input_config = r#"
     app_name: working_app
@@ -21,7 +22,7 @@ fn error_wrong_reference_connection_name() {
       - id
       - email
       - phone
-      connection: !Ref wrong_connection_name
+      connection: wrong_connection_name
     endpoints:
     - name: users
       path: /users
@@ -60,7 +61,7 @@ fn error_missing_field_general() {
       - id
       - email
       - phone
-      connection: !Ref users
+      connection: users
     endpoints:
     - path: /eth/stats
       sql: select block_number, sum(id) from eth_logs where 1=1 group by block_number;
@@ -96,7 +97,7 @@ fn error_missing_field_in_source() {
       - id
       - email
       - phone
-      connection: !Ref users    
+      connection: users    
   "#;
     let deserialize_result = serde_yaml::from_str::<Config>(input_config);
     let error = deserialize_result.err();
@@ -135,7 +136,7 @@ fn error_missing_field_connection_ref_in_source() {
     assert!(error
         .unwrap()
         .to_string()
-        .starts_with("sources[0]: missing connection ref"));
+        .starts_with("sources[0]: missing field `connection`"));
 }
 
 #[test]
@@ -159,10 +160,8 @@ fn error_missing_connection_ref() {
       - phone
   "#;
     let deserialize_result = serde_yaml::from_str::<Config>(input_config);
-    let error = deserialize_result.err();
-    assert!(error.is_some());
+    let error = deserialize_result.unwrap_err();
     assert!(error
-        .unwrap()
         .to_string()
-        .starts_with("sources[0]: missing connection ref"));
+        .starts_with("sources[0]: missing field `connection`"));
 }

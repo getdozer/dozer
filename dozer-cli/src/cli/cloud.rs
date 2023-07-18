@@ -8,9 +8,6 @@ use std::error::Error;
 #[derive(Debug, Args)]
 #[command(args_conflicts_with_subcommands = true)]
 pub struct Cloud {
-    // Workaround to hide config_path from help in cloud
-    #[arg(hide = true)]
-    pub config_path: Option<String>,
     #[arg(
     global = true,
     short = 't',
@@ -19,10 +16,10 @@ pub struct Cloud {
     )]
     pub target_url: String,
 
-    #[arg(global = true, short)]
+    #[arg(global = true, short, long)]
     pub app_id: Option<String>,
 
-    #[arg(global = true, short)]
+    #[arg(global = true, short, long)]
     pub profile: Option<String>,
 
     #[command(subcommand)]
@@ -31,21 +28,27 @@ pub struct Cloud {
 
 #[derive(Debug, Subcommand, Clone)]
 pub enum CloudCommands {
-    Login(OrganisationCommand),
+    /// Login to Dozer Cloud service
+    Login {
+        #[arg(long = "organisation-name")]
+        organisation_name: Option<String>,
+    },
     /// Deploy application to Dozer Cloud
     Deploy(DeployCommandArgs),
-    /// Dozer app context management
+    /// Stop and delete application from Dozer Cloud
     Delete,
+    /// Get status of running application in Dozer Cloud
     Status,
+    /// Monitor processed data amount in Dozer Cloud
     Monitor,
     /// Inspect application logs
     Logs(LogCommandArgs),
-    /// Application version management
+    /// Dozer application version management
     #[command(subcommand)]
     Version(VersionCommand),
-    SetApp {
-        app_id: String,
-    },
+    /// Set application, which will be used for all commands
+    SetApp { app_id: String },
+    /// List all dozer application in Dozer Cloud
     List(ListCommandArgs),
     /// Dozer API server management
     #[command(subcommand)]
@@ -59,20 +62,15 @@ pub enum CloudCommands {
 pub struct DeployCommandArgs {
     /// Number of replicas to serve Dozer APIs
     #[arg(short, long)]
-    pub num_replicas: Option<i32>,
+    pub num_api_instances: Option<i32>,
 
-    #[arg(short, value_parser = parse_key_val)]
+    /// List of secrets which will be used in deployment
+    #[arg(short, long, value_parser = parse_key_val)]
     pub secrets: Vec<Secret>,
 }
 
-pub fn default_num_replicas() -> i32 {
+pub fn default_num_api_instances() -> i32 {
     2
-}
-
-#[derive(Debug, Args, Clone)]
-pub struct OrganisationCommand {
-    #[arg(long = "organisation-name")]
-    pub organisation_name: String,
 }
 
 #[derive(Debug, Args, Clone)]
@@ -121,9 +119,9 @@ pub enum VersionCommand {
 #[derive(Debug, Clone, Subcommand)]
 pub enum ApiCommand {
     /// Sets the number of replicas to serve Dozer APIs
-    SetNumReplicas {
+    SetNumApiInstances {
         /// The number of replicas to set
-        num_replicas: i32,
+        num_api_instances: i32,
     },
 }
 

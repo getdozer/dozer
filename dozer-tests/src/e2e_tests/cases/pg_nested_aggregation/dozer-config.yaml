@@ -21,7 +21,7 @@ sources:
       - close
       - adj_close
       - volume
-    connection: !Ref stocks
+    connection: stocks
   - name: stocks_meta
     table_name: stocks_meta
     columns:
@@ -37,7 +37,7 @@ sources:
       - cqs_symbol
       - nasdaq_symbol
       - next_shares
-    connection: !Ref stocks
+    connection: stocks
 
 sql: |
   SELECT

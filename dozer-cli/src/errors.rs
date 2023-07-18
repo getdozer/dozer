@@ -1,14 +1,14 @@
 #![allow(clippy::enum_variant_names)]
 
 use glob::{GlobError, PatternError};
+use std::io;
 use std::path::PathBuf;
-use std::string::FromUtf8Error;
 
 use dozer_api::{
     errors::{ApiError, AuthError, GenerationError, GrpcError},
     rest::DOZER_SERVER_NAME_HEADER,
 };
-use dozer_cache::dozer_log::errors::SchemaError;
+use dozer_cache::dozer_log::{errors::SchemaError, storage};
 use dozer_cache::errors::CacheError;
 use dozer_core::errors::ExecutionError;
 use dozer_ingestion::errors::ConnectorError;
@@ -25,8 +25,10 @@ pub enum OrchestrationError {
     FailedToWriteConfigYaml(#[source] serde_yaml::Error),
     #[error("File system error {0:?}: {1}")]
     FileSystem(PathBuf, std::io::Error),
-    #[error("Failed to find migration for endpoint {0}")]
-    NoMigrationFound(String),
+    #[error("Failed to find build for endpoint {0}")]
+    NoBuildFound(String),
+    #[error("Failed to create log: {0}")]
+    CreateLog(#[from] dozer_cache::dozer_log::replication::Error),
     #[error("Failed to login: {0}")]
     CloudLoginFailed(#[from] CloudLoginError),
     #[error("Credential Error: {0}")]
@@ -47,8 +49,8 @@ pub enum OrchestrationError {
     InternalServerFailed(#[source] tonic::transport::Error),
     #[error("{0}: Failed to initialize cache. Have you run `dozer build`?")]
     CacheInitFailed(#[source] CacheError),
-    #[error("Failed to build cache from log: {0}")]
-    CacheBuildFailed(#[source] CacheError),
+    #[error("Failed to build cache {0} from log: {1}")]
+    CacheBuildFailed(String, #[source] CacheError),
     #[error("Cache {0} has reached its maximum size. Try to increase `cache_max_map_size` in the config.")]
     CacheFull(String),
     #[error("Internal thread panic: {0}")]
@@ -75,12 +77,16 @@ pub enum OrchestrationError {
     EmptyEndpoints,
     #[error(transparent)]
     CloudContextError(#[from] CloudContextError),
+    #[error("Failed to read organisation name. Error: {0}")]
+    FailedToReadOrganisationName(#[source] io::Error),
 }
 
 #[derive(Error, Debug)]
 pub enum CliError {
-    #[error("Can't find the configuration file at: {0:?}")]
-    FailedToLoadFile(String),
+    #[error("Configuration file path not provided")]
+    ConfigurationFilePathNotProvided,
+    #[error("Can't find the configuration file(s) at: {0:?}")]
+    FailedToFindConfigurationFiles(String),
     #[error("Unknown Command: {0:?}")]
     UnknownCommand(String),
     #[error("Failed to parse dozer config: {0:?}")]
@@ -95,6 +101,14 @@ pub enum CliError {
     FailedToCreateTokioRuntime(#[source] std::io::Error),
     #[error("Reqwest error: {0}")]
     Reqwest(#[from] reqwest::Error),
+    #[error(transparent)]
+    ConfigCombineError(#[from] ConfigCombineError),
+    #[error("Failed to serialize config to json: {0}")]
+    SerializeConfigToJson(#[source] serde_json::Error),
+    #[error("Missing config options to be overridden: {0}")]
+    MissingConfigOverride(String),
+    #[error("Failed to deserialize config from json: {0}")]
+    DeserializeConfigFromJson(#[source] serde_json::Error),
 }
 
 #[derive(Error, Debug)]
@@ -104,15 +118,6 @@ pub enum CloudError {
 
     #[error("Cloud service returned error: {0:?}")]
     CloudServiceError(#[from] tonic::Status),
-
-    #[error("Cannot read configuration: {0:?}")]
-    CannotReadConfig(PathBuf, #[source] std::io::Error),
-
-    #[error("Wrong pattern of config files read glob: {0}")]
-    WrongPatternOfConfigFilesGlob(#[from] PatternError),
-
-    #[error("Cannot read file: {0}")]
-    CannotReadFile(#[from] GlobError),
 
     #[error("GRPC request failed, error: {} (GRPC status {})", .0.message(), .0.code())]
     GRPCCallError(#[source] tonic::Status),
@@ -128,6 +133,36 @@ pub enum CloudError {
 
     #[error(transparent)]
     CloudContextError(#[from] CloudContextError),
+
+    #[error(transparent)]
+    ConfigCombineError(#[from] ConfigCombineError),
+}
+
+#[derive(Debug, Error)]
+pub enum ConfigCombineError {
+    #[error("Failed to parse yaml file {0}: {1}")]
+    ParseYaml(String, #[source] serde_yaml::Error),
+
+    #[error("Cannot merge yaml value {from:?} to {to:?}")]
+    CannotMerge {
+        from: serde_yaml::Value,
+        to: serde_yaml::Value,
+    },
+
+    #[error("Failed to parse config: {0}")]
+    ParseConfig(#[source] serde_yaml::Error),
+
+    #[error("Cannot read configuration: {0:?}")]
+    CannotReadConfig(PathBuf, #[source] std::io::Error),
+
+    #[error("Wrong pattern of config files read glob: {0}")]
+    WrongPatternOfConfigFilesGlob(#[from] PatternError),
+
+    #[error("Cannot read file: {0}")]
+    CannotReadFile(#[from] GlobError),
+
+    #[error("Cannot serialize config to string: {0}")]
+    CannotSerializeToString(#[source] serde_yaml::Error),
 }
 
 #[derive(Debug, Error)]
@@ -148,6 +183,8 @@ pub enum BuildError {
     CannotWriteSchema(#[source] SchemaError),
     #[error("Failed to generate proto files: {0:?}")]
     FailedToGenerateProtoFiles(#[from] GenerationError),
+    #[error("Storage error: {0}")]
+    Storage(#[from] storage::Error),
 }
 
 #[derive(Debug, Error)]
@@ -166,8 +203,12 @@ pub enum CloudLoginError {
 
     #[error("Failed to read input: {0}")]
     InputError(#[from] std::io::Error),
+
     #[error(transparent)]
     CloudCredentialError(#[from] CloudCredentialError),
+
+    #[error("Organisation not found")]
+    OrganisationNotFound,
 }
 
 #[derive(Debug, Error)]
@@ -197,12 +238,6 @@ pub enum CloudContextError {
     #[error("Failed to get current directory path")]
     FailedToGetDirectoryPath,
 
-    #[error("Failed to read cloud app id. Error: {0}")]
-    FailedToReadAppId(#[from] FromUtf8Error),
-
-    #[error("Context file not found. You need to run \"deploy\" or \"app use\" first")]
-    ContextFileNotFound,
-
-    #[error("App id not found in configuration")]
+    #[error("App id not found in configuration. You need to run \"deploy\" or \"set-app\" first")]
     AppIdNotFound,
 }

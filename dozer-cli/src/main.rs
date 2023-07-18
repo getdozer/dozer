@@ -1,11 +1,9 @@
 use clap::Parser;
 #[cfg(feature = "cloud")]
-use dozer_cli::cli::cloud::{CloudCommands, OrganisationCommand};
+use dozer_cli::cli::cloud::CloudCommands;
 use dozer_cli::cli::generate_config_repl;
-use dozer_cli::cli::types::{
-    ApiCommands, AppCommands, Cli, Commands, ConnectorCommand, RunCommands, SecurityCommands,
-};
-use dozer_cli::cli::{init_dozer, init_dozer_with_default_config, list_sources, LOGO};
+use dozer_cli::cli::types::{Cli, Commands, ConnectorCommand, RunCommands, SecurityCommands};
+use dozer_cli::cli::{init_dozer, list_sources, LOGO};
 use dozer_cli::errors::{CliError, OrchestrationError};
 use dozer_cli::simple::SimpleOrchestrator;
 #[cfg(feature = "cloud")]
@@ -16,9 +14,9 @@ use dozer_types::tracing::{error, info};
 use serde::Deserialize;
 use tokio::time;
 
+use clap::CommandFactory;
 #[cfg(feature = "cloud")]
 use dozer_cli::cloud_app_context::CloudAppContext;
-use dozer_types::log::warn;
 use std::cmp::Ordering;
 use std::process;
 use std::time::Duration;
@@ -118,12 +116,7 @@ fn run() -> Result<(), OrchestrationError> {
     // and then initializing it after reading the configuration. This is a hacky workaround, but it works.
 
     let cli = parse_and_generate()?;
-    #[cfg(feature = "cloud")]
-    let is_cloud_orchestrator = matches!(cli.cmd, Some(Commands::Cloud(_)));
-    #[cfg(not(feature = "cloud"))]
-    let is_cloud_orchestrator = false;
-
-    let mut dozer = init_orchestrator(&cli, is_cloud_orchestrator)?;
+    let mut dozer = init_orchestrator(&cli)?;
 
     let (shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
     set_ctrl_handler(shutdown_sender);
@@ -136,29 +129,6 @@ fn run() -> Result<(), OrchestrationError> {
     if let Some(cmd) = cli.cmd {
         // run individual servers
         match cmd {
-            Commands::Api(api) => match api.command {
-                ApiCommands::Run => {
-                    warn!("DEPRECATED. Please use \"dozer run api\" command");
-                    render_logo();
-
-                    dozer.run_api(shutdown_receiver)
-                }
-                ApiCommands::GenerateToken => {
-                    warn!("DEPRECATED. Please use \"dozer security generate-token\" command");
-
-                    let token = dozer.generate_token()?;
-                    info!("token: {:?} ", token);
-                    Ok(())
-                }
-            },
-            Commands::App(apps) => match apps.command {
-                AppCommands::Run => {
-                    warn!("DEPRECATED. Please use \"dozer run app\" command");
-                    render_logo();
-
-                    dozer.run_apps(shutdown_receiver, None, None)
-                }
-            },
             Commands::Run(run) => match run.command {
                 RunCommands::Api => {
                     render_logo();
@@ -183,30 +153,39 @@ fn run() -> Result<(), OrchestrationError> {
 
                 dozer.build(force)
             }
-            Commands::Connectors(ConnectorCommand { filter }) => {
-                list_sources(&cli.config_path, cli.config_token, filter)
-            }
+            Commands::Connectors(ConnectorCommand { filter }) => list_sources(
+                cli.config_paths,
+                cli.config_token,
+                cli.config_overrides,
+                filter,
+            ),
             Commands::Clean => dozer.clean(),
             #[cfg(feature = "cloud")]
-            Commands::Cloud(cloud) => match cloud.command.clone() {
-                CloudCommands::Deploy(deploy) => dozer.deploy(cloud, deploy),
-                CloudCommands::Api(api) => dozer.api(cloud, api),
-                CloudCommands::Login(OrganisationCommand { organisation_name }) => {
-                    dozer.login(cloud, organisation_name)
+            Commands::Cloud(cloud) => {
+                render_logo();
+
+                match cloud.command.clone() {
+                    CloudCommands::Deploy(deploy) => dozer.deploy(cloud, deploy, cli.config_paths),
+                    CloudCommands::Api(api) => dozer.api(cloud, api),
+                    CloudCommands::Login { organisation_name } => {
+                        dozer.login(cloud, organisation_name)
+                    }
+                    CloudCommands::Secrets(command) => {
+                        dozer.execute_secrets_command(cloud, command)
+                    }
+                    CloudCommands::Delete => dozer.delete(cloud),
+                    CloudCommands::Status => dozer.status(cloud),
+                    CloudCommands::Monitor => dozer.monitor(cloud),
+                    CloudCommands::Logs(logs) => dozer.trace_logs(cloud, logs),
+                    CloudCommands::Version(version) => dozer.version(cloud, version),
+                    CloudCommands::List(list) => dozer.list(cloud, list),
+                    CloudCommands::SetApp { app_id } => {
+                        CloudAppContext::save_app_id(app_id.clone())?;
+                        info!("Using \"{app_id}\" app");
+                        Ok(())
+                    }
                 }
-                CloudCommands::Secrets(command) => dozer.execute_secrets_command(cloud, command),
-                CloudCommands::Delete => dozer.delete(cloud),
-                CloudCommands::Status => dozer.status(cloud),
-                CloudCommands::Monitor => dozer.monitor(cloud),
-                CloudCommands::Logs(logs) => dozer.trace_logs(cloud, logs),
-                CloudCommands::Version(version) => dozer.version(cloud, version),
-                CloudCommands::List(list) => dozer.list(cloud, list),
-                CloudCommands::SetApp { app_id } => {
-                    CloudAppContext::save_app_id(app_id.clone())?;
-                    info!("Using \"{app_id}\" app");
-                    Ok(())
-                }
-            },
+            }
             Commands::Init => {
                 panic!("This should not happen as it is handled in parse_and_generate");
             }
@@ -225,6 +204,7 @@ fn parse_and_generate() -> Result<Cli, OrchestrationError> {
         let cli = Cli::parse();
 
         if let Some(Commands::Init) = cli.cmd {
+            Telemetry::new(None, None);
             if let Err(e) = generate_config_repl() {
                 error!("{}", e);
                 Err(e)
@@ -238,16 +218,13 @@ fn parse_and_generate() -> Result<Cli, OrchestrationError> {
     })
 }
 
-fn init_orchestrator(
-    cli: &Cli,
-    is_cloud_orchestrator: bool,
-) -> Result<SimpleOrchestrator, CliError> {
+fn init_orchestrator(cli: &Cli) -> Result<SimpleOrchestrator, CliError> {
     dozer_tracing::init_telemetry_closure(None, None, || -> Result<SimpleOrchestrator, CliError> {
-        let res = if is_cloud_orchestrator {
-            init_dozer_with_default_config()
-        } else {
-            init_dozer(cli.config_path.clone(), cli.config_token.clone())
-        };
+        let res = init_dozer(
+            cli.config_paths.clone(),
+            cli.config_token.clone(),
+            cli.config_overrides.clone(),
+        );
 
         match res {
             Ok(dozer) => {
@@ -255,6 +232,17 @@ fn init_orchestrator(
                 Ok(dozer)
             }
             Err(e) => {
+                if let CliError::FailedToFindConfigurationFiles(_) = &e {
+                    let description = "Dozer was not able to find configuration files. \n\n\
+                    Please use \"dozer init\" to create project or \"dozer -c {path}\" with path to your configuration.\n\
+                    Configuration documentation can be found in https://getdozer.io/docs/configuration";
+
+                    let mut command = Cli::command();
+                    command = command.about(format!("\n\n\n{} \n {}", LOGO, description));
+
+                    println!("{}", command.render_help());
+                }
+
                 error!("{}", e);
                 Err(e)
             }

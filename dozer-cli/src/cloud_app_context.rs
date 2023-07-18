@@ -1,12 +1,15 @@
 use crate::errors::CloudContextError;
-use crate::errors::CloudContextError::{
-    AppIdNotFound, ContextFileNotFound, FailedToGetDirectoryPath, FailedToReadAppId,
-};
-use dozer_types::models::app_config::Config;
+use crate::errors::CloudContextError::{AppIdNotFound, FailedToGetDirectoryPath};
 use dozer_types::models::cloud::Cloud;
 use dozer_types::serde_yaml;
+use serde::Serialize;
 use std::io::Write;
 use std::{env, fs};
+
+#[derive(Serialize)]
+pub struct CloudConfig {
+    pub cloud: Cloud,
+}
 
 pub struct CloudAppContext {}
 
@@ -18,24 +21,14 @@ impl CloudAppContext {
                 .into_os_string()
                 .into_string()
                 .map_err(|_| FailedToGetDirectoryPath)?,
-            "dozer-cloud.yaml"
+            "dozer-config.cloud.yaml"
         ))
     }
 
-    pub fn get_app_id() -> Result<String, CloudContextError> {
-        let file_path = Self::get_file_path()?;
-        match fs::metadata(&file_path) {
-            Ok(_) => {
-                let content = fs::read(file_path)?;
-                match String::from_utf8(content) {
-                    Ok(app_id) => {
-                        let c: Config = serde_yaml::from_str(&app_id).map_err(|_| AppIdNotFound)?;
-                        c.cloud.ok_or(AppIdNotFound)?.app_id.ok_or(AppIdNotFound)
-                    }
-                    Err(e) => Err(FailedToReadAppId(e)),
-                }
-            }
-            Err(_) => Err(ContextFileNotFound),
+    pub fn get_app_id(config: &Option<Cloud>) -> Result<String, CloudContextError> {
+        match &config {
+            None => Err(AppIdNotFound),
+            Some(cloud_config) => cloud_config.app_id.clone().ok_or(AppIdNotFound),
         }
     }
 
@@ -47,12 +40,11 @@ impl CloudAppContext {
             .truncate(true)
             .open(file_path)?;
 
-        let config = Config {
-            cloud: Some(Cloud {
+        let config = CloudConfig {
+            cloud: Cloud {
                 app_id: Some(app_id),
                 ..Default::default()
-            }),
-            ..Default::default()
+            },
         };
 
         let config_string = serde_yaml::to_string(&config).unwrap();

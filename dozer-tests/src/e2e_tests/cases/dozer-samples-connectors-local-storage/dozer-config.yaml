@@ -1,4 +1,6 @@
-connections:    
+app_name: dozer-samples-connectors-local-storage
+
+connections:
   - config : !LocalStorage
       details:
         path: data
@@ -24,8 +26,7 @@ sql: |
 sources:
   - name: trips
     table_name: trips
-    connection: !Ref ny_taxi
-    columns:
+    connection: ny_taxi
 
 endpoints:
   - name: trips_cache

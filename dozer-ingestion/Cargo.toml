@@ -1,6 +1,6 @@
 [package]
 name = "dozer-ingestion"
-version = "0.1.28"
+version = "0.1.29"
 edition = "2021"
 authors = ["getdozer/dozer-dev"]
 
@@ -41,7 +41,7 @@ uuid = { version = "1.3.1", features = ["serde", "v4"] }
 rustls = { version = "0.21.0", features = ["dangerous_configuration"] }
 tokio-postgres-rustls = "0.10.0"
 rustls-native-certs = "0.6.2"
-rand = {version = "0.8.5", optional = true }
+rand = "0.8.5"
 
 [dev-dependencies]
 criterion = { version = "0.4.0", features = ["html_reports"] }
@@ -56,7 +56,7 @@ hex = "0.4.3"
 
 [features]
 # Defines a feature named `odbc` that does not enable any other features.
-snowflake = ["dep:odbc", "dep:include_dir", "dep:rand"]
+snowflake = ["dep:odbc", "dep:include_dir"]
 ethereum = ["dep:web3"]
 kafka = ["dep:rdkafka", "dep:schema_registry_converter"]
 

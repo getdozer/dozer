@@ -3,6 +3,7 @@ pub mod api_endpoint;
 pub mod api_security;
 pub mod app_config;
 pub mod cloud;
+pub mod config;
 pub mod connection;
 pub mod flags;
 pub mod source;

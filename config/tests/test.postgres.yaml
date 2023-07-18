@@ -28,7 +28,7 @@ connections:
 sources:
   - name: users
     table_name: users
-    connection: !Ref products_test
+    connection: products_test
     columns:
       - id
 

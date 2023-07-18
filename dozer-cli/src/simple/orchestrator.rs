@@ -1,38 +1,40 @@
-use super::executor::Executor;
+use super::executor::{run_dag_executor, Executor};
 use crate::errors::OrchestrationError;
-use crate::pipeline::{LogSinkSettings, PipelineBuilder};
+use crate::pipeline::PipelineBuilder;
 use crate::shutdown::ShutdownReceiver;
+use crate::simple::build;
 use crate::simple::helper::validate_config;
-use crate::simple::migration::{create_migration, modify_schema, needs_migration};
 use crate::utils::{
-    get_api_security_config, get_cache_manager_options, get_executor_options,
-    get_file_buffer_capacity, get_grpc_config, get_rest_config,
+    get_api_security_config, get_app_grpc_config, get_cache_manager_options, get_executor_options,
+    get_grpc_config, get_log_options, get_rest_config,
 };
 
 use crate::{flatten_join_handle, join_handle_map_err, Orchestrator};
 use dozer_api::auth::{Access, Authorizer};
+use dozer_api::grpc::internal::internal_pipeline_server::start_internal_pipeline_server;
 use dozer_api::{grpc, rest, CacheEndpoint};
 use dozer_cache::cache::LmdbRwCacheManager;
 use dozer_cache::dozer_log::home_dir::HomeDir;
-use dozer_cache::dozer_log::schemas::MigrationSchema;
+use dozer_cache::dozer_log::schemas::BuildSchema;
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::DagSchemas;
+use futures::future::join_all;
 
 use crate::console_helper::get_colored_text;
 use crate::console_helper::GREEN;
 use crate::console_helper::PURPLE;
 use crate::console_helper::RED;
 use dozer_core::errors::ExecutionError;
-use dozer_ingestion::connectors::{SourceSchema, TableInfo};
+use dozer_ingestion::connectors::{get_connector, SourceSchema, TableInfo};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::crossbeam::channel::{self, Sender};
 use dozer_types::indicatif::{MultiProgress, ProgressDrawTarget};
 use dozer_types::log::info;
-use dozer_types::models::app_config::Config;
+use dozer_types::models::config::Config;
 use dozer_types::tracing::error;
 use futures::stream::FuturesUnordered;
-use futures::StreamExt;
+use futures::{FutureExt, StreamExt, TryFutureExt};
 use metrics::{describe_counter, describe_histogram};
 use std::collections::HashMap;
 use std::fs;
@@ -87,16 +89,19 @@ impl Orchestrator for SimpleOrchestrator {
                 (None, None)
             };
 
+            let internal_grpc_config = get_app_grpc_config(&self.config);
+            let app_server_addr = format!(
+                "http://{}:{}",
+                internal_grpc_config.host, internal_grpc_config.port
+            );
             let cache_manager = Arc::new(
                 LmdbRwCacheManager::new(get_cache_manager_options(&self.config))
                     .map_err(OrchestrationError::CacheInitFailed)?,
             );
-            let home_dir =
-                HomeDir::new(self.config.home_dir.as_ref(), self.config.cache_dir.clone());
             let mut cache_endpoints = vec![];
             for endpoint in &self.config.endpoints {
                 let (cache_endpoint, handle) = CacheEndpoint::new(
-                    &home_dir,
+                    app_server_addr.clone(),
                     &*cache_manager,
                     endpoint.clone(),
                     Box::pin(shutdown.create_shutdown_future()),
@@ -109,16 +114,16 @@ impl Orchestrator for SimpleOrchestrator {
                     if e.is_map_full() {
                         OrchestrationError::CacheFull(cache_name)
                     } else {
-                        OrchestrationError::CacheBuildFailed(e)
+                        OrchestrationError::CacheBuildFailed(cache_name, e)
                     }
                 })));
                 cache_endpoints.push(Arc::new(cache_endpoint));
             }
 
             // Initialize API Server
-            let rest_config = get_rest_config(self.config.to_owned());
+            let rest_config = get_rest_config(&self.config);
             let rest_handle = if rest_config.enabled {
-                let security = get_api_security_config(self.config.to_owned());
+                let security = get_api_security_config(&self.config).cloned();
                 let cache_endpoints_for_rest = cache_endpoints.clone();
                 let shutdown_for_rest = shutdown.create_shutdown_future();
                 tokio::spawn(async move {
@@ -133,9 +138,9 @@ impl Orchestrator for SimpleOrchestrator {
             };
 
             // Initialize gRPC Server
-            let grpc_config = get_grpc_config(self.config.to_owned());
+            let grpc_config = get_grpc_config(&self.config);
             let grpc_handle = if grpc_config.enabled {
-                let api_security = get_api_security_config(self.config.to_owned());
+                let api_security = get_api_security_config(&self.config).cloned();
                 let grpc_server = grpc::ApiServer::new(grpc_config, api_security, flags);
                 let shutdown = shutdown.create_shutdown_future();
                 tokio::spawn(async move {
@@ -167,29 +172,33 @@ impl Orchestrator for SimpleOrchestrator {
         api_notifier: Option<Sender<bool>>,
         err_threshold: Option<u32>,
     ) -> Result<(), OrchestrationError> {
-        let mut global_err_threshold: Option<u32> = self.config.err_threshold;
+        let mut global_err_threshold: Option<u32> =
+            self.config.app.as_ref().and_then(|app| app.err_threshold);
         if err_threshold.is_some() {
             global_err_threshold = err_threshold;
         }
 
         let home_dir = HomeDir::new(self.config.home_dir.as_ref(), self.config.cache_dir.clone());
-        let executor = Executor::new(
+        let executor = self.runtime.block_on(Executor::new(
             &home_dir,
             &self.config.connections,
             &self.config.sources,
             self.config.sql.as_deref(),
             &self.config.endpoints,
-            shutdown.get_running_flag(),
+            get_log_options(&self.config),
             self.multi_pb.clone(),
-        )?;
-        let settings = LogSinkSettings {
-            file_buffer_capacity: get_file_buffer_capacity(&self.config) as usize,
-        };
+        ))?;
         let dag_executor = executor.create_dag_executor(
             self.runtime.clone(),
-            settings,
             get_executor_options(&self.config, global_err_threshold),
         )?;
+
+        let app_grpc_config = get_app_grpc_config(&self.config);
+        let internal_server_future = start_internal_pipeline_server(
+            executor.endpoint_and_logs().to_vec(),
+            &app_grpc_config,
+            shutdown.create_shutdown_future(),
+        );
 
         if let Some(api_notifier) = api_notifier {
             api_notifier
@@ -197,14 +206,36 @@ impl Orchestrator for SimpleOrchestrator {
                 .expect("Failed to notify API server");
         }
 
-        executor.run_dag_executor(dag_executor)
+        let running = shutdown.get_running_flag();
+        let pipeline_future = self
+            .runtime
+            .spawn_blocking(|| run_dag_executor(dag_executor, running));
+
+        let mut futures = FuturesUnordered::new();
+        futures.push(internal_server_future.map_err(Into::into).boxed());
+        futures.push(flatten_join_handle(pipeline_future).boxed());
+
+        self.runtime.block_on(async move {
+            while let Some(result) = futures.next().await {
+                result?;
+            }
+            Ok(())
+        })
     }
 
     fn list_connectors(
         &self,
     ) -> Result<HashMap<String, (Vec<TableInfo>, Vec<SourceSchema>)>, OrchestrationError> {
-        self.runtime
-            .block_on(Executor::get_tables(&self.config.connections))
+        self.runtime.block_on(async {
+            let mut schema_map = HashMap::new();
+            for connection in &self.config.connections {
+                let connector = get_connector(connection.clone())?;
+                let schema_tuples = connector.list_all_schemas().await?;
+                schema_map.insert(connection.name.clone(), schema_tuples);
+            }
+
+            Ok(schema_map)
+        })
     }
 
     fn generate_token(&self) -> Result<String, OrchestrationError> {
@@ -237,28 +268,25 @@ impl Orchestrator for SimpleOrchestrator {
         validate_config(&self.config)?;
 
         // Calculate schemas.
-        let endpoint_and_log_paths = self
+        let endpoint_and_logs = self
             .config
             .endpoints
             .iter()
-            // We're not really going to run the pipeline, so we put dummy log paths.
-            .map(|endpoint| (endpoint.clone(), Default::default()))
+            // We're not really going to run the pipeline, so we don't create logs.
+            .map(|endpoint| (endpoint.clone(), None))
             .collect();
         let builder = PipelineBuilder::new(
             &self.config.connections,
             &self.config.sources,
             self.config.sql.as_deref(),
-            endpoint_and_log_paths,
+            endpoint_and_logs,
             self.multi_pb.clone(),
         );
-        let settings = LogSinkSettings {
-            file_buffer_capacity: get_file_buffer_capacity(&self.config) as usize,
-        };
-        let dag = builder.build(self.runtime.clone(), settings)?;
+        let dag = builder.build(self.runtime.clone())?;
         // Populate schemas.
         let dag_schemas = DagSchemas::new(dag)?;
 
-        // Migrate endpoints one by one.
+        // Build endpoints one by one.
         let schemas = dag_schemas.get_sink_schemas();
         let enable_token = self
             .config
@@ -272,16 +300,18 @@ impl Orchestrator for SimpleOrchestrator {
             .as_ref()
             .map(|flags| flags.push_events)
             .unwrap_or(false);
+        let storage_config = get_log_options(&self.config).storage_config;
+        let mut futures = vec![];
         for (endpoint_name, (schema, connections)) in schemas {
-            info!("Migrating endpoint: {endpoint_name}");
+            info!("Building endpoint: {endpoint_name}");
             let endpoint = self
                 .config
                 .endpoints
                 .iter()
                 .find(|e| e.name == *endpoint_name)
                 .expect("Sink name must be the same as endpoint name");
-            let (schema, secondary_indexes) = modify_schema(&schema, endpoint)?;
-            let schema = MigrationSchema {
+            let (schema, secondary_indexes) = build::modify_schema(&schema, endpoint)?;
+            let schema = BuildSchema {
                 schema,
                 secondary_indexes,
                 enable_token,
@@ -289,13 +319,17 @@ impl Orchestrator for SimpleOrchestrator {
                 connections,
             };
 
-            if let Some(migration_id) = needs_migration(&home_dir, &endpoint_name, &schema)? {
-                let migration_name = migration_id.name().to_string();
-                create_migration(&home_dir, &endpoint_name, migration_id, &schema)?;
-                info!("Created new migration {migration_name} for endpoint: {endpoint_name}");
-            } else {
-                info!("Migration not needed for endpoint: {endpoint_name}");
-            }
+            futures.push(build::build(
+                &home_dir,
+                endpoint_name,
+                schema,
+                storage_config.clone(),
+            ));
+        }
+
+        let results = self.runtime.block_on(join_all(futures.into_iter()));
+        for result in results {
+            result?;
         }
 
         Ok(())

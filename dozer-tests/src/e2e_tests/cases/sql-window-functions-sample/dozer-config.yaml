@@ -1,4 +1,6 @@
-connections:    
+app_name: sql-window-functions-sample
+
+connections:
   - config : !LocalStorage
       details:
         path: data
@@ -22,19 +24,14 @@ sql: |
 sources:
   - name: yellow_trips
     table_name: yellow_trips
-    connection: !Ref yellow_taxi
-    columns:
+    connection: yellow_taxi
 
 endpoints:
   - name: tumble
     path: /tumble
     table_name: tumble
-    index:
-      primary_key: 
   - name: hop
     path: /hop
     table_name: hop
-    index:
-      primary_key: 
 
 cache_max_map_size: 2147483648

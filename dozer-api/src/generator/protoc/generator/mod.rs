@@ -1,13 +1,9 @@
 use crate::errors::GenerationError;
-use dozer_cache::dozer_log::schemas::MigrationSchema;
+use dozer_cache::dozer_log::schemas::BuildSchema;
 use prost_reflect::{
     DescriptorPool, FieldDescriptor, MessageDescriptor, MethodDescriptor, ServiceDescriptor,
 };
-use std::{
-    fs::File,
-    io::{self, BufReader, Read},
-    path::Path,
-};
+use std::{io, path::Path};
 
 #[derive(Debug, Clone)]
 pub struct ServiceDesc {
@@ -149,7 +145,7 @@ impl ProtoGenerator {
     pub fn generate(
         folder_path: &Path,
         schema_name: &str,
-        schema: &MigrationSchema,
+        schema: &BuildSchema,
     ) -> Result<(), GenerationError> {
         let generator = ProtoGeneratorImpl::new(schema_name, schema, folder_path)?;
         generator.generate_proto()?;
@@ -165,18 +161,11 @@ impl ProtoGenerator {
             .map_err(GenerationError::FailedToCreateProtoDescriptor)
     }
 
-    pub fn read_descriptor_bytes(descriptor_path: &Path) -> Result<Vec<u8>, GenerationError> {
-        read_file_as_byte(descriptor_path).map_err(|e| {
-            GenerationError::FailedToReadProtoDescriptor(descriptor_path.to_path_buf(), e)
-        })
-    }
-
     pub fn read_schema(
-        descriptor_path: &Path,
+        descriptor_bytes: &[u8],
         schema_name: &str,
     ) -> Result<ServiceDesc, GenerationError> {
-        let descriptor_bytes = Self::read_descriptor_bytes(descriptor_path)?;
-        let descriptor = DescriptorPool::decode(descriptor_bytes.as_slice())
+        let descriptor = DescriptorPool::decode(descriptor_bytes)
             .map_err(GenerationError::FailedToDecodeProtoDescriptor)?;
         ProtoGeneratorImpl::read(&descriptor, schema_name)
     }
@@ -197,21 +186,12 @@ fn create_descriptor_set<T: AsRef<str>>(
     tonic_build::configure()
         .protoc_arg("--experimental_allow_proto3_optional")
         .file_descriptor_set_path(descriptor_path)
-        // .extern_path(".google.protobuf.Value", "::prost_wkt_types::Value")
         .build_client(false)
         .build_server(false)
         .emit_rerun_if_changed(false)
         .out_dir(proto_folder_path)
         .compile_with_config(prost_build_config, &resources, &[proto_folder_path])?;
     Ok(())
-}
-
-fn read_file_as_byte(path: &Path) -> Result<Vec<u8>, io::Error> {
-    let f = File::open(path)?;
-    let mut reader = BufReader::new(f);
-    let mut buffer = Vec::new();
-    reader.read_to_end(&mut buffer)?;
-    Ok(buffer)
 }
 
 mod implementation;

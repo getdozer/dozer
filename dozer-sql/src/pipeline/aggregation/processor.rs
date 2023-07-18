@@ -124,8 +124,6 @@ impl AggregationProcessor {
         measures: &Vec<Vec<Expression>>,
         input_schema: &Schema,
     ) -> Result<Vec<Field>, PipelineError> {
-        //
-
         let mut new_fields: Vec<Field> = Vec::with_capacity(measures.len());
 
         for (idx, measure) in measures.iter().enumerate() {
@@ -189,7 +187,7 @@ impl AggregationProcessor {
             curr_state_opt.is_some(),
             "Unable to find aggregator state during DELETE operation"
         );
-        let mut curr_state = curr_state_opt.unwrap();
+        let curr_state = curr_state_opt.unwrap();
 
         let new_values = Self::calc_and_fill_measures(
             curr_state,
@@ -389,9 +387,7 @@ impl AggregationProcessor {
         Ok(match out_rec.len() {
             0 => false,
             _ => {
-                original_record
-                    .values
-                    .extend(out_rec.drain(0..).collect::<Vec<Field>>());
+                original_record.values.extend(std::mem::take(out_rec));
                 let r = having
                     .evaluate(original_record, having_eval_schema)?
                     .as_boolean()
@@ -421,7 +417,7 @@ impl AggregationProcessor {
             curr_state_opt.is_some(),
             "Unable to find aggregator state during UPDATE operation"
         );
-        let mut curr_state = curr_state_opt.unwrap();
+        let curr_state = curr_state_opt.unwrap();
 
         let new_values = Self::calc_and_fill_measures(
             curr_state,

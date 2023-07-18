@@ -8,7 +8,7 @@ This is the Python binding for reading Dozer logs.
 
 ### Troubleshoot
 
-This library contains native code so have limited platform support. 
+This library contains native code so have limited platform support.
 
 If above command gives you:
 
@@ -25,12 +25,12 @@ To see all supported platforms, please check the file list at <https://pypi.org/
 
 ## Usage
 
-Assume your Dozer home directory is `.dozer` and you have an endpoint named `trips`. You can read the Dozer logs in Python as follows:
+Assume your have Dozer running and the app is listening to `http://127.0.0.1:50053`, and you have an endpoint named `trips`. You can read the Dozer logs in Python as follows:
 
 ```python
 import pydozer_log
 
-reader = await pydozer_log.LogReader.new('.dozer', 'trips')
+reader = await pydozer_log.LogReader.new('http://127.0.0.1:50053', 'trips')
 print(await reader.next_op())
 ```
 
@@ -54,6 +54,8 @@ This is a [known issue](https://pyo3.rs/v0.18.3/faq.html#i-cant-run-cargo-test-o
 See [PyO3](https://pyo3.rs) for more information.
 
 ## Run example
+
+From the repository root:
 
 ```bash
 python examples/reader.py

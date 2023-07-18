@@ -83,6 +83,47 @@ pub(crate) fn init_input_schema(field_type: FieldType, aggregator_name: &str) ->
         .clone()
 }
 
+pub(crate) fn init_val_input_schema(field_type: FieldType, aggregator_name: &str) -> Schema {
+    Schema::empty()
+        .field(
+            FieldDefinition::new(
+                String::from("ID"),
+                FieldType::Int,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                String::from("Country"),
+                FieldType::String,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                String::from("Salary"),
+                field_type,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .field(
+            FieldDefinition::new(
+                format!("{aggregator_name}(Salary, Country)"),
+                FieldType::String,
+                false,
+                SourceDefinition::Dynamic,
+            ),
+            false,
+        )
+        .clone()
+}
+
 pub(crate) fn insert_field(country: &str, insert_field: &Field) -> Operation {
     Operation::Insert {
         new: Record::new(
@@ -136,6 +177,25 @@ pub(crate) fn update_field(
                 new.clone(),
             ],
         ),
+    }
+}
+
+pub(crate) fn insert_val_exp(inserted_field: &Field) -> Operation {
+    Operation::Insert {
+        new: Record::new(None, vec![inserted_field.clone()]),
+    }
+}
+
+pub(crate) fn delete_val_exp(deleted_field: &Field) -> Operation {
+    Operation::Delete {
+        old: Record::new(None, vec![deleted_field.clone()]),
+    }
+}
+
+pub(crate) fn update_val_exp(old: &Field, new: &Field) -> Operation {
+    Operation::Update {
+        old: Record::new(None, vec![old.clone()]),
+        new: Record::new(None, vec![new.clone()]),
     }
 }
 
@@ -248,6 +308,7 @@ pub const FIELD_400_INT: &Field = &Field::Int(400);
 pub const FIELD_500_INT: &Field = &Field::Int(500);
 pub const FIELD_600_INT: &Field = &Field::Int(600);
 pub const FIELD_50_INT: &Field = &Field::Int(50);
+pub const FIELD_75_INT: &Field = &Field::Int(75);
 
 pub const FIELD_100_UINT: &Field = &Field::UInt(100);
 pub const FIELD_150_UINT: &Field = &Field::UInt(150);
@@ -255,3 +316,4 @@ pub const FIELD_200_UINT: &Field = &Field::UInt(200);
 pub const FIELD_250_UINT: &Field = &Field::UInt(250);
 pub const FIELD_350_UINT: &Field = &Field::UInt(350);
 pub const FIELD_50_UINT: &Field = &Field::UInt(50);
+pub const FIELD_75_UINT: &Field = &Field::UInt(75);

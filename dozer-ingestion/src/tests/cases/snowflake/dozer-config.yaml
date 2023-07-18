@@ -13,9 +13,8 @@ connections:
 
 sources:
   - name: customers
-    connection: !Ref sn_data
+    connection: sn_data
     table_name: CUSTOMERS
-    columns:
 
 
 sql: |

@@ -1,4 +1,6 @@
-connections:    
+app_name: sql-aggregations
+
+connections:
   - config : !LocalStorage
       details:
         path: data
@@ -19,12 +21,9 @@ sql: |
 sources:
   - name: yellow_trips
     table_name: yellow_trips
-    connection: !Ref yellow_taxi
-    columns:
+    connection: yellow_taxi
 
 endpoints:
   - name: total_distance
     path: /total_distance
     table_name: total_distance
-    index:
-      primary_key: 

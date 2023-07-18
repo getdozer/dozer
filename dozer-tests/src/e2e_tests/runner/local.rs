@@ -95,12 +95,12 @@ fn spawn_dozer_two_processes(dozer_bin: &str, dozer_config_path: &str) -> Vec<Cl
     let mut cleanups = vec![];
     let child = spawn_command(
         dozer_bin,
-        &["--config-path", dozer_config_path, "app", "run"],
+        &["--config-path", dozer_config_path, "run", "app"],
     );
     cleanups.push(Cleanup::KillProcess(child));
     let child = spawn_command(
         dozer_bin,
-        &["--config-path", dozer_config_path, "api", "run"],
+        &["--config-path", dozer_config_path, "run", "api"],
     );
     cleanups.push(Cleanup::KillProcess(child));
     cleanups

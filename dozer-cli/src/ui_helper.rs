@@ -12,10 +12,10 @@ use dozer_sql::pipeline::{
 };
 use dozer_types::{
     grpc_types::cloud::{QueryEdge, QueryGraph, QueryNode, QueryNodeType},
-    models::{app_config::Config, connection::Connection, source::Source},
+    models::{config::Config, connection::Connection, source::Source},
 };
 
-use crate::pipeline::source_builder::SourceBuilder;
+use crate::{errors::OrchestrationError, pipeline::source_builder::SourceBuilder};
 
 #[derive(Debug)]
 struct UISourceFactory {
@@ -154,15 +154,19 @@ fn transform_to_ui_graph(
     Ok(QueryGraph { nodes, edges })
 }
 
-pub fn config_to_ui_dag(config: Config) -> Result<QueryGraph, PipelineError> {
-    let input_sources = config.sources;
+pub fn config_to_ui_dag(config: Config) -> Result<QueryGraph, OrchestrationError> {
     let sql = config.sql.unwrap_or("".to_string());
     let mut connection_sources: HashMap<Connection, Vec<Source>> = HashMap::new();
-    input_sources.iter().for_each(|src| {
-        let connection = src.connection.as_ref().unwrap().clone();
+    for source in config.sources {
+        let connection = config
+            .connections
+            .iter()
+            .find(|connection| connection.name == source.connection)
+            .cloned()
+            .ok_or(OrchestrationError::SourceValidationError)?;
         let sources_same_connection = connection_sources.entry(connection).or_insert(vec![]);
-        sources_same_connection.push(src.to_owned());
-    });
+        sources_same_connection.push(source);
+    }
     let source_builder = SourceBuilder::new(connection_sources.clone(), None);
     let connection_source_ports = source_builder.get_ports();
     let port_connection_source: HashMap<u16, (&str, &str)> = connection_source_ports
@@ -170,5 +174,5 @@ pub fn config_to_ui_dag(config: Config) -> Result<QueryGraph, PipelineError> {
         .map(|(k, v)| (v.to_owned(), k.to_owned()))
         .collect();
     let sql_dag = prepare_pipeline_dag(sql, connection_sources, connection_source_ports)?;
-    transform_to_ui_graph(sql_dag, port_connection_source)
+    transform_to_ui_graph(sql_dag, port_connection_source).map_err(Into::into)
 }

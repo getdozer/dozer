@@ -36,6 +36,8 @@ service DozerCloud {
   rpc set_current_version(SetCurrentVersionRequest) returns (SetCurrentVersionResponse);
   rpc set_num_api_instances(SetNumApiInstancesRequest) returns (SetNumApiInstancesResponse);
 
+  rpc list_deployments(ListDeploymentRequest) returns (ListDeploymentResponse);
+
   rpc list_files(ListFilesRequest) returns (ListFilesResponse);
   rpc update_files(UpdateFileRequest) returns (UpdateFileResponse);
   rpc save_files(SaveFilesRequest) returns (SaveFilesResponse);
@@ -66,6 +68,7 @@ message AppConnectionRequest {
 message CreateSourceRequest {
   string app_id = 1;
   Source source = 2;
+  Connection connection = 3;
 }
 
 message ListEndpointRequest {
@@ -122,8 +125,9 @@ message StartResponse {
 }
 message StartUpdate {
   optional StartResponse result = 1;
-  uint32 current_step = 2;
-  uint32 total_steps = 3;
+  optional uint32 current_step = 2;
+  optional uint32 total_steps = 3;
+  optional LogMessage last_message = 4;
 }
 message StopRequest { string app_id = 1; }
 message StopResponse { bool success = 1; }
@@ -141,6 +145,15 @@ message DeploymentStatus {
   bool app_running = 2;
   optional int32 api_desired = 3;
   optional int32 api_available = 4;
+}
+
+message ListDeploymentRequest {
+  string app_id = 1;
+}
+
+message ListDeploymentResponse {
+  string app_id = 1;
+  repeated int32 deployment = 2;
 }
 
 message UpsertVersionRequest {
@@ -285,7 +298,7 @@ message LogMessageRequest {
   string app_id = 1;
   uint32 deployment = 2;
   bool follow = 3;
-  bool include_migrate = 4;
+  bool include_build = 4;
   bool include_app = 5;
   bool include_api = 6;
 }
