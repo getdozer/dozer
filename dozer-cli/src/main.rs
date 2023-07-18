@@ -21,8 +21,8 @@ use clap::CommandFactory;
 use dozer_cli::cloud_app_context::CloudAppContext;
 use dozer_types::log::warn;
 use std::cmp::Ordering;
-use std::time::Duration;
 use std::process;
+use std::time::Duration;
 
 fn main() {
     set_panic_hook();
