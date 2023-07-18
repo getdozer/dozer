@@ -311,7 +311,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
                     app_id,
                     deployment,
                     follow: logs.follow,
-                    include_migrate: true,
+                    include_build: true,
                     include_app: true,
                     include_api: true,
                 })
