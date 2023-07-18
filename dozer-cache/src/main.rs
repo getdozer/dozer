@@ -15,8 +15,8 @@ struct Cli {
     cache_dir: String,
     /// The endpoint name.
     endpoint: String,
-    /// The migration name.
-    migration: String,
+    /// The build name.
+    build: String,
     #[clap(subcommand)]
     command: CacheCommand,
 }
@@ -42,7 +42,7 @@ async fn main() {
     env_logger::init();
 
     let cli = Cli::parse();
-    let labels = labels(cli.endpoint.clone(), cli.migration.clone());
+    let labels = labels(cli.endpoint.clone(), cli.build.clone());
 
     match cli.command {
         CacheCommand::Count => {
@@ -91,9 +91,9 @@ async fn main() {
     }
 }
 
-fn labels(endpoint: String, migration: String) -> Labels {
+fn labels(endpoint: String, build: String) -> Labels {
     let mut labels = Labels::default();
     labels.push("endpoint", endpoint);
-    labels.push("migration", migration);
+    labels.push("build", build);
     labels
 }
