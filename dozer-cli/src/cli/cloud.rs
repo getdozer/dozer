@@ -8,9 +8,6 @@ use std::error::Error;
 #[derive(Debug, Args)]
 #[command(args_conflicts_with_subcommands = true)]
 pub struct Cloud {
-    // Workaround to hide config_path from help in cloud
-    #[arg(hide = true)]
-    pub config_path: Option<String>,
     #[arg(
     global = true,
     short = 't',
