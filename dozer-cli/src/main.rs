@@ -224,6 +224,7 @@ fn parse_and_generate() -> Result<Cli, OrchestrationError> {
         let cli = Cli::parse();
 
         if let Some(Commands::Init) = cli.cmd {
+            Telemetry::new(None, None);
             if let Err(e) = generate_config_repl() {
                 error!("{}", e);
                 Err(e)
