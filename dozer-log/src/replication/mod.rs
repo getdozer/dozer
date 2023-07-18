@@ -154,15 +154,6 @@ impl Log {
                 self.in_memory.start,
                 self.in_memory.end()
             );
-            // Remove all watchers that want part of this entry so it can be removed from in memory log in the future.
-            self.watchers.retain_mut(|watcher| {
-                if self.in_memory.contains(watcher.request.start) {
-                    trigger_watcher(watcher, &self.in_memory);
-                    false
-                } else {
-                    true
-                }
-            });
 
             // Persist this entry.
             let ops = self.in_memory.ops[self.in_memory.ops.len() - self.entry_max_size..].to_vec();
@@ -181,16 +172,28 @@ impl Log {
                     }
                 };
 
-                let persisted_log_entry = PersistedLogEntry {
-                    key,
-                    range: range.clone(),
-                };
                 let mut this = this.lock().await;
+                let this = this.deref_mut();
                 debug_assert!(
                     persisted_log_entries_end(&this.persisted).unwrap_or(0) == range.start
                 );
                 debug_assert!(this.in_memory.start == range.start);
-                this.persisted.push(persisted_log_entry);
+
+                // Remove all watchers that want part of this entry so it can be removed from in memory log.
+                this.watchers.retain_mut(|watcher| {
+                    if this.in_memory.contains(watcher.request.start) {
+                        trigger_watcher(watcher, &this.in_memory);
+                        false
+                    } else {
+                        true
+                    }
+                });
+
+                // Add persisted entry and remove in memory ops.
+                this.persisted.push(PersistedLogEntry {
+                    key,
+                    range: range.clone(),
+                });
                 this.in_memory.start = range.end;
                 this.in_memory.ops.drain(0..range.len());
             })))
