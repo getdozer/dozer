@@ -64,7 +64,8 @@ pub struct DeployCommandArgs {
     #[arg(short, long)]
     pub num_api_instances: Option<i32>,
 
-    #[arg(short, value_parser = parse_key_val)]
+    /// List of secrets which will be used in deployment
+    #[arg(short, long, value_parser = parse_key_val)]
     pub secrets: Vec<Secret>,
 }
 
