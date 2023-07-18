@@ -1,3 +1,4 @@
+use std::io;
 use crate::cli::cloud::{
     default_num_api_instances, ApiCommand, Cloud, DeployCommandArgs, ListCommandArgs,
     LogCommandArgs, SecretsCommand, VersionCommand,
@@ -28,6 +29,7 @@ use dozer_types::prettytable::{row, table};
 use futures::{select, FutureExt, StreamExt};
 use tonic::transport::Endpoint;
 use tower::ServiceBuilder;
+use crate::errors::OrchestrationError::FailedToReadOrganisationName;
 
 use super::cloud::login::LoginSvc;
 use super::cloud::version::{get_version_status, version_is_up_to_date, version_status_table};
@@ -342,7 +344,20 @@ impl CloudOrchestrator for SimpleOrchestrator {
         Ok(())
     }
 
-    fn login(&mut self, cloud: Cloud, organisation_name: String) -> Result<(), OrchestrationError> {
+    fn login(&mut self, cloud: Cloud, organisation_name: Option<String>) -> Result<(), OrchestrationError> {
+        info!("Organisation and client details can be created in https://dashboard.dev.getdozer.io/login \n");
+        let organisation_name = match organisation_name {
+            None => {
+                let mut organisation_name = String::new();
+                println!("Please enter your organisation name:");
+                io::stdin()
+                    .read_line(&mut organisation_name)
+                    .map_err(FailedToReadOrganisationName)?;
+                organisation_name.trim().to_string()
+            }
+            Some(name) => name,
+        };
+
         self.runtime.block_on(async move {
             let login_svc = LoginSvc::new(organisation_name, cloud.target_url).await?;
             login_svc.login().await?;

@@ -58,7 +58,7 @@ pub trait CloudOrchestrator {
     fn status(&mut self, cloud: Cloud) -> Result<(), OrchestrationError>;
     fn monitor(&mut self, cloud: Cloud) -> Result<(), OrchestrationError>;
     fn trace_logs(&mut self, cloud: Cloud, logs: LogCommandArgs) -> Result<(), OrchestrationError>;
-    fn login(&mut self, cloud: Cloud, company_name: String) -> Result<(), OrchestrationError>;
+    fn login(&mut self, cloud: Cloud, organisation_name: Option<String>) -> Result<(), OrchestrationError>;
     fn execute_secrets_command(
         &mut self,
         cloud: Cloud,

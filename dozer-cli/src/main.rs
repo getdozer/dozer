@@ -19,11 +19,10 @@ use tokio::time;
 use clap::CommandFactory;
 #[cfg(feature = "cloud")]
 use dozer_cli::cloud_app_context::CloudAppContext;
-use dozer_cli::errors::OrchestrationError::FailedToReadOrganisationName;
 use dozer_types::log::warn;
 use std::cmp::Ordering;
 use std::time::Duration;
-use std::{io, process};
+use std::process;
 
 fn main() {
     set_panic_hook();
@@ -195,19 +194,6 @@ fn run() -> Result<(), OrchestrationError> {
                     CloudCommands::Deploy(deploy) => dozer.deploy(cloud, deploy),
                     CloudCommands::Api(api) => dozer.api(cloud, api),
                     CloudCommands::Login { organisation_name } => {
-                        info!("Organisation and client details can be created in https://dashboard.dev.getdozer.io/login \n");
-                        let organisation_name = match organisation_name {
-                            None => {
-                                let mut organisation_name = String::new();
-                                println!("Please enter your organisation name:");
-                                io::stdin()
-                                    .read_line(&mut organisation_name)
-                                    .map_err(FailedToReadOrganisationName)?;
-                                organisation_name.trim().to_string()
-                            }
-                            Some(name) => name,
-                        };
-
                         dozer.login(cloud, organisation_name)
                     }
                     CloudCommands::Secrets(command) => {
