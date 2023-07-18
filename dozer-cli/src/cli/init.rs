@@ -162,14 +162,9 @@ pub fn generate_config_repl() -> Result<(), OrchestrationError> {
             "question: Connection Type - one of: [P]ostgres, [E]thereum, [S]nowflake (Postgres): "
                 .to_string(),
             Box::new(move |(connection, config)| {
-                let connections_available = ["Postgres", "Ethereum", "Snowflake"];
-                if connections_available.contains(&connection.as_str()) {
-                    let sample_connection = generate_connection(&connection);
-                    config.connections.push(sample_connection);
-                } else {
-                    let sample_connection = generate_connection("Postgres");
-                    config.connections.push(sample_connection);
-                }
+                let sample_connection = generate_connection(&connection);
+                config.connections.push(sample_connection);
+
                 Ok(())
             }),
         ),
@@ -192,7 +187,12 @@ pub fn generate_config_repl() -> Result<(), OrchestrationError> {
                     })?;
                 serde_yaml::to_writer(f, &config)
                     .map_err(OrchestrationError::FailedToWriteConfigYaml)?;
-                info!("\nGenerating configuration at: {}\n• More details about our config: https://getdozer.io/docs/reference/configuration/introduction\n• Connector & Sources: https://getdozer.io/docs/reference/configuration/connectors\n• Endpoints: https://getdozer.io/docs/reference/configuration/endpoints/",
+
+                info!("Generating workspace: \n\
+                \n- {} (main configuration)\n- ./queries (folder for sql queries)\n- ./lambdas (folder for lambda functions)
+                \n• More details about our config: https://getdozer.io/docs/reference/configuration/introduction\
+                \n• Connector & Sources: https://getdozer.io/docs/reference/configuration/connectors\
+                \n• Endpoints: https://getdozer.io/docs/reference/configuration/endpoints/",
                    yaml_path.to_owned());
 
                 let path = PathBuf::from(yaml_path);
@@ -219,8 +219,10 @@ pub fn generate_config_repl() -> Result<(), OrchestrationError> {
             Err(err) => Err(OrchestrationError::CliError(CliError::ReadlineError(err))),
         }
     });
-    if let Err(e) = result {
-        return match e {
+
+    match result {
+        Ok(_) => Ok(()),
+        Err(e) => match e {
             OrchestrationError::CliError(CliError::ReadlineError(ReadlineError::Interrupted)) => {
                 info!("Exiting..");
                 Ok(())
@@ -230,7 +232,6 @@ pub fn generate_config_repl() -> Result<(), OrchestrationError> {
                 Ok(())
             }
             _ => Err(e),
-        };
-    };
-    result
+        },
+    }
 }
