@@ -309,7 +309,7 @@ impl<'a> PipelineBuilder<'a> {
             })?;
 
         // Emit metrics for monitoring
-        emit_dag_metrics(dag.clone(), conn_ports.into())?;
+        emit_dag_metrics(dag.clone(), conn_ports)?;
 
         Ok(dag)
     }
