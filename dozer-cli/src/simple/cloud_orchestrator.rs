@@ -60,6 +60,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
         &mut self,
         cloud: Cloud,
         deploy: DeployCommandArgs,
+        config_paths: Vec<String>,
     ) -> Result<(), OrchestrationError> {
         let app_id = if cloud.app_id.is_some() {
             cloud.app_id.clone()
@@ -74,7 +75,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
         let cloud_config = self.config.cloud.as_ref();
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud, cloud_config).await?;
-            let files = list_files()?;
+            let files = list_files(config_paths)?;
             let (app_id_to_start, mut steps) = match app_id {
                 None => {
                     let mut steps = ProgressPrinter::new(get_deploy_steps());

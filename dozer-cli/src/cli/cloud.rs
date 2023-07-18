@@ -8,9 +8,6 @@ use std::error::Error;
 #[derive(Debug, Args)]
 #[command(args_conflicts_with_subcommands = true)]
 pub struct Cloud {
-    // Workaround to hide config_path from help in cloud
-    #[arg(hide = true)]
-    pub config_path: Option<String>,
     #[arg(
     global = true,
     short = 't',
@@ -67,7 +64,8 @@ pub struct DeployCommandArgs {
     #[arg(short, long)]
     pub num_api_instances: Option<i32>,
 
-    #[arg(short, value_parser = parse_key_val)]
+    /// List of secrets which will be used in deployment
+    #[arg(short, long, value_parser = parse_key_val)]
     pub secrets: Vec<Secret>,
 }
 
