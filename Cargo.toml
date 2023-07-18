@@ -13,7 +13,8 @@ members = [
   "dozer-log",
   "dozer-log-js",
   "dozer-log-python",
-  "dozer-utils"
+  "dozer-utils",
+  "mysql-connector"
 ]
 
 [patch.crates-io]
