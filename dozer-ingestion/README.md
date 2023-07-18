@@ -51,7 +51,7 @@ Detailed explanation of the data structures and method contracts can be found in
 
 Dozer uses connector methods in 3 different commands. During `connector ls` execution, dozer just fetches schemas. To get schemas we use `list_tables`, `list_columns` and `get_schemas` methods.
 
-The other two dozer commands which use connectors are `build` and `app run`. During both command execution, first, we validate the connection and schema using `validate_connection`, `validate_tables` and `get_schemas` methods. After that `app run` command also calls `start` method and the connector starts data ingestion.
+The other two dozer commands which use connectors are `build` and `run app`. During both command execution, first, we validate the connection and schema using `validate_connection`, `validate_tables` and `get_schemas` methods. After that `run app` command also calls `start` method and the connector starts data ingestion.
 
 ## Source configuration
 

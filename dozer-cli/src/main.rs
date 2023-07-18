@@ -2,9 +2,7 @@ use clap::Parser;
 #[cfg(feature = "cloud")]
 use dozer_cli::cli::cloud::CloudCommands;
 use dozer_cli::cli::generate_config_repl;
-use dozer_cli::cli::types::{
-    ApiCommands, AppCommands, Cli, Commands, ConnectorCommand, RunCommands, SecurityCommands,
-};
+use dozer_cli::cli::types::{Cli, Commands, ConnectorCommand, RunCommands, SecurityCommands};
 use dozer_cli::cli::{init_dozer, list_sources, LOGO};
 use dozer_cli::errors::{CliError, OrchestrationError};
 use dozer_cli::simple::SimpleOrchestrator;
@@ -19,7 +17,6 @@ use tokio::time;
 use clap::CommandFactory;
 #[cfg(feature = "cloud")]
 use dozer_cli::cloud_app_context::CloudAppContext;
-use dozer_types::log::warn;
 use std::cmp::Ordering;
 use std::process;
 use std::time::Duration;
@@ -132,29 +129,6 @@ fn run() -> Result<(), OrchestrationError> {
     if let Some(cmd) = cli.cmd {
         // run individual servers
         match cmd {
-            Commands::Api(api) => match api.command {
-                ApiCommands::Run => {
-                    warn!("DEPRECATED. Please use \"dozer run api\" command");
-                    render_logo();
-
-                    dozer.run_api(shutdown_receiver)
-                }
-                ApiCommands::GenerateToken => {
-                    warn!("DEPRECATED. Please use \"dozer security generate-token\" command");
-
-                    let token = dozer.generate_token()?;
-                    info!("token: {:?} ", token);
-                    Ok(())
-                }
-            },
-            Commands::App(apps) => match apps.command {
-                AppCommands::Run => {
-                    warn!("DEPRECATED. Please use \"dozer run app\" command");
-                    render_logo();
-
-                    dozer.run_apps(shutdown_receiver, None, None)
-                }
-            },
             Commands::Run(run) => match run.command {
                 RunCommands::Api => {
                     render_logo();
