@@ -342,9 +342,9 @@ impl CloudOrchestrator for SimpleOrchestrator {
         Ok(())
     }
 
-    fn login(&mut self, cloud: Cloud, company_name: String) -> Result<(), OrchestrationError> {
+    fn login(&mut self, cloud: Cloud, organisation_name: String) -> Result<(), OrchestrationError> {
         self.runtime.block_on(async move {
-            let login_svc = LoginSvc::new(company_name, cloud.target_url).await?;
+            let login_svc = LoginSvc::new(organisation_name, cloud.target_url).await?;
             login_svc.login().await?;
             Ok::<(), CloudLoginError>(())
         })?;
