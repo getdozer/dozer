@@ -32,7 +32,10 @@ pub struct Cloud {
 #[derive(Debug, Subcommand, Clone)]
 pub enum CloudCommands {
     /// Login to Dozer Cloud service
-    Login(OrganisationCommand),
+    Login {
+        #[arg(long = "organisation-name")]
+        organisation_name: Option<String>,
+    },
     /// Deploy application to Dozer Cloud
     Deploy(DeployCommandArgs),
     /// Stop and delete application from Dozer Cloud
@@ -70,12 +73,6 @@ pub struct DeployCommandArgs {
 
 pub fn default_num_api_instances() -> i32 {
     2
-}
-
-#[derive(Debug, Args, Clone)]
-pub struct OrganisationCommand {
-    #[arg(long = "organisation-name")]
-    pub organisation_name: String,
 }
 
 #[derive(Debug, Args, Clone)]

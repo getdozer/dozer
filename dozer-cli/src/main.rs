@@ -1,6 +1,6 @@
 use clap::Parser;
 #[cfg(feature = "cloud")]
-use dozer_cli::cli::cloud::{CloudCommands, OrganisationCommand};
+use dozer_cli::cli::cloud::CloudCommands;
 use dozer_cli::cli::generate_config_repl;
 use dozer_cli::cli::types::{
     ApiCommands, AppCommands, Cli, Commands, ConnectorCommand, RunCommands, SecurityCommands,
@@ -187,25 +187,31 @@ fn run() -> Result<(), OrchestrationError> {
             ),
             Commands::Clean => dozer.clean(),
             #[cfg(feature = "cloud")]
-            Commands::Cloud(cloud) => match cloud.command.clone() {
-                CloudCommands::Deploy(deploy) => dozer.deploy(cloud, deploy),
-                CloudCommands::Api(api) => dozer.api(cloud, api),
-                CloudCommands::Login(OrganisationCommand { organisation_name }) => {
-                    dozer.login(cloud, organisation_name)
+            Commands::Cloud(cloud) => {
+                render_logo();
+
+                match cloud.command.clone() {
+                    CloudCommands::Deploy(deploy) => dozer.deploy(cloud, deploy),
+                    CloudCommands::Api(api) => dozer.api(cloud, api),
+                    CloudCommands::Login { organisation_name } => {
+                        dozer.login(cloud, organisation_name)
+                    }
+                    CloudCommands::Secrets(command) => {
+                        dozer.execute_secrets_command(cloud, command)
+                    }
+                    CloudCommands::Delete => dozer.delete(cloud),
+                    CloudCommands::Status => dozer.status(cloud),
+                    CloudCommands::Monitor => dozer.monitor(cloud),
+                    CloudCommands::Logs(logs) => dozer.trace_logs(cloud, logs),
+                    CloudCommands::Version(version) => dozer.version(cloud, version),
+                    CloudCommands::List(list) => dozer.list(cloud, list),
+                    CloudCommands::SetApp { app_id } => {
+                        CloudAppContext::save_app_id(app_id.clone())?;
+                        info!("Using \"{app_id}\" app");
+                        Ok(())
+                    }
                 }
-                CloudCommands::Secrets(command) => dozer.execute_secrets_command(cloud, command),
-                CloudCommands::Delete => dozer.delete(cloud),
-                CloudCommands::Status => dozer.status(cloud),
-                CloudCommands::Monitor => dozer.monitor(cloud),
-                CloudCommands::Logs(logs) => dozer.trace_logs(cloud, logs),
-                CloudCommands::Version(version) => dozer.version(cloud, version),
-                CloudCommands::List(list) => dozer.list(cloud, list),
-                CloudCommands::SetApp { app_id } => {
-                    CloudAppContext::save_app_id(app_id.clone())?;
-                    info!("Using \"{app_id}\" app");
-                    Ok(())
-                }
-            },
+            }
             Commands::Init => {
                 panic!("This should not happen as it is handled in parse_and_generate");
             }

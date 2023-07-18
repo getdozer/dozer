@@ -1,7 +1,9 @@
 use crate::errors::{CloudCredentialError, CloudLoginError};
 use std::collections::HashMap;
 use std::{env, fs, io};
+use tonic::Code::NotFound;
 
+use crate::errors::CloudLoginError::OrganisationNotFound;
 use dozer_types::grpc_types::cloud::company_request::Criteria;
 use dozer_types::grpc_types::cloud::dozer_public_client::DozerPublicClient;
 use dozer_types::grpc_types::cloud::CompanyRequest;
@@ -119,13 +121,24 @@ pub struct TokenResponse {
     pub expires_in: i32,
 }
 impl LoginSvc {
-    pub async fn new(company_name: String, target_url: String) -> Result<Self, CloudLoginError> {
+    pub async fn new(
+        organisation_name: String,
+        target_url: String,
+    ) -> Result<Self, CloudLoginError> {
         let mut client = DozerPublicClient::connect(target_url.to_owned()).await?;
         let company_info = client
             .company_metadata(CompanyRequest {
-                criteria: Some(Criteria::Name(company_name.to_owned())),
+                criteria: Some(Criteria::Name(organisation_name.to_owned())),
             })
-            .await?;
+            .await
+            .map_err(|e| {
+                if e.code() == NotFound {
+                    OrganisationNotFound
+                } else {
+                    CloudLoginError::from(e)
+                }
+            })?;
+
         let company_info = company_info.into_inner();
         Ok(Self {
             auth_url: company_info.auth_url,
