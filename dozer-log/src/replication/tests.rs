@@ -105,9 +105,6 @@ async fn watch_partial_write_mutable() {
         ExecutorOperation::SnapshottingDone {
             connection_name: "1".to_string(),
         },
-        ExecutorOperation::SnapshottingDone {
-            connection_name: "2".to_string(),
-        },
     ];
     for op in &ops {
         log_mut.write(op.clone(), log.clone()).await.unwrap();
@@ -115,7 +112,7 @@ async fn watch_partial_write_mutable() {
     drop(log_mut);
 
     let ops_read = handle.await.unwrap().unwrap();
-    assert_eq!(ops_read, LogResponse::Operations(ops[1..2].to_vec()));
+    assert_eq!(ops_read, LogResponse::Operations(ops[1..].to_vec()));
 }
 
 #[tokio::test]

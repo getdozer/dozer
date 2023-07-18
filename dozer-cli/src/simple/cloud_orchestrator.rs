@@ -5,6 +5,7 @@ use crate::cli::cloud::{
 use crate::cloud_app_context::CloudAppContext;
 use crate::cloud_helper::list_files;
 use crate::errors::CloudError::GRPCCallError;
+use crate::errors::OrchestrationError::FailedToReadOrganisationName;
 use crate::errors::{CloudError, CloudLoginError, OrchestrationError};
 use crate::progress_printer::{
     get_delete_steps, get_deploy_steps, get_update_steps, ProgressPrinter,
@@ -26,6 +27,7 @@ use dozer_types::grpc_types::cloud::{
 use dozer_types::log::info;
 use dozer_types::prettytable::{row, table};
 use futures::{select, FutureExt, StreamExt};
+use std::io;
 use tonic::transport::Endpoint;
 use tower::ServiceBuilder;
 
@@ -58,6 +60,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
         &mut self,
         cloud: Cloud,
         deploy: DeployCommandArgs,
+        config_paths: Vec<String>,
     ) -> Result<(), OrchestrationError> {
         let app_id = if cloud.app_id.is_some() {
             cloud.app_id.clone()
@@ -72,7 +75,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
         let cloud_config = self.config.cloud.as_ref();
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud, cloud_config).await?;
-            let files = list_files()?;
+            let files = list_files(config_paths)?;
             let (app_id_to_start, mut steps) = match app_id {
                 None => {
                     let mut steps = ProgressPrinter::new(get_deploy_steps());
@@ -309,7 +312,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
                     app_id,
                     deployment,
                     follow: logs.follow,
-                    include_migrate: true,
+                    include_build: true,
                     include_app: true,
                     include_api: true,
                 })
@@ -342,9 +345,26 @@ impl CloudOrchestrator for SimpleOrchestrator {
         Ok(())
     }
 
-    fn login(&mut self, cloud: Cloud, company_name: String) -> Result<(), OrchestrationError> {
+    fn login(
+        &mut self,
+        cloud: Cloud,
+        organisation_name: Option<String>,
+    ) -> Result<(), OrchestrationError> {
+        info!("Organisation and client details can be created in https://dashboard.dev.getdozer.io/login \n");
+        let organisation_name = match organisation_name {
+            None => {
+                let mut organisation_name = String::new();
+                println!("Please enter your organisation name:");
+                io::stdin()
+                    .read_line(&mut organisation_name)
+                    .map_err(FailedToReadOrganisationName)?;
+                organisation_name.trim().to_string()
+            }
+            Some(name) => name,
+        };
+
         self.runtime.block_on(async move {
-            let login_svc = LoginSvc::new(company_name, cloud.target_url).await?;
+            let login_svc = LoginSvc::new(organisation_name, cloud.target_url).await?;
             login_svc.login().await?;
             Ok::<(), CloudLoginError>(())
         })?;

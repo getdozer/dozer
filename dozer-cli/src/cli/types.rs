@@ -54,14 +54,9 @@ pub enum Commands {
     Clean,
     #[command(
         about = "Initialize and lock schema definitions. Once initialized, schemas cannot \
-            be changed",
-        alias = "migrate"
+            be changed"
     )]
     Build(Build),
-    #[command(about = "Run App Server", hide = true)]
-    App(App),
-    #[command(about = "Run Api Server", hide = true)]
-    Api(Api),
     #[command(about = "Run App or Api Server")]
     Run(Run),
     #[command(
@@ -74,13 +69,6 @@ pub enum Commands {
     #[cfg(feature = "cloud")]
     #[command(about = "Deploy cloud applications")]
     Cloud(Cloud),
-}
-
-#[derive(Debug, Args)]
-#[command(args_conflicts_with_subcommands = true)]
-pub struct Api {
-    #[command(subcommand)]
-    pub command: ApiCommands,
 }
 
 #[derive(Debug, Args)]
@@ -138,31 +126,6 @@ pub struct Deploy {
     pub username: Option<String>,
     #[arg(short = 'p')]
     pub password: Option<String>,
-}
-
-#[derive(Debug, Args)]
-#[command(args_conflicts_with_subcommands = true)]
-pub struct App {
-    #[command(subcommand)]
-    pub command: AppCommands,
-}
-
-#[derive(Debug, Subcommand)]
-pub enum ApiCommands {
-    Run,
-    #[command(
-        author,
-        version,
-        about = "Generate master token",
-        long_about = "Master Token can be used to create other run time tokens \
-        that encapsulate different permissions."
-    )]
-    GenerateToken,
-}
-
-#[derive(Debug, Subcommand)]
-pub enum AppCommands {
-    Run,
 }
 
 #[derive(Debug, Args)]

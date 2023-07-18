@@ -1,6 +1,7 @@
 #![allow(clippy::enum_variant_names)]
 
 use glob::{GlobError, PatternError};
+use std::io;
 use std::path::PathBuf;
 
 use dozer_api::{
@@ -76,6 +77,8 @@ pub enum OrchestrationError {
     EmptyEndpoints,
     #[error(transparent)]
     CloudContextError(#[from] CloudContextError),
+    #[error("Failed to read organisation name. Error: {0}")]
+    FailedToReadOrganisationName(#[source] io::Error),
 }
 
 #[derive(Error, Debug)]
@@ -200,8 +203,12 @@ pub enum CloudLoginError {
 
     #[error("Failed to read input: {0}")]
     InputError(#[from] std::io::Error),
+
     #[error(transparent)]
     CloudCredentialError(#[from] CloudCredentialError),
+
+    #[error("Organisation not found")]
+    OrganisationNotFound,
 }
 
 #[derive(Debug, Error)]

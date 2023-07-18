@@ -51,14 +51,22 @@ pub trait Orchestrator {
 
 #[cfg(feature = "cloud")]
 pub trait CloudOrchestrator {
-    fn deploy(&mut self, cloud: Cloud, deploy: DeployCommandArgs)
-        -> Result<(), OrchestrationError>;
+    fn deploy(
+        &mut self,
+        cloud: Cloud,
+        deploy: DeployCommandArgs,
+        config_paths: Vec<String>,
+    ) -> Result<(), OrchestrationError>;
     fn delete(&mut self, cloud: Cloud) -> Result<(), OrchestrationError>;
     fn list(&mut self, cloud: Cloud, list: ListCommandArgs) -> Result<(), OrchestrationError>;
     fn status(&mut self, cloud: Cloud) -> Result<(), OrchestrationError>;
     fn monitor(&mut self, cloud: Cloud) -> Result<(), OrchestrationError>;
     fn trace_logs(&mut self, cloud: Cloud, logs: LogCommandArgs) -> Result<(), OrchestrationError>;
-    fn login(&mut self, cloud: Cloud, company_name: String) -> Result<(), OrchestrationError>;
+    fn login(
+        &mut self,
+        cloud: Cloud,
+        organisation_name: Option<String>,
+    ) -> Result<(), OrchestrationError>;
     fn execute_secrets_command(
         &mut self,
         cloud: Cloud,

@@ -8,9 +8,6 @@ use std::error::Error;
 #[derive(Debug, Args)]
 #[command(args_conflicts_with_subcommands = true)]
 pub struct Cloud {
-    // Workaround to hide config_path from help in cloud
-    #[arg(hide = true)]
-    pub config_path: Option<String>,
     #[arg(
     global = true,
     short = 't',
@@ -32,7 +29,10 @@ pub struct Cloud {
 #[derive(Debug, Subcommand, Clone)]
 pub enum CloudCommands {
     /// Login to Dozer Cloud service
-    Login(OrganisationCommand),
+    Login {
+        #[arg(long = "organisation-name")]
+        organisation_name: Option<String>,
+    },
     /// Deploy application to Dozer Cloud
     Deploy(DeployCommandArgs),
     /// Stop and delete application from Dozer Cloud
@@ -64,18 +64,13 @@ pub struct DeployCommandArgs {
     #[arg(short, long)]
     pub num_api_instances: Option<i32>,
 
-    #[arg(short, value_parser = parse_key_val)]
+    /// List of secrets which will be used in deployment
+    #[arg(short, long, value_parser = parse_key_val)]
     pub secrets: Vec<Secret>,
 }
 
 pub fn default_num_api_instances() -> i32 {
     2
-}
-
-#[derive(Debug, Args, Clone)]
-pub struct OrganisationCommand {
-    #[arg(long = "organisation-name")]
-    pub organisation_name: String,
 }
 
 #[derive(Debug, Args, Clone)]

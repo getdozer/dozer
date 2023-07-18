@@ -27,6 +27,7 @@ pub struct CacheEndpoint {
 }
 
 const ENDPOINT_LABEL: &str = "endpoint";
+const BUILD_LABEL: &str = "build";
 
 impl CacheEndpoint {
     pub async fn new(
@@ -43,9 +44,8 @@ impl CacheEndpoint {
         let descriptor = log_reader_builder.descriptor.clone();
 
         // Open or create cache.
-        let mut cache_labels = Labels::new();
-        cache_labels.push(ENDPOINT_LABEL, endpoint.name.clone());
-        cache_labels.push("build", log_reader_builder.build_name.clone());
+        let cache_labels =
+            cache_labels(endpoint.name.clone(), log_reader_builder.build_name.clone());
         let schema = log_reader_builder.schema.clone();
         let conflict_resolution = endpoint.conflict_resolution.unwrap_or_default();
         let write_options = CacheWriteOptions {
@@ -117,6 +117,13 @@ impl CacheEndpoint {
     pub fn endpoint(&self) -> &ApiEndpoint {
         &self.endpoint
     }
+}
+
+pub fn cache_labels(endpoint: String, build: String) -> Labels {
+    let mut labels = Labels::new();
+    labels.push(ENDPOINT_LABEL, endpoint);
+    labels.push(BUILD_LABEL, build);
+    labels
 }
 
 fn open_cache_reader(
