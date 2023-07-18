@@ -7,6 +7,7 @@ use dozer_core::app::App;
 use dozer_core::app::AppPipeline;
 use dozer_core::executor::DagExecutor;
 use dozer_core::node::SinkFactory;
+use dozer_core::Dag;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_ingestion::connectors::{get_connector, get_connector_info_table};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
@@ -22,10 +23,12 @@ use tokio::sync::Mutex;
 
 use crate::pipeline::dummy_sink::DummySinkFactory;
 use crate::pipeline::LogSinkFactory;
+use crate::ui_helper::transform_to_ui_graph;
 
 use super::source_builder::SourceBuilder;
 use crate::errors::OrchestrationError;
 use dozer_types::log::{error, info};
+use metrics::{describe_counter, increment_counter};
 use OrchestrationError::ExecutionError;
 
 pub enum OutputTableInfo {
@@ -305,6 +308,9 @@ impl<'a> PipelineBuilder<'a> {
                 OrchestrationError::PipelineValidationError
             })?;
 
+        // Emit metrics for monitoring
+        emit_dag_metrics(dag.clone(), conn_ports.into())?;
+
         Ok(dag)
     }
 }
@@ -312,4 +318,51 @@ impl<'a> PipelineBuilder<'a> {
 fn dedup<T: Eq + Hash + Clone>(v: &mut Vec<T>) {
     let mut uniques = HashSet::new();
     v.retain(|e| uniques.insert(e.clone()));
+}
+
+pub fn emit_dag_metrics(
+    input_dag: Dag<SchemaSQLContext>,
+    conn_ports: HashMap<(&str, &str), u16>,
+) -> Result<(), OrchestrationError> {
+    const GRAPH_NODES: &str = "pipeline_nodes";
+    const GRAPH_EDGES: &str = "pipeline_edges";
+
+    describe_counter!(GRAPH_NODES, "Number of nodes in the pipeline");
+    describe_counter!(GRAPH_EDGES, "Number of edges in the pipeline");
+
+    let port_connection_sources: HashMap<u16, (&str, &str)> = conn_ports
+        .iter()
+        .map(|(k, v)| (v.to_owned(), k.to_owned()))
+        .collect();
+
+    let query_graph = transform_to_ui_graph(input_dag, port_connection_sources)?;
+
+    for node in query_graph.nodes {
+        let node_name = node.name;
+        let node_type = node.node_type;
+        let node_idx = node.idx;
+        let node_id = node.id;
+        let node_data = node.data;
+
+        let labels: [(&str, String); 5] = [
+            ("node_name", node_name),
+            ("node_type", node_type.to_string()),
+            ("node_idx", node_idx.to_string()),
+            ("node_id", node_id.to_string()),
+            ("node_data", node_data.to_string()),
+        ];
+
+        increment_counter!(GRAPH_NODES, &labels);
+    }
+
+    for edge in query_graph.edges {
+        let from = edge.from;
+        let to = edge.to;
+
+        let labels: [(&str, String); 2] = [("from", from.to_string()), ("to", to.to_string())];
+
+        increment_counter!(GRAPH_EDGES, &labels);
+    }
+
+    Ok(())
 }
