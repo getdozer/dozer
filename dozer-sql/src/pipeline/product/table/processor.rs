@@ -30,4 +30,13 @@ impl Processor for TableProcessor {
         fw.send(op, DEFAULT_PORT_HANDLE);
         Ok(())
     }
+
+    fn process_batch(
+        &mut self,
+        from_port: PortHandle,
+        batch: dozer_types::arrow::record_batch::RecordBatch,
+        fw: &mut dyn ProcessorChannelForwarder,
+    ) -> Result<(), BoxedError> {
+        todo!()
+    }
 }

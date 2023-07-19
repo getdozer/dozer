@@ -29,7 +29,7 @@ impl<T: Clone + Send + Sync> TableReader<T> {
         Self { config }
     }
 
-    pub async fn snaphot(
+    pub async fn read_batch(
         id: u32,
         ctx: SessionContext,
         table_path: ListingTableUrl,

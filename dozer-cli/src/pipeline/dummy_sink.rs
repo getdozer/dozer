@@ -5,6 +5,7 @@ use dozer_core::{
     DEFAULT_PORT_HANDLE,
 };
 use dozer_types::{
+    arrow::record_batch::RecordBatch,
     epoch::Epoch,
     errors::internal::BoxedError,
     types::{Operation, Schema},
@@ -35,6 +36,14 @@ struct DummySink;
 
 impl Sink for DummySink {
     fn process(&mut self, _from_port: PortHandle, _op: Operation) -> Result<(), BoxedError> {
+        Ok(())
+    }
+
+    fn process_batch(
+        &mut self,
+        from_port: PortHandle,
+        batch: RecordBatch,
+    ) -> Result<(), BoxedError> {
         Ok(())
     }
 

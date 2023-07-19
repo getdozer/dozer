@@ -2,13 +2,17 @@ use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
 use dozer_cache::dozer_log::{attach_progress, replication::Log};
 use dozer_core::{
+    channels::ProcessorChannelForwarder,
     epoch::Epoch,
     node::{PortHandle, Sink, SinkFactory},
     DEFAULT_PORT_HANDLE,
 };
 use dozer_sql::pipeline::builder::SchemaSQLContext;
-use dozer_types::indicatif::{MultiProgress, ProgressBar};
 use dozer_types::types::{Operation, Schema};
+use dozer_types::{
+    arrow::record_batch::RecordBatch,
+    indicatif::{MultiProgress, ProgressBar},
+};
 use dozer_types::{epoch::ExecutorOperation, errors::internal::BoxedError};
 use tokio::{runtime::Runtime, sync::Mutex};
 
@@ -102,6 +106,14 @@ impl Sink for LogSink {
         })?;
         self.update_counter();
         Ok(())
+    }
+
+    fn process_batch(
+        &mut self,
+        from_port: PortHandle,
+        batch: RecordBatch,
+    ) -> Result<(), BoxedError> {
+        todo!()
     }
 
     fn commit(&mut self, epoch_details: &Epoch) -> Result<(), BoxedError> {

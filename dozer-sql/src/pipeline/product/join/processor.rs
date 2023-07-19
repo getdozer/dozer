@@ -161,4 +161,13 @@ impl Processor for ProductProcessor {
 
         Ok(())
     }
+
+    fn process_batch(
+        &mut self,
+        from_port: PortHandle,
+        batch: dozer_types::arrow::record_batch::RecordBatch,
+        fw: &mut dyn ProcessorChannelForwarder,
+    ) -> Result<(), BoxedError> {
+        todo!()
+    }
 }
