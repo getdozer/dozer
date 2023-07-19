@@ -179,7 +179,6 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
             right_primary_key_indexes,
             Record::from_schema(&left_schema),
             Record::from_schema(&right_schema),
-            &self.id,
         )?;
 
         Ok(Box::new(ProductProcessor::new(

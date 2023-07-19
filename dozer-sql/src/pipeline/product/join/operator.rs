@@ -1,15 +1,8 @@
 use ahash::AHasher;
-use dozer_storage::{
-    errors::StorageError,
-    lmdb::{RwTransaction, Transaction},
-    lmdb_storage::{LmdbEnvironmentManager, LmdbEnvironmentOptions},
-    LmdbMap, LmdbMultimap, RwLmdbEnvironment,
-};
-use dozer_types::{
-    borrow::{Borrow, IntoOwned},
-    types::Record,
-};
+use dozer_storage::{errors::StorageError, RocksdbMap};
+use dozer_types::{borrow::IntoOwned, types::Record};
 use std::{
+    collections::{hash_map::Entry, HashMap},
     fmt::Debug,
     hash::{Hash, Hasher},
 };
@@ -49,7 +42,6 @@ pub struct JoinOperator {
 
     /// We're using temp dir because currently we don't support restarting app anyway.
     _temp_dir: TempDir,
-    environment: RwLmdbEnvironment,
 
     left_table: TableForJoin,
     right_table: TableForJoin,
@@ -64,48 +56,37 @@ impl JoinOperator {
         right_primary_key_indexes: Vec<usize>,
         left_default_record: Record,
         right_default_record: Record,
-        name: &str,
     ) -> JoinResult<Self> {
         let temp_dir = TempDir::new("join").map_err(JoinError::CreateTempDir)?;
-        let mut environment = LmdbEnvironmentManager::create_rw(
-            temp_dir.path(),
-            name,
-            LmdbEnvironmentOptions {
-                max_map_sz: 1024 * 1024 * 1024 * 1024,
-                ..Default::default()
-            },
-        )?;
+        let temp_dir_path = temp_dir.path().to_str().expect("path must be utf8");
 
         let left_table = TableForJoin::new(
             left_join_key_indexes,
             left_primary_key_indexes,
             left_default_record,
-            &mut environment,
-            "left",
+            &format!("{}/left", temp_dir_path),
         )?;
         let right_table = TableForJoin::new(
             right_join_key_indexes,
             right_primary_key_indexes,
             right_default_record,
-            &mut environment,
-            "right",
+            &format!("{}/right", temp_dir_path),
         )?;
 
         Ok(Self {
             join_type,
             _temp_dir: temp_dir,
-            environment,
             left_table,
             right_table,
         })
     }
 
     pub fn left_lookup_size(&mut self) -> Result<usize, StorageError> {
-        self.left_table.lookup_size(self.environment.txn_mut()?)
+        self.left_table.lookup_size()
     }
 
     pub fn right_lookup_size(&mut self) -> Result<usize, StorageError> {
-        self.right_table.lookup_size(self.environment.txn_mut()?)
+        self.right_table.lookup_size()
     }
 
     fn inner_join_from_left(
@@ -114,9 +95,7 @@ impl JoinOperator {
         join_key: u64,
         left_record: &Record,
     ) -> JoinResult<Vec<(JoinAction, Record)>> {
-        let right_records = self
-            .right_table
-            .get_records_from_join_key(self.environment.txn_mut()?, join_key)?;
+        let right_records = self.right_table.get_records_from_join_key(join_key)?;
 
         let output_records = right_records
             .into_iter()
@@ -137,9 +116,7 @@ impl JoinOperator {
         join_key: u64,
         right_record: &Record,
     ) -> JoinResult<Vec<(JoinAction, Record)>> {
-        let left_records = self
-            .left_table
-            .get_records_from_join_key(self.environment.txn_mut()?, join_key)?;
+        let left_records = self.left_table.get_records_from_join_key(join_key)?;
 
         let output_records = left_records
             .into_iter()
@@ -160,9 +137,7 @@ impl JoinOperator {
         join_key: u64,
         left_record: &Record,
     ) -> JoinResult<Vec<(JoinAction, Record)>> {
-        let right_records = self
-            .right_table
-            .get_records_from_join_key(self.environment.txn_mut()?, join_key)?;
+        let right_records = self.right_table.get_records_from_join_key(join_key)?;
 
         // no joining records on the right branch
         if right_records.is_empty() {
@@ -190,9 +165,7 @@ impl JoinOperator {
         join_key: u64,
         right_record: &Record,
     ) -> JoinResult<Vec<(JoinAction, Record)>> {
-        let left_records = self
-            .left_table
-            .get_records_from_join_key(self.environment.txn_mut()?, join_key)?;
+        let left_records = self.left_table.get_records_from_join_key(join_key)?;
 
         // if there are no matching records on the left branch, no records will be returned
         if left_records.is_empty() {
@@ -238,9 +211,7 @@ impl JoinOperator {
         join_key: u64,
         left_record: &Record,
     ) -> JoinResult<Vec<(JoinAction, Record)>> {
-        let right_records = self
-            .right_table
-            .get_records_from_join_key(self.environment.txn_mut()?, join_key)?;
+        let right_records = self.right_table.get_records_from_join_key(join_key)?;
 
         // if there are no matching records on the left branch, no records will be returned
         if right_records.is_empty() {
@@ -286,9 +257,7 @@ impl JoinOperator {
         join_key: u64,
         right_record: &Record,
     ) -> JoinResult<Vec<(JoinAction, Record)>> {
-        let left_records = self
-            .left_table
-            .get_records_from_join_key(self.environment.txn_mut()?, join_key)?;
+        let left_records = self.left_table.get_records_from_join_key(join_key)?;
 
         // no joining records on the right branch
         if left_records.is_empty() {
@@ -317,9 +286,7 @@ impl JoinOperator {
     ) -> JoinResult<usize> {
         let join_key = get_record_key(record, &self.right_table.join_key_indexes);
 
-        let mut matching_count = self
-            .left_table
-            .count_records_from_join_key(self.environment.txn_mut()?, join_key)?;
+        let mut matching_count = self.left_table.count_records_from_join_key(join_key)?;
         if action == &JoinAction::Insert {
             matching_count -= 1;
         }
@@ -333,9 +300,7 @@ impl JoinOperator {
     ) -> JoinResult<usize> {
         let join_key = get_record_key(record, &self.left_table.join_key_indexes);
 
-        let mut matching_count = self
-            .right_table
-            .count_records_from_join_key(self.environment.txn_mut()?, join_key)?;
+        let mut matching_count = self.right_table.count_records_from_join_key(join_key)?;
         if action == &JoinAction::Insert {
             matching_count -= 1;
         }
@@ -351,8 +316,7 @@ impl JoinOperator {
             (JoinType::Inner, JoinBranch::Left) => {
                 let join_key = get_record_key(old, &self.left_table.join_key_indexes);
 
-                self.left_table
-                    .remove_record(self.environment.txn_mut()?, old)?;
+                self.left_table.remove_record(old)?;
 
                 let records = self.inner_join_from_left(&JoinAction::Delete, join_key, old)?;
                 Ok(records)
@@ -360,37 +324,32 @@ impl JoinOperator {
             (JoinType::Inner, JoinBranch::Right) => {
                 let join_key = get_record_key(old, &self.right_table.join_key_indexes);
 
-                self.right_table
-                    .remove_record(self.environment.txn_mut()?, old)?;
+                self.right_table.remove_record(old)?;
 
                 let records = self.inner_join_from_right(&JoinAction::Delete, join_key, old)?;
                 Ok(records)
             }
             (JoinType::LeftOuter, JoinBranch::Left) => {
                 let join_key = get_record_key(old, &self.left_table.join_key_indexes);
-                self.left_table
-                    .remove_record(self.environment.txn_mut()?, old)?;
+                self.left_table.remove_record(old)?;
                 let records = self.left_join_from_left(&JoinAction::Delete, join_key, old)?;
                 Ok(records)
             }
             (JoinType::LeftOuter, JoinBranch::Right) => {
                 let join_key = get_record_key(old, &self.right_table.join_key_indexes);
-                self.right_table
-                    .remove_record(self.environment.txn_mut()?, old)?;
+                self.right_table.remove_record(old)?;
                 let records = self.left_join_from_right(&JoinAction::Delete, join_key, old)?;
                 Ok(records)
             }
             (JoinType::RightOuter, JoinBranch::Left) => {
                 let join_key = get_record_key(old, &self.left_table.join_key_indexes);
-                self.left_table
-                    .remove_record(self.environment.txn_mut()?, old)?;
+                self.left_table.remove_record(old)?;
                 let records = self.right_join_from_left(&JoinAction::Delete, join_key, old)?;
                 Ok(records)
             }
             (JoinType::RightOuter, JoinBranch::Right) => {
                 let join_key = get_record_key(old, &self.right_table.join_key_indexes);
-                self.right_table
-                    .remove_record(self.environment.txn_mut()?, old)?;
+                self.right_table.remove_record(old)?;
                 let records = self.right_join_from_right(&JoinAction::Delete, join_key, old)?;
                 Ok(records)
             }
@@ -406,8 +365,7 @@ impl JoinOperator {
             (JoinType::Inner, JoinBranch::Left) => {
                 let join_key = get_record_key(new, &self.left_table.join_key_indexes);
 
-                self.left_table
-                    .add_record(self.environment.txn_mut()?, join_key, new)?;
+                self.left_table.add_record(join_key, new)?;
 
                 let records = self.inner_join_from_left(&JoinAction::Insert, join_key, new)?;
                 Ok(records)
@@ -415,8 +373,7 @@ impl JoinOperator {
             (JoinType::Inner, JoinBranch::Right) => {
                 let join_key = get_record_key(new, &self.right_table.join_key_indexes);
 
-                self.right_table
-                    .add_record(self.environment.txn_mut()?, join_key, new)?;
+                self.right_table.add_record(join_key, new)?;
 
                 let records = self.inner_join_from_right(&JoinAction::Insert, join_key, new)?;
 
@@ -425,8 +382,7 @@ impl JoinOperator {
             (JoinType::LeftOuter, JoinBranch::Left) => {
                 let join_key = get_record_key(new, &self.left_table.join_key_indexes);
 
-                self.left_table
-                    .add_record(self.environment.txn_mut()?, join_key, new)?;
+                self.left_table.add_record(join_key, new)?;
 
                 let records = self.left_join_from_left(&JoinAction::Insert, join_key, new)?;
 
@@ -435,8 +391,7 @@ impl JoinOperator {
             (JoinType::LeftOuter, JoinBranch::Right) => {
                 let join_key = get_record_key(new, &self.right_table.join_key_indexes);
 
-                self.right_table
-                    .add_record(self.environment.txn_mut()?, join_key, new)?;
+                self.right_table.add_record(join_key, new)?;
 
                 let records = self.left_join_from_right(&JoinAction::Insert, join_key, new)?;
 
@@ -445,8 +400,7 @@ impl JoinOperator {
             (JoinType::RightOuter, JoinBranch::Left) => {
                 let join_key = get_record_key(new, &self.left_table.join_key_indexes);
 
-                self.left_table
-                    .add_record(self.environment.txn_mut()?, join_key, new)?;
+                self.left_table.add_record(join_key, new)?;
 
                 let records = self.right_join_from_left(&JoinAction::Insert, join_key, new)?;
 
@@ -455,8 +409,7 @@ impl JoinOperator {
             (JoinType::RightOuter, JoinBranch::Right) => {
                 let join_key = get_record_key(new, &self.right_table.join_key_indexes);
 
-                self.right_table
-                    .add_record(self.environment.txn_mut()?, join_key, new)?;
+                self.right_table.add_record(join_key, new)?;
 
                 let records = self.right_join_from_right(&JoinAction::Insert, join_key, new)?;
 
@@ -466,7 +419,8 @@ impl JoinOperator {
     }
 
     pub fn commit(&mut self) -> Result<(), StorageError> {
-        self.environment.commit()
+        self.left_table.record_key_to_record.flush()?;
+        self.right_table.record_key_to_record.flush()
     }
 }
 
@@ -475,8 +429,8 @@ struct TableForJoin {
     join_key_indexes: Vec<usize>,
     primary_key_indexes: Vec<usize>,
     default_record: Record,
-    join_key_to_record_key: LmdbMultimap<u64, u64>,
-    record_key_to_records: LmdbMap<u64, Vec<Record>>,
+    join_key_to_record_key: HashMap<u64, Vec<u64>>,
+    record_key_to_record: RocksdbMap<u64, Record>,
 }
 
 impl TableForJoin {
@@ -484,94 +438,62 @@ impl TableForJoin {
         join_key_indexes: Vec<usize>,
         primary_key_indexes: Vec<usize>,
         default_record: Record,
-        environment: &mut RwLmdbEnvironment,
-        database_name_prefix: &str,
+        db_path: &str,
     ) -> Result<Self, StorageError> {
-        let join_key_to_record_key = LmdbMultimap::create(
-            environment,
-            Some(&format!("{}-join-key-to-primary-key", database_name_prefix)),
-        )?;
-        let record_key_to_records = LmdbMap::create(
-            environment,
-            Some(&format!("{}-primary-key-to-records", database_name_prefix)),
-        )?;
+        let record_key_to_record = RocksdbMap::<u64, Record>::create(db_path.as_ref())?;
         Ok(Self {
             join_key_indexes,
             primary_key_indexes,
             default_record,
-            join_key_to_record_key,
-            record_key_to_records,
+            join_key_to_record_key: Default::default(),
+            record_key_to_record,
         })
     }
 
-    fn lookup_size<T: Transaction>(&self, txn: &T) -> Result<usize, StorageError> {
-        self.record_key_to_records.count(txn)
+    fn lookup_size(&self) -> Result<usize, StorageError> {
+        self.record_key_to_record.count()
     }
 
-    fn get_records_from_join_key<T: Transaction>(
-        &self,
-        txn: &T,
-        join_key: u64,
-    ) -> Result<Vec<Record>, StorageError> {
+    fn get_records_from_join_key(&self, join_key: u64) -> Result<Vec<Record>, StorageError> {
         let mut result = vec![];
-        for primary_key in self.join_key_to_record_key.iter_dup(txn, &join_key)? {
-            let primary_key = primary_key?;
-            if let Some(records) = self.record_key_to_records.get(txn, primary_key.borrow())? {
-                result.extend(records.into_owned());
+        if let Some(record_keys) = self.join_key_to_record_key.get(&join_key) {
+            for record_key in record_keys {
+                if let Some(record) = self.record_key_to_record.get(record_key)? {
+                    result.push(record.into_owned());
+                }
             }
         }
         Ok(result)
     }
 
-    fn count_records_from_join_key<T: Transaction>(
-        &self,
-        txn: &T,
-        join_key: u64,
-    ) -> Result<usize, StorageError> {
+    fn count_records_from_join_key(&self, join_key: u64) -> Result<usize, StorageError> {
         let mut result = 0;
-        for primary_key in self.join_key_to_record_key.iter_dup(txn, &join_key)? {
-            let primary_key = primary_key?;
-            if let Some(records) = self.record_key_to_records.get(txn, primary_key.borrow())? {
-                result += records.borrow().len();
+        if let Some(record_keys) = self.join_key_to_record_key.get(&join_key) {
+            for record_key in record_keys {
+                if self.record_key_to_record.contains(record_key)? {
+                    result += 1;
+                }
             }
         }
         Ok(result)
     }
 
-    fn remove_record(&self, txn: &mut RwTransaction, record: &Record) -> Result<(), StorageError> {
+    fn remove_record(&self, record: &Record) -> Result<(), StorageError> {
         let primary_key = get_record_key(record, &self.primary_key_indexes);
-        if let Some(records) = self.record_key_to_records.get(txn, &primary_key)? {
-            let mut records = records.into_owned();
-            records.pop();
-            if records.is_empty() {
-                assert!(self.record_key_to_records.remove(txn, &primary_key)?);
-                Ok(())
-            } else {
-                self.record_key_to_records
-                    .insert_overwrite(txn, &primary_key, &records)
-            }
-        } else {
-            Ok(())
-        }
+        self.record_key_to_record.remove(&primary_key)
     }
 
-    fn add_record(
-        &self,
-        txn: &mut RwTransaction,
-        join_key: u64,
-        record: &Record,
-    ) -> Result<(), StorageError> {
+    fn add_record(&mut self, join_key: u64, record: &Record) -> Result<(), StorageError> {
         let primary_key = get_record_key(record, &self.primary_key_indexes);
-        self.join_key_to_record_key
-            .insert(txn, &join_key, &primary_key)?;
-        let mut records = self
-            .record_key_to_records
-            .get(txn, &primary_key)?
-            .map(|records| records.into_owned())
-            .unwrap_or_default();
-        records.push(record.clone());
-        self.record_key_to_records
-            .insert_overwrite(txn, &primary_key, &records)
+        match self.join_key_to_record_key.entry(join_key) {
+            Entry::Occupied(mut entry) => {
+                entry.get_mut().push(primary_key);
+            }
+            Entry::Vacant(entry) => {
+                entry.insert(vec![primary_key]);
+            }
+        }
+        self.record_key_to_record.insert(&primary_key, &record)
     }
 }
 
