@@ -2,6 +2,7 @@ use clap::{Args, Subcommand};
 
 use dozer_types::constants::DEFAULT_CLOUD_TARGET_URL;
 
+use clap::ArgAction;
 use dozer_types::grpc_types::cloud::Secret;
 use std::error::Error;
 
@@ -47,7 +48,10 @@ pub enum CloudCommands {
     #[command(subcommand)]
     Version(VersionCommand),
     /// Set application, which will be used for all commands
-    SetApp { app_id: String },
+    SetApp {
+        /// App id of application which will be used for all commands
+        app_id: String,
+    },
     /// List all dozer application in Dozer Cloud
     List(ListCommandArgs),
     /// Dozer API server management
@@ -78,19 +82,39 @@ pub struct LogCommandArgs {
     /// Whether to follow the logs
     #[arg(short, long)]
     pub follow: bool,
+
     /// The deployment to inspect
     #[arg(short, long)]
     pub deployment: Option<u32>,
+
+    /// Ignore app logs
+    #[arg(long, default_value = "false", action=ArgAction::SetTrue)]
+    pub ignore_app: bool,
+
+    /// Ignore api logs
+    #[arg(long, default_value = "false", action=ArgAction::SetTrue)]
+    pub ignore_api: bool,
+
+    /// Ignore build logs
+    #[arg(long, default_value = "false", action=ArgAction::SetTrue)]
+    pub ignore_build: bool,
 }
 
 #[derive(Debug, Args, Clone)]
 pub struct ListCommandArgs {
+    /// Offset of the list
     #[arg(short = 'o', long)]
     pub offset: Option<u32>,
+
+    /// Limit of the list
     #[arg(short = 'l', long)]
     pub limit: Option<u32>,
+
+    /// Filter of application name
     #[arg(short = 'n', long)]
     pub name: Option<String>,
+
+    /// Filter of application uuid
     #[arg(short = 'u', long)]
     pub uuid: Option<String>,
 }

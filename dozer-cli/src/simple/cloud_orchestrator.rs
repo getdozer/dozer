@@ -312,9 +312,9 @@ impl CloudOrchestrator for SimpleOrchestrator {
                     app_id,
                     deployment,
                     follow: logs.follow,
-                    include_build: true,
-                    include_app: true,
-                    include_api: true,
+                    include_build: !logs.ignore_build,
+                    include_app: !logs.ignore_app,
+                    include_api: !logs.ignore_api,
                 })
                 .await?
                 .into_inner()
