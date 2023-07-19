@@ -147,7 +147,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
             stop_app(&mut client, &app_id).await?;
 
             steps.start_next_step();
-            let _delete_result = client
+            let delete_result = client
                 .delete_application(DeleteAppRequest {
                     app_id: app_id.clone(),
                 })
@@ -155,7 +155,11 @@ impl CloudOrchestrator for SimpleOrchestrator {
                 .map_err(GRPCCallError)?
                 .into_inner();
 
-            steps.complete_step(Some(&format!("Deleted {}", &app_id)));
+            if delete_result.success {
+                steps.complete_step(Some(&format!("Deleted {}", &app_id)));
+
+                let _ = CloudAppContext::delete_config_file();
+            }
 
             Ok::<(), CloudError>(())
         })?;

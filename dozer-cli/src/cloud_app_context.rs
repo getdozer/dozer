@@ -25,6 +25,12 @@ impl CloudAppContext {
         ))
     }
 
+    pub fn delete_config_file() -> Result<(), CloudContextError> {
+        let file_path = Self::get_file_path()?;
+        fs::remove_file(file_path)?;
+        Ok(())
+    }
+
     pub fn get_app_id(config: &Option<Cloud>) -> Result<String, CloudContextError> {
         match &config {
             None => Err(AppIdNotFound),
