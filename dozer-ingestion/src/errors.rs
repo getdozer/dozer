@@ -1,7 +1,7 @@
 #![allow(clippy::enum_variant_names)]
 
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::errors::types::{SerializationError, TypeError};
+use dozer_types::errors::types::{DeserializationError, SerializationError, TypeError};
 use dozer_types::ingestion_types::IngestorError;
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
@@ -25,6 +25,8 @@ use odbc::DiagnosticRecord;
 use dozer_types::arrow_types::errors::FromArrowError;
 #[cfg(feature = "kafka")]
 use schema_registry_converter::error::SRCError;
+use tokio_postgres::config::SslMode;
+
 use tokio_postgres::Error;
 
 #[cfg(any(feature = "kafka", feature = "snowflake"))]
@@ -35,8 +37,14 @@ pub enum ConnectorError {
     #[error("Missing `config` for connector {0}")]
     MissingConfiguration(String),
 
-    #[error("Failed to map configuration")]
-    WrongConnectionConfiguration,
+    #[error("Failed to map configuration: {0}")]
+    WrongConnectionConfiguration(DeserializationError),
+
+    #[error("Failed to map configuration: {0}")]
+    UnavailableConnectionConfiguration(String),
+
+    #[error("Failed to map configuration: {0}")]
+    UnableToInferSchema(DataFusionError),
 
     #[error("Unsupported grpc adapter: {0} {1}")]
     UnsupportedGrpcAdapter(String, String),
@@ -123,6 +131,9 @@ pub enum ConfigurationError {
 
 #[derive(Error, Debug)]
 pub enum PostgresConnectorError {
+    #[error("Invalid SslMode: {0:?}")]
+    InvalidSslError(SslMode),
+
     #[error("Query failed in connector: {0}")]
     InvalidQueryError(#[source] tokio_postgres::Error),
 
@@ -212,6 +223,9 @@ pub enum PostgresConnectorError {
 
     #[error("Failed to send message on snapshot read channel")]
     SnapshotReadError,
+
+    #[error("Failed to load native certs: {0}")]
+    LoadNativeCerts(#[source] std::io::Error),
 }
 
 #[derive(Error, Debug)]
@@ -262,6 +276,12 @@ pub enum PostgresSchemaError {
 
     #[error("Type error: {0}")]
     TypeError(#[from] TypeError),
+
+    #[error("Failed to read string from utf8. Error: {0}")]
+    StringReadError(#[from] FromUtf8Error),
+
+    #[error("Failed to read date. Error: {0}")]
+    DateReadError(#[from] dozer_types::chrono::ParseError),
 }
 
 #[cfg(feature = "snowflake")]

@@ -1,12 +1,12 @@
 use crate::pipeline::errors::PipelineError;
 use sqlparser::{
     ast::{Query, Select, SetExpr, Statement},
-    dialect::AnsiDialect,
+    dialect::DozerDialect,
     parser::Parser,
 };
 
 pub fn get_select(sql: &str) -> Result<Box<Select>, PipelineError> {
-    let dialect = AnsiDialect {};
+    let dialect = DozerDialect {};
 
     let ast = Parser::parse_sql(&dialect, sql).unwrap();
 

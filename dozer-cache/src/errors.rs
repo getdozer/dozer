@@ -8,7 +8,9 @@ use dozer_types::thiserror::Error;
 
 use dozer_log::errors::ReaderError;
 use dozer_types::errors::types::{DeserializationError, SerializationError, TypeError};
-use dozer_types::types::{IndexDefinition, SchemaWithIndex};
+use dozer_types::types::{Field, IndexDefinition, SchemaWithIndex};
+
+use crate::cache::RecordMeta;
 
 #[derive(Debug)]
 pub struct ConnectionMismatch {
@@ -61,8 +63,12 @@ pub enum CacheError {
     AppendOnlySchema,
     #[error("Primary key is not found")]
     PrimaryKeyNotFound,
-    #[error("Primary key already exists")]
-    PrimaryKeyExists,
+    #[error("Primary key {key:?} already exists: record id {}, version {}, insert operation id {insert_operation_id}", .meta.id, .meta.version)]
+    PrimaryKeyExists {
+        key: Vec<(String, Field)>,
+        meta: RecordMeta,
+        insert_operation_id: u64,
+    },
     #[error("Internal thread panic: {0}")]
     InternalThreadPanic(#[source] tokio::task::JoinError),
 }

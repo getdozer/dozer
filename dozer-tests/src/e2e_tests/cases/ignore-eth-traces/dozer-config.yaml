@@ -11,12 +11,10 @@ connections:
 sources:
   - name: traces
     table_name: eth_traces
-    connection: !Ref eth_conn1
-    columns:
+    connection: eth_conn1
 
 endpoints:
   - name: traces
     path: /traces
     table_name: traces
     index:
-      primary_key:

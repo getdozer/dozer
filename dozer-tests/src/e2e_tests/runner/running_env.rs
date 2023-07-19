@@ -8,7 +8,7 @@ use std::{
 use dozer_types::constants::DEFAULT_CONFIG_PATH;
 use dozer_types::{
     log::info,
-    models::{app_config::Config, connection::ConnectionConfig},
+    models::{config::Config, connection::ConnectionConfig},
 };
 
 use crate::e2e_tests::{
@@ -338,8 +338,9 @@ fn write_dozer_config_for_running_in_docker_compose(
 
         match config {
             ConnectionConfig::Postgres(postgres) => {
-                postgres.host = connection.name.clone();
-                postgres.port = map_port(postgres.port as u16) as u32;
+                let config = postgres.replenish().unwrap();
+                postgres.host = Some(connection.name.clone());
+                postgres.port = Some(map_port(config.port as u16) as u32);
             }
             ConnectionConfig::Ethereum(_) => (),
             ConnectionConfig::Grpc(_) => (),

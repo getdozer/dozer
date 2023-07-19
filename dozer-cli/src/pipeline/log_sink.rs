@@ -1,39 +1,35 @@
-use std::{collections::HashMap, path::PathBuf, time::SystemTime};
+use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
-use dozer_cache::dozer_log::{errors::WriterError, writer::LogWriter};
+use dozer_cache::dozer_log::{attach_progress, replication::Log};
 use dozer_core::{
     epoch::Epoch,
     node::{PortHandle, Sink, SinkFactory},
     DEFAULT_PORT_HANDLE,
 };
 use dozer_sql::pipeline::builder::SchemaSQLContext;
-use dozer_types::indicatif::MultiProgress;
+use dozer_types::indicatif::{MultiProgress, ProgressBar};
 use dozer_types::types::{Operation, Schema};
 use dozer_types::{epoch::ExecutorOperation, errors::internal::BoxedError};
+use tokio::{runtime::Runtime, sync::Mutex};
 
-#[derive(Debug, Clone)]
-pub struct LogSinkSettings {
-    pub file_buffer_capacity: usize,
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct LogSinkFactory {
-    log_path: PathBuf,
-    settings: LogSinkSettings,
+    runtime: Arc<Runtime>,
+    log: Arc<Mutex<Log>>,
     endpoint_name: String,
     multi_pb: MultiProgress,
 }
 
 impl LogSinkFactory {
     pub fn new(
-        log_path: PathBuf,
-        settings: LogSinkSettings,
+        runtime: Arc<Runtime>,
+        log: Arc<Mutex<Log>>,
         endpoint_name: String,
         multi_pb: MultiProgress,
     ) -> Self {
         Self {
-            log_path,
-            settings,
+            runtime,
+            log,
             endpoint_name,
             multi_pb,
         }
@@ -58,51 +54,81 @@ impl SinkFactory<SchemaSQLContext> for LogSinkFactory {
         _input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Sink>, BoxedError> {
         Ok(Box::new(LogSink::new(
-            Some(self.multi_pb.clone()),
-            self.log_path.clone(),
-            self.settings.file_buffer_capacity,
+            self.runtime.clone(),
+            self.log.clone(),
             self.endpoint_name.clone(),
-        )?))
+            Some(self.multi_pb.clone()),
+        )))
     }
 }
 
 #[derive(Debug)]
-pub struct LogSink(LogWriter);
+pub struct LogSink {
+    runtime: Arc<Runtime>,
+    log: Arc<Mutex<Log>>,
+    pb: ProgressBar,
+    counter: u64,
+}
 
 impl LogSink {
     pub fn new(
-        multi_pb: Option<MultiProgress>,
-        log_path: PathBuf,
-        file_buffer_capacity: usize,
+        runtime: Arc<Runtime>,
+        log: Arc<Mutex<Log>>,
         endpoint_name: String,
-    ) -> Result<Self, WriterError> {
-        Ok(Self(LogWriter::new(
-            log_path,
-            file_buffer_capacity,
-            endpoint_name,
-            multi_pb,
-        )?))
+        multi_pb: Option<MultiProgress>,
+    ) -> Self {
+        let pb = attach_progress(multi_pb);
+        pb.set_message(endpoint_name);
+        Self {
+            runtime,
+            log,
+            pb,
+            counter: 0,
+        }
+    }
+
+    fn update_counter(&mut self) {
+        self.counter += 1;
+        self.pb.set_position(self.counter);
     }
 }
 
 impl Sink for LogSink {
     fn process(&mut self, _from_port: PortHandle, op: Operation) -> Result<(), BoxedError> {
-        self.0
-            .write_op(&ExecutorOperation::Op { op })
-            .map_err(Into::into)
+        self.runtime.block_on(async {
+            let mut log = self.log.lock().await;
+            log.write(ExecutorOperation::Op { op }, self.log.clone())
+                .await
+        })?;
+        self.update_counter();
+        Ok(())
     }
 
-    fn commit(&mut self) -> Result<(), BoxedError> {
-        self.0.write_op(&ExecutorOperation::Commit {
-            epoch: Epoch::new(0, Default::default(), SystemTime::now()),
+    fn commit(&mut self, epoch_details: &Epoch) -> Result<(), BoxedError> {
+        self.runtime.block_on(async {
+            let mut log = self.log.lock().await;
+            log.write(
+                ExecutorOperation::Commit {
+                    epoch: epoch_details.clone(),
+                },
+                self.log.clone(),
+            )
+            .await
         })?;
-        self.0.flush()?;
+        self.update_counter();
         Ok(())
     }
 
     fn on_source_snapshotting_done(&mut self, connection_name: String) -> Result<(), BoxedError> {
-        self.0
-            .write_op(&ExecutorOperation::SnapshottingDone { connection_name })
-            .map_err(Into::into)
+        self.runtime.block_on(async {
+            let mut log = self.log.lock().await;
+            log.write(
+                ExecutorOperation::SnapshottingDone { connection_name },
+                self.log.clone(),
+            )
+            .await
+        })?;
+        self.update_counter();
+        Ok(())
     }
 }

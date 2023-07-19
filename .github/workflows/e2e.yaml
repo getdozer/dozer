@@ -2,13 +2,14 @@ name: Dozer E2E Test
 
 on:
   pull_request_target:
-    branches: [main, e2e-yaml-dev]
-  push:
-    branches: [main, e2e-yaml-dev]
+    branches: [main]
+  workflow_dispatch:
+  merge_group:
 
 env:
   CARGO_TERM_COLOR: always
   DOZER_DEV: ci
+  RUSTC_VERSION: 1.70.0
 
 concurrency:
   group: e2e/${{ github.head_ref || github.run_id }}
@@ -28,14 +29,14 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - if: github.event_name == 'push'
+      - if: github.event_name != 'pull_request_target'
         uses: actions/checkout@v3
 
       - name: Install rust toolchain
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: stable
+          toolchain: ${{ env.RUSTC_VERSION }}
 
       - name: Install Protoc
         uses: arduino/setup-protoc@v1

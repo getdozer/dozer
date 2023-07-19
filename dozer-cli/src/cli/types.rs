@@ -4,7 +4,7 @@ use super::helper::{DESCRIPTION, LOGO};
 
 #[cfg(feature = "cloud")]
 use crate::cli::cloud::Cloud;
-use dozer_types::constants::DEFAULT_CONFIG_PATH;
+use dozer_types::constants::DEFAULT_CONFIG_PATH_PATTERNS;
 
 #[derive(Parser, Debug)]
 #[command(author, version, name = "dozer")]
@@ -16,52 +16,106 @@ pub struct Cli {
     #[arg(
         global = true,
         short = 'c',
-        long,
-        default_value = DEFAULT_CONFIG_PATH
+        long = "config-path",
+        default_values = DEFAULT_CONFIG_PATH_PATTERNS
     )]
-    pub config_path: String,
-    #[arg(global = true, long)]
+    pub config_paths: Vec<String>,
+    #[arg(global = true, long, hide = true)]
     pub config_token: Option<String>,
-    #[arg(global = true, short = 'e', long, default_value = None)]
-    pub err_threshold: Option<u32>,
+    #[arg(global = true, long, value_parser(parse_config_override))]
+    pub config_overrides: Vec<(String, serde_json::Value)>,
 
     #[clap(subcommand)]
     pub cmd: Option<Commands>,
 }
 
+fn parse_config_override(
+    arg: &str,
+) -> Result<(String, serde_json::Value), Box<dyn std::error::Error + Send + Sync + 'static>> {
+    let mut split = arg.split('=');
+    let pointer = split.next().ok_or("missing json pointer")?;
+    let value = split.next().ok_or("missing json value")?;
+    Ok((pointer.to_string(), serde_json::from_str(value)?))
+}
+
 #[derive(Debug, Subcommand)]
 pub enum Commands {
-    #[command(about = "Initialize an app using a template")]
+    #[command(
+        about = "Initialize an app using a template",
+        long_about = "Initialize dozer app workspace. It will generate dozer configuration and \
+            folder structure."
+    )]
     Init,
-    #[command(about = "Clean home directory")]
+    #[command(
+        about = "Clean home directory",
+        long_about = "Clean home directory. It removes all data, schemas and other files in app \
+            directory"
+    )]
     Clean,
     #[command(
-        about = "Initialize and lock schema definitions. Once initialized, schemas cannot be changed"
+        about = "Initialize and lock schema definitions. Once initialized, schemas cannot \
+            be changed"
     )]
-    Migrate(Migrate),
+    Build(Build),
+    #[command(about = "Run App or Api Server")]
+    Run(Run),
+    #[command(
+        about = "Show Sources",
+        long_about = "Show available tables schemas in external sources"
+    )]
+    Connectors(ConnectorCommand),
+    #[command(about = "Change security settings")]
+    Security(Security),
     #[cfg(feature = "cloud")]
     #[command(about = "Deploy cloud applications")]
     Cloud(Cloud),
-    #[command(about = "Run Api Server")]
-    Api(Api),
-    #[command(about = "Run App Server")]
-    App(App),
-    #[command(about = "Show Sources")]
-    Connector(Connector),
 }
 
 #[derive(Debug, Args)]
 #[command(args_conflicts_with_subcommands = true)]
-pub struct Api {
-    #[command(subcommand)]
-    pub command: ApiCommands,
-}
-
-#[derive(Debug, Args)]
-#[command(args_conflicts_with_subcommands = true)]
-pub struct Migrate {
+pub struct Build {
     #[arg(short = 'f')]
     pub force: Option<Option<String>>,
+}
+
+#[derive(Debug, Args)]
+pub struct Run {
+    #[command(subcommand)]
+    pub command: RunCommands,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum RunCommands {
+    #[command(
+        about = "Run app instance",
+        long_about = "Run app instance. App instance is responsible for ingesting data and \
+            passing it through pipeline"
+    )]
+    App,
+    #[command(
+        about = "Run api instance",
+        long_about = "Run api instance. Api instance runs server which creates access to \
+            API endpoints through REST and GRPC (depends on configuration)"
+    )]
+    Api,
+}
+
+#[derive(Debug, Args)]
+pub struct Security {
+    #[command(subcommand)]
+    pub command: SecurityCommands,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum SecurityCommands {
+    #[command(
+        author,
+        version,
+        about = "Generate master token",
+        long_about = "Master Token can be used to create other run time tokens \
+        that encapsulate different permissions."
+    )]
+    GenerateToken,
 }
 
 #[derive(Debug, Args)]
@@ -75,38 +129,39 @@ pub struct Deploy {
 }
 
 #[derive(Debug, Args)]
-#[command(args_conflicts_with_subcommands = true)]
-pub struct App {
-    #[command(subcommand)]
-    pub command: AppCommands,
+pub struct ConnectorCommand {
+    #[arg(short = 'f')]
+    pub filter: Option<String>,
 }
 
-#[derive(Debug, Args)]
-#[command(args_conflicts_with_subcommands = true)]
-pub struct Connector {
-    #[command(subcommand)]
-    pub command: ConnectorCommands,
-}
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_parse_config_override_string() {
+        let arg = "/app=\"abc\"";
+        let result = super::parse_config_override(arg).unwrap();
+        assert_eq!(result.0, "/app");
+        assert_eq!(result.1, serde_json::Value::String("abc".to_string()));
+    }
 
-#[derive(Debug, Subcommand)]
-pub enum ApiCommands {
-    Run,
-    #[command(
-        author,
-        version,
-        about = "Generate master token",
-        long_about = "Master Token can be used to create other run time tokens \
-        that encapsulate different permissions."
-    )]
-    GenerateToken,
-}
+    #[test]
+    fn test_parse_config_override_number() {
+        let arg = "/app=123";
+        let result = super::parse_config_override(arg).unwrap();
+        assert_eq!(result.0, "/app");
+        assert_eq!(result.1, serde_json::Value::Number(123.into()));
+    }
 
-#[derive(Debug, Subcommand)]
-pub enum AppCommands {
-    Run,
-}
-
-#[derive(Debug, Subcommand)]
-pub enum ConnectorCommands {
-    Ls,
+    #[test]
+    fn test_parse_config_override_object() {
+        let arg = "/app={\"a\": 1}";
+        let result = super::parse_config_override(arg).unwrap();
+        assert_eq!(result.0, "/app");
+        assert_eq!(
+            result.1,
+            serde_json::json!({
+                "a": 1
+            })
+        );
+    }
 }

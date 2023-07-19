@@ -1,6 +1,6 @@
 [package]
 name = "dozer-tests"
-version = "0.1.26"
+version = "0.1.29"
 edition = "2021"
 authors = ["getdozer/dozer-dev"]
 
@@ -49,7 +49,7 @@ dozer-core = { path = "../dozer-core" }
 dozer-sql = { path = "../dozer-sql" }
 dozer-cache = { path = "../dozer-cache" }
 
-sqlparser = "0.32.0"
+sqlparser = {git = "https://github.com/getdozer/sqlparser-rs.git" }
 rusqlite = { version = "0.28.0", features = ["bundled", "column_decltype"] }
 csv = "1.2"
 tempdir = "0.3.7"

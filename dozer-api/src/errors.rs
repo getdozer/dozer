@@ -1,10 +1,11 @@
 #![allow(clippy::enum_variant_names)]
+use std::net::AddrParseError;
 use std::path::PathBuf;
 
 use actix_web::http::header::ContentType;
 use actix_web::http::StatusCode;
 use actix_web::HttpResponse;
-use dozer_cache::dozer_log::errors::SchemaError;
+use dozer_cache::dozer_log::errors::ReaderError;
 use dozer_types::labels::Labels;
 use dozer_types::thiserror::Error;
 use dozer_types::{serde_json, thiserror};
@@ -19,6 +20,8 @@ use prost_reflect::{DescriptorError, Kind};
 pub enum ApiError {
     #[error("Authentication error: {0}")]
     ApiAuthError(#[from] AuthError),
+    #[error("Failed to create log reader builder: {0}")]
+    CreateLogReaderBuilder(#[from] ReaderError),
     #[error("Failed to open or create cache: {0}")]
     OpenOrCreateCache(#[source] CacheError),
     #[error("Failed to find cache: {0}")]
@@ -41,12 +44,10 @@ pub enum ApiError {
     TypeError(#[from] TypeError),
     #[error("Failed to bind to address {0}: {1}")]
     FailedToBindToAddress(String, #[source] std::io::Error),
-    #[error("Failed to load schema: {0}")]
-    FailedToLoadSchema(#[from] SchemaError),
-    #[error("Failed to find migration for endpoint {0}")]
-    NoMigrationFound(String),
-    #[error("Failed to find migration for endpoint {0} with version {1}")]
-    MigrationNotFound(String, u32),
+    #[error("Failed to find build for endpoint {0}")]
+    NoBuildFound(String),
+    #[error("Failed to find build for endpoint {0} with version {1}")]
+    BuildNotFound(String, u32),
 }
 
 impl ApiError {
@@ -64,8 +65,6 @@ impl ApiError {
 
 #[derive(Error, Debug)]
 pub enum GrpcError {
-    #[error("Internal gRPC server error: {0}")]
-    InternalError(#[from] BoxedError),
     #[error("Cannot send to broadcast channel")]
     CannotSendToBroadcastChannel,
     #[error("Generation error: {0}")]
@@ -74,7 +73,9 @@ pub enum GrpcError {
     SchemaNotFound(#[from] CacheError),
     #[error("Server reflection error: {0}")]
     ServerReflectionError(#[from] tonic_reflection::server::Error),
-    #[error("Transport error: {0}")]
+    #[error("Addr parse error: {0}: {1}")]
+    AddrParse(String, #[source] AddrParseError),
+    #[error("Transport error: {0:?}")]
     Transport(#[from] tonic::transport::Error),
 }
 impl From<GrpcError> for tonic::Status {
@@ -159,9 +160,9 @@ impl actix_web::error::ResponseError for ApiError {
             | ApiError::CountFailed(_)
             | ApiError::GetPhaseFailed(_)
             | ApiError::FailedToBindToAddress(_, _)
-            | ApiError::FailedToLoadSchema(_)
-            | ApiError::NoMigrationFound(_)
-            | ApiError::MigrationNotFound(_, _) => StatusCode::INTERNAL_SERVER_ERROR,
+            | ApiError::CreateLogReaderBuilder(_)
+            | ApiError::NoBuildFound(_)
+            | ApiError::BuildNotFound(_, _) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }

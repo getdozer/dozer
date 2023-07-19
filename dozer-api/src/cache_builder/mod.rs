@@ -1,8 +1,8 @@
 use std::collections::HashSet;
-use std::path::Path;
+use std::time::Duration;
 
 use crate::grpc::types_helper;
-use dozer_cache::dozer_log::reader::LogReader;
+use dozer_cache::dozer_log::reader::{LogReader, LogReaderBuilder};
 use dozer_cache::{
     cache::{CacheRecord, CacheWriteOptions, RwCache, RwCacheManager, UpsertResult},
     errors::CacheError,
@@ -30,15 +30,17 @@ use tokio_stream::StreamExt;
 pub async fn build_cache(
     cache: Box<dyn RwCache>,
     cancel: impl Future<Output = ()> + Unpin + Send + 'static,
-    log_path: &Path,
+    log_reader_builder: LogReaderBuilder,
     operations_sender: Option<(String, Sender<GrpcOperation>)>,
     multi_pb: Option<MultiProgress>,
 ) -> Result<(), CacheError> {
     // Create log reader.
     let pos = cache.get_metadata()?.unwrap_or(0);
-    let reader_name = cache.labels().to_string();
-    debug!("Starting log reader {reader_name} from position {pos}");
-    let log_reader = LogReader::new(log_path, reader_name, pos, multi_pb).await?;
+    debug!(
+        "Starting log reader {} from position {pos}",
+        log_reader_builder.options.endpoint
+    );
+    let log_reader = log_reader_builder.build(pos, multi_pb);
 
     // Spawn tasks
     let mut futures = FuturesUnordered::new();
@@ -87,6 +89,8 @@ pub fn open_or_create_cache(
     }
 }
 
+const READ_LOG_RETRY_INTERVAL: Duration = Duration::from_secs(1);
+
 async fn read_log_task(
     mut cancel: impl Future<Output = ()> + Unpin + Send + 'static,
     mut log_reader: LogReader,
@@ -94,15 +98,27 @@ async fn read_log_task(
 ) {
     loop {
         let next_op = std::pin::pin!(log_reader.next_op());
-        match select(next_op, cancel).await {
-            Either::Left((op, c)) => {
+        match select(cancel, next_op).await {
+            Either::Left(_) => break,
+            Either::Right((op, c)) => {
+                let op = match op {
+                    Ok(op) => op,
+                    Err(e) => {
+                        error!(
+                            "Failed to read log: {e}, retrying after {READ_LOG_RETRY_INTERVAL:?}"
+                        );
+                        tokio::time::sleep(READ_LOG_RETRY_INTERVAL).await;
+                        cancel = c;
+                        continue;
+                    }
+                };
+
                 cancel = c;
                 if sender.send(op).await.is_err() {
                     debug!("Stop reading log because receiver is dropped");
                     break;
                 }
             }
-            Either::Right(_) => break,
         }
     }
 }
@@ -114,22 +130,10 @@ fn build_cache_task(
 ) -> Result<(), CacheError> {
     let schema = cache.get_schema().0.clone();
 
-    const CACHE_INSERT_COUNTER_NAME: &str = "cache_insert";
+    const CACHE_OPERATION_COUNTER_NAME: &str = "cache_operation";
     describe_counter!(
-        CACHE_INSERT_COUNTER_NAME,
-        "Number of inserts processed by cache builder"
-    );
-
-    const CACHE_DELETE_COUNTER_NAME: &str = "cache_delete";
-    describe_counter!(
-        CACHE_DELETE_COUNTER_NAME,
-        "Number of deletes processed by cache builder"
-    );
-
-    const CACHE_UPDATE_COUNTER_NAME: &str = "cache_update";
-    describe_counter!(
-        CACHE_UPDATE_COUNTER_NAME,
-        "Number of updates processed by cache builder"
+        CACHE_OPERATION_COUNTER_NAME,
+        "Number of message processed by cache builder"
     );
 
     const DATA_LATENCY_HISTOGRAM_NAME: &str = "data_latency";
@@ -138,7 +142,12 @@ fn build_cache_task(
         "End-to-end data latency in seconds"
     );
 
-    while let Some((op, offset)) = receiver.blocking_recv() {
+    const OPERATION_TYPE_LABEL: &str = "operation_type";
+    const SNAPSHOTTING_LABEL: &str = "snapshotting";
+
+    let mut snapshotting = !cache.is_snapshotting_done()?;
+
+    while let Some((op, pos)) = receiver.blocking_recv() {
         match op {
             ExecutorOperation::Op { op } => match op {
                 Operation::Delete { mut old } => {
@@ -153,12 +162,18 @@ fn build_cache_task(
                             send_and_log_error(operations_sender, operation);
                         }
                     }
-                    increment_counter!(CACHE_DELETE_COUNTER_NAME, cache.labels().clone());
+                    let mut labels = cache.labels().clone();
+                    labels.push(OPERATION_TYPE_LABEL, "delete");
+                    labels.push(SNAPSHOTTING_LABEL, snapshotting_str(snapshotting));
+                    increment_counter!(CACHE_OPERATION_COUNTER_NAME, labels);
                 }
                 Operation::Insert { mut new } => {
                     new.schema_id = schema.identifier;
                     let result = cache.insert(&new)?;
-                    increment_counter!(CACHE_INSERT_COUNTER_NAME, cache.labels().clone());
+                    let mut labels = cache.labels().clone();
+                    labels.push(OPERATION_TYPE_LABEL, "insert");
+                    labels.push(SNAPSHOTTING_LABEL, snapshotting_str(snapshotting));
+                    increment_counter!(CACHE_OPERATION_COUNTER_NAME, labels);
 
                     if let Some((endpoint_name, operations_sender)) = operations_sender.as_ref() {
                         send_upsert_result(
@@ -175,7 +190,10 @@ fn build_cache_task(
                     old.schema_id = schema.identifier;
                     new.schema_id = schema.identifier;
                     let upsert_result = cache.update(&old, &new)?;
-                    increment_counter!(CACHE_UPDATE_COUNTER_NAME, cache.labels().clone());
+                    let mut labels = cache.labels().clone();
+                    labels.push(OPERATION_TYPE_LABEL, "update");
+                    labels.push(SNAPSHOTTING_LABEL, snapshotting_str(snapshotting));
+                    increment_counter!(CACHE_OPERATION_COUNTER_NAME, labels);
 
                     if let Some((endpoint_name, operations_sender)) = operations_sender.as_ref() {
                         send_upsert_result(
@@ -190,7 +208,7 @@ fn build_cache_task(
                 }
             },
             ExecutorOperation::Commit { epoch } => {
-                cache.set_metadata(offset)?;
+                cache.set_metadata(pos)?;
                 cache.commit()?;
                 if let Ok(duration) = epoch.decision_instant.elapsed() {
                     histogram!(
@@ -201,9 +219,10 @@ fn build_cache_task(
                 }
             }
             ExecutorOperation::SnapshottingDone { connection_name } => {
-                cache.set_metadata(offset)?;
+                cache.set_metadata(pos)?;
                 cache.set_connection_snapshotting_done(&connection_name)?;
                 cache.commit()?;
+                snapshotting = !cache.is_snapshotting_done()?;
             }
             ExecutorOperation::Terminate => {
                 break;
@@ -255,5 +274,13 @@ fn send_upsert_result(
 fn send_and_log_error<T: Send + Sync + 'static>(sender: &Sender<T>, msg: T) {
     if let Err(e) = sender.send(msg) {
         error!("Failed to send broadcast message: {}", e);
+    }
+}
+
+fn snapshotting_str(snapshotting: bool) -> &'static str {
+    if snapshotting {
+        "true"
+    } else {
+        "false"
     }
 }

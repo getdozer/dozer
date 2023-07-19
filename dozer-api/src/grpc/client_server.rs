@@ -3,7 +3,7 @@ use super::{auth_middleware::AuthMiddlewareLayer, common::CommonService, typed::
 use crate::grpc::auth::AuthService;
 use crate::grpc::health::HealthService;
 use crate::grpc::{common, typed};
-use crate::{errors::GrpcError, generator::protoc::generator::ProtoGenerator, CacheEndpoint};
+use crate::{errors::GrpcError, CacheEndpoint};
 use dozer_types::grpc_types::health::health_check_response::ServingStatus;
 use dozer_types::grpc_types::types::Operation;
 use dozer_types::grpc_types::{
@@ -44,22 +44,9 @@ impl ApiServer {
         ),
         GrpcError,
     > {
-        info!(
-            "Starting gRPC server on http://{}:{} with security: {}",
-            self.host,
-            self.port,
-            self.security
-                .as_ref()
-                .map_or("None".to_string(), |s| match s {
-                    ApiSecurity::Jwt(_) => "JWT".to_string(),
-                })
-        );
-
         let mut all_descriptor_bytes = vec![];
         for cache_endpoint in &cache_endpoints {
-            let descriptor_path = cache_endpoint.descriptor_path();
-            let descriptor_bytes = ProtoGenerator::read_descriptor_bytes(descriptor_path)?;
-            all_descriptor_bytes.push(descriptor_bytes);
+            all_descriptor_bytes.push(cache_endpoint.descriptor().to_vec());
         }
 
         let mut builder = tonic_reflection::server::Builder::configure();
@@ -183,7 +170,19 @@ impl ApiServer {
         });
 
         // Run server.
-        let addr = format!("{:}:{:}", self.host, self.port).parse().unwrap();
+        let addr = format!("{}:{}", self.host, self.port);
+        info!(
+            "Starting gRPC server on {addr} with security: {}",
+            self.security
+                .as_ref()
+                .map_or("None".to_string(), |s| match s {
+                    ApiSecurity::Jwt(_) => "JWT".to_string(),
+                })
+        );
+
+        let addr = addr
+            .parse()
+            .map_err(|e| GrpcError::AddrParse(addr.clone(), e))?;
         match Abortable::new(grpc_router.serve(addr), abort_registration).await {
             Ok(result) => result.map_err(GrpcError::Transport),
             Err(Aborted) => Ok(()),

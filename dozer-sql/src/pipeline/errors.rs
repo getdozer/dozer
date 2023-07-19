@@ -119,6 +119,9 @@ pub enum PipelineError {
     #[error("Nested Join is not supported")]
     UnsupportedNestedJoin,
 
+    #[error("Pivot is not supported")]
+    UnsupportedPivot,
+
     #[error("Table Operator: {0} is not supported")]
     UnsupportedTableOperator(String),
 
@@ -279,6 +282,9 @@ pub enum ProductError {
 
     #[error("Error in the FROM clause, UNNEST is not supported")]
     UnsupportedUnnest,
+
+    #[error("Error in the FROM clause, Pivot is not supported")]
+    UnsupportedPivot,
 }
 
 #[derive(Error, Debug)]

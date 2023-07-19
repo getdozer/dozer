@@ -4,7 +4,7 @@ use deltalake::{
     datafusion::{datasource::listing::ListingTableUrl, prelude::SessionContext},
     Path as DeltaPath,
 };
-use dozer_types::{tracing::info, types::Operation};
+use dozer_types::tracing::info;
 use futures::StreamExt;
 use object_store::ObjectStore;
 use tokio::sync::mpsc::Sender;
@@ -15,6 +15,7 @@ use crate::{
     errors::{ConnectorError, ObjectStoreConnectorError, ObjectStoreObjectError},
 };
 
+use dozer_types::ingestion_types::IngestionMessageKind;
 use std::path::Path;
 
 use super::{adapters::DozerObjectStore, table_reader::TableReader};
@@ -51,7 +52,7 @@ pub trait Watcher<T> {
         &self,
         id: u32,
         table: &TableInfo,
-        sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
+        sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
     ) -> Result<(), ConnectorError>;
 }
 
@@ -61,7 +62,7 @@ impl<T: DozerObjectStore> Watcher<T> for TableReader<T> {
         &self,
         id: u32,
         table: &TableInfo,
-        sender: Sender<Result<Option<Operation>, ObjectStoreConnectorError>>,
+        sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
     ) -> Result<(), ConnectorError> {
         let params = self.config.table_params(&table.name)?;
         let store = Arc::new(params.object_store);

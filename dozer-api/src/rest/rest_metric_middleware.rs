@@ -1,5 +1,9 @@
-use std::future::{ready, Ready};
+use std::{
+    future::{ready, Ready},
+    sync::Arc,
+};
 
+use actix_http::HttpMessage;
 use actix_web::{
     dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
     Error,
@@ -7,7 +11,10 @@ use actix_web::{
 use futures_util::future::LocalBoxFuture;
 use metrics::{histogram, increment_counter};
 
-use crate::api_helper::{API_LATENCY_HISTOGRAM_NAME, API_REQUEST_COUNTER_NAME};
+use crate::{
+    api_helper::{API_LATENCY_HISTOGRAM_NAME, API_REQUEST_COUNTER_NAME},
+    CacheEndpoint,
+};
 
 pub struct RestMetric;
 
@@ -45,13 +52,20 @@ where
     forward_ready!(service);
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
-        let fut = self.service.call(req);
+        let cache_data = req.extensions().get::<Arc<CacheEndpoint>>().cloned();
+        let fut: <S as Service<ServiceRequest>>::Future = self.service.call(req);
 
         Box::pin(async move {
             let start_time = std::time::Instant::now();
-            let res = fut.await;
-            histogram!(API_LATENCY_HISTOGRAM_NAME, start_time.elapsed());
-            increment_counter!(API_REQUEST_COUNTER_NAME);
+            let res: Result<ServiceResponse<B>, Error> = fut.await;
+            if let Some(endpoint) = cache_data {
+                let labels: [(&str, String); 2] = [
+                    ("endpoint", endpoint.endpoint.table_name.to_owned()),
+                    ("api_type", "rest".to_owned()),
+                ];
+                histogram!(API_LATENCY_HISTOGRAM_NAME, start_time.elapsed(), &labels);
+                increment_counter!(API_REQUEST_COUNTER_NAME, &labels);
+            }
             res
         })
     }

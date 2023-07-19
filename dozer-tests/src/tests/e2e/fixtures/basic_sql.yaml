@@ -34,12 +34,10 @@ sql: |
 sources:
   - name: zones
     table_name: zones
-    connection: !Ref ny_taxi
-    columns:
+    connection: ny_taxi
   - name: trips
     table_name: trips
-    connection: !Ref ny_taxi
-    columns:
+    connection: ny_taxi
 
 endpoints:
   - name: trips

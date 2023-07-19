@@ -1,13 +1,15 @@
-connections:    
+app_name: dozer-samples-connectors-local-storage
+
+connections:
   - config : !LocalStorage
       details:
         path: data
       tables:
         - !Table
-          name: trips
-          config: !Parquet
-            path: trips
-            extension: .parquet
+            name: trips
+            config: !Parquet
+              path: trips
+              extension: .parquet
     name: ny_taxi
 
 sql: |
@@ -24,8 +26,7 @@ sql: |
 sources:
   - name: trips
     table_name: trips
-    connection: !Ref ny_taxi
-    columns:
+    connection: ny_taxi
 
 endpoints:
   - name: trips_cache

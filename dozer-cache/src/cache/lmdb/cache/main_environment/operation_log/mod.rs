@@ -66,12 +66,12 @@ const PRESENT_OPERATION_IDS_DB_NAME: &str = "present_operation_ids";
 const NEXT_OPERATION_ID_DB_NAME: &str = "next_operation_id";
 const OPERATION_ID_TO_OPERATION_DB_NAME: &str = "operation_id_to_operation";
 
-const CACHE_OPERATION_COUNTER_NAME: &str = "cache_operation";
+const CACHE_OPERATION_LOG_COUNTER_NAME: &str = "cache_operation_log";
 
 impl OperationLog {
     pub fn create(env: &mut RwLmdbEnvironment, labels: Labels) -> Result<Self, StorageError> {
         describe_counter!(
-            CACHE_OPERATION_COUNTER_NAME,
+            CACHE_OPERATION_LOG_COUNTER_NAME,
             "Number of operations stored in the cache"
         );
 
@@ -202,7 +202,8 @@ impl OperationLog {
         let Some(Cow::Owned(Operation::Insert {
             record_meta,
             record,
-        })) = self.operation_id_to_operation.get(txn, &operation_id)? else {
+        })) = self.operation_id_to_operation.get(txn, &operation_id)?
+        else {
             panic!(
                 "Inconsistent state: primary_key_metadata, hash_metadata or present_operation_ids contains an insert operation id that is not an Insert operation"
             );
@@ -259,7 +260,7 @@ impl OperationLog {
                     record,
                 },
             )?;
-            increment_counter!(CACHE_OPERATION_COUNTER_NAME, self.labels.clone());
+            increment_counter!(CACHE_OPERATION_LOG_COUNTER_NAME, self.labels.clone());
             Ok(record_meta)
         }
     }
@@ -357,7 +358,7 @@ impl OperationLog {
                 record,
             },
         )?;
-        increment_counter!(CACHE_OPERATION_COUNTER_NAME, self.labels.clone());
+        increment_counter!(CACHE_OPERATION_LOG_COUNTER_NAME, self.labels.clone());
         Ok(())
     }
 
@@ -423,7 +424,7 @@ impl OperationLog {
                 operation_id: insert_operation_id,
             },
         )?;
-        increment_counter!(CACHE_OPERATION_COUNTER_NAME, self.labels.clone());
+        increment_counter!(CACHE_OPERATION_LOG_COUNTER_NAME, self.labels.clone());
         Ok(())
     }
 

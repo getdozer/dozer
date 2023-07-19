@@ -23,16 +23,20 @@ use super::processor::ProjectionProcessor;
 #[derive(Debug)]
 pub struct ProjectionProcessorFactory {
     select: Vec<SelectItem>,
+    id: String,
 }
 
 impl ProjectionProcessorFactory {
     /// Creates a new [`ProjectionProcessorFactory`].
-    pub fn _new(select: Vec<SelectItem>) -> Self {
-        Self { select }
+    pub fn _new(id: String, select: Vec<SelectItem>) -> Self {
+        Self { select, id }
     }
 }
 
 impl ProcessorFactory<SchemaSQLContext> for ProjectionProcessorFactory {
+    fn id(&self) -> String {
+        self.id.clone()
+    }
     fn type_name(&self) -> String {
         "Projection".to_string()
     }
@@ -69,16 +73,14 @@ impl ProcessorFactory<SchemaSQLContext> for ProjectionProcessorFactory {
                         })
                         .collect();
                     for f in fields {
-                        let res = parse_sql_select_item(&f, input_schema);
-                        if let Ok(..) = res {
-                            select_expr.push(res.unwrap())
+                        if let Ok(res) = parse_sql_select_item(&f, input_schema) {
+                            select_expr.push(res)
                         }
                     }
                 }
                 _ => {
-                    let res = parse_sql_select_item(s, input_schema);
-                    if let Ok(..) = res {
-                        select_expr.push(res.unwrap())
+                    if let Ok(res) = parse_sql_select_item(s, input_schema) {
+                        select_expr.push(res)
                     }
                 }
             }

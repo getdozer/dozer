@@ -2,56 +2,51 @@ use arc_swap::ArcSwap;
 use cache_builder::open_or_create_cache;
 use dozer_cache::{
     cache::{CacheWriteOptions, RwCacheManager},
-    dozer_log::{errors::SchemaError, home_dir::HomeDir, schemas::load_schema},
+    dozer_log::reader::{LogReaderBuilder, LogReaderOptions},
     errors::CacheError,
     CacheReader,
 };
 use dozer_types::{
-    grpc_types::types::Operation, labels::Labels, models::api_endpoint::ApiEndpoint,
+    grpc_types::types::Operation,
+    labels::Labels,
+    models::api_endpoint::{
+        default_log_reader_batch_size, default_log_reader_buffer_size,
+        default_log_reader_timeout_in_millis, ApiEndpoint,
+    },
 };
 use futures_util::Future;
-use std::{
-    ops::Deref,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{ops::Deref, sync::Arc};
 
 mod api_helper;
 
 #[derive(Debug)]
 pub struct CacheEndpoint {
     cache_reader: ArcSwap<CacheReader>,
-    descriptor_path: PathBuf,
+    descriptor: Vec<u8>,
     endpoint: ApiEndpoint,
 }
 
+const ENDPOINT_LABEL: &str = "endpoint";
+const BUILD_LABEL: &str = "build";
+
 impl CacheEndpoint {
-    #[allow(clippy::too_many_arguments)]
     pub async fn new(
-        home_dir: &HomeDir,
+        app_server_addr: String,
         cache_manager: &dyn RwCacheManager,
         endpoint: ApiEndpoint,
         cancel: impl Future<Output = ()> + Unpin + Send + 'static,
         operations_sender: Option<Sender<Operation>>,
         multi_pb: Option<MultiProgress>,
     ) -> Result<(Self, JoinHandle<Result<(), CacheError>>), ApiError> {
-        // Find migration.
-        let migration_path = if let Some(version) = endpoint.version {
-            home_dir
-                .find_migration_path(&endpoint.name, version)
-                .ok_or(ApiError::MigrationNotFound(endpoint.name.clone(), version))?
-        } else {
-            home_dir
-                .find_latest_migration_path(&endpoint.name)
-                .map_err(|(path, error)| SchemaError::Filesystem(path, error))?
-                .ok_or(ApiError::NoMigrationFound(endpoint.name.clone()))?
-        };
+        // Create log reader builder.
+        let log_reader_builder =
+            LogReaderBuilder::new(app_server_addr, get_log_reader_options(&endpoint)).await?;
+        let descriptor = log_reader_builder.descriptor.clone();
 
         // Open or create cache.
-        let mut cache_labels = Labels::new();
-        cache_labels.push("endpoint", endpoint.name.clone());
-        cache_labels.push("migration", migration_path.id.name().to_string());
-        let schema = load_schema(&migration_path.schema_path)?;
+        let cache_labels =
+            cache_labels(endpoint.name.clone(), log_reader_builder.build_name.clone());
+        let schema = log_reader_builder.schema.clone();
         let conflict_resolution = endpoint.conflict_resolution.unwrap_or_default();
         let write_options = CacheWriteOptions {
             insert_resolution: conflict_resolution.on_insert.unwrap_or_default(),
@@ -79,7 +74,7 @@ impl CacheEndpoint {
                 cache_builder::build_cache(
                     cache,
                     cancel,
-                    &migration_path.log_path,
+                    log_reader_builder,
                     operations_sender,
                     multi_pb,
                 )
@@ -90,7 +85,7 @@ impl CacheEndpoint {
         Ok((
             Self {
                 cache_reader: ArcSwap::from_pointee(cache_reader),
-                descriptor_path: migration_path.descriptor_path,
+                descriptor,
                 endpoint,
             },
             handle,
@@ -99,14 +94,14 @@ impl CacheEndpoint {
 
     pub fn open(
         cache_manager: &dyn RwCacheManager,
-        descriptor_path: PathBuf,
+        descriptor: Vec<u8>,
         endpoint: ApiEndpoint,
     ) -> Result<Self, ApiError> {
         let mut labels = Labels::new();
         labels.push(endpoint.name.clone(), endpoint.name.clone());
         Ok(Self {
             cache_reader: ArcSwap::from_pointee(open_existing_cache_reader(cache_manager, labels)?),
-            descriptor_path,
+            descriptor,
             endpoint,
         })
     }
@@ -115,13 +110,20 @@ impl CacheEndpoint {
         self.cache_reader.load()
     }
 
-    pub fn descriptor_path(&self) -> &Path {
-        &self.descriptor_path
+    pub fn descriptor(&self) -> &[u8] {
+        &self.descriptor
     }
 
     pub fn endpoint(&self) -> &ApiEndpoint {
         &self.endpoint
     }
+}
+
+pub fn cache_labels(endpoint: String, build: String) -> Labels {
+    let mut labels = Labels::new();
+    labels.push(ENDPOINT_LABEL, endpoint);
+    labels.push(BUILD_LABEL, build);
+    labels
 }
 
 fn open_cache_reader(
@@ -139,6 +141,27 @@ fn open_existing_cache_reader(
     labels: Labels,
 ) -> Result<CacheReader, ApiError> {
     open_cache_reader(cache_manager, labels.clone())?.ok_or_else(|| ApiError::CacheNotFound(labels))
+}
+
+fn get_log_reader_options(endpoint: &ApiEndpoint) -> LogReaderOptions {
+    LogReaderOptions {
+        endpoint: endpoint.name.clone(),
+        batch_size: endpoint
+            .log_reader_options
+            .as_ref()
+            .and_then(|options| options.batch_size)
+            .unwrap_or_else(default_log_reader_batch_size),
+        timeout_in_millis: endpoint
+            .log_reader_options
+            .as_ref()
+            .and_then(|options| options.timeout_in_millis)
+            .unwrap_or_else(default_log_reader_timeout_in_millis),
+        buffer_size: endpoint
+            .log_reader_options
+            .as_ref()
+            .and_then(|options| options.buffer_size)
+            .unwrap_or_else(default_log_reader_buffer_size),
+    }
 }
 
 // Exports

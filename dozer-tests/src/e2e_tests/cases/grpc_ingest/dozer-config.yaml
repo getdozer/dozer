@@ -30,12 +30,9 @@ connections:
 sources:
   - name: users
     table_name: users
-    connection: !Ref ingest
-    columns:
+    connection: ingest
 
 endpoints:
   - name: users
     path: /users
     table_name: users
-    index:
-      primary_key:

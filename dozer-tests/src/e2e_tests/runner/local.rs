@@ -89,18 +89,18 @@ fn spawn_dozer_same_process(dozer_bin: &str, dozer_config_path: &str) -> Vec<Cle
 fn spawn_dozer_two_processes(dozer_bin: &str, dozer_config_path: &str) -> Vec<Cleanup> {
     run_command(
         dozer_bin,
-        &["--config-path", dozer_config_path, "migrate"],
+        &["--config-path", dozer_config_path, "build"],
         None,
     );
     let mut cleanups = vec![];
     let child = spawn_command(
         dozer_bin,
-        &["--config-path", dozer_config_path, "app", "run"],
+        &["--config-path", dozer_config_path, "run", "app"],
     );
     cleanups.push(Cleanup::KillProcess(child));
     let child = spawn_command(
         dozer_bin,
-        &["--config-path", dozer_config_path, "api", "run"],
+        &["--config-path", dozer_config_path, "run", "api"],
     );
     cleanups.push(Cleanup::KillProcess(child));
     cleanups

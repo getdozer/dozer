@@ -1,11 +1,13 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::path::PathBuf;
 use std::sync::Arc;
 
+use dozer_cache::dozer_log::replication::Log;
 use dozer_core::app::App;
 use dozer_core::app::AppPipeline;
 use dozer_core::executor::DagExecutor;
+use dozer_core::node::SinkFactory;
+use dozer_core::Dag;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_ingestion::connectors::{get_connector, get_connector_info_table};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
@@ -17,12 +19,16 @@ use dozer_types::models::connection::Connection;
 use dozer_types::models::source::Source;
 use std::hash::Hash;
 use tokio::runtime::Runtime;
+use tokio::sync::Mutex;
 
-use crate::pipeline::{LogSinkFactory, LogSinkSettings};
+use crate::pipeline::dummy_sink::DummySinkFactory;
+use crate::pipeline::LogSinkFactory;
+use crate::ui_helper::transform_to_ui_graph;
 
 use super::source_builder::SourceBuilder;
 use crate::errors::OrchestrationError;
 use dozer_types::log::{error, info};
+use metrics::{describe_counter, increment_counter};
 use OrchestrationError::ExecutionError;
 
 pub enum OutputTableInfo {
@@ -40,27 +46,31 @@ pub struct CalculatedSources {
     pub transformed_sources: Vec<String>,
     pub query_context: Option<QueryContext>,
 }
+
+type OptionLog = Option<Arc<Mutex<Log>>>;
+
 pub struct PipelineBuilder<'a> {
     connections: &'a [Connection],
     sources: &'a [Source],
     sql: Option<&'a str>,
-    /// `ApiEndpoint` and its log path.
-    endpoint_and_log_paths: Vec<(ApiEndpoint, PathBuf)>,
+    /// `ApiEndpoint` and its log.
+    endpoint_and_logs: Vec<(ApiEndpoint, OptionLog)>,
     progress: MultiProgress,
 }
+
 impl<'a> PipelineBuilder<'a> {
     pub fn new(
         connections: &'a [Connection],
         sources: &'a [Source],
         sql: Option<&'a str>,
-        endpoint_and_log_paths: Vec<(ApiEndpoint, PathBuf)>,
+        endpoint_and_logs: Vec<(ApiEndpoint, OptionLog)>,
         progress: MultiProgress,
     ) -> Self {
         Self {
             connections,
             sources,
             sql,
-            endpoint_and_log_paths,
+            endpoint_and_logs,
             progress,
         }
     }
@@ -77,7 +87,7 @@ impl<'a> PipelineBuilder<'a> {
         for connection in self.connections {
             let connector = get_connector(connection.clone())?;
 
-            if let Some(info_table) = get_connector_info_table(connection) {
+            if let Ok(info_table) = get_connector_info_table(connection) {
                 info!("[{}] Connection parameters\n{info_table}", connection.name);
             }
 
@@ -89,15 +99,14 @@ impl<'a> PipelineBuilder<'a> {
                 .map(|table| {
                     match self.sources.iter().find(|s| {
                         // TODO: @dario - Replace this line with the actual schema parsed from SQL
-                        s.connection.as_ref().unwrap().name == connection.name
-                            && s.table_name == table.name
+                        s.connection == connection.name && s.table_name == table.name
                     }) {
                         Some(source) => source.clone(),
                         None => Source {
                             name: table.name.clone(),
                             table_name: table.name.clone(),
                             schema: table.schema.clone(),
-                            connection: Some(connection.clone()),
+                            connection: connection.name.clone(),
                             ..Default::default()
                         },
                     }
@@ -161,7 +170,7 @@ impl<'a> PipelineBuilder<'a> {
         }
 
         // Add Used Souces if direct from source
-        for (api_endpoint, _) in &self.endpoint_and_log_paths {
+        for (api_endpoint, _) in &self.endpoint_and_logs {
             let table_name = &api_endpoint.table_name;
 
             // Don't add if the table is a result of SQL
@@ -179,11 +188,10 @@ impl<'a> PipelineBuilder<'a> {
         })
     }
 
-    // This function is used by both migrate and actual execution
+    // This function is used by both building and actual execution
     pub fn build(
         self,
         runtime: Arc<Runtime>,
-        settings: LogSinkSettings,
     ) -> Result<dozer_core::Dag<SchemaSQLContext>, OrchestrationError> {
         let calculated_sources = self.calculate_sources()?;
 
@@ -227,19 +235,23 @@ impl<'a> PipelineBuilder<'a> {
 
         let conn_ports = source_builder.get_ports();
 
-        for (api_endpoint, log_path) in self.endpoint_and_log_paths {
+        for (api_endpoint, log) in self.endpoint_and_logs {
             let table_name = &api_endpoint.table_name;
 
             let table_info = available_output_tables
                 .get(table_name)
                 .ok_or_else(|| OrchestrationError::EndpointTableNotFound(table_name.clone()))?;
 
-            let snk_factory = Arc::new(LogSinkFactory::new(
-                log_path,
-                settings.clone(),
-                api_endpoint.name.clone(),
-                self.progress.clone(),
-            ));
+            let snk_factory: Arc<dyn SinkFactory<SchemaSQLContext>> = if let Some(log) = log {
+                Arc::new(LogSinkFactory::new(
+                    runtime.clone(),
+                    log,
+                    api_endpoint.name.clone(),
+                    self.progress.clone(),
+                ))
+            } else {
+                Arc::new(DummySinkFactory)
+            };
 
             match table_info {
                 OutputTableInfo::Transformed(table_info) => {
@@ -296,6 +308,9 @@ impl<'a> PipelineBuilder<'a> {
                 OrchestrationError::PipelineValidationError
             })?;
 
+        // Emit metrics for monitoring
+        emit_dag_metrics(dag.clone(), conn_ports)?;
+
         Ok(dag)
     }
 }
@@ -303,4 +318,51 @@ impl<'a> PipelineBuilder<'a> {
 fn dedup<T: Eq + Hash + Clone>(v: &mut Vec<T>) {
     let mut uniques = HashSet::new();
     v.retain(|e| uniques.insert(e.clone()));
+}
+
+pub fn emit_dag_metrics(
+    input_dag: Dag<SchemaSQLContext>,
+    conn_ports: HashMap<(&str, &str), u16>,
+) -> Result<(), OrchestrationError> {
+    const GRAPH_NODES: &str = "pipeline_nodes";
+    const GRAPH_EDGES: &str = "pipeline_edges";
+
+    describe_counter!(GRAPH_NODES, "Number of nodes in the pipeline");
+    describe_counter!(GRAPH_EDGES, "Number of edges in the pipeline");
+
+    let port_connection_sources: HashMap<u16, (&str, &str)> = conn_ports
+        .iter()
+        .map(|(k, v)| (v.to_owned(), k.to_owned()))
+        .collect();
+
+    let query_graph = transform_to_ui_graph(input_dag, port_connection_sources)?;
+
+    for node in query_graph.nodes {
+        let node_name = node.name;
+        let node_type = node.node_type;
+        let node_idx = node.idx;
+        let node_id = node.id;
+        let node_data = node.data;
+
+        let labels: [(&str, String); 5] = [
+            ("node_name", node_name),
+            ("node_type", node_type.to_string()),
+            ("node_idx", node_idx.to_string()),
+            ("node_id", node_id.to_string()),
+            ("node_data", node_data.to_string()),
+        ];
+
+        increment_counter!(GRAPH_NODES, &labels);
+    }
+
+    for edge in query_graph.edges {
+        let from = edge.from;
+        let to = edge.to;
+
+        let labels: [(&str, String); 2] = [("from", from.to_string()), ("to", to.to_string())];
+
+        increment_counter!(GRAPH_EDGES, &labels);
+    }
+
+    Ok(())
 }

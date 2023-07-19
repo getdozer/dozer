@@ -11,6 +11,7 @@ env:
   ECR_REPOSITORY: dozer
   DOCKERHUB_REGISTRY: getdozer
   DOCKERHUB_REPOSITORY: dozer
+  RUSTC_VERSION: 1.70.0
 
 permissions:
   id-token: write # This is required for requesting the JWT
@@ -86,7 +87,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: stable
+          toolchain: ${{ env.RUSTC_VERSION }}
           target: ${{ matrix.target }}
           components: rustfmt, clippy
       - name: APT update
@@ -124,6 +125,7 @@ jobs:
           echo '[target.aarch64-unknown-linux-gnu]' >> ~/.cargo/config
           echo 'linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config
           echo 'JEMALLOC_SYS_WITH_LG_PAGE=16' >> $GITHUB_ENV
+          rustup target add aarch64-unknown-linux-gnu
       - name: Cargo build
         uses: actions-rs/cargo@v1
         with:
@@ -215,7 +217,7 @@ jobs:
       - name: Installing Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: ${{ env.RUSTC_VERSION }}
           profile: minimal
           target: ${{ matrix.target }}
           override: true
@@ -238,6 +240,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-release-${{ hashFiles('Cargo.lock') }}
             ${{ runner.os }}-cargo-release-
+
       - name: Cargo build
         uses: actions-rs/cargo@v1
         with:
@@ -315,7 +318,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: stable
+          toolchain: ${{ env.RUSTC_VERSION }}
           target: ${{ matrix.target }}
           components: rustfmt, clippy
       - name: Install Protoc
@@ -350,13 +353,9 @@ jobs:
         if: matrix.os != 'ubuntu-20-16-cores'
         run: cargo build --release --bin ${{ matrix.file_name }}
 
-      - name: Build package for ubuntu (with kafka)
+      - name: Build package for ubuntu (with kafka & snowflake)
         if: matrix.os == 'ubuntu-20-16-cores'
-        run: cargo build --release --bin  ${{ matrix.file_name }} --features=kafka
-
-      # - name: Build Linux binary
-      #   if: matrix.os == 'ubuntu-20-16-cores'
-      #   run: cargo build --features=snowflake --release
+        run: cargo build --release --bin  ${{ matrix.file_name }} --features "kafka snowflake"
 
       - name: Prepare release assets
         shell: bash

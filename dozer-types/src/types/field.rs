@@ -595,9 +595,8 @@ impl Field {
             )),
             Field::Duration(d) => Ok(Some(*d)),
             Field::String(d) | Field::Text(d) => {
-                let dur = DozerDuration::from_str(d.as_str());
-                if let Ok(..) = dur {
-                    Ok(Some(dur.unwrap()))
+                if let Ok(dur) = DozerDuration::from_str(d.as_str()) {
+                    Ok(Some(dur))
                 } else {
                     Err(TypeError::InvalidFieldValue {
                         field_type: FieldType::Duration,

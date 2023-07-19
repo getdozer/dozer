@@ -11,7 +11,7 @@ use dozer_types::{
         common::common_grpc_service_client::CommonGrpcServiceClient,
         ingest::ingest_service_client::IngestServiceClient,
     },
-    models::{app_config::Config, connection::ConnectionConfig},
+    models::{api_config::default_api_grpc, config::Config, connection::ConnectionConfig},
     serde_yaml,
 };
 use tempdir::TempDir;
@@ -19,6 +19,7 @@ use tokio::runtime::Runtime;
 
 mod basic;
 mod basic_sql;
+mod basic_sql_wildcard;
 mod left_join;
 
 struct DozerE2eTest {
@@ -36,8 +37,11 @@ impl DozerE2eTest {
         config.home_dir = temp_dir.path().to_str().unwrap().to_string();
         config.cache_dir = temp_dir.path().join("cache").to_str().unwrap().to_string();
 
-        let api = config.api.clone().unwrap_or_default();
-        let api_grpc = api.grpc.unwrap_or_default();
+        let api_grpc = config
+            .api
+            .as_ref()
+            .and_then(|api| api.grpc.clone())
+            .unwrap_or_else(default_api_grpc);
         let common_service_url = format!("http://{}:{}", api_grpc.host, api_grpc.port);
 
         let mut ingest_service_url = None;

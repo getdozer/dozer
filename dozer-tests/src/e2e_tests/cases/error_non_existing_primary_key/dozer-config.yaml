@@ -19,7 +19,7 @@ sources:
     columns:
       - block_number
       - id
-    connection: !Ref eth_logs
+    connection: eth_logs
 endpoints:
   - id: 1b44cca2-7631-4f0c-8b6e-254c08d28dae
     name: eth_stats

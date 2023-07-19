@@ -1,9 +1,11 @@
 use crate::cli::cloud::{
-    default_num_replicas, ApiCommand, Cloud, DeployCommandArgs, ListCommandArgs, LogCommandArgs,
-    UpdateCommandArgs, VersionCommand,
+    default_num_api_instances, ApiCommand, Cloud, DeployCommandArgs, ListCommandArgs,
+    LogCommandArgs, SecretsCommand, VersionCommand,
 };
+use crate::cloud_app_context::CloudAppContext;
 use crate::cloud_helper::list_files;
 use crate::errors::CloudError::GRPCCallError;
+use crate::errors::OrchestrationError::FailedToReadOrganisationName;
 use crate::errors::{CloudError, CloudLoginError, OrchestrationError};
 use crate::progress_printer::{
     get_delete_steps, get_deploy_steps, get_update_steps, ProgressPrinter,
@@ -15,24 +17,33 @@ use crate::simple::token_layer::TokenLayer;
 use crate::simple::SimpleOrchestrator;
 use crate::CloudOrchestrator;
 use dozer_types::grpc_types::cloud::{
-    dozer_cloud_client::DozerCloudClient, CreateAppRequest, DeleteAppRequest, GetStatusRequest,
-    ListAppRequest, LogMessageRequest, UpdateAppRequest,
+    dozer_cloud_client::DozerCloudClient, CreateAppRequest, CreateSecretRequest, DeleteAppRequest,
+    DeleteSecretRequest, GetSecretRequest, GetStatusRequest, ListAppRequest, ListSecretsRequest,
+    LogMessageRequest, UpdateAppRequest, UpdateSecretRequest,
 };
 use dozer_types::grpc_types::cloud::{
     DeploymentStatus, SetCurrentVersionRequest, SetNumApiInstancesRequest, UpsertVersionRequest,
 };
-use dozer_types::log::{debug, info};
+use dozer_types::log::info;
 use dozer_types::prettytable::{row, table};
 use futures::{select, FutureExt, StreamExt};
+use std::io;
 use tonic::transport::Endpoint;
 use tower::ServiceBuilder;
 
 use super::cloud::login::LoginSvc;
 use super::cloud::version::{get_version_status, version_is_up_to_date, version_status_table};
 
-async fn get_cloud_client(cloud: &Cloud) -> Result<DozerCloudClient<TokenLayer>, CloudError> {
-    let credential = CredentialInfo::load(cloud.profile.to_owned())?;
-    debug!("Cloud service url: {:?}", credential.target_url);
+async fn get_cloud_client(
+    cloud: &Cloud,
+    cloud_config: Option<&dozer_types::models::cloud::Cloud>,
+) -> Result<DozerCloudClient<TokenLayer>, CloudError> {
+    let profile_name = match &cloud.profile {
+        None => cloud_config.as_ref().and_then(|c| c.profile.clone()),
+        Some(_) => cloud.profile.clone(),
+    };
+    let credential = CredentialInfo::load(profile_name)?;
+    info!("Connecting to cloud service \"{}\"", credential.target_url);
     let target_url = credential.target_url.clone();
     let endpoint = Endpoint::from_shared(target_url.to_owned())?;
     let channel = Endpoint::connect(&endpoint).await?;
@@ -49,82 +60,94 @@ impl CloudOrchestrator for SimpleOrchestrator {
         &mut self,
         cloud: Cloud,
         deploy: DeployCommandArgs,
+        config_paths: Vec<String>,
     ) -> Result<(), OrchestrationError> {
-        self.runtime.block_on(async move {
-            let mut steps = ProgressPrinter::new(get_deploy_steps());
-            // 1. CREATE application
-            steps.start_next_step();
-            let mut client = get_cloud_client(&cloud).await?;
-            let files = list_files()?;
-            let response = client
-                .create_application(CreateAppRequest { files })
-                .await
-                .map_err(GRPCCallError)?
-                .into_inner();
+        let app_id = if cloud.app_id.is_some() {
+            cloud.app_id.clone()
+        } else {
+            let app_id_from_context = CloudAppContext::get_app_id(&self.config.cloud);
+            match app_id_from_context {
+                Ok(id) => Some(id),
+                Err(_) => None,
+            }
+        };
 
-            steps.complete_step(Some(&format!(
-                "Application created with id: {:?}",
-                &response.app_id
-            )));
+        let cloud_config = self.config.cloud.as_ref();
+        self.runtime.block_on(async move {
+            let mut client = get_cloud_client(&cloud, cloud_config).await?;
+            let files = list_files(config_paths)?;
+            let (app_id_to_start, mut steps) = match app_id {
+                None => {
+                    let mut steps = ProgressPrinter::new(get_deploy_steps());
+                    // 1. CREATE application
+                    steps.start_next_step();
+                    let response = client
+                        .create_application(CreateAppRequest { files })
+                        .await
+                        .map_err(GRPCCallError)?
+                        .into_inner();
+
+                    steps.complete_step(Some(&format!(
+                        "Application created with id: {:?}",
+                        &response.app_id
+                    )));
+
+                    CloudAppContext::save_app_id(response.app_id.clone())?;
+
+                    (response.app_id, steps)
+                }
+                Some(app_id) => {
+                    let mut steps = ProgressPrinter::new(get_update_steps());
+                    // 1. update application
+                    steps.start_next_step();
+                    client
+                        .update_application(UpdateAppRequest {
+                            app_id: app_id.clone(),
+                            files,
+                        })
+                        .await
+                        .map_err(GRPCCallError)?
+                        .into_inner();
+
+                    steps.complete_step(Some(&format!("Updated {}", &app_id)));
+
+                    (app_id, steps)
+                }
+            };
 
             // 2. START application
             deploy_app(
                 &mut client,
-                &response.app_id,
-                deploy.num_replicas.unwrap_or_else(default_num_replicas),
+                &app_id_to_start,
+                deploy
+                    .num_api_instances
+                    .unwrap_or_else(default_num_api_instances),
                 &mut steps,
+                deploy.secrets,
             )
             .await
         })?;
         Ok(())
     }
 
-    fn update(
-        &mut self,
-        cloud: Cloud,
-        update: UpdateCommandArgs,
-    ) -> Result<(), OrchestrationError> {
+    fn delete(&mut self, cloud: Cloud) -> Result<(), OrchestrationError> {
+        let app_id = cloud
+            .app_id
+            .clone()
+            .unwrap_or(CloudAppContext::get_app_id(&self.config.cloud)?);
+
+        let cloud_config = self.config.cloud.as_ref();
         self.runtime.block_on(async move {
-            let mut client = get_cloud_client(&cloud).await?;
-            let files = list_files()?;
-
-            let mut steps = ProgressPrinter::new(get_update_steps());
-            steps.start_next_step();
-
-            let response = client
-                .update_application(UpdateAppRequest {
-                    app_id: update.app_id.clone(),
-                    files,
-                })
-                .await
-                .map_err(GRPCCallError)?
-                .into_inner();
-
-            steps.complete_step(Some(&format!("Updated {}", &response.app_id)));
-
-            deploy_app(
-                &mut client,
-                &update.app_id,
-                update.num_replicas.unwrap_or_else(default_num_replicas),
-                &mut steps,
-            )
-            .await
-        })?;
-
-        Ok(())
-    }
-
-    fn delete(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError> {
-        self.runtime.block_on(async move {
-            let mut client = get_cloud_client(&cloud).await?;
+            let mut client = get_cloud_client(&cloud, cloud_config).await?;
 
             let mut steps = ProgressPrinter::new(get_delete_steps());
 
             steps.start_next_step();
+
             stop_app(&mut client, &app_id).await?;
 
             steps.start_next_step();
-            let _delete_result = client
+            let delete_result = client
                 .delete_application(DeleteAppRequest {
                     app_id: app_id.clone(),
                 })
@@ -132,7 +155,11 @@ impl CloudOrchestrator for SimpleOrchestrator {
                 .map_err(GRPCCallError)?
                 .into_inner();
 
-            steps.complete_step(Some(&format!("Deleted {}", &app_id)));
+            if delete_result.success {
+                steps.complete_step(Some(&format!("Deleted {}", &app_id)));
+
+                let _ = CloudAppContext::delete_config_file();
+            }
 
             Ok::<(), CloudError>(())
         })?;
@@ -141,8 +168,9 @@ impl CloudOrchestrator for SimpleOrchestrator {
     }
 
     fn list(&mut self, cloud: Cloud, list: ListCommandArgs) -> Result<(), OrchestrationError> {
+        let cloud_config = self.config.cloud.as_ref();
         self.runtime.block_on(async move {
-            let mut client = get_cloud_client(&cloud).await?;
+            let mut client = get_cloud_client(&cloud, cloud_config).await?;
             let response = client
                 .list_applications(ListAppRequest {
                     limit: list.limit,
@@ -177,9 +205,14 @@ impl CloudOrchestrator for SimpleOrchestrator {
         Ok(())
     }
 
-    fn status(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError> {
+    fn status(&mut self, cloud: Cloud) -> Result<(), OrchestrationError> {
+        let app_id = cloud
+            .app_id
+            .clone()
+            .unwrap_or(CloudAppContext::get_app_id(&self.config.cloud)?);
+        let cloud_config = self.config.cloud.as_ref();
         self.runtime.block_on(async move {
-            let mut client = get_cloud_client(&cloud).await?;
+            let mut client = get_cloud_client(&cloud, cloud_config).await?;
             let response = client
                 .get_status(GetStatusRequest { app_id })
                 .await
@@ -245,35 +278,47 @@ impl CloudOrchestrator for SimpleOrchestrator {
         Ok(())
     }
 
-    fn monitor(&mut self, cloud: Cloud, app_id: String) -> Result<(), OrchestrationError> {
+    fn monitor(&mut self, cloud: Cloud) -> Result<(), OrchestrationError> {
+        let app_id = cloud
+            .app_id
+            .unwrap_or(CloudAppContext::get_app_id(&self.config.cloud)?);
+
         monitor_app(app_id, cloud.target_url, self.runtime.clone())
             .map_err(crate::errors::OrchestrationError::CloudError)
     }
 
     fn trace_logs(&mut self, cloud: Cloud, logs: LogCommandArgs) -> Result<(), OrchestrationError> {
+        let app_id = cloud
+            .app_id
+            .clone()
+            .unwrap_or(CloudAppContext::get_app_id(&self.config.cloud)?);
+        let cloud_config = self.config.cloud.as_ref();
         self.runtime.block_on(async move {
-            let mut client = get_cloud_client(&cloud).await?;
+            let mut client = get_cloud_client(&cloud, cloud_config).await?;
 
             let status = client
                 .get_status(GetStatusRequest {
-                    app_id: logs.app_id.clone(),
+                    app_id: app_id.clone(),
                 })
                 .await?
                 .into_inner();
 
             // Show log of the latest deployment for now.
-            let Some(deployment) = logs.deployment.or_else(|| latest_deployment(&status.deployments)) else {
+            let Some(deployment) = logs
+                .deployment
+                .or_else(|| latest_deployment(&status.deployments))
+            else {
                 info!("No deployments found");
                 return Ok(());
             };
             let mut response = client
                 .on_log_message(LogMessageRequest {
-                    app_id: logs.app_id,
+                    app_id,
                     deployment,
                     follow: logs.follow,
-                    include_migrate: true,
-                    include_app: true,
-                    include_api: true,
+                    include_build: !logs.ignore_build,
+                    include_app: !logs.ignore_app,
+                    include_api: !logs.ignore_api,
                 })
                 .await?
                 .into_inner()
@@ -304,12 +349,103 @@ impl CloudOrchestrator for SimpleOrchestrator {
         Ok(())
     }
 
-    fn login(&mut self, cloud: Cloud, company_name: String) -> Result<(), OrchestrationError> {
+    fn login(
+        &mut self,
+        cloud: Cloud,
+        organisation_name: Option<String>,
+    ) -> Result<(), OrchestrationError> {
+        info!("Organisation and client details can be created in https://dashboard.dev.getdozer.io/login \n");
+        let organisation_name = match organisation_name {
+            None => {
+                let mut organisation_name = String::new();
+                println!("Please enter your organisation name:");
+                io::stdin()
+                    .read_line(&mut organisation_name)
+                    .map_err(FailedToReadOrganisationName)?;
+                organisation_name.trim().to_string()
+            }
+            Some(name) => name,
+        };
+
         self.runtime.block_on(async move {
-            let login_svc = LoginSvc::new(company_name, cloud.target_url).await?;
+            let login_svc = LoginSvc::new(organisation_name, cloud.target_url).await?;
             login_svc.login().await?;
             Ok::<(), CloudLoginError>(())
         })?;
+        Ok(())
+    }
+
+    fn execute_secrets_command(
+        &mut self,
+        cloud: Cloud,
+        command: SecretsCommand,
+    ) -> Result<(), OrchestrationError> {
+        let app_id = cloud
+            .app_id
+            .clone()
+            .unwrap_or(CloudAppContext::get_app_id(&self.config.cloud)?);
+        let cloud_config = self.config.cloud.as_ref();
+
+        self.runtime.block_on(async move {
+            let mut client = get_cloud_client(&cloud, cloud_config).await?;
+
+            match command {
+                SecretsCommand::Create { name, value } => {
+                    client
+                        .create_secret(CreateSecretRequest {
+                            app_id,
+                            name,
+                            value,
+                        })
+                        .await?;
+
+                    info!("Secret created");
+                }
+                SecretsCommand::Update { name, value } => {
+                    client
+                        .update_secret(UpdateSecretRequest {
+                            app_id,
+                            name,
+                            value,
+                        })
+                        .await?;
+
+                    info!("Secret updated");
+                }
+                SecretsCommand::Delete { name } => {
+                    client
+                        .delete_secret(DeleteSecretRequest { app_id, name })
+                        .await?;
+
+                    info!("Secret deleted")
+                }
+                SecretsCommand::Get { name } => {
+                    let response = client
+                        .get_secret(GetSecretRequest { app_id, name })
+                        .await?
+                        .into_inner();
+
+                    info!("Secret \"{}\" exist", response.name);
+                }
+                SecretsCommand::List {} => {
+                    let response = client
+                        .list_secrets(ListSecretsRequest { app_id })
+                        .await?
+                        .into_inner();
+
+                    info!("Secrets:");
+                    let mut table = table!();
+
+                    for secret in response.secrets {
+                        table.add_row(row![secret]);
+                    }
+
+                    table.printstd();
+                }
+            }
+            Ok::<_, CloudError>(())
+        })?;
+
         Ok(())
     }
 }
@@ -320,11 +456,17 @@ impl SimpleOrchestrator {
         cloud: Cloud,
         version: VersionCommand,
     ) -> Result<(), OrchestrationError> {
+        let app_id = cloud
+            .app_id
+            .clone()
+            .unwrap_or(CloudAppContext::get_app_id(&self.config.cloud)?);
+
+        let cloud_config = self.config.cloud.as_ref();
         self.runtime.block_on(async move {
-            let mut client = get_cloud_client(&cloud).await?;
+            let mut client = get_cloud_client(&cloud, cloud_config).await?;
 
             match version {
-                VersionCommand::Create { deployment, app_id } => {
+                VersionCommand::Create { deployment } => {
                     let status = client
                         .get_status(GetStatusRequest {
                             app_id: app_id.clone(),
@@ -341,12 +483,12 @@ impl SimpleOrchestrator {
                         })
                         .await?;
                 }
-                VersionCommand::SetCurrent { version, app_id } => {
+                VersionCommand::SetCurrent { version } => {
                     client
                         .set_current_version(SetCurrentVersionRequest { app_id, version })
                         .await?;
                 }
-                VersionCommand::Status { version, app_id } => {
+                VersionCommand::Status { version } => {
                     let status = client
                         .get_status(GetStatusRequest { app_id })
                         .await?
@@ -416,12 +558,12 @@ impl SimpleOrchestrator {
 
     pub fn api(&self, cloud: Cloud, api: ApiCommand) -> Result<(), OrchestrationError> {
         self.runtime.block_on(async move {
-            let mut client = get_cloud_client(&cloud).await?;
+            let app_id = CloudAppContext::get_app_id(&self.config.cloud)?;
+
+            let mut client = get_cloud_client(&cloud, self.config.cloud.as_ref()).await?;
+
             match api {
-                ApiCommand::SetNumReplicas {
-                    num_replicas,
-                    app_id,
-                } => {
+                ApiCommand::SetNumApiInstances { num_api_instances } => {
                     let status = client
                         .get_status(GetStatusRequest {
                             app_id: app_id.clone(),
@@ -437,7 +579,7 @@ impl SimpleOrchestrator {
                         .set_num_api_instances(SetNumApiInstancesRequest {
                             app_id,
                             deployment,
-                            num_api_instances: num_replicas,
+                            num_api_instances,
                         })
                         .await?;
                 }

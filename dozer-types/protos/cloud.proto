@@ -36,10 +36,18 @@ service DozerCloud {
   rpc set_current_version(SetCurrentVersionRequest) returns (SetCurrentVersionResponse);
   rpc set_num_api_instances(SetNumApiInstancesRequest) returns (SetNumApiInstancesResponse);
 
+  rpc list_deployments(ListDeploymentRequest) returns (ListDeploymentResponse);
+
   rpc list_files(ListFilesRequest) returns (ListFilesResponse);
   rpc update_files(UpdateFileRequest) returns (UpdateFileResponse);
   rpc save_files(SaveFilesRequest) returns (SaveFilesResponse);
   rpc delete_files(DeleteFileRequest) returns (DeleteFileResponse);
+
+  rpc create_secret(CreateSecretRequest) returns (CreateSecretResponse);
+  rpc update_secret(UpdateSecretRequest) returns (UpdateSecretResponse);
+  rpc delete_secret(DeleteSecretRequest) returns (DeleteSecretResponse);
+  rpc get_secret(GetSecretRequest) returns (GetSecretResponse);
+  rpc list_secrets(ListSecretsRequest) returns (ListSecretsResponse);
 
   rpc OnLogMessage(LogMessageRequest) returns (stream LogMessage);
   rpc OnStatusUpdate(StatusUpdateRequest) returns (stream StatusUpdate);
@@ -60,6 +68,7 @@ message AppConnectionRequest {
 message CreateSourceRequest {
   string app_id = 1;
   Source source = 2;
+  Connection connection = 3;
 }
 
 message ListEndpointRequest {
@@ -105,6 +114,7 @@ message ListAppConnectionRequest {
 message StartRequest {
   string app_id = 1;
   int32 num_api_instances = 2;
+  repeated Secret secrets = 3;
 }
 
 message StartResponse {
@@ -115,8 +125,9 @@ message StartResponse {
 }
 message StartUpdate {
   optional StartResponse result = 1;
-  uint32 current_step = 2;
-  uint32 total_steps = 3;
+  optional uint32 current_step = 2;
+  optional uint32 total_steps = 3;
+  optional LogMessage last_message = 4;
 }
 message StopRequest { string app_id = 1; }
 message StopResponse { bool success = 1; }
@@ -134,6 +145,15 @@ message DeploymentStatus {
   bool app_running = 2;
   optional int32 api_desired = 3;
   optional int32 api_available = 4;
+}
+
+message ListDeploymentRequest {
+  string app_id = 1;
+}
+
+message ListDeploymentResponse {
+  string app_id = 1;
+  repeated int32 deployment = 2;
 }
 
 message UpsertVersionRequest {
@@ -278,7 +298,7 @@ message LogMessageRequest {
   string app_id = 1;
   uint32 deployment = 2;
   bool follow = 3;
-  bool include_migrate = 4;
+  bool include_build = 4;
   bool include_app = 5;
   bool include_api = 6;
 }
@@ -305,6 +325,7 @@ message QueryNode {
   QueryNodeType node_type = 2;
   uint32 idx = 3;
   uint32 id = 4;
+  string data = 5;
 }
 
 message QueryEdge {
@@ -327,4 +348,52 @@ message CompanyResponse {
     string auth_url = 2;
     string iss = 3;
     string jwks_url = 4;
+}
+
+message Secret {
+  string name = 1;
+  string value = 2;
+}
+
+message CreateSecretRequest {
+  string app_id = 1;
+  string name = 2;
+  string value = 3;
+}
+
+message CreateSecretResponse {
+}
+
+message UpdateSecretRequest {
+  string app_id = 1;
+  string name = 2;
+  string value = 3;
+}
+
+message UpdateSecretResponse {
+}
+
+message DeleteSecretRequest {
+  string app_id = 1;
+  string name = 2;
+}
+
+message DeleteSecretResponse {
+}
+
+message GetSecretRequest {
+  string app_id = 1;
+  string name = 2;
+}
+
+message GetSecretResponse {
+  string name = 1;
+}
+
+message ListSecretsRequest {
+  string app_id = 1;
+}
+
+message ListSecretsResponse {
+  repeated string secrets = 1;
 }

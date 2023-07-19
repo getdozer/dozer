@@ -1,17 +1,22 @@
 name: Dozer Coverage
 
 on:
-  push:
-    branches: [main, coverage-yaml-dev]
-  pull_request:
+  workflow_dispatch:
+  pull_request_target:
     branches: [main]
+  merge_group:
 
 env:
   CARGO_TERM_COLOR: always
+  RUSTC_VERSION: 1.70.0
 
 concurrency:
   group: coverage/${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
+
+permissions:
+  id-token: write # This is required for requesting the JWT
+  contents: write # This is required for actions/checkout
 
 jobs:
   # Run coverage
@@ -38,13 +43,26 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          role-session-name: dozer-coverage
+          aws-region: us-east-2
+
+      - if: github.event_name == 'pull_request_target'
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - if: github.event_name != 'pull_request_target'
+        uses: actions/checkout@v3
 
       - name: Install stable with llvm-tools-preview
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: stable
+          toolchain: ${{ env.RUSTC_VERSION }}
           components: llvm-tools-preview
 
       - name: Download grcov
@@ -119,7 +137,15 @@ jobs:
             ${{ steps.coverage.outputs.report }}
           retention-days: 10
 
-      - id: coveralls
+      - if: github.event_name == 'pull_request_target'
+        name: Coveralls upload
+        uses: coverallsapp/github-action@master
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path-to-lcov: ${{ steps.coverage.outputs.report }}
+          git-commit: ${{ github.event.pull_request.head.sha }}
+
+      - if: github.event_name != 'pull_request_target'
         name: Coveralls upload
         uses: coverallsapp/github-action@master
         with:

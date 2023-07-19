@@ -75,7 +75,9 @@ async fn get_table_schema(
             }
         }
     } else {
-        Err(ConnectorError::WrongConnectionConfiguration)
+        Err(ConnectorError::UnavailableConnectionConfiguration(
+            "Unable to get the table schema".to_string(),
+        ))
     }
 }
 
@@ -107,7 +109,7 @@ async fn get_object_schema(
         .await
         .map_err(|e| {
             error!("{:?}", e);
-            ConnectorError::WrongConnectionConfiguration
+            ConnectorError::UnableToInferSchema(e)
         })?;
 
     let schema = map_schema(id, resolved_schema, table)?;

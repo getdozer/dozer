@@ -67,6 +67,10 @@ impl ProcessorFactory<NoneContext> for ErrorProcessorFactory {
             panic: self.panic,
         }))
     }
+
+    fn id(&self) -> String {
+        "Error".to_owned()
+    }
 }
 
 #[derive(Debug)]
@@ -450,7 +454,7 @@ pub(crate) struct ErrSink {
     panic: bool,
 }
 impl Sink for ErrSink {
-    fn commit(&mut self) -> Result<(), BoxedError> {
+    fn commit(&mut self, _epoch_details: &Epoch) -> Result<(), BoxedError> {
         Ok(())
     }
 

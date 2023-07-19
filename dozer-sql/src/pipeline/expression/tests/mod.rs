@@ -15,6 +15,7 @@ mod conditional;
 mod datetime;
 #[cfg(test)]
 mod distance;
+mod in_list;
 #[cfg(test)]
 mod json_functions;
 #[cfg(test)]

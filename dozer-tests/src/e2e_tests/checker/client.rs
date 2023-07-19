@@ -13,7 +13,10 @@ use dozer_types::{
             health_grpc_service_client::HealthGrpcServiceClient, HealthCheckRequest,
         },
     },
-    models::app_config::Config,
+    models::{
+        api_config::{default_api_grpc, default_api_rest},
+        config::Config,
+    },
     types::{FieldDefinition, FieldType, DATE_FORMAT},
 };
 
@@ -29,12 +32,16 @@ pub struct Client {
 
 impl Client {
     pub async fn new(config: Config) -> Self {
-        let api = config.api.clone().unwrap_or_default();
+        let api = config.api.as_ref();
 
-        let rest = api.rest.unwrap_or_default();
+        let rest = api
+            .and_then(|api| api.rest.clone())
+            .unwrap_or_else(default_api_rest);
         let rest_endpoint = format!("http://{}:{}", rest.host, rest.port);
 
-        let grpc = api.grpc.unwrap_or_default();
+        let grpc = api
+            .and_then(|api| api.grpc.clone())
+            .unwrap_or_else(default_api_grpc);
         let grpc_endpoint_string = format!("http://{}:{}", grpc.host, grpc.port);
         let grpc_endpoint = Endpoint::from_shared(grpc_endpoint_string.clone())
             .unwrap_or_else(|e| panic!("Invalid grpc endpoint {grpc_endpoint_string}: {e}"));

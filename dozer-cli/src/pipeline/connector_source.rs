@@ -96,9 +96,7 @@ impl ConnectorSourceFactory {
         let source_schemas = connector.get_schemas(&tables).await?;
 
         let mut tables = vec![];
-        for ((table, port), source_schema) in
-            table_and_ports.into_iter().zip(source_schemas.into_iter())
-        {
+        for ((table, port), source_schema) in table_and_ports.into_iter().zip(source_schemas) {
             let name = table.name;
             let columns = table.column_names;
             let source_schema = source_schema?;
@@ -239,9 +237,7 @@ pub struct ConnectorSource {
     bars: HashMap<PortHandle, ProgressBar>,
 }
 
-const SOURCE_INSERT_COUNTER_NAME: &str = "source_insert";
-const SOURCE_UPDATE_COUNTER_NAME: &str = "source_update";
-const SOURCE_DELETE_COUNTER_NAME: &str = "source_delete";
+const SOURCE_OPERATION_COUNTER_NAME: &str = "source_operation";
 
 impl Source for ConnectorSource {
     fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, BoxedError> {
@@ -254,9 +250,10 @@ impl Source for ConnectorSource {
         _last_checkpoint: Option<(u64, u64)>,
     ) -> Result<(), BoxedError> {
         thread::scope(|scope| {
-            describe_counter!(SOURCE_INSERT_COUNTER_NAME, "Number of inserts from source");
-            describe_counter!(SOURCE_UPDATE_COUNTER_NAME, "Number of updates from source");
-            describe_counter!(SOURCE_DELETE_COUNTER_NAME, "Number of deletes from source");
+            describe_counter!(
+                SOURCE_OPERATION_COUNTER_NAME,
+                "Number of operation processed by source"
+            );
 
             let mut counter = HashMap::new();
             let t = scope.spawn(|| {
@@ -314,23 +311,25 @@ impl Source for ConnectorSource {
                         .get(&schema_id)
                         .ok_or(ConnectorSourceError::PortError(schema_id))?;
 
-                    let labels = [
+                    let mut labels = vec![
                         ("connection", self.connection_name.clone()),
                         ("table", table_name.to_string()),
                     ];
                     match &kind {
                         IngestionMessageKind::OperationEvent(Operation::Delete { .. }) => {
-                            increment_counter!(SOURCE_DELETE_COUNTER_NAME, &labels);
+                            labels.push(("operation_type", "delete".to_string()));
+                            increment_counter!(SOURCE_OPERATION_COUNTER_NAME, &labels);
                         }
                         IngestionMessageKind::OperationEvent(Operation::Insert { .. }) => {
-                            increment_counter!(SOURCE_INSERT_COUNTER_NAME, &labels);
+                            labels.push(("operation_type", "insert".to_string()));
+                            increment_counter!(SOURCE_OPERATION_COUNTER_NAME, &labels);
                         }
                         IngestionMessageKind::OperationEvent(Operation::Update { .. }) => {
-                            increment_counter!(SOURCE_UPDATE_COUNTER_NAME, &labels);
+                            labels.push(("operation_type", "update".to_string()));
+                            increment_counter!(SOURCE_OPERATION_COUNTER_NAME, &labels);
                         }
                         _ => {}
                     }
-
                     counter
                         .entry(schema_id)
                         .and_modify(|e| *e += 1)
