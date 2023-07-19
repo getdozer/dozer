@@ -1,4 +1,5 @@
 use crate::node::OutputPortType;
+use dozer_types::arrow::record_batch::RecordBatch;
 use dozer_types::thiserror::Error;
 use dozer_types::types::{Operation, Record, Schema};
 use std::collections::HashMap;
@@ -13,6 +14,7 @@ pub enum RecordWriterError {
 }
 
 pub trait RecordWriter: Send + Sync {
+    fn write_batch(&mut self, batch: RecordBatch) -> Result<RecordBatch, RecordWriterError>;
     fn write(&mut self, op: Operation) -> Result<Operation, RecordWriterError>;
 }
 
@@ -57,6 +59,10 @@ impl PrimaryKeyLookupRecordWriter {
 }
 
 impl RecordWriter for PrimaryKeyLookupRecordWriter {
+    fn write_batch(&mut self, batch: RecordBatch) -> Result<RecordBatch, RecordWriterError> {
+        todo!()
+    }
+
     fn write(&mut self, op: Operation) -> Result<Operation, RecordWriterError> {
         match op {
             Operation::Insert { new } => {

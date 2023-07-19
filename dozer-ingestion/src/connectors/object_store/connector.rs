@@ -128,6 +128,14 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                                     .map_err(ConnectorError::IngestorError)
                                     .unwrap();
                             }
+                            IngestionMessageKind::SnapshotBatch(batch) => {
+                                ingestor_clone
+                                    .handle_message(IngestionMessage::new_snapshot_batch(
+                                        0, seq_no, batch,
+                                    ))
+                                    .map_err(ConnectorError::IngestorError)
+                                    .unwrap();
+                            }
                             IngestionMessageKind::SnapshottingDone => {
                                 ingestor_clone
                                     .handle_message(IngestionMessage::new_snapshotting_done(

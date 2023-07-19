@@ -2,7 +2,8 @@ use std::borrow::Cow;
 use std::time::SystemTime;
 
 use crossbeam::channel::{Receiver, Select};
-use dozer_types::epoch::Epoch;
+use dozer_types::arrow::record_batch::RecordBatch;
+use dozer_types::epoch::{BatchOrExecutorOperation, Epoch};
 use dozer_types::types::Operation;
 use dozer_types::{epoch::ExecutorOperation, log::debug};
 
@@ -15,9 +16,11 @@ use super::{name::Name, InputPortState};
 /// They both select from their input channels, and respond to "op", "commit", and terminate.
 pub trait ReceiverLoop: Name {
     /// Returns input channels to this node. Will be called exactly once in [`receiver_loop`].
-    fn receivers(&mut self) -> Vec<Receiver<ExecutorOperation>>;
+    fn receivers(&mut self) -> Vec<Receiver<BatchOrExecutorOperation>>;
     /// Returns the name of the receiver at `index`. Used for logging.
     fn receiver_name(&self, index: usize) -> Cow<str>;
+    /// Responds to `batch` from the receiver at `index`.
+    fn on_batch(&mut self, index: usize, batch: RecordBatch) -> Result<(), ExecutionError>;
     /// Responds to `op` from the receiver at `index`.
     fn on_op(&mut self, index: usize, op: Operation) -> Result<(), ExecutionError>;
     /// Responds to `commit` of `epoch`.
@@ -47,10 +50,15 @@ pub trait ReceiverLoop: Name {
                 .map_err(|_| ExecutionError::CannotReceiveFromChannel)?;
 
             match op {
-                ExecutorOperation::Op { op } => {
+                BatchOrExecutorOperation::Batch(batch) => {
+                    self.on_batch(index, batch)?;
+                }
+                BatchOrExecutorOperation::ExecutorOperation(ExecutorOperation::Op { op }) => {
                     self.on_op(index, op)?;
                 }
-                ExecutorOperation::Commit { epoch } => {
+                BatchOrExecutorOperation::ExecutorOperation(ExecutorOperation::Commit {
+                    epoch,
+                }) => {
                     assert_eq!(epoch.id, common_epoch.id);
                     commits_received += 1;
                     sel.remove(index);
@@ -69,7 +77,7 @@ pub trait ReceiverLoop: Name {
                         sel = init_select(&receivers);
                     }
                 }
-                ExecutorOperation::Terminate => {
+                BatchOrExecutorOperation::ExecutorOperation(ExecutorOperation::Terminate) => {
                     port_states[index] = InputPortState::Terminated;
                     sel.remove(index);
                     debug!(
@@ -83,7 +91,9 @@ pub trait ReceiverLoop: Name {
                         return Ok(());
                     }
                 }
-                ExecutorOperation::SnapshottingDone { connection_name } => {
+                BatchOrExecutorOperation::ExecutorOperation(
+                    ExecutorOperation::SnapshottingDone { connection_name },
+                ) => {
                     self.on_snapshotting_done(connection_name)?;
                 }
             }
@@ -91,7 +101,7 @@ pub trait ReceiverLoop: Name {
     }
 }
 
-fn init_select(receivers: &Vec<Receiver<ExecutorOperation>>) -> Select {
+fn init_select<T>(receivers: &Vec<Receiver<T>>) -> Select {
     let mut sel = Select::new();
     for r in receivers {
         sel.recv(r);

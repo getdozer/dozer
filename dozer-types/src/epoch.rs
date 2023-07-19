@@ -3,6 +3,7 @@ use std::{
     time::SystemTime,
 };
 
+use arrow::record_batch::RecordBatch;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -60,4 +61,22 @@ pub enum ExecutorOperation {
     Commit { epoch: Epoch },
     Terminate,
     SnapshottingDone { connection_name: String },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum BatchOrExecutorOperation {
+    Batch(RecordBatch),
+    ExecutorOperation(ExecutorOperation),
+}
+
+impl From<RecordBatch> for BatchOrExecutorOperation {
+    fn from(batch: RecordBatch) -> Self {
+        Self::Batch(batch)
+    }
+}
+
+impl From<ExecutorOperation> for BatchOrExecutorOperation {
+    fn from(exec_op: ExecutorOperation) -> Self {
+        Self::ExecutorOperation(exec_op)
+    }
 }

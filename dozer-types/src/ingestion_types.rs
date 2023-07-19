@@ -1,3 +1,4 @@
+use arrow::record_batch::RecordBatch;
 use prettytable::Table as PrettyTable;
 use std::fmt::Debug;
 
@@ -16,6 +17,13 @@ pub struct IngestionMessage {
 }
 
 impl IngestionMessage {
+    pub fn new_snapshot_batch(txn: u64, seq_no: u64, batch: RecordBatch) -> Self {
+        Self {
+            identifier: OpIdentifier::new(txn, seq_no),
+            kind: IngestionMessageKind::SnapshotBatch(batch),
+        }
+    }
+
     pub fn new_op(txn: u64, seq_no: u64, op: Operation) -> Self {
         Self {
             identifier: OpIdentifier::new(txn, seq_no),
@@ -41,6 +49,8 @@ impl IngestionMessage {
 #[derive(Clone, Debug, PartialEq)]
 /// All possible kinds of `IngestionMessage`.
 pub enum IngestionMessageKind {
+    /// A snapshot batch.
+    SnapshotBatch(RecordBatch),
     /// A CDC event.
     OperationEvent(Operation),
     /// A connector uses this message kind to notify Dozer that a initial snapshot of the source tables is started

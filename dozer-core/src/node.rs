@@ -1,5 +1,6 @@
 use crate::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
 
+use dozer_types::arrow::record_batch::RecordBatch;
 use dozer_types::epoch::Epoch;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::{Operation, Schema};
@@ -47,9 +48,13 @@ pub trait SourceFactory<T>: Send + Sync + Debug {
 }
 
 pub trait Source: Send + Sync + Debug {
+    /// Takes a snapshot of the source in the form of `RecordBatch`es and sends them to `fw`.
+    fn snapshot(&self, fw: &mut dyn SourceChannelForwarder) -> Result<(), BoxedError>;
+
     /// Checks if the source can start from the given checkpoint.
     /// If this function returns false, the executor will start the source from the beginning.
     fn can_start_from(&self, last_checkpoint: (u64, u64)) -> Result<bool, BoxedError>;
+    /// Stream any CDC events after the initial snapshot.
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
@@ -75,6 +80,14 @@ pub trait ProcessorFactory<T>: Send + Sync + Debug {
 }
 
 pub trait Processor: Send + Sync + Debug {
+    /// Processes a record batch, and sends result record batch to `fw` if any.
+    fn process_batch(
+        &mut self,
+        from_port: PortHandle,
+        batch: RecordBatch,
+        fw: &mut dyn ProcessorChannelForwarder,
+    ) -> Result<(), BoxedError>;
+
     fn commit(&self, epoch_details: &Epoch) -> Result<(), BoxedError>;
     fn process(
         &mut self,
@@ -94,6 +107,12 @@ pub trait SinkFactory<T>: Send + Sync + Debug {
 }
 
 pub trait Sink: Send + Sync + Debug {
+    fn process_batch(
+        &mut self,
+        from_port: PortHandle,
+        batch: RecordBatch,
+    ) -> Result<(), BoxedError>;
+
     fn commit(&mut self, epoch_details: &Epoch) -> Result<(), BoxedError>;
     fn process(&mut self, from_port: PortHandle, op: Operation) -> Result<(), BoxedError>;
 

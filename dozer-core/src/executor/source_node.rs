@@ -50,6 +50,10 @@ impl SourceSenderNode {
 
 impl Node for SourceSenderNode {
     fn run(mut self) -> Result<(), ExecutionError> {
+        self.source
+            .snapshot(&mut self.forwarder)
+            .map_err(ExecutionError::Source)?;
+
         let result = self.source.start(
             &mut self.forwarder,
             self.last_checkpoint

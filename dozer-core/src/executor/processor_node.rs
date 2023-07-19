@@ -3,8 +3,8 @@ use std::{borrow::Cow, mem::swap};
 
 use crossbeam::channel::Receiver;
 use daggy::NodeIndex;
-use dozer_types::epoch::Epoch;
-use dozer_types::epoch::ExecutorOperation;
+use dozer_types::arrow::record_batch::RecordBatch;
+use dozer_types::epoch::{BatchOrExecutorOperation, Epoch};
 use dozer_types::node::NodeHandle;
 
 use crate::error_manager::ErrorManager;
@@ -25,7 +25,7 @@ pub struct ProcessorNode {
     /// Input port handles.
     port_handles: Vec<PortHandle>,
     /// Input data channels.
-    receivers: Vec<Receiver<ExecutorOperation>>,
+    receivers: Vec<Receiver<BatchOrExecutorOperation>>,
     /// The processor.
     processor: Box<dyn Processor>,
     /// This node's output channel manager, for forwarding data, writing metadata and writing port state.
@@ -79,7 +79,7 @@ impl Name for ProcessorNode {
 }
 
 impl ReceiverLoop for ProcessorNode {
-    fn receivers(&mut self) -> Vec<Receiver<ExecutorOperation>> {
+    fn receivers(&mut self) -> Vec<Receiver<BatchOrExecutorOperation>> {
         let mut result = vec![];
         swap(&mut self.receivers, &mut result);
         result
@@ -87,6 +87,16 @@ impl ReceiverLoop for ProcessorNode {
 
     fn receiver_name(&self, index: usize) -> Cow<str> {
         Cow::Owned(self.port_handles[index].to_string())
+    }
+
+    fn on_batch(&mut self, index: usize, batch: RecordBatch) -> Result<(), ExecutionError> {
+        if let Err(e) =
+            self.processor
+                .process_batch(self.port_handles[index], batch, &mut self.channel_manager)
+        {
+            self.error_manager.report(e);
+        }
+        Ok(())
     }
 
     fn on_op(

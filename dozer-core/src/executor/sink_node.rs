@@ -3,7 +3,8 @@ use std::{borrow::Cow, collections::HashMap, mem::swap, sync::Arc};
 use crossbeam::channel::Receiver;
 use daggy::NodeIndex;
 use dozer_types::{
-    epoch::{Epoch, ExecutorOperation},
+    arrow::record_batch::RecordBatch,
+    epoch::{BatchOrExecutorOperation, Epoch},
     log::debug,
     node::NodeHandle,
 };
@@ -28,7 +29,7 @@ pub struct SinkNode {
     /// Input port handles.
     port_handles: Vec<PortHandle>,
     /// Input data channels.
-    receivers: Vec<Receiver<ExecutorOperation>>,
+    receivers: Vec<Receiver<BatchOrExecutorOperation>>,
     /// The sink.
     sink: Box<dyn Sink>,
     /// This node's state writer, for writing metadata and port state.
@@ -80,7 +81,7 @@ impl Name for SinkNode {
 }
 
 impl ReceiverLoop for SinkNode {
-    fn receivers(&mut self) -> Vec<Receiver<ExecutorOperation>> {
+    fn receivers(&mut self) -> Vec<Receiver<BatchOrExecutorOperation>> {
         let mut result = vec![];
         swap(&mut self.receivers, &mut result);
         result
@@ -88,6 +89,13 @@ impl ReceiverLoop for SinkNode {
 
     fn receiver_name(&self, index: usize) -> Cow<str> {
         Cow::Owned(self.port_handles[index].to_string())
+    }
+
+    fn on_batch(&mut self, index: usize, batch: RecordBatch) -> Result<(), ExecutionError> {
+        if let Err(e) = self.sink.process_batch(self.port_handles[index], batch) {
+            self.error_manager.report(e);
+        }
+        Ok(())
     }
 
     fn on_op(

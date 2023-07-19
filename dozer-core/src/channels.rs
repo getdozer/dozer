@@ -2,6 +2,7 @@ use crate::errors::ExecutionError;
 use crate::node::PortHandle;
 use core::marker::{Send, Sync};
 use core::result::Result;
+use dozer_types::arrow::record_batch::RecordBatch;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::types::Operation;
 
@@ -10,6 +11,12 @@ pub trait SourceChannelForwarder: Send + Sync {
 }
 
 pub trait ProcessorChannelForwarder {
+    /// Sends a record batch to downstream nodes. Panics if the record batch cannot be sent.
+    ///
+    /// We must panic instead of returning an error because this method will be called by `Processor::process_batch`,
+    /// which only returns recoverable errors.
+    fn send_batch(&mut self, batch: RecordBatch, port: PortHandle);
+
     /// Sends a operation to downstream nodes. Panics if the operation cannot be sent.
     ///
     /// We must panic instead of returning an error because this method will be called by `Processor::process`,

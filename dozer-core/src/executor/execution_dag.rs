@@ -21,7 +21,7 @@ use daggy::petgraph::{
     visit::{EdgeRef, IntoEdges, IntoEdgesDirected, IntoNodeIdentifiers},
     Direction,
 };
-use dozer_types::epoch::ExecutorOperation;
+use dozer_types::epoch::BatchOrExecutorOperation;
 
 pub type SharedRecordWriter = Rc<RefCell<Option<Box<dyn RecordWriter>>>>;
 
@@ -30,13 +30,13 @@ pub struct EdgeType {
     /// Output port handle.
     pub output_port: PortHandle,
     /// The sender for data flowing downstream.
-    pub sender: Sender<ExecutorOperation>,
+    pub sender: Sender<BatchOrExecutorOperation>,
     /// The record writer for persisting data for downstream queries, if persistency is needed. Different edges with the same output port share the same record writer.
     pub record_writer: SharedRecordWriter,
     /// Input port handle.
     pub input_port: PortHandle,
     /// The receiver from receiving data from upstream.
-    pub receiver: Receiver<ExecutorOperation>,
+    pub receiver: Receiver<BatchOrExecutorOperation>,
 }
 
 #[derive(Debug)]
@@ -152,7 +152,7 @@ impl ExecutionDag {
         &mut self,
         node_index: daggy::NodeIndex,
     ) -> (
-        HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
+        HashMap<PortHandle, Vec<Sender<BatchOrExecutorOperation>>>,
         HashMap<PortHandle, Box<dyn RecordWriter>>,
     ) {
         let edge_indexes = self
@@ -183,7 +183,7 @@ impl ExecutionDag {
     pub fn collect_receivers(
         &mut self,
         node_index: daggy::NodeIndex,
-    ) -> (Vec<PortHandle>, Vec<Receiver<ExecutorOperation>>) {
+    ) -> (Vec<PortHandle>, Vec<Receiver<BatchOrExecutorOperation>>) {
         let edge_indexes = self
             .graph
             .edges_directed(node_index, Direction::Incoming)

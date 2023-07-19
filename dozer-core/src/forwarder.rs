@@ -7,7 +7,8 @@ use crate::node::PortHandle;
 use crate::record_store::{RecordWriter, RecordWriterError};
 
 use crossbeam::channel::Sender;
-use dozer_types::epoch::{Epoch, ExecutorOperation};
+use dozer_types::arrow::record_batch::RecordBatch;
+use dozer_types::epoch::{BatchOrExecutorOperation, Epoch, ExecutorOperation};
 use dozer_types::ingestion_types::{IngestionMessage, IngestionMessageKind};
 use dozer_types::log::debug;
 use dozer_types::node::NodeHandle;
@@ -28,11 +29,21 @@ impl StateWriter {
 
     fn store_op(
         &mut self,
-        op: Operation,
+        op: BatchOrExecutorOperation,
         port: &PortHandle,
-    ) -> Result<Operation, RecordWriterError> {
+    ) -> Result<BatchOrExecutorOperation, RecordWriterError> {
         if let Some(writer) = self.record_writers.get_mut(port) {
-            writer.write(op)
+            match op {
+                BatchOrExecutorOperation::Batch(batch) => {
+                    let batch = writer.write_batch(batch)?;
+                    Ok(batch.into())
+                }
+                BatchOrExecutorOperation::ExecutorOperation(ExecutorOperation::Op { op }) => {
+                    let op = writer.write(op)?;
+                    Ok(ExecutorOperation::Op { op }.into())
+                }
+                _ => Ok(op),
+            }
         } else {
             Ok(op)
         }
@@ -46,7 +57,7 @@ impl StateWriter {
 #[derive(Debug)]
 struct ChannelManager {
     owner: NodeHandle,
-    senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
+    senders: HashMap<PortHandle, Vec<Sender<BatchOrExecutorOperation>>>,
     state_writer: StateWriter,
     stateful: bool,
     error_manager: Arc<ErrorManager>,
@@ -54,7 +65,11 @@ struct ChannelManager {
 
 impl ChannelManager {
     #[inline]
-    fn send_op(&mut self, mut op: Operation, port_id: PortHandle) -> Result<(), ExecutionError> {
+    fn send_op(
+        &mut self,
+        mut op: BatchOrExecutorOperation,
+        port_id: PortHandle,
+    ) -> Result<(), ExecutionError> {
         if self.stateful {
             match self.state_writer.store_op(op, &port_id) {
                 Ok(new_op) => op = new_op,
@@ -70,13 +85,11 @@ impl ChannelManager {
             .get(&port_id)
             .ok_or(InvalidPortHandle(port_id))?;
 
-        let exec_op = ExecutorOperation::Op { op };
-
         if let Some((last_sender, senders)) = senders.split_last() {
             for sender in senders {
-                sender.send(exec_op.clone())?;
+                sender.send(op.clone())?;
             }
-            last_sender.send(exec_op)?;
+            last_sender.send(op)?;
         }
 
         Ok(())
@@ -85,7 +98,7 @@ impl ChannelManager {
     fn send_terminate(&self) -> Result<(), ExecutionError> {
         for senders in self.senders.values() {
             for sender in senders {
-                sender.send(ExecutorOperation::Terminate)?;
+                sender.send(ExecutorOperation::Terminate.into())?;
             }
         }
 
@@ -95,9 +108,12 @@ impl ChannelManager {
     fn send_snapshotting_done(&self, connection_name: String) -> Result<(), ExecutionError> {
         for senders in self.senders.values() {
             for sender in senders {
-                sender.send(ExecutorOperation::SnapshottingDone {
-                    connection_name: connection_name.clone(),
-                })?;
+                sender.send(
+                    ExecutorOperation::SnapshottingDone {
+                        connection_name: connection_name.clone(),
+                    }
+                    .into(),
+                )?;
             }
         }
 
@@ -110,9 +126,12 @@ impl ChannelManager {
 
         for senders in &self.senders {
             for sender in senders.1 {
-                sender.send(ExecutorOperation::Commit {
-                    epoch: epoch.clone(),
-                })?;
+                sender.send(
+                    ExecutorOperation::Commit {
+                        epoch: epoch.clone(),
+                    }
+                    .into(),
+                )?;
             }
         }
 
@@ -120,7 +139,7 @@ impl ChannelManager {
     }
     fn new(
         owner: NodeHandle,
-        senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
+        senders: HashMap<PortHandle, Vec<Sender<BatchOrExecutorOperation>>>,
         state_writer: StateWriter,
         stateful: bool,
         error_manager: Arc<ErrorManager>,
@@ -152,7 +171,7 @@ impl SourceChannelManager {
     #![allow(clippy::too_many_arguments)]
     pub fn new(
         owner: NodeHandle,
-        senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
+        senders: HashMap<PortHandle, Vec<Sender<BatchOrExecutorOperation>>>,
         state_writer: StateWriter,
         stateful: bool,
         commit_sz: u32,
@@ -228,8 +247,13 @@ impl SourceChannelManager {
         self.curr_txid = message.identifier.txid;
         self.curr_seq_in_tx = message.identifier.seq_in_tx;
         match message.kind {
+            IngestionMessageKind::SnapshotBatch(batch) => {
+                self.manager.send_op(batch.into(), port)?;
+                self.trigger_commit_if_needed(request_termination)
+            }
             IngestionMessageKind::OperationEvent(op) => {
-                self.manager.send_op(op, port)?;
+                self.manager
+                    .send_op(ExecutorOperation::Op { op }.into(), port)?;
                 self.num_uncommitted_ops += 1;
                 self.trigger_commit_if_needed(request_termination)
             }
@@ -259,7 +283,7 @@ pub(crate) struct ProcessorChannelManager {
 impl ProcessorChannelManager {
     pub fn new(
         owner: NodeHandle,
-        senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
+        senders: HashMap<PortHandle, Vec<Sender<BatchOrExecutorOperation>>>,
         state_writer: StateWriter,
         stateful: bool,
         error_manager: Arc<ErrorManager>,
@@ -283,9 +307,15 @@ impl ProcessorChannelManager {
 }
 
 impl ProcessorChannelForwarder for ProcessorChannelManager {
+    fn send_batch(&mut self, batch: RecordBatch, port: PortHandle) {
+        self.manager
+            .send_op(batch.into(), port)
+            .unwrap_or_else(|e| panic!("Failed to send batch: {e}"))
+    }
+
     fn send(&mut self, op: Operation, port: PortHandle) {
         self.manager
-            .send_op(op, port)
+            .send_op(ExecutorOperation::Op { op }.into(), port)
             .unwrap_or_else(|e| panic!("Failed to send operation: {e}"))
     }
 }
