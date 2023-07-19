@@ -142,6 +142,11 @@ fn build_cache_task(
         "End-to-end data latency in seconds"
     );
 
+    const OPERATION_TYPE_LABEL: &str = "operation_type";
+    const SNAPSHOTTING_LABEL: &str = "snapshotting";
+
+    let mut snapshotting = !cache.is_snapshotting_done()?;
+
     while let Some((op, pos)) = receiver.blocking_recv() {
         match op {
             ExecutorOperation::Op { op } => match op {
@@ -158,14 +163,16 @@ fn build_cache_task(
                         }
                     }
                     let mut labels = cache.labels().clone();
-                    labels.push("operation_type", "delete");
+                    labels.push(OPERATION_TYPE_LABEL, "delete");
+                    labels.push(SNAPSHOTTING_LABEL, snapshotting_str(snapshotting));
                     increment_counter!(CACHE_OPERATION_COUNTER_NAME, labels);
                 }
                 Operation::Insert { mut new } => {
                     new.schema_id = schema.identifier;
                     let result = cache.insert(&new)?;
                     let mut labels = cache.labels().clone();
-                    labels.push("operation_type", "insert");
+                    labels.push(OPERATION_TYPE_LABEL, "insert");
+                    labels.push(SNAPSHOTTING_LABEL, snapshotting_str(snapshotting));
                     increment_counter!(CACHE_OPERATION_COUNTER_NAME, labels);
 
                     if let Some((endpoint_name, operations_sender)) = operations_sender.as_ref() {
@@ -184,7 +191,8 @@ fn build_cache_task(
                     new.schema_id = schema.identifier;
                     let upsert_result = cache.update(&old, &new)?;
                     let mut labels = cache.labels().clone();
-                    labels.push("operation_type", "update");
+                    labels.push(OPERATION_TYPE_LABEL, "update");
+                    labels.push(SNAPSHOTTING_LABEL, snapshotting_str(snapshotting));
                     increment_counter!(CACHE_OPERATION_COUNTER_NAME, labels);
 
                     if let Some((endpoint_name, operations_sender)) = operations_sender.as_ref() {
@@ -214,6 +222,7 @@ fn build_cache_task(
                 cache.set_metadata(pos)?;
                 cache.set_connection_snapshotting_done(&connection_name)?;
                 cache.commit()?;
+                snapshotting = !cache.is_snapshotting_done()?;
             }
             ExecutorOperation::Terminate => {
                 break;
@@ -265,5 +274,13 @@ fn send_upsert_result(
 fn send_and_log_error<T: Send + Sync + 'static>(sender: &Sender<T>, msg: T) {
     if let Err(e) = sender.send(msg) {
         error!("Failed to send broadcast message: {}", e);
+    }
+}
+
+fn snapshotting_str(snapshotting: bool) -> &'static str {
+    if snapshotting {
+        "true"
+    } else {
+        "false"
     }
 }
