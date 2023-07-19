@@ -87,7 +87,7 @@ fn prepare_pipeline_dag(
     Ok(sql_dag)
 }
 
-fn transform_to_ui_graph(
+pub fn transform_to_ui_graph(
     input_dag: Dag<SchemaSQLContext>,
     port_connection_source: HashMap<u16, (&str, &str)>,
 ) -> Result<QueryGraph, PipelineError> {
