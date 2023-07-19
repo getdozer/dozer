@@ -258,7 +258,7 @@ impl<T: DozerObjectStore + Send> TableWatcher for ParquetTable<T> {
                     })
                     .unwrap();
 
-                let result = connectors::object_store::table_reader::TableReader::<T>::read(
+                let result = connectors::object_store::table_reader::TableReader::<T>::snaphot(
                     id as u32,
                     ctx.clone(),
                     file_path,
