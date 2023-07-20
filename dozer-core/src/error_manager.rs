@@ -1,5 +1,6 @@
 use std::sync::atomic::AtomicU32;
 
+use dozer_types::tracing::error_span;
 use dozer_types::{errors::internal::BoxedError, log::error};
 
 /// `ErrorManager` records and counts the number of errors happened.
@@ -27,7 +28,9 @@ impl ErrorManager {
     }
 
     pub fn report(&self, error: BoxedError) {
+        error_span!("reported error", error = true, e = error);
         error!("{}", error);
+
         let count = self.count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         if let Some(threshold) = self.threshold {
             if count >= threshold {
