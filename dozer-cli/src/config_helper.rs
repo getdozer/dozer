@@ -5,7 +5,7 @@ use crate::errors::ConfigCombineError::{
 use dozer_types::log::warn;
 use dozer_types::serde_yaml;
 use dozer_types::serde_yaml::mapping::Entry;
-use dozer_types::serde_yaml::Mapping;
+use dozer_types::serde_yaml::{Mapping, Value};
 use glob::glob;
 use std::fs;
 
@@ -54,13 +54,22 @@ pub fn add_file_content_to_config(
     if name.contains(".yml") || name.contains(".yaml") {
         let yaml: serde_yaml::Value = serde_yaml::from_str(&content)
             .map_err(|e| ConfigCombineError::ParseYaml(name.to_string(), e))?;
-        merge_yaml(yaml, combined_yaml, false)?;
+        merge_yaml(yaml, combined_yaml)?;
     } else if name.contains(".sql") {
-        let yaml = serde_yaml::Value::Mapping(Mapping::from_iter([(
-            serde_yaml::Value::String("sql".into()),
-            serde_yaml::Value::String(";".to_string() + content.as_str()),
-        )]));
-        merge_yaml(yaml, combined_yaml, true)?;
+        combined_yaml
+            .as_mapping_mut()
+            .expect("Should be mapping")
+            .entry(serde_yaml::Value::String("sql".into()))
+            .and_modify(|s| {
+                let query = s.as_str();
+                *s = match query {
+                    None => Value::String(content.clone()),
+                    Some(current_query) => {
+                        Value::String(format!("{};{}", current_query, content.as_str()))
+                    }
+                }
+            })
+            .or_insert(serde_yaml::Value::String(content));
     } else {
         warn!("Config file \"{name}\" extension not supported");
     }
@@ -71,14 +80,13 @@ pub fn add_file_content_to_config(
 pub fn merge_yaml(
     from: serde_yaml::Value,
     to: &mut serde_yaml::Value,
-    join_strings: bool,
 ) -> Result<(), ConfigCombineError> {
     match (from, to) {
         (serde_yaml::Value::Mapping(from), serde_yaml::Value::Mapping(to)) => {
             for (key, value) in from {
                 match to.entry(key) {
                     Entry::Occupied(mut entry) => {
-                        merge_yaml(value, entry.get_mut(), join_strings)?;
+                        merge_yaml(value, entry.get_mut())?;
                     }
                     Entry::Vacant(entry) => {
                         entry.insert(value);
@@ -100,11 +108,7 @@ pub fn merge_yaml(
                     to: serde_yaml::Value::Tagged(to.clone()),
                 });
             }
-            merge_yaml(from.value, &mut to.value, join_strings)
-        }
-        (serde_yaml::Value::String(from), serde_yaml::Value::String(to)) if join_strings => {
-            to.push_str(&from);
-            Ok(())
+            merge_yaml(from.value, &mut to.value)
         }
         (from, to) => Err(ConfigCombineError::CannotMerge {
             from,

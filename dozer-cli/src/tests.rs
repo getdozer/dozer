@@ -40,7 +40,7 @@ fn test_sql_from_single_sql_source_in_config() {
 
     let config = serde_yaml::from_value::<Config>(combined_yaml).unwrap();
 
-    assert_eq!(config.sql, Some(format!(";{}", query)));
+    assert_eq!(config.sql, Some(query.to_string()));
 }
 
 #[test]
