@@ -26,3 +26,41 @@ fn test_sql_merge_in_config() {
 
     assert_eq!(config.sql, Some(format!("{};{}", query_a, query_b)));
 }
+
+#[test]
+fn test_sql_from_single_sql_source_in_config() {
+    let query = "select * from table_b";
+
+    let yaml = r#"app_name: dozer-config-sample"#;
+
+    let mut combined_yaml = serde_yaml::Value::Mapping(Mapping::new());
+
+    add_file_content_to_config(&mut combined_yaml, "config.yaml", yaml.to_string()).unwrap();
+    add_file_content_to_config(&mut combined_yaml, "query.sql", query.to_string()).unwrap();
+
+    let config = serde_yaml::from_value::<Config>(combined_yaml).unwrap();
+
+    assert_eq!(config.sql, Some(format!(";{}", query)));
+}
+
+#[test]
+fn test_sql_from_single_yaml_source_in_config() {
+    let query = "select * from table_b";
+
+    let yaml = format!(
+        r#"
+    app_name: dozer-config-sample
+    sql:
+        {}
+    "#,
+        query
+    );
+
+    let mut combined_yaml = serde_yaml::Value::Mapping(Mapping::new());
+
+    add_file_content_to_config(&mut combined_yaml, "config.yaml", yaml).unwrap();
+
+    let config = serde_yaml::from_value::<Config>(combined_yaml).unwrap();
+
+    assert_eq!(config.sql, Some(query.to_string()));
+}
