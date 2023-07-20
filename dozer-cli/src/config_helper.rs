@@ -1,6 +1,7 @@
 use crate::errors::ConfigCombineError;
 use crate::errors::ConfigCombineError::{
-    CannotReadConfig, CannotReadFile, CannotSerializeToString, WrongPatternOfConfigFilesGlob,
+    CannotReadConfig, CannotReadFile, CannotSerializeToString, SqlIsNotStringType,
+    WrongPatternOfConfigFilesGlob,
 };
 use dozer_types::log::warn;
 use dozer_types::serde_yaml;
@@ -56,20 +57,28 @@ pub fn add_file_content_to_config(
             .map_err(|e| ConfigCombineError::ParseYaml(name.to_string(), e))?;
         merge_yaml(yaml, combined_yaml)?;
     } else if name.contains(".sql") {
-        combined_yaml
-            .as_mapping_mut()
-            .expect("Should be mapping")
-            .entry(serde_yaml::Value::String("sql".into()))
-            .and_modify(|s| {
+        let mapping = combined_yaml.as_mapping_mut().expect("Should be mapping");
+        let sql = mapping.get_mut(serde_yaml::Value::String("sql".into()));
+
+        match sql {
+            None => {
+                mapping.insert(
+                    serde_yaml::Value::String("sql".into()),
+                    serde_yaml::Value::String(content),
+                );
+            }
+            Some(s) => {
                 let query = s.as_str();
                 *s = match query {
-                    None => Value::String(content.clone()),
+                    None => {
+                        return Err(SqlIsNotStringType);
+                    }
                     Some(current_query) => {
                         Value::String(format!("{};{}", current_query, content.as_str()))
                     }
                 }
-            })
-            .or_insert(serde_yaml::Value::String(content));
+            }
+        }
     } else {
         warn!("Config file \"{name}\" extension not supported");
     }
