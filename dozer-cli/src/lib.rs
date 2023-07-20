@@ -25,6 +25,8 @@ mod config_helper;
 pub mod console_helper;
 #[cfg(feature = "cloud")]
 mod progress_printer;
+#[cfg(test)]
+mod tests;
 mod utils;
 
 pub trait Orchestrator {
