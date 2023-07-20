@@ -18,8 +18,10 @@ use clap::CommandFactory;
 #[cfg(feature = "cloud")]
 use dozer_cli::cloud_app_context::CloudAppContext;
 use std::cmp::Ordering;
-use std::process;
+
+use dozer_types::log::{debug, warn};
 use std::time::Duration;
+use std::{env, process};
 
 fn main() {
     set_panic_hook();
@@ -104,7 +106,13 @@ async fn check_update() {
                 }
             }
             Err(e) => {
-                info!("Failed to check for updates: {}", e);
+                // We dont show error if error is connection error, because mostly it happens
+                // when main thread is shutting down before request completes.
+                if !e.is_connect() {
+                    warn!("Unable to fetch the latest metadata");
+                }
+
+                debug!("Updates check error: {}", e);
             }
         }
         time::sleep(Duration::from_secs(2 * 60 * 60)).await;
