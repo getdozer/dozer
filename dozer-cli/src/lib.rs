@@ -21,7 +21,7 @@ use tokio::task::JoinHandle;
 pub mod cloud_app_context;
 #[cfg(feature = "cloud")]
 mod cloud_helper;
-mod config_helper;
+pub mod config_helper;
 pub mod console_helper;
 #[cfg(feature = "cloud")]
 mod progress_printer;
