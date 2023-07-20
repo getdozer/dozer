@@ -14,9 +14,7 @@ use dozer_types::{
         },
         app_config::LogStorage,
     },
-    types::{
-        FieldDefinition, FieldType, IndexDefinition, Schema, SchemaIdentifier, SchemaWithIndex,
-    },
+    types::{FieldDefinition, FieldType, IndexDefinition, Schema, SchemaWithIndex},
 };
 
 use crate::errors::BuildError;
@@ -130,8 +128,6 @@ pub fn modify_schema(
     };
 
     schema.primary_index = index;
-
-    schema.identifier = Some(SchemaIdentifier { id: 0, version: 1 });
 
     let secondary_index_config = get_secondary_index_config(api_endpoint);
     let secondary_indexes = generate_secondary_indexes(&schema.fields, &secondary_index_config)?;

@@ -12,7 +12,7 @@ fn can_convert_from_arrow_to_dozer() {
     let field_c = arrow_types::Field::new("c", arrow_types::DataType::Utf8, false);
 
     let schema = arrow_types::Schema::new(vec![field_a.clone(), field_b, field_c]);
-    let _dozer_schema = DozerSchema::empty()
+    let _dozer_schema = DozerSchema::default()
         .field(
             FieldDefinition::new(
                 "a".to_string(),
@@ -57,7 +57,7 @@ fn can_convert_from_arrow_to_dozer_with_metadata() {
     let field_d = arrow_types::Field::new("d", arrow_types::DataType::Utf8, false);
 
     let schema = arrow_types::Schema::new(vec![field_a.clone(), field_b, field_c, field_d]);
-    let dozer_schema = DozerSchema::empty()
+    let dozer_schema = DozerSchema::default()
         .field(
             FieldDefinition::new(
                 "a".to_string(),
@@ -119,7 +119,7 @@ fn roundtrip_record_to_record_batch() {
     use crate::arrow_types::to_arrow::map_to_arrow_schema;
     use crate::types::field::{arrow_field_test_cases, arrow_field_test_cases_schema};
 
-    let record: Record = Record::new(None, arrow_field_test_cases().collect());
+    let record: Record = Record::new(arrow_field_test_cases().collect());
     let record_batch: RecordBatch =
         map_record_to_arrow(record.clone(), &arrow_field_test_cases_schema()).unwrap();
     let res: Vec<Record> =

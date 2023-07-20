@@ -14,7 +14,7 @@ use deltalake::datafusion::prelude::SessionContext;
 use dozer_types::arrow_types::from_arrow::{map_schema_to_dozer, map_value_to_dozer_field};
 use dozer_types::ingestion_types::IngestionMessageKind;
 use dozer_types::log::error;
-use dozer_types::types::{Operation, Record, SchemaIdentifier};
+use dozer_types::types::{Operation, Record};
 use futures::StreamExt;
 use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
@@ -30,7 +30,7 @@ impl<T: Clone + Send + Sync> TableReader<T> {
     }
 
     pub async fn read(
-        id: u32,
+        table_index: usize,
         ctx: SessionContext,
         table_path: ListingTableUrl,
         listing_options: ListingOptions,
@@ -98,14 +98,16 @@ impl<T: Clone + Send + Sync> TableReader<T> {
 
                 let evt = Operation::Insert {
                     new: Record {
-                        schema_id: Some(SchemaIdentifier { id, version: 0 }),
                         values: fields,
                         lifetime: None,
                     },
                 };
 
                 sender
-                    .send(Ok(Some(IngestionMessageKind::OperationEvent(evt))))
+                    .send(Ok(Some(IngestionMessageKind::OperationEvent {
+                        table_index,
+                        op: evt,
+                    })))
                     .await
                     .unwrap();
             }

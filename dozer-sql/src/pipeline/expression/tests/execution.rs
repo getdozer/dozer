@@ -16,7 +16,7 @@ use dozer_types::types::{
 fn test_column_execution() {
     use dozer_types::ordered_float::OrderedFloat;
 
-    let schema = Schema::empty()
+    let schema = Schema::default()
         .field(
             FieldDefinition::new(
                 "int_field".to_string(),
@@ -46,14 +46,11 @@ fn test_column_execution() {
         )
         .clone();
 
-    let record = Record::new(
-        None,
-        vec![
-            Field::Int(1337),
-            Field::String("test".to_string()),
-            Field::Float(OrderedFloat(10.10)),
-        ],
-    );
+    let record = Record::new(vec![
+        Field::Int(1337),
+        Field::String("test".to_string()),
+        Field::Float(OrderedFloat(10.10)),
+    ]);
 
     // Column
     let e = Expression::Column { index: 0 };
@@ -122,7 +119,7 @@ fn test_column_execution() {
 
 #[test]
 fn test_alias() {
-    let schema = Schema::empty()
+    let schema = Schema::default()
         .field(
             FieldDefinition::new(
                 String::from("fn"),
@@ -158,7 +155,7 @@ fn test_alias() {
 
     assert_eq!(
         r,
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("alias1"),
@@ -183,7 +180,7 @@ fn test_alias() {
 
 #[test]
 fn test_wildcard() {
-    let schema = Schema::empty()
+    let schema = Schema::default()
         .field(
             FieldDefinition::new(
                 String::from("fn"),
@@ -219,7 +216,7 @@ fn test_wildcard() {
 
     assert_eq!(
         r,
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("fn"),
@@ -244,7 +241,7 @@ fn test_wildcard() {
 
 #[test]
 fn test_timestamp_difference() {
-    let schema = Schema::empty()
+    let schema = Schema::default()
         .field(
             FieldDefinition::new(
                 String::from("a"),
@@ -265,13 +262,10 @@ fn test_timestamp_difference() {
         )
         .clone();
 
-    let record = Record::new(
-        None,
-        vec![
-            Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
-            Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:12:10Z").unwrap()),
-        ],
-    );
+    let record = Record::new(vec![
+        Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
+        Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:12:10Z").unwrap()),
+    ]);
 
     let result = evaluate_sub(
         &schema,

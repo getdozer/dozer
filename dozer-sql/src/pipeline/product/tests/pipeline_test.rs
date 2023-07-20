@@ -55,7 +55,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                 name: "user".to_string(),
             };
             Ok((
-                Schema::empty()
+                Schema::default()
                     .field(
                         FieldDefinition::new(
                             String::from("id"),
@@ -110,7 +110,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                 name: "department".to_string(),
             };
             Ok((
-                Schema::empty()
+                Schema::default()
                     .field(
                         FieldDefinition::new(
                             String::from("did"),
@@ -138,7 +138,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                 name: "country".to_string(),
             };
             Ok((
-                Schema::empty()
+                Schema::default()
                     .field(
                         FieldDefinition::new(
                             String::from("cid"),
@@ -193,82 +193,67 @@ impl Source for TestSource {
         let operations = vec![
             (
                 Operation::Insert {
-                    new: Record::new(None, vec![Field::Int(0), Field::String("IT".to_string())]),
+                    new: Record::new(vec![Field::Int(0), Field::String("IT".to_string())]),
                 },
                 DEPARTMENT_PORT,
             ),
             (
                 Operation::Insert {
-                    new: Record::new(None, vec![Field::Int(1), Field::String("HR".to_string())]),
+                    new: Record::new(vec![Field::Int(1), Field::String("HR".to_string())]),
                 },
                 DEPARTMENT_PORT,
             ),
             (
                 Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![
-                            Field::Int(10000),
-                            Field::String("Alice".to_string()),
-                            Field::Int(0),
-                            Field::String("UK".to_string()),
-                            Field::Float(OrderedFloat(1.1)),
-                        ],
-                    ),
+                    new: Record::new(vec![
+                        Field::Int(10000),
+                        Field::String("Alice".to_string()),
+                        Field::Int(0),
+                        Field::String("UK".to_string()),
+                        Field::Float(OrderedFloat(1.1)),
+                    ]),
                 },
                 USER_PORT,
             ),
             (
                 Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![
-                            Field::Int(10001),
-                            Field::String("Bob".to_string()),
-                            Field::Int(0),
-                            Field::String("UK".to_string()),
-                            Field::Float(OrderedFloat(1.1)),
-                        ],
-                    ),
+                    new: Record::new(vec![
+                        Field::Int(10001),
+                        Field::String("Bob".to_string()),
+                        Field::Int(0),
+                        Field::String("UK".to_string()),
+                        Field::Float(OrderedFloat(1.1)),
+                    ]),
                 },
                 USER_PORT,
             ),
             (
                 Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![
-                            Field::String("UK".to_string()),
-                            Field::String("United Kingdom".to_string()),
-                        ],
-                    ),
+                    new: Record::new(vec![
+                        Field::String("UK".to_string()),
+                        Field::String("United Kingdom".to_string()),
+                    ]),
                 },
                 COUNTRY_PORT,
             ),
             (
                 Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![
-                            Field::String("SG".to_string()),
-                            Field::String("Singapore".to_string()),
-                        ],
-                    ),
+                    new: Record::new(vec![
+                        Field::String("SG".to_string()),
+                        Field::String("Singapore".to_string()),
+                    ]),
                 },
                 COUNTRY_PORT,
             ),
             (
                 Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![
-                            Field::Int(10002),
-                            Field::String("Craig".to_string()),
-                            Field::Int(1),
-                            Field::String("SG".to_string()),
-                            Field::Float(OrderedFloat(1.1)),
-                        ],
-                    ),
+                    new: Record::new(vec![
+                        Field::Int(10002),
+                        Field::String("Craig".to_string()),
+                        Field::Int(1),
+                        Field::String("SG".to_string()),
+                        Field::Float(OrderedFloat(1.1)),
+                    ]),
                 },
                 USER_PORT,
             ),
@@ -283,31 +268,25 @@ impl Source for TestSource {
             // ),
             (
                 Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![
-                            Field::Int(10003),
-                            Field::String("Dan".to_string()),
-                            Field::Int(0),
-                            Field::String("UK".to_string()),
-                            Field::Float(OrderedFloat(1.1)),
-                        ],
-                    ),
+                    new: Record::new(vec![
+                        Field::Int(10003),
+                        Field::String("Dan".to_string()),
+                        Field::Int(0),
+                        Field::String("UK".to_string()),
+                        Field::Float(OrderedFloat(1.1)),
+                    ]),
                 },
                 USER_PORT,
             ),
             (
                 Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![
-                            Field::Int(10004),
-                            Field::String("Eve".to_string()),
-                            Field::Int(1),
-                            Field::String("SG".to_string()),
-                            Field::Float(OrderedFloat(1.1)),
-                        ],
-                    ),
+                    new: Record::new(vec![
+                        Field::Int(10004),
+                        Field::String("Eve".to_string()),
+                        Field::Int(1),
+                        Field::String("SG".to_string()),
+                        Field::Float(OrderedFloat(1.1)),
+                    ]),
                 },
                 USER_PORT,
             ),
@@ -327,23 +306,20 @@ impl Source for TestSource {
             // ),
             (
                 Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![
-                            Field::Int(10005),
-                            Field::String("Frank".to_string()),
-                            Field::Int(1),
-                            Field::String("SG".to_string()),
-                            Field::Float(OrderedFloat(1.5)),
-                        ],
-                    ),
+                    new: Record::new(vec![
+                        Field::Int(10005),
+                        Field::String("Frank".to_string()),
+                        Field::Int(1),
+                        Field::String("SG".to_string()),
+                        Field::Float(OrderedFloat(1.5)),
+                    ]),
                 },
                 USER_PORT,
             ),
             (
                 Operation::Update {
-                    old: Record::new(None, vec![Field::Int(0), Field::String("IT".to_string())]),
-                    new: Record::new(None, vec![Field::Int(0), Field::String("RD".to_string())]),
+                    old: Record::new(vec![Field::Int(0), Field::String("IT".to_string())]),
+                    new: Record::new(vec![Field::Int(0), Field::String("RD".to_string())]),
                 },
                 DEPARTMENT_PORT,
             ),
@@ -379,7 +355,7 @@ impl Source for TestSource {
             //         )
             //     }
             // }
-            fw.send(IngestionMessage::new_op(index as u64, 0, op), port)
+            fw.send(IngestionMessage::new_op(index as u64, 0, 0, op), port)
                 .unwrap();
         }
 

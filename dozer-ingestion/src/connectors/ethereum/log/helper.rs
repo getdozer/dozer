@@ -1,13 +1,12 @@
 use dozer_types::log::error;
 use dozer_types::types::{
-    Field, FieldDefinition, FieldType, Operation, Record, Schema, SchemaIdentifier,
-    SourceDefinition,
+    Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use web3::ethabi::RawLog;
-use web3::types::{Log, H256};
+use web3::types::Log;
 
 use crate::connectors::{CdcType, SourceSchema, TableInfo};
 
@@ -16,7 +15,6 @@ use super::sender::EthDetails;
 
 pub fn get_contract_event_schemas(
     contracts: &HashMap<String, ContractTuple>,
-    schema_map: &HashMap<H256, usize>,
 ) -> Vec<(String, SourceSchema)> {
     let mut schemas = vec![];
 
@@ -44,19 +42,10 @@ pub fn get_contract_event_schemas(
                 });
             }
 
-            let schema_id = schema_map
-                .get(&event.signature())
-                .expect("schema is missing")
-                .to_owned();
-
             schemas.push((
                 get_table_name(contract_tuple, &event.name),
                 SourceSchema::new(
                     Schema {
-                        identifier: Some(SchemaIdentifier {
-                            id: schema_id as u32,
-                            version: 1,
-                        }),
                         fields,
                         primary_index: vec![],
                     },
@@ -73,8 +62,7 @@ pub fn decode_event(
     log: Log,
     contracts: HashMap<String, ContractTuple>,
     tables: Vec<TableInfo>,
-    schema_map: HashMap<H256, usize>,
-) -> Option<Operation> {
+) -> Option<(usize, Operation)> {
     let address = format!("{:?}", log.address);
 
     let mut c = contracts.get(&address);
@@ -100,14 +88,9 @@ pub fn decode_event(
             .find(|evt| evt.signature().to_string() == name);
 
         if let Some(event) = opt_event {
-            let schema_id = schema_map
-                .get(&event.signature())
-                .expect("schema is missing")
-                .to_owned();
-
             let table_name = get_table_name(contract_tuple, &event.name);
-            let is_table_required = tables.iter().any(|t| t.name == table_name);
-            if is_table_required {
+            let table_index = tables.iter().position(|t| t.name == table_name);
+            if let Some(table_index) = table_index {
                 let parsed_event = event.parse_log(RawLog {
                     topics: log.topics,
                     data: log.data.0,
@@ -120,16 +103,15 @@ pub fn decode_event(
                             .into_iter()
                             .map(|p| map_abitype_to_field(p.value))
                             .collect();
-                        return Some(Operation::Insert {
-                            new: Record {
-                                schema_id: Some(SchemaIdentifier {
-                                    id: schema_id as u32,
-                                    version: 1,
-                                }),
-                                values,
-                                lifetime: None,
+                        return Some((
+                            table_index,
+                            Operation::Insert {
+                                new: Record {
+                                    values,
+                                    lifetime: None,
+                                },
                             },
-                        });
+                        ));
                     }
                     Err(_) => {
                         error!(
@@ -171,21 +153,25 @@ pub fn map_abitype_to_field(f: web3::ethabi::Token) -> Field {
         ),
     }
 }
-pub fn map_log_to_event(log: Log, details: Arc<EthDetails>) -> Option<Operation> {
+pub fn map_log_to_event(log: Log, details: Arc<EthDetails>) -> Option<(usize, Operation)> {
     // Check if table is requested
-    let is_table_required = details.tables.iter().any(|t| t.name == ETH_LOGS_TABLE);
+    let table_index = details.tables.iter().position(|t| t.name == ETH_LOGS_TABLE);
 
-    if !is_table_required {
-        None
-    } else if log.log_index.is_some() {
-        let values = map_log_to_values(log);
-        Some(Operation::Insert {
-            new: Record {
-                schema_id: Some(SchemaIdentifier { id: 1, version: 1 }),
-                values,
-                lifetime: None,
-            },
-        })
+    if let Some(table_index) = table_index {
+        if log.log_index.is_some() {
+            let values = map_log_to_values(log);
+            Some((
+                table_index,
+                Operation::Insert {
+                    new: Record {
+                        values,
+                        lifetime: None,
+                    },
+                },
+            ))
+        } else {
+            None
+        }
     } else {
         None
     }
@@ -240,7 +226,6 @@ pub fn map_log_to_values(log: Log) -> Vec<Field> {
 
 pub fn get_eth_schema() -> Schema {
     Schema {
-        identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
         fields: vec![
             FieldDefinition {
                 name: "id".to_string(),

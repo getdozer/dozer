@@ -13,7 +13,7 @@ use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::Mutex;
 use dozer_types::thiserror::{self, Error};
 use dozer_types::tracing::{span, Level};
-use dozer_types::types::{Operation, Schema, SchemaIdentifier, SourceDefinition};
+use dozer_types::types::{Operation, Schema, SourceDefinition};
 use metrics::{describe_counter, increment_counter};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -171,16 +171,6 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
     ) -> Result<Box<dyn Source>, BoxedError> {
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
 
-        let mut schema_port_map = HashMap::new();
-        for table in &self.tables {
-            let schema_id = table
-                .schema
-                .identifier
-                .ok_or(ConnectorSourceFactoryError::SchemaNotInitialized)?
-                .id;
-            schema_port_map.insert(schema_id, (table.port, table.name.clone()));
-        }
-
         let tables = self
             .tables
             .iter()
@@ -190,6 +180,7 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
                 column_names: table.columns.clone(),
             })
             .collect();
+        let ports = self.tables.iter().map(|table| table.port).collect();
 
         let connector = self
             .connector
@@ -197,18 +188,18 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
             .take()
             .expect("ConnectorSource was already built");
 
-        let mut bars = HashMap::new();
+        let mut bars = vec![];
         for table in &self.tables {
             let pb = attach_progress(self.progress.clone());
             pb.set_message(table.name.clone());
-            bars.insert(table.port, pb);
+            bars.push(pb);
         }
 
         Ok(Box::new(ConnectorSource {
             ingestor,
             iterator: Mutex::new(iterator),
-            schema_port_map,
             tables,
+            ports,
             connector,
             runtime: self.runtime.clone(),
             connection_name: self.connection_name.clone(),
@@ -217,24 +208,16 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
     }
 }
 
-#[derive(Error, Debug)]
-enum ConnectorSourceError {
-    #[error("Schema not initialized")]
-    SchemaNotInitialized,
-    #[error("Failed to find table in Source: {0}")]
-    PortError(u32),
-}
-
 #[derive(Debug)]
 pub struct ConnectorSource {
     ingestor: Ingestor,
     iterator: Mutex<IngestionIterator>,
-    schema_port_map: HashMap<u32, (PortHandle, String)>,
     tables: Vec<TableInfo>,
+    ports: Vec<PortHandle>,
     connector: Box<dyn Connector>,
     runtime: Arc<Runtime>,
     connection_name: String,
-    bars: HashMap<PortHandle, ProgressBar>,
+    bars: Vec<ProgressBar>,
 }
 
 const SOURCE_OPERATION_COUNTER_NAME: &str = "source_operation";
@@ -255,7 +238,7 @@ impl Source for ConnectorSource {
                 "Number of operation processed by source"
             );
 
-            let mut counter = HashMap::new();
+            let mut counter = vec![0; self.tables.len()];
             let t = scope.spawn(|| {
                 match self
                     .runtime
@@ -281,19 +264,49 @@ impl Source for ConnectorSource {
                 );
                 let _enter = span.enter();
 
-                let schema_id = match &kind {
-                    IngestionMessageKind::OperationEvent(Operation::Delete { old }) => {
-                        Some(get_schema_id(old.schema_id)?)
-                    }
-                    IngestionMessageKind::OperationEvent(Operation::Insert { new }) => {
-                        Some(get_schema_id(new.schema_id)?)
-                    }
-                    IngestionMessageKind::OperationEvent(Operation::Update { old: _, new }) => {
-                        Some(get_schema_id(new.schema_id)?)
+                match kind {
+                    IngestionMessageKind::OperationEvent { table_index, op } => {
+                        let port = self.ports[table_index];
+                        let table_name = &self.tables[table_index].name;
+
+                        // Update metrics
+                        let mut labels = vec![
+                            ("connection", self.connection_name.clone()),
+                            ("table", table_name.clone()),
+                        ];
+                        const OPERATION_TYPE_LABEL: &str = "operation_type";
+                        match &op {
+                            Operation::Delete { .. } => {
+                                labels.push((OPERATION_TYPE_LABEL, "delete".to_string()));
+                            }
+                            Operation::Insert { .. } => {
+                                labels.push((OPERATION_TYPE_LABEL, "insert".to_string()));
+                            }
+                            Operation::Update { .. } => {
+                                labels.push((OPERATION_TYPE_LABEL, "update".to_string()));
+                            }
+                        }
+                        increment_counter!(SOURCE_OPERATION_COUNTER_NAME, &labels);
+
+                        // Send message to the pipeline
+                        fw.send(
+                            IngestionMessage {
+                                identifier,
+                                kind: IngestionMessageKind::OperationEvent { table_index, op },
+                            },
+                            port,
+                        )?;
+
+                        // Update counter
+                        let counter = &mut counter[table_index];
+                        *counter += 1;
+                        if *counter % 1000 == 0 {
+                            self.bars[table_index].set_position(*counter);
+                        }
                     }
                     IngestionMessageKind::SnapshottingDone
                     | IngestionMessageKind::SnapshottingStarted => {
-                        for (port, _) in self.schema_port_map.values() {
+                        for port in &self.ports {
                             fw.send(
                                 IngestionMessage {
                                     identifier,
@@ -302,47 +315,7 @@ impl Source for ConnectorSource {
                                 *port,
                             )?;
                         }
-                        None
                     }
-                };
-                if let Some(schema_id) = schema_id {
-                    let (port, table_name) = self
-                        .schema_port_map
-                        .get(&schema_id)
-                        .ok_or(ConnectorSourceError::PortError(schema_id))?;
-
-                    let mut labels = vec![
-                        ("connection", self.connection_name.clone()),
-                        ("table", table_name.to_string()),
-                    ];
-                    match &kind {
-                        IngestionMessageKind::OperationEvent(Operation::Delete { .. }) => {
-                            labels.push(("operation_type", "delete".to_string()));
-                            increment_counter!(SOURCE_OPERATION_COUNTER_NAME, &labels);
-                        }
-                        IngestionMessageKind::OperationEvent(Operation::Insert { .. }) => {
-                            labels.push(("operation_type", "insert".to_string()));
-                            increment_counter!(SOURCE_OPERATION_COUNTER_NAME, &labels);
-                        }
-                        IngestionMessageKind::OperationEvent(Operation::Update { .. }) => {
-                            labels.push(("operation_type", "update".to_string()));
-                            increment_counter!(SOURCE_OPERATION_COUNTER_NAME, &labels);
-                        }
-                        _ => {}
-                    }
-                    counter
-                        .entry(schema_id)
-                        .and_modify(|e| *e += 1)
-                        .or_insert(1);
-
-                    let schema_counter = counter.get(&schema_id).unwrap();
-                    if *schema_counter % 1000 == 0 {
-                        let pb = self.bars.get(port);
-                        if let Some(pb) = pb {
-                            pb.set_position(*schema_counter);
-                        }
-                    }
-                    fw.send(IngestionMessage { identifier, kind }, *port)?
                 }
             }
 
@@ -355,10 +328,4 @@ impl Source for ConnectorSource {
             Ok(())
         })
     }
-}
-
-fn get_schema_id(op_schema_id: Option<SchemaIdentifier>) -> Result<u32, ConnectorSourceError> {
-    Ok(op_schema_id
-        .ok_or(ConnectorSourceError::SchemaNotInitialized)?
-        .id)
 }

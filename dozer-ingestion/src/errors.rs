@@ -146,8 +146,8 @@ pub enum PostgresConnectorError {
     #[error("WAL level should be 'logical'")]
     WALLevelIsNotCorrect(),
 
-    #[error("Cannot find table: {:?}", .0.join(", "))]
-    TableError(Vec<String>),
+    #[error("Cannot find tables {0:?}")]
+    TablesNotFound(Vec<(String, String)>),
 
     #[error("Cannot find column {0} in {1}")]
     ColumnNotFound(String, String),
@@ -226,6 +226,20 @@ pub enum PostgresConnectorError {
 
     #[error("Failed to load native certs: {0}")]
     LoadNativeCerts(#[source] std::io::Error),
+
+    #[error("Non utf8 column name in table {table_index} column {column_index}")]
+    NonUtf8ColumnName {
+        table_index: usize,
+        column_index: usize,
+    },
+
+    #[error("Column type changed in table {table_index} column {column_name} from {old_type} to {new_type}")]
+    ColumnTypeChanged {
+        table_index: usize,
+        column_name: String,
+        old_type: postgres_types::Type,
+        new_type: postgres_types::Type,
+    },
 }
 
 #[derive(Error, Debug)]

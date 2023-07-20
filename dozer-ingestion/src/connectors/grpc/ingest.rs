@@ -8,7 +8,7 @@ use dozer_types::grpc_types::ingest::{
     ingest_service_server::IngestService, IngestRequest, IngestResponse,
 };
 
-use crate::ingestion::Ingestor;
+use crate::{connectors::TableInfo, ingestion::Ingestor};
 
 use super::adapter::{GrpcIngestMessage, GrpcIngestor, IngestAdapter};
 
@@ -18,15 +18,21 @@ where
 {
     adapter: Arc<GrpcIngestor<T>>,
     ingestor: &'static Ingestor,
+    tables: Vec<TableInfo>,
 }
 impl<T> IngestorServiceImpl<T>
 where
     T: IngestAdapter,
 {
-    pub fn new(adapter: GrpcIngestor<T>, ingestor: &'static Ingestor) -> Self {
+    pub fn new(
+        adapter: GrpcIngestor<T>,
+        ingestor: &'static Ingestor,
+        tables: Vec<TableInfo>,
+    ) -> Self {
         Self {
             adapter: Arc::new(adapter),
             ingestor,
+            tables,
         }
     }
 }
@@ -40,9 +46,18 @@ where
         request: tonic::Request<IngestRequest>,
     ) -> Result<tonic::Response<IngestResponse>, tonic::Status> {
         let req = request.into_inner();
+        let table_index = self
+            .tables
+            .iter()
+            .position(|table| table.name == req.schema_name)
+            .ok_or(tonic::Status::not_found(format!(
+                "schema name not found: {}",
+                req.schema_name
+            )))?;
+
         let seq_no = req.seq_no;
         self.adapter
-            .handle_message(GrpcIngestMessage::Default(req), self.ingestor)
+            .handle_message(table_index, GrpcIngestMessage::Default(req), self.ingestor)
             .map_err(|e| tonic::Status::internal(format!("ingestion stream error: {e}")))?;
 
         Ok(tonic::Response::new(IngestResponse { seq_no }))
@@ -56,12 +71,24 @@ where
 
         let adapter = self.adapter.clone();
         let ingestor = self.ingestor;
+        let table_names = self.tables.clone();
         let seq_no = tokio::spawn(async move {
             let mut seq_no = 0;
             while let Some(result) = in_stream.next().await {
                 if let Ok(req) = result {
+                    let Some(table_index) = table_names
+                        .iter()
+                        .position(|table| table.name == req.schema_name) else {
+                            error!("schema name not found: {}", req.schema_name);
+                            break;
+                        };
+
                     seq_no = req.seq_no;
-                    let res = adapter.handle_message(GrpcIngestMessage::Default(req), ingestor);
+                    let res = adapter.handle_message(
+                        table_index,
+                        GrpcIngestMessage::Default(req),
+                        ingestor,
+                    );
                     if let Err(e) = res {
                         error!("ingestion stream insertion errored: {:#?}", e);
                         break;
@@ -83,9 +110,18 @@ where
         request: tonic::Request<IngestArrowRequest>,
     ) -> Result<tonic::Response<IngestResponse>, tonic::Status> {
         let req = request.into_inner();
+        let table_index = self
+            .tables
+            .iter()
+            .position(|table| table.name == req.schema_name)
+            .ok_or(tonic::Status::not_found(format!(
+                "schema name not found: {}",
+                req.schema_name
+            )))?;
+
         let seq_no = req.seq_no;
         self.adapter
-            .handle_message(GrpcIngestMessage::Arrow(req), self.ingestor)
+            .handle_message(table_index, GrpcIngestMessage::Arrow(req), self.ingestor)
             .map_err(|e| tonic::Status::internal(format!("ingestion stream error: {e}")))?;
 
         Ok(tonic::Response::new(IngestResponse { seq_no }))
@@ -99,12 +135,24 @@ where
 
         let adapter = self.adapter.clone();
         let ingestor = self.ingestor;
+        let table_names = self.tables.clone();
         let seq_no = tokio::spawn(async move {
             let mut seq_no = 0;
             while let Some(result) = in_stream.next().await {
                 if let Ok(req) = result {
+                    let Some(table_index) = table_names
+                        .iter()
+                        .position(|table| table.name == req.schema_name) else {
+                            error!("schema name not found: {}", req.schema_name);
+                            break;
+                        };
+
                     seq_no = req.seq_no;
-                    let res = adapter.handle_message(GrpcIngestMessage::Arrow(req), ingestor);
+                    let res = adapter.handle_message(
+                        table_index,
+                        GrpcIngestMessage::Arrow(req),
+                        ingestor,
+                    );
                     if let Err(e) = res {
                         error!("ingestion stream insertion errored: {:#?}", e);
                         break;

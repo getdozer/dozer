@@ -109,7 +109,6 @@ impl AggregationProcessor {
             having_eval_schema: Schema {
                 fields: having_eval_schema_fields,
                 primary_index: vec![],
-                identifier: None,
             },
         })
     }
@@ -503,7 +502,7 @@ impl AggregationProcessor {
             output.push(exp.evaluate(original, aggregation_schema)?);
         }
         original.values.drain(original_len..);
-        let mut output_record = Record::new(None, output);
+        let mut output_record = Record::new(output);
 
         output_record.set_lifetime(original.get_lifetime());
 

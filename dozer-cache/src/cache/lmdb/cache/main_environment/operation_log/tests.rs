@@ -57,7 +57,7 @@ fn test_operation_log_append_only() {
     let txn = env.txn_mut().unwrap();
     let append_only = true;
 
-    let records = vec![Record::new(None, vec![]); 10];
+    let records = vec![Record::new(vec![]); 10];
     for (index, record) in records.iter().enumerate() {
         let record_meta = log.insert_new(txn, None, record).unwrap();
         assert_eq!(record_meta.id, index as u64);
@@ -101,7 +101,7 @@ fn test_operation_log_with_primary_key() {
     let append_only = false;
 
     // Insert a record.
-    let record = Record::new(None, vec![]);
+    let record = Record::new(vec![]);
     let primary_key = b"primary_key";
     let key = MetadataKey::PrimaryKey(primary_key);
     let mut record_meta = log.insert_new(txn, Some(key), &record).unwrap();
@@ -224,7 +224,7 @@ fn test_operation_log_without_primary_key() {
     let append_only = false;
 
     // Insert a record.
-    let record = Record::new(None, vec![]);
+    let record = Record::new(vec![]);
     let key = MetadataKey::Hash(&record, 0);
     let mut record_meta = log.insert_new(txn, Some(key), &record).unwrap();
     assert_eq!(record_meta.id, 0);

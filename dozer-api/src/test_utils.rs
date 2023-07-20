@@ -3,7 +3,7 @@ use dozer_types::serde_json::{json, Value};
 use dozer_types::types::{Field, Record, SchemaWithIndex, SourceDefinition};
 use dozer_types::{
     models::api_endpoint::{ApiEndpoint, ApiIndex},
-    types::{FieldDefinition, FieldType, IndexDefinition, Schema, SchemaIdentifier},
+    types::{FieldDefinition, FieldType, IndexDefinition, Schema},
 };
 
 use dozer_cache::cache::{CacheRecord, LmdbRwCacheManager, RwCacheManager};
@@ -48,10 +48,6 @@ pub fn get_schema() -> SchemaWithIndex {
         .collect();
     (
         Schema {
-            identifier: Some(SchemaIdentifier {
-                id: 3003108387,
-                version: 1,
-            }),
             fields,
             primary_index: vec![0],
         },
@@ -121,7 +117,7 @@ pub fn initialize_cache(
             Default::default(),
         )
         .unwrap();
-    let records = get_sample_records(schema);
+    let records = get_sample_records();
     for record in records {
         cache.insert(&record.record).unwrap();
     }
@@ -131,7 +127,7 @@ pub fn initialize_cache(
     Box::new(cache_manager)
 }
 
-pub fn get_sample_records(schema: Schema) -> Vec<CacheRecord> {
+pub fn get_sample_records() -> Vec<CacheRecord> {
     let records_value: Vec<Value> = get_films();
     let mut records = vec![];
     for (record_index, record_str) in records_value.into_iter().enumerate() {
@@ -141,16 +137,13 @@ pub fn get_sample_records(schema: Schema) -> Vec<CacheRecord> {
         if let (Some(film_id), Some(description), Some(release_year)) =
             (film_id, description, release_year)
         {
-            let record = Record::new(
-                schema.identifier,
-                vec![
-                    Field::UInt(film_id),
-                    Field::String(description.to_string()),
-                    Field::Null,
-                    Field::UInt(release_year),
-                    Field::Null,
-                ],
-            );
+            let record = Record::new(vec![
+                Field::UInt(film_id),
+                Field::String(description.to_string()),
+                Field::Null,
+                Field::UInt(release_year),
+                Field::Null,
+            ]);
             records.push(CacheRecord::new(record_index as _, 1, record));
         }
     }

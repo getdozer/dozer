@@ -12,7 +12,7 @@ use dozer_types::types::{Field, FieldDefinition, FieldType, Schema, SourceDefini
 fn test_basic_projection() {
     let sql =
         "SELECT ROUND(SUM(ROUND(a,2)),2), a as a2 FROM t0 GROUP BY b,a HAVING SUM(ROUND(a,2)) > SUM(b)";
-    let schema = Schema::empty()
+    let schema = Schema::default()
         .field(
             FieldDefinition::new(
                 "a".to_string(),
@@ -80,7 +80,7 @@ fn test_basic_projection() {
 
     assert_eq!(
         projection_planner.post_projection_schema,
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     "ROUND(SUM(ROUND(a,2)),2)".to_string(),

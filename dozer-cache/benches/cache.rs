@@ -7,13 +7,13 @@ use dozer_cache::cache::{
 };
 use dozer_types::parking_lot::Mutex;
 use dozer_types::serde_json::Value;
-use dozer_types::types::{Field, Record, Schema};
+use dozer_types::types::{Field, Record};
 
-fn insert(cache: &Mutex<Box<dyn RwCache>>, schema: &Schema, n: usize, commit_size: usize) {
+fn insert(cache: &Mutex<Box<dyn RwCache>>, n: usize, commit_size: usize) {
     let mut cache = cache.lock();
 
     let val = format!("bar_{n}");
-    let mut record = Record::new(schema.identifier, vec![Field::String(val)]);
+    let mut record = Record::new(vec![Field::String(val)]);
 
     cache.insert(&mut record).unwrap();
 
@@ -76,7 +76,7 @@ fn cache(c: &mut Criterion) {
         &iterations,
         |b, &_s| {
             b.iter(|| {
-                insert(&cache, &schema, idx, commit_size);
+                insert(&cache, idx, commit_size);
                 idx += 1;
             })
         },

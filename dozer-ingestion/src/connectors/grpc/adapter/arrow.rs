@@ -9,7 +9,7 @@ use dozer_types::{
     ingestion_types::IngestionMessage,
     serde::{Deserialize, Serialize},
     serde_json,
-    types::{Operation, Record, Schema, SchemaIdentifier},
+    types::{Operation, Record, Schema},
 };
 
 use crate::{
@@ -50,12 +50,8 @@ impl ArrowAdapter {
         let mut arrow_schemas = HashMap::new();
 
         for (id, grpc_schema) in grpc_schemas.into_iter().enumerate() {
-            let mut schema = arrow_types::from_arrow::map_schema_to_dozer(&grpc_schema.schema)
+            let schema = arrow_types::from_arrow::map_schema_to_dozer(&grpc_schema.schema)
                 .map_err(|e| ConnectorError::InternalError(Box::new(e)))?;
-            schema.identifier = Some(SchemaIdentifier {
-                id: id as u32,
-                version: 1,
-            });
 
             arrow_schemas.insert(id as u32, grpc_schema.schema);
 
@@ -87,6 +83,7 @@ impl IngestAdapter for ArrowAdapter {
 
     fn handle_message(
         &self,
+        table_index: usize,
         msg: GrpcIngestMessage,
         ingestor: &'static Ingestor,
     ) -> Result<(), ConnectorError> {
@@ -94,12 +91,15 @@ impl IngestAdapter for ArrowAdapter {
             GrpcIngestMessage::Default(_) => Err(ConnectorError::InitializationError(
                 "Wrong message format!".to_string(),
             )),
-            GrpcIngestMessage::Arrow(msg) => handle_message(msg, &self.schema_map, ingestor),
+            GrpcIngestMessage::Arrow(msg) => {
+                handle_message(table_index, msg, &self.schema_map, ingestor)
+            }
         }
     }
 }
 
 pub fn handle_message(
+    table_index: usize,
     req: IngestArrowRequest,
     schema_map: &HashMap<String, SourceSchema>,
     ingestor: &'static Ingestor,
@@ -118,7 +118,12 @@ pub fn handle_message(
         let op = Operation::Insert { new: r };
 
         ingestor
-            .handle_message(IngestionMessage::new_op(0, seq_no as u64, op.clone()))
+            .handle_message(IngestionMessage::new_op(
+                0,
+                seq_no as u64,
+                table_index,
+                op.clone(),
+            ))
             .map_err(|e| ConnectorError::InternalError(Box::new(e)))?;
         seq_no += 1;
     }

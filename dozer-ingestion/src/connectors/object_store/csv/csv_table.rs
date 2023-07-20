@@ -52,7 +52,7 @@ impl<T: DozerObjectStore + Send> CsvTable<T> {
 
     async fn read(
         &self,
-        id: u32,
+        table_index: usize,
         table: &TableInfo,
         sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
     ) -> Result<(), ConnectorError> {
@@ -145,7 +145,7 @@ impl<T: DozerObjectStore + Send> CsvTable<T> {
                         .unwrap();
 
                     let result = connectors::object_store::table_reader::TableReader::<T>::read(
-                        id,
+                        table_index,
                         ctx.clone(),
                         file_path,
                         listing_options.clone(),
@@ -171,7 +171,7 @@ impl<T: DozerObjectStore + Send> CsvTable<T> {
 impl<T: DozerObjectStore + Send> TableWatcher for CsvTable<T> {
     async fn snapshot(
         &self,
-        id: usize,
+        table_index: usize,
         table: &TableInfo,
         sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
     ) -> Result<JoinHandle<(usize, HashMap<object_store::path::Path, DateTime<Utc>>)>, ConnectorError>
@@ -261,7 +261,7 @@ impl<T: DozerObjectStore + Send> TableWatcher for CsvTable<T> {
                     .unwrap();
 
                 let result = connectors::object_store::table_reader::TableReader::<T>::read(
-                    id as u32,
+                    table_index,
                     ctx.clone(),
                     file_path,
                     listing_options.clone(),
@@ -273,7 +273,7 @@ impl<T: DozerObjectStore + Send> TableWatcher for CsvTable<T> {
                     sender.send(Err(e)).await.unwrap();
                 }
             }
-            (id, update_state)
+            (table_index, update_state)
         });
 
         Ok(h)
@@ -281,11 +281,11 @@ impl<T: DozerObjectStore + Send> TableWatcher for CsvTable<T> {
 
     async fn ingest(
         &self,
-        id: usize,
+        table_index: usize,
         table: &TableInfo,
         sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
     ) -> Result<(), ConnectorError> {
-        self.read(id as u32, table, sender).await?;
+        self.read(table_index, table, sender).await?;
         Ok(())
     }
 }

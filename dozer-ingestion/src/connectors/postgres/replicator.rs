@@ -72,7 +72,10 @@ impl<'a> CDCHandler<'a> {
         let stream = LogicalReplicationStream::new(copy_stream);
         let tables_columns = tables
             .into_iter()
-            .map(|table_info| (table_info.id, table_info.columns))
+            .enumerate()
+            .map(|(table_index, table_info)| {
+                (table_info.relation_id, (table_index, table_info.columns))
+            })
             .collect();
         let mut mapper = XlogMapper::new(tables_columns);
 
@@ -127,13 +130,14 @@ impl<'a> CDCHandler<'a> {
                         self.begin_lsn = lsn;
                         self.seq_no = 0;
                     }
-                    Some(MappedReplicationMessage::Operation(op)) => {
+                    Some(MappedReplicationMessage::Operation { table_index, op }) => {
                         self.seq_no += 1;
                         if self.begin_lsn != self.offset_lsn || self.offset < self.seq_no {
                             self.ingestor
                                 .handle_message(IngestionMessage::new_op(
                                     self.begin_lsn,
                                     self.seq_no,
+                                    table_index,
                                     op,
                                 ))
                                 .map_err(ConnectorError::IngestorError)?;

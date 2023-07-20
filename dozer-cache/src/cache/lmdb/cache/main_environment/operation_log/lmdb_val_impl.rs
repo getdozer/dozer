@@ -95,7 +95,7 @@ mod tests {
 
         let operation = Operation::Insert {
             record_meta: RecordMeta::new(1, 1),
-            record: Record::new(None, vec![1.into(), 2.into(), 3.into()]),
+            record: Record::new(vec![1.into(), 2.into(), 3.into()]),
         };
         let encoded = operation.borrow().encode().unwrap();
         let decoded = Operation::decode(encoded.as_ref()).unwrap().into_owned();

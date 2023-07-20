@@ -53,7 +53,6 @@ pub async fn get_eth_producer(
 ) -> Result<(), ConnectorError> {
     let address = format!("{:?}", contract.address());
     let eth_connector = EthLogConnector::new(
-        1,
         EthLogConfig {
             wss_url,
             filter: Some(EthFilter {
@@ -73,13 +72,9 @@ pub async fn get_eth_producer(
         "eth_test".to_string(),
     );
 
-    let (table_infos, schemas) = eth_connector.list_all_schemas().await?;
-    for (table_info, schema) in table_infos.iter().zip(schemas) {
-        info!(
-            "Schema: {}, Id: {}",
-            table_info.name,
-            schema.schema.identifier.unwrap().id
-        );
+    let (table_infos, _) = eth_connector.list_all_schemas().await?;
+    for table_info in table_infos.iter() {
+        info!("Schema: {}", table_info.name);
     }
 
     eth_connector.start(&ingestor, table_infos).await
@@ -112,7 +107,7 @@ pub async fn run_eth_sample(
     let mut op_index = HashSet::new();
     while let Some(IngestionMessage {
         identifier,
-        kind: IngestionMessageKind::OperationEvent(op),
+        kind: IngestionMessageKind::OperationEvent { table_index: 0, op },
     }) = iterator.next_timeout(Duration::from_millis(400))
     {
         // Duplicates are to be expected in ethereum connector

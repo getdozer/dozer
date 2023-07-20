@@ -21,14 +21,14 @@ fn test_string() {
 }
 
 fn test_like(s_val: &str, c_val: char) {
-    let row = Record::new(None, vec![]);
+    let row = Record::new(vec![]);
 
     // Field::String
     let value = Box::new(Literal(Field::String(format!("Hello{}", s_val))));
     let pattern = Box::new(Literal(Field::String("Hello%".to_owned())));
 
     assert_eq!(
-        evaluate_like(&Schema::empty(), &value, &pattern, None, &row).unwrap(),
+        evaluate_like(&Schema::default(), &value, &pattern, None, &row).unwrap(),
         Field::Boolean(true)
     );
 
@@ -36,7 +36,7 @@ fn test_like(s_val: &str, c_val: char) {
     let pattern = Box::new(Literal(Field::String("Hello, _orld!".to_owned())));
 
     assert_eq!(
-        evaluate_like(&Schema::empty(), &value, &pattern, None, &row).unwrap(),
+        evaluate_like(&Schema::default(), &value, &pattern, None, &row).unwrap(),
         Field::Boolean(true)
     );
 
@@ -44,7 +44,7 @@ fn test_like(s_val: &str, c_val: char) {
     let pattern = Box::new(Literal(Field::String("Hello%".to_owned())));
 
     assert_eq!(
-        evaluate_like(&Schema::empty(), &value, &pattern, None, &row).unwrap(),
+        evaluate_like(&Schema::default(), &value, &pattern, None, &row).unwrap(),
         Field::Boolean(false)
     );
 
@@ -53,7 +53,7 @@ fn test_like(s_val: &str, c_val: char) {
     let pattern = Box::new(Literal(Field::String("Hello, _!".to_owned())));
 
     assert_eq!(
-        evaluate_like(&Schema::empty(), &value, &pattern, None, &row).unwrap(),
+        evaluate_like(&Schema::default(), &value, &pattern, None, &row).unwrap(),
         Field::Boolean(false)
     );
 
@@ -63,7 +63,7 @@ fn test_like(s_val: &str, c_val: char) {
     // let escape = Some(c_val);
     //
     // assert_eq!(
-    //     evaluate_like(&Schema::empty(), &value, &pattern, escape, &row).unwrap(),
+    //     evaluate_like(&Schema::default(), &value, &pattern, escape, &row).unwrap(),
     //     Field::Boolean(true)
     // );
 
@@ -72,7 +72,7 @@ fn test_like(s_val: &str, c_val: char) {
     let pattern = Box::new(Literal(Field::Text("Hello%".to_owned())));
 
     assert_eq!(
-        evaluate_like(&Schema::empty(), &value, &pattern, None, &row).unwrap(),
+        evaluate_like(&Schema::default(), &value, &pattern, None, &row).unwrap(),
         Field::Boolean(true)
     );
 
@@ -80,7 +80,7 @@ fn test_like(s_val: &str, c_val: char) {
     let pattern = Box::new(Literal(Field::Text("Hello, _orld!".to_owned())));
 
     assert_eq!(
-        evaluate_like(&Schema::empty(), &value, &pattern, None, &row).unwrap(),
+        evaluate_like(&Schema::default(), &value, &pattern, None, &row).unwrap(),
         Field::Boolean(true)
     );
 
@@ -88,7 +88,7 @@ fn test_like(s_val: &str, c_val: char) {
     let pattern = Box::new(Literal(Field::Text("Hello%".to_owned())));
 
     assert_eq!(
-        evaluate_like(&Schema::empty(), &value, &pattern, None, &row).unwrap(),
+        evaluate_like(&Schema::default(), &value, &pattern, None, &row).unwrap(),
         Field::Boolean(false)
     );
 
@@ -97,7 +97,7 @@ fn test_like(s_val: &str, c_val: char) {
     let pattern = Box::new(Literal(Field::Text("Hello, _!".to_owned())));
 
     assert_eq!(
-        evaluate_like(&Schema::empty(), &value, &pattern, None, &row).unwrap(),
+        evaluate_like(&Schema::default(), &value, &pattern, None, &row).unwrap(),
         Field::Boolean(false)
     );
 
@@ -107,51 +107,51 @@ fn test_like(s_val: &str, c_val: char) {
     // let escape = Some(c_val);
     //
     // assert_eq!(
-    //     evaluate_like(&Schema::empty(), &value, &pattern, escape, &row).unwrap(),
+    //     evaluate_like(&Schema::default(), &value, &pattern, escape, &row).unwrap(),
     //     Field::Boolean(true)
     // );
 }
 
 fn test_ucase(s_val: &str, c_val: char) {
-    let row = Record::new(None, vec![]);
+    let row = Record::new(vec![]);
 
     // Field::String
     let value = Box::new(Literal(Field::String(s_val.to_string())));
     assert_eq!(
-        evaluate_ucase(&Schema::empty(), &value, &row).unwrap(),
+        evaluate_ucase(&Schema::default(), &value, &row).unwrap(),
         Field::String(s_val.to_uppercase())
     );
 
     let value = Box::new(Literal(Field::String(c_val.to_string())));
     assert_eq!(
-        evaluate_ucase(&Schema::empty(), &value, &row).unwrap(),
+        evaluate_ucase(&Schema::default(), &value, &row).unwrap(),
         Field::String(c_val.to_uppercase().to_string())
     );
 
     // Field::Text
     let value = Box::new(Literal(Field::Text(s_val.to_string())));
     assert_eq!(
-        evaluate_ucase(&Schema::empty(), &value, &row).unwrap(),
+        evaluate_ucase(&Schema::default(), &value, &row).unwrap(),
         Field::Text(s_val.to_uppercase())
     );
 
     let value = Box::new(Literal(Field::Text(c_val.to_string())));
     assert_eq!(
-        evaluate_ucase(&Schema::empty(), &value, &row).unwrap(),
+        evaluate_ucase(&Schema::default(), &value, &row).unwrap(),
         Field::Text(c_val.to_uppercase().to_string())
     );
 }
 
 fn test_concat(s_val1: &str, s_val2: &str, c_val: char) {
-    let row = Record::new(None, vec![]);
+    let row = Record::new(vec![]);
 
     // Field::String
     let val1 = Literal(Field::String(s_val1.to_string()));
     let val2 = Literal(Field::String(s_val2.to_string()));
 
-    if validate_concat(&[val1.clone(), val2.clone()], &Schema::empty()).is_ok() {
+    if validate_concat(&[val1.clone(), val2.clone()], &Schema::default()).is_ok() {
         assert_eq!(
-            evaluate_concat(&Schema::empty(), &[val1, val2], &row).unwrap(),
+            evaluate_concat(&Schema::default(), &[val1, val2], &row).unwrap(),
             Field::String(s_val1.to_string() + s_val2)
         );
     }
@@ -159,9 +159,9 @@ fn test_concat(s_val1: &str, s_val2: &str, c_val: char) {
     let val1 = Literal(Field::String(s_val2.to_string()));
     let val2 = Literal(Field::String(s_val1.to_string()));
 
-    if validate_concat(&[val1.clone(), val2.clone()], &Schema::empty()).is_ok() {
+    if validate_concat(&[val1.clone(), val2.clone()], &Schema::default()).is_ok() {
         assert_eq!(
-            evaluate_concat(&Schema::empty(), &[val1, val2], &row).unwrap(),
+            evaluate_concat(&Schema::default(), &[val1, val2], &row).unwrap(),
             Field::String(s_val2.to_string() + s_val1)
         );
     }
@@ -169,9 +169,9 @@ fn test_concat(s_val1: &str, s_val2: &str, c_val: char) {
     let val1 = Literal(Field::String(s_val1.to_string()));
     let val2 = Literal(Field::String(c_val.to_string()));
 
-    if validate_concat(&[val1.clone(), val2.clone()], &Schema::empty()).is_ok() {
+    if validate_concat(&[val1.clone(), val2.clone()], &Schema::default()).is_ok() {
         assert_eq!(
-            evaluate_concat(&Schema::empty(), &[val1, val2], &row).unwrap(),
+            evaluate_concat(&Schema::default(), &[val1, val2], &row).unwrap(),
             Field::String(s_val1.to_string() + c_val.to_string().as_str())
         );
     }
@@ -179,9 +179,9 @@ fn test_concat(s_val1: &str, s_val2: &str, c_val: char) {
     let val1 = Literal(Field::String(c_val.to_string()));
     let val2 = Literal(Field::String(s_val1.to_string()));
 
-    if validate_concat(&[val1.clone(), val2.clone()], &Schema::empty()).is_ok() {
+    if validate_concat(&[val1.clone(), val2.clone()], &Schema::default()).is_ok() {
         assert_eq!(
-            evaluate_concat(&Schema::empty(), &[val1, val2], &row).unwrap(),
+            evaluate_concat(&Schema::default(), &[val1, val2], &row).unwrap(),
             Field::String(c_val.to_string() + s_val1)
         );
     }
@@ -190,9 +190,9 @@ fn test_concat(s_val1: &str, s_val2: &str, c_val: char) {
     let val1 = Literal(Field::Text(s_val1.to_string()));
     let val2 = Literal(Field::Text(s_val2.to_string()));
 
-    if validate_concat(&[val1.clone(), val2.clone()], &Schema::empty()).is_ok() {
+    if validate_concat(&[val1.clone(), val2.clone()], &Schema::default()).is_ok() {
         assert_eq!(
-            evaluate_concat(&Schema::empty(), &[val1, val2], &row).unwrap(),
+            evaluate_concat(&Schema::default(), &[val1, val2], &row).unwrap(),
             Field::Text(s_val1.to_string() + s_val2)
         );
     }
@@ -200,9 +200,9 @@ fn test_concat(s_val1: &str, s_val2: &str, c_val: char) {
     let val1 = Literal(Field::Text(s_val2.to_string()));
     let val2 = Literal(Field::Text(s_val1.to_string()));
 
-    if validate_concat(&[val1.clone(), val2.clone()], &Schema::empty()).is_ok() {
+    if validate_concat(&[val1.clone(), val2.clone()], &Schema::default()).is_ok() {
         assert_eq!(
-            evaluate_concat(&Schema::empty(), &[val1, val2], &row).unwrap(),
+            evaluate_concat(&Schema::default(), &[val1, val2], &row).unwrap(),
             Field::Text(s_val2.to_string() + s_val1)
         );
     }
@@ -210,9 +210,9 @@ fn test_concat(s_val1: &str, s_val2: &str, c_val: char) {
     let val1 = Literal(Field::Text(s_val1.to_string()));
     let val2 = Literal(Field::Text(c_val.to_string()));
 
-    if validate_concat(&[val1.clone(), val2.clone()], &Schema::empty()).is_ok() {
+    if validate_concat(&[val1.clone(), val2.clone()], &Schema::default()).is_ok() {
         assert_eq!(
-            evaluate_concat(&Schema::empty(), &[val1, val2], &row).unwrap(),
+            evaluate_concat(&Schema::default(), &[val1, val2], &row).unwrap(),
             Field::Text(s_val1.to_string() + c_val.to_string().as_str())
         );
     }
@@ -220,29 +220,29 @@ fn test_concat(s_val1: &str, s_val2: &str, c_val: char) {
     let val1 = Literal(Field::Text(c_val.to_string()));
     let val2 = Literal(Field::Text(s_val1.to_string()));
 
-    if validate_concat(&[val1.clone(), val2.clone()], &Schema::empty()).is_ok() {
+    if validate_concat(&[val1.clone(), val2.clone()], &Schema::default()).is_ok() {
         assert_eq!(
-            evaluate_concat(&Schema::empty(), &[val1, val2], &row).unwrap(),
+            evaluate_concat(&Schema::default(), &[val1, val2], &row).unwrap(),
             Field::Text(c_val.to_string() + s_val1)
         );
     }
 }
 
 fn test_trim(s_val1: &str, c_val: char) {
-    let row = Record::new(None, vec![]);
+    let row = Record::new(vec![]);
 
     // Field::String
     let value = Literal(Field::String(s_val1.to_string()));
     let what = ' ';
 
-    if validate_trim(&value, &Schema::empty()).is_ok() {
+    if validate_trim(&value, &Schema::default()).is_ok() {
         assert_eq!(
-            evaluate_trim(&Schema::empty(), &value, &None, &None, &row).unwrap(),
+            evaluate_trim(&Schema::default(), &value, &None, &None, &row).unwrap(),
             Field::String(s_val1.trim_matches(what).to_string())
         );
         assert_eq!(
             evaluate_trim(
-                &Schema::empty(),
+                &Schema::default(),
                 &value,
                 &None,
                 &Some(TrimType::Trailing),
@@ -253,7 +253,7 @@ fn test_trim(s_val1: &str, c_val: char) {
         );
         assert_eq!(
             evaluate_trim(
-                &Schema::empty(),
+                &Schema::default(),
                 &value,
                 &None,
                 &Some(TrimType::Leading),
@@ -263,7 +263,14 @@ fn test_trim(s_val1: &str, c_val: char) {
             Field::String(s_val1.trim_start_matches(what).to_string())
         );
         assert_eq!(
-            evaluate_trim(&Schema::empty(), &value, &None, &Some(TrimType::Both), &row).unwrap(),
+            evaluate_trim(
+                &Schema::default(),
+                &value,
+                &None,
+                &Some(TrimType::Both),
+                &row
+            )
+            .unwrap(),
             Field::String(s_val1.trim_matches(what).to_string())
         );
     }
@@ -271,14 +278,14 @@ fn test_trim(s_val1: &str, c_val: char) {
     let value = Literal(Field::String(s_val1.to_string()));
     let what = Some(Box::new(Literal(Field::String(c_val.to_string()))));
 
-    if validate_trim(&value, &Schema::empty()).is_ok() {
+    if validate_trim(&value, &Schema::default()).is_ok() {
         assert_eq!(
-            evaluate_trim(&Schema::empty(), &value, &what, &None, &row).unwrap(),
+            evaluate_trim(&Schema::default(), &value, &what, &None, &row).unwrap(),
             Field::String(s_val1.trim_matches(c_val).to_string())
         );
         assert_eq!(
             evaluate_trim(
-                &Schema::empty(),
+                &Schema::default(),
                 &value,
                 &what,
                 &Some(TrimType::Trailing),
@@ -289,7 +296,7 @@ fn test_trim(s_val1: &str, c_val: char) {
         );
         assert_eq!(
             evaluate_trim(
-                &Schema::empty(),
+                &Schema::default(),
                 &value,
                 &what,
                 &Some(TrimType::Leading),
@@ -299,7 +306,14 @@ fn test_trim(s_val1: &str, c_val: char) {
             Field::String(s_val1.trim_start_matches(c_val).to_string())
         );
         assert_eq!(
-            evaluate_trim(&Schema::empty(), &value, &what, &Some(TrimType::Both), &row).unwrap(),
+            evaluate_trim(
+                &Schema::default(),
+                &value,
+                &what,
+                &Some(TrimType::Both),
+                &row
+            )
+            .unwrap(),
             Field::String(s_val1.trim_matches(c_val).to_string())
         );
     }
@@ -309,7 +323,7 @@ fn test_trim(s_val1: &str, c_val: char) {
 fn test_concat_string() {
     let f = run_fct(
         "SELECT CONCAT(fn, ln, fn) FROM USERS",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("fn"),
@@ -341,7 +355,7 @@ fn test_concat_string() {
 fn test_concat_text() {
     let f = run_fct(
         "SELECT CONCAT(fn, ln, fn) FROM USERS",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("fn"),
@@ -373,7 +387,7 @@ fn test_concat_text() {
 fn test_concat_text_empty() {
     let f = run_fct(
         "SELECT CONCAT() FROM USERS",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("fn"),
@@ -406,7 +420,7 @@ fn test_concat_text_empty() {
 fn test_concat_wrong_schema() {
     let f = run_fct(
         "SELECT CONCAT(fn, ln) FROM USERS",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("fn"),
@@ -435,7 +449,7 @@ fn test_concat_wrong_schema() {
 fn test_ucase_string() {
     let f = run_fct(
         "SELECT UCASE(fn) FROM USERS",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("fn"),
@@ -455,7 +469,7 @@ fn test_ucase_string() {
 fn test_ucase_text() {
     let f = run_fct(
         "SELECT UCASE(fn) FROM USERS",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("fn"),
@@ -475,7 +489,7 @@ fn test_ucase_text() {
 fn test_length() {
     let f = run_fct(
         "SELECT LENGTH(fn) FROM USERS",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("fn"),
@@ -495,7 +509,7 @@ fn test_length() {
 fn test_trim_string() {
     let f = run_fct(
         "SELECT TRIM(fn) FROM USERS",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("fn"),
@@ -515,7 +529,7 @@ fn test_trim_string() {
 fn test_trim_null() {
     let f = run_fct(
         "SELECT TRIM(fn) FROM USERS",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("fn"),
@@ -535,7 +549,7 @@ fn test_trim_null() {
 fn test_trim_text() {
     let f = run_fct(
         "SELECT TRIM(fn) FROM USERS",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("fn"),
@@ -555,7 +569,7 @@ fn test_trim_text() {
 fn test_trim_value() {
     let f = run_fct(
         "SELECT TRIM('_' FROM fn) FROM USERS",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("fn"),
@@ -575,7 +589,7 @@ fn test_trim_value() {
 fn test_btrim_value() {
     let f = run_fct(
         "SELECT TRIM(BOTH '_' FROM fn) FROM USERS",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("fn"),
@@ -595,7 +609,7 @@ fn test_btrim_value() {
 fn test_ltrim_value() {
     let f = run_fct(
         "SELECT TRIM(LEADING '_' FROM fn) FROM USERS",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("fn"),
@@ -615,7 +629,7 @@ fn test_ltrim_value() {
 fn test_ttrim_value() {
     let f = run_fct(
         "SELECT TRIM(TRAILING '_' FROM fn) FROM USERS",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("fn"),
@@ -635,7 +649,7 @@ fn test_ttrim_value() {
 fn test_like_value() {
     let f = run_fct(
         "SELECT first_name FROM users WHERE first_name LIKE 'J%'",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("first_name"),
@@ -655,7 +669,7 @@ fn test_like_value() {
 fn test_not_like_value() {
     let f = run_fct(
         "SELECT first_name FROM users WHERE first_name NOT LIKE 'A%'",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("first_name"),
@@ -675,7 +689,7 @@ fn test_not_like_value() {
 fn test_like_escape() {
     let f = run_fct(
         "SELECT first_name FROM users WHERE first_name LIKE 'J$%'",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("first_name"),
@@ -695,7 +709,7 @@ fn test_like_escape() {
 fn test_to_char() {
     let f = run_fct(
         "SELECT TO_CHAR(ts, '%Y-%m-%d') FROM transactions",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("ts"),
@@ -714,7 +728,7 @@ fn test_to_char() {
 
     let f = run_fct(
         "SELECT TO_CHAR(ts, '%H:%M') FROM transactions",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("ts"),
@@ -733,7 +747,7 @@ fn test_to_char() {
 
     let f = run_fct(
         "SELECT TO_CHAR(ts, '%H:%M') FROM transactions",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("ts"),
@@ -750,7 +764,7 @@ fn test_to_char() {
 
     let f = run_fct(
         "SELECT TO_CHAR(ts, '%Y-%m-%d') FROM transactions",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("ts"),
@@ -767,7 +781,7 @@ fn test_to_char() {
 
     let f = run_fct(
         "SELECT TO_CHAR(ts, '%H:%M') FROM transactions",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("ts"),

@@ -181,23 +181,21 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
         }
         #[cfg(feature = "ethereum")]
         ConnectionConfig::Ethereum(eth_config) => match eth_config.provider.unwrap() {
-            dozer_types::ingestion_types::EthProviderConfig::Log(log_config) => Ok(Box::new(
-                EthLogConnector::new(2, log_config, connection.name),
-            )),
+            dozer_types::ingestion_types::EthProviderConfig::Log(log_config) => {
+                Ok(Box::new(EthLogConnector::new(log_config, connection.name)))
+            }
             dozer_types::ingestion_types::EthProviderConfig::Trace(trace_config) => Ok(Box::new(
-                EthTraceConnector::new(2, trace_config, connection.name),
+                EthTraceConnector::new(trace_config, connection.name),
             )),
         },
         #[cfg(not(feature = "ethereum"))]
         ConnectionConfig::Ethereum(_) => Err(ConnectorError::EthereumFeatureNotEnabled),
         ConnectionConfig::Grpc(grpc_config) => match grpc_config.adapter.as_str() {
             "arrow" => Ok(Box::new(GrpcConnector::<ArrowAdapter>::new(
-                3,
                 connection.name,
                 grpc_config,
             )?)),
             "default" => Ok(Box::new(GrpcConnector::<DefaultAdapter>::new(
-                3,
                 connection.name,
                 grpc_config,
             )?)),
@@ -219,13 +217,13 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
         #[cfg(not(feature = "kafka"))]
         ConnectionConfig::Kafka(_) => Err(ConnectorError::KafkaFeatureNotEnabled),
         ConnectionConfig::S3Storage(object_store_config) => {
-            Ok(Box::new(ObjectStoreConnector::new(5, object_store_config)))
+            Ok(Box::new(ObjectStoreConnector::new(object_store_config)))
         }
         ConnectionConfig::LocalStorage(object_store_config) => {
-            Ok(Box::new(ObjectStoreConnector::new(5, object_store_config)))
+            Ok(Box::new(ObjectStoreConnector::new(object_store_config)))
         }
         ConnectionConfig::DeltaLake(delta_lake_config) => {
-            Ok(Box::new(DeltaLakeConnector::new(6, delta_lake_config)))
+            Ok(Box::new(DeltaLakeConnector::new(delta_lake_config)))
         }
     }
 }

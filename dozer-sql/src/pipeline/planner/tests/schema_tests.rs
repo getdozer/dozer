@@ -5,7 +5,7 @@ use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
 #[test]
 fn test_schema_index_partial_group_by() {
     let sql = "SELECT COUNT(a), b FROM t0 GROUP BY b, c";
-    let schema = Schema::empty()
+    let schema = Schema::default()
         .field(
             FieldDefinition::new(
                 "a".to_string(),
@@ -58,7 +58,7 @@ fn test_schema_index_partial_group_by() {
 #[test]
 fn test_schema_index_full_group_by() {
     let sql = "SELECT COUNT(a), c, b  FROM t0 GROUP BY b, c";
-    let schema = Schema::empty()
+    let schema = Schema::default()
         .field(
             FieldDefinition::new(
                 "a".to_string(),

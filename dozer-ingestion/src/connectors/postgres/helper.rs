@@ -1,7 +1,7 @@
 use crate::connectors::postgres::xlog_mapper::TableColumn;
 use crate::errors::PostgresSchemaError::{
-    ColumnTypeNotFound, ColumnTypeNotSupported, CustomTypeNotSupported, PointParseError,
-    StringParseError, ValueConversionError,
+    ColumnTypeNotSupported, CustomTypeNotSupported, PointParseError, StringParseError,
+    ValueConversionError,
 };
 use crate::errors::{ConnectorError, PostgresSchemaError};
 use dozer_types::bytes::Bytes;
@@ -23,96 +23,91 @@ pub fn postgres_type_to_field(
     value: Option<&Bytes>,
     column: &TableColumn,
 ) -> Result<Field, PostgresSchemaError> {
-    value.map_or(Ok(Field::Null), |v| {
-        column
-            .r#type
-            .clone()
-            .map_or(Err(ColumnTypeNotFound), |column_type| match column_type {
-                Type::INT2 | Type::INT4 | Type::INT8 => Ok(Field::Int(
-                    String::from_utf8(v.to_vec()).unwrap().parse().unwrap(),
-                )),
-                Type::FLOAT4 | Type::FLOAT8 => Ok(Field::Float(OrderedFloat(
-                    String::from_utf8(v.to_vec())
-                        .unwrap()
-                        .parse::<f64>()
-                        .unwrap(),
-                ))),
-                Type::TEXT | Type::VARCHAR | Type::CHAR | Type::BPCHAR => {
-                    Ok(Field::String(String::from_utf8(v.to_vec()).unwrap()))
-                }
-                Type::UUID => Ok(Field::String(String::from_utf8(v.to_vec()).unwrap())),
-                Type::BYTEA => Ok(Field::Binary(v.to_vec())),
-                Type::NUMERIC => Ok(Field::Decimal(
-                    Decimal::from_f64(
-                        String::from_utf8(v.to_vec())
-                            .unwrap()
-                            .parse::<f64>()
-                            .unwrap(),
-                    )
+    let column_type = column.r#type.clone();
+    value.map_or(Ok(Field::Null), |v| match column_type {
+        Type::INT2 | Type::INT4 | Type::INT8 => Ok(Field::Int(
+            String::from_utf8(v.to_vec()).unwrap().parse().unwrap(),
+        )),
+        Type::FLOAT4 | Type::FLOAT8 => Ok(Field::Float(OrderedFloat(
+            String::from_utf8(v.to_vec())
+                .unwrap()
+                .parse::<f64>()
+                .unwrap(),
+        ))),
+        Type::TEXT | Type::VARCHAR | Type::CHAR | Type::BPCHAR => {
+            Ok(Field::String(String::from_utf8(v.to_vec()).unwrap()))
+        }
+        Type::UUID => Ok(Field::String(String::from_utf8(v.to_vec()).unwrap())),
+        Type::BYTEA => Ok(Field::Binary(v.to_vec())),
+        Type::NUMERIC => Ok(Field::Decimal(
+            Decimal::from_f64(
+                String::from_utf8(v.to_vec())
+                    .unwrap()
+                    .parse::<f64>()
                     .unwrap(),
-                )),
-                Type::TIMESTAMP => {
-                    let date_string = String::from_utf8(v.to_vec())?;
-                    let format = if date_string.len() == 19 {
-                        "%Y-%m-%d %H:%M:%S"
-                    } else {
-                        "%Y-%m-%d %H:%M:%S%.f"
-                    };
-                    let date = NaiveDateTime::parse_from_str(date_string.as_str(), format)?;
-                    Ok(Field::Timestamp(DateTime::from_utc(date, Utc.fix())))
-                }
-                Type::TIMESTAMPTZ => {
-                    let date: DateTime<FixedOffset> = DateTime::parse_from_str(
-                        String::from_utf8(v.to_vec()).unwrap().as_str(),
-                        "%Y-%m-%d %H:%M:%S%.f%#z",
-                    )
-                    .unwrap();
-                    Ok(Field::Timestamp(date))
-                }
-                Type::DATE => {
-                    let date: NaiveDate = NaiveDate::parse_from_str(
-                        String::from_utf8(v.to_vec()).unwrap().as_str(),
-                        DATE_FORMAT,
-                    )
-                    .unwrap();
-                    Ok(Field::from(date))
-                }
-                Type::JSONB | Type::JSON => {
-                    let val: serde_json::Value = serde_json::from_slice(v).map_err(|_| {
-                        PostgresSchemaError::JSONBParseError(format!(
-                            "Error converting to a single row for: {}",
-                            column_type.name()
-                        ))
-                    })?;
-                    let json: JsonValue = serde_json_to_json_value(val).map_err(|e| {
-                        PostgresSchemaError::TypeError(TypeError::DeserializationError(e))
-                    })?;
-                    Ok(Field::Json(json))
-                }
-                Type::JSONB_ARRAY | Type::JSON_ARRAY => {
-                    let val: Vec<serde_json::Value> = serde_json::from_slice(v).map_err(|_| {
-                        PostgresSchemaError::JSONBParseError(format!(
-                            "Error converting to a single row for: {}",
-                            column_type.name()
-                        ))
-                    })?;
-                    let mut lst = vec![];
-                    for v in val {
-                        lst.push(serde_json_to_json_value(v).map_err(|e| {
-                            PostgresSchemaError::TypeError(TypeError::DeserializationError(e))
-                        })?);
-                    }
-                    Ok(Field::Json(JsonValue::Array(lst)))
-                }
-                Type::BOOL => Ok(Field::Boolean(v.slice(0..1) == "t")),
-                Type::POINT => Ok(Field::Point(
-                    String::from_utf8(v.to_vec())
-                        .map_err(StringParseError)?
-                        .parse::<DozerPoint>()
-                        .map_err(|_| PointParseError)?,
-                )),
-                _ => Err(ColumnTypeNotSupported(column_type.name().to_string())),
-            })
+            )
+            .unwrap(),
+        )),
+        Type::TIMESTAMP => {
+            let date_string = String::from_utf8(v.to_vec())?;
+            let format = if date_string.len() == 19 {
+                "%Y-%m-%d %H:%M:%S"
+            } else {
+                "%Y-%m-%d %H:%M:%S%.f"
+            };
+            let date = NaiveDateTime::parse_from_str(date_string.as_str(), format)?;
+            Ok(Field::Timestamp(DateTime::from_utc(date, Utc.fix())))
+        }
+        Type::TIMESTAMPTZ => {
+            let date: DateTime<FixedOffset> = DateTime::parse_from_str(
+                String::from_utf8(v.to_vec()).unwrap().as_str(),
+                "%Y-%m-%d %H:%M:%S%.f%#z",
+            )
+            .unwrap();
+            Ok(Field::Timestamp(date))
+        }
+        Type::DATE => {
+            let date: NaiveDate = NaiveDate::parse_from_str(
+                String::from_utf8(v.to_vec()).unwrap().as_str(),
+                DATE_FORMAT,
+            )
+            .unwrap();
+            Ok(Field::from(date))
+        }
+        Type::JSONB | Type::JSON => {
+            let val: serde_json::Value = serde_json::from_slice(v).map_err(|_| {
+                PostgresSchemaError::JSONBParseError(format!(
+                    "Error converting to a single row for: {}",
+                    column_type.name()
+                ))
+            })?;
+            let json: JsonValue = serde_json_to_json_value(val)
+                .map_err(|e| PostgresSchemaError::TypeError(TypeError::DeserializationError(e)))?;
+            Ok(Field::Json(json))
+        }
+        Type::JSONB_ARRAY | Type::JSON_ARRAY => {
+            let val: Vec<serde_json::Value> = serde_json::from_slice(v).map_err(|_| {
+                PostgresSchemaError::JSONBParseError(format!(
+                    "Error converting to a single row for: {}",
+                    column_type.name()
+                ))
+            })?;
+            let mut lst = vec![];
+            for v in val {
+                lst.push(serde_json_to_json_value(v).map_err(|e| {
+                    PostgresSchemaError::TypeError(TypeError::DeserializationError(e))
+                })?);
+            }
+            Ok(Field::Json(JsonValue::Array(lst)))
+        }
+        Type::BOOL => Ok(Field::Boolean(v.slice(0..1) == "t")),
+        Type::POINT => Ok(Field::Point(
+            String::from_utf8(v.to_vec())
+                .map_err(StringParseError)?
+                .parse::<DozerPoint>()
+                .map_err(|_| PointParseError)?,
+        )),
+        _ => Err(ColumnTypeNotSupported(column_type.name().to_string())),
     })
 }
 
@@ -242,28 +237,22 @@ pub fn get_values(row: &Row, columns: &[Column]) -> Result<Vec<Field>, PostgresS
 }
 
 pub fn map_row_to_operation_event(
-    _table_name: String,
-    identifier: SchemaIdentifier,
     row: &Row,
     columns: &[Column],
 ) -> Result<Operation, PostgresSchemaError> {
     match get_values(row, columns) {
         Ok(values) => Ok(Operation::Insert {
-            new: Record::new(Some(identifier), values),
+            new: Record::new(values),
         }),
         Err(e) => Err(e),
     }
 }
 
-pub fn map_schema(rel_id: &u32, columns: &[Column]) -> Result<Schema, ConnectorError> {
+pub fn map_schema(columns: &[Column]) -> Result<Schema, ConnectorError> {
     let field_defs: Result<Vec<FieldDefinition>, _> =
         columns.iter().map(convert_column_to_field).collect();
 
     Ok(Schema {
-        identifier: Some(SchemaIdentifier {
-            id: *rel_id,
-            version: 1,
-        }),
         fields: field_defs.unwrap(),
         primary_index: vec![0],
     })
@@ -291,10 +280,9 @@ mod tests {
                 Some(&Bytes::from($a)),
                 &TableColumn {
                     name: "column".to_string(),
-                    type_id: $b.oid() as i32,
                     flags: 0,
-                    r#type: Some($b),
-                    idx: 0,
+                    r#type: $b,
+                    column_index: 0,
                 },
             );
             assert_eq!(value.unwrap(), $c);
@@ -421,10 +409,9 @@ mod tests {
             None,
             &TableColumn {
                 name: "column".to_string(),
-                type_id: Type::VARCHAR.oid() as i32,
                 flags: 0,
-                r#type: Some(Type::VARCHAR),
-                idx: 0,
+                r#type: Type::VARCHAR,
+                column_index: 0,
             },
         );
         assert_eq!(value.unwrap(), Field::Null);

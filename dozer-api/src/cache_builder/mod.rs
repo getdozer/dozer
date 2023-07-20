@@ -150,8 +150,7 @@ fn build_cache_task(
     while let Some((op, pos)) = receiver.blocking_recv() {
         match op {
             ExecutorOperation::Op { op } => match op {
-                Operation::Delete { mut old } => {
-                    old.schema_id = schema.identifier;
+                Operation::Delete { old } => {
                     if let Some(meta) = cache.delete(&old)? {
                         if let Some((endpoint_name, operations_sender)) = operations_sender.as_ref()
                         {
@@ -167,8 +166,7 @@ fn build_cache_task(
                     labels.push(SNAPSHOTTING_LABEL, snapshotting_str(snapshotting));
                     increment_counter!(CACHE_OPERATION_COUNTER_NAME, labels);
                 }
-                Operation::Insert { mut new } => {
-                    new.schema_id = schema.identifier;
+                Operation::Insert { new } => {
                     let result = cache.insert(&new)?;
                     let mut labels = cache.labels().clone();
                     labels.push(OPERATION_TYPE_LABEL, "insert");
@@ -186,9 +184,7 @@ fn build_cache_task(
                         );
                     }
                 }
-                Operation::Update { mut old, mut new } => {
-                    old.schema_id = schema.identifier;
-                    new.schema_id = schema.identifier;
+                Operation::Update { old, new } => {
                     let upsert_result = cache.update(&old, &new)?;
                     let mut labels = cache.labels().clone();
                     labels.push(OPERATION_TYPE_LABEL, "update");
@@ -254,7 +250,7 @@ fn send_upsert_result(
             // In this case, we can't get the full old record, but the fields in the primary index must be the same with the new record.
             // So we create the old record with only the fields in the primary index, cloned from `new`.
             let old = old.unwrap_or_else(|| {
-                let mut record = Record::new(new.schema_id, vec![Field::Null; new.values.len()]);
+                let mut record = Record::new(vec![Field::Null; new.values.len()]);
                 for index in schema.primary_index.iter() {
                     record.values[*index] = new.values[*index].clone();
                 }

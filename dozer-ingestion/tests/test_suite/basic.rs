@@ -1,4 +1,4 @@
-use std::{collections::HashMap, time::Duration};
+use std::time::Duration;
 
 use dozer_ingestion::{
     connectors::{CdcType, Connector, SourceSchema, TableIdentifier},
@@ -7,7 +7,7 @@ use dozer_ingestion::{
 use dozer_types::{
     ingestion_types::IngestionMessageKind,
     log::{error, warn},
-    types::{Field, FieldDefinition, FieldType, Operation, Record, Schema, SchemaIdentifier},
+    types::{Field, FieldDefinition, FieldType, Operation, Record, Schema},
 };
 
 use super::{
@@ -30,12 +30,8 @@ pub async fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>() {
     let schemas = connector.get_schemas(&tables).await.unwrap();
     let schemas = schemas
         .into_iter()
-        .map(|schema| {
-            let schema = schema.expect("Failed to get schema");
-            let identifier = schema.schema.identifier.expect("Schema has no identifier");
-            (identifier, schema)
-        })
-        .collect::<HashMap<_, _>>();
+        .map(|schema| schema.expect("Failed to get schema"))
+        .collect::<Vec<_>>();
 
     // Run connector.
     let (ingestor, mut iterator) = Ingestor::initialize_channel(Default::default());
@@ -50,7 +46,7 @@ pub async fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>() {
     let mut num_operations = 0;
     while let Some(message) = iterator.next_timeout(Duration::from_secs(1)) {
         // Check message identifier.
-        if let IngestionMessageKind::OperationEvent(operation) = &message.kind {
+        if let IngestionMessageKind::OperationEvent { table_index, op } = &message.kind {
             if let Some(last_identifier) = last_identifier {
                 assert!(message.identifier > last_identifier);
             }
@@ -58,16 +54,16 @@ pub async fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>() {
 
             num_operations += 1;
             // Check record schema consistency.
-            match operation {
+            match op {
                 Operation::Insert { new } => {
-                    assert_record_matches_one_schema(new, &schemas, true);
+                    assert_record_matches_source_schema(new, &schemas[*table_index], true);
                 }
                 Operation::Update { old, new } => {
-                    assert_record_matches_one_schema(old, &schemas, false);
-                    assert_record_matches_one_schema(new, &schemas, true);
+                    assert_record_matches_source_schema(old, &schemas[*table_index], false);
+                    assert_record_matches_source_schema(new, &schemas[*table_index], true);
                 }
                 Operation::Delete { old } => {
-                    assert_record_matches_one_schema(old, &schemas, false);
+                    assert_record_matches_source_schema(old, &schemas[*table_index], false);
                 }
             }
         }
@@ -161,7 +157,7 @@ pub async fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
             }
 
             // Filter out non-operation events.
-            let IngestionMessageKind::OperationEvent(operation) = message.kind else {
+            let IngestionMessageKind::OperationEvent{ op: operation, .. } = message.kind else {
                 continue;
             };
 
@@ -239,7 +235,7 @@ pub async fn run_test_suite_basic_cud<T: CudConnectorTest>() {
         }
 
         // Filter out non-operation events.
-        let IngestionMessageKind::OperationEvent(operation) = message.kind else {
+        let IngestionMessageKind::OperationEvent{ op: operation, .. } = message.kind else {
             continue;
         };
 
@@ -274,7 +270,6 @@ pub async fn run_test_suite_basic_cud<T: CudConnectorTest>() {
 }
 
 fn assert_record_matches_schema(record: &Record, schema: &Schema, only_match_pk: bool) {
-    assert_eq!(record.schema_id, schema.identifier);
     assert_eq!(record.values.len(), schema.fields.len());
     for (index, (field, value)) in schema.fields.iter().zip(record.values.iter()).enumerate() {
         // If `only_match_pk` is true, we only check primary key fields.
@@ -314,16 +309,7 @@ fn assert_record_matches_schema(record: &Record, schema: &Schema, only_match_pk:
     }
 }
 
-fn assert_record_matches_one_schema(
-    record: &Record,
-    schemas: &HashMap<SchemaIdentifier, SourceSchema>,
-    full_match: bool,
-) {
-    let identifier = record
-        .schema_id
-        .expect("Record must have a schema identifier.");
-    let schema = schemas.get(&identifier).expect("Schema must exist.");
-
+fn assert_record_matches_source_schema(record: &Record, schema: &SourceSchema, full_match: bool) {
     let only_match_pk = !full_match && schema.cdc_type != CdcType::FullChanges;
     assert_record_matches_schema(record, &schema.schema, only_match_pk);
 }

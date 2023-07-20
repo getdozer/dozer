@@ -134,11 +134,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_dump_restore() {
-        let (mut cache, indexing_thread_pool, schema, _) = create_cache(test_utils::schema_1);
+        let (mut cache, indexing_thread_pool, _, _) = create_cache(test_utils::schema_1);
 
-        insert_rec_1(&mut cache, &schema, (0, Some("a".to_string()), None));
-        insert_rec_1(&mut cache, &schema, (1, None, Some(2)));
-        insert_rec_1(&mut cache, &schema, (2, Some("b".to_string()), Some(3)));
+        insert_rec_1(&mut cache, (0, Some("a".to_string()), None));
+        insert_rec_1(&mut cache, (1, None, Some(2)));
+        insert_rec_1(&mut cache, (2, Some("b".to_string()), Some(3)));
         cache.commit().unwrap();
         indexing_thread_pool.lock().wait_until_catchup();
 

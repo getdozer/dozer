@@ -42,11 +42,11 @@ fn get_schema() {
 #[test]
 fn insert_get_and_delete_record() {
     let val = "bar".to_string();
-    let (mut cache, indexing_thread_pool, schema) = _setup();
+    let (mut cache, indexing_thread_pool, _) = _setup();
 
     assert_eq!(cache.count(&QueryExpression::with_no_limit()).unwrap(), 0);
 
-    let record = Record::new(schema.identifier, vec![Field::String(val.clone())]);
+    let record = Record::new(vec![Field::String(val.clone())]);
     let UpsertResult::Inserted { meta } = cache.insert(&record).unwrap() else {
         panic!("Must be inserted")
     };
@@ -63,7 +63,6 @@ fn insert_get_and_delete_record() {
     assert_eq!(
         cache
             .delete(&Record {
-                schema_id: schema.identifier,
                 values: vec![Field::String(val)],
                 lifetime: None,
             })
@@ -83,9 +82,9 @@ fn insert_get_and_delete_record() {
 
 #[test]
 fn insert_and_update_record() {
-    let (mut cache, _, schema) = _setup();
-    let foo = Record::new(schema.identifier, vec![Field::String("foo".to_string())]);
-    let bar = Record::new(schema.identifier, vec![Field::String("bar".to_string())]);
+    let (mut cache, _, _) = _setup();
+    let foo = Record::new(vec![Field::String("foo".to_string())]);
+    let bar = Record::new(vec![Field::String("bar".to_string())]);
     let UpsertResult::Inserted { meta } = cache.insert(&foo).unwrap() else {
         panic!("Must be inserted")
     };
@@ -102,10 +101,9 @@ fn insert_and_update_record() {
 fn insert_and_query_record_impl(
     mut cache: LmdbRwCache,
     indexing_thread_pool: Arc<Mutex<IndexingThreadPool>>,
-    schema: Schema,
 ) {
     let val = "bar".to_string();
-    let record = Record::new(schema.identifier, vec![Field::String(val)]);
+    let record = Record::new(vec![Field::String(val)]);
 
     cache.insert(&record).unwrap();
     cache.commit().unwrap();
@@ -130,10 +128,10 @@ fn insert_and_query_record_impl(
 
 #[test]
 fn insert_and_query_record() {
-    let (cache, indexing_thread_pool, schema) = _setup();
-    insert_and_query_record_impl(cache, indexing_thread_pool, schema);
-    let (cache, indexing_thread_pool, schema) = _setup_empty_primary_index();
-    insert_and_query_record_impl(cache, indexing_thread_pool, schema);
+    let (cache, indexing_thread_pool, _) = _setup();
+    insert_and_query_record_impl(cache, indexing_thread_pool);
+    let (cache, indexing_thread_pool, _) = _setup_empty_primary_index();
+    insert_and_query_record_impl(cache, indexing_thread_pool);
 }
 
 #[test]
@@ -143,14 +141,12 @@ fn update_record_when_primary_changes() {
 
     let initial_values = vec![Field::String("1".into())];
     let initial_record = Record {
-        schema_id: schema.identifier,
         values: initial_values.clone(),
         lifetime: None,
     };
 
     let updated_values = vec![Field::String("2".into())];
     let updated_record = Record {
-        schema_id: schema.identifier,
         values: updated_values.clone(),
         lifetime: None,
     };

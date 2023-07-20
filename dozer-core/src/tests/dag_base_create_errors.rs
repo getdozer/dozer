@@ -32,7 +32,7 @@ impl CreateErrSourceFactory {
 impl SourceFactory<NoneContext> for CreateErrSourceFactory {
     fn get_output_schema(&self, _port: &PortHandle) -> Result<(Schema, NoneContext), BoxedError> {
         Ok((
-            Schema::empty()
+            Schema::default()
                 .field(
                     FieldDefinition::new(
                         "id".to_string(),
@@ -172,7 +172,7 @@ impl ProcessorFactory<NoneContext> for CreateErrProcessorFactory {
         _input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
     ) -> Result<(Schema, NoneContext), BoxedError> {
         Ok((
-            Schema::empty()
+            Schema::default()
                 .field(
                     FieldDefinition::new(
                         "id".to_string(),

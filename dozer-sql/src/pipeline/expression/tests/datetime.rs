@@ -23,7 +23,7 @@ fn test_time() {
 }
 
 fn test_date_parts(datetime: ArbitraryDateTime) {
-    let row = Record::new(None, vec![]);
+    let row = Record::new(vec![]);
 
     let date_parts = vec![
         (
@@ -48,7 +48,7 @@ fn test_date_parts(datetime: ArbitraryDateTime) {
     let v = Expression::Literal(Field::Date(datetime.0.date_naive()));
 
     for (part, value) in date_parts {
-        let result = evaluate_date_part(&Schema::empty(), &part, &v, &row).unwrap();
+        let result = evaluate_date_part(&Schema::default(), &part, &v, &row).unwrap();
         assert_eq!(result, Field::Int(value));
     }
 }
@@ -83,7 +83,7 @@ fn test_extract_date() {
         for i in inputs.clone() {
             let f = run_fct(
                 &format!("select extract({part} from date) from users"),
-                Schema::empty()
+                Schema::default()
                     .field(
                         FieldDefinition::new(
                             String::from("date"),
@@ -107,7 +107,7 @@ fn test_extract_date() {
 fn test_timestamp_diff() {
     let f = run_fct(
         "SELECT ts1 - ts2 FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("ts1"),
@@ -151,7 +151,7 @@ fn test_duration() {
 }
 
 fn test_duration_math(d1: u64, d2: u64, dt1: ArbitraryDateTime) {
-    let row = Record::new(None, vec![]);
+    let row = Record::new(vec![]);
 
     let v = Expression::Literal(Field::Date(dt1.0.date_naive()));
     let dur1 = Expression::Literal(Field::Duration(DozerDuration(
@@ -164,7 +164,7 @@ fn test_duration_math(d1: u64, d2: u64, dt1: ArbitraryDateTime) {
     )));
 
     // Duration + Duration = Duration
-    let result = evaluate_add(&Schema::empty(), &dur1, &dur2, &row);
+    let result = evaluate_add(&Schema::default(), &dur1, &dur2, &row);
     let sum = std::time::Duration::from_nanos(d1).checked_add(std::time::Duration::from_nanos(d2));
     if result.is_ok() && sum.is_some() {
         assert_eq!(
@@ -173,7 +173,7 @@ fn test_duration_math(d1: u64, d2: u64, dt1: ArbitraryDateTime) {
         );
     }
     // Duration - Duration = Duration
-    let result = evaluate_sub(&Schema::empty(), &dur1, &dur2, &row);
+    let result = evaluate_sub(&Schema::default(), &dur1, &dur2, &row);
     let diff = std::time::Duration::from_nanos(d1).checked_sub(std::time::Duration::from_nanos(d2));
     if result.is_ok() && diff.is_some() {
         assert_eq!(
@@ -182,33 +182,33 @@ fn test_duration_math(d1: u64, d2: u64, dt1: ArbitraryDateTime) {
         );
     }
     // Duration * Duration = Error
-    let result = evaluate_mul(&Schema::empty(), &dur1, &dur2, &row);
+    let result = evaluate_mul(&Schema::default(), &dur1, &dur2, &row);
     assert!(result.is_err());
     // Duration / Duration = Error
-    let result = evaluate_div(&Schema::empty(), &dur1, &dur2, &row);
+    let result = evaluate_div(&Schema::default(), &dur1, &dur2, &row);
     assert!(result.is_err());
     // Duration % Duration = Error
-    let result = evaluate_mod(&Schema::empty(), &dur1, &dur2, &row);
+    let result = evaluate_mod(&Schema::default(), &dur1, &dur2, &row);
     assert!(result.is_err());
 
     // Duration + Timestamp = Error
-    let result = evaluate_add(&Schema::empty(), &dur1, &v, &row);
+    let result = evaluate_add(&Schema::default(), &dur1, &v, &row);
     assert!(result.is_err());
     // Duration - Timestamp = Error
-    let result = evaluate_sub(&Schema::empty(), &dur1, &v, &row);
+    let result = evaluate_sub(&Schema::default(), &dur1, &v, &row);
     assert!(result.is_err());
     // Duration * Timestamp = Error
-    let result = evaluate_mul(&Schema::empty(), &dur1, &v, &row);
+    let result = evaluate_mul(&Schema::default(), &dur1, &v, &row);
     assert!(result.is_err());
     // Duration / Timestamp = Error
-    let result = evaluate_div(&Schema::empty(), &dur1, &v, &row);
+    let result = evaluate_div(&Schema::default(), &dur1, &v, &row);
     assert!(result.is_err());
     // Duration % Timestamp = Error
-    let result = evaluate_mod(&Schema::empty(), &dur1, &v, &row);
+    let result = evaluate_mod(&Schema::default(), &dur1, &v, &row);
     assert!(result.is_err());
 
     // Timestamp + Duration = Timestamp
-    let result = evaluate_add(&Schema::empty(), &v, &dur1, &row);
+    let result = evaluate_add(&Schema::default(), &v, &dur1, &row);
     let sum = dt1
         .0
         .checked_add_signed(chrono::Duration::nanoseconds(d1 as i64));
@@ -216,7 +216,7 @@ fn test_duration_math(d1: u64, d2: u64, dt1: ArbitraryDateTime) {
         assert_eq!(result.unwrap(), Field::Timestamp(sum.unwrap()));
     }
     // Timestamp - Duration = Timestamp
-    let result = evaluate_sub(&Schema::empty(), &v, &dur2, &row);
+    let result = evaluate_sub(&Schema::default(), &v, &dur2, &row);
     let diff = dt1
         .0
         .checked_sub_signed(chrono::Duration::nanoseconds(d2 as i64));
@@ -224,13 +224,13 @@ fn test_duration_math(d1: u64, d2: u64, dt1: ArbitraryDateTime) {
         assert_eq!(result.unwrap(), Field::Timestamp(diff.unwrap()));
     }
     // Timestamp * Duration = Error
-    let result = evaluate_mul(&Schema::empty(), &v, &dur1, &row);
+    let result = evaluate_mul(&Schema::default(), &v, &dur1, &row);
     assert!(result.is_err());
     // Timestamp / Duration = Error
-    let result = evaluate_div(&Schema::empty(), &v, &dur1, &row);
+    let result = evaluate_div(&Schema::default(), &v, &dur1, &row);
     assert!(result.is_err());
     // Timestamp % Duration = Error
-    let result = evaluate_mod(&Schema::empty(), &v, &dur1, &row);
+    let result = evaluate_mod(&Schema::default(), &v, &dur1, &row);
     assert!(result.is_err());
 }
 
@@ -238,7 +238,7 @@ fn test_duration_math(d1: u64, d2: u64, dt1: ArbitraryDateTime) {
 fn test_interval() {
     let f = run_fct(
         "SELECT ts1 - INTERVAL '1' SECOND FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("ts1"),
@@ -260,7 +260,7 @@ fn test_interval() {
 
     let f = run_fct(
         "SELECT ts1 + INTERVAL '1' SECOND FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("ts1"),
@@ -282,7 +282,7 @@ fn test_interval() {
 
     let f = run_fct(
         "SELECT INTERVAL '1' SECOND + ts1 FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("ts1"),
@@ -307,7 +307,7 @@ fn test_interval() {
 fn test_now() {
     let f = run_fct(
         "SELECT NOW() FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("ts1"),

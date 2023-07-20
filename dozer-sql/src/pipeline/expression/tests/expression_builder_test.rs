@@ -11,7 +11,7 @@ use sqlparser::ast::SelectItem;
 #[test]
 fn test_simple_function() {
     let sql = "SELECT CONCAT(a, b) FROM t0";
-    let schema = Schema::empty()
+    let schema = Schema::default()
         .field(
             FieldDefinition::new(
                 "a".to_string(),
@@ -60,7 +60,7 @@ fn test_simple_function() {
 #[test]
 fn test_simple_aggr_function() {
     let sql = "SELECT SUM(field0) FROM t0";
-    let schema = Schema::empty()
+    let schema = Schema::default()
         .field(
             FieldDefinition::new(
                 "field0".to_string(),
@@ -94,7 +94,7 @@ fn test_simple_aggr_function() {
 #[test]
 fn test_2_nested_aggr_function() {
     let sql = "SELECT SUM(ROUND(field1, 2)) FROM t0";
-    let schema = Schema::empty()
+    let schema = Schema::default()
         .field(
             FieldDefinition::new(
                 "field0".to_string(),
@@ -143,7 +143,7 @@ fn test_2_nested_aggr_function() {
 #[test]
 fn test_3_nested_aggr_function() {
     let sql = "SELECT ROUND(SUM(ROUND(field1, 2))) FROM t0";
-    let schema = Schema::empty()
+    let schema = Schema::default()
         .field(
             FieldDefinition::new(
                 "field0".to_string(),
@@ -198,7 +198,7 @@ fn test_3_nested_aggr_function() {
 #[test]
 fn test_3_nested_aggr_function_dup() {
     let sql = "SELECT CONCAT(SUM(ROUND(field1, 2)), SUM(ROUND(field1, 2))) FROM t0";
-    let schema = Schema::empty()
+    let schema = Schema::default()
         .field(
             FieldDefinition::new(
                 "field0".to_string(),
@@ -256,7 +256,7 @@ fn test_3_nested_aggr_function_dup() {
 #[test]
 fn test_3_nested_aggr_function_and_sum() {
     let sql = "SELECT ROUND(SUM(ROUND(field1, 2))) + SUM(field0) FROM t0";
-    let schema = Schema::empty()
+    let schema = Schema::default()
         .field(
             FieldDefinition::new(
                 "field0".to_string(),
@@ -321,7 +321,7 @@ fn test_3_nested_aggr_function_and_sum() {
 #[test]
 fn test_3_nested_aggr_function_and_sum_3() {
     let sql = "SELECT (ROUND(SUM(ROUND(field1, 2))) + SUM(field0)) + field0 FROM t0";
-    let schema = Schema::empty()
+    let schema = Schema::default()
         .field(
             FieldDefinition::new(
                 "field0".to_string(),
@@ -392,7 +392,7 @@ fn test_3_nested_aggr_function_and_sum_3() {
 #[should_panic]
 fn test_wrong_nested_aggregations() {
     let sql = "SELECT SUM(SUM(field0)) FROM t0";
-    let schema = Schema::empty()
+    let schema = Schema::default()
         .field(
             FieldDefinition::new(
                 "field0".to_string(),
@@ -414,7 +414,7 @@ fn test_wrong_nested_aggregations() {
 #[test]
 fn test_name_resolution() {
     let sql = "SELECT CONCAT(table0.a, connection1.table0.b, a) FROM t0";
-    let schema = Schema::empty()
+    let schema = Schema::default()
         .field(
             FieldDefinition::new(
                 "a".to_string(),
@@ -470,7 +470,7 @@ fn test_name_resolution() {
 #[test]
 fn test_alias_resolution() {
     let sql = "SELECT CONCAT(alias.a, a) FROM t0";
-    let schema = Schema::empty()
+    let schema = Schema::default()
         .field(
             FieldDefinition::new(
                 "a".to_string(),

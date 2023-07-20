@@ -1,6 +1,6 @@
 use dozer_types::chrono::{DateTime, Utc};
 use dozer_types::types::{Field, Record};
-use dozer_types::types::{FieldDefinition, FieldType, Schema, SchemaIdentifier, SourceDefinition};
+use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
 use opentelemetry::sdk::export::trace::SpanData;
 
 pub(crate) fn map_span_data(span_data: SpanData) -> (Record, Vec<Record>) {
@@ -9,7 +9,6 @@ pub(crate) fn map_span_data(span_data: SpanData) -> (Record, Vec<Record>) {
 
     let span_id = u64::from_be_bytes(span_data.span_context.span_id().to_bytes());
     let span_record = Record {
-        schema_id: Some(SchemaIdentifier { id: 1, version: 1 }),
         values: vec![
             Field::UInt(span_id),
             Field::Binary(span_data.span_context.trace_id().to_bytes().to_vec()),
@@ -25,7 +24,6 @@ pub(crate) fn map_span_data(span_data: SpanData) -> (Record, Vec<Record>) {
     for evt in span_data.events {
         let ts: DateTime<Utc> = evt.timestamp.into();
         let record = Record {
-            schema_id: Some(SchemaIdentifier { id: 2, version: 1 }),
             values: vec![
                 Field::UInt(span_id),
                 Field::Text(evt.name.to_string()),
@@ -80,7 +78,6 @@ pub fn spans_schema() -> Schema {
     ];
 
     Schema {
-        identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
         fields,
         primary_index: vec![0],
     }
@@ -109,7 +106,6 @@ pub fn events_schema() -> Schema {
     ];
 
     Schema {
-        identifier: Some(SchemaIdentifier { id: 2, version: 1 }),
         fields,
         primary_index: vec![],
     }

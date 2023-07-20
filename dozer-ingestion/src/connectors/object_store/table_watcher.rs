@@ -38,24 +38,24 @@ impl PartialEq for FileInfo {
 pub trait TableWatcher {
     async fn watch(
         &self,
-        id: usize,
+        table_index: usize,
         table: &TableInfo,
         sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
     ) -> Result<(), ConnectorError> {
-        self.ingest(id, table, sender.clone()).await?;
+        self.ingest(table_index, table, sender.clone()).await?;
         Ok(())
     }
 
     async fn snapshot(
         &self,
-        id: usize,
+        table_index: usize,
         table: &TableInfo,
         sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
     ) -> Result<JoinHandle<(usize, HashMap<object_store::path::Path, DateTime<Utc>>)>, ConnectorError>;
 
     async fn ingest(
         &self,
-        id: usize,
+        table_index: usize,
         table: &TableInfo,
         sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
     ) -> Result<(), ConnectorError>;

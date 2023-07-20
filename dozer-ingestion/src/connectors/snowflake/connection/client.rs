@@ -451,7 +451,7 @@ impl Client {
 
                 let schema = schema_result?;
 
-                let mut schemas: IndexMap<String, Result<Schema, SnowflakeSchemaError>> =
+                let mut schemas: IndexMap<String, (usize, Result<Schema, SnowflakeSchemaError>)> =
                     IndexMap::new();
                 let iterator = ResultIterator {
                     cols,
@@ -492,7 +492,7 @@ impl Client {
                         None
                     };
 
-                    let schema_id = match &tables_indexes {
+                    let table_index = match &tables_indexes {
                         None => idx,
                         Some(indexes) => *indexes.get(table_name).unwrap_or(&idx),
                     };
@@ -501,14 +501,14 @@ impl Client {
                         Ok(typ) => {
                             if let Ok(schema) = schemas
                                 .entry(table_name.clone())
-                                .or_insert(Ok(Schema {
-                                    identifier: Some(SchemaIdentifier {
-                                        id: schema_id as u32,
-                                        version: 0,
+                                .or_insert((
+                                    table_index,
+                                    Ok(Schema {
+                                        fields: vec![],
+                                        primary_index: vec![],
                                     }),
-                                    fields: vec![],
-                                    primary_index: vec![],
-                                }))
+                                ))
+                                .1
                                 .as_mut()
                             {
                                 schema.fields.push(FieldDefinition {
@@ -520,23 +520,16 @@ impl Client {
                             }
                         }
                         Err(e) => {
-                            schemas.insert(table_name.clone(), Err(e));
+                            schemas.insert(table_name.clone(), (table_index, Err(e)));
                         }
                     }
                 }
 
-                schemas.sort_by(|_, a, _, b| {
-                    a.as_ref()
-                        .unwrap()
-                        .identifier
-                        .unwrap()
-                        .id
-                        .cmp(&b.as_ref().unwrap().identifier.unwrap().id)
-                });
+                schemas.sort_by(|_, a, _, b| a.0.cmp(&b.0));
 
                 Ok(schemas
                     .into_iter()
-                    .map(|(name, schema)| match schema {
+                    .map(|(name, (_, schema))| match schema {
                         Ok(mut schema) => {
                             let mut indexes = vec![];
                             keys.get(&name).map_or((), |columns| {

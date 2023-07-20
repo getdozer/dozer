@@ -613,7 +613,6 @@ impl RoMainEnvironment {
 pub mod dump_restore;
 
 fn debug_check_schema_record_consistency(schema: &Schema, record: &Record) {
-    debug_assert_eq!(schema.identifier, record.schema_id);
     debug_assert_eq!(schema.fields.len(), record.values.len());
     for (field, value) in schema.fields.iter().zip(record.values.iter()) {
         if field.nullable && value == &Field::Null {

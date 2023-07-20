@@ -196,7 +196,6 @@ fn handle_with_dozer_schema(
     }
 
     Ok(DozerSchema {
-        identifier: None,
         fields,
         primary_index: vec![],
     })
@@ -347,7 +346,6 @@ pub fn map_record_batch_to_dozer_records(
             values.push(value);
         }
         records.push(Record {
-            schema_id: schema.identifier,
             values,
             lifetime: None,
         });

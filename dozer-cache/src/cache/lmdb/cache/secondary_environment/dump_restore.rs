@@ -128,7 +128,6 @@ pub mod tests {
     #[tokio::test]
     async fn test_dump_restore() {
         let schema = Schema {
-            identifier: None,
             fields: vec![FieldDefinition {
                 name: "test".to_string(),
                 typ: FieldType::String,
@@ -146,12 +145,10 @@ pub mod tests {
         .unwrap();
 
         let record_a = Record {
-            schema_id: None,
             values: vec![Field::String("a".to_string())],
             lifetime: None,
         };
         let record_b = Record {
-            schema_id: None,
             values: vec![Field::String("b".to_string())],
             lifetime: None,
         };
