@@ -229,7 +229,7 @@ fn process_log(details: Arc<EthDetails>, msg: Log) -> Result<(), ConnectorError>
     if msg.log_index.is_none() {
         Ok(())
     } else {
-        if let Some(op) = helper::map_log_to_event(msg.to_owned(), details.clone()) {
+        if let Some((table_index, op)) = helper::map_log_to_event(msg.to_owned(), details.clone()) {
             trace!("Writing log : {:?}", op);
             // Write eth_log record
             details
@@ -237,6 +237,7 @@ fn process_log(details: Arc<EthDetails>, msg: Log) -> Result<(), ConnectorError>
                 .handle_message(IngestionMessage::new_op(
                     msg.block_number.expect("expected for non pending").as_u64(),
                     0,
+                    table_index,
                     op,
                 ))
                 .map_err(ConnectorError::IngestorError)?;
@@ -246,17 +247,12 @@ fn process_log(details: Arc<EthDetails>, msg: Log) -> Result<(), ConnectorError>
 
         // write event record optionally
 
-        let op = helper::decode_event(
-            msg,
-            details.contracts.to_owned(),
-            details.tables.clone(),
-            details.schema_map.clone(),
-        );
-        if let Some(op) = op {
+        let op = helper::decode_event(msg, details.contracts.to_owned(), details.tables.clone());
+        if let Some((table_index, op)) = op {
             trace!("Writing event : {:?}", op);
             details
                 .ingestor
-                .handle_message(IngestionMessage::new_op(0, 0, op))
+                .handle_message(IngestionMessage::new_op(0, 0, table_index, op))
                 .map_err(ConnectorError::IngestorError)?;
         } else {
             trace!("Writing event : {:?}", op);

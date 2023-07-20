@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use dozer_types::grpc_types::ingest::{IngestArrowRequest, IngestRequest};
 
 use crate::{connectors::SourceSchema, errors::ConnectorError, ingestion::Ingestor};
@@ -8,7 +10,7 @@ mod arrow;
 
 pub use arrow::ArrowAdapter;
 pub use default::DefaultAdapter;
-pub trait IngestAdapter
+pub trait IngestAdapter: Debug
 where
     Self: Send + Sync + 'static + Sized,
 {
@@ -16,6 +18,7 @@ where
     fn get_schemas(&self) -> Vec<(String, SourceSchema)>;
     fn handle_message(
         &self,
+        table_index: usize,
         msg: GrpcIngestMessage,
         ingestor: &'static Ingestor,
     ) -> Result<(), ConnectorError>;
@@ -51,9 +54,10 @@ where
 
     pub fn handle_message(
         &self,
+        table_index: usize,
         msg: GrpcIngestMessage,
         ingestor: &'static Ingestor,
     ) -> Result<(), ConnectorError> {
-        self.adapter.handle_message(msg, ingestor)
+        self.adapter.handle_message(table_index, msg, ingestor)
     }
 }

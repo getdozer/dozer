@@ -24,7 +24,7 @@ macro_rules! test_type_conversion {
 async fn test_get_schema_of_parquet() {
     let local_storage = get_local_storage_config("parquet");
 
-    let connector = ObjectStoreConnector::new(1, local_storage);
+    let connector = ObjectStoreConnector::new(local_storage);
     let (_, schemas) = connector.list_all_schemas().await.unwrap();
     let schema = schemas.get(0).unwrap();
 
@@ -46,7 +46,7 @@ async fn test_get_schema_of_parquet() {
 async fn test_get_schema_of_csv() {
     let local_storage = get_local_storage_config("csv");
 
-    let connector = ObjectStoreConnector::new(1, local_storage);
+    let connector = ObjectStoreConnector::new(local_storage);
     let (_, schemas) = connector.list_all_schemas().await.unwrap();
     let schema = schemas.get(0).unwrap();
 
@@ -66,7 +66,7 @@ async fn test_get_schema_of_csv() {
 async fn test_read_parquet_file() {
     let local_storage = get_local_storage_config("parquet");
 
-    let connector = ObjectStoreConnector::new(1, local_storage);
+    let connector = ObjectStoreConnector::new(local_storage);
 
     let config = IngestionConfig::default();
     let (ingestor, mut iterator) = Ingestor::initialize_channel(config);
@@ -95,7 +95,11 @@ async fn test_read_parquet_file() {
         let row = iterator.next();
         if let Some(IngestionMessage {
             identifier: OpIdentifier { seq_in_tx, .. },
-            kind: IngestionMessageKind::OperationEvent(Operation::Insert { new }),
+            kind:
+                IngestionMessageKind::OperationEvent {
+                    op: Operation::Insert { new },
+                    ..
+                },
         }) = row
         {
             let values = new.values;
@@ -136,7 +140,7 @@ async fn test_read_parquet_file() {
 async fn test_csv_read() {
     let local_storage = get_local_storage_config("csv");
 
-    let connector = ObjectStoreConnector::new(1, local_storage);
+    let connector = ObjectStoreConnector::new(local_storage);
 
     let config = IngestionConfig::default();
     let (ingestor, mut iterator) = Ingestor::initialize_channel(config);
@@ -167,7 +171,11 @@ async fn test_csv_read() {
         let row = iterator.next();
         if let Some(IngestionMessage {
             identifier: OpIdentifier { seq_in_tx, .. },
-            kind: IngestionMessageKind::OperationEvent(Operation::Insert { new }),
+            kind:
+                IngestionMessageKind::OperationEvent {
+                    op: Operation::Insert { new },
+                    ..
+                },
         }) = row
         {
             let values = new.values;
@@ -228,7 +236,7 @@ async fn test_missing_directory() {
     local_storage.details = Some(LocalDetails {
         path: "not_existing_path".to_string(),
     });
-    let connector = ObjectStoreConnector::new(1, local_storage);
+    let connector = ObjectStoreConnector::new(local_storage);
 
     let tables = connector
         .list_columns(connector.list_tables().await.unwrap())

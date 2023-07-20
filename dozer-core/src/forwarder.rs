@@ -228,7 +228,7 @@ impl SourceChannelManager {
         self.curr_txid = message.identifier.txid;
         self.curr_seq_in_tx = message.identifier.seq_in_tx;
         match message.kind {
-            IngestionMessageKind::OperationEvent(op) => {
+            IngestionMessageKind::OperationEvent { op, .. } => {
                 self.manager.send_op(op, port)?;
                 self.num_uncommitted_ops += 1;
                 self.trigger_commit_if_needed(request_termination)

@@ -205,7 +205,7 @@ impl<'a> ProtoGeneratorImpl<'a> {
                 }
             };
 
-        let names = Names::new(schema_name, &Schema::empty());
+        let names = Names::new(schema_name, &Schema::default());
         let service_name = format!("{}.{}", &names.package_name, &names.plural_pascal_name);
         let service = descriptor
             .get_service_by_name(&service_name)

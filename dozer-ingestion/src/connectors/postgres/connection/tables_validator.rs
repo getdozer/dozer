@@ -1,7 +1,8 @@
 use tokio_postgres::Client;
 
+use crate::connectors::postgres::schema::helper::DEFAULT_SCHEMA_NAME;
 use crate::connectors::ListOrFilterColumns;
-use crate::errors::PostgresConnectorError::{ColumnsNotFound, InvalidQueryError, TableError};
+use crate::errors::PostgresConnectorError::{ColumnsNotFound, InvalidQueryError, TablesNotFound};
 use crate::errors::PostgresSchemaError;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -26,7 +27,7 @@ impl<'a> TablesValidator<'a> {
             let schema = t
                 .schema
                 .as_ref()
-                .map_or("public".to_string(), |s| s.clone());
+                .map_or(DEFAULT_SCHEMA_NAME.to_string(), |s| s.clone());
             tables.insert((schema.clone(), t.name.clone()), t);
             tables_identifiers.push(format!("{schema}.{}", t.name.clone()))
         });
@@ -124,11 +125,7 @@ impl<'a> TablesValidator<'a> {
 
         let missing_tables = self.find_missing_tables(tables)?;
         if !missing_tables.is_empty() {
-            let tables_identifiers = missing_tables
-                .iter()
-                .map(|(schema, table)| format!("{schema}.{table}"))
-                .collect();
-            return Err(TableError(tables_identifiers));
+            return Err(TablesNotFound(missing_tables));
         }
 
         Ok(())
@@ -143,7 +140,7 @@ impl<'a> TablesValidator<'a> {
             let table_info = self
                 .tables
                 .get(key)
-                .ok_or(TableError(vec![key.0.clone(), key.1.clone()]))?;
+                .ok_or(TablesNotFound(vec![key.clone()]))?;
 
             if let Some(column_names) = table_info.columns.clone() {
                 for c in column_names {

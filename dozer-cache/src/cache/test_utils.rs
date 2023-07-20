@@ -1,5 +1,5 @@
 use dozer_types::types::{
-    FieldDefinition, IndexDefinition, Schema, SchemaIdentifier, SchemaWithIndex, SourceDefinition,
+    FieldDefinition, IndexDefinition, Schema, SchemaWithIndex, SourceDefinition,
 };
 
 use super::expression::{FilterExpression, QueryExpression, Skip};
@@ -7,7 +7,6 @@ use super::expression::{FilterExpression, QueryExpression, Skip};
 pub fn schema_0() -> SchemaWithIndex {
     (
         Schema {
-            identifier: Some(SchemaIdentifier { id: 0, version: 1 }),
             fields: vec![FieldDefinition {
                 name: "foo".to_string(),
                 typ: dozer_types::types::FieldType::String,
@@ -23,7 +22,6 @@ pub fn schema_0() -> SchemaWithIndex {
 pub fn schema_1() -> SchemaWithIndex {
     (
         Schema {
-            identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
             fields: vec![
                 FieldDefinition {
                     name: "a".to_string(),
@@ -59,7 +57,6 @@ pub fn schema_1() -> SchemaWithIndex {
 pub fn schema_full_text() -> SchemaWithIndex {
     (
         Schema {
-            identifier: Some(SchemaIdentifier { id: 2, version: 1 }),
             fields: vec![
                 FieldDefinition {
                     name: "foo".to_string(),
@@ -84,7 +81,6 @@ pub fn schema_full_text() -> SchemaWithIndex {
 pub fn schema_empty_primary_index() -> SchemaWithIndex {
     (
         Schema {
-            identifier: Some(SchemaIdentifier { id: 3, version: 1 }),
             fields: vec![FieldDefinition {
                 name: "foo".to_string(),
                 typ: dozer_types::types::FieldType::String,
@@ -100,7 +96,6 @@ pub fn schema_empty_primary_index() -> SchemaWithIndex {
 pub fn schema_multi_indices() -> SchemaWithIndex {
     (
         Schema {
-            identifier: Some(SchemaIdentifier { id: 4, version: 1 }),
             fields: vec![
                 FieldDefinition {
                     name: "id".to_string(),

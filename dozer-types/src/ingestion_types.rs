@@ -16,10 +16,10 @@ pub struct IngestionMessage {
 }
 
 impl IngestionMessage {
-    pub fn new_op(txn: u64, seq_no: u64, op: Operation) -> Self {
+    pub fn new_op(txn: u64, seq_no: u64, table_index: usize, op: Operation) -> Self {
         Self {
             identifier: OpIdentifier::new(txn, seq_no),
-            kind: IngestionMessageKind::OperationEvent(op),
+            kind: IngestionMessageKind::OperationEvent { table_index, op },
         }
     }
 
@@ -42,7 +42,7 @@ impl IngestionMessage {
 /// All possible kinds of `IngestionMessage`.
 pub enum IngestionMessageKind {
     /// A CDC event.
-    OperationEvent(Operation),
+    OperationEvent { table_index: usize, op: Operation },
     /// A connector uses this message kind to notify Dozer that a initial snapshot of the source tables is started
     SnapshottingStarted,
     /// A connector uses this message kind to notify Dozer that a initial snapshot of the source tables is done,

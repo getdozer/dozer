@@ -8,7 +8,7 @@ use crate::errors::KafkaSchemaError::TypeNotSupported;
 use crate::errors::{ConnectorError, KafkaError, KafkaSchemaError};
 use dozer_types::serde_json;
 use dozer_types::serde_json::Value;
-use dozer_types::types::{FieldDefinition, FieldType, Schema, SchemaIdentifier, SourceDefinition};
+use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
 use schema_registry_converter::async_impl::schema_registry::SrSettings;
 use schema_registry_converter::schema_registry_common::SubjectNameStrategy;
 use std::collections::HashMap;
@@ -125,7 +125,6 @@ impl SchemaRegistry {
                         .collect();
 
                     let schema = Schema {
-                        identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
                         fields: defined_fields?,
                         primary_index: pk_keys_indexes,
                     };

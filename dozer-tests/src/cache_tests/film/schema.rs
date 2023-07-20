@@ -1,7 +1,7 @@
 use dozer_types::{
     chrono::{DateTime, FixedOffset},
     serde::{self, Deserialize, Serialize},
-    types::{FieldDefinition, FieldType, Schema, SchemaIdentifier, SourceDefinition},
+    types::{FieldDefinition, FieldType, Schema, SourceDefinition},
 };
 use mongodb::bson::doc;
 
@@ -24,8 +24,7 @@ pub struct Film {
 }
 
 pub fn film_schema() -> Schema {
-    let mut schema = Schema::empty();
-    schema.identifier = Some(SchemaIdentifier { id: 0, version: 0 });
+    let mut schema = Schema::default();
     schema
         .field(
             FieldDefinition::new(

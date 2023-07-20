@@ -55,7 +55,6 @@ async fn test_trace_iterator() {
         info!("Initializing with WSS: {}", https_url);
 
         let connector = EthTraceConnector::new(
-            1,
             EthTraceConfig {
                 https_url,
                 from_block: 1000000,
@@ -73,7 +72,7 @@ async fn test_trace_iterator() {
     });
 
     if let Some(IngestionMessage {
-        kind: IngestionMessageKind::OperationEvent(op),
+        kind: IngestionMessageKind::OperationEvent { op, .. },
         ..
     }) = iterator.next_timeout(Duration::from_millis(1000))
     {

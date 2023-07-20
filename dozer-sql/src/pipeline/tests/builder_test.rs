@@ -47,7 +47,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
         _port: &PortHandle,
     ) -> Result<(Schema, SchemaSQLContext), BoxedError> {
         Ok((
-            Schema::empty()
+            Schema::default()
                 .field(
                     FieldDefinition::new(
                         String::from("CustomerID"),
@@ -106,15 +106,13 @@ impl Source for TestSource {
                 IngestionMessage::new_op(
                     n,
                     0,
+                    0,
                     Operation::Insert {
-                        new: Record::new(
-                            None,
-                            vec![
-                                Field::Int(0),
-                                Field::String("Italy".to_string()),
-                                Field::Float(OrderedFloat(5.5)),
-                            ],
-                        ),
+                        new: Record::new(vec![
+                            Field::Int(0),
+                            Field::String("Italy".to_string()),
+                            Field::Float(OrderedFloat(5.5)),
+                        ]),
                     },
                 ),
                 DEFAULT_PORT_HANDLE,

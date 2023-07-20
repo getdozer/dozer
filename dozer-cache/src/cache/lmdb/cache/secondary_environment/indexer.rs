@@ -103,7 +103,7 @@ mod tests {
 
     #[test]
     fn test_secondary_indexes() {
-        let (mut cache, indexing_thread_pool, schema, secondary_indexes) =
+        let (mut cache, indexing_thread_pool, _, secondary_indexes) =
             create_cache(test_utils::schema_1);
 
         let items = vec![
@@ -114,7 +114,7 @@ mod tests {
         ];
 
         for val in items.clone() {
-            lmdb_utils::insert_rec_1(&mut cache, &schema, val);
+            lmdb_utils::insert_rec_1(&mut cache, val);
         }
         cache.commit().unwrap();
         indexing_thread_pool.lock().wait_until_catchup();
@@ -132,7 +132,6 @@ mod tests {
 
         for a in [1i64, 2, 3, 4] {
             let record = Record {
-                schema_id: schema.identifier,
                 values: vec![Field::Int(a), Field::Null, Field::Null],
                 lifetime: None,
             };
@@ -168,8 +167,7 @@ mod tests {
 
     #[test]
     fn test_full_text_secondary_index_with_duplicated_words() {
-        let (mut cache, indexing_thread_pool, schema, _) =
-            create_cache(test_utils::schema_full_text);
+        let (mut cache, indexing_thread_pool, _, _) = create_cache(test_utils::schema_full_text);
 
         let items = vec![(
             Some("another test".to_string()),
@@ -177,13 +175,12 @@ mod tests {
         )];
 
         for val in items {
-            lmdb_utils::insert_full_text(&mut cache, &schema, val);
+            lmdb_utils::insert_full_text(&mut cache, val);
         }
 
         {
             let a = "another test".to_string();
             let record = Record {
-                schema_id: schema.identifier,
                 values: vec![Field::String(a), Field::Null],
                 lifetime: None,
             };

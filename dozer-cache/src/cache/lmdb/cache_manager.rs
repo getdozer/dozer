@@ -259,7 +259,7 @@ mod tests {
         let labels = cache_manager
             .create_cache(
                 Default::default(),
-                Schema::empty(),
+                Schema::default(),
                 vec![],
                 &Default::default(),
                 Default::default(),

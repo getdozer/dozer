@@ -123,7 +123,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                 name: "taxi_trips".to_string(),
             };
             Ok((
-                Schema::empty()
+                Schema::default()
                     .field(
                         FieldDefinition::new(
                             String::from("taxi_id"),
@@ -160,7 +160,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
                 name: "zones".to_string(),
             };
             Ok((
-                Schema::empty()
+                Schema::default()
                     .field(
                         FieldDefinition::new(
                             String::from("location_id"),
@@ -215,140 +215,119 @@ impl Source for TestSource {
         let operations = vec![
             (
                 Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![
-                            Field::UInt(1001),
-                            Field::Timestamp(
-                                Utc.datetime_from_str("2023-02-01 22:00:00", DATE_FORMAT)
-                                    .unwrap()
-                                    .into(),
-                            ),
-                            Field::UInt(1),
-                        ],
-                    ),
+                    new: Record::new(vec![
+                        Field::UInt(1001),
+                        Field::Timestamp(
+                            Utc.datetime_from_str("2023-02-01 22:00:00", DATE_FORMAT)
+                                .unwrap()
+                                .into(),
+                        ),
+                        Field::UInt(1),
+                    ]),
                 },
                 TRIPS_PORT,
             ),
             (
                 Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![
-                            Field::UInt(1002),
-                            Field::Timestamp(
-                                Utc.datetime_from_str("2023-02-01 22:01:00", DATE_FORMAT)
-                                    .unwrap()
-                                    .into(),
-                            ),
-                            Field::UInt(2),
-                        ],
-                    ),
+                    new: Record::new(vec![
+                        Field::UInt(1002),
+                        Field::Timestamp(
+                            Utc.datetime_from_str("2023-02-01 22:01:00", DATE_FORMAT)
+                                .unwrap()
+                                .into(),
+                        ),
+                        Field::UInt(2),
+                    ]),
                 },
                 TRIPS_PORT,
             ),
             (
                 Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![
-                            Field::UInt(1003),
-                            Field::Timestamp(
-                                Utc.datetime_from_str("2023-02-01 22:02:10", DATE_FORMAT)
-                                    .unwrap()
-                                    .into(),
-                            ),
-                            Field::UInt(3),
-                        ],
-                    ),
+                    new: Record::new(vec![
+                        Field::UInt(1003),
+                        Field::Timestamp(
+                            Utc.datetime_from_str("2023-02-01 22:02:10", DATE_FORMAT)
+                                .unwrap()
+                                .into(),
+                        ),
+                        Field::UInt(3),
+                    ]),
                 },
                 TRIPS_PORT,
             ),
             (
                 Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![
-                            Field::UInt(1004),
-                            Field::Timestamp(
-                                Utc.datetime_from_str("2023-02-01 22:03:00", DATE_FORMAT)
-                                    .unwrap()
-                                    .into(),
-                            ),
-                            Field::UInt(2),
-                        ],
-                    ),
+                    new: Record::new(vec![
+                        Field::UInt(1004),
+                        Field::Timestamp(
+                            Utc.datetime_from_str("2023-02-01 22:03:00", DATE_FORMAT)
+                                .unwrap()
+                                .into(),
+                        ),
+                        Field::UInt(2),
+                    ]),
                 },
                 TRIPS_PORT,
             ),
             (
                 Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![
-                            Field::UInt(1005),
-                            Field::Timestamp(
-                                Utc.datetime_from_str("2023-02-01 22:05:00", DATE_FORMAT)
-                                    .unwrap()
-                                    .into(),
-                            ),
-                            Field::UInt(1),
-                        ],
-                    ),
+                    new: Record::new(vec![
+                        Field::UInt(1005),
+                        Field::Timestamp(
+                            Utc.datetime_from_str("2023-02-01 22:05:00", DATE_FORMAT)
+                                .unwrap()
+                                .into(),
+                        ),
+                        Field::UInt(1),
+                    ]),
                 },
                 TRIPS_PORT,
             ),
             (
                 Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![
-                            Field::UInt(1006),
-                            Field::Timestamp(
-                                Utc.datetime_from_str("2023-02-01 22:06:00", DATE_FORMAT)
-                                    .unwrap()
-                                    .into(),
-                            ),
-                            Field::UInt(2),
-                        ],
-                    ),
+                    new: Record::new(vec![
+                        Field::UInt(1006),
+                        Field::Timestamp(
+                            Utc.datetime_from_str("2023-02-01 22:06:00", DATE_FORMAT)
+                                .unwrap()
+                                .into(),
+                        ),
+                        Field::UInt(2),
+                    ]),
                 },
                 TRIPS_PORT,
             ),
             (
                 Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![Field::UInt(1), Field::String("Newark Airport".to_string())],
-                    ),
+                    new: Record::new(vec![
+                        Field::UInt(1),
+                        Field::String("Newark Airport".to_string()),
+                    ]),
                 },
                 ZONES_PORT,
             ),
             (
                 Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![Field::UInt(2), Field::String("Jamaica Bay".to_string())],
-                    ),
+                    new: Record::new(vec![
+                        Field::UInt(2),
+                        Field::String("Jamaica Bay".to_string()),
+                    ]),
                 },
                 ZONES_PORT,
             ),
             (
                 Operation::Insert {
-                    new: Record::new(
-                        None,
-                        vec![
-                            Field::UInt(3),
-                            Field::String("Allerton/Pelham Gardens".to_string()),
-                        ],
-                    ),
+                    new: Record::new(vec![
+                        Field::UInt(3),
+                        Field::String("Allerton/Pelham Gardens".to_string()),
+                    ]),
                 },
                 ZONES_PORT,
             ),
         ];
 
         for (index, (op, port)) in operations.into_iter().enumerate() {
-            fw.send(IngestionMessage::new_op(index as u64, 0, op), port)
+            fw.send(IngestionMessage::new_op(index as u64, 0, 0, op), port)
                 .unwrap();
             //thread::sleep(Duration::from_millis(500));
         }

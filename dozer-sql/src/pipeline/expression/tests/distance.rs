@@ -18,7 +18,7 @@ use proptest::prelude::*;
 #[test]
 fn test_geo() {
     proptest!(ProptestConfig::with_cases(1000), move |(x1: f64, x2: f64, y1: f64, y2: f64)| {
-        let row = Record::new(None, vec![]);
+        let row = Record::new(vec![]);
         let from = Field::Point(DozerPoint::from((x1, y1)));
         let to = Field::Point(DozerPoint::from((x2, y2)));
         let null = Field::Null;
@@ -49,7 +49,7 @@ fn test_distance(
     result: Option<Result<Field, PipelineError>>,
 ) {
     let args = &vec![Literal(from.clone()), Literal(to.clone())];
-    if validate_distance(args, &Schema::empty()).is_ok() {
+    if validate_distance(args, &Schema::default()).is_ok() {
         match result {
             None => {
                 let from_f = from.to_owned();
@@ -64,13 +64,13 @@ fn test_distance(
                     // Some(Algorithm::Vincenty) => f.0.vincenty_distance(&t.0).unwrap(),
                 };
                 assert!(matches!(
-                    evaluate_distance(&Schema::empty(), args, row),
+                    evaluate_distance(&Schema::default(), args, row),
                     Ok(Field::Float(_dist)),
                 ))
             }
             Some(_val) => {
                 assert!(matches!(
-                    evaluate_distance(&Schema::empty(), args, row),
+                    evaluate_distance(&Schema::default(), args, row),
                     _val,
                 ))
             }
@@ -80,7 +80,7 @@ fn test_distance(
 
 #[test]
 fn test_validate_distance() {
-    let schema = Schema::empty()
+    let schema = Schema::default()
         .field(
             FieldDefinition::new(
                 String::from("from"),
@@ -176,7 +176,7 @@ fn test_distance_logical() {
         ("VINCENTY", 1113.0264975564357),
     ];
 
-    let schema = Schema::empty()
+    let schema = Schema::default()
         .field(
             FieldDefinition::new(
                 String::from("from"),
@@ -220,7 +220,7 @@ fn test_distance_logical() {
 fn test_distance_with_nullable_parameter() {
     let f = run_fct(
         "SELECT DISTANCE(from, to) FROM LOCATION",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("from"),

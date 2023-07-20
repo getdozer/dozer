@@ -10,12 +10,11 @@ use deltalake::datafusion::datasource::listing::{ListingOptions, ListingTableUrl
 use deltalake::datafusion::prelude::SessionContext;
 use deltalake::s3_storage_options;
 use dozer_types::log::error;
-use dozer_types::types::{Schema, SchemaIdentifier};
+use dozer_types::types::Schema;
 use std::collections::HashMap;
 use std::sync::Arc;
 
 pub fn map_schema(
-    id: u32,
     resolved_schema: SchemaRef,
     table: &ListOrFilterColumns,
 ) -> Result<Schema, ConnectorError> {
@@ -31,7 +30,6 @@ pub fn map_schema(
     };
 
     Ok(Schema {
-        identifier: Some(SchemaIdentifier { id, version: 0 }),
         fields: fields.map_err(ObjectStoreConnectorError::DataFusionSchemaError)?,
         primary_index: vec![],
     })
@@ -42,8 +40,8 @@ pub async fn get_schema(
     tables: &[ListOrFilterColumns],
 ) -> Result<Vec<SourceSchemaResult>, ConnectorError> {
     let mut result = vec![];
-    for (id, table) in tables.iter().enumerate() {
-        result.push(get_table_schema(config, table, id as u32).await);
+    for table in tables.iter() {
+        result.push(get_table_schema(config, table).await);
     }
     Ok(result)
 }
@@ -51,7 +49,6 @@ pub async fn get_schema(
 async fn get_table_schema(
     config: &impl DozerObjectStore,
     table: &ListOrFilterColumns,
-    id: u32,
 ) -> SourceSchemaResult {
     let params = &config.table_params(&table.name)?;
 
@@ -61,17 +58,17 @@ async fn get_table_schema(
                 let format = CsvFormat::default();
                 let listing_options = ListingOptions::new(Arc::new(format))
                     .with_file_extension(table_config.extension.clone());
-                get_object_schema(id, table, config, listing_options).await
+                get_object_schema(table, config, listing_options).await
             }
             dozer_types::ingestion_types::TableConfig::Delta(_table_config) => {
-                get_delta_schema(id, table, config).await
+                get_delta_schema(table, config).await
             }
             dozer_types::ingestion_types::TableConfig::Parquet(table_config) => {
                 let format = ParquetFormat::default();
                 let listing_options = ListingOptions::new(Arc::new(format))
                     .with_file_extension(table_config.extension.clone());
 
-                get_object_schema(id, table, config, listing_options).await
+                get_object_schema(table, config, listing_options).await
             }
         }
     } else {
@@ -82,7 +79,6 @@ async fn get_table_schema(
 }
 
 async fn get_object_schema(
-    id: u32,
     table: &ListOrFilterColumns,
     store_config: &impl DozerObjectStore,
     listing_options: ListingOptions,
@@ -112,13 +108,12 @@ async fn get_object_schema(
             ConnectorError::UnableToInferSchema(e)
         })?;
 
-    let schema = map_schema(id, resolved_schema, table)?;
+    let schema = map_schema(resolved_schema, table)?;
 
     Ok(SourceSchema::new(schema, CdcType::Nothing))
 }
 
 async fn get_delta_schema(
-    id: u32,
     table: &ListOrFilterColumns,
     store_config: &impl DozerObjectStore,
 ) -> SourceSchemaResult {
@@ -161,6 +156,6 @@ async fn get_delta_schema(
     let arrow_schema: SchemaRef = (*ctx.read_table(Arc::new(delta_table))?.schema())
         .clone()
         .into();
-    let schema = map_schema(id, arrow_schema, table)?;
+    let schema = map_schema(arrow_schema, table)?;
     Ok(SourceSchema::new(schema, CdcType::Nothing))
 }

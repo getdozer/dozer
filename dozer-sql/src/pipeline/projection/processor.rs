@@ -29,7 +29,7 @@ impl ProjectionProcessor {
             results.push(expr.evaluate(record, &self.input_schema)?);
         }
 
-        let mut output_record = Record::new(None, results);
+        let mut output_record = Record::new(results);
         output_record.set_lifetime(record.lifetime.to_owned());
 
         Ok(Operation::Delete { old: output_record })
@@ -42,7 +42,7 @@ impl ProjectionProcessor {
             results.push(expr.evaluate(record, &self.input_schema)?);
         }
 
-        let mut output_record = Record::new(None, results);
+        let mut output_record = Record::new(results);
         output_record.set_lifetime(record.lifetime.to_owned());
         Ok(Operation::Insert { new: output_record })
     }
@@ -56,9 +56,9 @@ impl ProjectionProcessor {
             new_results.push(expr.evaluate(new, &self.input_schema)?);
         }
 
-        let mut old_output_record = Record::new(None, old_results);
+        let mut old_output_record = Record::new(old_results);
         old_output_record.set_lifetime(old.lifetime.to_owned());
-        let mut new_output_record = Record::new(None, new_results);
+        let mut new_output_record = Record::new(new_results);
         new_output_record.set_lifetime(new.lifetime.to_owned());
         Ok(Operation::Update {
             old: old_output_record,

@@ -5,19 +5,19 @@ use dozer_types::types::{Field, FieldDefinition, FieldType, Schema, SourceDefini
 fn test_in_list() {
     let f = run_fct(
         "SELECT 42 IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)",
-        Schema::empty(),
+        Schema::default(),
         vec![],
     );
     assert_eq!(f, Field::Boolean(false));
 
     let f = run_fct(
         "SELECT 42 IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 42)",
-        Schema::empty(),
+        Schema::default(),
         vec![],
     );
     assert_eq!(f, Field::Boolean(true));
 
-    let schema = Schema::empty()
+    let schema = Schema::default()
         .field(
             FieldDefinition::new(
                 String::from("age"),
@@ -47,19 +47,19 @@ fn test_in_list() {
 fn test_not_in_list() {
     let f = run_fct(
         "SELECT 42 NOT IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)",
-        Schema::empty(),
+        Schema::default(),
         vec![],
     );
     assert_eq!(f, Field::Boolean(true));
 
     let f = run_fct(
         "SELECT 42 NOT IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 42)",
-        Schema::empty(),
+        Schema::default(),
         vec![],
     );
     assert_eq!(f, Field::Boolean(false));
 
-    let schema = Schema::empty()
+    let schema = Schema::default()
         .field(
             FieldDefinition::new(
                 String::from("age"),

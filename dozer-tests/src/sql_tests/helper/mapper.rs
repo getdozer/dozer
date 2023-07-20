@@ -200,7 +200,6 @@ fn get_record_from_json(data: String, schema: &Schema) -> Record {
     let root: Value = serde_json::from_str(&data).unwrap();
     let mut record = Record {
         values: vec![],
-        schema_id: None,
         lifetime: None,
     };
 

@@ -2,15 +2,13 @@ use std::collections::HashMap;
 
 use crate::connectors::{CdcType, ListOrFilterColumns, SourceSchema, SourceSchemaResult};
 use crate::errors::{ConnectorError, PostgresConnectorError, PostgresSchemaError};
-use dozer_types::types::{FieldDefinition, Schema, SchemaIdentifier, SourceDefinition};
+use dozer_types::types::{FieldDefinition, Schema, SourceDefinition};
 
 use crate::connectors::postgres::connection::helper;
 use crate::connectors::postgres::helper::postgres_type_to_dozer_type;
 use crate::errors::PostgresSchemaError::{InvalidColumnType, ValueConversionError};
 
 use postgres_types::Type;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 
 use crate::connectors::postgres::schema::sorter::sort_schemas;
 use tokio_postgres::Row;
@@ -27,7 +25,6 @@ struct PostgresTableRow {
     table_name: String,
     field: FieldDefinition,
     is_column_used_in_index: bool,
-    table_id: u32,
     replication_type: String,
 }
 
@@ -41,17 +38,15 @@ pub struct PostgresTable {
     // Nothing - no fields can be used for identity.
     //  Postgres will not return old values in update and delete replication messages
     index_keys: Vec<bool>,
-    table_id: u32,
     replication_type: String,
 }
 
 pub(crate) type SchemaTableIdentifier = (String, String);
 impl PostgresTable {
-    pub fn new(table_id: u32, replication_type: String) -> Self {
+    pub fn new(replication_type: String) -> Self {
         Self {
             fields: vec![],
             index_keys: vec![],
-            table_id,
             replication_type,
         }
     }
@@ -73,10 +68,6 @@ impl PostgresTable {
         self.fields.get(index)
     }
 
-    pub fn table_id(&self) -> &u32 {
-        &self.table_id
-    }
-
     pub fn replication_type(&self) -> &String {
         &self.replication_type
     }
@@ -86,7 +77,7 @@ impl PostgresTable {
 pub struct PostgresTableInfo {
     pub schema: String,
     pub name: String,
-    pub id: u32,
+    pub relation_id: u32,
     pub columns: Vec<String>,
 }
 
@@ -103,19 +94,13 @@ impl SchemaHelper {
     ) -> Result<Vec<PostgresTableInfo>, ConnectorError> {
         let (results, tables_columns_map) = self.get_columns(tables).await?;
 
-        let mut table_columns_nap: HashMap<SchemaTableIdentifier, (u32, Vec<String>)> =
+        let mut table_columns_map: HashMap<SchemaTableIdentifier, (u32, Vec<String>)> =
             HashMap::new();
         for row in results {
             let schema: String = row.get(8);
             let table_name: String = row.get(0);
             let column_name: String = row.get(1);
-            let table_id: u32 = if let Some(rel_id) = row.get(4) {
-                rel_id
-            } else {
-                let mut s = DefaultHasher::new();
-                table_name.hash(&mut s);
-                s.finish() as u32
-            };
+            let relation_id: u32 = row.get(4);
 
             let schema_table_tuple = (schema, table_name);
             let add_column_table = tables_columns_map
@@ -125,27 +110,42 @@ impl SchemaHelper {
                 });
 
             if add_column_table {
-                match table_columns_nap.get_mut(&schema_table_tuple) {
-                    Some((id, columns)) => {
+                match table_columns_map.get_mut(&schema_table_tuple) {
+                    Some((existing_relation_id, columns)) => {
                         columns.push(column_name);
-                        *id = table_id;
+                        assert_eq!(*existing_relation_id, relation_id);
                     }
                     None => {
-                        table_columns_nap.insert(schema_table_tuple, (table_id, vec![column_name]));
+                        table_columns_map
+                            .insert(schema_table_tuple, (relation_id, vec![column_name]));
                     }
                 }
             }
         }
 
-        Ok(table_columns_nap
-            .into_iter()
-            .map(|((schema, name), (id, columns))| PostgresTableInfo {
-                name,
-                id,
-                columns,
-                schema,
-            })
-            .collect())
+        Ok(if let Some(tables) = tables {
+            let mut result = vec![];
+            for table in tables {
+                result.push(find_table(
+                    &table_columns_map,
+                    table.schema.as_deref(),
+                    &table.name,
+                )?);
+            }
+            result
+        } else {
+            table_columns_map
+                .into_iter()
+                .map(
+                    |((schema, name), (relation_id, columns))| PostgresTableInfo {
+                        name,
+                        relation_id,
+                        columns,
+                        schema,
+                    },
+                )
+                .collect()
+        })
     }
 
     async fn get_columns(
@@ -161,7 +161,7 @@ impl SchemaHelper {
                         (
                             t.schema
                                 .as_ref()
-                                .map_or("public".to_string(), |s| s.to_string()),
+                                .map_or(DEFAULT_SCHEMA_NAME.to_string(), |s| s.to_string()),
                             t.name.clone(),
                         ),
                         columns,
@@ -174,7 +174,7 @@ impl SchemaHelper {
                 .map(|t| {
                     t.schema
                         .as_ref()
-                        .map_or_else(|| "public".to_string(), |s| s.clone())
+                        .map_or_else(|| DEFAULT_SCHEMA_NAME.to_string(), |s| s.clone())
                 })
                 .collect();
             let table_names: Vec<String> = tables.iter().map(|t| t.name.clone()).collect();
@@ -223,7 +223,7 @@ impl SchemaHelper {
                         table.add_field(row.field.clone(), row.is_column_used_in_index)
                     })
                     .or_insert_with(|| {
-                        let mut table = PostgresTable::new(row.table_id, row.replication_type);
+                        let mut table = PostgresTable::new(row.replication_type);
                         table.add_field(row.field, row.is_column_used_in_index);
                         table
                     });
@@ -236,7 +236,7 @@ impl SchemaHelper {
         Ok(Self::map_columns_to_schemas(columns_map))
     }
 
-    pub fn map_columns_to_schemas(
+    fn map_columns_to_schemas(
         postgres_tables: Vec<(SchemaTableIdentifier, PostgresTable)>,
     ) -> Vec<SourceSchemaResult> {
         postgres_tables
@@ -264,10 +264,6 @@ impl SchemaHelper {
             .collect();
 
         let schema = Schema {
-            identifier: Some(SchemaIdentifier {
-                id: table.table_id,
-                version: 1,
-            }),
             fields: table.fields.clone(),
             primary_index,
         };
@@ -321,13 +317,6 @@ impl SchemaHelper {
         let column_name: String = row.get(1);
         let is_nullable: bool = row.get(2);
         let is_column_used_in_index: bool = row.get(3);
-        let table_id: u32 = if let Some(rel_id) = row.get(4) {
-            rel_id
-        } else {
-            let mut s = DefaultHasher::new();
-            table_name.hash(&mut s);
-            s.finish() as u32
-        };
         let replication_type_int: i8 = row.get(5);
         let type_oid: u32 = row.get(6);
         let typ = Type::from_oid(type_oid);
@@ -342,9 +331,31 @@ impl SchemaHelper {
             table_name,
             field: FieldDefinition::new(column_name, typ, is_nullable, SourceDefinition::Dynamic),
             is_column_used_in_index,
-            table_id,
             replication_type,
         })
+    }
+}
+
+pub const DEFAULT_SCHEMA_NAME: &str = "public";
+
+fn find_table(
+    table_columns_map: &HashMap<SchemaTableIdentifier, (u32, Vec<String>)>,
+    schema_name: Option<&str>,
+    table_name: &str,
+) -> Result<PostgresTableInfo, PostgresConnectorError> {
+    let schema_name = schema_name.unwrap_or(DEFAULT_SCHEMA_NAME);
+    let schema_table_identifier = (schema_name.to_string(), table_name.to_string());
+    if let Some((relation_id, columns)) = table_columns_map.get(&schema_table_identifier) {
+        Ok(PostgresTableInfo {
+            schema: schema_table_identifier.0,
+            name: schema_table_identifier.1,
+            relation_id: *relation_id,
+            columns: columns.clone(),
+        })
+    } else {
+        Err(PostgresConnectorError::TablesNotFound(vec![
+            schema_table_identifier,
+        ]))
     }
 }
 

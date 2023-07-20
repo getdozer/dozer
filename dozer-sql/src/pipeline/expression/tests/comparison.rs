@@ -18,7 +18,7 @@ use proptest::prelude::*;
 fn test_comparison() {
     proptest!(ProptestConfig::with_cases(1000), move |(
         u_num1: u64, u_num2: u64, i_num1: i64, i_num2: i64, f_num1: f64, f_num2: f64, d_num1: ArbitraryDecimal, d_num2: ArbitraryDecimal)| {
-        let row = Record::new(None, vec![]);
+        let row = Record::new(vec![]);
 
         let uint1 = Literal(Field::UInt(u_num1));
         let uint2 = Literal(Field::UInt(u_num2));
@@ -426,13 +426,13 @@ fn test_eq(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<Fi
     match result {
         None => {
             assert!(matches!(
-                evaluate_eq(&Schema::empty(), exp1, exp2, row),
+                evaluate_eq(&Schema::default(), exp1, exp2, row),
                 Ok(Field::Boolean(true))
             ));
         }
         Some(_val) => {
             assert!(matches!(
-                evaluate_eq(&Schema::empty(), exp1, exp2, row),
+                evaluate_eq(&Schema::default(), exp1, exp2, row),
                 Ok(_val)
             ));
         }
@@ -443,13 +443,13 @@ fn test_ne(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<Fi
     match result {
         None => {
             assert!(matches!(
-                evaluate_ne(&Schema::empty(), exp1, exp2, row),
+                evaluate_ne(&Schema::default(), exp1, exp2, row),
                 Ok(Field::Boolean(true))
             ));
         }
         Some(_val) => {
             assert!(matches!(
-                evaluate_ne(&Schema::empty(), exp1, exp2, row),
+                evaluate_ne(&Schema::default(), exp1, exp2, row),
                 Ok(_val)
             ));
         }
@@ -460,13 +460,13 @@ fn test_gt(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<Fi
     match result {
         None => {
             assert!(matches!(
-                evaluate_gt(&Schema::empty(), exp1, exp2, row),
+                evaluate_gt(&Schema::default(), exp1, exp2, row),
                 Ok(Field::Boolean(true))
             ));
         }
         Some(_val) => {
             assert!(matches!(
-                evaluate_gt(&Schema::empty(), exp1, exp2, row),
+                evaluate_gt(&Schema::default(), exp1, exp2, row),
                 Ok(_val)
             ));
         }
@@ -477,13 +477,13 @@ fn test_lt(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<Fi
     match result {
         None => {
             assert!(matches!(
-                evaluate_lt(&Schema::empty(), exp1, exp2, row),
+                evaluate_lt(&Schema::default(), exp1, exp2, row),
                 Ok(Field::Boolean(true))
             ));
         }
         Some(_val) => {
             assert!(matches!(
-                evaluate_lt(&Schema::empty(), exp1, exp2, row),
+                evaluate_lt(&Schema::default(), exp1, exp2, row),
                 Ok(_val)
             ));
         }
@@ -494,13 +494,13 @@ fn test_gte(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<F
     match result {
         None => {
             assert!(matches!(
-                evaluate_gte(&Schema::empty(), exp1, exp2, row),
+                evaluate_gte(&Schema::default(), exp1, exp2, row),
                 Ok(Field::Boolean(true))
             ));
         }
         Some(_val) => {
             assert!(matches!(
-                evaluate_gte(&Schema::empty(), exp1, exp2, row),
+                evaluate_gte(&Schema::default(), exp1, exp2, row),
                 Ok(_val)
             ));
         }
@@ -511,13 +511,13 @@ fn test_lte(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<F
     match result {
         None => {
             assert!(matches!(
-                evaluate_lte(&Schema::empty(), exp1, exp2, row),
+                evaluate_lte(&Schema::default(), exp1, exp2, row),
                 Ok(Field::Boolean(true))
             ));
         }
         Some(_val) => {
             assert!(matches!(
-                evaluate_lte(&Schema::empty(), exp1, exp2, row),
+                evaluate_lte(&Schema::default(), exp1, exp2, row),
                 Ok(_val)
             ));
         }
@@ -527,7 +527,7 @@ fn test_lte(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<F
 #[test]
 fn test_comparison_logical_int() {
     let record = vec![Field::Int(124)];
-    let schema = Schema::empty()
+    let schema = Schema::default()
         .field(
             FieldDefinition::new(
                 String::from("id"),
@@ -596,7 +596,7 @@ fn test_comparison_logical_int() {
 fn test_comparison_logical_timestamp() {
     let f = run_fct(
         "SELECT time = '2020-01-01T00:00:00Z' FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("time"),
@@ -615,7 +615,7 @@ fn test_comparison_logical_timestamp() {
 
     let f = run_fct(
         "SELECT time < '2020-01-01T00:00:01Z' FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("time"),
@@ -637,7 +637,7 @@ fn test_comparison_logical_timestamp() {
 fn test_comparison_logical_date() {
     let f = run_fct(
         "SELECT date = '2020-01-01' FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("date"),
@@ -656,7 +656,7 @@ fn test_comparison_logical_date() {
 
     let f = run_fct(
         "SELECT date != '2020-01-01' FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("date"),
@@ -675,7 +675,7 @@ fn test_comparison_logical_date() {
 
     let f = run_fct(
         "SELECT date > '2020-01-01' FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("date"),

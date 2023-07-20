@@ -59,19 +59,8 @@ impl FieldDefinition {
     }
 }
 
-#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq, Hash)]
-pub struct SchemaIdentifier {
-    pub id: u32,
-    pub version: u16,
-}
-
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, Default)]
 pub struct Schema {
-    /// Unique identifier and version for this schema. This value is required only if the schema
-    /// is represented by a valid entry in the schema registry. For nested schemas, this field
-    /// is not applicable
-    pub identifier: Option<SchemaIdentifier>,
-
     /// fields contains a list of FieldDefinition for all the fields that appear in a record.
     /// Not necessarily all these fields will end up in the final object structure stored in
     /// the cache. Some fields might only be used for indexing purposes only.
@@ -85,12 +74,8 @@ pub struct Schema {
 }
 
 impl Schema {
-    pub fn empty() -> Schema {
-        Self {
-            identifier: None,
-            fields: Vec::new(),
-            primary_index: Vec::new(),
-        }
+    pub fn new() -> Schema {
+        Self::default()
     }
 
     pub fn field(&mut self, f: FieldDefinition, pk: bool) -> &mut Self {
@@ -160,9 +145,6 @@ pub struct Lifetime {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct Record {
-    /// Schema implemented by this Record
-    pub schema_id: Option<SchemaIdentifier>,
-
     /// List of values, following the definitions of `fields` of the associated schema
     pub values: Vec<Field>,
 
@@ -171,25 +153,19 @@ pub struct Record {
 }
 
 impl Record {
-    pub fn new(schema_id: Option<SchemaIdentifier>, values: Vec<Field>) -> Record {
+    pub fn new(values: Vec<Field>) -> Record {
         Record {
-            schema_id,
             values,
             lifetime: None,
         }
     }
 
-    pub fn from_schema(schema: &Schema) -> Record {
-        Record {
-            schema_id: schema.identifier,
-            values: vec![Field::Null; schema.fields.len()],
-            lifetime: None,
-        }
+    pub fn nulls_from_schema(schema: &Schema) -> Record {
+        Self::nulls(schema.fields.len())
     }
 
-    pub fn nulls(schema_id: Option<SchemaIdentifier>, size: usize) -> Record {
+    pub fn nulls(size: usize) -> Record {
         Record {
-            schema_id,
             values: vec![Field::Null; size],
             lifetime: None,
         }

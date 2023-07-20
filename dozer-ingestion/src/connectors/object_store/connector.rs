@@ -24,13 +24,12 @@ type ConnectorResult<T> = Result<T, ConnectorError>;
 
 #[derive(Debug)]
 pub struct ObjectStoreConnector<T: Clone> {
-    pub id: u64,
     config: T,
 }
 
 impl<T: DozerObjectStore> ObjectStoreConnector<T> {
-    pub fn new(id: u64, config: T) -> Self {
-        Self { id, config }
+    pub fn new(config: T) -> Self {
+        Self { config }
     }
 }
 
@@ -136,9 +135,14 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                                     .map_err(ConnectorError::IngestorError)
                                     .unwrap();
                             }
-                            IngestionMessageKind::OperationEvent(op) => {
+                            IngestionMessageKind::OperationEvent { table_index, op } => {
                                 ingestor_clone
-                                    .handle_message(IngestionMessage::new_op(0, seq_no, op))
+                                    .handle_message(IngestionMessage::new_op(
+                                        0,
+                                        seq_no,
+                                        table_index,
+                                        op,
+                                    ))
                                     .map_err(ConnectorError::IngestorError)
                                     .unwrap();
                             }
@@ -158,7 +162,7 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
         let mut handles = vec![];
         // let mut csv_tables: HashMap<usize, HashMap<Path, DateTime<Utc>>> = vec![];
 
-        for (id, table_info) in tables.iter().enumerate() {
+        for (table_index, table_info) in tables.iter().enumerate() {
             for table_config in self.config.tables() {
                 if table_info.name == table_config.name {
                     if let Some(config) = &table_config.config {
@@ -167,19 +171,26 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                                 let table = CsvTable::new(config.clone(), self.config.clone());
                                 handles.push(
                                     table
-                                        .snapshot(id, table_info, sender.clone())
+                                        .snapshot(table_index, table_info, sender.clone())
                                         .await
                                         .unwrap(),
                                 );
                             }
                             dozer_types::ingestion_types::TableConfig::Delta(config) => {
-                                let table =
-                                    DeltaTable::new(id, config.clone(), self.config.clone());
-                                handles.push(table.snapshot(id, table_info, sender.clone()).await?);
+                                let table = DeltaTable::new(config.clone(), self.config.clone());
+                                handles.push(
+                                    table
+                                        .snapshot(table_index, table_info, sender.clone())
+                                        .await?,
+                                );
                             }
                             dozer_types::ingestion_types::TableConfig::Parquet(config) => {
                                 let table = ParquetTable::new(config.clone(), self.config.clone());
-                                handles.push(table.snapshot(id, table_info, sender.clone()).await?);
+                                handles.push(
+                                    table
+                                        .snapshot(table_index, table_info, sender.clone())
+                                        .await?,
+                                );
                             }
                         }
                     }
@@ -198,26 +209,28 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
             .await
             .unwrap();
 
-        for (id, table_info) in tables.iter().enumerate() {
+        for (table_index, table_info) in tables.iter().enumerate() {
             for table_config in self.config.tables() {
                 if table_info.name == table_config.name {
                     if let Some(config) = &table_config.config {
                         match config {
                             dozer_types::ingestion_types::TableConfig::CSV(config) => {
                                 let mut table = CsvTable::new(config.clone(), self.config.clone());
-                                table.update_state = state_hash.get(&id).unwrap().clone();
-                                table.watch(id, table_info, sender.clone()).await.unwrap();
+                                table.update_state = state_hash.get(&table_index).unwrap().clone();
+                                table
+                                    .watch(table_index, table_info, sender.clone())
+                                    .await
+                                    .unwrap();
                             }
                             dozer_types::ingestion_types::TableConfig::Delta(config) => {
-                                let table =
-                                    DeltaTable::new(id, config.clone(), self.config.clone());
-                                table.watch(id, table_info, sender.clone()).await?;
+                                let table = DeltaTable::new(config.clone(), self.config.clone());
+                                table.watch(table_index, table_info, sender.clone()).await?;
                             }
                             dozer_types::ingestion_types::TableConfig::Parquet(config) => {
                                 let mut table =
                                     ParquetTable::new(config.clone(), self.config.clone());
-                                table.update_state = state_hash.get(&id).unwrap().clone();
-                                table.watch(id, table_info, sender.clone()).await?;
+                                table.update_state = state_hash.get(&table_index).unwrap().clone();
+                                table.watch(table_index, table_info, sender.clone()).await?;
                             }
                         }
                     }

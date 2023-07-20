@@ -32,7 +32,6 @@ fn ignore_insert_error_when_type_nothing() {
 
     let initial_values = vec![Field::Int(1), Field::String("Film name old".to_string())];
     let record = Record {
-        schema_id: schema.identifier,
         values: initial_values.clone(),
         lifetime: None,
     };
@@ -64,7 +63,6 @@ fn update_after_insert_error_when_type_update() {
 
     let initial_values = vec![Field::Int(1), Field::String("Film name old".to_string())];
     let record = Record {
-        schema_id: schema.identifier,
         values: initial_values.clone(),
         lifetime: None,
     };
@@ -82,7 +80,6 @@ fn update_after_insert_error_when_type_update() {
         Field::String("Second insert name".to_string()),
     ];
     let second_record = Record {
-        schema_id: schema.identifier,
         values: second_insert_values.clone(),
         lifetime: None,
     };
@@ -112,7 +109,6 @@ fn return_insert_error_when_type_panic() {
 
     let initial_values = vec![Field::Int(1), Field::String("Film name old".to_string())];
     let record = Record {
-        schema_id: schema.identifier,
         values: initial_values.clone(),
         lifetime: None,
     };
@@ -145,12 +141,10 @@ fn ignore_update_error_when_type_nothing() {
     ];
 
     let initial_record = Record {
-        schema_id: schema.identifier,
         values: initial_values.clone(),
         lifetime: None,
     };
     let update_record = Record {
-        schema_id: schema.identifier,
         values: update_values,
         lifetime: None,
     };
@@ -177,12 +171,10 @@ fn update_after_update_error_when_type_upsert() {
     ];
 
     let initial_record = Record {
-        schema_id: schema.identifier,
         values: initial_values.clone(),
         lifetime: None,
     };
     let update_record = Record {
-        schema_id: schema.identifier,
         values: update_values.clone(),
         lifetime: None,
     };
@@ -198,7 +190,7 @@ fn update_after_update_error_when_type_upsert() {
 
 #[test]
 fn return_update_error_when_type_panic() {
-    let (mut env, schema) = init_env(ConflictResolution {
+    let (mut env, _) = init_env(ConflictResolution {
         on_insert: None,
         on_update: Some(OnUpdateResolutionTypes::Panic(())),
         on_delete: None,
@@ -211,12 +203,10 @@ fn return_update_error_when_type_panic() {
     ];
 
     let initial_record = Record {
-        schema_id: schema.identifier,
         values: initial_values,
         lifetime: None,
     };
     let update_record = Record {
-        schema_id: schema.identifier,
         values: update_values,
         lifetime: None,
     };
@@ -228,7 +218,7 @@ fn return_update_error_when_type_panic() {
 
 #[test]
 fn ignore_delete_error_when_type_nothing() {
-    let (mut env, schema) = init_env(ConflictResolution {
+    let (mut env, _) = init_env(ConflictResolution {
         on_insert: None,
         on_update: None,
         on_delete: Some(OnDeleteResolutionTypes::Nothing(())),
@@ -236,7 +226,6 @@ fn ignore_delete_error_when_type_nothing() {
 
     let initial_values = vec![Field::Int(1), Field::Null];
     let initial_record = Record {
-        schema_id: schema.identifier,
         values: initial_values,
         lifetime: None,
     };
@@ -252,7 +241,7 @@ fn ignore_delete_error_when_type_nothing() {
 
 #[test]
 fn return_delete_error_when_type_panic() {
-    let (mut env, schema) = init_env(ConflictResolution {
+    let (mut env, _) = init_env(ConflictResolution {
         on_insert: None,
         on_update: None,
         on_delete: Some(OnDeleteResolutionTypes::Panic(())),
@@ -260,7 +249,6 @@ fn return_delete_error_when_type_panic() {
 
     let initial_values = vec![Field::Int(1), Field::Null];
     let initial_record = Record {
-        schema_id: schema.identifier,
         values: initial_values,
         lifetime: None,
     };

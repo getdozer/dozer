@@ -1,7 +1,7 @@
 use crate::connectors::postgres::helper;
 use crate::errors::{PostgresConnectorError, PostgresSchemaError};
 use dozer_types::node::OpIdentifier;
-use dozer_types::types::{Field, FieldDefinition, Operation, Record, SourceDefinition};
+use dozer_types::types::{Field, Operation, Record};
 use helper::postgres_type_to_dozer_type;
 use postgres_protocol::message::backend::LogicalReplicationMessage::{
     Begin, Commit, Delete, Insert, Relation, Update,
@@ -10,70 +10,40 @@ use postgres_protocol::message::backend::{
     LogicalReplicationMessage, RelationBody, ReplicaIdentity, TupleData, UpdateBody, XLogDataBody,
 };
 use postgres_types::Type;
-use std::collections::hash_map::DefaultHasher;
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
-
-struct MessageBody<'a> {
-    message: &'a RelationBody,
-}
-
-impl<'a> MessageBody<'a> {
-    pub fn new(message: &'a RelationBody) -> Self {
-        Self { message }
-    }
-}
 
 #[derive(Debug)]
 pub struct Table {
     columns: Vec<TableColumn>,
-    hash: u64,
-    rel_id: u32,
     replica_identity: ReplicaIdentity,
 }
 
 #[derive(Debug)]
 pub struct TableColumn {
     pub name: String,
-    pub type_id: i32,
     pub flags: i8,
-    pub r#type: Option<Type>,
-    pub idx: usize,
-}
-
-impl Hash for MessageBody<'_> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        let columns_vec: Vec<(i32, &str, i8)> = self
-            .message
-            .columns()
-            .iter()
-            .map(|column| (column.type_id(), column.name().unwrap(), column.flags()))
-            .collect();
-
-        columns_vec.hash(state);
-    }
+    pub r#type: Type,
+    pub column_index: usize,
 }
 
 #[derive(Debug, Clone)]
 pub enum MappedReplicationMessage {
     Begin,
     Commit(OpIdentifier),
-    Operation(Operation),
+    Operation { table_index: usize, op: Operation },
 }
 
+#[derive(Debug, Default)]
 pub struct XlogMapper {
+    /// Relation id to table info from replication `Relation` message.
     relations_map: HashMap<u32, Table>,
-    tables_columns: HashMap<u32, Vec<String>>,
-}
-
-impl Default for XlogMapper {
-    fn default() -> Self {
-        Self::new(HashMap::new())
-    }
+    /// Relation id to (table index, column names).
+    tables_columns: HashMap<u32, (usize, Vec<String>)>,
 }
 
 impl XlogMapper {
-    pub fn new(tables_columns: HashMap<u32, Vec<String>>) -> Self {
+    pub fn new(tables_columns: HashMap<u32, (usize, Vec<String>)>) -> Self {
         XlogMapper {
             relations_map: HashMap::<u32, Table>::new(),
             tables_columns,
@@ -86,22 +56,7 @@ impl XlogMapper {
     ) -> Result<Option<MappedReplicationMessage>, PostgresConnectorError> {
         match &message.data() {
             Relation(relation) => {
-                let body = MessageBody::new(relation);
-                let mut s = DefaultHasher::new();
-                body.hash(&mut s);
-                let hash = s.finish();
-
-                let table_option = self.relations_map.get(&relation.rel_id());
-                match table_option {
-                    None => {
-                        self.ingest_schema(relation, hash)?;
-                    }
-                    Some(table) => {
-                        if table.hash != hash {
-                            self.ingest_schema(relation, hash)?;
-                        }
-                    }
-                }
+                self.ingest_schema(relation)?;
             }
             Commit(commit) => {
                 return Ok(Some(MappedReplicationMessage::Commit(OpIdentifier::new(
@@ -113,24 +68,31 @@ impl XlogMapper {
                 return Ok(Some(MappedReplicationMessage::Begin));
             }
             Insert(insert) => {
+                let Some(table_columns) = self.tables_columns.get(&insert.rel_id()) else {
+                    return Ok(None);
+                };
+                let table_index = table_columns.0;
+
                 let table = self.relations_map.get(&insert.rel_id()).unwrap();
                 let new_values = insert.tuple().tuple_data();
 
                 let values = Self::convert_values_to_fields(table, new_values, false)?;
 
                 let event = Operation::Insert {
-                    new: Record::new(
-                        Some(dozer_types::types::SchemaIdentifier {
-                            id: table.rel_id,
-                            version: 0,
-                        }),
-                        values,
-                    ),
+                    new: Record::new(values),
                 };
 
-                return Ok(Some(MappedReplicationMessage::Operation(event)));
+                return Ok(Some(MappedReplicationMessage::Operation {
+                    table_index,
+                    op: event,
+                }));
             }
             Update(update) => {
+                let Some(table_columns) = self.tables_columns.get(&update.rel_id()) else {
+                    return Ok(None);
+                };
+                let table_index = table_columns.0;
+
                 let table = self.relations_map.get(&update.rel_id()).unwrap();
                 let new_values = update.new_tuple().tuple_data();
 
@@ -138,25 +100,21 @@ impl XlogMapper {
                 let old_values = Self::convert_old_value_to_fields(table, update)?;
 
                 let event = Operation::Update {
-                    old: Record::new(
-                        Some(dozer_types::types::SchemaIdentifier {
-                            id: table.rel_id,
-                            version: 0,
-                        }),
-                        old_values,
-                    ),
-                    new: Record::new(
-                        Some(dozer_types::types::SchemaIdentifier {
-                            id: table.rel_id,
-                            version: 0,
-                        }),
-                        values,
-                    ),
+                    old: Record::new(old_values),
+                    new: Record::new(values),
                 };
 
-                return Ok(Some(MappedReplicationMessage::Operation(event)));
+                return Ok(Some(MappedReplicationMessage::Operation {
+                    table_index,
+                    op: event,
+                }));
             }
             Delete(delete) => {
+                let Some(table_columns) = self.tables_columns.get(&delete.rel_id()) else {
+                    return Ok(None);
+                };
+                let table_index = table_columns.0;
+
                 // TODO: Use only columns with .flags() = 0
                 let table = self.relations_map.get(&delete.rel_id()).unwrap();
                 let key_values = delete.key_tuple().unwrap().tuple_data();
@@ -164,16 +122,13 @@ impl XlogMapper {
                 let values = Self::convert_values_to_fields(table, key_values, true)?;
 
                 let event = Operation::Delete {
-                    old: Record::new(
-                        Some(dozer_types::types::SchemaIdentifier {
-                            id: table.rel_id,
-                            version: 0,
-                        }),
-                        values,
-                    ),
+                    old: Record::new(values),
                 };
 
-                return Ok(Some(MappedReplicationMessage::Operation(event)));
+                return Ok(Some(MappedReplicationMessage::Operation {
+                    table_index,
+                    op: event,
+                }));
             }
             _ => {}
         }
@@ -181,35 +136,38 @@ impl XlogMapper {
         Ok(None)
     }
 
-    fn ingest_schema(
-        &mut self,
-        relation: &RelationBody,
-        hash: u64,
-    ) -> Result<(), PostgresConnectorError> {
+    fn ingest_schema(&mut self, relation: &RelationBody) -> Result<(), PostgresConnectorError> {
         let rel_id = relation.rel_id();
-        let existing_columns = self
-            .tables_columns
-            .get(&rel_id)
-            .map_or(vec![], |t| t.clone());
+        let Some((table_index, wanted_columns)) = self.tables_columns.get(&rel_id) else {
+            return Ok(());
+        };
 
-        let columns: Vec<TableColumn> = relation
-            .columns()
-            .iter()
-            .enumerate()
-            .filter(|(_, column)| {
-                existing_columns.is_empty()
-                    || existing_columns
-                        .iter()
-                        .any(|c| c.as_str() == column.name().unwrap())
-            })
-            .map(|(idx, column)| TableColumn {
-                name: String::from(column.name().unwrap()),
-                type_id: column.type_id(),
+        let mut columns = vec![];
+        for (column_index, column) in relation.columns().iter().enumerate() {
+            let column_name =
+                column
+                    .name()
+                    .map_err(|_| PostgresConnectorError::NonUtf8ColumnName {
+                        table_index: *table_index,
+                        column_index,
+                    })?;
+
+            if !wanted_columns.is_empty()
+                && !wanted_columns
+                    .iter()
+                    .any(|column| column.as_str() == column_name)
+            {
+                continue;
+            }
+
+            columns.push(TableColumn {
+                name: column_name.to_string(),
                 flags: column.flags(),
-                r#type: Type::from_oid(column.type_id() as u32),
-                idx,
+                r#type: Type::from_oid(column.type_id() as u32)
+                    .ok_or(PostgresSchemaError::InvalidColumnType)?,
+                column_index,
             })
-            .collect();
+        }
 
         let replica_identity = match relation.replica_identity() {
             ReplicaIdentity::Default => ReplicaIdentity::Default,
@@ -220,30 +178,33 @@ impl XlogMapper {
 
         let table = Table {
             columns,
-            hash,
-            rel_id,
             replica_identity,
         };
 
-        let mut fields = vec![];
         for c in &table.columns {
-            let typ = c.r#type.clone();
-            let typ = typ
-                .map_or(
-                    Err(PostgresSchemaError::InvalidColumnType),
-                    postgres_type_to_dozer_type,
-                )
-                .map_err(PostgresConnectorError::PostgresSchemaError)?;
-
-            fields.push(FieldDefinition {
-                name: c.name.clone(),
-                typ,
-                nullable: true,
-                source: SourceDefinition::Dynamic,
-            });
+            postgres_type_to_dozer_type(c.r#type.clone())?;
         }
 
-        self.relations_map.insert(rel_id, table);
+        match self.relations_map.entry(rel_id) {
+            Entry::Occupied(mut entry) => {
+                // Check if type has changed.
+                for (existing_column, column) in entry.get().columns.iter().zip(&table.columns) {
+                    if existing_column.r#type != column.r#type {
+                        return Err(PostgresConnectorError::ColumnTypeChanged {
+                            table_index: *table_index,
+                            column_name: existing_column.name.clone(),
+                            old_type: existing_column.r#type.clone(),
+                            new_type: column.r#type.clone(),
+                        });
+                    }
+                }
+
+                entry.insert(table);
+            }
+            Entry::Vacant(entry) => {
+                entry.insert(table);
+            }
+        }
 
         Ok(())
     }
@@ -257,7 +218,7 @@ impl XlogMapper {
 
         for column in &table.columns {
             if column.flags == 1 || !only_key {
-                let value = new_values.get(column.idx).unwrap();
+                let value = new_values.get(column.column_index).unwrap();
                 match value {
                     TupleData::Null => values.push(
                         helper::postgres_type_to_field(None, column)

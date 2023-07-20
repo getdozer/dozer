@@ -47,7 +47,7 @@ pub(crate) fn run_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Field {
     let mut fw = TestChannelForwarder { operations: vec![] };
 
     let op = Operation::Insert {
-        new: Record::new(None, input),
+        new: Record::new(input),
     };
 
     processor.process(DEFAULT_PORT_HANDLE, op, &mut fw).unwrap();

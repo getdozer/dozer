@@ -9,7 +9,7 @@ use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::serde_json;
 use dozer_types::serde_json::Value;
-use dozer_types::types::{Operation, Record, SchemaIdentifier};
+use dozer_types::types::{Operation, Record};
 use rdkafka::consumer::BaseConsumer;
 
 use crate::connectors::TableInfo;
@@ -130,14 +130,13 @@ impl StreamConsumer for DebeziumStreamConsumer {
                             .handle_message(IngestionMessage::new_op(
                                 0,
                                 0,
+                                0,
                                 Operation::Update {
                                     old: Record {
-                                        schema_id: Some(SchemaIdentifier { id: 1, version: 1 }),
                                         values: old,
                                         lifetime: None,
                                     },
                                     new: Record {
-                                        schema_id: Some(SchemaIdentifier { id: 1, version: 1 }),
                                         values: new,
                                         lifetime: None,
                                     },
@@ -155,9 +154,9 @@ impl StreamConsumer for DebeziumStreamConsumer {
                             .handle_message(IngestionMessage::new_op(
                                 0,
                                 0,
+                                0,
                                 Operation::Delete {
                                     old: Record {
-                                        schema_id: Some(SchemaIdentifier { id: 1, version: 1 }),
                                         values: old,
                                         lifetime: None,
                                     },
@@ -175,9 +174,9 @@ impl StreamConsumer for DebeziumStreamConsumer {
                             .handle_message(IngestionMessage::new_op(
                                 0,
                                 0,
+                                0,
                                 Operation::Insert {
                                     new: Record {
-                                        schema_id: Some(SchemaIdentifier { id: 1, version: 1 }),
                                         values: new,
                                         lifetime: None,
                                     },

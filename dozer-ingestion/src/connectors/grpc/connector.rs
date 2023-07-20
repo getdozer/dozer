@@ -17,35 +17,22 @@ use tonic::async_trait;
 use tonic::transport::Server;
 use tower_http::trace::{self, TraceLayer};
 
+#[derive(Debug)]
 pub struct GrpcConnector<T>
 where
     T: IngestAdapter,
 {
-    pub id: u64,
     pub name: String,
     pub config: GrpcConfig,
     _phantom: std::marker::PhantomData<T>,
-}
-impl<T> Debug for GrpcConnector<T>
-where
-    T: IngestAdapter,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("GrpcConnector")
-            .field("id", &self.id)
-            .field("name", &self.name)
-            .field("config", &self.config)
-            .finish()
-    }
 }
 
 impl<T> GrpcConnector<T>
 where
     T: IngestAdapter,
 {
-    pub fn new(id: u64, name: String, config: GrpcConfig) -> Result<Self, ConnectorError> {
+    pub fn new(name: String, config: GrpcConfig) -> Result<Self, ConnectorError> {
         Ok(Self {
-            id,
             name,
             config,
             _phantom: std::marker::PhantomData,
@@ -78,7 +65,11 @@ where
         Ok(schemas_str)
     }
 
-    pub async fn serve(&self, ingestor: &Ingestor) -> Result<(), ConnectorError> {
+    pub async fn serve(
+        &self,
+        ingestor: &Ingestor,
+        tables: Vec<TableInfo>,
+    ) -> Result<(), ConnectorError> {
         let host = &self.config.host;
         let port = self.config.port;
 
@@ -93,7 +84,7 @@ where
         // Refactor to use Arc
         let ingestor = unsafe { std::mem::transmute::<&'_ Ingestor, &'static Ingestor>(ingestor) };
 
-        let ingest_service = IngestorServiceImpl::new(adapter, ingestor);
+        let ingest_service = IngestorServiceImpl::new(adapter, ingestor, tables);
         let ingest_service = tonic_web::config()
             .allow_all_origins()
             .enable(IngestServiceServer::new(ingest_service));
@@ -231,8 +222,8 @@ where
     async fn start(
         &self,
         ingestor: &Ingestor,
-        _table_names: Vec<TableInfo>,
+        tables: Vec<TableInfo>,
     ) -> Result<(), ConnectorError> {
-        self.serve(ingestor).await
+        self.serve(ingestor, tables).await
     }
 }

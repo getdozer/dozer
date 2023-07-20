@@ -5,7 +5,7 @@ use crate::connectors::kafka::debezium::stream_consumer::DebeziumSchemaStruct;
 
 use crate::errors::KafkaSchemaError;
 use crate::errors::KafkaSchemaError::{SchemaDefinitionNotFound, TypeNotSupported};
-use dozer_types::types::{FieldDefinition, FieldType, Schema, SchemaIdentifier, SourceDefinition};
+use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
 
 // Reference: https://debezium.io/documentation/reference/0.9/connectors/postgresql.html
 pub fn map_type(schema: &DebeziumSchemaStruct) -> Result<FieldType, KafkaSchemaError> {
@@ -85,7 +85,6 @@ pub fn map_schema(
 
                 Ok((
                     Schema {
-                        identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
                         fields: defined_fields?,
                         primary_index: pk_keys_indexes,
                     },
@@ -105,9 +104,7 @@ mod tests {
     use crate::errors::KafkaSchemaError::SchemaDefinitionNotFound;
     use crate::errors::KafkaSchemaError::TypeNotSupported;
     use dozer_types::serde_json::Value;
-    use dozer_types::types::{
-        FieldDefinition, FieldType, Schema, SchemaIdentifier, SourceDefinition,
-    };
+    use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
 
     #[test]
     fn test_it_fails_when_schema_empty() {
@@ -194,7 +191,6 @@ mod tests {
 
         let (schema, _) = map_schema(&schema, &key_schema).unwrap();
         let expected_schema = Schema {
-            identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
             fields: vec![
                 FieldDefinition {
                     name: "id".to_string(),
@@ -246,7 +242,6 @@ mod tests {
 
         let (schema, _) = map_schema(&schema, &key_schema).unwrap();
         let expected_schema = Schema {
-            identifier: Some(SchemaIdentifier { id: 1, version: 1 }),
             fields: vec![],
             primary_index: vec![],
         };

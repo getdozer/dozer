@@ -15,7 +15,7 @@ use crate::pipeline::{
 
 #[test]
 fn test_lifetime() {
-    let schema = Schema::empty()
+    let schema = Schema::default()
         .field(
             FieldDefinition::new(
                 "id".to_string(),
@@ -40,13 +40,10 @@ fn test_lifetime() {
         )
         .to_owned();
 
-    let record = Record::new(
-        None,
-        vec![
-            Field::Int(0),
-            Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
-        ],
-    );
+    let record = Record::new(vec![
+        Field::Int(0),
+        Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
+    ]);
 
     let table_operator = LifetimeTableOperator::new(
         None,
@@ -71,13 +68,10 @@ fn test_lifetime() {
     assert_eq!(result.len(), 1);
     let lifetime_record = result.get(0).unwrap();
 
-    let mut expected_record = Record::new(
-        None,
-        vec![
-            Field::Int(0),
-            Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
-        ],
-    );
+    let mut expected_record = Record::new(vec![
+        Field::Int(0),
+        Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
+    ]);
 
     expected_record.set_lifetime(Some(Lifetime {
         reference: Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),

@@ -16,7 +16,7 @@ use num_traits::FromPrimitive;
 fn test_uint() {
     let f = run_fct(
         "SELECT CAST(field AS UINT) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -33,7 +33,7 @@ fn test_uint() {
 
     let f = run_fct(
         "SELECT CAST(field AS UINT) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -50,7 +50,7 @@ fn test_uint() {
 
     let f = run_fct(
         "SELECT CAST(field AS UINT) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -70,7 +70,7 @@ fn test_uint() {
 fn test_u128() {
     let f = run_fct(
         "SELECT CAST(field AS U128) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -87,7 +87,7 @@ fn test_u128() {
 
     let f = run_fct(
         "SELECT CAST(field AS U128) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -104,7 +104,7 @@ fn test_u128() {
 
     let f = run_fct(
         "SELECT CAST(field AS U128) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -124,7 +124,7 @@ fn test_u128() {
 fn test_int() {
     let f = run_fct(
         "SELECT CAST(field AS INT) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -141,7 +141,7 @@ fn test_int() {
 
     let f = run_fct(
         "SELECT CAST(field AS INT) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -158,7 +158,7 @@ fn test_int() {
 
     let f = run_fct(
         "SELECT CAST(field AS INT) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -178,7 +178,7 @@ fn test_int() {
 fn test_i128() {
     let f = run_fct(
         "SELECT CAST(field AS I128) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -195,7 +195,7 @@ fn test_i128() {
 
     let f = run_fct(
         "SELECT CAST(field AS I128) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -212,7 +212,7 @@ fn test_i128() {
 
     let f = run_fct(
         "SELECT CAST(field AS I128) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -232,7 +232,7 @@ fn test_i128() {
 fn test_float() {
     let f = run_fct(
         "SELECT CAST(field AS FLOAT) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -252,7 +252,7 @@ fn test_float() {
 
     let f = run_fct(
         "SELECT CAST(field AS FLOAT) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -269,7 +269,7 @@ fn test_float() {
 
     let f = run_fct(
         "SELECT CAST(field AS FLOAT) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -286,7 +286,7 @@ fn test_float() {
 
     let f = run_fct(
         "SELECT CAST(field AS FLOAT) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -303,7 +303,7 @@ fn test_float() {
 
     let f = run_fct(
         "SELECT CAST(field AS FLOAT) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -323,7 +323,7 @@ fn test_float() {
 fn test_boolean() {
     let f = run_fct(
         "SELECT CAST(field AS BOOLEAN) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -340,7 +340,7 @@ fn test_boolean() {
 
     let f = run_fct(
         "SELECT CAST(field AS BOOLEAN) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -357,7 +357,7 @@ fn test_boolean() {
 
     let f = run_fct(
         "SELECT CAST(field AS BOOLEAN) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -374,7 +374,7 @@ fn test_boolean() {
 
     let f = run_fct(
         "SELECT CAST(field AS BOOLEAN) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -391,7 +391,7 @@ fn test_boolean() {
 
     let f = run_fct(
         "SELECT CAST(field AS BOOLEAN) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -408,7 +408,7 @@ fn test_boolean() {
 
     let f = run_fct(
         "SELECT CAST(field AS BOOLEAN) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -428,7 +428,7 @@ fn test_boolean() {
 fn test_string() {
     // let f = run_scalar_fct(
     //     "SELECT CAST(field AS STRING) FROM users",
-    //     Schema::empty()
+    //     Schema::default()
     //         .field(
     //             FieldDefinition::new(String::from("field"), FieldType::Binary, false),
     //             false,
@@ -440,7 +440,7 @@ fn test_string() {
 
     let f = run_fct(
         "SELECT CAST(field AS STRING) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -457,7 +457,7 @@ fn test_string() {
 
     let f = run_fct(
         "SELECT CAST(field AS STRING) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -474,7 +474,7 @@ fn test_string() {
 
     let f = run_fct(
         "SELECT CAST(field AS STRING) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -491,7 +491,7 @@ fn test_string() {
 
     let f = run_fct(
         "SELECT CAST(field AS STRING) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -508,7 +508,7 @@ fn test_string() {
 
     let f = run_fct(
         "SELECT CAST(field AS STRING) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -525,7 +525,7 @@ fn test_string() {
 
     let f = run_fct(
         "SELECT CAST(field AS STRING) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -542,7 +542,7 @@ fn test_string() {
 
     let f = run_fct(
         "SELECT CAST(field AS STRING) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -559,7 +559,7 @@ fn test_string() {
 
     let f = run_fct(
         "SELECT CAST(field AS STRING) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -578,7 +578,7 @@ fn test_string() {
 
     let f = run_fct(
         "SELECT CAST(field AS STRING) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -598,7 +598,7 @@ fn test_string() {
 fn test_text() {
     // let f = run_scalar_fct(
     //     "SELECT CAST(field AS STRING) FROM users",
-    //     Schema::empty()
+    //     Schema::default()
     //         .field(
     //             FieldDefinition::new(String::from("field"), FieldType::Binary, false),
     //             false,
@@ -610,7 +610,7 @@ fn test_text() {
 
     let f = run_fct(
         "SELECT CAST(field AS TEXT) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -627,7 +627,7 @@ fn test_text() {
 
     let f = run_fct(
         "SELECT CAST(field AS TEXT) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -644,7 +644,7 @@ fn test_text() {
 
     let f = run_fct(
         "SELECT CAST(field AS TEXT) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -661,7 +661,7 @@ fn test_text() {
 
     let f = run_fct(
         "SELECT CAST(field AS TEXT) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -678,7 +678,7 @@ fn test_text() {
 
     let f = run_fct(
         "SELECT CAST(field AS TEXT) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -695,7 +695,7 @@ fn test_text() {
 
     let f = run_fct(
         "SELECT CAST(field AS TEXT) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -712,7 +712,7 @@ fn test_text() {
 
     let f = run_fct(
         "SELECT CAST(field AS TEXT) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -729,7 +729,7 @@ fn test_text() {
 
     let f = run_fct(
         "SELECT CAST(field AS TEXT) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -748,7 +748,7 @@ fn test_text() {
 
     let f = run_fct(
         "SELECT CAST(field AS TEXT) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("field"),
@@ -779,85 +779,85 @@ fn test_decimal() {
     let uint1 = Box::new(Literal(Field::UInt(1_u64)));
     let uint2 = Box::new(Literal(Field::UInt(2_u64)));
 
-    let row = Record::new(None, vec![]);
+    let row = Record::new(vec![]);
 
     // left: Int, right: Decimal
     assert_eq!(
-        evaluate_add(&Schema::empty(), &int1, dec1.as_ref(), &row)
+        evaluate_add(&Schema::default(), &int1, dec1.as_ref(), &row)
             .unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::Decimal(Decimal::from_i64(2_i64).unwrap())
     );
     assert_eq!(
-        evaluate_sub(&Schema::empty(), &int1, dec1.as_ref(), &row)
+        evaluate_sub(&Schema::default(), &int1, dec1.as_ref(), &row)
             .unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::Decimal(Decimal::from_i64(0_i64).unwrap())
     );
     assert_eq!(
-        evaluate_mul(&Schema::empty(), &int2, dec1.as_ref(), &row)
+        evaluate_mul(&Schema::default(), &int2, dec1.as_ref(), &row)
             .unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::Decimal(Decimal::from_i64(2_i64).unwrap())
     );
     assert_eq!(
-        evaluate_div(&Schema::empty(), &int1, dec2.as_ref(), &row)
+        evaluate_div(&Schema::default(), &int1, dec2.as_ref(), &row)
             .unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::Decimal(Decimal::from_f64(0.5).unwrap())
     );
     assert_eq!(
-        evaluate_mod(&Schema::empty(), &int1, dec1.as_ref(), &row)
+        evaluate_mod(&Schema::default(), &int1, dec1.as_ref(), &row)
             .unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::Decimal(Decimal::from_i64(0_i64).unwrap())
     );
 
     // left: UInt, right: Decimal
     assert_eq!(
-        evaluate_add(&Schema::empty(), &uint1, dec1.as_ref(), &row)
+        evaluate_add(&Schema::default(), &uint1, dec1.as_ref(), &row)
             .unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::Decimal(Decimal::from_i64(2_i64).unwrap())
     );
     assert_eq!(
-        evaluate_sub(&Schema::empty(), &uint1, dec1.as_ref(), &row)
+        evaluate_sub(&Schema::default(), &uint1, dec1.as_ref(), &row)
             .unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::Decimal(Decimal::from_i64(0_i64).unwrap())
     );
     assert_eq!(
-        evaluate_mul(&Schema::empty(), &uint2, dec1.as_ref(), &row)
+        evaluate_mul(&Schema::default(), &uint2, dec1.as_ref(), &row)
             .unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::Decimal(Decimal::from_i64(2_i64).unwrap())
     );
     assert_eq!(
-        evaluate_div(&Schema::empty(), &uint1, dec2.as_ref(), &row)
+        evaluate_div(&Schema::default(), &uint1, dec2.as_ref(), &row)
             .unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::Decimal(Decimal::from_f64(0.5).unwrap())
     );
     assert_eq!(
-        evaluate_mod(&Schema::empty(), &uint1, dec1.as_ref(), &row)
+        evaluate_mod(&Schema::default(), &uint1, dec1.as_ref(), &row)
             .unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::Decimal(Decimal::from_i64(0_i64).unwrap())
     );
 
     // left: Float, right: Decimal
     assert_eq!(
-        evaluate_add(&Schema::empty(), &float1, dec1.as_ref(), &row)
+        evaluate_add(&Schema::default(), &float1, dec1.as_ref(), &row)
             .unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::Decimal(Decimal::from_i64(2_i64).unwrap())
     );
     assert_eq!(
-        evaluate_sub(&Schema::empty(), &float1, dec1.as_ref(), &row)
+        evaluate_sub(&Schema::default(), &float1, dec1.as_ref(), &row)
             .unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::Decimal(Decimal::from_i64(0_i64).unwrap())
     );
     assert_eq!(
-        evaluate_mul(&Schema::empty(), &float2, dec1.as_ref(), &row)
+        evaluate_mul(&Schema::default(), &float2, dec1.as_ref(), &row)
             .unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::Decimal(Decimal::from_i64(2_i64).unwrap())
     );
     assert_eq!(
-        evaluate_div(&Schema::empty(), &float1, dec2.as_ref(), &row)
+        evaluate_div(&Schema::default(), &float1, dec2.as_ref(), &row)
             .unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::Decimal(Decimal::from_f64(0.5).unwrap())
     );
     assert_eq!(
-        evaluate_mod(&Schema::empty(), &float1, dec1.as_ref(), &row)
+        evaluate_mod(&Schema::default(), &float1, dec1.as_ref(), &row)
             .unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::Decimal(Decimal::from_i64(0_i64).unwrap())
     );

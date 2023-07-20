@@ -43,7 +43,7 @@ pub(crate) fn init_processor(
 }
 
 pub(crate) fn init_input_schema(field_type: FieldType, aggregator_name: &str) -> Schema {
-    Schema::empty()
+    Schema::default()
         .field(
             FieldDefinition::new(
                 String::from("ID"),
@@ -84,7 +84,7 @@ pub(crate) fn init_input_schema(field_type: FieldType, aggregator_name: &str) ->
 }
 
 pub(crate) fn init_val_input_schema(field_type: FieldType, aggregator_name: &str) -> Schema {
-    Schema::empty()
+    Schema::default()
         .field(
             FieldDefinition::new(
                 String::from("ID"),
@@ -126,29 +126,23 @@ pub(crate) fn init_val_input_schema(field_type: FieldType, aggregator_name: &str
 
 pub(crate) fn insert_field(country: &str, insert_field: &Field) -> Operation {
     Operation::Insert {
-        new: Record::new(
-            None,
-            vec![
-                Field::Int(0),
-                Field::String(country.to_string()),
-                insert_field.clone(),
-                insert_field.clone(),
-            ],
-        ),
+        new: Record::new(vec![
+            Field::Int(0),
+            Field::String(country.to_string()),
+            insert_field.clone(),
+            insert_field.clone(),
+        ]),
     }
 }
 
 pub(crate) fn delete_field(country: &str, deleted_field: &Field) -> Operation {
     Operation::Delete {
-        old: Record::new(
-            None,
-            vec![
-                Field::Int(0),
-                Field::String(country.to_string()),
-                deleted_field.clone(),
-                deleted_field.clone(),
-            ],
-        ),
+        old: Record::new(vec![
+            Field::Int(0),
+            Field::String(country.to_string()),
+            deleted_field.clone(),
+            deleted_field.clone(),
+        ]),
     }
 }
 
@@ -159,61 +153,55 @@ pub(crate) fn update_field(
     new: &Field,
 ) -> Operation {
     Operation::Update {
-        old: Record::new(
-            None,
-            vec![
-                Field::Int(0),
-                Field::String(old_country.to_string()),
-                old.clone(),
-                old.clone(),
-            ],
-        ),
-        new: Record::new(
-            None,
-            vec![
-                Field::Int(0),
-                Field::String(new_country.to_string()),
-                new.clone(),
-                new.clone(),
-            ],
-        ),
+        old: Record::new(vec![
+            Field::Int(0),
+            Field::String(old_country.to_string()),
+            old.clone(),
+            old.clone(),
+        ]),
+        new: Record::new(vec![
+            Field::Int(0),
+            Field::String(new_country.to_string()),
+            new.clone(),
+            new.clone(),
+        ]),
     }
 }
 
 pub(crate) fn insert_val_exp(inserted_field: &Field) -> Operation {
     Operation::Insert {
-        new: Record::new(None, vec![inserted_field.clone()]),
+        new: Record::new(vec![inserted_field.clone()]),
     }
 }
 
 pub(crate) fn delete_val_exp(deleted_field: &Field) -> Operation {
     Operation::Delete {
-        old: Record::new(None, vec![deleted_field.clone()]),
+        old: Record::new(vec![deleted_field.clone()]),
     }
 }
 
 pub(crate) fn update_val_exp(old: &Field, new: &Field) -> Operation {
     Operation::Update {
-        old: Record::new(None, vec![old.clone()]),
-        new: Record::new(None, vec![new.clone()]),
+        old: Record::new(vec![old.clone()]),
+        new: Record::new(vec![new.clone()]),
     }
 }
 
 pub(crate) fn insert_exp(country: &str, inserted_field: &Field) -> Operation {
     Operation::Insert {
-        new: Record::new(
-            None,
-            vec![Field::String(country.to_string()), inserted_field.clone()],
-        ),
+        new: Record::new(vec![
+            Field::String(country.to_string()),
+            inserted_field.clone(),
+        ]),
     }
 }
 
 pub(crate) fn delete_exp(country: &str, deleted_field: &Field) -> Operation {
     Operation::Delete {
-        old: Record::new(
-            None,
-            vec![Field::String(country.to_string()), deleted_field.clone()],
-        ),
+        old: Record::new(vec![
+            Field::String(country.to_string()),
+            deleted_field.clone(),
+        ]),
     }
 }
 
@@ -224,14 +212,8 @@ pub(crate) fn update_exp(
     new: &Field,
 ) -> Operation {
     Operation::Update {
-        old: Record::new(
-            None,
-            vec![Field::String(old_country.to_string()), old.clone()],
-        ),
-        new: Record::new(
-            None,
-            vec![Field::String(new_country.to_string()), new.clone()],
-        ),
+        old: Record::new(vec![Field::String(old_country.to_string()), old.clone()]),
+        new: Record::new(vec![Field::String(new_country.to_string()), new.clone()]),
     }
 }
 

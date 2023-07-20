@@ -37,9 +37,10 @@ impl<'a> PostgresSnapshotter<'a> {
     pub async fn sync_table(
         schema: Schema,
         schema_name: String,
-        name: String,
+        table_name: String,
+        table_index: usize,
         conn_config: tokio_postgres::Config,
-        sender: Sender<Result<Option<Operation>, ConnectorError>>,
+        sender: Sender<Result<Option<(usize, Operation)>, ConnectorError>>,
     ) -> Result<(), ConnectorError> {
         let client_plain = connection_helper::connect(conn_config)
             .await
@@ -52,7 +53,7 @@ impl<'a> PostgresSnapshotter<'a> {
             .collect();
 
         let column_str = column_str.join(",");
-        let query = format!("select {column_str} from {schema_name}.{name}");
+        let query = format!("select {column_str} from {schema_name}.{table_name}");
         let stmt = client_plain
             .prepare(&query)
             .await
@@ -68,17 +69,10 @@ impl<'a> PostgresSnapshotter<'a> {
         while let Some(msg) = row_stream.next().await {
             match msg {
                 Ok(msg) => {
-                    let evt = helper::map_row_to_operation_event(
-                        name.to_string(),
-                        schema
-                            .identifier
-                            .map_or(Err(ConnectorError::SchemaIdentifierNotFound), Ok)?,
-                        &msg,
-                        columns,
-                    )
-                    .map_err(|e| PostgresConnectorError(PostgresSchemaError(e)))?;
+                    let evt = helper::map_row_to_operation_event(&msg, columns)
+                        .map_err(|e| PostgresConnectorError(PostgresSchemaError(e)))?;
 
-                    sender.send(Ok(Some(evt))).await.unwrap();
+                    sender.send(Ok(Some((table_index, evt)))).await.unwrap();
                 }
                 Err(e) => return Err(PostgresConnectorError(SyncWithSnapshotError(e.to_string()))),
             }
@@ -96,16 +90,23 @@ impl<'a> PostgresSnapshotter<'a> {
 
         let (tx, mut rx) = channel(16);
 
-        for (schema, table) in schemas.into_iter().zip(tables) {
+        for (table_index, (schema, table)) in schemas.into_iter().zip(tables).enumerate() {
             let schema = schema?;
             let schema = schema.schema;
             let schema_name = table.schema.clone().unwrap_or("public".to_string());
-            let name = table.name.clone();
+            let table_name = table.name.clone();
             let conn_config = self.conn_config.clone();
             let sender = tx.clone();
             tokio::spawn(async move {
-                if let Err(e) =
-                    Self::sync_table(schema, schema_name, name, conn_config, sender.clone()).await
+                if let Err(e) = Self::sync_table(
+                    schema,
+                    schema_name,
+                    table_name,
+                    table_index,
+                    conn_config,
+                    sender.clone(),
+                )
+                .await
                 {
                     sender.send(Err(e)).await.unwrap();
                 }
@@ -128,9 +129,9 @@ impl<'a> PostgresSnapshotter<'a> {
                         break;
                     }
                 }
-                Some(evt) => {
+                Some((table_index, evt)) => {
                     self.ingestor
-                        .handle_message(IngestionMessage::new_op(0, idx, evt))
+                        .handle_message(IngestionMessage::new_op(0, idx, table_index, evt))
                         .map_err(ConnectorError::IngestorError)?;
                     idx += 1;
                 }

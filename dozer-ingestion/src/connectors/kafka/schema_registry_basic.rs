@@ -5,7 +5,7 @@ use crate::connectors::{CdcType, SourceSchema};
 
 use crate::errors::{ConnectorError, KafkaError};
 
-use dozer_types::types::{FieldDefinition, Schema, SchemaIdentifier, SourceDefinition};
+use dozer_types::types::{FieldDefinition, Schema, SourceDefinition};
 
 use crate::connectors::kafka::debezium::schema_registry::SchemaRegistry;
 use schema_registry_converter::async_impl::schema_registry::SrSettings;
@@ -15,7 +15,6 @@ pub struct SchemaRegistryBasic {}
 
 impl SchemaRegistryBasic {
     pub async fn get_single_schema(
-        id: u32,
         table_name: &str,
         schema_registry_url: &str,
     ) -> Result<(SourceSchema, HashMap<String, DebeziumSchemaStruct>), ConnectorError> {
@@ -56,7 +55,6 @@ impl SchemaRegistryBasic {
             .collect();
 
         let schema = Schema {
-            identifier: Some(SchemaIdentifier { id, version: 1 }),
             fields: defined_fields?,
             primary_index: pk_keys_indexes,
         };
@@ -73,9 +71,8 @@ impl SchemaRegistryBasic {
     ) -> Result<Vec<SourceSchema>, ConnectorError> {
         let mut schemas = vec![];
         if let Some(tables) = table_names {
-            for (index, table_name) in tables.iter().enumerate() {
-                let (schema, _) =
-                    Self::get_single_schema(index as u32, table_name, &schema_registry_url).await?;
+            for table_name in tables.iter() {
+                let (schema, _) = Self::get_single_schema(table_name, &schema_registry_url).await?;
                 schemas.push(schema);
             }
         }

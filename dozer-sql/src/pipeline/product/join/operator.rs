@@ -592,7 +592,7 @@ fn join_records(left_record: &Record, right_record: &Record) -> Record {
         right_record.values.as_slice(),
     ]
     .concat();
-    let mut output_record = Record::new(None, concat_values);
+    let mut output_record = Record::new(concat_values);
 
     if let Some(left_record_lifetime) = left_record.lifetime.clone() {
         if let Some(right_record_lifetime) = right_record.lifetime.clone() {
