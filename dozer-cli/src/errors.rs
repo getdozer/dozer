@@ -163,6 +163,9 @@ pub enum ConfigCombineError {
 
     #[error("Cannot serialize config to string: {0}")]
     CannotSerializeToString(#[source] serde_yaml::Error),
+
+    #[error("SQL is not a string type")]
+    SqlIsNotStringType,
 }
 
 #[derive(Debug, Error)]

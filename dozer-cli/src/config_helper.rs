@@ -1,17 +1,17 @@
 use crate::errors::ConfigCombineError;
 use crate::errors::ConfigCombineError::{
-    CannotReadConfig, CannotReadFile, CannotSerializeToString, WrongPatternOfConfigFilesGlob,
+    CannotReadConfig, CannotReadFile, CannotSerializeToString, SqlIsNotStringType,
+    WrongPatternOfConfigFilesGlob,
 };
 use dozer_types::log::warn;
 use dozer_types::serde_yaml;
 use dozer_types::serde_yaml::mapping::Entry;
-use dozer_types::serde_yaml::Mapping;
+use dozer_types::serde_yaml::{Mapping, Value};
 use glob::glob;
 use std::fs;
 
 pub fn combine_config(config_paths: Vec<String>) -> Result<Option<String>, ConfigCombineError> {
     let mut combined_yaml = serde_yaml::Value::Mapping(Mapping::new());
-    let mut sqls = vec![];
 
     let mut config_found = false;
     for pattern in config_paths {
@@ -28,33 +28,13 @@ pub fn combine_config(config_paths: Vec<String>) -> Result<Option<String>, Confi
                         fs::read_to_string(path.clone()).map_err(|e| CannotReadConfig(path, e))?;
 
                     if name.contains(".yml") || name.contains(".yaml") {
-                        let yaml: serde_yaml::Value = serde_yaml::from_str(&content)
-                            .map_err(|e| ConfigCombineError::ParseYaml(name.to_string(), e))?;
-                        merge_yaml(yaml, &mut combined_yaml)?;
                         config_found = true;
-                    } else if name.contains(".sql") {
-                        let sql = if content.ends_with(';') {
-                            content.clone()
-                        } else {
-                            content.clone() + ";"
-                        };
-
-                        sqls.push(sql);
-                    } else {
-                        warn!("Config file \"{name}\" extension not supported");
                     }
+
+                    add_file_content_to_config(&mut combined_yaml, name, content)?;
                 }
             }
         }
-    }
-
-    if !sqls.is_empty() {
-        let joined_sql = sqls.join(" ");
-        let yaml = serde_yaml::Value::Mapping(Mapping::from_iter([(
-            serde_yaml::Value::String("sql".into()),
-            serde_yaml::Value::String(joined_sql),
-        )]));
-        merge_yaml(yaml, &mut combined_yaml)?;
     }
 
     if config_found {
@@ -67,7 +47,46 @@ pub fn combine_config(config_paths: Vec<String>) -> Result<Option<String>, Confi
     }
 }
 
-fn merge_yaml(
+pub fn add_file_content_to_config(
+    combined_yaml: &mut serde_yaml::Value,
+    name: &str,
+    content: String,
+) -> Result<(), ConfigCombineError> {
+    if name.contains(".yml") || name.contains(".yaml") {
+        let yaml: serde_yaml::Value = serde_yaml::from_str(&content)
+            .map_err(|e| ConfigCombineError::ParseYaml(name.to_string(), e))?;
+        merge_yaml(yaml, combined_yaml)?;
+    } else if name.contains(".sql") {
+        let mapping = combined_yaml.as_mapping_mut().expect("Should be mapping");
+        let sql = mapping.get_mut(serde_yaml::Value::String("sql".into()));
+
+        match sql {
+            None => {
+                mapping.insert(
+                    serde_yaml::Value::String("sql".into()),
+                    serde_yaml::Value::String(content),
+                );
+            }
+            Some(s) => {
+                let query = s.as_str();
+                *s = match query {
+                    None => {
+                        return Err(SqlIsNotStringType);
+                    }
+                    Some(current_query) => {
+                        Value::String(format!("{};{}", current_query, content.as_str()))
+                    }
+                }
+            }
+        }
+    } else {
+        warn!("Config file \"{name}\" extension not supported");
+    }
+
+    Ok(())
+}
+
+pub fn merge_yaml(
     from: serde_yaml::Value,
     to: &mut serde_yaml::Value,
 ) -> Result<(), ConfigCombineError> {
