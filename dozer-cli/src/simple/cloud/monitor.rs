@@ -1,4 +1,8 @@
+use crate::cli::cloud::Cloud;
+use crate::cloud_app_context::CloudAppContext;
 use crate::errors::CloudError;
+use crate::simple::cloud_orchestrator::get_cloud_client;
+use crate::simple::token_layer::TokenLayer;
 use dozer_types::grpc_types::cloud::dozer_cloud_client::DozerCloudClient;
 use dozer_types::grpc_types::cloud::StatusUpdate;
 use dozer_types::grpc_types::cloud::StatusUpdateRequest;
@@ -8,13 +12,18 @@ use std::sync::Arc;
 use tokio::runtime::Runtime;
 
 pub fn monitor_app(
-    app_id: String,
-    target_url: String,
+    cloud: &Cloud,
+    cloud_config: Option<&dozer_types::models::cloud::Cloud>,
     runtime: Arc<Runtime>,
 ) -> Result<(), CloudError> {
+    let app_id = cloud
+        .app_id
+        .clone()
+        .unwrap_or(CloudAppContext::get_app_id(cloud_config)?);
+
     runtime.block_on(async move {
-        let mut client: DozerCloudClient<tonic::transport::Channel> =
-            DozerCloudClient::connect(target_url).await?;
+        let mut client: DozerCloudClient<TokenLayer> =
+            get_cloud_client(cloud, cloud_config).await?;
         let mut response = client
             .on_status_update(StatusUpdateRequest { app_id })
             .await?

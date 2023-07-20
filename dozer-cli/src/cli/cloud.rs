@@ -1,7 +1,5 @@
 use clap::{Args, Subcommand};
 
-use dozer_types::constants::DEFAULT_CLOUD_TARGET_URL;
-
 use clap::ArgAction;
 use dozer_types::grpc_types::cloud::Secret;
 use std::error::Error;
@@ -9,13 +7,8 @@ use std::error::Error;
 #[derive(Debug, Args)]
 #[command(args_conflicts_with_subcommands = true)]
 pub struct Cloud {
-    #[arg(
-    global = true,
-    short = 't',
-    long,
-    default_value = DEFAULT_CLOUD_TARGET_URL
-    )]
-    pub target_url: String,
+    #[arg(global = true, short = 't', long)]
+    pub target_url: Option<String>,
 
     #[arg(global = true, short, long)]
     pub app_id: Option<String>,
