@@ -2,8 +2,7 @@ use std::borrow::Cow;
 use std::time::SystemTime;
 
 use crossbeam::channel::{Receiver, Select};
-use dozer_types::epoch::Epoch;
-use dozer_types::types::Operation;
+use dozer_types::epoch::{Epoch, RefOperation};
 use dozer_types::{epoch::ExecutorOperation, log::debug};
 
 use crate::errors::ExecutionError;
@@ -19,7 +18,7 @@ pub trait ReceiverLoop: Name {
     /// Returns the name of the receiver at `index`. Used for logging.
     fn receiver_name(&self, index: usize) -> Cow<str>;
     /// Responds to `op` from the receiver at `index`.
-    fn on_op(&mut self, index: usize, op: Operation) -> Result<(), ExecutionError>;
+    fn on_op(&mut self, index: usize, op: RefOperation) -> Result<(), ExecutionError>;
     /// Responds to `commit` of `epoch`.
     fn on_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError>;
     /// Responds to `terminate`.
@@ -113,7 +112,7 @@ mod tests {
 
     struct TestReceiverLoop {
         receivers: Vec<Receiver<ExecutorOperation>>,
-        ops: Vec<(usize, Operation)>,
+        ops: Vec<(usize, RefOperation)>,
         commits: Vec<Epoch>,
         snapshotting_done: Vec<String>,
         num_terminations: usize,
@@ -136,7 +135,7 @@ mod tests {
             Cow::Owned(format!("receiver_{index}"))
         }
 
-        fn on_op(&mut self, index: usize, op: Operation) -> Result<(), ExecutionError> {
+        fn on_op(&mut self, index: usize, op: RefOperation) -> Result<(), ExecutionError> {
             self.ops.push((index, op));
             Ok(())
         }

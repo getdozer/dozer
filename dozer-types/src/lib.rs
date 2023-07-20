@@ -9,6 +9,7 @@ pub mod json_types;
 pub mod labels;
 pub mod models;
 pub mod node;
+pub mod ref_types;
 #[cfg(test)]
 mod tests;
 pub mod types;

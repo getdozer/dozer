@@ -3,7 +3,7 @@ use std::{borrow::Cow, collections::HashMap, mem::swap, sync::Arc};
 use crossbeam::channel::Receiver;
 use daggy::NodeIndex;
 use dozer_types::{
-    epoch::{Epoch, ExecutorOperation},
+    epoch::{Epoch, ExecutorOperation, RefOperation},
     log::debug,
     node::NodeHandle,
 };
@@ -90,11 +90,7 @@ impl ReceiverLoop for SinkNode {
         Cow::Owned(self.port_handles[index].to_string())
     }
 
-    fn on_op(
-        &mut self,
-        index: usize,
-        op: dozer_types::types::Operation,
-    ) -> Result<(), ExecutionError> {
+    fn on_op(&mut self, index: usize, op: RefOperation) -> Result<(), ExecutionError> {
         if let Err(e) = self.sink.process(self.port_handles[index], op) {
             self.error_manager.report(e);
         }

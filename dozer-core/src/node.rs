@@ -1,8 +1,9 @@
 use crate::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
 
-use dozer_types::epoch::Epoch;
+use dozer_types::epoch::{Epoch, RefOperation};
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::types::{Operation, Schema};
+use dozer_types::ref_types::RefSchema;
+use dozer_types::types::Schema;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 
@@ -61,14 +62,14 @@ pub trait ProcessorFactory<T>: Send + Sync + Debug {
     fn get_output_schema(
         &self,
         output_port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, (Schema, T)>,
-    ) -> Result<(Schema, T), BoxedError>;
+        input_schemas: &HashMap<PortHandle, (RefSchema, T)>,
+    ) -> Result<(RefSchema, T), BoxedError>;
     fn get_input_ports(&self) -> Vec<PortHandle>;
     fn get_output_ports(&self) -> Vec<OutputPortDef>;
     fn build(
         &self,
-        input_schemas: HashMap<PortHandle, Schema>,
-        output_schemas: HashMap<PortHandle, Schema>,
+        input_schemas: HashMap<PortHandle, RefSchema>,
+        output_schemas: HashMap<PortHandle, RefSchema>,
     ) -> Result<Box<dyn Processor>, BoxedError>;
     fn type_name(&self) -> String;
     fn id(&self) -> String;
@@ -79,23 +80,24 @@ pub trait Processor: Send + Sync + Debug {
     fn process(
         &mut self,
         from_port: PortHandle,
-        op: Operation,
+        op: RefOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError>;
 }
 
 pub trait SinkFactory<T>: Send + Sync + Debug {
     fn get_input_ports(&self) -> Vec<PortHandle>;
-    fn prepare(&self, input_schemas: HashMap<PortHandle, (Schema, T)>) -> Result<(), BoxedError>;
+    fn prepare(&self, input_schemas: HashMap<PortHandle, (RefSchema, T)>)
+        -> Result<(), BoxedError>;
     fn build(
         &self,
-        input_schemas: HashMap<PortHandle, Schema>,
+        input_schemas: HashMap<PortHandle, RefSchema>,
     ) -> Result<Box<dyn Sink>, BoxedError>;
 }
 
 pub trait Sink: Send + Sync + Debug {
     fn commit(&mut self, epoch_details: &Epoch) -> Result<(), BoxedError>;
-    fn process(&mut self, from_port: PortHandle, op: Operation) -> Result<(), BoxedError>;
+    fn process(&mut self, from_port: PortHandle, op: RefOperation) -> Result<(), BoxedError>;
 
     fn on_source_snapshotting_done(&mut self, connection_name: String) -> Result<(), BoxedError>;
 }

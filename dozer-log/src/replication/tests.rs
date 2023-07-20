@@ -1,12 +1,12 @@
 use std::{sync::Arc, time::Duration};
 
-use dozer_types::{epoch::ExecutorOperation, models::app_config::LogStorage};
+use dozer_types::models::app_config::LogStorage;
 use tempdir::TempDir;
 use tokio::sync::Mutex;
 
 use crate::{
     home_dir::{BuildId, HomeDir},
-    replication::{Log, LogResponse},
+    replication::{Log, LogOperation, LogResponse},
 };
 
 use super::LogOptions;
@@ -39,13 +39,13 @@ async fn write_read_mutable() {
     let (_temp_dir, log) = create_test_log("write_read_mutable", 10).await;
 
     let ops = vec![
-        ExecutorOperation::SnapshottingDone {
+        LogOperation::SnapshottingDone {
             connection_name: "0".to_string(),
         },
-        ExecutorOperation::SnapshottingDone {
+        LogOperation::SnapshottingDone {
             connection_name: "1".to_string(),
         },
-        ExecutorOperation::SnapshottingDone {
+        LogOperation::SnapshottingDone {
             connection_name: "2".to_string(),
         },
     ];
@@ -72,13 +72,13 @@ async fn watch_write_mutable() {
     let handle = tokio::spawn(log_mut.read(range.clone(), Duration::from_secs(1), log.clone()));
 
     let ops = vec![
-        ExecutorOperation::SnapshottingDone {
+        LogOperation::SnapshottingDone {
             connection_name: "0".to_string(),
         },
-        ExecutorOperation::SnapshottingDone {
+        LogOperation::SnapshottingDone {
             connection_name: "1".to_string(),
         },
-        ExecutorOperation::SnapshottingDone {
+        LogOperation::SnapshottingDone {
             connection_name: "2".to_string(),
         },
     ];
@@ -99,10 +99,10 @@ async fn watch_partial_write_mutable() {
     let handle = tokio::spawn(log_mut.read(1..3, Duration::from_secs(1), log.clone()));
 
     let ops = vec![
-        ExecutorOperation::SnapshottingDone {
+        LogOperation::SnapshottingDone {
             connection_name: "0".to_string(),
         },
-        ExecutorOperation::SnapshottingDone {
+        LogOperation::SnapshottingDone {
             connection_name: "1".to_string(),
         },
     ];
@@ -124,13 +124,13 @@ async fn watch_out_of_range_write_mutable() {
     let handle = tokio::spawn(log_mut.read(range.clone(), Duration::from_secs(1), log.clone()));
 
     let ops = vec![
-        ExecutorOperation::SnapshottingDone {
+        LogOperation::SnapshottingDone {
             connection_name: "0".to_string(),
         },
-        ExecutorOperation::SnapshottingDone {
+        LogOperation::SnapshottingDone {
             connection_name: "1".to_string(),
         },
-        ExecutorOperation::SnapshottingDone {
+        LogOperation::SnapshottingDone {
             connection_name: "2".to_string(),
         },
     ];
@@ -148,13 +148,13 @@ async fn in_memory_log_should_shrink() {
     let (_temp_dir, log) = create_test_log("in_memory_log_should_shrink", 2).await;
 
     let ops = vec![
-        ExecutorOperation::SnapshottingDone {
+        LogOperation::SnapshottingDone {
             connection_name: "0".to_string(),
         },
-        ExecutorOperation::SnapshottingDone {
+        LogOperation::SnapshottingDone {
             connection_name: "1".to_string(),
         },
-        ExecutorOperation::SnapshottingDone {
+        LogOperation::SnapshottingDone {
             connection_name: "2".to_string(),
         },
     ];
@@ -193,7 +193,7 @@ async fn watch_partial_timeout() {
     let mut log_mut = log.lock().await;
     let handle = tokio::spawn(log_mut.read(0..2, Duration::from_secs(0), log.clone()));
 
-    let op = ExecutorOperation::SnapshottingDone {
+    let op = LogOperation::SnapshottingDone {
         connection_name: "0".to_string(),
     };
     log_mut.write(op.clone(), log.clone()).await.unwrap();
@@ -207,7 +207,7 @@ async fn watch_partial_timeout() {
 async fn write_watch_partial_timeout() {
     let (_temp_dir, log) = create_test_log("write_watch_partial_timeout", 10).await;
 
-    let op = ExecutorOperation::SnapshottingDone {
+    let op = LogOperation::SnapshottingDone {
         connection_name: "0".to_string(),
     };
     let mut log_mut = log.lock().await;

@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     node::{NodeHandle, OpIdentifier, SourceStates},
+    ref_types::RefRecord,
     types::Operation,
 };
 
@@ -54,10 +55,31 @@ impl Display for Epoch {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
+/// A CDC event.
+pub enum RefOperation {
+    Delete { old: RefRecord },
+    Insert { new: RefRecord },
+    Update { old: RefRecord, new: RefRecord },
+}
+
+#[derive(Clone, Debug)]
 pub enum ExecutorOperation {
-    Op { op: Operation },
+    Op { op: RefOperation },
     Commit { epoch: Epoch },
     Terminate,
     SnapshottingDone { connection_name: String },
+}
+
+impl From<Operation> for RefOperation {
+    fn from(op: Operation) -> Self {
+        match op {
+            Operation::Delete { old } => RefOperation::Delete { old: old.into() },
+            Operation::Insert { new } => RefOperation::Insert { new: new.into() },
+            Operation::Update { old, new } => RefOperation::Update {
+                old: old.into(),
+                new: new.into(),
+            },
+        }
+    }
 }

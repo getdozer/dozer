@@ -3,11 +3,11 @@ use std::time::Duration;
 
 use crate::grpc::types_helper;
 use dozer_cache::dozer_log::reader::{LogReader, LogReaderBuilder};
+use dozer_cache::dozer_log::replication::LogOperation;
 use dozer_cache::{
     cache::{CacheRecord, CacheWriteOptions, RwCache, RwCacheManager, UpsertResult},
     errors::CacheError,
 };
-use dozer_types::epoch::ExecutorOperation;
 use dozer_types::indicatif::MultiProgress;
 use dozer_types::labels::Labels;
 use dozer_types::log::debug;
@@ -94,7 +94,7 @@ const READ_LOG_RETRY_INTERVAL: Duration = Duration::from_secs(1);
 async fn read_log_task(
     mut cancel: impl Future<Output = ()> + Unpin + Send + 'static,
     mut log_reader: LogReader,
-    sender: mpsc::Sender<(ExecutorOperation, u64)>,
+    sender: mpsc::Sender<(LogOperation, u64)>,
 ) {
     loop {
         let next_op = std::pin::pin!(log_reader.next_op());
@@ -125,7 +125,7 @@ async fn read_log_task(
 
 fn build_cache_task(
     mut cache: Box<dyn RwCache>,
-    mut receiver: mpsc::Receiver<(ExecutorOperation, u64)>,
+    mut receiver: mpsc::Receiver<(LogOperation, u64)>,
     operations_sender: Option<(String, Sender<GrpcOperation>)>,
 ) -> Result<(), CacheError> {
     let schema = cache.get_schema().0.clone();
@@ -149,7 +149,7 @@ fn build_cache_task(
 
     while let Some((op, pos)) = receiver.blocking_recv() {
         match op {
-            ExecutorOperation::Op { op } => match op {
+            LogOperation::Op { op } => match op {
                 Operation::Delete { old } => {
                     if let Some(meta) = cache.delete(&old)? {
                         if let Some((endpoint_name, operations_sender)) = operations_sender.as_ref()
@@ -203,7 +203,7 @@ fn build_cache_task(
                     }
                 }
             },
-            ExecutorOperation::Commit { epoch } => {
+            LogOperation::Commit { epoch } => {
                 cache.set_metadata(pos)?;
                 cache.commit()?;
                 if let Ok(duration) = epoch.decision_instant.elapsed() {
@@ -214,14 +214,11 @@ fn build_cache_task(
                     );
                 }
             }
-            ExecutorOperation::SnapshottingDone { connection_name } => {
+            LogOperation::SnapshottingDone { connection_name } => {
                 cache.set_metadata(pos)?;
                 cache.set_connection_snapshotting_done(&connection_name)?;
                 cache.commit()?;
                 snapshotting = !cache.is_snapshotting_done()?;
-            }
-            ExecutorOperation::Terminate => {
-                break;
             }
         }
     }

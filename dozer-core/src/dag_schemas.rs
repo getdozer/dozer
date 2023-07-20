@@ -6,6 +6,7 @@ use daggy::petgraph::graph::EdgeReference;
 use daggy::petgraph::visit::{EdgeRef, IntoEdges, IntoEdgesDirected, IntoNodeReferences, Topo};
 use daggy::petgraph::Direction;
 use daggy::{NodeIndex, Walker};
+use dozer_types::ref_types::RefSchema;
 use dozer_types::types::Schema;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
@@ -48,7 +49,7 @@ pub struct EdgeType {
     pub output_port: PortHandle,
     pub output_port_type: OutputPortType,
     pub input_port: PortHandle,
-    pub schema: Schema,
+    pub schema: RefSchema,
 }
 
 impl EdgeType {
@@ -56,7 +57,7 @@ impl EdgeType {
         output_port: PortHandle,
         output_port_type: OutputPortType,
         input_port: PortHandle,
-        schema: Schema,
+        schema: RefSchema,
     ) -> Self {
         Self {
             output_port,
@@ -70,7 +71,7 @@ impl EdgeType {
 pub trait EdgeHaveSchema {
     fn output_port(&self) -> PortHandle;
     fn input_port(&self) -> PortHandle;
-    fn schema(&self) -> &Schema;
+    fn schema(&self) -> &RefSchema;
 }
 
 impl EdgeHaveSchema for EdgeType {
@@ -82,7 +83,7 @@ impl EdgeHaveSchema for EdgeType {
         self.input_port
     }
 
-    fn schema(&self) -> &Schema {
+    fn schema(&self) -> &RefSchema {
         &self.schema
     }
 }
@@ -104,7 +105,7 @@ impl<T> DagSchemas<T> {
     ///
     /// - The input schema on the default port, panicking if missing.
     /// - A `Vec` of the id of source nodes ids that are ancestors of this sink.
-    pub fn get_sink_schemas(&self) -> HashMap<String, (Schema, HashSet<String>)> {
+    pub fn get_sink_schemas(&self) -> HashMap<String, (RefSchema, HashSet<String>)> {
         let mut schemas = HashMap::new();
 
         for (node_index, node) in self.graph.node_references() {
@@ -153,7 +154,7 @@ pub trait DagHaveSchemas {
 
     fn graph(&self) -> &daggy::Dag<Self::NodeType, Self::EdgeType>;
 
-    fn get_node_input_schemas(&self, node_index: NodeIndex) -> HashMap<PortHandle, Schema> {
+    fn get_node_input_schemas(&self, node_index: NodeIndex) -> HashMap<PortHandle, RefSchema> {
         let mut schemas = HashMap::new();
 
         for edge in self.graph().edges_directed(node_index, Direction::Incoming) {
@@ -165,7 +166,7 @@ pub trait DagHaveSchemas {
         schemas
     }
 
-    fn get_node_output_schemas(&self, node_index: NodeIndex) -> HashMap<PortHandle, Schema> {
+    fn get_node_output_schemas(&self, node_index: NodeIndex) -> HashMap<PortHandle, RefSchema> {
         let mut schemas = HashMap::new();
 
         for edge in self.graph().edges(node_index) {
@@ -247,7 +248,7 @@ fn populate_schemas<T: Clone>(
                     let (schema, ctx) = source
                         .get_output_schema(&port.handle)
                         .map_err(ExecutionError::Factory)?;
-                    create_edge(&mut edges, edge, port, schema, ctx);
+                    create_edge(&mut edges, edge, port, schema.into(), ctx);
                 }
             }
 
@@ -303,7 +304,7 @@ fn create_edge<T>(
     edges: &mut [Option<(EdgeType, T)>],
     edge: EdgeReference<DagEdgeType>,
     port: &OutputPortDef,
-    schema: Schema,
+    schema: RefSchema,
     ctx: T,
 ) {
     debug_assert!(port.handle == edge.weight().from);
@@ -320,7 +321,7 @@ fn validate_input_schemas<T: Clone>(
     edge_and_contexts: &[Option<(EdgeType, T)>],
     node_index: NodeIndex,
     input_ports: Vec<PortHandle>,
-) -> Result<HashMap<PortHandle, (Schema, T)>, ExecutionError> {
+) -> Result<HashMap<PortHandle, (RefSchema, T)>, ExecutionError> {
     let node_handle = &dag.graph()[node_index].handle;
 
     let mut input_schemas = HashMap::new();
