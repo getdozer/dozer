@@ -1,6 +1,6 @@
 [package]
 name = "dozer-types"
-version = "0.1.30"
+version = "0.1.31"
 authors = ["getdozer/dozer-dev"]
 edition = "2021"
 
