@@ -84,7 +84,7 @@ impl Processor for ProjectionProcessor {
         Ok(())
     }
 
-    fn commit(&self, _epoch: &Epoch) -> Result<(), BoxedError> {
+    fn commit(&mut self, _epoch: &Epoch) -> Result<(), BoxedError> {
         Ok(())
     }
 }

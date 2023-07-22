@@ -6,6 +6,7 @@ mod raw_iterator;
 pub use dump::{assert_database_equal, dump, restore, DumpItem, RestoreError};
 pub use iterator::{Iterator, KeyIterator, ValueIterator};
 pub use lmdb_val::{BorrowEncode, Decode, Encode, Encoded, LmdbKey, LmdbKeyType, LmdbVal};
+pub use raw_iterator::RawIterator;
 
 #[macro_export]
 macro_rules! yield_return_if_err {

@@ -255,6 +255,34 @@ unsafe impl LmdbKey for Record {
 
 unsafe impl LmdbVal for Record {}
 
+impl<'a> Encode<'a> for &'a [Record] {
+    fn encode(self) -> Result<Encoded<'a>, StorageError> {
+        dozer_types::bincode::serialize(self)
+            .map(Encoded::Vec)
+            .map_err(|e| StorageError::SerializationError {
+                typ: "&[Record]",
+                reason: Box::new(e),
+            })
+    }
+}
+
+impl BorrowEncode for Vec<Record> {
+    type Encode<'a> = &'a [Record];
+}
+
+impl Decode for Vec<Record> {
+    fn decode(bytes: &[u8]) -> Result<Cow<Self>, StorageError> {
+        dozer_types::bincode::deserialize(bytes)
+            .map(Cow::Owned)
+            .map_err(|e| StorageError::DeserializationError {
+                typ: "Vec<Record>",
+                reason: Box::new(e),
+            })
+    }
+}
+
+unsafe impl LmdbVal for Vec<Record> {}
+
 impl<'a> Encode<'a> for &'a IndexDefinition {
     fn encode(self) -> Result<Encoded<'a>, StorageError> {
         dozer_types::bincode::serialize(self)

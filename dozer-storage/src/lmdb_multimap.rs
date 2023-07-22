@@ -1,4 +1,4 @@
-use std::ops::Bound;
+use std::{marker::PhantomData, ops::Bound};
 
 use dozer_types::borrow::Cow;
 use lmdb::{Cursor, Database, DatabaseFlags, RoCursor, RwTransaction, Transaction, WriteFlags};
@@ -6,9 +6,10 @@ use lmdb_sys::{MDB_LAST_DUP, MDB_SET};
 
 use crate::{
     errors::StorageError,
+    lmdb_database::RawIterator,
     lmdb_map::database_key_flag,
     lmdb_storage::{LmdbEnvironment, RwLmdbEnvironment},
-    Encode, Iterator, LmdbKey, LmdbKeyType,
+    Encode, Iterator, LmdbKey, LmdbKeyType, LmdbVal,
 };
 
 #[derive(Debug)]
@@ -61,6 +62,26 @@ impl<K: LmdbKey, V: LmdbKey> LmdbMultimap<K, V> {
 
     pub fn count_data<T: Transaction>(&self, txn: &T) -> Result<usize, StorageError> {
         Ok(txn.stat(self.db)?.entries())
+    }
+
+    pub fn count_dup<T: Transaction>(
+        &self,
+        txn: &T,
+        key: K::Encode<'_>,
+    ) -> Result<usize, StorageError> {
+        let key = key.encode()?;
+        let cursor = txn.open_ro_cursor(self.db)?;
+        let mut raw_iterator = RawIterator::new(cursor, Bound::Included(key.as_ref()), true)?;
+        let mut result = 0;
+        while let Some(pair) = raw_iterator.next() {
+            let (key, _) = pair?;
+            if key == key.as_ref() {
+                result += 1;
+            } else {
+                break;
+            }
+        }
+        Ok(result)
     }
 
     pub fn get_first<'a, T: Transaction>(
@@ -139,7 +160,23 @@ impl<K: LmdbKey, V: LmdbKey> LmdbMultimap<K, V> {
         txn: &'txn T,
     ) -> Result<Iterator<'txn, RoCursor<'txn>, K, V>, StorageError> {
         let cursor = txn.open_ro_cursor(self.db)?;
-        Iterator::new(cursor, Bound::Unbounded, true)
+        Ok(Iterator::new(cursor, Bound::Unbounded, true)?.0)
+    }
+
+    /// Returns an iterator over all values for a given key.
+    pub fn iter_dup<'txn, T: Transaction>(
+        &self,
+        txn: &'txn T,
+        key: K::Encode<'_>,
+    ) -> Result<IterDup<'txn, V>, StorageError> {
+        let cursor = txn.open_ro_cursor(self.db)?;
+        let key = key.encode()?;
+        let raw_iterator = RawIterator::new(cursor, Bound::Included(key.as_ref()), true)?;
+        Ok(IterDup {
+            raw_iterator,
+            key: key.as_ref().to_vec(),
+            value: PhantomData,
+        })
     }
 
     pub fn range<'txn, T: Transaction>(
@@ -149,7 +186,31 @@ impl<K: LmdbKey, V: LmdbKey> LmdbMultimap<K, V> {
         ascending: bool,
     ) -> Result<Iterator<'txn, RoCursor<'txn>, K, V>, StorageError> {
         let cursor = txn.open_ro_cursor(self.db)?;
-        Iterator::new(cursor, starting_key, ascending)
+        Ok(Iterator::new(cursor, starting_key, ascending)?.0)
+    }
+}
+
+pub struct IterDup<'txn, V> {
+    raw_iterator: RawIterator<'txn, RoCursor<'txn>>,
+    key: Vec<u8>,
+    value: PhantomData<V>,
+}
+
+impl<'txn, V: LmdbVal> std::iter::Iterator for IterDup<'txn, V> {
+    type Item = Result<Cow<'txn, V>, StorageError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.raw_iterator.next() {
+            Some(Ok((key, value))) => {
+                if key == self.key {
+                    Some(V::decode(value))
+                } else {
+                    None
+                }
+            }
+            Some(Err(e)) => Some(Err(e.into())),
+            None => None,
+        }
     }
 }
 
@@ -192,11 +253,20 @@ mod tests {
         assert!(map.insert(txn, &1u64, &2u64).unwrap());
         assert!(!map.insert(txn, &1u64, &2u64).unwrap());
         assert!(map.insert(txn, &1u64, &3u64).unwrap());
+        assert_eq!(map.count_dup(txn, &1u64).unwrap(), 2);
+        assert_eq!(
+            map.iter_dup(txn, &1)
+                .unwrap()
+                .map(|value| { value.unwrap().into_owned() })
+                .collect::<Vec<_>>(),
+            vec![2, 3]
+        );
         assert!(map.get_first(txn, &0).unwrap().is_none());
         assert!(map.get_last(txn, &0).unwrap().is_none());
         assert_eq!(map.get_first(txn, &1).unwrap().unwrap().into_owned(), 2);
         assert_eq!(map.get_last(txn, &1).unwrap().unwrap().into_owned(), 3);
         assert!(map.remove(txn, &1u64, &2u64).unwrap());
         assert!(!map.remove(txn, &1u64, &2u64).unwrap());
+        assert!(map.remove(txn, &1u64, &3u64).unwrap());
     }
 }
