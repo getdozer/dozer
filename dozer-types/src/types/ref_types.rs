@@ -124,6 +124,7 @@ impl ProcessorRecord {
     ) {
         // Count each referenced record field length and increment the index cumulatively
         let curr_index = self.get_field_count();
+
         self.values
             .push(RefOrField::Ref(ProcessorRecordRef::new(other.clone())));
 
@@ -156,16 +157,9 @@ impl ProcessorRecord {
                 RefOrField::Ref(record_ref) => {
                     // If it's a reference, check if it matches the given index
                     let rec = record_ref.get_record();
-                    let count = rec.values.len();
+                    let count = rec.get_field_count();
                     if current_index < count {
-                        let val = rec.values.get(current_index as usize);
-                        if let Some(RefOrField::Field(field)) = val {
-                            return field;
-                        } else {
-                            panic!(
-                                "Expected a field at the given index. Found a reference instead"
-                            );
-                        }
+                        return rec.get_field_by_index(current_index);
                     }
                     current_index -= count;
                 }
@@ -178,7 +172,7 @@ impl ProcessorRecord {
                 }
             }
         }
-        panic!("Field is expected with the index");
+        panic!("Field is expected with the index: {}", index);
     }
 
     pub fn get_key(&self, indexes: &Vec<usize>) -> Vec<u8> {
