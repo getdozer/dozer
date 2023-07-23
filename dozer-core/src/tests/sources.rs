@@ -4,7 +4,8 @@ use crate::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::types::{
-    Field, FieldDefinition, FieldType, Operation, ProcessorRecord, Schema, SourceDefinition,
+    Field, FieldDefinition, FieldType, ProcessorOperation, ProcessorRecord, Schema,
+    SourceDefinition,
 };
 
 use std::collections::HashMap;
@@ -107,7 +108,7 @@ impl Source for GeneratorSource {
                     n,
                     0,
                     0,
-                    Operation::Insert {
+                    ProcessorOperation::Insert {
                         new: ProcessorRecord::new(vec![
                             Field::String(format!("key_{n}")),
                             Field::String(format!("value_{n}")),
@@ -230,7 +231,7 @@ impl Source for DualPortGeneratorSource {
                     n,
                     0,
                     0,
-                    Operation::Insert {
+                    ProcessorOperation::Insert {
                         new: ProcessorRecord::new(vec![
                             Field::String(format!("key_{n}")),
                             Field::String(format!("value_{n}")),
@@ -244,7 +245,7 @@ impl Source for DualPortGeneratorSource {
                     n,
                     0,
                     0,
-                    Operation::Insert {
+                    ProcessorOperation::Insert {
                         new: ProcessorRecord::new(vec![
                             Field::String(format!("key_{n}")),
                             Field::String(format!("value_{n}")),

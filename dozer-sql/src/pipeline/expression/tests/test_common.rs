@@ -7,16 +7,20 @@ use dozer_types::chrono::{
     DateTime, Datelike, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, Timelike,
 };
 use dozer_types::rust_decimal::Decimal;
-use dozer_types::types::{Field, Operation, ProcessorRecord, Schema};
+use dozer_types::types::{Field, ProcessorOperation, ProcessorRecord, Schema};
 use proptest::prelude::*;
 use std::collections::HashMap;
 
 struct TestChannelForwarder {
-    operations: Vec<Operation>,
+    operations: Vec<ProcessorOperation>,
 }
 
 impl ProcessorChannelForwarder for TestChannelForwarder {
-    fn send(&mut self, op: dozer_types::types::Operation, _port: dozer_core::node::PortHandle) {
+    fn send(
+        &mut self,
+        op: dozer_types::types::ProcessorOperation,
+        _port: dozer_core::node::PortHandle,
+    ) {
         self.operations.push(op);
     }
 }
@@ -46,14 +50,14 @@ pub(crate) fn run_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Field {
 
     let mut fw = TestChannelForwarder { operations: vec![] };
 
-    let op = Operation::Insert {
+    let op = ProcessorOperation::Insert {
         new: ProcessorRecord::new(input),
     };
 
     processor.process(DEFAULT_PORT_HANDLE, op, &mut fw).unwrap();
 
     match &fw.operations[0] {
-        Operation::Insert { new } => new.values[0].clone(),
+        ProcessorOperation::Insert { new } => new.values[0].clone(),
         _ => panic!("Unable to find result value"),
     }
 }

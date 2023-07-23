@@ -12,7 +12,8 @@ use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::tracing::{debug, info};
 use dozer_types::types::{
-    Field, FieldDefinition, FieldType, Operation, ProcessorRecord, Schema, SourceDefinition,
+    Field, FieldDefinition, FieldType, ProcessorOperation, ProcessorRecord, Schema,
+    SourceDefinition,
 };
 
 use std::collections::HashMap;
@@ -192,19 +193,19 @@ impl Source for TestSource {
     ) -> Result<(), BoxedError> {
         let operations = vec![
             (
-                Operation::Insert {
+                ProcessorOperation::Insert {
                     new: ProcessorRecord::new(vec![Field::Int(0), Field::String("IT".to_string())]),
                 },
                 DEPARTMENT_PORT,
             ),
             (
-                Operation::Insert {
+                ProcessorOperation::Insert {
                     new: ProcessorRecord::new(vec![Field::Int(1), Field::String("HR".to_string())]),
                 },
                 DEPARTMENT_PORT,
             ),
             (
-                Operation::Insert {
+                ProcessorOperation::Insert {
                     new: ProcessorRecord::new(vec![
                         Field::Int(10000),
                         Field::String("Alice".to_string()),
@@ -216,7 +217,7 @@ impl Source for TestSource {
                 USER_PORT,
             ),
             (
-                Operation::Insert {
+                ProcessorOperation::Insert {
                     new: ProcessorRecord::new(vec![
                         Field::Int(10001),
                         Field::String("Bob".to_string()),
@@ -228,7 +229,7 @@ impl Source for TestSource {
                 USER_PORT,
             ),
             (
-                Operation::Insert {
+                ProcessorOperation::Insert {
                     new: ProcessorRecord::new(vec![
                         Field::String("UK".to_string()),
                         Field::String("United Kingdom".to_string()),
@@ -237,7 +238,7 @@ impl Source for TestSource {
                 COUNTRY_PORT,
             ),
             (
-                Operation::Insert {
+                ProcessorOperation::Insert {
                     new: ProcessorRecord::new(vec![
                         Field::String("SG".to_string()),
                         Field::String("Singapore".to_string()),
@@ -246,7 +247,7 @@ impl Source for TestSource {
                 COUNTRY_PORT,
             ),
             (
-                Operation::Insert {
+                ProcessorOperation::Insert {
                     new: ProcessorRecord::new(vec![
                         Field::Int(10002),
                         Field::String("Craig".to_string()),
@@ -267,7 +268,7 @@ impl Source for TestSource {
             //     DEPARTMENT_PORT,
             // ),
             (
-                Operation::Insert {
+                ProcessorOperation::Insert {
                     new: ProcessorRecord::new(vec![
                         Field::Int(10003),
                         Field::String("Dan".to_string()),
@@ -279,7 +280,7 @@ impl Source for TestSource {
                 USER_PORT,
             ),
             (
-                Operation::Insert {
+                ProcessorOperation::Insert {
                     new: ProcessorRecord::new(vec![
                         Field::Int(10004),
                         Field::String("Eve".to_string()),
@@ -305,7 +306,7 @@ impl Source for TestSource {
             //     USER_PORT,
             // ),
             (
-                Operation::Insert {
+                ProcessorOperation::Insert {
                     new: ProcessorRecord::new(vec![
                         Field::Int(10005),
                         Field::String("Frank".to_string()),
@@ -317,7 +318,7 @@ impl Source for TestSource {
                 USER_PORT,
             ),
             (
-                Operation::Update {
+                ProcessorOperation::Update {
                     old: ProcessorRecord::new(vec![Field::Int(0), Field::String("IT".to_string())]),
                     new: ProcessorRecord::new(vec![Field::Int(0), Field::String("RD".to_string())]),
                 },
@@ -416,11 +417,15 @@ pub struct TestSink {
 }
 
 impl Sink for TestSink {
-    fn process(&mut self, _from_port: PortHandle, _op: Operation) -> Result<(), BoxedError> {
+    fn process(
+        &mut self,
+        _from_port: PortHandle,
+        _op: ProcessorOperation,
+    ) -> Result<(), BoxedError> {
         match _op {
-            Operation::Delete { old } => info!("o0:-> - {:?}", old.values),
-            Operation::Insert { new } => info!("o0:-> + {:?}", new.values),
-            Operation::Update { old, new } => {
+            ProcessorOperation::Delete { old } => info!("o0:-> - {:?}", old.values),
+            ProcessorOperation::Insert { new } => info!("o0:-> + {:?}", new.values),
+            ProcessorOperation::Update { old, new } => {
                 info!("o0:-> - {:?}, + {:?}", old.values, new.values)
             }
         }

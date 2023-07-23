@@ -12,7 +12,8 @@ use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::debug;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{
-    Field, FieldDefinition, FieldType, Operation, ProcessorRecord, Schema, SourceDefinition,
+    Field, FieldDefinition, FieldType, ProcessorOperation, ProcessorRecord, Schema,
+    SourceDefinition,
 };
 
 use std::collections::HashMap;
@@ -107,7 +108,7 @@ impl Source for TestSource {
                     n,
                     0,
                     0,
-                    Operation::Insert {
+                    ProcessorOperation::Insert {
                         new: ProcessorRecord::new(vec![
                             Field::Int(0),
                             Field::String("Italy".to_string()),
@@ -158,7 +159,11 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
 pub struct TestSink {}
 
 impl Sink for TestSink {
-    fn process(&mut self, _from_port: PortHandle, _op: Operation) -> Result<(), BoxedError> {
+    fn process(
+        &mut self,
+        _from_port: PortHandle,
+        _op: ProcessorOperation,
+    ) -> Result<(), BoxedError> {
         Ok(())
     }
 

@@ -2,7 +2,7 @@ use crate::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
 
 use dozer_types::epoch::Epoch;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::types::{Operation, Schema};
+use dozer_types::types::{ProcessorOperation, Schema};
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 
@@ -79,7 +79,7 @@ pub trait Processor: Send + Sync + Debug {
     fn process(
         &mut self,
         from_port: PortHandle,
-        op: Operation,
+        op: ProcessorOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError>;
 }
@@ -95,7 +95,7 @@ pub trait SinkFactory<T>: Send + Sync + Debug {
 
 pub trait Sink: Send + Sync + Debug {
     fn commit(&mut self, epoch_details: &Epoch) -> Result<(), BoxedError>;
-    fn process(&mut self, from_port: PortHandle, op: Operation) -> Result<(), BoxedError>;
+    fn process(&mut self, from_port: PortHandle, op: ProcessorOperation) -> Result<(), BoxedError>;
 
     fn on_source_snapshotting_done(&mut self, connection_name: String) -> Result<(), BoxedError>;
 }

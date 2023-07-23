@@ -1,6 +1,6 @@
 use crate::node::OutputPortType;
 use dozer_types::thiserror::Error;
-use dozer_types::types::{Operation, ProcessorRecord, Schema};
+use dozer_types::types::{ProcessorOperation, ProcessorRecord, Schema};
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 
@@ -13,7 +13,7 @@ pub enum RecordWriterError {
 }
 
 pub trait RecordWriter: Send + Sync {
-    fn write(&mut self, op: Operation) -> Result<Operation, RecordWriterError>;
+    fn write(&mut self, op: ProcessorOperation) -> Result<ProcessorOperation, RecordWriterError>;
 }
 
 impl Debug for dyn RecordWriter {
@@ -57,23 +57,23 @@ impl PrimaryKeyLookupRecordWriter {
 }
 
 impl RecordWriter for PrimaryKeyLookupRecordWriter {
-    fn write(&mut self, op: Operation) -> Result<Operation, RecordWriterError> {
+    fn write(&mut self, op: ProcessorOperation) -> Result<ProcessorOperation, RecordWriterError> {
         match op {
-            Operation::Insert { new } => {
+            ProcessorOperation::Insert { new } => {
                 let new_key = new.get_key(&self.schema.primary_index);
                 self.index.insert(new_key, new.clone());
-                Ok(Operation::Insert { new })
+                Ok(ProcessorOperation::Insert { new })
             }
-            Operation::Delete { mut old } => {
+            ProcessorOperation::Delete { mut old } => {
                 let old_key = old.get_key(&self.schema.primary_index);
                 old = self
                     .index
                     .remove_entry(&old_key)
                     .ok_or(RecordWriterError::RecordNotFound)?
                     .1;
-                Ok(Operation::Delete { old })
+                Ok(ProcessorOperation::Delete { old })
             }
-            Operation::Update { mut old, new } => {
+            ProcessorOperation::Update { mut old, new } => {
                 let old_key = old.get_key(&self.schema.primary_index);
                 old = self
                     .index
@@ -82,7 +82,7 @@ impl RecordWriter for PrimaryKeyLookupRecordWriter {
                     .1;
                 let new_key = new.get_key(&self.schema.primary_index);
                 self.index.insert(new_key, new.clone());
-                Ok(Operation::Update { old, new })
+                Ok(ProcessorOperation::Update { old, new })
             }
         }
     }

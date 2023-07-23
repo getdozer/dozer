@@ -93,7 +93,7 @@ impl ReceiverLoop for SinkNode {
     fn on_op(
         &mut self,
         index: usize,
-        op: dozer_types::types::Operation,
+        op: dozer_types::types::ProcessorOperation,
     ) -> Result<(), ExecutionError> {
         if let Err(e) = self.sink.process(self.port_handles[index], op) {
             self.error_manager.report(e);

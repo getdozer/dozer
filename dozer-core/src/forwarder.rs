@@ -11,7 +11,7 @@ use dozer_types::epoch::{Epoch, ExecutorOperation};
 use dozer_types::ingestion_types::{IngestionMessage, IngestionMessageKind};
 use dozer_types::log::debug;
 use dozer_types::node::NodeHandle;
-use dozer_types::types::Operation;
+use dozer_types::types::ProcessorOperation;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
@@ -28,9 +28,9 @@ impl StateWriter {
 
     fn store_op(
         &mut self,
-        op: Operation,
+        op: ProcessorOperation,
         port: &PortHandle,
-    ) -> Result<Operation, RecordWriterError> {
+    ) -> Result<ProcessorOperation, RecordWriterError> {
         if let Some(writer) = self.record_writers.get_mut(port) {
             writer.write(op)
         } else {
@@ -54,7 +54,11 @@ struct ChannelManager {
 
 impl ChannelManager {
     #[inline]
-    fn send_op(&mut self, mut op: Operation, port_id: PortHandle) -> Result<(), ExecutionError> {
+    fn send_op(
+        &mut self,
+        mut op: ProcessorOperation,
+        port_id: PortHandle,
+    ) -> Result<(), ExecutionError> {
         if self.stateful {
             match self.state_writer.store_op(op, &port_id) {
                 Ok(new_op) => op = new_op,
@@ -229,7 +233,7 @@ impl SourceChannelManager {
         self.curr_seq_in_tx = message.identifier.seq_in_tx;
         match message.kind {
             IngestionMessageKind::OperationEvent { op, .. } => {
-                self.manager.send_op(op, port)?;
+                self.manager.send_op(op.into(), port)?;
                 self.num_uncommitted_ops += 1;
                 self.trigger_commit_if_needed(request_termination)
             }
@@ -283,7 +287,7 @@ impl ProcessorChannelManager {
 }
 
 impl ProcessorChannelForwarder for ProcessorChannelManager {
-    fn send(&mut self, op: Operation, port: PortHandle) {
+    fn send(&mut self, op: ProcessorOperation, port: PortHandle) {
         self.manager
             .send_op(op, port)
             .unwrap_or_else(|e| panic!("Failed to send operation: {e}"))

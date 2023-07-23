@@ -3,7 +3,7 @@ use std::time::SystemTime;
 
 use crossbeam::channel::{Receiver, Select};
 use dozer_types::epoch::Epoch;
-use dozer_types::types::Operation;
+use dozer_types::types::ProcessorOperation;
 use dozer_types::{epoch::ExecutorOperation, log::debug};
 
 use crate::errors::ExecutionError;
@@ -19,7 +19,7 @@ pub trait ReceiverLoop: Name {
     /// Returns the name of the receiver at `index`. Used for logging.
     fn receiver_name(&self, index: usize) -> Cow<str>;
     /// Responds to `op` from the receiver at `index`.
-    fn on_op(&mut self, index: usize, op: Operation) -> Result<(), ExecutionError>;
+    fn on_op(&mut self, index: usize, op: ProcessorOperation) -> Result<(), ExecutionError>;
     /// Responds to `commit` of `epoch`.
     fn on_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError>;
     /// Responds to `terminate`.
@@ -113,7 +113,7 @@ mod tests {
 
     struct TestReceiverLoop {
         receivers: Vec<Receiver<ExecutorOperation>>,
-        ops: Vec<(usize, Operation)>,
+        ops: Vec<(usize, ProcessorOperation)>,
         commits: Vec<Epoch>,
         snapshotting_done: Vec<String>,
         num_terminations: usize,
@@ -136,7 +136,7 @@ mod tests {
             Cow::Owned(format!("receiver_{index}"))
         }
 
-        fn on_op(&mut self, index: usize, op: Operation) -> Result<(), ExecutionError> {
+        fn on_op(&mut self, index: usize, op: ProcessorOperation) -> Result<(), ExecutionError> {
             self.ops.push((index, op));
             Ok(())
         }
@@ -203,7 +203,7 @@ mod tests {
         let record = ProcessorRecord::new(vec![Field::Int(1)]);
         senders[0]
             .send(ExecutorOperation::Op {
-                op: Operation::Insert {
+                op: ProcessorOperation::Insert {
                     new: record.clone(),
                 },
             })
@@ -211,7 +211,10 @@ mod tests {
         senders[0].send(ExecutorOperation::Terminate).unwrap();
         senders[1].send(ExecutorOperation::Terminate).unwrap();
         test_loop.receiver_loop().unwrap();
-        assert_eq!(test_loop.ops, vec![(0, Operation::Insert { new: record })]);
+        assert_eq!(
+            test_loop.ops,
+            vec![(0, ProcessorOperation::Insert { new: record })]
+        );
     }
 
     #[test]

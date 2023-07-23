@@ -2,7 +2,7 @@ use crate::node::{PortHandle, Sink, SinkFactory};
 use crate::DEFAULT_PORT_HANDLE;
 use dozer_types::epoch::Epoch;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::types::{Operation, Schema};
+use dozer_types::types::{ProcessorOperation, Schema};
 
 use dozer_types::log::debug;
 use std::collections::HashMap;
@@ -70,7 +70,11 @@ impl Sink for CountingSink {
         Ok(())
     }
 
-    fn process(&mut self, _from_port: PortHandle, _op: Operation) -> Result<(), BoxedError> {
+    fn process(
+        &mut self,
+        _from_port: PortHandle,
+        _op: ProcessorOperation,
+    ) -> Result<(), BoxedError> {
         self.current += 1;
         if self.current == self.expected {
             debug!(
