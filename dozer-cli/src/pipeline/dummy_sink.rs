@@ -7,7 +7,7 @@ use dozer_core::{
 use dozer_types::{
     epoch::Epoch,
     errors::internal::BoxedError,
-    types::{Operation, Schema},
+    types::{ProcessorOperation, Schema},
 };
 
 #[derive(Debug)]
@@ -34,7 +34,11 @@ impl<T> SinkFactory<T> for DummySinkFactory {
 struct DummySink;
 
 impl Sink for DummySink {
-    fn process(&mut self, _from_port: PortHandle, _op: Operation) -> Result<(), BoxedError> {
+    fn process(
+        &mut self,
+        _from_port: PortHandle,
+        _op: ProcessorOperation,
+    ) -> Result<(), BoxedError> {
         Ok(())
     }
 

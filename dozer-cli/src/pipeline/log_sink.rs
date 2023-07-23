@@ -1,6 +1,9 @@
 use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
-use dozer_cache::dozer_log::{attach_progress, replication::Log};
+use dozer_cache::dozer_log::{
+    attach_progress,
+    replication::{Log, LogOperation},
+};
 use dozer_core::{
     epoch::Epoch,
     node::{PortHandle, Sink, SinkFactory},
@@ -8,8 +11,8 @@ use dozer_core::{
 };
 use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::indicatif::{MultiProgress, ProgressBar};
-use dozer_types::types::{Operation, Schema};
-use dozer_types::{epoch::ExecutorOperation, errors::internal::BoxedError};
+use dozer_types::types::Schema;
+use dozer_types::{errors::internal::BoxedError, types::ProcessorOperation};
 use tokio::{runtime::Runtime, sync::Mutex};
 
 #[derive(Debug)]
@@ -94,11 +97,18 @@ impl LogSink {
 }
 
 impl Sink for LogSink {
-    fn process(&mut self, _from_port: PortHandle, op: Operation) -> Result<(), BoxedError> {
+    fn process(
+        &mut self,
+        _from_port: PortHandle,
+        op: ProcessorOperation,
+    ) -> Result<(), BoxedError> {
         self.runtime.block_on(async {
             let mut log = self.log.lock().await;
-            log.write(ExecutorOperation::Op { op }, self.log.clone())
-                .await
+            log.write(
+                dozer_cache::dozer_log::replication::LogOperation::Op { op: op.into() },
+                self.log.clone(),
+            )
+            .await
         })?;
         self.update_counter();
         Ok(())
@@ -108,7 +118,7 @@ impl Sink for LogSink {
         self.runtime.block_on(async {
             let mut log = self.log.lock().await;
             log.write(
-                ExecutorOperation::Commit {
+                LogOperation::Commit {
                     epoch: epoch_details.clone(),
                 },
                 self.log.clone(),
@@ -123,7 +133,7 @@ impl Sink for LogSink {
         self.runtime.block_on(async {
             let mut log = self.log.lock().await;
             log.write(
-                ExecutorOperation::SnapshottingDone { connection_name },
+                LogOperation::SnapshottingDone { connection_name },
                 self.log.clone(),
             )
             .await

@@ -1,5 +1,5 @@
+use dozer_log::replication::LogOperation;
 use dozer_types::{
-    epoch::ExecutorOperation,
     json_types::field_to_json_value,
     serde_json::Value,
     types::{Field, Operation, Record, Schema},
@@ -11,33 +11,30 @@ use neon::{
 };
 
 pub fn map_executor_operation<'a, C: Context<'a>>(
-    op: ExecutorOperation,
+    op: LogOperation,
     schema: &Schema,
     cx: &mut C,
 ) -> JsResult<'a, JsObject> {
     let result = cx.empty_object();
 
     match op {
-        ExecutorOperation::Op { op } => {
+        LogOperation::Op { op } => {
             let op = map_operation(op, schema, cx)?;
             let typ = cx.string("op");
             result.set(cx, "type", typ)?;
             result.set(cx, "op", op)?;
         }
-        ExecutorOperation::Commit { .. } => {
+        LogOperation::Commit { .. } => {
             let typ = cx.string("commit");
             result.set(cx, "type", typ)?;
         }
-        ExecutorOperation::SnapshottingDone { connection_name } => {
+        LogOperation::SnapshottingDone { connection_name } => {
             let typ = cx.string("snapshotting_done");
             result.set(cx, "type", typ)?;
             let connection_name = cx.string(&connection_name);
             result.set(cx, "connection_name", connection_name)?;
         }
-        ExecutorOperation::Terminate => {
-            let typ = cx.string("terminate");
-            result.set(cx, "type", typ)?;
-        }
+        LogOperation::Terminate => {}
     }
 
     Ok(result)
