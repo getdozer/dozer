@@ -1,4 +1,4 @@
-use dozer_types::types::{Field, Record, Schema};
+use dozer_types::types::{Field, ProcessorRecord, Schema};
 
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
@@ -8,7 +8,7 @@ pub(crate) fn evaluate_in_list(
     expr: &Expression,
     list: &[Expression],
     negated: bool,
-    record: &Record,
+    record: &ProcessorRecord,
 ) -> Result<Field, PipelineError> {
     let field = expr.evaluate(record, schema)?;
     let mut result = false;

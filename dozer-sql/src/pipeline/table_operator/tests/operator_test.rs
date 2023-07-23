@@ -3,7 +3,7 @@ use std::time::Duration;
 use dozer_types::{
     chrono::DateTime,
     types::{
-        DozerDuration, Field, FieldDefinition, FieldType, Lifetime, Record, Schema,
+        DozerDuration, Field, FieldDefinition, FieldType, Lifetime, ProcessorRecord, Schema,
         SourceDefinition, TimeUnit,
     },
 };
@@ -40,7 +40,7 @@ fn test_lifetime() {
         )
         .to_owned();
 
-    let record = Record::new(vec![
+    let record = ProcessorRecord::new(vec![
         Field::Int(0),
         Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
     ]);
@@ -68,7 +68,7 @@ fn test_lifetime() {
     assert_eq!(result.len(), 1);
     let lifetime_record = result.get(0).unwrap();
 
-    let mut expected_record = Record::new(vec![
+    let mut expected_record = ProcessorRecord::new(vec![
         Field::Int(0),
         Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
     ]);

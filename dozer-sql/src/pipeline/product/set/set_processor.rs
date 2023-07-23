@@ -5,7 +5,7 @@ use dozer_core::epoch::Epoch;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::types::{Operation, Record};
+use dozer_types::types::{Operation, ProcessorRecord};
 use std::collections::hash_map::RandomState;
 use std::fmt::{Debug, Formatter};
 
@@ -38,7 +38,10 @@ impl SetProcessor {
         })
     }
 
-    fn delete(&mut self, record: &Record) -> Result<Vec<(SetAction, Record)>, ProductError> {
+    fn delete(
+        &mut self,
+        record: &ProcessorRecord,
+    ) -> Result<Vec<(SetAction, ProcessorRecord)>, ProductError> {
         self.operator
             .execute(SetAction::Delete, record, &mut self.record_map)
             .map_err(|err| {
@@ -46,7 +49,10 @@ impl SetProcessor {
             })
     }
 
-    fn insert(&mut self, record: &Record) -> Result<Vec<(SetAction, Record)>, ProductError> {
+    fn insert(
+        &mut self,
+        record: &ProcessorRecord,
+    ) -> Result<Vec<(SetAction, ProcessorRecord)>, ProductError> {
         self.operator
             .execute(SetAction::Insert, record, &mut self.record_map)
             .map_err(|err| {
@@ -57,9 +63,15 @@ impl SetProcessor {
     #[allow(clippy::type_complexity)]
     fn update(
         &mut self,
-        old: &Record,
-        new: &Record,
-    ) -> Result<(Vec<(SetAction, Record)>, Vec<(SetAction, Record)>), ProductError> {
+        old: &ProcessorRecord,
+        new: &ProcessorRecord,
+    ) -> Result<
+        (
+            Vec<(SetAction, ProcessorRecord)>,
+            Vec<(SetAction, ProcessorRecord)>,
+        ),
+        ProductError,
+    > {
         let old_records = self
             .operator
             .execute(SetAction::Delete, old, &mut self.record_map)

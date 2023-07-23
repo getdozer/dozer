@@ -9,7 +9,8 @@ use dozer_core::node::ProcessorFactory;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::chrono::DateTime;
 use dozer_types::types::{
-    DozerDuration, Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition, TimeUnit,
+    DozerDuration, Field, FieldDefinition, FieldType, ProcessorRecord, Schema, SourceDefinition,
+    TimeUnit,
 };
 
 #[test]
@@ -46,7 +47,7 @@ fn test_column_execution() {
         )
         .clone();
 
-    let record = Record::new(vec![
+    let record = ProcessorRecord::new(vec![
         Field::Int(1337),
         Field::String("test".to_string()),
         Field::Float(OrderedFloat(10.10)),
@@ -262,7 +263,7 @@ fn test_timestamp_difference() {
         )
         .clone();
 
-    let record = Record::new(vec![
+    let record = ProcessorRecord::new(vec![
         Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
         Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:12:10Z").unwrap()),
     ]);

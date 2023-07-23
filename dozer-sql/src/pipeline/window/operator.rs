@@ -1,6 +1,6 @@
 use dozer_types::{
     chrono::{Duration, DurationRound},
-    types::{Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition},
+    types::{Field, FieldDefinition, FieldType, ProcessorRecord, Schema, SourceDefinition},
 };
 
 use crate::pipeline::errors::WindowError;
@@ -19,7 +19,7 @@ pub enum WindowType {
 }
 
 impl WindowType {
-    pub fn execute(&self, record: &Record) -> Result<Vec<Record>, WindowError> {
+    pub fn execute(&self, record: &ProcessorRecord) -> Result<Vec<ProcessorRecord>, WindowError> {
         match self {
             WindowType::Tumble {
                 column_index,
@@ -57,11 +57,11 @@ impl WindowType {
 }
 
 fn execute_hop_window(
-    record: &Record,
+    record: &ProcessorRecord,
     column_index: usize,
     hop_size: Duration,
     interval: Duration,
-) -> Result<Vec<Record>, WindowError> {
+) -> Result<Vec<ProcessorRecord>, WindowError> {
     let field = record
         .get_value(column_index)
         .map_err(|_err| WindowError::TumbleInvalidColumnIndex())?;
@@ -107,10 +107,10 @@ fn hop(
 }
 
 fn execute_tumble_window(
-    record: &Record,
+    record: &ProcessorRecord,
     column_index: usize,
     interval: Duration,
-) -> Result<Vec<Record>, WindowError> {
+) -> Result<Vec<ProcessorRecord>, WindowError> {
     let field = record
         .get_value(column_index)
         .map_err(|_err| WindowError::TumbleInvalidColumnIndex())?;

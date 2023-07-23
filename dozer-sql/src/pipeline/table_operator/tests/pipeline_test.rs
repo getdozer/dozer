@@ -13,7 +13,7 @@ use dozer_types::errors::internal::BoxedError;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::tracing::{debug, info};
 use dozer_types::types::{
-    Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
+    Field, FieldDefinition, FieldType, Operation, ProcessorRecord, Schema, SourceDefinition,
 };
 
 use std::collections::HashMap;
@@ -215,7 +215,7 @@ impl Source for TestSource {
         let operations = vec![
             (
                 Operation::Insert {
-                    new: Record::new(vec![
+                    new: ProcessorRecord::new(vec![
                         Field::UInt(1001),
                         Field::Timestamp(
                             Utc.datetime_from_str("2023-02-01 22:00:00", DATE_FORMAT)
@@ -229,7 +229,7 @@ impl Source for TestSource {
             ),
             (
                 Operation::Insert {
-                    new: Record::new(vec![
+                    new: ProcessorRecord::new(vec![
                         Field::UInt(1002),
                         Field::Timestamp(
                             Utc.datetime_from_str("2023-02-01 22:01:00", DATE_FORMAT)
@@ -243,7 +243,7 @@ impl Source for TestSource {
             ),
             (
                 Operation::Insert {
-                    new: Record::new(vec![
+                    new: ProcessorRecord::new(vec![
                         Field::UInt(1003),
                         Field::Timestamp(
                             Utc.datetime_from_str("2023-02-01 22:02:10", DATE_FORMAT)
@@ -257,7 +257,7 @@ impl Source for TestSource {
             ),
             (
                 Operation::Insert {
-                    new: Record::new(vec![
+                    new: ProcessorRecord::new(vec![
                         Field::UInt(1004),
                         Field::Timestamp(
                             Utc.datetime_from_str("2023-02-01 22:03:00", DATE_FORMAT)
@@ -271,7 +271,7 @@ impl Source for TestSource {
             ),
             (
                 Operation::Insert {
-                    new: Record::new(vec![
+                    new: ProcessorRecord::new(vec![
                         Field::UInt(1005),
                         Field::Timestamp(
                             Utc.datetime_from_str("2023-02-01 22:05:00", DATE_FORMAT)
@@ -285,7 +285,7 @@ impl Source for TestSource {
             ),
             (
                 Operation::Insert {
-                    new: Record::new(vec![
+                    new: ProcessorRecord::new(vec![
                         Field::UInt(1006),
                         Field::Timestamp(
                             Utc.datetime_from_str("2023-02-01 22:06:00", DATE_FORMAT)
@@ -299,7 +299,7 @@ impl Source for TestSource {
             ),
             (
                 Operation::Insert {
-                    new: Record::new(vec![
+                    new: ProcessorRecord::new(vec![
                         Field::UInt(1),
                         Field::String("Newark Airport".to_string()),
                     ]),
@@ -308,7 +308,7 @@ impl Source for TestSource {
             ),
             (
                 Operation::Insert {
-                    new: Record::new(vec![
+                    new: ProcessorRecord::new(vec![
                         Field::UInt(2),
                         Field::String("Jamaica Bay".to_string()),
                     ]),
@@ -317,7 +317,7 @@ impl Source for TestSource {
             ),
             (
                 Operation::Insert {
-                    new: Record::new(vec![
+                    new: ProcessorRecord::new(vec![
                         Field::UInt(3),
                         Field::String("Allerton/Pelham Gardens".to_string()),
                     ]),

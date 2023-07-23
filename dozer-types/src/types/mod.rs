@@ -12,6 +12,7 @@ use serde::{self, Deserialize, Serialize};
 
 pub mod field;
 pub mod ref_types;
+pub use ref_types::ProcessorRecord;
 #[cfg(test)]
 mod tests;
 

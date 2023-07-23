@@ -7,7 +7,7 @@ use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::types::{Field, FieldType, Operation, Record, Schema};
+use dozer_types::types::{Field, FieldType, Operation, ProcessorRecord, Schema};
 use std::hash::{Hash, Hasher};
 
 use crate::pipeline::aggregation::aggregator::{
@@ -115,8 +115,8 @@ impl AggregationProcessor {
 
     fn calc_and_fill_measures(
         curr_state: &mut AggregationState,
-        deleted_record: Option<&Record>,
-        inserted_record: Option<&Record>,
+        deleted_record: Option<&ProcessorRecord>,
+        inserted_record: Option<&ProcessorRecord>,
         out_rec_delete: &mut Vec<Field>,
         out_rec_insert: &mut Vec<Field>,
         op: AggregatorOperation,
@@ -171,7 +171,7 @@ impl AggregationProcessor {
         Ok(new_fields)
     }
 
-    fn agg_delete(&mut self, old: &mut Record) -> Result<Vec<Operation>, PipelineError> {
+    fn agg_delete(&mut self, old: &mut ProcessorRecord) -> Result<Vec<Operation>, PipelineError> {
         let mut out_rec_delete: Vec<Field> = Vec::with_capacity(self.measures.len());
         let mut out_rec_insert: Vec<Field> = Vec::with_capacity(self.measures.len());
 
@@ -250,7 +250,7 @@ impl AggregationProcessor {
         Ok(res)
     }
 
-    fn agg_insert(&mut self, new: &mut Record) -> Result<Vec<Operation>, PipelineError> {
+    fn agg_insert(&mut self, new: &mut ProcessorRecord) -> Result<Vec<Operation>, PipelineError> {
         let mut out_rec_delete: Vec<Field> = Vec::with_capacity(self.measures.len());
         let mut out_rec_insert: Vec<Field> = Vec::with_capacity(self.measures.len());
 
@@ -331,7 +331,7 @@ impl AggregationProcessor {
         out_rec_insert_having_satisfied: bool,
         out_rec_delete: Vec<Field>,
         out_rec_insert: Vec<Field>,
-        rec: &mut Record,
+        rec: &mut ProcessorRecord,
         projections: &Vec<Expression>,
         aggregation_schema: &Schema,
     ) -> Result<Vec<Operation>, PipelineError> {
@@ -377,7 +377,7 @@ impl AggregationProcessor {
 
     fn having_is_satisfied(
         having_eval_schema: &Schema,
-        original_record: &mut Record,
+        original_record: &mut ProcessorRecord,
         having: &Expression,
         out_rec: &mut Vec<Field>,
     ) -> Result<bool, PipelineError> {
@@ -404,8 +404,8 @@ impl AggregationProcessor {
 
     fn agg_update(
         &mut self,
-        old: &mut Record,
-        new: &mut Record,
+        old: &mut ProcessorRecord,
+        new: &mut ProcessorRecord,
         key: u64,
     ) -> Result<Vec<Operation>, PipelineError> {
         let mut out_rec_delete: Vec<Field> = Vec::with_capacity(self.measures.len());
@@ -490,11 +490,11 @@ impl AggregationProcessor {
     }
 
     pub fn build_projection(
-        original: &mut Record,
+        original: &mut ProcessorRecord,
         measures: Vec<Field>,
         projections: &Vec<Expression>,
         aggregation_schema: &Schema,
-    ) -> Result<Record, PipelineError> {
+    ) -> Result<ProcessorRecord, PipelineError> {
         let original_len = original.values.len();
         original.values.extend(measures);
         let mut output = Vec::<Field>::with_capacity(projections.len());
@@ -502,7 +502,7 @@ impl AggregationProcessor {
             output.push(exp.evaluate(original, aggregation_schema)?);
         }
         original.values.drain(original_len..);
-        let mut output_record = Record::new(output);
+        let mut output_record = ProcessorRecord::new(output);
 
         output_record.set_lifetime(original.get_lifetime());
 
@@ -541,7 +541,7 @@ impl AggregationProcessor {
 
 fn get_key(
     schema: &Schema,
-    record: &Record,
+    record: &ProcessorRecord,
     dimensions: &[Expression],
 ) -> Result<u64, PipelineError> {
     let mut key = Vec::<Field>::with_capacity(dimensions.len());

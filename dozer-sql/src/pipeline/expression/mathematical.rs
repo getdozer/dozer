@@ -8,7 +8,7 @@ use dozer_types::types::{DozerDuration, TimeUnit};
 use dozer_types::{
     chrono,
     ordered_float::OrderedFloat,
-    types::{Field, Record},
+    types::{Field, ProcessorRecord},
 };
 use num_traits::{FromPrimitive, Zero};
 use std::num::Wrapping;
@@ -1789,7 +1789,7 @@ define_math_operator!(evaluate_mod, "%", |a, b| { a % b }, 0);
 pub fn evaluate_plus(
     schema: &Schema,
     expression: &Expression,
-    record: &Record,
+    record: &ProcessorRecord,
 ) -> Result<Field, PipelineError> {
     let expression_result = expression.evaluate(record, schema)?;
     match expression_result {
@@ -1818,7 +1818,7 @@ pub fn evaluate_plus(
 pub fn evaluate_minus(
     schema: &Schema,
     expression: &Expression,
-    record: &Record,
+    record: &ProcessorRecord,
 ) -> Result<Field, PipelineError> {
     let expression_result = expression.evaluate(record, schema)?;
     match expression_result {

@@ -1,12 +1,12 @@
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
-use dozer_types::types::{Field, Record, Schema};
+use dozer_types::types::{Field, ProcessorRecord, Schema};
 
 pub fn evaluate_and(
     schema: &Schema,
     left: &Expression,
     right: &Expression,
-    record: &Record,
+    record: &ProcessorRecord,
 ) -> Result<Field, PipelineError> {
     let l_field = left.evaluate(record, schema)?;
     let r_field = right.evaluate(record, schema)?;
@@ -71,7 +71,7 @@ pub fn evaluate_or(
     schema: &Schema,
     left: &Expression,
     right: &Expression,
-    record: &Record,
+    record: &ProcessorRecord,
 ) -> Result<Field, PipelineError> {
     let l_field = left.evaluate(record, schema)?;
     let r_field = right.evaluate(record, schema)?;
@@ -134,7 +134,7 @@ pub fn evaluate_or(
 pub fn evaluate_not(
     schema: &Schema,
     value: &Expression,
-    record: &Record,
+    record: &ProcessorRecord,
 ) -> Result<Field, PipelineError> {
     let value_p = value.evaluate(record, schema)?;
 

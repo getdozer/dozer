@@ -3,7 +3,7 @@ use crate::pipeline::expression::mathematical::{
     evaluate_add, evaluate_div, evaluate_mod, evaluate_mul, evaluate_sub,
 };
 use crate::pipeline::expression::tests::test_common::*;
-use dozer_types::types::{Record, SourceDefinition};
+use dozer_types::types::{ProcessorRecord, SourceDefinition};
 use dozer_types::{
     chrono::{DateTime, NaiveDate, TimeZone, Utc},
     ordered_float::OrderedFloat,
@@ -779,7 +779,7 @@ fn test_decimal() {
     let uint1 = Box::new(Literal(Field::UInt(1_u64)));
     let uint2 = Box::new(Literal(Field::UInt(2_u64)));
 
-    let row = Record::new(vec![]);
+    let row = ProcessorRecord::new(vec![]);
 
     // left: Int, right: Decimal
     assert_eq!(

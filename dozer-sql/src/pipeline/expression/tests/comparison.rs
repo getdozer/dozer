@@ -5,7 +5,7 @@ use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::execution::Expression::Literal;
 use crate::pipeline::expression::tests::test_common::*;
 use dozer_types::chrono::{DateTime, NaiveDate};
-use dozer_types::types::{FieldDefinition, FieldType, Record, SourceDefinition};
+use dozer_types::types::{FieldDefinition, FieldType, ProcessorRecord, SourceDefinition};
 use dozer_types::{
     ordered_float::OrderedFloat,
     rust_decimal::Decimal,
@@ -18,7 +18,7 @@ use proptest::prelude::*;
 fn test_comparison() {
     proptest!(ProptestConfig::with_cases(1000), move |(
         u_num1: u64, u_num2: u64, i_num1: i64, i_num2: i64, f_num1: f64, f_num2: f64, d_num1: ArbitraryDecimal, d_num2: ArbitraryDecimal)| {
-        let row = Record::new(vec![]);
+        let row = ProcessorRecord::new(vec![]);
 
         let uint1 = Literal(Field::UInt(u_num1));
         let uint2 = Literal(Field::UInt(u_num2));
@@ -422,7 +422,7 @@ fn test_comparison() {
     });
 }
 
-fn test_eq(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<Field>) {
+fn test_eq(exp1: &Expression, exp2: &Expression, row: &ProcessorRecord, result: Option<Field>) {
     match result {
         None => {
             assert!(matches!(
@@ -439,7 +439,7 @@ fn test_eq(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<Fi
     }
 }
 
-fn test_ne(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<Field>) {
+fn test_ne(exp1: &Expression, exp2: &Expression, row: &ProcessorRecord, result: Option<Field>) {
     match result {
         None => {
             assert!(matches!(
@@ -456,7 +456,7 @@ fn test_ne(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<Fi
     }
 }
 
-fn test_gt(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<Field>) {
+fn test_gt(exp1: &Expression, exp2: &Expression, row: &ProcessorRecord, result: Option<Field>) {
     match result {
         None => {
             assert!(matches!(
@@ -473,7 +473,7 @@ fn test_gt(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<Fi
     }
 }
 
-fn test_lt(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<Field>) {
+fn test_lt(exp1: &Expression, exp2: &Expression, row: &ProcessorRecord, result: Option<Field>) {
     match result {
         None => {
             assert!(matches!(
@@ -490,7 +490,7 @@ fn test_lt(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<Fi
     }
 }
 
-fn test_gte(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<Field>) {
+fn test_gte(exp1: &Expression, exp2: &Expression, row: &ProcessorRecord, result: Option<Field>) {
     match result {
         None => {
             assert!(matches!(
@@ -507,7 +507,7 @@ fn test_gte(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<F
     }
 }
 
-fn test_lte(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<Field>) {
+fn test_lte(exp1: &Expression, exp2: &Expression, row: &ProcessorRecord, result: Option<Field>) {
     match result {
         None => {
             assert!(matches!(

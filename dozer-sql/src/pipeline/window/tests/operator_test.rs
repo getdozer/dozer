@@ -1,13 +1,13 @@
 use dozer_types::{
     chrono::{DateTime, Duration},
-    types::{Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition},
+    types::{Field, FieldDefinition, FieldType, ProcessorRecord, Schema, SourceDefinition},
 };
 
 use crate::pipeline::window::operator::WindowType;
 
 #[test]
 fn test_hop() {
-    let record = Record::new(vec![
+    let record = ProcessorRecord::new(vec![
         Field::Int(0),
         Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
     ]);
@@ -21,7 +21,7 @@ fn test_hop() {
     assert_eq!(result.len(), 5);
     let window_record = result.get(0).unwrap();
 
-    let expected_record = Record::new(vec![
+    let expected_record = ProcessorRecord::new(vec![
         Field::Int(0),
         Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
         Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:09:00Z").unwrap()),
@@ -32,7 +32,7 @@ fn test_hop() {
 
     let window_record = result.get(1).unwrap();
 
-    let expected_record = Record::new(vec![
+    let expected_record = ProcessorRecord::new(vec![
         Field::Int(0),
         Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
         Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:10:00Z").unwrap()),
@@ -44,7 +44,7 @@ fn test_hop() {
 
 #[test]
 fn test_tumble() {
-    let record = Record::new(vec![
+    let record = ProcessorRecord::new(vec![
         Field::Int(0),
         Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
     ]);
@@ -58,7 +58,7 @@ fn test_tumble() {
     assert_eq!(result.len(), 1);
     let window_record = result.get(0).unwrap();
 
-    let expected_record = Record::new(vec![
+    let expected_record = ProcessorRecord::new(vec![
         Field::Int(0),
         Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
         Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:10:00Z").unwrap()),

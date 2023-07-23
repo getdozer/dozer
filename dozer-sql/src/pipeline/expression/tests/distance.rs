@@ -11,14 +11,14 @@ use crate::pipeline::expression::tests::test_common::*;
 use dozer_types::geo::{GeodesicDistance, HaversineDistance};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{
-    DozerPoint, Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition,
+    DozerPoint, Field, FieldDefinition, FieldType, ProcessorRecord, Schema, SourceDefinition,
 };
 use proptest::prelude::*;
 
 #[test]
 fn test_geo() {
     proptest!(ProptestConfig::with_cases(1000), move |(x1: f64, x2: f64, y1: f64, y2: f64)| {
-        let row = Record::new(vec![]);
+        let row = ProcessorRecord::new(vec![]);
         let from = Field::Point(DozerPoint::from((x1, y1)));
         let to = Field::Point(DozerPoint::from((x2, y2)));
         let null = Field::Null;
@@ -45,7 +45,7 @@ fn test_distance(
     from: &Field,
     to: &Field,
     typ: Option<Algorithm>,
-    row: &Record,
+    row: &ProcessorRecord,
     result: Option<Result<Field, PipelineError>>,
 ) {
     let args = &vec![Literal(from.clone()), Literal(to.clone())];

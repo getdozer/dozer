@@ -12,7 +12,7 @@ use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::debug;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{
-    Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
+    Field, FieldDefinition, FieldType, Operation, ProcessorRecord, Schema, SourceDefinition,
 };
 
 use std::collections::HashMap;
@@ -108,7 +108,7 @@ impl Source for TestSource {
                     0,
                     0,
                     Operation::Insert {
-                        new: Record::new(vec![
+                        new: ProcessorRecord::new(vec![
                             Field::Int(0),
                             Field::String("Italy".to_string()),
                             Field::Float(OrderedFloat(5.5)),

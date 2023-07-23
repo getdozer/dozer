@@ -1,6 +1,6 @@
 use crate::node::OutputPortType;
 use dozer_types::thiserror::Error;
-use dozer_types::types::{Operation, Record, Schema};
+use dozer_types::types::{Operation, ProcessorRecord, Schema};
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 
@@ -40,7 +40,7 @@ pub fn create_record_writer(
 #[derive(Debug)]
 pub(crate) struct PrimaryKeyLookupRecordWriter {
     schema: Schema,
-    index: HashMap<Vec<u8>, Record>,
+    index: HashMap<Vec<u8>, ProcessorRecord>,
 }
 
 impl PrimaryKeyLookupRecordWriter {
