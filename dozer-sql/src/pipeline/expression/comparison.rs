@@ -14,7 +14,7 @@ macro_rules! define_comparison {
             schema: &Schema,
             left: &Expression,
             right: &Expression,
-            record: &Record,
+            record: &ProcessorRecord,
         ) -> Result<Field, PipelineError> {
             let left_p = left.evaluate(&record, schema)?;
             let right_p = right.evaluate(&record, schema)?;

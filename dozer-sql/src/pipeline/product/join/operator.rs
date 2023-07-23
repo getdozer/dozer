@@ -20,9 +20,9 @@ pub enum JoinBranch {
 }
 
 // pub trait JoinOperator: Send + Sync {
-//     fn delete(&mut self, from: JoinBranch, old: &Record) -> JoinResult<Vec<Record>>;
-//     fn insert(&mut self, from: JoinBranch, new: &Record) -> JoinResult<Vec<Record>>;
-//     fn update(&mut self, from: JoinBranch, old: &Record, new: &Record) -> JoinResult<Vec<Record>>;
+//     fn delete(&mut self, from: JoinBranch, old: &ProcessorRecord) -> JoinResult<Vec<Record>>;
+//     fn insert(&mut self, from: JoinBranch, new: &ProcessorRecord) -> JoinResult<Vec<Record>>;
+//     fn update(&mut self, from: JoinBranch, old: &ProcessorRecord, new: &ProcessorRecord) -> JoinResult<Vec<Record>>;
 // }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -574,7 +574,8 @@ fn evict_join_record(
 fn get_record_key(record: &ProcessorRecord, key_indexes: &[usize]) -> Vec<u8> {
     let mut hasher = AHasher::default();
     for index in key_indexes.iter() {
-        record.values[*index].hash(&mut hasher);
+        let val = record.get_field_by_index(*index);
+        val.hash(&mut hasher);
     }
     let join_key = hasher.finish();
 
@@ -595,12 +596,12 @@ fn get_join_records(
 }
 
 fn join_records(left_record: &ProcessorRecord, right_record: &ProcessorRecord) -> ProcessorRecord {
-    let concat_values = [
-        left_record.values.as_slice(),
-        right_record.values.as_slice(),
-    ]
-    .concat();
-    let mut output_record = ProcessorRecord::new(concat_values);
+    let mut output_record = ProcessorRecord::new();
+    let left_indexes = (0..left_record.get_field_count()).collect::<Vec<_>>();
+    let right_indexes = (0..right_record.get_field_count()).collect::<Vec<_>>();
+    output_record.extend_referenced_fields(&left_record, &left_indexes);
+
+    output_record.extend_referenced_fields(&right_record, &right_indexes);
 
     if let Some(left_record_lifetime) = left_record.lifetime.clone() {
         if let Some(right_record_lifetime) = right_record.lifetime.clone() {

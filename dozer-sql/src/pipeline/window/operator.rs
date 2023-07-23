@@ -62,17 +62,16 @@ fn execute_hop_window(
     hop_size: Duration,
     interval: Duration,
 ) -> Result<Vec<ProcessorRecord>, WindowError> {
-    let field = record
-        .get_value(column_index)
-        .map_err(|_err| WindowError::TumbleInvalidColumnIndex())?;
+    let field = record.get_field_by_index(column_index);
 
     let windows = hop(field, hop_size, interval)?;
 
     let mut records = vec![];
     for (start, end) in windows.iter() {
         let mut window_record = record.clone();
-        window_record.push_value(start.clone());
-        window_record.push_value(end.clone());
+
+        window_record.extend_direct_field(start.clone());
+        window_record.extend_direct_field(end.clone());
         records.push(window_record);
     }
 
@@ -111,15 +110,13 @@ fn execute_tumble_window(
     column_index: usize,
     interval: Duration,
 ) -> Result<Vec<ProcessorRecord>, WindowError> {
-    let field = record
-        .get_value(column_index)
-        .map_err(|_err| WindowError::TumbleInvalidColumnIndex())?;
+    let field = record.get_field_by_index(column_index);
 
     let (start, end) = tumble(field, interval)?;
 
     let mut window_record = record.clone();
-    window_record.push_value(start);
-    window_record.push_value(end);
+    window_record.extend_direct_field(start.clone());
+    window_record.extend_direct_field(end.clone());
 
     Ok(vec![window_record])
 }
