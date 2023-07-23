@@ -3,7 +3,7 @@ use dozer_core::epoch::Epoch;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::types::{Operation, Record, Schema};
+use dozer_types::types::{Operation, ProcessorRecord, Schema};
 
 use crate::pipeline::errors::{PipelineError, TableOperatorError};
 
@@ -25,7 +25,11 @@ impl TableOperatorProcessor {
         }
     }
 
-    fn execute(&self, record: &Record, schema: &Schema) -> Result<Vec<Record>, TableOperatorError> {
+    fn execute(
+        &self,
+        record: &ProcessorRecord,
+        schema: &Schema,
+    ) -> Result<Vec<ProcessorRecord>, TableOperatorError> {
         self.operator.execute(record, schema)
     }
 }

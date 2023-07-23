@@ -2,7 +2,7 @@ use crate::pipeline::aggregation::processor::AggregationProcessor;
 use crate::pipeline::planner::projection::CommonPlanner;
 use crate::pipeline::tests::utils::get_select;
 use dozer_types::types::{
-    Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
+    Field, FieldDefinition, FieldType, Operation, ProcessorRecord, Schema, SourceDefinition,
 };
 
 #[test]
@@ -89,7 +89,7 @@ fn test_planner_with_aggregator() {
 
     let _r = processor
         .aggregate(Operation::Insert {
-            new: Record::new(vec![
+            new: ProcessorRecord::new(vec![
                 Field::String("John Smith".to_string()),
                 Field::String("Johor".to_string()),
                 Field::String("Malaysia".to_string()),
@@ -101,7 +101,7 @@ fn test_planner_with_aggregator() {
 
     let _r = processor
         .aggregate(Operation::Insert {
-            new: Record::new(vec![
+            new: ProcessorRecord::new(vec![
                 Field::String("Todd Enton".to_string()),
                 Field::String("Johor".to_string()),
                 Field::String("Malaysia".to_string()),

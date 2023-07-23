@@ -1,7 +1,7 @@
 use dozer_core::{node::PortHandle, DEFAULT_PORT_HANDLE};
 use dozer_types::types::{
-    DozerDuration, Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
-    TimeUnit, DATE_FORMAT,
+    DozerDuration, Field, FieldDefinition, FieldType, Operation, ProcessorRecord, Schema,
+    SourceDefinition, TimeUnit, DATE_FORMAT,
 };
 use std::collections::HashMap;
 
@@ -126,7 +126,7 @@ pub(crate) fn init_val_input_schema(field_type: FieldType, aggregator_name: &str
 
 pub(crate) fn insert_field(country: &str, insert_field: &Field) -> Operation {
     Operation::Insert {
-        new: Record::new(vec![
+        new: ProcessorRecord::new(vec![
             Field::Int(0),
             Field::String(country.to_string()),
             insert_field.clone(),
@@ -137,7 +137,7 @@ pub(crate) fn insert_field(country: &str, insert_field: &Field) -> Operation {
 
 pub(crate) fn delete_field(country: &str, deleted_field: &Field) -> Operation {
     Operation::Delete {
-        old: Record::new(vec![
+        old: ProcessorRecord::new(vec![
             Field::Int(0),
             Field::String(country.to_string()),
             deleted_field.clone(),
@@ -153,13 +153,13 @@ pub(crate) fn update_field(
     new: &Field,
 ) -> Operation {
     Operation::Update {
-        old: Record::new(vec![
+        old: ProcessorRecord::new(vec![
             Field::Int(0),
             Field::String(old_country.to_string()),
             old.clone(),
             old.clone(),
         ]),
-        new: Record::new(vec![
+        new: ProcessorRecord::new(vec![
             Field::Int(0),
             Field::String(new_country.to_string()),
             new.clone(),
@@ -170,26 +170,26 @@ pub(crate) fn update_field(
 
 pub(crate) fn insert_val_exp(inserted_field: &Field) -> Operation {
     Operation::Insert {
-        new: Record::new(vec![inserted_field.clone()]),
+        new: ProcessorRecord::new(vec![inserted_field.clone()]),
     }
 }
 
 pub(crate) fn delete_val_exp(deleted_field: &Field) -> Operation {
     Operation::Delete {
-        old: Record::new(vec![deleted_field.clone()]),
+        old: ProcessorRecord::new(vec![deleted_field.clone()]),
     }
 }
 
 pub(crate) fn update_val_exp(old: &Field, new: &Field) -> Operation {
     Operation::Update {
-        old: Record::new(vec![old.clone()]),
-        new: Record::new(vec![new.clone()]),
+        old: ProcessorRecord::new(vec![old.clone()]),
+        new: ProcessorRecord::new(vec![new.clone()]),
     }
 }
 
 pub(crate) fn insert_exp(country: &str, inserted_field: &Field) -> Operation {
     Operation::Insert {
-        new: Record::new(vec![
+        new: ProcessorRecord::new(vec![
             Field::String(country.to_string()),
             inserted_field.clone(),
         ]),
@@ -198,7 +198,7 @@ pub(crate) fn insert_exp(country: &str, inserted_field: &Field) -> Operation {
 
 pub(crate) fn delete_exp(country: &str, deleted_field: &Field) -> Operation {
     Operation::Delete {
-        old: Record::new(vec![
+        old: ProcessorRecord::new(vec![
             Field::String(country.to_string()),
             deleted_field.clone(),
         ]),
@@ -212,8 +212,8 @@ pub(crate) fn update_exp(
     new: &Field,
 ) -> Operation {
     Operation::Update {
-        old: Record::new(vec![Field::String(old_country.to_string()), old.clone()]),
-        new: Record::new(vec![Field::String(new_country.to_string()), new.clone()]),
+        old: ProcessorRecord::new(vec![Field::String(old_country.to_string()), old.clone()]),
+        new: ProcessorRecord::new(vec![Field::String(new_country.to_string()), new.clone()]),
     }
 }
 

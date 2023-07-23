@@ -6,7 +6,7 @@ use dozer_core::epoch::Epoch;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::types::{Operation, Record, Schema};
+use dozer_types::types::{Operation, ProcessorRecord, Schema};
 
 #[derive(Debug)]
 pub struct ProjectionProcessor {
@@ -22,32 +22,36 @@ impl ProjectionProcessor {
         }
     }
 
-    fn delete(&mut self, record: &Record) -> Result<Operation, PipelineError> {
+    fn delete(&mut self, record: &ProcessorRecord) -> Result<Operation, PipelineError> {
         let mut results = vec![];
 
         for expr in &self.expressions {
             results.push(expr.evaluate(record, &self.input_schema)?);
         }
 
-        let mut output_record = Record::new(results);
+        let mut output_record = ProcessorRecord::new(results);
         output_record.set_lifetime(record.lifetime.to_owned());
 
         Ok(Operation::Delete { old: output_record })
     }
 
-    fn insert(&mut self, record: &Record) -> Result<Operation, PipelineError> {
+    fn insert(&mut self, record: &ProcessorRecord) -> Result<Operation, PipelineError> {
         let mut results = vec![];
 
         for expr in self.expressions.clone() {
             results.push(expr.evaluate(record, &self.input_schema)?);
         }
 
-        let mut output_record = Record::new(results);
+        let mut output_record = ProcessorRecord::new(results);
         output_record.set_lifetime(record.lifetime.to_owned());
         Ok(Operation::Insert { new: output_record })
     }
 
-    fn update(&self, old: &Record, new: &Record) -> Result<Operation, PipelineError> {
+    fn update(
+        &self,
+        old: &ProcessorRecord,
+        new: &ProcessorRecord,
+    ) -> Result<Operation, PipelineError> {
         let mut old_results = vec![];
         let mut new_results = vec![];
 
@@ -56,9 +60,9 @@ impl ProjectionProcessor {
             new_results.push(expr.evaluate(new, &self.input_schema)?);
         }
 
-        let mut old_output_record = Record::new(old_results);
+        let mut old_output_record = ProcessorRecord::new(old_results);
         old_output_record.set_lifetime(old.lifetime.to_owned());
-        let mut new_output_record = Record::new(new_results);
+        let mut new_output_record = ProcessorRecord::new(new_results);
         new_output_record.set_lifetime(new.lifetime.to_owned());
         Ok(Operation::Update {
             old: old_output_record,

@@ -106,7 +106,7 @@ mod tests {
     use crossbeam::channel::{unbounded, Sender};
     use dozer_types::{
         node::{NodeHandle, OpIdentifier, SourceStates},
-        types::{Field, Record},
+        types::{Field, ProcessorRecord},
     };
 
     use super::*;
@@ -200,7 +200,7 @@ mod tests {
     #[test]
     fn receiver_loop_forwards_op() {
         let (mut test_loop, senders) = TestReceiverLoop::new(2);
-        let record = Record::new(vec![Field::Int(1)]);
+        let record = ProcessorRecord::new(vec![Field::Int(1)]);
         senders[0]
             .send(ExecutorOperation::Op {
                 op: Operation::Insert {

@@ -6,7 +6,7 @@ use crate::pipeline::expression::datetime::PipelineError::InvalidValue;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
 
 use dozer_types::chrono::{DateTime, Datelike, FixedOffset, Offset, Timelike, Utc};
-use dozer_types::types::{DozerDuration, Field, FieldType, Record, Schema, TimeUnit};
+use dozer_types::types::{DozerDuration, Field, FieldType, ProcessorRecord, Schema, TimeUnit};
 use num_traits::ToPrimitive;
 use sqlparser::ast::DateTimeField;
 use std::fmt::{Display, Formatter};
@@ -93,7 +93,7 @@ impl DateTimeFunctionType {
         &self,
         schema: &Schema,
         arg: &Expression,
-        record: &Record,
+        record: &ProcessorRecord,
     ) -> Result<Field, PipelineError> {
         match self {
             DateTimeFunctionType::Extract { field } => {
@@ -115,7 +115,7 @@ pub(crate) fn evaluate_date_part(
     schema: &Schema,
     field: &sqlparser::ast::DateTimeField,
     arg: &Expression,
-    record: &Record,
+    record: &ProcessorRecord,
 ) -> Result<Field, PipelineError> {
     let value = arg.evaluate(record, schema)?;
 
@@ -187,7 +187,7 @@ pub(crate) fn evaluate_interval(
     schema: &Schema,
     field: &sqlparser::ast::DateTimeField,
     arg: &Expression,
-    record: &Record,
+    record: &ProcessorRecord,
 ) -> Result<Field, PipelineError> {
     let value = arg.evaluate(record, schema)?;
     let dur = value.to_duration()?.unwrap().0.as_nanos();

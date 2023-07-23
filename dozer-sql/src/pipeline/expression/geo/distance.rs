@@ -6,7 +6,7 @@ use crate::pipeline::errors::PipelineError::{
 };
 use crate::pipeline::errors::{FieldTypes, PipelineError};
 use crate::{arg_point, arg_str};
-use dozer_types::types::{Field, FieldType, Record, Schema};
+use dozer_types::types::{Field, FieldType, ProcessorRecord, Schema};
 
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
 use crate::pipeline::expression::geo::common::GeoFunctionType;
@@ -78,7 +78,7 @@ pub(crate) fn validate_distance(
 pub(crate) fn evaluate_distance(
     schema: &Schema,
     args: &[Expression],
-    record: &Record,
+    record: &ProcessorRecord,
 ) -> Result<Field, PipelineError> {
     let f_from = args
         .get(0)

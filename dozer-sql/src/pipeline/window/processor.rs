@@ -4,7 +4,7 @@ use dozer_core::epoch::Epoch;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::types::{Operation, Record};
+use dozer_types::types::{Operation, ProcessorRecord};
 
 use super::operator::WindowType;
 
@@ -19,7 +19,7 @@ impl WindowProcessor {
         Self { _id: id, window }
     }
 
-    fn execute(&self, record: &Record) -> Result<Vec<Record>, WindowError> {
+    fn execute(&self, record: &ProcessorRecord) -> Result<Vec<ProcessorRecord>, WindowError> {
         self.window.execute(record)
     }
 }

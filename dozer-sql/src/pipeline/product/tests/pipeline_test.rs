@@ -12,7 +12,7 @@ use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::tracing::{debug, info};
 use dozer_types::types::{
-    Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
+    Field, FieldDefinition, FieldType, Operation, ProcessorRecord, Schema, SourceDefinition,
 };
 
 use std::collections::HashMap;
@@ -193,19 +193,19 @@ impl Source for TestSource {
         let operations = vec![
             (
                 Operation::Insert {
-                    new: Record::new(vec![Field::Int(0), Field::String("IT".to_string())]),
+                    new: ProcessorRecord::new(vec![Field::Int(0), Field::String("IT".to_string())]),
                 },
                 DEPARTMENT_PORT,
             ),
             (
                 Operation::Insert {
-                    new: Record::new(vec![Field::Int(1), Field::String("HR".to_string())]),
+                    new: ProcessorRecord::new(vec![Field::Int(1), Field::String("HR".to_string())]),
                 },
                 DEPARTMENT_PORT,
             ),
             (
                 Operation::Insert {
-                    new: Record::new(vec![
+                    new: ProcessorRecord::new(vec![
                         Field::Int(10000),
                         Field::String("Alice".to_string()),
                         Field::Int(0),
@@ -217,7 +217,7 @@ impl Source for TestSource {
             ),
             (
                 Operation::Insert {
-                    new: Record::new(vec![
+                    new: ProcessorRecord::new(vec![
                         Field::Int(10001),
                         Field::String("Bob".to_string()),
                         Field::Int(0),
@@ -229,7 +229,7 @@ impl Source for TestSource {
             ),
             (
                 Operation::Insert {
-                    new: Record::new(vec![
+                    new: ProcessorRecord::new(vec![
                         Field::String("UK".to_string()),
                         Field::String("United Kingdom".to_string()),
                     ]),
@@ -238,7 +238,7 @@ impl Source for TestSource {
             ),
             (
                 Operation::Insert {
-                    new: Record::new(vec![
+                    new: ProcessorRecord::new(vec![
                         Field::String("SG".to_string()),
                         Field::String("Singapore".to_string()),
                     ]),
@@ -247,7 +247,7 @@ impl Source for TestSource {
             ),
             (
                 Operation::Insert {
-                    new: Record::new(vec![
+                    new: ProcessorRecord::new(vec![
                         Field::Int(10002),
                         Field::String("Craig".to_string()),
                         Field::Int(1),
@@ -268,7 +268,7 @@ impl Source for TestSource {
             // ),
             (
                 Operation::Insert {
-                    new: Record::new(vec![
+                    new: ProcessorRecord::new(vec![
                         Field::Int(10003),
                         Field::String("Dan".to_string()),
                         Field::Int(0),
@@ -280,7 +280,7 @@ impl Source for TestSource {
             ),
             (
                 Operation::Insert {
-                    new: Record::new(vec![
+                    new: ProcessorRecord::new(vec![
                         Field::Int(10004),
                         Field::String("Eve".to_string()),
                         Field::Int(1),
@@ -306,7 +306,7 @@ impl Source for TestSource {
             // ),
             (
                 Operation::Insert {
-                    new: Record::new(vec![
+                    new: ProcessorRecord::new(vec![
                         Field::Int(10005),
                         Field::String("Frank".to_string()),
                         Field::Int(1),
@@ -318,8 +318,8 @@ impl Source for TestSource {
             ),
             (
                 Operation::Update {
-                    old: Record::new(vec![Field::Int(0), Field::String("IT".to_string())]),
-                    new: Record::new(vec![Field::Int(0), Field::String("RD".to_string())]),
+                    old: ProcessorRecord::new(vec![Field::Int(0), Field::String("IT".to_string())]),
+                    new: ProcessorRecord::new(vec![Field::Int(0), Field::String("RD".to_string())]),
                 },
                 DEPARTMENT_PORT,
             ),

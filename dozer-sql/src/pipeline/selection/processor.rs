@@ -20,13 +20,13 @@ impl SelectionProcessor {
         }
     }
 
-    fn delete(&self, record: &dozer_types::types::Record) -> Operation {
+    fn delete(&self, record: &dozer_types::types::ProcessorRecord) -> Operation {
         Operation::Delete {
             old: record.clone(),
         }
     }
 
-    fn insert(&self, record: &dozer_types::types::Record) -> Operation {
+    fn insert(&self, record: &dozer_types::types::ProcessorRecord) -> Operation {
         Operation::Insert {
             new: record.clone(),
         }

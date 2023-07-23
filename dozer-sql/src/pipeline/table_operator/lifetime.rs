@@ -1,4 +1,4 @@
-use dozer_types::types::{DozerDuration, Lifetime, Record, Schema};
+use dozer_types::types::{DozerDuration, Lifetime, ProcessorRecord, Schema};
 
 use crate::pipeline::{
     errors::TableOperatorError,
@@ -33,7 +33,11 @@ impl TableOperator for LifetimeTableOperator {
         "TTL".to_owned()
     }
 
-    fn execute(&self, record: &Record, schema: &Schema) -> Result<Vec<Record>, TableOperatorError> {
+    fn execute(
+        &self,
+        record: &ProcessorRecord,
+        schema: &Schema,
+    ) -> Result<Vec<ProcessorRecord>, TableOperatorError> {
         let mut source_record = record.clone();
         let mut ttl_records = vec![];
         if let Some(operator) = &self.operator {

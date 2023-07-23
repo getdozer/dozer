@@ -9,7 +9,7 @@ use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, Exp
 use crate::pipeline::expression::arg_utils::validate_arg_type;
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;
 
-use dozer_types::types::{Field, FieldType, Record, Schema};
+use dozer_types::types::{Field, FieldType, ProcessorRecord, Schema};
 use like::{Escape, Like};
 
 pub(crate) fn validate_ucase(
@@ -28,7 +28,7 @@ pub(crate) fn validate_ucase(
 pub(crate) fn evaluate_ucase(
     schema: &Schema,
     arg: &Expression,
-    record: &Record,
+    record: &ProcessorRecord,
 ) -> Result<Field, PipelineError> {
     let f = arg.evaluate(record, schema)?;
     let v = arg_str!(f, ScalarFunctionType::Ucase, 0)?;
@@ -81,7 +81,7 @@ pub(crate) fn validate_concat(
 pub(crate) fn evaluate_concat(
     schema: &Schema,
     args: &[Expression],
-    record: &Record,
+    record: &ProcessorRecord,
 ) -> Result<Field, PipelineError> {
     let mut res_type = FieldType::String;
     let mut res_vec: Vec<String> = Vec::with_capacity(args.len());
@@ -118,7 +118,7 @@ pub(crate) fn evaluate_concat(
 pub(crate) fn evaluate_length(
     schema: &Schema,
     arg0: &Expression,
-    record: &Record,
+    record: &ProcessorRecord,
 ) -> Result<Field, PipelineError> {
     let f0 = arg0.evaluate(record, schema)?;
     let v0 = arg_str!(f0, ScalarFunctionType::Concat, 0)?;
@@ -160,7 +160,7 @@ pub(crate) fn evaluate_trim(
     arg: &Expression,
     what: &Option<Box<Expression>>,
     typ: &Option<TrimType>,
-    record: &Record,
+    record: &ProcessorRecord,
 ) -> Result<Field, PipelineError> {
     let arg_field = arg.evaluate(record, schema)?;
     let arg_value = arg_str!(arg_field, "TRIM", 0)?;
@@ -226,7 +226,7 @@ pub(crate) fn evaluate_like(
     arg: &Expression,
     pattern: &Expression,
     escape: Option<char>,
-    record: &Record,
+    record: &ProcessorRecord,
 ) -> Result<Field, PipelineError> {
     let arg_field = arg.evaluate(record, schema)?;
     let arg_value = arg_str!(arg_field, "LIKE", 0)?;
@@ -256,7 +256,7 @@ pub(crate) fn evaluate_to_char(
     schema: &Schema,
     arg: &Expression,
     pattern: &Expression,
-    record: &Record,
+    record: &ProcessorRecord,
 ) -> Result<Field, PipelineError> {
     let arg_field = arg.evaluate(record, schema)?;
 

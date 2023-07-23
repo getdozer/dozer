@@ -8,7 +8,7 @@ use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
 use dozer_core::DEFAULT_PORT_HANDLE;
 
 use dozer_types::types::FieldType::Int;
-use dozer_types::types::{Field, Operation, Record};
+use dozer_types::types::{Field, Operation, ProcessorRecord};
 use std::collections::HashMap;
 
 #[test]
@@ -29,7 +29,7 @@ fn test_sum_aggregation_null() {
         SUM = 100.0
     */
     let inp = Operation::Insert {
-        new: Record::new(vec![
+        new: ProcessorRecord::new(vec![
             Field::Int(0),
             Field::Null,
             FIELD_100_INT.clone(),
@@ -38,7 +38,7 @@ fn test_sum_aggregation_null() {
     };
     let out = output!(processor, inp);
     let exp = vec![Operation::Insert {
-        new: Record::new(vec![Field::Null, FIELD_100_INT.clone()]),
+        new: ProcessorRecord::new(vec![Field::Null, FIELD_100_INT.clone()]),
     }];
     assert_eq!(out, exp);
 }
