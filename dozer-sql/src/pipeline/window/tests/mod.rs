@@ -2,4 +2,4 @@
 mod operator_test;
 
 #[cfg(test)]
-mod pipeline_test;
+pub(crate) mod pipeline_test;
