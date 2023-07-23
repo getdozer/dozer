@@ -5,7 +5,7 @@ use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::pyo3::types::PyTuple;
 use dozer_types::pyo3::Python;
-use dozer_types::types::{Field, FieldType, Record, Schema};
+use dozer_types::types::{Field, FieldType, ProcessorRecord, Schema};
 use std::env;
 use std::path::PathBuf;
 
