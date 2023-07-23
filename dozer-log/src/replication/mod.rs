@@ -3,11 +3,12 @@ use std::ops::{DerefMut, Range};
 use std::sync::Arc;
 use std::time::Duration;
 
-use dozer_types::epoch::ExecutorOperation;
+use dozer_types::epoch::Epoch;
 use dozer_types::grpc_types::internal::storage_response;
 use dozer_types::log::{debug, error};
 use dozer_types::models::app_config::LogStorage;
 use dozer_types::serde::{Deserialize, Serialize};
+use dozer_types::types::Operation;
 use dozer_types::{bincode, thiserror};
 use pin_project::pin_project;
 use tokio::sync::oneshot::error::RecvError;
@@ -80,13 +81,13 @@ struct Watcher {
     request: Range<usize>,
     timeout: bool,
     /// Only `None` after the watcher is triggered.
-    sender: Option<tokio::sync::oneshot::Sender<Vec<ExecutorOperation>>>,
+    sender: Option<tokio::sync::oneshot::Sender<Vec<LogOperation>>>,
 }
 
 #[derive(Debug, Clone)]
 struct InMemoryLog {
     start: usize,
-    ops: Vec<ExecutorOperation>,
+    ops: Vec<LogOperation>,
 }
 
 impl Log {
@@ -127,7 +128,7 @@ impl Log {
 
     pub async fn write(
         &mut self,
-        op: ExecutorOperation,
+        op: LogOperation,
         this: Arc<Mutex<Log>>,
     ) -> Result<Option<JoinHandle<()>>, Error> {
         // Record operation.
@@ -262,10 +263,7 @@ impl Log {
     fn add_watcher(
         &mut self,
         request: Range<usize>,
-    ) -> (
-        WatcherId,
-        tokio::sync::oneshot::Receiver<Vec<ExecutorOperation>>,
-    ) {
+    ) -> (WatcherId, tokio::sync::oneshot::Receiver<Vec<LogOperation>>) {
         let (sender, receiver) = tokio::sync::oneshot::channel();
         let id = self.next_watcher_id;
         let watcher = Watcher {
@@ -280,18 +278,27 @@ impl Log {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(crate = "dozer_types::serde")]
+pub enum LogOperation {
+    Op { op: Operation },
+    Commit { epoch: Epoch },
+    SnapshottingDone { connection_name: String },
+    Terminate,
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(crate = "dozer_types::serde")]
 pub enum LogResponse {
     Persisted(PersistedLogEntry),
-    Operations(Vec<ExecutorOperation>),
+    Operations(Vec<LogOperation>),
 }
 
 #[pin_project(project = LogResponseFutureProj)]
 pub enum LogResponseFuture {
     Persisted(PersistedLogEntry),
-    Ready(Vec<ExecutorOperation>),
-    Watching(#[pin] tokio::sync::oneshot::Receiver<Vec<ExecutorOperation>>),
+    Ready(Vec<LogOperation>),
+    Watching(#[pin] tokio::sync::oneshot::Receiver<Vec<LogOperation>>),
 }
 
 impl Future for LogResponseFuture {
@@ -342,7 +349,7 @@ impl InMemoryLog {
         self.start <= start && start < self.end()
     }
 
-    fn clone_range(&self, range: &Range<usize>) -> Vec<ExecutorOperation> {
+    fn clone_range(&self, range: &Range<usize>) -> Vec<LogOperation> {
         debug!(
             "Cloning range: {:?}, self.start={}, self.end={}",
             range,
