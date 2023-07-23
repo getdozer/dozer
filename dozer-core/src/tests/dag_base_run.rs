@@ -12,7 +12,7 @@ use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use dozer_types::epoch::Epoch;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
-use dozer_types::types::{Operation, Schema};
+use dozer_types::types::{ProcessorOperation, Schema};
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -73,7 +73,7 @@ impl Processor for NoopProcessor {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        op: Operation,
+        op: ProcessorOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         fw.send(op, DEFAULT_PORT_HANDLE);
@@ -222,7 +222,7 @@ impl Processor for NoopJoinProcessor {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        op: Operation,
+        op: ProcessorOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         fw.send(op, DEFAULT_PORT_HANDLE);

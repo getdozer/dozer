@@ -4,7 +4,7 @@ use dozer_core::epoch::Epoch;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::types::{Field, Operation, Schema};
+use dozer_types::types::{Field, ProcessorOperation, Schema};
 
 #[derive(Debug)]
 pub struct SelectionProcessor {
@@ -20,14 +20,14 @@ impl SelectionProcessor {
         }
     }
 
-    fn delete(&self, record: &dozer_types::types::ProcessorRecord) -> Operation {
-        Operation::Delete {
+    fn delete(&self, record: &dozer_types::types::ProcessorRecord) -> ProcessorOperation {
+        ProcessorOperation::Delete {
             old: record.clone(),
         }
     }
 
-    fn insert(&self, record: &dozer_types::types::ProcessorRecord) -> Operation {
-        Operation::Insert {
+    fn insert(&self, record: &dozer_types::types::ProcessorRecord) -> ProcessorOperation {
+        ProcessorOperation::Insert {
             new: record.clone(),
         }
     }
@@ -41,21 +41,21 @@ impl Processor for SelectionProcessor {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        op: Operation,
+        op: ProcessorOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         match op {
-            Operation::Delete { ref old } => {
+            ProcessorOperation::Delete { ref old } => {
                 if self.expression.evaluate(old, &self.input_schema)? == Field::Boolean(true) {
                     fw.send(op, DEFAULT_PORT_HANDLE);
                 }
             }
-            Operation::Insert { ref new } => {
+            ProcessorOperation::Insert { ref new } => {
                 if self.expression.evaluate(new, &self.input_schema)? == Field::Boolean(true) {
                     fw.send(op, DEFAULT_PORT_HANDLE);
                 }
             }
-            Operation::Update { ref old, ref new } => {
+            ProcessorOperation::Update { ref old, ref new } => {
                 let old_fulfilled =
                     self.expression.evaluate(old, &self.input_schema)? == Field::Boolean(true);
                 let new_fulfilled =

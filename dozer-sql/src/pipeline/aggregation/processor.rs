@@ -7,7 +7,7 @@ use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::types::{Field, FieldType, Operation, ProcessorRecord, Schema};
+use dozer_types::types::{Field, FieldType, ProcessorOperation, ProcessorRecord, Schema};
 use std::hash::{Hash, Hasher};
 
 use crate::pipeline::aggregation::aggregator::{
@@ -171,7 +171,10 @@ impl AggregationProcessor {
         Ok(new_fields)
     }
 
-    fn agg_delete(&mut self, old: &mut ProcessorRecord) -> Result<Vec<Operation>, PipelineError> {
+    fn agg_delete(
+        &mut self,
+        old: &mut ProcessorRecord,
+    ) -> Result<Vec<ProcessorOperation>, PipelineError> {
         let mut out_rec_delete: Vec<Field> = Vec::with_capacity(self.measures.len());
         let mut out_rec_insert: Vec<Field> = Vec::with_capacity(self.measures.len());
 
@@ -221,7 +224,7 @@ impl AggregationProcessor {
         let res = if curr_state.count == 1 {
             self.states.remove(&key);
             if out_rec_delete_having_satisfied {
-                vec![Operation::Delete {
+                vec![ProcessorOperation::Delete {
                     old: Self::build_projection(
                         old,
                         out_rec_delete,
@@ -250,7 +253,10 @@ impl AggregationProcessor {
         Ok(res)
     }
 
-    fn agg_insert(&mut self, new: &mut ProcessorRecord) -> Result<Vec<Operation>, PipelineError> {
+    fn agg_insert(
+        &mut self,
+        new: &mut ProcessorRecord,
+    ) -> Result<Vec<ProcessorOperation>, PipelineError> {
         let mut out_rec_delete: Vec<Field> = Vec::with_capacity(self.measures.len());
         let mut out_rec_insert: Vec<Field> = Vec::with_capacity(self.measures.len());
 
@@ -297,7 +303,7 @@ impl AggregationProcessor {
 
         let res = if curr_state.count == 0 {
             if out_rec_insert_having_satisfied {
-                vec![Operation::Insert {
+                vec![ProcessorOperation::Insert {
                     new: Self::build_projection(
                         new,
                         out_rec_insert,
@@ -334,13 +340,13 @@ impl AggregationProcessor {
         rec: &mut ProcessorRecord,
         projections: &Vec<Expression>,
         aggregation_schema: &Schema,
-    ) -> Result<Vec<Operation>, PipelineError> {
+    ) -> Result<Vec<ProcessorOperation>, PipelineError> {
         Ok(
             match (
                 out_rec_delete_having_satisfied,
                 out_rec_insert_having_satisfied,
             ) {
-                (false, true) => vec![Operation::Insert {
+                (false, true) => vec![ProcessorOperation::Insert {
                     new: Self::build_projection(
                         rec,
                         out_rec_insert,
@@ -348,7 +354,7 @@ impl AggregationProcessor {
                         aggregation_schema,
                     )?,
                 }],
-                (true, false) => vec![Operation::Delete {
+                (true, false) => vec![ProcessorOperation::Delete {
                     old: Self::build_projection(
                         rec,
                         out_rec_delete,
@@ -356,7 +362,7 @@ impl AggregationProcessor {
                         aggregation_schema,
                     )?,
                 }],
-                (true, true) => vec![Operation::Update {
+                (true, true) => vec![ProcessorOperation::Update {
                     new: Self::build_projection(
                         rec,
                         out_rec_insert,
@@ -407,7 +413,7 @@ impl AggregationProcessor {
         old: &mut ProcessorRecord,
         new: &mut ProcessorRecord,
         key: u64,
-    ) -> Result<Vec<Operation>, PipelineError> {
+    ) -> Result<Vec<ProcessorOperation>, PipelineError> {
         let mut out_rec_delete: Vec<Field> = Vec::with_capacity(self.measures.len());
         let mut out_rec_insert: Vec<Field> = Vec::with_capacity(self.measures.len());
 
@@ -452,7 +458,7 @@ impl AggregationProcessor {
             out_rec_delete_having_satisfied,
             out_rec_insert_having_satisfied,
         ) {
-            (false, true) => vec![Operation::Insert {
+            (false, true) => vec![ProcessorOperation::Insert {
                 new: Self::build_projection(
                     new,
                     out_rec_insert,
@@ -460,7 +466,7 @@ impl AggregationProcessor {
                     &self.aggregation_schema,
                 )?,
             }],
-            (true, false) => vec![Operation::Delete {
+            (true, false) => vec![ProcessorOperation::Delete {
                 old: Self::build_projection(
                     old,
                     out_rec_delete,
@@ -468,7 +474,7 @@ impl AggregationProcessor {
                     &self.aggregation_schema,
                 )?,
             }],
-            (true, true) => vec![Operation::Update {
+            (true, true) => vec![ProcessorOperation::Update {
                 new: Self::build_projection(
                     new,
                     out_rec_insert,
@@ -509,11 +515,14 @@ impl AggregationProcessor {
         Ok(output_record)
     }
 
-    pub fn aggregate(&mut self, mut op: Operation) -> Result<Vec<Operation>, PipelineError> {
+    pub fn aggregate(
+        &mut self,
+        mut op: ProcessorOperation,
+    ) -> Result<Vec<ProcessorOperation>, PipelineError> {
         match op {
-            Operation::Insert { ref mut new } => Ok(self.agg_insert(new)?),
-            Operation::Delete { ref mut old } => Ok(self.agg_delete(old)?),
-            Operation::Update {
+            ProcessorOperation::Insert { ref mut new } => Ok(self.agg_insert(new)?),
+            ProcessorOperation::Delete { ref mut old } => Ok(self.agg_delete(old)?),
+            ProcessorOperation::Update {
                 ref mut old,
                 ref mut new,
             } => {
@@ -562,7 +571,7 @@ impl Processor for AggregationProcessor {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        op: Operation,
+        op: ProcessorOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         let ops = self.aggregate(op)?;

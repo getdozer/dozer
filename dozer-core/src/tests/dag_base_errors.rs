@@ -13,7 +13,8 @@ use dozer_types::errors::internal::BoxedError;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::node::NodeHandle;
 use dozer_types::types::{
-    Field, FieldDefinition, FieldType, Operation, ProcessorRecord, Schema, SourceDefinition,
+    Field, FieldDefinition, FieldType, ProcessorOperation, ProcessorRecord, Schema,
+    SourceDefinition,
 };
 
 use std::collections::HashMap;
@@ -88,7 +89,7 @@ impl Processor for ErrorProcessor {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        op: Operation,
+        op: ProcessorOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         self.count += 1;
@@ -355,7 +356,7 @@ impl Source for ErrGeneratorSource {
                     n,
                     0,
                     0,
-                    Operation::Insert {
+                    ProcessorOperation::Insert {
                         new: ProcessorRecord::new(vec![
                             Field::String(format!("key_{n}")),
                             Field::String(format!("value_{n}")),
@@ -456,7 +457,11 @@ impl Sink for ErrSink {
         Ok(())
     }
 
-    fn process(&mut self, _from_port: PortHandle, _op: Operation) -> Result<(), BoxedError> {
+    fn process(
+        &mut self,
+        _from_port: PortHandle,
+        _op: ProcessorOperation,
+    ) -> Result<(), BoxedError> {
         self.current += 1;
         if self.current == self.err_at {
             if self.panic {

@@ -7,7 +7,7 @@ use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
 };
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::types::FieldType::{Date, Decimal, Duration, Float, Int, Timestamp};
-use dozer_types::types::{Operation, ProcessorRecord};
+use dozer_types::types::{ProcessorOperation, ProcessorRecord};
 use std::collections::HashMap;
 
 #[test]
@@ -28,7 +28,7 @@ fn test_count_star() {
     */
     output!(processor, insert_field(ITALY, FIELD_100_FLOAT));
     let out = output!(processor, insert_field(ITALY, FIELD_100_FLOAT));
-    let exp = vec![Operation::Update {
+    let exp = vec![ProcessorOperation::Update {
         old: ProcessorRecord::new(vec![FIELD_1_INT.clone()]),
         new: ProcessorRecord::new(vec![FIELD_2_INT.clone()]),
     }];

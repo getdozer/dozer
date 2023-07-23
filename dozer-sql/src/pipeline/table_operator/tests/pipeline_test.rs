@@ -13,7 +13,8 @@ use dozer_types::errors::internal::BoxedError;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::tracing::{debug, info};
 use dozer_types::types::{
-    Field, FieldDefinition, FieldType, Operation, ProcessorRecord, Schema, SourceDefinition,
+    Field, FieldDefinition, FieldType, ProcessorOperation, ProcessorRecord, Schema,
+    SourceDefinition,
 };
 
 use std::collections::HashMap;
@@ -214,7 +215,7 @@ impl Source for TestSource {
     ) -> Result<(), BoxedError> {
         let operations = vec![
             (
-                Operation::Insert {
+                ProcessorOperation::Insert {
                     new: ProcessorRecord::new(vec![
                         Field::UInt(1001),
                         Field::Timestamp(
@@ -228,7 +229,7 @@ impl Source for TestSource {
                 TRIPS_PORT,
             ),
             (
-                Operation::Insert {
+                ProcessorOperation::Insert {
                     new: ProcessorRecord::new(vec![
                         Field::UInt(1002),
                         Field::Timestamp(
@@ -242,7 +243,7 @@ impl Source for TestSource {
                 TRIPS_PORT,
             ),
             (
-                Operation::Insert {
+                ProcessorOperation::Insert {
                     new: ProcessorRecord::new(vec![
                         Field::UInt(1003),
                         Field::Timestamp(
@@ -256,7 +257,7 @@ impl Source for TestSource {
                 TRIPS_PORT,
             ),
             (
-                Operation::Insert {
+                ProcessorOperation::Insert {
                     new: ProcessorRecord::new(vec![
                         Field::UInt(1004),
                         Field::Timestamp(
@@ -270,7 +271,7 @@ impl Source for TestSource {
                 TRIPS_PORT,
             ),
             (
-                Operation::Insert {
+                ProcessorOperation::Insert {
                     new: ProcessorRecord::new(vec![
                         Field::UInt(1005),
                         Field::Timestamp(
@@ -284,7 +285,7 @@ impl Source for TestSource {
                 TRIPS_PORT,
             ),
             (
-                Operation::Insert {
+                ProcessorOperation::Insert {
                     new: ProcessorRecord::new(vec![
                         Field::UInt(1006),
                         Field::Timestamp(
@@ -298,7 +299,7 @@ impl Source for TestSource {
                 TRIPS_PORT,
             ),
             (
-                Operation::Insert {
+                ProcessorOperation::Insert {
                     new: ProcessorRecord::new(vec![
                         Field::UInt(1),
                         Field::String("Newark Airport".to_string()),
@@ -307,7 +308,7 @@ impl Source for TestSource {
                 ZONES_PORT,
             ),
             (
-                Operation::Insert {
+                ProcessorOperation::Insert {
                     new: ProcessorRecord::new(vec![
                         Field::UInt(2),
                         Field::String("Jamaica Bay".to_string()),
@@ -316,7 +317,7 @@ impl Source for TestSource {
                 ZONES_PORT,
             ),
             (
-                Operation::Insert {
+                ProcessorOperation::Insert {
                     new: ProcessorRecord::new(vec![
                         Field::UInt(3),
                         Field::String("Allerton/Pelham Gardens".to_string()),
@@ -385,11 +386,15 @@ pub struct TestSink {
 }
 
 impl Sink for TestSink {
-    fn process(&mut self, _from_port: PortHandle, _op: Operation) -> Result<(), BoxedError> {
+    fn process(
+        &mut self,
+        _from_port: PortHandle,
+        _op: ProcessorOperation,
+    ) -> Result<(), BoxedError> {
         match _op {
-            Operation::Delete { old } => info!("o0:-> - {:?}", old.values),
-            Operation::Insert { new } => info!("o0:-> + {:?}", new.values),
-            Operation::Update { old, new } => {
+            ProcessorOperation::Delete { old } => info!("o0:-> - {:?}", old.values),
+            ProcessorOperation::Insert { new } => info!("o0:-> + {:?}", new.values),
+            ProcessorOperation::Update { old, new } => {
                 info!("o0:-> - {:?}, + {:?}", old.values, new.values)
             }
         }

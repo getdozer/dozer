@@ -6,7 +6,7 @@ use dozer_core::epoch::Epoch;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::types::{Operation, ProcessorRecord, Schema};
+use dozer_types::types::{ProcessorOperation, ProcessorRecord, Schema};
 
 #[derive(Debug)]
 pub struct ProjectionProcessor {
@@ -22,7 +22,7 @@ impl ProjectionProcessor {
         }
     }
 
-    fn delete(&mut self, record: &ProcessorRecord) -> Result<Operation, PipelineError> {
+    fn delete(&mut self, record: &ProcessorRecord) -> Result<ProcessorOperation, PipelineError> {
         let mut results = vec![];
 
         for expr in &self.expressions {
@@ -32,10 +32,10 @@ impl ProjectionProcessor {
         let mut output_record = ProcessorRecord::new(results);
         output_record.set_lifetime(record.lifetime.to_owned());
 
-        Ok(Operation::Delete { old: output_record })
+        Ok(ProcessorOperation::Delete { old: output_record })
     }
 
-    fn insert(&mut self, record: &ProcessorRecord) -> Result<Operation, PipelineError> {
+    fn insert(&mut self, record: &ProcessorRecord) -> Result<ProcessorOperation, PipelineError> {
         let mut results = vec![];
 
         for expr in self.expressions.clone() {
@@ -44,14 +44,14 @@ impl ProjectionProcessor {
 
         let mut output_record = ProcessorRecord::new(results);
         output_record.set_lifetime(record.lifetime.to_owned());
-        Ok(Operation::Insert { new: output_record })
+        Ok(ProcessorOperation::Insert { new: output_record })
     }
 
     fn update(
         &self,
         old: &ProcessorRecord,
         new: &ProcessorRecord,
-    ) -> Result<Operation, PipelineError> {
+    ) -> Result<ProcessorOperation, PipelineError> {
         let mut old_results = vec![];
         let mut new_results = vec![];
 
@@ -64,7 +64,7 @@ impl ProjectionProcessor {
         old_output_record.set_lifetime(old.lifetime.to_owned());
         let mut new_output_record = ProcessorRecord::new(new_results);
         new_output_record.set_lifetime(new.lifetime.to_owned());
-        Ok(Operation::Update {
+        Ok(ProcessorOperation::Update {
             old: old_output_record,
             new: new_output_record,
         })
@@ -75,13 +75,17 @@ impl Processor for ProjectionProcessor {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        op: Operation,
+        op: ProcessorOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         match op {
-            Operation::Delete { ref old } => fw.send(self.delete(old)?, DEFAULT_PORT_HANDLE),
-            Operation::Insert { ref new } => fw.send(self.insert(new)?, DEFAULT_PORT_HANDLE),
-            Operation::Update { ref old, ref new } => {
+            ProcessorOperation::Delete { ref old } => {
+                fw.send(self.delete(old)?, DEFAULT_PORT_HANDLE)
+            }
+            ProcessorOperation::Insert { ref new } => {
+                fw.send(self.insert(new)?, DEFAULT_PORT_HANDLE)
+            }
+            ProcessorOperation::Update { ref old, ref new } => {
                 fw.send(self.update(old, new)?, DEFAULT_PORT_HANDLE)
             }
         };

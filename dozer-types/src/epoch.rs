@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     node::{NodeHandle, OpIdentifier, SourceStates},
-    types::Operation,
+    types::ProcessorOperation,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -54,9 +54,9 @@ impl Display for Epoch {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExecutorOperation {
-    Op { op: Operation },
+    Op { op: ProcessorOperation },
     Commit { epoch: Epoch },
     Terminate,
     SnapshottingDone { connection_name: String },

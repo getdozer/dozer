@@ -44,3 +44,17 @@ impl From<Record> for ProcessorRecord {
         ref_record
     }
 }
+#[derive(Clone, Debug, PartialEq, Eq)]
+/// A CDC event.
+pub enum ProcessorOperation {
+    Delete {
+        old: ProcessorRecord,
+    },
+    Insert {
+        new: ProcessorRecord,
+    },
+    Update {
+        old: ProcessorRecord,
+        new: ProcessorRecord,
+    },
+}
