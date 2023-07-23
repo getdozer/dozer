@@ -307,12 +307,7 @@ impl ExpressionExecutor for Expression {
     fn evaluate(&self, record: &ProcessorRecord, schema: &Schema) -> Result<Field, PipelineError> {
         match self {
             Expression::Literal(field) => Ok(field.clone()),
-            Expression::Column { index } => Ok(record
-                .get_value(*index)
-                .map_err(|_e| {
-                    PipelineError::InvalidInputType(format!("{} is an invalid field index", *index))
-                })?
-                .clone()),
+            Expression::Column { index } => Ok(record.get_field_by_index(*index).clone()),
             Expression::BinaryOperator {
                 left,
                 operator,

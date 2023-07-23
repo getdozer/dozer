@@ -16,7 +16,7 @@ pub fn evaluate_py_udf(
     name: &str,
     args: &[Expression],
     return_type: &FieldType,
-    record: &Record,
+    record: &ProcessorRecord,
 ) -> Result<Field, PipelineError> {
     let values = args
         .iter()

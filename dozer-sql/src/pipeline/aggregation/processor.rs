@@ -387,22 +387,18 @@ impl AggregationProcessor {
         having: &Expression,
         out_rec: &mut Vec<Field>,
     ) -> Result<bool, PipelineError> {
-        //
-        let original_record_len = original_record.values.len();
         Ok(match out_rec.len() {
             0 => false,
             _ => {
-                original_record.values.extend(std::mem::take(out_rec));
+                for f in out_rec.iter() {
+                    original_record.extend_direct_field(f.clone());
+                }
+
                 let r = having
                     .evaluate(original_record, having_eval_schema)?
                     .as_boolean()
                     .unwrap_or(false);
-                out_rec.extend(
-                    original_record
-                        .values
-                        .drain(original_record_len..)
-                        .collect::<Vec<Field>>(),
-                );
+
                 r
             }
         })
@@ -501,14 +497,14 @@ impl AggregationProcessor {
         projections: &Vec<Expression>,
         aggregation_schema: &Schema,
     ) -> Result<ProcessorRecord, PipelineError> {
-        let original_len = original.values.len();
-        original.values.extend(measures);
-        let mut output = Vec::<Field>::with_capacity(projections.len());
-        for exp in projections {
-            output.push(exp.evaluate(original, aggregation_schema)?);
+        for f in measures {
+            original.extend_direct_field(f);
         }
-        original.values.drain(original_len..);
-        let mut output_record = ProcessorRecord::new(output);
+
+        let mut output_record = ProcessorRecord::new();
+        for exp in projections {
+            output_record.extend_direct_field(exp.evaluate(original, aggregation_schema)?);
+        }
 
         output_record.set_lifetime(original.get_lifetime());
 
