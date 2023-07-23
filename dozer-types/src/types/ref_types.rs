@@ -38,7 +38,7 @@ impl From<Record> for ProcessorRecord {
     fn from(record: Record) -> Self {
         let mut ref_record = ProcessorRecord::new();
         for field in record.values {
-            ref_record.values.push(RefOrField::Field(field));
+            ref_record.extend_direct_field(field);
         }
         ref_record
     }
@@ -134,7 +134,7 @@ impl ProcessorRecord {
 
     pub fn extend_direct_field(&mut self, field: Field) {
         self.values.push(RefOrField::Field(field));
-        self.index.push(1 as u32);
+        self.index.push(self.get_field_count() as u32);
     }
 
     pub fn get_fields(&self) -> Vec<&Field> {
