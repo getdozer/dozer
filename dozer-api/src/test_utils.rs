@@ -111,7 +111,7 @@ pub fn initialize_cache(
     let mut cache = cache_manager
         .create_cache(
             labels,
-            schema.clone(),
+            schema,
             secondary_indexes,
             &Default::default(),
             Default::default(),

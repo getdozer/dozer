@@ -4,7 +4,7 @@ use dozer_cli::cli::cloud::CloudCommands;
 use dozer_cli::cli::generate_config_repl;
 use dozer_cli::cli::types::{Cli, Commands, ConnectorCommand, RunCommands, SecurityCommands};
 use dozer_cli::cli::{init_dozer, list_sources, LOGO};
-use dozer_cli::errors::{CliError, OrchestrationError};
+use dozer_cli::errors::{CliError, CloudError, OrchestrationError};
 use dozer_cli::simple::SimpleOrchestrator;
 #[cfg(feature = "cloud")]
 use dozer_cli::CloudOrchestrator;
@@ -27,7 +27,7 @@ fn main() {
     set_panic_hook();
 
     if let Err(e) = run() {
-        error!("{}", e);
+        display_error(&e);
         process::exit(1);
     }
 }
@@ -262,6 +262,18 @@ fn init_orchestrator(cli: &Cli) -> Result<SimpleOrchestrator, CliError> {
             }
         }
     })
+}
+
+fn display_error(e: &OrchestrationError) {
+    if let OrchestrationError::CloudError(CloudError::ApplicationNotFound) = &e {
+        let description = "Dozer cloud service was not able to find application. \n\n\
+        Please check your application id in `dozer-config.cloud.yaml` file.\n\
+        To change it, you can manually update file or use \"dozer cloud set-app {app_id}\".";
+
+        error!("{}", description);
+    } else {
+        error!("{}", e);
+    }
 }
 
 struct Telemetry();
