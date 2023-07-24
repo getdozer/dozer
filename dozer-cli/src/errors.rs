@@ -3,7 +3,9 @@
 use glob::{GlobError, PatternError};
 use std::io;
 use std::path::PathBuf;
+use tonic::Code::NotFound;
 
+use crate::errors::CloudError::{ApplicationNotFound, CloudServiceError};
 use dozer_api::{
     errors::{ApiError, AuthError, GenerationError, GrpcError},
     rest::DOZER_SERVER_NAME_HEADER,
@@ -18,6 +20,14 @@ use dozer_types::thiserror::Error;
 use dozer_types::{serde_yaml, thiserror};
 
 use crate::pipeline::connector_source::ConnectorSourceFactoryError;
+
+pub fn map_tonic_error(e: tonic::Status) -> CloudError {
+    if e.code() == NotFound && e.message() == "Failed to find app" {
+        ApplicationNotFound
+    } else {
+        CloudServiceError(e)
+    }
+}
 
 #[derive(Error, Debug)]
 pub enum OrchestrationError {
@@ -136,6 +146,9 @@ pub enum CloudError {
 
     #[error(transparent)]
     ConfigCombineError(#[from] ConfigCombineError),
+
+    #[error("Application not found")]
+    ApplicationNotFound,
 }
 
 #[derive(Debug, Error)]

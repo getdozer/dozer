@@ -4,9 +4,9 @@ use crate::cli::cloud::{
 };
 use crate::cloud_app_context::CloudAppContext;
 use crate::cloud_helper::list_files;
-use crate::errors::CloudError::GRPCCallError;
+
 use crate::errors::OrchestrationError::FailedToReadOrganisationName;
-use crate::errors::{CloudError, CloudLoginError, OrchestrationError};
+use crate::errors::{map_tonic_error, CloudError, CloudLoginError, OrchestrationError};
 use crate::progress_printer::{
     get_delete_steps, get_deploy_steps, get_update_steps, ProgressPrinter,
 };
@@ -89,7 +89,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
                     let response = client
                         .create_application(CreateAppRequest { files })
                         .await
-                        .map_err(GRPCCallError)?
+                        .map_err(map_tonic_error)?
                         .into_inner();
 
                     steps.complete_step(Some(&format!(
@@ -111,7 +111,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
                             files,
                         })
                         .await
-                        .map_err(GRPCCallError)?
+                        .map_err(map_tonic_error)?
                         .into_inner();
 
                     steps.complete_step(Some(&format!("Updated {}", &app_id)));
@@ -157,7 +157,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
                     app_id: app_id.clone(),
                 })
                 .await
-                .map_err(GRPCCallError)?
+                .map_err(map_tonic_error)?
                 .into_inner();
 
             if delete_result.success {
@@ -184,7 +184,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
                     uuid: list.uuid,
                 })
                 .await
-                .map_err(GRPCCallError)?
+                .map_err(map_tonic_error)?
                 .into_inner();
 
             let mut table = table!();
@@ -221,7 +221,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
             let response = client
                 .get_status(GetStatusRequest { app_id })
                 .await
-                .map_err(GRPCCallError)?
+                .map_err(map_tonic_error)?
                 .into_inner();
 
             let mut table = table!();
@@ -301,7 +301,8 @@ impl CloudOrchestrator for SimpleOrchestrator {
                 .get_status(GetStatusRequest {
                     app_id: app_id.clone(),
                 })
-                .await?
+                .await
+                .map_err(map_tonic_error)?
                 .into_inner();
 
             // Show log of the latest deployment for now.
@@ -321,7 +322,8 @@ impl CloudOrchestrator for SimpleOrchestrator {
                     include_app: !logs.ignore_app,
                     include_api: !logs.ignore_api,
                 })
-                .await?
+                .await
+                .map_err(map_tonic_error)?
                 .into_inner()
                 .fuse();
 
@@ -404,7 +406,8 @@ impl CloudOrchestrator for SimpleOrchestrator {
                             name,
                             value,
                         })
-                        .await?;
+                        .await
+                        .map_err(map_tonic_error)?;
 
                     info!("Secret created");
                 }
@@ -415,21 +418,24 @@ impl CloudOrchestrator for SimpleOrchestrator {
                             name,
                             value,
                         })
-                        .await?;
+                        .await
+                        .map_err(map_tonic_error)?;
 
                     info!("Secret updated");
                 }
                 SecretsCommand::Delete { name } => {
                     client
                         .delete_secret(DeleteSecretRequest { app_id, name })
-                        .await?;
+                        .await
+                        .map_err(map_tonic_error)?;
 
                     info!("Secret deleted")
                 }
                 SecretsCommand::Get { name } => {
                     let response = client
                         .get_secret(GetSecretRequest { app_id, name })
-                        .await?
+                        .await
+                        .map_err(map_tonic_error)?
                         .into_inner();
 
                     info!("Secret \"{}\" exist", response.name);
@@ -437,7 +443,8 @@ impl CloudOrchestrator for SimpleOrchestrator {
                 SecretsCommand::List {} => {
                     let response = client
                         .list_secrets(ListSecretsRequest { app_id })
-                        .await?
+                        .await
+                        .map_err(map_tonic_error)?
                         .into_inner();
 
                     info!("Secrets:");
@@ -478,7 +485,8 @@ impl SimpleOrchestrator {
                         .get_status(GetStatusRequest {
                             app_id: app_id.clone(),
                         })
-                        .await?
+                        .await
+                        .map_err(map_tonic_error)?
                         .into_inner();
                     let latest_version = status.versions.into_values().max().unwrap_or(0);
 
@@ -488,7 +496,8 @@ impl SimpleOrchestrator {
                             version: latest_version + 1,
                             deployment,
                         })
-                        .await?;
+                        .await
+                        .map_err(map_tonic_error)?;
                 }
                 VersionCommand::SetCurrent { version } => {
                     client
@@ -498,7 +507,8 @@ impl SimpleOrchestrator {
                 VersionCommand::Status { version } => {
                     let status = client
                         .get_status(GetStatusRequest { app_id })
-                        .await?
+                        .await
+                        .map_err(map_tonic_error)?
                         .into_inner();
                     let Some(deployment) = status.versions.get(&version) else {
                         info!("Version {} does not exist", version);
