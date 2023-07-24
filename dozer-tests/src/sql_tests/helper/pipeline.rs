@@ -123,7 +123,7 @@ impl Source for TestSource {
         while let Ok(Some((schema_name, op))) = self.receiver.recv() {
             idx += 1;
             let port = self.name_to_port.get(&schema_name).expect("port not found");
-            fw.send(IngestionMessage::new_op(idx, 0, 0, op.into()), *port)
+            fw.send(IngestionMessage::new_op(idx, 0, 0, op), *port)
                 .unwrap();
         }
         thread::sleep(Duration::from_millis(200));
