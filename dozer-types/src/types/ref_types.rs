@@ -23,7 +23,7 @@ pub enum RefOrField {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ProcessorRecordRef(pub Arc<ProcessorRecord>);
+pub struct ProcessorRecordRef(Arc<ProcessorRecord>);
 
 impl ProcessorRecordRef {
     pub fn new(record: ProcessorRecord) -> Self {
