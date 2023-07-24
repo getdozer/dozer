@@ -5,7 +5,8 @@ use dozer_core::epoch::Epoch;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::types::{ProcessorOperation, ProcessorRecord};
+use dozer_types::types::ref_types::ProcessorRecordRef;
+use dozer_types::types::ProcessorOperation;
 use std::collections::hash_map::RandomState;
 use std::fmt::{Debug, Formatter};
 
@@ -40,8 +41,8 @@ impl SetProcessor {
 
     fn delete(
         &mut self,
-        record: &ProcessorRecord,
-    ) -> Result<Vec<(SetAction, ProcessorRecord)>, ProductError> {
+        record: ProcessorRecordRef,
+    ) -> Result<Vec<(SetAction, ProcessorRecordRef)>, ProductError> {
         self.operator
             .execute(SetAction::Delete, record, &mut self.record_map)
             .map_err(|err| {
@@ -51,8 +52,8 @@ impl SetProcessor {
 
     fn insert(
         &mut self,
-        record: &ProcessorRecord,
-    ) -> Result<Vec<(SetAction, ProcessorRecord)>, ProductError> {
+        record: ProcessorRecordRef,
+    ) -> Result<Vec<(SetAction, ProcessorRecordRef)>, ProductError> {
         self.operator
             .execute(SetAction::Insert, record, &mut self.record_map)
             .map_err(|err| {
@@ -63,12 +64,12 @@ impl SetProcessor {
     #[allow(clippy::type_complexity)]
     fn update(
         &mut self,
-        old: &ProcessorRecord,
-        new: &ProcessorRecord,
+        old: ProcessorRecordRef,
+        new: ProcessorRecordRef,
     ) -> Result<
         (
-            Vec<(SetAction, ProcessorRecord)>,
-            Vec<(SetAction, ProcessorRecord)>,
+            Vec<(SetAction, ProcessorRecordRef)>,
+            Vec<(SetAction, ProcessorRecordRef)>,
         ),
         ProductError,
     > {
@@ -108,7 +109,7 @@ impl Processor for SetProcessor {
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         match op {
-            ProcessorOperation::Delete { ref old } => {
+            ProcessorOperation::Delete { old } => {
                 let records = self.delete(old).map_err(PipelineError::ProductError)?;
 
                 for (action, record) in records.into_iter() {
@@ -128,7 +129,7 @@ impl Processor for SetProcessor {
                     }
                 }
             }
-            ProcessorOperation::Insert { ref new } => {
+            ProcessorOperation::Insert { new } => {
                 let records = self.insert(new).map_err(PipelineError::ProductError)?;
 
                 for (action, record) in records.into_iter() {
@@ -148,7 +149,7 @@ impl Processor for SetProcessor {
                     }
                 }
             }
-            ProcessorOperation::Update { ref old, ref new } => {
+            ProcessorOperation::Update { old, new } => {
                 let (old_records, new_records) =
                     self.update(old, new).map_err(PipelineError::ProductError)?;
 

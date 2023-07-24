@@ -103,7 +103,12 @@ impl JoinOperator {
 
         let output_records = right_records
             .into_iter()
-            .map(|right_record| (action.clone(), join_records(left_record, right_record)))
+            .map(|right_record| {
+                (
+                    action.clone(),
+                    join_records(left_record.clone(), right_record),
+                )
+            })
             .collect::<Vec<(JoinAction, ProcessorRecordRef)>>();
 
         Ok(output_records)
@@ -119,7 +124,12 @@ impl JoinOperator {
 
         let output_records = left_records
             .into_iter()
-            .map(|left_record| (action.clone(), join_records(left_record, right_record)))
+            .map(|left_record| {
+                (
+                    action.clone(),
+                    join_records(left_record, right_record.clone()),
+                )
+            })
             .collect::<Vec<(JoinAction, ProcessorRecordRef)>>();
 
         Ok(output_records)
@@ -141,7 +151,12 @@ impl JoinOperator {
 
         let output_records = right_records
             .into_iter()
-            .map(|right_record| (action.clone(), join_records(left_record, right_record)))
+            .map(|right_record| {
+                (
+                    action.clone(),
+                    join_records(left_record.clone(), right_record),
+                )
+            })
             .collect::<Vec<(JoinAction, ProcessorRecordRef)>>();
 
         Ok(output_records)
@@ -164,7 +179,7 @@ impl JoinOperator {
 
         for left_record in left_records.into_iter() {
             let right_matching_count = self.get_right_matching_count(action, &left_record)?;
-            let join_record = join_records(left_record, right_record);
+            let join_record = join_records(left_record.clone(), right_record.clone());
 
             if right_matching_count > 0 {
                 // if there are multiple matching records on the right branch, the left record will be just returned
@@ -210,7 +225,7 @@ impl JoinOperator {
 
         for right_record in right_records.into_iter() {
             let left_matching_count = self.get_left_matching_count(action, &right_record)?;
-            let join_record = join_records(left_record, right_record);
+            let join_record = join_records(left_record.clone(), right_record.clone());
 
             if left_matching_count > 0 {
                 // if there are multiple matching records on the left branch, the right record will be just returned
@@ -249,13 +264,18 @@ impl JoinOperator {
 
         // no joining records on the right branch
         if left_records.is_empty() {
-            let join_record = join_records(self.left_default_record.clone(), right_record);
+            let join_record = join_records(self.left_default_record.clone(), right_record.clone());
             return Ok(vec![(action.clone(), join_record)]);
         }
 
         let output_records = left_records
             .into_iter()
-            .map(|left_record| (action.clone(), join_records(left_record, right_record)))
+            .map(|left_record| {
+                (
+                    action.clone(),
+                    join_records(left_record, right_record.clone()),
+                )
+            })
             .collect::<Vec<(JoinAction, ProcessorRecordRef)>>();
 
         Ok(output_records)
@@ -604,14 +624,15 @@ fn join_records(
     right_record: ProcessorRecordRef,
 ) -> ProcessorRecordRef {
     let mut output_record = ProcessorRecord::new();
-    let left_indexes = (0..left_record.0.get_field_count()).collect::<Vec<_>>();
-    let right_indexes = (0..right_record.0.get_field_count()).collect::<Vec<_>>();
-    output_record.extend_referenced_fields(left_record, &left_indexes);
+    let left_indexes = (0..left_record.clone().get_record().get_field_count()).collect::<Vec<_>>();
+    let right_indexes =
+        (0..right_record.clone().get_record().get_field_count()).collect::<Vec<_>>();
+    output_record.extend_referenced_fields(left_record.clone(), &left_indexes);
 
-    output_record.extend_referenced_fields(right_record, &right_indexes);
+    output_record.extend_referenced_fields(right_record.clone(), &right_indexes);
 
-    if let Some(left_record_lifetime) = left_record.0.lifetime.clone() {
-        if let Some(right_record_lifetime) = right_record.0.lifetime.clone() {
+    if let Some(left_record_lifetime) = left_record.get_record().lifetime.clone() {
+        if let Some(right_record_lifetime) = right_record.get_record().lifetime.clone() {
             if left_record_lifetime.reference > right_record_lifetime.reference {
                 output_record.set_lifetime(Some(left_record_lifetime));
             } else {
@@ -620,7 +641,7 @@ fn join_records(
         } else {
             output_record.set_lifetime(Some(left_record_lifetime));
         }
-    } else if let Some(right_record_lifetime) = right_record.0.lifetime.clone() {
+    } else if let Some(right_record_lifetime) = right_record.get_record().lifetime.clone() {
         output_record.set_lifetime(Some(right_record_lifetime));
     }
 

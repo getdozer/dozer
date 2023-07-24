@@ -33,6 +33,14 @@ impl ProcessorRecordRef {
     pub fn get_record(&self) -> &ProcessorRecord {
         &self.0
     }
+
+    pub fn get_clone_record(self) -> ProcessorRecord {
+        let mut output_record = ProcessorRecord::new();
+        let count = self.get_record().get_field_count();
+        let original_indexes = (0..count).collect::<Vec<_>>();
+        output_record.extend_referenced_fields(self, &original_indexes);
+        output_record
+    }
 }
 
 impl From<Record> for ProcessorRecord {

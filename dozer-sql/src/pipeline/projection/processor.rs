@@ -6,6 +6,7 @@ use dozer_core::epoch::Epoch;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
+use dozer_types::types::ref_types::ProcessorRecordRef;
 use dozer_types::types::{ProcessorOperation, ProcessorRecord, Schema};
 
 #[derive(Debug)]
@@ -22,46 +23,54 @@ impl ProjectionProcessor {
         }
     }
 
-    fn delete(&mut self, record: &ProcessorRecord) -> Result<ProcessorOperation, PipelineError> {
+    fn delete(&mut self, record: &ProcessorRecordRef) -> Result<ProcessorOperation, PipelineError> {
         let mut output_record = ProcessorRecord::new();
         for expr in &self.expressions {
-            output_record.extend_direct_field(expr.evaluate(record, &self.input_schema)?);
+            output_record
+                .extend_direct_field(expr.evaluate(record.get_record(), &self.input_schema)?);
         }
 
-        output_record.set_lifetime(record.lifetime.to_owned());
+        output_record.set_lifetime(record.get_record().lifetime.to_owned());
 
-        Ok(ProcessorOperation::Delete { old: output_record })
+        Ok(ProcessorOperation::Delete {
+            old: ProcessorRecordRef::new(output_record),
+        })
     }
 
-    fn insert(&mut self, record: &ProcessorRecord) -> Result<ProcessorOperation, PipelineError> {
+    fn insert(&mut self, record: &ProcessorRecordRef) -> Result<ProcessorOperation, PipelineError> {
         let mut output_record = ProcessorRecord::new();
 
         for expr in self.expressions.clone() {
-            output_record.extend_direct_field(expr.evaluate(record, &self.input_schema)?);
+            output_record
+                .extend_direct_field(expr.evaluate(record.get_record(), &self.input_schema)?);
         }
 
-        output_record.set_lifetime(record.lifetime.to_owned());
-        Ok(ProcessorOperation::Insert { new: output_record })
+        output_record.set_lifetime(record.get_record().lifetime.to_owned());
+        Ok(ProcessorOperation::Insert {
+            new: ProcessorRecordRef::new(output_record),
+        })
     }
 
     fn update(
         &self,
-        old: &ProcessorRecord,
-        new: &ProcessorRecord,
+        old: &ProcessorRecordRef,
+        new: &ProcessorRecordRef,
     ) -> Result<ProcessorOperation, PipelineError> {
         let mut old_output_record = ProcessorRecord::new();
         let mut new_output_record = ProcessorRecord::new();
         for expr in &self.expressions {
-            old_output_record.extend_direct_field(expr.evaluate(old, &self.input_schema)?);
-            new_output_record.extend_direct_field(expr.evaluate(new, &self.input_schema)?);
+            old_output_record
+                .extend_direct_field(expr.evaluate(old.get_record(), &self.input_schema)?);
+            new_output_record
+                .extend_direct_field(expr.evaluate(new.get_record(), &self.input_schema)?);
         }
 
-        old_output_record.set_lifetime(old.lifetime.to_owned());
+        old_output_record.set_lifetime(old.get_record().lifetime.to_owned());
 
-        new_output_record.set_lifetime(new.lifetime.to_owned());
+        new_output_record.set_lifetime(new.get_record().lifetime.to_owned());
         Ok(ProcessorOperation::Update {
-            old: old_output_record,
-            new: new_output_record,
+            old: ProcessorRecordRef::new(old_output_record),
+            new: ProcessorRecordRef::new(new_output_record),
         })
     }
 }
