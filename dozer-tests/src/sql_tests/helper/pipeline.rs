@@ -3,6 +3,7 @@ use dozer_core::app::{App, AppPipeline};
 use dozer_core::appsource::{AppSource, AppSourceManager};
 use dozer_core::channels::SourceChannelForwarder;
 use dozer_core::errors::ExecutionError;
+use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
@@ -17,7 +18,7 @@ use dozer_types::crossbeam::channel::{Receiver, Sender};
 use dozer_types::epoch::Epoch;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::ingestion_types::IngestionMessage;
-use dozer_types::types::{Operation, ProcessorOperation, Record, Schema, SourceDefinition};
+use dozer_types::types::{Operation, Record, Schema, SourceDefinition};
 use std::collections::HashMap;
 
 use std::hash::{Hash, Hasher};

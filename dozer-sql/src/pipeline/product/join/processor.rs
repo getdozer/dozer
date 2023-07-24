@@ -1,10 +1,10 @@
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::epoch::Epoch;
+use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::labels::Labels;
-use dozer_types::types::ProcessorOperation;
 use metrics::{
     counter, describe_counter, describe_gauge, describe_histogram, gauge, histogram,
     increment_counter,

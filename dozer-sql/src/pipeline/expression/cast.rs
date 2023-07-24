@@ -1,8 +1,9 @@
 use std::fmt::{Display, Formatter};
 
+use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::{
     ordered_float::OrderedFloat,
-    types::{Field, FieldType, ProcessorRecord, Schema},
+    types::{Field, FieldType, Schema},
 };
 
 use crate::pipeline::errors::{FieldTypes, PipelineError};

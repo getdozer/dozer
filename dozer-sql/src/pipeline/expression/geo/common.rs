@@ -3,7 +3,8 @@ use crate::pipeline::expression::execution::{Expression, ExpressionType};
 
 use crate::pipeline::expression::geo::distance::{evaluate_distance, validate_distance};
 use crate::pipeline::expression::geo::point::{evaluate_point, validate_point};
-use dozer_types::types::{Field, ProcessorRecord, Schema};
+use dozer_core::processor_record::ProcessorRecord;
+use dozer_types::types::{Field, Schema};
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]

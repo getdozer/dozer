@@ -1,10 +1,9 @@
 use crate::pipeline::expression::execution::Expression::Literal;
 use crate::pipeline::expression::scalar::number::{evaluate_abs, evaluate_round};
 use crate::pipeline::expression::tests::test_common::*;
+use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::types::{
-    Field, FieldDefinition, FieldType, ProcessorRecord, Schema, SourceDefinition,
-};
+use dozer_types::types::{Field, FieldDefinition, FieldType, Schema, SourceDefinition};
 use proptest::prelude::*;
 use std::ops::Neg;
 

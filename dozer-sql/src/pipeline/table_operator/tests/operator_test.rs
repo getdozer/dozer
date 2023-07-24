@@ -1,11 +1,11 @@
 use std::time::Duration;
 
-use dozer_types::types::ref_types::ProcessorRecordRef;
+use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordRef};
 use dozer_types::{
     chrono::DateTime,
     types::{
-        DozerDuration, Field, FieldDefinition, FieldType, Lifetime, ProcessorRecord, Schema,
-        SourceDefinition, TimeUnit,
+        DozerDuration, Field, FieldDefinition, FieldType, Lifetime, Schema, SourceDefinition,
+        TimeUnit,
     },
 };
 

@@ -6,13 +6,14 @@ use dozer_cache::dozer_log::{
 };
 use dozer_core::{
     epoch::Epoch,
+    executor_operation::ProcessorOperation,
     node::{PortHandle, Sink, SinkFactory},
     DEFAULT_PORT_HANDLE,
 };
 use dozer_sql::pipeline::builder::SchemaSQLContext;
+use dozer_types::errors::internal::BoxedError;
 use dozer_types::indicatif::{MultiProgress, ProgressBar};
 use dozer_types::types::Schema;
-use dozer_types::{errors::internal::BoxedError, types::ProcessorOperation};
 use tokio::{runtime::Runtime, sync::Mutex};
 
 #[derive(Debug)]

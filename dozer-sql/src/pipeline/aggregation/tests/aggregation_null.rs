@@ -7,9 +7,10 @@ use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
 
 use dozer_core::DEFAULT_PORT_HANDLE;
 
-use dozer_types::types::ref_types::ProcessorRecordRef;
+use dozer_core::executor_operation::ProcessorOperation;
+use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordRef};
+use dozer_types::types::Field;
 use dozer_types::types::FieldType::Int;
-use dozer_types::types::{Field, ProcessorOperation, ProcessorRecord};
 use std::collections::HashMap;
 
 #[test]

@@ -5,10 +5,10 @@ use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
     FIELD_100_FLOAT, FIELD_100_INT, FIELD_1_INT, FIELD_200_FLOAT, FIELD_200_INT, FIELD_2_INT,
     FIELD_3_INT, FIELD_50_FLOAT, FIELD_50_INT, FIELD_NULL, ITALY, SINGAPORE,
 };
+use dozer_core::executor_operation::ProcessorOperation;
+use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordRef};
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_types::types::ref_types::ProcessorRecordRef;
 use dozer_types::types::FieldType::{Date, Decimal, Duration, Float, Int, Timestamp};
-use dozer_types::types::{ProcessorOperation, ProcessorRecord};
 use std::collections::HashMap;
 
 #[test]

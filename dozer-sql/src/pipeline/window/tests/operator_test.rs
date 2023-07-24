@@ -1,8 +1,8 @@
-use dozer_types::types::ref_types::ProcessorRecordRef;
+use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordRef};
 use dozer_types::types::Record;
 use dozer_types::{
     chrono::{DateTime, Duration},
-    types::{Field, FieldDefinition, FieldType, ProcessorRecord, Schema, SourceDefinition},
+    types::{Field, FieldDefinition, FieldType, Schema, SourceDefinition},
 };
 
 use crate::pipeline::window::operator::WindowType;

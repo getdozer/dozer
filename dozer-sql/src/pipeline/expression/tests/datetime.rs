@@ -4,11 +4,11 @@ use crate::pipeline::expression::mathematical::{
     evaluate_add, evaluate_div, evaluate_mod, evaluate_mul, evaluate_sub,
 };
 use crate::pipeline::expression::tests::test_common::*;
+use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::chrono;
 use dozer_types::chrono::{DateTime, Datelike, NaiveDate};
 use dozer_types::types::{
-    DozerDuration, Field, FieldDefinition, FieldType, ProcessorRecord, Schema, SourceDefinition,
-    TimeUnit,
+    DozerDuration, Field, FieldDefinition, FieldType, Schema, SourceDefinition, TimeUnit,
 };
 use num_traits::ToPrimitive;
 use proptest::prelude::*;

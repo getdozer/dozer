@@ -2,11 +2,11 @@ use crate::pipeline::errors::{PipelineError, ProductError};
 use bloom::CountingBloomFilter;
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::epoch::Epoch;
+use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{PortHandle, Processor};
+use dozer_core::processor_record::ProcessorRecordRef;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::types::ref_types::ProcessorRecordRef;
-use dozer_types::types::ProcessorOperation;
 use std::collections::hash_map::RandomState;
 use std::fmt::{Debug, Formatter};
 

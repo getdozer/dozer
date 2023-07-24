@@ -4,11 +4,12 @@ use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::execution::ExpressionExecutor;
 use crate::pipeline::{aggregation::aggregator::Aggregator, expression::execution::Expression};
 use dozer_core::channels::ProcessorChannelForwarder;
+use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{PortHandle, Processor};
+use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordRef};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::types::ref_types::ProcessorRecordRef;
-use dozer_types::types::{Field, FieldType, ProcessorOperation, ProcessorRecord, Schema};
+use dozer_types::types::{Field, FieldType, Schema};
 use std::hash::{Hash, Hasher};
 
 use crate::pipeline::aggregation::aggregator::{

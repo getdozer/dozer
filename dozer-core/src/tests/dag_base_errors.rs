@@ -1,5 +1,6 @@
 use crate::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::executor::{DagExecutor, ExecutorOptions};
+use crate::executor_operation::ProcessorOperation;
 use crate::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Sink, SinkFactory,
     Source, SourceFactory,
@@ -13,8 +14,7 @@ use dozer_types::errors::internal::BoxedError;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::node::NodeHandle;
 use dozer_types::types::{
-    Field, FieldDefinition, FieldType, Operation, ProcessorOperation, Record, Schema,
-    SourceDefinition,
+    Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
 };
 
 use std::collections::HashMap;

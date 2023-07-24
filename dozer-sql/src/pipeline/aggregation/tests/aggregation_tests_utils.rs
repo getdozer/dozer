@@ -1,7 +1,7 @@
 use dozer_core::{node::PortHandle, DEFAULT_PORT_HANDLE};
 use dozer_types::types::{
-    DozerDuration, Field, FieldDefinition, FieldType, ProcessorOperation, ProcessorRecord, Schema,
-    SourceDefinition, TimeUnit, DATE_FORMAT,
+    DozerDuration, Field, FieldDefinition, FieldType, Schema, SourceDefinition, TimeUnit,
+    DATE_FORMAT,
 };
 use std::collections::HashMap;
 
@@ -9,11 +9,12 @@ use crate::pipeline::aggregation::processor::AggregationProcessor;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::planner::projection::CommonPlanner;
 use crate::pipeline::tests::utils::get_select;
+use dozer_core::executor_operation::ProcessorOperation;
+use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordRef};
 use dozer_types::arrow::datatypes::ArrowNativeTypeOp;
 use dozer_types::chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
-use dozer_types::types::ref_types::ProcessorRecordRef;
 use std::ops::Div;
 
 pub(crate) fn init_processor(

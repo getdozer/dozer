@@ -4,8 +4,9 @@ use crate::pipeline::expression::comparison::{
 use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::execution::Expression::Literal;
 use crate::pipeline::expression::tests::test_common::*;
+use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::chrono::{DateTime, NaiveDate};
-use dozer_types::types::{FieldDefinition, FieldType, ProcessorRecord, SourceDefinition};
+use dozer_types::types::{FieldDefinition, FieldType, SourceDefinition};
 use dozer_types::{
     ordered_float::OrderedFloat,
     rust_decimal::Decimal,

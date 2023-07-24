@@ -4,10 +4,10 @@ use std::{borrow::Cow, mem::swap};
 use crossbeam::channel::Receiver;
 use daggy::NodeIndex;
 use dozer_types::epoch::Epoch;
-use dozer_types::epoch::ExecutorOperation;
 use dozer_types::node::NodeHandle;
 
 use crate::error_manager::ErrorManager;
+use crate::executor_operation::{ExecutorOperation, ProcessorOperation};
 use crate::{
     builder_dag::NodeKind,
     errors::ExecutionError,
@@ -89,11 +89,7 @@ impl ReceiverLoop for ProcessorNode {
         Cow::Owned(self.port_handles[index].to_string())
     }
 
-    fn on_op(
-        &mut self,
-        index: usize,
-        op: dozer_types::types::ProcessorOperation,
-    ) -> Result<(), ExecutionError> {
+    fn on_op(&mut self, index: usize, op: ProcessorOperation) -> Result<(), ExecutionError> {
         if let Err(e) =
             self.processor
                 .process(self.port_handles[index], op, &mut self.channel_manager)

@@ -5,8 +5,9 @@ use crate::pipeline::errors::{FieldTypes, PipelineError};
 use crate::pipeline::expression::datetime::PipelineError::InvalidValue;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
 
+use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::chrono::{DateTime, Datelike, FixedOffset, Offset, Timelike, Utc};
-use dozer_types::types::{DozerDuration, Field, FieldType, ProcessorRecord, Schema, TimeUnit};
+use dozer_types::types::{DozerDuration, Field, FieldType, Schema, TimeUnit};
 use num_traits::ToPrimitive;
 use sqlparser::ast::DateTimeField;
 use std::fmt::{Display, Formatter};

@@ -2,11 +2,12 @@ use std::collections::HashMap;
 
 use dozer_core::{
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
+    processor_record::{ProcessorRecord, ProcessorRecordRef},
     DEFAULT_PORT_HANDLE,
 };
 use dozer_types::{
     errors::internal::BoxedError,
-    types::{ref_types::ProcessorRecordRef, FieldDefinition, ProcessorRecord, Schema},
+    types::{FieldDefinition, Schema},
 };
 use sqlparser::ast::{
     BinaryOperator, Expr as SqlExpr, Ident, JoinConstraint as SqlJoinConstraint,

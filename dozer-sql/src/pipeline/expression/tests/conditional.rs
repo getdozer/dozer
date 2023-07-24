@@ -1,8 +1,8 @@
 use crate::pipeline::expression::conditional::*;
 use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::tests::test_common::*;
+use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::types::ProcessorRecord;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Schema, SourceDefinition};
 use proptest::prelude::*;
 

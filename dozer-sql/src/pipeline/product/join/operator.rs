@@ -1,7 +1,8 @@
 use ahash::AHasher;
+use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordRef};
 use dozer_types::{
     chrono,
-    types::{ref_types::ProcessorRecordRef, Field, Lifetime, ProcessorRecord},
+    types::{Field, Lifetime},
 };
 use linked_hash_map::LinkedHashMap;
 use std::{

@@ -2,10 +2,11 @@ use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::UnsupportedSqlError;
 use crate::pipeline::errors::UnsupportedSqlError::GenericError;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
+use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::pyo3::types::PyTuple;
 use dozer_types::pyo3::Python;
-use dozer_types::types::{Field, FieldType, ProcessorRecord, Schema};
+use dozer_types::types::{Field, FieldType, Schema};
 use std::env;
 use std::path::PathBuf;
 

@@ -5,7 +5,7 @@ use crate::pipeline::expression::mathematical::{
     evaluate_add, evaluate_div, evaluate_mod, evaluate_mul, evaluate_sub,
 };
 use crate::pipeline::expression::tests::test_common::*;
-use dozer_types::types::ProcessorRecord;
+use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::{
     ordered_float::OrderedFloat,
     rust_decimal::Decimal,

@@ -6,7 +6,8 @@ use crate::pipeline::errors::PipelineError::{
 };
 use crate::pipeline::errors::{FieldTypes, PipelineError};
 use crate::{arg_point, arg_str};
-use dozer_types::types::{Field, FieldType, ProcessorRecord, Schema};
+use dozer_core::processor_record::ProcessorRecord;
+use dozer_types::types::{Field, FieldType, Schema};
 
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
 use crate::pipeline::expression::geo::common::GeoFunctionType;

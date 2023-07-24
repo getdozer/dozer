@@ -3,10 +3,12 @@ use std::time::SystemTime;
 
 use crossbeam::channel::{Receiver, Select};
 use dozer_types::epoch::Epoch;
-use dozer_types::types::ProcessorOperation;
-use dozer_types::{epoch::ExecutorOperation, log::debug};
+use dozer_types::log::debug;
 
-use crate::errors::ExecutionError;
+use crate::{
+    errors::ExecutionError,
+    executor_operation::{ExecutorOperation, ProcessorOperation},
+};
 
 use super::{name::Name, InputPortState};
 
@@ -104,11 +106,12 @@ mod tests {
     use std::mem::swap;
 
     use crossbeam::channel::{unbounded, Sender};
-    use dozer_types::types::ref_types::ProcessorRecordRef;
     use dozer_types::{
         node::{NodeHandle, OpIdentifier, SourceStates},
-        types::{Field, ProcessorRecord},
+        types::Field,
     };
+
+    use crate::processor_record::{ProcessorRecord, ProcessorRecordRef};
 
     use super::*;
 

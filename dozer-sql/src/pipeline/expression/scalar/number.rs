@@ -2,8 +2,9 @@ use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::InvalidFunctionArgument;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;
+use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::types::{Field, FieldType, ProcessorRecord, Schema};
+use dozer_types::types::{Field, FieldType, Schema};
 use num_traits::{Float, ToPrimitive};
 
 pub(crate) fn evaluate_abs(

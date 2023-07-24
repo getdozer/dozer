@@ -5,8 +5,9 @@ use crate::pipeline::errors::PipelineError::{
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 
 use crate::jsonpath::{JsonPathFinder, JsonPathInst};
+use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::json_types::JsonValue;
-use dozer_types::types::{Field, ProcessorRecord, Schema};
+use dozer_types::types::{Field, Schema};
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 

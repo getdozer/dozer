@@ -6,11 +6,11 @@ use crate::pipeline::expression::scalar::common::ScalarFunctionType;
 use crate::pipeline::projection::factory::ProjectionProcessorFactory;
 use crate::pipeline::tests::utils::get_select;
 use dozer_core::node::ProcessorFactory;
+use dozer_core::processor_record::ProcessorRecord;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::chrono::DateTime;
 use dozer_types::types::{
-    DozerDuration, Field, FieldDefinition, FieldType, ProcessorRecord, Schema, SourceDefinition,
-    TimeUnit,
+    DozerDuration, Field, FieldDefinition, FieldType, Schema, SourceDefinition, TimeUnit,
 };
 
 #[test]

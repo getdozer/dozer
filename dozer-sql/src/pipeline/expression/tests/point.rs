@@ -1,9 +1,8 @@
 use crate::pipeline::expression::geo::point::{evaluate_point, validate_point};
 use crate::pipeline::expression::tests::test_common::*;
+use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::types::{
-    DozerPoint, Field, FieldDefinition, FieldType, ProcessorRecord, Schema, SourceDefinition,
-};
+use dozer_types::types::{DozerPoint, Field, FieldDefinition, FieldType, Schema, SourceDefinition};
 
 use crate::pipeline::errors::PipelineError::{
     InvalidArgument, InvalidFunctionArgumentType, NotEnoughArguments, TooManyArguments,

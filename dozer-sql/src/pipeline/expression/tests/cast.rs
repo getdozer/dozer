@@ -3,7 +3,8 @@ use crate::pipeline::expression::mathematical::{
     evaluate_add, evaluate_div, evaluate_mod, evaluate_mul, evaluate_sub,
 };
 use crate::pipeline::expression::tests::test_common::*;
-use dozer_types::types::{ProcessorRecord, SourceDefinition};
+use dozer_core::processor_record::ProcessorRecord;
+use dozer_types::types::SourceDefinition;
 use dozer_types::{
     chrono::{DateTime, NaiveDate, TimeZone, Utc},
     ordered_float::OrderedFloat,

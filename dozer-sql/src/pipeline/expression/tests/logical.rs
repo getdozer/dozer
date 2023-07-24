@@ -1,6 +1,7 @@
 use crate::pipeline::expression::execution::Expression::Literal;
 use crate::pipeline::expression::logical::{evaluate_and, evaluate_not, evaluate_or};
-use dozer_types::types::{Field, ProcessorRecord, Schema};
+use dozer_core::processor_record::ProcessorRecord;
+use dozer_types::types::{Field, Schema};
 use dozer_types::{ordered_float::OrderedFloat, rust_decimal::Decimal};
 #[cfg(test)]
 use proptest::prelude::*;

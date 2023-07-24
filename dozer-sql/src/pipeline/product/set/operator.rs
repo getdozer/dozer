@@ -1,6 +1,6 @@
 use crate::pipeline::errors::PipelineError;
 use bloom::{CountingBloomFilter, ASMS};
-use dozer_types::types::ref_types::ProcessorRecordRef;
+use dozer_core::processor_record::ProcessorRecordRef;
 use sqlparser::ast::{SetOperator, SetQuantifier};
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]

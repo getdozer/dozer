@@ -1,11 +1,9 @@
 use crate::pipeline::aggregation::processor::AggregationProcessor;
 use crate::pipeline::planner::projection::CommonPlanner;
 use crate::pipeline::tests::utils::get_select;
-use dozer_types::types::ref_types::ProcessorRecordRef;
-use dozer_types::types::{
-    Field, FieldDefinition, FieldType, ProcessorOperation, ProcessorRecord, Schema,
-    SourceDefinition,
-};
+use dozer_core::executor_operation::ProcessorOperation;
+use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordRef};
+use dozer_types::types::{Field, FieldDefinition, FieldType, Schema, SourceDefinition};
 
 #[test]
 fn test_planner_with_aggregator() {

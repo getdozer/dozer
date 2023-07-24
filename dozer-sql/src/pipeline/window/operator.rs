@@ -1,9 +1,7 @@
+use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordRef};
 use dozer_types::{
     chrono::{Duration, DurationRound},
-    types::{
-        ref_types::ProcessorRecordRef, Field, FieldDefinition, FieldType, ProcessorRecord, Schema,
-        SourceDefinition,
-    },
+    types::{Field, FieldDefinition, FieldType, Schema, SourceDefinition},
 };
 
 use crate::pipeline::errors::WindowError;

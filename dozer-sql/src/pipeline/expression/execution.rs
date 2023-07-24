@@ -19,7 +19,8 @@ use crate::pipeline::expression::case::evaluate_case;
 
 use crate::pipeline::aggregation::max_value::validate_max_value;
 use crate::pipeline::aggregation::min_value::validate_min_value;
-use dozer_types::types::{Field, FieldType, ProcessorRecord, Schema, SourceDefinition};
+use dozer_core::processor_record::ProcessorRecord;
+use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
 use uuid::Uuid;
 
 use super::aggregate::AggregateFunctionType;

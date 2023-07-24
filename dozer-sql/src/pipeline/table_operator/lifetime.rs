@@ -1,6 +1,5 @@
-use dozer_types::types::{
-    ref_types::ProcessorRecordRef, DozerDuration, Lifetime, ProcessorRecord, Schema,
-};
+use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordRef};
+use dozer_types::types::{DozerDuration, Lifetime, Schema};
 
 use crate::pipeline::{
     errors::TableOperatorError,

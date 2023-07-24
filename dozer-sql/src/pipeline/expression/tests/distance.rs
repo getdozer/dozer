@@ -8,11 +8,10 @@ use crate::pipeline::expression::execution::Expression::Literal;
 use crate::pipeline::expression::geo::common::GeoFunctionType;
 use crate::pipeline::expression::geo::distance::{evaluate_distance, validate_distance, Algorithm};
 use crate::pipeline::expression::tests::test_common::*;
+use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::geo::{GeodesicDistance, HaversineDistance};
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::types::{
-    DozerPoint, Field, FieldDefinition, FieldType, ProcessorRecord, Schema, SourceDefinition,
-};
+use dozer_types::types::{DozerPoint, Field, FieldDefinition, FieldType, Schema, SourceDefinition};
 use proptest::prelude::*;
 
 #[test]

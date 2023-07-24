@@ -11,8 +11,7 @@ use prettytable::{Cell, Row, Table};
 use serde::{self, Deserialize, Serialize};
 
 pub mod field;
-pub mod ref_types;
-pub use ref_types::{ProcessorOperation, ProcessorRecord};
+
 #[cfg(test)]
 mod tests;
 

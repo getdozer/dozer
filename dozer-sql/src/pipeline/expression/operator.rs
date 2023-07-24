@@ -3,7 +3,8 @@ use crate::pipeline::expression::comparison::*;
 use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::logical::*;
 use crate::pipeline::expression::mathematical::*;
-use dozer_types::types::{Field, ProcessorRecord, Schema};
+use dozer_core::processor_record::ProcessorRecord;
+use dozer_types::types::{Field, Schema};
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]

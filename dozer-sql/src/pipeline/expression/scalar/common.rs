@@ -6,7 +6,8 @@ use crate::pipeline::expression::scalar::string::{
     evaluate_concat, evaluate_length, evaluate_to_char, evaluate_ucase, validate_concat,
     validate_ucase,
 };
-use dozer_types::types::{Field, FieldType, ProcessorRecord, Schema};
+use dozer_core::processor_record::ProcessorRecord;
+use dozer_types::types::{Field, FieldType, Schema};
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]

@@ -2,17 +2,14 @@ use std::{borrow::Cow, collections::HashMap, mem::swap, sync::Arc};
 
 use crossbeam::channel::Receiver;
 use daggy::NodeIndex;
-use dozer_types::{
-    epoch::{Epoch, ExecutorOperation},
-    log::debug,
-    node::NodeHandle,
-};
+use dozer_types::{epoch::Epoch, log::debug, node::NodeHandle};
 use metrics::{describe_histogram, histogram};
 
 use crate::{
     builder_dag::NodeKind,
     error_manager::ErrorManager,
     errors::ExecutionError,
+    executor_operation::{ExecutorOperation, ProcessorOperation},
     forwarder::StateWriter,
     node::{PortHandle, Sink},
 };
@@ -90,11 +87,7 @@ impl ReceiverLoop for SinkNode {
         Cow::Owned(self.port_handles[index].to_string())
     }
 
-    fn on_op(
-        &mut self,
-        index: usize,
-        op: dozer_types::types::ProcessorOperation,
-    ) -> Result<(), ExecutionError> {
+    fn on_op(&mut self, index: usize, op: ProcessorOperation) -> Result<(), ExecutionError> {
         if let Err(e) = self.sink.process(self.port_handles[index], op) {
             self.error_manager.report(e);
         }

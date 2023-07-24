@@ -2,6 +2,7 @@ use dozer_core::app::{App, AppPipeline};
 use dozer_core::appsource::{AppSource, AppSourceManager};
 use dozer_core::channels::SourceChannelForwarder;
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
+use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
@@ -12,8 +13,7 @@ use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::debug;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{
-    Field, FieldDefinition, FieldType, Operation, ProcessorOperation, Record, Schema,
-    SourceDefinition,
+    Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
 };
 
 use std::collections::HashMap;

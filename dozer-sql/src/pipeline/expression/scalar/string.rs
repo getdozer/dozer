@@ -9,7 +9,8 @@ use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, Exp
 use crate::pipeline::expression::arg_utils::validate_arg_type;
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;
 
-use dozer_types::types::{Field, FieldType, ProcessorRecord, Schema};
+use dozer_core::processor_record::ProcessorRecord;
+use dozer_types::types::{Field, FieldType, Schema};
 use like::{Escape, Like};
 
 pub(crate) fn validate_ucase(

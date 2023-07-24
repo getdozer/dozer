@@ -1,14 +1,15 @@
 use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::{projection::factory::ProjectionProcessorFactory, tests::utils::get_select};
 use dozer_core::channels::ProcessorChannelForwarder;
+use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::ProcessorFactory;
+use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordRef};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::chrono::{
     DateTime, Datelike, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, Timelike,
 };
 use dozer_types::rust_decimal::Decimal;
-use dozer_types::types::ref_types::ProcessorRecordRef;
-use dozer_types::types::{Field, ProcessorOperation, ProcessorRecord, Schema};
+use dozer_types::types::{Field, Schema};
 use proptest::prelude::*;
 use std::collections::HashMap;
 
@@ -17,11 +18,7 @@ struct TestChannelForwarder {
 }
 
 impl ProcessorChannelForwarder for TestChannelForwarder {
-    fn send(
-        &mut self,
-        op: dozer_types::types::ProcessorOperation,
-        _port: dozer_core::node::PortHandle,
-    ) {
+    fn send(&mut self, op: ProcessorOperation, _port: dozer_core::node::PortHandle) {
         self.operations.push(op);
     }
 }

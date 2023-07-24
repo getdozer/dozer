@@ -3,15 +3,15 @@ use crate::epoch::EpochManager;
 use crate::error_manager::ErrorManager;
 use crate::errors::ExecutionError;
 use crate::errors::ExecutionError::InvalidPortHandle;
+use crate::executor_operation::{ExecutorOperation, ProcessorOperation};
 use crate::node::PortHandle;
 use crate::record_store::{RecordWriter, RecordWriterError};
 
 use crossbeam::channel::Sender;
-use dozer_types::epoch::{Epoch, ExecutorOperation};
+use dozer_types::epoch::Epoch;
 use dozer_types::ingestion_types::{IngestionMessage, IngestionMessageKind};
 use dozer_types::log::debug;
 use dozer_types::node::NodeHandle;
-use dozer_types::types::ProcessorOperation;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};

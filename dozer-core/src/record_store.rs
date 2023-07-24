@@ -1,7 +1,8 @@
+use crate::executor_operation::ProcessorOperation;
 use crate::node::OutputPortType;
+use crate::processor_record::ProcessorRecordRef;
 use dozer_types::thiserror::Error;
-use dozer_types::types::ref_types::ProcessorRecordRef;
-use dozer_types::types::{ProcessorOperation, Schema};
+use dozer_types::types::Schema;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 

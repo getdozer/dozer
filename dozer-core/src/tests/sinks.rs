@@ -1,8 +1,9 @@
+use crate::executor_operation::ProcessorOperation;
 use crate::node::{PortHandle, Sink, SinkFactory};
 use crate::DEFAULT_PORT_HANDLE;
 use dozer_types::epoch::Epoch;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::types::{ProcessorOperation, Schema};
+use dozer_types::types::Schema;
 
 use dozer_types::log::debug;
 use std::collections::HashMap;

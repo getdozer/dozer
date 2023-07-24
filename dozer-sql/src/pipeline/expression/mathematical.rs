@@ -2,14 +2,11 @@ use crate::pipeline::errors::OperationError;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::SqlError::Operation;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
+use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::Schema;
 use dozer_types::types::{DozerDuration, TimeUnit};
-use dozer_types::{
-    chrono,
-    ordered_float::OrderedFloat,
-    types::{Field, ProcessorRecord},
-};
+use dozer_types::{chrono, ordered_float::OrderedFloat, types::Field};
 use num_traits::{FromPrimitive, Zero};
 use std::num::Wrapping;
 use std::ops::Neg;
