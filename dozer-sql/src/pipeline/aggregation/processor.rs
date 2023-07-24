@@ -400,12 +400,10 @@ impl AggregationProcessor {
                     original_record.extend_direct_field(f.clone());
                 }
 
-                let r = having
+                having
                     .evaluate(&original_record, having_eval_schema)?
                     .as_boolean()
-                    .unwrap_or(false);
-
-                r
+                    .unwrap_or(false)
             }
         })
     }

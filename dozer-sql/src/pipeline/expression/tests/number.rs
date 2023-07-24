@@ -11,7 +11,7 @@ use std::ops::Neg;
 #[test]
 fn test_abs() {
     proptest!(ProptestConfig::with_cases(1000), |(i_num in 0i64..100000000i64, f_num in 0f64..100000000f64)| {
-        let row = ProcessorRecord::new(vec![]);
+        let row = ProcessorRecord::new();
 
         let v = Box::new(Literal(Field::Int(i_num.neg())));
         assert_eq!(
@@ -20,7 +20,7 @@ fn test_abs() {
             Field::Int(i_num)
         );
 
-        let row = ProcessorRecord::new(vec![]);
+        let row = ProcessorRecord::new();
 
         let v = Box::new(Literal(Field::Float(OrderedFloat(f_num.neg()))));
         assert_eq!(
@@ -34,7 +34,7 @@ fn test_abs() {
 #[test]
 fn test_round() {
     proptest!(ProptestConfig::with_cases(1000), |(i_num: i64, f_num: f64, i_pow: i32, f_pow: f32)| {
-        let row = ProcessorRecord::new(vec![]);
+        let row = ProcessorRecord::new();
 
         let v = Box::new(Literal(Field::Int(i_num)));
         let d = &Box::new(Literal(Field::Int(0)));

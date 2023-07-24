@@ -13,7 +13,7 @@ use dozer_types::errors::internal::BoxedError;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::node::NodeHandle;
 use dozer_types::types::{
-    Field, FieldDefinition, FieldType, ProcessorOperation, ProcessorRecord, Schema,
+    Field, FieldDefinition, FieldType, Operation, ProcessorOperation, Record, Schema,
     SourceDefinition,
 };
 
@@ -356,8 +356,8 @@ impl Source for ErrGeneratorSource {
                     n,
                     0,
                     0,
-                    ProcessorOperation::Insert {
-                        new: ProcessorRecord::new(vec![
+                    Operation::Insert {
+                        new: Record::new(vec![
                             Field::String(format!("key_{n}")),
                             Field::String(format!("value_{n}")),
                         ]),

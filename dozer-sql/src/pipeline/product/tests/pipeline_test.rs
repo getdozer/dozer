@@ -12,8 +12,8 @@ use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::tracing::{debug, info};
 use dozer_types::types::{
-    Field, FieldDefinition, FieldType, ProcessorOperation, ProcessorRecord, Schema,
-    SourceDefinition,
+    Field, FieldDefinition, FieldType, Operation, ProcessorOperation, ProcessorRecord, Record,
+    Schema, SourceDefinition,
 };
 
 use std::collections::HashMap;
@@ -191,22 +191,25 @@ impl Source for TestSource {
         fw: &mut dyn SourceChannelForwarder,
         _last_checkpoint: Option<(u64, u64)>,
     ) -> Result<(), BoxedError> {
+        let mut new_rec = ProcessorRecord::new();
+        new_rec.extend_direct_field(Field::Int(0));
+        new_rec.extend_direct_field(Field::String("IT".to_string()));
         let operations = vec![
             (
-                ProcessorOperation::Insert {
-                    new: ProcessorRecord::new(vec![Field::Int(0), Field::String("IT".to_string())]),
+                Operation::Insert {
+                    new: Record::new(vec![]),
                 },
                 DEPARTMENT_PORT,
             ),
             (
-                ProcessorOperation::Insert {
-                    new: ProcessorRecord::new(vec![Field::Int(1), Field::String("HR".to_string())]),
+                Operation::Insert {
+                    new: Record::new(vec![Field::Int(1), Field::String("HR".to_string())]),
                 },
                 DEPARTMENT_PORT,
             ),
             (
-                ProcessorOperation::Insert {
-                    new: ProcessorRecord::new(vec![
+                Operation::Insert {
+                    new: Record::new(vec![
                         Field::Int(10000),
                         Field::String("Alice".to_string()),
                         Field::Int(0),
@@ -217,8 +220,8 @@ impl Source for TestSource {
                 USER_PORT,
             ),
             (
-                ProcessorOperation::Insert {
-                    new: ProcessorRecord::new(vec![
+                Operation::Insert {
+                    new: Record::new(vec![
                         Field::Int(10001),
                         Field::String("Bob".to_string()),
                         Field::Int(0),
@@ -229,8 +232,8 @@ impl Source for TestSource {
                 USER_PORT,
             ),
             (
-                ProcessorOperation::Insert {
-                    new: ProcessorRecord::new(vec![
+                Operation::Insert {
+                    new: Record::new(vec![
                         Field::String("UK".to_string()),
                         Field::String("United Kingdom".to_string()),
                     ]),
@@ -238,8 +241,8 @@ impl Source for TestSource {
                 COUNTRY_PORT,
             ),
             (
-                ProcessorOperation::Insert {
-                    new: ProcessorRecord::new(vec![
+                Operation::Insert {
+                    new: Record::new(vec![
                         Field::String("SG".to_string()),
                         Field::String("Singapore".to_string()),
                     ]),
@@ -247,8 +250,8 @@ impl Source for TestSource {
                 COUNTRY_PORT,
             ),
             (
-                ProcessorOperation::Insert {
-                    new: ProcessorRecord::new(vec![
+                Operation::Insert {
+                    new: Record::new(vec![
                         Field::Int(10002),
                         Field::String("Craig".to_string()),
                         Field::Int(1),
@@ -268,8 +271,8 @@ impl Source for TestSource {
             //     DEPARTMENT_PORT,
             // ),
             (
-                ProcessorOperation::Insert {
-                    new: ProcessorRecord::new(vec![
+                Operation::Insert {
+                    new: Record::new(vec![
                         Field::Int(10003),
                         Field::String("Dan".to_string()),
                         Field::Int(0),
@@ -280,8 +283,8 @@ impl Source for TestSource {
                 USER_PORT,
             ),
             (
-                ProcessorOperation::Insert {
-                    new: ProcessorRecord::new(vec![
+                Operation::Insert {
+                    new: Record::new(vec![
                         Field::Int(10004),
                         Field::String("Eve".to_string()),
                         Field::Int(1),
@@ -306,8 +309,8 @@ impl Source for TestSource {
             //     USER_PORT,
             // ),
             (
-                ProcessorOperation::Insert {
-                    new: ProcessorRecord::new(vec![
+                Operation::Insert {
+                    new: Record::new(vec![
                         Field::Int(10005),
                         Field::String("Frank".to_string()),
                         Field::Int(1),
@@ -318,9 +321,9 @@ impl Source for TestSource {
                 USER_PORT,
             ),
             (
-                ProcessorOperation::Update {
-                    old: ProcessorRecord::new(vec![Field::Int(0), Field::String("IT".to_string())]),
-                    new: ProcessorRecord::new(vec![Field::Int(0), Field::String("RD".to_string())]),
+                Operation::Update {
+                    old: Record::new(vec![Field::Int(0), Field::String("IT".to_string())]),
+                    new: Record::new(vec![Field::Int(0), Field::String("RD".to_string())]),
                 },
                 DEPARTMENT_PORT,
             ),
@@ -423,10 +426,18 @@ impl Sink for TestSink {
         _op: ProcessorOperation,
     ) -> Result<(), BoxedError> {
         match _op {
-            ProcessorOperation::Delete { old } => info!("o0:-> - {:?}", old.values),
-            ProcessorOperation::Insert { new } => info!("o0:-> + {:?}", new.values),
+            ProcessorOperation::Delete { old } => {
+                info!("o0:-> - {:?}", old.get_record().get_fields())
+            }
+            ProcessorOperation::Insert { new } => {
+                info!("o0:-> + {:?}", new.get_record().get_fields())
+            }
             ProcessorOperation::Update { old, new } => {
-                info!("o0:-> - {:?}, + {:?}", old.values, new.values)
+                info!(
+                    "o0:-> - {:?}, + {:?}",
+                    old.get_record().get_fields(),
+                    new.get_record().get_fields()
+                )
             }
         }
 
@@ -463,7 +474,7 @@ fn test_pipeline_builder() {
         &mut pipeline,
         Some("results".to_string()),
     )
-    .unwrap();
+        .unwrap();
 
     let table_info = context.output_tables_map.get("results").unwrap();
 

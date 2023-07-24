@@ -12,11 +12,12 @@ use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::debug;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{
-    Field, FieldDefinition, FieldType, ProcessorOperation, ProcessorRecord, Schema,
-    SourceDefinition,
+    Field, FieldDefinition, FieldType, Operation, ProcessorOperation, Record,
+    Schema, SourceDefinition,
 };
 
 use std::collections::HashMap;
+
 
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -108,8 +109,8 @@ impl Source for TestSource {
                     n,
                     0,
                     0,
-                    ProcessorOperation::Insert {
-                        new: ProcessorRecord::new(vec![
+                    Operation::Insert {
+                        new: Record::new(vec![
                             Field::Int(0),
                             Field::String("Italy".to_string()),
                             Field::Float(OrderedFloat(5.5)),

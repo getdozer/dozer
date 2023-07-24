@@ -7,6 +7,7 @@ use crate::pipeline::aggregation::tests::aggregation_tests_utils::{
 
 use dozer_core::DEFAULT_PORT_HANDLE;
 
+use dozer_types::types::ref_types::ProcessorRecordRef;
 use dozer_types::types::FieldType::Int;
 use dozer_types::types::{Field, ProcessorOperation, ProcessorRecord};
 use std::collections::HashMap;
@@ -28,17 +29,20 @@ fn test_sum_aggregation_null() {
         -------------
         SUM = 100.0
     */
+    let mut record = ProcessorRecord::new();
+    record.extend_direct_field(Field::Int(0));
+    record.extend_direct_field(Field::Null);
+    record.extend_direct_field(FIELD_100_INT.clone());
+    record.extend_direct_field(FIELD_100_INT.clone());
     let inp = ProcessorOperation::Insert {
-        new: ProcessorRecord::new(vec![
-            Field::Int(0),
-            Field::Null,
-            FIELD_100_INT.clone(),
-            FIELD_100_INT.clone(),
-        ]),
+        new: ProcessorRecordRef::new(record),
     };
     let out = output!(processor, inp);
+    let mut exp_record = ProcessorRecord::new();
+    exp_record.extend_direct_field(Field::Null);
+    exp_record.extend_direct_field(FIELD_100_INT.clone());
     let exp = vec![ProcessorOperation::Insert {
-        new: ProcessorRecord::new(vec![Field::Null, FIELD_100_INT.clone()]),
+        new: ProcessorRecordRef::new(exp_record),
     }];
     assert_eq!(out, exp);
 }

@@ -18,7 +18,7 @@ use proptest::prelude::*;
 fn test_comparison() {
     proptest!(ProptestConfig::with_cases(1000), move |(
         u_num1: u64, u_num2: u64, i_num1: i64, i_num2: i64, f_num1: f64, f_num2: f64, d_num1: ArbitraryDecimal, d_num2: ArbitraryDecimal)| {
-        let row = ProcessorRecord::new(vec![]);
+        let row = ProcessorRecord::new();
 
         let uint1 = Literal(Field::UInt(u_num1));
         let uint2 = Literal(Field::UInt(u_num2));

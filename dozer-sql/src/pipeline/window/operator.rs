@@ -121,8 +121,8 @@ fn execute_tumble_window(
 
     let mut window_record = ProcessorRecord::from_referenced_record(record);
 
-    window_record.extend_direct_field(start.clone());
-    window_record.extend_direct_field(end.clone());
+    window_record.extend_direct_field(start);
+    window_record.extend_direct_field(end);
 
     Ok(vec![ProcessorRecordRef::new(window_record)])
 }

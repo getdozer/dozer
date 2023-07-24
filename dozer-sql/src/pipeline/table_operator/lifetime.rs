@@ -40,7 +40,7 @@ impl TableOperator for LifetimeTableOperator {
         record: &ProcessorRecordRef,
         schema: &Schema,
     ) -> Result<Vec<ProcessorRecordRef>, TableOperatorError> {
-        let mut source_record = record.clone();
+        let source_record = record.clone();
         let mut ttl_records = vec![];
         if let Some(operator) = &self.operator {
             let operator_records = operator.execute(&source_record, schema)?;
@@ -50,7 +50,7 @@ impl TableOperator for LifetimeTableOperator {
             let lifetime = Some(Lifetime {
                 reference: self
                     .expression
-                    .evaluate(&source_record.get_record(), &schema)
+                    .evaluate(source_record.get_record(), &schema)
                     .map_err(|err| TableOperatorError::InternalError(Box::new(err)))?,
                 duration: self.duration,
             });
@@ -63,7 +63,7 @@ impl TableOperator for LifetimeTableOperator {
             let lifetime = Some(Lifetime {
                 reference: self
                     .expression
-                    .evaluate(&source_record.get_record(), schema)
+                    .evaluate(source_record.get_record(), schema)
                     .map_err(|err| TableOperatorError::InternalError(Box::new(err)))?,
                 duration: self.duration,
             });

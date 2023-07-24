@@ -31,7 +31,7 @@ impl SetOperation {
         record_map: &mut CountingBloomFilter,
     ) -> Result<Vec<(SetAction, ProcessorRecordRef)>, PipelineError> {
         match (self.op, self.quantifier) {
-            (SetOperator::Union, SetQuantifier::All) => Ok(vec![(action, record.clone())]),
+            (SetOperator::Union, SetQuantifier::All) => Ok(vec![(action, record)]),
             (SetOperator::Union, SetQuantifier::None) => {
                 self.execute_union(action, record, record_map)
             }

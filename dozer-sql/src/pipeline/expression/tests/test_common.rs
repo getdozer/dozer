@@ -7,6 +7,7 @@ use dozer_types::chrono::{
     DateTime, Datelike, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, Timelike,
 };
 use dozer_types::rust_decimal::Decimal;
+use dozer_types::types::ref_types::ProcessorRecordRef;
 use dozer_types::types::{Field, ProcessorOperation, ProcessorRecord, Schema};
 use proptest::prelude::*;
 use std::collections::HashMap;
@@ -49,15 +50,19 @@ pub(crate) fn run_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Field {
         .unwrap();
 
     let mut fw = TestChannelForwarder { operations: vec![] };
+    let mut rec = ProcessorRecord::new();
+    input
+        .into_iter()
+        .for_each(|inp| rec.extend_direct_field(inp));
 
     let op = ProcessorOperation::Insert {
-        new: ProcessorRecord::new(input),
+        new: ProcessorRecordRef::new(rec),
     };
 
     processor.process(DEFAULT_PORT_HANDLE, op, &mut fw).unwrap();
 
     match &fw.operations[0] {
-        ProcessorOperation::Insert { new } => new.values[0].clone(),
+        ProcessorOperation::Insert { new } => new.get_record().get_fields()[0].clone(),
         _ => panic!("Unable to find result value"),
     }
 }

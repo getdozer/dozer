@@ -1,5 +1,5 @@
 use crate::pipeline::table_operator::lifetime::LifetimeTableOperator;
-use dozer_types::types::{ref_types::ProcessorRecordRef, ProcessorRecord, Schema};
+use dozer_types::types::{ref_types::ProcessorRecordRef, Schema};
 use enum_dispatch::enum_dispatch;
 
 use crate::pipeline::errors::TableOperatorError;

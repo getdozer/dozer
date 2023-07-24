@@ -4,8 +4,7 @@ use crate::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::types::{
-    Field, FieldDefinition, FieldType, ProcessorOperation, ProcessorRecord, Schema,
-    SourceDefinition,
+    Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
 };
 
 use std::collections::HashMap;
@@ -14,6 +13,7 @@ use std::sync::Arc;
 use std::thread;
 
 use crate::tests::app::NoneContext;
+
 use std::time::Duration;
 
 pub(crate) const GENERATOR_SOURCE_OUTPUT_PORT: PortHandle = 100;
@@ -108,8 +108,8 @@ impl Source for GeneratorSource {
                     n,
                     0,
                     0,
-                    ProcessorOperation::Insert {
-                        new: ProcessorRecord::new(vec![
+                    Operation::Insert {
+                        new: Record::new(vec![
                             Field::String(format!("key_{n}")),
                             Field::String(format!("value_{n}")),
                         ]),
@@ -231,8 +231,8 @@ impl Source for DualPortGeneratorSource {
                     n,
                     0,
                     0,
-                    ProcessorOperation::Insert {
-                        new: ProcessorRecord::new(vec![
+                    Operation::Insert {
+                        new: Record::new(vec![
                             Field::String(format!("key_{n}")),
                             Field::String(format!("value_{n}")),
                         ]),
@@ -245,8 +245,8 @@ impl Source for DualPortGeneratorSource {
                     n,
                     0,
                     0,
-                    ProcessorOperation::Insert {
-                        new: ProcessorRecord::new(vec![
+                    Operation::Insert {
+                        new: Record::new(vec![
                             Field::String(format!("key_{n}")),
                             Field::String(format!("value_{n}")),
                         ]),
