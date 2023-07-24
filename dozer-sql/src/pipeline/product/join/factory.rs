@@ -6,7 +6,7 @@ use dozer_core::{
 };
 use dozer_types::{
     errors::internal::BoxedError,
-    types::{FieldDefinition, ProcessorRecord, Schema},
+    types::{ref_types::ProcessorRecordRef, FieldDefinition, ProcessorRecord, Schema},
 };
 use sqlparser::ast::{
     BinaryOperator, Expr as SqlExpr, Ident, JoinConstraint as SqlJoinConstraint,
@@ -177,8 +177,8 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
             right_join_key_indexes,
             left_primary_key_indexes,
             right_primary_key_indexes,
-            ProcessorRecord::nulls_from_schema(&left_schema),
-            ProcessorRecord::nulls_from_schema(&right_schema),
+            ProcessorRecordRef::new(ProcessorRecord::nulls_from_schema(&left_schema)),
+            ProcessorRecordRef::new(ProcessorRecord::nulls_from_schema(&right_schema)),
         );
 
         Ok(Box::new(ProductProcessor::new(

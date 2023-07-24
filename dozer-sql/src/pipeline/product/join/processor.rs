@@ -90,8 +90,8 @@ impl Processor for ProductProcessor {
 
         let now = std::time::Instant::now();
         let records = match op {
-            ProcessorOperation::Delete { ref old } => {
-                if let Some(lifetime) = &old.lifetime {
+            ProcessorOperation::Delete { old } => {
+                if let Some(lifetime) = &old.0.lifetime {
                     self.update_eviction_index(lifetime);
                 }
 
@@ -99,8 +99,8 @@ impl Processor for ProductProcessor {
                     .delete(from_branch, old)
                     .map_err(PipelineError::JoinError)?
             }
-            ProcessorOperation::Insert { ref new } => {
-                if let Some(lifetime) = &new.lifetime {
+            ProcessorOperation::Insert { new } => {
+                if let Some(lifetime) = &new.0.lifetime {
                     self.update_eviction_index(lifetime);
                 }
 
@@ -108,8 +108,8 @@ impl Processor for ProductProcessor {
                     .insert(from_branch, new)
                     .map_err(PipelineError::JoinError)?
             }
-            ProcessorOperation::Update { ref old, ref new } => {
-                if let Some(lifetime) = &old.lifetime {
+            ProcessorOperation::Update { old, new } => {
+                if let Some(lifetime) = &old.0.lifetime {
                     self.update_eviction_index(lifetime);
                 }
 

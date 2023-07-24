@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use super::{Field, Lifetime, Operation, Record, Schema};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct ProcessorRecord {
     /// List of values, following the definitions of `fields` of the associated schema
     values: Vec<RefOrField>,
@@ -15,7 +15,7 @@ pub struct ProcessorRecord {
     index: Vec<u32>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 
 pub enum RefOrField {
     Ref(ProcessorRecordRef),
@@ -23,7 +23,7 @@ pub enum RefOrField {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ProcessorRecordRef(Arc<ProcessorRecord>);
+pub struct ProcessorRecordRef(pub Arc<ProcessorRecord>);
 
 impl ProcessorRecordRef {
     pub fn new(record: ProcessorRecord) -> Self {
@@ -34,6 +34,7 @@ impl ProcessorRecordRef {
         &self.0
     }
 }
+
 impl From<Record> for ProcessorRecord {
     fn from(record: Record) -> Self {
         let mut ref_record = ProcessorRecord::new();
@@ -44,54 +45,50 @@ impl From<Record> for ProcessorRecord {
     }
 }
 
-impl From<ProcessorRecord> for Record {
-    fn from(p_record: ProcessorRecord) -> Self {
-        let mut values = Vec::new();
-        for field in p_record.get_fields() {
-            values.push(field.clone());
-        }
-        let mut record = Record::new(values);
-        record.set_lifetime(p_record.get_lifetime());
-        record
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 /// A CDC event.
 pub enum ProcessorOperation {
     Delete {
-        old: ProcessorRecord,
+        old: ProcessorRecordRef,
     },
     Insert {
-        new: ProcessorRecord,
+        new: ProcessorRecordRef,
     },
     Update {
-        old: ProcessorRecord,
-        new: ProcessorRecord,
+        old: ProcessorRecordRef,
+        new: ProcessorRecordRef,
     },
 }
 
 impl From<Operation> for ProcessorOperation {
     fn from(record: Operation) -> Self {
         match record {
-            Operation::Delete { old } => ProcessorOperation::Delete { old: old.into() },
-            Operation::Insert { new } => ProcessorOperation::Insert { new: new.into() },
+            Operation::Delete { old } => ProcessorOperation::Delete {
+                old: ProcessorRecordRef::new(old.into()),
+            },
+            Operation::Insert { new } => ProcessorOperation::Insert {
+                new: ProcessorRecordRef::new(new.into()),
+            },
             Operation::Update { old, new } => ProcessorOperation::Update {
-                old: old.into(),
-                new: new.into(),
+                old: ProcessorRecordRef::new(old.into()),
+                new: ProcessorRecordRef::new(new.into()),
             },
         }
     }
 }
 
-impl From<ProcessorOperation> for Operation {
-    fn from(record: ProcessorOperation) -> Self {
-        match record {
-            ProcessorOperation::Delete { old } => Operation::Delete { old: old.into() },
-            ProcessorOperation::Insert { new } => Operation::Insert { new: new.into() },
+impl ProcessorOperation {
+    pub fn clone_deref(&self) -> Operation {
+        match self {
+            ProcessorOperation::Delete { old } => Operation::Delete {
+                old: old.0.clone_deref(),
+            },
+            ProcessorOperation::Insert { new } => Operation::Insert {
+                new: new.0.clone_deref(),
+            },
             ProcessorOperation::Update { old, new } => Operation::Update {
-                old: old.into(),
-                new: new.into(),
+                old: old.0.clone_deref(),
+                new: new.0.clone_deref(),
             },
         }
     }
@@ -104,6 +101,16 @@ impl ProcessorRecord {
             lifetime: None,
             index: Vec::new(),
         }
+    }
+
+    pub fn clone_deref(&self) -> Record {
+        let mut values: Vec<Field> = Vec::new();
+        for field in self.get_fields() {
+            values.push(field.clone());
+        }
+        let mut record = Record::new(values);
+        record.set_lifetime(self.get_lifetime());
+        record
     }
 
     pub fn get_lifetime(&self) -> Option<Lifetime> {
@@ -119,14 +126,13 @@ impl ProcessorRecord {
 
     pub fn extend_referenced_fields(
         &mut self,
-        other: &ProcessorRecord,
+        other: ProcessorRecordRef,
         field_indexes: &Vec<usize>,
     ) {
         // Count each referenced record field length and increment the index cumulatively
         let curr_index = self.get_field_count();
 
-        self.values
-            .push(RefOrField::Ref(ProcessorRecordRef::new(other.clone())));
+        self.values.push(RefOrField::Ref(other));
 
         for idx in field_indexes {
             self.index.push(curr_index as u32 + *idx as u32);
@@ -199,7 +205,7 @@ impl ProcessorRecord {
 
     pub fn nulls(size: usize) -> ProcessorRecord {
         ProcessorRecord {
-            values: vec![RefOrField::Field(Field::Null); size],
+            values: (0..size).map(|_| RefOrField::Field(Field::Null)).collect(),
             lifetime: None,
             index: Vec::new(),
         }
