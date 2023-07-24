@@ -46,6 +46,7 @@ fn test_lifetime() {
     record.extend_direct_field(Field::Timestamp(
         DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap(),
     ));
+    let record = ProcessorRecordRef::new(record);
 
     let table_operator = LifetimeTableOperator::new(
         None,
@@ -66,17 +67,12 @@ fn test_lifetime() {
         DozerDuration(Duration::from_secs(60), TimeUnit::Seconds),
     );
 
-    let result = table_operator
-        .execute(&ProcessorRecordRef::new(record), &schema)
-        .unwrap();
+    let result = table_operator.execute(&record, &schema).unwrap();
     assert_eq!(result.len(), 1);
     let lifetime_record = result.get(0).unwrap();
 
     let mut expected_record = ProcessorRecord::new();
-    expected_record.extend_direct_field(Field::Int(0));
-    expected_record.extend_direct_field(Field::Timestamp(
-        DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap(),
-    ));
+    expected_record.extend_referenced_record(record);
 
     expected_record.set_lifetime(Some(Lifetime {
         reference: Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
