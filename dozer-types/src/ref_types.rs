@@ -1,5 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
+use itertools::Either;
+
 use crate::types::{Field, FieldDefinition, Record, Schema};
 
 /// To get the `FieldDefinition` or `Field` out of a `Schema` or `Record`, we need two levels of indirection:
@@ -153,6 +155,45 @@ impl RefSchema {
             fields,
             primary_index,
         }
+    }
+
+    pub fn enumerate_fields(&self) -> impl Iterator<Item = (RefFieldIndex, &FieldDefinition)> {
+        self.fields
+            .iter()
+            .enumerate()
+            .flat_map(|(outer_index, ref_or_field_definition)| {
+                let outer_index = outer_index as u32;
+                match ref_or_field_definition {
+                    RefOrFieldDefinition::Ref {
+                        schema,
+                        direct_field_indexes,
+                    } => {
+                        Either::Left(direct_field_indexes
+                        .iter()
+                        .map(move |inner_index| {
+                            let RefOrFieldDefinition::FieldDefinition(field_definition) = &schema.fields[*inner_index as usize] else {
+                                panic!("Invariant violated: inner index must point to a direct field in the referenced schema");
+                            };
+                            (
+                                RefFieldIndex {
+                                    outer: outer_index,
+                                    inner: *inner_index,
+                                },
+                                field_definition,
+                            )
+                        }))
+                    }
+                    RefOrFieldDefinition::FieldDefinition(field_definition) => {
+                        Either::Right(std::iter::once((
+                            RefFieldIndex {
+                                outer: outer_index,
+                                inner: 0,
+                            },
+                            field_definition,
+                        )))
+                    }
+                }
+            })
     }
 }
 

@@ -245,6 +245,8 @@ impl Display for Record {
     }
 }
 
+pub use super::ref_types::{RefRecord, RefSchema};
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 /// A CDC event.
 pub enum Operation {
@@ -252,6 +254,8 @@ pub enum Operation {
     Insert { new: Record },
     Update { old: Record, new: Record },
 }
+
+pub use super::epoch::RefOperation;
 
 // Helpful in interacting with external systems during ingestion and querying
 // For example, nanoseconds can overflow.
