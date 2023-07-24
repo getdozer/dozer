@@ -44,6 +44,7 @@ impl CredentialInfo {
         let f = std::fs::OpenOptions::new()
             .create(true)
             .write(true)
+            .truncate(true)
             .open(file_path)?;
         let mut current_credential_infos: Vec<CredentialInfo> = CredentialInfo::read_profile()?;
         current_credential_infos.append(&mut vec![self.clone()]);
