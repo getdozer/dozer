@@ -392,7 +392,7 @@ impl AggregationProcessor {
         having: &Expression,
         out_rec: &mut Vec<Field>,
     ) -> Result<bool, PipelineError> {
-        let mut original_record = original_record.clone().get_clone_record();
+        let mut original_record = ProcessorRecord::from_referenced_record(original_record.clone());
         Ok(match out_rec.len() {
             0 => false,
             _ => {
@@ -503,7 +503,7 @@ impl AggregationProcessor {
         projections: &Vec<Expression>,
         aggregation_schema: &Schema,
     ) -> Result<ProcessorRecordRef, PipelineError> {
-        let mut original = original.clone().get_clone_record();
+        let mut original = ProcessorRecord::from_referenced_record(original.clone());
         for f in measures {
             original.extend_direct_field(f);
         }

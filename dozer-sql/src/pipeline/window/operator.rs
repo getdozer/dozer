@@ -68,13 +68,13 @@ fn execute_hop_window(
     hop_size: Duration,
     interval: Duration,
 ) -> Result<Vec<ProcessorRecordRef>, WindowError> {
-    let field = record.get_record().get_field_by_index(column_index);
+    let field = record.get_record().get_field_by_index(column_index as u32);
 
     let windows = hop(field, hop_size, interval)?;
 
     let mut records = vec![];
     for (start, end) in windows.iter() {
-        let mut window_record = record.clone().get_clone_record();
+        let mut window_record = ProcessorRecord::from_referenced_record(record.clone());
         window_record.extend_direct_field(start.clone());
         window_record.extend_direct_field(end.clone());
         records.push(ProcessorRecordRef::new(window_record));
@@ -115,11 +115,11 @@ fn execute_tumble_window(
     column_index: usize,
     interval: Duration,
 ) -> Result<Vec<ProcessorRecordRef>, WindowError> {
-    let field = record.get_record().get_field_by_index(column_index);
+    let field = record.get_record().get_field_by_index(column_index as u32);
 
     let (start, end) = tumble(field, interval)?;
 
-    let mut window_record = record.get_clone_record();
+    let mut window_record = ProcessorRecord::from_referenced_record(record);
 
     window_record.extend_direct_field(start.clone());
     window_record.extend_direct_field(end.clone());

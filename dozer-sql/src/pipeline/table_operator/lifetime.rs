@@ -1,4 +1,6 @@
-use dozer_types::types::{ref_types::ProcessorRecordRef, DozerDuration, Lifetime, Schema};
+use dozer_types::types::{
+    ref_types::ProcessorRecordRef, DozerDuration, Lifetime, ProcessorRecord, Schema,
+};
 
 use crate::pipeline::{
     errors::TableOperatorError,
@@ -53,7 +55,7 @@ impl TableOperator for LifetimeTableOperator {
                 duration: self.duration,
             });
             for operator_record in operator_records {
-                let mut cloned_record = operator_record.get_clone_record();
+                let mut cloned_record = ProcessorRecord::from_referenced_record(operator_record);
                 cloned_record.set_lifetime(lifetime.clone());
                 ttl_records.push(ProcessorRecordRef::new(cloned_record));
             }
@@ -66,7 +68,7 @@ impl TableOperator for LifetimeTableOperator {
                 duration: self.duration,
             });
 
-            let mut cloned_record = source_record.get_clone_record();
+            let mut cloned_record = ProcessorRecord::from_referenced_record(source_record);
             cloned_record.set_lifetime(lifetime);
             ttl_records.push(ProcessorRecordRef::new(cloned_record));
         }

@@ -598,7 +598,7 @@ fn evict_join_record(
 fn get_record_key(record: &ProcessorRecordRef, key_indexes: &[usize]) -> Vec<u8> {
     let mut hasher = AHasher::default();
     for index in key_indexes.iter() {
-        let val = record.get_record().get_field_by_index(*index);
+        let val = record.get_record().get_field_by_index(*index as u32);
         val.hash(&mut hasher);
     }
     let join_key = hasher.finish();
@@ -627,11 +627,8 @@ fn join_records(
     let right_lifetime = right_record.get_record().lifetime.clone();
 
     let mut output_record = ProcessorRecord::new();
-    let left_indexes = (0..left_record.get_record().get_field_count()).collect::<Vec<_>>();
-    let right_indexes = (0..right_record.get_record().get_field_count()).collect::<Vec<_>>();
-    output_record.extend_referenced_fields(left_record, &left_indexes);
-
-    output_record.extend_referenced_fields(right_record, &right_indexes);
+    output_record.extend_referenced_record(left_record);
+    output_record.extend_referenced_record(right_record);
 
     if let Some(left_record_lifetime) = left_lifetime {
         if let Some(right_record_lifetime) = right_lifetime {
