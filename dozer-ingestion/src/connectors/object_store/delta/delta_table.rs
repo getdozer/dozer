@@ -7,7 +7,7 @@ use dozer_types::{
     arrow_types::from_arrow::{map_schema_to_dozer, map_value_to_dozer_field},
     ingestion_types::DeltaConfig,
     tracing::error,
-    types::{Operation, Record, SchemaIdentifier},
+    types::{Operation, Record},
 };
 use futures::StreamExt;
 use tokio::sync::mpsc::Sender;
@@ -23,15 +23,13 @@ use crate::{
 };
 
 pub struct DeltaTable<T: DozerObjectStore + Send> {
-    id: usize,
     _table_config: DeltaConfig,
     store_config: T,
 }
 
 impl<T: DozerObjectStore + Send> DeltaTable<T> {
-    pub fn new(id: usize, table_config: DeltaConfig, store_config: T) -> Self {
+    pub fn new(table_config: DeltaConfig, store_config: T) -> Self {
         Self {
-            id,
             _table_config: table_config,
             store_config,
         }
@@ -125,7 +123,7 @@ impl<T: DozerObjectStore + Send> TableWatcher for DeltaTable<T> {
 
     async fn snapshot(
         &self,
-        id: usize,
+        table_index: usize,
         table: &TableInfo,
         sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
     ) -> Result<JoinHandle<(usize, HashMap<object_store::path::Path, DateTime<Utc>>)>, ConnectorError>
@@ -157,7 +155,6 @@ impl<T: DozerObjectStore + Send> TableWatcher for DeltaTable<T> {
                 .unwrap()
         };
 
-        let identifier = self.id as u32;
         let h = tokio::spawn(async move {
             let data = ctx
                 .read_table(Arc::new(delta_table))
@@ -197,17 +194,16 @@ impl<T: DozerObjectStore + Send> TableWatcher for DeltaTable<T> {
 
                     let evt = Operation::Insert {
                         new: Record {
-                            schema_id: Some(SchemaIdentifier {
-                                id: identifier,
-                                version: 0,
-                            }),
                             values: fields,
                             lifetime: None,
                         },
                     };
 
                     if let Err(e) = sender
-                        .send(Ok(Some(IngestionMessageKind::OperationEvent(evt))))
+                        .send(Ok(Some(IngestionMessageKind::OperationEvent {
+                            table_index,
+                            op: evt,
+                        })))
                         .await
                     {
                         error!("Failed to send ingestion message: {}", e);
@@ -231,7 +227,7 @@ impl<T: DozerObjectStore + Send> TableWatcher for DeltaTable<T> {
                     //     .map_err(ConnectorError::IngestorError)?;
                 }
             }
-            (id, HashMap::new())
+            (table_index, HashMap::new())
         });
 
         // self.ingestor
@@ -243,7 +239,7 @@ impl<T: DozerObjectStore + Send> TableWatcher for DeltaTable<T> {
 
     async fn ingest(
         &self,
-        _id: usize,
+        _table_index: usize,
         _table: &TableInfo,
         _sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
     ) -> Result<(), ConnectorError> {

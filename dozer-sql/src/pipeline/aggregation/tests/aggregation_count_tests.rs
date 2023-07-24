@@ -29,8 +29,8 @@ fn test_count_star() {
     output!(processor, insert_field(ITALY, FIELD_100_FLOAT));
     let out = output!(processor, insert_field(ITALY, FIELD_100_FLOAT));
     let exp = vec![Operation::Update {
-        old: Record::new(None, vec![FIELD_1_INT.clone()]),
-        new: Record::new(None, vec![FIELD_2_INT.clone()]),
+        old: Record::new(vec![FIELD_1_INT.clone()]),
+        new: Record::new(vec![FIELD_2_INT.clone()]),
     }];
     assert_eq!(out, exp);
 }

@@ -54,22 +54,16 @@ impl ProcessorFactory<SchemaSQLContext> for SetProcessorFactory {
     ) -> Result<(Schema, SchemaSQLContext), BoxedError> {
         let output_columns = validate_set_operation_input_schemas(input_schemas)?;
 
-        let mut output_schema = Schema::empty();
-        output_schema.fields = output_columns;
-        output_schema.identifier = input_schemas
-            .get(&0)
-            .map_or(Err(SetError::InvalidInputSchemas), Ok)
-            .unwrap()
-            .to_owned()
-            .0
-            .identifier;
-        output_schema.primary_index = input_schemas
-            .get(&0)
-            .map_or(Err(SetError::InvalidInputSchemas), Ok)
-            .unwrap()
-            .to_owned()
-            .0
-            .primary_index;
+        let output_schema = Schema {
+            fields: output_columns,
+            primary_index: input_schemas
+                .get(&0)
+                .map_or(Err(SetError::InvalidInputSchemas), Ok)
+                .unwrap()
+                .to_owned()
+                .0
+                .primary_index,
+        };
 
         Ok((output_schema, SchemaSQLContext::default()))
     }

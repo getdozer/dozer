@@ -287,7 +287,7 @@ impl ErrGeneratorSourceFactory {
 impl SourceFactory<NoneContext> for ErrGeneratorSourceFactory {
     fn get_output_schema(&self, _port: &PortHandle) -> Result<(Schema, NoneContext), BoxedError> {
         Ok((
-            Schema::empty()
+            Schema::default()
                 .field(
                     FieldDefinition::new(
                         "id".to_string(),
@@ -354,14 +354,12 @@ impl Source for ErrGeneratorSource {
                 IngestionMessage::new_op(
                     n,
                     0,
+                    0,
                     Operation::Insert {
-                        new: Record::new(
-                            None,
-                            vec![
-                                Field::String(format!("key_{n}")),
-                                Field::String(format!("value_{n}")),
-                            ],
-                        ),
+                        new: Record::new(vec![
+                            Field::String(format!("key_{n}")),
+                            Field::String(format!("value_{n}")),
+                        ]),
                     },
                 ),
                 GENERATOR_SOURCE_OUTPUT_PORT,

@@ -5,7 +5,7 @@ use crate::ingestion::Ingestor;
 use dozer_types::ingestion_types::IngestionMessage;
 
 use crate::errors::SnowflakeStreamError::{CannotDetermineAction, UnsupportedActionInStream};
-use dozer_types::types::{Field, Operation, Record, SchemaIdentifier};
+use dozer_types::types::{Field, Operation, Record};
 use odbc::create_environment_v3;
 
 #[derive(Default)]
@@ -78,22 +78,10 @@ impl StreamConsumer {
         Ok(())
     }
 
-    fn map_record(row: Vec<Field>, table_idx: usize) -> Record {
-        Record {
-            schema_id: Some(SchemaIdentifier {
-                id: table_idx as u32,
-                version: 1,
-            }),
-            values: row,
-            lifetime: None,
-        }
-    }
-
     fn get_operation(
         row: Vec<Field>,
         action_idx: usize,
         used_columns_for_schema: usize,
-        table_idx: usize,
     ) -> Result<Operation, ConnectorError> {
         if let Field::String(action) = row.get(action_idx).unwrap() {
             let mut row_mut = row.clone();
@@ -104,11 +92,11 @@ impl StreamConsumer {
 
             if insert_action == action {
                 Ok(Operation::Insert {
-                    new: Self::map_record(row_mut, table_idx),
+                    new: Record::new(row_mut),
                 })
             } else if delete_action == action {
                 Ok(Operation::Delete {
-                    old: Self::map_record(row_mut, table_idx),
+                    old: Record::new(row_mut),
                 })
             } else {
                 Err(ConnectorError::SnowflakeError(
@@ -158,9 +146,11 @@ impl StreamConsumer {
             let action_idx = used_columns_for_schema;
 
             for (idx, row) in iterator.enumerate() {
-                let op = Self::get_operation(row, action_idx, used_columns_for_schema, table_idx)?;
+                let op = Self::get_operation(row, action_idx, used_columns_for_schema)?;
                 ingestor
-                    .handle_message(IngestionMessage::new_op(iteration, idx as u64, op))
+                    .handle_message(IngestionMessage::new_op(
+                        iteration, idx as u64, table_idx, op,
+                    ))
                     .map_err(ConnectorError::IngestorError)?;
             }
         }

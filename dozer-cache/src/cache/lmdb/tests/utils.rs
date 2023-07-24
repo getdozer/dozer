@@ -32,34 +32,20 @@ pub fn create_cache(
     (cache, indexing_thread_pool, schema.0, schema.1)
 }
 
-pub fn insert_rec_1(
-    cache: &mut LmdbRwCache,
-    schema: &Schema,
-    (a, b, c): (i64, Option<String>, Option<i64>),
-) {
-    let record = Record::new(
-        schema.identifier,
-        vec![
-            Field::Int(a),
-            b.map_or(Field::Null, Field::String),
-            c.map_or(Field::Null, Field::Int),
-        ],
-    );
+pub fn insert_rec_1(cache: &mut LmdbRwCache, (a, b, c): (i64, Option<String>, Option<i64>)) {
+    let record = Record::new(vec![
+        Field::Int(a),
+        b.map_or(Field::Null, Field::String),
+        c.map_or(Field::Null, Field::Int),
+    ]);
     cache.insert(&record).unwrap();
 }
 
-pub fn insert_full_text(
-    cache: &mut LmdbRwCache,
-    schema: &Schema,
-    (a, b): (Option<String>, Option<String>),
-) {
-    let record = Record::new(
-        schema.identifier,
-        vec![
-            a.map_or(Field::Null, Field::String),
-            b.map_or(Field::Null, Field::Text),
-        ],
-    );
+pub fn insert_full_text(cache: &mut LmdbRwCache, (a, b): (Option<String>, Option<String>)) {
+    let record = Record::new(vec![
+        a.map_or(Field::Null, Field::String),
+        b.map_or(Field::Null, Field::Text),
+    ]);
     cache.insert(&record).unwrap();
 }
 

@@ -11,7 +11,7 @@ fn test_case() {
                     ELSE 'The age is under 11' \
                 END AS age_text \
             FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("first_name"),
@@ -46,7 +46,7 @@ fn test_case_else() {
                     ELSE 'The age is under 11' \
                 END AS age_text \
             FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("first_name"),
@@ -80,7 +80,7 @@ fn test_case_no_else() {
                     WHEN age = 11 THEN 'The age is 11' \
                 END AS age_text \
             FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("first_name"),

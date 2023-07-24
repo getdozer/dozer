@@ -364,10 +364,13 @@ mod tests {
             match result {
                 Ok(_) => panic!("Validation should fail"),
                 Err(e) => {
-                    assert!(matches!(e, PostgresConnectorError::TableError(_)));
+                    assert!(matches!(e, PostgresConnectorError::TablesNotFound(_)));
 
-                    if let PostgresConnectorError::TableError(msg) = e {
-                        assert_eq!(msg, vec!["public.not_existing".to_string()]);
+                    if let PostgresConnectorError::TablesNotFound(msg) = e {
+                        assert_eq!(
+                            msg,
+                            vec![("public".to_string(), "not_existing".to_string())]
+                        );
                     } else {
                         panic!("Unexpected error occurred");
                     }

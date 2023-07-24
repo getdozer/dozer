@@ -13,7 +13,6 @@ use tonic::async_trait;
 
 #[derive(Debug)]
 pub struct EthTraceConnector {
-    pub id: u64,
     pub config: EthTraceConfig,
     pub conn_name: String,
 }
@@ -21,12 +20,8 @@ pub struct EthTraceConnector {
 pub const ETH_TRACE_TABLE: &str = "eth_traces";
 pub const RETRIES: u16 = 10;
 impl EthTraceConnector {
-    pub fn new(id: u64, config: EthTraceConfig, conn_name: String) -> Self {
-        Self {
-            id,
-            config,
-            conn_name,
-        }
+    pub fn new(config: EthTraceConfig, conn_name: String) -> Self {
+        Self { config, conn_name }
     }
 }
 
@@ -152,7 +147,10 @@ pub async fn run(
 
                         for op in ops {
                             ingestor
-                                .handle_message(IngestionMessage::new_op(batch.0, 0, op))
+                                .handle_message(IngestionMessage::new_op(
+                                    batch.0, 0, // We have only one table
+                                    0, op,
+                                ))
                                 .map_err(ConnectorError::IngestorError)?;
                         }
                     }

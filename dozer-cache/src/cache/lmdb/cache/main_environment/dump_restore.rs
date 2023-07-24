@@ -138,7 +138,7 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_dump_restore() {
-        let schema = Schema::empty();
+        let schema = Schema::default();
         let mut env = RwMainEnvironment::new(
             Some(&(schema, vec![])),
             None,
@@ -147,7 +147,7 @@ pub mod tests {
         )
         .unwrap();
 
-        let record = Record::new(None, vec![]);
+        let record = Record::new(vec![]);
         env.insert(&record).unwrap();
         env.insert(&record).unwrap();
         env.delete(&record).unwrap();

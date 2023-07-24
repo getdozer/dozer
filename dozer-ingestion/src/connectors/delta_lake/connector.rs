@@ -11,13 +11,12 @@ use tonic::async_trait;
 
 #[derive(Debug)]
 pub struct DeltaLakeConnector {
-    pub id: u64,
     config: DeltaLakeConfig,
 }
 
 impl DeltaLakeConnector {
-    pub fn new(id: u64, config: DeltaLakeConfig) -> Self {
-        Self { id, config }
+    pub fn new(config: DeltaLakeConfig) -> Self {
+        Self { config }
     }
 }
 
@@ -73,7 +72,7 @@ impl Connector for DeltaLakeConnector {
             })
             .collect::<Vec<_>>();
         let schema_helper = SchemaHelper::new(self.config.clone());
-        let source_schemas = schema_helper.get_schemas(self.id, &table_infos).await?;
+        let source_schemas = schema_helper.get_schemas(&table_infos).await?;
 
         let mut result = vec![];
         for (source_schema, table_info) in source_schemas.into_iter().zip(table_infos) {
@@ -105,7 +104,7 @@ impl Connector for DeltaLakeConnector {
             })
             .collect::<Vec<_>>();
         let schema_helper = SchemaHelper::new(self.config.clone());
-        schema_helper.get_schemas(self.id, &table_infos).await
+        schema_helper.get_schemas(&table_infos).await
     }
 
     async fn start(&self, ingestor: &Ingestor, tables: Vec<TableInfo>) -> ConnectorResult<()> {

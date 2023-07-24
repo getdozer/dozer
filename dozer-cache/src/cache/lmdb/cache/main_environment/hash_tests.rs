@@ -6,7 +6,7 @@ use super::RwMainEnvironment;
 
 #[test]
 fn test_hash_insert_delete_insert() {
-    let schema = Schema::empty();
+    let schema = Schema::default();
     let mut env = RwMainEnvironment::new(
         Some(&(schema, vec![])),
         None,
@@ -15,7 +15,7 @@ fn test_hash_insert_delete_insert() {
     )
     .unwrap();
 
-    let record = Record::new(None, vec![]);
+    let record = Record::new(vec![]);
 
     let UpsertResult::Inserted { meta } = env.insert(&record).unwrap() else {
         panic!("Expected UpsertResult::Inserted");

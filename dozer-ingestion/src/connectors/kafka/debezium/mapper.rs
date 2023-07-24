@@ -311,7 +311,6 @@ mod tests {
         let value = Value::from(v);
 
         let schema = Schema {
-            identifier: None,
             fields: vec![
                 FieldDefinition {
                     name: "id".to_string(),
@@ -401,7 +400,6 @@ mod tests {
         let value = Value::from(v);
 
         let schema = Schema {
-            identifier: None,
             fields: vec![
                 FieldDefinition {
                     name: "id".to_string(),

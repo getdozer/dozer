@@ -18,28 +18,23 @@ impl SchemaHelper {
 
     pub async fn get_schemas(
         &self,
-        id: u64,
         tables: &[ListOrFilterColumns],
     ) -> ConnectorResult<Vec<SourceSchemaResult>> {
         let mut schemas = vec![];
         for table in tables.iter() {
-            schemas.push(self.get_schemas_impl(id, table).await);
+            schemas.push(self.get_schemas_impl(table).await);
         }
         Ok(schemas)
     }
 
-    async fn get_schemas_impl(
-        &self,
-        id: u64,
-        table: &ListOrFilterColumns,
-    ) -> ConnectorResult<SourceSchema> {
+    async fn get_schemas_impl(&self, table: &ListOrFilterColumns) -> ConnectorResult<SourceSchema> {
         let table_path = table_path(&self.config, &table.name)?;
         let ctx = SessionContext::new();
         let delta_table = deltalake::open_table(table_path).await?;
         let arrow_schema: SchemaRef = (*ctx.read_table(Arc::new(delta_table))?.schema())
             .clone()
             .into();
-        let schema = map_schema(id as u32, arrow_schema, table)?;
+        let schema = map_schema(arrow_schema, table)?;
         Ok(SourceSchema::new(schema, CdcType::Nothing))
     }
 }

@@ -29,19 +29,16 @@ fn test_sum_aggregation_null() {
         SUM = 100.0
     */
     let inp = Operation::Insert {
-        new: Record::new(
-            None,
-            vec![
-                Field::Int(0),
-                Field::Null,
-                FIELD_100_INT.clone(),
-                FIELD_100_INT.clone(),
-            ],
-        ),
+        new: Record::new(vec![
+            Field::Int(0),
+            Field::Null,
+            FIELD_100_INT.clone(),
+            FIELD_100_INT.clone(),
+        ]),
     };
     let out = output!(processor, inp);
     let exp = vec![Operation::Insert {
-        new: Record::new(None, vec![Field::Null, FIELD_100_INT.clone()]),
+        new: Record::new(vec![Field::Null, FIELD_100_INT.clone()]),
     }];
     assert_eq!(out, exp);
 }

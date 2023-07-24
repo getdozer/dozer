@@ -177,8 +177,8 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
             right_join_key_indexes,
             left_primary_key_indexes,
             right_primary_key_indexes,
-            Record::from_schema(&left_schema),
-            Record::from_schema(&right_schema),
+            Record::nulls_from_schema(&left_schema),
+            Record::nulls_from_schema(&right_schema),
         );
 
         Ok(Box::new(ProductProcessor::new(
@@ -189,7 +189,7 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
 }
 
 fn append_schema(left_schema: &Schema, right_schema: &Schema) -> Schema {
-    let mut output_schema = Schema::empty();
+    let mut output_schema = Schema::default();
 
     let left_len = left_schema.fields.len();
 

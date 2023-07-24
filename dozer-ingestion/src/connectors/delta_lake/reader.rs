@@ -5,7 +5,7 @@ use crate::ingestion::Ingestor;
 use deltalake::datafusion::prelude::SessionContext;
 use dozer_types::arrow_types::from_arrow::{map_schema_to_dozer, map_value_to_dozer_field};
 use dozer_types::ingestion_types::{DeltaLakeConfig, IngestionMessage};
-use dozer_types::types::{Operation, Record, SchemaIdentifier};
+use dozer_types::types::{Operation, Record};
 use futures::StreamExt;
 use std::sync::Arc;
 
@@ -20,8 +20,8 @@ impl DeltaLakeReader {
 
     pub async fn read(&self, table: &[TableInfo], ingestor: &Ingestor) -> ConnectorResult<()> {
         let mut seq_no = 0;
-        for (id, table) in table.iter().enumerate() {
-            self.read_impl(id as u32, &mut seq_no, table, ingestor)
+        for (table_index, table) in table.iter().enumerate() {
+            self.read_impl(table_index, &mut seq_no, table, ingestor)
                 .await?;
         }
         Ok(())
@@ -29,7 +29,7 @@ impl DeltaLakeReader {
 
     async fn read_impl(
         &self,
-        id: u32,
+        table_index: usize,
         seq_no: &mut u64,
         table: &TableInfo,
         ingestor: &Ingestor,
@@ -63,9 +63,9 @@ impl DeltaLakeReader {
                     .handle_message(IngestionMessage::new_op(
                         0_u64,
                         *seq_no,
+                        table_index,
                         Operation::Insert {
                             new: Record {
-                                schema_id: Some(SchemaIdentifier { id, version: 0 }),
                                 values: fields,
                                 lifetime: None,
                             },

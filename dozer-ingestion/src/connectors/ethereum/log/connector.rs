@@ -19,7 +19,6 @@ use web3::types::{Address, BlockNumber, Filter, FilterBuilder, H256, U64};
 
 #[derive(Debug)]
 pub struct EthLogConnector {
-    pub id: u64,
     config: EthLogConfig,
     // Address -> (contract, contract_name)
     contracts: HashMap<String, ContractTuple>,
@@ -82,7 +81,7 @@ impl EthLogConnector {
         builder.build()
     }
 
-    pub fn new(id: u64, config: EthLogConfig, conn_name: String) -> Self {
+    pub fn new(config: EthLogConfig, conn_name: String) -> Self {
         let mut contracts = HashMap::new();
 
         for c in &config.contracts {
@@ -95,7 +94,6 @@ impl EthLogConnector {
 
         let schema_map = Self::build_schema_map(&contracts);
         Self {
-            id,
             config,
             contracts,
             schema_map,
@@ -144,10 +142,9 @@ impl Connector for EthLogConnector {
     }
 
     async fn list_tables(&self) -> Result<Vec<TableIdentifier>, ConnectorError> {
-        let event_schema_names =
-            helper::get_contract_event_schemas(&self.contracts, &self.schema_map)
-                .into_iter()
-                .map(|(name, _)| TableIdentifier::from_table_name(name));
+        let event_schema_names = helper::get_contract_event_schemas(&self.contracts)
+            .into_iter()
+            .map(|(name, _)| TableIdentifier::from_table_name(name));
         let mut result = vec![TableIdentifier::from_table_name(ETH_LOGS_TABLE.to_string())];
         result.extend(event_schema_names);
         Ok(result)
@@ -170,7 +167,7 @@ impl Connector for EthLogConnector {
         &self,
         tables: Vec<TableIdentifier>,
     ) -> Result<Vec<TableInfo>, ConnectorError> {
-        let event_schemas = helper::get_contract_event_schemas(&self.contracts, &self.schema_map);
+        let event_schemas = helper::get_contract_event_schemas(&self.contracts);
         let mut result = vec![];
         for table in tables {
             let column_names = if table.name == ETH_LOGS_TABLE && table.schema.is_none() {
@@ -213,7 +210,7 @@ impl Connector for EthLogConnector {
             SourceSchema::new(helper::get_eth_schema(), CdcType::Nothing),
         )];
 
-        let event_schemas = helper::get_contract_event_schemas(&self.contracts, &self.schema_map);
+        let event_schemas = helper::get_contract_event_schemas(&self.contracts);
         schemas.extend(event_schemas);
 
         let mut result = vec![];

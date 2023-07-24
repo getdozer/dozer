@@ -7,13 +7,10 @@ use crate::pipeline::window::operator::WindowType;
 
 #[test]
 fn test_hop() {
-    let record = Record::new(
-        None,
-        vec![
-            Field::Int(0),
-            Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
-        ],
-    );
+    let record = Record::new(vec![
+        Field::Int(0),
+        Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
+    ]);
 
     let window = WindowType::Hop {
         column_index: 1,
@@ -24,42 +21,33 @@ fn test_hop() {
     assert_eq!(result.len(), 5);
     let window_record = result.get(0).unwrap();
 
-    let expected_record = Record::new(
-        None,
-        vec![
-            Field::Int(0),
-            Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
-            Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:09:00Z").unwrap()),
-            Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:14:00Z").unwrap()),
-        ],
-    );
+    let expected_record = Record::new(vec![
+        Field::Int(0),
+        Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
+        Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:09:00Z").unwrap()),
+        Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:14:00Z").unwrap()),
+    ]);
 
     assert_eq!(*window_record, expected_record);
 
     let window_record = result.get(1).unwrap();
 
-    let expected_record = Record::new(
-        None,
-        vec![
-            Field::Int(0),
-            Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
-            Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:10:00Z").unwrap()),
-            Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:15:00Z").unwrap()),
-        ],
-    );
+    let expected_record = Record::new(vec![
+        Field::Int(0),
+        Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
+        Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:10:00Z").unwrap()),
+        Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:15:00Z").unwrap()),
+    ]);
 
     assert_eq!(*window_record, expected_record);
 }
 
 #[test]
 fn test_tumble() {
-    let record = Record::new(
-        None,
-        vec![
-            Field::Int(0),
-            Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
-        ],
-    );
+    let record = Record::new(vec![
+        Field::Int(0),
+        Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
+    ]);
 
     let window = WindowType::Tumble {
         column_index: 1,
@@ -70,22 +58,19 @@ fn test_tumble() {
     assert_eq!(result.len(), 1);
     let window_record = result.get(0).unwrap();
 
-    let expected_record = Record::new(
-        None,
-        vec![
-            Field::Int(0),
-            Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
-            Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:10:00Z").unwrap()),
-            Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:15:00Z").unwrap()),
-        ],
-    );
+    let expected_record = Record::new(vec![
+        Field::Int(0),
+        Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
+        Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:10:00Z").unwrap()),
+        Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:15:00Z").unwrap()),
+    ]);
 
     assert_eq!(*window_record, expected_record);
 }
 
 #[test]
 fn test_window_schema() {
-    let schema = Schema::empty()
+    let schema = Schema::default()
         .field(
             FieldDefinition::new(
                 String::from("id"),
@@ -113,7 +98,7 @@ fn test_window_schema() {
 
     let result = window.get_output_schema(&schema).unwrap();
 
-    let mut expected_schema = Schema::empty()
+    let mut expected_schema = Schema::default()
         .field(
             FieldDefinition::new(
                 String::from("id"),

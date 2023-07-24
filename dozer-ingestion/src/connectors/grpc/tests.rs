@@ -120,7 +120,7 @@ async fn ingest_grpc_default() {
     let msg = iterator.next().unwrap();
     assert_eq!(msg.identifier.seq_in_tx, 1, "seq_no should be 1");
 
-    if let IngestionMessageKind::OperationEvent(op) = msg.kind {
+    if let IngestionMessageKind::OperationEvent { op, .. } = msg.kind {
         if let Operation::Insert { new: record } = op {
             assert_eq!(record.values[0].as_int(), Some(1675));
             assert_eq!(record.values[1].as_string(), Some("dario"));
@@ -154,7 +154,7 @@ async fn test_serialize_arrow_schema() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn ingest_grpc_arrow() {
     let schema_str = serde_json::to_string(
-        &DozerSchema::empty()
+        &DozerSchema::default()
             .field(
                 FieldDefinition::new(
                     "id".to_string(),
@@ -254,7 +254,7 @@ async fn ingest_grpc_arrow() {
     let msg = iterator.next().unwrap();
     assert_eq!(msg.identifier.seq_in_tx, 1, "seq_no should be 1");
 
-    if let IngestionMessageKind::OperationEvent(op) = msg.kind {
+    if let IngestionMessageKind::OperationEvent { op, .. } = msg.kind {
         if let Operation::Insert { new: record } = op {
             assert_eq!(record.values[0].as_int(), Some(1675));
             assert_eq!(record.values[1].as_string(), Some("dario"));

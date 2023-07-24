@@ -25,7 +25,7 @@ struct TestUsersSourceFactory {}
 impl SourceFactory<NoneContext> for TestUsersSourceFactory {
     fn get_output_schema(&self, _port: &PortHandle) -> Result<(Schema, NoneContext), BoxedError> {
         Ok((
-            Schema::empty()
+            Schema::default()
                 .field(
                     FieldDefinition::new(
                         "user_id".to_string(),
@@ -79,7 +79,7 @@ struct TestCountriesSourceFactory {}
 impl SourceFactory<NoneContext> for TestCountriesSourceFactory {
     fn get_output_schema(&self, _port: &PortHandle) -> Result<(Schema, NoneContext), BoxedError> {
         Ok((
-            Schema::empty()
+            Schema::default()
                 .field(
                     FieldDefinition::new(
                         "country_id".to_string(),
@@ -134,7 +134,6 @@ impl ProcessorFactory<NoneContext> for TestJoinProcessorFactory {
             Schema {
                 fields: joined,
                 primary_index: vec![],
-                identifier: None,
             },
             NoneContext {},
         ))

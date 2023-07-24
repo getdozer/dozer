@@ -210,7 +210,7 @@ impl CommonPlanner {
         Self {
             input_schema: input_schema.clone(),
             post_aggregation_schema: input_schema,
-            post_projection_schema: Schema::empty(),
+            post_projection_schema: Schema::default(),
             aggregation_output: Vec::new(),
             having: None,
             groupby: Vec::new(),

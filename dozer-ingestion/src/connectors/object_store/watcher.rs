@@ -50,7 +50,7 @@ impl PartialEq for FileInfo {
 pub trait Watcher<T> {
     async fn watch(
         &self,
-        id: u32,
+        table_index: usize,
         table: &TableInfo,
         sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
     ) -> Result<(), ConnectorError>;
@@ -60,7 +60,7 @@ pub trait Watcher<T> {
 impl<T: DozerObjectStore> Watcher<T> for TableReader<T> {
     async fn watch(
         &self,
-        id: u32,
+        table_index: usize,
         table: &TableInfo,
         sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
     ) -> Result<(), ConnectorError> {
@@ -148,7 +148,7 @@ impl<T: DozerObjectStore> Watcher<T> for TableReader<T> {
                         .unwrap();
 
                     let result = Self::read(
-                        id,
+                        table_index,
                         ctx.clone(),
                         file_path,
                         listing_options.clone(),

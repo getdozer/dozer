@@ -11,7 +11,7 @@ use rand::distributions::Alphanumeric;
 use rand::Rng;
 use tonic::async_trait;
 
-use crate::connectors::postgres::schema::helper::SchemaHelper;
+use crate::connectors::postgres::schema::helper::{SchemaHelper, DEFAULT_SCHEMA_NAME};
 use crate::errors::ConnectorError::PostgresConnectorError;
 use crate::errors::PostgresConnectorError::{CreatePublicationError, DropPublicationError};
 use tokio_postgres::config::ReplicationMode;
@@ -232,7 +232,10 @@ impl PostgresConnector {
                     .map(|table_identifier| {
                         format!(
                             "{}.{}",
-                            table_identifier.schema.as_deref().unwrap_or("public"),
+                            table_identifier
+                                .schema
+                                .as_deref()
+                                .unwrap_or(DEFAULT_SCHEMA_NAME),
                             table_identifier.name
                         )
                     })

@@ -1,9 +1,7 @@
 use dozer_types::log::{debug, error};
 use dozer_types::serde;
 use dozer_types::serde_json::{self, json};
-use dozer_types::types::{
-    Field, FieldType, Operation, Record, Schema, SchemaIdentifier, SourceDefinition,
-};
+use dozer_types::types::{Field, FieldType, Operation, Record, Schema, SourceDefinition};
 use serde::{Deserialize, Serialize};
 
 use dozer_types::types::FieldDefinition;
@@ -87,12 +85,8 @@ pub async fn get_block_traces(
     Ok(results)
 }
 
-fn get_schema_id() -> SchemaIdentifier {
-    SchemaIdentifier { id: 1, version: 1 }
-}
 pub fn get_trace_schema() -> Schema {
     Schema {
-        identifier: Some(get_schema_id()),
         fields: vec![
             FieldDefinition {
                 name: "type_field".to_string(),
@@ -151,7 +145,6 @@ pub fn map_trace_to_ops(trace: &Trace) -> Vec<Operation> {
     let mut ops = vec![];
     let op = Operation::Insert {
         new: Record {
-            schema_id: Some(get_schema_id()),
             values: vec![
                 Field::String(trace.type_field.clone()),
                 Field::String(format!("{:?}", trace.from)),

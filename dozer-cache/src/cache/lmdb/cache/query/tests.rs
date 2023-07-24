@@ -6,21 +6,18 @@ use crate::cache::{
 };
 use dozer_types::{
     serde_json::{from_value, json, Value},
-    types::{Field, Record, Schema},
+    types::{Field, Record},
 };
 
 #[test]
 fn query_secondary_sorted_inverted() {
-    let (mut cache, indexing_thread_pool, schema, _) = create_cache(schema_1);
+    let (mut cache, indexing_thread_pool, _, _) = create_cache(schema_1);
 
-    let record = Record::new(
-        schema.identifier,
-        vec![
-            Field::Int(1),
-            Field::String("test".to_string()),
-            Field::Int(2),
-        ],
-    );
+    let record = Record::new(vec![
+        Field::Int(1),
+        Field::String("test".to_string()),
+        Field::Int(2),
+    ]);
 
     cache.insert(&record).unwrap();
     cache.commit().unwrap();
@@ -46,15 +43,12 @@ fn query_secondary_sorted_inverted() {
 
 #[test]
 fn query_secondary_full_text() {
-    let (mut cache, indexing_thread_pool, schema, _) = create_cache(schema_full_text);
+    let (mut cache, indexing_thread_pool, _, _) = create_cache(schema_full_text);
 
-    let record = Record::new(
-        schema.identifier,
-        vec![
-            Field::String("today is a good day".into()),
-            Field::Text("marry has a little lamb".into()),
-        ],
-    );
+    let record = Record::new(vec![
+        Field::String("today is a good day".into()),
+        Field::Text("marry has a little lamb".into()),
+    ]);
 
     cache.insert(&record).unwrap();
     cache.commit().unwrap();
@@ -79,7 +73,7 @@ fn query_secondary_full_text() {
 
 #[test]
 fn query_secondary_vars() {
-    let (mut cache, indexing_thread_pool, schema, _) = create_cache(schema_1);
+    let (mut cache, indexing_thread_pool, _, _) = create_cache(schema_1);
 
     let items = vec![
         (1, Some("yuri".to_string()), Some(521)),
@@ -93,7 +87,7 @@ fn query_secondary_vars() {
     ];
     // 26 alphabets
     for val in items {
-        insert_rec_1(&mut cache, &schema, val);
+        insert_rec_1(&mut cache, val);
     }
     cache.commit().unwrap();
     indexing_thread_pool.lock().wait_until_catchup();
@@ -140,7 +134,6 @@ fn query_secondary_vars() {
             "$order_by": { "b": "asc" }
         }),
         vec![(0, 1, "yuri".to_string(), 521)],
-        &schema,
         &cache,
     );
 
@@ -170,7 +163,6 @@ fn query_secondary_vars() {
             (5, 6, "mega".to_string(), 527),
             (6, 7, "james".to_string(), 528),
         ],
-        &schema,
         &cache,
     );
 
@@ -183,14 +175,13 @@ fn query_secondary_vars() {
             (6, 7, "james".to_string(), 528),
             (5, 6, "mega".to_string(), 527),
         ],
-        &schema,
         &cache,
     );
 }
 
 #[test]
 fn query_secondary_multi_indices() {
-    let (mut cache, indexing_thread_pool, schema, _) = create_cache(schema_multi_indices);
+    let (mut cache, indexing_thread_pool, _, _) = create_cache(schema_multi_indices);
 
     for (id, text) in [
         (1, "apple ball cake dance"),
@@ -202,7 +193,6 @@ fn query_secondary_multi_indices() {
         (7, "glove heart igloo jump"),
     ] {
         let record = Record {
-            schema_id: schema.identifier,
             values: vec![Field::Int(id), Field::String(text.into())],
             lifetime: None,
         };
@@ -225,7 +215,6 @@ fn query_secondary_multi_indices() {
                 2,
                 1,
                 Record {
-                    schema_id: schema.identifier,
                     values: vec![Field::Int(3), Field::String("cake dance egg fish".into())],
                     lifetime: None,
                 }
@@ -234,7 +223,6 @@ fn query_secondary_multi_indices() {
                 3,
                 1,
                 Record {
-                    schema_id: schema.identifier,
                     values: vec![Field::Int(4), Field::String("dance egg fish glove".into())],
                     lifetime: None,
                 }
@@ -265,12 +253,7 @@ fn test_query(query: Value, count: usize, cache: &dyn RwCache) {
     assert_eq!(records.len(), count, "Count must be equal : {query:?}");
 }
 
-fn test_query_record(
-    query: Value,
-    expected: Vec<(u64, i64, String, i64)>,
-    schema: &Schema,
-    cache: &dyn RwCache,
-) {
+fn test_query_record(query: Value, expected: Vec<(u64, i64, String, i64)>, cache: &dyn RwCache) {
     let query = from_value::<QueryExpression>(query).unwrap();
     assert_eq!(cache.count(&query).unwrap(), expected.len());
     let records = cache.query(&query).unwrap();
@@ -280,10 +263,7 @@ fn test_query_record(
             CacheRecord::new(
                 id,
                 1,
-                Record::new(
-                    schema.identifier,
-                    vec![Field::Int(a), Field::String(b), Field::Int(c)],
-                ),
+                Record::new(vec![Field::Int(a), Field::String(b), Field::Int(c)]),
             )
         })
         .collect::<Vec<_>>();

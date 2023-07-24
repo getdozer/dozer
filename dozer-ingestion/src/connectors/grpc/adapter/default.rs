@@ -1,4 +1,4 @@
-use dozer_types::{serde_json, types::SchemaIdentifier};
+use dozer_types::serde_json;
 
 use crate::{connectors::SourceSchema, errors::ConnectorError};
 
@@ -26,18 +26,8 @@ pub struct DefaultAdapter {
 
 impl DefaultAdapter {
     fn parse_schemas(schemas_str: &str) -> Result<HashMap<String, SourceSchema>, ConnectorError> {
-        let mut schemas: HashMap<String, SourceSchema> =
+        let schemas: HashMap<String, SourceSchema> =
             serde_json::from_str(schemas_str).map_err(ConnectorError::map_serialization_error)?;
-
-        schemas
-            .iter_mut()
-            .enumerate()
-            .for_each(|(id, (_, schema))| {
-                schema.schema.identifier = Some(SchemaIdentifier {
-                    id: id as u32,
-                    version: 1,
-                });
-            });
 
         Ok(schemas)
     }
@@ -55,11 +45,14 @@ impl IngestAdapter for DefaultAdapter {
     }
     fn handle_message(
         &self,
+        table_index: usize,
         msg: GrpcIngestMessage,
         ingestor: &'static Ingestor,
     ) -> Result<(), ConnectorError> {
         match msg {
-            GrpcIngestMessage::Default(msg) => handle_message(msg, &self.schema_map, ingestor),
+            GrpcIngestMessage::Default(msg) => {
+                handle_message(table_index, msg, &self.schema_map, ingestor)
+            }
             GrpcIngestMessage::Arrow(_) => Err(ConnectorError::InitializationError(
                 "Wrong message format!".to_string(),
             )),
@@ -68,6 +61,7 @@ impl IngestAdapter for DefaultAdapter {
 }
 
 pub fn handle_message(
+    table_index: usize,
     req: IngestRequest,
     schema_map: &HashMap<String, SourceSchema>,
     ingestor: &'static Ingestor,
@@ -92,7 +86,12 @@ pub fn handle_message(
         },
     };
     ingestor
-        .handle_message(IngestionMessage::new_op(0, req.seq_no as u64, op))
+        .handle_message(IngestionMessage::new_op(
+            0,
+            req.seq_no as u64,
+            table_index,
+            op,
+        ))
         .map_err(ConnectorError::IngestorError)
 }
 
@@ -183,7 +182,6 @@ fn map_record(rec: grpc_types::types::Record, schema: &Schema) -> Result<Record,
         values.push(val.unwrap_or(Ok(dozer_types::types::Field::Null))?);
     }
     Ok(Record {
-        schema_id: schema.identifier,
         values,
         lifetime: None,
     })

@@ -25,7 +25,7 @@ fn test_json_value() {
 
     let f = run_fct(
         "SELECT JSON_VALUE(jsonInfo,'$.info.address.town') FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("jsonInfo"),
@@ -62,7 +62,7 @@ fn test_json_value_null() {
 
     let f = run_fct(
         "SELECT JSON_VALUE(jsonInfo,'$.info.address.tags') FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("jsonInfo"),
@@ -99,7 +99,7 @@ fn test_json_query() {
 
     let f = run_fct(
         "SELECT JSON_QUERY(jsonInfo,'$.info.address') FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("jsonInfo"),
@@ -152,7 +152,7 @@ fn test_json_query_null() {
 
     let f = run_fct(
         "SELECT JSON_QUERY(jsonInfo,'$.type') FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("jsonInfo"),
@@ -188,7 +188,7 @@ fn test_json_query_len_one_array() {
 
     let f = run_fct(
         "SELECT JSON_VALUE(jsonInfo,'$.info.tags') FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("jsonInfo"),
@@ -229,7 +229,7 @@ fn test_json_query_array() {
 
     let f = run_fct(
         "SELECT JSON_QUERY(jsonInfo,'$.info.tags') FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("jsonInfo"),
@@ -276,7 +276,7 @@ fn test_json_query_default_path() {
 
     let f = run_fct(
         "SELECT JSON_QUERY(jsonInfo) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("jsonInfo"),
@@ -304,7 +304,7 @@ fn test_json_query_all() {
 
     let f = run_fct(
         "SELECT JSON_QUERY(jsonInfo, '$..*') FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("jsonInfo"),
@@ -352,7 +352,7 @@ fn test_json_query_iter() {
 
     let f = run_fct(
         "SELECT JSON_QUERY(jsonInfo, '$[*].digit') FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("jsonInfo"),
@@ -376,7 +376,7 @@ fn test_json_query_iter() {
 fn test_json_cast() {
     let f = run_fct(
         "SELECT CAST(uint AS JSON) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("uint"),
@@ -394,7 +394,7 @@ fn test_json_cast() {
 
     let f = run_fct(
         "SELECT CAST(u128 AS JSON) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("u128"),
@@ -412,7 +412,7 @@ fn test_json_cast() {
 
     let f = run_fct(
         "SELECT CAST(int AS JSON) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("int"),
@@ -430,7 +430,7 @@ fn test_json_cast() {
 
     let f = run_fct(
         "SELECT CAST(i128 AS JSON) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("i128"),
@@ -448,7 +448,7 @@ fn test_json_cast() {
 
     let f = run_fct(
         "SELECT CAST(float AS JSON) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("float"),
@@ -466,7 +466,7 @@ fn test_json_cast() {
 
     let f = run_fct(
         "SELECT CAST(str AS JSON) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("str"),
@@ -484,7 +484,7 @@ fn test_json_cast() {
 
     let f = run_fct(
         "SELECT CAST(str AS JSON) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("str"),
@@ -502,7 +502,7 @@ fn test_json_cast() {
 
     let f = run_fct(
         "SELECT CAST(bool AS JSON) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("bool"),
@@ -531,7 +531,7 @@ fn test_json_value_cast() {
 
     let f = run_fct(
         "SELECT JSON_VALUE(jsonInfo, '$[0].digit') FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("jsonInfo"),
@@ -549,7 +549,7 @@ fn test_json_value_cast() {
 
     let f = run_fct(
         "SELECT CAST(JSON_VALUE(jsonInfo, '$[0].digit') AS UINT) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("jsonInfo"),
@@ -567,7 +567,7 @@ fn test_json_value_cast() {
 
     let f = run_fct(
         "SELECT CAST(JSON_VALUE(jsonInfo, '$[0].digit') AS INT) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("jsonInfo"),
@@ -585,7 +585,7 @@ fn test_json_value_cast() {
 
     let f = run_fct(
         "SELECT CAST(JSON_VALUE(jsonInfo, '$[0].digit') AS FLOAT) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("jsonInfo"),
@@ -603,7 +603,7 @@ fn test_json_value_cast() {
 
     let f = run_fct(
         "SELECT CAST(JSON_VALUE(jsonInfo, '$[0].digit') AS STRING) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("jsonInfo"),
@@ -629,7 +629,7 @@ fn test_json_value_cast() {
 
     let f = run_fct(
         "SELECT CAST(JSON_VALUE(jsonInfo, '$[0].bool') AS BOOLEAN) FROM users",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("jsonInfo"),

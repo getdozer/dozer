@@ -12,7 +12,7 @@ use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::serde_json;
 use dozer_types::serde_json::Value;
-use dozer_types::types::{Field, Operation, Record, SchemaIdentifier};
+use dozer_types::types::{Field, Operation, Record};
 use rdkafka::consumer::BaseConsumer;
 
 use crate::connectors::kafka::no_schema_registry_basic::NoSchemaRegistryBasic;
@@ -91,17 +91,14 @@ impl StreamConsumer for StreamConsumerBasic {
         schema_registry_url: &Option<String>,
     ) -> Result<(), ConnectorError> {
         let mut schemas = HashMap::new();
-        for (index, table) in tables.into_iter().enumerate() {
+        for (table_index, table) in tables.into_iter().enumerate() {
             let schema = if let Some(url) = schema_registry_url {
-                SchemaRegistryBasic::get_single_schema(index as u32, &table.name, url).await?
+                SchemaRegistryBasic::get_single_schema(&table.name, url).await?
             } else {
-                (
-                    NoSchemaRegistryBasic::get_single_schema(index as u32),
-                    HashMap::new(),
-                )
+                (NoSchemaRegistryBasic::get_single_schema(), HashMap::new())
             };
 
-            schemas.insert(table.name.clone(), (index as u32, schema));
+            schemas.insert(table.name.clone(), (table_index, schema));
         }
 
         let mut counter = 0;
@@ -110,7 +107,7 @@ impl StreamConsumer for StreamConsumerBasic {
                 let m = result.map_err(|e| KafkaStreamError(PollingError(e)))?;
                 match schemas.get(m.topic()) {
                     None => return Err(ConnectorError::KafkaError(TopicNotDefined)),
-                    Some((id, (schema, fields_map))) => {
+                    Some((table_index, (schema, fields_map))) => {
                         if let (Some(message), Some(key)) = (m.payload(), m.key()) {
                             let new = match schema_registry_url {
                                 None => {
@@ -149,12 +146,9 @@ impl StreamConsumer for StreamConsumerBasic {
                                 .handle_message(IngestionMessage::new_op(
                                     0,
                                     counter,
+                                    *table_index,
                                     Operation::Insert {
                                         new: Record {
-                                            schema_id: Some(SchemaIdentifier {
-                                                id: *id,
-                                                version: 1,
-                                            }),
                                             values: new,
                                             lifetime: None,
                                         },

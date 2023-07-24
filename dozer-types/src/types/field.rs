@@ -788,7 +788,7 @@ pub fn arrow_field_test_cases() -> impl Iterator<Item = Field> {
 }
 
 pub fn arrow_field_test_cases_schema() -> Schema {
-    Schema::empty()
+    Schema::default()
         .field(
             FieldDefinition::new(
                 "uint1".to_string(),

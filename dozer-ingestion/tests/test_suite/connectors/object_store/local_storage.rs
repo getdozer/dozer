@@ -97,7 +97,7 @@ fn create_connector(
             name: table_name,
         }],
     };
-    let connector = ObjectStoreConnector::new(0, local_storage);
+    let connector = ObjectStoreConnector::new(local_storage);
 
     (temp_dir, connector)
 }

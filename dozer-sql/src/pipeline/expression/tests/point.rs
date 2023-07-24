@@ -21,7 +21,7 @@ fn test_point() {
 }
 
 fn test_validate_point(x: i64, y: i64) {
-    let schema = Schema::empty()
+    let schema = Schema::default()
         .field(
             FieldDefinition::new(
                 String::from("x"),
@@ -115,9 +115,9 @@ fn test_validate_point(x: i64, y: i64) {
 }
 
 fn test_evaluate_point(x: i64, y: i64) {
-    let row = Record::new(None, vec![]);
+    let row = Record::new(vec![]);
 
-    let schema = Schema::empty()
+    let schema = Schema::default()
         .field(
             FieldDefinition::new(
                 String::from("x"),
@@ -189,7 +189,7 @@ fn test_evaluate_point(x: i64, y: i64) {
 fn test_point_logical() {
     let f = run_fct(
         "SELECT POINT(x, y) FROM LOCATION",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("x"),
@@ -221,7 +221,7 @@ fn test_point_logical() {
 fn test_point_with_nullable_parameter() {
     let f = run_fct(
         "SELECT POINT(x, y) FROM LOCATION",
-        Schema::empty()
+        Schema::default()
             .field(
                 FieldDefinition::new(
                     String::from("x"),

@@ -6,7 +6,7 @@ use crate::errors::PostgresSchemaError;
 use crate::errors::PostgresSchemaError::ColumnNotFound;
 use dozer_types::types::FieldDefinition;
 
-use super::helper::SchemaTableIdentifier;
+use super::helper::{SchemaTableIdentifier, DEFAULT_SCHEMA_NAME};
 
 pub fn sort_schemas(
     expected_tables_order: &[ListOrFilterColumns],
@@ -15,7 +15,10 @@ pub fn sort_schemas(
     let mut sorted_tables: Vec<(SchemaTableIdentifier, PostgresTable)> = Vec::new();
     for table in expected_tables_order.iter() {
         let table_identifier = (
-            table.schema.clone().unwrap_or("public".to_string()),
+            table
+                .schema
+                .clone()
+                .unwrap_or(DEFAULT_SCHEMA_NAME.to_string()),
             table.name.clone(),
         );
         let postgres_table = mapped_tables.get(&table_identifier).ok_or(ColumnNotFound)?;
@@ -27,10 +30,8 @@ pub fn sort_schemas(
                     Ok(postgres_table.clone())
                 } else {
                     let sorted_fields = sort_fields(postgres_table, expected_order)?;
-                    let mut new_table = PostgresTable::new(
-                        *postgres_table.table_id(),
-                        postgres_table.replication_type().clone(),
-                    );
+                    let mut new_table =
+                        PostgresTable::new(postgres_table.replication_type().clone());
                     sorted_fields
                         .into_iter()
                         .for_each(|(f, is_index_field)| new_table.add_field(f, is_index_field));
@@ -82,7 +83,7 @@ mod tests {
     use dozer_types::types::FieldDefinition;
 
     fn generate_postgres_table() -> PostgresTable {
-        let mut postgres_table = PostgresTable::new(1, "d".to_string());
+        let mut postgres_table = PostgresTable::new("d".to_string());
         postgres_table.add_field(
             FieldDefinition {
                 name: "second field".to_string(),

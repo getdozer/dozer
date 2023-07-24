@@ -34,5 +34,5 @@ pub fn string_record_to_record(record: &StringRecord, schema: &Schema) -> Record
         })
         .collect();
 
-    Record::new(schema.identifier, values)
+    Record::new(values)
 }

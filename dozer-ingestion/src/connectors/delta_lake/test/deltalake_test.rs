@@ -18,7 +18,7 @@ async fn get_schema_from_deltalake() {
         tables: vec![delta_table],
     };
 
-    let connector = DeltaLakeConnector::new(1, config);
+    let connector = DeltaLakeConnector::new(config);
     let (_, schemas) = connector.list_all_schemas().await.unwrap();
     let field = schemas[0].schema.fields[0].clone();
     assert_eq!(&field.name, "value");
@@ -39,7 +39,7 @@ async fn read_deltalake() {
         tables: vec![delta_table],
     };
 
-    let connector = DeltaLakeConnector::new(1, config);
+    let connector = DeltaLakeConnector::new(config);
 
     let config = IngestionConfig::default();
     let (ingestor, iterator) = Ingestor::initialize_channel(config);
@@ -53,7 +53,11 @@ async fn read_deltalake() {
     let mut values = vec![];
     for (idx, IngestionMessage { identifier, kind }) in iterator.enumerate() {
         assert_eq!(idx, identifier.seq_in_tx as usize);
-        if let IngestionMessageKind::OperationEvent(Operation::Insert { new }) = kind {
+        if let IngestionMessageKind::OperationEvent {
+            op: Operation::Insert { new },
+            ..
+        } = kind
+        {
             values.extend(new.values);
         }
     }

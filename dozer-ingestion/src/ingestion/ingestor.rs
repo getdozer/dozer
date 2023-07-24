@@ -91,19 +91,19 @@ mod tests {
 
         // Expected seq no - 2
         let operation = Operation::Insert {
-            new: Record::new(None, vec![]),
+            new: Record::new(vec![]),
         };
 
         // Expected seq no - 3
         let operation2 = Operation::Insert {
-            new: Record::new(None, vec![]),
+            new: Record::new(vec![]),
         };
 
         ingestor
-            .handle_message(IngestionMessage::new_op(1, 2, operation.clone()))
+            .handle_message(IngestionMessage::new_op(1, 2, 0, operation.clone()))
             .unwrap();
         ingestor
-            .handle_message(IngestionMessage::new_op(1, 3, operation2.clone()))
+            .handle_message(IngestionMessage::new_op(1, 3, 0, operation2.clone()))
             .unwrap();
         ingestor
             .handle_message(IngestionMessage::new_snapshotting_done(1, 4))
@@ -111,9 +111,12 @@ mod tests {
 
         let expected_op_event_message = vec![operation, operation2].into_iter();
 
-        for x in expected_op_event_message {
+        for op in expected_op_event_message {
             let msg = rx.recv().unwrap();
-            assert_eq!(IngestionMessageKind::OperationEvent(x), msg.kind);
+            assert_eq!(
+                IngestionMessageKind::OperationEvent { table_index: 0, op },
+                msg.kind
+            );
         }
     }
 }

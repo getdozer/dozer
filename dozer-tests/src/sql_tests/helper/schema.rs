@@ -40,7 +40,6 @@ pub fn get_schema(columns: &[rusqlite::Column]) -> Schema {
         .collect();
 
     Schema {
-        identifier: None,
         fields,
         primary_index,
     }
