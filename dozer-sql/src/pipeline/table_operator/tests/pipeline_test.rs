@@ -13,8 +13,8 @@ use dozer_types::errors::internal::BoxedError;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::tracing::{debug, info};
 use dozer_types::types::{
-    Field, FieldDefinition, FieldType, ProcessorOperation, ProcessorRecord, Record,
-    Schema, SourceDefinition,
+    Field, FieldDefinition, FieldType, ProcessorOperation, ProcessorRecord, Record, Schema,
+    SourceDefinition,
 };
 
 use dozer_types::types::ref_types::ProcessorRecordRef;
