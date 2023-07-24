@@ -4,7 +4,8 @@ use dozer_core::epoch::Epoch;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::types::{ProcessorOperation, ProcessorRecord};
+use dozer_types::types::ref_types::ProcessorRecordRef;
+use dozer_types::types::ProcessorOperation;
 
 use super::operator::WindowType;
 
@@ -19,7 +20,7 @@ impl WindowProcessor {
         Self { _id: id, window }
     }
 
-    fn execute(&self, record: &ProcessorRecord) -> Result<Vec<ProcessorRecord>, WindowError> {
+    fn execute(&self, record: ProcessorRecordRef) -> Result<Vec<ProcessorRecordRef>, WindowError> {
         self.window.execute(record)
     }
 }
@@ -36,7 +37,7 @@ impl Processor for WindowProcessor {
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         match op {
-            ProcessorOperation::Delete { ref old } => {
+            ProcessorOperation::Delete { old } => {
                 let records = self.execute(old).map_err(PipelineError::WindowError)?;
                 for record in records {
                     fw.send(
@@ -45,7 +46,7 @@ impl Processor for WindowProcessor {
                     );
                 }
             }
-            ProcessorOperation::Insert { ref new } => {
+            ProcessorOperation::Insert { new } => {
                 let records = self.execute(new).map_err(PipelineError::WindowError)?;
                 for record in records {
                     fw.send(
@@ -54,7 +55,7 @@ impl Processor for WindowProcessor {
                     );
                 }
             }
-            ProcessorOperation::Update { ref old, ref new } => {
+            ProcessorOperation::Update { old, new } => {
                 let old_records = self.execute(old).map_err(PipelineError::WindowError)?;
                 for record in old_records {
                     fw.send(

@@ -105,7 +105,9 @@ impl Sink for LogSink {
         self.runtime.block_on(async {
             let mut log = self.log.lock().await;
             log.write(
-                dozer_cache::dozer_log::replication::LogOperation::Op { op: op.into() },
+                dozer_cache::dozer_log::replication::LogOperation::Op {
+                    op: op.clone_deref(),
+                },
                 self.log.clone(),
             )
             .await
