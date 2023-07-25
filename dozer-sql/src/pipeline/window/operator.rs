@@ -1,4 +1,6 @@
-use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordRef};
+use std::sync::Arc;
+
+use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::{
     chrono::{Duration, DurationRound},
     types::{Field, FieldDefinition, FieldType, Schema, SourceDefinition},
@@ -20,10 +22,7 @@ pub enum WindowType {
 }
 
 impl WindowType {
-    pub fn execute(
-        &self,
-        record: ProcessorRecordRef,
-    ) -> Result<Vec<ProcessorRecordRef>, WindowError> {
+    pub fn execute(&self, record: ProcessorRecord) -> Result<Vec<ProcessorRecord>, WindowError> {
         match self {
             WindowType::Tumble {
                 column_index,
@@ -61,21 +60,20 @@ impl WindowType {
 }
 
 fn execute_hop_window(
-    record: ProcessorRecordRef,
+    record: ProcessorRecord,
     column_index: usize,
     hop_size: Duration,
     interval: Duration,
-) -> Result<Vec<ProcessorRecordRef>, WindowError> {
-    let field = record.get_record().get_field_by_index(column_index as u32);
+) -> Result<Vec<ProcessorRecord>, WindowError> {
+    let field = record.get_field_by_index(column_index as u32);
 
     let windows = hop(field, hop_size, interval)?;
 
     let mut records = vec![];
-    for (start, end) in windows.iter() {
-        let mut window_record = ProcessorRecord::from_referenced_record(record.clone());
-        window_record.extend_direct_field(start.clone());
-        window_record.extend_direct_field(end.clone());
-        records.push(ProcessorRecordRef::new(window_record));
+    for (start, end) in windows.into_iter() {
+        let mut window_record = record.clone();
+        window_record.push(Arc::new(vec![start, end]));
+        records.push(window_record);
     }
 
     Ok(records)
@@ -109,20 +107,19 @@ fn hop(
 }
 
 fn execute_tumble_window(
-    record: ProcessorRecordRef,
+    record: ProcessorRecord,
     column_index: usize,
     interval: Duration,
-) -> Result<Vec<ProcessorRecordRef>, WindowError> {
-    let field = record.get_record().get_field_by_index(column_index as u32);
+) -> Result<Vec<ProcessorRecord>, WindowError> {
+    let field = record.get_field_by_index(column_index as u32);
 
     let (start, end) = tumble(field, interval)?;
 
-    let mut window_record = ProcessorRecord::from_referenced_record(record);
+    let mut window_record = record.clone();
 
-    window_record.extend_direct_field(start);
-    window_record.extend_direct_field(end);
+    window_record.push(Arc::new(vec![start, end]));
 
-    Ok(vec![ProcessorRecordRef::new(window_record)])
+    Ok(vec![window_record])
 }
 
 fn tumble(field: &Field, interval: Duration) -> Result<(Field, Field), WindowError> {

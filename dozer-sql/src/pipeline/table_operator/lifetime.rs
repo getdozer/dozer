@@ -1,4 +1,4 @@
-use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordRef};
+use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::types::{Field, Lifetime, Schema};
 
 use crate::pipeline::{errors::TableOperatorError, expression::execution::Expression};
@@ -33,19 +33,18 @@ impl TableOperator for LifetimeTableOperator {
 
     fn execute(
         &self,
-        record: &ProcessorRecordRef,
+        record: &ProcessorRecord,
         schema: &Schema,
-    ) -> Result<Vec<ProcessorRecordRef>, TableOperatorError> {
-        let source_record = record.clone();
+    ) -> Result<Vec<ProcessorRecord>, TableOperatorError> {
         let mut ttl_records = vec![];
         if let Some(operator) = &self.operator {
-            let operator_records = operator.execute(&source_record, schema)?;
+            let operator_records = operator.execute(record, schema)?;
 
             let schema = operator.get_output_schema(schema)?;
 
             let reference = match self
                 .expression
-                .evaluate(source_record.get_record(), &schema)
+                .evaluate(record, &schema)
                 .map_err(|err| TableOperatorError::InternalError(Box::new(err)))?
             {
                 Field::Timestamp(timestamp) => timestamp,
@@ -56,15 +55,14 @@ impl TableOperator for LifetimeTableOperator {
                 reference,
                 duration: self.duration,
             });
-            for operator_record in operator_records {
-                let mut cloned_record = ProcessorRecord::from_referenced_record(operator_record);
-                cloned_record.set_lifetime(lifetime.clone());
-                ttl_records.push(ProcessorRecordRef::new(cloned_record));
+            for mut operator_record in operator_records {
+                operator_record.set_lifetime(lifetime.clone());
+                ttl_records.push(operator_record);
             }
         } else {
             let reference = match self
                 .expression
-                .evaluate(source_record.get_record(), schema)
+                .evaluate(record, schema)
                 .map_err(|err| TableOperatorError::InternalError(Box::new(err)))?
             {
                 Field::Timestamp(timestamp) => timestamp,
@@ -76,9 +74,9 @@ impl TableOperator for LifetimeTableOperator {
                 duration: self.duration,
             });
 
-            let mut cloned_record = ProcessorRecord::from_referenced_record(source_record);
+            let mut cloned_record = record.clone();
             cloned_record.set_lifetime(lifetime);
-            ttl_records.push(ProcessorRecordRef::new(cloned_record));
+            ttl_records.push(cloned_record);
         }
 
         Ok(ttl_records)

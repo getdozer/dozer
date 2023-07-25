@@ -33,7 +33,7 @@ fn test_coalesce() {
         let typ = FieldType::UInt;
         let f = Field::UInt(u_num1);
         let mut row = ProcessorRecord::new();
-        row.extend_direct_field(f.clone());
+        row.push(f.clone());
 
         let args = vec![null.clone(), uint1.clone()];
         test_validate_coalesce(&args, typ);
@@ -55,7 +55,7 @@ fn test_coalesce() {
         let typ = FieldType::Int;
         let f = Field::Int(i_num1);
         let mut row = ProcessorRecord::new();
-        row.extend_direct_field(f.clone());
+        row.push(f.clone());
 
         let args = vec![null.clone(), int1.clone()];
         test_validate_coalesce(&args, typ);
@@ -77,7 +77,7 @@ fn test_coalesce() {
         let typ = FieldType::Float;
         let f = Field::Float(OrderedFloat(f_num1));
         let mut row = ProcessorRecord::new();
-        row.extend_direct_field(f.clone());
+        row.push(f.clone());
 
         let args = vec![null.clone(), float1.clone()];
         test_validate_coalesce(&args, typ);
@@ -99,7 +99,7 @@ fn test_coalesce() {
         let typ = FieldType::Decimal;
         let f = Field::Decimal(d_num1.0);
         let mut row = ProcessorRecord::new();
-        row.extend_direct_field(f.clone());
+        row.push(f.clone());
 
         let args = vec![null.clone(), dec1.clone()];
         test_validate_coalesce(&args, typ);
@@ -121,7 +121,7 @@ fn test_coalesce() {
         let typ = FieldType::String;
         let f = Field::String(s_val1.clone());
         let mut row = ProcessorRecord::new();
-        row.extend_direct_field(f.clone());
+        row.push(f.clone());
 
         let args = vec![null.clone(), str1.clone()];
         test_validate_coalesce(&args, typ);
@@ -143,7 +143,7 @@ fn test_coalesce() {
         let typ = FieldType::String;
         let f = Field::String(s_val1);
         let mut row = ProcessorRecord::new();
-        row.extend_direct_field(f.clone());
+        row.push(f.clone());
 
         let args = vec![null.clone(), str1.clone()];
         test_validate_coalesce(&args, typ);
@@ -165,7 +165,7 @@ fn test_coalesce() {
         let typ = FieldType::Timestamp;
         let f = Field::Timestamp(dt_val1.0);
         let mut row = ProcessorRecord::new();
-        row.extend_direct_field(f.clone());
+        row.push(f.clone());
 
         let args = vec![null.clone(), t1.clone()];
         test_validate_coalesce(&args, typ);
@@ -187,7 +187,7 @@ fn test_coalesce() {
         let typ = FieldType::Date;
         let f = Field::Date(dt_val1.0.date_naive());
         let mut row = ProcessorRecord::new();
-        row.extend_direct_field(f.clone());
+        row.push(f.clone());
 
         let args = vec![null.clone(), dt1.clone()];
         test_validate_coalesce(&args, typ);
@@ -209,7 +209,7 @@ fn test_coalesce() {
         let typ = FieldType::Date;
         let f = Field::Null;
         let mut row = ProcessorRecord::new();
-        row.extend_direct_field(f.clone());
+        row.push(f.clone());
 
         let args = vec![null.clone()];
         test_validate_coalesce(&args, typ);

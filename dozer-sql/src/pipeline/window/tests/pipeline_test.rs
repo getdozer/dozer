@@ -5,7 +5,7 @@ use dozer_core::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{OutputPortDef, OutputPortType, PortHandle, Sink, Source, SourceFactory};
 
-use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordRef};
+use dozer_core::processor_record::ProcessorRecord;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::chrono::{TimeZone, Utc};
 use dozer_types::epoch::Epoch;

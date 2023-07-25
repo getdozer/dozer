@@ -201,8 +201,8 @@ impl Source for TestSource {
         _last_checkpoint: Option<(u64, u64)>,
     ) -> Result<(), BoxedError> {
         let mut new_rec = ProcessorRecord::new();
-        new_rec.extend_direct_field(Field::Int(0));
-        new_rec.extend_direct_field(Field::String("IT".to_string()));
+        new_rec.push(Field::Int(0));
+        new_rec.push(Field::String("IT".to_string()));
         let operations = vec![
             (
                 Operation::Insert {

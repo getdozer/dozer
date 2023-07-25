@@ -2,7 +2,7 @@ use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::epoch::Epoch;
 use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{PortHandle, Processor};
-use dozer_core::processor_record::ProcessorRecordRef;
+use dozer_core::processor_record::ProcessorRecord;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::Schema;
@@ -29,9 +29,9 @@ impl TableOperatorProcessor {
 
     fn execute(
         &self,
-        record: &ProcessorRecordRef,
+        record: &ProcessorRecord,
         schema: &Schema,
-    ) -> Result<Vec<ProcessorRecordRef>, TableOperatorError> {
+    ) -> Result<Vec<ProcessorRecord>, TableOperatorError> {
         self.operator.execute(record, schema)
     }
 }

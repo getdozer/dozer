@@ -31,17 +31,17 @@ fn test_sum_aggregation_null() {
         SUM = 100.0
     */
     let mut record = ProcessorRecord::new();
-    record.extend_direct_field(Field::Int(0));
-    record.extend_direct_field(Field::Null);
-    record.extend_direct_field(FIELD_100_INT.clone());
-    record.extend_direct_field(FIELD_100_INT.clone());
+    record.push(Field::Int(0));
+    record.push(Field::Null);
+    record.push(FIELD_100_INT.clone());
+    record.push(FIELD_100_INT.clone());
     let inp = ProcessorOperation::Insert {
         new: ProcessorRecordRef::new(record),
     };
     let out = output!(processor, inp);
     let mut exp_record = ProcessorRecord::new();
-    exp_record.extend_direct_field(Field::Null);
-    exp_record.extend_direct_field(FIELD_100_INT.clone());
+    exp_record.push(Field::Null);
+    exp_record.push(FIELD_100_INT.clone());
     let exp = vec![ProcessorOperation::Insert {
         new: ProcessorRecordRef::new(exp_record),
     }];

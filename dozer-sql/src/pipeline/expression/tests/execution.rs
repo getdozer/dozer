@@ -48,9 +48,9 @@ fn test_column_execution() {
         .clone();
 
     let mut record = ProcessorRecord::new();
-    record.extend_direct_field(Field::Int(1337));
-    record.extend_direct_field(Field::String("test".to_string()));
-    record.extend_direct_field(Field::Float(OrderedFloat(10.10)));
+    record.push(Field::Int(1337));
+    record.push(Field::String("test".to_string()));
+    record.push(Field::Float(OrderedFloat(10.10)));
 
     // Column
     let e = Expression::Column { index: 0 };
@@ -263,10 +263,10 @@ fn test_timestamp_difference() {
         .clone();
 
     let mut record = ProcessorRecord::new();
-    record.extend_direct_field(Field::Timestamp(
+    record.push(Field::Timestamp(
         DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap(),
     ));
-    record.extend_direct_field(Field::Timestamp(
+    record.push(Field::Timestamp(
         DateTime::parse_from_rfc3339("2020-01-01T00:12:10Z").unwrap(),
     ));
 

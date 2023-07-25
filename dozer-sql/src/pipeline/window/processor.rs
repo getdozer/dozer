@@ -3,7 +3,7 @@ use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::epoch::Epoch;
 use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{PortHandle, Processor};
-use dozer_core::processor_record::ProcessorRecordRef;
+use dozer_core::processor_record::ProcessorRecord;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
 
@@ -20,7 +20,7 @@ impl WindowProcessor {
         Self { _id: id, window }
     }
 
-    fn execute(&self, record: ProcessorRecordRef) -> Result<Vec<ProcessorRecordRef>, WindowError> {
+    fn execute(&self, record: ProcessorRecord) -> Result<Vec<ProcessorRecord>, WindowError> {
         self.window.execute(record)
     }
 }
