@@ -8,9 +8,6 @@ on:
       - '*'
   workflow_dispatch:
 
-env:
-  RUSTC_VERSION: 1.70.0
-
 concurrency:
   group: dozer-log-js/${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
@@ -79,7 +76,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: ${{ env.RUSTC_VERSION }}
+          toolchain: stable
           target: ${{ matrix.rustup_target }}
 
       - uses: ./.github/actions/release-dozer-log-js
@@ -120,7 +117,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: ${{ env.RUSTC_VERSION }}
+          toolchain: stable
           target: ${{ matrix.rustup_target }}
 
       - uses: ./.github/actions/release-dozer-log-js
@@ -160,7 +157,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: ${{ env.RUSTC_VERSION }}
+          toolchain: stable
           target: ${{ matrix.rustup_target }}
 
       - uses: ./.github/actions/release-dozer-log-js
