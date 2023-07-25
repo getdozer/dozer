@@ -321,7 +321,10 @@ impl SchemaHelper {
         let type_oid: u32 = row.get(6);
         let typ = Type::from_oid(type_oid);
 
-        let typ = typ.map_or(Err(InvalidColumnType), postgres_type_to_dozer_type)?;
+        let typ = typ.map_or_else(
+            || Err(InvalidColumnType(column_name.clone())),
+            postgres_type_to_dozer_type,
+        )?;
 
         let replication_type = String::from_utf8(vec![replication_type_int as u8])
             .map_err(|_e| ValueConversionError("Replication type".to_string()))?;

@@ -163,8 +163,9 @@ impl XlogMapper {
             columns.push(TableColumn {
                 name: column_name.to_string(),
                 flags: column.flags(),
-                r#type: Type::from_oid(column.type_id() as u32)
-                    .ok_or(PostgresSchemaError::InvalidColumnType)?,
+                r#type: Type::from_oid(column.type_id() as u32).ok_or_else(|| {
+                    PostgresSchemaError::InvalidColumnType(column_name.to_string())
+                })?,
                 column_index,
             })
         }

@@ -259,8 +259,8 @@ pub enum PostgresSchemaError {
     #[error("ColumnTypeNotFound")]
     ColumnTypeNotFound,
 
-    #[error("Invalid column type")]
-    InvalidColumnType,
+    #[error("Invalid column type of column {0}")]
+    InvalidColumnType(String),
 
     #[error("Value conversion error: {0}")]
     ValueConversionError(String),
