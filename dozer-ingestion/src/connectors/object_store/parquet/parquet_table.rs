@@ -74,7 +74,7 @@ impl<T: DozerObjectStore + Send> ParquetTable<T> {
         // Get the table state after snapshot
         let mut update_state = self.update_state.clone();
         let extension = self.table_config.extension.clone();
-        let marker_extension = match self.table_config.marker_file.clone() {
+        let marker_extension = match self.table_config.marker_file {
             true => String::from(".marker"),
             false => String::new(),
         };
@@ -235,7 +235,7 @@ impl<T: DozerObjectStore + Send> TableWatcher for ParquetTable<T> {
         // Get the table state after snapshot
         let mut update_state = self.update_state.clone();
         let extension = self.table_config.extension.clone();
-        let marker_extension = match self.table_config.marker_file.clone() {
+        let marker_extension = match self.table_config.marker_file {
             true => String::from(".marker"),
             false => String::new(),
         };

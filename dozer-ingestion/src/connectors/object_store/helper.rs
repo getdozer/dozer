@@ -34,11 +34,11 @@ pub fn map_listing_options(
 
 pub fn is_marker_file_exist(marker_files: Vec<FileInfo>, info: &FileInfo) -> bool {
     for marker_file in marker_files {
-        let marker_file_name = match marker_file.name.rsplit_once(".") {
+        let marker_file_name = match marker_file.name.rsplit_once('.') {
             None => "",
             Some(n) => n.0,
         };
-        let file_name = match info.name.rsplit_once(".") {
+        let file_name = match info.name.rsplit_once('.') {
             None => "",
             Some(n) => n.0,
         };
@@ -46,5 +46,5 @@ pub fn is_marker_file_exist(marker_files: Vec<FileInfo>, info: &FileInfo) -> boo
             return true;
         }
     }
-    return false;
+    false
 }
