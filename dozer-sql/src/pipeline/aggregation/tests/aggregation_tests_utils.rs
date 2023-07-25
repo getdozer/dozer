@@ -128,10 +128,10 @@ pub(crate) fn init_val_input_schema(field_type: FieldType, aggregator_name: &str
 
 pub(crate) fn insert_field(country: &str, insert_field: &Field) -> ProcessorOperation {
     let mut rec = ProcessorRecord::new();
-    rec.extend_direct_field(Field::Int(0));
-    rec.extend_direct_field(Field::String(country.to_string()));
-    rec.extend_direct_field(insert_field.clone());
-    rec.extend_direct_field(insert_field.clone());
+    rec.push(Field::Int(0));
+    rec.push(Field::String(country.to_string()));
+    rec.push(insert_field.clone());
+    rec.push(insert_field.clone());
     ProcessorOperation::Insert {
         new: ProcessorRecordRef::new(rec),
     }
@@ -139,10 +139,10 @@ pub(crate) fn insert_field(country: &str, insert_field: &Field) -> ProcessorOper
 
 pub(crate) fn delete_field(country: &str, deleted_field: &Field) -> ProcessorOperation {
     let mut rec = ProcessorRecord::new();
-    rec.extend_direct_field(Field::Int(0));
-    rec.extend_direct_field(Field::String(country.to_string()));
-    rec.extend_direct_field(deleted_field.clone());
-    rec.extend_direct_field(deleted_field.clone());
+    rec.push(Field::Int(0));
+    rec.push(Field::String(country.to_string()));
+    rec.push(deleted_field.clone());
+    rec.push(deleted_field.clone());
     ProcessorOperation::Delete {
         old: ProcessorRecordRef::new(rec),
     }
@@ -155,16 +155,16 @@ pub(crate) fn update_field(
     new: &Field,
 ) -> ProcessorOperation {
     let mut old_rec = ProcessorRecord::new();
-    old_rec.extend_direct_field(Field::Int(0));
-    old_rec.extend_direct_field(Field::String(old_country.to_string()));
-    old_rec.extend_direct_field(old.clone());
-    old_rec.extend_direct_field(old.clone());
+    old_rec.push(Field::Int(0));
+    old_rec.push(Field::String(old_country.to_string()));
+    old_rec.push(old.clone());
+    old_rec.push(old.clone());
 
     let mut new_rec = ProcessorRecord::new();
-    new_rec.extend_direct_field(Field::Int(0));
-    new_rec.extend_direct_field(Field::String(new_country.to_string()));
-    new_rec.extend_direct_field(new.clone());
-    new_rec.extend_direct_field(new.clone());
+    new_rec.push(Field::Int(0));
+    new_rec.push(Field::String(new_country.to_string()));
+    new_rec.push(new.clone());
+    new_rec.push(new.clone());
     ProcessorOperation::Update {
         old: ProcessorRecordRef::new(old_rec),
         new: ProcessorRecordRef::new(new_rec),
@@ -173,7 +173,7 @@ pub(crate) fn update_field(
 
 pub(crate) fn insert_val_exp(inserted_field: &Field) -> ProcessorOperation {
     let mut rec = ProcessorRecord::new();
-    rec.extend_direct_field(inserted_field.clone());
+    rec.push(inserted_field.clone());
     ProcessorOperation::Insert {
         new: ProcessorRecordRef::new(rec),
     }
@@ -181,7 +181,7 @@ pub(crate) fn insert_val_exp(inserted_field: &Field) -> ProcessorOperation {
 
 pub(crate) fn delete_val_exp(deleted_field: &Field) -> ProcessorOperation {
     let mut rec = ProcessorRecord::new();
-    rec.extend_direct_field(deleted_field.clone());
+    rec.push(deleted_field.clone());
     ProcessorOperation::Delete {
         old: ProcessorRecordRef::new(rec),
     }
@@ -190,8 +190,8 @@ pub(crate) fn delete_val_exp(deleted_field: &Field) -> ProcessorOperation {
 pub(crate) fn update_val_exp(old: &Field, new: &Field) -> ProcessorOperation {
     let mut old_rec = ProcessorRecord::new();
     let mut new_rec = ProcessorRecord::new();
-    old_rec.extend_direct_field(old.clone());
-    new_rec.extend_direct_field(new.clone());
+    old_rec.push(old.clone());
+    new_rec.push(new.clone());
     ProcessorOperation::Update {
         old: ProcessorRecordRef::new(old_rec),
         new: ProcessorRecordRef::new(new_rec),
@@ -200,8 +200,8 @@ pub(crate) fn update_val_exp(old: &Field, new: &Field) -> ProcessorOperation {
 
 pub(crate) fn insert_exp(country: &str, inserted_field: &Field) -> ProcessorOperation {
     let mut rec = ProcessorRecord::new();
-    rec.extend_direct_field(Field::String(country.to_string()));
-    rec.extend_direct_field(inserted_field.clone());
+    rec.push(Field::String(country.to_string()));
+    rec.push(inserted_field.clone());
     ProcessorOperation::Insert {
         new: ProcessorRecordRef::new(rec),
     }
@@ -209,8 +209,8 @@ pub(crate) fn insert_exp(country: &str, inserted_field: &Field) -> ProcessorOper
 
 pub(crate) fn delete_exp(country: &str, deleted_field: &Field) -> ProcessorOperation {
     let mut rec = ProcessorRecord::new();
-    rec.extend_direct_field(Field::String(country.to_string()));
-    rec.extend_direct_field(deleted_field.clone());
+    rec.push(Field::String(country.to_string()));
+    rec.push(deleted_field.clone());
     ProcessorOperation::Delete {
         old: ProcessorRecordRef::new(rec),
     }
@@ -223,11 +223,11 @@ pub(crate) fn update_exp(
     new: &Field,
 ) -> ProcessorOperation {
     let mut old_rec = ProcessorRecord::new();
-    old_rec.extend_direct_field(Field::String(old_country.to_string()));
-    old_rec.extend_direct_field(old.clone());
+    old_rec.push(Field::String(old_country.to_string()));
+    old_rec.push(old.clone());
     let mut new_rec = ProcessorRecord::new();
-    new_rec.extend_direct_field(Field::String(new_country.to_string()));
-    new_rec.extend_direct_field(new.clone());
+    new_rec.push(Field::String(new_country.to_string()));
+    new_rec.push(new.clone());
     ProcessorOperation::Update {
         old: ProcessorRecordRef::new(old_rec),
         new: ProcessorRecordRef::new(new_rec),

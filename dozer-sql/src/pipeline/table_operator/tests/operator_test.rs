@@ -39,8 +39,8 @@ fn test_lifetime() {
         .to_owned();
 
     let mut record = ProcessorRecord::new();
-    record.extend_direct_field(Field::Int(0));
-    record.extend_direct_field(Field::Timestamp(
+    record.push(Field::Int(0));
+    record.push(Field::Timestamp(
         DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap(),
     ));
     let record = ProcessorRecordRef::new(record);
@@ -69,7 +69,7 @@ fn test_lifetime() {
     let lifetime_record = result.get(0).unwrap();
 
     let mut expected_record = ProcessorRecord::new();
-    expected_record.extend_referenced_record(record);
+    expected_record.extend(record);
 
     expected_record.set_lifetime(Some(Lifetime {
         reference: DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap(),

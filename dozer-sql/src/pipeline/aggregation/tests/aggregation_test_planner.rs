@@ -88,11 +88,11 @@ fn test_planner_with_aggregator() {
     .unwrap();
 
     let mut rec = ProcessorRecord::new();
-    rec.extend_direct_field(Field::String("John Smith".to_string()));
-    rec.extend_direct_field(Field::String("Johor".to_string()));
-    rec.extend_direct_field(Field::String("Malaysia".to_string()));
-    rec.extend_direct_field(Field::Int(2));
-    rec.extend_direct_field(Field::Int(1));
+    rec.push(Field::String("John Smith".to_string()));
+    rec.push(Field::String("Johor".to_string()));
+    rec.push(Field::String("Malaysia".to_string()));
+    rec.push(Field::Int(2));
+    rec.push(Field::Int(1));
     let _r = processor
         .aggregate(ProcessorOperation::Insert {
             new: ProcessorRecordRef::new(rec),
@@ -100,11 +100,11 @@ fn test_planner_with_aggregator() {
         .unwrap();
 
     let mut rec = ProcessorRecord::new();
-    rec.extend_direct_field(Field::String("Todd Enton".to_string()));
-    rec.extend_direct_field(Field::String("Johor".to_string()));
-    rec.extend_direct_field(Field::String("Malaysia".to_string()));
-    rec.extend_direct_field(Field::Int(2));
-    rec.extend_direct_field(Field::Int(1));
+    rec.push(Field::String("Todd Enton".to_string()));
+    rec.push(Field::String("Johor".to_string()));
+    rec.push(Field::String("Malaysia".to_string()));
+    rec.push(Field::Int(2));
+    rec.push(Field::Int(1));
     let _r = processor
         .aggregate(ProcessorOperation::Insert {
             new: ProcessorRecordRef::new(rec),

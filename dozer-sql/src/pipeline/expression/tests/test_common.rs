@@ -3,7 +3,7 @@ use crate::pipeline::{projection::factory::ProjectionProcessorFactory, tests::ut
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::ProcessorFactory;
-use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordRef};
+use dozer_core::processor_record::ProcessorRecord;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::chrono::{
     DateTime, Datelike, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, Timelike,
@@ -12,6 +12,7 @@ use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::{Field, Schema};
 use proptest::prelude::*;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 struct TestChannelForwarder {
     operations: Vec<ProcessorOperation>,
@@ -48,18 +49,14 @@ pub(crate) fn run_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Field {
 
     let mut fw = TestChannelForwarder { operations: vec![] };
     let mut rec = ProcessorRecord::new();
-    input
-        .into_iter()
-        .for_each(|inp| rec.extend_direct_field(inp));
+    rec.push(Arc::new(input));
 
-    let op = ProcessorOperation::Insert {
-        new: ProcessorRecordRef::new(rec),
-    };
+    let op = ProcessorOperation::Insert { new: rec };
 
     processor.process(DEFAULT_PORT_HANDLE, op, &mut fw).unwrap();
 
     match &fw.operations[0] {
-        ProcessorOperation::Insert { new } => new.get_record().get_fields()[0].clone(),
+        ProcessorOperation::Insert { new } => new.get_fields().next().unwrap().clone(),
         _ => panic!("Unable to find result value"),
     }
 }

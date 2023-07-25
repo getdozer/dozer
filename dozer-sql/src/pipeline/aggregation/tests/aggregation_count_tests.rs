@@ -31,8 +31,8 @@ fn test_count_star() {
     let out = output!(processor, insert_field(ITALY, FIELD_100_FLOAT));
     let mut old_record = ProcessorRecord::new();
     let mut new_record = ProcessorRecord::new();
-    old_record.extend_direct_field(FIELD_1_INT.clone());
-    new_record.extend_direct_field(FIELD_2_INT.clone());
+    old_record.push(FIELD_1_INT.clone());
+    new_record.push(FIELD_2_INT.clone());
 
     let exp = vec![ProcessorOperation::Update {
         old: ProcessorRecordRef::new(old_record),

@@ -1,45 +1,34 @@
 use std::hash::Hash;
 use std::sync::Arc;
 
+use dozer_storage::errors::StorageError;
 use dozer_types::types::{Field, Lifetime, Record, Schema};
 
-#[derive(Debug, PartialEq, Eq, Hash, Default)]
+pub struct ProcessorRecordStore;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct RecordRef(Arc<Vec<Field>>);
+
+impl ProcessorRecordStore {
+    pub fn create_ref(values: &[Field]) -> Result<RecordRef, StorageError> {
+        Ok(RecordRef(Arc::new(values.to_vec())))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct ProcessorRecord {
-    /// Every element of this `Vec` is either a referenced `ProcessorRecord` (can be nested recursively) or a direct field.
-    values: Vec<RefOrField>,
-    /// This is a cache of sum of number of fields in `values` recursively. Must be kept consistent with `values`.
-    total_len: u32,
+    /// All `Field`s in this record. The `Field`s are grouped by `Arc` to reduce memory usage.
+    values: Vec<Arc<Vec<Field>>>,
 
     /// Time To Live for this record. If the value is None, the record will never expire.
     lifetime: Option<Box<Lifetime>>,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
-
-enum RefOrField {
-    Ref(ProcessorRecordRef),
-    Field(Field),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ProcessorRecordRef(Arc<ProcessorRecord>);
-
-impl ProcessorRecordRef {
-    pub fn new(record: ProcessorRecord) -> Self {
-        ProcessorRecordRef(Arc::new(record))
-    }
-
-    pub fn get_record(&self) -> &ProcessorRecord {
-        &self.0
-    }
-}
-
 impl From<Record> for ProcessorRecord {
     fn from(record: Record) -> Self {
         let mut ref_record = ProcessorRecord::new();
-        for field in record.values {
-            ref_record.extend_direct_field(field);
-        }
+        ref_record.push(Arc::new(record.values));
+        ref_record.set_lifetime(record.lifetime);
         ref_record
     }
 }
@@ -49,18 +38,8 @@ impl ProcessorRecord {
         Self::default()
     }
 
-    pub fn from_referenced_record(record: ProcessorRecordRef) -> Self {
-        let mut result = ProcessorRecord::new();
-        result.extend_referenced_record(record);
-        result
-    }
-
     pub fn clone_deref(&self) -> Record {
-        let mut values: Vec<Field> = Vec::new();
-        for field in self.get_fields() {
-            values.push(field.clone());
-        }
-        let mut record = Record::new(values);
+        let mut record = Record::new(self.get_fields().cloned().collect());
         record.set_lifetime(self.get_lifetime());
         record
     }
@@ -72,34 +51,21 @@ impl ProcessorRecord {
         self.lifetime = lifetime.map(Box::new);
     }
 
-    pub fn extend_referenced_record(&mut self, other: ProcessorRecordRef) {
-        self.total_len += other.get_record().total_len;
-
-        self.values.push(RefOrField::Ref(other));
+    pub fn extend(&mut self, other: ProcessorRecord) {
+        self.values.extend(other.values);
     }
 
-    pub fn extend_direct_field(&mut self, field: Field) {
-        self.values.push(RefOrField::Field(field));
-        self.total_len += 1;
+    pub fn push(&mut self, fields: Arc<Vec<Field>>) {
+        self.values.push(fields);
     }
 
-    pub fn get_fields(&self) -> Vec<&Field> {
-        let mut fields = Vec::new();
-        self.get_fields_impl(&mut fields);
-        fields
+    pub fn pop(&mut self) -> Option<Arc<Vec<Field>>> {
+        let result = self.values.pop();
+        result
     }
 
-    fn get_fields_impl<'a>(&'a self, fields: &mut Vec<&'a Field>) {
-        for ref_or_field in &self.values {
-            match ref_or_field {
-                RefOrField::Ref(record_ref) => {
-                    record_ref.get_record().get_fields_impl(fields);
-                }
-                RefOrField::Field(field) => {
-                    fields.push(field);
-                }
-            }
-        }
+    pub fn get_fields(&self) -> impl Iterator<Item = &Field> {
+        self.values.iter().flat_map(|x| x.iter())
     }
 
     // Function to get a field by its index
@@ -107,28 +73,15 @@ impl ProcessorRecord {
         let mut current_index = index;
 
         // Iterate through the values and update the counts
-        for field_or_ref in self.values.iter() {
-            match field_or_ref {
-                RefOrField::Ref(record_ref) => {
-                    // If it's a reference, check if it matches the given index
-                    let rec = record_ref.get_record();
-                    let count = rec.total_len;
-                    if current_index < count {
-                        return rec.get_field_by_index(current_index);
-                    }
-                    current_index -= count;
-                }
-                RefOrField::Field(field) => {
-                    // If it's a field, check if it matches the given index
-                    if current_index == 0 {
-                        return field;
-                    }
-                    current_index -= 1;
-                }
+        for fields in self.values.iter() {
+            if current_index < fields.len() as u32 {
+                return &fields[current_index as usize];
+            } else {
+                current_index -= fields.len() as u32;
             }
         }
 
-        panic!("Index {index} out of range {}", self.total_len);
+        panic!("Index {index} out of range");
     }
 
     pub fn get_key(&self, indexes: &[usize]) -> Vec<u8> {
@@ -155,8 +108,7 @@ impl ProcessorRecord {
 
     pub fn nulls(size: usize) -> ProcessorRecord {
         ProcessorRecord {
-            values: (0..size).map(|_| RefOrField::Field(Field::Null)).collect(),
-            total_len: size as u32,
+            values: vec![Arc::new((0..size).map(|_| Field::Null).collect())],
             lifetime: None,
         }
     }
@@ -169,7 +121,7 @@ mod tests {
     #[test]
     fn test_processor_record_nulls() {
         let record = ProcessorRecord::nulls(3);
-        assert_eq!(record.get_fields().len(), 3);
+        assert_eq!(record.get_fields().count(), 3);
         assert_eq!(record.get_field_by_index(0), &Field::Null);
         assert_eq!(record.get_field_by_index(1), &Field::Null);
         assert_eq!(record.get_field_by_index(2), &Field::Null);
@@ -178,9 +130,9 @@ mod tests {
     #[test]
     fn test_processor_record_extend_direct_field() {
         let mut record = ProcessorRecord::new();
-        record.extend_direct_field(Field::Int(1));
+        record.push(Arc::new(vec![Field::Int(1)]));
 
-        assert_eq!(record.get_fields().len(), 1);
+        assert_eq!(record.get_fields().count(), 1);
         assert_eq!(record.get_field_by_index(0), &Field::Int(1));
     }
 
@@ -188,11 +140,10 @@ mod tests {
     fn test_processor_record_extend_referenced_record() {
         let mut record = ProcessorRecord::new();
         let mut other = ProcessorRecord::new();
-        other.extend_direct_field(Field::Int(1));
-        other.extend_direct_field(Field::Int(2));
-        record.extend_referenced_record(ProcessorRecordRef::new(other));
+        other.push(Arc::new(vec![Field::Int(1), Field::Int(2)]));
+        record.extend(other);
 
-        assert_eq!(record.get_fields().len(), 2);
+        assert_eq!(record.get_fields().count(), 2);
         assert_eq!(record.get_field_by_index(0), &Field::Int(1));
         assert_eq!(record.get_field_by_index(1), &Field::Int(2));
     }
@@ -201,14 +152,13 @@ mod tests {
     fn test_processor_record_extend_interleave() {
         let mut record = ProcessorRecord::new();
         let mut other = ProcessorRecord::new();
-        other.extend_direct_field(Field::Int(1));
-        other.extend_direct_field(Field::Int(2));
-        let other = ProcessorRecordRef::new(other);
-        record.extend_direct_field(Field::Int(3));
-        record.extend_referenced_record(other.clone());
-        record.extend_direct_field(Field::Int(4));
+        other.push(Arc::new(vec![Field::Int(1), Field::Int(2)]));
 
-        assert_eq!(record.get_fields().len(), 4);
+        record.push(Arc::new(vec![Field::Int(3)]));
+        record.extend(other);
+        record.push(Arc::new(vec![Field::Int(4)]));
+
+        assert_eq!(record.get_fields().count(), 4);
         assert_eq!(record.get_field_by_index(0), &Field::Int(3));
         assert_eq!(record.get_field_by_index(1), &Field::Int(1));
         assert_eq!(record.get_field_by_index(2), &Field::Int(2));
@@ -218,22 +168,19 @@ mod tests {
     #[test]
     fn test_processor_record_extend_nested() {
         let mut nested_inner = ProcessorRecord::new();
-        nested_inner.extend_direct_field(Field::Int(1));
-        nested_inner.extend_direct_field(Field::Int(2));
-        let nested = ProcessorRecordRef::new(nested_inner);
+        nested_inner.push(Arc::new(vec![Field::Int(1), Field::Int(2)]));
 
         let mut nested_outer = ProcessorRecord::new();
-        nested_outer.extend_direct_field(Field::Int(3));
-        nested_outer.extend_referenced_record(nested);
-        nested_outer.extend_direct_field(Field::Int(4));
-        let nested_outer = ProcessorRecordRef::new(nested_outer);
+        nested_outer.push(Arc::new(vec![Field::Int(3)]));
+        nested_outer.extend(nested_inner);
+        nested_outer.push(Arc::new(vec![Field::Int(4)]));
 
         let mut record = ProcessorRecord::new();
-        record.extend_direct_field(Field::Int(5));
-        record.extend_referenced_record(nested_outer);
-        record.extend_direct_field(Field::Int(6));
+        record.push(Arc::new(vec![Field::Int(5)]));
+        record.extend(nested_outer);
+        record.push(Arc::new(vec![Field::Int(6)]));
 
-        assert_eq!(record.get_fields().len(), 6);
+        assert_eq!(record.get_fields().count(), 6);
         assert_eq!(record.get_field_by_index(0), &Field::Int(5));
         assert_eq!(record.get_field_by_index(1), &Field::Int(3));
         assert_eq!(record.get_field_by_index(2), &Field::Int(1));

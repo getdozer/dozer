@@ -7,6 +7,7 @@ authors = ["getdozer/dozer-dev"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+dozer-storage = {path = "../dozer-storage/"}
 dozer-types = {path = "../dozer-types/"}
 dozer-tracing = {path = "../dozer-tracing/"}
 
