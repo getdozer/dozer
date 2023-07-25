@@ -55,7 +55,7 @@ impl DeltaLakeReader {
                     .iter()
                     .enumerate()
                     .map(|(col, column)| {
-                        map_value_to_dozer_field(column, &row, cols[col], &dozer_schema).unwrap()
+                        map_value_to_dozer_field(column, row, cols[col], &dozer_schema).unwrap()
                     })
                     .collect::<Vec<_>>();
 
