@@ -22,7 +22,7 @@ macro_rules! test_type_conversion {
 
 #[tokio::test]
 async fn test_get_schema_of_parquet() {
-    let local_storage = get_local_storage_config("parquet");
+    let local_storage = get_local_storage_config("parquet", "");
 
     let connector = ObjectStoreConnector::new(local_storage);
     let (_, schemas) = connector.list_all_schemas().await.unwrap();
@@ -44,7 +44,7 @@ async fn test_get_schema_of_parquet() {
 
 #[tokio::test]
 async fn test_get_schema_of_csv() {
-    let local_storage = get_local_storage_config("csv");
+    let local_storage = get_local_storage_config("csv", "");
 
     let connector = ObjectStoreConnector::new(local_storage);
     let (_, schemas) = connector.list_all_schemas().await.unwrap();
@@ -64,7 +64,7 @@ async fn test_get_schema_of_csv() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn test_read_parquet_file() {
-    let local_storage = get_local_storage_config("parquet");
+    let local_storage = get_local_storage_config("parquet", "");
 
     let connector = ObjectStoreConnector::new(local_storage);
 
@@ -137,8 +137,122 @@ async fn test_read_parquet_file() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn test_read_parquet_file_marker() {
+    let local_storage = get_local_storage_config("parquet", "marker");
+
+    let connector = ObjectStoreConnector::new(local_storage);
+
+    let config = IngestionConfig::default();
+    let (ingestor, mut iterator) = Ingestor::initialize_channel(config);
+
+    let tables = connector
+        .list_columns(connector.list_tables().await.unwrap())
+        .await
+        .unwrap();
+    tokio::spawn(async move {
+        connector.start(&ingestor, tables).await.unwrap();
+    });
+
+    let row = iterator.next();
+    if let Some(IngestionMessage {
+        identifier: OpIdentifier { seq_in_tx, .. },
+        kind: IngestionMessageKind::SnapshottingStarted,
+    }) = row
+    {
+        assert_eq!(seq_in_tx, 0);
+    } else {
+        panic!("Unexpected message");
+    }
+
+    let mut i = 1;
+    while i < 9 {
+        let row = iterator.next();
+        if let Some(IngestionMessage {
+            identifier: OpIdentifier { seq_in_tx, .. },
+            kind:
+                IngestionMessageKind::OperationEvent {
+                    op: Operation::Insert { new },
+                    ..
+                },
+        }) = row
+        {
+            let values = new.values;
+
+            assert_eq!(i, seq_in_tx);
+
+            test_type_conversion!(values, 0, Field::Int(_));
+            test_type_conversion!(values, 1, Field::Boolean(_));
+            test_type_conversion!(values, 2, Field::Int(_));
+            test_type_conversion!(values, 3, Field::Int(_));
+            test_type_conversion!(values, 4, Field::Int(_));
+            test_type_conversion!(values, 5, Field::Int(_));
+            test_type_conversion!(values, 6, Field::Float(_));
+            test_type_conversion!(values, 7, Field::Float(_));
+            test_type_conversion!(values, 8, Field::Binary(_));
+            test_type_conversion!(values, 9, Field::Binary(_));
+            test_type_conversion!(values, 10, Field::Timestamp(_));
+        } else {
+            panic!("Unexpected message");
+        }
+
+        i += 1;
+    }
+
+    let row = iterator.next();
+    if let Some(IngestionMessage {
+        identifier: OpIdentifier { seq_in_tx, .. },
+        kind: IngestionMessageKind::SnapshottingDone,
+    }) = row
+    {
+        assert_eq!(seq_in_tx, 9);
+    } else {
+        panic!("Unexpected message");
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn test_read_parquet_file_no_marker() {
+    let local_storage = get_local_storage_config("parquet", "no_marker");
+
+    let connector = ObjectStoreConnector::new(local_storage);
+
+    let config = IngestionConfig::default();
+    let (ingestor, mut iterator) = Ingestor::initialize_channel(config);
+
+    let tables = connector
+        .list_columns(connector.list_tables().await.unwrap())
+        .await
+        .unwrap();
+    tokio::spawn(async move {
+        connector.start(&ingestor, tables).await.unwrap();
+    });
+
+    let row = iterator.next();
+    if let Some(IngestionMessage {
+        identifier: OpIdentifier { seq_in_tx, .. },
+        kind: IngestionMessageKind::SnapshottingStarted,
+    }) = row
+    {
+        assert_eq!(seq_in_tx, 0);
+    } else {
+        panic!("Unexpected message");
+    }
+
+    let row = iterator.next();
+    if let Some(IngestionMessage {
+        identifier: OpIdentifier { seq_in_tx, .. },
+        kind: IngestionMessageKind::SnapshottingDone,
+    }) = row
+    {
+        assert_eq!(seq_in_tx, 1);
+    } else {
+        panic!("Unexpected message");
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn test_csv_read() {
-    let local_storage = get_local_storage_config("csv");
+    let local_storage = get_local_storage_config("csv", "");
 
     let connector = ObjectStoreConnector::new(local_storage);
 
@@ -217,9 +331,216 @@ async fn test_csv_read() {
     }
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn test_csv_read_marker() {
+    let local_storage = get_local_storage_config("csv", "marker");
+
+    let connector = ObjectStoreConnector::new(local_storage);
+
+    let config = IngestionConfig::default();
+    let (ingestor, mut iterator) = Ingestor::initialize_channel(config);
+
+    let tables = connector
+        .list_columns(connector.list_tables().await.unwrap())
+        .await
+        .unwrap();
+
+    tokio::spawn(async move {
+        connector.start(&ingestor, tables).await.unwrap();
+    });
+
+    let row = iterator.next();
+    if let Some(IngestionMessage {
+        identifier: OpIdentifier { seq_in_tx, .. },
+        kind: IngestionMessageKind::SnapshottingStarted,
+    }) = row
+    {
+        assert_eq!(seq_in_tx, 0);
+    } else {
+        panic!("Unexpected message");
+    }
+
+    let mut i = 1;
+    while i < 11 {
+        // no. of row in the csv data
+        let row = iterator.next();
+        if let Some(IngestionMessage {
+            identifier: OpIdentifier { seq_in_tx, .. },
+            kind:
+                IngestionMessageKind::OperationEvent {
+                    op: Operation::Insert { new },
+                    ..
+                },
+        }) = row
+        {
+            let values = new.values;
+
+            assert_eq!(i, seq_in_tx);
+            test_type_conversion!(values, 0, Field::Int(_));
+            test_type_conversion!(values, 1, Field::String(_));
+            test_type_conversion!(values, 2, Field::String(_));
+            test_type_conversion!(values, 3, Field::Int(_));
+            test_type_conversion!(values, 4, Field::Float(_));
+            test_type_conversion!(values, 5, Field::Float(_));
+            test_type_conversion!(values, 6, Field::Float(_));
+            test_type_conversion!(values, 7, Field::String(_));
+            test_type_conversion!(values, 8, Field::String(_));
+
+            if let Field::Int(id) = values.get(0).unwrap() {
+                if *id == 2 || *id == 12 {
+                    test_type_conversion!(values, 9, Field::Float(_));
+                } else {
+                    test_type_conversion!(values, 9, Field::Null);
+                }
+            }
+        } else {
+            panic!("Unexpected message");
+        }
+
+        i += 1;
+    }
+
+    let row = iterator.next();
+    if let Some(IngestionMessage {
+        identifier: OpIdentifier { seq_in_tx, .. },
+        kind: IngestionMessageKind::SnapshottingDone,
+    }) = row
+    {
+        assert_eq!(seq_in_tx, 11);
+    } else {
+        panic!("Unexpected message");
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn test_csv_read_only_one_marker() {
+    let local_storage = get_local_storage_config("csv", "marker_only_one");
+
+    let connector = ObjectStoreConnector::new(local_storage);
+
+    let config = IngestionConfig::default();
+    let (ingestor, mut iterator) = Ingestor::initialize_channel(config);
+
+    let tables = connector
+        .list_columns(connector.list_tables().await.unwrap())
+        .await
+        .unwrap();
+
+    tokio::spawn(async move {
+        connector.start(&ingestor, tables).await.unwrap();
+    });
+
+    let row = iterator.next();
+    if let Some(IngestionMessage {
+        identifier: OpIdentifier { seq_in_tx, .. },
+        kind: IngestionMessageKind::SnapshottingStarted,
+    }) = row
+    {
+        assert_eq!(seq_in_tx, 0);
+    } else {
+        panic!("Unexpected message");
+    }
+
+    let mut i = 1;
+    while i < 11 {
+        // no. of row in the csv data
+        let row = iterator.next();
+        if let Some(IngestionMessage {
+            identifier: OpIdentifier { seq_in_tx, .. },
+            kind:
+                IngestionMessageKind::OperationEvent {
+                    op: Operation::Insert { new },
+                    ..
+                },
+        }) = row
+        {
+            let values = new.values;
+
+            assert_eq!(i, seq_in_tx);
+            test_type_conversion!(values, 0, Field::Int(_));
+            test_type_conversion!(values, 1, Field::String(_));
+            test_type_conversion!(values, 2, Field::String(_));
+            test_type_conversion!(values, 3, Field::Int(_));
+            test_type_conversion!(values, 4, Field::Float(_));
+            test_type_conversion!(values, 5, Field::Float(_));
+            test_type_conversion!(values, 6, Field::Float(_));
+            test_type_conversion!(values, 7, Field::String(_));
+            test_type_conversion!(values, 8, Field::String(_));
+
+            if let Field::Int(id) = values.get(0).unwrap() {
+                if *id == 2 || *id == 12 {
+                    test_type_conversion!(values, 9, Field::Float(_));
+                } else {
+                    test_type_conversion!(values, 9, Field::Null);
+                }
+            }
+        } else {
+            panic!("Unexpected message");
+        }
+
+        i += 1;
+    }
+
+    // No data to be snapshotted
+
+    let row = iterator.next();
+    if let Some(IngestionMessage {
+        identifier: OpIdentifier { seq_in_tx, .. },
+        kind: IngestionMessageKind::SnapshottingDone,
+    }) = row
+    {
+        assert_eq!(seq_in_tx, 11);
+    } else {
+        panic!("Unexpected message");
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn test_csv_read_no_marker() {
+    let local_storage = get_local_storage_config("csv", "no_marker");
+
+    let connector = ObjectStoreConnector::new(local_storage);
+
+    let config = IngestionConfig::default();
+    let (ingestor, mut iterator) = Ingestor::initialize_channel(config);
+
+    let tables = connector
+        .list_columns(connector.list_tables().await.unwrap())
+        .await
+        .unwrap();
+
+    tokio::spawn(async move {
+        connector.start(&ingestor, tables).await.unwrap();
+    });
+
+    let row = iterator.next();
+    if let Some(IngestionMessage {
+        identifier: OpIdentifier { seq_in_tx, .. },
+        kind: IngestionMessageKind::SnapshottingStarted,
+    }) = row
+    {
+        assert_eq!(seq_in_tx, 0);
+    } else {
+        panic!("Unexpected message");
+    }
+
+    // No data to be snapshotted
+
+    let row = iterator.next();
+    if let Some(IngestionMessage {
+        identifier: OpIdentifier { seq_in_tx, .. },
+        kind: IngestionMessageKind::SnapshottingDone,
+    }) = row
+    {
+        assert_eq!(seq_in_tx, 1);
+    } else {
+        panic!("Unexpected message");
+    }
+}
+
 #[test]
 fn test_unsupported_format() {
-    let local_storage = get_local_storage_config("unsupported");
+    let local_storage = get_local_storage_config("unsupported", "");
     let table = local_storage.tables.get(0).unwrap();
 
     let result = map_listing_options(table);
@@ -232,7 +553,7 @@ fn test_unsupported_format() {
 
 #[tokio::test]
 async fn test_missing_directory() {
-    let mut local_storage = get_local_storage_config("unsupported");
+    let mut local_storage = get_local_storage_config("unsupported", "");
     local_storage.details = Some(LocalDetails {
         path: "not_existing_path".to_string(),
     });

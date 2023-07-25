@@ -308,6 +308,9 @@ pub struct CsvConfig {
     pub path: String,
     #[prost(string, tag = "2")]
     pub extension: String,
+    #[prost(bool, tag = "3")]
+    #[serde(default = "default_false")]
+    pub marker_file: bool,
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
@@ -322,6 +325,9 @@ pub struct ParquetConfig {
     pub path: String,
     #[prost(string, tag = "2")]
     pub extension: String,
+    #[prost(bool, tag = "3")]
+    #[serde(default = "default_false")]
+    pub marker_file: bool,
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
@@ -400,4 +406,8 @@ impl DeltaTable {
 pub struct DeltaLakeConfig {
     #[prost(message, repeated, tag = "1")]
     pub tables: Vec<DeltaTable>,
+}
+
+fn default_false() -> bool {
+    false
 }

@@ -3,32 +3,64 @@ use dozer_types::ingestion_types::{
 };
 use std::path::PathBuf;
 
-pub fn get_local_storage_config(typ: &str) -> LocalStorage {
+pub fn get_local_storage_config(typ: &str, prefix: &str) -> LocalStorage {
     let p = PathBuf::from("src/connectors/object_store/tests/files".to_string());
     match typ {
-        "parquet" => LocalStorage {
-            details: Some(LocalDetails {
-                path: p.to_str().unwrap().to_string(),
-            }),
-            tables: vec![Table {
-                config: Some(TableConfig::Parquet(ParquetConfig {
-                    extension: typ.to_string(),
-                    path: format!("all_types_{typ}"),
-                })),
-                name: format!("all_types_{typ}"),
-            }],
+        "parquet" => match prefix {
+            "" => LocalStorage {
+                details: Some(LocalDetails {
+                    path: p.to_str().unwrap().to_string(),
+                }),
+                tables: vec![Table {
+                    config: Some(TableConfig::Parquet(ParquetConfig {
+                        extension: typ.to_string(),
+                        path: format!("all_types_{typ}"),
+                        marker_file: false,
+                    })),
+                    name: format!("all_types_{typ}"),
+                }],
+            },
+            &_ => LocalStorage {
+                details: Some(LocalDetails {
+                    path: p.to_str().unwrap().to_string(),
+                }),
+                tables: vec![Table {
+                    config: Some(TableConfig::Parquet(ParquetConfig {
+                        extension: typ.to_string(),
+                        path: format!("{prefix}_{typ}"),
+                        marker_file: true,
+                    })),
+                    name: format!("{prefix}_{typ}"),
+                }],
+            },
         },
-        "csv" => LocalStorage {
-            details: Some(LocalDetails {
-                path: p.to_str().unwrap().to_string(),
-            }),
-            tables: vec![Table {
-                config: Some(TableConfig::CSV(CsvConfig {
-                    extension: typ.to_string(),
-                    path: format!("all_types_{typ}"),
-                })),
-                name: format!("all_types_{typ}"),
-            }],
+        "csv" => match prefix {
+            "" => LocalStorage {
+                details: Some(LocalDetails {
+                    path: p.to_str().unwrap().to_string(),
+                }),
+                tables: vec![Table {
+                    config: Some(TableConfig::CSV(CsvConfig {
+                        extension: typ.to_string(),
+                        path: format!("all_types_{typ}"),
+                        marker_file: false,
+                    })),
+                    name: format!("all_types_{typ}"),
+                }],
+            },
+            &_ => LocalStorage {
+                details: Some(LocalDetails {
+                    path: p.to_str().unwrap().to_string(),
+                }),
+                tables: vec![Table {
+                    config: Some(TableConfig::CSV(CsvConfig {
+                        extension: typ.to_string(),
+                        path: format!("{prefix}_{typ}"),
+                        marker_file: true,
+                    })),
+                    name: format!("{prefix}_{typ}"),
+                }],
+            },
         },
         &_ => LocalStorage {
             details: Some(LocalDetails {

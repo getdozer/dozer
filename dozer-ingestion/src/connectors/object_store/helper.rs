@@ -1,3 +1,4 @@
+use crate::connectors::object_store::table_watcher::FileInfo;
 use crate::errors::ObjectStoreObjectError;
 use deltalake::datafusion::datasource::file_format::csv::CsvFormat;
 use deltalake::datafusion::datasource::file_format::parquet::ParquetFormat;
@@ -29,4 +30,21 @@ pub fn map_listing_options(
             "No file format specified".to_string(),
         ))
     }
+}
+
+pub fn is_marker_file_exist(marker_files: Vec<FileInfo>, info: &FileInfo) -> bool {
+    for marker_file in marker_files {
+        let marker_file_name = match marker_file.name.rsplit_once(".") {
+            None => "",
+            Some(n) => n.0,
+        };
+        let file_name = match info.name.rsplit_once(".") {
+            None => "",
+            Some(n) => n.0,
+        };
+        if !file_name.is_empty() && marker_file_name == file_name {
+            return true;
+        }
+    }
+    return false;
 }
