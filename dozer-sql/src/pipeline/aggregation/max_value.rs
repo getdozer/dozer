@@ -2,7 +2,7 @@ use crate::pipeline::aggregation::aggregator::{update_val_map, Aggregator};
 use crate::pipeline::errors::PipelineError::InvalidReturnType;
 use crate::pipeline::errors::{FieldTypes, PipelineError};
 use crate::pipeline::expression::aggregate::AggregateFunctionType::MaxValue;
-use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
+use crate::pipeline::expression::execution::{Expression, ExpressionType};
 use crate::{argv, calculate_err};
 use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
 use std::collections::BTreeMap;

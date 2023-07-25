@@ -2,7 +2,7 @@ use crate::pipeline::aggregation::aggregator::{update_map, Aggregator};
 use crate::pipeline::errors::{FieldTypes, PipelineError};
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::aggregate::AggregateFunctionType::Max;
-use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
+use crate::pipeline::expression::execution::{Expression, ExpressionType};
 use crate::{argv, calculate_err, calculate_err_field};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};

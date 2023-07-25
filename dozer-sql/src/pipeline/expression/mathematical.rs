@@ -1,7 +1,7 @@
 use crate::pipeline::errors::OperationError;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::SqlError::Operation;
-use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
+use crate::pipeline::expression::execution::Expression;
 use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::Schema;

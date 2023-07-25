@@ -1,5 +1,5 @@
 use crate::pipeline::builder::SchemaSQLContext;
-use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
+use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::mathematical::evaluate_sub;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;

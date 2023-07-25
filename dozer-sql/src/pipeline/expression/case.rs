@@ -1,5 +1,5 @@
 use crate::pipeline::errors::PipelineError;
-use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
+use crate::pipeline::expression::execution::Expression;
 use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::types::{Field, Schema};
 use std::iter::zip;
