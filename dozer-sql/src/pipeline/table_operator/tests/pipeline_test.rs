@@ -3,17 +3,14 @@ use dozer_core::appsource::{AppSource, AppSourceManager};
 use dozer_core::channels::SourceChannelForwarder;
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::executor_operation::ProcessorOperation;
-use dozer_core::node::{
-    OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
-};
+use dozer_core::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory};
 
 use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordRef};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::chrono::{TimeZone, Utc};
-use dozer_types::epoch::Epoch;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::ingestion_types::IngestionMessage;
-use dozer_types::tracing::{debug, info};
+use dozer_types::tracing::debug;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition};
 
 use std::collections::HashMap;
@@ -23,6 +20,7 @@ use std::thread;
 use std::time::Duration;
 
 use crate::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
+use crate::pipeline::product::tests::pipeline_test::TestSinkFactory;
 
 const TRIPS_PORT: u16 = 0 as PortHandle;
 const ZONES_PORT: u16 = 1 as PortHandle;
@@ -337,86 +335,6 @@ impl Source for TestSource {
 
         thread::sleep(Duration::from_millis(500));
 
-        Ok(())
-    }
-}
-
-#[derive(Debug)]
-pub(crate) struct TestSinkFactory {
-    expected: u64,
-    running: Arc<AtomicBool>,
-}
-
-impl TestSinkFactory {
-    pub fn new(expected: u64, barrier: Arc<AtomicBool>) -> Self {
-        Self {
-            expected,
-            running: barrier,
-        }
-    }
-}
-
-impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
-    fn get_input_ports(&self) -> Vec<PortHandle> {
-        vec![DEFAULT_PORT_HANDLE]
-    }
-
-    fn build(
-        &self,
-        _input_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Sink>, BoxedError> {
-        Ok(Box::new(TestSink {
-            _expected: self.expected,
-            _current: 0,
-            _running: self.running.clone(),
-        }))
-    }
-
-    fn prepare(
-        &self,
-        _input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), BoxedError> {
-        Ok(())
-    }
-}
-
-#[derive(Debug)]
-pub struct TestSink {
-    _expected: u64,
-    _current: u64,
-    _running: Arc<AtomicBool>,
-}
-
-impl Sink for TestSink {
-    fn process(
-        &mut self,
-        _from_port: PortHandle,
-        _op: ProcessorOperation,
-    ) -> Result<(), BoxedError> {
-        match _op {
-            ProcessorOperation::Delete { old } => {
-                info!("o0:-> - {:?}", old.get_record().get_fields())
-            }
-            ProcessorOperation::Insert { new } => {
-                info!("o0:-> + {:?}", new.get_record().get_fields())
-            }
-            ProcessorOperation::Update { old, new } => {
-                info!(
-                    "o0:-> - {:?}, + {:?}",
-                    old.get_record().get_fields(),
-                    new.get_record().get_fields()
-                )
-            }
-        }
-
-        Ok(())
-    }
-
-    fn commit(&mut self, _epoch_details: &Epoch) -> Result<(), BoxedError> {
-        Ok(())
-    }
-
-    fn on_source_snapshotting_done(&mut self, _connection_name: String) -> Result<(), BoxedError> {
         Ok(())
     }
 }

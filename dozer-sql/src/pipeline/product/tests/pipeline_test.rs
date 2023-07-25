@@ -2,17 +2,15 @@ use dozer_core::app::{App, AppPipeline};
 use dozer_core::appsource::{AppSource, AppSourceManager};
 use dozer_core::channels::SourceChannelForwarder;
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
-use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
 use dozer_core::processor_record::ProcessorRecord;
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_types::epoch::Epoch;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::tracing::{debug, info};
+use dozer_types::tracing::debug;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
 };
@@ -22,6 +20,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use crate::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
+use crate::pipeline::window::tests::pipeline_test::TestSink;
 
 const USER_PORT: u16 = 0 as PortHandle;
 const DEPARTMENT_PORT: u16 = 1 as PortHandle;
@@ -409,55 +408,6 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
         &self,
         _input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
     ) -> Result<(), BoxedError> {
-        Ok(())
-    }
-}
-
-#[derive(Debug)]
-pub struct TestSink {
-    expected: u64,
-    current: u64,
-    running: Arc<AtomicBool>,
-}
-
-impl Sink for TestSink {
-    fn process(
-        &mut self,
-        _from_port: PortHandle,
-        _op: ProcessorOperation,
-    ) -> Result<(), BoxedError> {
-        match _op {
-            ProcessorOperation::Delete { old } => {
-                info!("o0:-> - {:?}", old.get_record().get_fields())
-            }
-            ProcessorOperation::Insert { new } => {
-                info!("o0:-> + {:?}", new.get_record().get_fields())
-            }
-            ProcessorOperation::Update { old, new } => {
-                info!(
-                    "o0:-> - {:?}, + {:?}",
-                    old.get_record().get_fields(),
-                    new.get_record().get_fields()
-                )
-            }
-        }
-
-        self.current += 1;
-        if self.current == self.expected {
-            debug!(
-                "Received {} messages. Notifying sender to exit!",
-                self.current
-            );
-            self.running.store(false, Ordering::Relaxed);
-        }
-        Ok(())
-    }
-
-    fn commit(&mut self, _epoch_details: &Epoch) -> Result<(), BoxedError> {
-        Ok(())
-    }
-
-    fn on_source_snapshotting_done(&mut self, _connection_name: String) -> Result<(), BoxedError> {
         Ok(())
     }
 }

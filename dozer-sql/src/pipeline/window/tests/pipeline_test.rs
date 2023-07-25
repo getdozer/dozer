@@ -3,9 +3,7 @@ use dozer_core::appsource::{AppSource, AppSourceManager};
 use dozer_core::channels::SourceChannelForwarder;
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::executor_operation::ProcessorOperation;
-use dozer_core::node::{
-    OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
-};
+use dozer_core::node::{OutputPortDef, OutputPortType, PortHandle, Sink, Source, SourceFactory};
 
 use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordRef};
 use dozer_core::DEFAULT_PORT_HANDLE;
@@ -23,6 +21,7 @@ use std::thread;
 use std::time::Duration;
 
 use crate::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
+use crate::pipeline::product::tests::pipeline_test::TestSinkFactory;
 
 const TRIPS_PORT: u16 = 0 as PortHandle;
 const ZONES_PORT: u16 = 1 as PortHandle;
@@ -348,49 +347,10 @@ impl Source for TestSource {
 }
 
 #[derive(Debug)]
-pub(crate) struct TestSinkFactory {
-    expected: u64,
-    running: Arc<AtomicBool>,
-}
-
-impl TestSinkFactory {
-    pub fn new(expected: u64, barrier: Arc<AtomicBool>) -> Self {
-        Self {
-            expected,
-            running: barrier,
-        }
-    }
-}
-
-impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
-    fn get_input_ports(&self) -> Vec<PortHandle> {
-        vec![DEFAULT_PORT_HANDLE]
-    }
-
-    fn build(
-        &self,
-        _input_schemas: HashMap<PortHandle, Schema>,
-    ) -> Result<Box<dyn Sink>, BoxedError> {
-        Ok(Box::new(TestSink {
-            expected: self.expected,
-            current: 0,
-            running: self.running.clone(),
-        }))
-    }
-
-    fn prepare(
-        &self,
-        _input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), BoxedError> {
-        Ok(())
-    }
-}
-
-#[derive(Debug)]
 pub struct TestSink {
-    expected: u64,
-    current: u64,
-    running: Arc<AtomicBool>,
+    pub expected: u64,
+    pub current: u64,
+    pub running: Arc<AtomicBool>,
 }
 
 impl Sink for TestSink {
