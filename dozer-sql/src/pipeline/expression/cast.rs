@@ -8,7 +8,7 @@ use dozer_types::{
 
 use crate::pipeline::errors::{FieldTypes, PipelineError};
 
-use super::execution::{Expression, ExpressionExecutor, ExpressionType};
+use super::execution::{Expression, ExpressionType};
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]

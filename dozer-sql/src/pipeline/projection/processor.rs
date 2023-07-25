@@ -1,5 +1,5 @@
 use crate::pipeline::errors::PipelineError;
-use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
+use crate::pipeline::expression::execution::Expression;
 
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::epoch::Epoch;

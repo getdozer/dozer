@@ -625,7 +625,7 @@ macro_rules! define_comparison {
     };
 }
 
-use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
+use crate::pipeline::expression::execution::Expression;
 
 pub fn evaluate_lt(
     schema: &Schema,

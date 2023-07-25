@@ -1,10 +1,7 @@
 use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordRef};
 use dozer_types::types::{DozerDuration, Lifetime, Schema};
 
-use crate::pipeline::{
-    errors::TableOperatorError,
-    expression::execution::{Expression, ExpressionExecutor},
-};
+use crate::pipeline::{errors::TableOperatorError, expression::execution::Expression};
 
 use super::operator::{TableOperator, TableOperatorType};
 

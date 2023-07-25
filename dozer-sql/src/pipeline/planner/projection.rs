@@ -2,7 +2,7 @@
 
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::builder::ExpressionBuilder;
-use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
+use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::pipeline_builder::from_builder::string_from_sql_object_name;
 use dozer_types::types::{FieldDefinition, Schema};
 use sqlparser::ast::{Expr, Ident, Select, SelectItem};

@@ -1,6 +1,6 @@
 use crate::pipeline::errors::PipelineError::InvalidFunctionArgumentType;
 use crate::pipeline::errors::{FieldTypes, PipelineError};
-use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
+use crate::pipeline::expression::execution::{Expression, ExpressionType};
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;
 use dozer_types::types::{FieldType, Schema};
 

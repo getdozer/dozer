@@ -297,15 +297,12 @@ impl ExpressionType {
     }
 }
 
-impl Expression {}
-
-pub trait ExpressionExecutor: Send + Sync {
-    fn evaluate(&self, record: &ProcessorRecord, schema: &Schema) -> Result<Field, PipelineError>;
-    fn get_type(&self, schema: &Schema) -> Result<ExpressionType, PipelineError>;
-}
-
-impl ExpressionExecutor for Expression {
-    fn evaluate(&self, record: &ProcessorRecord, schema: &Schema) -> Result<Field, PipelineError> {
+impl Expression {
+    pub fn evaluate(
+        &self,
+        record: &ProcessorRecord,
+        schema: &Schema,
+    ) -> Result<Field, PipelineError> {
         match self {
             Expression::Literal(field) => Ok(field.clone()),
             Expression::Column { index } => Ok(record.get_field_by_index(*index as u32).clone()),
@@ -358,7 +355,7 @@ impl ExpressionExecutor for Expression {
         }
     }
 
-    fn get_type(&self, schema: &Schema) -> Result<ExpressionType, PipelineError> {
+    pub fn get_type(&self, schema: &Schema) -> Result<ExpressionType, PipelineError> {
         match self {
             Expression::Literal(field) => {
                 let field_type = get_field_type(field);

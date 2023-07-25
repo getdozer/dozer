@@ -6,7 +6,7 @@ use crate::pipeline::errors::{FieldTypes, PipelineError};
 use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::types::{DozerPoint, Field, FieldType, Schema};
 
-use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
+use crate::pipeline::expression::execution::{Expression, ExpressionType};
 use crate::pipeline::expression::geo::common::GeoFunctionType;
 
 pub(crate) fn validate_point(
