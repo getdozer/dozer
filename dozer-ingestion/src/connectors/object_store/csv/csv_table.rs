@@ -77,7 +77,7 @@ impl<T: DozerObjectStore + Send> CsvTable<T> {
         let mut update_state = self.update_state.clone();
         let extension = self.table_config.extension.clone();
         let marker_extension = match self.table_config.marker_file {
-            true => String::from(".marker"),
+            true => self.table_config.marker_extension.clone(),
             false => String::new(),
         };
 
@@ -232,7 +232,7 @@ impl<T: DozerObjectStore + Send> TableWatcher for CsvTable<T> {
         let mut update_state = self.update_state.clone();
         let extension = self.table_config.extension.clone();
         let marker_extension = match self.table_config.marker_file {
-            true => String::from(".marker"),
+            true => self.table_config.marker_extension.clone(),
             false => String::new(),
         };
 

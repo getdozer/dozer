@@ -311,6 +311,9 @@ pub struct CsvConfig {
     #[prost(bool, tag = "3")]
     #[serde(default = "default_false")]
     pub marker_file: bool,
+    #[prost(string, tag = "4")]
+    #[serde(default = "default_marker")]
+    pub marker_extension: String,
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
@@ -328,6 +331,9 @@ pub struct ParquetConfig {
     #[prost(bool, tag = "3")]
     #[serde(default = "default_false")]
     pub marker_file: bool,
+    #[prost(string, tag = "4")]
+    #[serde(default = "default_marker")]
+    pub marker_extension: String,
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
@@ -410,4 +416,8 @@ pub struct DeltaLakeConfig {
 
 fn default_false() -> bool {
     false
+}
+
+fn default_marker() -> String {
+    String::from(".marker")
 }

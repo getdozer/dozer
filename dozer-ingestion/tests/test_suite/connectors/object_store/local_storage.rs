@@ -94,6 +94,7 @@ fn create_connector(
                 path: table_name.to_string(),
                 extension: ".parquet".to_string(),
                 marker_file: false,
+                marker_extension: String::new(),
             })),
             name: table_name,
         }],
