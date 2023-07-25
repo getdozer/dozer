@@ -4,7 +4,7 @@ use std::fmt::{Display, Formatter};
 
 use crate::pipeline::errors::PipelineError;
 
-use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
+use crate::pipeline::expression::execution::{Expression, ExpressionType};
 
 use crate::pipeline::expression::arg_utils::validate_arg_type;
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;

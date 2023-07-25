@@ -2,7 +2,7 @@ use crate::pipeline::aggregation::aggregator::Aggregator;
 use crate::pipeline::errors::{FieldTypes, PipelineError};
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::aggregate::AggregateFunctionType::Sum;
-use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
+use crate::pipeline::expression::execution::{Expression, ExpressionType};
 use crate::{argv, calculate_err_field};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;

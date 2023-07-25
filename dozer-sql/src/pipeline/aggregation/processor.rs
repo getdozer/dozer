@@ -1,7 +1,6 @@
 #![allow(clippy::too_many_arguments)]
 
 use crate::pipeline::errors::PipelineError;
-use crate::pipeline::expression::execution::ExpressionExecutor;
 use crate::pipeline::{aggregation::aggregator::Aggregator, expression::execution::Expression};
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::executor_operation::ProcessorOperation;

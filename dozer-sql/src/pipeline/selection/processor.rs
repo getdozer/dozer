@@ -1,4 +1,4 @@
-use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
+use crate::pipeline::expression::execution::Expression;
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::epoch::Epoch;
 use dozer_core::executor_operation::ProcessorOperation;

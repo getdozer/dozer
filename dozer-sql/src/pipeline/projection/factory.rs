@@ -13,9 +13,7 @@ use sqlparser::ast::{Expr, Ident, SelectItem};
 use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::{
     errors::PipelineError,
-    expression::{
-        builder::ExpressionBuilder, execution::Expression, execution::ExpressionExecutor,
-    },
+    expression::{builder::ExpressionBuilder, execution::Expression},
 };
 
 use super::processor::ProjectionProcessor;

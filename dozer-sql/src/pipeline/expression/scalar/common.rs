@@ -1,6 +1,6 @@
 use crate::argv;
 use crate::pipeline::errors::PipelineError;
-use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
+use crate::pipeline::expression::execution::{Expression, ExpressionType};
 use crate::pipeline::expression::scalar::number::{evaluate_abs, evaluate_round};
 use crate::pipeline::expression::scalar::string::{
     evaluate_concat, evaluate_length, evaluate_to_char, evaluate_ucase, validate_concat,

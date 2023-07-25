@@ -2,7 +2,7 @@ use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::{
     InvalidArgument, InvalidFunction, InvalidFunctionArgument, InvalidValue,
 };
-use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
+use crate::pipeline::expression::execution::Expression;
 
 use crate::jsonpath::{JsonPathFinder, JsonPathInst};
 use dozer_core::processor_record::ProcessorRecord;

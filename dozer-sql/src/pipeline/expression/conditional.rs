@@ -2,7 +2,7 @@ use crate::pipeline::errors::PipelineError::{
     InvalidConditionalExpression, InvalidFunction, NotEnoughArguments,
 };
 use crate::pipeline::errors::{FieldTypes, PipelineError};
-use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
+use crate::pipeline::expression::execution::{Expression, ExpressionType};
 use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::types::{Field, FieldType, Schema};
 use std::fmt::{Display, Formatter};

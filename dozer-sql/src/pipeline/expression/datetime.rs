@@ -3,7 +3,7 @@ use crate::pipeline::errors::PipelineError::{
 };
 use crate::pipeline::errors::{FieldTypes, PipelineError};
 use crate::pipeline::expression::datetime::PipelineError::InvalidValue;
-use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
+use crate::pipeline::expression::execution::{Expression, ExpressionType};
 
 use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::chrono::{DateTime, Datelike, FixedOffset, Offset, Timelike, Utc};
