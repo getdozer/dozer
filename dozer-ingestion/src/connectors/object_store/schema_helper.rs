@@ -1,10 +1,12 @@
+use std::sync::Arc;
+
 use crate::errors::ObjectStoreSchemaError;
 use crate::errors::ObjectStoreSchemaError::FieldTypeNotSupported;
 use deltalake::arrow::datatypes::{DataType, Field};
 
 use dozer_types::types::{FieldDefinition, FieldType, SourceDefinition};
 
-pub fn map_schema_to_dozer<'a, I: Iterator<Item = &'a Field>>(
+pub fn map_schema_to_dozer<'a, I: Iterator<Item = &'a Arc<Field>>>(
     fields_list: I,
 ) -> Result<Vec<FieldDefinition>, ObjectStoreSchemaError> {
     fields_list

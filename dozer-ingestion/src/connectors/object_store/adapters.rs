@@ -5,6 +5,7 @@ use object_store::aws::{AmazonS3, AmazonS3Builder};
 use object_store::local::LocalFileSystem;
 use object_store::ObjectStore;
 use std::fmt::Debug;
+use url::Url;
 
 pub trait DozerObjectStore: Clone + Send + Sync + Debug {
     type ObjectStore: ObjectStore;
@@ -33,8 +34,7 @@ pub trait DozerObjectStore: Clone + Send + Sync + Debug {
 }
 
 pub struct DozerObjectStoreParams<T: ObjectStore> {
-    pub scheme: String,
-    pub host: String,
+    pub url: Url,
     pub object_store: T,
 
     pub table_path: String,
@@ -85,8 +85,7 @@ impl DozerObjectStore for S3Storage {
         };
 
         Ok(DozerObjectStoreParams {
-            scheme: "s3".to_string(),
-            host: details.bucket_name.clone(),
+            url: Url::parse(&format!("s3://{}", details.bucket_name)).expect("Must be valid url"),
             object_store,
             table_path: format!("s3://{}/{folder}/", details.bucket_name),
             folder,
@@ -136,8 +135,7 @@ impl DozerObjectStore for LocalStorage {
         };
 
         Ok(DozerObjectStoreParams {
-            scheme: "local".to_string(),
-            host: path.to_owned(),
+            url: Url::parse(&format!("local://{}", path)).expect("Must be valid url"),
             object_store,
             table_path: format!("{path}/{folder}/"),
             folder,

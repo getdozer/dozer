@@ -302,7 +302,7 @@ fn field_definition_to_arrow(field_definition: FieldDefinition) -> Option<arrow:
 }
 
 pub fn schema_to_arrow(fields: Vec<FieldDefinition>) -> (arrow::datatypes::Schema, FieldsAndPk) {
-    let arrow_fields = fields
+    let arrow_fields: Vec<_> = fields
         .iter()
         .cloned()
         .filter_map(field_definition_to_arrow)
