@@ -1,6 +1,7 @@
 #![allow(clippy::enum_variant_names)]
 
 use dozer_core::node::PortHandle;
+use dozer_storage::errors::StorageError;
 use dozer_types::chrono::RoundingError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::TypeError;
@@ -163,6 +164,9 @@ pub enum PipelineError {
     InvalidPortHandle(PortHandle),
     #[error("JOIN processor received a Record from a wrong input: {0}")]
     InvalidPort(u16),
+
+    #[error("Storage error: {0}")]
+    Storage(#[from] StorageError),
 }
 
 #[cfg(feature = "python")]
@@ -258,6 +262,9 @@ pub enum JoinError {
 
     #[error("Field type error computing the eviction time in the TTL reference field")]
     EvictionTypeOverflow,
+
+    #[error("Storage error: {0}")]
+    Storage(#[from] StorageError),
 }
 
 #[derive(Error, Debug)]
@@ -353,6 +360,9 @@ pub enum WindowError {
 
     #[error("WINDOW functions require alias")]
     NoAlias,
+
+    #[error("Storage error: {0}")]
+    Storage(#[from] StorageError),
 }
 
 #[derive(Error, Debug)]
@@ -377,4 +387,7 @@ pub enum TableOperatorError {
 
     #[error("Missing Argument in '{0}' ")]
     MissingArgument(String),
+
+    #[error("Storage error: {0}")]
+    Storage(#[from] StorageError),
 }

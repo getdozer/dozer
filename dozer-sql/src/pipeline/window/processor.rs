@@ -3,7 +3,7 @@ use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::epoch::Epoch;
 use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{PortHandle, Processor};
-use dozer_core::processor_record::ProcessorRecordRef;
+use dozer_core::processor_record::{ProcessorRecordRef, ProcessorRecordStore};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
 
@@ -20,8 +20,12 @@ impl WindowProcessor {
         Self { _id: id, window }
     }
 
-    fn execute(&self, record: ProcessorRecordRef) -> Result<Vec<ProcessorRecordRef>, WindowError> {
-        self.window.execute(record)
+    fn execute(
+        &self,
+        record_store: &ProcessorRecordStore,
+        record: ProcessorRecordRef,
+    ) -> Result<Vec<ProcessorRecordRef>, WindowError> {
+        self.window.execute(record_store, record)
     }
 }
 
@@ -33,12 +37,15 @@ impl Processor for WindowProcessor {
     fn process(
         &mut self,
         _from_port: PortHandle,
+        record_store: &ProcessorRecordStore,
         op: ProcessorOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         match op {
             ProcessorOperation::Delete { old } => {
-                let records = self.execute(old).map_err(PipelineError::WindowError)?;
+                let records = self
+                    .execute(record_store, old)
+                    .map_err(PipelineError::WindowError)?;
                 for record in records {
                     fw.send(
                         ProcessorOperation::Delete { old: record },
@@ -47,7 +54,9 @@ impl Processor for WindowProcessor {
                 }
             }
             ProcessorOperation::Insert { new } => {
-                let records = self.execute(new).map_err(PipelineError::WindowError)?;
+                let records = self
+                    .execute(record_store, new)
+                    .map_err(PipelineError::WindowError)?;
                 for record in records {
                     fw.send(
                         ProcessorOperation::Insert { new: record },
@@ -56,7 +65,9 @@ impl Processor for WindowProcessor {
                 }
             }
             ProcessorOperation::Update { old, new } => {
-                let old_records = self.execute(old).map_err(PipelineError::WindowError)?;
+                let old_records = self
+                    .execute(record_store, old)
+                    .map_err(PipelineError::WindowError)?;
                 for record in old_records {
                     fw.send(
                         ProcessorOperation::Delete { old: record },
@@ -64,7 +75,9 @@ impl Processor for WindowProcessor {
                     );
                 }
 
-                let new_records = self.execute(new).map_err(PipelineError::WindowError)?;
+                let new_records = self
+                    .execute(record_store, new)
+                    .map_err(PipelineError::WindowError)?;
                 for record in new_records {
                     fw.send(
                         ProcessorOperation::Insert { new: record },

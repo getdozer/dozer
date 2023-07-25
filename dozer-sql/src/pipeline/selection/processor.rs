@@ -3,7 +3,7 @@ use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::epoch::Epoch;
 use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{PortHandle, Processor};
-use dozer_core::processor_record::ProcessorRecordRef;
+use dozer_core::processor_record::{ProcessorRecordRef, ProcessorRecordStore};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::{Field, Schema};
@@ -43,37 +43,42 @@ impl Processor for SelectionProcessor {
     fn process(
         &mut self,
         _from_port: PortHandle,
+        record_store: &ProcessorRecordStore,
         op: ProcessorOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         match op {
             ProcessorOperation::Delete { ref old } => {
-                if self
-                    .expression
-                    .evaluate(old.get_record(), &self.input_schema)?
-                    == Field::Boolean(true)
+                if self.expression.evaluate(
+                    record_store,
+                    &record_store.get_record(old)?,
+                    &self.input_schema,
+                )? == Field::Boolean(true)
                 {
                     fw.send(op, DEFAULT_PORT_HANDLE);
                 }
             }
             ProcessorOperation::Insert { ref new } => {
-                if self
-                    .expression
-                    .evaluate(new.get_record(), &self.input_schema)?
-                    == Field::Boolean(true)
+                if self.expression.evaluate(
+                    record_store,
+                    &record_store.get_record(new)?,
+                    &self.input_schema,
+                )? == Field::Boolean(true)
                 {
                     fw.send(op, DEFAULT_PORT_HANDLE);
                 }
             }
             ProcessorOperation::Update { ref old, ref new } => {
-                let old_fulfilled = self
-                    .expression
-                    .evaluate(old.get_record(), &self.input_schema)?
-                    == Field::Boolean(true);
-                let new_fulfilled = self
-                    .expression
-                    .evaluate(new.get_record(), &self.input_schema)?
-                    == Field::Boolean(true);
+                let old_fulfilled = self.expression.evaluate(
+                    record_store,
+                    &record_store.get_record(old)?,
+                    &self.input_schema,
+                )? == Field::Boolean(true);
+                let new_fulfilled = self.expression.evaluate(
+                    record_store,
+                    &record_store.get_record(new)?,
+                    &self.input_schema,
+                )? == Field::Boolean(true);
                 match (old_fulfilled, new_fulfilled) {
                     (true, true) => {
                         // both records fulfills the WHERE condition, forward the operation

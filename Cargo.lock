@@ -2730,6 +2730,7 @@ version = "0.1.31"
 dependencies = [
  "crossbeam",
  "daggy",
+ "dozer-storage",
  "dozer-tracing",
  "dozer-types",
  "dyn-clone",
@@ -2828,6 +2829,7 @@ dependencies = [
  "bigdecimal",
  "bloom",
  "dozer-core",
+ "dozer-storage",
  "dozer-tracing",
  "dozer-types",
  "dyn-clone",

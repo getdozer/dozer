@@ -8,6 +8,7 @@ use dozer_types::node::NodeHandle;
 
 use crate::error_manager::ErrorManager;
 use crate::executor_operation::{ExecutorOperation, ProcessorOperation};
+use crate::processor_record::ProcessorRecordStore;
 use crate::{
     builder_dag::NodeKind,
     errors::ExecutionError,
@@ -28,6 +29,8 @@ pub struct ProcessorNode {
     receivers: Vec<Receiver<ExecutorOperation>>,
     /// The processor.
     processor: Box<dyn Processor>,
+    /// The processor record store to allow the processor to save and load records.
+    record_store: ProcessorRecordStore,
     /// This node's output channel manager, for forwarding data, writing metadata and writing port state.
     channel_manager: ProcessorChannelManager,
     /// The error manager, for reporting non-fatal errors.
@@ -62,6 +65,7 @@ impl ProcessorNode {
             port_handles,
             receivers,
             processor,
+            record_store: dag.record_store().clone(),
             channel_manager,
             error_manager: dag.error_manager().clone(),
         }
@@ -90,10 +94,12 @@ impl ReceiverLoop for ProcessorNode {
     }
 
     fn on_op(&mut self, index: usize, op: ProcessorOperation) -> Result<(), ExecutionError> {
-        if let Err(e) =
-            self.processor
-                .process(self.port_handles[index], op, &mut self.channel_manager)
-        {
+        if let Err(e) = self.processor.process(
+            self.port_handles[index],
+            &self.record_store,
+            op,
+            &mut self.channel_manager,
+        ) {
             self.error_manager.report(e);
         }
         Ok(())

@@ -19,7 +19,7 @@ use crate::pipeline::expression::case::evaluate_case;
 
 use crate::pipeline::aggregation::max_value::validate_max_value;
 use crate::pipeline::aggregation::min_value::validate_min_value;
-use dozer_core::processor_record::ProcessorRecord;
+use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordStore};
 use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
 use uuid::Uuid;
 
@@ -300,21 +300,35 @@ impl ExpressionType {
 impl Expression {}
 
 pub trait ExpressionExecutor: Send + Sync {
-    fn evaluate(&self, record: &ProcessorRecord, schema: &Schema) -> Result<Field, PipelineError>;
+    fn evaluate(
+        &self,
+        record_store: &ProcessorRecordStore,
+        record: &ProcessorRecord,
+        schema: &Schema,
+    ) -> Result<Field, PipelineError>;
     fn get_type(&self, schema: &Schema) -> Result<ExpressionType, PipelineError>;
 }
 
 impl ExpressionExecutor for Expression {
-    fn evaluate(&self, record: &ProcessorRecord, schema: &Schema) -> Result<Field, PipelineError> {
+    fn evaluate(
+        &self,
+        record_store: &ProcessorRecordStore,
+        record: &ProcessorRecord,
+        schema: &Schema,
+    ) -> Result<Field, PipelineError> {
         match self {
             Expression::Literal(field) => Ok(field.clone()),
-            Expression::Column { index } => Ok(record.get_field_by_index(*index as u32).clone()),
+            Expression::Column { index } => record
+                .get_field_by_index(record_store, *index as u32)
+                .map_err(Into::into),
             Expression::BinaryOperator {
                 left,
                 operator,
                 right,
-            } => operator.evaluate(schema, left, right, record),
-            Expression::ScalarFunction { fun, args } => fun.evaluate(schema, args, record),
+            } => operator.evaluate(schema, left, right, record_store, record),
+            Expression::ScalarFunction { fun, args } => {
+                fun.evaluate(schema, args, record_store, record)
+            }
 
             #[cfg(feature = "python")]
             Expression::PythonUDF {
@@ -326,35 +340,53 @@ impl ExpressionExecutor for Expression {
                 use crate::pipeline::expression::python_udf::evaluate_py_udf;
                 evaluate_py_udf(schema, name, args, return_type, record)
             }
-            Expression::UnaryOperator { operator, arg } => operator.evaluate(schema, arg, record),
+            Expression::UnaryOperator { operator, arg } => {
+                operator.evaluate(schema, arg, record_store, record)
+            }
             Expression::AggregateFunction { fun, args: _ } => {
                 Err(PipelineError::InvalidExpression(format!(
                     "Aggregate Function {fun:?} should not be executed at this point"
                 )))
             }
-            Expression::Trim { typ, what, arg } => evaluate_trim(schema, arg, what, typ, record),
+            Expression::Trim { typ, what, arg } => {
+                evaluate_trim(schema, arg, what, typ, record_store, record)
+            }
             Expression::Like {
                 arg,
                 pattern,
                 escape,
-            } => evaluate_like(schema, arg, pattern, *escape, record),
+            } => evaluate_like(schema, arg, pattern, *escape, record_store, record),
             Expression::InList {
                 expr,
                 list,
                 negated,
-            } => evaluate_in_list(schema, expr, list, *negated, record),
-            Expression::Cast { arg, typ } => typ.evaluate(schema, arg, record),
-            Expression::GeoFunction { fun, args } => fun.evaluate(schema, args, record),
-            Expression::ConditionalExpression { fun, args } => fun.evaluate(schema, args, record),
-            Expression::DateTimeFunction { fun, arg } => fun.evaluate(schema, arg, record),
+            } => evaluate_in_list(schema, expr, list, *negated, record_store, record),
+            Expression::Cast { arg, typ } => typ.evaluate(schema, arg, record_store, record),
+            Expression::GeoFunction { fun, args } => {
+                fun.evaluate(schema, args, record_store, record)
+            }
+            Expression::ConditionalExpression { fun, args } => {
+                fun.evaluate(schema, args, record_store, record)
+            }
+            Expression::DateTimeFunction { fun, arg } => {
+                fun.evaluate(schema, arg, record_store, record)
+            }
             Expression::Now { fun } => fun.evaluate_now(),
-            Expression::Json { fun, args } => fun.evaluate(schema, args, record),
+            Expression::Json { fun, args } => fun.evaluate(schema, args, record_store, record),
             Expression::Case {
                 operand,
                 conditions,
                 results,
                 else_result,
-            } => evaluate_case(schema, operand, conditions, results, else_result, record),
+            } => evaluate_case(
+                schema,
+                operand,
+                conditions,
+                results,
+                else_result,
+                record_store,
+                record,
+            ),
         }
     }
 

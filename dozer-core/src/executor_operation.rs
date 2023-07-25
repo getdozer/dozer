@@ -1,6 +1,7 @@
+use dozer_storage::errors::StorageError;
 use dozer_types::{epoch::Epoch, types::Operation};
 
-use crate::processor_record::ProcessorRecordRef;
+use crate::processor_record::{ProcessorRecordRef, ProcessorRecordStore};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 /// A CDC event.
@@ -17,37 +18,38 @@ pub enum ProcessorOperation {
     },
 }
 
-impl From<Operation> for ProcessorOperation {
-    fn from(record: Operation) -> Self {
-        match record {
+impl ProcessorOperation {
+    pub fn new(record_store: &ProcessorRecordStore, op: Operation) -> Result<Self, StorageError> {
+        Ok(match op {
             Operation::Delete { old } => ProcessorOperation::Delete {
-                old: ProcessorRecordRef::new(old.into()),
+                old: record_store.create_ref(old.into())?,
             },
             Operation::Insert { new } => ProcessorOperation::Insert {
-                new: ProcessorRecordRef::new(new.into()),
+                new: record_store.create_ref(new.into())?,
             },
             Operation::Update { old, new } => ProcessorOperation::Update {
-                old: ProcessorRecordRef::new(old.into()),
-                new: ProcessorRecordRef::new(new.into()),
+                old: record_store.create_ref(old.into())?,
+                new: record_store.create_ref(new.into())?,
             },
-        }
+        })
     }
-}
 
-impl ProcessorOperation {
-    pub fn clone_deref(&self) -> Operation {
-        match self {
+    pub fn clone_deref(
+        &self,
+        record_store: &ProcessorRecordStore,
+    ) -> Result<Operation, StorageError> {
+        Ok(match self {
             ProcessorOperation::Delete { old } => Operation::Delete {
-                old: old.get_record().clone_deref(),
+                old: record_store.get_record(old)?.clone_deref(record_store)?,
             },
             ProcessorOperation::Insert { new } => Operation::Insert {
-                new: new.get_record().clone_deref(),
+                new: record_store.get_record(new)?.clone_deref(record_store)?,
             },
             ProcessorOperation::Update { old, new } => Operation::Update {
-                old: old.get_record().clone_deref(),
-                new: new.get_record().clone_deref(),
+                old: record_store.get_record(old)?.clone_deref(record_store)?,
+                new: record_store.get_record(new)?.clone_deref(record_store)?,
             },
-        }
+        })
     }
 }
 

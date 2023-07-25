@@ -6,7 +6,7 @@ use crate::pipeline::errors::PipelineError::{
 };
 use crate::pipeline::errors::{FieldTypes, PipelineError};
 use crate::{arg_point, arg_str};
-use dozer_core::processor_record::ProcessorRecord;
+use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordStore};
 use dozer_types::types::{Field, FieldType, Schema};
 
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
@@ -79,17 +79,18 @@ pub(crate) fn validate_distance(
 pub(crate) fn evaluate_distance(
     schema: &Schema,
     args: &[Expression],
+    record_store: &ProcessorRecordStore,
     record: &ProcessorRecord,
 ) -> Result<Field, PipelineError> {
     let f_from = args
         .get(0)
         .ok_or(InvalidValue(String::from("from")))?
-        .evaluate(record, schema)?;
+        .evaluate(record_store, record, schema)?;
 
     let f_to = args
         .get(1)
         .ok_or(InvalidValue(String::from("to")))?
-        .evaluate(record, schema)?;
+        .evaluate(record_store, record, schema)?;
 
     if f_from == Field::Null || f_to == Field::Null {
         Ok(Field::Null)
@@ -99,7 +100,7 @@ pub(crate) fn evaluate_distance(
         let calculation_type = args.get(2).map_or_else(
             || Ok(DEFAULT_ALGORITHM),
             |arg| {
-                let f = arg.evaluate(record, schema)?;
+                let f = arg.evaluate(record_store, record, schema)?;
                 let t = arg_str!(f, GeoFunctionType::Distance, 0)?;
                 Algorithm::from_str(&t)
             },

@@ -5,6 +5,7 @@ use crate::errors::ExecutionError;
 use crate::errors::ExecutionError::InvalidPortHandle;
 use crate::executor_operation::{ExecutorOperation, ProcessorOperation};
 use crate::node::PortHandle;
+use crate::processor_record::ProcessorRecordStore;
 use crate::record_store::{RecordWriter, RecordWriterError};
 
 use crossbeam::channel::Sender;
@@ -224,6 +225,7 @@ impl SourceChannelManager {
 
     pub fn send_and_trigger_commit_if_needed(
         &mut self,
+        record_store: &ProcessorRecordStore,
         message: IngestionMessage,
         port: PortHandle,
         request_termination: bool,
@@ -233,7 +235,8 @@ impl SourceChannelManager {
         self.curr_seq_in_tx = message.identifier.seq_in_tx;
         match message.kind {
             IngestionMessageKind::OperationEvent { op, .. } => {
-                self.manager.send_op(op.into(), port)?;
+                self.manager
+                    .send_op(ProcessorOperation::new(record_store, op)?, port)?;
                 self.num_uncommitted_ops += 1;
                 self.trigger_commit_if_needed(request_termination)
             }

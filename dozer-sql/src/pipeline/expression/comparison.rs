@@ -1,5 +1,5 @@
 use crate::pipeline::errors::PipelineError;
-use dozer_core::processor_record::ProcessorRecord;
+use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordStore};
 use dozer_types::chrono::{DateTime, NaiveDate};
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::{DozerDuration, DozerPoint, Field, Schema, TimeUnit};
@@ -15,10 +15,11 @@ macro_rules! define_comparison {
             schema: &Schema,
             left: &Expression,
             right: &Expression,
+            record_store: &ProcessorRecordStore,
             record: &ProcessorRecord,
         ) -> Result<Field, PipelineError> {
-            let left_p = left.evaluate(&record, schema)?;
-            let right_p = right.evaluate(&record, schema)?;
+            let left_p = left.evaluate(record_store, &record, schema)?;
+            let right_p = right.evaluate(record_store, &record, schema)?;
 
             match left_p {
                 Field::Null => Ok(Field::Null),
@@ -631,10 +632,11 @@ pub fn evaluate_lt(
     schema: &Schema,
     left: &Expression,
     right: &Expression,
+    record_store: &ProcessorRecordStore,
     record: &ProcessorRecord,
 ) -> Result<Field, PipelineError> {
-    let left_p = left.evaluate(record, schema)?;
-    let right_p = right.evaluate(record, schema)?;
+    let left_p = left.evaluate(record_store, record, schema)?;
+    let right_p = right.evaluate(record_store, record, schema)?;
 
     match left_p {
         Field::Null => Ok(Field::Null),
@@ -1168,10 +1170,11 @@ pub fn evaluate_gt(
     schema: &Schema,
     left: &Expression,
     right: &Expression,
+    record_store: &ProcessorRecordStore,
     record: &ProcessorRecord,
 ) -> Result<Field, PipelineError> {
-    let left_p = left.evaluate(record, schema)?;
-    let right_p = right.evaluate(record, schema)?;
+    let left_p = left.evaluate(record_store, record, schema)?;
+    let right_p = right.evaluate(record_store, record, schema)?;
 
     match left_p {
         Field::Null => Ok(Field::Null),

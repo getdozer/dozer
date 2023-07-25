@@ -3,6 +3,7 @@ use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::SqlError::Operation;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use dozer_core::processor_record::ProcessorRecord;
+use dozer_core::processor_record::ProcessorRecordStore;
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::Schema;
 use dozer_types::types::{DozerDuration, TimeUnit};
@@ -17,10 +18,11 @@ macro_rules! define_math_operator {
             schema: &Schema,
             left: &Expression,
             right: &Expression,
+            record_store: &ProcessorRecordStore,
             record: &ProcessorRecord,
         ) -> Result<Field, PipelineError> {
-            let left_p = left.evaluate(&record, schema)?;
-            let right_p = right.evaluate(&record, schema)?;
+            let left_p = left.evaluate(record_store, &record, schema)?;
+            let right_p = right.evaluate(record_store, &record, schema)?;
 
             match left_p {
                 Field::Duration(left_v) => {
@@ -1786,9 +1788,10 @@ define_math_operator!(evaluate_mod, "%", |a, b| { a % b }, 0);
 pub fn evaluate_plus(
     schema: &Schema,
     expression: &Expression,
+    record_store: &ProcessorRecordStore,
     record: &ProcessorRecord,
 ) -> Result<Field, PipelineError> {
-    let expression_result = expression.evaluate(record, schema)?;
+    let expression_result = expression.evaluate(record_store, record, schema)?;
     match expression_result {
         Field::UInt(v) => Ok(Field::UInt(v)),
         Field::U128(v) => Ok(Field::U128(v)),
@@ -1815,9 +1818,10 @@ pub fn evaluate_plus(
 pub fn evaluate_minus(
     schema: &Schema,
     expression: &Expression,
+    record_store: &ProcessorRecordStore,
     record: &ProcessorRecord,
 ) -> Result<Field, PipelineError> {
-    let expression_result = expression.evaluate(record, schema)?;
+    let expression_result = expression.evaluate(record_store, record, schema)?;
     match expression_result {
         Field::UInt(v) => Ok(Field::UInt(v)),
         Field::U128(v) => Ok(Field::U128(v)),

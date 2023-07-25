@@ -3,7 +3,7 @@ use crate::pipeline::errors::PipelineError::{
     InvalidArgument, InvalidFunctionArgumentType, NotEnoughArguments, TooManyArguments,
 };
 use crate::pipeline::errors::{FieldTypes, PipelineError};
-use dozer_core::processor_record::ProcessorRecord;
+use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordStore};
 use dozer_types::types::{DozerPoint, Field, FieldType, Schema};
 
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
@@ -47,17 +47,18 @@ pub(crate) fn validate_point(
 pub(crate) fn evaluate_point(
     schema: &Schema,
     args: &[Expression],
+    record_store: &ProcessorRecordStore,
     record: &ProcessorRecord,
 ) -> Result<Field, PipelineError> {
     let _res_type = FieldType::Point;
     let f_x = args
         .get(0)
         .ok_or(InvalidArgument("x".to_string()))?
-        .evaluate(record, schema)?;
+        .evaluate(record_store, record, schema)?;
     let f_y = args
         .get(1)
         .ok_or(InvalidArgument("y".to_string()))?
-        .evaluate(record, schema)?;
+        .evaluate(record_store, record, schema)?;
 
     if f_x == Field::Null || f_y == Field::Null {
         Ok(Field::Null)

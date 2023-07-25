@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 
-use dozer_core::processor_record::ProcessorRecord;
+use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordStore};
 use dozer_types::{
     ordered_float::OrderedFloat,
     types::{Field, FieldType, Schema},
@@ -53,9 +53,10 @@ impl CastOperatorType {
         &self,
         schema: &Schema,
         arg: &Expression,
+        record_store: &ProcessorRecordStore,
         record: &ProcessorRecord,
     ) -> Result<Field, PipelineError> {
-        let field = arg.evaluate(record, schema)?;
+        let field = arg.evaluate(record_store, record, schema)?;
         match self {
             CastOperatorType::UInt => {
                 if let Some(value) = field.to_uint() {

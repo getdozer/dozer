@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use dozer_core::{
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
-    processor_record::{ProcessorRecord, ProcessorRecordRef},
+    processor_record::{ProcessorRecord, ProcessorRecordStore},
     DEFAULT_PORT_HANDLE,
 };
 use dozer_types::{
@@ -105,6 +105,7 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
+        record_store: &ProcessorRecordStore,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         let (join_type, join_constraint) = match &self.join_operator {
             SqlJoinOperator::Inner(constraint) => (JoinType::Inner, constraint),
@@ -178,8 +179,8 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
             right_join_key_indexes,
             left_primary_key_indexes,
             right_primary_key_indexes,
-            ProcessorRecordRef::new(ProcessorRecord::nulls_from_schema(&left_schema)),
-            ProcessorRecordRef::new(ProcessorRecord::nulls_from_schema(&right_schema)),
+            record_store.create_ref(ProcessorRecord::nulls_from_schema(&left_schema))?,
+            record_store.create_ref(ProcessorRecord::nulls_from_schema(&right_schema))?,
         );
 
         Ok(Box::new(ProductProcessor::new(

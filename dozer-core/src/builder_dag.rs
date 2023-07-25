@@ -8,6 +8,7 @@ use crate::{
     dag_schemas::{DagHaveSchemas, DagSchemas, EdgeType},
     errors::ExecutionError,
     node::{Processor, Sink, Source},
+    processor_record::ProcessorRecordStore,
 };
 
 #[derive(Debug)]
@@ -33,10 +34,14 @@ pub enum NodeKind {
 #[derive(Debug)]
 pub struct BuilderDag {
     graph: daggy::Dag<NodeType, EdgeType>,
+    record_store: ProcessorRecordStore,
 }
 
 impl BuilderDag {
     pub fn new<T>(dag_schemas: DagSchemas<T>) -> Result<Self, ExecutionError> {
+        // Create processor record store.
+        let record_store = ProcessorRecordStore::new()?;
+
         // Decide the checkpoint to start from.
         let dag_checkpoint = DagCheckpoint::new(dag_schemas)?;
 
@@ -56,7 +61,7 @@ impl BuilderDag {
                 CheckpointNodeKind::Source(_) => None,
                 CheckpointNodeKind::Processor(processor) => {
                     let processor = processor
-                        .build(input_schemas, output_schemas)
+                        .build(input_schemas, output_schemas, &record_store)
                         .map_err(ExecutionError::Factory)?;
                     Some(NodeKind::Processor(processor))
                 }
@@ -93,11 +98,18 @@ impl BuilderDag {
             },
             |_, edge| edge,
         );
-        Ok(BuilderDag { graph })
+        Ok(BuilderDag {
+            graph,
+            record_store,
+        })
     }
 
     pub fn graph(&self) -> &daggy::Dag<NodeType, EdgeType> {
         &self.graph
+    }
+
+    pub fn record_store(&self) -> &ProcessorRecordStore {
+        &self.record_store
     }
 
     pub fn into_graph(self) -> daggy::Dag<NodeType, EdgeType> {

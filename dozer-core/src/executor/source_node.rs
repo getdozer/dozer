@@ -19,6 +19,7 @@ use crate::{
     errors::ExecutionError,
     forwarder::{SourceChannelManager, StateWriter},
     node::{PortHandle, Source},
+    processor_record::ProcessorRecordStore,
 };
 
 use super::{execution_dag::ExecutionDag, node::Node, ExecutorOptions};
@@ -71,6 +72,8 @@ pub struct SourceListenerNode {
     timeout: Duration,
     /// If the execution DAG should be running. Used for determining if a `terminate` message should be sent.
     running: Arc<AtomicBool>,
+    /// The processor record store for converting `ProcessorRecord` to `ProcessorRecordRef`.
+    record_store: ProcessorRecordStore,
     /// This node's output channel manager, for communicating to other sources to coordinate terminate and commit, forwarding data, writing metadata and writing port state.
     channel_manager: SourceChannelManager,
 }
@@ -93,9 +96,14 @@ impl SourceListenerNode {
             || !self.running.load(Ordering::SeqCst);
         // If this commit was not requested with termination at the start, we shouldn't terminate either.
         let terminating = match data {
-            DataKind::Data((port, message)) => self
-                .channel_manager
-                .send_and_trigger_commit_if_needed(message, port, terminating)?,
+            DataKind::Data((port, message)) => {
+                self.channel_manager.send_and_trigger_commit_if_needed(
+                    &self.record_store,
+                    message,
+                    port,
+                    terminating,
+                )?
+            }
             DataKind::NoDataBecauseOfTimeout | DataKind::NoDataBecauseOfChannelDisconnection => {
                 self.channel_manager.trigger_commit_if_needed(terminating)?
             }
@@ -184,6 +192,7 @@ pub fn create_source_nodes(
         receiver: source_receiver,
         timeout: options.commit_time_threshold,
         running,
+        record_store: dag.record_store().clone(),
         channel_manager,
     };
 

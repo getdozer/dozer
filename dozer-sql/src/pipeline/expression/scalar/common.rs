@@ -6,7 +6,7 @@ use crate::pipeline::expression::scalar::string::{
     evaluate_concat, evaluate_length, evaluate_to_char, evaluate_ucase, validate_concat,
     validate_ucase,
 };
-use dozer_core::processor_record::ProcessorRecord;
+use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordStore};
 use dozer_types::types::{Field, FieldType, Schema};
 use std::fmt::{Display, Formatter};
 
@@ -82,29 +82,41 @@ impl ScalarFunctionType {
         &self,
         schema: &Schema,
         args: &[Expression],
+        record_store: &ProcessorRecordStore,
         record: &ProcessorRecord,
     ) -> Result<Field, PipelineError> {
         match self {
-            ScalarFunctionType::Abs => {
-                evaluate_abs(schema, argv!(args, 0, ScalarFunctionType::Abs)?, record)
-            }
+            ScalarFunctionType::Abs => evaluate_abs(
+                schema,
+                argv!(args, 0, ScalarFunctionType::Abs)?,
+                record_store,
+                record,
+            ),
             ScalarFunctionType::Round => evaluate_round(
                 schema,
                 argv!(args, 0, ScalarFunctionType::Round)?,
                 args.get(1),
+                record_store,
                 record,
             ),
-            ScalarFunctionType::Ucase => {
-                evaluate_ucase(schema, argv!(args, 0, ScalarFunctionType::Ucase)?, record)
-            }
-            ScalarFunctionType::Concat => evaluate_concat(schema, args, record),
-            ScalarFunctionType::Length => {
-                evaluate_length(schema, argv!(args, 0, ScalarFunctionType::Length)?, record)
-            }
+            ScalarFunctionType::Ucase => evaluate_ucase(
+                schema,
+                argv!(args, 0, ScalarFunctionType::Ucase)?,
+                record_store,
+                record,
+            ),
+            ScalarFunctionType::Concat => evaluate_concat(schema, args, record_store, record),
+            ScalarFunctionType::Length => evaluate_length(
+                schema,
+                argv!(args, 0, ScalarFunctionType::Length)?,
+                record_store,
+                record,
+            ),
             ScalarFunctionType::ToChar => evaluate_to_char(
                 schema,
                 argv!(args, 0, ScalarFunctionType::ToChar)?,
                 argv!(args, 1, ScalarFunctionType::ToChar)?,
+                record_store,
                 record,
             ),
         }

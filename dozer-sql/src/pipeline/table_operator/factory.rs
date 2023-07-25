@@ -2,6 +2,7 @@ use std::{collections::HashMap, time::Duration};
 
 use dozer_core::{
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
+    processor_record::ProcessorRecordStore,
     DEFAULT_PORT_HANDLE,
 };
 use dozer_types::{
@@ -101,6 +102,7 @@ impl ProcessorFactory<SchemaSQLContext> for TableOperatorProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
+        _record_store: &ProcessorRecordStore,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         let input_schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)

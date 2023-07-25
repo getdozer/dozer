@@ -2,7 +2,7 @@ use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::InvalidFunctionArgument;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;
-use dozer_core::processor_record::ProcessorRecord;
+use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordStore};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, FieldType, Schema};
 use num_traits::{Float, ToPrimitive};
@@ -10,9 +10,10 @@ use num_traits::{Float, ToPrimitive};
 pub(crate) fn evaluate_abs(
     schema: &Schema,
     arg: &Expression,
+    record_store: &ProcessorRecordStore,
     record: &ProcessorRecord,
 ) -> Result<Field, PipelineError> {
-    let value = arg.evaluate(record, schema)?;
+    let value = arg.evaluate(record_store, record, schema)?;
     match value {
         Field::UInt(u) => Ok(Field::UInt(u)),
         Field::U128(u) => Ok(Field::U128(u)),
@@ -41,12 +42,13 @@ pub(crate) fn evaluate_round(
     schema: &Schema,
     arg: &Expression,
     decimals: Option<&Expression>,
+    record_store: &ProcessorRecordStore,
     record: &ProcessorRecord,
 ) -> Result<Field, PipelineError> {
-    let value = arg.evaluate(record, schema)?;
+    let value = arg.evaluate(record_store, record, schema)?;
     let mut places = 0;
     if let Some(expression) = decimals {
-        let field = expression.evaluate(record, schema)?;
+        let field = expression.evaluate(record_store, record, schema)?;
         match field {
             Field::UInt(u) => places = u as i32,
             Field::U128(u) => places = u as i32,

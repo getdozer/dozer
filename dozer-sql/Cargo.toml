@@ -9,6 +9,7 @@ authors = ["getdozer/dozer-dev"]
 [dependencies]
 dozer-types = {path = "../dozer-types"}
 dozer-core = {path = "../dozer-core"}
+dozer-storage = {path = "../dozer-storage"}
 dozer-tracing = {path = "../dozer-tracing"}
 
 ahash = "0.8.3"

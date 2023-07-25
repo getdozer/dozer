@@ -2,7 +2,7 @@ use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::epoch::Epoch;
 use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{PortHandle, Processor};
-use dozer_core::processor_record::ProcessorRecordRef;
+use dozer_core::processor_record::{ProcessorRecordRef, ProcessorRecordStore};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::Schema;
@@ -29,10 +29,11 @@ impl TableOperatorProcessor {
 
     fn execute(
         &self,
+        record_store: &ProcessorRecordStore,
         record: &ProcessorRecordRef,
         schema: &Schema,
     ) -> Result<Vec<ProcessorRecordRef>, TableOperatorError> {
-        self.operator.execute(record, schema)
+        self.operator.execute(record_store, record, schema)
     }
 }
 
@@ -44,13 +45,14 @@ impl Processor for TableOperatorProcessor {
     fn process(
         &mut self,
         _from_port: PortHandle,
+        record_store: &ProcessorRecordStore,
         op: ProcessorOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         match op {
             ProcessorOperation::Delete { ref old } => {
                 let records = self
-                    .execute(old, &self.input_schema)
+                    .execute(record_store, old, &self.input_schema)
                     .map_err(PipelineError::TableOperatorError)?;
                 for record in records {
                     fw.send(
@@ -61,7 +63,7 @@ impl Processor for TableOperatorProcessor {
             }
             ProcessorOperation::Insert { ref new } => {
                 let records = self
-                    .execute(new, &self.input_schema)
+                    .execute(record_store, new, &self.input_schema)
                     .map_err(PipelineError::TableOperatorError)?;
                 for record in records {
                     fw.send(
@@ -72,7 +74,7 @@ impl Processor for TableOperatorProcessor {
             }
             ProcessorOperation::Update { ref old, ref new } => {
                 let old_records = self
-                    .execute(old, &self.input_schema)
+                    .execute(record_store, old, &self.input_schema)
                     .map_err(PipelineError::TableOperatorError)?;
                 for record in old_records {
                     fw.send(
@@ -82,7 +84,7 @@ impl Processor for TableOperatorProcessor {
                 }
 
                 let new_records = self
-                    .execute(new, &self.input_schema)
+                    .execute(record_store, new, &self.input_schema)
                     .map_err(PipelineError::TableOperatorError)?;
                 for record in new_records {
                     fw.send(

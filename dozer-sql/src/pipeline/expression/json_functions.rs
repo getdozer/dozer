@@ -5,7 +5,7 @@ use crate::pipeline::errors::PipelineError::{
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 
 use crate::jsonpath::{JsonPathFinder, JsonPathInst};
-use dozer_core::processor_record::ProcessorRecord;
+use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordStore};
 use dozer_types::json_types::JsonValue;
 use dozer_types::types::{Field, Schema};
 use std::fmt::{Display, Formatter};
@@ -39,11 +39,16 @@ impl JsonFunctionType {
         &self,
         schema: &Schema,
         args: &Vec<Expression>,
+        record_store: &ProcessorRecordStore,
         record: &ProcessorRecord,
     ) -> Result<Field, PipelineError> {
         match self {
-            JsonFunctionType::JsonValue => self.evaluate_json_value(schema, args, record),
-            JsonFunctionType::JsonQuery => self.evaluate_json_query(schema, args, record),
+            JsonFunctionType::JsonValue => {
+                self.evaluate_json_value(schema, args, record_store, record)
+            }
+            JsonFunctionType::JsonQuery => {
+                self.evaluate_json_query(schema, args, record_store, record)
+            }
         }
     }
 
@@ -51,18 +56,19 @@ impl JsonFunctionType {
         &self,
         schema: &Schema,
         args: &Vec<Expression>,
+        record_store: &ProcessorRecordStore,
         record: &ProcessorRecord,
     ) -> Result<Field, PipelineError> {
         if args.len() > 2 {
             return Err(InvalidFunctionArgument(
                 self.to_string(),
-                args[2].evaluate(record, schema)?,
+                args[2].evaluate(record_store, record, schema)?,
                 2,
             ));
         }
-        let json_input = args[0].evaluate(record, schema)?;
+        let json_input = args[0].evaluate(record_store, record, schema)?;
         let path = args[1]
-            .evaluate(record, schema)?
+            .evaluate(record_store, record, schema)?
             .to_string()
             .ok_or(InvalidArgument(args[1].to_string(schema)))?;
 
@@ -73,17 +79,19 @@ impl JsonFunctionType {
         &self,
         schema: &Schema,
         args: &Vec<Expression>,
+        record_store: &ProcessorRecordStore,
         record: &ProcessorRecord,
     ) -> Result<Field, PipelineError> {
         let mut path = String::from("$");
         if args.len() < 2 && !args.is_empty() {
-            Ok(Field::Json(
-                self.evaluate_json(args[0].evaluate(record, schema)?, path)?,
-            ))
+            Ok(Field::Json(self.evaluate_json(
+                args[0].evaluate(record_store, record, schema)?,
+                path,
+            )?))
         } else if args.len() == 2 {
-            let json_input = args[0].evaluate(record, schema)?;
+            let json_input = args[0].evaluate(record_store, record, schema)?;
             path = args[1]
-                .evaluate(record, schema)?
+                .evaluate(record_store, record, schema)?
                 .to_string()
                 .ok_or(InvalidArgument(args[1].to_string(schema)))?;
 
@@ -91,7 +99,7 @@ impl JsonFunctionType {
         } else {
             Err(InvalidFunctionArgument(
                 self.to_string(),
-                args[2].evaluate(record, schema)?,
+                args[2].evaluate(record_store, record, schema)?,
                 2,
             ))
         }

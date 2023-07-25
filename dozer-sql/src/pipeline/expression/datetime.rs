@@ -5,7 +5,7 @@ use crate::pipeline::errors::{FieldTypes, PipelineError};
 use crate::pipeline::expression::datetime::PipelineError::InvalidValue;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
 
-use dozer_core::processor_record::ProcessorRecord;
+use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordStore};
 use dozer_types::chrono::{DateTime, Datelike, FixedOffset, Offset, Timelike, Utc};
 use dozer_types::types::{DozerDuration, Field, FieldType, Schema, TimeUnit};
 use num_traits::ToPrimitive;
@@ -94,14 +94,15 @@ impl DateTimeFunctionType {
         &self,
         schema: &Schema,
         arg: &Expression,
+        record_store: &ProcessorRecordStore,
         record: &ProcessorRecord,
     ) -> Result<Field, PipelineError> {
         match self {
             DateTimeFunctionType::Extract { field } => {
-                evaluate_date_part(schema, field, arg, record)
+                evaluate_date_part(schema, field, arg, record_store, record)
             }
             DateTimeFunctionType::Interval { field } => {
-                evaluate_interval(schema, field, arg, record)
+                evaluate_interval(schema, field, arg, record_store, record)
             }
             DateTimeFunctionType::Now => self.evaluate_now(),
         }
@@ -116,9 +117,10 @@ pub(crate) fn evaluate_date_part(
     schema: &Schema,
     field: &sqlparser::ast::DateTimeField,
     arg: &Expression,
+    record_store: &ProcessorRecordStore,
     record: &ProcessorRecord,
 ) -> Result<Field, PipelineError> {
-    let value = arg.evaluate(record, schema)?;
+    let value = arg.evaluate(record_store, record, schema)?;
 
     let ts = match value {
         Field::Timestamp(ts) => Ok(ts),
@@ -188,9 +190,10 @@ pub(crate) fn evaluate_interval(
     schema: &Schema,
     field: &sqlparser::ast::DateTimeField,
     arg: &Expression,
+    record_store: &ProcessorRecordStore,
     record: &ProcessorRecord,
 ) -> Result<Field, PipelineError> {
-    let value = arg.evaluate(record, schema)?;
+    let value = arg.evaluate(record_store, record, schema)?;
     let dur = value.to_duration()?.unwrap().0.as_nanos();
 
     match field {
