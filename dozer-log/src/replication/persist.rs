@@ -3,7 +3,6 @@ use std::{ops::Range, time::Duration};
 use camino::Utf8Path;
 use dozer_types::{
     bincode,
-    epoch::ExecutorOperation,
     log::{debug, error},
     models::app_config::LogStorage,
 };
@@ -14,7 +13,7 @@ use crate::{
     storage::{self, LocalStorage, S3Storage, Storage},
 };
 
-use super::{Error, PersistedLogEntry};
+use super::{Error, LogOperation, PersistedLogEntry};
 
 pub async fn create_log_storage(
     storage_config: LogStorage,
@@ -86,7 +85,7 @@ pub fn persisted_log_entries_end(persisted: &[PersistedLogEntry]) -> Option<usiz
 
 #[derive(Debug)]
 struct PersistRequest {
-    ops: Vec<ExecutorOperation>,
+    ops: Vec<LogOperation>,
     range: Range<usize>,
     return_key: tokio::sync::oneshot::Sender<String>,
 }
@@ -152,7 +151,7 @@ impl PersistingQueue {
     pub async fn persist(
         &mut self,
         range: Range<usize>,
-        ops: Vec<ExecutorOperation>,
+        ops: Vec<LogOperation>,
     ) -> Result<tokio::sync::oneshot::Receiver<String>, Error> {
         let (return_key, receiver) = tokio::sync::oneshot::channel();
         if self

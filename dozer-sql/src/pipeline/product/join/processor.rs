@@ -1,10 +1,10 @@
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::epoch::Epoch;
+use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::labels::Labels;
-use dozer_types::types::Operation;
 use metrics::{
     counter, describe_counter, describe_gauge, describe_histogram, gauge, histogram,
     increment_counter,
@@ -79,7 +79,7 @@ impl Processor for ProductProcessor {
     fn process(
         &mut self,
         from_port: PortHandle,
-        op: Operation,
+        op: ProcessorOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         let from_branch = match from_port {
@@ -90,8 +90,8 @@ impl Processor for ProductProcessor {
 
         let now = std::time::Instant::now();
         let records = match op {
-            Operation::Delete { ref old } => {
-                if let Some(lifetime) = &old.lifetime {
+            ProcessorOperation::Delete { old } => {
+                if let Some(lifetime) = &old.get_record().lifetime {
                     self.update_eviction_index(lifetime);
                 }
 
@@ -99,8 +99,8 @@ impl Processor for ProductProcessor {
                     .delete(from_branch, old)
                     .map_err(PipelineError::JoinError)?
             }
-            Operation::Insert { ref new } => {
-                if let Some(lifetime) = &new.lifetime {
+            ProcessorOperation::Insert { new } => {
+                if let Some(lifetime) = &new.get_record().lifetime {
                     self.update_eviction_index(lifetime);
                 }
 
@@ -108,8 +108,8 @@ impl Processor for ProductProcessor {
                     .insert(from_branch, new)
                     .map_err(PipelineError::JoinError)?
             }
-            Operation::Update { ref old, ref new } => {
-                if let Some(lifetime) = &old.lifetime {
+            ProcessorOperation::Update { old, new } => {
+                if let Some(lifetime) = &old.get_record().lifetime {
                     self.update_eviction_index(lifetime);
                 }
 
@@ -151,10 +151,16 @@ impl Processor for ProductProcessor {
         for (action, record) in records {
             match action {
                 JoinAction::Insert => {
-                    fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
+                    fw.send(
+                        ProcessorOperation::Insert { new: record },
+                        DEFAULT_PORT_HANDLE,
+                    );
                 }
                 JoinAction::Delete => {
-                    fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
+                    fw.send(
+                        ProcessorOperation::Delete { old: record },
+                        DEFAULT_PORT_HANDLE,
+                    );
                 }
             }
         }

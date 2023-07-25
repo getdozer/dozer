@@ -2,11 +2,12 @@ use std::collections::HashMap;
 
 use dozer_core::{
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
+    processor_record::{ProcessorRecord, ProcessorRecordRef},
     DEFAULT_PORT_HANDLE,
 };
 use dozer_types::{
     errors::internal::BoxedError,
-    types::{FieldDefinition, Record, Schema},
+    types::{FieldDefinition, Schema},
 };
 use sqlparser::ast::{
     BinaryOperator, Expr as SqlExpr, Ident, JoinConstraint as SqlJoinConstraint,
@@ -177,8 +178,8 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
             right_join_key_indexes,
             left_primary_key_indexes,
             right_primary_key_indexes,
-            Record::nulls_from_schema(&left_schema),
-            Record::nulls_from_schema(&right_schema),
+            ProcessorRecordRef::new(ProcessorRecord::nulls_from_schema(&left_schema)),
+            ProcessorRecordRef::new(ProcessorRecord::nulls_from_schema(&right_schema)),
         );
 
         Ok(Box::new(ProductProcessor::new(

@@ -1,22 +1,24 @@
 use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::{projection::factory::ProjectionProcessorFactory, tests::utils::get_select};
 use dozer_core::channels::ProcessorChannelForwarder;
+use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::ProcessorFactory;
+use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordRef};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::chrono::{
     DateTime, Datelike, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, Timelike,
 };
 use dozer_types::rust_decimal::Decimal;
-use dozer_types::types::{Field, Operation, Record, Schema};
+use dozer_types::types::{Field, Schema};
 use proptest::prelude::*;
 use std::collections::HashMap;
 
 struct TestChannelForwarder {
-    operations: Vec<Operation>,
+    operations: Vec<ProcessorOperation>,
 }
 
 impl ProcessorChannelForwarder for TestChannelForwarder {
-    fn send(&mut self, op: dozer_types::types::Operation, _port: dozer_core::node::PortHandle) {
+    fn send(&mut self, op: ProcessorOperation, _port: dozer_core::node::PortHandle) {
         self.operations.push(op);
     }
 }
@@ -45,15 +47,19 @@ pub(crate) fn run_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Field {
         .unwrap();
 
     let mut fw = TestChannelForwarder { operations: vec![] };
+    let mut rec = ProcessorRecord::new();
+    input
+        .into_iter()
+        .for_each(|inp| rec.extend_direct_field(inp));
 
-    let op = Operation::Insert {
-        new: Record::new(input),
+    let op = ProcessorOperation::Insert {
+        new: ProcessorRecordRef::new(rec),
     };
 
     processor.process(DEFAULT_PORT_HANDLE, op, &mut fw).unwrap();
 
     match &fw.operations[0] {
-        Operation::Insert { new } => new.values[0].clone(),
+        ProcessorOperation::Insert { new } => new.get_record().get_fields()[0].clone(),
         _ => panic!("Unable to find result value"),
     }
 }

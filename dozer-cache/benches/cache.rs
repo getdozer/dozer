@@ -59,7 +59,7 @@ fn cache(c: &mut Criterion) {
         cache_manager
             .create_cache(
                 Default::default(),
-                schema.clone(),
+                schema,
                 secondary_indexes,
                 &Default::default(),
                 Default::default(),

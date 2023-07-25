@@ -4,10 +4,11 @@ use crate::pipeline::expression::mathematical::{
     evaluate_add, evaluate_div, evaluate_mod, evaluate_mul, evaluate_sub,
 };
 use crate::pipeline::expression::tests::test_common::*;
+use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::chrono;
 use dozer_types::chrono::{DateTime, Datelike, NaiveDate};
 use dozer_types::types::{
-    DozerDuration, Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition, TimeUnit,
+    DozerDuration, Field, FieldDefinition, FieldType, Schema, SourceDefinition, TimeUnit,
 };
 use num_traits::ToPrimitive;
 use proptest::prelude::*;
@@ -23,7 +24,7 @@ fn test_time() {
 }
 
 fn test_date_parts(datetime: ArbitraryDateTime) {
-    let row = Record::new(vec![]);
+    let row = ProcessorRecord::new();
 
     let date_parts = vec![
         (
@@ -151,7 +152,7 @@ fn test_duration() {
 }
 
 fn test_duration_math(d1: u64, d2: u64, dt1: ArbitraryDateTime) {
-    let row = Record::new(vec![]);
+    let row = ProcessorRecord::new();
 
     let v = Expression::Literal(Field::Date(dt1.0.date_naive()));
     let dur1 = Expression::Literal(Field::Duration(DozerDuration(

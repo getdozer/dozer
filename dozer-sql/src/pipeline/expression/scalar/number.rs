@@ -2,14 +2,15 @@ use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::InvalidFunctionArgument;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 use crate::pipeline::expression::scalar::common::ScalarFunctionType;
+use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::types::{Field, FieldType, Record, Schema};
+use dozer_types::types::{Field, FieldType, Schema};
 use num_traits::{Float, ToPrimitive};
 
 pub(crate) fn evaluate_abs(
     schema: &Schema,
     arg: &Expression,
-    record: &Record,
+    record: &ProcessorRecord,
 ) -> Result<Field, PipelineError> {
     let value = arg.evaluate(record, schema)?;
     match value {
@@ -40,7 +41,7 @@ pub(crate) fn evaluate_round(
     schema: &Schema,
     arg: &Expression,
     decimals: Option<&Expression>,
-    record: &Record,
+    record: &ProcessorRecord,
 ) -> Result<Field, PipelineError> {
     let value = arg.evaluate(record, schema)?;
     let mut places = 0;

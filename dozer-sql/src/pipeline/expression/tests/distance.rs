@@ -8,17 +8,16 @@ use crate::pipeline::expression::execution::Expression::Literal;
 use crate::pipeline::expression::geo::common::GeoFunctionType;
 use crate::pipeline::expression::geo::distance::{evaluate_distance, validate_distance, Algorithm};
 use crate::pipeline::expression::tests::test_common::*;
+use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::geo::{GeodesicDistance, HaversineDistance};
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::types::{
-    DozerPoint, Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition,
-};
+use dozer_types::types::{DozerPoint, Field, FieldDefinition, FieldType, Schema, SourceDefinition};
 use proptest::prelude::*;
 
 #[test]
 fn test_geo() {
     proptest!(ProptestConfig::with_cases(1000), move |(x1: f64, x2: f64, y1: f64, y2: f64)| {
-        let row = Record::new(vec![]);
+        let row = ProcessorRecord::new();
         let from = Field::Point(DozerPoint::from((x1, y1)));
         let to = Field::Point(DozerPoint::from((x2, y2)));
         let null = Field::Null;
@@ -45,7 +44,7 @@ fn test_distance(
     from: &Field,
     to: &Field,
     typ: Option<Algorithm>,
-    row: &Record,
+    row: &ProcessorRecord,
     result: Option<Result<Field, PipelineError>>,
 ) {
     let args = &vec![Literal(from.clone()), Literal(to.clone())];

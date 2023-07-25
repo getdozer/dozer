@@ -1,6 +1,8 @@
+use crate::executor_operation::ProcessorOperation;
 use crate::node::OutputPortType;
+use crate::processor_record::ProcessorRecordRef;
 use dozer_types::thiserror::Error;
-use dozer_types::types::{Operation, Record, Schema};
+use dozer_types::types::Schema;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 
@@ -13,7 +15,7 @@ pub enum RecordWriterError {
 }
 
 pub trait RecordWriter: Send + Sync {
-    fn write(&mut self, op: Operation) -> Result<Operation, RecordWriterError>;
+    fn write(&mut self, op: ProcessorOperation) -> Result<ProcessorOperation, RecordWriterError>;
 }
 
 impl Debug for dyn RecordWriter {
@@ -40,7 +42,7 @@ pub fn create_record_writer(
 #[derive(Debug)]
 pub(crate) struct PrimaryKeyLookupRecordWriter {
     schema: Schema,
-    index: HashMap<Vec<u8>, Record>,
+    index: HashMap<Vec<u8>, ProcessorRecordRef>,
 }
 
 impl PrimaryKeyLookupRecordWriter {
@@ -57,32 +59,32 @@ impl PrimaryKeyLookupRecordWriter {
 }
 
 impl RecordWriter for PrimaryKeyLookupRecordWriter {
-    fn write(&mut self, op: Operation) -> Result<Operation, RecordWriterError> {
+    fn write(&mut self, op: ProcessorOperation) -> Result<ProcessorOperation, RecordWriterError> {
         match op {
-            Operation::Insert { new } => {
-                let new_key = new.get_key(&self.schema.primary_index);
+            ProcessorOperation::Insert { new } => {
+                let new_key = new.get_record().get_key(&self.schema.primary_index);
                 self.index.insert(new_key, new.clone());
-                Ok(Operation::Insert { new })
+                Ok(ProcessorOperation::Insert { new })
             }
-            Operation::Delete { mut old } => {
-                let old_key = old.get_key(&self.schema.primary_index);
+            ProcessorOperation::Delete { mut old } => {
+                let old_key = old.get_record().get_key(&self.schema.primary_index);
                 old = self
                     .index
                     .remove_entry(&old_key)
                     .ok_or(RecordWriterError::RecordNotFound)?
                     .1;
-                Ok(Operation::Delete { old })
+                Ok(ProcessorOperation::Delete { old })
             }
-            Operation::Update { mut old, new } => {
-                let old_key = old.get_key(&self.schema.primary_index);
+            ProcessorOperation::Update { mut old, new } => {
+                let old_key = old.get_record().get_key(&self.schema.primary_index);
                 old = self
                     .index
                     .remove_entry(&old_key)
                     .ok_or(RecordWriterError::RecordNotFound)?
                     .1;
-                let new_key = new.get_key(&self.schema.primary_index);
+                let new_key = new.get_record().get_key(&self.schema.primary_index);
                 self.index.insert(new_key, new.clone());
-                Ok(Operation::Update { old, new })
+                Ok(ProcessorOperation::Update { old, new })
             }
         }
     }

@@ -1,9 +1,9 @@
 use crate::attach_progress;
+use crate::replication::LogOperation;
 use crate::schemas::BuildSchema;
 use crate::storage::{LocalStorage, S3Storage, Storage};
 
 use super::errors::ReaderError;
-use dozer_types::epoch::ExecutorOperation;
 use dozer_types::grpc_types::internal::internal_pipeline_service_client::InternalPipelineServiceClient;
 use dozer_types::grpc_types::internal::{
     storage_response, BuildRequest, LogRequest, LogResponse, StorageRequest,
@@ -60,7 +60,7 @@ pub struct LogReader {
     pub schema: BuildSchema,
     /// Protobuf descriptor of this endpoint's API.
     pub descriptor: Vec<u8>,
-    op_receiver: Receiver<(ExecutorOperation, u64)>,
+    op_receiver: Receiver<(LogOperation, u64)>,
     worker: Option<JoinHandle<Result<(), ReaderError>>>,
 }
 
@@ -100,7 +100,7 @@ impl LogReaderBuilder {
         pb.set_position(pos);
 
         let (op_sender, op_receiver) =
-            tokio::sync::mpsc::channel::<(ExecutorOperation, u64)>(options.buffer_size as usize);
+            tokio::sync::mpsc::channel::<(LogOperation, u64)>(options.buffer_size as usize);
         let worker = tokio::spawn(log_reader_worker(client, pos, pb, options, op_sender));
         LogReader {
             build_name,
@@ -114,7 +114,7 @@ impl LogReaderBuilder {
 
 impl LogReader {
     /// Returns an op and the position of next op.
-    pub async fn next_op(&mut self) -> Result<(ExecutorOperation, u64), ReaderError> {
+    pub async fn next_op(&mut self) -> Result<(LogOperation, u64), ReaderError> {
         if let Some(result) = self.op_receiver.recv().await {
             Ok(result)
         } else if let Some(worker) = self.worker.take() {
@@ -165,10 +165,7 @@ impl LogClient {
         })
     }
 
-    async fn get_log(
-        &mut self,
-        request: LogRequest,
-    ) -> Result<Vec<ExecutorOperation>, ReaderError> {
+    async fn get_log(&mut self, request: LogRequest) -> Result<Vec<LogOperation>, ReaderError> {
         // Send the request.
         let request_range = request.start..request.end;
         self.request_sender
@@ -193,7 +190,7 @@ impl LogClient {
                 );
                 // Load the persisted log entry.
                 let data = self.storage.download_object(persisted.key).await?;
-                let mut ops: Vec<ExecutorOperation> =
+                let mut ops: Vec<LogOperation> =
                     bincode::deserialize(&data).map_err(ReaderError::DeserializeLogEntry)?;
                 // Discard the ops that are before the requested range.
                 ops.drain(..request_range.start as usize - persisted.range.start);
@@ -216,7 +213,7 @@ async fn log_reader_worker(
     mut pos: u64,
     pb: ProgressBar,
     options: LogReaderOptions,
-    op_sender: Sender<(ExecutorOperation, u64)>,
+    op_sender: Sender<(LogOperation, u64)>,
 ) -> Result<(), ReaderError> {
     loop {
         // Request ops.

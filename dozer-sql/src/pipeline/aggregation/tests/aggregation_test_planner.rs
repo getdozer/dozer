@@ -1,9 +1,9 @@
 use crate::pipeline::aggregation::processor::AggregationProcessor;
 use crate::pipeline::planner::projection::CommonPlanner;
 use crate::pipeline::tests::utils::get_select;
-use dozer_types::types::{
-    Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
-};
+use dozer_core::executor_operation::ProcessorOperation;
+use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordRef};
+use dozer_types::types::{Field, FieldDefinition, FieldType, Schema, SourceDefinition};
 
 #[test]
 fn test_planner_with_aggregator() {
@@ -87,27 +87,27 @@ fn test_planner_with_aggregator() {
     )
     .unwrap();
 
+    let mut rec = ProcessorRecord::new();
+    rec.extend_direct_field(Field::String("John Smith".to_string()));
+    rec.extend_direct_field(Field::String("Johor".to_string()));
+    rec.extend_direct_field(Field::String("Malaysia".to_string()));
+    rec.extend_direct_field(Field::Int(2));
+    rec.extend_direct_field(Field::Int(1));
     let _r = processor
-        .aggregate(Operation::Insert {
-            new: Record::new(vec![
-                Field::String("John Smith".to_string()),
-                Field::String("Johor".to_string()),
-                Field::String("Malaysia".to_string()),
-                Field::Int(2),
-                Field::Int(1),
-            ]),
+        .aggregate(ProcessorOperation::Insert {
+            new: ProcessorRecordRef::new(rec),
         })
         .unwrap();
 
+    let mut rec = ProcessorRecord::new();
+    rec.extend_direct_field(Field::String("Todd Enton".to_string()));
+    rec.extend_direct_field(Field::String("Johor".to_string()));
+    rec.extend_direct_field(Field::String("Malaysia".to_string()));
+    rec.extend_direct_field(Field::Int(2));
+    rec.extend_direct_field(Field::Int(1));
     let _r = processor
-        .aggregate(Operation::Insert {
-            new: Record::new(vec![
-                Field::String("Todd Enton".to_string()),
-                Field::String("Johor".to_string()),
-                Field::String("Malaysia".to_string()),
-                Field::Int(2),
-                Field::Int(2),
-            ]),
+        .aggregate(ProcessorOperation::Insert {
+            new: ProcessorRecordRef::new(rec),
         })
         .unwrap();
 }

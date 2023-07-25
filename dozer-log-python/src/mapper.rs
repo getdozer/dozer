@@ -1,32 +1,32 @@
+use dozer_log::replication::LogOperation;
 use dozer_types::json_types::JsonValue;
 use dozer_types::pyo3::types::PyList;
 
 use dozer_types::{
-    epoch::ExecutorOperation,
     pyo3::{types::PyDict, Py, PyAny, PyResult, Python, ToPyObject},
     types::{DozerPoint, Field, Operation, Record, Schema},
 };
 
 pub fn map_executor_operation(
-    op: ExecutorOperation,
+    op: LogOperation,
     schema: &Schema,
     py: Python,
 ) -> PyResult<Py<PyDict>> {
     let result = PyDict::new(py);
 
     match op {
-        ExecutorOperation::Op { op } => {
+        LogOperation::Op { op } => {
             result.set_item("type", "op")?;
             result.set_item("op", map_op(op, schema, py)?)?;
         }
-        ExecutorOperation::Commit { .. } => {
+        LogOperation::Commit { .. } => {
             result.set_item("type", "commit")?;
         }
-        ExecutorOperation::SnapshottingDone { connection_name } => {
+        LogOperation::SnapshottingDone { connection_name } => {
             result.set_item("type", "snapshotting_done")?;
             result.set_item("connection_name", connection_name)?;
         }
-        ExecutorOperation::Terminate => {
+        LogOperation::Terminate => {
             result.set_item("type", "terminate")?;
         }
     }

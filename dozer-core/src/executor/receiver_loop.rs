@@ -3,10 +3,12 @@ use std::time::SystemTime;
 
 use crossbeam::channel::{Receiver, Select};
 use dozer_types::epoch::Epoch;
-use dozer_types::types::Operation;
-use dozer_types::{epoch::ExecutorOperation, log::debug};
+use dozer_types::log::debug;
 
-use crate::errors::ExecutionError;
+use crate::{
+    errors::ExecutionError,
+    executor_operation::{ExecutorOperation, ProcessorOperation},
+};
 
 use super::{name::Name, InputPortState};
 
@@ -19,7 +21,7 @@ pub trait ReceiverLoop: Name {
     /// Returns the name of the receiver at `index`. Used for logging.
     fn receiver_name(&self, index: usize) -> Cow<str>;
     /// Responds to `op` from the receiver at `index`.
-    fn on_op(&mut self, index: usize, op: Operation) -> Result<(), ExecutionError>;
+    fn on_op(&mut self, index: usize, op: ProcessorOperation) -> Result<(), ExecutionError>;
     /// Responds to `commit` of `epoch`.
     fn on_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError>;
     /// Responds to `terminate`.
@@ -106,14 +108,16 @@ mod tests {
     use crossbeam::channel::{unbounded, Sender};
     use dozer_types::{
         node::{NodeHandle, OpIdentifier, SourceStates},
-        types::{Field, Record},
+        types::Field,
     };
+
+    use crate::processor_record::{ProcessorRecord, ProcessorRecordRef};
 
     use super::*;
 
     struct TestReceiverLoop {
         receivers: Vec<Receiver<ExecutorOperation>>,
-        ops: Vec<(usize, Operation)>,
+        ops: Vec<(usize, ProcessorOperation)>,
         commits: Vec<Epoch>,
         snapshotting_done: Vec<String>,
         num_terminations: usize,
@@ -136,7 +140,7 @@ mod tests {
             Cow::Owned(format!("receiver_{index}"))
         }
 
-        fn on_op(&mut self, index: usize, op: Operation) -> Result<(), ExecutionError> {
+        fn on_op(&mut self, index: usize, op: ProcessorOperation) -> Result<(), ExecutionError> {
             self.ops.push((index, op));
             Ok(())
         }
@@ -200,18 +204,23 @@ mod tests {
     #[test]
     fn receiver_loop_forwards_op() {
         let (mut test_loop, senders) = TestReceiverLoop::new(2);
-        let record = Record::new(vec![Field::Int(1)]);
+        let mut record = ProcessorRecord::new();
+        record.extend_direct_field(Field::Int(1));
+        let record_ref = ProcessorRecordRef::new(record);
         senders[0]
             .send(ExecutorOperation::Op {
-                op: Operation::Insert {
-                    new: record.clone(),
+                op: ProcessorOperation::Insert {
+                    new: record_ref.to_owned(),
                 },
             })
             .unwrap();
         senders[0].send(ExecutorOperation::Terminate).unwrap();
         senders[1].send(ExecutorOperation::Terminate).unwrap();
         test_loop.receiver_loop().unwrap();
-        assert_eq!(test_loop.ops, vec![(0, Operation::Insert { new: record })]);
+        assert_eq!(
+            test_loop.ops,
+            vec![(0, ProcessorOperation::Insert { new: record_ref })]
+        );
     }
 
     #[test]

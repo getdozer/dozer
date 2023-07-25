@@ -1,6 +1,7 @@
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
-use dozer_types::types::{Field, Record, Schema};
+use dozer_core::processor_record::ProcessorRecord;
+use dozer_types::types::{Field, Schema};
 use std::iter::zip;
 
 pub fn evaluate_case(
@@ -9,7 +10,7 @@ pub fn evaluate_case(
     conditions: &Vec<Expression>,
     results: &Vec<Expression>,
     else_result: &Option<Box<Expression>>,
-    record: &Record,
+    record: &ProcessorRecord,
 ) -> Result<Field, PipelineError> {
     let iter = zip(conditions, results);
     for (cond, res) in iter {

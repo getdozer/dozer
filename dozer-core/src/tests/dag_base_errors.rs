@@ -1,5 +1,6 @@
 use crate::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::executor::{DagExecutor, ExecutorOptions};
+use crate::executor_operation::ProcessorOperation;
 use crate::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Sink, SinkFactory,
     Source, SourceFactory,
@@ -88,7 +89,7 @@ impl Processor for ErrorProcessor {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        op: Operation,
+        op: ProcessorOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         self.count += 1;
@@ -456,7 +457,11 @@ impl Sink for ErrSink {
         Ok(())
     }
 
-    fn process(&mut self, _from_port: PortHandle, _op: Operation) -> Result<(), BoxedError> {
+    fn process(
+        &mut self,
+        _from_port: PortHandle,
+        _op: ProcessorOperation,
+    ) -> Result<(), BoxedError> {
         self.current += 1;
         if self.current == self.err_at {
             if self.panic {

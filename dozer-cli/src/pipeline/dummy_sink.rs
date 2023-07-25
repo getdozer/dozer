@@ -1,14 +1,11 @@
 use std::collections::HashMap;
 
 use dozer_core::{
+    executor_operation::ProcessorOperation,
     node::{PortHandle, Sink, SinkFactory},
     DEFAULT_PORT_HANDLE,
 };
-use dozer_types::{
-    epoch::Epoch,
-    errors::internal::BoxedError,
-    types::{Operation, Schema},
-};
+use dozer_types::{epoch::Epoch, errors::internal::BoxedError, types::Schema};
 
 #[derive(Debug)]
 pub struct DummySinkFactory;
@@ -34,7 +31,11 @@ impl<T> SinkFactory<T> for DummySinkFactory {
 struct DummySink;
 
 impl Sink for DummySink {
-    fn process(&mut self, _from_port: PortHandle, _op: Operation) -> Result<(), BoxedError> {
+    fn process(
+        &mut self,
+        _from_port: PortHandle,
+        _op: ProcessorOperation,
+    ) -> Result<(), BoxedError> {
         Ok(())
     }
 

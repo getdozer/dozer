@@ -12,6 +12,7 @@ use crate::{
     epoch::EpochManager,
     error_manager::ErrorManager,
     errors::ExecutionError,
+    executor_operation::ExecutorOperation,
     hash_map_to_vec::insert_vec_element,
     node::PortHandle,
     record_store::{create_record_writer, RecordWriter},
@@ -21,7 +22,6 @@ use daggy::petgraph::{
     visit::{EdgeRef, IntoEdges, IntoEdgesDirected, IntoNodeIdentifiers},
     Direction,
 };
-use dozer_types::epoch::ExecutorOperation;
 
 pub type SharedRecordWriter = Rc<RefCell<Option<Box<dyn RecordWriter>>>>;
 

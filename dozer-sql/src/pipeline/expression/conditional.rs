@@ -3,7 +3,8 @@ use crate::pipeline::errors::PipelineError::{
 };
 use crate::pipeline::errors::{FieldTypes, PipelineError};
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
-use dozer_types::types::{Field, FieldType, Record, Schema};
+use dozer_core::processor_record::ProcessorRecord;
+use dozer_types::types::{Field, FieldType, Schema};
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
@@ -36,7 +37,7 @@ impl ConditionalExpressionType {
         &self,
         schema: &Schema,
         args: &[Expression],
-        record: &Record,
+        record: &ProcessorRecord,
     ) -> Result<Field, PipelineError> {
         match self {
             ConditionalExpressionType::Coalesce => evaluate_coalesce(schema, args, record),
@@ -78,7 +79,7 @@ pub(crate) fn validate_coalesce(
 pub(crate) fn evaluate_coalesce(
     schema: &Schema,
     args: &[Expression],
-    record: &Record,
+    record: &ProcessorRecord,
 ) -> Result<Field, PipelineError> {
     // The COALESCE function returns the first of its arguments that is not null.
     for expr in args {

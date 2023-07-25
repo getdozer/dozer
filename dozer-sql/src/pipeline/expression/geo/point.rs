@@ -3,7 +3,8 @@ use crate::pipeline::errors::PipelineError::{
     InvalidArgument, InvalidFunctionArgumentType, NotEnoughArguments, TooManyArguments,
 };
 use crate::pipeline::errors::{FieldTypes, PipelineError};
-use dozer_types::types::{DozerPoint, Field, FieldType, Record, Schema};
+use dozer_core::processor_record::ProcessorRecord;
+use dozer_types::types::{DozerPoint, Field, FieldType, Schema};
 
 use crate::pipeline::expression::execution::{Expression, ExpressionExecutor, ExpressionType};
 use crate::pipeline::expression::geo::common::GeoFunctionType;
@@ -46,7 +47,7 @@ pub(crate) fn validate_point(
 pub(crate) fn evaluate_point(
     schema: &Schema,
     args: &[Expression],
-    record: &Record,
+    record: &ProcessorRecord,
 ) -> Result<Field, PipelineError> {
     let _res_type = FieldType::Point;
     let f_x = args

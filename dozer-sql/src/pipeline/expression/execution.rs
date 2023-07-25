@@ -19,7 +19,8 @@ use crate::pipeline::expression::case::evaluate_case;
 
 use crate::pipeline::aggregation::max_value::validate_max_value;
 use crate::pipeline::aggregation::min_value::validate_min_value;
-use dozer_types::types::{Field, FieldType, Record, Schema, SourceDefinition};
+use dozer_core::processor_record::ProcessorRecord;
+use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
 use uuid::Uuid;
 
 use super::aggregate::AggregateFunctionType;
@@ -299,20 +300,15 @@ impl ExpressionType {
 impl Expression {}
 
 pub trait ExpressionExecutor: Send + Sync {
-    fn evaluate(&self, record: &Record, schema: &Schema) -> Result<Field, PipelineError>;
+    fn evaluate(&self, record: &ProcessorRecord, schema: &Schema) -> Result<Field, PipelineError>;
     fn get_type(&self, schema: &Schema) -> Result<ExpressionType, PipelineError>;
 }
 
 impl ExpressionExecutor for Expression {
-    fn evaluate(&self, record: &Record, schema: &Schema) -> Result<Field, PipelineError> {
+    fn evaluate(&self, record: &ProcessorRecord, schema: &Schema) -> Result<Field, PipelineError> {
         match self {
             Expression::Literal(field) => Ok(field.clone()),
-            Expression::Column { index } => Ok(record
-                .get_value(*index)
-                .map_err(|_e| {
-                    PipelineError::InvalidInputType(format!("{} is an invalid field index", *index))
-                })?
-                .clone()),
+            Expression::Column { index } => Ok(record.get_field_by_index(*index as u32).clone()),
             Expression::BinaryOperator {
                 left,
                 operator,

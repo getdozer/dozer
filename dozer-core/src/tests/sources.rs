@@ -13,6 +13,7 @@ use std::sync::Arc;
 use std::thread;
 
 use crate::tests::app::NoneContext;
+
 use std::time::Duration;
 
 pub(crate) const GENERATOR_SOURCE_OUTPUT_PORT: PortHandle = 100;

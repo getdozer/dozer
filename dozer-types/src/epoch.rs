@@ -5,10 +5,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    node::{NodeHandle, OpIdentifier, SourceStates},
-    types::Operation,
-};
+use crate::node::{NodeHandle, OpIdentifier, SourceStates};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Epoch {
@@ -52,12 +49,4 @@ impl Display for Epoch {
             .fold(String::new(), |a, b| a + ", " + b.as_str());
         f.write_str(format!("epoch: {}, details: {}", self.id, details_str).as_str())
     }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ExecutorOperation {
-    Op { op: Operation },
-    Commit { epoch: Epoch },
-    Terminate,
-    SnapshottingDone { connection_name: String },
 }

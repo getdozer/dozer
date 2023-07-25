@@ -3,7 +3,8 @@ use crate::pipeline::expression::comparison::*;
 use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::logical::*;
 use crate::pipeline::expression::mathematical::*;
-use dozer_types::types::{Field, Record, Schema};
+use dozer_core::processor_record::ProcessorRecord;
+use dozer_types::types::{Field, Schema};
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
@@ -28,7 +29,7 @@ impl UnaryOperatorType {
         &self,
         schema: &Schema,
         value: &Expression,
-        record: &Record,
+        record: &ProcessorRecord,
     ) -> Result<Field, PipelineError> {
         match self {
             UnaryOperatorType::Not => evaluate_not(schema, value, record),
@@ -86,7 +87,7 @@ impl BinaryOperatorType {
         schema: &Schema,
         left: &Expression,
         right: &Expression,
-        record: &Record,
+        record: &ProcessorRecord,
     ) -> Result<Field, PipelineError> {
         match self {
             BinaryOperatorType::Eq => evaluate_eq(schema, left, right, record),

@@ -2,6 +2,7 @@ use dozer_core::app::{App, AppPipeline};
 use dozer_core::appsource::{AppSource, AppSourceManager};
 use dozer_core::channels::SourceChannelForwarder;
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
+use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
@@ -158,7 +159,11 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
 pub struct TestSink {}
 
 impl Sink for TestSink {
-    fn process(&mut self, _from_port: PortHandle, _op: Operation) -> Result<(), BoxedError> {
+    fn process(
+        &mut self,
+        _from_port: PortHandle,
+        _op: ProcessorOperation,
+    ) -> Result<(), BoxedError> {
         Ok(())
     }
 

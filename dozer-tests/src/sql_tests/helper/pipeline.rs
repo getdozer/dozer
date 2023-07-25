@@ -3,6 +3,7 @@ use dozer_core::app::{App, AppPipeline};
 use dozer_core::appsource::{AppSource, AppSourceManager};
 use dozer_core::channels::SourceChannelForwarder;
 use dozer_core::errors::ExecutionError;
+use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
@@ -184,38 +185,42 @@ impl TestSink {
         Self { output }
     }
 
-    fn update_result(&mut self, op: Operation) {
+    fn update_result(&mut self, op: ProcessorOperation) {
         let mut records_map = self.output.lock().expect("Unable to lock the result map");
         match op {
-            Operation::Insert { new } => {
-                let records_item = records_map.get_mut(&get_key(&new));
+            ProcessorOperation::Insert { new } => {
+                let new_ref = new.get_record().clone_deref();
+                let records_item = records_map.get_mut(&get_key(&new_ref));
 
                 if let Some(records) = records_item {
-                    records.push(new);
+                    records.push(new.get_record().clone_deref());
                 } else {
-                    records_map.insert(get_key(&new), vec![new]);
+                    records_map.insert(get_key(&new_ref), vec![new_ref]);
                 }
             }
-            Operation::Delete { ref old } => {
-                if let Some(map_records) = records_map.get_mut(&get_key(old)) {
-                    if let Some(index) = map_records.iter().position(|x| x == old) {
+            ProcessorOperation::Delete { ref old } => {
+                let old_ref = old.get_record().clone_deref();
+                if let Some(map_records) = records_map.get_mut(&get_key(&old_ref)) {
+                    if let Some(index) = map_records.iter().position(|x| *x == old_ref) {
                         map_records.remove(index);
                     }
                 }
             }
-            Operation::Update { ref old, new } => {
-                if let Some(map_records) = records_map.get_mut(&get_key(old)) {
-                    if let Some(index) = map_records.iter().position(|x| x == old) {
+            ProcessorOperation::Update { ref old, new } => {
+                let new_ref = new.get_record().clone_deref();
+                let old_ref = old.get_record().clone_deref();
+                if let Some(map_records) = records_map.get_mut(&get_key(&old_ref)) {
+                    if let Some(index) = map_records.iter().position(|x| *x == old_ref) {
                         map_records.remove(index);
                     }
                 }
 
-                let records_item = records_map.get_mut(&get_key(&new));
+                let records_item = records_map.get_mut(&get_key(&new_ref));
 
                 if let Some(records) = records_item {
-                    records.push(new);
+                    records.push(new_ref);
                 } else {
-                    records_map.insert(get_key(&new), vec![new]);
+                    records_map.insert(get_key(&new_ref), vec![new.get_record().clone_deref()]);
                 }
             }
         }
@@ -223,7 +228,11 @@ impl TestSink {
 }
 
 impl Sink for TestSink {
-    fn process(&mut self, _from_port: PortHandle, op: Operation) -> Result<(), BoxedError> {
+    fn process(
+        &mut self,
+        _from_port: PortHandle,
+        op: ProcessorOperation,
+    ) -> Result<(), BoxedError> {
         self.update_result(op);
         Ok(())
     }

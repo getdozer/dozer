@@ -3,10 +3,12 @@ use crate::pipeline::expression::execution::{Expression, ExpressionExecutor};
 
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::epoch::Epoch;
+use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{PortHandle, Processor};
+use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordRef};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::types::{Operation, Record, Schema};
+use dozer_types::types::Schema;
 
 #[derive(Debug)]
 pub struct ProjectionProcessor {
@@ -22,47 +24,54 @@ impl ProjectionProcessor {
         }
     }
 
-    fn delete(&mut self, record: &Record) -> Result<Operation, PipelineError> {
-        let mut results = vec![];
-
+    fn delete(&mut self, record: &ProcessorRecordRef) -> Result<ProcessorOperation, PipelineError> {
+        let mut output_record = ProcessorRecord::new();
         for expr in &self.expressions {
-            results.push(expr.evaluate(record, &self.input_schema)?);
+            output_record
+                .extend_direct_field(expr.evaluate(record.get_record(), &self.input_schema)?);
         }
 
-        let mut output_record = Record::new(results);
-        output_record.set_lifetime(record.lifetime.to_owned());
+        output_record.set_lifetime(record.get_record().lifetime.to_owned());
 
-        Ok(Operation::Delete { old: output_record })
+        Ok(ProcessorOperation::Delete {
+            old: ProcessorRecordRef::new(output_record),
+        })
     }
 
-    fn insert(&mut self, record: &Record) -> Result<Operation, PipelineError> {
-        let mut results = vec![];
+    fn insert(&mut self, record: &ProcessorRecordRef) -> Result<ProcessorOperation, PipelineError> {
+        let mut output_record = ProcessorRecord::new();
 
         for expr in self.expressions.clone() {
-            results.push(expr.evaluate(record, &self.input_schema)?);
+            output_record
+                .extend_direct_field(expr.evaluate(record.get_record(), &self.input_schema)?);
         }
 
-        let mut output_record = Record::new(results);
-        output_record.set_lifetime(record.lifetime.to_owned());
-        Ok(Operation::Insert { new: output_record })
+        output_record.set_lifetime(record.get_record().lifetime.to_owned());
+        Ok(ProcessorOperation::Insert {
+            new: ProcessorRecordRef::new(output_record),
+        })
     }
 
-    fn update(&self, old: &Record, new: &Record) -> Result<Operation, PipelineError> {
-        let mut old_results = vec![];
-        let mut new_results = vec![];
-
+    fn update(
+        &self,
+        old: &ProcessorRecordRef,
+        new: &ProcessorRecordRef,
+    ) -> Result<ProcessorOperation, PipelineError> {
+        let mut old_output_record = ProcessorRecord::new();
+        let mut new_output_record = ProcessorRecord::new();
         for expr in &self.expressions {
-            old_results.push(expr.evaluate(old, &self.input_schema)?);
-            new_results.push(expr.evaluate(new, &self.input_schema)?);
+            old_output_record
+                .extend_direct_field(expr.evaluate(old.get_record(), &self.input_schema)?);
+            new_output_record
+                .extend_direct_field(expr.evaluate(new.get_record(), &self.input_schema)?);
         }
 
-        let mut old_output_record = Record::new(old_results);
-        old_output_record.set_lifetime(old.lifetime.to_owned());
-        let mut new_output_record = Record::new(new_results);
-        new_output_record.set_lifetime(new.lifetime.to_owned());
-        Ok(Operation::Update {
-            old: old_output_record,
-            new: new_output_record,
+        old_output_record.set_lifetime(old.get_record().lifetime.to_owned());
+
+        new_output_record.set_lifetime(new.get_record().lifetime.to_owned());
+        Ok(ProcessorOperation::Update {
+            old: ProcessorRecordRef::new(old_output_record),
+            new: ProcessorRecordRef::new(new_output_record),
         })
     }
 }
@@ -71,13 +80,17 @@ impl Processor for ProjectionProcessor {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        op: Operation,
+        op: ProcessorOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         match op {
-            Operation::Delete { ref old } => fw.send(self.delete(old)?, DEFAULT_PORT_HANDLE),
-            Operation::Insert { ref new } => fw.send(self.insert(new)?, DEFAULT_PORT_HANDLE),
-            Operation::Update { ref old, ref new } => {
+            ProcessorOperation::Delete { ref old } => {
+                fw.send(self.delete(old)?, DEFAULT_PORT_HANDLE)
+            }
+            ProcessorOperation::Insert { ref new } => {
+                fw.send(self.insert(new)?, DEFAULT_PORT_HANDLE)
+            }
+            ProcessorOperation::Update { ref old, ref new } => {
                 fw.send(self.update(old, new)?, DEFAULT_PORT_HANDLE)
             }
         };

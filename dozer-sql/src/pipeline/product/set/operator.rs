@@ -1,6 +1,6 @@
 use crate::pipeline::errors::PipelineError;
 use bloom::{CountingBloomFilter, ASMS};
-use dozer_types::types::Record;
+use dozer_core::processor_record::ProcessorRecordRef;
 use sqlparser::ast::{SetOperator, SetQuantifier};
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
@@ -27,11 +27,11 @@ impl SetOperation {
     pub fn execute(
         &self,
         action: SetAction,
-        record: &Record,
+        record: ProcessorRecordRef,
         record_map: &mut CountingBloomFilter,
-    ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
+    ) -> Result<Vec<(SetAction, ProcessorRecordRef)>, PipelineError> {
         match (self.op, self.quantifier) {
-            (SetOperator::Union, SetQuantifier::All) => Ok(vec![(action, record.clone())]),
+            (SetOperator::Union, SetQuantifier::All) => Ok(vec![(action, record)]),
             (SetOperator::Union, SetQuantifier::None) => {
                 self.execute_union(action, record, record_map)
             }
@@ -42,9 +42,9 @@ impl SetOperation {
     fn execute_union(
         &self,
         action: SetAction,
-        record: &Record,
+        record: ProcessorRecordRef,
         record_map: &mut CountingBloomFilter,
-    ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
+    ) -> Result<Vec<(SetAction, ProcessorRecordRef)>, PipelineError> {
         match action {
             SetAction::Insert => self.union_insert(action, record, record_map),
             SetAction::Delete => self.union_delete(action, record, record_map),
@@ -54,12 +54,12 @@ impl SetOperation {
     fn union_insert(
         &self,
         action: SetAction,
-        record: &Record,
+        record: ProcessorRecordRef,
         record_map: &mut CountingBloomFilter,
-    ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
-        let _count = self.update_map(record, false, record_map);
+    ) -> Result<Vec<(SetAction, ProcessorRecordRef)>, PipelineError> {
+        let _count = self.update_map(record.clone(), false, record_map);
         if _count == 1 {
-            Ok(vec![(action, record.to_owned())])
+            Ok(vec![(action, record)])
         } else {
             Ok(vec![])
         }
@@ -68,18 +68,23 @@ impl SetOperation {
     fn union_delete(
         &self,
         action: SetAction,
-        record: &Record,
+        record: ProcessorRecordRef,
         record_map: &mut CountingBloomFilter,
-    ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
-        let _count = self.update_map(record, true, record_map);
+    ) -> Result<Vec<(SetAction, ProcessorRecordRef)>, PipelineError> {
+        let _count = self.update_map(record.clone(), true, record_map);
         if _count == 0 {
-            Ok(vec![(action, record.to_owned())])
+            Ok(vec![(action, record)])
         } else {
             Ok(vec![])
         }
     }
 
-    fn update_map(&self, record: &Record, decr: bool, record_map: &mut CountingBloomFilter) -> u32 {
+    fn update_map(
+        &self,
+        record: ProcessorRecordRef,
+        decr: bool,
+        record_map: &mut CountingBloomFilter,
+    ) -> u32 {
         if decr {
             record_map.remove(&record);
         } else {

@@ -11,6 +11,7 @@ use prettytable::{Cell, Row, Table};
 use serde::{self, Deserialize, Serialize};
 
 pub mod field;
+
 #[cfg(test)]
 mod tests;
 

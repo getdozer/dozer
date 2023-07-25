@@ -2,9 +2,11 @@ use dozer_core::app::{App, AppPipeline};
 use dozer_core::appsource::{AppSource, AppSourceManager};
 use dozer_core::channels::SourceChannelForwarder;
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
+use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
+use dozer_core::processor_record::ProcessorRecord;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::epoch::Epoch;
 use dozer_types::errors::internal::BoxedError;
@@ -190,10 +192,13 @@ impl Source for TestSource {
         fw: &mut dyn SourceChannelForwarder,
         _last_checkpoint: Option<(u64, u64)>,
     ) -> Result<(), BoxedError> {
+        let mut new_rec = ProcessorRecord::new();
+        new_rec.extend_direct_field(Field::Int(0));
+        new_rec.extend_direct_field(Field::String("IT".to_string()));
         let operations = vec![
             (
                 Operation::Insert {
-                    new: Record::new(vec![Field::Int(0), Field::String("IT".to_string())]),
+                    new: Record::new(vec![]),
                 },
                 DEPARTMENT_PORT,
             ),
@@ -416,12 +421,24 @@ pub struct TestSink {
 }
 
 impl Sink for TestSink {
-    fn process(&mut self, _from_port: PortHandle, _op: Operation) -> Result<(), BoxedError> {
+    fn process(
+        &mut self,
+        _from_port: PortHandle,
+        _op: ProcessorOperation,
+    ) -> Result<(), BoxedError> {
         match _op {
-            Operation::Delete { old } => info!("o0:-> - {:?}", old.values),
-            Operation::Insert { new } => info!("o0:-> + {:?}", new.values),
-            Operation::Update { old, new } => {
-                info!("o0:-> - {:?}, + {:?}", old.values, new.values)
+            ProcessorOperation::Delete { old } => {
+                info!("o0:-> - {:?}", old.get_record().get_fields())
+            }
+            ProcessorOperation::Insert { new } => {
+                info!("o0:-> + {:?}", new.get_record().get_fields())
+            }
+            ProcessorOperation::Update { old, new } => {
+                info!(
+                    "o0:-> - {:?}, + {:?}",
+                    old.get_record().get_fields(),
+                    new.get_record().get_fields()
+                )
             }
         }
 
@@ -458,7 +475,7 @@ fn test_pipeline_builder() {
         &mut pipeline,
         Some("results".to_string()),
     )
-    .unwrap();
+        .unwrap();
 
     let table_info = context.output_tables_map.get("results").unwrap();
 

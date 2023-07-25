@@ -4,8 +4,9 @@ use crate::pipeline::expression::scalar::string::{
     TrimType,
 };
 use crate::pipeline::expression::tests::test_common::*;
+use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::chrono::{DateTime, NaiveDate, TimeZone, Utc};
-use dozer_types::types::{Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition};
+use dozer_types::types::{Field, FieldDefinition, FieldType, Schema, SourceDefinition};
 use proptest::prelude::*;
 
 #[test]
@@ -21,7 +22,7 @@ fn test_string() {
 }
 
 fn test_like(s_val: &str, c_val: char) {
-    let row = Record::new(vec![]);
+    let row = ProcessorRecord::new();
 
     // Field::String
     let value = Box::new(Literal(Field::String(format!("Hello{}", s_val))));
@@ -113,7 +114,7 @@ fn test_like(s_val: &str, c_val: char) {
 }
 
 fn test_ucase(s_val: &str, c_val: char) {
-    let row = Record::new(vec![]);
+    let row = ProcessorRecord::new();
 
     // Field::String
     let value = Box::new(Literal(Field::String(s_val.to_string())));
@@ -143,7 +144,7 @@ fn test_ucase(s_val: &str, c_val: char) {
 }
 
 fn test_concat(s_val1: &str, s_val2: &str, c_val: char) {
-    let row = Record::new(vec![]);
+    let row = ProcessorRecord::new();
 
     // Field::String
     let val1 = Literal(Field::String(s_val1.to_string()));
@@ -229,7 +230,7 @@ fn test_concat(s_val1: &str, s_val2: &str, c_val: char) {
 }
 
 fn test_trim(s_val1: &str, c_val: char) {
-    let row = Record::new(vec![]);
+    let row = ProcessorRecord::new();
 
     // Field::String
     let value = Literal(Field::String(s_val1.to_string()));

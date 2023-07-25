@@ -1,8 +1,9 @@
 use std::fmt::{Display, Formatter};
 
+use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::{
     ordered_float::OrderedFloat,
-    types::{Field, FieldType, Record, Schema},
+    types::{Field, FieldType, Schema},
 };
 
 use crate::pipeline::errors::{FieldTypes, PipelineError};
@@ -52,7 +53,7 @@ impl CastOperatorType {
         &self,
         schema: &Schema,
         arg: &Expression,
-        record: &Record,
+        record: &ProcessorRecord,
     ) -> Result<Field, PipelineError> {
         let field = arg.evaluate(record, schema)?;
         match self {
