@@ -12,9 +12,6 @@ pub struct ProcessorRecord {
 
     /// Time To Live for this record. If the value is None, the record will never expire.
     lifetime: Option<Box<Lifetime>>,
-
-    // Imagine that we flatten all the fields in `values` recursively, `index` is the index into the flattened vector.
-    index: Vec<u32>,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -75,29 +72,7 @@ impl ProcessorRecord {
         self.lifetime = lifetime.map(Box::new);
     }
 
-    pub fn get_field_indexes(&self) -> &[u32] {
-        &self.index
-    }
-
-    pub fn extend_referenced_fields(
-        &mut self,
-        other: ProcessorRecordRef,
-        field_indexes: impl IntoIterator<Item = u32>,
-    ) {
-        for idx in field_indexes {
-            self.index.push(self.total_len + idx);
-        }
-
-        self.total_len += other.get_record().total_len;
-
-        self.values.push(RefOrField::Ref(other));
-    }
-
     pub fn extend_referenced_record(&mut self, other: ProcessorRecordRef) {
-        for index in other.get_record().get_field_indexes() {
-            self.index.push(self.total_len + index);
-        }
-
         self.total_len += other.get_record().total_len;
 
         self.values.push(RefOrField::Ref(other));
@@ -105,18 +80,26 @@ impl ProcessorRecord {
 
     pub fn extend_direct_field(&mut self, field: Field) {
         self.values.push(RefOrField::Field(field));
-        self.index.push(self.total_len);
         self.total_len += 1;
     }
 
     pub fn get_fields(&self) -> Vec<&Field> {
         let mut fields = Vec::new();
-        for idx in &self.index {
-            let field = self.get_field_by_index(*idx);
-
-            fields.push(field);
-        }
+        self.get_fields_impl(&mut fields);
         fields
+    }
+
+    fn get_fields_impl<'a>(&'a self, fields: &mut Vec<&'a Field>) {
+        for ref_or_field in &self.values {
+            match ref_or_field {
+                RefOrField::Ref(record_ref) => {
+                    record_ref.get_record().get_fields_impl(fields);
+                }
+                RefOrField::Field(field) => {
+                    fields.push(field);
+                }
+            }
+        }
     }
 
     // Function to get a field by its index
@@ -175,7 +158,6 @@ impl ProcessorRecord {
             values: (0..size).map(|_| RefOrField::Field(Field::Null)).collect(),
             total_len: size as u32,
             lifetime: None,
-            index: (0..size as u32).collect(),
         }
     }
 }
@@ -187,7 +169,6 @@ mod tests {
     #[test]
     fn test_processor_record_nulls() {
         let record = ProcessorRecord::nulls(3);
-        assert_eq!(record.get_field_indexes(), &[0, 1, 2]);
         assert_eq!(record.get_fields().len(), 3);
         assert_eq!(record.get_field_by_index(0), &Field::Null);
         assert_eq!(record.get_field_by_index(1), &Field::Null);
@@ -199,7 +180,6 @@ mod tests {
         let mut record = ProcessorRecord::new();
         record.extend_direct_field(Field::Int(1));
 
-        assert_eq!(record.get_field_indexes(), &[0]);
         assert_eq!(record.get_fields().len(), 1);
         assert_eq!(record.get_field_by_index(0), &Field::Int(1));
     }
@@ -212,22 +192,8 @@ mod tests {
         other.extend_direct_field(Field::Int(2));
         record.extend_referenced_record(ProcessorRecordRef::new(other));
 
-        assert_eq!(record.get_field_indexes(), &[0, 1]);
         assert_eq!(record.get_fields().len(), 2);
         assert_eq!(record.get_field_by_index(0), &Field::Int(1));
-        assert_eq!(record.get_field_by_index(1), &Field::Int(2));
-    }
-
-    #[test]
-    fn test_processor_record_extend_referenced_fields() {
-        let mut record = ProcessorRecord::new();
-        let mut other = ProcessorRecord::new();
-        other.extend_direct_field(Field::Int(1));
-        other.extend_direct_field(Field::Int(2));
-        record.extend_referenced_fields(ProcessorRecordRef::new(other), vec![1]);
-
-        assert_eq!(record.get_field_indexes(), &[1]);
-        assert_eq!(record.get_fields().len(), 1);
         assert_eq!(record.get_field_by_index(1), &Field::Int(2));
     }
 
@@ -241,15 +207,12 @@ mod tests {
         record.extend_direct_field(Field::Int(3));
         record.extend_referenced_record(other.clone());
         record.extend_direct_field(Field::Int(4));
-        record.extend_referenced_fields(other, vec![1]);
 
-        assert_eq!(record.get_field_indexes(), &[0, 1, 2, 3, 5]);
-        assert_eq!(record.get_fields().len(), 5);
+        assert_eq!(record.get_fields().len(), 4);
         assert_eq!(record.get_field_by_index(0), &Field::Int(3));
         assert_eq!(record.get_field_by_index(1), &Field::Int(1));
         assert_eq!(record.get_field_by_index(2), &Field::Int(2));
         assert_eq!(record.get_field_by_index(3), &Field::Int(4));
-        assert_eq!(record.get_field_by_index(5), &Field::Int(2));
     }
 
     #[test]
@@ -270,7 +233,6 @@ mod tests {
         record.extend_referenced_record(nested_outer);
         record.extend_direct_field(Field::Int(6));
 
-        assert_eq!(record.get_field_indexes(), &[0, 1, 2, 3, 4, 5]);
         assert_eq!(record.get_fields().len(), 6);
         assert_eq!(record.get_field_by_index(0), &Field::Int(5));
         assert_eq!(record.get_field_by_index(1), &Field::Int(3));
