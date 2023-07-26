@@ -1,7 +1,7 @@
 use crate::pipeline::expression::geo::point::{evaluate_point, validate_point};
 use crate::pipeline::expression::tests::test_common::*;
-use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::ordered_float::OrderedFloat;
+use dozer_types::types::Record;
 use dozer_types::types::{DozerPoint, Field, FieldDefinition, FieldType, Schema, SourceDefinition};
 
 use crate::pipeline::errors::PipelineError::{
@@ -114,7 +114,7 @@ fn test_validate_point(x: i64, y: i64) {
 }
 
 fn test_evaluate_point(x: i64, y: i64) {
-    let row = ProcessorRecord::new();
+    let row = Record::new();
 
     let schema = Schema::default()
         .field(

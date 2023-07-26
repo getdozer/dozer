@@ -1,4 +1,4 @@
-use dozer_core::processor_record::ProcessorRecord;
+use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordStore};
 use dozer_types::types::{Field, Lifetime, Schema};
 
 use crate::pipeline::{errors::TableOperatorError, expression::execution::Expression};
@@ -33,18 +33,20 @@ impl TableOperator for LifetimeTableOperator {
 
     fn execute(
         &self,
+        record_store: &ProcessorRecordStore,
         record: &ProcessorRecord,
         schema: &Schema,
     ) -> Result<Vec<ProcessorRecord>, TableOperatorError> {
         let mut ttl_records = vec![];
         if let Some(operator) = &self.operator {
-            let operator_records = operator.execute(record, schema)?;
+            let operator_records = operator.execute(record_store, record, schema)?;
 
             let schema = operator.get_output_schema(schema)?;
 
+            let record = record_store.load_record(record)?;
             let reference = match self
                 .expression
-                .evaluate(record, &schema)
+                .evaluate(&record, &schema)
                 .map_err(|err| TableOperatorError::InternalError(Box::new(err)))?
             {
                 Field::Timestamp(timestamp) => timestamp,
@@ -60,9 +62,10 @@ impl TableOperator for LifetimeTableOperator {
                 ttl_records.push(operator_record);
             }
         } else {
+            let record_decoded = record_store.load_record(record)?;
             let reference = match self
                 .expression
-                .evaluate(record, schema)
+                .evaluate(&record_decoded, schema)
                 .map_err(|err| TableOperatorError::InternalError(Box::new(err)))?
             {
                 Field::Timestamp(timestamp) => timestamp,

@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use dozer_core::{
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
+    processor_record::ProcessorRecordStore,
     DEFAULT_PORT_HANDLE,
 };
 use dozer_types::{errors::internal::BoxedError, types::Schema};
@@ -68,6 +69,7 @@ impl ProcessorFactory<SchemaSQLContext> for TableProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
+        _record_store: &ProcessorRecordStore,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         Ok(Box::new(TableProcessor::new(self.id.clone())))
     }

@@ -2,46 +2,102 @@ use std::hash::Hash;
 use std::sync::Arc;
 
 use dozer_storage::errors::StorageError;
-use dozer_types::types::{Field, Lifetime, Record, Schema};
+use dozer_types::types::{Field, Lifetime, Operation, Record};
 
+use crate::{errors::ExecutionError, executor_operation::ProcessorOperation};
+
+#[derive(Debug, Clone)]
 pub struct ProcessorRecordStore;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct RecordRef(Arc<Vec<Field>>);
+pub struct RecordRef(Arc<[Field]>);
 
 impl ProcessorRecordStore {
-    pub fn create_ref(values: &[Field]) -> Result<RecordRef, StorageError> {
-        Ok(RecordRef(Arc::new(values.to_vec())))
+    pub fn new() -> Result<Self, ExecutionError> {
+        Ok(Self)
+    }
+
+    pub fn create_ref(&self, values: &[Field]) -> Result<RecordRef, StorageError> {
+        Ok(RecordRef(values.to_vec().into()))
+    }
+
+    pub fn load_ref(&self, record_ref: &RecordRef) -> Result<Vec<Field>, StorageError> {
+        Ok(record_ref.0.to_vec())
+    }
+
+    pub fn create_record(&self, record: &Record) -> Result<ProcessorRecord, StorageError> {
+        let record_ref = self.create_ref(&record.values)?;
+        let mut processor_record = ProcessorRecord::new();
+        processor_record.push(record_ref);
+        processor_record.set_lifetime(record.lifetime.clone());
+        Ok(processor_record)
+    }
+
+    pub fn load_record(&self, processor_record: &ProcessorRecord) -> Result<Record, StorageError> {
+        let mut record = Record::default();
+        for record_ref in processor_record.values.iter() {
+            let fields = self.load_ref(record_ref)?;
+            record.values.extend(fields.iter().cloned());
+        }
+        record.set_lifetime(processor_record.get_lifetime());
+        Ok(record)
+    }
+
+    pub fn create_operation(
+        &self,
+        operation: &Operation,
+    ) -> Result<ProcessorOperation, StorageError> {
+        match operation {
+            Operation::Delete { old } => {
+                let old = self.create_record(old)?;
+                Ok(ProcessorOperation::Delete { old })
+            }
+            Operation::Insert { new } => {
+                let new = self.create_record(new)?;
+                Ok(ProcessorOperation::Insert { new })
+            }
+            Operation::Update { old, new } => {
+                let old = self.create_record(old)?;
+                let new = self.create_record(new)?;
+                Ok(ProcessorOperation::Update { old, new })
+            }
+        }
+    }
+
+    pub fn load_operation(
+        &self,
+        operation: &ProcessorOperation,
+    ) -> Result<Operation, StorageError> {
+        match operation {
+            ProcessorOperation::Delete { old } => {
+                let old = self.load_record(old)?;
+                Ok(Operation::Delete { old })
+            }
+            ProcessorOperation::Insert { new } => {
+                let new = self.load_record(new)?;
+                Ok(Operation::Insert { new })
+            }
+            ProcessorOperation::Update { old, new } => {
+                let old = self.load_record(old)?;
+                let new = self.load_record(new)?;
+                Ok(Operation::Update { old, new })
+            }
+        }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct ProcessorRecord {
     /// All `Field`s in this record. The `Field`s are grouped by `Arc` to reduce memory usage.
-    values: Vec<Arc<Vec<Field>>>,
+    values: Vec<RecordRef>,
 
     /// Time To Live for this record. If the value is None, the record will never expire.
     lifetime: Option<Box<Lifetime>>,
 }
 
-impl From<Record> for ProcessorRecord {
-    fn from(record: Record) -> Self {
-        let mut ref_record = ProcessorRecord::new();
-        ref_record.push(Arc::new(record.values));
-        ref_record.set_lifetime(record.lifetime);
-        ref_record
-    }
-}
-
 impl ProcessorRecord {
     pub fn new() -> Self {
         Self::default()
-    }
-
-    pub fn clone_deref(&self) -> Record {
-        let mut record = Record::new(self.get_fields().cloned().collect());
-        record.set_lifetime(self.get_lifetime());
-        record
     }
 
     pub fn get_lifetime(&self) -> Option<Lifetime> {
@@ -55,62 +111,13 @@ impl ProcessorRecord {
         self.values.extend(other.values);
     }
 
-    pub fn push(&mut self, fields: Arc<Vec<Field>>) {
-        self.values.push(fields);
+    pub fn push(&mut self, record_ref: RecordRef) {
+        self.values.push(record_ref);
     }
 
-    pub fn pop(&mut self) -> Option<Arc<Vec<Field>>> {
+    pub fn pop(&mut self) -> Option<RecordRef> {
         let result = self.values.pop();
         result
-    }
-
-    pub fn get_fields(&self) -> impl Iterator<Item = &Field> {
-        self.values.iter().flat_map(|x| x.iter())
-    }
-
-    // Function to get a field by its index
-    pub fn get_field_by_index(&self, index: u32) -> &Field {
-        let mut current_index = index;
-
-        // Iterate through the values and update the counts
-        for fields in self.values.iter() {
-            if current_index < fields.len() as u32 {
-                return &fields[current_index as usize];
-            } else {
-                current_index -= fields.len() as u32;
-            }
-        }
-
-        panic!("Index {index} out of range");
-    }
-
-    pub fn get_key(&self, indexes: &[usize]) -> Vec<u8> {
-        debug_assert!(!indexes.is_empty(), "Primary key indexes cannot be empty");
-
-        let mut tot_size = 0_usize;
-        let mut buffers = Vec::<Vec<u8>>::with_capacity(indexes.len());
-        for i in indexes {
-            let bytes = self.get_field_by_index(*i as u32).encode();
-            tot_size += bytes.len();
-            buffers.push(bytes);
-        }
-
-        let mut res_buffer = Vec::<u8>::with_capacity(tot_size);
-        for i in buffers {
-            res_buffer.extend(i);
-        }
-        res_buffer
-    }
-
-    pub fn nulls_from_schema(schema: &Schema) -> ProcessorRecord {
-        Self::nulls(schema.fields.len())
-    }
-
-    pub fn nulls(size: usize) -> ProcessorRecord {
-        ProcessorRecord {
-            values: vec![Arc::new((0..size).map(|_| Field::Null).collect())],
-            lifetime: None,
-        }
     }
 }
 

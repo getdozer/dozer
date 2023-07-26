@@ -1,9 +1,7 @@
-use std::sync::Arc;
-
-use dozer_core::processor_record::ProcessorRecord;
+use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordStore};
 use dozer_types::{
     chrono::{Duration, DurationRound},
-    types::{Field, FieldDefinition, FieldType, Schema, SourceDefinition},
+    types::{Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition},
 };
 
 use crate::pipeline::errors::WindowError;
@@ -22,17 +20,35 @@ pub enum WindowType {
 }
 
 impl WindowType {
-    pub fn execute(&self, record: ProcessorRecord) -> Result<Vec<ProcessorRecord>, WindowError> {
+    pub fn execute(
+        &self,
+        record_store: &ProcessorRecordStore,
+        record: ProcessorRecord,
+        record_decoded: Record,
+    ) -> Result<Vec<ProcessorRecord>, WindowError> {
         match self {
             WindowType::Tumble {
                 column_index,
                 interval,
-            } => execute_tumble_window(record, *column_index, *interval),
+            } => execute_tumble_window(
+                record_store,
+                record,
+                record_decoded,
+                *column_index,
+                *interval,
+            ),
             WindowType::Hop {
                 column_index,
                 hop_size,
                 interval,
-            } => execute_hop_window(record, *column_index, *hop_size, *interval),
+            } => execute_hop_window(
+                record_store,
+                record,
+                record_decoded,
+                *column_index,
+                *hop_size,
+                *interval,
+            ),
         }
     }
 
@@ -60,19 +76,23 @@ impl WindowType {
 }
 
 fn execute_hop_window(
+    record_store: &ProcessorRecordStore,
     record: ProcessorRecord,
+    record_decoded: Record,
     column_index: usize,
     hop_size: Duration,
     interval: Duration,
 ) -> Result<Vec<ProcessorRecord>, WindowError> {
-    let field = record.get_field_by_index(column_index as u32);
+    let field = &record_decoded.values[column_index];
 
     let windows = hop(field, hop_size, interval)?;
 
     let mut records = vec![];
     for (start, end) in windows.into_iter() {
+        let record_ref = record_store.create_ref(&[start, end])?;
+
         let mut window_record = record.clone();
-        window_record.push(Arc::new(vec![start, end]));
+        window_record.push(record_ref);
         records.push(window_record);
     }
 
@@ -107,18 +127,19 @@ fn hop(
 }
 
 fn execute_tumble_window(
+    record_store: &ProcessorRecordStore,
     record: ProcessorRecord,
+    record_decoded: Record,
     column_index: usize,
     interval: Duration,
 ) -> Result<Vec<ProcessorRecord>, WindowError> {
-    let field = record.get_field_by_index(column_index as u32);
+    let field = &record_decoded.values[column_index];
 
     let (start, end) = tumble(field, interval)?;
+    let record_ref = record_store.create_ref(&[start, end])?;
 
     let mut window_record = record.clone();
-
-    window_record.push(Arc::new(vec![start, end]));
-
+    window_record.push(record_ref);
     Ok(vec![window_record])
 }
 

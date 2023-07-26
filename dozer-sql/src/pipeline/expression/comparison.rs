@@ -1,7 +1,7 @@
 use crate::pipeline::errors::PipelineError;
-use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::chrono::{DateTime, NaiveDate};
 use dozer_types::rust_decimal::Decimal;
+use dozer_types::types::Record;
 use dozer_types::types::{DozerDuration, DozerPoint, Field, Schema, TimeUnit};
 use num_traits::cast::*;
 use std::str::FromStr;
@@ -15,7 +15,7 @@ macro_rules! define_comparison {
             schema: &Schema,
             left: &Expression,
             right: &Expression,
-            record: &ProcessorRecord,
+            record: &Record,
         ) -> Result<Field, PipelineError> {
             let left_p = left.evaluate(&record, schema)?;
             let right_p = right.evaluate(&record, schema)?;
@@ -631,7 +631,7 @@ pub fn evaluate_lt(
     schema: &Schema,
     left: &Expression,
     right: &Expression,
-    record: &ProcessorRecord,
+    record: &Record,
 ) -> Result<Field, PipelineError> {
     let left_p = left.evaluate(record, schema)?;
     let right_p = right.evaluate(record, schema)?;
@@ -1168,7 +1168,7 @@ pub fn evaluate_gt(
     schema: &Schema,
     left: &Expression,
     right: &Expression,
-    record: &ProcessorRecord,
+    record: &Record,
 ) -> Result<Field, PipelineError> {
     let left_p = left.evaluate(record, schema)?;
     let right_p = right.evaluate(record, schema)?;
