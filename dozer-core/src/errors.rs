@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use crate::appsource::AppSourceId;
 use crate::node::PortHandle;
+use dozer_storage::errors::StorageError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
 use dozer_types::thiserror;
@@ -35,6 +36,8 @@ pub enum ExecutionError {
     Source(#[source] BoxedError),
     #[error("File system error {0:?}: {1}")]
     FileSystemError(PathBuf, #[source] std::io::Error),
+    #[error("Storage error")]
+    Storage(#[from] StorageError),
 }
 
 impl<T> From<crossbeam::channel::SendError<T>> for ExecutionError {

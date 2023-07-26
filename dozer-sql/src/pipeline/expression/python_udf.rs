@@ -2,10 +2,10 @@ use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::UnsupportedSqlError;
 use crate::pipeline::errors::UnsupportedSqlError::GenericError;
 use crate::pipeline::expression::execution::Expression;
-use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::pyo3::types::PyTuple;
 use dozer_types::pyo3::Python;
+use dozer_types::types::Record;
 use dozer_types::types::{Field, FieldType, Schema};
 use std::env;
 use std::path::PathBuf;
@@ -17,7 +17,7 @@ pub fn evaluate_py_udf(
     name: &str,
     args: &[Expression],
     return_type: &FieldType,
-    record: &ProcessorRecord,
+    record: &Record,
 ) -> Result<Field, PipelineError> {
     let values = args
         .iter()

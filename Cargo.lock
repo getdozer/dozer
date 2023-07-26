@@ -2585,6 +2585,7 @@ dependencies = [
  "bigdecimal",
  "bloom",
  "dozer-core",
+ "dozer-storage",
  "dozer-tracing",
  "dozer-types",
  "dyn-clone",

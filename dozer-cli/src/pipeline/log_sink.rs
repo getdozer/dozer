@@ -8,6 +8,7 @@ use dozer_core::{
     epoch::Epoch,
     executor_operation::ProcessorOperation,
     node::{PortHandle, Sink, SinkFactory},
+    processor_record::ProcessorRecordStore,
     DEFAULT_PORT_HANDLE,
 };
 use dozer_sql::pipeline::builder::SchemaSQLContext;
@@ -101,17 +102,21 @@ impl Sink for LogSink {
     fn process(
         &mut self,
         _from_port: PortHandle,
+        record_store: &ProcessorRecordStore,
         op: ProcessorOperation,
     ) -> Result<(), BoxedError> {
         self.runtime.block_on(async {
             let mut log = self.log.lock().await;
             log.write(
                 dozer_cache::dozer_log::replication::LogOperation::Op {
-                    op: op.clone_deref(),
+                    op: record_store
+                        .load_operation(&op)
+                        .map_err(Into::<BoxedError>::into)?,
                 },
                 self.log.clone(),
             )
             .await
+            .map_err(Into::<BoxedError>::into)
         })?;
         self.update_counter();
         Ok(())

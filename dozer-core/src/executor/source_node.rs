@@ -176,6 +176,7 @@ pub fn create_source_nodes(
         true,
         options.commit_sz,
         options.commit_time_threshold,
+        dag.record_store().clone(),
         dag.epoch_manager().clone(),
         dag.error_manager().clone(),
     );

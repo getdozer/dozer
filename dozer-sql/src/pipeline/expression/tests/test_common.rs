@@ -3,12 +3,12 @@ use crate::pipeline::{projection::factory::ProjectionProcessorFactory, tests::ut
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::ProcessorFactory;
-use dozer_core::processor_record::ProcessorRecord;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::chrono::{
     DateTime, Datelike, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, Timelike,
 };
 use dozer_types::rust_decimal::Decimal;
+use dozer_types::types::Record;
 use dozer_types::types::{Field, Schema};
 use proptest::prelude::*;
 use std::collections::HashMap;
@@ -48,7 +48,7 @@ pub(crate) fn run_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Field {
         .unwrap();
 
     let mut fw = TestChannelForwarder { operations: vec![] };
-    let mut rec = ProcessorRecord::new();
+    let mut rec = Record::new();
     rec.push(Arc::new(input));
 
     let op = ProcessorOperation::Insert { new: rec };

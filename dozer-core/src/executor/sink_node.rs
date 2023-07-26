@@ -12,6 +12,7 @@ use crate::{
     executor_operation::{ExecutorOperation, ProcessorOperation},
     forwarder::StateWriter,
     node::{PortHandle, Sink},
+    processor_record::ProcessorRecordStore,
 };
 
 use super::execution_dag::ExecutionDag;
@@ -30,6 +31,8 @@ pub struct SinkNode {
     sink: Box<dyn Sink>,
     /// This node's state writer, for writing metadata and port state.
     state_writer: StateWriter,
+    /// Where all the records from ingested data are stored.
+    record_store: ProcessorRecordStore,
     /// The error manager, for reporting non-fatal errors.
     error_manager: Arc<ErrorManager>,
 }
@@ -61,6 +64,7 @@ impl SinkNode {
             receivers,
             sink,
             state_writer,
+            record_store: dag.record_store().clone(),
             error_manager: dag.error_manager().clone(),
         }
     }
@@ -88,7 +92,10 @@ impl ReceiverLoop for SinkNode {
     }
 
     fn on_op(&mut self, index: usize, op: ProcessorOperation) -> Result<(), ExecutionError> {
-        if let Err(e) = self.sink.process(self.port_handles[index], op) {
+        if let Err(e) = self
+            .sink
+            .process(self.port_handles[index], &self.record_store, op)
+        {
             self.error_manager.report(e);
         }
         Ok(())
