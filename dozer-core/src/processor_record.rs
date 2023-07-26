@@ -1,28 +1,52 @@
-use std::hash::Hash;
+use std::hash::Hasher;
 use std::sync::Arc;
+use std::{collections::hash_map::DefaultHasher, hash::Hash};
 
-use dozer_storage::errors::StorageError;
+use dozer_storage::{errors::StorageError, RocksdbMap};
 use dozer_types::types::{Field, Lifetime, Operation, Record};
+use tempdir::TempDir;
 
 use crate::{errors::ExecutionError, executor_operation::ProcessorOperation};
 
 #[derive(Debug, Clone)]
-pub struct ProcessorRecordStore;
+pub struct ProcessorRecordStore(Arc<ProcessorRecordStoreInner>);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct RecordRef(Arc<[Field]>);
+pub struct RecordRef(u64);
+
+#[derive(Debug)]
+struct ProcessorRecordStoreInner {
+    _temp_dir: TempDir,
+    hash_to_record: RocksdbMap<u64, Vec<Field>>,
+}
 
 impl ProcessorRecordStore {
     pub fn new() -> Result<Self, ExecutionError> {
-        Ok(Self)
+        let temp_dir = TempDir::new("dozer_processor_record_store")
+            .map_err(|e| ExecutionError::FileSystemError("tempdir".into(), e))?;
+        let hash_to_record = RocksdbMap::<u64, Vec<Field>>::create(temp_dir.path())?;
+
+        Ok(Self(Arc::new(ProcessorRecordStoreInner {
+            _temp_dir: temp_dir,
+            hash_to_record,
+        })))
     }
 
     pub fn create_ref(&self, values: &[Field]) -> Result<RecordRef, StorageError> {
-        Ok(RecordRef(values.to_vec().into()))
+        // Calculate hash of `values`.
+        let mut hasher = DefaultHasher::new();
+        values.hash(&mut hasher);
+        let key = hasher.finish();
+
+        self.0.hash_to_record.insert(&key, values)?;
+        Ok(RecordRef(key))
     }
 
     pub fn load_ref(&self, record_ref: &RecordRef) -> Result<Vec<Field>, StorageError> {
-        Ok(record_ref.0.to_vec())
+        self.0
+            .hash_to_record
+            .get(&record_ref.0)
+            .map(|record| record.expect("Invalid reference"))
     }
 
     pub fn create_record(&self, record: &Record) -> Result<ProcessorRecord, StorageError> {
