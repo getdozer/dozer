@@ -261,7 +261,7 @@ mod tests {
 
         let mut nested_outer = ProcessorRecord::new();
         nested_outer.extend_direct_field(Field::Int(3));
-        nested_outer.extend_referenced_record(nested.clone());
+        nested_outer.extend_referenced_record(nested);
         nested_outer.extend_direct_field(Field::Int(4));
         let nested_outer = ProcessorRecordRef::new(nested_outer);
 

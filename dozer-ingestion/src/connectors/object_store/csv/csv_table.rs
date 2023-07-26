@@ -28,6 +28,7 @@ use deltalake::{
 use dozer_types::ingestion_types::IngestionMessageKind;
 use tokio::task::JoinHandle;
 
+use crate::connectors::object_store::helper::is_marker_file_exist;
 use crate::{
     connectors::{self, object_store::helper::map_listing_options},
     errors::ObjectStoreObjectError,
@@ -75,6 +76,10 @@ impl<T: DozerObjectStore + Send> CsvTable<T> {
         // Get the table state after snapshot
         let mut update_state = self.update_state.clone();
         let extension = self.table_config.extension.clone();
+        let marker_extension = match self.table_config.marker_file {
+            true => self.table_config.marker_extension.clone(),
+            false => String::new(),
+        };
 
         tokio::spawn(async move {
             loop {
@@ -85,6 +90,7 @@ impl<T: DozerObjectStore + Send> CsvTable<T> {
                     .unwrap();
 
                 let mut new_files = vec![];
+                let mut new_marker_files = vec![];
 
                 while let Some(item) = stream.next().await {
                     // Check if any objects have been added or modified
@@ -105,56 +111,86 @@ impl<T: DozerObjectStore + Send> CsvTable<T> {
                             continue;
                         }
 
-                        // Skip files that do not match the extension
-                        if !file_path.ends_with(extension.as_str()) {
+                        if file_path.ends_with(extension.as_str()) {
+                            // Scenario 2: New file added
+                            info!(
+                                "Source Object has been added: {:?}, {:?}",
+                                object.location, object.last_modified
+                            );
+
+                            // Remove base folder from relative path
+                            let path = Path::new(&file_path);
+                            let new_path = path
+                                .strip_prefix(path.components().next().unwrap())
+                                .unwrap();
+                            let new_path_str = new_path.to_str().unwrap();
+
+                            new_files.push(FileInfo {
+                                name: base_path.clone() + new_path_str,
+                                last_modified: object.last_modified.timestamp(),
+                            });
+                            if marker_extension.is_empty() {
+                                update_state.insert(object.location, object.last_modified);
+                            }
+                        } else if file_path.ends_with(marker_extension.as_str())
+                            && !marker_extension.is_empty()
+                        {
+                            // Scenario 3: New marker file added
+                            info!(
+                                "Source Object Marker has been added: {:?}, {:?}",
+                                object.location, object.last_modified
+                            );
+
+                            // Remove base folder from relative path
+                            let path = Path::new(&file_path);
+                            let new_path = path
+                                .strip_prefix(path.components().next().unwrap())
+                                .unwrap();
+                            let new_path_str = new_path.to_str().unwrap();
+
+                            new_marker_files.push(FileInfo {
+                                name: base_path.clone() + new_path_str,
+                                last_modified: object.last_modified.timestamp(),
+                            });
+                            update_state.insert(object.location, object.last_modified);
+                        } else {
+                            // Skip files that do not match the extension nor marker extension
                             continue;
                         }
-
-                        // Scenario 2: New file added
-                        info!(
-                            "Source Object has been added: {:?}, {:?}",
-                            object.location, object.last_modified
-                        );
-
-                        // Remove base folder from relative path
-                        let path = Path::new(&file_path);
-                        let new_path = path
-                            .strip_prefix(path.components().next().unwrap())
-                            .unwrap();
-                        let new_path_str = new_path.to_str().unwrap();
-
-                        new_files.push(FileInfo {
-                            name: base_path.clone() + new_path_str,
-                            last_modified: object.last_modified.timestamp(),
-                        });
-                        update_state.insert(object.location, object.last_modified);
                     }
                 }
 
                 new_files.sort();
                 for file in &new_files {
-                    let file_path = ListingTableUrl::parse(&file.name)
-                        .map_err(|e| {
-                            ObjectStoreConnectorError::DataFusionStorageObjectError(
-                                ObjectStoreObjectError::ListingPathParsingError(
-                                    file.name.clone(),
-                                    e,
-                                ),
-                            )
-                        })
-                        .unwrap();
+                    let marker_file_exist = is_marker_file_exist(new_marker_files.clone(), file);
+                    let use_marker_file = marker_extension.is_empty();
+                    if !marker_file_exist && !use_marker_file {
+                        continue;
+                    } else {
+                        let file_path = ListingTableUrl::parse(&file.name)
+                            .map_err(|e| {
+                                ObjectStoreConnectorError::DataFusionStorageObjectError(
+                                    ObjectStoreObjectError::ListingPathParsingError(
+                                        file.name.clone(),
+                                        e,
+                                    ),
+                                )
+                            })
+                            .unwrap();
 
-                    let result = connectors::object_store::table_reader::TableReader::<T>::read(
-                        table_index,
-                        ctx.clone(),
-                        file_path,
-                        listing_options.clone(),
-                        &t,
-                        sender.clone(),
-                    )
-                    .await;
-                    if let Err(e) = result {
-                        sender.send(Err(e)).await.unwrap();
+                        let result =
+                            connectors::object_store::table_reader::TableReader::<T>::read(
+                                table_index,
+                                ctx.clone(),
+                                file_path,
+                                listing_options.clone(),
+                                &t,
+                                sender.clone(),
+                            )
+                            .await;
+                        if let Err(e) = result {
+                            sender.send(Err(e)).await.unwrap();
+                        }
                     }
                 }
 
@@ -195,6 +231,10 @@ impl<T: DozerObjectStore + Send> TableWatcher for CsvTable<T> {
         // Get the table state after snapshot
         let mut update_state = self.update_state.clone();
         let extension = self.table_config.extension.clone();
+        let marker_extension = match self.table_config.marker_file {
+            true => self.table_config.marker_extension.clone(),
+            false => String::new(),
+        };
 
         let h = tokio::spawn(async move {
             // List objects in the S3 bucket with the specified prefix
@@ -204,6 +244,7 @@ impl<T: DozerObjectStore + Send> TableWatcher for CsvTable<T> {
                 .unwrap();
 
             let mut new_files = vec![];
+            let mut new_marker_files = vec![];
 
             while let Some(item) = stream.next().await {
                 // Check if any objects have been added or modified
@@ -224,53 +265,86 @@ impl<T: DozerObjectStore + Send> TableWatcher for CsvTable<T> {
                         continue;
                     }
 
-                    // Skip files that do not match the extension
-                    if !file_path.ends_with(extension.as_str()) {
+                    if file_path.ends_with(extension.as_str()) {
+                        // Scenario 2: New file added
+                        info!(
+                            "Source Object has been added: {:?}, {:?}",
+                            object.location, object.last_modified
+                        );
+
+                        // Remove base folder from relative path
+                        let path = Path::new(&file_path);
+                        let new_path = path
+                            .strip_prefix(path.components().next().unwrap())
+                            .unwrap();
+                        let new_path_str = new_path.to_str().unwrap();
+
+                        new_files.push(FileInfo {
+                            name: base_path.clone() + new_path_str,
+                            last_modified: object.last_modified.timestamp(),
+                        });
+                        if marker_extension.is_empty() {
+                            update_state.insert(object.location, object.last_modified);
+                        }
+                    } else if file_path.ends_with(marker_extension.as_str())
+                        && !marker_extension.is_empty()
+                    {
+                        // Scenario 3: New marker file added
+                        info!(
+                            "Source Object Marker has been added: {:?}, {:?}",
+                            object.location, object.last_modified
+                        );
+
+                        // Remove base folder from relative path
+                        let path = Path::new(&file_path);
+                        let new_path = path
+                            .strip_prefix(path.components().next().unwrap())
+                            .unwrap();
+                        let new_path_str = new_path.to_str().unwrap();
+
+                        new_marker_files.push(FileInfo {
+                            name: base_path.clone() + new_path_str,
+                            last_modified: object.last_modified.timestamp(),
+                        });
+
+                        update_state.insert(object.location, object.last_modified);
+                    } else {
+                        // Skip files that do not match the extension nor marker extension
                         continue;
                     }
-
-                    // Scenario 2: New file added
-                    info!(
-                        "Source Object has been added: {:?}, {:?}",
-                        object.location, object.last_modified
-                    );
-
-                    // Remove base folder from relative path
-                    let path = Path::new(&file_path);
-                    let new_path = path
-                        .strip_prefix(path.components().next().unwrap())
-                        .unwrap();
-                    let new_path_str = new_path.to_str().unwrap();
-
-                    new_files.push(FileInfo {
-                        name: base_path.clone() + new_path_str,
-                        last_modified: object.last_modified.timestamp(),
-                    });
-                    update_state.insert(object.location, object.last_modified);
                 }
             }
 
             new_files.sort();
             for file in &new_files {
-                let file_path = ListingTableUrl::parse(&file.name)
-                    .map_err(|e| {
-                        ObjectStoreConnectorError::DataFusionStorageObjectError(
-                            ObjectStoreObjectError::ListingPathParsingError(file.name.clone(), e),
-                        )
-                    })
-                    .unwrap();
+                let marker_file_exist = is_marker_file_exist(new_marker_files.clone(), file);
+                let use_marker_file = marker_extension.is_empty();
+                if !marker_file_exist && !use_marker_file {
+                    continue;
+                } else {
+                    let file_path = ListingTableUrl::parse(&file.name)
+                        .map_err(|e| {
+                            ObjectStoreConnectorError::DataFusionStorageObjectError(
+                                ObjectStoreObjectError::ListingPathParsingError(
+                                    file.name.clone(),
+                                    e,
+                                ),
+                            )
+                        })
+                        .unwrap();
 
-                let result = connectors::object_store::table_reader::TableReader::<T>::read(
-                    table_index,
-                    ctx.clone(),
-                    file_path,
-                    listing_options.clone(),
-                    &t,
-                    sender.clone(),
-                )
-                .await;
-                if let Err(e) = result {
-                    sender.send(Err(e)).await.unwrap();
+                    let result = connectors::object_store::table_reader::TableReader::<T>::read(
+                        table_index,
+                        ctx.clone(),
+                        file_path,
+                        listing_options.clone(),
+                        &t,
+                        sender.clone(),
+                    )
+                    .await;
+                    if let Err(e) = result {
+                        sender.send(Err(e)).await.unwrap();
+                    }
                 }
             }
             (table_index, update_state)
