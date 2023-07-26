@@ -467,7 +467,7 @@ impl JoinOperator {
 
                 add_join_record(&mut self.left_map, join_key, primary_key, &new);
 
-                if let Some(lifetime) = new.get_record().lifetime.clone() {
+                if let Some(lifetime) = new.get_record().get_lifetime() {
                     self.insert_evict_index(from, lifetime, join_key, primary_key)?
                 }
 
@@ -480,7 +480,7 @@ impl JoinOperator {
 
                 add_join_record(&mut self.right_map, join_key, primary_key, &new);
 
-                if let Some(lifetime) = new.get_record().lifetime.clone() {
+                if let Some(lifetime) = new.get_record().get_lifetime() {
                     self.insert_evict_index(from, lifetime, join_key, primary_key)?
                 }
 
@@ -494,7 +494,7 @@ impl JoinOperator {
 
                 add_join_record(&mut self.left_map, join_key, primary_key, &new);
 
-                if let Some(lifetime) = new.get_record().lifetime.clone() {
+                if let Some(lifetime) = new.get_record().get_lifetime() {
                     self.insert_evict_index(from, lifetime, join_key, primary_key)?
                 }
 
@@ -508,7 +508,7 @@ impl JoinOperator {
 
                 add_join_record(&mut self.right_map, join_key, primary_key, &new);
 
-                if let Some(lifetime) = new.get_record().lifetime.clone() {
+                if let Some(lifetime) = new.get_record().get_lifetime() {
                     self.insert_evict_index(from, lifetime, join_key, primary_key)?
                 }
 
@@ -522,7 +522,7 @@ impl JoinOperator {
 
                 add_join_record(&mut self.left_map, join_key, primary_key, &new);
 
-                if let Some(lifetime) = new.get_record().lifetime.clone() {
+                if let Some(lifetime) = new.get_record().get_lifetime() {
                     self.insert_evict_index(from, lifetime, join_key, primary_key)?
                 }
 
@@ -536,7 +536,7 @@ impl JoinOperator {
 
                 add_join_record(&mut self.right_map, join_key, primary_key, &new);
 
-                if let Some(lifetime) = new.get_record().lifetime.clone() {
+                if let Some(lifetime) = new.get_record().get_lifetime() {
                     self.insert_evict_index(from, lifetime, join_key, primary_key)?
                 }
 
@@ -619,8 +619,8 @@ fn join_records(
     left_record: ProcessorRecordRef,
     right_record: ProcessorRecordRef,
 ) -> ProcessorRecordRef {
-    let left_lifetime = left_record.get_record().lifetime.clone();
-    let right_lifetime = right_record.get_record().lifetime.clone();
+    let left_lifetime = left_record.get_record().get_lifetime();
+    let right_lifetime = right_record.get_record().get_lifetime();
 
     let mut output_record = ProcessorRecord::new();
     output_record.extend_referenced_record(left_record);

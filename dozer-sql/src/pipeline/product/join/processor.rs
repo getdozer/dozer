@@ -5,6 +5,7 @@ use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::labels::Labels;
+use dozer_types::types::Lifetime;
 use metrics::{
     counter, describe_counter, describe_gauge, describe_histogram, gauge, histogram,
     increment_counter,
@@ -60,7 +61,7 @@ impl ProductProcessor {
         }
     }
 
-    fn update_eviction_index(&mut self, lifetime: &dozer_types::types::Lifetime) {
+    fn update_eviction_index(&mut self, lifetime: Lifetime) {
         let now = &lifetime.reference;
         let old_instants = self.join_operator.evict_index(&JoinBranch::Left, now);
         self.join_operator
@@ -91,7 +92,7 @@ impl Processor for ProductProcessor {
         let now = std::time::Instant::now();
         let records = match op {
             ProcessorOperation::Delete { old } => {
-                if let Some(lifetime) = &old.get_record().lifetime {
+                if let Some(lifetime) = old.get_record().get_lifetime() {
                     self.update_eviction_index(lifetime);
                 }
 
@@ -100,7 +101,7 @@ impl Processor for ProductProcessor {
                     .map_err(PipelineError::JoinError)?
             }
             ProcessorOperation::Insert { new } => {
-                if let Some(lifetime) = &new.get_record().lifetime {
+                if let Some(lifetime) = new.get_record().get_lifetime() {
                     self.update_eviction_index(lifetime);
                 }
 
@@ -109,7 +110,7 @@ impl Processor for ProductProcessor {
                     .map_err(PipelineError::JoinError)?
             }
             ProcessorOperation::Update { old, new } => {
-                if let Some(lifetime) = &old.get_record().lifetime {
+                if let Some(lifetime) = old.get_record().get_lifetime() {
                     self.update_eviction_index(lifetime);
                 }
 
