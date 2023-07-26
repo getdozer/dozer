@@ -1,3 +1,4 @@
+use chrono::{DateTime, FixedOffset};
 use geo::{point, GeodesicDistance, Point};
 use ordered_float::OrderedFloat;
 use std::array::TryFromSliceError;
@@ -138,10 +139,12 @@ pub enum IndexDefinition {
 
 pub type SchemaWithIndex = (Schema, Vec<IndexDefinition>);
 
+pub type Timestamp = DateTime<FixedOffset>;
+
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, Hash)]
 pub struct Lifetime {
-    pub reference: Field,
-    pub duration: DozerDuration,
+    pub reference: Timestamp,
+    pub duration: std::time::Duration,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]

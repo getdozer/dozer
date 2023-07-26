@@ -31,7 +31,7 @@ impl ProjectionProcessor {
                 .extend_direct_field(expr.evaluate(record.get_record(), &self.input_schema)?);
         }
 
-        output_record.set_lifetime(record.get_record().lifetime.to_owned());
+        output_record.set_lifetime(record.get_record().get_lifetime());
 
         Ok(ProcessorOperation::Delete {
             old: ProcessorRecordRef::new(output_record),
@@ -46,7 +46,7 @@ impl ProjectionProcessor {
                 .extend_direct_field(expr.evaluate(record.get_record(), &self.input_schema)?);
         }
 
-        output_record.set_lifetime(record.get_record().lifetime.to_owned());
+        output_record.set_lifetime(record.get_record().get_lifetime());
         Ok(ProcessorOperation::Insert {
             new: ProcessorRecordRef::new(output_record),
         })
@@ -66,9 +66,9 @@ impl ProjectionProcessor {
                 .extend_direct_field(expr.evaluate(new.get_record(), &self.input_schema)?);
         }
 
-        old_output_record.set_lifetime(old.get_record().lifetime.to_owned());
+        old_output_record.set_lifetime(old.get_record().get_lifetime());
 
-        new_output_record.set_lifetime(new.get_record().lifetime.to_owned());
+        new_output_record.set_lifetime(new.get_record().get_lifetime());
         Ok(ProcessorOperation::Update {
             old: ProcessorRecordRef::new(old_output_record),
             new: ProcessorRecordRef::new(new_output_record),

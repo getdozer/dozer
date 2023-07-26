@@ -377,4 +377,7 @@ pub enum TableOperatorError {
 
     #[error("Missing Argument in '{0}' ")]
     MissingArgument(String),
+
+    #[error("TTL input must evaluate to timestamp, but it evaluates to {0}")]
+    InvalidTtlInputType(Field),
 }

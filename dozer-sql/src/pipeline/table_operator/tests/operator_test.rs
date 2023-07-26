@@ -3,10 +3,7 @@ use std::time::Duration;
 use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordRef};
 use dozer_types::{
     chrono::DateTime,
-    types::{
-        DozerDuration, Field, FieldDefinition, FieldType, Lifetime, Schema, SourceDefinition,
-        TimeUnit,
-    },
+    types::{Field, FieldDefinition, FieldType, Lifetime, Schema, SourceDefinition},
 };
 
 use crate::pipeline::{
@@ -64,7 +61,7 @@ fn test_lifetime() {
         //     },
         //     "ref".to_string(),
         // ),
-        DozerDuration(Duration::from_secs(60), TimeUnit::Seconds),
+        Duration::from_secs(60),
     );
 
     let result = table_operator.execute(&record, &schema).unwrap();
@@ -75,8 +72,8 @@ fn test_lifetime() {
     expected_record.extend_referenced_record(record);
 
     expected_record.set_lifetime(Some(Lifetime {
-        reference: Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
-        duration: DozerDuration(Duration::from_secs(60), TimeUnit::Seconds),
+        reference: DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap(),
+        duration: Duration::from_secs(60),
     }));
 
     assert_eq!(*lifetime_record, ProcessorRecordRef::new(expected_record));

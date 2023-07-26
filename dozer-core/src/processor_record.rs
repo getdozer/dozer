@@ -11,7 +11,7 @@ pub struct ProcessorRecord {
     total_len: u32,
 
     /// Time To Live for this record. If the value is None, the record will never expire.
-    pub lifetime: Option<Lifetime>,
+    lifetime: Option<Box<Lifetime>>,
 
     // Imagine that we flatten all the fields in `values` recursively, `index` is the index into the flattened vector.
     index: Vec<u32>,
@@ -69,10 +69,10 @@ impl ProcessorRecord {
     }
 
     pub fn get_lifetime(&self) -> Option<Lifetime> {
-        self.lifetime.clone()
+        self.lifetime.as_ref().map(|lifetime| *lifetime.clone())
     }
     pub fn set_lifetime(&mut self, lifetime: Option<Lifetime>) {
-        self.lifetime = lifetime;
+        self.lifetime = lifetime.map(Box::new);
     }
 
     pub fn get_field_indexes(&self) -> &[u32] {
