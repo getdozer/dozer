@@ -12,6 +12,7 @@ use crate::types::{
     SourceDefinition,
 };
 use arrow::array;
+use arrow::array::ArrayAccessor;
 use arrow::array::{Array, ArrayRef};
 use arrow::datatypes::{DataType, TimeUnit};
 use arrow::ipc::writer::StreamWriter;
@@ -21,23 +22,24 @@ use arrow::row::SortField;
 use crate::arrow_types::errors::FromArrowError::DeserializationError;
 use log::error;
 use std::str::FromStr;
+use std::sync::Arc;
 
-macro_rules! make_from {
-    ($array_type:ty, $column: ident, $row: ident) => {{
-        let array = $column.as_any().downcast_ref::<$array_type>();
+fn make_from<A: Array + 'static>(column: &Arc<dyn Array>, row: usize) -> DozerField
+where
+    for<'a> &'a A: ArrayAccessor,
+    for<'a> DozerField: From<<&'a A as ArrayAccessor>::Item>,
+{
+    let array = column.as_any().downcast_ref::<A>();
 
-        if let Some(r) = array {
-            let s: DozerField = if r.is_null($row.clone()) {
-                DozerField::Null
-            } else {
-                DozerField::from(r.value($row.clone()))
-            };
-
-            Ok(s)
+    if let Some(r) = array {
+        if r.is_null(row) {
+            DozerField::Null
         } else {
-            Ok(DozerField::Null)
+            DozerField::from(r.value(row))
         }
-    }};
+    } else {
+        DozerField::Null
+    }
 }
 
 macro_rules! make_binary {
@@ -147,14 +149,14 @@ macro_rules! make_text {
     }};
 }
 
-fn make_json(column: &ArrayRef, row: &usize) -> Result<DozerField, FromArrowError> {
+fn make_json(column: &ArrayRef, row: usize) -> Result<DozerField, FromArrowError> {
     let array = column.as_any().downcast_ref::<array::StringArray>();
 
     return if let Some(r) = array {
-        let s: DozerField = if r.is_null(*row) {
+        let s: DozerField = if r.is_null(row) {
             DozerField::Null
         } else {
-            match JsonValue::from_str(r.value(*row)) {
+            match JsonValue::from_str(r.value(row)) {
                 Ok(j) => DozerField::Json(j),
                 Err(e) => return Err(DeserializationError(e)),
             }
@@ -237,24 +239,24 @@ pub fn map_arrow_to_dozer_type(dt: &DataType) -> Result<FieldType, FromArrowErro
 
 pub fn map_value_to_dozer_field(
     column: &ArrayRef,
-    row: &usize,
+    row: usize,
     column_name: &str,
     schema: &Schema,
 ) -> Result<DozerField, FromArrowError> {
     match column.data_type() {
         DataType::Null => Ok(DozerField::Null),
-        DataType::Boolean => make_from!(array::BooleanArray, column, row),
-        DataType::Int8 => make_from!(array::Int8Array, column, row),
-        DataType::Int16 => make_from!(array::Int16Array, column, row),
-        DataType::Int32 => make_from!(array::Int32Array, column, row),
-        DataType::Int64 => make_from!(array::Int64Array, column, row),
-        DataType::UInt8 => make_from!(array::UInt8Array, column, row),
-        DataType::UInt16 => make_from!(array::UInt16Array, column, row),
-        DataType::UInt32 => make_from!(array::UInt32Array, column, row),
-        DataType::UInt64 => make_from!(array::UInt64Array, column, row),
-        DataType::Float16 => make_from!(array::Float32Array, column, row),
-        DataType::Float32 => make_from!(array::Float32Array, column, row),
-        DataType::Float64 => make_from!(array::Float64Array, column, row),
+        DataType::Boolean => Ok(make_from::<array::BooleanArray>(column, row)),
+        DataType::Int8 => Ok(make_from::<array::Int8Array>(column, row)),
+        DataType::Int16 => Ok(make_from::<array::Int16Array>(column, row)),
+        DataType::Int32 => Ok(make_from::<array::Int32Array>(column, row)),
+        DataType::Int64 => Ok(make_from::<array::Int64Array>(column, row)),
+        DataType::UInt8 => Ok(make_from::<array::UInt8Array>(column, row)),
+        DataType::UInt16 => Ok(make_from::<array::UInt16Array>(column, row)),
+        DataType::UInt32 => Ok(make_from::<array::UInt32Array>(column, row)),
+        DataType::UInt64 => Ok(make_from::<array::UInt64Array>(column, row)),
+        DataType::Float16 => Ok(make_from::<array::Float32Array>(column, row)),
+        DataType::Float32 => Ok(make_from::<array::Float32Array>(column, row)),
+        DataType::Float64 => Ok(make_from::<array::Float64Array>(column, row)),
         DataType::Timestamp(TimeUnit::Microsecond, _) => {
             make_timestamp!(array::TimestampMicrosecondArray, column, row)
         }
@@ -300,7 +302,7 @@ pub fn map_value_to_dozer_field(
                     return make_json(column, row);
                 }
             }
-            make_from!(array::StringArray, column, row)
+            Ok(make_from::<array::StringArray>(column, row))
         }
         DataType::LargeUtf8 => make_text!(array::LargeStringArray, column, row),
         // DataType::Interval(TimeUnit::) => make_from!(array::BooleanArray, x, x0),
@@ -342,7 +344,7 @@ pub fn map_record_batch_to_dozer_records(
         let mut values = vec![];
         for (c, x) in columns.iter().enumerate() {
             let field = schema.fields.get(c).unwrap();
-            let value = map_value_to_dozer_field(x, &r, &field.name, &dozer_schema)?;
+            let value = map_value_to_dozer_field(x, r, &field.name, &dozer_schema)?;
             values.push(value);
         }
         records.push(Record {

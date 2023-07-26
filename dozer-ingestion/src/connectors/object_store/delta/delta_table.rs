@@ -184,7 +184,7 @@ impl<T: DozerObjectStore + Send> TableWatcher for DeltaTable<T> {
                         .map(|(col, column)| {
                             map_value_to_dozer_field(
                                 column,
-                                &row,
+                                row,
                                 dozer_schema.fields.get(col).unwrap().name.as_str(),
                                 &dozer_schema,
                             )

@@ -89,7 +89,7 @@ impl<T: Clone + Send + Sync> TableReader<T> {
                     .map(|(col, column)| {
                         map_value_to_dozer_field(
                             column,
-                            &row,
+                            row,
                             resolved_schema.field(col).name(),
                             &dozer_schema,
                         )
