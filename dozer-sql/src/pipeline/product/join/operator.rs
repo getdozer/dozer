@@ -2,7 +2,7 @@ use ahash::AHasher;
 use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordRef};
 use dozer_types::{
     chrono,
-    types::{Field, Lifetime},
+    types::{Lifetime, Timestamp},
 };
 use linked_hash_map::LinkedHashMap;
 use std::{
@@ -57,8 +57,8 @@ pub struct JoinOperator {
     left_map: HashMap<u64, HashMap<u64, Vec<ProcessorRecordRef>>>,
     right_map: HashMap<u64, HashMap<u64, Vec<ProcessorRecordRef>>>,
 
-    left_lifetime_map: LinkedHashMap<Field, Vec<IndexKey>>,
-    right_lifetime_map: LinkedHashMap<Field, Vec<IndexKey>>,
+    left_lifetime_map: LinkedHashMap<Timestamp, Vec<IndexKey>>,
+    right_lifetime_map: LinkedHashMap<Timestamp, Vec<IndexKey>>,
 }
 
 impl JoinOperator {
@@ -310,7 +310,7 @@ impl JoinOperator {
         Ok(matching_count)
     }
 
-    pub fn evict_index(&mut self, from_branch: &JoinBranch, now: &Field) -> Vec<Field> {
+    pub fn evict_index(&mut self, from_branch: &JoinBranch, now: &Timestamp) -> Vec<Timestamp> {
         let (eviction_index, join_index) = match from_branch {
             JoinBranch::Left => (&self.left_lifetime_map, &mut self.left_map),
             JoinBranch::Right => (&self.right_lifetime_map, &mut self.right_map),
@@ -319,7 +319,7 @@ impl JoinOperator {
         let mut old_instants = vec![];
         for (eviction_instant, join_index_keys) in eviction_index.iter() {
             if eviction_instant <= now {
-                old_instants.push(eviction_instant.clone());
+                old_instants.push(*eviction_instant);
                 for (join_key, primary_key) in join_index_keys {
                     evict_join_record(join_index, *join_key, *primary_key);
                 }
@@ -342,19 +342,19 @@ impl JoinOperator {
             JoinBranch::Right => &mut self.right_lifetime_map,
         };
 
-        let eviction_time = match (lifetime.reference,) {
-            (Field::Timestamp(reference),) => {
-                let eviction_time_result = reference.checked_add_signed(
-                    chrono::Duration::nanoseconds(lifetime.duration.0.as_nanos() as i64),
-                );
+        let eviction_time = {
+            let eviction_time_result =
+                lifetime
+                    .reference
+                    .checked_add_signed(chrono::Duration::nanoseconds(
+                        lifetime.duration.as_nanos() as i64,
+                    ));
 
-                if let Some(eviction_time) = eviction_time_result {
-                    Field::Timestamp(eviction_time)
-                } else {
-                    return Err(JoinError::EvictionTimeOverflow);
-                }
+            if let Some(eviction_time) = eviction_time_result {
+                eviction_time
+            } else {
+                return Err(JoinError::EvictionTimeOverflow);
             }
-            _ => return Err(JoinError::EvictionTypeOverflow),
         };
 
         if let Some(join_index_keys) = eviction_index.get_mut(&eviction_time) {
@@ -366,7 +366,7 @@ impl JoinOperator {
         Ok(())
     }
 
-    pub fn clean_evict_index(&mut self, from_branch: &JoinBranch, old_instants: &[Field]) {
+    pub fn clean_evict_index(&mut self, from_branch: &JoinBranch, old_instants: &[Timestamp]) {
         let eviction_index = match from_branch {
             JoinBranch::Left => &mut self.left_lifetime_map,
             JoinBranch::Right => &mut self.right_lifetime_map,

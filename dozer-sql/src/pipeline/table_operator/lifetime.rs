@@ -1,5 +1,5 @@
 use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordRef};
-use dozer_types::types::{DozerDuration, Lifetime, Schema};
+use dozer_types::types::{Field, Lifetime, Schema};
 
 use crate::pipeline::{errors::TableOperatorError, expression::execution::Expression};
 
@@ -9,14 +9,14 @@ use super::operator::{TableOperator, TableOperatorType};
 pub struct LifetimeTableOperator {
     operator: Option<Box<TableOperatorType>>,
     expression: Expression,
-    duration: DozerDuration,
+    duration: std::time::Duration,
 }
 
 impl LifetimeTableOperator {
     pub fn new(
         operator: Option<Box<TableOperatorType>>,
         expression: Expression,
-        duration: DozerDuration,
+        duration: std::time::Duration,
     ) -> Self {
         Self {
             operator,
@@ -43,11 +43,17 @@ impl TableOperator for LifetimeTableOperator {
 
             let schema = operator.get_output_schema(schema)?;
 
+            let reference = match self
+                .expression
+                .evaluate(source_record.get_record(), &schema)
+                .map_err(|err| TableOperatorError::InternalError(Box::new(err)))?
+            {
+                Field::Timestamp(timestamp) => timestamp,
+                other => return Err(TableOperatorError::InvalidTtlInputType(other)),
+            };
+
             let lifetime = Some(Lifetime {
-                reference: self
-                    .expression
-                    .evaluate(source_record.get_record(), &schema)
-                    .map_err(|err| TableOperatorError::InternalError(Box::new(err)))?,
+                reference,
                 duration: self.duration,
             });
             for operator_record in operator_records {
@@ -56,11 +62,17 @@ impl TableOperator for LifetimeTableOperator {
                 ttl_records.push(ProcessorRecordRef::new(cloned_record));
             }
         } else {
+            let reference = match self
+                .expression
+                .evaluate(source_record.get_record(), schema)
+                .map_err(|err| TableOperatorError::InternalError(Box::new(err)))?
+            {
+                Field::Timestamp(timestamp) => timestamp,
+                other => return Err(TableOperatorError::InvalidTtlInputType(other)),
+            };
+
             let lifetime = Some(Lifetime {
-                reference: self
-                    .expression
-                    .evaluate(source_record.get_record(), schema)
-                    .map_err(|err| TableOperatorError::InternalError(Box::new(err)))?,
+                reference,
                 duration: self.duration,
             });
 

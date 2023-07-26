@@ -4,10 +4,7 @@ use dozer_core::{
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
-use dozer_types::{
-    errors::internal::BoxedError,
-    types::{DozerDuration, Schema, TimeUnit},
-};
+use dozer_types::{errors::internal::BoxedError, types::Schema};
 use sqlparser::ast::{Expr, FunctionArg, FunctionArgExpr, Value};
 
 use crate::pipeline::{
@@ -166,7 +163,7 @@ fn lifetime_from_descriptor(
 fn get_interval(
     function_name: String,
     interval_arg: &FunctionArg,
-) -> Result<DozerDuration, TableOperatorError> {
+) -> Result<Duration, TableOperatorError> {
     match interval_arg {
         FunctionArg::Named { name, arg: _ } => {
             let column_name = ExpressionBuilder::normalize_ident(name);
@@ -178,7 +175,7 @@ fn get_interval(
         FunctionArg::Unnamed(arg_expr) => match arg_expr {
             FunctionArgExpr::Expr(expr) => match expr {
                 Expr::Value(Value::SingleQuotedString(s) | Value::DoubleQuotedString(s)) => {
-                    let interval: DozerDuration =
+                    let interval =
                         parse_duration_string(function_name.to_owned(), s).map_err(|_| {
                             TableOperatorError::InvalidInterval(s.to_owned(), function_name)
                         })?;
@@ -238,7 +235,7 @@ fn get_expression(
 fn parse_duration_string(
     function_name: String,
     duration_string: &str,
-) -> Result<DozerDuration, TableOperatorError> {
+) -> Result<Duration, TableOperatorError> {
     let duration_string = duration_string
         .split_whitespace()
         .collect::<Vec<_>>()
@@ -259,26 +256,11 @@ fn parse_duration_string(
     let duration_unit = duration_tokens[1].to_uppercase();
 
     match duration_unit.as_str() {
-        "MILLISECOND" | "MILLISECONDS" => Ok(DozerDuration(
-            Duration::from_millis(duration_value),
-            TimeUnit::Milliseconds,
-        )),
-        "SECOND" | "SECONDS" => Ok(DozerDuration(
-            Duration::from_secs(duration_value),
-            TimeUnit::Seconds,
-        )),
-        "MINUTE" | "MINUTES" => Ok(DozerDuration(
-            Duration::from_secs(duration_value * 60),
-            TimeUnit::Seconds,
-        )),
-        "HOUR" | "HOURS" => Ok(DozerDuration(
-            Duration::from_secs(duration_value * 60 * 60),
-            TimeUnit::Seconds,
-        )),
-        "DAY" | "DAYS" => Ok(DozerDuration(
-            Duration::from_secs(duration_value * 60 * 60 * 24),
-            TimeUnit::Seconds,
-        )),
+        "MILLISECOND" | "MILLISECONDS" => Ok(Duration::from_millis(duration_value)),
+        "SECOND" | "SECONDS" => Ok(Duration::from_secs(duration_value)),
+        "MINUTE" | "MINUTES" => Ok(Duration::from_secs(duration_value * 60)),
+        "HOUR" | "HOURS" => Ok(Duration::from_secs(duration_value * 60 * 60)),
+        "DAY" | "DAYS" => Ok(Duration::from_secs(duration_value * 60 * 60 * 24)),
         _ => Err(TableOperatorError::InvalidInterval(
             duration_string,
             function_name,
