@@ -94,11 +94,8 @@ async fn get_object_schema(
 
     let ctx = SessionContext::new();
 
-    ctx.runtime_env().register_object_store(
-        params.scheme,
-        params.host,
-        Arc::new(params.object_store),
-    );
+    ctx.runtime_env()
+        .register_object_store(&params.url, Arc::new(params.object_store));
 
     let resolved_schema = listing_options
         .infer_schema(&ctx.state(), &table_path)
@@ -124,11 +121,8 @@ async fn get_delta_schema(
     let ctx = SessionContext::new();
     //let delta_table = deltalake::open_table(table_path).await?;
 
-    ctx.runtime_env().register_object_store(
-        params.scheme,
-        params.host,
-        Arc::new(params.object_store),
-    );
+    ctx.runtime_env()
+        .register_object_store(&params.url, Arc::new(params.object_store));
 
     let delta_table = if params.aws_region.is_none() {
         deltalake::open_table(table_path).await.unwrap()

@@ -79,7 +79,7 @@ impl<T: DozerObjectStore> Watcher<T> for TableReader<T> {
         let ctx = SessionContext::new();
 
         ctx.runtime_env()
-            .register_object_store(params.scheme, params.host, store.clone());
+            .register_object_store(&params.url, store.clone());
 
         let t = table.clone();
 

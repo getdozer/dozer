@@ -141,7 +141,7 @@ async fn test_serialize_arrow_schema() {
             "time",
             arrow_types::DataType::Timestamp(
                 arrow_types::TimeUnit::Millisecond,
-                Some("SGT".to_string()),
+                Some("SGT".into()),
             ),
             false,
         ),
