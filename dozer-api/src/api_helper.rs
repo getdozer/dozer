@@ -54,7 +54,7 @@ fn get_access_filter(access: Option<Access>, endpoint: &str) -> Result<AccessFil
             if let Some(access_filter) = access_filters.remove(endpoint) {
                 Ok(access_filter)
             } else {
-                Err(ApiError::ApiAuthError(AuthError::InvalidToken))
+                Err(ApiError::ApiAuthError(AuthError::Unauthorized))
             }
         }
     }

@@ -126,13 +126,11 @@ impl Orchestrator for SimpleOrchestrator {
                 let security = get_api_security_config(&self.config).cloned();
                 let cache_endpoints_for_rest = cache_endpoints.clone();
                 let shutdown_for_rest = shutdown.create_shutdown_future();
-                tokio::spawn(async move {
-                    let api_server = rest::ApiServer::new(rest_config, security);
-                    api_server
-                        .run(cache_endpoints_for_rest, shutdown_for_rest)
-                        .await
-                        .map_err(OrchestrationError::ApiServerFailed)
-                })
+                let api_server = rest::ApiServer::new(rest_config, security);
+                let api_server = api_server
+                    .run(cache_endpoints_for_rest, shutdown_for_rest)
+                    .map_err(OrchestrationError::ApiInitFailed)?;
+                tokio::spawn(api_server.map_err(OrchestrationError::ApiServeFailed))
             } else {
                 tokio::spawn(async move { Ok::<(), OrchestrationError>(()) })
             };
@@ -147,7 +145,7 @@ impl Orchestrator for SimpleOrchestrator {
                     grpc_server
                         .run(cache_endpoints, shutdown, operations_receiver)
                         .await
-                        .map_err(OrchestrationError::GrpcServerFailed)
+                        .map_err(OrchestrationError::ApiInitFailed)
                 })
             } else {
                 tokio::spawn(async move { Ok::<(), OrchestrationError>(()) })
@@ -212,7 +210,11 @@ impl Orchestrator for SimpleOrchestrator {
             .spawn_blocking(|| run_dag_executor(dag_executor, running));
 
         let mut futures = FuturesUnordered::new();
-        futures.push(internal_server_future.map_err(Into::into).boxed());
+        futures.push(
+            internal_server_future
+                .map_err(OrchestrationError::InternalServerFailed)
+                .boxed(),
+        );
         futures.push(flatten_join_handle(pipeline_future).boxed());
 
         self.runtime.block_on(async move {

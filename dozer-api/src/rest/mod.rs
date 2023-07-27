@@ -1,13 +1,14 @@
 use std::sync::Arc;
 
 // Exports
-use crate::errors::ApiError;
+use crate::errors::ApiInitError;
 use crate::rest::api_generator::health_route;
 use crate::{
     auth::api::{auth_route, validate},
     CacheEndpoint,
 };
 use actix_cors::Cors;
+use actix_web::dev::Server;
 use actix_web::middleware::DefaultHeaders;
 use actix_web::{
     body::MessageBody,
@@ -154,11 +155,11 @@ impl ApiServer {
             .wrap(cors_middleware)
     }
 
-    pub async fn run(
+    pub fn run(
         self,
         cache_endpoints: Vec<Arc<CacheEndpoint>>,
         shutdown: impl Future<Output = ()> + Send + 'static,
-    ) -> Result<(), ApiError> {
+    ) -> Result<Server, ApiInitError> {
         info!(
             "Starting Rest Api Server on http://{}:{} with security: {}",
             self.host,
@@ -176,7 +177,7 @@ impl ApiServer {
             ApiServer::create_app_entry(security.clone(), cors.clone(), cache_endpoints.clone())
         })
         .bind(&address)
-        .map_err(|e| ApiError::FailedToBindToAddress(address, e))?
+        .map_err(|e| ApiInitError::FailedToBindToAddress(address, e))?
         .disable_signals()
         .shutdown_timeout(self.shutdown_timeout)
         .run();
@@ -187,9 +188,7 @@ impl ApiServer {
             server_handle.stop(true).await;
         });
 
-        server
-            .await
-            .map_err(|e| ApiError::InternalError(Box::new(e)))
+        Ok(server)
     }
 }
 

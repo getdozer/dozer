@@ -1,4 +1,4 @@
-use crate::errors::types::DeserializationError;
+use crate::errors::types::{CannotConvertF64ToJson, DeserializationError};
 use crate::types::{DozerDuration, Field, DATE_FORMAT};
 use chrono::SecondsFormat;
 use ordered_float::OrderedFloat;
@@ -6,7 +6,7 @@ use prost_types::value::Kind;
 use prost_types::{ListValue, Struct, Value as ProstValue};
 use rust_decimal::prelude::FromPrimitive;
 use serde::{Deserialize, Serialize};
-use serde_json::{json as serde_json, Map, Value};
+use serde_json::{Map, Number, Value};
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
@@ -262,7 +262,7 @@ fn convert_duration_to_object(d: &DozerDuration) -> Value {
 }
 
 /// Should be consistent with `convert_cache_type_to_schema_type`.
-pub fn field_to_json_value(field: Field) -> Result<Value, DeserializationError> {
+pub fn field_to_json_value(field: Field) -> Result<Value, CannotConvertF64ToJson> {
     match field {
         Field::UInt(n) => Ok(Value::from(n)),
         Field::U128(n) => Ok(Value::String(n.to_string())),
@@ -285,17 +285,14 @@ pub fn field_to_json_value(field: Field) -> Result<Value, DeserializationError> 
     }
 }
 
-pub fn json_value_to_serde_json(value: JsonValue) -> Result<Value, DeserializationError> {
+pub fn json_value_to_serde_json(value: JsonValue) -> Result<Value, CannotConvertF64ToJson> {
     match value {
         JsonValue::Null => Ok(Value::Null),
         JsonValue::Bool(b) => Ok(Value::Bool(b)),
-        JsonValue::Number(n) => {
-            if n.0.is_finite() {
-                Ok(serde_json!(n.0))
-            } else {
-                Err(DeserializationError::F64TypeConversionError)
-            }
-        }
+        JsonValue::Number(n) => match Number::from_f64(n.0) {
+            Some(number) => Ok(Value::Number(number)),
+            None => Err(CannotConvertF64ToJson(n.0)),
+        },
         JsonValue::String(s) => Ok(Value::String(s)),
         JsonValue::Array(a) => {
             let mut lst: Vec<Value> = vec![];
@@ -367,7 +364,7 @@ pub fn serde_json_to_json_value(value: Value) -> Result<JsonValue, Deserializati
         Value::Bool(b) => Ok(JsonValue::Bool(b)),
         Value::Number(n) => Ok(JsonValue::Number(OrderedFloat(match n.as_f64() {
             Some(f) => f,
-            None => return Err(DeserializationError::F64TypeConversionError),
+            None => return Err(DeserializationError::F64TypeConversionError(n)),
         }))),
         Value::String(s) => Ok(JsonValue::String(s)),
         Value::Array(a) => {
