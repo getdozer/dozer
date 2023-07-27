@@ -40,6 +40,7 @@ impl From<Record> for ProcessorRecord {
         for field in record.values {
             ref_record.extend_direct_field(field);
         }
+        ref_record.set_lifetime(record.lifetime);
         ref_record
     }
 }
@@ -164,6 +165,10 @@ impl ProcessorRecord {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
+    use dozer_types::types::Timestamp;
+
     use super::*;
 
     #[test]
@@ -240,5 +245,22 @@ mod tests {
         assert_eq!(record.get_field_by_index(3), &Field::Int(2));
         assert_eq!(record.get_field_by_index(4), &Field::Int(4));
         assert_eq!(record.get_field_by_index(5), &Field::Int(6));
+    }
+
+    #[test]
+    fn test_record_roundtrip() {
+        let mut record = Record::new(vec![
+            Field::Int(1),
+            Field::Int(2),
+            Field::Int(3),
+            Field::Int(4),
+        ]);
+        record.lifetime = Some(Lifetime {
+            reference: Timestamp::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap(),
+            duration: Duration::from_secs(10),
+        });
+
+        let processor_record = ProcessorRecord::from(record.clone());
+        assert_eq!(processor_record.clone_deref(), record);
     }
 }
