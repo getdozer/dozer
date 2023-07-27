@@ -5,14 +5,12 @@ pub mod shutdown;
 pub mod simple;
 mod ui_helper;
 use dozer_core::{app::AppPipeline, errors::ExecutionError};
-use dozer_ingestion::connectors::SourceSchema;
 use dozer_sql::pipeline::{builder::statement_to_pipeline, errors::PipelineError};
-use dozer_types::{crossbeam::channel::Sender, log::debug};
+use dozer_types::log::debug;
 use errors::OrchestrationError;
-use shutdown::{ShutdownReceiver, ShutdownSender};
+use shutdown::ShutdownSender;
 use std::{
     backtrace::{Backtrace, BacktraceStatus},
-    collections::HashMap,
     panic, process,
     thread::current,
 };
@@ -28,28 +26,6 @@ mod progress_printer;
 #[cfg(test)]
 mod tests;
 mod utils;
-
-pub trait Orchestrator {
-    fn build(&mut self, force: bool) -> Result<(), OrchestrationError>;
-    fn clean(&mut self) -> Result<(), OrchestrationError>;
-    fn run_all(
-        &mut self,
-        shutdown: ShutdownReceiver,
-        err_threshold: Option<u32>,
-    ) -> Result<(), OrchestrationError>;
-    fn run_api(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError>;
-    fn run_apps(
-        &mut self,
-        shutdown: ShutdownReceiver,
-        api_notifier: Option<Sender<bool>>,
-        err_threshold: Option<u32>,
-    ) -> Result<(), OrchestrationError>;
-    #[allow(clippy::type_complexity)]
-    fn list_connectors(
-        &self,
-    ) -> Result<HashMap<String, (Vec<TableInfo>, Vec<SourceSchema>)>, OrchestrationError>;
-    fn generate_token(&self) -> Result<String, OrchestrationError>;
-}
 
 #[cfg(feature = "cloud")]
 pub trait CloudOrchestrator {

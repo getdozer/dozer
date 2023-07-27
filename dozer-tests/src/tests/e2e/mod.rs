@@ -4,7 +4,6 @@ use dozer_api::tonic::transport::Channel;
 use dozer_cli::{
     shutdown::{self, ShutdownSender},
     simple::SimpleOrchestrator,
-    Orchestrator,
 };
 use dozer_types::{
     grpc_types::{
