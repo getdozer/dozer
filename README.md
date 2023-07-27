@@ -153,6 +153,7 @@ Check out Dozer's [samples repository](https://github.com/getdozer/dozer-samples
 | Client Libraries | [Dozer React Starter](https://github.com/getdozer/dozer-samples/tree/main/usecases/react)                                                                                          | Instantly start building real time views using Dozer and React               |
 |                  | [Ingest Polars/Pandas Dataframes](https://github.com/getdozer/dozer-samples/tree/main/client-samples/ingest-python-sample) | Instantly ingest Polars/Pandas dataframes using Arrow format and deploy APIs |
 | Authorization    | [Dozer Authorziation](https://github.com/getdozer/dozer-samples/tree/main/usecases/api-auth)                                                                                          | How to apply JWT Auth on Dozer                                               |
+| Scaling Data   | [Scaling E-Commerce Data](https://github.com/getdozer/dozer-samples/tree/main/usecases/scaling-ecommerce)                                                                                          | The usecase of Dozer in scaling E-commerce data                                             |
 
 ## Connectors
 
