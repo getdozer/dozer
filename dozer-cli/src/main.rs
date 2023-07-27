@@ -8,7 +8,7 @@ use dozer_cli::errors::{CliError, CloudError, OrchestrationError};
 use dozer_cli::simple::SimpleOrchestrator;
 #[cfg(feature = "cloud")]
 use dozer_cli::CloudOrchestrator;
-use dozer_cli::{set_ctrl_handler, set_panic_hook, shutdown, Orchestrator};
+use dozer_cli::{set_ctrl_handler, set_panic_hook, shutdown};
 use dozer_types::models::telemetry::TelemetryConfig;
 use dozer_types::tracing::{error, info};
 use serde::Deserialize;

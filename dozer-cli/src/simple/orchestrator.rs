@@ -9,7 +9,7 @@ use crate::utils::{
     get_grpc_config, get_log_options, get_rest_config,
 };
 
-use crate::{flatten_join_handle, join_handle_map_err, Orchestrator};
+use crate::{flatten_join_handle, join_handle_map_err};
 use dozer_api::auth::{Access, Authorizer};
 use dozer_api::grpc::internal::internal_pipeline_server::start_internal_pipeline_server;
 use dozer_api::{grpc, rest, CacheEndpoint};
@@ -65,10 +65,8 @@ impl SimpleOrchestrator {
             multi_pb: MultiProgress::with_draw_target(progress_draw_target),
         }
     }
-}
 
-impl Orchestrator for SimpleOrchestrator {
-    fn run_api(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError> {
+    pub fn run_api(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError> {
         describe_histogram!(
             dozer_api::API_LATENCY_HISTOGRAM_NAME,
             "The api processing latency in seconds"
@@ -166,7 +164,7 @@ impl Orchestrator for SimpleOrchestrator {
         Ok(())
     }
 
-    fn run_apps(
+    pub fn run_apps(
         &mut self,
         shutdown: ShutdownReceiver,
         api_notifier: Option<Sender<bool>>,
@@ -223,7 +221,8 @@ impl Orchestrator for SimpleOrchestrator {
         })
     }
 
-    fn list_connectors(
+    #[allow(clippy::type_complexity)]
+    pub fn list_connectors(
         &self,
     ) -> Result<HashMap<String, (Vec<TableInfo>, Vec<SourceSchema>)>, OrchestrationError> {
         self.runtime.block_on(async {
@@ -238,7 +237,7 @@ impl Orchestrator for SimpleOrchestrator {
         })
     }
 
-    fn generate_token(&self) -> Result<String, OrchestrationError> {
+    pub fn generate_token(&self) -> Result<String, OrchestrationError> {
         if let Some(api_config) = &self.config.api {
             if let Some(api_security) = &api_config.api_security {
                 match api_security {
@@ -255,7 +254,7 @@ impl Orchestrator for SimpleOrchestrator {
         Err(OrchestrationError::MissingSecurityConfig)
     }
 
-    fn build(&mut self, force: bool) -> Result<(), OrchestrationError> {
+    pub fn build(&mut self, force: bool) -> Result<(), OrchestrationError> {
         let home_dir = HomeDir::new(self.config.home_dir.as_ref(), self.config.cache_dir.clone());
 
         info!(
@@ -337,7 +336,7 @@ impl Orchestrator for SimpleOrchestrator {
 
     // Cleaning the entire folder as there will be inconsistencies
     // between pipeline, cache and generated proto files.
-    fn clean(&mut self) -> Result<(), OrchestrationError> {
+    pub fn clean(&mut self) -> Result<(), OrchestrationError> {
         let cache_dir = PathBuf::from(self.config.cache_dir.clone());
         if cache_dir.exists() {
             fs::remove_dir_all(&cache_dir)
@@ -353,7 +352,7 @@ impl Orchestrator for SimpleOrchestrator {
         Ok(())
     }
 
-    fn run_all(
+    pub fn run_all(
         &mut self,
         shutdown: ShutdownReceiver,
         err_threshold: Option<u32>,
