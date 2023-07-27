@@ -8,7 +8,7 @@ use super::{
 };
 use crate::{
     auth::{Access, Authorizer},
-    errors::{GenerationError, GrpcError},
+    errors::ApiInitError,
     generator::protoc::generator::{
         CountResponseDesc, EventDesc, ProtoGenerator, QueryResponseDesc, ServiceDesc,
         TokenResponseDesc,
@@ -61,7 +61,7 @@ impl TypedService {
         cache_endpoints: Vec<Arc<CacheEndpoint>>,
         event_notifier: Option<tokio::sync::broadcast::Receiver<Operation>>,
         security: Option<ApiSecurity>,
-    ) -> Result<Self, GrpcError> {
+    ) -> Result<Self, ApiInitError> {
         let endpoint_map = cache_endpoints
             .into_iter()
             .map(|cache_endpoint| {
@@ -69,7 +69,7 @@ impl TypedService {
                     cache_endpoint.descriptor(),
                     &cache_endpoint.endpoint.name,
                 )?;
-                Ok::<_, GenerationError>((
+                Ok::<_, ApiInitError>((
                     service_desc.service.full_name().to_string(),
                     TypedEndpoint {
                         cache_endpoint,

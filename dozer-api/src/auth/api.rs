@@ -26,7 +26,7 @@ pub fn auth_grpc(
         // Master Key or Uninitialized
         Access::All => {
             let tenant_access = dozer_types::serde_json::from_str(tenant_access.as_str())
-                .map_err(ApiError::map_deserialization_error)?;
+                .map_err(ApiError::InvalidAccessFilter)?;
 
             let api_security = api_security
                 .ok_or_else(|| Status::permission_denied("Cannot access this method."))?;

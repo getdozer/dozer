@@ -7,7 +7,7 @@ use tonic::Code::NotFound;
 
 use crate::errors::CloudError::{ApplicationNotFound, CloudServiceError};
 use dozer_api::{
-    errors::{ApiError, AuthError, GenerationError, GrpcError},
+    errors::{ApiInitError, AuthError, GenerationError, GrpcError},
     rest::DOZER_SERVER_NAME_HEADER,
 };
 use dozer_cache::dozer_log::{errors::SchemaError, storage};
@@ -52,11 +52,11 @@ pub enum OrchestrationError {
     #[error("Cloud service error: {0}")]
     CloudError(#[from] CloudError),
     #[error("Failed to initialize api server: {0}")]
-    ApiServerFailed(#[from] ApiError),
-    #[error("Failed to initialize grpc server: {0}")]
-    GrpcServerFailed(#[from] GrpcError),
+    ApiInitFailed(#[from] ApiInitError),
+    #[error("Failed to server API: {0}")]
+    ApiServeFailed(#[source] std::io::Error),
     #[error("Failed to initialize internal server: {0}")]
-    InternalServerFailed(#[source] tonic::transport::Error),
+    InternalServerFailed(#[source] GrpcError),
     #[error("{0}: Failed to initialize cache. Have you run `dozer build`?")]
     CacheInitFailed(#[source] CacheError),
     #[error("Failed to build cache {0} from log: {1}")]
