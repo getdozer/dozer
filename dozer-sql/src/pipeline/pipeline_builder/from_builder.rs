@@ -1,8 +1,7 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 use dozer_core::{
     app::{AppPipeline, PipelineEntryPoint},
-    appsource::AppSourceId,
     node::PortHandle,
     DEFAULT_PORT_HANDLE,
 };
@@ -87,10 +86,7 @@ fn insert_table_processor_to_pipeline(
         &mut query_context.pipeline_map,
         pipeline_idx,
     ) {
-        let entry_point = PipelineEntryPoint::new(
-            AppSourceId::new(product_input_name.clone(), None),
-            DEFAULT_PORT_HANDLE,
-        );
+        let entry_point = PipelineEntryPoint::new(product_input_name.clone(), DEFAULT_PORT_HANDLE);
 
         product_entry_points.push(entry_point);
         query_context.used_sources.push(product_input_name);
@@ -105,7 +101,7 @@ fn insert_table_processor_to_pipeline(
     }
 
     pipeline.add_processor(
-        Arc::new(product_processor_factory),
+        Box::new(product_processor_factory),
         &product_processor_name,
         product_entry_points,
     );
@@ -130,7 +126,7 @@ fn insert_table_operator_processor_to_pipeline(
     let product_processor =
         TableProcessorFactory::new(product_processor_name.clone(), relation.clone());
 
-    pipeline.add_processor(Arc::new(product_processor), &product_processor_name, vec![]);
+    pipeline.add_processor(Box::new(product_processor), &product_processor_name, vec![]);
 
     if operator.name.to_uppercase() == "TTL" {
         let processor_name = format!(
@@ -148,10 +144,8 @@ fn insert_table_operator_processor_to_pipeline(
         let mut entry_points = vec![];
 
         if is_an_entry_point(&source_name, &mut query_context.pipeline_map, pipeline_idx) {
-            let entry_point = PipelineEntryPoint::new(
-                AppSourceId::new(source_name.clone(), None),
-                DEFAULT_PORT_HANDLE as PortHandle,
-            );
+            let entry_point =
+                PipelineEntryPoint::new(source_name.clone(), DEFAULT_PORT_HANDLE as PortHandle);
 
             entry_points.push(entry_point);
             query_context.used_sources.push(source_name);
@@ -163,14 +157,13 @@ fn insert_table_operator_processor_to_pipeline(
             ));
         }
 
-        pipeline.add_processor(Arc::new(processor), &processor_name, entry_points);
+        pipeline.add_processor(Box::new(processor), &processor_name, entry_points);
 
         pipeline.connect_nodes(
             &processor_name,
-            Some(DEFAULT_PORT_HANDLE),
+            DEFAULT_PORT_HANDLE,
             &product_processor_name,
-            Some(DEFAULT_PORT_HANDLE),
-            true,
+            DEFAULT_PORT_HANDLE,
         );
 
         Ok(ConnectionInfo {
@@ -191,7 +184,7 @@ fn insert_table_operator_processor_to_pipeline(
             pipeline_idx,
         ) {
             let entry_point = PipelineEntryPoint::new(
-                AppSourceId::new(window_source_name.clone(), None),
+                window_source_name.clone(),
                 DEFAULT_PORT_HANDLE as PortHandle,
             );
 
@@ -206,17 +199,16 @@ fn insert_table_operator_processor_to_pipeline(
         }
 
         pipeline.add_processor(
-            Arc::new(window_processor),
+            Box::new(window_processor),
             &window_processor_name,
             window_entry_points,
         );
 
         pipeline.connect_nodes(
             &window_processor_name,
-            Some(DEFAULT_PORT_HANDLE),
+            DEFAULT_PORT_HANDLE,
             &product_processor_name,
-            Some(DEFAULT_PORT_HANDLE),
-            true,
+            DEFAULT_PORT_HANDLE,
         );
 
         Ok(ConnectionInfo {

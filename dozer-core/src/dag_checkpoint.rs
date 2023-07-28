@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use daggy::petgraph::visit::IntoNodeIdentifiers;
 use dozer_types::node::{NodeHandle, OpIdentifier};
 
@@ -23,8 +21,8 @@ pub struct NodeType<T> {
 /// Node kind, source, processor or sink. Source has a checkpoint to start from.
 pub enum NodeKind<T> {
     Source((Box<dyn Source>, Option<OpIdentifier>)),
-    Processor(Arc<dyn ProcessorFactory<T>>),
-    Sink(Arc<dyn SinkFactory<T>>),
+    Processor(Box<dyn ProcessorFactory<T>>),
+    Sink(Box<dyn SinkFactory<T>>),
 }
 
 /// Checkpoint DAG determines the checkpoint to start the pipeline from.

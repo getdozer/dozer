@@ -1,5 +1,5 @@
 use dozer_core::app::{App, AppPipeline};
-use dozer_core::appsource::{AppSource, AppSourceManager};
+use dozer_core::appsource::{AppSourceManager, AppSourceMappings};
 use dozer_core::channels::SourceChannelForwarder;
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::node::{
@@ -432,32 +432,33 @@ fn test_pipeline_builder() {
     let latch = Arc::new(AtomicBool::new(true));
 
     let mut asm = AppSourceManager::new();
-    asm.add(AppSource::new(
-        "conn".to_string(),
-        Arc::new(TestSourceFactory::new(latch.clone())),
-        vec![
-            ("user".to_string(), USER_PORT),
-            ("department".to_string(), DEPARTMENT_PORT),
-            ("country".to_string(), COUNTRY_PORT),
-        ]
-        .into_iter()
-        .collect(),
-    ))
+    asm.add(
+        Box::new(TestSourceFactory::new(latch.clone())),
+        AppSourceMappings::new(
+            "conn".to_string(),
+            vec![
+                ("user".to_string(), USER_PORT),
+                ("department".to_string(), DEPARTMENT_PORT),
+                ("country".to_string(), COUNTRY_PORT),
+            ]
+            .into_iter()
+            .collect(),
+        ),
+    )
     .unwrap();
 
-    pipeline.add_sink(Arc::new(TestSinkFactory::new(8, latch)), "sink");
+    pipeline.add_sink(Box::new(TestSinkFactory::new(8, latch)), "sink", None);
     pipeline.connect_nodes(
         &table_info.node,
-        Some(table_info.port),
+        table_info.port,
         "sink",
-        Some(DEFAULT_PORT_HANDLE),
-        true,
+        DEFAULT_PORT_HANDLE,
     );
 
     let mut app = App::new(asm);
     app.add_pipeline(pipeline);
 
-    let dag = app.get_dag().unwrap();
+    let dag = app.into_dag().unwrap();
 
     let now = std::time::Instant::now();
 

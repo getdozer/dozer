@@ -80,12 +80,12 @@ fn test_create_src_err() {
 
     dag.add_source(
         source_handle.clone(),
-        Arc::new(CreateErrSourceFactory::new(false)),
+        Box::new(CreateErrSourceFactory::new(false)),
     );
-    dag.add_processor(proc_handle.clone(), Arc::new(NoopProcessorFactory {}));
+    dag.add_processor(proc_handle.clone(), Box::new(NoopProcessorFactory {}));
     dag.add_sink(
         sink_handle.clone(),
-        Arc::new(CountingSinkFactory::new(count, latch)),
+        Box::new(CountingSinkFactory::new(count, latch)),
     );
 
     dag.connect(
@@ -122,12 +122,12 @@ fn test_create_src_panic() {
 
     dag.add_source(
         source_handle.clone(),
-        Arc::new(CreateErrSourceFactory::new(true)),
+        Box::new(CreateErrSourceFactory::new(true)),
     );
-    dag.add_processor(proc_handle.clone(), Arc::new(NoopProcessorFactory {}));
+    dag.add_processor(proc_handle.clone(), Box::new(NoopProcessorFactory {}));
     dag.add_sink(
         sink_handle.clone(),
-        Arc::new(CountingSinkFactory::new(count, latch)),
+        Box::new(CountingSinkFactory::new(count, latch)),
     );
 
     dag.connect(
@@ -229,15 +229,15 @@ fn test_create_proc_err() {
 
     dag.add_source(
         source_handle.clone(),
-        Arc::new(GeneratorSourceFactory::new(count, latch.clone(), false)),
+        Box::new(GeneratorSourceFactory::new(count, latch.clone(), false)),
     );
     dag.add_processor(
         proc_handle.clone(),
-        Arc::new(CreateErrProcessorFactory::new(false)),
+        Box::new(CreateErrProcessorFactory::new(false)),
     );
     dag.add_sink(
         sink_handle.clone(),
-        Arc::new(CountingSinkFactory::new(count, latch)),
+        Box::new(CountingSinkFactory::new(count, latch)),
     );
 
     dag.connect(
@@ -274,15 +274,15 @@ fn test_create_proc_panic() {
 
     dag.add_source(
         source_handle.clone(),
-        Arc::new(GeneratorSourceFactory::new(count, latch.clone(), false)),
+        Box::new(GeneratorSourceFactory::new(count, latch.clone(), false)),
     );
     dag.add_processor(
         proc_handle.clone(),
-        Arc::new(CreateErrProcessorFactory::new(true)),
+        Box::new(CreateErrProcessorFactory::new(true)),
     );
     dag.add_sink(
         sink_handle.clone(),
-        Arc::new(CountingSinkFactory::new(count, latch)),
+        Box::new(CountingSinkFactory::new(count, latch)),
     );
 
     dag.connect(

@@ -1,6 +1,6 @@
 use crate::pipeline::connector_source::ConnectorSourceFactory;
 use crate::OrchestrationError;
-use dozer_core::appsource::{AppSource, AppSourceManager};
+use dozer_core::appsource::{AppSourceManager, AppSourceMappings};
 use dozer_ingestion::connectors::TableInfo;
 use dozer_sql::pipeline::builder::SchemaSQLContext;
 
@@ -75,11 +75,10 @@ impl<'a> SourceBuilder<'a> {
                 self.progress.cloned(),
             ))?;
 
-            asm.add(AppSource::new(
-                connection.name.to_string(),
-                Arc::new(source_factory),
-                ports,
-            ))?;
+            asm.add(
+                Box::new(source_factory),
+                AppSourceMappings::new(connection.name.to_string(), ports),
+            )?;
         }
 
         Ok(asm)

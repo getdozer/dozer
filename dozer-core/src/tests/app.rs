@@ -1,5 +1,5 @@
 use crate::app::{App, AppPipeline, PipelineEntryPoint};
-use crate::appsource::{AppSource, AppSourceId, AppSourceManager};
+use crate::appsource::{AppSourceManager, AppSourceMappings};
 use crate::executor::{DagExecutor, ExecutorOptions};
 use crate::node::{OutputPortDef, PortHandle, Source, SourceFactory};
 use crate::tests::dag_base_run::{
@@ -45,149 +45,85 @@ impl SourceFactory<NoneContext> for NoneSourceFactory {
 #[test]
 fn test_apps_source_manager_connection_exists() {
     let mut asm = AppSourceManager::new();
-    let app_src = AppSource::new(
-        "conn1".to_string(),
-        Arc::new(NoneSourceFactory {}),
-        vec![("table1".to_string(), 1_u16)].into_iter().collect(),
+    let _r = asm.add(
+        Box::new(NoneSourceFactory {}),
+        AppSourceMappings::new(
+            "conn1".to_string(),
+            vec![("table1".to_string(), 1_u16)].into_iter().collect(),
+        ),
     );
-    let _r = asm.add(app_src);
-    let app_src = AppSource::new(
-        "conn1".to_string(),
-        Arc::new(NoneSourceFactory {}),
-        vec![("table2".to_string(), 1_u16)].into_iter().collect(),
+    let r = asm.add(
+        Box::new(NoneSourceFactory {}),
+        AppSourceMappings::new(
+            "conn1".to_string(),
+            vec![("table2".to_string(), 1_u16)].into_iter().collect(),
+        ),
     );
-    let r = asm.add(app_src);
     assert!(r.is_err());
 }
 
 #[test]
 fn test_apps_source_manager_lookup() {
     let mut asm = AppSourceManager::new();
-    let app_src = AppSource::new(
-        "conn1".to_string(),
-        Arc::new(NoneSourceFactory {}),
-        vec![("table1".to_string(), 1_u16)].into_iter().collect(),
-    );
-    asm.add(app_src).unwrap();
+    asm.add(
+        Box::new(NoneSourceFactory {}),
+        AppSourceMappings::new(
+            "conn1".to_string(),
+            vec![("table1".to_string(), 1_u16)].into_iter().collect(),
+        ),
+    )
+    .unwrap();
 
-    let r = asm
-        .get(vec![AppSourceId::new("table1".to_string(), None)])
-        .unwrap();
-    assert_eq!(r[0].source.connection, "conn1");
-    assert_eq!(
-        r[0].mappings
-            .get(&AppSourceId::new("table1".to_string(), None))
-            .unwrap(),
-        &1_u16
-    );
+    let r = asm.get_endpoint("table1").unwrap();
+    assert_eq!(r.node.id, "conn1");
+    assert_eq!(r.port, 1_u16);
 
-    let r = asm.get(vec![AppSourceId::new(
-        "table1".to_string(),
-        Some("No connection".to_string()),
-    )]);
+    let r = asm.get_endpoint("Non-existent source");
     assert!(r.is_err());
 
-    let r = asm
-        .get(vec![AppSourceId::new(
-            "table1".to_string(),
-            Some("conn1".to_string()),
-        )])
-        .unwrap();
-    assert_eq!(r[0].source.connection, "conn1");
-    assert_eq!(
-        r[0].mappings
-            .get(&AppSourceId::new(
-                "table1".to_string(),
-                Some("conn1".to_string())
-            ))
-            .unwrap(),
-        &1_u16
-    );
+    // Insert another source
+    asm.add(
+        Box::new(NoneSourceFactory {}),
+        AppSourceMappings::new(
+            "conn2".to_string(),
+            vec![("table2".to_string(), 2_u16)].into_iter().collect(),
+        ),
+    )
+    .unwrap();
 
-    // Insert same table name
-    let app_src = AppSource::new(
-        "conn2".to_string(),
-        Arc::new(NoneSourceFactory {}),
-        vec![("table1".to_string(), 2_u16)].into_iter().collect(),
-    );
-    asm.add(app_src).unwrap();
-
-    let r = asm.get(vec![AppSourceId::new("table1".to_string(), None)]);
+    let r = asm.get_endpoint("table3");
     assert!(r.is_err());
 
-    let r = asm
-        .get(vec![
-            AppSourceId::new("table1".to_string(), Some("conn1".to_string())),
-            AppSourceId::new("table1".to_string(), Some("conn2".to_string())),
-        ])
-        .unwrap();
+    let r = asm.get_endpoint("table1").unwrap();
+    assert_eq!(r.node.id, "conn1");
+    assert_eq!(r.port, 1_u16);
 
-    let conn1 = r.iter().find(|e| e.source.connection == "conn1");
-    assert!(conn1.is_some());
-    let conn2 = r.iter().find(|e| e.source.connection == "conn2");
-    assert!(conn2.is_some());
-
-    assert_eq!(
-        conn1
-            .unwrap()
-            .mappings
-            .get(&AppSourceId::new(
-                "table1".to_string(),
-                Some("conn1".to_string())
-            ))
-            .unwrap(),
-        &1_u16
-    );
-    assert_eq!(
-        conn2
-            .unwrap()
-            .mappings
-            .get(&AppSourceId::new(
-                "table1".to_string(),
-                Some("conn2".to_string())
-            ))
-            .unwrap(),
-        &2_u16
-    );
+    let r = asm.get_endpoint("table2").unwrap();
+    assert_eq!(r.node.id, "conn2");
+    assert_eq!(r.port, 2_u16);
 }
 
 #[test]
 fn test_apps_source_manager_lookup_multiple_ports() {
     let mut asm = AppSourceManager::new();
-    let app_src = AppSource::new(
-        "conn1".to_string(),
-        Arc::new(NoneSourceFactory {}),
-        vec![("table1".to_string(), 1_u16), ("table2".to_string(), 2_u16)]
-            .into_iter()
-            .collect(),
-    );
-    asm.add(app_src).unwrap();
+    asm.add(
+        Box::new(NoneSourceFactory {}),
+        AppSourceMappings::new(
+            "conn1".to_string(),
+            vec![("table1".to_string(), 1_u16), ("table2".to_string(), 2_u16)]
+                .into_iter()
+                .collect(),
+        ),
+    )
+    .unwrap();
 
-    let _r = asm.get(vec![
-        AppSourceId::new("table1".to_string(), None),
-        AppSourceId::new("table2".to_string(), None),
-    ]);
+    let r = asm.get_endpoint("table1").unwrap();
+    assert_eq!(r.node.id, "conn1");
+    assert_eq!(r.port, 1_u16);
 
-    let r = asm
-        .get(vec![
-            AppSourceId::new("table1".to_string(), None),
-            AppSourceId::new("table2".to_string(), None),
-        ])
-        .unwrap();
-
-    assert_eq!(r[0].source.connection, "conn1");
-    assert_eq!(
-        r[0].mappings
-            .get(&AppSourceId::new("table1".to_string(), None))
-            .unwrap(),
-        &1_u16
-    );
-    assert_eq!(
-        r[0].mappings
-            .get(&AppSourceId::new("table2".to_string(), None))
-            .unwrap(),
-        &2_u16
-    );
+    let r = asm.get_endpoint("table2").unwrap();
+    assert_eq!(r.node.id, "conn1");
+    assert_eq!(r.port, 2_u16);
 }
 
 #[test]
@@ -195,83 +131,90 @@ fn test_app_dag() {
     let latch = Arc::new(AtomicBool::new(true));
 
     let mut asm = AppSourceManager::new();
-    asm.add(AppSource::new(
-        "postgres".to_string(),
-        Arc::new(DualPortGeneratorSourceFactory::new(
+    asm.add(
+        Box::new(DualPortGeneratorSourceFactory::new(
             10_000,
             latch.clone(),
             true,
         )),
-        vec![
-            (
-                "users".to_string(),
-                DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_1,
-            ),
-            (
-                "transactions".to_string(),
-                DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_2,
-            ),
-        ]
-        .into_iter()
-        .collect(),
-    ))
-    .unwrap();
-
-    asm.add(AppSource::new(
-        "snowflake".to_string(),
-        Arc::new(GeneratorSourceFactory::new(10_000, latch.clone(), true)),
-        vec![("users".to_string(), GENERATOR_SOURCE_OUTPUT_PORT)]
+        AppSourceMappings::new(
+            "postgres".to_string(),
+            vec![
+                (
+                    "users_postgres".to_string(),
+                    DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_1,
+                ),
+                (
+                    "transactions".to_string(),
+                    DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_2,
+                ),
+            ]
             .into_iter()
             .collect(),
-    ))
+        ),
+    )
+    .unwrap();
+
+    asm.add(
+        Box::new(GeneratorSourceFactory::new(10_000, latch.clone(), true)),
+        AppSourceMappings::new(
+            "snowflake".to_string(),
+            vec![("users_snowflake".to_string(), GENERATOR_SOURCE_OUTPUT_PORT)]
+                .into_iter()
+                .collect(),
+        ),
+    )
     .unwrap();
 
     let mut app = App::new(asm);
 
     let mut p1 = AppPipeline::new();
     p1.add_processor(
-        Arc::new(NoopJoinProcessorFactory {}),
+        Box::new(NoopJoinProcessorFactory {}),
         "join",
         vec![
-            PipelineEntryPoint::new(
-                AppSourceId::new("users".to_string(), Some("postgres".to_string())),
-                NOOP_JOIN_LEFT_INPUT_PORT,
-            ),
-            PipelineEntryPoint::new(
-                AppSourceId::new("transactions".to_string(), None),
-                NOOP_JOIN_RIGHT_INPUT_PORT,
-            ),
+            PipelineEntryPoint::new("users_postgres".to_string(), NOOP_JOIN_LEFT_INPUT_PORT),
+            PipelineEntryPoint::new("transactions".to_string(), NOOP_JOIN_RIGHT_INPUT_PORT),
         ],
     );
     p1.add_sink(
-        Arc::new(CountingSinkFactory::new(20_000, latch.clone())),
+        Box::new(CountingSinkFactory::new(20_000, latch.clone())),
         "sink",
+        None,
     );
-    p1.connect_nodes("join", None, "sink", Some(COUNTING_SINK_INPUT_PORT), true);
+    p1.connect_nodes(
+        "join",
+        DEFAULT_PORT_HANDLE,
+        "sink",
+        COUNTING_SINK_INPUT_PORT,
+    );
 
     app.add_pipeline(p1);
 
     let mut p2 = AppPipeline::new();
     p2.add_processor(
-        Arc::new(NoopJoinProcessorFactory {}),
+        Box::new(NoopJoinProcessorFactory {}),
         "join",
         vec![
-            PipelineEntryPoint::new(
-                AppSourceId::new("users".to_string(), Some("snowflake".to_string())),
-                NOOP_JOIN_LEFT_INPUT_PORT,
-            ),
-            PipelineEntryPoint::new(
-                AppSourceId::new("transactions".to_string(), None),
-                NOOP_JOIN_RIGHT_INPUT_PORT,
-            ),
+            PipelineEntryPoint::new("users_snowflake".to_string(), NOOP_JOIN_LEFT_INPUT_PORT),
+            PipelineEntryPoint::new("transactions".to_string(), NOOP_JOIN_RIGHT_INPUT_PORT),
         ],
     );
-    p2.add_sink(Arc::new(CountingSinkFactory::new(20_000, latch)), "sink");
-    p2.connect_nodes("join", None, "sink", Some(COUNTING_SINK_INPUT_PORT), true);
+    p2.add_sink(
+        Box::new(CountingSinkFactory::new(20_000, latch)),
+        "sink",
+        None,
+    );
+    p2.connect_nodes(
+        "join",
+        DEFAULT_PORT_HANDLE,
+        "sink",
+        COUNTING_SINK_INPUT_PORT,
+    );
 
     app.add_pipeline(p2);
 
-    let dag = app.get_dag().unwrap();
+    let dag = app.into_dag().unwrap();
     let edges = dag.edge_handles();
 
     assert!(edges.iter().any(|e| *e

@@ -6,7 +6,6 @@ use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::{node::NodeHandle, types::Schema};
 use std::collections::HashMap;
-use std::sync::Arc;
 
 #[derive(Debug)]
 pub struct DynPortsSourceFactory {
@@ -103,8 +102,8 @@ macro_rules! test_ports {
 
             let mut dag = Dag::new();
 
-            dag.add_source(source_handle.clone(), Arc::new(src));
-            dag.add_processor(proc_handle.clone(), Arc::new(proc));
+            dag.add_source(source_handle.clone(), Box::new(src));
+            dag.add_processor(proc_handle.clone(), Box::new(proc));
 
             let res = dag.connect(
                 Endpoint::new(source_handle, $from_port),

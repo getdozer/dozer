@@ -1,55 +1,32 @@
 use dozer_types::node::NodeHandle;
-use std::fmt::{Display, Formatter};
 
-use crate::appsource::{AppSourceId, AppSourceManager};
+use crate::appsource::{self, AppSourceManager};
 use crate::errors::ExecutionError;
 use crate::node::{PortHandle, ProcessorFactory, SinkFactory};
-use crate::{Dag, Edge, Endpoint, DEFAULT_PORT_HANDLE};
+use crate::{Dag, Edge, Endpoint};
 
-use std::sync::Arc;
-
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PipelineEntryPoint {
-    id: AppSourceId,
+    source_name: String,
+    /// Target port.
     port: PortHandle,
 }
 
 impl PipelineEntryPoint {
-    pub fn new(id: AppSourceId, port: PortHandle) -> Self {
-        Self { id, port }
+    pub fn new(source_name: String, port: PortHandle) -> Self {
+        Self { source_name, port }
     }
 
-    pub fn id(&self) -> &AppSourceId {
-        &self.id
-    }
-}
-#[derive(Clone, Debug)]
-pub struct NamespacedEdge {
-    edge: Edge,
-    namespaced: bool,
-}
-
-impl Display for NamespacedEdge {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(
-            format!(
-                "edge: [node: {}, port: {} -> node: {}, port: {}], , namespaced: {}",
-                self.edge.from.node,
-                self.edge.from.port,
-                self.edge.to.node,
-                self.edge.to.port,
-                self.namespaced
-            )
-            .as_str(),
-        )
+    pub fn source_name(&self) -> &str {
+        &self.source_name
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug)]
 pub struct AppPipeline<T> {
-    edges: Vec<NamespacedEdge>,
-    processors: Vec<(NodeHandle, Arc<dyn ProcessorFactory<T>>)>,
-    sinks: Vec<(NodeHandle, Arc<dyn SinkFactory<T>>)>,
+    edges: Vec<Edge>,
+    processors: Vec<(NodeHandle, Box<dyn ProcessorFactory<T>>)>,
+    sinks: Vec<(NodeHandle, Box<dyn SinkFactory<T>>)>,
     entry_points: Vec<(NodeHandle, PipelineEntryPoint)>,
 }
 
@@ -62,50 +39,44 @@ impl<T> Default for AppPipeline<T> {
 impl<T> AppPipeline<T> {
     pub fn add_processor(
         &mut self,
-        proc: Arc<dyn ProcessorFactory<T>>,
+        proc: Box<dyn ProcessorFactory<T>>,
         id: &str,
         entry_point: Vec<PipelineEntryPoint>,
     ) {
         let handle = NodeHandle::new(None, id.to_string());
-        self.processors.push((handle.clone(), proc.clone()));
+        self.processors.push((handle.clone(), proc));
 
         for p in entry_point {
             self.entry_points.push((handle.clone(), p));
         }
     }
 
-    pub fn add_sink(&mut self, sink: Arc<dyn SinkFactory<T>>, id: &str) {
+    pub fn add_sink(
+        &mut self,
+        sink: Box<dyn SinkFactory<T>>,
+        id: &str,
+        entry_point: Option<PipelineEntryPoint>,
+    ) {
         let handle = NodeHandle::new(None, id.to_string());
-        self.sinks.push((handle, sink));
+        self.sinks.push((handle.clone(), sink));
+
+        if let Some(entry_point) = entry_point {
+            self.entry_points.push((handle, entry_point));
+        }
     }
 
     pub fn connect_nodes(
         &mut self,
         from: &str,
-        from_port: Option<PortHandle>,
+        from_port: PortHandle,
         to: &str,
-        to_port: Option<PortHandle>,
-        namespaced: bool,
+        to_port: PortHandle,
     ) {
         let edge = Edge::new(
-            Endpoint::new(
-                NodeHandle::new(None, from.to_string()),
-                if let Some(port) = from_port {
-                    port
-                } else {
-                    DEFAULT_PORT_HANDLE
-                },
-            ),
-            Endpoint::new(
-                NodeHandle::new(None, to.to_string()),
-                if let Some(port) = to_port {
-                    port
-                } else {
-                    DEFAULT_PORT_HANDLE
-                },
-            ),
+            Endpoint::new(NodeHandle::new(None, from.to_string()), from_port),
+            Endpoint::new(NodeHandle::new(None, to.to_string()), to_port),
         );
-        self.edges.push(NamespacedEdge { edge, namespaced });
+        self.edges.push(edge);
     }
 
     pub fn new() -> Self {
@@ -120,7 +91,7 @@ impl<T> AppPipeline<T> {
     pub fn get_entry_points_sources_names(&self) -> Vec<String> {
         self.entry_points
             .iter()
-            .map(|(_, p)| p.id().id.clone())
+            .map(|(_, p)| p.source_name().to_string())
             .collect()
     }
 }
@@ -137,72 +108,50 @@ impl<T: Clone> App<T> {
         self.pipelines.push((self.app_counter, pipeline));
     }
 
-    pub fn get_dag(&self) -> Result<Dag<T>, ExecutionError> {
+    pub fn into_dag(self) -> Result<Dag<T>, ExecutionError> {
         let mut dag = Dag::new();
-        let mut entry_points: Vec<(AppSourceId, Endpoint)> = Vec::new();
+        // (source name, target endpoint)
+        let mut entry_points: Vec<(String, Endpoint)> = Vec::new();
 
-        for (connection, source) in self.sources.get_sources() {
-            let node_handle = NodeHandle::new(None, connection.clone());
-            dag.add_source(node_handle.clone(), source.clone());
-        }
-
-        for (pipeline_id, pipeline) in &self.pipelines {
-            for (handle, proc) in &pipeline.processors {
-                dag.add_processor(
-                    NodeHandle::new(Some(*pipeline_id), handle.id.clone()),
-                    proc.clone(),
-                );
+        // Add all processors and sinks while collecting the entry points.
+        for (pipeline_id, pipeline) in self.pipelines {
+            for (handle, proc) in pipeline.processors {
+                dag.add_processor(NodeHandle::new(Some(pipeline_id), handle.id), proc);
             }
-            for (handle, sink) in &pipeline.sinks {
-                dag.add_sink(
-                    NodeHandle::new(Some(*pipeline_id), handle.id.clone()),
-                    sink.clone(),
-                );
+            for (handle, sink) in pipeline.sinks {
+                dag.add_sink(NodeHandle::new(Some(pipeline_id), handle.id), sink);
             }
-            for ne in &pipeline.edges {
-                let edge = &ne.edge;
-                let ns = if ne.namespaced {
-                    Some(*pipeline_id)
-                } else {
-                    None
-                };
-
+            for edge in pipeline.edges {
                 dag.connect(
                     Endpoint::new(
-                        // NodeHandle::new(Some(*pipeline_id), edge.from.node.id.clone()),
-                        NodeHandle::new(ns, edge.from.node.id.clone()),
+                        NodeHandle::new(Some(pipeline_id), edge.from.node.id),
                         edge.from.port,
                     ),
                     Endpoint::new(
-                        NodeHandle::new(Some(*pipeline_id), edge.to.node.id.clone()),
+                        NodeHandle::new(Some(pipeline_id), edge.to.node.id),
                         edge.to.port,
                     ),
                 )?;
             }
 
-            for (handle, entry) in &pipeline.entry_points {
+            for (handle, entry) in pipeline.entry_points {
                 entry_points.push((
-                    entry.id.clone(),
-                    Endpoint::new(
-                        NodeHandle::new(Some(*pipeline_id), handle.id.clone()),
-                        entry.port,
-                    ),
+                    entry.source_name,
+                    Endpoint::new(NodeHandle::new(Some(pipeline_id), handle.id), entry.port),
                 ));
             }
         }
 
-        let mappings = self
-            .sources
-            .get(entry_points.iter().map(|e| e.0.clone()).collect())?;
+        for (source, mapping) in self.sources.sources.into_iter().zip(&self.sources.mappings) {
+            let node_handle = NodeHandle::new(None, mapping.connection.clone());
+            dag.add_source(node_handle, source);
+        }
 
         // Connect to all pipelines
-        for mapping in &mappings {
-            let node_handle = NodeHandle::new(None, mapping.source.connection.clone());
-            for entry in &entry_points {
-                if let Some(e) = mapping.mappings.get(&entry.0) {
-                    dag.connect(Endpoint::new(node_handle.clone(), *e), entry.1.clone())?;
-                }
-            }
+        for (source_name, target_endpoint) in entry_points {
+            let source_endpoint =
+                appsource::get_endpoint_from_mappings(&self.sources.mappings, &source_name)?;
+            dag.connect(source_endpoint, target_endpoint)?;
         }
 
         Ok(dag)

@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 
-use crate::appsource::AppSourceId;
 use crate::node::PortHandle;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
@@ -23,10 +22,10 @@ pub enum ExecutionError {
     CannotReceiveFromChannel,
     #[error("Cannot spawn worker thread: {0}")]
     CannotSpawnWorkerThread(#[source] std::io::Error),
-    #[error("Invalid source identifier {0}")]
-    InvalidSourceIdentifier(AppSourceId),
-    #[error("Ambiguous source identifier {0}")]
-    AmbiguousSourceIdentifier(AppSourceId),
+    #[error("Invalid source name {0}")]
+    InvalidSourceIdentifier(String),
+    #[error("Ambiguous source name {0}")]
+    AmbiguousSourceIdentifier(String),
     #[error("Invalid AppSource connection {0}. Already exists.")]
     AppSourceConnectionAlreadyExists(String),
     #[error("Factory error: {0}")]

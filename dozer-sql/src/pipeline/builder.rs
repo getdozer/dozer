@@ -5,7 +5,6 @@ use crate::pipeline::expression::builder::{ExpressionBuilder, NameOrAlias};
 use crate::pipeline::selection::factory::SelectionProcessorFactory;
 use dozer_core::app::AppPipeline;
 use dozer_core::app::PipelineEntryPoint;
-use dozer_core::appsource::AppSourceId;
 use dozer_core::node::PortHandle;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use sqlparser::ast::{Join, SetOperator, SetQuantifier, TableFactor, TableWithJoins};
@@ -16,7 +15,6 @@ use sqlparser::{
     parser::Parser,
 };
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use super::errors::UnsupportedSqlError;
 use super::pipeline_builder::from_builder::insert_from_to_pipeline;
@@ -266,10 +264,9 @@ fn select_to_pipeline(
         {
             pipeline.connect_nodes(
                 &table_info.node,
-                Some(table_info.port),
+                table_info.port,
                 processor_name,
-                Some(*processor_port as PortHandle),
-                true,
+                *processor_port as PortHandle,
             );
             // If not present in pipeline_map, insert into used_sources as this is coming from source
         } else {
@@ -280,36 +277,33 @@ fn select_to_pipeline(
     let aggregation =
         AggregationProcessorFactory::new(gen_agg_name.clone(), select.clone(), stateful);
 
-    pipeline.add_processor(Arc::new(aggregation), &gen_agg_name, vec![]);
+    pipeline.add_processor(Box::new(aggregation), &gen_agg_name, vec![]);
 
     // Where clause
     if let Some(selection) = select.selection {
         let selection = SelectionProcessorFactory::new(gen_selection_name.to_owned(), selection);
 
-        pipeline.add_processor(Arc::new(selection), &gen_selection_name, vec![]);
+        pipeline.add_processor(Box::new(selection), &gen_selection_name, vec![]);
 
         pipeline.connect_nodes(
             &gen_product_name,
-            Some(product_output_port),
+            product_output_port,
             &gen_selection_name,
-            Some(DEFAULT_PORT_HANDLE),
-            true,
+            DEFAULT_PORT_HANDLE,
         );
 
         pipeline.connect_nodes(
             &gen_selection_name,
-            Some(DEFAULT_PORT_HANDLE),
+            DEFAULT_PORT_HANDLE,
             &gen_agg_name,
-            Some(DEFAULT_PORT_HANDLE),
-            true,
+            DEFAULT_PORT_HANDLE,
         );
     } else {
         pipeline.connect_nodes(
             &gen_product_name,
-            Some(product_output_port),
+            product_output_port,
             &gen_agg_name,
-            Some(DEFAULT_PORT_HANDLE),
-            true,
+            DEFAULT_PORT_HANDLE,
         );
     }
 
@@ -459,22 +453,20 @@ fn set_to_pipeline(
 
     let set_proc_fac = SetProcessorFactory::new(gen_set_name.clone(), set_quantifier);
 
-    pipeline.add_processor(Arc::new(set_proc_fac), &gen_set_name, vec![]);
+    pipeline.add_processor(Box::new(set_proc_fac), &gen_set_name, vec![]);
 
     pipeline.connect_nodes(
         &left_pipeline_output_node.node,
-        Some(left_pipeline_output_node.port),
+        left_pipeline_output_node.port,
         &gen_set_name,
-        Some(0 as PortHandle),
-        true,
+        0 as PortHandle,
     );
 
     pipeline.connect_nodes(
         &right_pipeline_output_node.node,
-        Some(right_pipeline_output_node.port),
+        right_pipeline_output_node.port,
         &gen_set_name,
-        Some(1 as PortHandle),
-        true,
+        1 as PortHandle,
     );
 
     for (_, table_name) in query_ctx.pipeline_map.keys() {
@@ -540,10 +532,7 @@ pub fn get_entry_points(
     for (input_port, table) in input_names.iter().enumerate() {
         let name = table.0.clone();
         if !pipeline_map.contains_key(&(pipeline_idx, name.clone())) {
-            endpoints.push(PipelineEntryPoint::new(
-                AppSourceId::new(name, None),
-                input_port as PortHandle,
-            ));
+            endpoints.push(PipelineEntryPoint::new(name, input_port as PortHandle));
         }
     }
 

@@ -1,6 +1,6 @@
 use ahash::AHasher;
 use dozer_core::app::{App, AppPipeline};
-use dozer_core::appsource::{AppSource, AppSourceManager};
+use dozer_core::appsource::{AppSourceManager, AppSourceMappings};
 use dozer_core::channels::SourceChannelForwarder;
 use dozer_core::errors::ExecutionError;
 use dozer_core::executor_operation::ProcessorOperation;
@@ -290,32 +290,30 @@ impl TestPipeline {
 
         let mut asm = AppSourceManager::new();
 
-        asm.add(AppSource::new(
-            "test_connection".to_string(),
-            Arc::new(TestSourceFactory::new(
+        asm.add(
+            Box::new(TestSourceFactory::new(
                 port_to_schemas,
                 mappings.clone(),
                 receiver,
             )),
-            mappings,
-        ))
+            AppSourceMappings::new("test_connection".to_string(), mappings),
+        )
         .unwrap();
 
         let output = Arc::new(Mutex::new(HashMap::new()));
-        pipeline.add_sink(Arc::new(TestSinkFactory::new(output.clone())), "sink");
+        pipeline.add_sink(Box::new(TestSinkFactory::new(output.clone())), "sink", None);
 
         pipeline.connect_nodes(
             &output_table.node,
-            Some(output_table.port),
+            output_table.port,
             "sink",
-            Some(DEFAULT_PORT_HANDLE),
-            true,
+            DEFAULT_PORT_HANDLE,
         );
         let used_schemas = pipeline.get_entry_points_sources_names();
         let mut app = App::new(asm);
         app.add_pipeline(pipeline);
 
-        let dag = app.get_dag().unwrap();
+        let dag = app.into_dag()?;
 
         // dag.print_dot();
 

@@ -1,5 +1,5 @@
 use dozer_core::app::{App, AppPipeline};
-use dozer_core::appsource::{AppSource, AppSourceManager};
+use dozer_core::appsource::{AppSourceManager, AppSourceMappings};
 use dozer_core::channels::SourceChannelForwarder;
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::executor_operation::ProcessorOperation;
@@ -191,31 +191,33 @@ fn test_pipeline_builder() {
     let table_info = context.output_tables_map.get("results").unwrap();
 
     let mut asm = AppSourceManager::new();
-    asm.add(AppSource::new(
-        "mem".to_string(),
-        Arc::new(TestSourceFactory::new(vec![DEFAULT_PORT_HANDLE])),
-        vec![("users".to_string(), DEFAULT_PORT_HANDLE)]
-            .into_iter()
-            .collect(),
-    ))
+    asm.add(
+        Box::new(TestSourceFactory::new(vec![DEFAULT_PORT_HANDLE])),
+        AppSourceMappings::new(
+            "mem".to_string(),
+            vec![("users".to_string(), DEFAULT_PORT_HANDLE)]
+                .into_iter()
+                .collect(),
+        ),
+    )
     .unwrap();
 
     pipeline.add_sink(
-        Arc::new(TestSinkFactory::new(vec![DEFAULT_PORT_HANDLE])),
+        Box::new(TestSinkFactory::new(vec![DEFAULT_PORT_HANDLE])),
         "sink",
+        None,
     );
     pipeline.connect_nodes(
         &table_info.node,
-        Some(table_info.port),
+        table_info.port,
         "sink",
-        Some(DEFAULT_PORT_HANDLE),
-        true,
+        DEFAULT_PORT_HANDLE,
     );
 
     let mut app = App::new(asm);
     app.add_pipeline(pipeline);
 
-    let dag = app.get_dag().unwrap();
+    let dag = app.into_dag().unwrap();
 
     let now = std::time::Instant::now();
 

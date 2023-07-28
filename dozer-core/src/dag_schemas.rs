@@ -6,6 +6,7 @@ use daggy::petgraph::graph::EdgeReference;
 use daggy::petgraph::visit::{EdgeRef, IntoEdges, IntoEdgesDirected, IntoNodeReferences, Topo};
 use daggy::petgraph::Direction;
 use daggy::{NodeIndex, Walker};
+use dozer_types::log::{error, info};
 use dozer_types::types::Schema;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
@@ -87,7 +88,7 @@ impl EdgeHaveSchema for EdgeType {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 /// `DagSchemas` is a `Dag` with validated schema on the edge.
 pub struct DagSchemas<T> {
     graph: daggy::Dag<NodeType<T>, EdgeType>,
@@ -142,8 +143,17 @@ impl<T: Clone> DagSchemas<T> {
     /// with validated schema information on the edges.
     pub fn new(dag: Dag<T>) -> Result<Self, ExecutionError> {
         validate_connectivity(&dag);
-        let graph = populate_schemas(dag.into_graph())?;
-        Ok(Self { graph })
+
+        match populate_schemas(dag.into_graph()) {
+            Ok(graph) => {
+                info!("[pipeline] Validation completed");
+                Ok(Self { graph })
+            }
+            Err(e) => {
+                error!("[pipeline] Validation error: {}", e);
+                Err(e)
+            }
+        }
     }
 }
 
@@ -355,8 +365,6 @@ fn validate_input_schemas<T: Clone>(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use dozer_types::node::NodeHandle;
 
     use super::*;
@@ -376,7 +384,7 @@ mod tests {
         let mut dag = Dag::new();
         dag.add_source(
             NodeHandle::new(None, "source".to_string()),
-            Arc::new(ConnectivityTestSourceFactory),
+            Box::new(ConnectivityTestSourceFactory),
         );
         validate_connectivity(&dag);
     }
@@ -387,11 +395,11 @@ mod tests {
         let mut dag = Dag::new();
         let source = dag.add_source(
             NodeHandle::new(None, "source".to_string()),
-            Arc::new(ConnectivityTestSourceFactory),
+            Box::new(ConnectivityTestSourceFactory),
         );
         let processor = dag.add_processor(
             NodeHandle::new(None, "processor".to_string()),
-            Arc::new(ConnectivityTestProcessorFactory),
+            Box::new(ConnectivityTestProcessorFactory),
         );
         dag.connect_with_index(source, DEFAULT_PORT_HANDLE, processor, DEFAULT_PORT_HANDLE)
             .unwrap();
@@ -404,7 +412,7 @@ mod tests {
         let mut dag = Dag::new();
         dag.add_sink(
             NodeHandle::new(None, "sink".to_string()),
-            Arc::new(NoInputPortSinkFactory),
+            Box::new(NoInputPortSinkFactory),
         );
         validate_connectivity(&dag);
     }
@@ -415,11 +423,11 @@ mod tests {
         let mut dag = Dag::new();
         let processor = dag.add_processor(
             NodeHandle::new(None, "processor".to_string()),
-            Arc::new(NoInputPortProcessorFactory),
+            Box::new(NoInputPortProcessorFactory),
         );
         let sink = dag.add_sink(
             NodeHandle::new(None, "sink".to_string()),
-            Arc::new(ConnectivityTestSinkFactory),
+            Box::new(ConnectivityTestSinkFactory),
         );
         dag.connect_with_index(processor, DEFAULT_PORT_HANDLE, sink, DEFAULT_PORT_HANDLE)
             .unwrap();
@@ -432,7 +440,7 @@ mod tests {
         let mut dag = Dag::new();
         dag.add_sink(
             NodeHandle::new(None, "sink".to_string()),
-            Arc::new(ConnectivityTestSinkFactory),
+            Box::new(ConnectivityTestSinkFactory),
         );
         validate_connectivity(&dag);
     }
@@ -443,15 +451,15 @@ mod tests {
         let mut dag = Dag::new();
         let source1 = dag.add_source(
             NodeHandle::new(None, "source1".to_string()),
-            Arc::new(ConnectivityTestSourceFactory),
+            Box::new(ConnectivityTestSourceFactory),
         );
         let source2 = dag.add_source(
             NodeHandle::new(None, "source2".to_string()),
-            Arc::new(ConnectivityTestSourceFactory),
+            Box::new(ConnectivityTestSourceFactory),
         );
         let sink = dag.add_sink(
             NodeHandle::new(None, "sink".to_string()),
-            Arc::new(ConnectivityTestSinkFactory),
+            Box::new(ConnectivityTestSinkFactory),
         );
         dag.connect_with_index(source1, DEFAULT_PORT_HANDLE, sink, DEFAULT_PORT_HANDLE)
             .unwrap();
@@ -466,11 +474,11 @@ mod tests {
         let mut dag = Dag::new();
         let processor = dag.add_processor(
             NodeHandle::new(None, "processor".to_string()),
-            Arc::new(ConnectivityTestProcessorFactory),
+            Box::new(ConnectivityTestProcessorFactory),
         );
         let sink = dag.add_sink(
             NodeHandle::new(None, "sink".to_string()),
-            Arc::new(ConnectivityTestSinkFactory),
+            Box::new(ConnectivityTestSinkFactory),
         );
         dag.connect_with_index(processor, DEFAULT_PORT_HANDLE, sink, DEFAULT_PORT_HANDLE)
             .unwrap();
@@ -483,19 +491,19 @@ mod tests {
         let mut dag = Dag::new();
         let source1 = dag.add_source(
             NodeHandle::new(None, "source1".to_string()),
-            Arc::new(ConnectivityTestSourceFactory),
+            Box::new(ConnectivityTestSourceFactory),
         );
         let source2 = dag.add_source(
             NodeHandle::new(None, "source2".to_string()),
-            Arc::new(ConnectivityTestSourceFactory),
+            Box::new(ConnectivityTestSourceFactory),
         );
         let processor = dag.add_processor(
             NodeHandle::new(None, "processor".to_string()),
-            Arc::new(ConnectivityTestProcessorFactory),
+            Box::new(ConnectivityTestProcessorFactory),
         );
         let sink = dag.add_sink(
             NodeHandle::new(None, "sink".to_string()),
-            Arc::new(ConnectivityTestSinkFactory),
+            Box::new(ConnectivityTestSinkFactory),
         );
         dag.connect_with_index(source1, DEFAULT_PORT_HANDLE, processor, DEFAULT_PORT_HANDLE)
             .unwrap();
@@ -511,11 +519,11 @@ mod tests {
         let mut dag = Dag::new();
         let source = dag.add_source(
             NodeHandle::new(None, "source".to_string()),
-            Arc::new(ConnectivityTestSourceFactory),
+            Box::new(ConnectivityTestSourceFactory),
         );
         let sink = dag.add_sink(
             NodeHandle::new(None, "sink".to_string()),
-            Arc::new(ConnectivityTestSinkFactory),
+            Box::new(ConnectivityTestSinkFactory),
         );
         dag.connect_with_index(source, DEFAULT_PORT_HANDLE, sink, DEFAULT_PORT_HANDLE)
             .unwrap();
@@ -527,15 +535,15 @@ mod tests {
         let mut dag = Dag::new();
         let source = dag.add_source(
             NodeHandle::new(None, "source".to_string()),
-            Arc::new(ConnectivityTestSourceFactory),
+            Box::new(ConnectivityTestSourceFactory),
         );
         let processor = dag.add_processor(
             NodeHandle::new(None, "processor1".to_string()),
-            Arc::new(ConnectivityTestProcessorFactory),
+            Box::new(ConnectivityTestProcessorFactory),
         );
         let sink = dag.add_sink(
             NodeHandle::new(None, "sink".to_string()),
-            Arc::new(ConnectivityTestSinkFactory),
+            Box::new(ConnectivityTestSinkFactory),
         );
         dag.connect_with_index(source, DEFAULT_PORT_HANDLE, processor, DEFAULT_PORT_HANDLE)
             .unwrap();
