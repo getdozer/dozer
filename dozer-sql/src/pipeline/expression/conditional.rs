@@ -1,7 +1,5 @@
 use crate::pipeline::errors::PipelineError;
-use crate::pipeline::errors::PipelineError::{
-    InvalidFunction, NotEnoughArguments,
-};
+use crate::pipeline::errors::PipelineError::{InvalidFunction, NotEnoughArguments};
 use crate::pipeline::expression::execution::{Expression, ExpressionType};
 use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::types::{Field, FieldType, Schema};
