@@ -291,7 +291,7 @@ impl TestPipeline {
         let mut asm = AppSourceManager::new();
 
         asm.add(
-            Arc::new(TestSourceFactory::new(
+            Box::new(TestSourceFactory::new(
                 port_to_schemas,
                 mappings.clone(),
                 receiver,
@@ -301,7 +301,7 @@ impl TestPipeline {
         .unwrap();
 
         let output = Arc::new(Mutex::new(HashMap::new()));
-        pipeline.add_sink(Arc::new(TestSinkFactory::new(output.clone())), "sink");
+        pipeline.add_sink(Box::new(TestSinkFactory::new(output.clone())), "sink", None);
 
         pipeline.connect_nodes(
             &output_table.node,
@@ -314,7 +314,7 @@ impl TestPipeline {
         let mut app = App::new(asm);
         app.add_pipeline(pipeline);
 
-        let dag = app.get_dag().unwrap();
+        let dag = app.into_dag()?;
 
         // dag.print_dot();
 

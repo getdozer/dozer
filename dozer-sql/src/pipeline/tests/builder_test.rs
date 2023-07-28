@@ -192,7 +192,7 @@ fn test_pipeline_builder() {
 
     let mut asm = AppSourceManager::new();
     asm.add(
-        Arc::new(TestSourceFactory::new(vec![DEFAULT_PORT_HANDLE])),
+        Box::new(TestSourceFactory::new(vec![DEFAULT_PORT_HANDLE])),
         AppSourceMappings::new(
             "mem".to_string(),
             vec![("users".to_string(), DEFAULT_PORT_HANDLE)]
@@ -203,8 +203,9 @@ fn test_pipeline_builder() {
     .unwrap();
 
     pipeline.add_sink(
-        Arc::new(TestSinkFactory::new(vec![DEFAULT_PORT_HANDLE])),
+        Box::new(TestSinkFactory::new(vec![DEFAULT_PORT_HANDLE])),
         "sink",
+        None,
     );
     pipeline.connect_nodes(
         &table_info.node,
@@ -217,7 +218,7 @@ fn test_pipeline_builder() {
     let mut app = App::new(asm);
     app.add_pipeline(pipeline);
 
-    let dag = app.get_dag().unwrap();
+    let dag = app.into_dag().unwrap();
 
     let now = std::time::Instant::now();
 

@@ -52,7 +52,7 @@ fn test_pipeline_builder() {
 
     let mut asm = AppSourceManager::new();
     asm.add(
-        Arc::new(TestSourceFactory::new(latch.clone())),
+        Box::new(TestSourceFactory::new(latch.clone())),
         AppSourceMappings::new(
             "connection".to_string(),
             vec![
@@ -66,8 +66,9 @@ fn test_pipeline_builder() {
     .unwrap();
 
     pipeline.add_sink(
-        Arc::new(TestSinkFactory::new(EXPECTED_SINK_OP_COUNT, latch)),
+        Box::new(TestSinkFactory::new(EXPECTED_SINK_OP_COUNT, latch)),
         "sink",
+        None,
     );
     pipeline.connect_nodes(
         &table_info.node,
@@ -80,7 +81,7 @@ fn test_pipeline_builder() {
     let mut app = App::new(asm);
     app.add_pipeline(pipeline);
 
-    let dag = app.get_dag().unwrap();
+    let dag = app.into_dag().unwrap();
 
     let now = std::time::Instant::now();
 

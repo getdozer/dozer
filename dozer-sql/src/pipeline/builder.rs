@@ -15,7 +15,6 @@ use sqlparser::{
     parser::Parser,
 };
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use super::errors::UnsupportedSqlError;
 use super::pipeline_builder::from_builder::insert_from_to_pipeline;
@@ -279,13 +278,13 @@ fn select_to_pipeline(
     let aggregation =
         AggregationProcessorFactory::new(gen_agg_name.clone(), select.clone(), stateful);
 
-    pipeline.add_processor(Arc::new(aggregation), &gen_agg_name, vec![]);
+    pipeline.add_processor(Box::new(aggregation), &gen_agg_name, vec![]);
 
     // Where clause
     if let Some(selection) = select.selection {
         let selection = SelectionProcessorFactory::new(gen_selection_name.to_owned(), selection);
 
-        pipeline.add_processor(Arc::new(selection), &gen_selection_name, vec![]);
+        pipeline.add_processor(Box::new(selection), &gen_selection_name, vec![]);
 
         pipeline.connect_nodes(
             &gen_product_name,
@@ -458,7 +457,7 @@ fn set_to_pipeline(
 
     let set_proc_fac = SetProcessorFactory::new(gen_set_name.clone(), set_quantifier);
 
-    pipeline.add_processor(Arc::new(set_proc_fac), &gen_set_name, vec![]);
+    pipeline.add_processor(Box::new(set_proc_fac), &gen_set_name, vec![]);
 
     pipeline.connect_nodes(
         &left_pipeline_output_node.node,

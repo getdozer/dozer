@@ -27,7 +27,7 @@ fn test_checkpoint_consistency_ns() {
     for src_handle in &sources {
         dag.add_source(
             src_handle.clone(),
-            Arc::new(GeneratorSourceFactory::new(
+            Box::new(GeneratorSourceFactory::new(
                 MESSAGES_COUNT,
                 latch.clone(),
                 true,
@@ -42,10 +42,10 @@ fn test_checkpoint_consistency_ns() {
         let proc_handle = NodeHandle::new(None, "proc".to_string());
         let sink_handle = NodeHandle::new(None, "sink".to_string());
 
-        child_dag.add_processor(proc_handle.clone(), Arc::new(NoopJoinProcessorFactory {}));
+        child_dag.add_processor(proc_handle.clone(), Box::new(NoopJoinProcessorFactory {}));
         child_dag.add_sink(
             sink_handle.clone(),
-            Arc::new(CountingSinkFactory::new(MESSAGES_COUNT * 2, latch.clone())),
+            Box::new(CountingSinkFactory::new(MESSAGES_COUNT * 2, latch.clone())),
         );
         child_dag
             .connect(

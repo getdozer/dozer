@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 use dozer_core::{
     app::{AppPipeline, PipelineEntryPoint},
@@ -101,7 +101,7 @@ fn insert_table_processor_to_pipeline(
     }
 
     pipeline.add_processor(
-        Arc::new(product_processor_factory),
+        Box::new(product_processor_factory),
         &product_processor_name,
         product_entry_points,
     );
@@ -126,7 +126,7 @@ fn insert_table_operator_processor_to_pipeline(
     let product_processor =
         TableProcessorFactory::new(product_processor_name.clone(), relation.clone());
 
-    pipeline.add_processor(Arc::new(product_processor), &product_processor_name, vec![]);
+    pipeline.add_processor(Box::new(product_processor), &product_processor_name, vec![]);
 
     if operator.name.to_uppercase() == "TTL" {
         let processor_name = format!(
@@ -157,7 +157,7 @@ fn insert_table_operator_processor_to_pipeline(
             ));
         }
 
-        pipeline.add_processor(Arc::new(processor), &processor_name, entry_points);
+        pipeline.add_processor(Box::new(processor), &processor_name, entry_points);
 
         pipeline.connect_nodes(
             &processor_name,
@@ -200,7 +200,7 @@ fn insert_table_operator_processor_to_pipeline(
         }
 
         pipeline.add_processor(
-            Arc::new(window_processor),
+            Box::new(window_processor),
             &window_processor_name,
             window_entry_points,
         );

@@ -7,12 +7,11 @@ use crate::errors::ExecutionError::{
 use crate::node::{PortHandle, SourceFactory};
 use crate::Endpoint;
 use std::collections::HashMap;
-use std::sync::Arc;
 
 #[derive(Debug)]
 pub struct AppSourceMappings {
     pub connection: String,
-    /// From source name to input port handle.
+    /// From source name to output port handle.
     pub mappings: HashMap<String, PortHandle>,
 }
 
@@ -27,8 +26,8 @@ impl AppSourceMappings {
 
 #[derive(Debug)]
 pub struct AppSourceManager<T> {
-    sources: Vec<Arc<dyn SourceFactory<T>>>,
-    mappings: Vec<AppSourceMappings>,
+    pub(crate) sources: Vec<Box<dyn SourceFactory<T>>>,
+    pub(crate) mappings: Vec<AppSourceMappings>,
 }
 
 impl<T> Default for AppSourceManager<T> {
@@ -43,7 +42,7 @@ impl<T> Default for AppSourceManager<T> {
 impl<T> AppSourceManager<T> {
     pub fn add(
         &mut self,
-        source: Arc<dyn SourceFactory<T>>,
+        source: Box<dyn SourceFactory<T>>,
         mapping: AppSourceMappings,
     ) -> Result<(), ExecutionError> {
         if self
@@ -58,35 +57,35 @@ impl<T> AppSourceManager<T> {
         self.mappings.push(mapping);
         Ok(())
     }
-    pub fn get_sources(&self) -> Vec<(String, Arc<dyn SourceFactory<T>>)> {
-        let mut sources = vec![];
-        for (source, mapping) in self.sources.iter().zip(&self.mappings) {
-            sources.push((mapping.connection.clone(), source.clone()));
-        }
-        sources
-    }
-    pub fn get_endpoint(&self, source_name: &str) -> Result<Endpoint, ExecutionError> {
-        let mut found: Vec<Endpoint> = self
-            .mappings
-            .iter()
-            .filter_map(|mapping| {
-                mapping.mappings.get(source_name).map(|output_port| {
-                    Endpoint::new(
-                        NodeHandle::new(None, mapping.connection.clone()),
-                        *output_port,
-                    )
-                })
-            })
-            .collect();
 
-        match found.len() {
-            0 => Err(InvalidSourceIdentifier(source_name.to_string())),
-            1 => Ok(found.remove(0)),
-            _ => Err(AmbiguousSourceIdentifier(source_name.to_string())),
-        }
+    pub fn get_endpoint(&self, source_name: &str) -> Result<Endpoint, ExecutionError> {
+        get_endpoint_from_mappings(&self.mappings, source_name)
     }
 
     pub fn new() -> Self {
         Self::default()
+    }
+}
+
+pub fn get_endpoint_from_mappings(
+    mappings: &[AppSourceMappings],
+    source_name: &str,
+) -> Result<Endpoint, ExecutionError> {
+    let mut found: Vec<Endpoint> = mappings
+        .iter()
+        .filter_map(|mapping| {
+            mapping.mappings.get(source_name).map(|output_port| {
+                Endpoint::new(
+                    NodeHandle::new(None, mapping.connection.clone()),
+                    *output_port,
+                )
+            })
+        })
+        .collect();
+
+    match found.len() {
+        0 => Err(InvalidSourceIdentifier(source_name.to_string())),
+        1 => Ok(found.remove(0)),
+        _ => Err(AmbiguousSourceIdentifier(source_name.to_string())),
     }
 }

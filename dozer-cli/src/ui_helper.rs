@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 use dozer_core::{
     app::{App, AppPipeline},
@@ -6,10 +6,7 @@ use dozer_core::{
     node::{OutputPortDef, OutputPortType, PortHandle, SourceFactory},
     Dag,
 };
-use dozer_sql::pipeline::{
-    builder::{statement_to_pipeline, SchemaSQLContext},
-    errors::PipelineError,
-};
+use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 use dozer_types::{
     grpc_types::cloud::{QueryEdge, QueryGraph, QueryNode, QueryNodeType},
     models::{config::Config, connection::Connection, source::Source},
@@ -51,7 +48,7 @@ fn prepare_pipeline_dag(
     sql: String,
     connection_sources: HashMap<Connection, Vec<Source>>,
     connection_source_ports: HashMap<(&str, &str), u16>,
-) -> Result<Dag<SchemaSQLContext>, PipelineError> {
+) -> Result<Dag<SchemaSQLContext>, OrchestrationError> {
     let mut pipeline = AppPipeline::new();
     let mut asm: AppSourceManager<dozer_sql::pipeline::builder::SchemaSQLContext> =
         AppSourceManager::new();
@@ -73,7 +70,7 @@ fn prepare_pipeline_dag(
         });
 
         _ = asm.add(
-            Arc::new(UISourceFactory {
+            Box::new(UISourceFactory {
                 output_ports: ports,
             }),
             AppSourceMappings::new(connection.name.to_string(), ports_with_source_name),
@@ -82,28 +79,28 @@ fn prepare_pipeline_dag(
     statement_to_pipeline(&sql, &mut pipeline, None)?;
     let mut app = App::new(asm);
     app.add_pipeline(pipeline);
-    let sql_dag = app.get_dag().unwrap();
+    let sql_dag = app.into_dag()?;
     Ok(sql_dag)
 }
 
 pub fn transform_to_ui_graph(
-    input_dag: Dag<SchemaSQLContext>,
+    input_dag: &Dag<SchemaSQLContext>,
     port_connection_source: HashMap<u16, (&str, &str)>,
-) -> Result<QueryGraph, PipelineError> {
+) -> QueryGraph {
     let input_graph = input_dag.graph();
     let mut nodes = vec![];
     let mut edges: Vec<QueryEdge> = vec![];
     input_graph.raw_nodes().iter().enumerate().for_each(|n| {
-        let weight = n.1.to_owned().weight;
+        let weight = &n.1.weight;
         let idx = n.0;
-        match weight.kind {
+        match &weight.kind {
             dozer_core::NodeKind::Source(_) => {
                 nodes.push(QueryNode {
-                    name: weight.handle.id.to_owned(),
+                    name: weight.handle.id.clone(),
                     node_type: QueryNodeType::Connection as i32,
                     idx: idx as u32,
                     id: idx as u32,
-                    data: weight.handle.id,
+                    data: weight.handle.id.clone(),
                 });
             }
             dozer_core::NodeKind::Processor(processor) => {
@@ -150,7 +147,7 @@ pub fn transform_to_ui_graph(
             });
         }
     });
-    Ok(QueryGraph { nodes, edges })
+    QueryGraph { nodes, edges }
 }
 
 pub fn config_to_ui_dag(config: Config) -> Result<QueryGraph, OrchestrationError> {
@@ -173,5 +170,5 @@ pub fn config_to_ui_dag(config: Config) -> Result<QueryGraph, OrchestrationError
         .map(|(k, v)| (v.to_owned(), k.to_owned()))
         .collect();
     let sql_dag = prepare_pipeline_dag(sql, connection_sources, connection_source_ports)?;
-    transform_to_ui_graph(sql_dag, port_connection_source).map_err(Into::into)
+    Ok(transform_to_ui_graph(&sql_dag, port_connection_source))
 }

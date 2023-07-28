@@ -11,7 +11,6 @@ use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
 use std::collections::HashMap;
 
 use crate::tests::app::NoneContext;
-use std::sync::Arc;
 
 macro_rules! chk {
     ($stmt:expr) => {
@@ -199,13 +198,13 @@ fn test_extract_dag_schemas() {
     let join_handle = NodeHandle::new(Some(1), 3.to_string());
     let sink_handle = NodeHandle::new(Some(1), 4.to_string());
 
-    let users_index = dag.add_source(users_handle.clone(), Arc::new(TestUsersSourceFactory {}));
+    let users_index = dag.add_source(users_handle.clone(), Box::new(TestUsersSourceFactory {}));
     let countries_index = dag.add_source(
         countries_handle.clone(),
-        Arc::new(TestCountriesSourceFactory {}),
+        Box::new(TestCountriesSourceFactory {}),
     );
-    let join_index = dag.add_processor(join_handle.clone(), Arc::new(TestJoinProcessorFactory {}));
-    let sink_index = dag.add_sink(sink_handle.clone(), Arc::new(TestSinkFactory {}));
+    let join_index = dag.add_processor(join_handle.clone(), Box::new(TestJoinProcessorFactory {}));
+    let sink_index = dag.add_sink(sink_handle.clone(), Box::new(TestSinkFactory {}));
 
     chk!(dag.connect(
         Endpoint::new(users_handle, DEFAULT_PORT_HANDLE),

@@ -7,7 +7,6 @@ use crate::errors::ExecutionError;
 use crate::node::{PortHandle, ProcessorFactory, SinkFactory, SourceFactory};
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display};
-use std::sync::Arc;
 
 pub const DEFAULT_PORT_HANDLE: u16 = 0xffff_u16;
 
@@ -35,15 +34,15 @@ impl Edge {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 /// A `SourceFactory`, `ProcessorFactory` or `SinkFactory`.
 pub enum NodeKind<T> {
-    Source(Arc<dyn SourceFactory<T>>),
-    Processor(Arc<dyn ProcessorFactory<T>>),
-    Sink(Arc<dyn SinkFactory<T>>),
+    Source(Box<dyn SourceFactory<T>>),
+    Processor(Box<dyn ProcessorFactory<T>>),
+    Sink(Box<dyn SinkFactory<T>>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 /// The node type of the description DAG.
 pub struct NodeType<T> {
     /// The node handle, unique across the DAG.
@@ -76,7 +75,7 @@ impl Display for EdgeType {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Dag<T> {
     /// The underlying graph.
     graph: daggy::Dag<NodeType<T>, EdgeType>,
@@ -127,7 +126,7 @@ impl<T> Dag<T> {
     pub fn add_source(
         &mut self,
         handle: NodeHandle,
-        source: Arc<dyn SourceFactory<T>>,
+        source: Box<dyn SourceFactory<T>>,
     ) -> daggy::NodeIndex {
         self.add_node(handle, NodeKind::Source(source))
     }
@@ -136,7 +135,7 @@ impl<T> Dag<T> {
     pub fn add_processor(
         &mut self,
         handle: NodeHandle,
-        processor: Arc<dyn ProcessorFactory<T>>,
+        processor: Box<dyn ProcessorFactory<T>>,
     ) -> daggy::NodeIndex {
         self.add_node(handle, NodeKind::Processor(processor))
     }
@@ -145,7 +144,7 @@ impl<T> Dag<T> {
     pub fn add_sink(
         &mut self,
         handle: NodeHandle,
-        sink: Arc<dyn SinkFactory<T>>,
+        sink: Box<dyn SinkFactory<T>>,
     ) -> daggy::NodeIndex {
         self.add_node(handle, NodeKind::Sink(sink))
     }
@@ -230,10 +229,10 @@ impl<T> Dag<T> {
     }
 
     /// Returns an iterator over source handles and sources.
-    pub fn sources(&self) -> impl Iterator<Item = (&NodeHandle, &Arc<dyn SourceFactory<T>>)> {
+    pub fn sources(&self) -> impl Iterator<Item = (&NodeHandle, &dyn SourceFactory<T>)> {
         self.nodes().flat_map(|node| {
             if let NodeKind::Source(source) = &node.kind {
-                Some((&node.handle, source))
+                Some((&node.handle, &**source))
             } else {
                 None
             }
@@ -241,10 +240,10 @@ impl<T> Dag<T> {
     }
 
     /// Returns an iterator over processor handles and processors.
-    pub fn processors(&self) -> impl Iterator<Item = (&NodeHandle, &Arc<dyn ProcessorFactory<T>>)> {
+    pub fn processors(&self) -> impl Iterator<Item = (&NodeHandle, &dyn ProcessorFactory<T>)> {
         self.nodes().flat_map(|node| {
             if let NodeKind::Processor(processor) = &node.kind {
-                Some((&node.handle, processor))
+                Some((&node.handle, &**processor))
             } else {
                 None
             }
@@ -252,10 +251,10 @@ impl<T> Dag<T> {
     }
 
     /// Returns an iterator over sink handles and sinks.
-    pub fn sinks(&self) -> impl Iterator<Item = (&NodeHandle, &Arc<dyn SinkFactory<T>>)> {
+    pub fn sinks(&self) -> impl Iterator<Item = (&NodeHandle, &dyn SinkFactory<T>)> {
         self.nodes().flat_map(|node| {
             if let NodeKind::Sink(sink) = &node.kind {
-                Some((&node.handle, sink))
+                Some((&node.handle, &**sink))
             } else {
                 None
             }

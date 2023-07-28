@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use dozer_core::{
     app::{AppPipeline, PipelineEntryPoint},
     DEFAULT_PORT_HANDLE,
@@ -91,7 +89,7 @@ pub(crate) fn insert_join_to_pipeline(
         }
 
         pipeline.add_processor(
-            Arc::new(join_processor_factory),
+            Box::new(join_processor_factory),
             &join_processor_name,
             pipeline_entry_points,
         );
@@ -209,7 +207,7 @@ fn insert_table_operator_to_pipeline(
             input_nodes.push((source_name, processor_name.clone(), DEFAULT_PORT_HANDLE));
         }
 
-        pipeline.add_processor(Arc::new(processor), &processor_name, entry_points);
+        pipeline.add_processor(Box::new(processor), &processor_name, entry_points);
 
         Ok(ConnectionInfo {
             input_nodes,
@@ -244,7 +242,7 @@ fn insert_table_operator_to_pipeline(
         }
 
         pipeline.add_processor(
-            Arc::new(window_processor_factory),
+            Box::new(window_processor_factory),
             &window_processor_name,
             window_entry_points,
         );

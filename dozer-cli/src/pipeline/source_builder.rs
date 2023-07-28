@@ -76,7 +76,7 @@ impl<'a> SourceBuilder<'a> {
             ))?;
 
             asm.add(
-                Arc::new(source_factory),
+                Box::new(source_factory),
                 AppSourceMappings::new(connection.name.to_string(), ports),
             )?;
         }

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use dozer_cache::dozer_log::replication::Log;
 use dozer_core::app::App;
 use dozer_core::app::AppPipeline;
-use dozer_core::executor::DagExecutor;
+use dozer_core::app::PipelineEntryPoint;
 use dozer_core::node::SinkFactory;
 use dozer_core::Dag;
 use dozer_core::DEFAULT_PORT_HANDLE;
@@ -242,20 +242,20 @@ impl<'a> PipelineBuilder<'a> {
                 .get(table_name)
                 .ok_or_else(|| OrchestrationError::EndpointTableNotFound(table_name.clone()))?;
 
-            let snk_factory: Arc<dyn SinkFactory<SchemaSQLContext>> = if let Some(log) = log {
-                Arc::new(LogSinkFactory::new(
+            let snk_factory: Box<dyn SinkFactory<SchemaSQLContext>> = if let Some(log) = log {
+                Box::new(LogSinkFactory::new(
                     runtime.clone(),
                     log,
                     api_endpoint.name.clone(),
                     self.progress.clone(),
                 ))
             } else {
-                Arc::new(DummySinkFactory)
+                Box::new(DummySinkFactory)
             };
 
             match table_info {
                 OutputTableInfo::Transformed(table_info) => {
-                    pipeline.add_sink(snk_factory, api_endpoint.name.as_str());
+                    pipeline.add_sink(snk_factory, api_endpoint.name.as_str(), None);
 
                     pipeline.connect_nodes(
                         &table_info.node,
@@ -266,21 +266,13 @@ impl<'a> PipelineBuilder<'a> {
                     );
                 }
                 OutputTableInfo::Original(table_info) => {
-                    pipeline.add_sink(snk_factory, api_endpoint.name.as_str());
-
-                    let conn_port = conn_ports
-                        .get(&(
-                            table_info.connection_name.as_str(),
-                            table_info.table_name.as_str(),
-                        ))
-                        .expect("port should be present based on source mapping");
-
-                    pipeline.connect_nodes(
-                        &table_info.connection_name,
-                        Some(*conn_port),
+                    pipeline.add_sink(
+                        snk_factory,
                         api_endpoint.name.as_str(),
-                        Some(DEFAULT_PORT_HANDLE),
-                        false,
+                        Some(PipelineEntryPoint::new(
+                            table_info.table_name.clone(),
+                            DEFAULT_PORT_HANDLE,
+                        )),
                     );
                 }
             }
@@ -295,21 +287,12 @@ impl<'a> PipelineBuilder<'a> {
             app.add_pipeline(p);
         });
 
-        let dag = app.get_dag().map_err(ExecutionError)?;
+        let dag = app.into_dag().map_err(ExecutionError)?;
 
         debug!("{}", dag);
 
-        DagExecutor::validate(dag.clone())
-            .map(|_| {
-                info!("[pipeline] Validation completed");
-            })
-            .map_err(|e| {
-                error!("[pipeline] Validation error: {}", e);
-                OrchestrationError::PipelineValidationError
-            })?;
-
         // Emit metrics for monitoring
-        emit_dag_metrics(dag.clone(), conn_ports)?;
+        emit_dag_metrics(&dag, conn_ports);
 
         Ok(dag)
     }
@@ -320,10 +303,7 @@ fn dedup<T: Eq + Hash + Clone>(v: &mut Vec<T>) {
     v.retain(|e| uniques.insert(e.clone()));
 }
 
-pub fn emit_dag_metrics(
-    input_dag: Dag<SchemaSQLContext>,
-    conn_ports: HashMap<(&str, &str), u16>,
-) -> Result<(), OrchestrationError> {
+pub fn emit_dag_metrics(input_dag: &Dag<SchemaSQLContext>, conn_ports: HashMap<(&str, &str), u16>) {
     const GRAPH_NODES: &str = "pipeline_nodes";
     const GRAPH_EDGES: &str = "pipeline_edges";
 
@@ -335,7 +315,7 @@ pub fn emit_dag_metrics(
         .map(|(k, v)| (v.to_owned(), k.to_owned()))
         .collect();
 
-    let query_graph = transform_to_ui_graph(input_dag, port_connection_sources)?;
+    let query_graph = transform_to_ui_graph(input_dag, port_connection_sources);
 
     for node in query_graph.nodes {
         let node_name = node.name;
@@ -363,6 +343,4 @@ pub fn emit_dag_metrics(
 
         increment_counter!(GRAPH_EDGES, &labels);
     }
-
-    Ok(())
 }
