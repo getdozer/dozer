@@ -43,7 +43,7 @@ jobs:
       - name: Install target specific tools
         run: |
           sudo apt update
-          sudo apt install -y ${{ matrix.gcc }}
+          sudo apt install -y ${{ matrix.gcc }} musl-tools
 
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
