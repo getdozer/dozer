@@ -1,5 +1,6 @@
 use super::metric_middleware::MetricMiddlewareLayer;
 use super::{auth_middleware::AuthMiddlewareLayer, common::CommonService, typed::TypedService};
+use crate::errors::ApiInitError;
 use crate::grpc::auth::AuthService;
 use crate::grpc::health::HealthService;
 use crate::grpc::{common, typed};
@@ -42,7 +43,7 @@ impl ApiServer {
             Option<TypedService>,
             ServerReflectionServer<impl ServerReflection>,
         ),
-        GrpcError,
+        ApiInitError,
     > {
         let mut all_descriptor_bytes = vec![];
         for cache_endpoint in &cache_endpoints {
@@ -53,7 +54,7 @@ impl ApiServer {
         for descriptor_bytes in &all_descriptor_bytes {
             builder = builder.register_encoded_file_descriptor_set(descriptor_bytes);
         }
-        let inflection_service = builder.build()?;
+        let inflection_service = builder.build().map_err(GrpcError::ServerReflectionError)?;
 
         // Service handling dynamic gRPC requests.
         let typed_service = if self.flags.dynamic {
@@ -83,7 +84,7 @@ impl ApiServer {
         cache_endpoints: Vec<Arc<CacheEndpoint>>,
         shutdown: impl Future<Output = ()> + Send + 'static,
         operations_receiver: Option<Receiver<Operation>>,
-    ) -> Result<(), GrpcError> {
+    ) -> Result<(), ApiInitError> {
         // Create our services.
         let mut web_config = tonic_web::config();
         if self.flags.grpc_web {
@@ -184,7 +185,7 @@ impl ApiServer {
             .parse()
             .map_err(|e| GrpcError::AddrParse(addr.clone(), e))?;
         match Abortable::new(grpc_router.serve(addr), abort_registration).await {
-            Ok(result) => result.map_err(GrpcError::Transport),
+            Ok(result) => result.map_err(|e| ApiInitError::Grpc(GrpcError::Transport(e))),
             Err(Aborted) => Ok(()),
         }
     }

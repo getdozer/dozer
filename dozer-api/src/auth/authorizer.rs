@@ -1,7 +1,5 @@
 use dozer_types::models::api_security::ApiSecurity;
-use jsonwebtoken::{
-    decode, encode, errors::ErrorKind, Algorithm, DecodingKey, EncodingKey, Header, Validation,
-};
+use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::errors::AuthError;
@@ -58,7 +56,7 @@ impl<'a> Authorizer<'a> {
             &my_claims,
             &EncodingKey::from_secret(self.secret),
         )
-        .map_err(|e| AuthError::InternalError(Box::new(e)))
+        .map_err(Into::into)
     }
 
     pub fn validate_token(&self, token: &str) -> Result<Claims, AuthError> {
@@ -68,11 +66,7 @@ impl<'a> Authorizer<'a> {
 
         match decode::<Claims>(token, &DecodingKey::from_secret(self.secret), &validation) {
             Ok(c) => Ok(c.claims),
-            Err(err) => Err(match *err.kind() {
-                ErrorKind::InvalidToken => AuthError::InvalidToken,
-                ErrorKind::InvalidIssuer => AuthError::InvalidIssuer,
-                _ => AuthError::InternalError(Box::new(err)),
-            }),
+            Err(err) => Err(err.into()),
         }
     }
 }

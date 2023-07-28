@@ -5,9 +5,8 @@ use actix_web::{web, HttpResponse};
 use dozer_cache::cache::expression::{default_limit_for_query, QueryExpression, Skip};
 use dozer_cache::cache::CacheRecord;
 use dozer_cache::{CacheReader, Phase};
-use dozer_types::errors::types::TypeError;
+use dozer_types::errors::types::CannotConvertF64ToJson;
 use dozer_types::indexmap::IndexMap;
-use dozer_types::log::warn;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::types::{Field, Schema};
 use openapiv3::OpenAPI;
@@ -58,7 +57,7 @@ pub async fn get(
         return Err(ApiError::NoPrimaryKey);
     } else if schema.primary_index.len() == 1 {
         let field = &schema.fields[schema.primary_index[0]];
-        Field::from_str(key, field.typ, field.nullable)?
+        Field::from_str(key, field.typ, field.nullable).map_err(ApiError::InvalidPrimaryKey)?
     } else {
         return Err(ApiError::MultiIndexFetch(key.to_string()));
     };
@@ -72,7 +71,9 @@ pub async fn get(
         access.map(|a| a.into_inner()),
     )?;
 
-    Ok(record_to_map(record, schema).map(|map| HttpResponse::Ok().json(map))?)
+    record_to_map(record, schema)
+        .map(|map| HttpResponse::Ok().json(map))
+        .map_err(Into::into)
 }
 
 // Generated list function for multiple records with a default query expression
@@ -81,17 +82,7 @@ pub async fn list(
     cache_endpoint: ReqData<Arc<CacheEndpoint>>,
 ) -> Result<HttpResponse, ApiError> {
     let mut exp = QueryExpression::new(None, vec![], Some(50), Skip::Skip(0));
-    match get_records_map(access, cache_endpoint, &mut exp) {
-        Ok(maps) => Ok(HttpResponse::Ok().json(maps)),
-        Err(e) => match e {
-            ApiError::QueryFailed(_) => {
-                let res: Vec<String> = vec![];
-                warn!("No records found.");
-                Ok(HttpResponse::Ok().json(res))
-            }
-            _ => Err(ApiError::InternalError(Box::new(e))),
-        },
-    }
+    get_records_map(access, cache_endpoint, &mut exp).map(|map| HttpResponse::Ok().json(map))
 }
 
 // Generated get function for health check
@@ -164,11 +155,11 @@ fn get_records_map(
 fn record_to_map(
     record: CacheRecord,
     schema: &Schema,
-) -> Result<IndexMap<String, Value>, TypeError> {
+) -> Result<IndexMap<String, Value>, CannotConvertF64ToJson> {
     let mut map = IndexMap::new();
 
     for (field_def, field) in schema.fields.iter().zip(record.record.values) {
-        let val = field_to_json_value(field).map_err(TypeError::DeserializationError)?;
+        let val = field_to_json_value(field)?;
         map.insert(field_def.name.clone(), val);
     }
 

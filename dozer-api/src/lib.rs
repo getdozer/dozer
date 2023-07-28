@@ -37,7 +37,7 @@ impl CacheEndpoint {
         cancel: impl Future<Output = ()> + Unpin + Send + 'static,
         operations_sender: Option<Sender<Operation>>,
         multi_pb: Option<MultiProgress>,
-    ) -> Result<(Self, JoinHandle<Result<(), CacheError>>), ApiError> {
+    ) -> Result<(Self, JoinHandle<Result<(), CacheError>>), ApiInitError> {
         // Create log reader builder.
         let log_reader_builder =
             LogReaderBuilder::new(app_server_addr, get_log_reader_options(&endpoint)).await?;
@@ -61,7 +61,7 @@ impl CacheEndpoint {
             &schema.connections,
             write_options,
         )
-        .map_err(ApiError::OpenOrCreateCache)?;
+        .map_err(ApiInitError::OpenOrCreateCache)?;
 
         // Open cache reader.
         let cache_reader =
@@ -96,7 +96,7 @@ impl CacheEndpoint {
         cache_manager: &dyn RwCacheManager,
         descriptor: Vec<u8>,
         endpoint: ApiEndpoint,
-    ) -> Result<Self, ApiError> {
+    ) -> Result<Self, ApiInitError> {
         let mut labels = Labels::new();
         labels.push(endpoint.name.clone(), endpoint.name.clone());
         Ok(Self {
@@ -129,18 +129,19 @@ pub fn cache_labels(endpoint: String, build: String) -> Labels {
 fn open_cache_reader(
     cache_manager: &dyn RwCacheManager,
     labels: Labels,
-) -> Result<Option<CacheReader>, ApiError> {
+) -> Result<Option<CacheReader>, ApiInitError> {
     let cache = cache_manager
         .open_ro_cache(labels)
-        .map_err(ApiError::OpenOrCreateCache)?;
+        .map_err(ApiInitError::OpenOrCreateCache)?;
     Ok(cache.map(CacheReader::new))
 }
 
 fn open_existing_cache_reader(
     cache_manager: &dyn RwCacheManager,
     labels: Labels,
-) -> Result<CacheReader, ApiError> {
-    open_cache_reader(cache_manager, labels.clone())?.ok_or_else(|| ApiError::CacheNotFound(labels))
+) -> Result<CacheReader, ApiInitError> {
+    open_cache_reader(cache_manager, labels.clone())?
+        .ok_or_else(|| ApiInitError::CacheNotFound(labels))
 }
 
 fn get_log_reader_options(endpoint: &ApiEndpoint) -> LogReaderOptions {
@@ -179,7 +180,7 @@ pub use api_helper::API_LATENCY_HISTOGRAM_NAME;
 pub use api_helper::API_REQUEST_COUNTER_NAME;
 pub use async_trait;
 use dozer_types::indicatif::MultiProgress;
-use errors::ApiError;
+use errors::ApiInitError;
 pub use openapiv3;
 pub use tokio;
 use tokio::{sync::broadcast::Sender, task::JoinHandle};

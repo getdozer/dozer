@@ -1,6 +1,7 @@
 use super::internal::BoxedError;
 use crate::types::FieldType;
 use geo::vincenty_distance::FailedToConvergeError;
+use serde_json::Number;
 use std::num::ParseIntError;
 use thiserror::Error;
 use tokio_postgres::Error;
@@ -59,8 +60,8 @@ pub enum DeserializationError {
     BadDateFormat(#[from] chrono::ParseError),
     #[error("utf8: {0}")]
     Utf8(#[from] std::str::Utf8Error),
-    #[error("Failed to convert type due to json numbers being out of the f64 range")]
-    F64TypeConversionError,
+    #[error("Failed to convert type due to json numbers being out of the f64 range: {0}")]
+    F64TypeConversionError(Number),
     #[error("Unknown SSL mode: {0}")]
     UnknownSslMode(String),
     #[error("Unable to Parse Postgres configuration: {0}")]
@@ -72,3 +73,7 @@ pub enum DeserializationError {
     #[error("{0} is mismatching in Postgres configuration")]
     MismatchingFieldInPostgresConfig(String),
 }
+
+#[derive(Debug, Error)]
+#[error("Cannot convert f64 to json: {0}")]
+pub struct CannotConvertF64ToJson(pub f64);
