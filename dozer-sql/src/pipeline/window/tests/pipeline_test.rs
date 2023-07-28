@@ -1,5 +1,5 @@
 use dozer_core::app::{App, AppPipeline};
-use dozer_core::appsource::{AppSource, AppSourceManager};
+use dozer_core::appsource::{AppSourceManager, AppSourceMappings};
 use dozer_core::channels::SourceChannelForwarder;
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::executor_operation::ProcessorOperation;
@@ -51,16 +51,18 @@ fn test_pipeline_builder() {
     let latch = Arc::new(AtomicBool::new(true));
 
     let mut asm = AppSourceManager::new();
-    asm.add(AppSource::new(
-        "connection".to_string(),
+    asm.add(
         Arc::new(TestSourceFactory::new(latch.clone())),
-        vec![
-            ("taxi_trips".to_string(), TRIPS_PORT),
-            ("zones".to_string(), ZONES_PORT),
-        ]
-        .into_iter()
-        .collect(),
-    ))
+        AppSourceMappings::new(
+            "connection".to_string(),
+            vec![
+                ("taxi_trips".to_string(), TRIPS_PORT),
+                ("zones".to_string(), ZONES_PORT),
+            ]
+            .into_iter()
+            .collect(),
+        ),
+    )
     .unwrap();
 
     pipeline.add_sink(

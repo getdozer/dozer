@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use dozer_core::{
     app::{App, AppPipeline},
-    appsource::{AppSource, AppSourceManager},
+    appsource::{AppSourceManager, AppSourceMappings},
     node::{OutputPortDef, OutputPortType, PortHandle, SourceFactory},
     Dag,
 };
@@ -72,13 +72,12 @@ fn prepare_pipeline_dag(
             ports_with_source_name.insert(k.1.to_string(), v.to_owned());
         });
 
-        _ = asm.add(AppSource::new(
-            connection.name.to_string(),
+        _ = asm.add(
             Arc::new(UISourceFactory {
                 output_ports: ports,
             }),
-            ports_with_source_name,
-        ));
+            AppSourceMappings::new(connection.name.to_string(), ports_with_source_name),
+        );
     });
     statement_to_pipeline(&sql, &mut pipeline, None)?;
     let mut app = App::new(asm);

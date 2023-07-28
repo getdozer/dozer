@@ -79,12 +79,6 @@ fn load_multi_sources() {
         .build_source_manager(Arc::new(runtime))
         .unwrap();
 
-    let pg_source_mapping = asm
-        .get(vec![
-            config.sources.get(0).unwrap().name.clone(),
-            config.sources.get(1).unwrap().name.clone(),
-        ])
-        .unwrap();
-
-    assert_eq!(2, pg_source_mapping.get(0).unwrap().mappings.len());
+    asm.get_endpoint(&config.sources[0].name).unwrap();
+    asm.get_endpoint(&config.sources[1].name).unwrap();
 }

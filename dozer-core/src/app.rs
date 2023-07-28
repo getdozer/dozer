@@ -191,18 +191,10 @@ impl<T: Clone> App<T> {
             }
         }
 
-        let mappings = self
-            .sources
-            .get(entry_points.iter().map(|e| e.0.clone()).collect())?;
-
         // Connect to all pipelines
-        for mapping in &mappings {
-            let node_handle = NodeHandle::new(None, mapping.connection.clone());
-            for entry in &entry_points {
-                if let Some(e) = mapping.mappings.get(&entry.0) {
-                    dag.connect(Endpoint::new(node_handle.clone(), *e), entry.1.clone())?;
-                }
-            }
+        for (source_name, target_endpoint) in entry_points {
+            let source_endpoint = self.sources.get_endpoint(&source_name)?;
+            dag.connect(source_endpoint, target_endpoint)?;
         }
 
         Ok(dag)

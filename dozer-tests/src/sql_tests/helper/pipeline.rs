@@ -1,6 +1,6 @@
 use ahash::AHasher;
 use dozer_core::app::{App, AppPipeline};
-use dozer_core::appsource::{AppSource, AppSourceManager};
+use dozer_core::appsource::{AppSourceManager, AppSourceMappings};
 use dozer_core::channels::SourceChannelForwarder;
 use dozer_core::errors::ExecutionError;
 use dozer_core::executor_operation::ProcessorOperation;
@@ -290,15 +290,14 @@ impl TestPipeline {
 
         let mut asm = AppSourceManager::new();
 
-        asm.add(AppSource::new(
-            "test_connection".to_string(),
+        asm.add(
             Arc::new(TestSourceFactory::new(
                 port_to_schemas,
                 mappings.clone(),
                 receiver,
             )),
-            mappings,
-        ))
+            AppSourceMappings::new("test_connection".to_string(), mappings),
+        )
         .unwrap();
 
         let output = Arc::new(Mutex::new(HashMap::new()));

@@ -1,5 +1,5 @@
 use dozer_core::app::{App, AppPipeline};
-use dozer_core::appsource::{AppSource, AppSourceManager};
+use dozer_core::appsource::{AppSourceManager, AppSourceMappings};
 use dozer_core::channels::SourceChannelForwarder;
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::executor_operation::ProcessorOperation;
@@ -191,13 +191,15 @@ fn test_pipeline_builder() {
     let table_info = context.output_tables_map.get("results").unwrap();
 
     let mut asm = AppSourceManager::new();
-    asm.add(AppSource::new(
-        "mem".to_string(),
+    asm.add(
         Arc::new(TestSourceFactory::new(vec![DEFAULT_PORT_HANDLE])),
-        vec![("users".to_string(), DEFAULT_PORT_HANDLE)]
-            .into_iter()
-            .collect(),
-    ))
+        AppSourceMappings::new(
+            "mem".to_string(),
+            vec![("users".to_string(), DEFAULT_PORT_HANDLE)]
+                .into_iter()
+                .collect(),
+        ),
+    )
     .unwrap();
 
     pipeline.add_sink(

@@ -1,33 +1,15 @@
+use dozer_types::node::NodeHandle;
+
 use crate::errors::ExecutionError;
 use crate::errors::ExecutionError::{
     AmbiguousSourceIdentifier, AppSourceConnectionAlreadyExists, InvalidSourceIdentifier,
 };
 use crate::node::{PortHandle, SourceFactory};
+use crate::Endpoint;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-#[derive(Clone)]
-pub struct AppSource<T> {
-    pub connection: String,
-    pub source: Arc<dyn SourceFactory<T>>,
-    /// From source name to output port handle.
-    pub mappings: HashMap<String, PortHandle>,
-}
-
-impl<T> AppSource<T> {
-    pub fn new(
-        connection: String,
-        source: Arc<dyn SourceFactory<T>>,
-        mappings: HashMap<String, PortHandle>,
-    ) -> Self {
-        Self {
-            connection,
-            source,
-            mappings,
-        }
-    }
-}
-
+#[derive(Debug)]
 pub struct AppSourceMappings {
     pub connection: String,
     /// From source name to input port handle.
@@ -43,67 +25,68 @@ impl AppSourceMappings {
     }
 }
 
+#[derive(Debug)]
 pub struct AppSourceManager<T> {
-    pub(crate) sources: Vec<AppSource<T>>,
+    sources: Vec<Arc<dyn SourceFactory<T>>>,
+    mappings: Vec<AppSourceMappings>,
 }
 
 impl<T> Default for AppSourceManager<T> {
     fn default() -> Self {
-        Self::new()
+        Self {
+            sources: vec![],
+            mappings: vec![],
+        }
     }
 }
 
 impl<T> AppSourceManager<T> {
-    pub fn add(&mut self, src: AppSource<T>) -> Result<(), ExecutionError> {
-        if self.sources.iter().any(|s| s.connection == src.connection) {
-            return Err(AppSourceConnectionAlreadyExists(src.connection));
+    pub fn add(
+        &mut self,
+        source: Arc<dyn SourceFactory<T>>,
+        mapping: AppSourceMappings,
+    ) -> Result<(), ExecutionError> {
+        if self
+            .mappings
+            .iter()
+            .any(|existing_mapping| existing_mapping.connection == mapping.connection)
+        {
+            return Err(AppSourceConnectionAlreadyExists(mapping.connection));
         }
 
-        self.sources.push(src);
+        self.sources.push(source);
+        self.mappings.push(mapping);
         Ok(())
     }
     pub fn get_sources(&self) -> Vec<(String, Arc<dyn SourceFactory<T>>)> {
         let mut sources = vec![];
-        for source in &self.sources {
-            sources.push((source.connection.clone(), source.source.clone()));
+        for (source, mapping) in self.sources.iter().zip(&self.mappings) {
+            sources.push((mapping.connection.clone(), source.clone()));
         }
         sources
     }
-    pub fn get(&self, source_names: Vec<String>) -> Result<Vec<AppSourceMappings>, ExecutionError> {
-        let mut res: HashMap<usize, HashMap<String, PortHandle>> = HashMap::new();
-
-        for source in source_names {
-            let found: Vec<(usize, PortHandle)> = self
-                .sources
-                .iter()
-                .enumerate()
-                .filter_map(|(index, app_source)| {
-                    app_source
-                        .mappings
-                        .get(&source)
-                        .map(|output_port| (index, *output_port))
+    pub fn get_endpoint(&self, source_name: &str) -> Result<Endpoint, ExecutionError> {
+        let mut found: Vec<Endpoint> = self
+            .mappings
+            .iter()
+            .filter_map(|mapping| {
+                mapping.mappings.get(source_name).map(|output_port| {
+                    Endpoint::new(
+                        NodeHandle::new(None, mapping.connection.clone()),
+                        *output_port,
+                    )
                 })
-                .collect();
+            })
+            .collect();
 
-            match found.len() {
-                0 => return Err(InvalidSourceIdentifier(source)),
-                1 => {
-                    let (idx, port) = found.first().unwrap();
-                    let entry = res.entry(*idx).or_default();
-                    entry.insert(source, *port);
-                }
-                _ => return Err(AmbiguousSourceIdentifier(source)),
-            }
+        match found.len() {
+            0 => Err(InvalidSourceIdentifier(source_name.to_string())),
+            1 => Ok(found.remove(0)),
+            _ => Err(AmbiguousSourceIdentifier(source_name.to_string())),
         }
-
-        Ok(res
-            .into_iter()
-            .map(|(idx, map)| AppSourceMappings::new(self.sources[idx].connection.clone(), map))
-            .collect())
     }
+
     pub fn new() -> Self {
-        Self {
-            sources: Vec::new(),
-        }
+        Self::default()
     }
 }

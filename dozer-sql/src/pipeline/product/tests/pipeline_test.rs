@@ -1,5 +1,5 @@
 use dozer_core::app::{App, AppPipeline};
-use dozer_core::appsource::{AppSource, AppSourceManager};
+use dozer_core::appsource::{AppSourceManager, AppSourceMappings};
 use dozer_core::channels::SourceChannelForwarder;
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::node::{
@@ -432,17 +432,19 @@ fn test_pipeline_builder() {
     let latch = Arc::new(AtomicBool::new(true));
 
     let mut asm = AppSourceManager::new();
-    asm.add(AppSource::new(
-        "conn".to_string(),
+    asm.add(
         Arc::new(TestSourceFactory::new(latch.clone())),
-        vec![
-            ("user".to_string(), USER_PORT),
-            ("department".to_string(), DEPARTMENT_PORT),
-            ("country".to_string(), COUNTRY_PORT),
-        ]
-        .into_iter()
-        .collect(),
-    ))
+        AppSourceMappings::new(
+            "conn".to_string(),
+            vec![
+                ("user".to_string(), USER_PORT),
+                ("department".to_string(), DEPARTMENT_PORT),
+                ("country".to_string(), COUNTRY_PORT),
+            ]
+            .into_iter()
+            .collect(),
+        ),
+    )
     .unwrap();
 
     pipeline.add_sink(Arc::new(TestSinkFactory::new(8, latch)), "sink");
