@@ -101,14 +101,12 @@ pub(crate) fn insert_join_to_pipeline(
                 Some(connection_info.output_node.1),
                 &join_processor_name,
                 Some(LEFT_JOIN_PORT),
-                true,
             ),
             JoinSource::Join(ref connection_info) => pipeline.connect_nodes(
                 &connection_info.output_node.0,
                 Some(connection_info.output_node.1),
                 &join_processor_name,
                 Some(LEFT_JOIN_PORT),
-                true,
             ),
         }
 
@@ -119,14 +117,12 @@ pub(crate) fn insert_join_to_pipeline(
                 Some(connection_info.output_node.1),
                 &join_processor_name,
                 Some(RIGHT_JOIN_PORT),
-                true,
             ),
             JoinSource::Join(connection_info) => pipeline.connect_nodes(
                 &connection_info.output_node.0,
                 Some(connection_info.output_node.1),
                 &join_processor_name,
                 Some(RIGHT_JOIN_PORT),
-                true,
             ),
         }
 

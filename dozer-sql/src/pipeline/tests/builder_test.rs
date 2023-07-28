@@ -212,7 +212,6 @@ fn test_pipeline_builder() {
         Some(table_info.port),
         "sink",
         Some(DEFAULT_PORT_HANDLE),
-        true,
     );
 
     let mut app = App::new(asm);

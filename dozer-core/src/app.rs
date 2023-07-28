@@ -1,5 +1,4 @@
 use dozer_types::node::NodeHandle;
-use std::fmt::{Display, Formatter};
 
 use crate::appsource::{self, AppSourceManager};
 use crate::errors::ExecutionError;
@@ -22,31 +21,10 @@ impl PipelineEntryPoint {
         &self.source_name
     }
 }
-#[derive(Clone, Debug)]
-pub struct NamespacedEdge {
-    edge: Edge,
-    namespaced: bool,
-}
-
-impl Display for NamespacedEdge {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(
-            format!(
-                "edge: [node: {}, port: {} -> node: {}, port: {}], , namespaced: {}",
-                self.edge.from.node,
-                self.edge.from.port,
-                self.edge.to.node,
-                self.edge.to.port,
-                self.namespaced
-            )
-            .as_str(),
-        )
-    }
-}
 
 #[derive(Debug)]
 pub struct AppPipeline<T> {
-    edges: Vec<NamespacedEdge>,
+    edges: Vec<Edge>,
     processors: Vec<(NodeHandle, Box<dyn ProcessorFactory<T>>)>,
     sinks: Vec<(NodeHandle, Box<dyn SinkFactory<T>>)>,
     entry_points: Vec<(NodeHandle, PipelineEntryPoint)>,
@@ -93,7 +71,6 @@ impl<T> AppPipeline<T> {
         from_port: Option<PortHandle>,
         to: &str,
         to_port: Option<PortHandle>,
-        namespaced: bool,
     ) {
         let edge = Edge::new(
             Endpoint::new(
@@ -113,7 +90,7 @@ impl<T> AppPipeline<T> {
                 },
             ),
         );
-        self.edges.push(NamespacedEdge { edge, namespaced });
+        self.edges.push(edge);
     }
 
     pub fn new() -> Self {
@@ -158,16 +135,12 @@ impl<T: Clone> App<T> {
             for (handle, sink) in pipeline.sinks {
                 dag.add_sink(NodeHandle::new(Some(pipeline_id), handle.id), sink);
             }
-            for ne in pipeline.edges {
-                let edge = ne.edge;
-                let ns = if ne.namespaced {
-                    Some(pipeline_id)
-                } else {
-                    None
-                };
-
+            for edge in pipeline.edges {
                 dag.connect(
-                    Endpoint::new(NodeHandle::new(ns, edge.from.node.id), edge.from.port),
+                    Endpoint::new(
+                        NodeHandle::new(Some(pipeline_id), edge.from.node.id),
+                        edge.from.port,
+                    ),
                     Endpoint::new(
                         NodeHandle::new(Some(pipeline_id), edge.to.node.id),
                         edge.to.port,

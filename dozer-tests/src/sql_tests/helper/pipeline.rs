@@ -308,7 +308,6 @@ impl TestPipeline {
             Some(output_table.port),
             "sink",
             Some(DEFAULT_PORT_HANDLE),
-            true,
         );
         let used_schemas = pipeline.get_entry_points_sources_names();
         let mut app = App::new(asm);

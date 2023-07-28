@@ -164,7 +164,6 @@ fn insert_table_operator_processor_to_pipeline(
             Some(DEFAULT_PORT_HANDLE),
             &product_processor_name,
             Some(DEFAULT_PORT_HANDLE),
-            true,
         );
 
         Ok(ConnectionInfo {
@@ -210,7 +209,6 @@ fn insert_table_operator_processor_to_pipeline(
             Some(DEFAULT_PORT_HANDLE),
             &product_processor_name,
             Some(DEFAULT_PORT_HANDLE),
-            true,
         );
 
         Ok(ConnectionInfo {

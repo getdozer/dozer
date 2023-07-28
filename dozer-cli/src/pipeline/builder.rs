@@ -262,7 +262,6 @@ impl<'a> PipelineBuilder<'a> {
                         Some(table_info.port),
                         api_endpoint.name.as_str(),
                         Some(DEFAULT_PORT_HANDLE),
-                        true,
                     );
                 }
                 OutputTableInfo::Original(table_info) => {
