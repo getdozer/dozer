@@ -25,7 +25,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: [x86_64, x86, aarch64, armv7, s390x]
+#        target: [x86_64, x86, aarch64, armv7, s390x]
+        target: [x86_64, x86, aarch64, armv7]
         include:
           - target: x86_64
             gcc: gcc-x86-64-linux-gnu
@@ -35,8 +36,8 @@ jobs:
             gcc: gcc-aarch64-linux-gnu
           - target: armv7
             gcc: gcc-arm-linux-gnueabihf
-          - target: s390x
-            gcc: gcc-s390x-linux-gnu
+#          - target: s390x
+#            gcc: gcc-s390x-linux-gnu
     steps:
       - uses: actions/checkout@v3
 
