@@ -34,7 +34,7 @@ pub fn postgres_type_to_field(
                 .parse::<f64>()
                 .unwrap(),
         ))),
-        Type::TEXT | Type::VARCHAR | Type::CHAR | Type::BPCHAR => {
+        Type::TEXT | Type::VARCHAR | Type::CHAR | Type::BPCHAR | Type::ANYENUM => {
             Ok(Field::String(String::from_utf8(v.to_vec()).unwrap()))
         }
         Type::UUID => Ok(Field::String(String::from_utf8(v.to_vec()).unwrap())),
@@ -115,7 +115,7 @@ pub fn postgres_type_to_dozer_type(column_type: Type) -> Result<FieldType, Postg
     match column_type {
         Type::BOOL => Ok(FieldType::Boolean),
         Type::INT2 | Type::INT4 | Type::INT8 => Ok(FieldType::Int),
-        Type::CHAR | Type::TEXT | Type::VARCHAR | Type::BPCHAR | Type::UUID => {
+        Type::CHAR | Type::TEXT | Type::VARCHAR | Type::BPCHAR | Type::UUID | Type::ANYENUM => {
             Ok(FieldType::String)
         }
         Type::FLOAT4 | Type::FLOAT8 => Ok(FieldType::Float),
@@ -165,7 +165,7 @@ pub fn value_to_field(
         &Type::INT2 => convert_row_value_to_field!(row, idx, i16),
         &Type::INT4 => convert_row_value_to_field!(row, idx, i32),
         &Type::INT8 => convert_row_value_to_field!(row, idx, i64),
-        &Type::CHAR | &Type::TEXT | &Type::VARCHAR | &Type::BPCHAR => {
+        &Type::CHAR | &Type::TEXT | &Type::VARCHAR | &Type::BPCHAR | &Type::ANYENUM => {
             convert_row_value_to_field!(row, idx, String)
         }
         &Type::FLOAT4 => convert_row_value_to_field!(row, idx, f32),
