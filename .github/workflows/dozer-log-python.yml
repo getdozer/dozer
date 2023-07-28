@@ -35,15 +35,15 @@ jobs:
             gcc: gcc-aarch64-linux-gnu
           - target: armv7
             gcc: gcc-arm-linux-gnueabihf
-          - target: s390x
-            gcc: gcc-s390x-linux-gnu
+#          - target: s390x
+#            gcc: gcc-s390x-linux-gnu
     steps:
       - uses: actions/checkout@v3
 
       - name: Install target specific tools
         run: |
           sudo apt update
-          sudo apt install -y ${{ matrix.gcc }} musl-tools
+          sudo apt install -y ${{ matrix.gcc }}
 
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
