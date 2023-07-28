@@ -35,8 +35,8 @@ jobs:
             gcc: gcc-aarch64-linux-gnu
           - target: armv7
             gcc: gcc-arm-linux-gnueabihf
-          - target: s390x
-            gcc: gcc-s390x-linux-gnu
+#          - target: s390x
+#            gcc: gcc-s390x-linux-gnu
     steps:
       - uses: actions/checkout@v3
 
