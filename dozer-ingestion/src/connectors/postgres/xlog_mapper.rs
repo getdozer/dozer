@@ -160,12 +160,20 @@ impl XlogMapper {
                 continue;
             }
 
+            // TODO: workaround - in case of custom enum
+            let type_oid = column.type_id() as u32;
+            let typ = if type_oid == 28862 {
+                Type::VARCHAR
+            } else {
+                Type::from_oid(type_oid).ok_or_else(|| {
+                    PostgresSchemaError::InvalidColumnType(column_name.to_string())
+                })?
+            };
+
             columns.push(TableColumn {
                 name: column_name.to_string(),
                 flags: column.flags(),
-                r#type: Type::from_oid(column.type_id() as u32).ok_or_else(|| {
-                    PostgresSchemaError::InvalidColumnType(column_name.to_string())
-                })?,
+                r#type: typ,
                 column_index,
             })
         }

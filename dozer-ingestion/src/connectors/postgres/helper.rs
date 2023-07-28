@@ -34,7 +34,7 @@ pub fn postgres_type_to_field(
                 .parse::<f64>()
                 .unwrap(),
         ))),
-        Type::TEXT | Type::VARCHAR | Type::CHAR | Type::BPCHAR => {
+        Type::TEXT | Type::VARCHAR | Type::CHAR | Type::BPCHAR | Type::ANYENUM => {
             Ok(Field::String(String::from_utf8(v.to_vec()).unwrap()))
         }
         Type::UUID => Ok(Field::String(String::from_utf8(v.to_vec()).unwrap())),
@@ -115,7 +115,7 @@ pub fn postgres_type_to_dozer_type(column_type: Type) -> Result<FieldType, Postg
     match column_type {
         Type::BOOL => Ok(FieldType::Boolean),
         Type::INT2 | Type::INT4 | Type::INT8 => Ok(FieldType::Int),
-        Type::CHAR | Type::TEXT | Type::VARCHAR | Type::BPCHAR | Type::UUID => {
+        Type::CHAR | Type::TEXT | Type::VARCHAR | Type::BPCHAR | Type::UUID | Type::ANYENUM => {
             Ok(FieldType::String)
         }
         Type::FLOAT4 | Type::FLOAT8 => Ok(FieldType::Float),
@@ -165,7 +165,7 @@ pub fn value_to_field(
         &Type::INT2 => convert_row_value_to_field!(row, idx, i16),
         &Type::INT4 => convert_row_value_to_field!(row, idx, i32),
         &Type::INT8 => convert_row_value_to_field!(row, idx, i64),
-        &Type::CHAR | &Type::TEXT | &Type::VARCHAR | &Type::BPCHAR => {
+        &Type::CHAR | &Type::TEXT | &Type::VARCHAR | &Type::BPCHAR | &Type::ANYENUM => {
             convert_row_value_to_field!(row, idx, String)
         }
         &Type::FLOAT4 => convert_row_value_to_field!(row, idx, f32),
@@ -302,7 +302,8 @@ mod tests {
         test_conversion!("12", Type::INT8, Field::Int(12));
         test_conversion!("4.7809", Type::FLOAT8, Field::Float(OrderedFloat(4.7809)));
         let value = String::from("Test text");
-        test_conversion!("Test text", Type::TEXT, Field::String(value));
+        test_conversion!("Test text", Type::TEXT, Field::String(value.clone()));
+        test_conversion!("Test text", Type::ANYENUM, Field::String(value));
 
         let value = String::from("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11");
         test_conversion!(
@@ -390,6 +391,7 @@ mod tests {
         test_type_mapping!(Type::INT8, FieldType::Int);
         test_type_mapping!(Type::FLOAT8, FieldType::Float);
         test_type_mapping!(Type::VARCHAR, FieldType::String);
+        test_type_mapping!(Type::ANYENUM, FieldType::String);
         test_type_mapping!(Type::UUID, FieldType::String);
         test_type_mapping!(Type::BYTEA, FieldType::Binary);
         test_type_mapping!(Type::NUMERIC, FieldType::Decimal);

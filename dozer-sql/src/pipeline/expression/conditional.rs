@@ -1,7 +1,5 @@
-use crate::pipeline::errors::PipelineError::{
-    InvalidConditionalExpression, InvalidFunction, NotEnoughArguments,
-};
-use crate::pipeline::errors::{FieldTypes, PipelineError};
+use crate::pipeline::errors::PipelineError;
+use crate::pipeline::errors::PipelineError::{InvalidFunction, NotEnoughArguments};
 use crate::pipeline::expression::execution::{Expression, ExpressionType};
 use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::types::{Field, FieldType, Schema};
@@ -61,12 +59,6 @@ pub(crate) fn validate_coalesce(
         .map(|expr| expr.get_type(schema).unwrap().return_type)
         .collect::<Vec<FieldType>>();
     let return_type = return_types[0];
-    if !return_types.iter().all(|&typ| typ == return_type) {
-        return Err(InvalidConditionalExpression(
-            ConditionalExpressionType::Coalesce.to_string(),
-            FieldTypes::new(return_types),
-        ));
-    }
 
     Ok(ExpressionType::new(
         return_type,

@@ -210,7 +210,7 @@ mod tests {
         other.extend_direct_field(Field::Int(2));
         let other = ProcessorRecordRef::new(other);
         record.extend_direct_field(Field::Int(3));
-        record.extend_referenced_record(other.clone());
+        record.extend_referenced_record(other);
         record.extend_direct_field(Field::Int(4));
 
         assert_eq!(record.get_fields().len(), 4);
