@@ -305,9 +305,9 @@ impl TestPipeline {
 
         pipeline.connect_nodes(
             &output_table.node,
-            Some(output_table.port),
+            output_table.port,
             "sink",
-            Some(DEFAULT_PORT_HANDLE),
+            DEFAULT_PORT_HANDLE,
         );
         let used_schemas = pipeline.get_entry_points_sources_names();
         let mut app = App::new(asm);

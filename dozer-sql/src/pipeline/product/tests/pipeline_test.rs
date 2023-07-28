@@ -450,9 +450,9 @@ fn test_pipeline_builder() {
     pipeline.add_sink(Box::new(TestSinkFactory::new(8, latch)), "sink", None);
     pipeline.connect_nodes(
         &table_info.node,
-        Some(table_info.port),
+        table_info.port,
         "sink",
-        Some(DEFAULT_PORT_HANDLE),
+        DEFAULT_PORT_HANDLE,
     );
 
     let mut app = App::new(asm);

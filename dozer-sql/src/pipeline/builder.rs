@@ -264,9 +264,9 @@ fn select_to_pipeline(
         {
             pipeline.connect_nodes(
                 &table_info.node,
-                Some(table_info.port),
+                table_info.port,
                 processor_name,
-                Some(*processor_port as PortHandle),
+                *processor_port as PortHandle,
             );
             // If not present in pipeline_map, insert into used_sources as this is coming from source
         } else {
@@ -287,23 +287,23 @@ fn select_to_pipeline(
 
         pipeline.connect_nodes(
             &gen_product_name,
-            Some(product_output_port),
+            product_output_port,
             &gen_selection_name,
-            Some(DEFAULT_PORT_HANDLE),
+            DEFAULT_PORT_HANDLE,
         );
 
         pipeline.connect_nodes(
             &gen_selection_name,
-            Some(DEFAULT_PORT_HANDLE),
+            DEFAULT_PORT_HANDLE,
             &gen_agg_name,
-            Some(DEFAULT_PORT_HANDLE),
+            DEFAULT_PORT_HANDLE,
         );
     } else {
         pipeline.connect_nodes(
             &gen_product_name,
-            Some(product_output_port),
+            product_output_port,
             &gen_agg_name,
-            Some(DEFAULT_PORT_HANDLE),
+            DEFAULT_PORT_HANDLE,
         );
     }
 
@@ -457,16 +457,16 @@ fn set_to_pipeline(
 
     pipeline.connect_nodes(
         &left_pipeline_output_node.node,
-        Some(left_pipeline_output_node.port),
+        left_pipeline_output_node.port,
         &gen_set_name,
-        Some(0 as PortHandle),
+        0 as PortHandle,
     );
 
     pipeline.connect_nodes(
         &right_pipeline_output_node.node,
-        Some(right_pipeline_output_node.port),
+        right_pipeline_output_node.port,
         &gen_set_name,
-        Some(1 as PortHandle),
+        1 as PortHandle,
     );
 
     for (_, table_name) in query_ctx.pipeline_map.keys() {

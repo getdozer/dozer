@@ -69,9 +69,9 @@ fn test_lifetime_pipeline() {
     );
     pipeline.connect_nodes(
         &table_info.node,
-        Some(table_info.port),
+        table_info.port,
         "sink",
-        Some(DEFAULT_PORT_HANDLE),
+        DEFAULT_PORT_HANDLE,
     );
 
     let mut app = App::new(asm);

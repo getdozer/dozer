@@ -3,7 +3,7 @@ use dozer_types::node::NodeHandle;
 use crate::appsource::{self, AppSourceManager};
 use crate::errors::ExecutionError;
 use crate::node::{PortHandle, ProcessorFactory, SinkFactory};
-use crate::{Dag, Edge, Endpoint, DEFAULT_PORT_HANDLE};
+use crate::{Dag, Edge, Endpoint};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PipelineEntryPoint {
@@ -68,27 +68,13 @@ impl<T> AppPipeline<T> {
     pub fn connect_nodes(
         &mut self,
         from: &str,
-        from_port: Option<PortHandle>,
+        from_port: PortHandle,
         to: &str,
-        to_port: Option<PortHandle>,
+        to_port: PortHandle,
     ) {
         let edge = Edge::new(
-            Endpoint::new(
-                NodeHandle::new(None, from.to_string()),
-                if let Some(port) = from_port {
-                    port
-                } else {
-                    DEFAULT_PORT_HANDLE
-                },
-            ),
-            Endpoint::new(
-                NodeHandle::new(None, to.to_string()),
-                if let Some(port) = to_port {
-                    port
-                } else {
-                    DEFAULT_PORT_HANDLE
-                },
-            ),
+            Endpoint::new(NodeHandle::new(None, from.to_string()), from_port),
+            Endpoint::new(NodeHandle::new(None, to.to_string()), to_port),
         );
         self.edges.push(edge);
     }

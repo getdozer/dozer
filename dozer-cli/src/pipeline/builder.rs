@@ -259,9 +259,9 @@ impl<'a> PipelineBuilder<'a> {
 
                     pipeline.connect_nodes(
                         &table_info.node,
-                        Some(table_info.port),
+                        table_info.port,
                         api_endpoint.name.as_str(),
-                        Some(DEFAULT_PORT_HANDLE),
+                        DEFAULT_PORT_HANDLE,
                     );
                 }
                 OutputTableInfo::Original(table_info) => {

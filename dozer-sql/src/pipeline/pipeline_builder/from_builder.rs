@@ -161,9 +161,9 @@ fn insert_table_operator_processor_to_pipeline(
 
         pipeline.connect_nodes(
             &processor_name,
-            Some(DEFAULT_PORT_HANDLE),
+            DEFAULT_PORT_HANDLE,
             &product_processor_name,
-            Some(DEFAULT_PORT_HANDLE),
+            DEFAULT_PORT_HANDLE,
         );
 
         Ok(ConnectionInfo {
@@ -206,9 +206,9 @@ fn insert_table_operator_processor_to_pipeline(
 
         pipeline.connect_nodes(
             &window_processor_name,
-            Some(DEFAULT_PORT_HANDLE),
+            DEFAULT_PORT_HANDLE,
             &product_processor_name,
-            Some(DEFAULT_PORT_HANDLE),
+            DEFAULT_PORT_HANDLE,
         );
 
         Ok(ConnectionInfo {

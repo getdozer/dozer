@@ -98,15 +98,15 @@ pub(crate) fn insert_join_to_pipeline(
             JoinSource::Table(_) => {}
             JoinSource::Operator(ref connection_info) => pipeline.connect_nodes(
                 &connection_info.output_node.0,
-                Some(connection_info.output_node.1),
+                connection_info.output_node.1,
                 &join_processor_name,
-                Some(LEFT_JOIN_PORT),
+                LEFT_JOIN_PORT,
             ),
             JoinSource::Join(ref connection_info) => pipeline.connect_nodes(
                 &connection_info.output_node.0,
-                Some(connection_info.output_node.1),
+                connection_info.output_node.1,
                 &join_processor_name,
-                Some(LEFT_JOIN_PORT),
+                LEFT_JOIN_PORT,
             ),
         }
 
@@ -114,15 +114,15 @@ pub(crate) fn insert_join_to_pipeline(
             JoinSource::Table(_) => {}
             JoinSource::Operator(connection_info) => pipeline.connect_nodes(
                 &connection_info.output_node.0,
-                Some(connection_info.output_node.1),
+                connection_info.output_node.1,
                 &join_processor_name,
-                Some(RIGHT_JOIN_PORT),
+                RIGHT_JOIN_PORT,
             ),
             JoinSource::Join(connection_info) => pipeline.connect_nodes(
                 &connection_info.output_node.0,
-                Some(connection_info.output_node.1),
+                connection_info.output_node.1,
                 &join_processor_name,
-                Some(RIGHT_JOIN_PORT),
+                RIGHT_JOIN_PORT,
             ),
         }
 

@@ -182,7 +182,12 @@ fn test_app_dag() {
         "sink",
         None,
     );
-    p1.connect_nodes("join", None, "sink", Some(COUNTING_SINK_INPUT_PORT));
+    p1.connect_nodes(
+        "join",
+        DEFAULT_PORT_HANDLE,
+        "sink",
+        COUNTING_SINK_INPUT_PORT,
+    );
 
     app.add_pipeline(p1);
 
@@ -200,7 +205,12 @@ fn test_app_dag() {
         "sink",
         None,
     );
-    p2.connect_nodes("join", None, "sink", Some(COUNTING_SINK_INPUT_PORT));
+    p2.connect_nodes(
+        "join",
+        DEFAULT_PORT_HANDLE,
+        "sink",
+        COUNTING_SINK_INPUT_PORT,
+    );
 
     app.add_pipeline(p2);
 
