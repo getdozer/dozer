@@ -5,7 +5,6 @@ use crate::pipeline::expression::builder::{ExpressionBuilder, NameOrAlias};
 use crate::pipeline::selection::factory::SelectionProcessorFactory;
 use dozer_core::app::AppPipeline;
 use dozer_core::app::PipelineEntryPoint;
-use dozer_core::appsource::AppSourceId;
 use dozer_core::node::PortHandle;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use sqlparser::ast::{Join, SetOperator, SetQuantifier, TableFactor, TableWithJoins};
@@ -540,10 +539,7 @@ pub fn get_entry_points(
     for (input_port, table) in input_names.iter().enumerate() {
         let name = table.0.clone();
         if !pipeline_map.contains_key(&(pipeline_idx, name.clone())) {
-            endpoints.push(PipelineEntryPoint::new(
-                AppSourceId::new(name, None),
-                input_port as PortHandle,
-            ));
+            endpoints.push(PipelineEntryPoint::new(name, input_port as PortHandle));
         }
     }
 

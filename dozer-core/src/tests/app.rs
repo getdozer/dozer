@@ -1,5 +1,5 @@
 use crate::app::{App, AppPipeline, PipelineEntryPoint};
-use crate::appsource::{AppSource, AppSourceId, AppSourceManager};
+use crate::appsource::{AppSource, AppSourceManager};
 use crate::executor::{DagExecutor, ExecutorOptions};
 use crate::node::{OutputPortDef, PortHandle, Source, SourceFactory};
 use crate::tests::dag_base_run::{
@@ -70,83 +70,43 @@ fn test_apps_source_manager_lookup() {
     );
     asm.add(app_src).unwrap();
 
-    let r = asm
-        .get(vec![AppSourceId::new("table1".to_string(), None)])
-        .unwrap();
-    assert_eq!(r[0].source.connection, "conn1");
-    assert_eq!(
-        r[0].mappings
-            .get(&AppSourceId::new("table1".to_string(), None))
-            .unwrap(),
-        &1_u16
-    );
+    let r = asm.get(vec!["table1".to_string()]).unwrap();
+    assert_eq!(r[0].connection, "conn1");
+    assert_eq!(r[0].mappings.get(&"table1".to_string()).unwrap(), &1_u16);
 
-    let r = asm.get(vec![AppSourceId::new(
-        "table1".to_string(),
-        Some("No connection".to_string()),
-    )]);
+    let r = asm.get(vec!["Non-existent source".to_string()]);
     assert!(r.is_err());
 
-    let r = asm
-        .get(vec![AppSourceId::new(
-            "table1".to_string(),
-            Some("conn1".to_string()),
-        )])
-        .unwrap();
-    assert_eq!(r[0].source.connection, "conn1");
-    assert_eq!(
-        r[0].mappings
-            .get(&AppSourceId::new(
-                "table1".to_string(),
-                Some("conn1".to_string())
-            ))
-            .unwrap(),
-        &1_u16
-    );
+    let r = asm.get(vec!["table1".to_string()]).unwrap();
+    assert_eq!(r[0].connection, "conn1");
+    assert_eq!(r[0].mappings.get(&"table1".to_string(),).unwrap(), &1_u16);
 
-    // Insert same table name
+    // Insert another source
     let app_src = AppSource::new(
         "conn2".to_string(),
         Arc::new(NoneSourceFactory {}),
-        vec![("table1".to_string(), 2_u16)].into_iter().collect(),
+        vec![("table2".to_string(), 2_u16)].into_iter().collect(),
     );
     asm.add(app_src).unwrap();
 
-    let r = asm.get(vec![AppSourceId::new("table1".to_string(), None)]);
+    let r = asm.get(vec!["table3".to_string()]);
     assert!(r.is_err());
 
     let r = asm
-        .get(vec![
-            AppSourceId::new("table1".to_string(), Some("conn1".to_string())),
-            AppSourceId::new("table1".to_string(), Some("conn2".to_string())),
-        ])
+        .get(vec!["table1".to_string(), "table2".to_string()])
         .unwrap();
 
-    let conn1 = r.iter().find(|e| e.source.connection == "conn1");
+    let conn1 = r.iter().find(|e| e.connection == "conn1");
     assert!(conn1.is_some());
-    let conn2 = r.iter().find(|e| e.source.connection == "conn2");
+    let conn2 = r.iter().find(|e| e.connection == "conn2");
     assert!(conn2.is_some());
 
     assert_eq!(
-        conn1
-            .unwrap()
-            .mappings
-            .get(&AppSourceId::new(
-                "table1".to_string(),
-                Some("conn1".to_string())
-            ))
-            .unwrap(),
+        conn1.unwrap().mappings.get(&"table1".to_string()).unwrap(),
         &1_u16
     );
     assert_eq!(
-        conn2
-            .unwrap()
-            .mappings
-            .get(&AppSourceId::new(
-                "table1".to_string(),
-                Some("conn2".to_string())
-            ))
-            .unwrap(),
+        conn2.unwrap().mappings.get(&"table2".to_string()).unwrap(),
         &2_u16
     );
 }
@@ -163,31 +123,15 @@ fn test_apps_source_manager_lookup_multiple_ports() {
     );
     asm.add(app_src).unwrap();
 
-    let _r = asm.get(vec![
-        AppSourceId::new("table1".to_string(), None),
-        AppSourceId::new("table2".to_string(), None),
-    ]);
+    let _r = asm.get(vec!["table1".to_string(), "table2".to_string()]);
 
     let r = asm
-        .get(vec![
-            AppSourceId::new("table1".to_string(), None),
-            AppSourceId::new("table2".to_string(), None),
-        ])
+        .get(vec!["table1".to_string(), "table2".to_string()])
         .unwrap();
 
-    assert_eq!(r[0].source.connection, "conn1");
-    assert_eq!(
-        r[0].mappings
-            .get(&AppSourceId::new("table1".to_string(), None))
-            .unwrap(),
-        &1_u16
-    );
-    assert_eq!(
-        r[0].mappings
-            .get(&AppSourceId::new("table2".to_string(), None))
-            .unwrap(),
-        &2_u16
-    );
+    assert_eq!(r[0].connection, "conn1");
+    assert_eq!(r[0].mappings.get(&"table1".to_string()).unwrap(), &1_u16);
+    assert_eq!(r[0].mappings.get(&"table2".to_string()).unwrap(), &2_u16);
 }
 
 #[test]
@@ -204,7 +148,7 @@ fn test_app_dag() {
         )),
         vec![
             (
-                "users".to_string(),
+                "users_postgres".to_string(),
                 DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_1,
             ),
             (
@@ -220,7 +164,7 @@ fn test_app_dag() {
     asm.add(AppSource::new(
         "snowflake".to_string(),
         Arc::new(GeneratorSourceFactory::new(10_000, latch.clone(), true)),
-        vec![("users".to_string(), GENERATOR_SOURCE_OUTPUT_PORT)]
+        vec![("users_snowflake".to_string(), GENERATOR_SOURCE_OUTPUT_PORT)]
             .into_iter()
             .collect(),
     ))
@@ -233,14 +177,8 @@ fn test_app_dag() {
         Arc::new(NoopJoinProcessorFactory {}),
         "join",
         vec![
-            PipelineEntryPoint::new(
-                AppSourceId::new("users".to_string(), Some("postgres".to_string())),
-                NOOP_JOIN_LEFT_INPUT_PORT,
-            ),
-            PipelineEntryPoint::new(
-                AppSourceId::new("transactions".to_string(), None),
-                NOOP_JOIN_RIGHT_INPUT_PORT,
-            ),
+            PipelineEntryPoint::new("users_postgres".to_string(), NOOP_JOIN_LEFT_INPUT_PORT),
+            PipelineEntryPoint::new("transactions".to_string(), NOOP_JOIN_RIGHT_INPUT_PORT),
         ],
     );
     p1.add_sink(
@@ -256,14 +194,8 @@ fn test_app_dag() {
         Arc::new(NoopJoinProcessorFactory {}),
         "join",
         vec![
-            PipelineEntryPoint::new(
-                AppSourceId::new("users".to_string(), Some("snowflake".to_string())),
-                NOOP_JOIN_LEFT_INPUT_PORT,
-            ),
-            PipelineEntryPoint::new(
-                AppSourceId::new("transactions".to_string(), None),
-                NOOP_JOIN_RIGHT_INPUT_PORT,
-            ),
+            PipelineEntryPoint::new("users_snowflake".to_string(), NOOP_JOIN_LEFT_INPUT_PORT),
+            PipelineEntryPoint::new("transactions".to_string(), NOOP_JOIN_RIGHT_INPUT_PORT),
         ],
     );
     p2.add_sink(Arc::new(CountingSinkFactory::new(20_000, latch)), "sink");

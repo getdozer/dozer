@@ -2,7 +2,6 @@ use std::{collections::HashMap, sync::Arc};
 
 use dozer_core::{
     app::{AppPipeline, PipelineEntryPoint},
-    appsource::AppSourceId,
     node::PortHandle,
     DEFAULT_PORT_HANDLE,
 };
@@ -87,10 +86,7 @@ fn insert_table_processor_to_pipeline(
         &mut query_context.pipeline_map,
         pipeline_idx,
     ) {
-        let entry_point = PipelineEntryPoint::new(
-            AppSourceId::new(product_input_name.clone(), None),
-            DEFAULT_PORT_HANDLE,
-        );
+        let entry_point = PipelineEntryPoint::new(product_input_name.clone(), DEFAULT_PORT_HANDLE);
 
         product_entry_points.push(entry_point);
         query_context.used_sources.push(product_input_name);
@@ -148,10 +144,8 @@ fn insert_table_operator_processor_to_pipeline(
         let mut entry_points = vec![];
 
         if is_an_entry_point(&source_name, &mut query_context.pipeline_map, pipeline_idx) {
-            let entry_point = PipelineEntryPoint::new(
-                AppSourceId::new(source_name.clone(), None),
-                DEFAULT_PORT_HANDLE as PortHandle,
-            );
+            let entry_point =
+                PipelineEntryPoint::new(source_name.clone(), DEFAULT_PORT_HANDLE as PortHandle);
 
             entry_points.push(entry_point);
             query_context.used_sources.push(source_name);
@@ -191,7 +185,7 @@ fn insert_table_operator_processor_to_pipeline(
             pipeline_idx,
         ) {
             let entry_point = PipelineEntryPoint::new(
-                AppSourceId::new(window_source_name.clone(), None),
+                window_source_name.clone(),
                 DEFAULT_PORT_HANDLE as PortHandle,
             );
 

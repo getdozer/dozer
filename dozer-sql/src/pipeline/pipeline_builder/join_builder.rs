@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use dozer_core::{
     app::{AppPipeline, PipelineEntryPoint},
-    appsource::AppSourceId,
     DEFAULT_PORT_HANDLE,
 };
 use sqlparser::ast::TableWithJoins;
@@ -63,10 +62,7 @@ pub(crate) fn insert_join_to_pipeline(
         let mut pipeline_entry_points = vec![];
         if let JoinSource::Table(ref source_table) = left_join_source {
             if is_an_entry_point(source_table, &mut query_context.pipeline_map, pipeline_idx) {
-                let entry_point = PipelineEntryPoint::new(
-                    AppSourceId::new(source_table.clone(), None),
-                    LEFT_JOIN_PORT,
-                );
+                let entry_point = PipelineEntryPoint::new(source_table.clone(), LEFT_JOIN_PORT);
 
                 pipeline_entry_points.push(entry_point);
                 query_context.used_sources.push(source_table.to_string());
@@ -81,10 +77,7 @@ pub(crate) fn insert_join_to_pipeline(
 
         if let JoinSource::Table(ref source_table) = right_join_source.clone() {
             if is_an_entry_point(source_table, &mut query_context.pipeline_map, pipeline_idx) {
-                let entry_point = PipelineEntryPoint::new(
-                    AppSourceId::new(source_table.clone(), None),
-                    RIGHT_JOIN_PORT,
-                );
+                let entry_point = PipelineEntryPoint::new(source_table.clone(), RIGHT_JOIN_PORT);
 
                 pipeline_entry_points.push(entry_point);
                 query_context.used_sources.push(source_table.to_string());
@@ -208,10 +201,7 @@ fn insert_table_operator_to_pipeline(
         let mut entry_points = vec![];
 
         if is_an_entry_point(&source_name, &mut query_context.pipeline_map, pipeline_idx) {
-            let entry_point = PipelineEntryPoint::new(
-                AppSourceId::new(source_name.clone(), None),
-                DEFAULT_PORT_HANDLE,
-            );
+            let entry_point = PipelineEntryPoint::new(source_name.clone(), DEFAULT_PORT_HANDLE);
 
             entry_points.push(entry_point);
             query_context.used_sources.push(source_name);
@@ -240,10 +230,8 @@ fn insert_table_operator_to_pipeline(
             &mut query_context.pipeline_map,
             pipeline_idx,
         ) {
-            let entry_point = PipelineEntryPoint::new(
-                AppSourceId::new(window_source_name.clone(), None),
-                DEFAULT_PORT_HANDLE,
-            );
+            let entry_point =
+                PipelineEntryPoint::new(window_source_name.clone(), DEFAULT_PORT_HANDLE);
 
             window_entry_points.push(entry_point);
             query_context.used_sources.push(window_source_name);

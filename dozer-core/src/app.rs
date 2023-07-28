@@ -1,7 +1,7 @@
 use dozer_types::node::NodeHandle;
 use std::fmt::{Display, Formatter};
 
-use crate::appsource::{AppSourceId, AppSourceManager};
+use crate::appsource::AppSourceManager;
 use crate::errors::ExecutionError;
 use crate::node::{PortHandle, ProcessorFactory, SinkFactory};
 use crate::{Dag, Edge, Endpoint, DEFAULT_PORT_HANDLE};
@@ -10,17 +10,17 @@ use std::sync::Arc;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct PipelineEntryPoint {
-    id: AppSourceId,
+    source_name: String,
     port: PortHandle,
 }
 
 impl PipelineEntryPoint {
-    pub fn new(id: AppSourceId, port: PortHandle) -> Self {
-        Self { id, port }
+    pub fn new(source_name: String, port: PortHandle) -> Self {
+        Self { source_name, port }
     }
 
-    pub fn id(&self) -> &AppSourceId {
-        &self.id
+    pub fn source_name(&self) -> &str {
+        &self.source_name
     }
 }
 #[derive(Clone, Debug)]
@@ -120,7 +120,7 @@ impl<T> AppPipeline<T> {
     pub fn get_entry_points_sources_names(&self) -> Vec<String> {
         self.entry_points
             .iter()
-            .map(|(_, p)| p.id().id.clone())
+            .map(|(_, p)| p.source_name().to_string())
             .collect()
     }
 }
@@ -139,7 +139,7 @@ impl<T: Clone> App<T> {
 
     pub fn get_dag(&self) -> Result<Dag<T>, ExecutionError> {
         let mut dag = Dag::new();
-        let mut entry_points: Vec<(AppSourceId, Endpoint)> = Vec::new();
+        let mut entry_points: Vec<(String, Endpoint)> = Vec::new();
 
         for (connection, source) in self.sources.get_sources() {
             let node_handle = NodeHandle::new(None, connection.clone());
@@ -182,7 +182,7 @@ impl<T: Clone> App<T> {
 
             for (handle, entry) in &pipeline.entry_points {
                 entry_points.push((
-                    entry.id.clone(),
+                    entry.source_name.clone(),
                     Endpoint::new(
                         NodeHandle::new(Some(*pipeline_id), handle.id.clone()),
                         entry.port,
@@ -197,7 +197,7 @@ impl<T: Clone> App<T> {
 
         // Connect to all pipelines
         for mapping in &mappings {
-            let node_handle = NodeHandle::new(None, mapping.source.connection.clone());
+            let node_handle = NodeHandle::new(None, mapping.connection.clone());
             for entry in &entry_points {
                 if let Some(e) = mapping.mappings.get(&entry.0) {
                     dag.connect(Endpoint::new(node_handle.clone(), *e), entry.1.clone())?;

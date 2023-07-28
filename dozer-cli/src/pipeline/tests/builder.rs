@@ -5,8 +5,6 @@ use crate::pipeline::PipelineBuilder;
 use dozer_types::ingestion_types::{GrpcConfig, GrpcConfigSchemas};
 use dozer_types::models::config::Config;
 
-use dozer_core::appsource::{AppSourceId, AppSourceMappings};
-use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::indicatif::MultiProgress;
 use dozer_types::models::connection::{Connection, ConnectionConfig};
 use dozer_types::models::source::Source;
@@ -81,17 +79,10 @@ fn load_multi_sources() {
         .build_source_manager(Arc::new(runtime))
         .unwrap();
 
-    let conn_name_1 = config.connections.get(0).unwrap().name.clone();
-    let pg_source_mapping: Vec<AppSourceMappings<SchemaSQLContext>> = asm
+    let pg_source_mapping = asm
         .get(vec![
-            AppSourceId::new(
-                config.sources.get(0).unwrap().name.clone(),
-                Some(conn_name_1.clone()),
-            ),
-            AppSourceId::new(
-                config.sources.get(1).unwrap().name.clone(),
-                Some(conn_name_1),
-            ),
+            config.sources.get(0).unwrap().name.clone(),
+            config.sources.get(1).unwrap().name.clone(),
         ])
         .unwrap();
 
