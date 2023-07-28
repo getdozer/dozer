@@ -444,16 +444,19 @@ fn test_pipeline_builder() {
             .into_iter()
             .collect(),
         ),
-    )
-    .unwrap();
-
-    pipeline.add_sink(Box::new(TestSinkFactory::new(8, latch)), "sink", None);
-    pipeline.connect_nodes(
-        &table_info.node,
-        table_info.port,
-        "sink",
-        DEFAULT_PORT_HANDLE,
     );
+
+    pipeline
+        .add_sink(Box::new(TestSinkFactory::new(8, latch)), "sink", None)
+        .unwrap();
+    pipeline
+        .connect_nodes(
+            &table_info.node,
+            table_info.port,
+            "sink",
+            DEFAULT_PORT_HANDLE,
+        )
+        .unwrap();
 
     let mut app = App::new(asm);
     app.add_pipeline(pipeline);

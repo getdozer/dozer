@@ -59,20 +59,23 @@ fn test_lifetime_pipeline() {
             .into_iter()
             .collect(),
         ),
-    )
-    .unwrap();
+    );
 
-    pipeline.add_sink(
-        Box::new(TestSinkFactory::new(EXPECTED_SINK_OP_COUNT, latch)),
-        "sink",
-        None,
-    );
-    pipeline.connect_nodes(
-        &table_info.node,
-        table_info.port,
-        "sink",
-        DEFAULT_PORT_HANDLE,
-    );
+    pipeline
+        .add_sink(
+            Box::new(TestSinkFactory::new(EXPECTED_SINK_OP_COUNT, latch)),
+            "sink",
+            None,
+        )
+        .unwrap();
+    pipeline
+        .connect_nodes(
+            &table_info.node,
+            table_info.port,
+            "sink",
+            DEFAULT_PORT_HANDLE,
+        )
+        .unwrap();
 
     let mut app = App::new(asm);
     app.add_pipeline(pipeline);

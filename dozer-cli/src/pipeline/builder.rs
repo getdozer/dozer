@@ -12,6 +12,7 @@ use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_ingestion::connectors::{get_connector, get_connector_info_table};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::builder::{OutputNodeInfo, QueryContext, SchemaSQLContext};
+use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::indicatif::MultiProgress;
 use dozer_types::log::debug;
 use dozer_types::models::api_endpoint::ApiEndpoint;
@@ -255,24 +256,30 @@ impl<'a> PipelineBuilder<'a> {
 
             match table_info {
                 OutputTableInfo::Transformed(table_info) => {
-                    pipeline.add_sink(snk_factory, api_endpoint.name.as_str(), None);
+                    pipeline
+                        .add_sink(snk_factory, api_endpoint.name.as_str(), None)
+                        .map_err(PipelineError::PipelineBuilder)?;
 
-                    pipeline.connect_nodes(
-                        &table_info.node,
-                        table_info.port,
-                        api_endpoint.name.as_str(),
-                        DEFAULT_PORT_HANDLE,
-                    );
+                    pipeline
+                        .connect_nodes(
+                            &table_info.node,
+                            table_info.port,
+                            api_endpoint.name.as_str(),
+                            DEFAULT_PORT_HANDLE,
+                        )
+                        .map_err(PipelineError::PipelineBuilder)?;
                 }
                 OutputTableInfo::Original(table_info) => {
-                    pipeline.add_sink(
-                        snk_factory,
-                        api_endpoint.name.as_str(),
-                        Some(PipelineEntryPoint::new(
-                            table_info.table_name.clone(),
-                            DEFAULT_PORT_HANDLE,
-                        )),
-                    );
+                    pipeline
+                        .add_sink(
+                            snk_factory,
+                            api_endpoint.name.as_str(),
+                            Some(PipelineEntryPoint::new(
+                                table_info.table_name.clone(),
+                                DEFAULT_PORT_HANDLE,
+                            )),
+                        )
+                        .map_err(PipelineError::PipelineBuilder)?;
                 }
             }
         }

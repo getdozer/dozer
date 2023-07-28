@@ -1,11 +1,6 @@
-use dozer_types::node::NodeHandle;
-
 use crate::errors::ExecutionError;
-use crate::errors::ExecutionError::{
-    AmbiguousSourceIdentifier, AppSourceConnectionAlreadyExists, InvalidSourceIdentifier,
-};
+use crate::errors::ExecutionError::{AmbiguousSourceIdentifier, InvalidSourceIdentifier};
 use crate::node::{PortHandle, SourceFactory};
-use crate::Endpoint;
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -40,25 +35,12 @@ impl<T> Default for AppSourceManager<T> {
 }
 
 impl<T> AppSourceManager<T> {
-    pub fn add(
-        &mut self,
-        source: Box<dyn SourceFactory<T>>,
-        mapping: AppSourceMappings,
-    ) -> Result<(), ExecutionError> {
-        if self
-            .mappings
-            .iter()
-            .any(|existing_mapping| existing_mapping.connection == mapping.connection)
-        {
-            return Err(AppSourceConnectionAlreadyExists(mapping.connection));
-        }
-
+    pub fn add(&mut self, source: Box<dyn SourceFactory<T>>, mapping: AppSourceMappings) {
         self.sources.push(source);
         self.mappings.push(mapping);
-        Ok(())
     }
 
-    pub fn get_endpoint(&self, source_name: &str) -> Result<Endpoint, ExecutionError> {
+    pub fn get_endpoint(&self, source_name: &str) -> Result<(&str, PortHandle), ExecutionError> {
         get_endpoint_from_mappings(&self.mappings, source_name)
     }
 
@@ -67,19 +49,18 @@ impl<T> AppSourceManager<T> {
     }
 }
 
-pub fn get_endpoint_from_mappings(
-    mappings: &[AppSourceMappings],
+/// Returns the (connection name, output port) that outputs the table with source name `source_name`.
+pub fn get_endpoint_from_mappings<'a>(
+    mappings: &'a [AppSourceMappings],
     source_name: &str,
-) -> Result<Endpoint, ExecutionError> {
-    let mut found: Vec<Endpoint> = mappings
+) -> Result<(&'a str, PortHandle), ExecutionError> {
+    let mut found: Vec<(&str, PortHandle)> = mappings
         .iter()
         .filter_map(|mapping| {
-            mapping.mappings.get(source_name).map(|output_port| {
-                Endpoint::new(
-                    NodeHandle::new(None, mapping.connection.clone()),
-                    *output_port,
-                )
-            })
+            mapping
+                .mappings
+                .get(source_name)
+                .map(|output_port| (mapping.connection.as_str(), *output_port))
         })
         .collect();
 

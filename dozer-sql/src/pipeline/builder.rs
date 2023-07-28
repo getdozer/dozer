@@ -267,7 +267,7 @@ fn select_to_pipeline(
                 table_info.port,
                 processor_name,
                 *processor_port as PortHandle,
-            );
+            )?;
             // If not present in pipeline_map, insert into used_sources as this is coming from source
         } else {
             query_ctx.used_sources.push(source_name.clone());
@@ -277,34 +277,34 @@ fn select_to_pipeline(
     let aggregation =
         AggregationProcessorFactory::new(gen_agg_name.clone(), select.clone(), stateful);
 
-    pipeline.add_processor(Box::new(aggregation), &gen_agg_name, vec![]);
+    pipeline.add_processor(Box::new(aggregation), &gen_agg_name, vec![])?;
 
     // Where clause
     if let Some(selection) = select.selection {
         let selection = SelectionProcessorFactory::new(gen_selection_name.to_owned(), selection);
 
-        pipeline.add_processor(Box::new(selection), &gen_selection_name, vec![]);
+        pipeline.add_processor(Box::new(selection), &gen_selection_name, vec![])?;
 
         pipeline.connect_nodes(
             &gen_product_name,
             product_output_port,
             &gen_selection_name,
             DEFAULT_PORT_HANDLE,
-        );
+        )?;
 
         pipeline.connect_nodes(
             &gen_selection_name,
             DEFAULT_PORT_HANDLE,
             &gen_agg_name,
             DEFAULT_PORT_HANDLE,
-        );
+        )?;
     } else {
         pipeline.connect_nodes(
             &gen_product_name,
             product_output_port,
             &gen_agg_name,
             DEFAULT_PORT_HANDLE,
-        );
+        )?;
     }
 
     query_ctx.pipeline_map.insert(
@@ -453,21 +453,21 @@ fn set_to_pipeline(
 
     let set_proc_fac = SetProcessorFactory::new(gen_set_name.clone(), set_quantifier);
 
-    pipeline.add_processor(Box::new(set_proc_fac), &gen_set_name, vec![]);
+    pipeline.add_processor(Box::new(set_proc_fac), &gen_set_name, vec![])?;
 
     pipeline.connect_nodes(
         &left_pipeline_output_node.node,
         left_pipeline_output_node.port,
         &gen_set_name,
         0 as PortHandle,
-    );
+    )?;
 
     pipeline.connect_nodes(
         &right_pipeline_output_node.node,
         right_pipeline_output_node.port,
         &gen_set_name,
         1 as PortHandle,
-    );
+    )?;
 
     for (_, table_name) in query_ctx.pipeline_map.keys() {
         query_ctx.output_tables_map.remove_entry(table_name);

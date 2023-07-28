@@ -1,5 +1,6 @@
 #![allow(clippy::enum_variant_names)]
 
+use dozer_core::errors::PipelineBuilderError;
 use dozer_core::node::PortHandle;
 use dozer_types::chrono::RoundingError;
 use dozer_types::errors::internal::BoxedError;
@@ -85,6 +86,9 @@ pub enum PipelineError {
     #[cfg(feature = "python")]
     #[error("Python Error: {0}")]
     PythonErr(dozer_types::pyo3::PyErr),
+
+    #[error("Pipeline builder error: {0}")]
+    PipelineBuilder(#[from] PipelineBuilderError),
 
     // Error forwarding
     #[error("Internal type error: {0}")]

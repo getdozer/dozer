@@ -26,8 +26,6 @@ pub enum ExecutionError {
     InvalidSourceIdentifier(String),
     #[error("Ambiguous source name {0}")]
     AmbiguousSourceIdentifier(String),
-    #[error("Invalid AppSource connection {0}. Already exists.")]
-    AppSourceConnectionAlreadyExists(String),
     #[error("Factory error: {0}")]
     Factory(#[source] BoxedError),
     #[error("Source error: {0}")]
@@ -45,5 +43,21 @@ impl<T> From<crossbeam::channel::SendError<T>> for ExecutionError {
 impl<T> From<daggy::WouldCycle<T>> for ExecutionError {
     fn from(_: daggy::WouldCycle<T>) -> Self {
         ExecutionError::WouldCycle
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum PipelineBuilderError {
+    #[error("Duplicate node name in pipeline: {0}")]
+    DuplicateName(String),
+    #[error("Node name not found: {0}")]
+    NodeNameNotFound(String),
+    #[error("Adding this edge would have created a cycle")]
+    WouldCycle,
+}
+
+impl<T> From<daggy::WouldCycle<T>> for PipelineBuilderError {
+    fn from(_: daggy::WouldCycle<T>) -> Self {
+        PipelineBuilderError::WouldCycle
     }
 }

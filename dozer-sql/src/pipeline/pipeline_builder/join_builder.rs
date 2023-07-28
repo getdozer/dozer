@@ -92,7 +92,7 @@ pub(crate) fn insert_join_to_pipeline(
             Box::new(join_processor_factory),
             &join_processor_name,
             pipeline_entry_points,
-        );
+        )?;
 
         match left_join_source {
             JoinSource::Table(_) => {}
@@ -101,13 +101,13 @@ pub(crate) fn insert_join_to_pipeline(
                 connection_info.output_node.1,
                 &join_processor_name,
                 LEFT_JOIN_PORT,
-            ),
+            )?,
             JoinSource::Join(ref connection_info) => pipeline.connect_nodes(
                 &connection_info.output_node.0,
                 connection_info.output_node.1,
                 &join_processor_name,
                 LEFT_JOIN_PORT,
-            ),
+            )?,
         }
 
         match right_join_source {
@@ -117,13 +117,13 @@ pub(crate) fn insert_join_to_pipeline(
                 connection_info.output_node.1,
                 &join_processor_name,
                 RIGHT_JOIN_PORT,
-            ),
+            )?,
             JoinSource::Join(connection_info) => pipeline.connect_nodes(
                 &connection_info.output_node.0,
                 connection_info.output_node.1,
                 &join_processor_name,
                 RIGHT_JOIN_PORT,
-            ),
+            )?,
         }
 
         // TODO: refactor join source name and aliasing logic
@@ -203,7 +203,7 @@ fn insert_table_operator_to_pipeline(
             input_nodes.push((source_name, processor_name.clone(), DEFAULT_PORT_HANDLE));
         }
 
-        pipeline.add_processor(Box::new(processor), &processor_name, entry_points);
+        pipeline.add_processor(Box::new(processor), &processor_name, entry_points)?;
 
         Ok(ConnectionInfo {
             input_nodes,
@@ -241,7 +241,7 @@ fn insert_table_operator_to_pipeline(
             Box::new(window_processor_factory),
             &window_processor_name,
             window_entry_points,
-        );
+        )?;
 
         Ok(ConnectionInfo {
             input_nodes,

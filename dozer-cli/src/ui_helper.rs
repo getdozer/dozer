@@ -69,7 +69,7 @@ fn prepare_pipeline_dag(
             ports_with_source_name.insert(k.1.to_string(), v.to_owned());
         });
 
-        _ = asm.add(
+        asm.add(
             Box::new(UISourceFactory {
                 output_ports: ports,
             }),
