@@ -68,11 +68,10 @@ pub struct IndexedTableWithJoins {
     pub relation: (NameOrAlias, TableFactor),
     pub joins: Vec<(NameOrAlias, Join)>,
 }
-pub fn statement_to_pipeline(
+pub fn sql_to_pipeline(
     sql: &str,
-    pipeline: &mut AppPipeline<SchemaSQLContext>,
     override_name: Option<String>,
-) -> Result<QueryContext, PipelineError> {
+) -> Result<(QueryContext, AppPipeline<SchemaSQLContext>), PipelineError> {
     let dialect = DozerDialect {};
     let mut ctx = QueryContext::default();
 
@@ -80,6 +79,7 @@ pub fn statement_to_pipeline(
         .map_err(|err| PipelineError::InternalError(Box::new(err)))?;
     let query_name = NameOrAlias(format!("query_{}", ctx.get_next_processor_id()), None);
 
+    let mut pipeline = AppPipeline::new();
     for (idx, statement) in ast.iter().enumerate() {
         match statement {
             Statement::Query(query) => {
@@ -90,7 +90,7 @@ pub fn statement_to_pipeline(
                         override_name: override_name.clone(),
                     },
                     query,
-                    pipeline,
+                    &mut pipeline,
                     &mut ctx,
                     false,
                     idx,
@@ -104,7 +104,7 @@ pub fn statement_to_pipeline(
         }
     }
 
-    Ok(ctx)
+    Ok((ctx, pipeline))
 }
 
 fn query_to_pipeline(
@@ -604,9 +604,7 @@ pub fn get_from_source(
 
 #[cfg(test)]
 mod tests {
-    use dozer_core::app::AppPipeline;
-
-    use super::statement_to_pipeline;
+    use super::sql_to_pipeline;
 
     #[test]
     fn parse_sql_pipeline() {
@@ -665,7 +663,7 @@ mod tests {
                 from  stocks join tbl on tbl.id = stocks.id;
             "#;
 
-        let context = statement_to_pipeline(sql, &mut AppPipeline::new(), None).unwrap();
+        let (context, _) = sql_to_pipeline(sql, None).unwrap();
 
         // Should create as many output tables as into statements
         let mut output_keys = context.output_tables_map.keys().collect::<Vec<_>>();

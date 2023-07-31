@@ -1,4 +1,4 @@
-use dozer_core::app::{App, AppPipeline};
+use dozer_core::app::App;
 use dozer_core::appsource::{AppSourceManager, AppSourceMappings};
 use dozer_core::channels::SourceChannelForwarder;
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
@@ -19,7 +19,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use crate::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
+use crate::pipeline::builder::{sql_to_pipeline, SchemaSQLContext};
 use crate::pipeline::window::tests::pipeline_test::TestSink;
 
 const USER_PORT: u16 = 0 as PortHandle;
@@ -417,12 +417,9 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
 fn test_pipeline_builder() {
     dozer_tracing::init_telemetry(None, None);
 
-    let mut pipeline = AppPipeline::new();
-
-    let context = statement_to_pipeline(
+    let (context, mut pipeline) = sql_to_pipeline(
         "SELECT  name, dname, salary \
         FROM user JOIN department ON user.department_id = department.did JOIN country ON user.country_id = country.cid ",
-        &mut pipeline,
         Some("results".to_string()),
     )
         .unwrap();

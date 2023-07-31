@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
 use dozer_core::{
-    app::{App, AppPipeline},
+    app::App,
     appsource::{AppSourceManager, AppSourceMappings},
     node::{OutputPortDef, OutputPortType, PortHandle, SourceFactory},
     Dag,
 };
-use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
+use dozer_sql::pipeline::builder::{sql_to_pipeline, SchemaSQLContext};
 use dozer_types::{
     grpc_types::cloud::{QueryEdge, QueryGraph, QueryNode, QueryNodeType},
     models::{config::Config, connection::Connection, source::Source},
@@ -49,7 +49,6 @@ fn prepare_pipeline_dag(
     connection_sources: HashMap<Connection, Vec<Source>>,
     connection_source_ports: HashMap<(&str, &str), u16>,
 ) -> Result<Dag<SchemaSQLContext>, OrchestrationError> {
-    let mut pipeline = AppPipeline::new();
     let mut asm: AppSourceManager<dozer_sql::pipeline::builder::SchemaSQLContext> =
         AppSourceManager::new();
     connection_sources.iter().for_each(|cs| {
@@ -76,7 +75,7 @@ fn prepare_pipeline_dag(
             AppSourceMappings::new(connection.name.to_string(), ports_with_source_name),
         );
     });
-    statement_to_pipeline(&sql, &mut pipeline, None)?;
+    let (_, pipeline) = sql_to_pipeline(&sql, None)?;
     let mut app = App::new(asm);
     app.add_pipeline(pipeline);
     let sql_dag = app.into_dag()?;

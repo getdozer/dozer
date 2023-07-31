@@ -1,5 +1,5 @@
 use ahash::AHasher;
-use dozer_core::app::{App, AppPipeline, EdgeType};
+use dozer_core::app::{App, EdgeType};
 use dozer_core::appsource::{AppSourceManager, AppSourceMappings};
 use dozer_core::channels::SourceChannelForwarder;
 use dozer_core::errors::ExecutionError;
@@ -13,7 +13,7 @@ use dozer_core::{Dag, DEFAULT_PORT_HANDLE};
 
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 
-use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
+use dozer_sql::pipeline::builder::{sql_to_pipeline, SchemaSQLContext};
 use dozer_types::crossbeam::channel::{Receiver, Sender};
 
 use dozer_types::epoch::Epoch;
@@ -270,10 +270,8 @@ impl TestPipeline {
         schemas: HashMap<String, Schema>,
         ops: Vec<(String, Operation)>,
     ) -> Result<TestPipeline, ExecutionError> {
-        let mut pipeline = AppPipeline::new();
-
-        let transform_response =
-            statement_to_pipeline(&sql, &mut pipeline, Some("results".to_string())).unwrap();
+        let (transform_response, mut pipeline) =
+            sql_to_pipeline(&sql, Some("results".to_string())).unwrap();
 
         let output_table = transform_response.output_tables_map.get("results").unwrap();
         let (sender, receiver) =
