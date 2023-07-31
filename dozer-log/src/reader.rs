@@ -9,7 +9,7 @@ use dozer_types::grpc_types::internal::{
     storage_response, BuildRequest, LogRequest, LogResponse, StorageRequest,
 };
 use dozer_types::indicatif::{MultiProgress, ProgressBar};
-use dozer_types::log::debug;
+use dozer_types::log::{debug, error};
 use dozer_types::models::api_endpoint::{
     default_log_reader_batch_size, default_log_reader_buffer_size,
     default_log_reader_timeout_in_millis,
@@ -76,7 +76,7 @@ impl LogReaderBuilder {
         let build_name = build.name;
         let schema = serde_json::from_str(&build.schema_string)?;
 
-        let client = LogClient::new(&mut client, options.endpoint.clone()).await?;
+        let client = LogClient::new(client, options.endpoint.clone()).await?;
 
         Ok(Self {
             build_name,
@@ -133,6 +133,7 @@ impl LogReader {
 
 #[derive(Debug)]
 struct LogClient {
+    client: InternalPipelineServiceClient<Channel>,
     request_sender: Sender<LogRequest>,
     response_stream: Streaming<LogResponse>,
     storage: Box<dyn Storage>,
@@ -140,7 +141,7 @@ struct LogClient {
 
 impl LogClient {
     async fn new(
-        client: &mut InternalPipelineServiceClient<Channel>,
+        mut client: InternalPipelineServiceClient<Channel>,
         endpoint: String,
     ) -> Result<Self, ReaderError> {
         let storage = client
@@ -154,11 +155,10 @@ impl LogClient {
             }
         };
 
-        let (request_sender, request_receiver) = tokio::sync::mpsc::channel::<LogRequest>(1);
-        let request_stream = ReceiverStream::new(request_receiver);
-        let response_stream = client.get_log(request_stream).await?.into_inner();
+        let (request_sender, response_stream) = create_get_log_stream(&mut client).await?;
 
         Ok(Self {
+            client,
             request_sender,
             response_stream,
             storage,
@@ -167,21 +167,41 @@ impl LogClient {
 
     async fn get_log(&mut self, request: LogRequest) -> Result<Vec<LogOperation>, ReaderError> {
         // Send the request.
-        let request_range = request.start..request.end;
-        self.request_sender
-            .send(request)
+        let response = loop {
+            match call_get_log_once(
+                &self.request_sender,
+                request.clone(),
+                &mut self.response_stream,
+            )
             .await
-            .expect("We're holding the receiver");
-        let response = self
-            .response_stream
-            .next()
-            .await
-            .ok_or(ReaderError::UnexpectedEndOfStream)??;
+            {
+                Ok(response) => break response,
+                Err(e) => {
+                    error!("Error getting log: {:?}", e);
+                    (self.request_sender, self.response_stream) = loop {
+                        match create_get_log_stream(&mut self.client).await {
+                            Ok((request_sender, response_stream)) => {
+                                break (request_sender, response_stream)
+                            }
+                            Err(e) => {
+                                const RETRY_INTERVAL: std::time::Duration =
+                                    std::time::Duration::from_secs(5);
+                                error!(
+                                    "Error creating log stream: {e}, retrying after {RETRY_INTERVAL:?}..."
+                                );
+                                tokio::time::sleep(RETRY_INTERVAL).await;
+                            }
+                        }
+                    }
+                }
+            }
+        };
         use crate::replication::LogResponse;
         let response: LogResponse =
             bincode::deserialize(&response.data).map_err(ReaderError::DeserializeLogResponse)?;
 
         // Load response.
+        let request_range = request.start..request.end;
         match response {
             LogResponse::Persisted(persisted) => {
                 debug!(
@@ -205,6 +225,30 @@ impl LogClient {
                 Ok(ops)
             }
         }
+    }
+}
+
+async fn create_get_log_stream(
+    client: &mut InternalPipelineServiceClient<Channel>,
+) -> Result<(Sender<LogRequest>, Streaming<LogResponse>), dozer_types::tonic::Status> {
+    let (request_sender, request_receiver) = tokio::sync::mpsc::channel::<LogRequest>(1);
+    let request_stream = ReceiverStream::new(request_receiver);
+    let response_stream = client.get_log(request_stream).await?.into_inner();
+    Ok((request_sender, response_stream))
+}
+
+async fn call_get_log_once(
+    request_sender: &Sender<LogRequest>,
+    request: LogRequest,
+    stream: &mut Streaming<LogResponse>,
+) -> Result<LogResponse, Option<dozer_types::tonic::Status>> {
+    if request_sender.send(request).await.is_err() {
+        return Err(None);
+    }
+    match stream.next().await {
+        Some(Ok(response)) => Ok(response),
+        Some(Err(e)) => Err(Some(e)),
+        None => Err(None),
     }
 }
 

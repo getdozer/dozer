@@ -9,8 +9,6 @@ pub enum ReaderError {
     TonicTransport(#[from] tonic::transport::Error),
     #[error("Tonic status: {0}")]
     TonicStatus(#[from] tonic::Status),
-    #[error("Unexpected end of stream")]
-    UnexpectedEndOfStream,
     #[error("Failed to deserialize log response: {0}")]
     DeserializeLogResponse(#[source] bincode::Error),
     #[error("Failed to deserialize log entry: {0}")]
