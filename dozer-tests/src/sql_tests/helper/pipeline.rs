@@ -82,6 +82,15 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
         Ok((schema, SchemaSQLContext::default()))
     }
 
+    fn get_output_port_name(&self, port: &PortHandle) -> String {
+        self.name_to_port
+            .iter()
+            .find(|(_, p)| **p == *port)
+            .unwrap()
+            .0
+            .clone()
+    }
+
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         self.schemas
             .iter()

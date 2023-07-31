@@ -30,6 +30,10 @@ impl SourceFactory<NoneContext> for NoneSourceFactory {
         todo!()
     }
 
+    fn get_output_port_name(&self, _port: &PortHandle) -> String {
+        todo!()
+    }
+
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         todo!()
     }

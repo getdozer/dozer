@@ -231,10 +231,6 @@ impl<'a> PipelineBuilder<'a> {
             }
         }
 
-        let source_builder = SourceBuilder::new(grouped_connections, Some(&self.progress));
-
-        let conn_ports = source_builder.get_ports();
-
         for (api_endpoint, log) in self.endpoint_and_logs {
             let table_name = &api_endpoint.table_name;
 
@@ -279,6 +275,7 @@ impl<'a> PipelineBuilder<'a> {
 
         pipelines.push(pipeline);
 
+        let source_builder = SourceBuilder::new(grouped_connections, Some(&self.progress));
         let asm = source_builder.build_source_manager(runtime)?;
         let mut app = App::new(asm);
 
@@ -291,7 +288,7 @@ impl<'a> PipelineBuilder<'a> {
         debug!("{}", dag);
 
         // Emit metrics for monitoring
-        emit_dag_metrics(&dag, conn_ports);
+        emit_dag_metrics(&dag);
 
         Ok(dag)
     }
@@ -302,19 +299,14 @@ fn dedup<T: Eq + Hash + Clone>(v: &mut Vec<T>) {
     v.retain(|e| uniques.insert(e.clone()));
 }
 
-pub fn emit_dag_metrics(input_dag: &Dag<SchemaSQLContext>, conn_ports: HashMap<(&str, &str), u16>) {
+pub fn emit_dag_metrics(input_dag: &Dag<SchemaSQLContext>) {
     const GRAPH_NODES: &str = "pipeline_nodes";
     const GRAPH_EDGES: &str = "pipeline_edges";
 
     describe_counter!(GRAPH_NODES, "Number of nodes in the pipeline");
     describe_counter!(GRAPH_EDGES, "Number of edges in the pipeline");
 
-    let port_connection_sources: HashMap<u16, (&str, &str)> = conn_ports
-        .iter()
-        .map(|(k, v)| (v.to_owned(), k.to_owned()))
-        .collect();
-
-    let query_graph = transform_to_ui_graph(input_dag, port_connection_sources);
+    let query_graph = transform_to_ui_graph(input_dag);
 
     for node in query_graph.nodes {
         let node_name = node.name;

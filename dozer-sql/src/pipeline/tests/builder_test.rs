@@ -81,6 +81,10 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
         ))
     }
 
+    fn get_output_port_name(&self, port: &PortHandle) -> String {
+        format!("port_{}", port)
+    }
+
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,

@@ -166,6 +166,15 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
         }
     }
 
+    fn get_output_port_name(&self, port: &PortHandle) -> String {
+        match *port {
+            USER_PORT => "user".to_string(),
+            DEPARTMENT_PORT => "department".to_string(),
+            COUNTRY_PORT => "country".to_string(),
+            _ => panic!("Invalid Port Handle {port}"),
+        }
+    }
+
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,

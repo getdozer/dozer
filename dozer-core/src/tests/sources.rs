@@ -62,6 +62,10 @@ impl SourceFactory<NoneContext> for GeneratorSourceFactory {
         ))
     }
 
+    fn get_output_port_name(&self, _port: &PortHandle) -> String {
+        "generator".to_string()
+    }
+
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         vec![OutputPortDef::new(
             GENERATOR_SOURCE_OUTPUT_PORT,
@@ -177,6 +181,14 @@ impl SourceFactory<NoneContext> for DualPortGeneratorSourceFactory {
         ))
     }
 
+    fn get_output_port_name(&self, port: &PortHandle) -> String {
+        match *port {
+            DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_1 => "generator1".to_string(),
+            DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_2 => "generator2".to_string(),
+            _ => panic!("Unknown port"),
+        }
+    }
+
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         vec![
             OutputPortDef::new(
@@ -270,6 +282,10 @@ pub struct ConnectivityTestSourceFactory;
 
 impl SourceFactory<NoneContext> for ConnectivityTestSourceFactory {
     fn get_output_schema(&self, _port: &PortHandle) -> Result<(Schema, NoneContext), BoxedError> {
+        unimplemented!("This struct is for connectivity test, only output ports are defined")
+    }
+
+    fn get_output_port_name(&self, _port: &PortHandle) -> String {
         unimplemented!("This struct is for connectivity test, only output ports are defined")
     }
 
