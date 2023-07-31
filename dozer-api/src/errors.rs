@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use actix_web::http::header::ContentType;
 use actix_web::http::StatusCode;
 use actix_web::HttpResponse;
-use dozer_cache::dozer_log::errors::ReaderError;
+use dozer_cache::dozer_log::errors::ReaderBuilderError;
 use dozer_types::errors::types::{CannotConvertF64ToJson, TypeError};
 use dozer_types::labels::Labels;
 use dozer_types::thiserror::Error;
@@ -22,7 +22,7 @@ pub enum ApiInitError {
     #[error("Generation error: {0}")]
     Generation(#[from] GenerationError),
     #[error("Failed to create log reader builder: {0}")]
-    CreateLogReaderBuilder(#[from] ReaderError),
+    CreateLogReaderBuilder(#[from] ReaderBuilderError),
     #[error("Failed to open or create cache: {0}")]
     OpenOrCreateCache(#[source] CacheError),
     #[error("Failed to find cache: {0}")]

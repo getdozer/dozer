@@ -1,4 +1,5 @@
 use crate::attach_progress;
+use crate::errors::ReaderBuilderError;
 use crate::replication::LogOperation;
 use crate::schemas::BuildSchema;
 use crate::storage::{LocalStorage, S3Storage, Storage};
@@ -65,7 +66,10 @@ pub struct LogReader {
 }
 
 impl LogReaderBuilder {
-    pub async fn new(server_addr: String, options: LogReaderOptions) -> Result<Self, ReaderError> {
+    pub async fn new(
+        server_addr: String,
+        options: LogReaderOptions,
+    ) -> Result<Self, ReaderBuilderError> {
         let mut client = InternalPipelineServiceClient::connect(server_addr).await?;
         let build = client
             .describe_build(BuildRequest {
@@ -143,7 +147,7 @@ impl LogClient {
     async fn new(
         mut client: InternalPipelineServiceClient<Channel>,
         endpoint: String,
-    ) -> Result<Self, ReaderError> {
+    ) -> Result<Self, ReaderBuilderError> {
         let storage = client
             .describe_storage(StorageRequest { endpoint })
             .await?
