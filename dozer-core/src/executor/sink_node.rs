@@ -2,7 +2,7 @@ use std::{borrow::Cow, mem::swap, sync::Arc};
 
 use crossbeam::channel::Receiver;
 use daggy::NodeIndex;
-use dozer_types::{log::debug, node::NodeHandle};
+use dozer_types::node::NodeHandle;
 use metrics::{describe_histogram, histogram};
 
 use crate::{
@@ -97,7 +97,7 @@ impl ReceiverLoop for SinkNode {
     }
 
     fn on_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError> {
-        debug!("[{}] Checkpointing - {}", self.node_handle, epoch);
+        // debug!("[{}] Checkpointing - {}", self.node_handle, epoch);
         if let Err(e) = self.sink.commit(epoch) {
             self.error_manager.report(e);
         }

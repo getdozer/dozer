@@ -9,6 +9,7 @@ authors = ["getdozer/dozer-dev"]
 [dependencies]
 dozer-utils = { path = "../dozer-utils" }
 dozer-types = { path = "../dozer-types" }
+dozer-log = { path = "../dozer-log" }
 
 tokio = { version = "1", features = ["full"] }
 futures = "0.3.26"

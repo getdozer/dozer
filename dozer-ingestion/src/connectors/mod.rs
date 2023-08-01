@@ -1,3 +1,4 @@
+pub mod dozer;
 #[cfg(feature = "ethereum")]
 pub mod ethereum;
 pub mod grpc;
@@ -39,6 +40,7 @@ use dozer_types::types::{FieldType, Schema};
 pub mod delta_lake;
 pub mod snowflake;
 
+use self::dozer::NestedDozerConnector;
 #[cfg(feature = "ethereum")]
 use self::ethereum::{EthLogConnector, EthTraceConnector};
 
@@ -247,6 +249,9 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
                 opts,
                 mysql_config.server_id,
             )))
+        }
+        ConnectionConfig::Dozer(dozer_config) => {
+            Ok(Box::new(NestedDozerConnector::new(dozer_config)))
         }
     }
 }

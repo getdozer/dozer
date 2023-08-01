@@ -51,7 +51,7 @@ pub struct GrpcApiOptions {
     pub enabled: bool,
 }
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, prost::Message)]
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, prost::Message, Hash)]
 pub struct AppGrpcOptions {
     #[prost(uint32)]
     #[serde(default = "default_app_grpc_port")]

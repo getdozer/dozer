@@ -5,8 +5,8 @@ use dozer_types::grpc_types::internal::internal_pipeline_service_server::{
     InternalPipelineService, InternalPipelineServiceServer,
 };
 use dozer_types::grpc_types::internal::{
-    BuildRequest, BuildResponse, EndpointResponse, EndpointsResponse, LogRequest, LogResponse,
-    StorageRequest, StorageResponse,
+    BuildRequest, BuildResponse, DescribeApplicationRequest, DescribeApplicationResponse,
+    EndpointResponse, EndpointsResponse, LogRequest, LogResponse, StorageRequest, StorageResponse,
 };
 use dozer_types::log::info;
 use dozer_types::models::api_config::AppGrpcOptions;
@@ -72,6 +72,18 @@ impl InternalPipelineService for InternalPipelineServer {
             .collect();
         Ok(Response::new(EndpointsResponse { endpoints }))
     }
+    async fn describe_application(
+        &self,
+        _: Request<DescribeApplicationRequest>,
+    ) -> Result<Response<DescribeApplicationResponse>, Status> {
+        let mut endpoints = HashMap::with_capacity(self.endpoints.len());
+        for (endpoint, log_endpoint) in &self.endpoints {
+            let build_response = get_build_response(log_endpoint).await?;
+            endpoints.insert(endpoint.clone(), build_response);
+        }
+
+        Ok(Response::new(DescribeApplicationResponse { endpoints }))
+    }
 
     async fn describe_build(
         &self,
@@ -79,11 +91,8 @@ impl InternalPipelineService for InternalPipelineServer {
     ) -> Result<Response<BuildResponse>, Status> {
         let endpoint = request.into_inner().endpoint;
         let endpoint = find_log_endpoint(&self.endpoints, &endpoint)?;
-        Ok(Response::new(BuildResponse {
-            name: endpoint.build_id.name().to_string(),
-            schema_string: endpoint.schema_string.clone(),
-            descriptor_bytes: endpoint.descriptor_bytes.clone(),
-        }))
+        let build_response = get_build_response(endpoint).await?;
+        Ok(Response::new(build_response))
     }
 
     type GetLogStream = BoxStream<'static, Result<LogResponse, Status>>;
@@ -114,6 +123,14 @@ impl InternalPipelineService for InternalPipelineServer {
                 .boxed(),
         ))
     }
+}
+
+async fn get_build_response(endpoint: &LogEndpoint) -> Result<BuildResponse, Status> {
+    Ok(BuildResponse {
+        name: endpoint.build_id.name().to_owned(),
+        schema_string: endpoint.schema_string.clone(),
+        descriptor_bytes: endpoint.descriptor_bytes.clone(),
+    })
 }
 
 fn find_log_endpoint<'a>(

@@ -4,7 +4,10 @@ use std::fmt::Debug;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{errors::internal::BoxedError, node::OpIdentifier, types::Operation};
+use crate::{
+    errors::internal::BoxedError, models::api_config::AppGrpcOptions, node::OpIdentifier,
+    types::Operation,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 /// Messages that connectors send to Dozer.
@@ -434,4 +437,46 @@ fn default_false() -> bool {
 
 fn default_marker() -> String {
     String::from(".marker")
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
+pub struct NestedDozerConfig {
+    #[prost(message, tag = "1")]
+    pub grpc: Option<AppGrpcOptions>,
+
+    #[prost(message, tag = "2")]
+    #[serde(default = "default_log_options")]
+    pub log_options: Option<NestedDozerLogOptions>,
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
+pub struct NestedDozerLogOptions {
+    #[prost(uint32, tag = "2")]
+    #[serde(default = "default_log_batch_size")]
+    pub batch_size: u32,
+    #[prost(uint32, tag = "3")]
+    #[serde(default = "default_timeout")]
+    pub timeout_in_millis: u32,
+    #[prost(uint32, tag = "4")]
+    #[serde(default = "default_buffer_size")]
+    pub buffer_size: u32,
+}
+
+fn default_log_batch_size() -> u32 {
+    30
+}
+fn default_timeout() -> u32 {
+    1000
+}
+
+fn default_buffer_size() -> u32 {
+    1000
+}
+
+pub fn default_log_options() -> Option<NestedDozerLogOptions> {
+    Some(NestedDozerLogOptions {
+        batch_size: default_log_batch_size(),
+        timeout_in_millis: default_timeout(),
+        buffer_size: default_buffer_size(),
+    })
 }

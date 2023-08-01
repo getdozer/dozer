@@ -1,5 +1,6 @@
 #![allow(clippy::enum_variant_names)]
 
+use dozer_log::errors::ReaderError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::{DeserializationError, SerializationError, TypeError};
 use dozer_types::ingestion_types::IngestorError;
@@ -86,6 +87,9 @@ pub enum ConnectorError {
     ObjectStoreConnectorError(#[from] ObjectStoreConnectorError),
 
     #[error(transparent)]
+    NestedDozerConnectorError(#[from] NestedDozerConnectorError),
+
+    #[error(transparent)]
     TypeError(#[from] TypeError),
 
     #[error(transparent)]
@@ -141,6 +145,20 @@ pub enum ConfigurationError {
 
     #[error("Failed to map configuration")]
     WrongConnectionConfiguration,
+}
+#[derive(Error, Debug)]
+pub enum NestedDozerConnectorError {
+    #[error("Failed to connect to upstream dozer app. {0}")]
+    ConnectionError(#[source] tonic::transport::Error),
+
+    #[error("Failed to query endpoints from upstream dozer app. {0}")]
+    DescribeEndpointsError(#[source] tonic::Status),
+
+    #[error("Received Terminate")]
+    TerminateError,
+
+    #[error(transparent)]
+    ReaderError(#[from] ReaderError),
 }
 
 #[derive(Error, Debug)]
