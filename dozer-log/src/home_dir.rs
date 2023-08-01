@@ -11,9 +11,10 @@ pub type Error = (Utf8PathBuf, std::io::Error);
 
 impl HomeDir {
     pub fn new(home_dir: &str, cache_dir: String) -> Result<Self, Error> {
-        let home_dir = AsRef::<Utf8Path>::as_ref(home_dir)
-            .canonicalize_utf8()
-            .map_err(|e| (home_dir.into(), e))?;
+        // let home_dir = AsRef::<Utf8Path>::as_ref(home_dir)
+        //     .canonicalize_utf8()
+        //     .map_err(|e| (home_dir.into(), e))?;
+        let home_dir = AsRef::<Utf8Path>::as_ref(home_dir);
         let api_dir = home_dir.join("api");
         let log_dir = home_dir.join("pipeline").join("logs");
         Ok(Self {
