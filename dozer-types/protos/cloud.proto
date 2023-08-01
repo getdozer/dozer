@@ -341,6 +341,7 @@ message CompanyRequest {
   oneof criteria {
     string iss = 1;
     string name = 2;
+    string slug = 3;
   }
 }
 message CompanyResponse {
