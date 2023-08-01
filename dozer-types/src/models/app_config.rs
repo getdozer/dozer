@@ -39,9 +39,9 @@ pub struct AppConfig {
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, prost::Oneof)]
 pub enum LogStorage {
-    #[prost(message, tag = "1")]
+    #[prost(message, tag = "7")]
     Local(()),
-    #[prost(string, tag = "2")]
+    #[prost(string, tag = "8")]
     S3(String),
 }
 
