@@ -312,6 +312,10 @@ impl SourceFactory<NoneContext> for ErrGeneratorSourceFactory {
         ))
     }
 
+    fn get_output_port_name(&self, _port: &PortHandle) -> String {
+        "error".to_string()
+    }
+
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         vec![OutputPortDef::new(
             GENERATOR_SOURCE_OUTPUT_PORT,

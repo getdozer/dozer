@@ -155,6 +155,15 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
         Ok((schema, SchemaSQLContext::default()))
     }
 
+    fn get_output_port_name(&self, port: &PortHandle) -> String {
+        let table = self
+            .tables
+            .iter()
+            .find(|table| table.port == *port)
+            .unwrap_or_else(|| panic!("Port {} not found", port));
+        table.name.clone()
+    }
+
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         self.tables
             .iter()

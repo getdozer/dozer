@@ -23,6 +23,10 @@ impl SourceFactory<NoneContext> for DynPortsSourceFactory {
         todo!()
     }
 
+    fn get_output_port_name(&self, _port: &PortHandle) -> String {
+        todo!()
+    }
+
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         self.output_ports
             .iter()

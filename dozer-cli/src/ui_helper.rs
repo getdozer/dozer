@@ -4,6 +4,7 @@ use dozer_core::{
     app::{App, AppPipeline},
     appsource::{AppSourceManager, AppSourceMappings},
     node::{OutputPortDef, OutputPortType, PortHandle, SourceFactory},
+    petgraph::visit::{EdgeRef, IntoEdgeReferences, IntoNodeReferences},
     Dag,
 };
 use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
@@ -16,12 +17,12 @@ use crate::{errors::OrchestrationError, pipeline::source_builder::SourceBuilder}
 
 #[derive(Debug)]
 struct UISourceFactory {
-    output_ports: Vec<PortHandle>,
+    output_ports: HashMap<PortHandle, String>,
 }
 impl SourceFactory<SchemaSQLContext> for UISourceFactory {
     fn get_output_schema(
         &self,
-        _port: &dozer_core::node::PortHandle,
+        _port: &PortHandle,
     ) -> Result<
         (dozer_types::types::Schema, SchemaSQLContext),
         dozer_types::errors::internal::BoxedError,
@@ -29,10 +30,14 @@ impl SourceFactory<SchemaSQLContext> for UISourceFactory {
         todo!()
     }
 
-    fn get_output_ports(&self) -> Vec<dozer_core::node::OutputPortDef> {
+    fn get_output_port_name(&self, port: &PortHandle) -> String {
+        self.output_ports.get(port).expect("Port not found").clone()
+    }
+
+    fn get_output_ports(&self) -> Vec<OutputPortDef> {
         self.output_ports
-            .iter()
-            .map(|e| OutputPortDef::new(*e, OutputPortType::Stateless))
+            .keys()
+            .map(|port| OutputPortDef::new(*port, OutputPortType::Stateless))
             .collect()
     }
 
@@ -56,12 +61,11 @@ fn prepare_pipeline_dag(
         let (connection, sources) = cs;
         let ports = sources
             .iter()
-            .map(|s| {
-                let port = connection_source_ports
-                    .get(&(connection.name.as_str(), s.name.as_str()))
-                    .unwrap()
-                    .to_owned();
-                port
+            .map(|source| {
+                let port = *connection_source_ports
+                    .get(&(connection.name.as_str(), source.name.as_str()))
+                    .unwrap();
+                (port, source.name.clone())
             })
             .collect();
         let mut ports_with_source_name: HashMap<String, u16> = HashMap::new();
@@ -83,68 +87,66 @@ fn prepare_pipeline_dag(
     Ok(sql_dag)
 }
 
-pub fn transform_to_ui_graph(
-    input_dag: &Dag<SchemaSQLContext>,
-    port_connection_source: HashMap<u16, (&str, &str)>,
-) -> QueryGraph {
+pub fn transform_to_ui_graph(input_dag: &Dag<SchemaSQLContext>) -> QueryGraph {
     let input_graph = input_dag.graph();
     let mut nodes = vec![];
     let mut edges: Vec<QueryEdge> = vec![];
-    input_graph.raw_nodes().iter().enumerate().for_each(|n| {
-        let weight = &n.1.weight;
-        let idx = n.0;
-        match &weight.kind {
-            dozer_core::NodeKind::Source(_) => {
+    input_graph
+        .node_references()
+        .for_each(|(node_index, node)| {
+            let node_index = node_index.index() as u32;
+            match &node.kind {
+                dozer_core::NodeKind::Source(_) => {
+                    nodes.push(QueryNode {
+                        name: node.handle.id.clone(),
+                        node_type: QueryNodeType::Connection as i32,
+                        idx: node_index,
+                        id: node_index,
+                        data: node.handle.id.clone(),
+                    });
+                }
+                dozer_core::NodeKind::Processor(processor) => {
+                    nodes.push(QueryNode {
+                        name: processor.type_name(),
+                        node_type: QueryNodeType::Transformer as i32,
+                        idx: node_index,
+                        id: node_index,
+                        data: processor.id(),
+                    });
+                }
+                dozer_core::NodeKind::Sink(_) => {}
+            }
+        });
+    input_graph.edge_references().for_each(|edge| {
+        let source_node_index = edge.source();
+        let target_node_index = edge.target();
+        let from_port = edge.weight().from;
+        match &input_graph[source_node_index].kind {
+            dozer_core::NodeKind::Source(source) => {
+                let source_name = source.get_output_port_name(&from_port);
+                let new_node_idx = nodes.len() as u32;
                 nodes.push(QueryNode {
-                    name: weight.handle.id.clone(),
-                    node_type: QueryNodeType::Connection as i32,
-                    idx: idx as u32,
-                    id: idx as u32,
-                    data: weight.handle.id.clone(),
+                    name: source_name.clone(),
+                    node_type: QueryNodeType::Source as i32,
+                    idx: new_node_idx,
+                    id: new_node_idx,
+                    data: source_name,
+                });
+                edges.push(QueryEdge {
+                    from: source_node_index.index() as u32,
+                    to: new_node_idx,
+                });
+                edges.push(QueryEdge {
+                    from: new_node_idx,
+                    to: target_node_index.index() as u32,
                 });
             }
-            dozer_core::NodeKind::Processor(processor) => {
-                nodes.push(QueryNode {
-                    name: processor.type_name(),
-                    node_type: QueryNodeType::Transformer as i32,
-                    idx: idx as u32,
-                    id: idx as u32,
-                    data: processor.id(),
+            _ => {
+                edges.push(QueryEdge {
+                    from: source_node_index.index() as u32,
+                    to: target_node_index.index() as u32,
                 });
             }
-            dozer_core::NodeKind::Sink(_) => {}
-        }
-    });
-    input_graph.raw_edges().iter().for_each(|e| {
-        let edge = e;
-        let edge_type = edge.weight;
-        let sn = edge.source();
-        let tg = edge.target();
-        let from = edge_type.from;
-        let source_by_port = port_connection_source.get(&from);
-        if let Some(source_by_port) = source_by_port {
-            let source_name = source_by_port.1;
-            let new_node_idx = (nodes.len()) as u32;
-            nodes.push(QueryNode {
-                name: source_name.to_string(),
-                node_type: QueryNodeType::Source as i32,
-                idx: new_node_idx,
-                id: new_node_idx,
-                data: source_name.to_string(),
-            });
-            edges.push(QueryEdge {
-                from: sn.index() as u32,
-                to: new_node_idx,
-            });
-            edges.push(QueryEdge {
-                from: new_node_idx,
-                to: tg.index() as u32,
-            });
-        } else {
-            edges.push(QueryEdge {
-                from: sn.index() as u32,
-                to: tg.index() as u32,
-            });
         }
     });
     QueryGraph { nodes, edges }
@@ -165,10 +167,6 @@ pub fn config_to_ui_dag(config: Config) -> Result<QueryGraph, OrchestrationError
     }
     let source_builder = SourceBuilder::new(connection_sources.clone(), None);
     let connection_source_ports = source_builder.get_ports();
-    let port_connection_source: HashMap<u16, (&str, &str)> = connection_source_ports
-        .iter()
-        .map(|(k, v)| (v.to_owned(), k.to_owned()))
-        .collect();
     let sql_dag = prepare_pipeline_dag(sql, connection_sources, connection_source_ports)?;
-    Ok(transform_to_ui_graph(&sql_dag, port_connection_source))
+    Ok(transform_to_ui_graph(&sql_dag))
 }

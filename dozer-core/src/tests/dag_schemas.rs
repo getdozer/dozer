@@ -57,6 +57,10 @@ impl SourceFactory<NoneContext> for TestUsersSourceFactory {
         ))
     }
 
+    fn get_output_port_name(&self, _port: &PortHandle) -> String {
+        "users".to_string()
+    }
+
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         vec![OutputPortDef::new(
             DEFAULT_PORT_HANDLE,
@@ -100,6 +104,10 @@ impl SourceFactory<NoneContext> for TestCountriesSourceFactory {
                 .clone(),
             NoneContext {},
         ))
+    }
+
+    fn get_output_port_name(&self, _port: &PortHandle) -> String {
+        "countries".to_string()
     }
 
     fn get_output_ports(&self) -> Vec<OutputPortDef> {

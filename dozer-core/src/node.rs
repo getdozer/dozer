@@ -40,6 +40,7 @@ impl OutputPortDef {
 
 pub trait SourceFactory<T>: Send + Sync + Debug {
     fn get_output_schema(&self, port: &PortHandle) -> Result<(Schema, T), BoxedError>;
+    fn get_output_port_name(&self, port: &PortHandle) -> String;
     fn get_output_ports(&self) -> Vec<OutputPortDef>;
     fn build(
         &self,
