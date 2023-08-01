@@ -355,24 +355,24 @@ impl CloudOrchestrator for SimpleOrchestrator {
     fn login(
         &mut self,
         cloud: Cloud,
-        organisation_name: Option<String>,
+        organisation_slug: Option<String>,
     ) -> Result<(), OrchestrationError> {
         info!("Organisation and client details can be created in https://dashboard.dev.getdozer.io/login \n");
-        let organisation_name = match organisation_name {
+        let organisation_slug = match organisation_slug {
             None => {
-                let mut organisation_name = String::new();
-                println!("Please enter your organisation name:");
+                let mut organisation_slug = String::new();
+                println!("Please enter your organisation slug:");
                 io::stdin()
-                    .read_line(&mut organisation_name)
+                    .read_line(&mut organisation_slug)
                     .map_err(FailedToReadOrganisationName)?;
-                organisation_name.trim().to_string()
+                organisation_slug.trim().to_string()
             }
             Some(name) => name,
         };
 
         self.runtime.block_on(async move {
             let login_svc = LoginSvc::new(
-                organisation_name,
+                organisation_slug,
                 cloud
                     .target_url
                     .unwrap_or(DEFAULT_CLOUD_TARGET_URL.to_string()),

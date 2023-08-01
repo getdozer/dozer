@@ -340,7 +340,7 @@ message QueryGraph {
 message CompanyRequest {
   oneof criteria {
     string iss = 1;
-    string name = 2;
+    string slug = 2;
   }
 }
 message CompanyResponse {
@@ -348,6 +348,7 @@ message CompanyResponse {
     string auth_url = 2;
     string iss = 3;
     string jwks_url = 4;
+    string slug = 5;
 }
 
 message Secret {

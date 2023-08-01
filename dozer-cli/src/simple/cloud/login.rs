@@ -123,13 +123,13 @@ pub struct TokenResponse {
 }
 impl LoginSvc {
     pub async fn new(
-        organisation_name: String,
+        organisation_slug: String,
         target_url: String,
     ) -> Result<Self, CloudLoginError> {
         let mut client = DozerPublicClient::connect(target_url.to_owned()).await?;
         let company_info = client
             .company_metadata(CompanyRequest {
-                criteria: Some(Criteria::Name(organisation_name.to_owned())),
+                criteria: Some(Criteria::Slug(organisation_slug.to_owned())),
             })
             .await
             .map_err(|e| {
