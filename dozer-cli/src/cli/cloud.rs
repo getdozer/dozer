@@ -24,8 +24,8 @@ pub struct Cloud {
 pub enum CloudCommands {
     /// Login to Dozer Cloud service
     Login {
-        #[arg(long = "organisation-name")]
-        organisation_name: Option<String>,
+        #[arg(long = "organisation_slug")]
+        organisation_slug: Option<String>,
     },
     /// Deploy application to Dozer Cloud
     Deploy(DeployCommandArgs),

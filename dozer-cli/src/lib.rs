@@ -43,7 +43,7 @@ pub trait CloudOrchestrator {
     fn login(
         &mut self,
         cloud: Cloud,
-        organisation_name: Option<String>,
+        organisation_slug: Option<String>,
     ) -> Result<(), OrchestrationError>;
     fn execute_secrets_command(
         &mut self,
