@@ -356,6 +356,9 @@ impl CloudOrchestrator for SimpleOrchestrator {
         &mut self,
         cloud: Cloud,
         organisation_slug: Option<String>,
+        profile: Option<String>,
+        client_id: Option<String>,
+        client_secret: Option<String>,
     ) -> Result<(), OrchestrationError> {
         info!("Organisation and client details can be created in https://dashboard.dev.getdozer.io/login \n");
         let organisation_slug = match organisation_slug {
@@ -378,7 +381,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
                     .unwrap_or(DEFAULT_CLOUD_TARGET_URL.to_string()),
             )
             .await?;
-            login_svc.login().await?;
+            login_svc.login(profile, client_id, client_secret).await?;
             Ok::<(), CloudLoginError>(())
         })?;
         Ok(())

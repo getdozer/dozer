@@ -44,6 +44,9 @@ pub trait CloudOrchestrator {
         &mut self,
         cloud: Cloud,
         organisation_slug: Option<String>,
+        profile: Option<String>,
+        client_id: Option<String>,
+        client_secret: Option<String>,
     ) -> Result<(), OrchestrationError>;
     fn execute_secrets_command(
         &mut self,
