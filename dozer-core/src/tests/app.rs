@@ -43,23 +43,26 @@ impl SourceFactory<NoneContext> for NoneSourceFactory {
 }
 
 #[test]
-fn test_apps_source_manager_connection_exists() {
+#[should_panic]
+fn test_app_connection_exists() {
     let mut asm = AppSourceManager::new();
-    let _r = asm.add(
+    asm.add(
         Box::new(NoneSourceFactory {}),
         AppSourceMappings::new(
             "conn1".to_string(),
             vec![("table1".to_string(), 1_u16)].into_iter().collect(),
         ),
     );
-    let r = asm.add(
+    asm.add(
         Box::new(NoneSourceFactory {}),
         AppSourceMappings::new(
             "conn1".to_string(),
             vec![("table2".to_string(), 1_u16)].into_iter().collect(),
         ),
     );
-    assert!(r.is_err());
+
+    let app = App::new(asm);
+    app.into_dag().unwrap();
 }
 
 #[test]
@@ -71,12 +74,11 @@ fn test_apps_source_manager_lookup() {
             "conn1".to_string(),
             vec![("table1".to_string(), 1_u16)].into_iter().collect(),
         ),
-    )
-    .unwrap();
+    );
 
     let r = asm.get_endpoint("table1").unwrap();
-    assert_eq!(r.node.id, "conn1");
-    assert_eq!(r.port, 1_u16);
+    assert_eq!(r.0, "conn1");
+    assert_eq!(r.1, 1_u16);
 
     let r = asm.get_endpoint("Non-existent source");
     assert!(r.is_err());
@@ -88,19 +90,18 @@ fn test_apps_source_manager_lookup() {
             "conn2".to_string(),
             vec![("table2".to_string(), 2_u16)].into_iter().collect(),
         ),
-    )
-    .unwrap();
+    );
 
     let r = asm.get_endpoint("table3");
     assert!(r.is_err());
 
     let r = asm.get_endpoint("table1").unwrap();
-    assert_eq!(r.node.id, "conn1");
-    assert_eq!(r.port, 1_u16);
+    assert_eq!(r.0, "conn1");
+    assert_eq!(r.1, 1_u16);
 
     let r = asm.get_endpoint("table2").unwrap();
-    assert_eq!(r.node.id, "conn2");
-    assert_eq!(r.port, 2_u16);
+    assert_eq!(r.0, "conn2");
+    assert_eq!(r.1, 2_u16);
 }
 
 #[test]
@@ -114,16 +115,15 @@ fn test_apps_source_manager_lookup_multiple_ports() {
                 .into_iter()
                 .collect(),
         ),
-    )
-    .unwrap();
+    );
 
     let r = asm.get_endpoint("table1").unwrap();
-    assert_eq!(r.node.id, "conn1");
-    assert_eq!(r.port, 1_u16);
+    assert_eq!(r.0, "conn1");
+    assert_eq!(r.1, 1_u16);
 
     let r = asm.get_endpoint("table2").unwrap();
-    assert_eq!(r.node.id, "conn1");
-    assert_eq!(r.port, 2_u16);
+    assert_eq!(r.0, "conn1");
+    assert_eq!(r.1, 2_u16);
 }
 
 #[test]
@@ -152,8 +152,7 @@ fn test_app_dag() {
             .into_iter()
             .collect(),
         ),
-    )
-    .unwrap();
+    );
 
     asm.add(
         Box::new(GeneratorSourceFactory::new(10_000, latch.clone(), true)),
@@ -163,8 +162,7 @@ fn test_app_dag() {
                 .into_iter()
                 .collect(),
         ),
-    )
-    .unwrap();
+    );
 
     let mut app = App::new(asm);
 
@@ -176,18 +174,21 @@ fn test_app_dag() {
             PipelineEntryPoint::new("users_postgres".to_string(), NOOP_JOIN_LEFT_INPUT_PORT),
             PipelineEntryPoint::new("transactions".to_string(), NOOP_JOIN_RIGHT_INPUT_PORT),
         ],
-    );
+    )
+    .unwrap();
     p1.add_sink(
         Box::new(CountingSinkFactory::new(20_000, latch.clone())),
         "sink",
         None,
-    );
+    )
+    .unwrap();
     p1.connect_nodes(
         "join",
         DEFAULT_PORT_HANDLE,
         "sink",
         COUNTING_SINK_INPUT_PORT,
-    );
+    )
+    .unwrap();
 
     app.add_pipeline(p1);
 
@@ -199,18 +200,21 @@ fn test_app_dag() {
             PipelineEntryPoint::new("users_snowflake".to_string(), NOOP_JOIN_LEFT_INPUT_PORT),
             PipelineEntryPoint::new("transactions".to_string(), NOOP_JOIN_RIGHT_INPUT_PORT),
         ],
-    );
+    )
+    .unwrap();
     p2.add_sink(
         Box::new(CountingSinkFactory::new(20_000, latch)),
         "sink",
         None,
-    );
+    )
+    .unwrap();
     p2.connect_nodes(
         "join",
         DEFAULT_PORT_HANDLE,
         "sink",
         COUNTING_SINK_INPUT_PORT,
-    );
+    )
+    .unwrap();
 
     app.add_pipeline(p2);
 

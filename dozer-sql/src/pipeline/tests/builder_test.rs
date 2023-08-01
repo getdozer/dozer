@@ -1,4 +1,4 @@
-use dozer_core::app::{App, AppPipeline};
+use dozer_core::app::App;
 use dozer_core::appsource::{AppSourceManager, AppSourceMappings};
 use dozer_core::channels::SourceChannelForwarder;
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
@@ -21,7 +21,7 @@ use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-use crate::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
+use crate::pipeline::builder::{sql_to_pipeline, SchemaSQLContext};
 
 /// Test Source
 #[derive(Debug)]
@@ -178,12 +178,10 @@ impl Sink for TestSink {
 
 #[test]
 fn test_pipeline_builder() {
-    let mut pipeline = AppPipeline::new();
-    let context = statement_to_pipeline(
+    let (context, mut pipeline) = sql_to_pipeline(
         "SELECT COUNT(Spending), users.Country \
         FROM users \
          WHERE Spending >= 1",
-        &mut pipeline,
         Some("results".to_string()),
     )
     .unwrap();
@@ -199,20 +197,23 @@ fn test_pipeline_builder() {
                 .into_iter()
                 .collect(),
         ),
-    )
-    .unwrap();
+    );
 
-    pipeline.add_sink(
-        Box::new(TestSinkFactory::new(vec![DEFAULT_PORT_HANDLE])),
-        "sink",
-        None,
-    );
-    pipeline.connect_nodes(
-        &table_info.node,
-        table_info.port,
-        "sink",
-        DEFAULT_PORT_HANDLE,
-    );
+    pipeline
+        .add_sink(
+            Box::new(TestSinkFactory::new(vec![DEFAULT_PORT_HANDLE])),
+            "sink",
+            None,
+        )
+        .unwrap();
+    pipeline
+        .connect_nodes(
+            &table_info.node,
+            table_info.port,
+            "sink",
+            DEFAULT_PORT_HANDLE,
+        )
+        .unwrap();
 
     let mut app = App::new(asm);
     app.add_pipeline(pipeline);

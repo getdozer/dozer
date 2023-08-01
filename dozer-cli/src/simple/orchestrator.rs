@@ -16,7 +16,6 @@ use dozer_api::{grpc, rest, CacheEndpoint};
 use dozer_cache::cache::LmdbRwCacheManager;
 use dozer_cache::dozer_log::home_dir::HomeDir;
 use dozer_cache::dozer_log::schemas::BuildSchema;
-use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::DagSchemas;
 use futures::future::join_all;
 
@@ -26,7 +25,7 @@ use crate::console_helper::PURPLE;
 use crate::console_helper::RED;
 use dozer_core::errors::ExecutionError;
 use dozer_ingestion::connectors::{get_connector, SourceSchema, TableInfo};
-use dozer_sql::pipeline::builder::statement_to_pipeline;
+use dozer_sql::pipeline::builder::sql_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::crossbeam::channel::{self, Sender};
 use dozer_types::indicatif::{MultiProgress, ProgressDrawTarget};
@@ -391,7 +390,7 @@ impl SimpleOrchestrator {
 }
 
 pub fn validate_sql(sql: String) -> Result<(), PipelineError> {
-    statement_to_pipeline(&sql, &mut AppPipeline::new(), None).map_or_else(
+    sql_to_pipeline(&sql, None).map_or_else(
         |e| {
             error!(
                 "[sql][{}] Transforms validation error: {}",

@@ -1,5 +1,5 @@
 use ahash::AHasher;
-use dozer_core::app::{App, AppPipeline};
+use dozer_core::app::{App, EdgeType};
 use dozer_core::appsource::{AppSourceManager, AppSourceMappings};
 use dozer_core::channels::SourceChannelForwarder;
 use dozer_core::errors::ExecutionError;
@@ -8,11 +8,12 @@ use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
 
+use dozer_core::petgraph::visit::IntoEdgeReferences;
 use dozer_core::{Dag, DEFAULT_PORT_HANDLE};
 
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 
-use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
+use dozer_sql::pipeline::builder::{sql_to_pipeline, SchemaSQLContext};
 use dozer_types::crossbeam::channel::{Receiver, Sender};
 
 use dozer_types::epoch::Epoch;
@@ -269,10 +270,8 @@ impl TestPipeline {
         schemas: HashMap<String, Schema>,
         ops: Vec<(String, Operation)>,
     ) -> Result<TestPipeline, ExecutionError> {
-        let mut pipeline = AppPipeline::new();
-
-        let transform_response =
-            statement_to_pipeline(&sql, &mut pipeline, Some("results".to_string())).unwrap();
+        let (transform_response, mut pipeline) =
+            sql_to_pipeline(&sql, Some("results".to_string())).unwrap();
 
         let output_table = transform_response.output_tables_map.get("results").unwrap();
         let (sender, receiver) =
@@ -297,19 +296,29 @@ impl TestPipeline {
                 receiver,
             )),
             AppSourceMappings::new("test_connection".to_string(), mappings),
-        )
-        .unwrap();
+        );
 
         let output = Arc::new(Mutex::new(HashMap::new()));
-        pipeline.add_sink(Box::new(TestSinkFactory::new(output.clone())), "sink", None);
+        pipeline
+            .add_sink(Box::new(TestSinkFactory::new(output.clone())), "sink", None)
+            .unwrap();
 
-        pipeline.connect_nodes(
-            &output_table.node,
-            output_table.port,
-            "sink",
-            DEFAULT_PORT_HANDLE,
-        );
-        let used_schemas = pipeline.get_entry_points_sources_names();
+        pipeline
+            .connect_nodes(
+                &output_table.node,
+                output_table.port,
+                "sink",
+                DEFAULT_PORT_HANDLE,
+            )
+            .unwrap();
+        let used_schemas = pipeline
+            .graph()
+            .edge_references()
+            .filter_map(|edge| match edge.weight() {
+                EdgeType::EntryPoint { source_name, .. } => Some(source_name.clone()),
+                _ => None,
+            })
+            .collect();
         let mut app = App::new(asm);
         app.add_pipeline(pipeline);
 

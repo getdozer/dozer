@@ -1,4 +1,4 @@
-use dozer_core::app::{App, AppPipeline};
+use dozer_core::app::App;
 use dozer_core::appsource::{AppSourceManager, AppSourceMappings};
 use dozer_core::channels::SourceChannelForwarder;
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
@@ -19,7 +19,7 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-use crate::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
+use crate::pipeline::builder::{sql_to_pipeline, SchemaSQLContext};
 use crate::pipeline::product::tests::pipeline_test::TestSinkFactory;
 
 const TRIPS_PORT: u16 = 0 as PortHandle;
@@ -32,13 +32,10 @@ const DATE_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 fn test_lifetime_pipeline() {
     dozer_tracing::init_telemetry(None, None);
 
-    let mut pipeline = AppPipeline::new();
-
-    let context = statement_to_pipeline(
+    let (context, mut pipeline) = sql_to_pipeline(
         "SELECT trips.taxi_id, puz.zone, trips.completed_at \
                 FROM TTL(taxi_trips, completed_at, '3 MINUTES') trips \
                 JOIN zones puz ON trips.pu_location_id = puz.location_id",
-        &mut pipeline,
         Some("results".to_string()),
     )
     .unwrap();
@@ -59,20 +56,23 @@ fn test_lifetime_pipeline() {
             .into_iter()
             .collect(),
         ),
-    )
-    .unwrap();
+    );
 
-    pipeline.add_sink(
-        Box::new(TestSinkFactory::new(EXPECTED_SINK_OP_COUNT, latch)),
-        "sink",
-        None,
-    );
-    pipeline.connect_nodes(
-        &table_info.node,
-        table_info.port,
-        "sink",
-        DEFAULT_PORT_HANDLE,
-    );
+    pipeline
+        .add_sink(
+            Box::new(TestSinkFactory::new(EXPECTED_SINK_OP_COUNT, latch)),
+            "sink",
+            None,
+        )
+        .unwrap();
+    pipeline
+        .connect_nodes(
+            &table_info.node,
+            table_info.port,
+            "sink",
+            DEFAULT_PORT_HANDLE,
+        )
+        .unwrap();
 
     let mut app = App::new(asm);
     app.add_pipeline(pipeline);

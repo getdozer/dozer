@@ -78,7 +78,7 @@ impl<'a> SourceBuilder<'a> {
             asm.add(
                 Box::new(source_factory),
                 AppSourceMappings::new(connection.name.to_string(), ports),
-            )?;
+            );
         }
 
         Ok(asm)

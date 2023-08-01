@@ -10,8 +10,9 @@ use dozer_core::node::SinkFactory;
 use dozer_core::Dag;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_ingestion::connectors::{get_connector, get_connector_info_table};
-use dozer_sql::pipeline::builder::statement_to_pipeline;
+use dozer_sql::pipeline::builder::sql_to_pipeline;
 use dozer_sql::pipeline::builder::{OutputNodeInfo, QueryContext, SchemaSQLContext};
+use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::indicatif::MultiProgress;
 use dozer_types::log::debug;
 use dozer_types::models::api_endpoint::ApiEndpoint;
@@ -146,13 +147,12 @@ impl<'a> PipelineBuilder<'a> {
         let mut original_sources = vec![];
 
         let mut query_ctx = None;
-        let mut pipeline = AppPipeline::new();
 
         let mut transformed_sources = vec![];
 
         if let Some(sql) = &self.sql {
-            let query_context = statement_to_pipeline(sql, &mut pipeline, None)
-                .map_err(OrchestrationError::PipelineError)?;
+            let (query_context, _) =
+                sql_to_pipeline(sql, None).map_err(OrchestrationError::PipelineError)?;
 
             query_ctx = Some(query_context.clone());
 
@@ -199,8 +199,6 @@ impl<'a> PipelineBuilder<'a> {
         let grouped_connections =
             runtime.block_on(self.get_grouped_tables(&calculated_sources.original_sources))?;
 
-        let mut pipelines: Vec<AppPipeline<SchemaSQLContext>> = vec![];
-
         let mut pipeline = AppPipeline::new();
 
         let mut available_output_tables: HashMap<String, OutputTableInfo> = HashMap::new();
@@ -219,8 +217,10 @@ impl<'a> PipelineBuilder<'a> {
         }
 
         if let Some(sql) = &self.sql {
-            let query_context = statement_to_pipeline(sql, &mut pipeline, None)
-                .map_err(OrchestrationError::PipelineError)?;
+            let context_and_pipeline =
+                sql_to_pipeline(sql, None).map_err(OrchestrationError::PipelineError)?;
+            let query_context = context_and_pipeline.0;
+            pipeline = context_and_pipeline.1;
 
             for (name, table_info) in query_context.output_tables_map {
                 if available_output_tables.contains_key(name.as_str()) {
@@ -255,36 +255,38 @@ impl<'a> PipelineBuilder<'a> {
 
             match table_info {
                 OutputTableInfo::Transformed(table_info) => {
-                    pipeline.add_sink(snk_factory, api_endpoint.name.as_str(), None);
+                    pipeline
+                        .add_sink(snk_factory, api_endpoint.name.as_str(), None)
+                        .map_err(PipelineError::PipelineBuilder)?;
 
-                    pipeline.connect_nodes(
-                        &table_info.node,
-                        table_info.port,
-                        api_endpoint.name.as_str(),
-                        DEFAULT_PORT_HANDLE,
-                    );
+                    pipeline
+                        .connect_nodes(
+                            &table_info.node,
+                            table_info.port,
+                            api_endpoint.name.as_str(),
+                            DEFAULT_PORT_HANDLE,
+                        )
+                        .map_err(PipelineError::PipelineBuilder)?;
                 }
                 OutputTableInfo::Original(table_info) => {
-                    pipeline.add_sink(
-                        snk_factory,
-                        api_endpoint.name.as_str(),
-                        Some(PipelineEntryPoint::new(
-                            table_info.table_name.clone(),
-                            DEFAULT_PORT_HANDLE,
-                        )),
-                    );
+                    pipeline
+                        .add_sink(
+                            snk_factory,
+                            api_endpoint.name.as_str(),
+                            Some(PipelineEntryPoint::new(
+                                table_info.table_name.clone(),
+                                DEFAULT_PORT_HANDLE,
+                            )),
+                        )
+                        .map_err(PipelineError::PipelineBuilder)?;
                 }
             }
         }
 
-        pipelines.push(pipeline);
-
         let asm = source_builder.build_source_manager(runtime)?;
         let mut app = App::new(asm);
 
-        Vec::into_iter(pipelines).for_each(|p| {
-            app.add_pipeline(p);
-        });
+        app.add_pipeline(pipeline);
 
         let dag = app.into_dag().map_err(ExecutionError)?;
 

@@ -4,8 +4,7 @@ pub mod pipeline;
 pub mod shutdown;
 pub mod simple;
 mod ui_helper;
-use dozer_core::{app::AppPipeline, errors::ExecutionError};
-use dozer_sql::pipeline::{builder::statement_to_pipeline, errors::PipelineError};
+use dozer_core::errors::ExecutionError;
 use dozer_types::log::debug;
 use errors::OrchestrationError;
 use shutdown::ShutdownSender;
@@ -59,10 +58,6 @@ pub use dozer_ingestion::{
 };
 pub use dozer_sql::pipeline::builder::QueryContext;
 pub use ui_helper::config_to_ui_dag;
-pub fn wrapped_statement_to_pipeline(sql: &str) -> Result<QueryContext, PipelineError> {
-    let mut pipeline = AppPipeline::new();
-    statement_to_pipeline(sql, &mut pipeline, None)
-}
 
 #[cfg(feature = "cloud")]
 use crate::cli::cloud::{
