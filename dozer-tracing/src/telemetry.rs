@@ -101,6 +101,7 @@ where
         + dozer_types::tracing::Subscriber,
 {
     global::set_text_map_propagator(TraceContextPropagator::new());
+
     let tracer = opentelemetry_jaeger::new_agent_pipeline()
         .with_service_name(app_name)
         .install_simple()

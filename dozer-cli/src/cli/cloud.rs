@@ -26,6 +26,15 @@ pub enum CloudCommands {
     Login {
         #[arg(long = "organisation_slug")]
         organisation_slug: Option<String>,
+
+        #[arg(global = true, long = "profile_name")]
+        profile_name: Option<String>,
+
+        #[arg(global = true, long = "client_id")]
+        client_id: Option<String>,
+
+        #[arg(global = true, long = "client_secret")]
+        client_secret: Option<String>,
     },
     /// Deploy application to Dozer Cloud
     Deploy(DeployCommandArgs),

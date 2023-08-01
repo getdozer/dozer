@@ -7,6 +7,7 @@ use crate::errors::CloudLoginError::OrganisationNotFound;
 use dozer_types::grpc_types::cloud::company_request::Criteria;
 use dozer_types::grpc_types::cloud::dozer_public_client::DozerPublicClient;
 use dozer_types::grpc_types::cloud::CompanyRequest;
+
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::serde_json::{self, Value};
 use dozer_types::serde_yaml;
@@ -146,25 +147,51 @@ impl LoginSvc {
             target_url,
         })
     }
-    pub async fn login(&self) -> Result<(), CloudLoginError> {
-        self.login_by_credential().await
+    pub async fn login(
+        &self,
+        profile: Option<String>,
+        client_id: Option<String>,
+        client_secret: Option<String>,
+    ) -> Result<(), CloudLoginError> {
+        self.login_by_credential(profile, client_id, client_secret)
+            .await
     }
 
-    async fn login_by_credential(&self) -> Result<(), CloudLoginError> {
-        let mut profile_name = String::new();
-        println!("Please enter profile name:");
-        io::stdin().read_line(&mut profile_name)?;
-        profile_name = profile_name.trim().to_owned();
+    async fn login_by_credential(
+        &self,
+        profile: Option<String>,
+        client_id: Option<String>,
+        client_secret: Option<String>,
+    ) -> Result<(), CloudLoginError> {
+        let profile_name = match profile {
+            Some(profile) => profile,
+            None => {
+                let mut profile_name = String::new();
+                println!("Please enter profile name:");
+                io::stdin().read_line(&mut profile_name)?;
+                profile_name.trim().to_owned()
+            }
+        };
 
-        let mut client_id = String::new();
-        println!("Please enter your client_id:");
-        io::stdin().read_line(&mut client_id)?;
-        client_id = client_id.trim().to_owned();
+        let client_id = match client_id {
+            Some(client_id) => client_id,
+            None => {
+                let mut client_id = String::new();
+                println!("Please enter your client_id:");
+                io::stdin().read_line(&mut client_id)?;
+                client_id.trim().to_owned()
+            }
+        };
 
-        let mut client_secret = String::new();
-        println!("Please enter your client_secret:");
-        io::stdin().read_line(&mut client_secret)?;
-        client_secret = client_secret.trim().to_owned();
+        let client_secret = match client_secret {
+            Some(secret) => secret,
+            None => {
+                let mut client_secret = String::new();
+                println!("Please enter your client_secret:");
+                io::stdin().read_line(&mut client_secret)?;
+                client_secret.trim().to_owned()
+            }
+        };
 
         let credential_info = CredentialInfo {
             client_id,
@@ -173,6 +200,7 @@ impl LoginSvc {
             target_url: self.target_url.to_owned(),
             auth_url: self.auth_url.to_owned(),
         };
+
         credential_info.get_access_token().await?;
         credential_info.save()?;
         println!("Login success !");
