@@ -174,7 +174,8 @@ impl SimpleOrchestrator {
             global_err_threshold = err_threshold;
         }
 
-        let home_dir = HomeDir::new(self.config.home_dir.as_ref(), self.config.cache_dir.clone());
+        let home_dir = HomeDir::new(self.config.home_dir.as_ref(), self.config.cache_dir.clone())
+            .map_err(|(path, e)| OrchestrationError::FileSystem(path.into(), e))?;
         let executor = self.runtime.block_on(Executor::new(
             &home_dir,
             &self.config.connections,
@@ -257,7 +258,8 @@ impl SimpleOrchestrator {
     }
 
     pub fn build(&mut self, force: bool) -> Result<(), OrchestrationError> {
-        let home_dir = HomeDir::new(self.config.home_dir.as_ref(), self.config.cache_dir.clone());
+        let home_dir = HomeDir::new(self.config.home_dir.as_ref(), self.config.cache_dir.clone())
+            .map_err(|(path, e)| OrchestrationError::FileSystem(path.into(), e))?;
 
         info!(
             "Initiating app: {}",

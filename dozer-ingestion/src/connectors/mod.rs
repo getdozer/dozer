@@ -1,3 +1,4 @@
+pub mod dozer;
 #[cfg(feature = "ethereum")]
 pub mod ethereum;
 pub mod grpc;
@@ -5,7 +6,6 @@ pub mod grpc;
 pub mod kafka;
 pub mod object_store;
 pub mod postgres;
-
 use crate::connectors::postgres::connection::helper::map_connection_config;
 
 use std::fmt::Debug;
@@ -32,6 +32,7 @@ use dozer_types::types::{FieldType, Schema};
 pub mod delta_lake;
 pub mod snowflake;
 
+use self::dozer::NestedDozerConnector;
 #[cfg(feature = "ethereum")]
 use self::ethereum::{EthLogConnector, EthTraceConnector};
 
@@ -224,6 +225,9 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
         }
         ConnectionConfig::DeltaLake(delta_lake_config) => {
             Ok(Box::new(DeltaLakeConnector::new(delta_lake_config)))
+        }
+        ConnectionConfig::Dozer(dozer_config) => {
+            Ok(Box::new(NestedDozerConnector::new(dozer_config)))
         }
     }
 }

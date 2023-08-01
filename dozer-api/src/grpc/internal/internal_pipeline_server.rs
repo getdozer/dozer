@@ -5,7 +5,8 @@ use dozer_types::grpc_types::internal::internal_pipeline_service_server::{
     InternalPipelineService, InternalPipelineServiceServer,
 };
 use dozer_types::grpc_types::internal::{
-    BuildRequest, BuildResponse, LogRequest, LogResponse, StorageRequest, StorageResponse,
+    BuildRequest, BuildResponse, DescribeApplicationRequest, DescribeApplicationResponse,
+    LogRequest, LogResponse, StorageRequest, StorageResponse,
 };
 use dozer_types::log::info;
 use dozer_types::models::api_config::AppGrpcOptions;
@@ -53,32 +54,28 @@ impl InternalPipelineService for InternalPipelineServer {
         }))
     }
 
+    async fn describe_application(
+        &self,
+        _: Request<DescribeApplicationRequest>,
+    ) -> Result<Response<DescribeApplicationResponse>, Status> {
+        let mut endpoints = HashMap::new();
+        for (endpoint, build_and_log) in &self.endpoints {
+            let build = &build_and_log.build;
+            let build_response = get_build_response(build).await?;
+            endpoints.insert(endpoint.clone(), build_response);
+        }
+
+        Ok(Response::new(DescribeApplicationResponse { endpoints }))
+    }
+
     async fn describe_build(
         &self,
         request: Request<BuildRequest>,
     ) -> Result<Response<BuildResponse>, Status> {
         let endpoint = request.into_inner().endpoint;
         let build = &find_build_and_log(&self.endpoints, &endpoint)?.build;
-        let name = build.id.name().to_string();
-        let schema_string = tokio::fs::read_to_string(&build.schema_path)
-            .await
-            .map_err(|e| {
-                Status::new(
-                    tonic::Code::Internal,
-                    format!("Failed to read schema: {}", e),
-                )
-            })?;
-        let descriptor_bytes = tokio::fs::read(&build.descriptor_path).await.map_err(|e| {
-            Status::new(
-                tonic::Code::Internal,
-                format!("Failed to read descriptor: {}", e),
-            )
-        })?;
-        Ok(Response::new(BuildResponse {
-            name,
-            schema_string,
-            descriptor_bytes,
-        }))
+        let build_response = get_build_response(build).await?;
+        Ok(Response::new(build_response))
     }
 
     type GetLogStream = BoxStream<'static, Result<LogResponse, Status>>;
@@ -104,6 +101,29 @@ impl InternalPipelineService for InternalPipelineServer {
     }
 }
 
+async fn get_build_response(build: &BuildPath) -> Result<BuildResponse, Status> {
+    let build = build;
+    let name = build.id.name().to_string();
+    let schema_string = tokio::fs::read_to_string(&build.schema_path)
+        .await
+        .map_err(|e| {
+            Status::new(
+                tonic::Code::Internal,
+                format!("Failed to read schema: {}", e),
+            )
+        })?;
+    let descriptor_bytes = tokio::fs::read(&build.descriptor_path).await.map_err(|e| {
+        Status::new(
+            tonic::Code::Internal,
+            format!("Failed to read descriptor: {}", e),
+        )
+    })?;
+    Ok(BuildResponse {
+        name,
+        schema_string,
+        descriptor_bytes,
+    })
+}
 fn find_build_and_log<'a>(
     endpoints: &'a HashMap<String, BuildAndLog>,
     endpoint: &str,

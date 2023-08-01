@@ -10,15 +10,17 @@ pub struct HomeDir {
 pub type Error = (Utf8PathBuf, std::io::Error);
 
 impl HomeDir {
-    pub fn new(home_dir: &str, cache_dir: String) -> Self {
-        let home_dir = AsRef::<Utf8Path>::as_ref(home_dir);
+    pub fn new(home_dir: &str, cache_dir: String) -> Result<Self, Error> {
+        let home_dir = AsRef::<Utf8Path>::as_ref(home_dir)
+            .canonicalize_utf8()
+            .map_err(|e| (home_dir.into(), e))?;
         let api_dir = home_dir.join("api");
         let log_dir = home_dir.join("pipeline").join("logs");
-        Self {
+        Ok(Self {
             api_dir,
             cache_dir: cache_dir.into(),
             log_dir,
-        }
+        })
     }
 
     pub fn create_build_dir_all(

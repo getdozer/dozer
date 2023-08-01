@@ -16,7 +16,7 @@ async fn create_test_log(
     entry_max_size: usize,
 ) -> (TempDir, Arc<Mutex<Log>>) {
     let temp_dir = TempDir::new(temp_dir_prefix).unwrap();
-    let home_dir = HomeDir::new(temp_dir.path().to_str().unwrap(), String::default()); // We don't care about the cache dir.
+    let home_dir = HomeDir::new(temp_dir.path().to_str().unwrap(), String::default()).unwrap(); // We don't care about the cache dir.
     let build_path = home_dir
         .create_build_dir_all("endpoint", BuildId::first())
         .unwrap();

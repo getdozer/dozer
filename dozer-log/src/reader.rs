@@ -70,7 +70,7 @@ impl LogReaderBuilder {
         server_addr: String,
         options: LogReaderOptions,
     ) -> Result<Self, ReaderBuilderError> {
-        let mut client = InternalPipelineServiceClient::connect(server_addr).await?;
+        let mut client = Self::get_client(server_addr).await?;
         let build = client
             .describe_build(BuildRequest {
                 endpoint: options.endpoint.clone(),
@@ -89,6 +89,13 @@ impl LogReaderBuilder {
             client,
             options,
         })
+    }
+
+    pub async fn get_client(
+        server_addr: String,
+    ) -> Result<InternalPipelineServiceClient<Channel>, ReaderBuilderError> {
+        let client = InternalPipelineServiceClient::connect(server_addr).await?;
+        Ok(client)
     }
 
     pub fn build(self, pos: u64, multi_pb: Option<MultiProgress>) -> LogReader {
