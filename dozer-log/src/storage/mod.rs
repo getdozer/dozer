@@ -111,7 +111,7 @@ pub enum Error {
 
 use dyn_clone::DynClone;
 use futures_util::{stream::BoxStream, StreamExt};
-pub use s3::S3Storage;
+pub use s3::{BucketLocationConstraint, S3Storage};
 
 mod local;
 

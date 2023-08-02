@@ -41,8 +41,16 @@ pub struct AppConfig {
 pub enum LogStorage {
     #[prost(message, tag = "7")]
     Local(()),
-    #[prost(string, tag = "8")]
-    S3(String),
+    #[prost(message, tag = "8")]
+    S3(S3Storage),
+}
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, prost::Message)]
+pub struct S3Storage {
+    #[prost(string, tag = "1")]
+    pub region: String,
+    #[prost(string, tag = "2")]
+    pub bucket_name: String,
 }
 
 impl Default for LogStorage {
