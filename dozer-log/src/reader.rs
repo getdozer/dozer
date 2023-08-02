@@ -148,7 +148,9 @@ impl LogClient {
             .await?
             .into_inner();
         let storage: Box<dyn Storage> = match storage.storage.expect("Must not be None") {
-            storage_response::Storage::S3(s3) => Box::new(S3Storage::new(s3.bucket_name).await?),
+            storage_response::Storage::S3(s3) => {
+                Box::new(S3Storage::new(s3.region.as_str().into(), s3.bucket_name).await?)
+            }
             storage_response::Storage::Local(local) => {
                 Box::new(LocalStorage::new(local.root).await?)
             }

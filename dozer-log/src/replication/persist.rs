@@ -25,9 +25,10 @@ pub async fn create_log_storage(
             Box::new(LocalStorage::new(build_dir).await?),
             String::default(),
         )),
-        LogStorage::S3(bucket_name) => {
-            Ok((Box::new(S3Storage::new(bucket_name).await?), build_dir))
-        }
+        LogStorage::S3(s3) => Ok((
+            Box::new(S3Storage::new(s3.region.as_str().into(), s3.bucket_name).await?),
+            build_dir,
+        )),
     }
 }
 

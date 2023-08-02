@@ -19,15 +19,16 @@ use super::{Error, ListObjectsOutput, Object, Storage};
 #[derive(Debug, Clone)]
 pub struct S3Storage {
     client: Client,
+    region: BucketLocationConstraint,
     bucket_name: String,
 }
 
 impl S3Storage {
-    pub async fn new(bucket_name: String) -> Result<Self, Error> {
+    pub async fn new(region: BucketLocationConstraint, bucket_name: String) -> Result<Self, Error> {
         let config = aws_config::from_env().load().await;
         let client = Client::new(&config);
         let create_bucket_configuration = CreateBucketConfiguration::builder()
-            .location_constraint(BucketLocationConstraint::UsEast2)
+            .location_constraint(region.clone())
             .build();
         if let Err(e) = client
             .create_bucket()
@@ -42,6 +43,7 @@ impl S3Storage {
         }
         Ok(Self {
             client,
+            region,
             bucket_name,
         })
     }
@@ -78,6 +80,7 @@ impl S3Storage {
 impl Storage for S3Storage {
     fn describe(&self) -> storage_response::Storage {
         storage_response::Storage::S3(internal::S3Storage {
+            region: self.region.as_str().to_string(),
             bucket_name: self.bucket_name.clone(),
         })
     }
@@ -216,27 +219,36 @@ mod tests {
 
     #[tokio::test]
     async fn test_s3_storage_basic() {
-        let storage = S3Storage::new("test-s3-storage-basic-us-east-2".to_string())
-            .await
-            .unwrap();
+        let storage = S3Storage::new(
+            BucketLocationConstraint::UsEast2,
+            "test-s3-storage-basic-us-east-2".to_string(),
+        )
+        .await
+        .unwrap();
         test_storage_basic(&storage).await;
         storage.delete().await.unwrap();
     }
 
     #[tokio::test]
     async fn test_s3_storage_multipart() {
-        let storage = S3Storage::new("test-s3-storage-multipart-us-east-2".to_string())
-            .await
-            .unwrap();
+        let storage = S3Storage::new(
+            BucketLocationConstraint::UsEast2,
+            "test-s3-storage-multipart-us-east-2".to_string(),
+        )
+        .await
+        .unwrap();
         test_storage_multipart(&storage).await;
         storage.delete().await.unwrap();
     }
 
     #[tokio::test]
     async fn test_s3_storage_prefix() {
-        let storage = S3Storage::new("test-s3-storage-prefix-us-east-2".to_string())
-            .await
-            .unwrap();
+        let storage = S3Storage::new(
+            BucketLocationConstraint::UsEast2,
+            "test-s3-storage-prefix-us-east-2".to_string(),
+        )
+        .await
+        .unwrap();
         test_storage_prefix(&storage).await;
         storage.delete().await.unwrap();
     }
