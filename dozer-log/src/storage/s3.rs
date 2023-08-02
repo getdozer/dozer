@@ -26,9 +26,7 @@ impl S3Storage {
     pub async fn new(bucket_name: String) -> Result<Self, Error> {
         let config = aws_config::from_env().load().await;
         let client = Client::new(&config);
-        let create_bucket_configuration = CreateBucketConfiguration::builder()
-            .location_constraint(BucketLocationConstraint::UsEast2)
-            .build();
+        let create_bucket_configuration = CreateBucketConfiguration::builder().build();
         if let Err(e) = client
             .create_bucket()
             .bucket(&bucket_name)
