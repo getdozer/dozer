@@ -145,6 +145,8 @@ message DeploymentStatus {
   bool app_running = 2;
   optional int32 api_desired = 3;
   optional int32 api_available = 4;
+  string phase = 5;
+  optional string last_error = 6;
 }
 
 message ListDeploymentRequest {

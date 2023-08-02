@@ -229,7 +229,14 @@ impl CloudOrchestrator for SimpleOrchestrator {
             table.add_row(row!["Api endpoint", response.api_endpoint,]);
 
             let mut deployment_table = table!();
-            deployment_table.set_titles(row!["Deployment", "App", "Api", "Version"]);
+            deployment_table.set_titles(row![
+                "Deployment",
+                "App",
+                "Api",
+                "Version",
+                "Phase",
+                "Error"
+            ]);
 
             for status in response.deployments.iter() {
                 let deployment = status.deployment;
@@ -270,7 +277,9 @@ impl CloudOrchestrator for SimpleOrchestrator {
                         number(status.api_available),
                         number(status.api_desired)
                     ),
-                    version
+                    version,
+                    status.phase,
+                    status.last_error.as_deref().unwrap_or("None")
                 ]);
             }
 
