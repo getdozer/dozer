@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+package dozer.live;
+import "types.proto";
+
+service CodeService {  
+  rpc LiveConnect(CommonRequest) returns (stream LiveResponse);
+  rpc Sources(SourcesRequest) returns (SchemasResponse);
+  rpc Endpoints(CommonRequest) returns (SchemasResponse);
+  rpc GenerateDot(CommonRequest) returns (DotResponse);
+  // rpc Protos(ProtosRequest) returns (ProtosResponse);
+}
+
+message CommonRequest {
+
+}
+
+message LiveApp {
+  string app_name = 1;
+  repeated string connections = 2;  
+  repeated string endpoints = 3;  
+}
+message LiveResponse {
+  bool initialized = 1;
+  optional string error_message = 2;
+  LiveApp app = 3;
+}
+
+message SourcesRequest {
+  string connection_name = 1;
+}
+
+message SchemasResponse {
+  map<string, Schema> schemas = 1;
+}
+
+
+message Schema  {
+  // The list of indexes of the keys that are used as the primary index.
+  repeated int32 primary_index = 1;
+  // The list of field definitions.
+  repeated dozer.types.FieldDefinition fields = 2;
+}
+
+
+message ProtosRequest {
+  string endpoint = 1;
+}
+
+message ProtosResponse {
+  string js_file = 1;
+}
+
+message DotResponse {
+  string dot = 1;
+}

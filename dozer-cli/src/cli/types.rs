@@ -46,6 +46,8 @@ pub enum Commands {
             folder structure."
     )]
     Init,
+    #[command(about = "Edit code interactively")]
+    Live,
     #[command(
         about = "Clean home directory",
         long_about = "Clean home directory. It removes all data, schemas and other files in app \

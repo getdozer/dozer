@@ -5,7 +5,10 @@ use std::io;
 use std::path::PathBuf;
 use tonic::Code::NotFound;
 
-use crate::errors::CloudError::{ApplicationNotFound, CloudServiceError};
+use crate::{
+    errors::CloudError::{ApplicationNotFound, CloudServiceError},
+    live::LiveError,
+};
 use dozer_api::{
     errors::{ApiInitError, AuthError, GenerationError, GrpcError},
     rest::DOZER_SERVER_NAME_HEADER,
@@ -89,6 +92,8 @@ pub enum OrchestrationError {
     CloudContextError(#[from] CloudContextError),
     #[error("Failed to read organisation name. Error: {0}")]
     FailedToReadOrganisationName(#[source] io::Error),
+    #[error(transparent)]
+    LiveError(#[from] LiveError),
 }
 
 #[derive(Error, Debug)]

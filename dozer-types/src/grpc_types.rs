@@ -33,6 +33,11 @@ pub mod cloud {
     pub const FILE_DESCRIPTOR_SET: &[u8] = tonic::include_file_descriptor_set!("cloud");
 }
 
+pub mod live {
+    #![allow(clippy::derive_partial_eq_without_eq)]
+    tonic::include_proto!("dozer.live");
+}
+
 // To be used in tests
 pub mod generated {
     pub mod films {
