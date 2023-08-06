@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use dozer_api::tonic_web;
+use dozer_api::{tonic_reflection, tonic_web};
 use dozer_types::grpc_types::live::{
     code_service_server::{CodeService, CodeServiceServer},
     CommonRequest, DotResponse, LiveResponse, SchemasResponse, SourcesRequest,
@@ -116,9 +116,15 @@ pub async fn serve(receiver: Receiver<LiveResponse>, state: Arc<LiveState>) {
     // Enable CORS for local development
     let svc = tonic_web::config().allow_all_origins().enable(svc);
 
+    let reflection_service = tonic_reflection::server::Builder::configure()
+        .register_encoded_file_descriptor_set(dozer_types::grpc_types::live::FILE_DESCRIPTOR_SET)
+        .build()
+        .unwrap();
+
     tonic::transport::Server::builder()
         .accept_http1(true)
         .add_service(svc)
+        .add_service(reflection_service)
         .serve(addr)
         .await
         .unwrap();
