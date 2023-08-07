@@ -32,7 +32,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: [x86_64, x86, aarch64, armv7, s390x]
+        # target: [x86_64, x86, aarch64, armv7, s390x]
+        target: [x86_64, x86, aarch64, armv7]
         node_version: [12, 14, 16]
         include:
           - target: x86_64
@@ -51,10 +52,10 @@ jobs:
             rustup_target: armv7-unknown-linux-gnueabihf
             node_arch: arm
             gcc: gcc-arm-linux-gnueabihf
-          - target: s390x
-            rustup_target: s390x-unknown-linux-gnu
-            node_arch: s390x
-            gcc: gcc-s390x-linux-gnu
+          # - target: s390x
+          #   rustup_target: s390x-unknown-linux-gnu
+          #   node_arch: s390x
+          #   gcc: gcc-s390x-linux-gnu
     steps:
       - uses: actions/checkout@v3
 
