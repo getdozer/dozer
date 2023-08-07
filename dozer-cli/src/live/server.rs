@@ -6,7 +6,7 @@ use dozer_types::{
         live::{
             code_service_server::{CodeService, CodeServiceServer},
             CommonRequest, DotResponse, LiveResponse, RunSqlRequest, SchemasResponse,
-            SourcesRequest, SqlRequest,
+            SourcesRequest, SqlRequest, SqlResponse,
         },
         types::Operation,
     },
@@ -110,6 +110,18 @@ impl CodeService for LiveServer {
         let state = self.state.clone();
         let handle = std::thread::spawn(move || state.generate_dot());
         let res = handle.join().unwrap();
+
+        match res {
+            Ok(res) => Ok(Response::new(res)),
+            Err(e) => Err(Status::internal(e.to_string())),
+        }
+    }
+
+    async fn get_sql(
+        &self,
+        _request: Request<CommonRequest>,
+    ) -> Result<Response<SqlResponse>, Status> {
+        let res = self.state.get_sql();
 
         match res {
             Ok(res) => Ok(Response::new(res)),

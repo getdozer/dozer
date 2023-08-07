@@ -4,11 +4,12 @@ use dozer_cache::dozer_log::{
     reader::{LogReaderBuilder, LogReaderOptions},
     replication::LogOperation,
 };
-use dozer_core::{dag_schemas::DagSchemas, petgraph::dot};
+use dozer_core::{app::AppPipeline, dag_schemas::DagSchemas, petgraph::dot};
 use dozer_ingestion::connectors::get_connector;
+use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_types::{
     grpc_types::{
-        live::{DotResponse, LiveApp, LiveResponse, Schema, SchemasResponse},
+        live::{DotResponse, LiveApp, LiveResponse, Schema, SchemasResponse, SqlResponse},
         types::Operation,
     },
     indicatif::MultiProgress,
@@ -97,6 +98,11 @@ impl LiveState {
         }
     }
 
+    pub fn get_sql(&self) -> Result<SqlResponse, LiveError> {
+        let dozer = self.get_dozer()?;
+        let sql = dozer.config.sql.clone().unwrap_or_default();
+        Ok(SqlResponse { sql })
+    }
     pub fn get_endpoints_schemas(&self) -> Result<SchemasResponse, LiveError> {
         let dozer = self.get_dozer()?;
         get_endpoint_schemas(dozer).map_err(|e| LiveError::BuildError(Box::new(e)))
@@ -118,15 +124,24 @@ impl LiveState {
 
     pub fn build_sql(&self, sql: String) -> Result<SchemasResponse, LiveError> {
         let mut dozer = self.get_dozer()?;
+
+        let context = statement_to_pipeline(&sql, &mut AppPipeline::new(), None)
+            .map_err(LiveError::PipelineError)?;
+
         //overwrite sql
         dozer.config.sql = Some(sql);
 
-        dozer.config.endpoints = vec![ApiEndpoint {
-            name: "live".to_string(),
-            table_name: "live".to_string(),
-            path: "/live".to_string(),
-            ..Default::default()
-        }];
+        dozer.config.endpoints = vec![];
+        let endpoints = context.output_tables_map.keys().collect::<Vec<_>>();
+        for endpoint in endpoints {
+            let endpoint = ApiEndpoint {
+                name: endpoint.to_string(),
+                table_name: endpoint.to_string(),
+                path: format!("/{}", endpoint),
+                ..Default::default()
+            };
+            dozer.config.endpoints.push(endpoint);
+        }
 
         get_endpoint_schemas(dozer).map_err(|e| LiveError::BuildError(Box::new(e)))
     }

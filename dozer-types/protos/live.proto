@@ -8,6 +8,7 @@ service CodeService {
   rpc Sources(SourcesRequest) returns (SchemasResponse);
   rpc Endpoints(CommonRequest) returns (SchemasResponse);
   rpc GenerateDot(CommonRequest) returns (DotResponse);
+  rpc GetSql(CommonRequest) returns (SqlResponse);
   rpc BuildSql(SqlRequest) returns (SchemasResponse);
   rpc RunSql(RunSqlRequest) returns (stream dozer.types.Operation);
 }
@@ -55,4 +56,8 @@ message SqlRequest {
 message RunSqlRequest {
   string sql = 1;
   repeated string endpoints = 2;
+}
+
+message SqlResponse {
+  string sql = 1;
 }

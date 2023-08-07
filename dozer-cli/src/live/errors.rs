@@ -1,3 +1,4 @@
+use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
@@ -18,4 +19,7 @@ pub enum LiveError {
     NotInitialized,
     #[error("Error in initializing live server: {0}")]
     Transport(#[from] tonic::transport::Error),
+
+    #[error(transparent)]
+    PipelineError(#[from] PipelineError),
 }
