@@ -1,9 +1,16 @@
 use std::sync::Arc;
 
 use dozer_api::{tonic_reflection, tonic_web};
-use dozer_types::grpc_types::live::{
-    code_service_server::{CodeService, CodeServiceServer},
-    CommonRequest, DotResponse, LiveResponse, SchemasResponse, SourcesRequest,
+use dozer_types::{
+    grpc_types::{
+        live::{
+            code_service_server::{CodeService, CodeServiceServer},
+            CommonRequest, DotResponse, LiveResponse, RunSqlRequest, SchemasResponse,
+            SourcesRequest, SqlRequest,
+        },
+        types::Operation,
+    },
+    log::{error, info},
 };
 use futures::stream::BoxStream;
 use tokio::sync::broadcast::Receiver;
@@ -20,6 +27,8 @@ pub struct LiveServer {
 #[tonic::async_trait]
 impl CodeService for LiveServer {
     type LiveConnectStream = BoxStream<'static, Result<LiveResponse, Status>>;
+    type RunSqlStream = BoxStream<'static, Result<Operation, Status>>;
+
     async fn live_connect(
         &self,
         _request: Request<CommonRequest>,
@@ -33,13 +42,13 @@ impl CodeService for LiveServer {
             match initial_state {
                 Ok(initial_state) => {
                     if let Err(e) = tx.send(Ok(initial_state)).await {
-                        println!("Error getting initial state");
-                        println!("{:?}", e);
+                        info!("Error getting initial state");
+                        info!("{:?}", e);
                     }
                 }
                 Err(e) => {
-                    println!("Error sending to channel");
-                    println!("{:?}", e);
+                    info!("Error sending to channel");
+                    info!("{:?}", e);
                 }
             };
 
@@ -51,8 +60,9 @@ impl CodeService for LiveServer {
                         match res {
                             Ok(_) => {}
                             Err(e) => {
-                                println!("Error sending to channel");
-                                println!("{:?}", e);
+                                error!("Error sending to channel");
+                                error!("{:?}", e);
+                                break;
                             }
                         }
                     }
@@ -106,9 +116,43 @@ impl CodeService for LiveServer {
             Err(e) => Err(Status::internal(e.to_string())),
         }
     }
+
+    async fn build_sql(
+        &self,
+        request: Request<SqlRequest>,
+    ) -> Result<Response<SchemasResponse>, Status> {
+        let state = self.state.clone();
+        let handle = std::thread::spawn(move || state.build_sql(request.into_inner().sql));
+        let res = handle.join().unwrap();
+
+        match res {
+            Ok(res) => Ok(Response::new(res)),
+            Err(e) => Err(Status::internal(e.to_string())),
+        }
+    }
+
+    async fn run_sql(
+        &self,
+        request: Request<RunSqlRequest>,
+    ) -> Result<Response<Self::RunSqlStream>, Status> {
+        let (tx, rx) = tokio::sync::mpsc::channel(1);
+
+        let req = request.into_inner();
+        let state = self.state.clone();
+        std::thread::spawn(move || {
+            state.run_sql(req.sql, req.endpoints, tx).unwrap();
+        });
+
+        let stream = ReceiverStream::new(rx);
+
+        Ok(Response::new(Box::pin(stream) as Self::RunSqlStream))
+    }
 }
 
-pub async fn serve(receiver: Receiver<LiveResponse>, state: Arc<LiveState>) {
+pub async fn serve(
+    receiver: Receiver<LiveResponse>,
+    state: Arc<LiveState>,
+) -> Result<(), tonic::transport::Error> {
     let addr = "0.0.0.0:4556".parse().unwrap();
     let live_server = LiveServer { receiver, state };
     let svc = CodeServiceServer::new(live_server);
@@ -127,5 +171,4 @@ pub async fn serve(receiver: Receiver<LiveResponse>, state: Arc<LiveState>) {
         .add_service(reflection_service)
         .serve(addr)
         .await
-        .unwrap();
 }

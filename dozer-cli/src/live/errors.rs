@@ -16,4 +16,6 @@ pub enum LiveError {
     BuildError(#[from] BoxedError),
     #[error("Dozer is not initialized")]
     NotInitialized,
+    #[error("Error in initializing live server: {0}")]
+    Transport(#[from] tonic::transport::Error),
 }

@@ -91,7 +91,7 @@ fn map_decimal(d: Decimal) -> Value {
     }
 }
 
-fn field_to_prost_value(f: Field) -> Value {
+pub fn field_to_prost_value(f: Field) -> Value {
     match f {
         Field::UInt(n) => Value {
             value: Some(value::Value::UintValue(n)),

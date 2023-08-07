@@ -1,18 +1,33 @@
 use clap::Parser;
 use dozer_api::grpc::types_helper::map_field_definitions;
+use dozer_cache::dozer_log::{
+    reader::{LogReaderBuilder, LogReaderOptions},
+    replication::LogOperation,
+};
 use dozer_core::{dag_schemas::DagSchemas, petgraph::dot};
 use dozer_ingestion::connectors::get_connector;
 use dozer_types::{
-    grpc_types::live::{DotResponse, LiveApp, LiveResponse, Schema, SchemasResponse},
+    grpc_types::{
+        live::{DotResponse, LiveApp, LiveResponse, Schema, SchemasResponse},
+        types::Operation,
+    },
     indicatif::MultiProgress,
+    log::info,
+    models::{
+        api_config::{ApiConfig, AppGrpcOptions},
+        api_endpoint::ApiEndpoint,
+    },
     parking_lot::RwLock,
 };
 
 use crate::{
     cli::{init_dozer, types::Cli},
     errors::OrchestrationError,
+    live::helper::map_operation,
     pipeline::PipelineBuilder,
+    shutdown,
     simple::SimpleOrchestrator,
+    utils::get_app_grpc_config,
 };
 
 use super::LiveError;
@@ -31,7 +46,7 @@ impl LiveState {
     pub fn get_dozer(&self) -> Result<SimpleOrchestrator, LiveError> {
         match self.dozer.read().as_ref() {
             Some(dozer) => Ok(dozer.clone()),
-            None => return Err(LiveError::NotInitialized),
+            None => Err(LiveError::NotInitialized),
         }
     }
 
@@ -99,6 +114,31 @@ impl LiveState {
     pub fn generate_dot(&self) -> Result<DotResponse, LiveError> {
         let dozer = self.get_dozer()?;
         generate_dot(dozer).map_err(|e| LiveError::BuildError(Box::new(e)))
+    }
+
+    pub fn build_sql(&self, sql: String) -> Result<SchemasResponse, LiveError> {
+        let mut dozer = self.get_dozer()?;
+        //overwrite sql
+        dozer.config.sql = Some(sql);
+
+        dozer.config.endpoints = vec![ApiEndpoint {
+            name: "live".to_string(),
+            table_name: "live".to_string(),
+            path: "/live".to_string(),
+            ..Default::default()
+        }];
+
+        get_endpoint_schemas(dozer).map_err(|e| LiveError::BuildError(Box::new(e)))
+    }
+
+    pub fn run_sql(
+        &self,
+        sql: String,
+        endpoints: Vec<String>,
+        sender: tokio::sync::mpsc::Sender<Result<Operation, tonic::Status>>,
+    ) -> Result<(), LiveError> {
+        let dozer = self.get_dozer()?;
+        run_sql(dozer, sql, endpoints, sender).map_err(|e| LiveError::BuildError(Box::new(e)))
     }
 }
 
@@ -199,4 +239,97 @@ pub fn generate_dot(dozer: SimpleOrchestrator) -> Result<DotResponse, Orchestrat
     let dot_str = dot::Dot::new(dag.graph()).to_string();
 
     Ok(DotResponse { dot: dot_str })
+}
+
+pub fn run_sql(
+    dozer: SimpleOrchestrator,
+    sql: String,
+    endpoints: Vec<String>,
+    sender: tokio::sync::mpsc::Sender<Result<Operation, tonic::Status>>,
+) -> Result<(), OrchestrationError> {
+    let (shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
+    let mut dozer = dozer;
+
+    let runtime = dozer.runtime.clone();
+    //overwrite sql
+    dozer.config.sql = Some(sql);
+
+    dozer.config.endpoints = vec![];
+    for endpoint in &endpoints {
+        dozer.config.endpoints.push(ApiEndpoint {
+            name: endpoint.clone(),
+            table_name: endpoint.clone(),
+            path: format!("/{}", endpoint),
+            ..Default::default()
+        })
+    }
+
+    dozer.config.api = Some(ApiConfig {
+        app_grpc: Some(AppGrpcOptions {
+            port: 5678,
+            host: "0.0.0.0".to_string(),
+        }),
+
+        ..Default::default()
+    });
+
+    dozer.config.home_dir = tempdir::TempDir::new("live")
+        .unwrap()
+        .into_path()
+        .to_string_lossy()
+        .to_string();
+
+    let internal_grpc_config = get_app_grpc_config(&dozer.config);
+    let app_server_addr = format!(
+        "http://{}:{}",
+        internal_grpc_config.host, internal_grpc_config.port
+    );
+    let (tx, rx) = dozer_types::crossbeam::channel::unbounded::<bool>();
+    let pipeline_thread = std::thread::spawn(move || {
+        dozer.build(true).unwrap();
+        dozer.run_apps(shutdown_receiver, Some(tx), None)
+    });
+    let endpoint_name = endpoints[0].clone();
+
+    let recv_res = rx.recv();
+    if recv_res.is_err() {
+        return match pipeline_thread.join() {
+            Ok(Err(e)) => Err(e),
+            Ok(Ok(())) => panic!("An error must have happened"),
+            Err(e) => {
+                std::panic::panic_any(e);
+            }
+        };
+    }
+
+    info!("Starting log reader {:?}", endpoint_name);
+
+    runtime.block_on(async {
+        let mut log_reader = LogReaderBuilder::new(
+            app_server_addr,
+            LogReaderOptions::new(endpoint_name.clone()),
+        )
+        .await
+        .unwrap()
+        .build(0, None);
+
+        let mut counter = 0;
+        loop {
+            let (op, _) = log_reader.next_op().await.unwrap();
+            counter += 1;
+
+            if let LogOperation::Op { op } = op {
+                let op = map_operation(endpoint_name.clone(), op);
+                sender.send(Ok(op)).await.unwrap();
+            }
+            if counter > 100 {
+                shutdown_sender.shutdown();
+                break;
+            }
+        }
+    });
+
+    pipeline_thread.join().unwrap().unwrap();
+
+    Ok(())
 }

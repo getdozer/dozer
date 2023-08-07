@@ -8,7 +8,8 @@ service CodeService {
   rpc Sources(SourcesRequest) returns (SchemasResponse);
   rpc Endpoints(CommonRequest) returns (SchemasResponse);
   rpc GenerateDot(CommonRequest) returns (DotResponse);
-  // rpc Protos(ProtosRequest) returns (ProtosResponse);
+  rpc BuildSql(SqlRequest) returns (SchemasResponse);
+  rpc RunSql(RunSqlRequest) returns (stream dozer.types.Operation);
 }
 
 message CommonRequest {
@@ -42,15 +43,16 @@ message Schema  {
   repeated dozer.types.FieldDefinition fields = 2;
 }
 
-
-message ProtosRequest {
-  string endpoint = 1;
-}
-
-message ProtosResponse {
-  string js_file = 1;
-}
-
 message DotResponse {
   string dot = 1;
+}
+
+
+message SqlRequest {
+  string sql = 1;
+}
+
+message RunSqlRequest {
+  string sql = 1;
+  repeated string endpoints = 2;
 }

@@ -125,7 +125,6 @@ fn run() -> Result<(), OrchestrationError> {
 
     let cli = parse_and_generate()?;
     let mut dozer = init_orchestrator(&cli)?;
-
     let (shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
     set_ctrl_handler(shutdown_sender);
 
@@ -214,7 +213,7 @@ fn run() -> Result<(), OrchestrationError> {
             }
             Commands::Live => {
                 render_logo();
-                live::start_live_server()?;
+                live::start_live_server(dozer.runtime.clone(), shutdown_receiver)?;
                 Ok(())
             }
         }
