@@ -45,6 +45,10 @@ tokio-postgres-rustls = "0.10.0"
 rustls-native-certs = "0.6.2"
 rand = "0.8.5"
 url = "2.4.0"
+mysql_async = { version = "0.32.2", default-features = false, features = ["default-rustls"] }
+mysql_common = { version = "0.30", default-features = false, features = ["chrono", "rust_decimal"] }
+chrono = "0.4.26"
+geozero = { version = "0.10.0", default-features = false, features = ["with-wkb"] }
 
 [dev-dependencies]
 criterion = { version = "0.4.0", features = ["html_reports"] }
