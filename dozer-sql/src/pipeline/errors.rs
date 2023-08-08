@@ -55,6 +55,8 @@ pub enum PipelineError {
     InvalidRelation,
     #[error("Invalid relation")]
     DataTypeMismatch,
+    #[error("SQL provided doesnt have any outgoing nodes. Use `SELECT ... INTO` to create an output table")]
+    NoIntoProvided,
     #[error("Invalid argument for function {0}(): argument: {1}, index: {2}")]
     InvalidFunctionArgument(String, Field, usize),
     #[error("Too many arguments for function {0}()")]
