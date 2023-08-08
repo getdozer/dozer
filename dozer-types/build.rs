@@ -77,8 +77,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "crate::ingestion_types::SnowflakeConfig",
         )
         .extern_path(
+            ".dozer.cloud::grpc_config::Schemas",
+            "crate::ingestion_types::GrpcConfigSchemas",
+        )
+        .extern_path(
             ".dozer.cloud.GrpcConfig",
-            "crate::models::connection::GrpcConfig",
+            "crate::ingestion_types::GrpcConfig",
         )
         .extern_path(
             ".dozer.cloud.EthereumConfig",
