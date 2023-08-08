@@ -19,6 +19,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 
 use super::state::LiveState;
+const LIVE_PORT: u16 = 4556;
 pub struct LiveServer {
     pub receiver: Receiver<LiveResponse>,
     pub state: Arc<LiveState>,
@@ -151,9 +152,8 @@ impl CodeService for LiveServer {
 
         let req = request.into_inner();
         let state = self.state.clone();
-        std::thread::spawn(move || {
-            state.run_sql(req.sql, req.endpoints, tx).unwrap();
-        });
+
+        state.run_sql(req.sql, req.endpoints, tx).unwrap();
 
         let stream = ReceiverStream::new(rx);
 
@@ -165,7 +165,7 @@ pub async fn serve(
     receiver: Receiver<LiveResponse>,
     state: Arc<LiveState>,
 ) -> Result<(), tonic::transport::Error> {
-    let addr = "0.0.0.0:4556".parse().unwrap();
+    let addr = format!("0.0.0.0:{LIVE_PORT}").parse().unwrap();
     let live_server = LiveServer { receiver, state };
     let svc = CodeServiceServer::new(live_server);
 

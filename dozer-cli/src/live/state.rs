@@ -1,3 +1,5 @@
+use std::thread::JoinHandle;
+
 use clap::Parser;
 use dozer_api::grpc::types_helper::map_field_definitions;
 use dozer_cache::dozer_log::{
@@ -26,7 +28,7 @@ use crate::{
     errors::OrchestrationError,
     live::helper::map_operation,
     pipeline::PipelineBuilder,
-    shutdown,
+    shutdown::{self, ShutdownReceiver, ShutdownSender},
     simple::SimpleOrchestrator,
     utils::get_app_grpc_config,
 };
@@ -35,12 +37,14 @@ use super::LiveError;
 
 pub struct LiveState {
     dozer: RwLock<Option<SimpleOrchestrator>>,
+    sql_thread: RwLock<Option<ShutdownSender>>,
 }
 
 impl LiveState {
     pub fn new() -> Self {
         Self {
             dozer: RwLock::new(None),
+            sql_thread: RwLock::new(None),
         }
     }
 
@@ -153,7 +157,23 @@ impl LiveState {
         sender: tokio::sync::mpsc::Sender<Result<Operation, tonic::Status>>,
     ) -> Result<(), LiveError> {
         let dozer = self.get_dozer()?;
-        run_sql(dozer, sql, endpoints, sender).map_err(|e| LiveError::BuildError(Box::new(e)))
+
+        // kill if a handle already exists
+        self.stop_sql_thread();
+
+        let (shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
+        let _handle = run_sql(dozer, sql, endpoints, sender, shutdown_receiver)
+            .map_err(|e| LiveError::BuildError(Box::new(e)))?;
+        let mut lock = self.sql_thread.write();
+        *lock = Some(shutdown_sender);
+        Ok(())
+    }
+
+    pub fn stop_sql_thread(&self) {
+        let mut lock = self.sql_thread.write();
+        if let Some(shutdown) = lock.take() {
+            shutdown.shutdown()
+        }
     }
 }
 
@@ -261,8 +281,8 @@ pub fn run_sql(
     sql: String,
     endpoints: Vec<String>,
     sender: tokio::sync::mpsc::Sender<Result<Operation, tonic::Status>>,
-) -> Result<(), OrchestrationError> {
-    let (shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
+    shutdown_receiver: ShutdownReceiver,
+) -> Result<JoinHandle<()>, OrchestrationError> {
     let mut dozer = dozer;
 
     let runtime = dozer.runtime.clone();
@@ -319,32 +339,30 @@ pub fn run_sql(
 
     info!("Starting log reader {:?}", endpoint_name);
 
-    runtime.block_on(async {
-        let mut log_reader = LogReaderBuilder::new(
-            app_server_addr,
-            LogReaderOptions::new(endpoint_name.clone()),
-        )
-        .await
-        .unwrap()
-        .build(0, None);
+    let handle = std::thread::spawn(move || {
+        runtime.block_on(async {
+            let mut log_reader = LogReaderBuilder::new(
+                app_server_addr,
+                LogReaderOptions::new(endpoint_name.clone()),
+            )
+            .await
+            .unwrap()
+            .build(0, None);
 
-        let mut counter = 0;
-        loop {
-            let (op, _) = log_reader.next_op().await.unwrap();
-            counter += 1;
+            let mut counter = 0;
+            loop {
+                let (op, _) = log_reader.next_op().await.unwrap();
+                counter += 1;
 
-            if let LogOperation::Op { op } = op {
-                let op = map_operation(endpoint_name.clone(), op);
-                sender.send(Ok(op)).await.unwrap();
+                if let LogOperation::Op { op } = op {
+                    let op = map_operation(endpoint_name.clone(), op);
+                    sender.send(Ok(op)).await.unwrap();
+                }
             }
-            if counter > 100 {
-                shutdown_sender.shutdown();
-                break;
-            }
-        }
+        });
+
+        pipeline_thread.join().unwrap().unwrap();
     });
 
-    pipeline_thread.join().unwrap().unwrap();
-
-    Ok(())
+    Ok(handle)
 }
