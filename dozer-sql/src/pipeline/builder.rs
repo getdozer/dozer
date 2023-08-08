@@ -103,7 +103,7 @@ pub fn statement_to_pipeline(
             }
         }
     }
-    if ctx.output_tables_map.len() == 0 {
+    if ctx.output_tables_map.is_empty() {
         return Err(PipelineError::NoIntoProvided);
     }
 
