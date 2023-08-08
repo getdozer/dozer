@@ -1,4 +1,3 @@
-use crate::models::config::Config;
 use crate::models::udf_config::{OnnxConfig, UdfConfig, UdfType};
 
 #[test]
