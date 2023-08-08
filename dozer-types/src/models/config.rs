@@ -5,9 +5,9 @@ use super::{
     connection::Connection, flags::Flags, source::Source, telemetry::TelemetryConfig,
 };
 use crate::constants::DEFAULT_HOME_DIR;
+use crate::models::udf_config::UdfConfig;
 use prettytable::Table as PrettyTable;
 use serde::{Deserialize, Serialize};
-use crate::models::udf::UdfConfig;
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Clone, prost::Message)]
 /// The configuration for the app
@@ -78,7 +78,7 @@ pub struct Config {
     pub cloud: Option<Cloud>,
 
     #[prost(message, optional, tag = "15")]
-    /// UDFs & Onnx specific configuration
+    /// UDF specific configuration (eg. !Onnx)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub udf: Option<UdfConfig>,
 }

@@ -8,4 +8,4 @@ pub mod connection;
 pub mod flags;
 pub mod source;
 pub mod telemetry;
-pub mod udf;
+pub mod udf_config;
