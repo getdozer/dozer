@@ -17,6 +17,8 @@ use dozer_types::{
 use futures_util::Future;
 use std::{ops::Deref, sync::Arc};
 
+pub use tonic_reflection;
+pub use tonic_web;
 mod api_helper;
 
 #[derive(Debug)]

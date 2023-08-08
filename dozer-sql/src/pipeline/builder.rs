@@ -103,6 +103,9 @@ pub fn statement_to_pipeline(
             }
         }
     }
+    if ctx.output_tables_map.is_empty() {
+        return Err(PipelineError::NoIntoProvided);
+    }
 
     Ok(ctx)
 }
@@ -607,7 +610,12 @@ mod tests {
     use dozer_core::app::AppPipeline;
 
     use super::statement_to_pipeline;
-
+    #[test]
+    #[should_panic]
+    fn disallow_zero_outgoing_ndes() {
+        let sql = "select * from film";
+        statement_to_pipeline(sql, &mut AppPipeline::new(), None).unwrap();
+    }
     #[test]
     fn parse_sql_pipeline() {
         let sql = r#"
