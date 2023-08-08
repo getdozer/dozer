@@ -159,7 +159,7 @@ impl LiveState {
         let dozer = self.get_dozer()?;
 
         // kill if a handle already exists
-        self.stop_sql_thread();
+        self.stop_sql();
 
         let (shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
         let _handle = run_sql(dozer, sql, endpoints, sender, shutdown_receiver)
@@ -169,11 +169,12 @@ impl LiveState {
         Ok(())
     }
 
-    pub fn stop_sql_thread(&self) {
+    pub fn stop_sql(&self) {
         let mut lock = self.sql_thread.write();
         if let Some(shutdown) = lock.take() {
             shutdown.shutdown()
         }
+        *lock = None;
     }
 }
 
@@ -348,12 +349,8 @@ pub fn run_sql(
             .await
             .unwrap()
             .build(0, None);
-
-            let mut counter = 0;
             loop {
                 let (op, _) = log_reader.next_op().await.unwrap();
-                counter += 1;
-
                 if let LogOperation::Op { op } = op {
                     let op = map_operation(endpoint_name.clone(), op);
                     sender.send(Ok(op)).await.unwrap();

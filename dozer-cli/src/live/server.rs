@@ -5,8 +5,8 @@ use dozer_types::{
     grpc_types::{
         live::{
             code_service_server::{CodeService, CodeServiceServer},
-            CommonRequest, DotResponse, LiveResponse, RunSqlRequest, SchemasResponse,
-            SourcesRequest, SqlRequest, SqlResponse,
+            CommonRequest, CommonResponse, DotResponse, LiveResponse, RunSqlRequest,
+            SchemasResponse, SourcesRequest, SqlRequest, SqlResponse,
         },
         types::Operation,
     },
@@ -158,6 +158,14 @@ impl CodeService for LiveServer {
         let stream = ReceiverStream::new(rx);
 
         Ok(Response::new(Box::pin(stream) as Self::RunSqlStream))
+    }
+
+    async fn stop_sql(
+        &self,
+        _request: Request<CommonRequest>,
+    ) -> Result<Response<CommonResponse>, Status> {
+        self.state.stop_sql();
+        Ok(Response::new(CommonResponse {}))
     }
 }
 

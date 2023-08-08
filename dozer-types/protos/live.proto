@@ -11,9 +11,13 @@ service CodeService {
   rpc GetSql(CommonRequest) returns (SqlResponse);
   rpc BuildSql(SqlRequest) returns (SchemasResponse);
   rpc RunSql(RunSqlRequest) returns (stream dozer.types.Operation);
+  rpc StopSql(CommonRequest) returns (CommonResponse);
 }
 
 message CommonRequest {
+
+}
+message CommonResponse {
 
 }
 
