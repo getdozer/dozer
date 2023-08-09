@@ -37,6 +37,14 @@ pub struct EpochManager {
     state: Mutex<EpochManagerState>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+/// When all sources agrees on closing an epoch, the `EpochManager` will make decisions on how to close this epoch and return this struct.
+pub struct ClosedEpoch {
+    pub should_terminate: bool,
+    pub epoch_id_if_should_commit: Option<u64>,
+    pub decision_instant: SystemTime,
+}
+
 impl EpochManager {
     pub fn new(num_sources: usize) -> Self {
         debug_assert!(num_sources > 0);
@@ -63,7 +71,7 @@ impl EpochManager {
         &self,
         request_termination: bool,
         request_commit: bool,
-    ) -> (bool, Option<u64>, SystemTime) {
+    ) -> ClosedEpoch {
         let barrier = loop {
             let mut state = self.state.lock();
             match &mut *state {
@@ -115,11 +123,11 @@ impl EpochManager {
                 instant,
                 num_source_confirmations,
             } => {
-                let result = (
-                    *terminating,
-                    if *committing { Some(*epoch_id) } else { None },
-                    *instant,
-                );
+                let result = ClosedEpoch {
+                    should_terminate: *terminating,
+                    epoch_id_if_should_commit: if *committing { Some(*epoch_id) } else { None },
+                    decision_instant: *instant,
+                };
 
                 *num_source_confirmations += 1;
                 if *num_source_confirmations == self.num_sources {
@@ -156,7 +164,7 @@ mod tests {
     fn run_epoch_manager(
         termination_gen: &(impl Fn(u16) -> bool + Sync),
         commit_gen: &(impl Fn(u16) -> bool + Sync),
-    ) -> (bool, Option<u64>, SystemTime) {
+    ) -> ClosedEpoch {
         let epoch_manager = EpochManager::new(NUM_THREADS as usize);
         let epoch_manager = &epoch_manager;
         scope(|scope| {
@@ -182,19 +190,29 @@ mod tests {
     #[test]
     fn test_epoch_manager() {
         // All sources have no new data, epoch should not be closed.
-        let (_, epoch, _) = run_epoch_manager(&|_| false, &|_| false);
-        assert!(epoch.is_none());
+        let ClosedEpoch {
+            epoch_id_if_should_commit,
+            ..
+        } = run_epoch_manager(&|_| false, &|_| false);
+        assert!(epoch_id_if_should_commit.is_none());
 
         // One source has new data, epoch should be closed.
-        let (_, epoch, _) = run_epoch_manager(&|_| false, &|index| index == 0);
-        assert_eq!(epoch.unwrap(), 0);
+        let ClosedEpoch {
+            epoch_id_if_should_commit,
+            ..
+        } = run_epoch_manager(&|_| false, &|index| index == 0);
+        assert_eq!(epoch_id_if_should_commit.unwrap(), 0);
 
         // All but one source requests termination, should not terminate.
-        let (terminating, _, _) = run_epoch_manager(&|index| index != 0, &|_| false);
-        assert!(!terminating);
+        let ClosedEpoch {
+            should_terminate, ..
+        } = run_epoch_manager(&|index| index != 0, &|_| false);
+        assert!(!should_terminate);
 
         // All sources requests termination, should terminate.
-        let (terminating, _, _) = run_epoch_manager(&|_| true, &|_| false);
-        assert!(terminating);
+        let ClosedEpoch {
+            should_terminate, ..
+        } = run_epoch_manager(&|_| true, &|_| false);
+        assert!(should_terminate);
     }
 }

@@ -198,21 +198,21 @@ impl SourceChannelManager {
     }
 
     fn commit(&mut self, request_termination: bool) -> Result<bool, ExecutionError> {
-        let (terminating, epoch, decision_instant) = self
+        let epoch = self
             .epoch_manager
             .wait_for_epoch_close(request_termination, self.num_uncommitted_ops > 0);
-        if let Some(epoch_id) = epoch {
+        if let Some(epoch_id) = epoch.epoch_id_if_should_commit {
             self.manager.store_and_send_commit(&Epoch::from(
                 epoch_id,
                 self.source_handle.clone(),
                 self.curr_txid,
                 self.curr_seq_in_tx,
-                decision_instant,
+                epoch.decision_instant,
             ))?;
         }
         self.num_uncommitted_ops = 0;
-        self.last_commit_instant = decision_instant;
-        Ok(terminating)
+        self.last_commit_instant = epoch.decision_instant;
+        Ok(epoch.should_terminate)
     }
 
     pub fn trigger_commit_if_needed(
