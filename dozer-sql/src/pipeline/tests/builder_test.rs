@@ -6,6 +6,7 @@ use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
+use dozer_core::processor_record::ProcessorRecordStore;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::epoch::Epoch;
 use dozer_types::errors::internal::BoxedError;
@@ -166,6 +167,7 @@ impl Sink for TestSink {
     fn process(
         &mut self,
         _from_port: PortHandle,
+        _record_store: &ProcessorRecordStore,
         _op: ProcessorOperation,
     ) -> Result<(), BoxedError> {
         Ok(())

@@ -5,6 +5,7 @@ use crate::errors::ExecutionError;
 use crate::errors::ExecutionError::InvalidPortHandle;
 use crate::executor_operation::{ExecutorOperation, ProcessorOperation};
 use crate::node::PortHandle;
+use crate::processor_record::ProcessorRecordStore;
 use crate::record_store::{RecordWriter, RecordWriterError};
 
 use crossbeam::channel::Sender;
@@ -149,6 +150,7 @@ pub(crate) struct SourceChannelManager {
     num_uncommitted_ops: u32,
     max_duration_between_commits: Duration,
     last_commit_instant: SystemTime,
+    record_store: ProcessorRecordStore,
     epoch_manager: Arc<EpochManager>,
 }
 
@@ -161,6 +163,7 @@ impl SourceChannelManager {
         stateful: bool,
         commit_sz: u32,
         max_duration_between_commits: Duration,
+        record_store: ProcessorRecordStore,
         epoch_manager: Arc<EpochManager>,
         error_manager: Arc<ErrorManager>,
     ) -> Self {
@@ -180,6 +183,7 @@ impl SourceChannelManager {
             num_uncommitted_ops: 0,
             max_duration_between_commits,
             last_commit_instant: SystemTime::now(),
+            record_store,
             epoch_manager,
         }
     }
@@ -233,7 +237,8 @@ impl SourceChannelManager {
         self.curr_seq_in_tx = message.identifier.seq_in_tx;
         match message.kind {
             IngestionMessageKind::OperationEvent { op, .. } => {
-                self.manager.send_op(op.into(), port)?;
+                self.manager
+                    .send_op(self.record_store.create_operation(&op)?, port)?;
                 self.num_uncommitted_ops += 1;
                 self.trigger_commit_if_needed(request_termination)
             }

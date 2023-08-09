@@ -5,6 +5,7 @@ use crate::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Sink, SinkFactory,
     Source, SourceFactory,
 };
+use crate::processor_record::ProcessorRecordStore;
 use crate::tests::dag_base_run::NoopProcessorFactory;
 use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
@@ -61,6 +62,7 @@ impl ProcessorFactory<NoneContext> for ErrorProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
+        _record_store: &ProcessorRecordStore,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         Ok(Box::new(ErrorProcessor {
             err_on: self.err_on,
@@ -89,6 +91,7 @@ impl Processor for ErrorProcessor {
     fn process(
         &mut self,
         _from_port: PortHandle,
+        _record_store: &ProcessorRecordStore,
         op: ProcessorOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
@@ -464,6 +467,7 @@ impl Sink for ErrSink {
     fn process(
         &mut self,
         _from_port: PortHandle,
+        _record_store: &ProcessorRecordStore,
         _op: ProcessorOperation,
     ) -> Result<(), BoxedError> {
         self.current += 1;

@@ -1,5 +1,6 @@
 use crate::executor_operation::ProcessorOperation;
 use crate::node::{PortHandle, Sink, SinkFactory};
+use crate::processor_record::ProcessorRecordStore;
 use crate::DEFAULT_PORT_HANDLE;
 use dozer_types::epoch::Epoch;
 use dozer_types::errors::internal::BoxedError;
@@ -74,6 +75,7 @@ impl Sink for CountingSink {
     fn process(
         &mut self,
         _from_port: PortHandle,
+        _record_store: &ProcessorRecordStore,
         _op: ProcessorOperation,
     ) -> Result<(), BoxedError> {
         self.current += 1;

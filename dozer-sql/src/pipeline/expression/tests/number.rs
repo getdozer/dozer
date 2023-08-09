@@ -1,8 +1,8 @@
 use crate::pipeline::expression::execution::Expression::Literal;
 use crate::pipeline::expression::scalar::number::{evaluate_abs, evaluate_round};
 use crate::pipeline::expression::tests::test_common::*;
-use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::ordered_float::OrderedFloat;
+use dozer_types::types::Record;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Schema, SourceDefinition};
 use proptest::prelude::*;
 use std::ops::Neg;
@@ -10,7 +10,7 @@ use std::ops::Neg;
 #[test]
 fn test_abs() {
     proptest!(ProptestConfig::with_cases(1000), |(i_num in 0i64..100000000i64, f_num in 0f64..100000000f64)| {
-        let row = ProcessorRecord::new();
+        let row = Record::new(vec![]);
 
         let v = Box::new(Literal(Field::Int(i_num.neg())));
         assert_eq!(
@@ -19,7 +19,7 @@ fn test_abs() {
             Field::Int(i_num)
         );
 
-        let row = ProcessorRecord::new();
+        let row = Record::new(vec![]);
 
         let v = Box::new(Literal(Field::Float(OrderedFloat(f_num.neg()))));
         assert_eq!(
@@ -33,7 +33,7 @@ fn test_abs() {
 #[test]
 fn test_round() {
     proptest!(ProptestConfig::with_cases(1000), |(i_num: i64, f_num: f64, i_pow: i32, f_pow: f32)| {
-        let row = ProcessorRecord::new();
+        let row = Record::new(vec![]);
 
         let v = Box::new(Literal(Field::Int(i_num)));
         let d = &Box::new(Literal(Field::Int(0)));

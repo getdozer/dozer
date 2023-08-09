@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use dozer_core::{
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
+    processor_record::ProcessorRecordStore,
     DEFAULT_PORT_HANDLE,
 };
 use dozer_types::{
@@ -105,6 +106,7 @@ impl ProcessorFactory<SchemaSQLContext> for ProjectionProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
+        _record_store: &ProcessorRecordStore,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         let schema = match input_schemas.get(&DEFAULT_PORT_HANDLE) {
             Some(schema) => Ok(schema),

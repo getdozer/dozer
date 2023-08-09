@@ -108,10 +108,10 @@ mod tests {
     use crossbeam::channel::{unbounded, Sender};
     use dozer_types::{
         node::{NodeHandle, OpIdentifier, SourceStates},
-        types::Field,
+        types::{Field, Record},
     };
 
-    use crate::processor_record::{ProcessorRecord, ProcessorRecordRef};
+    use crate::processor_record::{ProcessorRecord, ProcessorRecordStore};
 
     use super::*;
 
@@ -204,13 +204,14 @@ mod tests {
     #[test]
     fn receiver_loop_forwards_op() {
         let (mut test_loop, senders) = TestReceiverLoop::new(2);
-        let mut record = ProcessorRecord::new();
-        record.extend_direct_field(Field::Int(1));
-        let record_ref = ProcessorRecordRef::new(record);
+        let record_store = ProcessorRecordStore::new().unwrap();
+        let record: ProcessorRecord = record_store
+            .create_record(&Record::new(vec![Field::Int(1)]))
+            .unwrap();
         senders[0]
             .send(ExecutorOperation::Op {
                 op: ProcessorOperation::Insert {
-                    new: record_ref.to_owned(),
+                    new: record.clone(),
                 },
             })
             .unwrap();
@@ -219,7 +220,7 @@ mod tests {
         test_loop.receiver_loop().unwrap();
         assert_eq!(
             test_loop.ops,
-            vec![(0, ProcessorOperation::Insert { new: record_ref })]
+            vec![(0, ProcessorOperation::Insert { new: record })]
         );
     }
 
