@@ -41,3 +41,4 @@ tonic-build = "0.8.2"
 python-extension-module = ["dep:pyo3", "pyo3?/extension-module"]
 python-auto-initialize = ["dep:pyo3", "pyo3?/auto-initialize"]
 snowflake=[]
+onnx=[]

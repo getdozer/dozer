@@ -36,3 +36,4 @@ proptest = "1.1.0"
 [features]
 python = ["dozer-types/python-auto-initialize"]
 bigdecimal = ["dep:bigdecimal", "sqlparser/bigdecimal"]
+onnx = ["dozer-types/onnx"]

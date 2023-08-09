@@ -101,6 +101,12 @@ pub enum Expression {
         args: Vec<Expression>,
         return_type: FieldType,
     },
+    #[cfg(feature = "onnx")]
+    OnnxUDF {
+        name: String,
+        args: Vec<Expression>,
+        return_type: FieldType,
+    },
 }
 
 impl Expression {
@@ -167,6 +173,8 @@ impl Expression {
                         .as_str()
                     + ")"
             }
+            #[cfg(feature = "onnx")]
+            Expression::OnnxUDF { .. } => todo!(),
             Expression::Cast { arg, typ } => {
                 "CAST(".to_string()
                     + arg.to_string(schema).as_str()
@@ -323,6 +331,17 @@ impl Expression {
                 use crate::pipeline::expression::python_udf::evaluate_py_udf;
                 evaluate_py_udf(schema, name, args, return_type, record)
             }
+            #[cfg(feature = "onnx")]
+            Expression::OnnxUDF {
+                name,
+                args,
+                return_type,
+                ..
+            } => {
+                use crate::pipeline::expression::onnx_udf::evaluate_onnx_udf;
+                evaluate_onnx_udf(schema, name, args, return_type, record)
+            }
+
             Expression::UnaryOperator { operator, arg } => operator.evaluate(schema, arg, record),
             Expression::AggregateFunction { fun, args: _ } => {
                 Err(PipelineError::InvalidExpression(format!(
@@ -454,6 +473,8 @@ impl Expression {
                 SourceDefinition::Dynamic,
                 false,
             )),
+            #[cfg(feature = "onnx")]
+            Expression::OnnxUDF { .. } => todo!(),
         }
     }
 }

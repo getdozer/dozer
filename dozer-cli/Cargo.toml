@@ -53,4 +53,5 @@ path = "src/main.rs"
 
 [features]
 snowflake = ["dozer-types/snowflake", "dozer-ingestion/snowflake"]
+onnx = ["dozer-sql/onnx"]
 cloud = []
