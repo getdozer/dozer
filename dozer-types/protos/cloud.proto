@@ -1,6 +1,7 @@
 syntax = "proto3";
 package dozer.cloud;
 import "cloud_types.proto";
+import "google/protobuf/timestamp.proto";
 
 service DozerCloud {
   rpc create_application(CreateAppRequest) returns (AppResponse);
@@ -214,6 +215,8 @@ message AppResponse {
   AppConfig app = 2;
   optional string repository_url = 3;
   repeated DeploymentInfo deployments = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
 }
 
 message ListAppRequest {
@@ -221,6 +224,8 @@ message ListAppRequest {
   optional uint32 offset = 2;
   optional string name = 3;
   optional string uuid = 4;
+  optional string order_by = 5;
+  optional bool desc = 6;
 }
 message ListAppResponse {
   repeated AppResponse apps = 1;

@@ -182,6 +182,8 @@ impl CloudOrchestrator for SimpleOrchestrator {
                     offset: list.offset,
                     name: list.name,
                     uuid: list.uuid,
+                    order_by: None,
+                    desc: None,
                 })
                 .await
                 .map_err(map_tonic_error)?

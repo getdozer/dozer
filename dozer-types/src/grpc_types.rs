@@ -31,6 +31,16 @@ pub mod cloud {
     #![allow(clippy::derive_partial_eq_without_eq, clippy::large_enum_variant)]
     tonic::include_proto!("dozer.cloud");
     pub const FILE_DESCRIPTOR_SET: &[u8] = tonic::include_file_descriptor_set!("cloud");
+    use crate::chrono::NaiveDateTime;
+    use prost_types::Timestamp;
+    pub fn naive_datetime_to_timestamp(naive_dt: NaiveDateTime) -> Timestamp {
+        let unix_timestamp = naive_dt.timestamp(); // Get the UNIX timestamp (seconds since epoch)
+        let nanos = naive_dt.timestamp_subsec_nanos() as i32; // Get nanoseconds part
+        prost_types::Timestamp {
+            seconds: unix_timestamp,
+            nanos,
+        }
+    }
 }
 
 pub mod live {
