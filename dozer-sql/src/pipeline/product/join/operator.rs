@@ -289,7 +289,7 @@ impl JoinOperator {
     }
 
     fn get_left_matching_count(&self, action: &JoinAction, record: &Record) -> JoinResult<usize> {
-        let join_key = get_record_key(&record, &self.right_join_key_indexes);
+        let join_key = get_record_key(record, &self.right_join_key_indexes);
 
         let mut matching_count = get_join_records(&self.left_map, join_key).len();
         if action == &JoinAction::Insert {

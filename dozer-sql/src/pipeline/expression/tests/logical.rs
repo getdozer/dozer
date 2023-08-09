@@ -52,7 +52,7 @@ fn test_logical() {
 }
 
 fn _test_bool_bool_and(bool1: bool, bool2: bool) {
-    let row = Record::new();
+    let row = Record::new(vec![]);
     let l = Box::new(Literal(Field::Boolean(bool1)));
     let r = Box::new(Literal(Field::Boolean(bool2)));
     assert!(matches!(
@@ -63,7 +63,7 @@ fn _test_bool_bool_and(bool1: bool, bool2: bool) {
 }
 
 fn _test_bool_null_and(f1: Field, f2: Field) {
-    let row = Record::new();
+    let row = Record::new(vec![]);
     let l = Box::new(Literal(f1));
     let r = Box::new(Literal(f2));
     assert!(matches!(
@@ -74,7 +74,7 @@ fn _test_bool_null_and(f1: Field, f2: Field) {
 }
 
 fn _test_bool_bool_or(bool1: bool, bool2: bool) {
-    let row = Record::new();
+    let row = Record::new(vec![]);
     let l = Box::new(Literal(Field::Boolean(bool1)));
     let r = Box::new(Literal(Field::Boolean(bool2)));
     assert!(matches!(
@@ -85,7 +85,7 @@ fn _test_bool_bool_or(bool1: bool, bool2: bool) {
 }
 
 fn _test_bool_null_or(_bool: bool) {
-    let row = Record::new();
+    let row = Record::new(vec![]);
     let l = Box::new(Literal(Field::Boolean(_bool)));
     let r = Box::new(Literal(Field::Null));
     assert!(matches!(
@@ -96,7 +96,7 @@ fn _test_bool_null_or(_bool: bool) {
 }
 
 fn _test_null_bool_or(_bool: bool) {
-    let row = Record::new();
+    let row = Record::new(vec![]);
     let l = Box::new(Literal(Field::Null));
     let r = Box::new(Literal(Field::Boolean(_bool)));
     assert!(matches!(
@@ -107,7 +107,7 @@ fn _test_null_bool_or(_bool: bool) {
 }
 
 fn _test_bool_not(bool: bool) {
-    let row = Record::new();
+    let row = Record::new(vec![]);
     let v = Box::new(Literal(Field::Boolean(bool)));
     assert!(matches!(
         evaluate_not(&Schema::default(), &v, &row).unwrap_or_else(|e| panic!("{}", e.to_string())),
@@ -116,14 +116,14 @@ fn _test_bool_not(bool: bool) {
 }
 
 fn _test_bool_non_bool_and(f1: Field, f2: Field) {
-    let row = Record::new();
+    let row = Record::new(vec![]);
     let l = Box::new(Literal(f1));
     let r = Box::new(Literal(f2));
     assert!(evaluate_and(&Schema::default(), &l, &r, &row).is_err());
 }
 
 fn _test_bool_non_bool_or(f1: Field, f2: Field) {
-    let row = Record::new();
+    let row = Record::new(vec![]);
     let l = Box::new(Literal(f1));
     let r = Box::new(Literal(f2));
     assert!(evaluate_or(&Schema::default(), &l, &r, &row).is_err());

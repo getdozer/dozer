@@ -1,9 +1,9 @@
 use std::time::Duration;
 
-use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordRef};
+use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordStore};
 use dozer_types::{
     chrono::DateTime,
-    types::{Field, FieldDefinition, FieldType, Lifetime, Schema, SourceDefinition},
+    types::{Field, FieldDefinition, FieldType, Lifetime, Record, Schema, SourceDefinition},
 };
 
 use crate::pipeline::{
@@ -38,12 +38,12 @@ fn test_lifetime() {
         )
         .to_owned();
 
-    let mut record = ProcessorRecord::new();
-    record.push(Field::Int(0));
-    record.push(Field::Timestamp(
-        DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap(),
-    ));
-    let record = ProcessorRecordRef::new(record);
+    let record_store = ProcessorRecordStore::new().unwrap();
+    let record = Record::new(vec![
+        Field::Int(0),
+        Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
+    ]);
+    let record = record_store.create_record(&record).unwrap();
 
     let table_operator = LifetimeTableOperator::new(
         None,
@@ -64,7 +64,9 @@ fn test_lifetime() {
         Duration::from_secs(60),
     );
 
-    let result = table_operator.execute(&record, &schema).unwrap();
+    let result = table_operator
+        .execute(&record_store, &record, &schema)
+        .unwrap();
     assert_eq!(result.len(), 1);
     let lifetime_record = result.get(0).unwrap();
 
@@ -76,5 +78,5 @@ fn test_lifetime() {
         duration: Duration::from_secs(60),
     }));
 
-    assert_eq!(*lifetime_record, ProcessorRecordRef::new(expected_record));
+    assert_eq!(lifetime_record, &expected_record);
 }

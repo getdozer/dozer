@@ -4,6 +4,7 @@ use dozer_types::{errors::internal::BoxedError, types::Schema};
 
 use crate::{
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
+    processor_record::ProcessorRecordStore,
     DEFAULT_PORT_HANDLE,
 };
 
@@ -41,6 +42,7 @@ impl ProcessorFactory<NoneContext> for ConnectivityTestProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
+        _record_store: &ProcessorRecordStore,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         unimplemented!(
             "This struct is for connectivity test, only input and output ports are defined"
@@ -81,6 +83,7 @@ impl ProcessorFactory<NoneContext> for NoInputPortProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
+        _record_store: &ProcessorRecordStore,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         unimplemented!(
             "This struct is for connectivity test, only input and output ports are defined"

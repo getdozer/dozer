@@ -47,10 +47,11 @@ fn test_column_execution() {
         )
         .clone();
 
-    let mut record = Record::new();
-    record.push(Field::Int(1337));
-    record.push(Field::String("test".to_string()));
-    record.push(Field::Float(OrderedFloat(10.10)));
+    let record = Record::new(vec![
+        Field::Int(1337),
+        Field::String("test".to_string()),
+        Field::Float(OrderedFloat(10.10)),
+    ]);
 
     // Column
     let e = Expression::Column { index: 0 };
@@ -262,13 +263,10 @@ fn test_timestamp_difference() {
         )
         .clone();
 
-    let mut record = Record::new();
-    record.push(Field::Timestamp(
-        DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap(),
-    ));
-    record.push(Field::Timestamp(
-        DateTime::parse_from_rfc3339("2020-01-01T00:12:10Z").unwrap(),
-    ));
+    let record = Record::new(vec![
+        Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
+        Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:12:10Z").unwrap()),
+    ]);
 
     let result = evaluate_sub(
         &schema,

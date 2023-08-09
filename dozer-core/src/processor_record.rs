@@ -116,8 +116,7 @@ impl ProcessorRecord {
     }
 
     pub fn pop(&mut self) -> Option<RecordRef> {
-        let result = self.values.pop();
-        result
+        self.values.pop()
     }
 }
 
@@ -128,77 +127,6 @@ mod tests {
     use dozer_types::types::Timestamp;
 
     use super::*;
-
-    #[test]
-    fn test_processor_record_nulls() {
-        let record = ProcessorRecord::nulls(3);
-        assert_eq!(record.get_fields().count(), 3);
-        assert_eq!(record.get_field_by_index(0), &Field::Null);
-        assert_eq!(record.get_field_by_index(1), &Field::Null);
-        assert_eq!(record.get_field_by_index(2), &Field::Null);
-    }
-
-    #[test]
-    fn test_processor_record_extend_direct_field() {
-        let mut record = ProcessorRecord::new();
-        record.push(Arc::new(vec![Field::Int(1)]));
-
-        assert_eq!(record.get_fields().count(), 1);
-        assert_eq!(record.get_field_by_index(0), &Field::Int(1));
-    }
-
-    #[test]
-    fn test_processor_record_extend_referenced_record() {
-        let mut record = ProcessorRecord::new();
-        let mut other = ProcessorRecord::new();
-        other.push(Arc::new(vec![Field::Int(1), Field::Int(2)]));
-        record.extend(other);
-
-        assert_eq!(record.get_fields().count(), 2);
-        assert_eq!(record.get_field_by_index(0), &Field::Int(1));
-        assert_eq!(record.get_field_by_index(1), &Field::Int(2));
-    }
-
-    #[test]
-    fn test_processor_record_extend_interleave() {
-        let mut record = ProcessorRecord::new();
-        let mut other = ProcessorRecord::new();
-        other.push(Arc::new(vec![Field::Int(1), Field::Int(2)]));
-
-        record.push(Arc::new(vec![Field::Int(3)]));
-        record.extend(other);
-        record.push(Arc::new(vec![Field::Int(4)]));
-
-        assert_eq!(record.get_fields().count(), 4);
-        assert_eq!(record.get_field_by_index(0), &Field::Int(3));
-        assert_eq!(record.get_field_by_index(1), &Field::Int(1));
-        assert_eq!(record.get_field_by_index(2), &Field::Int(2));
-        assert_eq!(record.get_field_by_index(3), &Field::Int(4));
-    }
-
-    #[test]
-    fn test_processor_record_extend_nested() {
-        let mut nested_inner = ProcessorRecord::new();
-        nested_inner.push(Arc::new(vec![Field::Int(1), Field::Int(2)]));
-
-        let mut nested_outer = ProcessorRecord::new();
-        nested_outer.push(Arc::new(vec![Field::Int(3)]));
-        nested_outer.extend(nested_inner);
-        nested_outer.push(Arc::new(vec![Field::Int(4)]));
-
-        let mut record = ProcessorRecord::new();
-        record.push(Arc::new(vec![Field::Int(5)]));
-        record.extend(nested_outer);
-        record.push(Arc::new(vec![Field::Int(6)]));
-
-        assert_eq!(record.get_fields().count(), 6);
-        assert_eq!(record.get_field_by_index(0), &Field::Int(5));
-        assert_eq!(record.get_field_by_index(1), &Field::Int(3));
-        assert_eq!(record.get_field_by_index(2), &Field::Int(1));
-        assert_eq!(record.get_field_by_index(3), &Field::Int(2));
-        assert_eq!(record.get_field_by_index(4), &Field::Int(4));
-        assert_eq!(record.get_field_by_index(5), &Field::Int(6));
-    }
 
     #[test]
     fn test_record_roundtrip() {
@@ -213,7 +141,8 @@ mod tests {
             duration: Duration::from_secs(10),
         });
 
-        let processor_record = ProcessorRecord::from(record.clone());
-        assert_eq!(processor_record.clone_deref(), record);
+        let record_store = ProcessorRecordStore::new().unwrap();
+        let processor_record = record_store.create_record(&record).unwrap();
+        assert_eq!(record_store.load_record(&processor_record).unwrap(), record);
     }
 }

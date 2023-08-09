@@ -111,7 +111,7 @@ mod tests {
         types::{Field, Record},
     };
 
-    use crate::processor_record::ProcessorRecord;
+    use crate::processor_record::{ProcessorRecord, ProcessorRecordStore};
 
     use super::*;
 
@@ -204,7 +204,10 @@ mod tests {
     #[test]
     fn receiver_loop_forwards_op() {
         let (mut test_loop, senders) = TestReceiverLoop::new(2);
-        let record: ProcessorRecord = Record::new(vec![Field::Int(1)]).into();
+        let record_store = ProcessorRecordStore::new().unwrap();
+        let record: ProcessorRecord = record_store
+            .create_record(&Record::new(vec![Field::Int(1)]))
+            .unwrap();
         senders[0]
             .send(ExecutorOperation::Op {
                 op: ProcessorOperation::Insert {

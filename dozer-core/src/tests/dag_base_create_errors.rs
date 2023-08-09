@@ -2,6 +2,7 @@ use crate::executor::{DagExecutor, ExecutorOptions};
 use crate::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Source, SourceFactory,
 };
+use crate::processor_record::ProcessorRecordStore;
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 
 use crate::tests::dag_base_run::NoopProcessorFactory;
@@ -206,6 +207,7 @@ impl ProcessorFactory<NoneContext> for CreateErrProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
+        _record_store: &ProcessorRecordStore,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         if self.panic {
             panic!("Generated error");

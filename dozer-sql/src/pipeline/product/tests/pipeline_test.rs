@@ -5,7 +5,6 @@ use dozer_core::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
-use dozer_core::processor_record::ProcessorRecord;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::ingestion_types::IngestionMessage;
@@ -200,9 +199,6 @@ impl Source for TestSource {
         fw: &mut dyn SourceChannelForwarder,
         _last_checkpoint: Option<(u64, u64)>,
     ) -> Result<(), BoxedError> {
-        let mut new_rec = ProcessorRecord::new();
-        new_rec.push(Field::Int(0));
-        new_rec.push(Field::String("IT".to_string()));
         let operations = vec![
             (
                 Operation::Insert {
