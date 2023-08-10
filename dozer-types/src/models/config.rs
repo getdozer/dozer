@@ -5,6 +5,7 @@ use super::{
     connection::Connection, flags::Flags, source::Source, telemetry::TelemetryConfig,
 };
 use crate::constants::DEFAULT_HOME_DIR;
+use crate::models::udf_config::UdfConfig;
 use prettytable::Table as PrettyTable;
 use serde::{Deserialize, Serialize};
 
@@ -75,6 +76,11 @@ pub struct Config {
     /// Dozer Cloud specific configuration
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cloud: Option<Cloud>,
+
+    #[prost(message, repeated, tag = "15")]
+    /// UDF specific configuration (eg. !Onnx)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub udfs: Vec<UdfConfig>,
 }
 
 pub fn default_home_dir() -> String {
