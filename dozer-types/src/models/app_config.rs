@@ -34,7 +34,7 @@ pub struct AppConfig {
     #[prost(uint32, optional)]
     /// How many errors we can tolerate before bringing down the app.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub err_threshold: Option<u32>,
+    pub error_threshold: Option<u32>,
 }
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, prost::Oneof)]
@@ -79,6 +79,6 @@ pub fn default_commit_timeout() -> u64 {
     50
 }
 
-pub fn default_err_threshold() -> u32 {
+pub fn default_error_threshold() -> u32 {
     0
 }
