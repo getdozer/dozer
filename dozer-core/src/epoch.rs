@@ -1,3 +1,4 @@
+use dozer_types::epoch::EpochCommonInfo;
 use dozer_types::parking_lot::Mutex;
 use std::ops::DerefMut;
 use std::sync::{Arc, Barrier};
@@ -11,7 +12,7 @@ use crate::processor_record::ProcessorRecordStore;
 #[derive(Debug)]
 struct EpochManagerState {
     kind: EpochManagerStateKind,
-    /// Number of records in the record store that have been persisted.
+    /// Initialized to 0.
     next_record_index_to_persist: usize,
     /// The instant when epoch manager decided to persist the last epoch. Initialized to the epoch manager's start time.
     last_persisted_epoch_decision_instant: SystemTime,
@@ -80,16 +81,11 @@ pub struct EpochManager {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct EpochCommitDetails {
-    pub epoch_id: u64,
-    pub next_record_index_to_persist: Option<usize>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
 /// When all sources agrees on closing an epoch, the `EpochManager` will make decisions on how to close this epoch and return this struct.
 pub struct ClosedEpoch {
     pub should_terminate: bool,
-    pub commit_details: Option<EpochCommitDetails>,
+    /// `Some` if the epoch should be committed.
+    pub common_info: Option<EpochCommonInfo>,
     pub decision_instant: SystemTime,
 }
 
@@ -205,16 +201,16 @@ impl EpochManager {
                 instant,
                 num_source_confirmations,
             } => {
-                let commit_details = next_record_index_to_persist_if_committing.map(
-                    |next_record_index_to_persist| EpochCommitDetails {
-                        epoch_id: *epoch_id,
+                let common_info = next_record_index_to_persist_if_committing.map(
+                    |next_record_index_to_persist| EpochCommonInfo {
+                        id: *epoch_id,
                         next_record_index_to_persist,
                     },
                 );
 
                 let result = ClosedEpoch {
                     should_terminate: *terminating,
-                    commit_details,
+                    common_info,
                     decision_instant: *instant,
                 };
 
@@ -284,12 +280,12 @@ mod tests {
     #[test]
     fn test_epoch_manager() {
         // All sources have no new data, epoch should not be closed.
-        let ClosedEpoch { commit_details, .. } = run_epoch_manager(&|_| false, &|_| false);
-        assert!(commit_details.is_none());
+        let ClosedEpoch { common_info, .. } = run_epoch_manager(&|_| false, &|_| false);
+        assert!(common_info.is_none());
 
         // One source has new data, epoch should be closed.
-        let ClosedEpoch { commit_details, .. } = run_epoch_manager(&|_| false, &|index| index == 0);
-        assert_eq!(commit_details.unwrap().epoch_id, 0);
+        let ClosedEpoch { common_info, .. } = run_epoch_manager(&|_| false, &|index| index == 0);
+        assert_eq!(common_info.unwrap().id, 0);
 
         // All but one source requests termination, should not terminate.
         let ClosedEpoch {
@@ -319,7 +315,7 @@ mod tests {
         // No record, no persist.
         let epoch = epoch_manager.wait_for_epoch_close(false, true);
         assert!(epoch
-            .commit_details
+            .common_info
             .unwrap()
             .next_record_index_to_persist
             .is_none());
@@ -328,7 +324,7 @@ mod tests {
         record_store.create_ref(&[]).unwrap();
         let epoch = epoch_manager.wait_for_epoch_close(false, true);
         assert_eq!(
-            epoch.commit_details.unwrap().next_record_index_to_persist,
+            epoch.common_info.unwrap().next_record_index_to_persist,
             Some(0)
         );
 
@@ -336,7 +332,7 @@ mod tests {
         std::thread::sleep(Duration::from_secs(1));
         let epoch = epoch_manager.wait_for_epoch_close(false, true);
         assert_eq!(
-            epoch.commit_details.unwrap().next_record_index_to_persist,
+            epoch.common_info.unwrap().next_record_index_to_persist,
             Some(1)
         );
     }

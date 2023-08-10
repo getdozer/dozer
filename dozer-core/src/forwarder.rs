@@ -181,13 +181,12 @@ impl SourceChannelManager {
         let epoch = self
             .epoch_manager
             .wait_for_epoch_close(request_termination, self.num_uncommitted_ops > 0);
-        if let Some(commit_details) = epoch.commit_details {
+        if let Some(common_info) = epoch.common_info {
             self.manager.send_commit(&Epoch::from(
-                commit_details.epoch_id,
+                common_info,
                 self.source_handle.clone(),
                 self.curr_txid,
                 self.curr_seq_in_tx,
-                commit_details.next_record_index_to_persist,
                 epoch.decision_instant,
             ))?;
         }

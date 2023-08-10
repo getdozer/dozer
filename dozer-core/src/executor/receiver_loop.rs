@@ -53,21 +53,21 @@ pub trait ReceiverLoop: Name {
                     self.on_op(index, op)?;
                 }
                 ExecutorOperation::Commit { epoch } => {
-                    assert_eq!(epoch.id, common_epoch.id);
+                    assert_eq!(epoch.common_info.id, common_epoch.common_info.id);
                     commits_received += 1;
                     sel.remove(index);
                     // Commits from all inputs ports must have the same decision instant.
                     if commits_received > 1 {
                         assert_eq!(common_epoch.decision_instant, epoch.decision_instant);
                     }
+                    common_epoch.common_info = epoch.common_info;
                     common_epoch.decision_instant = epoch.decision_instant;
                     common_epoch.details.extend(epoch.details);
-                    common_epoch.next_record_index_to_persist = epoch.next_record_index_to_persist;
 
                     if commits_received == receivers.len() {
                         self.on_commit(&common_epoch)?;
                         common_epoch = Epoch::new(
-                            common_epoch.id + 1,
+                            common_epoch.common_info.id + 1,
                             Default::default(),
                             None,
                             SystemTime::now(),
@@ -255,8 +255,8 @@ mod tests {
                 epoch: epoch1.clone(),
             })
             .unwrap();
-        epoch0.id = 1;
-        epoch1.id = 1;
+        epoch0.common_info.id = 1;
+        epoch1.common_info.id = 1;
         senders[0]
             .send(ExecutorOperation::Commit {
                 epoch: epoch0.clone(),
