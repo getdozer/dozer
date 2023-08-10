@@ -12,7 +12,7 @@ use crate::processor_record::ProcessorRecordStore;
 use crate::{
     builder_dag::NodeKind,
     errors::ExecutionError,
-    forwarder::{ProcessorChannelManager, StateWriter},
+    forwarder::ProcessorChannelManager,
     node::{PortHandle, Processor},
 };
 
@@ -49,13 +49,12 @@ impl ProcessorNode {
 
         let (port_handles, receivers) = dag.collect_receivers(node_index);
 
-        let (senders, record_writers) = dag.collect_senders_and_record_writers(node_index);
+        let (senders, _) = dag.collect_senders_and_record_writers(node_index);
 
-        let state_writer = StateWriter::new(record_writers);
         let channel_manager = ProcessorChannelManager::new(
             node_handle.clone(),
             senders,
-            Some(state_writer),
+            None,
             dag.error_manager().clone(),
         );
 
