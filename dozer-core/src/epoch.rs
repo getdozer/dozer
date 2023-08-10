@@ -205,16 +205,12 @@ impl EpochManager {
                 instant,
                 num_source_confirmations,
             } => {
-                let commit_details = if let Some(next_record_index_to_persist) =
-                    next_record_index_to_persist_if_committing
-                {
-                    Some(EpochCommitDetails {
+                let commit_details = next_record_index_to_persist_if_committing.map(
+                    |next_record_index_to_persist| EpochCommitDetails {
                         epoch_id: *epoch_id,
-                        next_record_index_to_persist: *next_record_index_to_persist,
-                    })
-                } else {
-                    None
-                };
+                        next_record_index_to_persist,
+                    },
+                );
 
                 let result = ClosedEpoch {
                     should_terminate: *terminating,
