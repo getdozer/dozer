@@ -1,7 +1,8 @@
 use crate::errors::CliError;
 use crate::errors::OrchestrationError;
 use crate::simple::SimpleOrchestrator as Dozer;
-
+use atty::Stream; 
+use std::io::{self, Read};
 use crate::config_helper::combine_config;
 use crate::errors::CliError::{ConfigurationFilePathNotProvided, FailedToFindConfigurationFiles};
 use dozer_types::models::config::default_cache_max_map_size;
@@ -74,6 +75,11 @@ async fn load_config(
     config_url_or_paths: Vec<String>,
     config_token: Option<String>,
 ) -> Result<Config, CliError> {
+    let mut is_pipe = false;
+    if atty::isnt(Stream::Stdin) {
+        is_pipe = true;
+        //println!("Pipe attached \n");  
+      }
     let first_config_path = config_url_or_paths.get(0);
     match first_config_path {
         None => Err(ConfigurationFilePathNotProvided),
@@ -81,7 +87,11 @@ async fn load_config(
             if path.starts_with("https://") || path.starts_with("http://") {
                 load_config_from_http_url(path, config_token).await
             } else {
+                if is_pipe==true {
+                    load_config_from_stdin(config_url_or_paths)
+                } else {
                 load_config_from_file(config_url_or_paths)
+                }
             }
         }
     }
@@ -102,7 +112,17 @@ async fn load_config_from_http_url(
 }
 
 pub fn load_config_from_file(config_path: Vec<String>) -> Result<Config, CliError> {
-    let config_template = combine_config(config_path.clone())?;
+    let config_template = combine_config(config_path.clone(),None)?;
+    match config_template {
+        Some(template) => parse_config(&template),
+        None => Err(FailedToFindConfigurationFiles(config_path.join(", "))),
+    }
+}
+
+fn load_config_from_stdin(config_path: Vec<String>) -> Result<Config, CliError>{
+    let mut input = String::new();
+    io::stdin().read_to_string(&mut input).expect("Failed to read input from stdin");
+    let config_template = combine_config(config_path.clone(), Some(input))?;
     match config_template {
         Some(template) => parse_config(&template),
         None => Err(FailedToFindConfigurationFiles(config_path.join(", "))),
