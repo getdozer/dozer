@@ -2,14 +2,14 @@ mod errors;
 mod server;
 mod state;
 mod watcher;
+mod downloader;
 use std::sync::Arc;
 mod helper;
 use dozer_types::{grpc_types::live::LiveResponse, log::info};
 pub use errors::LiveError;
 use futures::stream::{AbortHandle, Abortable};
-
 use crate::shutdown::ShutdownReceiver;
-
+use std::thread;
 use self::state::LiveState;
 
 // const WEB_PORT: u16 = 4555;
@@ -22,6 +22,26 @@ pub fn start_live_server(
 
     state.build()?;
 
+    let url = "https://dozer-explorer.s3.ap-southeast-1.amazonaws.com/latest";
+
+    let (key, existing_key, key_changed) = downloader::get_key_from_url(url)?;
+    let zip_file_name = key.as_str();
+    let prev_zip_file_name = existing_key.as_str();
+    if key_changed{
+        println!("Downloading latest file: {}",zip_file_name);
+
+        let base_url = "https://dozer-explorer.s3.ap-southeast-1.amazonaws.com/";
+        let zip_url = &(base_url.to_owned() + zip_file_name);
+        if !prev_zip_file_name.is_empty(){
+        downloader::delete_file_if_present(prev_zip_file_name)?;
+        }
+        downloader::get_zip_from_url(zip_url,zip_file_name)?;
+    }
+
+    let handle = thread::spawn(|| {
+        downloader::start_react_app().unwrap();
+    });
+
     let state2 = state.clone();
 
     // let browser_url = format!("http://localhost:{}", WEB_PORT);
@@ -29,6 +49,7 @@ pub fn start_live_server(
     // if webbrowser::open(&browser_url).is_err() {
     //     info!("Failed to open browser. Connecto");
     // }
+
     info!("Starting live server");
 
     let rshudown = shutdown.clone();
@@ -45,7 +66,8 @@ pub fn start_live_server(
         res.unwrap();
     });
 
-    watcher::watch(sender, state.clone(), shutdown)?;
+    handle.join().unwrap();
 
+    watcher::watch(sender, state.clone(), shutdown)?;
     Ok(())
 }

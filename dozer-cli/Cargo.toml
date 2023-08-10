@@ -37,14 +37,18 @@ page_size = "0.5.0"
 reqwest = { version = "0.11.16", features = [
   "rustls-tls",
   "cookies",
+  "blocking"
 ], default-features = false }
 glob = "0.3.1"
 atty = "0.2.14"
 tower = "0.4.13"
 metrics = "0.21.0"
+zip = "0.5.11"
 notify = "6.0.1"
 notify-debouncer-full = "0.2.0"
 webbrowser = "0.8.10"
+rusoto_s3 = "0.46.0"
+rusoto_core = "0.46.0"
 
 [[bin]]
 edition = "2021"
