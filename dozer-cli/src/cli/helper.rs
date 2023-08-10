@@ -86,13 +86,12 @@ async fn load_config(
         Some(path) => {
             if path.starts_with("https://") || path.starts_with("http://") {
                 load_config_from_http_url(path, config_token).await
-            } else {
-                if is_pipe==true {
-                    load_config_from_stdin(config_url_or_paths)
-                } else {
+            } else if is_pipe {
+                    load_config_from_stdin(config_url_or_paths) 
+            }
+            else {
                 load_config_from_file(config_url_or_paths)
                 }
-            }
         }
     }
 }
