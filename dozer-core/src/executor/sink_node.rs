@@ -2,12 +2,12 @@ use std::{borrow::Cow, mem::swap, sync::Arc};
 
 use crossbeam::channel::Receiver;
 use daggy::NodeIndex;
-use dozer_types::{epoch::Epoch, log::debug, node::NodeHandle};
+use dozer_types::{log::debug, node::NodeHandle};
 use metrics::{describe_histogram, histogram};
 
 use crate::{
     builder_dag::NodeKind,
-    epoch::EpochManager,
+    epoch::{Epoch, EpochManager},
     error_manager::ErrorManager,
     errors::ExecutionError,
     executor_operation::{ExecutorOperation, ProcessorOperation},

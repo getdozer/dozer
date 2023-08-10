@@ -3,17 +3,15 @@ use std::{
     time::SystemTime,
 };
 
-use serde::{Deserialize, Serialize};
+use dozer_types::node::{NodeHandle, OpIdentifier, SourceStates};
 
-use crate::node::{NodeHandle, OpIdentifier, SourceStates};
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EpochCommonInfo {
     pub id: u64,
     pub next_record_index_to_persist: Option<usize>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Epoch {
     pub common_info: EpochCommonInfo,
     pub details: SourceStates,
@@ -64,3 +62,7 @@ impl Display for Epoch {
         f.write_str(format!("epoch: {}, details: {}", self.common_info.id, details_str).as_str())
     }
 }
+
+mod manager;
+
+pub use manager::{ClosedEpoch, EpochManager, EpochManagerOptions};

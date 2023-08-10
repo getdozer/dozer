@@ -1,13 +1,12 @@
-use dozer_types::epoch::EpochCommonInfo;
 use dozer_types::parking_lot::Mutex;
 use std::ops::DerefMut;
 use std::sync::{Arc, Barrier};
 use std::thread::sleep;
 use std::time::{Duration, SystemTime};
 
-pub use dozer_types::epoch::Epoch;
-
 use crate::processor_record::ProcessorRecordStore;
+
+use super::{Epoch, EpochCommonInfo};
 
 #[derive(Debug)]
 struct EpochManagerState {
@@ -235,7 +234,6 @@ impl EpochManager {
         }
     }
 
-    /// Called by sinks when they have finished committing the epoch.
     pub fn finalize_epoch(&self, _epoch: &Epoch) {}
 }
 

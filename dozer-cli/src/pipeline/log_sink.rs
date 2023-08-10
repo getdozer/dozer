@@ -127,7 +127,7 @@ impl Sink for LogSink {
             let mut log = self.log.lock().await;
             log.write(
                 LogOperation::Commit {
-                    epoch: epoch_details.clone(),
+                    decision_instant: epoch_details.decision_instant,
                 },
                 self.log.clone(),
             )
