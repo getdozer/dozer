@@ -5,7 +5,6 @@ use crate::errors::ExecutionError;
 use crate::errors::ExecutionError::InvalidPortHandle;
 use crate::executor_operation::{ExecutorOperation, ProcessorOperation};
 use crate::node::PortHandle;
-use crate::processor_record::ProcessorRecordStore;
 use crate::record_store::{RecordWriter, RecordWriterError};
 
 use crossbeam::channel::Sender;
@@ -38,18 +37,13 @@ impl StateWriter {
             Ok(op)
         }
     }
-
-    pub fn store_commit_info(&mut self, _epoch_details: &Epoch) -> Result<(), ExecutionError> {
-        Ok(())
-    }
 }
 
 #[derive(Debug)]
 struct ChannelManager {
     owner: NodeHandle,
     senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
-    state_writer: StateWriter,
-    stateful: bool,
+    state_writer: Option<StateWriter>,
     error_manager: Arc<ErrorManager>,
 }
 
@@ -60,8 +54,8 @@ impl ChannelManager {
         mut op: ProcessorOperation,
         port_id: PortHandle,
     ) -> Result<(), ExecutionError> {
-        if self.stateful {
-            match self.state_writer.store_op(op, &port_id) {
+        if let Some(state_writer) = self.state_writer.as_mut() {
+            match state_writer.store_op(op, &port_id) {
                 Ok(new_op) => op = new_op,
                 Err(e) => {
                     self.error_manager.report(e.into());
@@ -109,9 +103,8 @@ impl ChannelManager {
         Ok(())
     }
 
-    fn store_and_send_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError> {
+    fn send_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError> {
         debug!("[{}] Checkpointing - {}", self.owner, &epoch);
-        self.state_writer.store_commit_info(epoch)?;
 
         for senders in &self.senders {
             for sender in senders.1 {
@@ -126,15 +119,13 @@ impl ChannelManager {
     fn new(
         owner: NodeHandle,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
-        state_writer: StateWriter,
-        stateful: bool,
+        state_writer: Option<StateWriter>,
         error_manager: Arc<ErrorManager>,
     ) -> Self {
         Self {
             owner,
             senders,
             state_writer,
-            stateful,
             error_manager,
         }
     }
@@ -150,31 +141,21 @@ pub(crate) struct SourceChannelManager {
     num_uncommitted_ops: u32,
     max_duration_between_commits: Duration,
     last_commit_instant: SystemTime,
-    record_store: Arc<ProcessorRecordStore>,
     epoch_manager: Arc<EpochManager>,
 }
 
 impl SourceChannelManager {
-    #![allow(clippy::too_many_arguments)]
     pub fn new(
         owner: NodeHandle,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
-        state_writer: StateWriter,
-        stateful: bool,
+        state_writer: Option<StateWriter>,
         commit_sz: u32,
         max_duration_between_commits: Duration,
-        record_store: Arc<ProcessorRecordStore>,
         epoch_manager: Arc<EpochManager>,
         error_manager: Arc<ErrorManager>,
     ) -> Self {
         Self {
-            manager: ChannelManager::new(
-                owner.clone(),
-                senders,
-                state_writer,
-                stateful,
-                error_manager,
-            ),
+            manager: ChannelManager::new(owner.clone(), senders, state_writer, error_manager),
             // FIXME: Read curr_txid and curr_seq_in_tx from persisted state.
             curr_txid: 0,
             curr_seq_in_tx: 0,
@@ -183,7 +164,6 @@ impl SourceChannelManager {
             num_uncommitted_ops: 0,
             max_duration_between_commits,
             last_commit_instant: SystemTime::now(),
-            record_store,
             epoch_manager,
         }
     }
@@ -202,7 +182,7 @@ impl SourceChannelManager {
             .epoch_manager
             .wait_for_epoch_close(request_termination, self.num_uncommitted_ops > 0);
         if let Some(commit_details) = epoch.commit_details {
-            self.manager.store_and_send_commit(&Epoch::from(
+            self.manager.send_commit(&Epoch::from(
                 commit_details.epoch_id,
                 self.source_handle.clone(),
                 self.curr_txid,
@@ -238,8 +218,10 @@ impl SourceChannelManager {
         self.curr_seq_in_tx = message.identifier.seq_in_tx;
         match message.kind {
             IngestionMessageKind::OperationEvent { op, .. } => {
-                self.manager
-                    .send_op(self.record_store.create_operation(&op)?, port)?;
+                self.manager.send_op(
+                    self.epoch_manager.record_store().create_operation(&op)?,
+                    port,
+                )?;
                 self.num_uncommitted_ops += 1;
                 self.trigger_commit_if_needed(request_termination)
             }
@@ -270,17 +252,16 @@ impl ProcessorChannelManager {
     pub fn new(
         owner: NodeHandle,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
-        state_writer: StateWriter,
-        stateful: bool,
+        state_writer: Option<StateWriter>,
         error_manager: Arc<ErrorManager>,
     ) -> Self {
         Self {
-            manager: ChannelManager::new(owner, senders, state_writer, stateful, error_manager),
+            manager: ChannelManager::new(owner, senders, state_writer, error_manager),
         }
     }
 
     pub fn store_and_send_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError> {
-        self.manager.store_and_send_commit(epoch)
+        self.manager.send_commit(epoch)
     }
 
     pub fn send_terminate(&self) -> Result<(), ExecutionError> {

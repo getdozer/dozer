@@ -112,6 +112,10 @@ impl EpochManager {
         }
     }
 
+    pub fn record_store(&self) -> &Arc<ProcessorRecordStore> {
+        &self.record_store
+    }
+
     /// Waits for the epoch to close until all sources do so.
     ///
     /// Returns whether the participant should terminate, the epoch id if the source should commit, and the instant when the decision was made.
@@ -238,6 +242,9 @@ impl EpochManager {
             }
         }
     }
+
+    /// Called by sinks when they have finished committing the epoch.
+    pub fn finalize_epoch(&self, _epoch: &Epoch) {}
 }
 
 #[cfg(test)]

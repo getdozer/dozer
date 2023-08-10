@@ -55,8 +55,7 @@ impl ProcessorNode {
         let channel_manager = ProcessorChannelManager::new(
             node_handle.clone(),
             senders,
-            state_writer,
-            true,
+            Some(state_writer),
             dag.error_manager().clone(),
         );
 

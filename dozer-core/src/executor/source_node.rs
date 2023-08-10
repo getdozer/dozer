@@ -172,11 +172,9 @@ pub fn create_source_nodes(
     let channel_manager = SourceChannelManager::new(
         node_handle.clone(),
         senders,
-        state_writer,
-        true,
+        Some(state_writer),
         options.commit_sz,
         options.commit_time_threshold,
-        dag.record_store().clone(),
         dag.epoch_manager().clone(),
         dag.error_manager().clone(),
     );

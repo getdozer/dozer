@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::HashMap, mem::swap, sync::Arc};
+use std::{borrow::Cow, mem::swap, sync::Arc};
 
 use crossbeam::channel::Receiver;
 use daggy::NodeIndex;
@@ -7,12 +7,11 @@ use metrics::{describe_histogram, histogram};
 
 use crate::{
     builder_dag::NodeKind,
+    epoch::EpochManager,
     error_manager::ErrorManager,
     errors::ExecutionError,
     executor_operation::{ExecutorOperation, ProcessorOperation},
-    forwarder::StateWriter,
     node::{PortHandle, Sink},
-    processor_record::ProcessorRecordStore,
 };
 
 use super::execution_dag::ExecutionDag;
@@ -29,10 +28,8 @@ pub struct SinkNode {
     receivers: Vec<Receiver<ExecutorOperation>>,
     /// The sink.
     sink: Box<dyn Sink>,
-    /// This node's state writer, for writing metadata and port state.
-    state_writer: StateWriter,
     /// Where all the records from ingested data are stored.
-    record_store: Arc<ProcessorRecordStore>,
+    epoch_manager: Arc<EpochManager>,
     /// The error manager, for reporting non-fatal errors.
     error_manager: Arc<ErrorManager>,
 }
@@ -51,8 +48,6 @@ impl SinkNode {
 
         let (port_handles, receivers) = dag.collect_receivers(node_index);
 
-        let state_writer = StateWriter::new(HashMap::new());
-
         describe_histogram!(
             PIPELINE_LATENCY_HISTOGRAM_NAME,
             "The pipeline processing latency in seconds"
@@ -63,8 +58,7 @@ impl SinkNode {
             port_handles,
             receivers,
             sink,
-            state_writer,
-            record_store: dag.record_store().clone(),
+            epoch_manager: dag.epoch_manager().clone(),
             error_manager: dag.error_manager().clone(),
         }
     }
@@ -92,10 +86,11 @@ impl ReceiverLoop for SinkNode {
     }
 
     fn on_op(&mut self, index: usize, op: ProcessorOperation) -> Result<(), ExecutionError> {
-        if let Err(e) = self
-            .sink
-            .process(self.port_handles[index], &self.record_store, op)
-        {
+        if let Err(e) = self.sink.process(
+            self.port_handles[index],
+            self.epoch_manager.record_store(),
+            op,
+        ) {
             self.error_manager.report(e);
         }
         Ok(())
@@ -106,7 +101,8 @@ impl ReceiverLoop for SinkNode {
         if let Err(e) = self.sink.commit(epoch) {
             self.error_manager.report(e);
         }
-        self.state_writer.store_commit_info(epoch)?;
+
+        self.epoch_manager.finalize_epoch(epoch);
 
         if let Ok(duration) = epoch.decision_instant.elapsed() {
             histogram!(PIPELINE_LATENCY_HISTOGRAM_NAME, duration, "endpoint" => self.node_handle.id.clone());
