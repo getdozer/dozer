@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::Arc};
 
 use daggy::petgraph::visit::IntoNodeIdentifiers;
 use dozer_types::node::{NodeHandle, OpIdentifier};
@@ -34,7 +34,7 @@ pub enum NodeKind {
 #[derive(Debug)]
 pub struct BuilderDag {
     graph: daggy::Dag<NodeType, EdgeType>,
-    record_store: ProcessorRecordStore,
+    record_store: Arc<ProcessorRecordStore>,
 }
 
 impl BuilderDag {
@@ -43,7 +43,7 @@ impl BuilderDag {
         let dag_checkpoint = DagCheckpoint::new(dag_schemas)?;
 
         // Create processors and sinks.
-        let record_store = ProcessorRecordStore::new()?;
+        let record_store = Arc::new(ProcessorRecordStore::new()?);
         let mut nodes = vec![];
         let node_indexes = dag_checkpoint
             .graph()
@@ -106,7 +106,7 @@ impl BuilderDag {
         &self.graph
     }
 
-    pub fn record_store(&self) -> &ProcessorRecordStore {
+    pub fn record_store(&self) -> &Arc<ProcessorRecordStore> {
         &self.record_store
     }
 
