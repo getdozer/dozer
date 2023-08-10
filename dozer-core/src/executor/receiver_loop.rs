@@ -39,7 +39,7 @@ pub trait ReceiverLoop: Name {
         let mut port_states = vec![InputPortState::Open; receivers.len()];
 
         let mut commits_received: usize = 0;
-        let mut common_epoch = Epoch::new(0, Default::default(), SystemTime::now());
+        let mut common_epoch = Epoch::new(0, Default::default(), None, SystemTime::now());
 
         let mut sel = init_select(&receivers);
         loop {
@@ -62,11 +62,16 @@ pub trait ReceiverLoop: Name {
                     }
                     common_epoch.decision_instant = epoch.decision_instant;
                     common_epoch.details.extend(epoch.details);
+                    common_epoch.next_record_index_to_persist = epoch.next_record_index_to_persist;
 
                     if commits_received == receivers.len() {
                         self.on_commit(&common_epoch)?;
-                        common_epoch =
-                            Epoch::new(common_epoch.id + 1, Default::default(), SystemTime::now());
+                        common_epoch = Epoch::new(
+                            common_epoch.id + 1,
+                            Default::default(),
+                            None,
+                            SystemTime::now(),
+                        );
                         commits_received = 0;
                         sel = init_select(&receivers);
                     }
@@ -233,13 +238,13 @@ mod tests {
             OpIdentifier::new(0, 0),
         );
         let decision_instant = SystemTime::now();
-        let mut epoch0 = Epoch::new(0, details, decision_instant);
+        let mut epoch0 = Epoch::new(0, details, None, decision_instant);
         let mut details = SourceStates::default();
         details.insert(
             NodeHandle::new(None, "1".to_string()),
             OpIdentifier::new(0, 0),
         );
-        let mut epoch1 = Epoch::new(0, details, decision_instant);
+        let mut epoch1 = Epoch::new(0, details, None, decision_instant);
         senders[0]
             .send(ExecutorOperation::Commit {
                 epoch: epoch0.clone(),
@@ -272,8 +277,8 @@ mod tests {
         assert_eq!(
             test_loop.commits,
             vec![
-                Epoch::new(0, details.clone(), decision_instant),
-                Epoch::new(1, details, decision_instant)
+                Epoch::new(0, details.clone(), None, decision_instant),
+                Epoch::new(1, details, None, decision_instant)
             ]
         );
     }
@@ -288,13 +293,13 @@ mod tests {
             OpIdentifier::new(0, 0),
         );
         let decision_instant = SystemTime::now();
-        let epoch0 = Epoch::new(0, details, decision_instant);
+        let epoch0 = Epoch::new(0, details, None, decision_instant);
         let mut details = SourceStates::new();
         details.insert(
             NodeHandle::new(None, "1".to_string()),
             OpIdentifier::new(0, 0),
         );
-        let epoch1 = Epoch::new(1, details, decision_instant);
+        let epoch1 = Epoch::new(1, details, None, decision_instant);
         senders[0]
             .send(ExecutorOperation::Commit { epoch: epoch0 })
             .unwrap();

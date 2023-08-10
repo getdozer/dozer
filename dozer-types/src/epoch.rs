@@ -11,14 +11,21 @@ use crate::node::{NodeHandle, OpIdentifier, SourceStates};
 pub struct Epoch {
     pub id: u64,
     pub details: SourceStates,
+    pub next_record_index_to_persist: Option<usize>,
     pub decision_instant: SystemTime,
 }
 
 impl Epoch {
-    pub fn new(id: u64, details: SourceStates, decision_instant: SystemTime) -> Self {
+    pub fn new(
+        id: u64,
+        details: SourceStates,
+        next_record_index_to_persist: Option<usize>,
+        decision_instant: SystemTime,
+    ) -> Self {
         Self {
             id,
             details,
+            next_record_index_to_persist,
             decision_instant,
         }
     }
@@ -28,6 +35,7 @@ impl Epoch {
         node_handle: NodeHandle,
         txid: u64,
         seq_in_tx: u64,
+        next_record_index_to_persist: Option<usize>,
         decision_instant: SystemTime,
     ) -> Self {
         Self {
@@ -35,6 +43,7 @@ impl Epoch {
             details: [(node_handle, OpIdentifier::new(txid, seq_in_tx))]
                 .into_iter()
                 .collect(),
+            next_record_index_to_persist,
             decision_instant,
         }
     }

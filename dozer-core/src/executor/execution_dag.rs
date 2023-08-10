@@ -116,6 +116,11 @@ impl ExecutionDag {
 
         // Create new graph.
         let record_store = builder_dag.record_store().clone();
+        let epoch_manager = Arc::new(EpochManager::new(
+            num_sources,
+            record_store.clone(),
+            Default::default(),
+        ));
         let graph = builder_dag.into_graph().map_owned(
             |_, node| Some(node),
             |edge_index, _| {
@@ -127,7 +132,7 @@ impl ExecutionDag {
         Ok(ExecutionDag {
             graph,
             record_store,
-            epoch_manager: Arc::new(EpochManager::new(num_sources)),
+            epoch_manager,
             error_manager: Arc::new(if let Some(threshold) = error_threshold {
                 ErrorManager::new_threshold(threshold)
             } else {
