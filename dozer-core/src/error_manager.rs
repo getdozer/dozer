@@ -28,7 +28,8 @@ impl ErrorManager {
     }
 
     pub fn report(&self, error: BoxedError) {
-        error_span!("reported error", error = true, e = error);
+        let err_span = error_span!("reported error", error = true, e = error);
+        let _error_guard = err_span.enter();
         error!("{}", error);
 
         let count = self.count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
