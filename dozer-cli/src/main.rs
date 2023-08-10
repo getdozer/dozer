@@ -151,7 +151,7 @@ fn run() -> Result<(), OrchestrationError> {
                 RunCommands::App => {
                     render_logo();
 
-                    dozer.run_apps(shutdown_receiver, None, None)
+                    dozer.run_apps(shutdown_receiver, None)
                 }
             },
             Commands::Security(security) => match security.command {
@@ -220,7 +220,7 @@ fn run() -> Result<(), OrchestrationError> {
     } else {
         render_logo();
 
-        dozer.run_all(shutdown_receiver, None)
+        dozer.run_all(shutdown_receiver)
     }
 }
 

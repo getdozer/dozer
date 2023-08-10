@@ -166,14 +166,7 @@ impl SimpleOrchestrator {
         &mut self,
         shutdown: ShutdownReceiver,
         api_notifier: Option<Sender<bool>>,
-        err_threshold: Option<u32>,
     ) -> Result<(), OrchestrationError> {
-        let mut global_err_threshold: Option<u32> =
-            self.config.app.as_ref().and_then(|app| app.err_threshold);
-        if err_threshold.is_some() {
-            global_err_threshold = err_threshold;
-        }
-
         let home_dir = HomeDir::new(self.config.home_dir.as_ref(), self.config.cache_dir.clone());
         let executor = self.runtime.block_on(Executor::new(
             &home_dir,
@@ -184,10 +177,8 @@ impl SimpleOrchestrator {
             get_log_options(&self.config),
             self.multi_pb.clone(),
         ))?;
-        let dag_executor = executor.create_dag_executor(
-            self.runtime.clone(),
-            get_executor_options(&self.config, global_err_threshold),
-        )?;
+        let dag_executor = executor
+            .create_dag_executor(self.runtime.clone(), get_executor_options(&self.config))?;
 
         let app_grpc_config = get_app_grpc_config(&self.config);
         let internal_server_future = start_internal_pipeline_server(
@@ -354,11 +345,7 @@ impl SimpleOrchestrator {
         Ok(())
     }
 
-    pub fn run_all(
-        &mut self,
-        shutdown: ShutdownReceiver,
-        err_threshold: Option<u32>,
-    ) -> Result<(), OrchestrationError> {
+    pub fn run_all(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError> {
         let shutdown_api = shutdown.clone();
 
         let mut dozer_api = self.clone();
@@ -368,8 +355,7 @@ impl SimpleOrchestrator {
         self.build(false)?;
 
         let mut dozer_pipeline = self.clone();
-        let pipeline_thread =
-            thread::spawn(move || dozer_pipeline.run_apps(shutdown, Some(tx), err_threshold));
+        let pipeline_thread = thread::spawn(move || dozer_pipeline.run_apps(shutdown, Some(tx)));
 
         // Wait for pipeline to initialize caches before starting api server
         if rx.recv().is_err() {
