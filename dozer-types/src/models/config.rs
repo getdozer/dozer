@@ -77,10 +77,10 @@ pub struct Config {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cloud: Option<Cloud>,
 
-    #[prost(message, optional, tag = "15")]
+    #[prost(message, repeated, tag = "15")]
     /// UDF specific configuration (eg. !Onnx)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub udf: Option<UdfConfig>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub udfs: Vec<UdfConfig>,
 }
 
 pub fn default_home_dir() -> String {
