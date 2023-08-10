@@ -5,11 +5,13 @@ use crate::pipeline::expression::execution::Expression;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, FieldType, Record, Schema};
 use std::env;
-use std::path::PathBuf;
-use ort::{Environment, LoggingLevel};
+use std::path::{Path, PathBuf};
+use ort::{Environment, ExecutionProvider, GraphOptimizationLevel, LoggingLevel, SessionBuilder, Value};
+use ort::download::language::GPT2;
 use ort::sys::OrtTensorTypeAndShapeInfo;
 use ort::tensor::{OrtOwnedTensor, TensorData, TensorElementDataType};
 use ort::tensor::TensorElementDataType::{Bool, Float64, Float32, Float16, Int64, Int32, Int16, Uint64, Uint32, Uint16, String};
+use sqlparser::tokenizer::Tokenizer;
 use dozer_types::arrow::tensor::Tensor;
 use dozer_types::crossbeam::epoch::Pointable;
 use dozer_types::log::warn;
@@ -23,12 +25,24 @@ pub fn evaluate_onnx_udf(
     return_type: &FieldType,
     record: &Record,
 ) -> Result<Field, PipelineError> {
-    let environment = Environment::builder().with_name("onnx").with_log_level(LoggingLevel::Verbose).build()?;
-    environment.
-    let values = args
-        .iter()
-        .map(|arg| arg.evaluate(record, schema))
-        .collect::<Result<Vec<_>, PipelineError>>()?;
+    let environment = Environment::builder()
+        .with_name("dozer_onnx")
+        .with_log_level(LoggingLevel::Verbose)
+        .build()?
+        .into_arc();
+
+    let session = SessionBuilder::new(&environment)?
+        .with_optimization_level(GraphOptimizationLevel::Level1)?
+        .with_intra_threads(1)?
+        .with_model_from_file(Path::new("../models/onnx_model.onnx"))?;
+
+    let inputs = vec![Value::from_array(session.allocator(), &[])?];
+    let outputs: Vec<Value> = session.run(inputs)?;
+
+    // let values = args
+    //     .iter()
+    //     .map(|arg| arg.evaluate(record, schema))
+    //     .collect::<Result<Vec<_>, PipelineError>>()?;
 }
 
 pub fn is_field_type_compatible(dozer_type: &FieldType, onnx_type: TensorElementDataType) -> bool {
