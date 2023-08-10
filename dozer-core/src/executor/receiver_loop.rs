@@ -2,10 +2,10 @@ use std::borrow::Cow;
 use std::time::SystemTime;
 
 use crossbeam::channel::{Receiver, Select};
-use dozer_types::epoch::Epoch;
 use dozer_types::log::debug;
 
 use crate::{
+    epoch::Epoch,
     errors::ExecutionError,
     executor_operation::{ExecutorOperation, ProcessorOperation},
 };

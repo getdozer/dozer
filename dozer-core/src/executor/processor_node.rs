@@ -3,9 +3,9 @@ use std::{borrow::Cow, mem::swap};
 
 use crossbeam::channel::Receiver;
 use daggy::NodeIndex;
-use dozer_types::epoch::Epoch;
 use dozer_types::node::NodeHandle;
 
+use crate::epoch::Epoch;
 use crate::error_manager::ErrorManager;
 use crate::executor_operation::{ExecutorOperation, ProcessorOperation};
 use crate::processor_record::ProcessorRecordStore;
