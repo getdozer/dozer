@@ -1,17 +1,18 @@
 use std::{
     fmt::{Display, Formatter},
+    sync::Arc,
     time::SystemTime,
 };
 
 use dozer_types::node::{NodeHandle, OpIdentifier, SourceStates};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct EpochCommonInfo {
     pub id: u64,
-    pub next_record_index_to_persist: Option<usize>,
+    pub checkpoint_writer: Option<Arc<CheckpointWriter>>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct Epoch {
     pub common_info: EpochCommonInfo,
     pub details: SourceStates,
@@ -22,13 +23,13 @@ impl Epoch {
     pub fn new(
         id: u64,
         details: SourceStates,
-        next_record_index_to_persist: Option<usize>,
+        checkpoint_writer: Option<Arc<CheckpointWriter>>,
         decision_instant: SystemTime,
     ) -> Self {
         Self {
             common_info: EpochCommonInfo {
                 id,
-                next_record_index_to_persist,
+                checkpoint_writer,
             },
             details,
             decision_instant,
@@ -66,3 +67,5 @@ impl Display for Epoch {
 mod manager;
 
 pub use manager::{ClosedEpoch, EpochManager, EpochManagerOptions};
+
+use crate::checkpoint::CheckpointWriter;

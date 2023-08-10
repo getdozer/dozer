@@ -57,7 +57,7 @@ fn get_error_threshold(config: &Config) -> u32 {
 pub fn get_log_options(config: &Config) -> LogOptions {
     let app = config.app.as_ref();
     let storage_config = app
-        .and_then(|app| app.log_storage.clone())
+        .and_then(|app| app.data_storage.clone())
         .unwrap_or_default();
     let entry_max_size = app
         .and_then(|app| app.log_entry_max_size)

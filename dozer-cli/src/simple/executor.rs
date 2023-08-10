@@ -24,6 +24,7 @@ pub struct Executor<'a> {
     connections: &'a [Connection],
     sources: &'a [Source],
     sql: Option<&'a str>,
+    checkpoint_dir: String,
     /// `ApiEndpoint` and its log.
     endpoint_and_logs: Vec<(ApiEndpoint, LogEndpoint)>,
     multi_pb: MultiProgress,
@@ -54,6 +55,7 @@ impl<'a> Executor<'a> {
             connections,
             sources,
             sql,
+            checkpoint_dir: build_path.data_dir.into(),
             endpoint_and_logs,
             multi_pb,
         })
@@ -81,7 +83,7 @@ impl<'a> Executor<'a> {
         );
 
         let dag = builder.build(runtime, shutdown).await?;
-        let exec = DagExecutor::new(dag, executor_options)?;
+        let exec = DagExecutor::new(dag, self.checkpoint_dir.clone(), executor_options).await?;
 
         Ok(exec)
     }

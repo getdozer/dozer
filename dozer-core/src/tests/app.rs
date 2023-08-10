@@ -12,9 +12,11 @@ use crate::tests::sources::{
     GENERATOR_SOURCE_OUTPUT_PORT,
 };
 use crate::{Edge, Endpoint, DEFAULT_PORT_HANDLE};
+use dozer_log::tokio;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
 use dozer_types::types::Schema;
+use tempdir::TempDir;
 
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
@@ -130,8 +132,8 @@ fn test_apps_source_manager_lookup_multiple_ports() {
     assert_eq!(r.port, 2_u16);
 }
 
-#[test]
-fn test_app_dag() {
+#[tokio::test]
+async fn test_app_dag() {
     let latch = Arc::new(AtomicBool::new(true));
 
     let mut asm = AppSourceManager::new();
@@ -295,10 +297,16 @@ fn test_app_dag() {
 
     assert_eq!(edges.len(), 6);
 
-    DagExecutor::new(dag, ExecutorOptions::default())
-        .unwrap()
-        .start(Arc::new(AtomicBool::new(true)))
-        .unwrap()
-        .join()
-        .unwrap();
+    let temp_dir = TempDir::new("test_app_dag").unwrap();
+    DagExecutor::new(
+        dag,
+        temp_dir.path().to_str().unwrap().to_string(),
+        ExecutorOptions::default(),
+    )
+    .await
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)))
+    .unwrap()
+    .join()
+    .unwrap();
 }

@@ -16,6 +16,7 @@ use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
 };
+use tempdir::TempDir;
 
 use std::collections::HashMap;
 
@@ -182,8 +183,8 @@ impl Sink for TestSink {
     }
 }
 
-#[test]
-fn test_pipeline_builder() {
+#[tokio::test]
+async fn test_pipeline_builder() {
     let mut pipeline = AppPipeline::new();
     let context = statement_to_pipeline(
         "SELECT COUNT(Spending), users.Country \
@@ -227,12 +228,18 @@ fn test_pipeline_builder() {
 
     let now = std::time::Instant::now();
 
-    DagExecutor::new(dag, ExecutorOptions::default())
-        .unwrap()
-        .start(Arc::new(AtomicBool::new(true)))
-        .unwrap()
-        .join()
-        .unwrap();
+    let temp_dir = TempDir::new("test_pipeline_builder").unwrap();
+    DagExecutor::new(
+        dag,
+        temp_dir.path().to_str().unwrap().to_string(),
+        ExecutorOptions::default(),
+    )
+    .await
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)))
+    .unwrap()
+    .join()
+    .unwrap();
 
     let elapsed = now.elapsed();
     debug!("Elapsed: {:.2?}", elapsed);

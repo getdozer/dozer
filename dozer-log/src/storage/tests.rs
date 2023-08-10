@@ -1,6 +1,7 @@
 use nonzero_ext::nonzero;
+use tempdir::TempDir;
 
-use super::Storage;
+use super::{LocalStorage, Storage};
 
 pub async fn test_storage_basic<S: Storage>(storage: &S) {
     assert!(storage
@@ -89,4 +90,12 @@ pub async fn test_storage_empty_multipart<S: Storage>(storage: &S) {
 
     let downloaded_data = storage.download_object(key).await.unwrap();
     assert_eq!(downloaded_data, Vec::<u8>::new());
+}
+
+pub async fn create_storage() -> (TempDir, Box<dyn Storage>) {
+    let temp_dir = TempDir::new("create_storage").unwrap();
+    let storage = LocalStorage::new(temp_dir.path().to_str().unwrap().to_string())
+        .await
+        .unwrap();
+    (temp_dir, Box::new(storage))
 }

@@ -3,7 +3,7 @@ use std::{borrow::Cow, collections::BTreeMap, fs::OpenOptions, path::Path};
 use dozer_api::generator::protoc::generator::ProtoGenerator;
 use dozer_cache::dozer_log::{
     home_dir::{BuildId, BuildPath, HomeDir},
-    replication::create_log_storage,
+    replication::create_data_storage,
     schemas::EndpointSchema,
     storage::Storage,
 };
@@ -21,7 +21,7 @@ use dozer_types::{
         api_endpoint::{
             ApiEndpoint, FullText, SecondaryIndex, SecondaryIndexConfig, SortedInverted,
         },
-        app_config::LogStorage,
+        app_config::DataStorage,
     },
     node::NodeHandle,
     types::{FieldDefinition, FieldType, IndexDefinition, Schema, SchemaWithIndex},
@@ -104,7 +104,7 @@ impl Contract {
 pub async fn build(
     home_dir: &HomeDir,
     contract: &Contract,
-    storage_config: &LogStorage,
+    storage_config: &DataStorage,
 ) -> Result<(), BuildError> {
     if let Some(build_id) = needs_build(home_dir, contract, storage_config).await? {
         let build_name = build_id.name().to_string();
@@ -119,7 +119,7 @@ pub async fn build(
 async fn needs_build(
     home_dir: &HomeDir,
     contract: &Contract,
-    storage_config: &LogStorage,
+    storage_config: &DataStorage,
 ) -> Result<Option<BuildId>, BuildError> {
     let build_path = home_dir
         .find_latest_build_path()
@@ -132,7 +132,7 @@ async fn needs_build(
     for endpoint in contract.endpoints.keys() {
         let endpoint_path = build_path.get_endpoint_path(endpoint);
         let (storage, prefix) =
-            create_log_storage(storage_config.clone(), endpoint_path.log_dir.into()).await?;
+            create_data_storage(storage_config.clone(), endpoint_path.log_dir.into()).await?;
         futures.push(is_empty(storage, prefix));
     }
     if !try_join_all(futures)

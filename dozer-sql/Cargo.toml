@@ -33,6 +33,7 @@ bigdecimal = { version = "0.3", features = ["serde"], optional = true }
 [dev-dependencies]
 tempdir = "0.3.7"
 proptest = "1.1.0"
+tokio = { version = "1.31.0", features = ["rt", "macros"] }
 
 [features]
 python = ["dozer-types/python-auto-initialize"]

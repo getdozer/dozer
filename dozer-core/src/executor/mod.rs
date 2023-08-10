@@ -1,6 +1,8 @@
 use crate::builder_dag::{BuilderDag, NodeKind};
+use crate::checkpoint::CheckpointFactory;
 use crate::dag_schemas::DagSchemas;
 use crate::errors::ExecutionError;
+use crate::processor_record::ProcessorRecordStore;
 use crate::Dag;
 
 use daggy::petgraph::visit::IntoNodeIdentifiers;
@@ -65,12 +67,19 @@ pub struct DagExecutorJoinHandle {
 }
 
 impl DagExecutor {
-    pub fn new<T: Clone + Debug>(
+    pub async fn new<T: Clone + Debug>(
         dag: Dag<T>,
+        checkpoint_dir: String,
         options: ExecutorOptions,
     ) -> Result<Self, ExecutionError> {
         let dag_schemas = DagSchemas::new(dag)?;
-        let builder_dag = BuilderDag::new(dag_schemas)?;
+
+        let record_store = ProcessorRecordStore::new()?;
+        let checkpoint_factory =
+            CheckpointFactory::new(Default::default(), checkpoint_dir, Arc::new(record_store))
+                .await?
+                .0;
+        let builder_dag = BuilderDag::new(Arc::new(checkpoint_factory), dag_schemas)?;
 
         Ok(Self {
             builder_dag,

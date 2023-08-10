@@ -4,7 +4,7 @@ use camino::Utf8Path;
 use dozer_types::{
     bincode,
     log::{debug, error},
-    models::app_config::LogStorage,
+    models::app_config::DataStorage,
 };
 use tokio::task::JoinHandle;
 
@@ -12,18 +12,18 @@ use crate::storage::{self, LocalStorage, S3Storage, Storage};
 
 use super::{Error, LogOperation, PersistedLogEntry};
 
-pub async fn create_log_storage(
-    storage_config: LogStorage,
-    log_dir: String,
+pub async fn create_data_storage(
+    storage_config: DataStorage,
+    data_dir: String,
 ) -> Result<(Box<dyn Storage>, String), storage::Error> {
     match storage_config {
-        LogStorage::Local(()) => Ok((
-            Box::new(LocalStorage::new(log_dir).await?),
+        DataStorage::Local(()) => Ok((
+            Box::new(LocalStorage::new(data_dir).await?),
             String::default(),
         )),
-        LogStorage::S3(s3) => Ok((
+        DataStorage::S3(s3) => Ok((
             Box::new(S3Storage::new(s3.region.as_str().into(), s3.bucket_name).await?),
-            log_dir,
+            data_dir,
         )),
     }
 }

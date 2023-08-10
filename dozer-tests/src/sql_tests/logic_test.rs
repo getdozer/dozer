@@ -40,13 +40,13 @@ impl Dozer {
     }
 
     // Only in dozer and sink results to **results** table
-    pub fn run_pipeline(&mut self, sql: &str) -> Result<Vec<Vec<String>>> {
+    pub async fn run_pipeline(&mut self, sql: &str) -> Result<Vec<Vec<String>>> {
         let pipeline = TestPipeline::new(
             sql.to_string(),
             self.source_db.schema_map.clone(),
             self.ops.clone(),
         );
-        pipeline.run().map_err(DozerSqlLogicTestError::from)
+        pipeline.run().await.map_err(DozerSqlLogicTestError::from)
     }
 }
 
@@ -81,7 +81,7 @@ impl AsyncDB for Dozer {
                     self.ops.push((source, operation));
                 }
 
-                let output = self.run_pipeline(sql)?;
+                let output = self.run_pipeline(sql).await?;
 
                 Ok(DBOutput::Rows {
                     types: vec![],

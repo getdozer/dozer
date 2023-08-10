@@ -27,9 +27,9 @@ pub struct AppConfig {
     pub log_max_num_immutable_entries: Option<u32>,
 
     /// The storage to use for the log.
-    #[prost(oneof = "LogStorage", tags = "7,8")]
+    #[prost(oneof = "DataStorage", tags = "7,8")]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub log_storage: Option<LogStorage>,
+    pub data_storage: Option<DataStorage>,
 
     #[prost(uint32, optional)]
     /// How many errors we can tolerate before bringing down the app.
@@ -38,7 +38,7 @@ pub struct AppConfig {
 }
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, prost::Oneof)]
-pub enum LogStorage {
+pub enum DataStorage {
     #[prost(message, tag = "7")]
     Local(()),
     #[prost(message, tag = "8")]
@@ -52,7 +52,8 @@ pub struct S3Storage {
     #[prost(string, tag = "2")]
     pub bucket_name: String,
 }
-impl Default for LogStorage {
+
+impl Default for DataStorage {
     fn default() -> Self {
         Self::Local(())
     }

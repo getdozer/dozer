@@ -102,8 +102,6 @@ impl ReceiverLoop for SinkNode {
             self.error_manager.report(e);
         }
 
-        self.epoch_manager.finalize_epoch(epoch);
-
         if let Ok(duration) = epoch.decision_instant.elapsed() {
             histogram!(PIPELINE_LATENCY_HISTOGRAM_NAME, duration, "endpoint" => self.node_handle.id.clone());
         }

@@ -17,7 +17,7 @@ use dozer_types::{
 use futures_util::{stream::BoxStream, StreamExt, TryStreamExt};
 use nonzero_ext::nonzero;
 
-use super::{Error, ListObjectsOutput, Object, Storage};
+use super::{Error, ListObjectsOutput, ListedObject, Storage};
 
 #[derive(Debug, Clone)]
 pub struct S3Storage {
@@ -195,7 +195,7 @@ impl Storage for S3Storage {
             .map(|object| {
                 (*object.last_modified().expect("must have last modified"))
                     .try_into()
-                    .map(|last_modified| Object {
+                    .map(|last_modified| ListedObject {
                         key: object.key.expect("must have key"),
                         last_modified,
                     })

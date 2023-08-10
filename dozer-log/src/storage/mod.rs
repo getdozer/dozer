@@ -18,14 +18,14 @@ use dozer_types::{
 pub use nonzero_ext::nonzero;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Object {
+pub struct ListedObject {
     pub key: String,
     pub last_modified: SystemTime,
 }
 
 #[derive(Debug, Clone)]
 pub struct ListObjectsOutput {
-    pub objects: Vec<Object>,
+    pub objects: Vec<ListedObject>,
     pub continuation_token: Option<String>,
 }
 
@@ -118,6 +118,12 @@ pub use s3::{BucketLocationConstraint, S3Storage};
 mod local;
 
 pub use local::LocalStorage;
+
+mod queue;
+pub use queue::Queue;
+
+mod object;
+pub use object::Object;
 
 #[cfg(test)]
 mod tests;

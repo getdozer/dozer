@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use dozer_types::models::app_config::LogStorage;
+use dozer_types::models::app_config::DataStorage;
 use tempdir::TempDir;
 use tokio::sync::Mutex;
 
@@ -15,7 +15,7 @@ async fn create_test_log(
     let temp_dir = TempDir::new(temp_dir_prefix).unwrap();
     let log = Log::new(
         LogOptions {
-            storage_config: LogStorage::Local(()),
+            storage_config: DataStorage::Local(()),
             max_num_immutable_entries: 10,
             entry_max_size,
         },

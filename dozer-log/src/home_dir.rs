@@ -170,7 +170,7 @@ pub struct BuildPath {
     pub contracts_dir: Utf8PathBuf,
     pub dag_path: Utf8PathBuf,
     pub descriptor_path: Utf8PathBuf,
-    data_dir: Utf8PathBuf,
+    pub data_dir: Utf8PathBuf,
     log_dir: Utf8PathBuf,
 }
 

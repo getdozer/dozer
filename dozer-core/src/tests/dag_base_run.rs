@@ -11,9 +11,11 @@ use crate::tests::sources::{
     GENERATOR_SOURCE_OUTPUT_PORT,
 };
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
+use dozer_log::tokio;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
 use dozer_types::types::Schema;
+use tempdir::TempDir;
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -84,8 +86,8 @@ impl Processor for NoopProcessor {
     }
 }
 
-#[test]
-fn test_run_dag() {
+#[tokio::test]
+async fn test_run_dag() {
     let count: u64 = 1_000;
 
     let mut dag = Dag::new();
@@ -117,16 +119,22 @@ fn test_run_dag() {
     )
     .unwrap();
 
-    DagExecutor::new(dag, ExecutorOptions::default())
-        .unwrap()
-        .start(Arc::new(AtomicBool::new(true)))
-        .unwrap()
-        .join()
-        .unwrap();
+    let temp_dir = TempDir::new("test_run_dag").unwrap();
+    DagExecutor::new(
+        dag,
+        temp_dir.path().to_str().unwrap().to_string(),
+        ExecutorOptions::default(),
+    )
+    .await
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)))
+    .unwrap()
+    .join()
+    .unwrap();
 }
 
-#[test]
-fn test_run_dag_and_stop() {
+#[tokio::test]
+async fn test_run_dag_and_stop() {
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
@@ -159,10 +167,16 @@ fn test_run_dag_and_stop() {
     .unwrap();
 
     let running = Arc::new(AtomicBool::new(true));
-    let join_handle = DagExecutor::new(dag, ExecutorOptions::default())
-        .unwrap()
-        .start(running.clone())
-        .unwrap();
+    let temp_dir = TempDir::new("test_run_dag_and_stop").unwrap();
+    let join_handle = DagExecutor::new(
+        dag,
+        temp_dir.path().to_str().unwrap().to_string(),
+        ExecutorOptions::default(),
+    )
+    .await
+    .unwrap()
+    .start(running.clone())
+    .unwrap();
 
     thread::sleep(Duration::from_millis(1000));
     running.store(false, Ordering::SeqCst);
@@ -233,8 +247,8 @@ impl Processor for NoopJoinProcessor {
     }
 }
 
-#[test]
-fn test_run_dag_2_sources_stateless() {
+#[tokio::test]
+async fn test_run_dag_2_sources_stateless() {
     let count: u64 = 50_000;
 
     let mut dag = Dag::new();
@@ -278,16 +292,22 @@ fn test_run_dag_2_sources_stateless() {
     )
     .unwrap();
 
-    DagExecutor::new(dag, ExecutorOptions::default())
-        .unwrap()
-        .start(Arc::new(AtomicBool::new(true)))
-        .unwrap()
-        .join()
-        .unwrap();
+    let temp_dir = TempDir::new("test_run_dag_2_sources_stateless").unwrap();
+    DagExecutor::new(
+        dag,
+        temp_dir.path().to_str().unwrap().to_string(),
+        ExecutorOptions::default(),
+    )
+    .await
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)))
+    .unwrap()
+    .join()
+    .unwrap();
 }
 
-#[test]
-fn test_run_dag_2_sources_stateful() {
+#[tokio::test]
+async fn test_run_dag_2_sources_stateful() {
     let count: u64 = 50_000;
 
     let mut dag = Dag::new();
@@ -331,16 +351,22 @@ fn test_run_dag_2_sources_stateful() {
     )
     .unwrap();
 
-    DagExecutor::new(dag, ExecutorOptions::default())
-        .unwrap()
-        .start(Arc::new(AtomicBool::new(true)))
-        .unwrap()
-        .join()
-        .unwrap();
+    let temp_dir = TempDir::new("test_run_dag_2_sources_stateful").unwrap();
+    DagExecutor::new(
+        dag,
+        temp_dir.path().to_str().unwrap().to_string(),
+        ExecutorOptions::default(),
+    )
+    .await
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)))
+    .unwrap()
+    .join()
+    .unwrap();
 }
 
-#[test]
-fn test_run_dag_1_source_2_ports_stateless() {
+#[tokio::test]
+async fn test_run_dag_1_source_2_ports_stateless() {
     let count: u64 = 50_000;
 
     let mut dag = Dag::new();
@@ -385,10 +411,16 @@ fn test_run_dag_1_source_2_ports_stateless() {
     )
     .unwrap();
 
-    DagExecutor::new(dag, ExecutorOptions::default())
-        .unwrap()
-        .start(Arc::new(AtomicBool::new(true)))
-        .unwrap()
-        .join()
-        .unwrap();
+    let temp_dir = TempDir::new("test_run_dag_1_source_2_ports_stateless").unwrap();
+    DagExecutor::new(
+        dag,
+        temp_dir.path().to_str().unwrap().to_string(),
+        ExecutorOptions::default(),
+    )
+    .await
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)))
+    .unwrap()
+    .join()
+    .unwrap();
 }

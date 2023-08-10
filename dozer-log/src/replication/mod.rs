@@ -6,7 +6,7 @@ use std::time::{Duration, SystemTime};
 use camino::Utf8Path;
 use dozer_types::grpc_types::internal::storage_response;
 use dozer_types::log::{debug, error};
-use dozer_types::models::app_config::LogStorage;
+use dozer_types::models::app_config::DataStorage;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::Operation;
 use dozer_types::{bincode, thiserror};
@@ -17,7 +17,7 @@ use tokio::task::{JoinError, JoinHandle};
 
 use self::persist::{load_persisted_log_entries, persisted_log_entries_end, PersistingQueue};
 
-pub use self::persist::create_log_storage;
+pub use self::persist::create_data_storage;
 
 mod persist;
 
@@ -48,7 +48,7 @@ pub enum Error {
 
 #[derive(Debug, Clone)]
 pub struct LogOptions {
-    pub storage_config: LogStorage,
+    pub storage_config: DataStorage,
     pub entry_max_size: usize,
     pub max_num_immutable_entries: usize,
 }
@@ -94,7 +94,7 @@ impl Log {
     }
 
     pub async fn new(options: LogOptions, log_dir: String, readonly: bool) -> Result<Self, Error> {
-        let (storage, mut prefix) = create_log_storage(options.storage_config, log_dir).await?;
+        let (storage, mut prefix) = create_data_storage(options.storage_config, log_dir).await?;
         if !readonly {
             // Right now we don't support appending to an existing log, because the pipeline doesn't support restart yet.
             // So we write a marker file to every log to mark it as "dirty" and should not be reused.

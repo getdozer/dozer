@@ -15,7 +15,7 @@ pub enum ProcessorOperation {
     },
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub enum ExecutorOperation {
     Op { op: ProcessorOperation },
     Commit { epoch: Epoch },

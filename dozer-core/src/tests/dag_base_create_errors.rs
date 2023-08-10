@@ -9,9 +9,11 @@ use crate::tests::dag_base_run::NoopProcessorFactory;
 use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 
+use dozer_log::tokio;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
 use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
+use tempdir::TempDir;
 
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
@@ -71,9 +73,9 @@ impl SourceFactory<NoneContext> for CreateErrSourceFactory {
     }
 }
 
-#[test]
+#[tokio::test]
 #[should_panic]
-fn test_create_src_err() {
+async fn test_create_src_err() {
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
@@ -105,17 +107,23 @@ fn test_create_src_err() {
     )
     .unwrap();
 
-    DagExecutor::new(dag, ExecutorOptions::default())
-        .unwrap()
-        .start(Arc::new(AtomicBool::new(true)))
-        .unwrap()
-        .join()
-        .unwrap();
+    let temp_dir = TempDir::new("test_create_src_err").unwrap();
+    DagExecutor::new(
+        dag,
+        temp_dir.path().to_str().unwrap().to_string(),
+        ExecutorOptions::default(),
+    )
+    .await
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)))
+    .unwrap()
+    .join()
+    .unwrap();
 }
 
-#[test]
+#[tokio::test]
 #[should_panic]
-fn test_create_src_panic() {
+async fn test_create_src_panic() {
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
@@ -147,12 +155,18 @@ fn test_create_src_panic() {
     )
     .unwrap();
 
-    DagExecutor::new(dag, ExecutorOptions::default())
-        .unwrap()
-        .start(Arc::new(AtomicBool::new(true)))
-        .unwrap()
-        .join()
-        .unwrap();
+    let temp_dir = TempDir::new("test_create_src_panic").unwrap();
+    DagExecutor::new(
+        dag,
+        temp_dir.path().to_str().unwrap().to_string(),
+        ExecutorOptions::default(),
+    )
+    .await
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)))
+    .unwrap()
+    .join()
+    .unwrap();
 }
 
 #[derive(Debug)]
@@ -221,9 +235,9 @@ impl ProcessorFactory<NoneContext> for CreateErrProcessorFactory {
     }
 }
 
-#[test]
+#[tokio::test]
 #[should_panic]
-fn test_create_proc_err() {
+async fn test_create_proc_err() {
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
@@ -258,17 +272,23 @@ fn test_create_proc_err() {
     )
     .unwrap();
 
-    DagExecutor::new(dag, ExecutorOptions::default())
-        .unwrap()
-        .start(Arc::new(AtomicBool::new(true)))
-        .unwrap()
-        .join()
-        .unwrap();
+    let temp_dir = TempDir::new("test_create_proc_err").unwrap();
+    DagExecutor::new(
+        dag,
+        temp_dir.path().to_str().unwrap().to_string(),
+        ExecutorOptions::default(),
+    )
+    .await
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)))
+    .unwrap()
+    .join()
+    .unwrap();
 }
 
-#[test]
+#[tokio::test]
 #[should_panic]
-fn test_create_proc_panic() {
+async fn test_create_proc_panic() {
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
@@ -303,10 +323,16 @@ fn test_create_proc_panic() {
     )
     .unwrap();
 
-    DagExecutor::new(dag, ExecutorOptions::default())
-        .unwrap()
-        .start(Arc::new(AtomicBool::new(true)))
-        .unwrap()
-        .join()
-        .unwrap();
+    let temp_dir = TempDir::new("test_create_proc_panic").unwrap();
+    DagExecutor::new(
+        dag,
+        temp_dir.path().to_str().unwrap().to_string(),
+        ExecutorOptions::default(),
+    )
+    .await
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)))
+    .unwrap()
+    .join()
+    .unwrap();
 }
