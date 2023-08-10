@@ -1,9 +1,11 @@
 use crate::config_helper::combine_config;
 use crate::errors::CliError;
 use crate::errors::CliError::{ConfigurationFilePathNotProvided, FailedToFindConfigurationFiles};
+use crate::errors::ConfigCombineError::CannotReadConfig;
 use crate::errors::OrchestrationError;
 use crate::simple::SimpleOrchestrator as Dozer;
 use atty::Stream;
+use std::path::PathBuf;
 use dozer_types::models::config::default_cache_max_map_size;
 use dozer_types::prettytable::{row, Table};
 use dozer_types::{models::config::Config, serde_yaml};
@@ -87,9 +89,9 @@ async fn load_config(
             if path.starts_with("https://") || path.starts_with("http://") {
                 load_config_from_http_url(path, config_token).await
             } else if is_pipe {
-                load_config_from_stdin(config_url_or_paths)
+                load_config_from_file(config_url_or_paths,true)
             } else {
-                load_config_from_file(config_url_or_paths)
+                load_config_from_file(config_url_or_paths,false)
             }
         }
     }
@@ -109,20 +111,20 @@ async fn load_config_from_http_url(
     parse_config(&contents)
 }
 
-pub fn load_config_from_file(config_path: Vec<String>) -> Result<Config, CliError> {
-    let config_template = combine_config(config_path.clone(), None)?;
-    match config_template {
-        Some(template) => parse_config(&template),
-        None => Err(FailedToFindConfigurationFiles(config_path.join(", "))),
-    }
-}
+pub fn load_config_from_file(config_path: Vec<String>, read_stdin: bool) -> Result<Config, CliError> {
+    let stdin_path = PathBuf::from("<stdin>");    
+    let input = if read_stdin {
+        let mut input = String::new();
+        io::stdin()
+            .read_to_string(&mut input)
+            .map_err(|e| CannotReadConfig(stdin_path, e))?;
+        Some(input)
+    } else {
+        None
+    };
 
-fn load_config_from_stdin(config_path: Vec<String>) -> Result<Config, CliError> {
-    let mut input = String::new();
-    io::stdin()
-        .read_to_string(&mut input)
-        .expect("Failed to read input from stdin");
-    let config_template = combine_config(config_path.clone(), Some(input))?;
+
+    let config_template = combine_config(config_path.clone(), input)?;
     match config_template {
         Some(template) => parse_config(&template),
         None => Err(FailedToFindConfigurationFiles(config_path.join(", "))),
