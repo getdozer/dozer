@@ -148,4 +148,3 @@ pub fn set_ctrl_handler(shutdown_sender: ShutdownSender) {
     })
     .expect("Error setting Ctrl-C handler");
 }
-

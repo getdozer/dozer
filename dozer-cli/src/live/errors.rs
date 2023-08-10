@@ -1,9 +1,9 @@
+use crate::errors::CliError;
 use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
-use crate::errors::CliError;
-use rusoto_core::{RusotoError, request::TlsError};
+use rusoto_core::{request::TlsError, RusotoError};
 use rusoto_s3::GetObjectError;
 use zip::result::ZipError;
 

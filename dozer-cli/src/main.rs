@@ -23,15 +23,13 @@ use dozer_types::log::{debug, warn};
 use std::time::Duration;
 use std::{env, process};
 
-
 fn main() {
     set_panic_hook();
-    
+
     if let Err(e) = run() {
         display_error(&e);
         process::exit(1);
     }
-
 }
 
 fn render_logo() {
@@ -49,7 +47,6 @@ struct DozerPackage {
     pub _available_assets: Vec<String>,
     pub link: String,
 }
-
 
 fn version_to_vector(version: &str) -> Vec<i32> {
     version.split('.').map(|s| s.parse().unwrap()).collect()
@@ -291,7 +288,6 @@ fn display_error(e: &OrchestrationError) {
         error!("{}", e);
     }
 }
-
 
 struct Telemetry();
 
