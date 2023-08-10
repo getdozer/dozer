@@ -36,13 +36,17 @@ pub fn evaluate_onnx_udf(
         .with_intra_threads(1)?
         .with_model_from_file(Path::new("../models/onnx_model.onnx"))?;
 
+    let input_values = args
+        .iter()
+        .map(|arg| arg.evaluate(record, schema))
+        .collect::<Result<Vec<_>, PipelineError>>()?;
+
+    // dozer fields to ndarray
+
     let inputs = vec![Value::from_array(session.allocator(), &[])?];
     let outputs: Vec<Value> = session.run(inputs)?;
 
-    // let values = args
-    //     .iter()
-    //     .map(|arg| arg.evaluate(record, schema))
-    //     .collect::<Result<Vec<_>, PipelineError>>()?;
+    // ort value to dozer fields
 }
 
 pub fn is_field_type_compatible(dozer_type: &FieldType, onnx_type: TensorElementDataType) -> bool {
