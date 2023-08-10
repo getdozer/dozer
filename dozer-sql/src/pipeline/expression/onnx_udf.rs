@@ -2,9 +2,8 @@ use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::UnsupportedSqlError;
 use crate::pipeline::errors::UnsupportedSqlError::GenericError;
 use crate::pipeline::expression::execution::Expression;
-use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::types::{Field, FieldType, Schema};
+use dozer_types::types::{Field, FieldType, Record, Schema};
 use std::env;
 use std::path::PathBuf;
 use ort::{Environment, LoggingLevel};
@@ -22,10 +21,10 @@ pub fn evaluate_onnx_udf(
     name: &str,
     args: &[Expression],
     return_type: &FieldType,
-    record: &ProcessorRecord,
+    record: &Record,
 ) -> Result<Field, PipelineError> {
-    let environment = Environment::builder().with_name("test").with_log_level(LoggingLevel::Verbose).build()?;
-
+    let environment = Environment::builder().with_name("onnx").with_log_level(LoggingLevel::Verbose).build()?;
+    environment.
     let values = args
         .iter()
         .map(|arg| arg.evaluate(record, schema))
