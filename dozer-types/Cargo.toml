@@ -26,6 +26,7 @@ prettytable-rs = "0.10.0"
 indicatif = "0.17.3"
 geo = {version = "0.26.0", features = ["use-serde"]}
 pyo3 = {version = "0.18.1", optional = true}
+ort = { version = "1.15.2", optional = true }
 tonic = {version = "0.8.3"}
 prost-types = "0.11.1"
 prost = "0.11.8"
@@ -41,4 +42,4 @@ tonic-build = "0.8.2"
 python-extension-module = ["dep:pyo3", "pyo3?/extension-module"]
 python-auto-initialize = ["dep:pyo3", "pyo3?/auto-initialize"]
 snowflake=[]
-onnx=[]
+onnx=["dep:ort"]

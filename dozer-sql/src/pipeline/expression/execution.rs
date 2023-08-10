@@ -174,7 +174,17 @@ impl Expression {
                     + ")"
             }
             #[cfg(feature = "onnx")]
-            Expression::OnnxUDF { .. } => todo!(),
+            Expression::OnnxUDF { name, args, .. } => {
+                name.to_string()
+                    + "("
+                    + args
+                    .iter()
+                    .map(|expr| expr.to_string(schema))
+                    .collect::<Vec<String>>()
+                    .join(",")
+                    .as_str()
+                    + ")"
+            }
             Expression::Cast { arg, typ } => {
                 "CAST(".to_string()
                     + arg.to_string(schema).as_str()
@@ -230,7 +240,6 @@ impl Expression {
                     + arg.to_string(schema).as_str()
                     + ")"
             }
-
             Expression::Like {
                 arg,
                 pattern,
@@ -474,7 +483,12 @@ impl Expression {
                 false,
             )),
             #[cfg(feature = "onnx")]
-            Expression::OnnxUDF { .. } => todo!(),
+            Expression::OnnxUDF { return_type, .. } => Ok(ExpressionType::new(
+                *return_type,
+                false,
+                SourceDefinition::Dynamic,
+                false
+            )),
         }
     }
 }
