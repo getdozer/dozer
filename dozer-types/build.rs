@@ -22,6 +22,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     tonic_build::configure()
         .protoc_arg("--experimental_allow_proto3_optional")
         .compile(&["protos/auth.proto"], &["protos"])?;
+    tonic_build::configure()
+        .protoc_arg("--experimental_allow_proto3_optional")
+        .file_descriptor_set_path(out_dir.join("live.bin"))
+        .compile(&["protos/live.proto"], &["protos"])?;
 
     // Sample service generated for tests and development
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
@@ -77,8 +81,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "crate::ingestion_types::SnowflakeConfig",
         )
         .extern_path(
+            ".dozer.cloud::grpc_config::Schemas",
+            "crate::ingestion_types::GrpcConfigSchemas",
+        )
+        .extern_path(
             ".dozer.cloud.GrpcConfig",
-            "crate::models::connection::GrpcConfig",
+            "crate::ingestion_types::GrpcConfig",
         )
         .extern_path(
             ".dozer.cloud.EthereumConfig",

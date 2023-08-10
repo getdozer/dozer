@@ -96,17 +96,15 @@ message PostgresConfig {
 }
 
 message GrpcConfig {
-  string host = 3;
-  uint32 port = 4;
-  string schemas = 5;
+  string host = 1;
+  uint32 port = 2;
+  oneof schemas {
+    string Inline = 3;
+    string Path = 4;
+  }
+  string adapter = 5;
 }
 
-message GrpcConfigSchemas {
-  oneof schemas {
-    string Inline = 1;
-    string Path = 2;
-  }
-}
 message KafkaConfig {
   string broker = 1;
   string topic = 2;
