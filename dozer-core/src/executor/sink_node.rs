@@ -32,7 +32,7 @@ pub struct SinkNode {
     /// This node's state writer, for writing metadata and port state.
     state_writer: StateWriter,
     /// Where all the records from ingested data are stored.
-    record_store: ProcessorRecordStore,
+    record_store: Arc<ProcessorRecordStore>,
     /// The error manager, for reporting non-fatal errors.
     error_manager: Arc<ErrorManager>,
 }

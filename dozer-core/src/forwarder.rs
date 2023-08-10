@@ -150,7 +150,7 @@ pub(crate) struct SourceChannelManager {
     num_uncommitted_ops: u32,
     max_duration_between_commits: Duration,
     last_commit_instant: SystemTime,
-    record_store: ProcessorRecordStore,
+    record_store: Arc<ProcessorRecordStore>,
     epoch_manager: Arc<EpochManager>,
 }
 
@@ -163,7 +163,7 @@ impl SourceChannelManager {
         stateful: bool,
         commit_sz: u32,
         max_duration_between_commits: Duration,
-        record_store: ProcessorRecordStore,
+        record_store: Arc<ProcessorRecordStore>,
         epoch_manager: Arc<EpochManager>,
         error_manager: Arc<ErrorManager>,
     ) -> Self {

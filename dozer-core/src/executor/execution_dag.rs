@@ -44,7 +44,7 @@ pub struct EdgeType {
 pub struct ExecutionDag {
     /// Nodes will be moved into execution threads.
     graph: daggy::Dag<Option<NodeType>, EdgeType>,
-    record_store: ProcessorRecordStore,
+    record_store: Arc<ProcessorRecordStore>,
     epoch_manager: Arc<EpochManager>,
     error_manager: Arc<ErrorManager>,
 }
@@ -144,7 +144,7 @@ impl ExecutionDag {
         &mut self.graph[node_index]
     }
 
-    pub fn record_store(&self) -> &ProcessorRecordStore {
+    pub fn record_store(&self) -> &Arc<ProcessorRecordStore> {
         &self.record_store
     }
 

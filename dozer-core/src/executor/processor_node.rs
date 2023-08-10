@@ -32,7 +32,7 @@ pub struct ProcessorNode {
     /// This node's output channel manager, for forwarding data, writing metadata and writing port state.
     channel_manager: ProcessorChannelManager,
     /// Where all the records from ingested data are stored.
-    record_store: ProcessorRecordStore,
+    record_store: Arc<ProcessorRecordStore>,
     /// The error manager, for reporting non-fatal errors.
     error_manager: Arc<ErrorManager>,
 }
