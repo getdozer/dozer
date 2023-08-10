@@ -44,4 +44,3 @@ dozer-ingestion/src/tests/cases/*/buildkite_runner*/
 dozer-ingestion/benches/connectors.yaml
 
 
-config.yaml

@@ -10,7 +10,10 @@ use dozer_types::serde_yaml::{Mapping, Value};
 use glob::glob;
 use std::fs;
 
-pub fn combine_config(config_paths: Vec<String>, stdin_yaml: Option<String>) -> Result<Option<String>, ConfigCombineError> {
+pub fn combine_config(
+    config_paths: Vec<String>,
+    stdin_yaml: Option<String>,
+) -> Result<Option<String>, ConfigCombineError> {
     let mut combined_yaml = serde_yaml::Value::Mapping(Mapping::new());
 
     let mut config_found = false;
@@ -39,8 +42,8 @@ pub fn combine_config(config_paths: Vec<String>, stdin_yaml: Option<String>) -> 
     let stdin_name = "Stdin";
     // Merge stdin_yaml content into combined_yaml if provided
     if let Some(stdin_content) = stdin_yaml {
-        let stdin_yaml: serde_yaml::Value = serde_yaml::from_str(&stdin_content)  
-            .map_err(|e| ConfigCombineError::ParseYaml( stdin_name.to_string() , e))?;  //deserialise yaml content from stdin
+        let stdin_yaml: serde_yaml::Value = serde_yaml::from_str(&stdin_content)
+            .map_err(|e| ConfigCombineError::ParseYaml(stdin_name.to_string(), e))?; //deserialise yaml content from stdin
         merge_yaml(stdin_yaml, &mut combined_yaml)?; //merge with yaml from config-paths
     }
 
