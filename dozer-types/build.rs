@@ -37,7 +37,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Cloud Service & Types
     tonic_build::configure()
         .protoc_arg("--experimental_allow_proto3_optional")
-        .type_attribute(".", "#[derive(serde::Serialize, serde::Deserialize)]")
         .extern_path(
             ".dozer.cloud.Endpoint",
             "crate::models::api_endpoint::ApiEndpoint",

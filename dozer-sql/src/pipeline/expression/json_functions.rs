@@ -5,8 +5,8 @@ use crate::pipeline::errors::PipelineError::{
 use crate::pipeline::expression::execution::Expression;
 
 use crate::jsonpath::{JsonPathFinder, JsonPathInst};
-use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::json_types::JsonValue;
+use dozer_types::types::Record;
 use dozer_types::types::{Field, Schema};
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
@@ -39,7 +39,7 @@ impl JsonFunctionType {
         &self,
         schema: &Schema,
         args: &Vec<Expression>,
-        record: &ProcessorRecord,
+        record: &Record,
     ) -> Result<Field, PipelineError> {
         match self {
             JsonFunctionType::JsonValue => self.evaluate_json_value(schema, args, record),
@@ -51,7 +51,7 @@ impl JsonFunctionType {
         &self,
         schema: &Schema,
         args: &Vec<Expression>,
-        record: &ProcessorRecord,
+        record: &Record,
     ) -> Result<Field, PipelineError> {
         if args.len() > 2 {
             return Err(InvalidFunctionArgument(
@@ -73,7 +73,7 @@ impl JsonFunctionType {
         &self,
         schema: &Schema,
         args: &Vec<Expression>,
-        record: &ProcessorRecord,
+        record: &Record,
     ) -> Result<Field, PipelineError> {
         let mut path = String::from("$");
         if args.len() < 2 && !args.is_empty() {

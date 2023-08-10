@@ -19,7 +19,7 @@ use crate::pipeline::expression::case::evaluate_case;
 
 use crate::pipeline::aggregation::max_value::validate_max_value;
 use crate::pipeline::aggregation::min_value::validate_min_value;
-use dozer_core::processor_record::ProcessorRecord;
+use dozer_types::types::Record;
 use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
 use uuid::Uuid;
 
@@ -315,14 +315,10 @@ impl ExpressionType {
 }
 
 impl Expression {
-    pub fn evaluate(
-        &self,
-        record: &ProcessorRecord,
-        schema: &Schema,
-    ) -> Result<Field, PipelineError> {
+    pub fn evaluate(&self, record: &Record, schema: &Schema) -> Result<Field, PipelineError> {
         match self {
             Expression::Literal(field) => Ok(field.clone()),
-            Expression::Column { index } => Ok(record.get_field_by_index(*index as u32).clone()),
+            Expression::Column { index } => Ok(record.values[*index].clone()),
             Expression::BinaryOperator {
                 left,
                 operator,

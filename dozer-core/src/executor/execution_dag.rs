@@ -15,6 +15,7 @@ use crate::{
     executor_operation::ExecutorOperation,
     hash_map_to_vec::insert_vec_element,
     node::PortHandle,
+    processor_record::ProcessorRecordStore,
     record_store::{create_record_writer, RecordWriter},
 };
 use crossbeam::channel::{bounded, Receiver, Sender};
@@ -43,6 +44,7 @@ pub struct EdgeType {
 pub struct ExecutionDag {
     /// Nodes will be moved into execution threads.
     graph: daggy::Dag<Option<NodeType>, EdgeType>,
+    record_store: ProcessorRecordStore,
     epoch_manager: Arc<EpochManager>,
     error_manager: Arc<ErrorManager>,
 }
@@ -86,6 +88,7 @@ impl ExecutionDag {
                             output_port,
                             edge.output_port_type,
                             edge.schema.clone(),
+                            builder_dag.record_store().clone(),
                         );
                         let record_writer = if let Some(record_writer) = record_writer {
                             Rc::new(RefCell::new(Some(record_writer)))
@@ -112,6 +115,7 @@ impl ExecutionDag {
         }
 
         // Create new graph.
+        let record_store = builder_dag.record_store().clone();
         let graph = builder_dag.into_graph().map_owned(
             |_, node| Some(node),
             |edge_index, _| {
@@ -122,6 +126,7 @@ impl ExecutionDag {
         );
         Ok(ExecutionDag {
             graph,
+            record_store,
             epoch_manager: Arc::new(EpochManager::new(num_sources)),
             error_manager: Arc::new(if let Some(threshold) = error_threshold {
                 ErrorManager::new_threshold(threshold)
@@ -137,6 +142,10 @@ impl ExecutionDag {
 
     pub fn node_weight_mut(&mut self, node_index: daggy::NodeIndex) -> &mut Option<NodeType> {
         &mut self.graph[node_index]
+    }
+
+    pub fn record_store(&self) -> &ProcessorRecordStore {
+        &self.record_store
     }
 
     pub fn epoch_manager(&self) -> &Arc<EpochManager> {

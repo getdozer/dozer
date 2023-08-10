@@ -323,7 +323,7 @@ pub fn run_sql(
     let (tx, rx) = dozer_types::crossbeam::channel::unbounded::<bool>();
     let pipeline_thread = std::thread::spawn(move || {
         dozer.build(true).unwrap();
-        dozer.run_apps(shutdown_receiver, Some(tx), None)
+        dozer.run_apps(shutdown_receiver, Some(tx))
     });
     let endpoint_name = endpoints[0].clone();
 

@@ -4,6 +4,7 @@ use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::SetError;
 
+use dozer_core::processor_record::ProcessorRecordStore;
 use dozer_core::{
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
@@ -72,6 +73,7 @@ impl ProcessorFactory<SchemaSQLContext> for SetProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
+        _record_store: &ProcessorRecordStore,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         Ok(Box::new(SetProcessor::new(
             self.id.clone(),

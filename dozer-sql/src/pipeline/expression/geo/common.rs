@@ -3,7 +3,7 @@ use crate::pipeline::expression::execution::{Expression, ExpressionType};
 
 use crate::pipeline::expression::geo::distance::{evaluate_distance, validate_distance};
 use crate::pipeline::expression::geo::point::{evaluate_point, validate_point};
-use dozer_core::processor_record::ProcessorRecord;
+use dozer_types::types::Record;
 use dozer_types::types::{Field, Schema};
 use std::fmt::{Display, Formatter};
 
@@ -46,7 +46,7 @@ impl GeoFunctionType {
         &self,
         schema: &Schema,
         args: &[Expression],
-        record: &ProcessorRecord,
+        record: &Record,
     ) -> Result<Field, PipelineError> {
         match self {
             GeoFunctionType::Point => evaluate_point(schema, args, record),
