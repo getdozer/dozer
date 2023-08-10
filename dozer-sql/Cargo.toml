@@ -29,7 +29,7 @@ regex = "1.8.1"
 sqlparser = {git = "https://github.com/getdozer/sqlparser-rs.git" }
 uuid = {version = "1.3.0", features = ["v1", "v4", "fast-rng"]}
 bigdecimal = { version = "0.3", features = ["serde"], optional = true }
-ort = { version = "1.15.2", features = ["fetch-models"], optional = true }
+ort = { version = "1.15.2", optional = true }
 
 [dev-dependencies]
 tempdir = "0.3.7"
