@@ -4,9 +4,9 @@ use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::builder::ExpressionBuilder;
 use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::pipeline_builder::from_builder::string_from_sql_object_name;
+use dozer_types::models::udf_config::UdfConfig;
 use dozer_types::types::{FieldDefinition, Schema};
 use sqlparser::ast::{Expr, Ident, Select, SelectItem};
-use dozer_types::models::udf_config::UdfConfig;
 
 #[derive(Clone, Copy)]
 pub enum PrimaryKeyAction {
@@ -76,7 +76,8 @@ impl CommonPlanner {
             let mut builder = ExpressionBuilder::new(
                 self.input_schema.fields.len() + self.aggregation_output.len(),
             );
-            let projection_expression = builder.build(true, &expr, &self.input_schema, &self.udfs)?;
+            let projection_expression =
+                builder.build(true, &expr, &self.input_schema, &self.udfs)?;
 
             for new_aggr in builder.aggregations {
                 Self::append_to_schema(
@@ -112,7 +113,8 @@ impl CommonPlanner {
             let mut builder = ExpressionBuilder::new(
                 self.input_schema.fields.len() + self.aggregation_output.len(),
             );
-            let projection_expression = builder.build(true, &expr, &self.input_schema, &self.udfs)?;
+            let projection_expression =
+                builder.build(true, &expr, &self.input_schema, &self.udfs)?;
 
             for new_aggr in builder.aggregations {
                 Self::append_to_schema(

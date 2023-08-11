@@ -5,12 +5,12 @@ use dozer_core::{
     processor_record::ProcessorRecordStore,
     DEFAULT_PORT_HANDLE,
 };
+use dozer_types::models::udf_config::UdfConfig;
 use dozer_types::{
     errors::internal::BoxedError,
     types::{FieldDefinition, Schema},
 };
 use sqlparser::ast::{Expr, Ident, SelectItem};
-use dozer_types::models::udf_config::UdfConfig;
 
 use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::{

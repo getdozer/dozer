@@ -5,9 +5,9 @@ use dozer_core::{
     processor_record::ProcessorRecordStore,
     DEFAULT_PORT_HANDLE,
 };
+use dozer_types::models::udf_config::UdfConfig;
 use dozer_types::{errors::internal::BoxedError, types::Schema};
 use sqlparser::ast::{Expr, FunctionArg, FunctionArgExpr, Value};
-use dozer_types::models::udf_config::UdfConfig;
 
 use crate::pipeline::{
     builder::SchemaSQLContext,
@@ -33,7 +33,7 @@ pub struct TableOperatorProcessorFactory {
 }
 
 impl TableOperatorProcessorFactory {
-    pub fn new(id: String, table: TableOperatorDescriptor,  udfs: Vec<UdfConfig>) -> Self {
+    pub fn new(id: String, table: TableOperatorDescriptor, udfs: Vec<UdfConfig>) -> Self {
         Self {
             id: id.clone(),
             table,

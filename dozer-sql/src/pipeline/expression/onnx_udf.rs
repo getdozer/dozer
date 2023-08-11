@@ -13,7 +13,10 @@ use ort::tensor::TensorElementDataType::{
     Bool, Float16, Float32, Float64, Int16, Int32, Int64, String, Uint16, Uint32, Uint64,
 };
 use ort::tensor::{OrtOwnedTensor, TensorData, TensorElementDataType};
-use ort::{Environment, ExecutionProvider, GraphOptimizationLevel, LoggingLevel, Session, SessionBuilder, Value};
+use ort::{
+    Environment, ExecutionProvider, GraphOptimizationLevel, LoggingLevel, Session, SessionBuilder,
+    Value,
+};
 use sqlparser::tokenizer::Tokenizer;
 use std::env;
 use std::path::{Path, PathBuf};
@@ -43,7 +46,7 @@ pub fn evaluate_onnx_udf(
             // range [0, 255] -> range [0, 1]
             (channels[c] as f32) / 255.0
         })
-            .into_dyn()
+        .into_dyn(),
     );
 
     let inputs = vec![Value::from_array(session.allocator(), &[])?];

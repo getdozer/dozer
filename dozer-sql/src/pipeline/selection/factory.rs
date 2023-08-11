@@ -7,9 +7,9 @@ use dozer_core::{
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
+use dozer_types::models::udf_config::UdfConfig;
 use dozer_types::{errors::internal::BoxedError, types::Schema};
 use sqlparser::ast::Expr as SqlExpr;
-use dozer_types::models::udf_config::UdfConfig;
 
 use super::processor::SelectionProcessor;
 
@@ -23,7 +23,11 @@ pub struct SelectionProcessorFactory {
 impl SelectionProcessorFactory {
     /// Creates a new [`SelectionProcessorFactory`].
     pub fn new(id: String, statement: SqlExpr, udf_config: Vec<UdfConfig>) -> Self {
-        Self { statement, id, udfs: udf_config }
+        Self {
+            statement,
+            id,
+            udfs: udf_config,
+        }
     }
 }
 
@@ -66,7 +70,12 @@ impl ProcessorFactory<SchemaSQLContext> for SelectionProcessorFactory {
             .get(&DEFAULT_PORT_HANDLE)
             .ok_or(PipelineError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
 
-        match ExpressionBuilder::new(schema.fields.len()).build(false, &self.statement, schema, &self.udfs) {
+        match ExpressionBuilder::new(schema.fields.len()).build(
+            false,
+            &self.statement,
+            schema,
+            &self.udfs,
+        ) {
             Ok(expression) => Ok(Box::new(SelectionProcessor::new(
                 schema.clone(),
                 expression,

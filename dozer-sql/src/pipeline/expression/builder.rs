@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use dozer_types::models::udf_config::{UdfConfig};
 use dozer_types::{
     ordered_float::OrderedFloat,
     types::{Field, FieldDefinition, Schema, SourceDefinition},
@@ -8,7 +8,7 @@ use sqlparser::ast::{
     FunctionArg, FunctionArgExpr, Ident, Interval, TrimWhereField,
     UnaryOperator as SqlUnaryOperator, Value as SqlValue,
 };
-use dozer_types::models::udf_config::{OnnxConfig, UdfConfig, UdfType};
+
 
 use crate::pipeline::errors::PipelineError::{
     InvalidArgument, InvalidExpression, InvalidFunction, InvalidNestedAggregationFunction,
@@ -31,7 +31,7 @@ use crate::pipeline::expression::scalar::string::TrimType;
 
 use super::cast::CastOperatorType;
 
-#[derive(Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct ExpressionBuilder {
     // Must be an aggregation function
     pub aggregations: Vec<Expression>,
@@ -96,7 +96,9 @@ impl ExpressionBuilder {
             SqlExpr::BinaryOp { left, op, right } => {
                 self.parse_sql_binary_op(parse_aggregations, left, op, right, schema, udfs)
             }
-            SqlExpr::Nested(expr) => self.parse_sql_expression(parse_aggregations, expr, schema, udfs),
+            SqlExpr::Nested(expr) => {
+                self.parse_sql_expression(parse_aggregations, expr, schema, udfs)
+            }
             SqlExpr::Function(sql_function) => {
                 self.parse_sql_function(parse_aggregations, sql_function, schema, udfs)
             }
@@ -118,7 +120,14 @@ impl ExpressionBuilder {
                 expr,
                 list,
                 negated,
-            } => self.parse_sql_in_list_operator(parse_aggregations, expr, list, *negated, schema, udfs),
+            } => self.parse_sql_in_list_operator(
+                parse_aggregations,
+                expr,
+                list,
+                *negated,
+                schema,
+                udfs,
+            ),
 
             SqlExpr::Cast { expr, data_type } => {
                 self.parse_sql_cast_operator(parse_aggregations, expr, data_type, schema, udfs)
@@ -132,9 +141,13 @@ impl ExpressionBuilder {
                 leading_precision: _,
                 last_field: _,
                 fractional_seconds_precision: _,
-            }) => {
-                self.parse_sql_interval_expression(parse_aggregations, value, leading_field, schema, udfs)
-            }
+            }) => self.parse_sql_interval_expression(
+                parse_aggregations,
+                value,
+                leading_field,
+                schema,
+                udfs,
+            ),
             SqlExpr::Case {
                 operand,
                 conditions,
@@ -329,7 +342,12 @@ impl ExpressionBuilder {
     ) -> Result<Expression, PipelineError> {
         let mut function_args: Vec<Expression> = Vec::new();
         for arg in &sql_function.args {
-            function_args.push(self.parse_sql_function_arg(parse_aggregations, arg, schema, udfs)?);
+            function_args.push(self.parse_sql_function_arg(
+                parse_aggregations,
+                arg,
+                schema,
+                udfs,
+            )?);
         }
 
         match ScalarFunctionType::new(function_name.as_str()) {
@@ -351,7 +369,12 @@ impl ExpressionBuilder {
     ) -> Result<Expression, PipelineError> {
         let mut function_args: Vec<Expression> = Vec::new();
         for arg in &sql_function.args {
-            function_args.push(self.parse_sql_function_arg(parse_aggregations, arg, schema, udfs)?);
+            function_args.push(self.parse_sql_function_arg(
+                parse_aggregations,
+                arg,
+                schema,
+                udfs,
+            )?);
         }
 
         match GeoFunctionType::new(function_name.as_str()) {
@@ -380,7 +403,12 @@ impl ExpressionBuilder {
     ) -> Result<Expression, PipelineError> {
         let mut function_args: Vec<Expression> = Vec::new();
         for arg in &sql_function.args {
-            function_args.push(self.parse_sql_function_arg(parse_aggregations, arg, schema, udfs)?);
+            function_args.push(self.parse_sql_function_arg(
+                parse_aggregations,
+                arg,
+                schema,
+                udfs,
+            )?);
         }
 
         match JsonFunctionType::new(function_name.as_str()) {
@@ -402,7 +430,12 @@ impl ExpressionBuilder {
     ) -> Result<Expression, PipelineError> {
         let mut function_args: Vec<Expression> = Vec::new();
         for arg in &sql_function.args {
-            function_args.push(self.parse_sql_function_arg(parse_aggregations, arg, schema, udfs)?);
+            function_args.push(self.parse_sql_function_arg(
+                parse_aggregations,
+                arg,
+                schema,
+                udfs,
+            )?);
         }
 
         match ConditionalExpressionType::new(function_name.as_str()) {
@@ -436,9 +469,17 @@ impl ExpressionBuilder {
             for udf in udfs {
                 match udf.config.clone() {
                     Some(udf_type) => match udf_type {
-                        UdfType::Onnx(config) => return self.parse_onnx_udf(udf.name.clone(), &config, sql_function, schema, udfs),
-                    }
-                    None => return Err(PipelineError::UdfConfigMissing(udf.name.clone()))
+                        UdfType::Onnx(config) => {
+                            return self.parse_onnx_udf(
+                                udf.name.clone(),
+                                &config,
+                                sql_function,
+                                schema,
+                                udfs,
+                            )
+                        }
+                    },
+                    None => return Err(PipelineError::UdfConfigMissing(udf.name.clone())),
                 }
             }
         }
@@ -492,7 +533,13 @@ impl ExpressionBuilder {
             return datetime_check;
         }
 
-        self.json_func_check(function_name, parse_aggregations, sql_function, schema, udfs)
+        self.json_func_check(
+            function_name,
+            parse_aggregations,
+            sql_function,
+            schema,
+            udfs,
+        )
     }
 
     fn parse_sql_function_arg(
@@ -826,12 +873,12 @@ impl ExpressionBuilder {
         // First, get onnx function define by name.
         // Then, transfer onnx function to Expression::OnnxUDF
 
-        use std::path::Path;
         use dozer_types::types::FieldType;
-        use PipelineError::InvalidQuery;
         use ort::{
             Environment, ExecutionProvider, GraphOptimizationLevel, LoggingLevel, SessionBuilder,
         };
+        use std::path::Path;
+        use PipelineError::InvalidQuery;
 
         let args = function
             .args

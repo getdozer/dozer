@@ -8,10 +8,10 @@ use dozer_core::{
     DEFAULT_PORT_HANDLE,
 };
 use dozer_types::errors::internal::BoxedError;
+use dozer_types::models::udf_config::UdfConfig;
 use dozer_types::types::Schema;
 use sqlparser::ast::Select;
 use std::collections::HashMap;
-use dozer_types::models::udf_config::UdfConfig;
 
 #[derive(Debug)]
 pub struct AggregationProcessorFactory {
