@@ -80,7 +80,6 @@ async fn load_config(
     let mut is_pipe = false;
     if atty::isnt(Stream::Stdin) {
         is_pipe = true;
-        //println!("Pipe attached \n");
     }
     let first_config_path = config_url_or_paths.get(0);
     match first_config_path {
@@ -88,7 +87,7 @@ async fn load_config(
         Some(path) => {
             if path.starts_with("https://") || path.starts_with("http://") {
                 load_config_from_http_url(path, config_token).await
-            } else if is_pipe {
+            } else if is_pipe && !std::env::var("ENABLE_PIPES").is_ok() {
                 load_config_from_file(config_url_or_paths, true)
             } else {
                 load_config_from_file(config_url_or_paths, false)

@@ -124,6 +124,9 @@ fn run() -> Result<(), OrchestrationError> {
     // and then initializing it after reading the configuration. This is a hacky workaround, but it works.
 
     let cli = parse_and_generate()?;
+    if cli.ignore_pipe {
+        std::env::set_var("ENABLE_PIPES", "true");
+    }
     let mut dozer = init_orchestrator(&cli)?;
 
     let (shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
