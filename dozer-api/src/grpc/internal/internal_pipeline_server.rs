@@ -5,7 +5,8 @@ use dozer_types::grpc_types::internal::internal_pipeline_service_server::{
     InternalPipelineService, InternalPipelineServiceServer,
 };
 use dozer_types::grpc_types::internal::{
-    BuildRequest, BuildResponse, LogRequest, LogResponse, StorageRequest, StorageResponse,
+    BuildRequest, BuildResponse, EndpointResponse, EndpointsResponse, LogRequest, LogResponse,
+    StorageRequest, StorageResponse,
 };
 use dozer_types::log::info;
 use dozer_types::models::api_config::AppGrpcOptions;
@@ -51,6 +52,21 @@ impl InternalPipelineService for InternalPipelineServer {
         Ok(Response::new(StorageResponse {
             storage: Some(storage),
         }))
+    }
+
+    async fn list_endpoints(
+        &self,
+        _request: Request<()>,
+    ) -> Result<Response<EndpointsResponse>, Status> {
+        let endpoints = self
+            .endpoints
+            .iter()
+            .map(|(endpoint, build)| EndpointResponse {
+                endpoint: endpoint.clone(),
+                build_name: build.build.id.name().to_string(),
+            })
+            .collect();
+        Ok(Response::new(EndpointsResponse { endpoints }))
     }
 
     async fn describe_build(
