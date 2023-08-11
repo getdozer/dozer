@@ -102,7 +102,6 @@ fn spawn_dozer_two_processes(dozer_bin: &str, dozer_config_path: &str) -> Vec<Cl
             "--config-path",
             dozer_config_path,
             "--ignore-pipe",
-            "true",
             "run",
             "app",
         ],
