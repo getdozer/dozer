@@ -6,7 +6,7 @@ use crate::pipeline::expression::scalar::string::{
     evaluate_concat, evaluate_length, evaluate_to_char, evaluate_ucase, validate_concat,
     validate_ucase,
 };
-use dozer_core::processor_record::ProcessorRecord;
+use dozer_types::types::Record;
 use dozer_types::types::{Field, FieldType, Schema};
 use std::fmt::{Display, Formatter};
 
@@ -82,7 +82,7 @@ impl ScalarFunctionType {
         &self,
         schema: &Schema,
         args: &[Expression],
-        record: &ProcessorRecord,
+        record: &Record,
     ) -> Result<Field, PipelineError> {
         match self {
             ScalarFunctionType::Abs => {

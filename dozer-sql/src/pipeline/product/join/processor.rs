@@ -2,6 +2,7 @@ use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::epoch::Epoch;
 use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{PortHandle, Processor};
+use dozer_core::processor_record::ProcessorRecordStore;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::labels::Labels;
@@ -80,6 +81,7 @@ impl Processor for ProductProcessor {
     fn process(
         &mut self,
         from_port: PortHandle,
+        record_store: &ProcessorRecordStore,
         op: ProcessorOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
@@ -92,36 +94,41 @@ impl Processor for ProductProcessor {
         let now = std::time::Instant::now();
         let records = match op {
             ProcessorOperation::Delete { old } => {
-                if let Some(lifetime) = old.get_record().get_lifetime() {
+                if let Some(lifetime) = old.get_lifetime() {
                     self.update_eviction_index(lifetime);
                 }
 
+                let old_decoded = record_store.load_record(&old)?;
                 self.join_operator
-                    .delete(from_branch, old)
+                    .delete(from_branch, record_store, old, old_decoded)
                     .map_err(PipelineError::JoinError)?
             }
             ProcessorOperation::Insert { new } => {
-                if let Some(lifetime) = new.get_record().get_lifetime() {
+                if let Some(lifetime) = new.get_lifetime() {
                     self.update_eviction_index(lifetime);
                 }
 
+                let new_decoded = record_store.load_record(&new)?;
                 self.join_operator
-                    .insert(from_branch, new)
+                    .insert(from_branch, record_store, new, new_decoded)
                     .map_err(PipelineError::JoinError)?
             }
             ProcessorOperation::Update { old, new } => {
-                if let Some(lifetime) = old.get_record().get_lifetime() {
+                if let Some(lifetime) = old.get_lifetime() {
                     self.update_eviction_index(lifetime);
                 }
 
+                let old_decoded = record_store.load_record(&old)?;
+                let new_decoded = record_store.load_record(&new)?;
+
                 let old_records = self
                     .join_operator
-                    .delete(from_branch, old)
+                    .delete(from_branch, record_store, old, old_decoded)
                     .map_err(PipelineError::JoinError)?;
 
                 let new_records = self
                     .join_operator
-                    .insert(from_branch, new)
+                    .insert(from_branch, record_store, new, new_decoded)
                     .map_err(PipelineError::JoinError)?;
 
                 old_records.into_iter().chain(new_records).collect()

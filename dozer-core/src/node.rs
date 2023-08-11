@@ -1,15 +1,18 @@
 use crate::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
+use crate::epoch::Epoch;
 use crate::executor_operation::ProcessorOperation;
+use crate::processor_record::ProcessorRecordStore;
 
-use dozer_types::epoch::Epoch;
 use dozer_types::errors::internal::BoxedError;
+use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::Schema;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 
 pub type PortHandle = u16;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(crate = "dozer_types::serde")]
 pub enum OutputPortType {
     Stateless,
     StatefulWithPrimaryKeyLookup,
@@ -71,6 +74,7 @@ pub trait ProcessorFactory<T>: Send + Sync + Debug {
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
         output_schemas: HashMap<PortHandle, Schema>,
+        record_store: &ProcessorRecordStore,
     ) -> Result<Box<dyn Processor>, BoxedError>;
     fn type_name(&self) -> String;
     fn id(&self) -> String;
@@ -81,6 +85,7 @@ pub trait Processor: Send + Sync + Debug {
     fn process(
         &mut self,
         from_port: PortHandle,
+        record_store: &ProcessorRecordStore,
         op: ProcessorOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError>;
@@ -97,7 +102,12 @@ pub trait SinkFactory<T>: Send + Sync + Debug {
 
 pub trait Sink: Send + Sync + Debug {
     fn commit(&mut self, epoch_details: &Epoch) -> Result<(), BoxedError>;
-    fn process(&mut self, from_port: PortHandle, op: ProcessorOperation) -> Result<(), BoxedError>;
+    fn process(
+        &mut self,
+        from_port: PortHandle,
+        record_store: &ProcessorRecordStore,
+        op: ProcessorOperation,
+    ) -> Result<(), BoxedError>;
 
     fn on_source_snapshotting_done(&mut self, connection_name: String) -> Result<(), BoxedError>;
 }

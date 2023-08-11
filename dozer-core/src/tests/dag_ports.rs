@@ -1,6 +1,7 @@
 use crate::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Source, SourceFactory,
 };
+use crate::processor_record::ProcessorRecordStore;
 use crate::tests::app::NoneContext;
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use dozer_types::errors::internal::BoxedError;
@@ -81,6 +82,7 @@ impl ProcessorFactory<NoneContext> for DynPortsProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
+        _record_store: &ProcessorRecordStore,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         todo!()
     }

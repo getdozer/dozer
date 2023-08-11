@@ -16,7 +16,6 @@ pub enum TelemetryTraceConfig {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Clone, prost::Message)]
-
 pub struct DozerTelemetryConfig {
     #[prost(string, tag = "1", default = "0.0.0.0:7006")]
     #[serde(default = "default_ingest_address")]

@@ -8,7 +8,7 @@ use dozer_cli::errors::{CliError, CloudError, OrchestrationError};
 use dozer_cli::simple::SimpleOrchestrator;
 #[cfg(feature = "cloud")]
 use dozer_cli::CloudOrchestrator;
-use dozer_cli::{set_ctrl_handler, set_panic_hook, shutdown};
+use dozer_cli::{live, set_ctrl_handler, set_panic_hook, shutdown};
 use dozer_types::models::telemetry::TelemetryConfig;
 use dozer_types::tracing::{error, info};
 use serde::Deserialize;
@@ -125,7 +125,6 @@ fn run() -> Result<(), OrchestrationError> {
 
     let cli = parse_and_generate()?;
     let mut dozer = init_orchestrator(&cli)?;
-
     let (shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
     set_ctrl_handler(shutdown_sender);
 
@@ -152,7 +151,7 @@ fn run() -> Result<(), OrchestrationError> {
                 RunCommands::App => {
                     render_logo();
 
-                    dozer.run_apps(shutdown_receiver, None, None)
+                    dozer.run_apps(shutdown_receiver, None)
                 }
             },
             Commands::Security(security) => match security.command {
@@ -212,11 +211,16 @@ fn run() -> Result<(), OrchestrationError> {
             Commands::Init => {
                 panic!("This should not happen as it is handled in parse_and_generate");
             }
+            Commands::Live => {
+                render_logo();
+                live::start_live_server(dozer.runtime.clone(), shutdown_receiver)?;
+                Ok(())
+            }
         }
     } else {
         render_logo();
 
-        dozer.run_all(shutdown_receiver, None)
+        dozer.run_all(shutdown_receiver)
     }
 }
 

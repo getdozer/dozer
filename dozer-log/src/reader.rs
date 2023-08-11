@@ -1,7 +1,7 @@
 use crate::attach_progress;
 use crate::errors::ReaderBuilderError;
 use crate::replication::LogOperation;
-use crate::schemas::BuildSchema;
+use crate::schemas::EndpointSchema;
 use crate::storage::{LocalStorage, S3Storage, Storage};
 
 use super::errors::ReaderError;
@@ -47,7 +47,7 @@ pub struct LogReaderBuilder {
     /// Log server runs on a specific build of the endpoint. This is the name of the build.
     pub build_name: String,
     /// Schema of this endpoint.
-    pub schema: BuildSchema,
+    pub schema: EndpointSchema,
     /// Protobuf descriptor of this endpoint's API.
     pub descriptor: Vec<u8>,
     pub options: LogReaderOptions,
@@ -58,7 +58,7 @@ pub struct LogReader {
     /// Log server runs on a specific build of the endpoint. This is the name of the build.
     pub build_name: String,
     /// Schema of this endpoint.
-    pub schema: BuildSchema,
+    pub schema: EndpointSchema,
     /// Protobuf descriptor of this endpoint's API.
     pub descriptor: Vec<u8>,
     op_receiver: Receiver<(LogOperation, u64)>,

@@ -2,6 +2,7 @@ mod executor;
 pub mod orchestrator;
 pub use orchestrator::SimpleOrchestrator;
 mod build;
+pub use build::Contract;
 #[cfg(feature = "cloud")]
 mod cloud;
 #[cfg(feature = "cloud")]

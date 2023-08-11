@@ -8,7 +8,7 @@ use dozer_types::models::{
     api_security::ApiSecurity,
     app_config::{
         default_app_buffer_size, default_commit_size, default_commit_timeout,
-        default_log_entry_max_size, default_log_max_num_immutable_entries,
+        default_error_threshold, default_log_entry_max_size, default_log_max_num_immutable_entries,
     },
     config::{default_cache_max_map_size, Config},
 };
@@ -44,6 +44,14 @@ fn get_commit_size(config: &Config) -> u32 {
         .as_ref()
         .and_then(|app| app.commit_size)
         .unwrap_or_else(default_commit_size)
+}
+
+fn get_error_threshold(config: &Config) -> u32 {
+    config
+        .app
+        .as_ref()
+        .and_then(|app| app.error_threshold)
+        .unwrap_or_else(default_error_threshold)
 }
 
 pub fn get_log_options(config: &Config) -> LogOptions {
@@ -95,12 +103,12 @@ pub fn get_api_security_config(config: &Config) -> Option<&ApiSecurity> {
         .and_then(|api| api.api_security.as_ref())
 }
 
-pub fn get_executor_options(config: &Config, err_threshold: Option<u32>) -> ExecutorOptions {
+pub fn get_executor_options(config: &Config) -> ExecutorOptions {
     ExecutorOptions {
         commit_sz: get_commit_size(config),
         channel_buffer_sz: get_buffer_size(config) as usize,
         commit_time_threshold: get_commit_time_threshold(config),
-        error_threshold: Some(err_threshold.unwrap_or(0_u32)),
+        error_threshold: Some(get_error_threshold(config)),
     }
 }
 
