@@ -31,6 +31,7 @@ uuid = {version = "1.3.0", features = ["v1", "v4", "fast-rng"]}
 bigdecimal = { version = "0.3", features = ["serde"], optional = true }
 ort = { version = "1.15.2", optional = true }
 ndarray = { version = "0.15", optional = true }
+image = { version = "0.24", optional = true }
 
 [dev-dependencies]
 tempdir = "0.3.7"
@@ -39,4 +40,4 @@ proptest = "1.1.0"
 [features]
 python = ["dozer-types/python-auto-initialize"]
 bigdecimal = ["dep:bigdecimal", "sqlparser/bigdecimal"]
-onnx = ["dep:ort", "dep:ndarray", "dozer-types/onnx"]
+onnx = ["dep:ort", "dep:ndarray", "dep:image", "dozer-types/onnx"]

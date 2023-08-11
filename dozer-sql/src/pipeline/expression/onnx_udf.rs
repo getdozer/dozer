@@ -2,24 +2,16 @@ use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::UnsupportedSqlError;
 use crate::pipeline::errors::UnsupportedSqlError::GenericError;
 use crate::pipeline::expression::execution::Expression;
-use dozer_types::arrow::tensor::Tensor;
-use dozer_types::crossbeam::epoch::Pointable;
 use dozer_types::log::warn;
-use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, FieldType, Record, Schema};
-use ort::download::language::GPT2;
 use ort::sys::OrtTensorTypeAndShapeInfo;
 use ort::tensor::TensorElementDataType::{
     Bool, Float16, Float32, Float64, Int16, Int32, Int64, String, Uint16, Uint32, Uint64,
 };
-use ort::tensor::{OrtOwnedTensor, TensorData, TensorElementDataType};
-use ort::{
-    Environment, ExecutionProvider, GraphOptimizationLevel, LoggingLevel, Session, SessionBuilder,
-    Value,
-};
-use sqlparser::tokenizer::Tokenizer;
-use std::env;
-use std::path::{Path, PathBuf};
+use ort::tensor::TensorElementDataType;
+use ort::{Session, Value};
+use std::path::Path;
+use image::Pixel;
 
 pub fn evaluate_onnx_udf(
     schema: &Schema,
@@ -49,8 +41,8 @@ pub fn evaluate_onnx_udf(
         .into_dyn(),
     );
 
-    let inputs = vec![Value::from_array(session.allocator(), &[])?];
-    let outputs: Vec<Value> = session.run(inputs)?;
+    let inputs = vec![Value::from_array(session.allocator(),&array).unwrap()];
+    let outputs: Vec<Value> = session.run(inputs).unwrap();
 
     // ort value to dozer fields
     Ok(Field::Null)
@@ -68,13 +60,13 @@ pub fn is_field_type_compatible(dozer_type: &FieldType, onnx_type: TensorElement
     }
 }
 
-pub fn map_onnx_type_to_dozer_type(onnx_type: TensorElementDataType) -> FieldType {
+pub fn map_onnx_type_to_dozer_type(onnx_type: TensorElementDataType) -> Result<FieldType, PipelineError> {
     match onnx_type {
-        Float64 | Float32 | Float16 => FieldType::Float,
-        Int64 | Int32 | Int16 => FieldType::Int,
-        Uint64 | Uint32 | Uint16 => FieldType::UInt,
-        String => FieldType::String,
-        Bool => FieldType::Boolean,
+        Float64 | Float32 | Float16 => Ok(FieldType::Float),
+        Int64 | Int32 | Int16 => Ok(FieldType::Int),
+        Uint64 | Uint32 | Uint16 => Ok(FieldType::UInt),
+        String => Ok(FieldType::String),
+        Bool => Ok(FieldType::Boolean),
         _ => Err(UnsupportedSqlError(GenericError(
             "Unsupported type for onnx udf".to_string(),
         ))),

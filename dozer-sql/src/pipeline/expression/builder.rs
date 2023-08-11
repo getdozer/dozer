@@ -1,4 +1,4 @@
-use dozer_types::models::udf_config::{UdfConfig};
+use dozer_types::models::udf_config::{OnnxConfig, UdfConfig};
 use dozer_types::{
     ordered_float::OrderedFloat,
     types::{Field, FieldDefinition, Schema, SourceDefinition},
@@ -8,6 +8,7 @@ use sqlparser::ast::{
     FunctionArg, FunctionArgExpr, Ident, Interval, TrimWhereField,
     UnaryOperator as SqlUnaryOperator, Value as SqlValue,
 };
+use dozer_types::models::udf_config::UdfType::Onnx;
 
 
 use crate::pipeline::errors::PipelineError::{
@@ -469,7 +470,7 @@ impl ExpressionBuilder {
             for udf in udfs {
                 match udf.config.clone() {
                     Some(udf_type) => match udf_type {
-                        UdfType::Onnx(config) => {
+                        Onnx(config) => {
                             return self.parse_onnx_udf(
                                 udf.name.clone(),
                                 &config,
@@ -875,7 +876,7 @@ impl ExpressionBuilder {
 
         use dozer_types::types::FieldType;
         use ort::{
-            Environment, ExecutionProvider, GraphOptimizationLevel, LoggingLevel, SessionBuilder,
+            Environment, GraphOptimizationLevel, LoggingLevel, SessionBuilder,
         };
         use std::path::Path;
         use PipelineError::InvalidQuery;
