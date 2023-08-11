@@ -124,9 +124,6 @@ fn run() -> Result<(), OrchestrationError> {
     // and then initializing it after reading the configuration. This is a hacky workaround, but it works.
 
     let cli = parse_and_generate()?;
-    if cli.ignore_pipe {
-        std::env::set_var("IGNORE_PIPES", "true");
-    }
     let mut dozer = init_orchestrator(&cli)?;
 
     let (shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
@@ -250,6 +247,7 @@ fn init_orchestrator(cli: &Cli) -> Result<SimpleOrchestrator, CliError> {
             cli.config_paths.clone(),
             cli.config_token.clone(),
             cli.config_overrides.clone(),
+            cli.ignore_pipe,
         );
 
         match res {

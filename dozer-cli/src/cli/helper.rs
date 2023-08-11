@@ -19,9 +19,10 @@ pub fn init_dozer(
     config_paths: Vec<String>,
     config_token: Option<String>,
     config_overrides: Vec<(String, serde_json::Value)>,
+    ignore_pipe: bool,
 ) -> Result<Dozer, CliError> {
     let runtime = Runtime::new().map_err(CliError::FailedToCreateTokioRuntime)?;
-    let mut config = runtime.block_on(load_config(config_paths, config_token))?;
+    let mut config = runtime.block_on(load_config(config_paths, config_token, ignore_pipe))?;
 
     config = apply_overrides(&config, config_overrides)?;
 
@@ -40,7 +41,7 @@ pub fn list_sources(
     config_overrides: Vec<(String, serde_json::Value)>,
     filter: Option<String>,
 ) -> Result<(), OrchestrationError> {
-    let dozer = init_dozer(config_paths, config_token, config_overrides)?;
+    let dozer = init_dozer(config_paths, config_token, config_overrides, false)?;
     let connection_map = dozer.list_connectors()?;
     let mut table_parent = Table::new();
     for (connection_name, (tables, schemas)) in connection_map {
@@ -76,9 +77,10 @@ pub fn list_sources(
 async fn load_config(
     config_url_or_paths: Vec<String>,
     config_token: Option<String>,
+    ignore_pipe: bool,
 ) -> Result<Config, CliError> {
     let mut is_pipe = false;
-    if atty::isnt(Stream::Stdin) {
+    if atty::isnt(Stream::Stdin) && !ignore_pipe {
         is_pipe = true;
     }
     let first_config_path = config_url_or_paths.get(0);
@@ -87,7 +89,7 @@ async fn load_config(
         Some(path) => {
             if path.starts_with("https://") || path.starts_with("http://") {
                 load_config_from_http_url(path, config_token).await
-            } else if is_pipe && std::env::var("IGNORE_PIPES").is_err() {
+            } else if is_pipe {
                 load_config_from_file(config_url_or_paths, true)
             } else {
                 load_config_from_file(config_url_or_paths, false)
