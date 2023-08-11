@@ -1,6 +1,4 @@
-use dozer_types::epoch::Epoch;
-
-use crate::processor_record::ProcessorRecord;
+use crate::{epoch::Epoch, processor_record::ProcessorRecord};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 /// A CDC event.

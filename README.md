@@ -99,7 +99,7 @@ Read more about Dozer [here](https://getdozer.io/docs/dozer). And remember to st
 | Library                                                  | Language                                              | License |
 | -------------------------------------------------------- | ----------------------------------------------------- | ------- |
 | [dozer-python](https://github.com/getdozer/dozer-python) | Dozer Client library for Python                       | Apache-2.0     |
-| [dozer-js](https://github.com/getdozer/dozer-js)         | Dozer Client library for Javascript                   | Apache-2.0     |
+| [dozer-js](https://github.com/getdozer/dozer-js)         | Dozer Client library for JavaScript                   | Apache-2.0     |
 | [dozer-react](https://github.com/getdozer/dozer-react)   | Dozer Client library for React with easy to use hooks | Apache-2.0     |
 
 <br>
@@ -112,7 +112,7 @@ api_client = ApiClient('trips')
 api_client.query()
 ```
 
-[**Javascript**](https://github.com/getdozer/dozer-js)
+[**JavaScript**](https://github.com/getdozer/dozer-js)
 
 ```js
 import { ApiClient } from "@dozerjs/dozer";
@@ -191,7 +191,7 @@ reader = await pydozer_log.LogReader.new('.dozer', 'trips')
 print(await reader.next_op())
 ```
 
-[**Javascript**](./dozer-log-js)
+[**JavaScript**](./dozer-log-js)
 
 ```javascript
 const dozer_log = require('@dozerjs/log');

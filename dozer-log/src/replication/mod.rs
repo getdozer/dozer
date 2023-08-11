@@ -1,9 +1,8 @@
 use std::future::Future;
 use std::ops::{DerefMut, Range};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
-use dozer_types::epoch::Epoch;
 use dozer_types::grpc_types::internal::storage_response;
 use dozer_types::log::{debug, error};
 use dozer_types::models::app_config::LogStorage;
@@ -282,7 +281,7 @@ impl Log {
 #[serde(crate = "dozer_types::serde")]
 pub enum LogOperation {
     Op { op: Operation },
-    Commit { epoch: Epoch },
+    Commit { decision_instant: SystemTime },
     SnapshottingDone { connection_name: String },
     Terminate,
 }

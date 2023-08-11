@@ -2,23 +2,36 @@ use std::hash::Hash;
 use std::sync::Arc;
 
 use dozer_storage::errors::StorageError;
-use dozer_types::types::{Field, Lifetime, Operation, Record};
+use dozer_types::{
+    parking_lot::RwLock,
+    types::{Field, Lifetime, Operation, Record},
+};
 
 use crate::{errors::ExecutionError, executor_operation::ProcessorOperation};
 
-#[derive(Debug, Clone)]
-pub struct ProcessorRecordStore;
+#[derive(Debug)]
+pub struct ProcessorRecordStore {
+    records: RwLock<Vec<RecordRef>>,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordRef(Arc<[Field]>);
 
 impl ProcessorRecordStore {
     pub fn new() -> Result<Self, ExecutionError> {
-        Ok(Self)
+        Ok(Self {
+            records: RwLock::new(vec![]),
+        })
+    }
+
+    pub fn num_record(&self) -> usize {
+        self.records.read().len()
     }
 
     pub fn create_ref(&self, values: &[Field]) -> Result<RecordRef, StorageError> {
-        Ok(RecordRef(values.to_vec().into()))
+        let record = RecordRef(values.to_vec().into());
+        self.records.write().push(record.clone());
+        Ok(record)
     }
 
     pub fn load_ref(&self, record_ref: &RecordRef) -> Result<Vec<Field>, StorageError> {

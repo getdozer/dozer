@@ -1,8 +1,8 @@
 use crate::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
+use crate::epoch::Epoch;
 use crate::executor_operation::ProcessorOperation;
 use crate::processor_record::ProcessorRecordStore;
 
-use dozer_types::epoch::Epoch;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::Schema;
 use std::collections::HashMap;
