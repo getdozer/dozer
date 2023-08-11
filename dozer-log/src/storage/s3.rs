@@ -137,13 +137,25 @@ impl Storage for S3Storage {
         parts: Vec<(i32, String)>,
     ) -> Result<(), Error> {
         let mut completed_multipart_upload = CompletedMultipartUpload::builder();
-        for (part_number, e_tag) in parts.into_iter() {
+        if parts.is_empty() {
+            // S3 wants at least one part. Let's create an empty one.
+            let part_number = 1;
+            let e_tag = self.upload_part(key.clone(), upload_id.clone(), part_number, vec![]).await?;
             completed_multipart_upload = completed_multipart_upload.parts(
                 CompletedPart::builder()
                     .part_number(part_number)
                     .e_tag(e_tag)
                     .build(),
             );
+        } else {
+            for (part_number, e_tag) in parts.into_iter() {
+                completed_multipart_upload = completed_multipart_upload.parts(
+                    CompletedPart::builder()
+                        .part_number(part_number)
+                        .e_tag(e_tag)
+                        .build(),
+                );
+            }
         }
         self.client
             .complete_multipart_upload()
@@ -215,6 +227,8 @@ fn is_bucket_already_owned_by_you(error: &SdkError<CreateBucketError>) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use crate::storage::tests::test_storage_empty_multipart;
+
     use super::super::tests::{test_storage_basic, test_storage_multipart, test_storage_prefix};
 
     use super::*;
@@ -252,6 +266,18 @@ mod tests {
         .await
         .unwrap();
         test_storage_prefix(&storage).await;
+        storage.delete().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_s3_empty_multipart() {
+        let storage = S3Storage::new(
+            BucketLocationConstraint::UsEast2,
+            "test-s3-empty-multipart-us-east-2".to_string(),
+        )
+        .await
+        .unwrap();
+        test_storage_empty_multipart(&storage).await;
         storage.delete().await.unwrap();
     }
 }

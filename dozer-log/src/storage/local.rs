@@ -247,4 +247,13 @@ mod tests {
             .unwrap();
         super::super::tests::test_storage_prefix(&storage).await;
     }
+
+    #[tokio::test]
+    async fn test_local_storage_empty_multipart() {
+        let temp_dir = TempDir::new("test_local_storage_empty_multipart").unwrap();
+        let storage = LocalStorage::new(temp_dir.path().to_str().unwrap().to_string())
+            .await
+            .unwrap();
+        super::super::tests::test_storage_empty_multipart(&storage).await;
+    }
 }

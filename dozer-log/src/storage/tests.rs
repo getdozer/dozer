@@ -72,3 +72,16 @@ pub async fn test_storage_prefix<S: Storage>(storage: &S) {
     assert_eq!(objects.len(), 1);
     assert_eq!(objects[0].key, prefix_key);
 }
+
+pub async fn test_storage_empty_multipart<S: Storage>(storage: &S) {
+    let key = "path/to/key".to_string();
+    let upload_id = storage.create_multipart_upload(key.clone()).await.unwrap();
+
+    storage
+        .complete_multipart_upload(key.clone(), upload_id.clone(), vec![])
+        .await
+        .unwrap();
+
+    let downloaded_data = storage.download_object(key).await.unwrap();
+    assert_eq!(downloaded_data, Vec::<u8>::new());
+}
