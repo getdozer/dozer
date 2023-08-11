@@ -73,7 +73,8 @@ fn insert_table_processor_to_pipeline(
     udfs: &Vec<UdfConfig>,
 ) -> Result<ConnectionInfo, PipelineError> {
     // let relation_name_or_alias = get_name_or_alias(relation)?;
-    let relation_name_or_alias = get_from_source(relation, pipeline, query_context, pipeline_idx, udfs)?;
+    let relation_name_or_alias =
+        get_from_source(relation, pipeline, query_context, pipeline_idx, udfs)?;
 
     let product_processor_name = format!("from_{}", query_context.get_next_processor_id());
     let product_processor_factory =

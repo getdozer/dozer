@@ -15,9 +15,9 @@ pub mod mathematical;
 pub mod operator;
 pub mod scalar;
 
-#[cfg(feature = "python")]
-pub mod python_udf;
 #[cfg(feature = "onnx")]
 pub mod onnx_udf;
+#[cfg(feature = "python")]
+pub mod python_udf;
 #[cfg(test)]
 mod tests;

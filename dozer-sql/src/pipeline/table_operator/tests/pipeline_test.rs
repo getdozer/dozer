@@ -40,7 +40,7 @@ fn test_lifetime_pipeline() {
                 JOIN zones puz ON trips.pu_location_id = puz.location_id",
         &mut pipeline,
         Some("results".to_string()),
-        vec![],
+        &vec![],
     )
     .unwrap();
 

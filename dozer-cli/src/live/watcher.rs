@@ -29,7 +29,7 @@ pub fn watch(
         .cache()
         .add_root(dir.as_path(), RecursiveMode::Recursive);
 
-    let running = shutdown.get_running_flag().clone();
+    let running = shutdown.get_running_flag();
     loop {
         let event = rx.recv_timeout(Duration::from_millis(100));
         match event {

@@ -31,6 +31,7 @@ pub struct Executor<'a> {
     udfs: &'a [UdfConfig],
 }
 
+#[ignore(clippy::too_many_arguments)]
 impl<'a> Executor<'a> {
     pub async fn new(
         home_dir: &'a HomeDir,

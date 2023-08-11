@@ -429,7 +429,7 @@ fn test_pipeline_builder() {
         FROM user JOIN department ON user.department_id = department.did JOIN country ON user.country_id = country.cid ",
         &mut pipeline,
         Some("results".to_string()),
-        vec![],
+        &vec![],
     )
         .unwrap();
 

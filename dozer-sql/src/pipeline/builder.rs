@@ -258,8 +258,13 @@ fn select_to_pipeline(
     //     pipeline_idx,
     // )?;
 
-    let connection_info =
-        insert_from_to_pipeline(&select.from[0], pipeline, pipeline_idx, query_ctx, udf_config)?;
+    let connection_info = insert_from_to_pipeline(
+        &select.from[0],
+        pipeline,
+        pipeline_idx,
+        query_ctx,
+        udf_config,
+    )?;
 
     let input_nodes = connection_info.input_nodes;
     let output_node = connection_info.output_node;
@@ -631,7 +636,7 @@ mod tests {
     #[should_panic]
     fn disallow_zero_outgoing_ndes() {
         let sql = "select * from film";
-        statement_to_pipeline(sql, &mut AppPipeline::new(), None, vec![]).unwrap();
+        statement_to_pipeline(sql, &mut AppPipeline::new(), None, &vec![]).unwrap();
     }
     #[test]
     fn parse_sql_pipeline() {
@@ -690,7 +695,7 @@ mod tests {
                 from  stocks join tbl on tbl.id = stocks.id;
             "#;
 
-        let context = statement_to_pipeline(sql, &mut AppPipeline::new(), None, vec![]).unwrap();
+        let context = statement_to_pipeline(sql, &mut AppPipeline::new(), None, &vec![]).unwrap();
 
         // Should create as many output tables as into statements
         let mut output_keys = context.output_tables_map.keys().collect::<Vec<_>>();

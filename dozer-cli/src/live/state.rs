@@ -66,7 +66,7 @@ impl LiveState {
         let res = init_dozer(
             cli.config_paths.clone(),
             cli.config_token.clone(),
-            cli.config_overrides.clone(),
+            cli.config_overrides,
         )?;
 
         self.set_dozer(res);
@@ -104,7 +104,7 @@ impl LiveState {
 
     pub fn get_sql(&self) -> Result<SqlResponse, LiveError> {
         let dozer = self.get_dozer()?;
-        let sql = dozer.config.sql.clone().unwrap_or_default();
+        let sql = dozer.config.sql.unwrap_or_default();
         Ok(SqlResponse { sql })
     }
     pub fn get_endpoints_schemas(&self) -> Result<SchemasResponse, LiveError> {
@@ -129,8 +129,9 @@ impl LiveState {
     pub fn build_sql(&self, sql: String) -> Result<SchemasResponse, LiveError> {
         let mut dozer = self.get_dozer()?;
 
-        let context = statement_to_pipeline(&sql, &mut AppPipeline::new(), None, &dozer.config.udfs)
-            .map_err(LiveError::PipelineError)?;
+        let context =
+            statement_to_pipeline(&sql, &mut AppPipeline::new(), None, &dozer.config.udfs)
+                .map_err(LiveError::PipelineError)?;
 
         //overwrite sql
         dozer.config.sql = Some(sql);

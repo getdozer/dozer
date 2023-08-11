@@ -67,6 +67,7 @@ fn load_multi_sources() {
             .map(|endpoint| (endpoint, None))
             .collect(),
         MultiProgress::new(),
+        &config.udfs,
     );
 
     let runtime = Runtime::new().unwrap();

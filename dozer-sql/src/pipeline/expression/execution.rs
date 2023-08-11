@@ -4,6 +4,7 @@ use crate::pipeline::aggregation::max::validate_max;
 use crate::pipeline::aggregation::min::validate_min;
 use crate::pipeline::aggregation::sum::validate_sum;
 use crate::pipeline::errors::PipelineError;
+use crate::pipeline::expression::case::evaluate_case;
 use crate::pipeline::expression::conditional::{
     get_conditional_expr_type, ConditionalExpressionType,
 };
@@ -14,7 +15,6 @@ use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorTyp
 use crate::pipeline::expression::scalar::common::{get_scalar_function_type, ScalarFunctionType};
 use crate::pipeline::expression::scalar::string::{evaluate_trim, validate_trim, TrimType};
 use std::iter::zip;
-use crate::pipeline::expression::case::evaluate_case;
 
 use crate::pipeline::aggregation::max_value::validate_max_value;
 use crate::pipeline::aggregation::min_value::validate_min_value;
@@ -178,11 +178,11 @@ impl Expression {
                 name.to_string()
                     + "("
                     + args
-                    .iter()
-                    .map(|expr| expr.to_string(schema))
-                    .collect::<Vec<String>>()
-                    .join(",")
-                    .as_str()
+                        .iter()
+                        .map(|expr| expr.to_string(schema))
+                        .collect::<Vec<String>>()
+                        .join(",")
+                        .as_str()
                     + ")"
             }
             Expression::Cast { arg, typ } => {
@@ -483,7 +483,7 @@ impl Expression {
                 *return_type,
                 false,
                 SourceDefinition::Dynamic,
-                false
+                false,
             )),
         }
     }

@@ -168,6 +168,11 @@ pub fn config_to_ui_dag(config: Config) -> Result<QueryGraph, OrchestrationError
     }
     let source_builder = SourceBuilder::new(connection_sources.clone(), None);
     let connection_source_ports = source_builder.get_ports();
-    let sql_dag = prepare_pipeline_dag(sql, connection_sources, connection_source_ports, &config.udfs)?;
+    let sql_dag = prepare_pipeline_dag(
+        sql,
+        connection_sources,
+        connection_source_ports,
+        &config.udfs,
+    )?;
     Ok(transform_to_ui_graph(&sql_dag))
 }

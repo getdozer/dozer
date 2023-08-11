@@ -45,7 +45,7 @@ pub fn start_live_server(
         res.unwrap();
     });
 
-    watcher::watch(sender, state.clone(), shutdown)?;
+    watcher::watch(sender, state, shutdown)?;
 
     Ok(())
 }
