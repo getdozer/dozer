@@ -125,7 +125,7 @@ fn run() -> Result<(), OrchestrationError> {
 
     let cli = parse_and_generate()?;
     if cli.ignore_pipe {
-        std::env::set_var("ENABLE_PIPES", "true");
+        std::env::set_var("IGNORE_PIPES", "true");
     }
     let mut dozer = init_orchestrator(&cli)?;
 

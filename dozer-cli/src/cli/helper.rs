@@ -87,7 +87,7 @@ async fn load_config(
         Some(path) => {
             if path.starts_with("https://") || path.starts_with("http://") {
                 load_config_from_http_url(path, config_token).await
-            } else if is_pipe && std::env::var("ENABLE_PIPES").is_err() {
+            } else if is_pipe && std::env::var("IGNORE_PIPES").is_err() {
                 load_config_from_file(config_url_or_paths, true)
             } else {
                 load_config_from_file(config_url_or_paths, false)
