@@ -14,8 +14,6 @@ use tokio::sync::oneshot::error::RecvError;
 use tokio::sync::Mutex;
 use tokio::task::{JoinError, JoinHandle};
 
-use crate::home_dir::BuildPath;
-
 use self::persist::{load_persisted_log_entries, persisted_log_entries_end, PersistingQueue};
 
 pub use self::persist::create_log_storage;
@@ -94,12 +92,8 @@ impl Log {
         self.storage.clone()
     }
 
-    pub async fn new(
-        options: LogOptions,
-        build_path: &BuildPath,
-        readonly: bool,
-    ) -> Result<Self, Error> {
-        let (storage, prefix) = create_log_storage(options.storage_config, build_path).await?;
+    pub async fn new(options: LogOptions, log_dir: String, readonly: bool) -> Result<Self, Error> {
+        let (storage, prefix) = create_log_storage(options.storage_config, log_dir).await?;
         let persisted = load_persisted_log_entries(&*storage, prefix.clone()).await?;
         let end = persisted_log_entries_end(&persisted);
         if !readonly && end.is_some() {
