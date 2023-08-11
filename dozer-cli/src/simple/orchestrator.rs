@@ -15,10 +15,8 @@ use dozer_api::grpc::internal::internal_pipeline_server::start_internal_pipeline
 use dozer_api::{grpc, rest, CacheEndpoint};
 use dozer_cache::cache::LmdbRwCacheManager;
 use dozer_cache::dozer_log::home_dir::HomeDir;
-use dozer_cache::dozer_log::schemas::BuildSchema;
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::DagSchemas;
-use futures::future::join_all;
 
 use crate::console_helper::get_colored_text;
 use crate::console_helper::GREEN;
@@ -167,7 +165,7 @@ impl SimpleOrchestrator {
         shutdown: ShutdownReceiver,
         api_notifier: Option<Sender<bool>>,
     ) -> Result<(), OrchestrationError> {
-        let home_dir = HomeDir::new(self.config.home_dir.as_ref(), self.config.cache_dir.clone());
+        let home_dir = HomeDir::new(self.config.home_dir.clone(), self.config.cache_dir.clone());
         let executor = self.runtime.block_on(Executor::new(
             &home_dir,
             &self.config.connections,
@@ -248,7 +246,7 @@ impl SimpleOrchestrator {
     }
 
     pub fn build(&mut self, force: bool) -> Result<(), OrchestrationError> {
-        let home_dir = HomeDir::new(self.config.home_dir.as_ref(), self.config.cache_dir.clone());
+        let home_dir = HomeDir::new(self.config.home_dir.clone(), self.config.cache_dir.clone());
 
         info!(
             "Initiating app: {}",
@@ -278,8 +276,7 @@ impl SimpleOrchestrator {
         // Populate schemas.
         let dag_schemas = DagSchemas::new(dag)?;
 
-        // Build endpoints one by one.
-        let schemas = dag_schemas.get_sink_schemas();
+        // Get current contract.
         let enable_token = self
             .config
             .api
@@ -292,37 +289,17 @@ impl SimpleOrchestrator {
             .as_ref()
             .map(|flags| flags.push_events)
             .unwrap_or(false);
+        let contract = build::Contract::new(
+            dag_schemas,
+            &self.config.endpoints,
+            enable_token,
+            enable_on_event,
+        )?;
+
+        // Run build
         let storage_config = get_log_options(&self.config).storage_config;
-        let mut futures = vec![];
-        for (endpoint_name, (schema, connections)) in schemas {
-            info!("Building endpoint: {endpoint_name}");
-            let endpoint = self
-                .config
-                .endpoints
-                .iter()
-                .find(|e| e.name == *endpoint_name)
-                .expect("Sink name must be the same as endpoint name");
-            let (schema, secondary_indexes) = build::modify_schema(&schema, endpoint)?;
-            let schema = BuildSchema {
-                schema,
-                secondary_indexes,
-                enable_token,
-                enable_on_event,
-                connections,
-            };
-
-            futures.push(build::build(
-                &home_dir,
-                endpoint_name,
-                schema,
-                storage_config.clone(),
-            ));
-        }
-
-        let results = self.runtime.block_on(join_all(futures.into_iter()));
-        for result in results {
-            result?;
-        }
+        self.runtime
+            .block_on(build::build(&home_dir, &contract, &storage_config))?;
 
         Ok(())
     }

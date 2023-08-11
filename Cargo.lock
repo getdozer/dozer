@@ -2030,6 +2030,7 @@ version = "0.8.0"
 source = "git+https://github.com/getdozer/daggy?branch=feat/map_owned#a8d8d9111c524b33b639698728c579b04c8452fe"
 dependencies = [
  "petgraph 0.6.3 (git+https://github.com/getdozer/petgraph?branch=feat/map_owned)",
+ "serde",
 ]
 
 [[package]]
@@ -5216,6 +5217,8 @@ source = "git+https://github.com/getdozer/petgraph?branch=feat/map_owned#a869744
 dependencies = [
  "fixedbitset",
  "indexmap",
+ "serde",
+ "serde_derive",
 ]
 
 [[package]]

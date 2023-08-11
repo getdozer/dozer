@@ -7,6 +7,7 @@ use daggy::petgraph::visit::{EdgeRef, IntoEdges, IntoEdgesDirected, IntoNodeRefe
 use daggy::petgraph::Direction;
 use daggy::{NodeIndex, Walker};
 use dozer_types::log::{error, info};
+use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::Schema;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
@@ -44,7 +45,8 @@ impl<T> NodeSchemas<T> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(crate = "dozer_types::serde")]
 pub struct EdgeType {
     pub output_port: PortHandle,
     pub output_port_type: OutputPortType,

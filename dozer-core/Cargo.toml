@@ -14,7 +14,7 @@ dozer-tracing = {path = "../dozer-tracing/"}
 uuid = {version = "1.3.0", features = ["v1", "v4", "fast-rng"]}
 crossbeam = "0.8.2"
 dyn-clone = "1.0.10"
-daggy = { git = "https://github.com/getdozer/daggy", branch = "feat/map_owned" }
+daggy = { git = "https://github.com/getdozer/daggy", branch = "feat/map_owned", features = ["serde-1"] }
 metrics = "0.21.0"
 
 [dev-dependencies]
