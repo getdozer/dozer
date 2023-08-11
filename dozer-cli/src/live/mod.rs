@@ -22,11 +22,13 @@ pub fn start_live_server(
 
     state.build()?;
 
-    let url = "https://dozer-explorer.s3.ap-southeast-1.amazonaws.com/latest";
 
+    let url = "https://dozer-explorer.s3.ap-southeast-1.amazonaws.com/latest";
     let (key, existing_key, key_changed) = downloader::get_key_from_url(url)?;
     let zip_file_name = key.as_str();
     let prev_zip_file_name = existing_key.as_str();
+
+
     if key_changed {
         println!("Downloading latest file: {}", zip_file_name);
 
@@ -38,10 +40,12 @@ pub fn start_live_server(
         downloader::get_zip_from_url(zip_url, zip_file_name)?;
     }
 
+
     let handle = thread::spawn(|| {
         downloader::start_react_app().unwrap();
     });
 
+    
     let state2 = state.clone();
     //
     let browser_url = format!("http://localhost:{}", WEB_PORT);

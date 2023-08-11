@@ -8,6 +8,8 @@ use std::path::Path;
 use std::process::Command;
 use zip::ZipArchive;
 
+// This function gets the latest keys from url and compares it with the existing key
+// Returns the latest key, existing key and a boolean indicating if the key has changed
 pub fn get_key_from_url(url: &str) -> Result<(String, String, bool), LiveError> {
     let response = reqwest::blocking::get(url)?.text()?;
     let key = response.to_string().trim().to_string();
@@ -30,6 +32,7 @@ pub fn get_key_from_url(url: &str) -> Result<(String, String, bool), LiveError> 
     Ok((key, existing_key, key_changed))
 }
 
+// This function gets the latest zip from url and extracts the zip file to the local-ui directory
 pub fn get_zip_from_url(url: &str, file_name: &str) -> Result<(), LiveError> {
     let response = reqwest::blocking::get(url)?.bytes()?;
     let file_path = Path::new((get_directory_path() + "/local-ui").as_str()).join(file_name);
@@ -65,6 +68,7 @@ pub fn get_zip_from_url(url: &str, file_name: &str) -> Result<(), LiveError> {
     Ok(())
 }
 
+// This function deletes the zip files and the contents directory if key has changed
 pub fn delete_file_if_present(file_name: &str) -> Result<(), LiveError> {
     let directory_path = get_directory_path();
     let file_path = Path::new(&directory_path).join("local-ui").join(file_name);
@@ -79,6 +83,7 @@ pub fn delete_file_if_present(file_name: &str) -> Result<(), LiveError> {
     Ok(())
 }
 
+//This function navigates to the react app and starts it
 pub fn start_react_app() -> Result<(), LiveError> {
     let directory_path = get_directory_path();
     let build_path = Path::new(&directory_path)
