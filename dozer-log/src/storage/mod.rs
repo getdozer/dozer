@@ -1,4 +1,4 @@
-use std::{fmt::Debug, path::PathBuf, time::SystemTime};
+use std::{fmt::Debug, num::NonZeroU16, path::PathBuf, time::SystemTime};
 
 use aws_sdk_s3::{
     error::SdkError,
@@ -14,6 +14,8 @@ use aws_smithy_types::date_time::ConversionError;
 use dozer_types::{
     bytes::Bytes, grpc_types::internal::storage_response, thiserror, tonic::async_trait,
 };
+
+pub use nonzero_ext::nonzero;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Object {
@@ -40,7 +42,7 @@ pub trait Storage: Debug + DynClone + Send + Sync + 'static {
         &self,
         key: String,
         upload_id: String,
-        part_number: i32,
+        part_number: NonZeroU16,
         data: Vec<u8>,
     ) -> Result<String, Error>;
     /// Parts are (part_number, entity_tag) pairs.
@@ -48,7 +50,7 @@ pub trait Storage: Debug + DynClone + Send + Sync + 'static {
         &self,
         key: String,
         upload_id: String,
-        parts: Vec<(i32, String)>,
+        parts: Vec<(NonZeroU16, String)>,
     ) -> Result<(), Error>;
 
     async fn list_objects(

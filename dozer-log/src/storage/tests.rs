@@ -1,3 +1,5 @@
+use nonzero_ext::nonzero;
+
 use super::Storage;
 
 pub async fn test_storage_basic<S: Storage>(storage: &S) {
@@ -27,7 +29,10 @@ pub async fn test_storage_multipart<S: Storage>(storage: &S) {
     let key = "path/to/key".to_string();
     let upload_id = storage.create_multipart_upload(key.clone()).await.unwrap();
 
-    let data = vec![(1, vec![1; 5 * 1024 * 1024]), (2, vec![1, 2, 3])];
+    let data = vec![
+        (nonzero!(1u16), vec![1; 5 * 1024 * 1024]),
+        (nonzero!(2u16), vec![1, 2, 3]),
+    ];
     let mut parts = vec![];
     for (part_number, data) in data.iter() {
         let e_tag = storage

@@ -15,6 +15,7 @@ camino = "1.1.4"
 dozer-types = {path = "../dozer-types"}
 dyn-clone = "1.0.11"
 futures-util = "0.3.27"
+nonzero_ext = "0.3.0"
 pin-project = "1.1.2"
 tempdir = "0.3.7"
 tokio = { version = "1", features = ["full"] }
