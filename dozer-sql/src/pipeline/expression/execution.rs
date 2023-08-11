@@ -103,7 +103,7 @@ pub enum Expression {
     #[cfg(feature = "onnx")]
     OnnxUDF {
         name: String,
-        session: ort::InMemorySession,
+        session: ort::Session,
         args: Vec<Expression>,
         return_type: FieldType,
     },

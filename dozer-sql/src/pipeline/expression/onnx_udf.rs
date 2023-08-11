@@ -13,14 +13,14 @@ use ort::tensor::TensorElementDataType::{
     Bool, Float16, Float32, Float64, Int16, Int32, Int64, String, Uint16, Uint32, Uint64,
 };
 use ort::tensor::{OrtOwnedTensor, TensorData, TensorElementDataType};
-use ort::{Environment, ExecutionProvider, GraphOptimizationLevel, InMemorySession, LoggingLevel, Session, SessionBuilder, Value};
+use ort::{Environment, ExecutionProvider, GraphOptimizationLevel, LoggingLevel, Session, SessionBuilder, Value};
 use sqlparser::tokenizer::Tokenizer;
 use std::env;
 use std::path::{Path, PathBuf};
 
 pub fn evaluate_onnx_udf(
     schema: &Schema,
-    session: &InMemorySession,
+    session: &Session,
     args: &[Expression],
     return_type: &FieldType,
     record: &Record,
@@ -30,7 +30,7 @@ pub fn evaluate_onnx_udf(
         .map(|arg| arg.evaluate(record, schema))
         .collect::<Result<Vec<_>, PipelineError>>()?;
 
-    let image_buffer: ImageBuffer<Rgb<u8>, Vec<u8>> = image::open(Path::new("/Users/chloeminkyung/CLionProjects/dozer/dozer-sql/src/pipeline/expression/tests/models/mushroom.png"))
+    let image_buffer = image::open(Path::new("/Users/chloeminkyung/CLionProjects/dozer/dozer-sql/src/pipeline/expression/tests/models/mushroom.png"))
         .unwrap()
         .to_rgb8();
 
@@ -55,12 +55,12 @@ pub fn evaluate_onnx_udf(
 
 pub fn is_field_type_compatible(dozer_type: &FieldType, onnx_type: TensorElementDataType) -> bool {
     match (dozer_type, onnx_type) {
-        (Float, f64 | f32 | f16) => {
+        (FieldType::Float, Float64 | Float32 | Float16) => {
             warn!("precision loss");
             true
         }
-        (Int | I128, i64 | i32 | i16) => true,
-        (UInt | U128, u64 | u32 | u16) => true,
+        (FieldType::Int | FieldType::I128, Int64 | Int32 | Int16) => true,
+        (FieldType::UInt | FieldType::U128, Uint64 | Uint32 | Uint16) => true,
         _ => false,
     }
 }

@@ -2615,6 +2615,7 @@ dependencies = [
  "linked-hash-map",
  "metrics",
  "multimap",
+ "ndarray",
  "num-traits",
  "ort",
  "pest",

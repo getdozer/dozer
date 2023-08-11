@@ -1,3 +1,4 @@
+use std::ops::Deref;
 use dozer_types::{
     ordered_float::OrderedFloat,
     types::{Field, FieldDefinition, Schema, SourceDefinition},
@@ -7,7 +8,7 @@ use sqlparser::ast::{
     FunctionArg, FunctionArgExpr, Ident, Interval, TrimWhereField,
     UnaryOperator as SqlUnaryOperator, Value as SqlValue,
 };
-use dozer_types::models::udf_config::UdfConfig;
+use dozer_types::models::udf_config::{OnnxConfig, UdfConfig, UdfType};
 
 use crate::pipeline::errors::PipelineError::{
     InvalidArgument, InvalidExpression, InvalidFunction, InvalidNestedAggregationFunction,
@@ -30,7 +31,7 @@ use crate::pipeline::expression::scalar::string::TrimType;
 
 use super::cast::CastOperatorType;
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Debug)]
 pub struct ExpressionBuilder {
     // Must be an aggregation function
     pub aggregations: Vec<Expression>,
@@ -437,7 +438,7 @@ impl ExpressionBuilder {
                     Some(udf_type) => match udf_type {
                         UdfType::Onnx(config) => return self.parse_onnx_udf(udf.name.clone(), &config, sql_function, schema, udfs),
                     }
-                    None => PipelineError::UdfConfigMissing(udf.name.clone())
+                    None => return Err(PipelineError::UdfConfigMissing(udf.name.clone()))
                 }
             }
         }
@@ -845,22 +846,29 @@ impl ExpressionBuilder {
         let environment = Environment::builder()
             .with_name("dozer_onnx")
             .with_log_level(LoggingLevel::Verbose)
-            .build()?
+            .build()
+            .unwrap()
             .into_arc();
 
-        let session_data =
-            std::fs::read(Path::new("/Users/chloeminkyung/CLionProjects/dozer/dozer-sql/src/pipeline/expression/tests/models/upsample.onnx")).expect("Could not open model from file");
-            // std::fs::read(Path::new(config.path.as_str())).expect("Could not open model from file");
-
-        let session = SessionBuilder::new(&environment)?
-            .with_optimization_level(GraphOptimizationLevel::Level1)?
-            .with_intra_threads(1)?
-            .with_model_from_memory(&session_data)
+        let session = SessionBuilder::new(&environment).unwrap()
+            .with_optimization_level(GraphOptimizationLevel::Level1).unwrap()
+            .with_intra_threads(1).unwrap()
+            .with_model_from_file(Path::new("/Users/chloeminkyung/CLionProjects/dozer/dozer-sql/src/pipeline/expression/tests/models/upsample.onnx"))
             .expect("Could not read model from memory");
 
-        let metadata = session.metadata()?;
-        assert_eq!(metadata.name()?, "tf2onnx");
+        let metadata = session.metadata().unwrap();
+        assert_eq!(metadata.name().unwrap(), "tf2onnx");
         // assert_eq!(metadata.name()?, name);
+
+        let return_type = {
+            let ident = function
+                .return_type
+                .as_ref()
+                .ok_or_else(|| InvalidQuery("Python UDF must have a return type. The syntax is: function_name<return_type>(arguments)".to_string()))?;
+
+            FieldType::try_from(ident.value.as_str())
+                .map_err(|e| InvalidQuery(format!("Failed to parse Python UDF return type: {e}")))?
+        };
 
         Ok(Expression::OnnxUDF {
             name: name.to_string(),
