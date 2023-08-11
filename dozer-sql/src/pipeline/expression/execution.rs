@@ -103,7 +103,7 @@ pub enum Expression {
     #[cfg(feature = "onnx")]
     OnnxUDF {
         name: String,
-        session: ort::Session,
+        session: ort::InMemorySession,
         args: Vec<Expression>,
         return_type: FieldType,
     },
@@ -338,14 +338,14 @@ impl Expression {
             }
             #[cfg(feature = "onnx")]
             Expression::OnnxUDF {
-                name,
+                name: _name,
                 session,
                 args,
                 return_type,
                 ..
             } => {
                 use crate::pipeline::expression::onnx_udf::evaluate_onnx_udf;
-                evaluate_onnx_udf(schema, name, sargs, return_type, record)
+                evaluate_onnx_udf(schema, session, args, return_type, record)
             }
 
             Expression::UnaryOperator { operator, arg } => operator.evaluate(schema, arg, record),

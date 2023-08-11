@@ -13,18 +13,14 @@ use ort::tensor::TensorElementDataType::{
     Bool, Float16, Float32, Float64, Int16, Int32, Int64, String, Uint16, Uint32, Uint64,
 };
 use ort::tensor::{OrtOwnedTensor, TensorData, TensorElementDataType};
-use ort::{
-    Environment, ExecutionProvider, GraphOptimizationLevel, LoggingLevel, SessionBuilder, Value,
-};
+use ort::{Environment, ExecutionProvider, GraphOptimizationLevel, InMemorySession, LoggingLevel, Session, SessionBuilder, Value};
 use sqlparser::tokenizer::Tokenizer;
 use std::env;
 use std::path::{Path, PathBuf};
 
-const MODULE_NAME: &str = "onnx_udf";
-
 pub fn evaluate_onnx_udf(
     schema: &Schema,
-    name: &str,
+    session: &InMemorySession,
     args: &[Expression],
     return_type: &FieldType,
     record: &Record,
@@ -34,12 +30,27 @@ pub fn evaluate_onnx_udf(
         .map(|arg| arg.evaluate(record, schema))
         .collect::<Result<Vec<_>, PipelineError>>()?;
 
+    let image_buffer: ImageBuffer<Rgb<u8>, Vec<u8>> = image::open(Path::new("/Users/chloeminkyung/CLionProjects/dozer/dozer-sql/src/pipeline/expression/tests/models/mushroom.png"))
+        .unwrap()
+        .to_rgb8();
+
     // dozer fields to ndarray
+    let array = ndarray::CowArray::from(
+        ndarray::Array::from_shape_fn((1, 224, 224, 3), |(_, j, i, c)| {
+            let pixel = image_buffer.get_pixel(i as u32, j as u32);
+            let channels = pixel.channels();
+
+            // range [0, 255] -> range [0, 1]
+            (channels[c] as f32) / 255.0
+        })
+            .into_dyn()
+    );
 
     let inputs = vec![Value::from_array(session.allocator(), &[])?];
     let outputs: Vec<Value> = session.run(inputs)?;
 
     // ort value to dozer fields
+    Ok(Field::Null)
 }
 
 pub fn is_field_type_compatible(dozer_type: &FieldType, onnx_type: TensorElementDataType) -> bool {

@@ -848,10 +848,19 @@ impl ExpressionBuilder {
             .build()?
             .into_arc();
 
+        let session_data =
+            std::fs::read(Path::new("/Users/chloeminkyung/CLionProjects/dozer/dozer-sql/src/pipeline/expression/tests/models/upsample.onnx")).expect("Could not open model from file");
+            // std::fs::read(Path::new(config.path.as_str())).expect("Could not open model from file");
+
         let session = SessionBuilder::new(&environment)?
             .with_optimization_level(GraphOptimizationLevel::Level1)?
             .with_intra_threads(1)?
-            .with_model_from_file(Path::new(config.path.clone().as_str()))?;
+            .with_model_from_memory(&session_data)
+            .expect("Could not read model from memory");
+
+        let metadata = session.metadata()?;
+        assert_eq!(metadata.name()?, "tf2onnx");
+        // assert_eq!(metadata.name()?, name);
 
         Ok(Expression::OnnxUDF {
             name: name.to_string(),
