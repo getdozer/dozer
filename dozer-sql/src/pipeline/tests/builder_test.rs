@@ -191,6 +191,7 @@ fn test_pipeline_builder() {
          WHERE Spending >= 1",
         &mut pipeline,
         Some("results".to_string()),
+        vec![],
     )
     .unwrap();
 

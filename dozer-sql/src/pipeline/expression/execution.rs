@@ -14,7 +14,6 @@ use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorTyp
 use crate::pipeline::expression::scalar::common::{get_scalar_function_type, ScalarFunctionType};
 use crate::pipeline::expression::scalar::string::{evaluate_trim, validate_trim, TrimType};
 use std::iter::zip;
-
 use crate::pipeline::expression::case::evaluate_case;
 
 use crate::pipeline::aggregation::max_value::validate_max_value;
@@ -104,6 +103,7 @@ pub enum Expression {
     #[cfg(feature = "onnx")]
     OnnxUDF {
         name: String,
+        session: ort::Session,
         args: Vec<Expression>,
         return_type: FieldType,
     },

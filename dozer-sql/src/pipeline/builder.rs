@@ -7,6 +7,7 @@ use dozer_core::app::AppPipeline;
 use dozer_core::app::PipelineEntryPoint;
 use dozer_core::node::PortHandle;
 use dozer_core::DEFAULT_PORT_HANDLE;
+use dozer_types::models::udf_config::UdfConfig;
 use sqlparser::ast::{Join, SetOperator, SetQuantifier, TableFactor, TableWithJoins};
 
 use sqlparser::{
@@ -72,6 +73,7 @@ pub fn statement_to_pipeline(
     sql: &str,
     pipeline: &mut AppPipeline<SchemaSQLContext>,
     override_name: Option<String>,
+    udfs: &Vec<UdfConfig>,
 ) -> Result<QueryContext, PipelineError> {
     let dialect = DozerDialect {};
     let mut ctx = QueryContext::default();
@@ -94,6 +96,7 @@ pub fn statement_to_pipeline(
                     &mut ctx,
                     false,
                     idx,
+                    udfs,
                 )?;
             }
             s => {
@@ -117,6 +120,7 @@ fn query_to_pipeline(
     query_ctx: &mut QueryContext,
     stateful: bool,
     pipeline_idx: usize,
+    udf_config: &Vec<UdfConfig>,
 ) -> Result<(), PipelineError> {
     // return error if there is unsupported syntax
     if !query.order_by.is_empty() {
@@ -165,6 +169,7 @@ fn query_to_pipeline(
                 query_ctx,
                 true,
                 pipeline_idx,
+                udf_config,
             )?;
         }
     };
@@ -178,6 +183,7 @@ fn query_to_pipeline(
                 query_ctx,
                 stateful,
                 pipeline_idx,
+                udf_config,
             )?;
         }
         SetExpr::Query(query) => {
@@ -194,6 +200,7 @@ fn query_to_pipeline(
                 &mut ctx,
                 stateful,
                 pipeline_idx,
+                udf_config,
             )?
         }
         SetExpr::SetOperation {
@@ -212,6 +219,7 @@ fn query_to_pipeline(
                     query_ctx,
                     stateful,
                     pipeline_idx,
+                    udf_config,
                 )?;
             }
             _ => return Err(PipelineError::InvalidOperator(op.to_string())),
@@ -232,6 +240,7 @@ fn select_to_pipeline(
     query_ctx: &mut QueryContext,
     stateful: bool,
     pipeline_idx: usize,
+    udf_config: &Vec<UdfConfig>,
 ) -> Result<String, PipelineError> {
     // FROM clause
     if select.from.len() != 1 {
@@ -250,7 +259,7 @@ fn select_to_pipeline(
     // )?;
 
     let connection_info =
-        insert_from_to_pipeline(&select.from[0], pipeline, pipeline_idx, query_ctx)?;
+        insert_from_to_pipeline(&select.from[0], pipeline, pipeline_idx, query_ctx, udf_config)?;
 
     let input_nodes = connection_info.input_nodes;
     let output_node = connection_info.output_node;
@@ -348,6 +357,7 @@ fn set_to_pipeline(
     query_ctx: &mut QueryContext,
     stateful: bool,
     pipeline_idx: usize,
+    udf_config: &Vec<UdfConfig>,
 ) -> Result<String, PipelineError> {
     let gen_left_set_name = format!("set_left_{}", query_ctx.get_next_processor_id());
     let left_table_info = TableInfo {
@@ -370,6 +380,7 @@ fn set_to_pipeline(
             query_ctx,
             stateful,
             pipeline_idx,
+            udf_config,
         )?,
         SetExpr::SetOperation {
             op: _,
@@ -385,6 +396,7 @@ fn set_to_pipeline(
             query_ctx,
             stateful,
             pipeline_idx,
+            udf_config,
         )?,
         _ => {
             return Err(PipelineError::InvalidQuery(
@@ -401,6 +413,7 @@ fn set_to_pipeline(
             query_ctx,
             stateful,
             pipeline_idx,
+            udf_config,
         )?,
         SetExpr::SetOperation {
             op: _,
@@ -416,6 +429,7 @@ fn set_to_pipeline(
             query_ctx,
             stateful,
             pipeline_idx,
+            udf_config,
         )?,
         _ => {
             return Err(PipelineError::InvalidQuery(
@@ -498,12 +512,13 @@ pub fn get_input_tables(
     pipeline: &mut AppPipeline<SchemaSQLContext>,
     query_ctx: &mut QueryContext,
     pipeline_idx: usize,
+    udfs: &Vec<UdfConfig>,
 ) -> Result<IndexedTableWithJoins, PipelineError> {
-    let name = get_from_source(&from.relation, pipeline, query_ctx, pipeline_idx)?;
+    let name = get_from_source(&from.relation, pipeline, query_ctx, pipeline_idx, udfs)?;
     let mut joins = vec![];
 
     for join in from.joins.iter() {
-        let input_name = get_from_source(&join.relation, pipeline, query_ctx, pipeline_idx)?;
+        let input_name = get_from_source(&join.relation, pipeline, query_ctx, pipeline_idx, udfs)?;
         joins.push((input_name.clone(), join.clone()));
     }
 
@@ -558,6 +573,7 @@ pub fn get_from_source(
     pipeline: &mut AppPipeline<SchemaSQLContext>,
     query_ctx: &mut QueryContext,
     pipeline_idx: usize,
+    udfs: &Vec<UdfConfig>,
 ) -> Result<NameOrAlias, PipelineError> {
     match relation {
         TableFactor::Table { name, alias, .. } => {
@@ -595,6 +611,7 @@ pub fn get_from_source(
                 query_ctx,
                 false,
                 pipeline_idx,
+                udfs,
             )?;
 
             Ok(name_or)
@@ -614,7 +631,7 @@ mod tests {
     #[should_panic]
     fn disallow_zero_outgoing_ndes() {
         let sql = "select * from film";
-        statement_to_pipeline(sql, &mut AppPipeline::new(), None).unwrap();
+        statement_to_pipeline(sql, &mut AppPipeline::new(), None, vec![]).unwrap();
     }
     #[test]
     fn parse_sql_pipeline() {
@@ -673,7 +690,7 @@ mod tests {
                 from  stocks join tbl on tbl.id = stocks.id;
             "#;
 
-        let context = statement_to_pipeline(sql, &mut AppPipeline::new(), None).unwrap();
+        let context = statement_to_pipeline(sql, &mut AppPipeline::new(), None, vec![]).unwrap();
 
         // Should create as many output tables as into statements
         let mut output_keys = context.output_tables_map.keys().collect::<Vec<_>>();

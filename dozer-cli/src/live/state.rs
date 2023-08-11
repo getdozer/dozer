@@ -129,7 +129,7 @@ impl LiveState {
     pub fn build_sql(&self, sql: String) -> Result<SchemasResponse, LiveError> {
         let mut dozer = self.get_dozer()?;
 
-        let context = statement_to_pipeline(&sql, &mut AppPipeline::new(), None)
+        let context = statement_to_pipeline(&sql, &mut AppPipeline::new(), None, &dozer.config.udfs)
             .map_err(LiveError::PipelineError)?;
 
         //overwrite sql
@@ -231,6 +231,7 @@ pub fn get_endpoint_schemas(
         dozer.config.sql.as_deref(),
         endpoint_and_logs,
         MultiProgress::new(),
+        &dozer.config.udfs,
     );
     let dag = builder.build(dozer.runtime.clone())?;
     // Populate schemas.
@@ -268,6 +269,7 @@ pub fn generate_dot(dozer: SimpleOrchestrator) -> Result<DotResponse, Orchestrat
         dozer.config.sql.as_deref(),
         endpoint_and_logs,
         MultiProgress::new(),
+        &dozer.config.udfs,
     );
     let dag = builder.build(dozer.runtime.clone())?;
     // Populate schemas.

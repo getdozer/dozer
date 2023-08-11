@@ -417,7 +417,11 @@ impl ExpressionBuilder {
 
         // config check for udfs
         #[cfg(feature = "onnx")]
-        if
+        if function_name.starts_with("py_") {
+            // The function is from python udf.
+            let udf_name = function_name.strip_prefix("py_").unwrap();
+            return self.parse_python_udf(udf_name, sql_function, schema);
+        }
 
         let aggr_check = self.aggr_function_check(
             function_name.clone(),

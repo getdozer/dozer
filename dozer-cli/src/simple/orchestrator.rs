@@ -176,6 +176,7 @@ impl SimpleOrchestrator {
             &self.config.endpoints,
             get_log_options(&self.config),
             self.multi_pb.clone(),
+            &self.config.udfs,
         ))?;
         let dag_executor = executor
             .create_dag_executor(self.runtime.clone(), get_executor_options(&self.config))?;
@@ -273,6 +274,7 @@ impl SimpleOrchestrator {
             self.config.sql.as_deref(),
             endpoint_and_logs,
             self.multi_pb.clone(),
+            &self.config.udfs,
         );
         let dag = builder.build(self.runtime.clone())?;
         // Populate schemas.
@@ -377,7 +379,7 @@ impl SimpleOrchestrator {
 }
 
 pub fn validate_sql(sql: String) -> Result<(), PipelineError> {
-    statement_to_pipeline(&sql, &mut AppPipeline::new(), None).map_or_else(
+    statement_to_pipeline(&sql, &mut AppPipeline::new(), None, &vec![]).map_or_else(
         |e| {
             error!(
                 "[sql][{}] Transforms validation error: {}",

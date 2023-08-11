@@ -2,6 +2,7 @@ use dozer_core::{
     app::{AppPipeline, PipelineEntryPoint},
     DEFAULT_PORT_HANDLE,
 };
+use dozer_types::models::udf_config::UdfConfig;
 use sqlparser::ast::TableWithJoins;
 
 use crate::pipeline::{
@@ -31,13 +32,14 @@ pub(crate) fn insert_join_to_pipeline(
     pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_idx: usize,
     query_context: &mut QueryContext,
+    udfs: &Vec<UdfConfig>,
 ) -> Result<ConnectionInfo, PipelineError> {
     let mut input_nodes = vec![];
 
     let left_table = &from.relation;
     let mut left_name_or_alias = Some(get_name_or_alias(left_table)?);
     let mut left_join_source =
-        insert_join_source_to_pipeline(left_table.clone(), pipeline, pipeline_idx, query_context)?;
+        insert_join_source_to_pipeline(left_table.clone(), pipeline, pipeline_idx, query_context, udfs)?;
 
     for join in &from.joins {
         let right_table = &join.relation;
@@ -47,6 +49,7 @@ pub(crate) fn insert_join_to_pipeline(
             pipeline,
             pipeline_idx,
             query_context,
+            udfs,
         )?;
 
         let join_processor_name = format!("join_{}", query_context.get_next_processor_id());
@@ -151,6 +154,7 @@ fn insert_join_source_to_pipeline(
     pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_idx: usize,
     query_context: &mut QueryContext,
+    udfs: &Vec<UdfConfig>,
 ) -> Result<JoinSource, PipelineError> {
     let join_source = if let Some(table_operator) = is_table_operator(&source)? {
         let connection_info = insert_table_operator_to_pipeline(
@@ -165,7 +169,7 @@ fn insert_join_source_to_pipeline(
             "Nested JOINs are not supported".to_string(),
         ));
     } else {
-        let name_or_alias = get_from_source(&source, pipeline, query_context, pipeline_idx)?;
+        let name_or_alias = get_from_source(&source, pipeline, query_context, pipeline_idx, udfs)?;
         JoinSource::Table(name_or_alias.0)
     };
     Ok(join_source)

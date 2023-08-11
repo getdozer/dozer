@@ -9,6 +9,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use dozer_types::models::source::Source;
+use dozer_types::models::udf_config::UdfConfig;
 
 use crate::pipeline::PipelineBuilder;
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
@@ -27,6 +28,7 @@ pub struct Executor<'a> {
     /// `ApiEndpoint` and its log.
     endpoint_and_logs: Vec<(ApiEndpoint, BuildAndLog)>,
     multi_pb: MultiProgress,
+    udfs: &'a [UdfConfig],
 }
 
 impl<'a> Executor<'a> {
@@ -38,6 +40,7 @@ impl<'a> Executor<'a> {
         api_endpoints: &'a [ApiEndpoint],
         log_options: LogOptions,
         multi_pb: MultiProgress,
+        udfs: &'a [UdfConfig],
     ) -> Result<Executor<'a>, OrchestrationError> {
         let mut endpoint_and_logs = vec![];
         for endpoint in api_endpoints {
@@ -62,6 +65,7 @@ impl<'a> Executor<'a> {
             sql,
             endpoint_and_logs,
             multi_pb,
+            udfs,
         })
     }
 
@@ -83,6 +87,7 @@ impl<'a> Executor<'a> {
                 .map(|(endpoint, log)| (endpoint.clone(), Some(log.log.clone())))
                 .collect(),
             self.multi_pb.clone(),
+            self.udfs,
         );
 
         let dag = builder.build(runtime)?;

@@ -45,6 +45,7 @@ fn test_pipeline_builder() {
         FROM HOP(taxi_trips, completed_at, '1 MINUTE', '2 MINUTES') trips ",
         &mut pipeline,
         Some("results".to_string()),
+        vec![],
     )
     .unwrap();
 

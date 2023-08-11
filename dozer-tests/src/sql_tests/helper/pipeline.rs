@@ -287,7 +287,7 @@ impl TestPipeline {
         let mut pipeline = AppPipeline::new();
 
         let transform_response =
-            statement_to_pipeline(&sql, &mut pipeline, Some("results".to_string())).unwrap();
+            statement_to_pipeline(&sql, &mut pipeline, Some("results".to_string()), vec![]).unwrap();
 
         let output_table = transform_response.output_tables_map.get("results").unwrap();
         let (sender, receiver) =

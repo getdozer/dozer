@@ -10,7 +10,7 @@ use dozer_core::{
 use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 use dozer_types::{
     grpc_types::cloud::{QueryEdge, QueryGraph, QueryNode, QueryNodeType},
-    models::{config::Config, connection::Connection, source::Source},
+    models::{config::Config, connection::Connection, source::Source, udf_config::UdfConfig},
 };
 
 use crate::{errors::OrchestrationError, pipeline::source_builder::SourceBuilder};
@@ -53,6 +53,7 @@ fn prepare_pipeline_dag(
     sql: String,
     connection_sources: HashMap<Connection, Vec<Source>>,
     connection_source_ports: HashMap<(&str, &str), u16>,
+    udfs: &Vec<UdfConfig>,
 ) -> Result<Dag<SchemaSQLContext>, OrchestrationError> {
     let mut pipeline = AppPipeline::new();
     let mut asm: AppSourceManager<dozer_sql::pipeline::builder::SchemaSQLContext> =
@@ -80,7 +81,7 @@ fn prepare_pipeline_dag(
             AppSourceMappings::new(connection.name.to_string(), ports_with_source_name),
         );
     });
-    statement_to_pipeline(&sql, &mut pipeline, None)?;
+    statement_to_pipeline(&sql, &mut pipeline, None, udfs)?;
     let mut app = App::new(asm);
     app.add_pipeline(pipeline);
     let sql_dag = app.into_dag()?;
@@ -167,6 +168,6 @@ pub fn config_to_ui_dag(config: Config) -> Result<QueryGraph, OrchestrationError
     }
     let source_builder = SourceBuilder::new(connection_sources.clone(), None);
     let connection_source_ports = source_builder.get_ports();
-    let sql_dag = prepare_pipeline_dag(sql, connection_sources, connection_source_ports)?;
+    let sql_dag = prepare_pipeline_dag(sql, connection_sources, connection_source_ports, &config.udfs)?;
     Ok(transform_to_ui_graph(&sql_dag))
 }
