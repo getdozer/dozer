@@ -1,9 +1,8 @@
 use std::future::Future;
 use std::ops::{DerefMut, Range};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
-use dozer_types::epoch::Epoch;
 use dozer_types::grpc_types::internal::storage_response;
 use dozer_types::log::{debug, error};
 use dozer_types::models::app_config::LogStorage;
@@ -14,8 +13,6 @@ use pin_project::pin_project;
 use tokio::sync::oneshot::error::RecvError;
 use tokio::sync::Mutex;
 use tokio::task::{JoinError, JoinHandle};
-
-use crate::home_dir::BuildPath;
 
 use self::persist::{load_persisted_log_entries, persisted_log_entries_end, PersistingQueue};
 
@@ -95,12 +92,8 @@ impl Log {
         self.storage.clone()
     }
 
-    pub async fn new(
-        options: LogOptions,
-        build_path: &BuildPath,
-        readonly: bool,
-    ) -> Result<Self, Error> {
-        let (storage, prefix) = create_log_storage(options.storage_config, build_path).await?;
+    pub async fn new(options: LogOptions, log_dir: String, readonly: bool) -> Result<Self, Error> {
+        let (storage, prefix) = create_log_storage(options.storage_config, log_dir).await?;
         let persisted = load_persisted_log_entries(&*storage, prefix.clone()).await?;
         let end = persisted_log_entries_end(&persisted);
         if !readonly && end.is_some() {
@@ -282,7 +275,7 @@ impl Log {
 #[serde(crate = "dozer_types::serde")]
 pub enum LogOperation {
     Op { op: Operation },
-    Commit { epoch: Epoch },
+    Commit { decision_instant: SystemTime },
     SnapshottingDone { connection_name: String },
     Terminate,
 }

@@ -203,10 +203,10 @@ fn build_cache_task(
                     }
                 }
             },
-            LogOperation::Commit { epoch } => {
+            LogOperation::Commit { decision_instant } => {
                 cache.set_metadata(pos)?;
                 cache.commit()?;
-                if let Ok(duration) = epoch.decision_instant.elapsed() {
+                if let Ok(duration) = decision_instant.elapsed() {
                     histogram!(
                         DATA_LATENCY_HISTOGRAM_NAME,
                         duration,

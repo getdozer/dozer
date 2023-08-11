@@ -2,12 +2,12 @@ use std::collections::HashMap;
 
 use dozer_core::{
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
-    processor_record::{ProcessorRecord, ProcessorRecordRef},
+    processor_record::ProcessorRecordStore,
     DEFAULT_PORT_HANDLE,
 };
 use dozer_types::{
     errors::internal::BoxedError,
-    types::{FieldDefinition, Schema},
+    types::{FieldDefinition, Record, Schema},
 };
 use sqlparser::ast::{
     BinaryOperator, Expr as SqlExpr, Ident, JoinConstraint as SqlJoinConstraint,
@@ -105,6 +105,7 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
+        record_store: &ProcessorRecordStore,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         let (join_type, join_constraint) = match &self.join_operator {
             SqlJoinOperator::Inner(constraint) => (JoinType::Inner, constraint),
@@ -172,14 +173,19 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
         let (left_join_key_indexes, right_join_key_indexes) =
             parse_join_constraint(expression, &left_schema, &right_schema)?;
 
+        let left_default_record = Record::nulls_from_schema(&left_schema);
+        let left_default_record = record_store.create_record(&left_default_record)?;
+        let right_default_record = Record::nulls_from_schema(&right_schema);
+        let right_default_record = record_store.create_record(&right_default_record)?;
+
         let join_operator = JoinOperator::new(
             join_type,
             left_join_key_indexes,
             right_join_key_indexes,
             left_primary_key_indexes,
             right_primary_key_indexes,
-            ProcessorRecordRef::new(ProcessorRecord::nulls_from_schema(&left_schema)),
-            ProcessorRecordRef::new(ProcessorRecord::nulls_from_schema(&right_schema)),
+            left_default_record,
+            right_default_record,
         );
 
         Ok(Box::new(ProductProcessor::new(

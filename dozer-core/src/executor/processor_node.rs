@@ -3,15 +3,16 @@ use std::{borrow::Cow, mem::swap};
 
 use crossbeam::channel::Receiver;
 use daggy::NodeIndex;
-use dozer_types::epoch::Epoch;
 use dozer_types::node::NodeHandle;
 
+use crate::epoch::Epoch;
 use crate::error_manager::ErrorManager;
 use crate::executor_operation::{ExecutorOperation, ProcessorOperation};
+use crate::processor_record::ProcessorRecordStore;
 use crate::{
     builder_dag::NodeKind,
     errors::ExecutionError,
-    forwarder::{ProcessorChannelManager, StateWriter},
+    forwarder::ProcessorChannelManager,
     node::{PortHandle, Processor},
 };
 
@@ -30,6 +31,8 @@ pub struct ProcessorNode {
     processor: Box<dyn Processor>,
     /// This node's output channel manager, for forwarding data, writing metadata and writing port state.
     channel_manager: ProcessorChannelManager,
+    /// Where all the records from ingested data are stored.
+    record_store: Arc<ProcessorRecordStore>,
     /// The error manager, for reporting non-fatal errors.
     error_manager: Arc<ErrorManager>,
 }
@@ -46,14 +49,12 @@ impl ProcessorNode {
 
         let (port_handles, receivers) = dag.collect_receivers(node_index);
 
-        let (senders, record_writers) = dag.collect_senders_and_record_writers(node_index);
+        let (senders, _) = dag.collect_senders_and_record_writers(node_index);
 
-        let state_writer = StateWriter::new(record_writers);
         let channel_manager = ProcessorChannelManager::new(
             node_handle.clone(),
             senders,
-            state_writer,
-            true,
+            None,
             dag.error_manager().clone(),
         );
 
@@ -63,6 +64,7 @@ impl ProcessorNode {
             receivers,
             processor,
             channel_manager,
+            record_store: dag.record_store().clone(),
             error_manager: dag.error_manager().clone(),
         }
     }
@@ -90,10 +92,12 @@ impl ReceiverLoop for ProcessorNode {
     }
 
     fn on_op(&mut self, index: usize, op: ProcessorOperation) -> Result<(), ExecutionError> {
-        if let Err(e) =
-            self.processor
-                .process(self.port_handles[index], op, &mut self.channel_manager)
-        {
+        if let Err(e) = self.processor.process(
+            self.port_handles[index],
+            &self.record_store,
+            op,
+            &mut self.channel_manager,
+        ) {
             self.error_manager.report(e);
         }
         Ok(())

@@ -1,5 +1,5 @@
 use crate::errors::GenerationError;
-use dozer_cache::dozer_log::schemas::BuildSchema;
+use dozer_cache::dozer_log::schemas::EndpointSchema;
 use prost_reflect::{
     DescriptorPool, FieldDescriptor, MessageDescriptor, MethodDescriptor, ServiceDescriptor,
 };
@@ -145,7 +145,7 @@ impl ProtoGenerator {
     pub fn generate(
         folder_path: &Path,
         schema_name: &str,
-        schema: &BuildSchema,
+        schema: &EndpointSchema,
     ) -> Result<(), GenerationError> {
         let generator = ProtoGeneratorImpl::new(schema_name, schema, folder_path)?;
         generator.generate_proto()?;

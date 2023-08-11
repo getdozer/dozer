@@ -1,5 +1,6 @@
 pub mod cli;
 pub mod errors;
+pub mod live;
 pub mod pipeline;
 pub mod shutdown;
 pub mod simple;

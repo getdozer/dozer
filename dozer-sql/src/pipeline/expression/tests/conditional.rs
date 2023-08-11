@@ -1,8 +1,8 @@
 use crate::pipeline::expression::conditional::*;
 use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::tests::test_common::*;
-use dozer_core::processor_record::ProcessorRecord;
 use dozer_types::ordered_float::OrderedFloat;
+use dozer_types::types::Record;
 use dozer_types::types::{Field, FieldDefinition, FieldType, Schema, SourceDefinition};
 use proptest::prelude::*;
 
@@ -32,8 +32,7 @@ fn test_coalesce() {
         // UInt
         let typ = FieldType::UInt;
         let f = Field::UInt(u_num1);
-        let mut row = ProcessorRecord::new();
-        row.extend_direct_field(f.clone());
+        let row = Record::new(vec![f.clone()]);
 
         let args = vec![null.clone(), uint1.clone()];
         test_validate_coalesce(&args, typ);
@@ -54,8 +53,7 @@ fn test_coalesce() {
         // Int
         let typ = FieldType::Int;
         let f = Field::Int(i_num1);
-        let mut row = ProcessorRecord::new();
-        row.extend_direct_field(f.clone());
+        let row = Record::new(vec![f.clone()]);
 
         let args = vec![null.clone(), int1.clone()];
         test_validate_coalesce(&args, typ);
@@ -76,8 +74,7 @@ fn test_coalesce() {
         // Float
         let typ = FieldType::Float;
         let f = Field::Float(OrderedFloat(f_num1));
-        let mut row = ProcessorRecord::new();
-        row.extend_direct_field(f.clone());
+        let row = Record::new(vec![f.clone()]);
 
         let args = vec![null.clone(), float1.clone()];
         test_validate_coalesce(&args, typ);
@@ -98,8 +95,7 @@ fn test_coalesce() {
         // Decimal
         let typ = FieldType::Decimal;
         let f = Field::Decimal(d_num1.0);
-        let mut row = ProcessorRecord::new();
-        row.extend_direct_field(f.clone());
+        let row = Record::new(vec![f.clone()]);
 
         let args = vec![null.clone(), dec1.clone()];
         test_validate_coalesce(&args, typ);
@@ -120,8 +116,7 @@ fn test_coalesce() {
         // String
         let typ = FieldType::String;
         let f = Field::String(s_val1.clone());
-        let mut row = ProcessorRecord::new();
-        row.extend_direct_field(f.clone());
+        let row = Record::new(vec![f.clone()]);
 
         let args = vec![null.clone(), str1.clone()];
         test_validate_coalesce(&args, typ);
@@ -142,8 +137,7 @@ fn test_coalesce() {
         // String
         let typ = FieldType::String;
         let f = Field::String(s_val1);
-        let mut row = ProcessorRecord::new();
-        row.extend_direct_field(f.clone());
+        let row = Record::new(vec![f.clone()]);
 
         let args = vec![null.clone(), str1.clone()];
         test_validate_coalesce(&args, typ);
@@ -164,8 +158,7 @@ fn test_coalesce() {
         // Timestamp
         let typ = FieldType::Timestamp;
         let f = Field::Timestamp(dt_val1.0);
-        let mut row = ProcessorRecord::new();
-        row.extend_direct_field(f.clone());
+        let row = Record::new(vec![f.clone()]);
 
         let args = vec![null.clone(), t1.clone()];
         test_validate_coalesce(&args, typ);
@@ -186,8 +179,7 @@ fn test_coalesce() {
         // Date
         let typ = FieldType::Date;
         let f = Field::Date(dt_val1.0.date_naive());
-        let mut row = ProcessorRecord::new();
-        row.extend_direct_field(f.clone());
+        let row = Record::new(vec![f.clone()]);
 
         let args = vec![null.clone(), dt1.clone()];
         test_validate_coalesce(&args, typ);
@@ -208,8 +200,7 @@ fn test_coalesce() {
         // Null
         let typ = FieldType::Date;
         let f = Field::Null;
-        let mut row = ProcessorRecord::new();
-        row.extend_direct_field(f.clone());
+        let row = Record::new(vec![f.clone()]);
 
         let args = vec![null.clone()];
         test_validate_coalesce(&args, typ);
@@ -233,12 +224,7 @@ fn test_validate_coalesce(args: &[Expression], typ: FieldType) {
     assert_eq!(result, typ);
 }
 
-fn test_evaluate_coalesce(
-    args: &[Expression],
-    row: &ProcessorRecord,
-    typ: FieldType,
-    _result: Field,
-) {
+fn test_evaluate_coalesce(args: &[Expression], row: &Record, typ: FieldType, _result: Field) {
     let schema = Schema::default()
         .field(
             FieldDefinition::new(String::from("field"), typ, false, SourceDefinition::Dynamic),

@@ -5,12 +5,15 @@ use std::io;
 use std::path::PathBuf;
 use tonic::Code::NotFound;
 
-use crate::errors::CloudError::{ApplicationNotFound, CloudServiceError};
+use crate::{
+    errors::CloudError::{ApplicationNotFound, CloudServiceError},
+    live::LiveError,
+};
 use dozer_api::{
     errors::{ApiInitError, AuthError, GenerationError, GrpcError},
     rest::DOZER_SERVER_NAME_HEADER,
 };
-use dozer_cache::dozer_log::{errors::SchemaError, storage};
+use dozer_cache::dozer_log::storage;
 use dozer_cache::errors::CacheError;
 use dozer_core::errors::ExecutionError;
 use dozer_ingestion::errors::ConnectorError;
@@ -35,8 +38,8 @@ pub enum OrchestrationError {
     FailedToWriteConfigYaml(#[source] serde_yaml::Error),
     #[error("File system error {0:?}: {1}")]
     FileSystem(PathBuf, std::io::Error),
-    #[error("Failed to find build for endpoint {0}")]
-    NoBuildFound(String),
+    #[error("Failed to find any build")]
+    NoBuildFound,
     #[error("Failed to create log: {0}")]
     CreateLog(#[from] dozer_cache::dozer_log::replication::Error),
     #[error("Failed to login: {0}")]
@@ -89,6 +92,8 @@ pub enum OrchestrationError {
     CloudContextError(#[from] CloudContextError),
     #[error("Failed to read organisation name. Error: {0}")]
     FailedToReadOrganisationName(#[source] io::Error),
+    #[error(transparent)]
+    LiveError(#[from] LiveError),
 }
 
 #[derive(Error, Debug)]
@@ -183,6 +188,8 @@ pub enum ConfigCombineError {
 
 #[derive(Debug, Error)]
 pub enum BuildError {
+    #[error("Endpoint {0} found in DAG but not in configuration file")]
+    MissingEndpoint(String),
     #[error("Got mismatching primary key for `{endpoint_name}`. Expected: `{expected:?}`, got: `{actual:?}`")]
     MismatchPrimaryKey {
         endpoint_name: String,
@@ -193,10 +200,8 @@ pub enum BuildError {
     FieldNotFound(String),
     #[error("File system error {0:?}: {1}")]
     FileSystem(PathBuf, std::io::Error),
-    #[error("Cannot load existing schema: {0}")]
-    CannotLoadExistingSchema(#[source] SchemaError),
-    #[error("Cannot write schema: {0}")]
-    CannotWriteSchema(#[source] SchemaError),
+    #[error("Serde json error: {0}")]
+    SerdeJson(#[from] serde_json::Error),
     #[error("Failed to generate proto files: {0:?}")]
     FailedToGenerateProtoFiles(#[from] GenerationError),
     #[error("Storage error: {0}")]

@@ -147,7 +147,7 @@ pub struct Lifetime {
     pub duration: std::time::Duration,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]
 pub struct Record {
     /// List of values, following the definitions of `fields` of the associated schema
     pub values: Vec<Field>,

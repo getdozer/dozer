@@ -57,7 +57,7 @@ impl DozerE2eTest {
         let mut dozer = SimpleOrchestrator::new(config, Arc::new(runtime));
         let (shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
         let dozer_thread = std::thread::spawn(move || {
-            dozer.run_all(shutdown_receiver, None).unwrap();
+            dozer.run_all(shutdown_receiver).unwrap();
         });
 
         let num_retries = 10;

@@ -1,5 +1,5 @@
-use dozer_api::grpc::internal::internal_pipeline_server::BuildAndLog;
-use dozer_cache::dozer_log::home_dir::HomeDir;
+use dozer_api::grpc::internal::internal_pipeline_server::LogEndpoint;
+use dozer_cache::dozer_log::home_dir::{BuildPath, HomeDir};
 use dozer_cache::dozer_log::replication::{Log, LogOptions};
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use tokio::runtime::Runtime;
@@ -25,7 +25,7 @@ pub struct Executor<'a> {
     sources: &'a [Source],
     sql: Option<&'a str>,
     /// `ApiEndpoint` and its log.
-    endpoint_and_logs: Vec<(ApiEndpoint, BuildAndLog)>,
+    endpoint_and_logs: Vec<(ApiEndpoint, LogEndpoint)>,
     multi_pb: MultiProgress,
 }
 
@@ -39,21 +39,15 @@ impl<'a> Executor<'a> {
         log_options: LogOptions,
         multi_pb: MultiProgress,
     ) -> Result<Executor<'a>, OrchestrationError> {
+        let build_path = home_dir
+            .find_latest_build_path()
+            .map_err(|(path, error)| OrchestrationError::FileSystem(path.into(), error))?
+            .ok_or(OrchestrationError::NoBuildFound)?;
         let mut endpoint_and_logs = vec![];
         for endpoint in api_endpoints {
-            let build_path = home_dir
-                .find_latest_build_path(&endpoint.name)
-                .map_err(|(path, error)| OrchestrationError::FileSystem(path.into(), error))?
-                .ok_or(OrchestrationError::NoBuildFound(endpoint.name.clone()))?;
-            let log = Log::new(log_options.clone(), &build_path, false).await?;
-            let log = Arc::new(Mutex::new(log));
-            endpoint_and_logs.push((
-                endpoint.clone(),
-                BuildAndLog {
-                    build: build_path,
-                    log,
-                },
-            ));
+            let log_endpoint =
+                create_log_endpoint(&build_path, &endpoint.name, log_options.clone()).await?;
+            endpoint_and_logs.push((endpoint.clone(), log_endpoint));
         }
 
         Ok(Executor {
@@ -65,7 +59,7 @@ impl<'a> Executor<'a> {
         })
     }
 
-    pub fn endpoint_and_logs(&self) -> &[(ApiEndpoint, BuildAndLog)] {
+    pub fn endpoint_and_logs(&self) -> &[(ApiEndpoint, LogEndpoint)] {
         &self.endpoint_and_logs
     }
 
@@ -98,4 +92,32 @@ pub fn run_dag_executor(
 ) -> Result<(), OrchestrationError> {
     let join_handle = dag_executor.start(running)?;
     join_handle.join().map_err(ExecutionError)
+}
+
+async fn create_log_endpoint(
+    build_path: &BuildPath,
+    endpoint_name: &str,
+    log_options: LogOptions,
+) -> Result<LogEndpoint, OrchestrationError> {
+    let endpoint_path = build_path.get_endpoint_path(endpoint_name);
+
+    let schema_string = tokio::fs::read_to_string(&endpoint_path.schema_path)
+        .await
+        .map_err(|e| OrchestrationError::FileSystem(endpoint_path.schema_path.into(), e))?;
+
+    let descriptor_bytes = tokio::fs::read(&build_path.descriptor_path)
+        .await
+        .map_err(|e| {
+            OrchestrationError::FileSystem(build_path.descriptor_path.clone().into(), e)
+        })?;
+
+    let log = Log::new(log_options, endpoint_path.log_dir.into_string(), false).await?;
+    let log = Arc::new(Mutex::new(log));
+
+    Ok(LogEndpoint {
+        build_id: build_path.id.clone(),
+        schema_string,
+        descriptor_bytes,
+        log,
+    })
 }

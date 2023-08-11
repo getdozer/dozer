@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::Arc};
 
 use daggy::petgraph::visit::IntoNodeIdentifiers;
 use dozer_types::node::{NodeHandle, OpIdentifier};
@@ -8,6 +8,7 @@ use crate::{
     dag_schemas::{DagHaveSchemas, DagSchemas, EdgeType},
     errors::ExecutionError,
     node::{Processor, Sink, Source},
+    processor_record::ProcessorRecordStore,
 };
 
 #[derive(Debug)]
@@ -33,6 +34,7 @@ pub enum NodeKind {
 #[derive(Debug)]
 pub struct BuilderDag {
     graph: daggy::Dag<NodeType, EdgeType>,
+    record_store: Arc<ProcessorRecordStore>,
 }
 
 impl BuilderDag {
@@ -41,6 +43,7 @@ impl BuilderDag {
         let dag_checkpoint = DagCheckpoint::new(dag_schemas)?;
 
         // Create processors and sinks.
+        let record_store = Arc::new(ProcessorRecordStore::new()?);
         let mut nodes = vec![];
         let node_indexes = dag_checkpoint
             .graph()
@@ -56,7 +59,7 @@ impl BuilderDag {
                 CheckpointNodeKind::Source(_) => None,
                 CheckpointNodeKind::Processor(processor) => {
                     let processor = processor
-                        .build(input_schemas, output_schemas)
+                        .build(input_schemas, output_schemas, &record_store)
                         .map_err(ExecutionError::Factory)?;
                     Some(NodeKind::Processor(processor))
                 }
@@ -93,11 +96,18 @@ impl BuilderDag {
             },
             |_, edge| edge,
         );
-        Ok(BuilderDag { graph })
+        Ok(BuilderDag {
+            graph,
+            record_store,
+        })
     }
 
     pub fn graph(&self) -> &daggy::Dag<NodeType, EdgeType> {
         &self.graph
+    }
+
+    pub fn record_store(&self) -> &Arc<ProcessorRecordStore> {
+        &self.record_store
     }
 
     pub fn into_graph(self) -> daggy::Dag<NodeType, EdgeType> {

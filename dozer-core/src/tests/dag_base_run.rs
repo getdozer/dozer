@@ -1,7 +1,9 @@
 use crate::channels::ProcessorChannelForwarder;
+use crate::epoch::Epoch;
 use crate::executor::{DagExecutor, ExecutorOptions};
 use crate::executor_operation::ProcessorOperation;
 use crate::node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory};
+use crate::processor_record::ProcessorRecordStore;
 use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::tests::sources::{
     DualPortGeneratorSourceFactory, GeneratorSourceFactory,
@@ -9,7 +11,6 @@ use crate::tests::sources::{
     GENERATOR_SOURCE_OUTPUT_PORT,
 };
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
-use dozer_types::epoch::Epoch;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
 use dozer_types::types::Schema;
@@ -53,6 +54,7 @@ impl ProcessorFactory<NoneContext> for NoopProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
+        _record_store: &ProcessorRecordStore,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         Ok(Box::new(NoopProcessor {}))
     }
@@ -73,6 +75,7 @@ impl Processor for NoopProcessor {
     fn process(
         &mut self,
         _from_port: PortHandle,
+        _record_store: &ProcessorRecordStore,
         op: ProcessorOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
@@ -200,6 +203,7 @@ impl ProcessorFactory<NoneContext> for NoopJoinProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
+        _record_store: &ProcessorRecordStore,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         Ok(Box::new(NoopJoinProcessor {}))
     }
@@ -220,6 +224,7 @@ impl Processor for NoopJoinProcessor {
     fn process(
         &mut self,
         _from_port: PortHandle,
+        _record_store: &ProcessorRecordStore,
         op: ProcessorOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {

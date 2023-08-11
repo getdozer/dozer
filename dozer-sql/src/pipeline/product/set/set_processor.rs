@@ -4,7 +4,7 @@ use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::epoch::Epoch;
 use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{PortHandle, Processor};
-use dozer_core::processor_record::ProcessorRecordRef;
+use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordStore};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
 use std::collections::hash_map::RandomState;
@@ -41,8 +41,8 @@ impl SetProcessor {
 
     fn delete(
         &mut self,
-        record: ProcessorRecordRef,
-    ) -> Result<Vec<(SetAction, ProcessorRecordRef)>, ProductError> {
+        record: ProcessorRecord,
+    ) -> Result<Vec<(SetAction, ProcessorRecord)>, ProductError> {
         self.operator
             .execute(SetAction::Delete, record, &mut self.record_map)
             .map_err(|err| {
@@ -52,8 +52,8 @@ impl SetProcessor {
 
     fn insert(
         &mut self,
-        record: ProcessorRecordRef,
-    ) -> Result<Vec<(SetAction, ProcessorRecordRef)>, ProductError> {
+        record: ProcessorRecord,
+    ) -> Result<Vec<(SetAction, ProcessorRecord)>, ProductError> {
         self.operator
             .execute(SetAction::Insert, record, &mut self.record_map)
             .map_err(|err| {
@@ -64,12 +64,12 @@ impl SetProcessor {
     #[allow(clippy::type_complexity)]
     fn update(
         &mut self,
-        old: ProcessorRecordRef,
-        new: ProcessorRecordRef,
+        old: ProcessorRecord,
+        new: ProcessorRecord,
     ) -> Result<
         (
-            Vec<(SetAction, ProcessorRecordRef)>,
-            Vec<(SetAction, ProcessorRecordRef)>,
+            Vec<(SetAction, ProcessorRecord)>,
+            Vec<(SetAction, ProcessorRecord)>,
         ),
         ProductError,
     > {
@@ -105,6 +105,7 @@ impl Processor for SetProcessor {
     fn process(
         &mut self,
         _from_port: PortHandle,
+        _record_store: &ProcessorRecordStore,
         op: ProcessorOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {

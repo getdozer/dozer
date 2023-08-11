@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::pipeline::expression::builder::ExpressionBuilder;
 use crate::pipeline::{builder::SchemaSQLContext, errors::PipelineError};
+use dozer_core::processor_record::ProcessorRecordStore;
 use dozer_core::{
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
@@ -57,6 +58,7 @@ impl ProcessorFactory<SchemaSQLContext> for SelectionProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
+        _record_store: &ProcessorRecordStore,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         let schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)

@@ -1,6 +1,6 @@
 use crate::pipeline::errors::PipelineError;
 use bloom::{CountingBloomFilter, ASMS};
-use dozer_core::processor_record::ProcessorRecordRef;
+use dozer_core::processor_record::ProcessorRecord;
 use sqlparser::ast::{SetOperator, SetQuantifier};
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
@@ -27,9 +27,9 @@ impl SetOperation {
     pub fn execute(
         &self,
         action: SetAction,
-        record: ProcessorRecordRef,
+        record: ProcessorRecord,
         record_map: &mut CountingBloomFilter,
-    ) -> Result<Vec<(SetAction, ProcessorRecordRef)>, PipelineError> {
+    ) -> Result<Vec<(SetAction, ProcessorRecord)>, PipelineError> {
         match (self.op, self.quantifier) {
             (SetOperator::Union, SetQuantifier::All) => Ok(vec![(action, record)]),
             (SetOperator::Union, SetQuantifier::None) => {
@@ -42,9 +42,9 @@ impl SetOperation {
     fn execute_union(
         &self,
         action: SetAction,
-        record: ProcessorRecordRef,
+        record: ProcessorRecord,
         record_map: &mut CountingBloomFilter,
-    ) -> Result<Vec<(SetAction, ProcessorRecordRef)>, PipelineError> {
+    ) -> Result<Vec<(SetAction, ProcessorRecord)>, PipelineError> {
         match action {
             SetAction::Insert => self.union_insert(action, record, record_map),
             SetAction::Delete => self.union_delete(action, record, record_map),
@@ -54,9 +54,9 @@ impl SetOperation {
     fn union_insert(
         &self,
         action: SetAction,
-        record: ProcessorRecordRef,
+        record: ProcessorRecord,
         record_map: &mut CountingBloomFilter,
-    ) -> Result<Vec<(SetAction, ProcessorRecordRef)>, PipelineError> {
+    ) -> Result<Vec<(SetAction, ProcessorRecord)>, PipelineError> {
         let _count = self.update_map(record.clone(), false, record_map);
         if _count == 1 {
             Ok(vec![(action, record)])
@@ -68,9 +68,9 @@ impl SetOperation {
     fn union_delete(
         &self,
         action: SetAction,
-        record: ProcessorRecordRef,
+        record: ProcessorRecord,
         record_map: &mut CountingBloomFilter,
-    ) -> Result<Vec<(SetAction, ProcessorRecordRef)>, PipelineError> {
+    ) -> Result<Vec<(SetAction, ProcessorRecord)>, PipelineError> {
         let _count = self.update_map(record.clone(), true, record_map);
         if _count == 0 {
             Ok(vec![(action, record)])
@@ -81,7 +81,7 @@ impl SetOperation {
 
     fn update_map(
         &self,
-        record: ProcessorRecordRef,
+        record: ProcessorRecord,
         decr: bool,
         record_map: &mut CountingBloomFilter,
     ) -> u32 {
