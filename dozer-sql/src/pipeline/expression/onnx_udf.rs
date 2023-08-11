@@ -29,17 +29,6 @@ pub fn evaluate_onnx_udf(
     return_type: &FieldType,
     record: &Record,
 ) -> Result<Field, PipelineError> {
-    let environment = Environment::builder()
-        .with_name("dozer_onnx")
-        .with_log_level(LoggingLevel::Verbose)
-        .build()?
-        .into_arc();
-
-    let session = SessionBuilder::new(&environment)?
-        .with_optimization_level(GraphOptimizationLevel::Level1)?
-        .with_intra_threads(1)?
-        .with_model_from_file(Path::new("../models/onnx_model.onnx"))?;
-
     let input_values = args
         .iter()
         .map(|arg| arg.evaluate(record, schema))

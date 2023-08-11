@@ -339,12 +339,13 @@ impl Expression {
             #[cfg(feature = "onnx")]
             Expression::OnnxUDF {
                 name,
+                session,
                 args,
                 return_type,
                 ..
             } => {
                 use crate::pipeline::expression::onnx_udf::evaluate_onnx_udf;
-                evaluate_onnx_udf(schema, name, args, return_type, record)
+                evaluate_onnx_udf(schema, name, sargs, return_type, record)
             }
 
             Expression::UnaryOperator { operator, arg } => operator.evaluate(schema, arg, record),

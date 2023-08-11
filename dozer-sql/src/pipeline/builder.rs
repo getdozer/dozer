@@ -292,13 +292,13 @@ fn select_to_pipeline(
     }
 
     let aggregation =
-        AggregationProcessorFactory::new(gen_agg_name.clone(), select.clone(), stateful);
+        AggregationProcessorFactory::new(gen_agg_name.clone(), select.clone(), stateful, udf_config.clone());
 
     pipeline.add_processor(Box::new(aggregation), &gen_agg_name, vec![]);
 
     // Where clause
     if let Some(selection) = select.selection {
-        let selection = SelectionProcessorFactory::new(gen_selection_name.to_owned(), selection);
+        let selection = SelectionProcessorFactory::new(gen_selection_name.to_owned(), selection, udf_config.clone());
 
         pipeline.add_processor(Box::new(selection), &gen_selection_name, vec![]);
 

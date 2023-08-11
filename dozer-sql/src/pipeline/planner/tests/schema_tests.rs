@@ -44,7 +44,7 @@ fn test_schema_index_partial_group_by() {
         )
         .to_owned();
 
-    let mut projection_planner = CommonPlanner::new(schema);
+    let mut projection_planner = CommonPlanner::new(schema, vec![]);
     let statement = get_select(sql).unwrap();
 
     projection_planner.plan(*statement).unwrap();
@@ -97,7 +97,7 @@ fn test_schema_index_full_group_by() {
         )
         .to_owned();
 
-    let mut projection_planner = CommonPlanner::new(schema);
+    let mut projection_planner = CommonPlanner::new(schema, vec![]);
     let statement = get_select(sql).unwrap();
 
     projection_planner.plan(*statement).unwrap();

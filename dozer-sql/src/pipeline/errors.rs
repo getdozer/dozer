@@ -89,6 +89,9 @@ pub enum PipelineError {
     #[error("Python Error: {0}")]
     PythonErr(dozer_types::pyo3::PyErr),
 
+    #[error("Udf is defined but missing with config: {0}")]
+    UdfConfigMissing(String),
+
     // Error forwarding
     #[error("Internal type error: {0}")]
     InternalTypeError(#[from] TypeError),

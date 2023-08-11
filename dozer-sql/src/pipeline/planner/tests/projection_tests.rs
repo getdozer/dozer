@@ -39,7 +39,7 @@ fn test_basic_projection() {
         )
         .to_owned();
 
-    let mut projection_planner = CommonPlanner::new(schema);
+    let mut projection_planner = CommonPlanner::new(schema, vec![]);
     let statement = get_select(sql).unwrap();
 
     projection_planner.plan(*statement).unwrap();

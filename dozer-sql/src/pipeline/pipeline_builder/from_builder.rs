@@ -59,6 +59,7 @@ fn insert_table_to_pipeline(
             pipeline,
             pipeline_idx,
             query_context,
+            udfs,
         )
     } else {
         insert_table_processor_to_pipeline(relation, pipeline, pipeline_idx, query_context, udfs)
@@ -123,6 +124,7 @@ fn insert_table_operator_processor_to_pipeline(
     pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_idx: usize,
     query_context: &mut QueryContext,
+    udfs: &Vec<UdfConfig>,
 ) -> Result<ConnectionInfo, PipelineError> {
     // the sources names that are used in this pipeline
     let mut input_nodes = vec![];
@@ -140,7 +142,7 @@ fn insert_table_operator_processor_to_pipeline(
             query_context.get_next_processor_id()
         );
         let processor =
-            TableOperatorProcessorFactory::new(processor_name.clone(), operator.clone());
+            TableOperatorProcessorFactory::new(processor_name.clone(), operator.clone(), udfs.clone());
 
         let source_name = processor
             .get_source_name()

@@ -29,7 +29,7 @@ pub(crate) fn run_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Field {
 
     let select = get_select(sql).unwrap();
     let processor_factory =
-        ProjectionProcessorFactory::_new("projection_id".to_owned(), select.projection);
+        ProjectionProcessorFactory::_new("projection_id".to_owned(), select.projection, vec![]);
     processor_factory
         .get_output_schema(
             &DEFAULT_PORT_HANDLE,

@@ -143,7 +143,7 @@ fn test_alias() {
 
     let select = get_select("SELECT count(fn) AS alias1, ln as alias2 FROM t1").unwrap();
     let processor_factory =
-        ProjectionProcessorFactory::_new("projection_id".to_owned(), select.projection);
+        ProjectionProcessorFactory::_new("projection_id".to_owned(), select.projection, vec![]);
     let r = processor_factory
         .get_output_schema(
             &DEFAULT_PORT_HANDLE,
@@ -204,7 +204,7 @@ fn test_wildcard() {
 
     let select = get_select("SELECT * FROM t1").unwrap();
     let processor_factory =
-        ProjectionProcessorFactory::_new("projection_id".to_owned(), select.projection);
+        ProjectionProcessorFactory::_new("projection_id".to_owned(), select.projection, vec![]);
     let r = processor_factory
         .get_output_schema(
             &DEFAULT_PORT_HANDLE,

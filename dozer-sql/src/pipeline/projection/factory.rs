@@ -10,6 +10,7 @@ use dozer_types::{
     types::{FieldDefinition, Schema},
 };
 use sqlparser::ast::{Expr, Ident, SelectItem};
+use dozer_types::models::udf_config::UdfConfig;
 
 use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::{
@@ -23,12 +24,13 @@ use super::processor::ProjectionProcessor;
 pub struct ProjectionProcessorFactory {
     select: Vec<SelectItem>,
     id: String,
+    udfs: Vec<UdfConfig>,
 }
 
 impl ProjectionProcessorFactory {
     /// Creates a new [`ProjectionProcessorFactory`].
-    pub fn _new(id: String, select: Vec<SelectItem>) -> Self {
-        Self { select, id }
+    pub fn _new(id: String, select: Vec<SelectItem>, udfs: Vec<UdfConfig>) -> Self {
+        Self { select, id, udfs }
     }
 }
 
@@ -72,13 +74,13 @@ impl ProcessorFactory<SchemaSQLContext> for ProjectionProcessorFactory {
                         })
                         .collect();
                     for f in fields {
-                        if let Ok(res) = parse_sql_select_item(&f, input_schema) {
+                        if let Ok(res) = parse_sql_select_item(&f, input_schema, &self.udfs) {
                             select_expr.push(res)
                         }
                     }
                 }
                 _ => {
-                    if let Ok(res) = parse_sql_select_item(s, input_schema) {
+                    if let Ok(res) = parse_sql_select_item(s, input_schema, &self.udfs) {
                         select_expr.push(res)
                     }
                 }
@@ -116,7 +118,7 @@ impl ProcessorFactory<SchemaSQLContext> for ProjectionProcessorFactory {
         match self
             .select
             .iter()
-            .map(|item| parse_sql_select_item(item, schema))
+            .map(|item| parse_sql_select_item(item, schema, &self.udfs))
             .collect::<Result<Vec<(String, Expression)>, PipelineError>>()
         {
             Ok(expressions) => Ok(Box::new(ProjectionProcessor::new(
@@ -131,16 +133,17 @@ impl ProcessorFactory<SchemaSQLContext> for ProjectionProcessorFactory {
 pub(crate) fn parse_sql_select_item(
     sql: &SelectItem,
     schema: &Schema,
+    udfs: &Vec<UdfConfig>,
 ) -> Result<(String, Expression), PipelineError> {
     match sql {
         SelectItem::UnnamedExpr(sql_expr) => {
-            match ExpressionBuilder::new(0).parse_sql_expression(true, sql_expr, schema) {
+            match ExpressionBuilder::new(0).parse_sql_expression(true, sql_expr, schema, udfs) {
                 Ok(expr) => Ok((sql_expr.to_string(), expr)),
                 Err(error) => Err(error),
             }
         }
         SelectItem::ExprWithAlias { expr, alias } => {
-            match ExpressionBuilder::new(0).parse_sql_expression(true, expr, schema) {
+            match ExpressionBuilder::new(0).parse_sql_expression(true, expr, schema, udfs) {
                 Ok(expr) => Ok((alias.value.clone(), expr)),
                 Err(error) => Err(error),
             }

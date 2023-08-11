@@ -7,6 +7,7 @@ use sqlparser::ast::{
     FunctionArg, FunctionArgExpr, Ident, Interval, TrimWhereField,
     UnaryOperator as SqlUnaryOperator, Value as SqlValue,
 };
+use dozer_types::models::udf_config::UdfConfig;
 
 use crate::pipeline::errors::PipelineError::{
     InvalidArgument, InvalidExpression, InvalidFunction, InvalidNestedAggregationFunction,
@@ -56,8 +57,9 @@ impl ExpressionBuilder {
         parse_aggregations: bool,
         sql_expression: &SqlExpr,
         schema: &Schema,
+        udfs: &Vec<UdfConfig>,
     ) -> Result<Expression, PipelineError> {
-        self.parse_sql_expression(parse_aggregations, sql_expression, schema)
+        self.parse_sql_expression(parse_aggregations, sql_expression, schema, udfs)
     }
 
     pub(crate) fn parse_sql_expression(
@@ -65,6 +67,7 @@ impl ExpressionBuilder {
         parse_aggregations: bool,
         expression: &SqlExpr,
         schema: &Schema,
+        udfs: &Vec<UdfConfig>,
     ) -> Result<Expression, PipelineError> {
         match expression {
             SqlExpr::Trim {
@@ -77,6 +80,7 @@ impl ExpressionBuilder {
                 trim_where,
                 trim_what,
                 schema,
+                udfs,
             ),
             SqlExpr::Identifier(ident) => Self::parse_sql_column(&[ident.clone()], schema),
             SqlExpr::CompoundIdentifier(ident) => Self::parse_sql_column(ident, schema),
@@ -86,14 +90,14 @@ impl ExpressionBuilder {
                 Self::parse_sql_string(s)
             }
             SqlExpr::UnaryOp { expr, op } => {
-                self.parse_sql_unary_op(parse_aggregations, op, expr, schema)
+                self.parse_sql_unary_op(parse_aggregations, op, expr, schema, udfs)
             }
             SqlExpr::BinaryOp { left, op, right } => {
-                self.parse_sql_binary_op(parse_aggregations, left, op, right, schema)
+                self.parse_sql_binary_op(parse_aggregations, left, op, right, schema, udfs)
             }
-            SqlExpr::Nested(expr) => self.parse_sql_expression(parse_aggregations, expr, schema),
+            SqlExpr::Nested(expr) => self.parse_sql_expression(parse_aggregations, expr, schema, udfs),
             SqlExpr::Function(sql_function) => {
-                self.parse_sql_function(parse_aggregations, sql_function, schema)
+                self.parse_sql_function(parse_aggregations, sql_function, schema, udfs)
             }
             SqlExpr::Like {
                 negated,
@@ -107,18 +111,19 @@ impl ExpressionBuilder {
                 pattern,
                 escape_char,
                 schema,
+                udfs,
             ),
             SqlExpr::InList {
                 expr,
                 list,
                 negated,
-            } => self.parse_sql_in_list_operator(parse_aggregations, expr, list, *negated, schema),
+            } => self.parse_sql_in_list_operator(parse_aggregations, expr, list, *negated, schema, udfs),
 
             SqlExpr::Cast { expr, data_type } => {
-                self.parse_sql_cast_operator(parse_aggregations, expr, data_type, schema)
+                self.parse_sql_cast_operator(parse_aggregations, expr, data_type, schema, udfs)
             }
             SqlExpr::Extract { field, expr } => {
-                self.parse_sql_extract_operator(parse_aggregations, field, expr, schema)
+                self.parse_sql_extract_operator(parse_aggregations, field, expr, schema, udfs)
             }
             SqlExpr::Interval(Interval {
                 value,
@@ -127,7 +132,7 @@ impl ExpressionBuilder {
                 last_field: _,
                 fractional_seconds_precision: _,
             }) => {
-                self.parse_sql_interval_expression(parse_aggregations, value, leading_field, schema)
+                self.parse_sql_interval_expression(parse_aggregations, value, leading_field, schema, udfs)
             }
             SqlExpr::Case {
                 operand,
@@ -141,6 +146,7 @@ impl ExpressionBuilder {
                 results,
                 else_result,
                 schema,
+                udfs,
             ),
             _ => Err(InvalidExpression(format!("{expression:?}"))),
         }
@@ -249,13 +255,15 @@ impl ExpressionBuilder {
         trim_where: &Option<TrimWhereField>,
         trim_what: &Option<Box<Expr>>,
         schema: &Schema,
+        udfs: &Vec<UdfConfig>,
     ) -> Result<Expression, PipelineError> {
-        let arg = Box::new(self.parse_sql_expression(parse_aggregations, expr, schema)?);
+        let arg = Box::new(self.parse_sql_expression(parse_aggregations, expr, schema, udfs)?);
         let what = match trim_what {
             Some(e) => Some(Box::new(self.parse_sql_expression(
                 parse_aggregations,
                 e,
                 schema,
+                udfs,
             )?)),
             _ => None,
         };
@@ -273,6 +281,7 @@ impl ExpressionBuilder {
         parse_aggregations: bool,
         sql_function: &Function,
         schema: &Schema,
+        udfs: &Vec<UdfConfig>,
     ) -> Result<Expression, PipelineError> {
         match (
             AggregateFunctionType::new(function_name.as_str()),
@@ -281,7 +290,7 @@ impl ExpressionBuilder {
             (Ok(aggr), true) => {
                 let mut arg_expr: Vec<Expression> = Vec::new();
                 for arg in &sql_function.args {
-                    let aggregation = self.parse_sql_function_arg(true, arg, schema)?;
+                    let aggregation = self.parse_sql_function_arg(true, arg, schema, udfs)?;
                     arg_expr.push(aggregation);
                 }
                 let measure = Expression::AggregateFunction {
@@ -315,10 +324,11 @@ impl ExpressionBuilder {
         parse_aggregations: bool,
         sql_function: &Function,
         schema: &Schema,
+        udfs: &Vec<UdfConfig>,
     ) -> Result<Expression, PipelineError> {
         let mut function_args: Vec<Expression> = Vec::new();
         for arg in &sql_function.args {
-            function_args.push(self.parse_sql_function_arg(parse_aggregations, arg, schema)?);
+            function_args.push(self.parse_sql_function_arg(parse_aggregations, arg, schema, udfs)?);
         }
 
         match ScalarFunctionType::new(function_name.as_str()) {
@@ -336,10 +346,11 @@ impl ExpressionBuilder {
         parse_aggregations: bool,
         sql_function: &Function,
         schema: &Schema,
+        udfs: &Vec<UdfConfig>,
     ) -> Result<Expression, PipelineError> {
         let mut function_args: Vec<Expression> = Vec::new();
         for arg in &sql_function.args {
-            function_args.push(self.parse_sql_function_arg(parse_aggregations, arg, schema)?);
+            function_args.push(self.parse_sql_function_arg(parse_aggregations, arg, schema, udfs)?);
         }
 
         match GeoFunctionType::new(function_name.as_str()) {
@@ -364,10 +375,11 @@ impl ExpressionBuilder {
         parse_aggregations: bool,
         sql_function: &Function,
         schema: &Schema,
+        udfs: &Vec<UdfConfig>,
     ) -> Result<Expression, PipelineError> {
         let mut function_args: Vec<Expression> = Vec::new();
         for arg in &sql_function.args {
-            function_args.push(self.parse_sql_function_arg(parse_aggregations, arg, schema)?);
+            function_args.push(self.parse_sql_function_arg(parse_aggregations, arg, schema, udfs)?);
         }
 
         match JsonFunctionType::new(function_name.as_str()) {
@@ -385,10 +397,11 @@ impl ExpressionBuilder {
         parse_aggregations: bool,
         sql_function: &Function,
         schema: &Schema,
+        udfs: &Vec<UdfConfig>,
     ) -> Result<Expression, PipelineError> {
         let mut function_args: Vec<Expression> = Vec::new();
         for arg in &sql_function.args {
-            function_args.push(self.parse_sql_function_arg(parse_aggregations, arg, schema)?);
+            function_args.push(self.parse_sql_function_arg(parse_aggregations, arg, schema, udfs)?);
         }
 
         match ConditionalExpressionType::new(function_name.as_str()) {
@@ -405,6 +418,7 @@ impl ExpressionBuilder {
         parse_aggregations: bool,
         sql_function: &Function,
         schema: &Schema,
+        udfs: &Vec<UdfConfig>,
     ) -> Result<Expression, PipelineError> {
         let function_name = sql_function.name.to_string().to_lowercase();
 
@@ -412,15 +426,20 @@ impl ExpressionBuilder {
         if function_name.starts_with("py_") {
             // The function is from python udf.
             let udf_name = function_name.strip_prefix("py_").unwrap();
-            return self.parse_python_udf(udf_name, sql_function, schema);
+            return self.parse_python_udf(udf_name, sql_function, schema, udfs);
         }
 
         // config check for udfs
         #[cfg(feature = "onnx")]
-        if function_name.starts_with("py_") {
-            // The function is from python udf.
-            let udf_name = function_name.strip_prefix("py_").unwrap();
-            return self.parse_python_udf(udf_name, sql_function, schema);
+        if !udfs.is_empty() {
+            for udf in udfs {
+                match udf.config.clone() {
+                    Some(udf_type) => match udf_type {
+                        UdfType::Onnx(config) => return self.parse_onnx_udf(udf.name.clone(), &config, sql_function, schema, udfs),
+                    }
+                    None => PipelineError::UdfConfigMissing(udf.name.clone())
+                }
+            }
         }
 
         let aggr_check = self.aggr_function_check(
@@ -428,6 +447,7 @@ impl ExpressionBuilder {
             parse_aggregations,
             sql_function,
             schema,
+            udfs,
         );
         if aggr_check.is_ok() {
             return aggr_check;
@@ -438,6 +458,7 @@ impl ExpressionBuilder {
             parse_aggregations,
             sql_function,
             schema,
+            udfs,
         );
         if scalar_check.is_ok() {
             return scalar_check;
@@ -448,6 +469,7 @@ impl ExpressionBuilder {
             parse_aggregations,
             sql_function,
             schema,
+            udfs,
         );
         if geo_check.is_ok() {
             return geo_check;
@@ -458,6 +480,7 @@ impl ExpressionBuilder {
             parse_aggregations,
             sql_function,
             schema,
+            udfs,
         );
         if conditional_check.is_ok() {
             return conditional_check;
@@ -468,7 +491,7 @@ impl ExpressionBuilder {
             return datetime_check;
         }
 
-        self.json_func_check(function_name, parse_aggregations, sql_function, schema)
+        self.json_func_check(function_name, parse_aggregations, sql_function, schema, udfs)
     }
 
     fn parse_sql_function_arg(
@@ -476,18 +499,19 @@ impl ExpressionBuilder {
         parse_aggregations: bool,
         argument: &FunctionArg,
         schema: &Schema,
+        udfs: &Vec<UdfConfig>,
     ) -> Result<Expression, PipelineError> {
         match argument {
             FunctionArg::Named {
                 name: _,
                 arg: FunctionArgExpr::Expr(arg),
-            } => self.parse_sql_expression(parse_aggregations, arg, schema),
+            } => self.parse_sql_expression(parse_aggregations, arg, schema, udfs),
             FunctionArg::Named {
                 name: _,
                 arg: FunctionArgExpr::Wildcard,
             } => Ok(Expression::Literal(Field::Null)),
             FunctionArg::Unnamed(FunctionArgExpr::Expr(arg)) => {
-                self.parse_sql_expression(parse_aggregations, arg, schema)
+                self.parse_sql_expression(parse_aggregations, arg, schema, udfs)
             }
             FunctionArg::Unnamed(FunctionArgExpr::Wildcard) => Ok(Expression::Literal(Field::Null)),
             FunctionArg::Named {
@@ -508,28 +532,31 @@ impl ExpressionBuilder {
         results: &[Expr],
         else_result: &Option<Box<Expr>>,
         schema: &Schema,
+        udfs: &Vec<UdfConfig>,
     ) -> Result<Expression, PipelineError> {
         let op = match operand {
             Some(o) => Some(Box::new(self.parse_sql_expression(
                 parse_aggregations,
                 o,
                 schema,
+                udfs,
             )?)),
             None => None,
         };
         let conds = conditions
             .iter()
-            .map(|cond| self.parse_sql_expression(parse_aggregations, cond, schema))
+            .map(|cond| self.parse_sql_expression(parse_aggregations, cond, schema, udfs))
             .collect::<Result<Vec<_>, PipelineError>>()?;
         let res = results
             .iter()
-            .map(|r| self.parse_sql_expression(parse_aggregations, r, schema))
+            .map(|r| self.parse_sql_expression(parse_aggregations, r, schema, udfs))
             .collect::<Result<Vec<_>, PipelineError>>()?;
         let else_res = match else_result {
             Some(r) => Some(Box::new(self.parse_sql_expression(
                 parse_aggregations,
                 r,
                 schema,
+                udfs,
             )?)),
             None => None,
         };
@@ -548,8 +575,9 @@ impl ExpressionBuilder {
         value: &Expr,
         leading_field: &Option<DateTimeField>,
         schema: &Schema,
+        udfs: &Vec<UdfConfig>,
     ) -> Result<Expression, PipelineError> {
-        let right = self.parse_sql_expression(parse_aggregations, value, schema)?;
+        let right = self.parse_sql_expression(parse_aggregations, value, schema, udfs)?;
         if leading_field.is_some() {
             Ok(Expression::DateTimeFunction {
                 fun: DateTimeFunctionType::Interval {
@@ -568,8 +596,9 @@ impl ExpressionBuilder {
         op: &SqlUnaryOperator,
         expr: &SqlExpr,
         schema: &Schema,
+        udfs: &Vec<UdfConfig>,
     ) -> Result<Expression, PipelineError> {
-        let arg = Box::new(self.parse_sql_expression(parse_aggregations, expr, schema)?);
+        let arg = Box::new(self.parse_sql_expression(parse_aggregations, expr, schema, udfs)?);
         let operator = match op {
             SqlUnaryOperator::Not => UnaryOperatorType::Not,
             SqlUnaryOperator::Plus => UnaryOperatorType::Plus,
@@ -587,9 +616,10 @@ impl ExpressionBuilder {
         op: &SqlBinaryOperator,
         right: &SqlExpr,
         schema: &Schema,
+        udfs: &Vec<UdfConfig>,
     ) -> Result<Expression, PipelineError> {
-        let left_op = self.parse_sql_expression(parse_aggregations, left, schema)?;
-        let right_op = self.parse_sql_expression(parse_aggregations, right, schema)?;
+        let left_op = self.parse_sql_expression(parse_aggregations, left, schema, udfs)?;
+        let right_op = self.parse_sql_expression(parse_aggregations, right, schema, udfs)?;
 
         let operator = match op {
             SqlBinaryOperator::Gt => BinaryOperatorType::Gt,
@@ -647,9 +677,10 @@ impl ExpressionBuilder {
         pattern: &Expr,
         escape_char: &Option<char>,
         schema: &Schema,
+        udfs: &Vec<UdfConfig>,
     ) -> Result<Expression, PipelineError> {
-        let arg = self.parse_sql_expression(parse_aggregations, expr, schema)?;
-        let pattern = self.parse_sql_expression(parse_aggregations, pattern, schema)?;
+        let arg = self.parse_sql_expression(parse_aggregations, expr, schema, udfs)?;
+        let pattern = self.parse_sql_expression(parse_aggregations, pattern, schema, udfs)?;
         let like_expression = Expression::Like {
             arg: Box::new(arg),
             pattern: Box::new(pattern),
@@ -671,8 +702,9 @@ impl ExpressionBuilder {
         field: &sqlparser::ast::DateTimeField,
         expr: &Expr,
         schema: &Schema,
+        udfs: &Vec<UdfConfig>,
     ) -> Result<Expression, PipelineError> {
-        let right = self.parse_sql_expression(parse_aggregations, expr, schema)?;
+        let right = self.parse_sql_expression(parse_aggregations, expr, schema, udfs)?;
         Ok(Expression::DateTimeFunction {
             fun: DateTimeFunctionType::Extract { field: *field },
             arg: Box::new(right),
@@ -685,8 +717,9 @@ impl ExpressionBuilder {
         expr: &Expr,
         data_type: &DataType,
         schema: &Schema,
+        udfs: &Vec<UdfConfig>,
     ) -> Result<Expression, PipelineError> {
-        let expression = self.parse_sql_expression(parse_aggregations, expr, schema)?;
+        let expression = self.parse_sql_expression(parse_aggregations, expr, schema, udfs)?;
         let cast_to = match data_type {
             DataType::Decimal(_) => CastOperatorType::Decimal,
             DataType::Binary(_) => CastOperatorType::Binary,
@@ -749,6 +782,7 @@ impl ExpressionBuilder {
         name: &str,
         function: &Function,
         schema: &Schema,
+        udfs: &Vec<UdfConfig>,
     ) -> Result<Expression, PipelineError> {
         // First, get python function define by name.
         // Then, transfer python function to Expression::PythonUDF
@@ -759,7 +793,7 @@ impl ExpressionBuilder {
         let args = function
             .args
             .iter()
-            .map(|argument| self.parse_sql_function_arg(false, argument, schema))
+            .map(|argument| self.parse_sql_function_arg(false, argument, schema, udfs))
             .collect::<Result<Vec<_>, PipelineError>>()?;
 
         let return_type = {
@@ -782,35 +816,46 @@ impl ExpressionBuilder {
     #[cfg(feature = "onnx")]
     fn parse_onnx_udf(
         &mut self,
-        name: &str,
+        name: String,
+        config: &OnnxConfig,
         function: &Function,
         schema: &Schema,
+        udfs: &Vec<UdfConfig>,
     ) -> Result<Expression, PipelineError> {
         // First, get onnx function define by name.
-        // Then, transfer onnx function to Expression::ONNXUDF
+        // Then, transfer onnx function to Expression::OnnxUDF
 
+        use std::path::Path;
         use dozer_types::types::FieldType;
         use PipelineError::InvalidQuery;
+        use ort::{
+            Environment, ExecutionProvider, GraphOptimizationLevel, LoggingLevel, SessionBuilder,
+        };
 
         let args = function
             .args
             .iter()
-            .map(|argument| self.parse_sql_function_arg(false, argument, schema))
+            .map(|argument| self.parse_sql_function_arg(false, argument, schema, udfs))
             .collect::<Result<Vec<_>, PipelineError>>()?;
 
         let last_arg = args
             .last()
             .ok_or_else(|| InvalidQuery("Can't get onnx udf return type".to_string()))?;
 
-        let return_type = match last_arg {
-            Expression::Literal(Field::String(s)) => {
-                FieldType::try_from(s.as_str()).map_err(|e| InvalidQuery(format!("Failed to parse onnx udf return type: {e}")))?
-            }
-            _ => return Err(InvalidArgument("The last arg for python udf should be a string literal, which represents return type".to_string())),
-        };
+        let environment = Environment::builder()
+            .with_name("dozer_onnx")
+            .with_log_level(LoggingLevel::Verbose)
+            .build()?
+            .into_arc();
 
-        Ok(Expression::ONNXUDF {
+        let session = SessionBuilder::new(&environment)?
+            .with_optimization_level(GraphOptimizationLevel::Level1)?
+            .with_intra_threads(1)?
+            .with_model_from_file(Path::new(config.path.clone().as_str()))?;
+
+        Ok(Expression::OnnxUDF {
             name: name.to_string(),
+            session,
             args,
             return_type,
         })
@@ -823,11 +868,12 @@ impl ExpressionBuilder {
         list: &[Expr],
         negated: bool,
         schema: &Schema,
+        udfs: &Vec<UdfConfig>,
     ) -> Result<Expression, PipelineError> {
-        let expr = self.parse_sql_expression(parse_aggregations, expr, schema)?;
+        let expr = self.parse_sql_expression(parse_aggregations, expr, schema, udfs)?;
         let list = list
             .iter()
-            .map(|expr| self.parse_sql_expression(parse_aggregations, expr, schema))
+            .map(|expr| self.parse_sql_expression(parse_aggregations, expr, schema, udfs))
             .collect::<Result<Vec<_>, PipelineError>>()?;
         let in_list_expression = Expression::InList {
             expr: Box::new(expr),

@@ -11,25 +11,28 @@ use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::Schema;
 use sqlparser::ast::Select;
 use std::collections::HashMap;
+use dozer_types::models::udf_config::UdfConfig;
 
 #[derive(Debug)]
 pub struct AggregationProcessorFactory {
     id: String,
     projection: Select,
     _stateful: bool,
+    udfs: Vec<UdfConfig>,
 }
 
 impl AggregationProcessorFactory {
-    pub fn new(id: String, projection: Select, stateful: bool) -> Self {
+    pub fn new(id: String, projection: Select, stateful: bool, udfs: Vec<UdfConfig>) -> Self {
         Self {
             id,
             projection,
             _stateful: stateful,
+            udfs,
         }
     }
 
     fn get_planner(&self, input_schema: Schema) -> Result<CommonPlanner, PipelineError> {
-        let mut projection_planner = CommonPlanner::new(input_schema);
+        let mut projection_planner = CommonPlanner::new(input_schema, self.udfs.clone());
         projection_planner.plan(self.projection.clone())?;
         Ok(projection_planner)
     }

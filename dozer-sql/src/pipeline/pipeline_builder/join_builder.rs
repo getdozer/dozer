@@ -167,6 +167,7 @@ fn insert_join_source_to_pipeline(
             pipeline,
             pipeline_idx,
             query_context,
+            udfs,
         )?;
         JoinSource::Operator(connection_info)
     } else if is_nested_join(&source) {
@@ -185,6 +186,7 @@ fn insert_table_operator_to_pipeline(
     pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_idx: usize,
     query_context: &mut QueryContext,
+    udfs: &Vec<UdfConfig>,
 ) -> Result<ConnectionInfo, PipelineError> {
     let mut input_nodes = vec![];
 
@@ -195,7 +197,7 @@ fn insert_table_operator_to_pipeline(
             query_context.get_next_processor_id()
         );
         let processor =
-            TableOperatorProcessorFactory::new(processor_name.clone(), table_operator.clone());
+            TableOperatorProcessorFactory::new(processor_name.clone(), table_operator.clone(), udfs.clone());
 
         let source_name = processor
             .get_source_name()
