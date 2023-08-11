@@ -2683,6 +2683,7 @@ dependencies = [
  "sqlparser 0.35.0 (git+https://github.com/getdozer/sqlparser-rs.git)",
  "tempdir",
  "tokio",
+ "url",
  "walkdir",
 ]
 
