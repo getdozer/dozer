@@ -48,6 +48,7 @@ notify-debouncer-full = "0.2.0"
 webbrowser = "0.8.10"
 tempfile = "3.2"
 actix-files = "0.6.2"
+prometheus-parse = "0.2.4"
 
 [[bin]]
 edition = "2021"

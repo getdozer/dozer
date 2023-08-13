@@ -53,7 +53,7 @@ pub struct NodeType<T> {
 
 impl<T> Display for NodeType<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.handle)
+        write!(f, "{}", self.handle.id)
     }
 }
 

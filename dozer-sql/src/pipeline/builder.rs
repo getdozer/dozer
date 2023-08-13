@@ -259,9 +259,9 @@ fn select_to_pipeline(
     let input_nodes = connection_info.input_nodes;
     let output_node = connection_info.output_node;
 
-    let gen_agg_name = format!("agg_{}", query_ctx.get_next_processor_id());
+    let gen_agg_name = format!("agg--{}", query_ctx.get_next_processor_id());
 
-    let gen_selection_name = format!("select_{}", query_ctx.get_next_processor_id());
+    let gen_selection_name = format!("select--{}", query_ctx.get_next_processor_id());
     let (gen_product_name, product_output_port) = output_node;
 
     for (source_name, processor_name, processor_port) in input_nodes.iter() {
