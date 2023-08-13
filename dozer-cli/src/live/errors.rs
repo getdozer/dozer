@@ -1,5 +1,6 @@
 use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::errors::internal::BoxedError;
+use dozer_types::grpc_types::live::ConnectResponse;
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
 
@@ -13,8 +14,7 @@ pub enum LiveError {
     Notify(#[from] notify::Error),
     #[error(transparent)]
     CliError(#[from] CliError),
-    #[error(transparent)]
-    BuildError(#[from] BoxedError),
+
     #[error("Dozer is not initialized")]
     NotInitialized,
     #[error("Error in initializing live server: {0}")]
@@ -22,4 +22,9 @@ pub enum LiveError {
 
     #[error(transparent)]
     PipelineError(#[from] PipelineError),
+
+    #[error(transparent)]
+    SendError(#[from] tokio::sync::broadcast::error::SendError<ConnectResponse>),
+    #[error(transparent)]
+    BoxedError(#[from] BoxedError),
 }
