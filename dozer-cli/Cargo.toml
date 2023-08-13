@@ -45,8 +45,8 @@ zip = "0.5.11"
 notify = "6.0.1"
 notify-debouncer-full = "0.2.0"
 webbrowser = "0.8.10"
-rusoto_s3 = "0.46.0"
-rusoto_core = "0.46.0"
+ureq = "2.0"
+tempfile = "3.2"
 
 [[bin]]
 edition = "2021"

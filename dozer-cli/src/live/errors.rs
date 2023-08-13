@@ -3,8 +3,6 @@ use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
-use rusoto_core::{request::TlsError, RusotoError};
-use rusoto_s3::GetObjectError;
 use zip::result::ZipError;
 
 #[derive(Error, Debug)]
@@ -21,28 +19,18 @@ pub enum LiveError {
     NotInitialized,
     #[error("Error in initializing live server: {0}")]
     Transport(#[from] tonic::transport::Error),
-    #[error("Reqwest error: {0}")]
-    Reqwest(#[from] reqwest::Error),
     #[error("String error: {0}")]
     StringError(String),
-    #[error("S3 error: {0}")]
-    S3Error(RusotoError<GetObjectError>),
-    #[error("TLS error: {0}")]
-    TlsError(#[from] TlsError),
     #[error(transparent)]
     PipelineError(#[from] PipelineError),
-    #[error("Zip error: {0}")]
+    #[error("Error in reading or extracting from Zip file: {0}")]
     ZipError(#[from] ZipError),
+    #[error("Ureq error: {0}")]
+    Ureq(#[from] ureq::Error),
 }
 
 impl From<&'static str> for LiveError {
     fn from(error: &'static str) -> Self {
         LiveError::StringError(error.to_owned())
-    }
-}
-
-impl From<RusotoError<GetObjectError>> for LiveError {
-    fn from(error: RusotoError<GetObjectError>) -> Self {
-        LiveError::S3Error(error)
     }
 }
