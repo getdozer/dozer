@@ -94,6 +94,7 @@ impl LiveState {
             cli.config_token.clone(),
             cli.config_overrides.clone(),
             cli.ignore_pipe,
+            false,
         )?;
 
         self.set_dozer(Some(res));

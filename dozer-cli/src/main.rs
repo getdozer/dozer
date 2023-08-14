@@ -253,6 +253,7 @@ fn init_orchestrator(cli: &Cli) -> Result<SimpleOrchestrator, CliError> {
             cli.config_token.clone(),
             cli.config_overrides.clone(),
             cli.ignore_pipe,
+            cli.enable_progress,
         );
 
         match res {
