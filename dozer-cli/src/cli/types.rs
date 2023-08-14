@@ -25,6 +25,8 @@ pub struct Cli {
     #[arg(global = true, long, value_parser(parse_config_override))]
     pub config_overrides: Vec<(String, serde_json::Value)>,
 
+    #[arg(global = true, long = "ignore-pipe")]
+    pub ignore_pipe: bool,
     #[clap(subcommand)]
     pub cmd: Option<Commands>,
 }

@@ -82,25 +82,40 @@ impl Runner {
 }
 
 fn spawn_dozer_same_process(dozer_bin: &str, dozer_config_path: &str) -> Vec<Cleanup> {
-    let child = spawn_command(dozer_bin, &["--config-path", dozer_config_path]);
+    let child = spawn_command(
+        dozer_bin,
+        &["--config-path", dozer_config_path, "--ignore-pipe"],
+    );
     vec![Cleanup::KillProcess(child)]
 }
 
 fn spawn_dozer_two_processes(dozer_bin: &str, dozer_config_path: &str) -> Vec<Cleanup> {
     run_command(
         dozer_bin,
-        &["--config-path", dozer_config_path, "build"],
+        &["--config-path", dozer_config_path, "--ignore-pipe", "build"],
         None,
     );
     let mut cleanups = vec![];
     let child = spawn_command(
         dozer_bin,
-        &["--config-path", dozer_config_path, "run", "app"],
+        &[
+            "--config-path",
+            dozer_config_path,
+            "--ignore-pipe",
+            "run",
+            "app",
+        ],
     );
     cleanups.push(Cleanup::KillProcess(child));
     let child = spawn_command(
         dozer_bin,
-        &["--config-path", dozer_config_path, "run", "api"],
+        &[
+            "--config-path",
+            dozer_config_path,
+            "--ignore-pipe",
+            "run",
+            "api",
+        ],
     );
     cleanups.push(Cleanup::KillProcess(child));
     cleanups

@@ -170,6 +170,7 @@ fn run() -> Result<(), OrchestrationError> {
                 cli.config_paths,
                 cli.config_token,
                 cli.config_overrides,
+                cli.ignore_pipe,
                 filter,
             ),
             Commands::Clean => dozer.clean(),
@@ -251,6 +252,7 @@ fn init_orchestrator(cli: &Cli) -> Result<SimpleOrchestrator, CliError> {
             cli.config_paths.clone(),
             cli.config_token.clone(),
             cli.config_overrides.clone(),
+            cli.ignore_pipe,
         );
 
         match res {
