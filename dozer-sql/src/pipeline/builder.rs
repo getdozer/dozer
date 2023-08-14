@@ -745,7 +745,6 @@ fn test_missing_into_clause() {
     let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None);
     //check if the result is an error
     assert!(result.is_err());
-    println!("{:?}", result);
     //check if the error is of type MissingIntoClause
     let error = result.unwrap_err();
     assert!(matches!(error, PipelineError::MissingIntoClause));
