@@ -59,7 +59,7 @@ jobs:
             build-${{ runner.os }}-cargo-
 
       - name: Build dozer
-        run: cargo build --features ethereum --bin dozer 
+        run: cargo build --features ethereum,mongodb --bin dozer 
 
       - name: Build dozer-tests
         run: cargo build --bin dozer-tests

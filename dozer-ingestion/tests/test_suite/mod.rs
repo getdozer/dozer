@@ -45,4 +45,8 @@ pub use basic::{
     run_test_suite_basic_cud, run_test_suite_basic_data_ready, run_test_suite_basic_insert_only,
 };
 pub use connectors::{LocalStorageObjectStoreConnectorTest, PostgresConnectorTest};
+
+#[cfg(feature = "mongodb")]
+pub use connectors::MongodbConnectorTest;
+
 use tonic::async_trait;

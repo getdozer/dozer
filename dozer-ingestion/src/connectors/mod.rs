@@ -6,13 +6,19 @@ pub mod kafka;
 pub mod object_store;
 pub mod postgres;
 
+#[cfg(feature = "mongodb")]
+pub mod mongodb;
+
 use crate::connectors::postgres::connection::helper::map_connection_config;
 
 use std::fmt::Debug;
 
+#[cfg(feature = "mongodb")]
+use self::mongodb::MongodbConnector;
 #[cfg(feature = "kafka")]
 use crate::connectors::kafka::connector::KafkaConnector;
 use crate::connectors::postgres::connector::{PostgresConfig, PostgresConnector};
+
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
 
@@ -225,6 +231,13 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
         ConnectionConfig::DeltaLake(delta_lake_config) => {
             Ok(Box::new(DeltaLakeConnector::new(delta_lake_config)))
         }
+        #[cfg(feature = "mongodb")]
+        ConnectionConfig::MongoDB(mongodb_config) => {
+            let connection_string = mongodb_config.connection_string;
+            Ok(Box::new(MongodbConnector::new(connection_string)?))
+        }
+        #[cfg(not(feature = "mongodb"))]
+        ConnectionConfig::MongoDB(_) => Err(ConnectorError::MongodbFeatureNotEnabled),
     }
 }
 
