@@ -39,9 +39,10 @@ pub fn list_sources(
     config_paths: Vec<String>,
     config_token: Option<String>,
     config_overrides: Vec<(String, serde_json::Value)>,
+    ignore_pipe: bool,
     filter: Option<String>,
 ) -> Result<(), OrchestrationError> {
-    let dozer = init_dozer(config_paths, config_token, config_overrides, false)?;
+    let dozer = init_dozer(config_paths, config_token, config_overrides, ignore_pipe)?;
     let connection_map = dozer.list_connectors()?;
     let mut table_parent = Table::new();
     for (connection_name, (tables, schemas)) in connection_map {
@@ -79,20 +80,15 @@ async fn load_config(
     config_token: Option<String>,
     ignore_pipe: bool,
 ) -> Result<Config, CliError> {
-    let mut is_pipe = false;
-    if atty::isnt(Stream::Stdin) && !ignore_pipe {
-        is_pipe = true;
-    }
+    let read_stdin = atty::isnt(Stream::Stdin) && !ignore_pipe;
     let first_config_path = config_url_or_paths.get(0);
     match first_config_path {
         None => Err(ConfigurationFilePathNotProvided),
         Some(path) => {
             if path.starts_with("https://") || path.starts_with("http://") {
                 load_config_from_http_url(path, config_token).await
-            } else if is_pipe {
-                load_config_from_file(config_url_or_paths, true)
             } else {
-                load_config_from_file(config_url_or_paths, false)
+                load_config_from_file(config_url_or_paths, read_stdin)
             }
         }
     }

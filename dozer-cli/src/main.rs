@@ -170,6 +170,7 @@ fn run() -> Result<(), OrchestrationError> {
                 cli.config_paths,
                 cli.config_token,
                 cli.config_overrides,
+                cli.ignore_pipe,
                 filter,
             ),
             Commands::Clean => dozer.clean(),
