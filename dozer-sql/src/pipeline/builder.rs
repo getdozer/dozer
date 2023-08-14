@@ -2,6 +2,7 @@ use crate::pipeline::aggregation::factory::AggregationProcessorFactory;
 use crate::pipeline::builder::PipelineError::InvalidQuery;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::builder::{ExpressionBuilder, NameOrAlias};
+use crate::pipeline::product::table;
 use crate::pipeline::selection::factory::SelectionProcessorFactory;
 use dozer_core::app::AppPipeline;
 use dozer_core::app::PipelineEntryPoint;
@@ -75,7 +76,7 @@ pub fn statement_to_pipeline(
 ) -> Result<QueryContext, PipelineError> {
     let dialect = DozerDialect {};
     let mut ctx = QueryContext::default();
-
+    let mut is_top_select = true;
     let ast = Parser::parse_sql(&dialect, sql)
         .map_err(|err| PipelineError::InternalError(Box::new(err)))?;
     let query_name = NameOrAlias(format!("query_{}", ctx.get_next_processor_id()), None);
@@ -94,6 +95,7 @@ pub fn statement_to_pipeline(
                     &mut ctx,
                     false,
                     idx,
+                    &mut is_top_select,
                 )?;
             }
             s => {
@@ -117,6 +119,7 @@ fn query_to_pipeline(
     query_ctx: &mut QueryContext,
     stateful: bool,
     pipeline_idx: usize,
+    is_top_select: &mut bool,
 ) -> Result<(), PipelineError> {
     // return error if there is unsupported syntax
     if !query.order_by.is_empty() {
@@ -165,6 +168,7 @@ fn query_to_pipeline(
                 query_ctx,
                 true,
                 pipeline_idx,
+                &mut false, //Inside a with clause, so not top select
             )?;
         }
     };
@@ -178,6 +182,7 @@ fn query_to_pipeline(
                 query_ctx,
                 stateful,
                 pipeline_idx,
+                is_top_select,
             )?;
         }
         SetExpr::Query(query) => {
@@ -194,6 +199,7 @@ fn query_to_pipeline(
                 &mut ctx,
                 stateful,
                 pipeline_idx,
+                &mut false, //Inside a subquery, so not top select
             )?
         }
         SetExpr::SetOperation {
@@ -212,6 +218,7 @@ fn query_to_pipeline(
                     query_ctx,
                     stateful,
                     pipeline_idx,
+                    is_top_select,
                 )?;
             }
             _ => return Err(PipelineError::InvalidOperator(op.to_string())),
@@ -232,12 +239,17 @@ fn select_to_pipeline(
     query_ctx: &mut QueryContext,
     stateful: bool,
     pipeline_idx: usize,
+    is_top_select: &mut bool,
 ) -> Result<String, PipelineError> {
     // FROM clause
     if select.from.len() != 1 {
         return Err(PipelineError::UnsupportedSqlError(
             UnsupportedSqlError::FromCommaSyntax,
         ));
+    }
+
+    if *is_top_select && select.into.is_none() {
+        return Err(PipelineError::MissingIntoClause);
     }
 
     // let input_tables = get_input_tables(&select.from[0], pipeline, query_ctx, pipeline_idx)?;
@@ -348,6 +360,7 @@ fn set_to_pipeline(
     query_ctx: &mut QueryContext,
     stateful: bool,
     pipeline_idx: usize,
+    is_top_select: &mut bool,
 ) -> Result<String, PipelineError> {
     let gen_left_set_name = format!("set_left_{}", query_ctx.get_next_processor_id());
     let left_table_info = TableInfo {
@@ -370,6 +383,7 @@ fn set_to_pipeline(
             query_ctx,
             stateful,
             pipeline_idx,
+            is_top_select,
         )?,
         SetExpr::SetOperation {
             op: _,
@@ -385,6 +399,7 @@ fn set_to_pipeline(
             query_ctx,
             stateful,
             pipeline_idx,
+            is_top_select,
         )?,
         _ => {
             return Err(PipelineError::InvalidQuery(
@@ -401,6 +416,7 @@ fn set_to_pipeline(
             query_ctx,
             stateful,
             pipeline_idx,
+            is_top_select,
         )?,
         SetExpr::SetOperation {
             op: _,
@@ -416,6 +432,7 @@ fn set_to_pipeline(
             query_ctx,
             stateful,
             pipeline_idx,
+            is_top_select,
         )?,
         _ => {
             return Err(PipelineError::InvalidQuery(
@@ -582,7 +599,7 @@ pub fn get_from_source(
             let alias_name = alias.as_ref().map(|alias_ident| {
                 ExpressionBuilder::fullname_from_ident(&[alias_ident.name.clone()])
             });
-
+            let mut is_top_select = false; //inside FROM clause, so not top select
             let name_or = NameOrAlias(name, alias_name);
             query_to_pipeline(
                 &TableInfo {
@@ -595,6 +612,7 @@ pub fn get_from_source(
                 query_ctx,
                 false,
                 pipeline_idx,
+                &mut is_top_select,
             )?;
 
             Ok(name_or)
@@ -689,4 +707,46 @@ mod tests {
         expected_keys.sort();
         assert_eq!(output_keys, expected_keys);
     }
+}
+
+#[test]
+fn test_missing_into_clause() {
+    let sql = r#"
+    SELECT
+        a.name as "Genre",
+        SUM(amount) as "Gross Revenue(in $)"
+    INTO gross_revenue_stats
+    FROM
+    (
+        SELECT
+            c.name,
+            f.title,
+            p.amount
+        FROM film f
+        LEFT JOIN film_category fc
+            ON fc.film_id = f.film_id
+        LEFT JOIN category c
+            ON fc.category_id = c.category_id
+        LEFT JOIN inventory i
+            ON i.film_id = f.film_id
+        LEFT JOIN rental r
+            ON r.inventory_id = i.inventory_id
+        LEFT JOIN payment p
+            ON p.rental_id = r.rental_id
+        WHERE p.amount IS NOT NULL
+    ) a
+    GROUP BY name;
+
+    SELECT
+    f.name, f.title, p.amount
+    FROM film f
+    LEFT JOIN film_category fc;"#;
+
+    let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None);
+    //check if the result is an error
+    assert!(result.is_err());
+    println!("{:?}", result);
+    //check if the error is of type MissingIntoClause
+    let error = result.unwrap_err();
+    assert!(matches!(error, PipelineError::MissingIntoClause));
 }
