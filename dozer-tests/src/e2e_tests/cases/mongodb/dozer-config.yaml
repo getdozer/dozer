@@ -1,0 +1,26 @@
+app_name: mongodb-e2e-test
+connections:
+  - config: !MongoDB
+      connection_string: mongodb://localhost/sample_mflix
+    name: mflix
+sources:
+  - name: movies
+    table_name: movies
+    connection: mflix
+sql: |
+  SELECT "_id", JSON_VALUE(data, '$.title') as title, JSON_QUERY(data, '$.genres') as genres
+  INTO movie_data
+  FROM movies
+endpoints:
+  - name: movies
+    table_name: movies
+    path: /mflix/movies
+    index:
+      primary_key:
+        - _id
+  - name: movie_data
+    table_name: movie_data
+    path: /mflix/movie_data
+    index:
+      primary_key:
+        - _id

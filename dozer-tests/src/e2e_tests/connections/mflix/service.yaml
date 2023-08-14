@@ -1,0 +1,11 @@
+container_name: mflix
+ports:
+  - target: 27017
+    published: 27017
+healthcheck:
+  test:
+  - CMD-SHELL
+  - mongosh mongodb://localhost/replicaSet=rs0 --eval 'print("ready")'
+  interval: 5s
+  timeout: 5s
+  retries: 5

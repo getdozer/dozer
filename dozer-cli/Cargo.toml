@@ -42,9 +42,12 @@ glob = "0.3.1"
 atty = "0.2.14"
 tower = "0.4.13"
 metrics = "0.21.0"
+zip = "0.5.11"
 notify = "6.0.1"
 notify-debouncer-full = "0.2.0"
 webbrowser = "0.8.10"
+tempfile = "3.2"
+actix-files = "0.6.2"
 
 [[bin]]
 edition = "2021"
