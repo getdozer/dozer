@@ -22,6 +22,8 @@ pub struct Cli {
     pub config_paths: Vec<String>,
     #[arg(global = true, long, hide = true)]
     pub config_token: Option<String>,
+    #[arg(global = true, short = 'p', long = "enable-progress")]
+    pub enable_progress: Option<Option<String>>,
     #[arg(global = true, long, value_parser(parse_config_override))]
     pub config_overrides: Vec<(String, serde_json::Value)>,
 

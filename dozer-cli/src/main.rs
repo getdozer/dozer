@@ -251,6 +251,7 @@ fn init_orchestrator(cli: &Cli) -> Result<SimpleOrchestrator, CliError> {
             cli.config_paths.clone(),
             cli.config_token.clone(),
             cli.config_overrides.clone(),
+            cli.enable_progress.clone(),
         );
 
         match res {
