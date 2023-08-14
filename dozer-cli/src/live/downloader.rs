@@ -79,7 +79,7 @@ async fn get_zip_from_url(url: &str, file_name: &str) -> Result<(), LiveError> {
 
     // Create necessary directories
     std::fs::create_dir_all(&directory_path)?;
-    std::fs::create_dir_all(&file_path.parent().unwrap())?;
+    std::fs::create_dir_all(file_path.parent().unwrap())?;
 
     // Save the downloaded ZIP content to the final location
     let mut file = File::create(&file_path)?;
