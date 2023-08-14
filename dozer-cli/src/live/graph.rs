@@ -58,7 +58,7 @@ pub fn transform_dag_ui(input_dag: &Dag<SchemaSQLContext>) -> daggy::Dag<Node, &
             dozer_core::NodeKind::Source(source) => {
                 let source_name = source.get_output_port_name(&from_port);
                 let new_node_idx = match sources.get(&source_name) {
-                    Some(idx) => idx.clone(),
+                    Some(idx) => *idx,
                     None => {
                         let new_node_idx = dag.node_count();
 
@@ -114,8 +114,8 @@ pub fn map_dag_schemas(dag_schemas: DagSchemas<SchemaSQLContext>) -> HashMap<Str
                     let schema = edge.schema();
                     let id = if let NodeKind::Source(source) = &node.kind {
                         let to_port = edge.output_port;
-                        let source_name = source.get_output_port_name(&to_port);
-                        source_name
+
+                        source.get_output_port_name(&to_port)
                     } else {
                         node.handle.id.to_string()
                     };

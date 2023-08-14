@@ -76,7 +76,7 @@ fn test_tumble() {
 
     let result = window
         .execute(
-            &&record_store,
+            &record_store,
             record.clone(),
             record_store.load_record(&record).unwrap(),
         )

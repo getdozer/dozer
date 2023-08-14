@@ -51,7 +51,7 @@ pub async fn progress_stream(
                     progress: progress.clone(),
                 }),
             })
-            .map_err(|e| LiveError::SendError(e))?;
+            .map_err(|e| LiveError::BoxedError(Box::new(e)))?;
             retry_interval.tick().await;
         } else {
             retry_interval.tick().await;
