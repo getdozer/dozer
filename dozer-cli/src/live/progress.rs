@@ -9,8 +9,8 @@ use crate::shutdown::ShutdownReceiver;
 use super::LiveError;
 
 const PROGRESS_POLL_FREQUENCY: u64 = 100;
+const METRICS_ENDPOINT: &str = "http://localhost:9000/metrics";
 pub async fn progress_stream(
-    endpoint: &str,
     tx: tokio::sync::broadcast::Sender<ConnectResponse>,
     shutdown_receiver: ShutdownReceiver,
 ) -> Result<(), LiveError> {
@@ -19,10 +19,10 @@ pub async fn progress_stream(
     let mut progress: HashMap<String, Metric> = HashMap::new();
 
     loop {
-        if shutdown_receiver.get_running_flag().load(Ordering::Relaxed) {
+        if !shutdown_receiver.get_running_flag().load(Ordering::Relaxed) {
             return Ok(());
         }
-        let lines = match reqwest::get(endpoint).await {
+        let lines = match reqwest::get(METRICS_ENDPOINT).await {
             Ok(texts) => texts.text().await.map_or(vec![], |body| {
                 body.lines().map(|s| Ok(s.to_owned())).collect()
             }),
@@ -39,6 +39,7 @@ pub async fn progress_stream(
                         Metric {
                             value: count as u32,
                             labels: sample.labels.deref().clone(),
+                            ts: sample.timestamp.timestamp_millis() as u32,
                         },
                     );
                 }

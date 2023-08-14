@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use dozer_api::{tonic_reflection, tonic_web};
+use dozer_api::{tonic_reflection, tonic_web, tower_http};
 use dozer_types::{
     grpc_types::live::{
         code_service_server::{CodeService, CodeServiceServer},
@@ -12,10 +12,11 @@ use dozer_types::{
 use futures::stream::BoxStream;
 use tokio::sync::broadcast::Receiver;
 
+use super::state::LiveState;
+use dozer_types::tracing::Level;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
-
-use super::state::LiveState;
+use tower_http::trace::{self, TraceLayer};
 const LIVE_PORT: u16 = 4556;
 pub struct LiveServer {
     pub receiver: Receiver<ConnectResponse>,
@@ -183,7 +184,14 @@ pub async fn serve(
         .unwrap();
 
     tonic::transport::Server::builder()
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))
+                .on_response(trace::DefaultOnResponse::new().level(Level::INFO))
+                .on_failure(trace::DefaultOnFailure::new().level(Level::ERROR)),
+        )
         .accept_http1(true)
+        .concurrency_limit_per_connection(32)
         .add_service(svc)
         .add_service(reflection_service)
         .serve(addr)

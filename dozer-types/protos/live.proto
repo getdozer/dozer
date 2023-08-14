@@ -77,6 +77,7 @@ message ProgressResponse {
 message Metric {
   uint32 value = 1;
   map<string, string> labels = 2;
+  uint32 ts = 3;
 }
 message ConnectResponse {
   LiveResponse live = 1;
