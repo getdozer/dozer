@@ -10,6 +10,7 @@ use dozer_types::{
         SqlResponse,
     },
     indicatif::MultiProgress,
+    log::info,
     models::{
         api_config::{ApiConfig, AppGrpcOptions},
         api_endpoint::ApiEndpoint,
@@ -23,7 +24,7 @@ use crate::{
     errors::OrchestrationError,
     pipeline::PipelineBuilder,
     shutdown::{self, ShutdownReceiver, ShutdownSender},
-    simple::SimpleOrchestrator,
+    simple::{helper::validate_config, SimpleOrchestrator},
 };
 
 use super::{
@@ -40,7 +41,6 @@ pub struct LiveState {
     sender: RwLock<Option<tokio::sync::broadcast::Sender<ConnectResponse>>>,
 }
 
-const METRICS_ENDPOINT: &str = "http://localhost:9000/metrics";
 impl LiveState {
     pub fn new() -> Self {
         Self {
@@ -62,6 +62,7 @@ impl LiveState {
 
     pub fn broadcast(&self) -> Result<(), LiveError> {
         let sender = self.sender.read();
+        info!("broadcasting current state");
         if let Some(sender) = sender.as_ref() {
             let res = self.get_current();
             return match sender.send(ConnectResponse {
@@ -87,6 +88,9 @@ impl LiveState {
     }
 
     pub fn build(&self) -> Result<(), LiveError> {
+        // Taking lock to ensure that we don't have multiple builds running at the same time
+        let mut lock = self.dozer.write();
+
         let cli = Cli::parse();
 
         let res = init_dozer(
@@ -97,7 +101,7 @@ impl LiveState {
             false,
         )?;
 
-        self.set_dozer(Some(res));
+        *lock = Some(res);
         Ok(())
     }
     pub fn get_current(&self) -> LiveResponse {
@@ -117,7 +121,7 @@ impl LiveState {
         });
 
         LiveResponse {
-            initialized: true,
+            initialized: app.is_some(),
             running: self.run_thread.read().is_some(),
             error_message: self.error_message.read().as_ref().map(|e| e.clone()),
             app,
@@ -178,7 +182,11 @@ impl LiveState {
 
         // Initialize progress
         let metrics_sender = self.sender.read().as_ref().unwrap().clone();
-        tokio::spawn(async { progress_stream(METRICS_ENDPOINT, metrics_sender, metrics_shutdown) });
+        tokio::spawn(async {
+            progress_stream(metrics_sender, metrics_shutdown)
+                .await
+                .unwrap()
+        });
 
         let mut lock = self.run_thread.write();
         *lock = Some(shutdown_sender);
@@ -285,7 +293,9 @@ pub fn run(
     request: RunRequest,
     shutdown_receiver: ShutdownReceiver,
 ) -> Result<JoinHandle<()>, OrchestrationError> {
-    let mut dozer = get_dozer_run_instane(dozer, request)?;
+    let mut dozer = get_dozer_run_instance(dozer, request)?;
+
+    validate_config(&dozer.config).map_err(|e| LiveError::BoxedError(Box::new(e)))?;
 
     let runtime = dozer.runtime.clone();
     let run_thread = std::thread::spawn(move || {
@@ -302,7 +312,7 @@ pub fn run(
     Ok(handle)
 }
 
-fn get_dozer_run_instane(
+fn get_dozer_run_instance(
     dozer: SimpleOrchestrator,
     req: RunRequest,
 ) -> Result<SimpleOrchestrator, LiveError> {

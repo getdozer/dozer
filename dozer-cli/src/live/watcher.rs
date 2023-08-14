@@ -28,8 +28,7 @@ pub fn watch(state: Arc<LiveState>, shutdown: ShutdownReceiver) -> Result<(), Li
         let event = rx.recv_timeout(Duration::from_millis(100));
         match event {
             Ok(result) => match result {
-                Ok(events) => {
-                    println!("Rebuilding : {:?}", events);
+                Ok(_events) => {
                     build(state.clone())?;
                 }
                 Err(errors) => errors.iter().for_each(|error| info!("{error:?}")),

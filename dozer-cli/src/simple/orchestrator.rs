@@ -51,12 +51,13 @@ pub struct SimpleOrchestrator {
 }
 
 impl SimpleOrchestrator {
-    pub fn new(config: Config, runtime: Arc<Runtime>) -> Self {
-        let progress_draw_target = if atty::is(atty::Stream::Stderr) {
+    pub fn new(config: Config, runtime: Arc<Runtime>, enable_progress: bool) -> Self {
+        let progress_draw_target = if enable_progress && atty::is(atty::Stream::Stderr) {
             ProgressDrawTarget::stderr()
         } else {
             ProgressDrawTarget::hidden()
         };
+
         Self {
             config,
             runtime,

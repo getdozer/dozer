@@ -23,7 +23,7 @@ pub struct Cli {
     #[arg(global = true, long, hide = true)]
     pub config_token: Option<String>,
     #[arg(global = true, short = 'p', long = "enable-progress")]
-    pub enable_progress: Option<Option<String>>,
+    pub enable_progress: bool,
     #[arg(global = true, long, value_parser(parse_config_override))]
     pub config_overrides: Vec<(String, serde_json::Value)>,
 
