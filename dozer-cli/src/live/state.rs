@@ -52,7 +52,7 @@ impl LiveState {
     }
 
     pub fn get_dozer(&self) -> Option<SimpleOrchestrator> {
-        self.dozer.read().as_ref().map(|d| d.clone())
+        self.dozer.read().as_ref().cloned()
     }
 
     pub fn set_sender(&self, sender: tokio::sync::broadcast::Sender<ConnectResponse>) {
@@ -70,7 +70,7 @@ impl LiveState {
                 progress: None,
             }) {
                 Ok(_) => Ok(()),
-                Err(e) => Err(LiveError::SendError(e)),
+                Err(e) => Err(LiveError::BoxedError(Box::new(e))),
             };
         }
 
@@ -123,7 +123,7 @@ impl LiveState {
         LiveResponse {
             initialized: app.is_some(),
             running: self.run_thread.read().is_some(),
-            error_message: self.error_message.read().as_ref().map(|e| e.clone()),
+            error_message: self.error_message.read().as_ref().cloned(),
             app,
         }
     }

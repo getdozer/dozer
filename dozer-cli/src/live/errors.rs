@@ -1,7 +1,7 @@
 use crate::errors::CliError;
 use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::grpc_types::live::ConnectResponse;
+
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
 use zip::result::ZipError;
@@ -29,8 +29,6 @@ pub enum LiveError {
     #[error(transparent)]
     PipelineError(#[from] PipelineError),
 
-    #[error(transparent)]
-    SendError(#[from] tokio::sync::broadcast::error::SendError<ConnectResponse>),
     #[error(transparent)]
     BoxedError(#[from] BoxedError),
 }
