@@ -1,5 +1,6 @@
 use std::{
     collections::{hash_map::Entry, HashMap},
+    num::NonZeroU16,
     sync::Arc,
 };
 
@@ -87,7 +88,7 @@ impl Storage for LocalStorage {
         &self,
         key: String,
         upload_id: String,
-        part_number: i32,
+        part_number: NonZeroU16,
         data: Vec<u8>,
     ) -> Result<String, Error> {
         self.multipart_uploads
@@ -108,7 +109,7 @@ impl Storage for LocalStorage {
         &self,
         key: String,
         upload_id: String,
-        mut parts: Vec<(i32, String)>,
+        mut parts: Vec<(NonZeroU16, String)>,
     ) -> Result<(), Error> {
         parts.sort();
 
@@ -178,7 +179,7 @@ async fn read(path: String) -> Result<Vec<u8>, Error> {
         .map_err(|e| Error::FileSystem(path, e))
 }
 
-fn get_path_path(upload_id: &str, part_number: i32) -> String {
+fn get_path_path(upload_id: &str, part_number: NonZeroU16) -> String {
     AsRef::<Utf8Path>::as_ref(upload_id)
         .join(part_number.to_string())
         .to_string()
@@ -246,5 +247,14 @@ mod tests {
             .await
             .unwrap();
         super::super::tests::test_storage_prefix(&storage).await;
+    }
+
+    #[tokio::test]
+    async fn test_local_storage_empty_multipart() {
+        let temp_dir = TempDir::new("test_local_storage_empty_multipart").unwrap();
+        let storage = LocalStorage::new(temp_dir.path().to_str().unwrap().to_string())
+            .await
+            .unwrap();
+        super::super::tests::test_storage_empty_multipart(&storage).await;
     }
 }
