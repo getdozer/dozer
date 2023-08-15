@@ -445,8 +445,8 @@ jobs:
           IMAGE_TAG: ${{ needs.prepare.outputs.version }}
         run: |
           aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin $ECR_REGISTRY
-          docker buildx build --platform linux/arm/v7 -f ci/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:$GITHUB_SHA .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY --all-tags
+          docker buildx build --push --platform linux/arm/v7 -f ci/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:$GITHUB_SHA .
+#          docker push $ECR_REGISTRY/$ECR_REPOSITORY --all-tags
 
       - name: Update latest image if releasing
         if: (needs.prepare.outputs.prerelease == 'false') && (matrix.os == 'ubuntu-20-16-cores')
