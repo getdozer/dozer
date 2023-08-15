@@ -19,7 +19,7 @@ jobs:
     timeout-minutes: 60
     runs-on:
       group: Default Larger Runners
-      labels: ubuntu-latest-16-cores
+      labels: ubuntu-latest
 
     steps:
       - if: github.event_name == 'pull_request_target'
