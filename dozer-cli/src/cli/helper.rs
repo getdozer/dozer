@@ -47,7 +47,13 @@ pub fn list_sources(
     ignore_pipe: bool,
     filter: Option<String>,
 ) -> Result<(), OrchestrationError> {
-    let dozer = init_dozer(config_paths, config_token, config_overrides, ignore_pipe,None)?;
+    let dozer = init_dozer(
+                config_paths,
+                config_token,
+                config_overrides,
+                ignore_pipe,
+                None,
+            )?;
     let connection_map = dozer.list_connectors()?;
     let mut table_parent = Table::new();
     for (connection_name, (tables, schemas)) in connection_map {
