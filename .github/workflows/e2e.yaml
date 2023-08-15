@@ -3,7 +3,7 @@ name: Dozer E2E Test
 on:
   schedule:
     - cron:  '0 0 * * *'
-  merge_group:
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
