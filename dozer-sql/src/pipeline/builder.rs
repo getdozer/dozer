@@ -707,42 +707,63 @@ mod tests {
 }
 
 #[test]
-fn test_missing_into_clause() {
-    let sql = r#"
-    SELECT
-        a.name as "Genre",
-        SUM(amount) as "Gross Revenue(in $)"
-    INTO gross_revenue_stats
-    FROM
-    (
-        SELECT
-            c.name,
-            f.title,
-            p.amount
-        FROM film f
-        LEFT JOIN film_category fc
-            ON fc.film_id = f.film_id
-        LEFT JOIN category c
-            ON fc.category_id = c.category_id
-        LEFT JOIN inventory i
-            ON i.film_id = f.film_id
-        LEFT JOIN rental r
-            ON r.inventory_id = i.inventory_id
-        LEFT JOIN payment p
-            ON p.rental_id = r.rental_id
-        WHERE p.amount IS NOT NULL
-    ) a
-    GROUP BY name;
-
-    SELECT
-    f.name, f.title, p.amount
-    FROM film f
-    LEFT JOIN film_category fc;"#;
-
+fn test_missing_into_in_simple_from_clause() {
+    let sql = r#"SELECT a FROM B "#;
     let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None);
     //check if the result is an error
     assert!(result.is_err());
     //check if the error is of type MissingIntoClause
     let error = result.unwrap_err();
     assert!(matches!(error, PipelineError::MissingIntoClause));
+}
+
+#[test]
+fn test_correct_into_clause() {
+    let sql = r#"SELECT a INTO C FROM B"#;
+    let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None);
+    //check if the result is not an error
+    assert!(result.is_ok());
+}
+
+#[test]
+fn test_missing_into_in_nested_from_clause() {
+    let sql = r#"SELECT a FROM (SELECT a from b)"#;
+    let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None);
+    //check if the result is an error
+    assert!(result.is_err());
+    //check if the error is of type MissingIntoClause
+    let error = result.unwrap_err();
+    assert!(matches!(error, PipelineError::MissingIntoClause));
+}
+
+#[test]
+fn test_correct_into_in_nested_from() {
+    let sql = r#"SELECT a INTO c FROM (SELECT a from b)"#;
+    let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None);
+    //check if the result is an error
+    assert!(result.is_ok());
+}
+
+#[test]
+fn test_missing_into_in_with_clause() {
+    let sql = r#"WITH tbl as (select a from B)
+    select B
+    from tbl;"#;
+    let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None);
+    //check if the result is an error
+    assert!(result.is_err());
+    //check if the error is of type MissingIntoClause
+    let error = result.unwrap_err();
+    assert!(matches!(error, PipelineError::MissingIntoClause));
+}
+
+#[test]
+fn test_correct_into_in_with_clause() {
+    let sql = r#"WITH tbl as (select a from B)
+    select B
+    into C
+    from tbl;"#;
+    let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None);
+    //check if the result is an error
+    assert!(result.is_ok());
 }
