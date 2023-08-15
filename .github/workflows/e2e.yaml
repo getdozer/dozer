@@ -1,8 +1,6 @@
 name: Dozer E2E Test
 
 on:
-  pull_request_target:
-    branches: [main]
   workflow_dispatch:
   merge_group:
 

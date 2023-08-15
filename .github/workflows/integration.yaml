@@ -19,7 +19,7 @@ jobs:
     timeout-minutes: 60
     strategy:
       matrix:
-        labels: [ubuntu-latest-16-cores, ubuntu-20-16-cores]
+        labels: [ubuntu-22.04, ubuntu-20.04]
       fail-fast: false
     runs-on:
       labels: ${{ matrix.labels }}
@@ -30,11 +30,11 @@ jobs:
         run: sudo sh .github/workflows/integration/dockerfiles/install-dozer-ubuntu-amd64.sh
 
       - name: Install Protoc Ubuntu 22.04
-        if: matrix.labels == 'ubuntu-latest-16-cores'
+        if: matrix.labels == 'ubuntu-22.04'
         run: sudo sh .github/workflows/integration/dockerfiles/install-protoc-ubuntu-22.sh
 
       - name: Install Protoc Ubuntu 20.04
-        if: matrix.labels == 'ubuntu-20-16-cores'
+        if: matrix.labels == 'ubuntu-20.04'
         run: sudo sh .github/workflows/integration/dockerfiles/install-protoc-ubuntu-20-amd64.sh
 
       - name: Run test
