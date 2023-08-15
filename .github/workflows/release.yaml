@@ -332,6 +332,7 @@ jobs:
           sudo apt-get install -y ${{ matrix.linker }}
 
       - name: Set up Docker Buildx
+        if: matrix.os == 'ubuntu-20-16-cores'
         uses: crazy-max/ghaction-docker-buildx@v1
         with:
           version: latest
