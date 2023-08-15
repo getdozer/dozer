@@ -13,9 +13,9 @@ fn insert(cache: &Mutex<Box<dyn RwCache>>, n: usize, commit_size: usize) {
     let mut cache = cache.lock();
 
     let val = format!("bar_{n}");
-    let mut record = Record::new(vec![Field::String(val)]);
+    let record = Record::new(vec![Field::String(val)]);
 
-    cache.insert(&mut record).unwrap();
+    cache.insert(&record).unwrap();
 
     if n % commit_size == 0 {
         cache.commit().unwrap();

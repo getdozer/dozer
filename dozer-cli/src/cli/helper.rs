@@ -20,6 +20,7 @@ pub fn init_dozer(
     config_token: Option<String>,
     config_overrides: Vec<(String, serde_json::Value)>,
     ignore_pipe: bool,
+    enable_progress: Option<Option<String>>,
 ) -> Result<Dozer, CliError> {
     let runtime = Runtime::new().map_err(CliError::FailedToCreateTokioRuntime)?;
     let mut config = runtime.block_on(load_config(config_paths, config_token, ignore_pipe))?;
@@ -32,7 +33,11 @@ pub fn init_dozer(
     let page_size = page_size::get() as u64;
     config.cache_max_map_size = Some(cache_max_map_size / page_size * page_size);
 
-    Ok(Dozer::new(config, Arc::new(runtime)))
+    Ok(Dozer::new(
+        config,
+        Arc::new(runtime),
+        enable_progress.is_some(),
+    ))
 }
 
 pub fn list_sources(
@@ -42,7 +47,7 @@ pub fn list_sources(
     ignore_pipe: bool,
     filter: Option<String>,
 ) -> Result<(), OrchestrationError> {
-    let dozer = init_dozer(config_paths, config_token, config_overrides, ignore_pipe)?;
+    let dozer = init_dozer(config_paths, config_token, config_overrides, ignore_pipe,None)?;
     let connection_map = dozer.list_connectors()?;
     let mut table_parent = Table::new();
     for (connection_name, (tables, schemas)) in connection_map {

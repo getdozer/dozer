@@ -54,7 +54,7 @@ impl DozerE2eTest {
         }
 
         let runtime = Runtime::new().expect("Failed to create runtime");
-        let mut dozer = SimpleOrchestrator::new(config, Arc::new(runtime));
+        let mut dozer = SimpleOrchestrator::new(config, Arc::new(runtime), false);
         let (shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
         let dozer_thread = std::thread::spawn(move || {
             dozer.run_all(shutdown_receiver).unwrap();
