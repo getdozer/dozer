@@ -1,7 +1,8 @@
 name: Dozer E2E Test
 
 on:
-  workflow_dispatch:
+  schedule:
+    - cron:  '0 0 * * *'
   merge_group:
 
 env:
