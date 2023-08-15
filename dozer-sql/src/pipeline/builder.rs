@@ -75,7 +75,7 @@ pub fn statement_to_pipeline(
 ) -> Result<QueryContext, PipelineError> {
     let dialect = DozerDialect {};
     let mut ctx = QueryContext::default();
-    let mut is_top_select = true;
+    let is_top_select = true;
     let ast = Parser::parse_sql(&dialect, sql)
         .map_err(|err| PipelineError::InternalError(Box::new(err)))?;
     let query_name = NameOrAlias(format!("query_{}", ctx.get_next_processor_id()), None);
@@ -94,7 +94,7 @@ pub fn statement_to_pipeline(
                     &mut ctx,
                     false,
                     idx,
-                    &mut is_top_select,
+                    is_top_select,
                 )?;
             }
             s => {
@@ -103,9 +103,6 @@ pub fn statement_to_pipeline(
                 ))
             }
         }
-    }
-    if ctx.output_tables_map.is_empty() {
-        return Err(PipelineError::NoIntoProvided);
     }
 
     Ok(ctx)
@@ -118,7 +115,7 @@ fn query_to_pipeline(
     query_ctx: &mut QueryContext,
     stateful: bool,
     pipeline_idx: usize,
-    is_top_select: &mut bool,
+    is_top_select: bool,
 ) -> Result<(), PipelineError> {
     // return error if there is unsupported syntax
     if !query.order_by.is_empty() {
@@ -167,7 +164,7 @@ fn query_to_pipeline(
                 query_ctx,
                 true,
                 pipeline_idx,
-                &mut false, //Inside a with clause, so not top select
+                false, //Inside a with clause, so not top select
             )?;
         }
     };
@@ -198,7 +195,7 @@ fn query_to_pipeline(
                 &mut ctx,
                 stateful,
                 pipeline_idx,
-                &mut false, //Inside a subquery, so not top select
+                false, //Inside a subquery, so not top select
             )?
         }
         SetExpr::SetOperation {
@@ -238,7 +235,7 @@ fn select_to_pipeline(
     query_ctx: &mut QueryContext,
     stateful: bool,
     pipeline_idx: usize,
-    is_top_select: &mut bool,
+    is_top_select: bool,
 ) -> Result<String, PipelineError> {
     // FROM clause
     if select.from.len() != 1 {
@@ -332,7 +329,7 @@ fn select_to_pipeline(
         table_info.override_name.clone()
     };
 
-    if *is_top_select && output_table_name.is_none() {
+    if is_top_select && output_table_name.is_none() {
         return Err(PipelineError::MissingIntoClause);
     }
 
@@ -360,7 +357,7 @@ fn set_to_pipeline(
     query_ctx: &mut QueryContext,
     stateful: bool,
     pipeline_idx: usize,
-    is_top_select: &mut bool,
+    is_top_select: bool,
 ) -> Result<String, PipelineError> {
     let gen_left_set_name = format!("set_left_{}", query_ctx.get_next_processor_id());
     let left_table_info = TableInfo {
@@ -599,7 +596,7 @@ pub fn get_from_source(
             let alias_name = alias.as_ref().map(|alias_ident| {
                 ExpressionBuilder::fullname_from_ident(&[alias_ident.name.clone()])
             });
-            let mut is_top_select = false; //inside FROM clause, so not top select
+            let is_top_select = false; //inside FROM clause, so not top select
             let name_or = NameOrAlias(name, alias_name);
             query_to_pipeline(
                 &TableInfo {
@@ -612,7 +609,7 @@ pub fn get_from_source(
                 query_ctx,
                 false,
                 pipeline_idx,
-                &mut is_top_select,
+                is_top_select,
             )?;
 
             Ok(name_or)
