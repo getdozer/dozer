@@ -2,7 +2,6 @@ use crate::pipeline::aggregation::factory::AggregationProcessorFactory;
 use crate::pipeline::builder::PipelineError::InvalidQuery;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::builder::{ExpressionBuilder, NameOrAlias};
-use crate::pipeline::product::table;
 use crate::pipeline::selection::factory::SelectionProcessorFactory;
 use dozer_core::app::AppPipeline;
 use dozer_core::app::PipelineEntryPoint;
@@ -248,10 +247,6 @@ fn select_to_pipeline(
         ));
     }
 
-    if *is_top_select && select.into.is_none() {
-        return Err(PipelineError::MissingIntoClause);
-    }
-
     // let input_tables = get_input_tables(&select.from[0], pipeline, query_ctx, pipeline_idx)?;
     //
     // let (input_nodes, output_node, mut used_sources) = add_from_to_pipeline(
@@ -336,6 +331,11 @@ fn select_to_pipeline(
     } else {
         table_info.override_name.clone()
     };
+
+    if *is_top_select && output_table_name.is_none() {
+        return Err(PipelineError::MissingIntoClause);
+    }
+
     if let Some(table_name) = output_table_name {
         query_ctx.output_tables_map.insert(
             table_name,
