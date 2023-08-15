@@ -9,14 +9,14 @@ RUN apt-get update \
       unzip
 
 # INSTALL PROTOBUF
-RUN curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v3.18.1/protoc-3.18.1-linux-x86_64.zip 
-RUN unzip protoc-3.18.1-linux-x86_64.zip -d /usr/local/protoc
-RUN rm protoc-3.18.1-linux-x86_64.zip
+RUN curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v3.18.1/protoc-3.18.1-linux-aarch_64.zip
+RUN unzip protoc-3.18.1-linux-aarch_64.zip -d /usr/local/protoc
+RUN rm protoc-3.18.1-linux-aarch_64.zip
 
 # INSTALL SNOWFLAKE DRIVERS
-RUN curl -LO https://sfc-repo.snowflakecomputing.com/odbc/linux/2.25.7/snowflake-odbc-2.25.7.x86_64.deb
-RUN dpkg -i snowflake-odbc-2.25.7.x86_64.deb
-RUN rm snowflake-odbc-2.25.7.x86_64.deb
+RUN curl -LO https://sfc-repo.snowflakecomputing.com/odbc/linuxaarch64/2.25.7/snowflake-odbc-2.25.7.aarch64.deb
+RUN dpkg -i snowflake-odbc-2.25.7.aarch64.deb
+RUN rm snowflake-odbc-2.25.7.aarch64.deb
 
 # INSTALL DOZER 
 RUN echo "Installing dozer binary"
