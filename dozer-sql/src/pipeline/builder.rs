@@ -721,7 +721,7 @@ fn test_missing_into_in_simple_from_clause() {
 fn test_correct_into_clause() {
     let sql = r#"SELECT a INTO C FROM B"#;
     let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None);
-    //check if the result is not an error
+    //check if the result is ok
     assert!(result.is_ok());
 }
 
@@ -740,7 +740,7 @@ fn test_missing_into_in_nested_from_clause() {
 fn test_correct_into_in_nested_from() {
     let sql = r#"SELECT a INTO c FROM (SELECT a from b)"#;
     let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None);
-    //check if the result is an error
+    //check if the result is ok
     assert!(result.is_ok());
 }
 
@@ -764,6 +764,6 @@ fn test_correct_into_in_with_clause() {
     into C
     from tbl;"#;
     let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None);
-    //check if the result is an error
+    //check if the result is ok
     assert!(result.is_ok());
 }
