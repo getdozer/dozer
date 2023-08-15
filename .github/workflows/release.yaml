@@ -331,6 +331,13 @@ jobs:
         run: |
           sudo apt-get install -y ${{ matrix.linker }}
 
+      - name: Configure target aarch64 GNU
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          echo '[target.aarch64-unknown-linux-gnu]' >> ~/.cargo/config
+          echo 'linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config
+          echo 'JEMALLOC_SYS_WITH_LG_PAGE=16' >> $GITHUB_ENV
+
       - name: Set up Docker Buildx
         if: matrix.os == 'ubuntu-20-16-cores'
         uses: crazy-max/ghaction-docker-buildx@v1
