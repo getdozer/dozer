@@ -4,6 +4,8 @@ on:
   workflow_dispatch:
   pull_request_target:
     branches: [main]
+    tags:
+      - "v*.*.*"
   merge_group:
 
 env:
@@ -22,8 +24,7 @@ jobs:
   coverage:
     timeout-minutes: 60
     runs-on:
-      group: Org Larger Runners
-      labels: ubuntu-latest-16-cores
+      labels: ubuntu-22.04
     services:
       postgres:
         image: debezium/postgres:13
@@ -153,7 +154,7 @@ jobs:
 
   discord_notification:
     if: ${{ github.event_name == 'push' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Discord notification
         env:
