@@ -302,10 +302,10 @@ jobs:
       matrix:
         os: [ubuntu-20-16-cores]
         include:
-          - os: ubuntu-20-16-cores
-            file_name: dozer
-            target: armv7-unknown-linux-gnu
-            asset_name: dozer-linux-amd64
+#          - os: ubuntu-20-16-cores
+#            file_name: dozer
+#            target: armv7-unknown-linux-gnu
+#            asset_name: dozer-linux-amd64
           - os: macos-12
             file_name: dozer
             target: x86_64-apple-darwin
