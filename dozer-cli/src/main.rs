@@ -139,13 +139,12 @@ fn run() -> Result<(), OrchestrationError> {
     // We always enable telemetry when running live.
     let telemetry_config = if matches!(cli.cmd, Some(Commands::Live)) {
         Some(TelemetryConfig {
-                        trace: None,
-                        metrics: Some(TelemetryMetricsConfig::Prometheus(())),
-                    })
-                } else {
-                    dozer.config.telemetry.clone()
-                };
-    
+            trace: None,
+            metrics: Some(TelemetryMetricsConfig::Prometheus(())),
+        })
+    } else {
+        dozer.config.telemetry.clone()
+    };
     let _telemetry = dozer
         .runtime
         .block_on(async { Telemetry::new(app_id.as_deref(), telemetry_config) });
