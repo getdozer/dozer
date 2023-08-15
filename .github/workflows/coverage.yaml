@@ -24,7 +24,6 @@ jobs:
   coverage:
     timeout-minutes: 60
     runs-on:
-      group: Org Larger Runners
       labels: ubuntu-22.04
     services:
       postgres:

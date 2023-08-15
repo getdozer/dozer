@@ -16,7 +16,6 @@ jobs:
   lint:
     timeout-minutes: 60
     runs-on:
-      group: Org Larger Runners
       labels: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
