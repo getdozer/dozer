@@ -9,7 +9,7 @@ use dozer_cli::simple::SimpleOrchestrator;
 #[cfg(feature = "cloud")]
 use dozer_cli::CloudOrchestrator;
 use dozer_cli::{live, set_ctrl_handler, set_panic_hook, shutdown};
-use dozer_types::models::telemetry::TelemetryConfig;
+use dozer_types::models::telemetry::{TelemetryConfig, TelemetryMetricsConfig};
 use dozer_types::tracing::{error, info};
 use serde::Deserialize;
 use tokio::time;
@@ -135,9 +135,20 @@ fn run() -> Result<(), OrchestrationError> {
         .cloud
         .as_ref()
         .map(|cloud| cloud.app_id.clone().unwrap_or(app_name));
+
+    // We always enable telemetry when running live.
+    let telemetry_config = if matches!(cli.cmd, Some(Commands::Live)) {
+        Some(TelemetryConfig {
+            trace: None,
+            metrics: Some(TelemetryMetricsConfig::Prometheus(())),
+        })
+    } else {
+        dozer.config.telemetry.clone()
+    };
+
     let _telemetry = dozer
         .runtime
-        .block_on(async { Telemetry::new(app_id.as_deref(), dozer.config.telemetry.clone()) });
+        .block_on(async { Telemetry::new(app_id.as_deref(), telemetry_config) });
 
     if let Some(cmd) = cli.cmd {
         // run individual servers
