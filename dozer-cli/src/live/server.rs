@@ -1,58 +1,52 @@
 use std::sync::Arc;
 
-use dozer_api::{tonic_reflection, tonic_web};
+use dozer_api::{tonic_reflection, tonic_web, tower_http};
 use dozer_types::{
-    grpc_types::{
-        live::{
-            code_service_server::{CodeService, CodeServiceServer},
-            CommonRequest, CommonResponse, DotResponse, LiveResponse, RunSqlRequest,
-            SchemasResponse, SourcesRequest, SqlRequest, SqlResponse,
-        },
-        types::Operation,
+    grpc_types::live::{
+        code_service_server::{CodeService, CodeServiceServer},
+        CommonRequest, CommonResponse, ConnectResponse, DotResponse, RunRequest, SchemasResponse,
+        SourcesRequest, SqlResponse,
     },
     log::{error, info},
 };
 use futures::stream::BoxStream;
 use tokio::sync::broadcast::Receiver;
 
+use super::state::LiveState;
+use dozer_types::tracing::Level;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
-
-use super::state::LiveState;
+use tower_http::trace::{self, TraceLayer};
 const LIVE_PORT: u16 = 4556;
 pub struct LiveServer {
-    pub receiver: Receiver<LiveResponse>,
+    pub receiver: Receiver<ConnectResponse>,
     pub state: Arc<LiveState>,
 }
 
 #[tonic::async_trait]
 impl CodeService for LiveServer {
-    type LiveConnectStream = BoxStream<'static, Result<LiveResponse, Status>>;
-    type RunSqlStream = BoxStream<'static, Result<Operation, Status>>;
+    type LiveConnectStream = BoxStream<'static, Result<ConnectResponse, Status>>;
 
     async fn live_connect(
         &self,
         _request: Request<CommonRequest>,
     ) -> Result<Response<Self::LiveConnectStream>, Status> {
         let (tx, rx) = tokio::sync::mpsc::channel(1);
-
         let mut receiver = self.receiver.resubscribe();
+
         let initial_state = self.state.clone();
         tokio::spawn(async move {
             let initial_state = initial_state.get_current();
-            match initial_state {
-                Ok(initial_state) => {
-                    if let Err(e) = tx.send(Ok(initial_state)).await {
-                        info!("Error getting initial state");
-                        info!("{:?}", e);
-                    }
-                }
-                Err(e) => {
-                    info!("Error sending to channel");
-                    info!("{:?}", e);
-                }
-            };
-
+            if let Err(e) = tx
+                .send(Ok(ConnectResponse {
+                    live: Some(initial_state),
+                    progress: None,
+                }))
+                .await
+            {
+                info!("Error getting initial state");
+                info!("{:?}", e);
+            }
             loop {
                 let res = receiver.recv().await;
                 match res {
@@ -130,12 +124,12 @@ impl CodeService for LiveServer {
         }
     }
 
-    async fn build_sql(
+    async fn get_graph_schemas(
         &self,
-        request: Request<SqlRequest>,
+        _request: Request<CommonRequest>,
     ) -> Result<Response<SchemasResponse>, Status> {
         let state = self.state.clone();
-        let handle = std::thread::spawn(move || state.build_sql(request.into_inner().sql));
+        let handle = std::thread::spawn(move || state.get_graph_schemas());
         let res = handle.join().unwrap();
 
         match res {
@@ -144,33 +138,37 @@ impl CodeService for LiveServer {
         }
     }
 
-    async fn run_sql(
-        &self,
-        request: Request<RunSqlRequest>,
-    ) -> Result<Response<Self::RunSqlStream>, Status> {
-        let (tx, rx) = tokio::sync::mpsc::channel(1);
-
+    async fn run(&self, request: Request<RunRequest>) -> Result<Response<CommonResponse>, Status> {
         let req = request.into_inner();
         let state = self.state.clone();
-
-        state.run_sql(req.sql, req.endpoints, tx).unwrap();
-
-        let stream = ReceiverStream::new(rx);
-
-        Ok(Response::new(Box::pin(stream) as Self::RunSqlStream))
+        info!("Starting dozer");
+        match state.run(req) {
+            Ok(_) => {
+                // let _err = state.broadcast();
+                Ok(Response::new(CommonResponse {}))
+            }
+            Err(e) => Err(Status::internal(e.to_string())),
+        }
     }
 
-    async fn stop_sql(
+    async fn stop(
         &self,
         _request: Request<CommonRequest>,
     ) -> Result<Response<CommonResponse>, Status> {
-        self.state.stop_sql();
-        Ok(Response::new(CommonResponse {}))
+        let state = self.state.clone();
+        info!("Stopping dozer");
+        match state.stop() {
+            Ok(_) => {
+                // let _err = state.broadcast();
+                Ok(Response::new(CommonResponse {}))
+            }
+            Err(e) => Err(Status::internal(e.to_string())),
+        }
     }
 }
 
 pub async fn serve(
-    receiver: Receiver<LiveResponse>,
+    receiver: Receiver<ConnectResponse>,
     state: Arc<LiveState>,
 ) -> Result<(), tonic::transport::Error> {
     let addr = format!("0.0.0.0:{LIVE_PORT}").parse().unwrap();
@@ -186,7 +184,14 @@ pub async fn serve(
         .unwrap();
 
     tonic::transport::Server::builder()
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))
+                .on_response(trace::DefaultOnResponse::new().level(Level::INFO))
+                .on_failure(trace::DefaultOnFailure::new().level(Level::ERROR)),
+        )
         .accept_http1(true)
+        .concurrency_limit_per_connection(32)
         .add_service(svc)
         .add_service(reflection_service)
         .serve(addr)

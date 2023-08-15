@@ -4,26 +4,20 @@ use crate::shutdown::ShutdownReceiver;
 
 use super::{state::LiveState, LiveError};
 
-use dozer_types::{grpc_types::live::LiveResponse, log::info};
+use dozer_types::log::info;
 use notify::{RecursiveMode, Watcher};
 use notify_debouncer_full::new_debouncer;
-use tokio::sync::broadcast::Sender;
 
-pub fn watch(
-    sender: Sender<LiveResponse>,
-    state: Arc<LiveState>,
-    shutdown: ShutdownReceiver,
-) -> Result<(), LiveError> {
+pub fn watch(state: Arc<LiveState>, shutdown: ShutdownReceiver) -> Result<(), LiveError> {
     // setup debouncer
     let (tx, rx) = std::sync::mpsc::channel();
 
     let dir: std::path::PathBuf = std::env::current_dir()?;
-    // no specific tickrate, max debounce time 2 seconds
-    let mut debouncer = new_debouncer(Duration::from_secs(2), None, tx)?;
+    let mut debouncer = new_debouncer(Duration::from_millis(500), None, tx)?;
 
-    debouncer
-        .watcher()
-        .watch(dir.as_path(), RecursiveMode::Recursive)?;
+    let watcher = debouncer.watcher();
+
+    watcher.watch(dir.as_path(), RecursiveMode::Recursive)?;
 
     debouncer
         .cache()
@@ -35,7 +29,7 @@ pub fn watch(
         match event {
             Ok(result) => match result {
                 Ok(_events) => {
-                    build(sender.clone(), state.clone())?;
+                    build(state.clone())?;
                 }
                 Err(errors) => errors.iter().for_each(|error| info!("{error:?}")),
             },
@@ -53,15 +47,15 @@ pub fn watch(
     Ok(())
 }
 
-pub fn build(sender: Sender<LiveResponse>, state: Arc<LiveState>) -> Result<(), LiveError> {
-    let res = state.build();
+pub fn build(state: Arc<LiveState>) -> Result<(), LiveError> {
+    state.set_dozer(None);
 
-    match res {
-        Ok(_) => {
-            let res = state.get_current()?;
-            sender.send(res).unwrap();
-            Ok(())
-        }
-        Err(e) => Err(e),
+    state.broadcast()?;
+
+    if let Err(res) = state.build() {
+        state.set_error_message(Some(res.to_string()));
+    } else {
+        state.set_error_message(None);
     }
+    state.broadcast()
 }
