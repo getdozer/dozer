@@ -1,4 +1,4 @@
-name: Dozer E2E Test
+name: Test E2E
 
 on:
   push:
