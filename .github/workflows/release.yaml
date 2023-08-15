@@ -304,12 +304,18 @@ jobs:
         include:
           - os: ubuntu-20-16-cores
             file_name: dozer
-            target: x86_64-unknown-linux-gnu
+            target: armv7-unknown-linux-gnu
             asset_name: dozer-linux-amd64
           - os: macos-12
             file_name: dozer
             target: x86_64-apple-darwin
             asset_name: dozer-macos-amd64
+          - os: ubuntu-20-16-cores
+            target: aarch64-unknown-linux-gnu
+            linker: gcc-aarch64-linux-gnu
+            use-cross: true
+            file_name: dozer
+            asset_name: dozer-linux-aarch64
     steps:
       - uses: actions/checkout@v3
       - name: Install minimal stable with clippy and rustfmt
@@ -319,6 +325,12 @@ jobs:
           toolchain: stable
           target: ${{ matrix.target }}
           components: rustfmt, clippy
+
+      - name: Install target specific tools
+        if: matrix.use-cross
+        run: |
+          sudo apt-get install -y ${{ matrix.linker }}
+
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
         with:
