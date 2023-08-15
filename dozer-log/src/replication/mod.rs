@@ -3,6 +3,7 @@ use std::ops::{DerefMut, Range};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
+use camino::Utf8Path;
 use dozer_types::grpc_types::internal::storage_response;
 use dozer_types::log::{debug, error};
 use dozer_types::models::app_config::LogStorage;
@@ -93,12 +94,25 @@ impl Log {
     }
 
     pub async fn new(options: LogOptions, log_dir: String, readonly: bool) -> Result<Self, Error> {
-        let (storage, prefix) = create_log_storage(options.storage_config, log_dir).await?;
+        let (storage, mut prefix) = create_log_storage(options.storage_config, log_dir).await?;
+        if !readonly {
+            // Right now we don't support appending to an existing log, because the pipeline doesn't support restart yet.
+            // So we write a marker file to every log to mark it as "dirty" and should not be reused.
+            let marker_file = AsRef::<Utf8Path>::as_ref(&prefix).join("marker");
+            if !storage
+                .list_objects(marker_file.clone().into(), None)
+                .await?
+                .objects
+                .is_empty()
+            {
+                return Err(Error::NonEmptyWritableLog);
+            }
+            storage.put_object(marker_file.into(), vec![]).await?;
+        }
+
+        prefix = AsRef::<Utf8Path>::as_ref(&prefix).join("data").into();
         let persisted = load_persisted_log_entries(&*storage, prefix.clone()).await?;
         let end = persisted_log_entries_end(&persisted);
-        if !readonly && end.is_some() {
-            return Err(Error::NonEmptyWritableLog);
-        }
 
         let in_memory = InMemoryLog {
             start: end.unwrap_or(0),
