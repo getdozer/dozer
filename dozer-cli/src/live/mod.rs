@@ -9,7 +9,7 @@ mod helper;
 mod progress;
 use self::state::LiveState;
 use crate::shutdown::ShutdownReceiver;
-use dozer_types::{grpc_types::live::{ConnectResponse, LiveResponse}, log::info};
+use dozer_types::{grpc_types::live::ConnectResponse, log::info};
 pub use errors::LiveError;
 use futures::stream::{AbortHandle, Abortable};
 
