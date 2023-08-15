@@ -1,6 +1,7 @@
 name: Dozer CI
 
 on:
+  workflow_dispatch:
   pull_request:
     branches: [main]
   merge_group:
