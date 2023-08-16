@@ -11,6 +11,7 @@ use crate::tests::dag_base_run::NoopProcessorFactory;
 use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
+use dozer_log::storage::{create_temp_dir_local_storage, Queue};
 use dozer_log::tokio;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::ingestion_types::IngestionMessage;
@@ -18,7 +19,6 @@ use dozer_types::node::NodeHandle;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
 };
-use tempdir::TempDir;
 
 use std::collections::HashMap;
 use std::panic;
@@ -151,10 +151,11 @@ async fn test_run_dag_proc_err_panic() {
     )
     .unwrap();
 
-    let temp_dir = TempDir::new("test_run_dag_proc_err_panic").unwrap();
+    let (_temp_dir, storage) = create_temp_dir_local_storage().await;
     DagExecutor::new(
         dag,
-        temp_dir.path().to_str().unwrap().to_string(),
+        storage,
+        "test_run_dag_proc_err_panic".to_string(),
         ExecutorOptions::default(),
     )
     .await
@@ -215,10 +216,11 @@ async fn test_run_dag_proc_err_2() {
     )
     .unwrap();
 
-    let temp_dir = TempDir::new("test_run_dag_proc_err_2").unwrap();
+    let (_temp_dir, storage) = create_temp_dir_local_storage().await;
     DagExecutor::new(
         dag,
-        temp_dir.path().to_str().unwrap().to_string(),
+        storage,
+        "test_run_dag_proc_err_2".to_string(),
         ExecutorOptions::default(),
     )
     .await
@@ -280,10 +282,11 @@ async fn test_run_dag_proc_err_3() {
     )
     .unwrap();
 
-    let temp_dir = TempDir::new("test_run_dag_proc_err_3").unwrap();
+    let (_temp_dir, storage) = create_temp_dir_local_storage().await;
     DagExecutor::new(
         dag,
-        temp_dir.path().to_str().unwrap().to_string(),
+        storage,
+        "test_run_dag_proc_err_3".to_string(),
         ExecutorOptions::default(),
     )
     .await
@@ -430,10 +433,11 @@ async fn test_run_dag_src_err() {
     )
     .unwrap();
 
-    let temp_dir = TempDir::new("test_run_dag_src_err").unwrap();
+    let (_temp_dir, storage) = create_temp_dir_local_storage().await;
     let _join_handle = DagExecutor::new(
         dag,
-        temp_dir.path().to_str().unwrap().to_string(),
+        storage,
+        "test_run_dag_src_err".to_string(),
         ExecutorOptions::default(),
     )
     .await
@@ -507,6 +511,10 @@ impl Sink for ErrSink {
         Ok(())
     }
 
+    fn persist(&mut self, _queue: &Queue) -> Result<(), BoxedError> {
+        Ok(())
+    }
+
     fn on_source_snapshotting_done(&mut self, _connection_name: String) -> Result<(), BoxedError> {
         Ok(())
     }
@@ -546,10 +554,11 @@ async fn test_run_dag_sink_err() {
     )
     .unwrap();
 
-    let temp_dir = TempDir::new("test_run_dag_sink_err").unwrap();
+    let (_temp_dir, storage) = create_temp_dir_local_storage().await;
     DagExecutor::new(
         dag,
-        temp_dir.path().to_str().unwrap().to_string(),
+        storage,
+        "test_run_dag_sink_err".to_string(),
         ExecutorOptions::default(),
     )
     .await
@@ -594,10 +603,11 @@ async fn test_run_dag_sink_err_panic() {
     )
     .unwrap();
 
-    let temp_dir = TempDir::new("test_run_dag_sink_err_panic").unwrap();
+    let (_temp_dir, storage) = create_temp_dir_local_storage().await;
     DagExecutor::new(
         dag,
-        temp_dir.path().to_str().unwrap().to_string(),
+        storage,
+        "test_run_dag_sink_err_panic".to_string(),
         ExecutorOptions::default(),
     )
     .await

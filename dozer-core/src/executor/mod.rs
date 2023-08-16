@@ -1,11 +1,12 @@
 use crate::builder_dag::{BuilderDag, NodeKind};
-use crate::checkpoint::CheckpointFactory;
+use crate::checkpoint::{CheckpointFactory, CheckpointFactoryOptions};
 use crate::dag_schemas::DagSchemas;
 use crate::errors::ExecutionError;
 use crate::processor_record::ProcessorRecordStore;
 use crate::Dag;
 
 use daggy::petgraph::visit::IntoNodeIdentifiers;
+use dozer_log::storage::Storage;
 
 use dozer_types::serde::{self, Deserialize, Serialize};
 use std::fmt::Debug;
@@ -16,12 +17,13 @@ use std::thread::JoinHandle;
 use std::thread::{self, Builder};
 use std::time::Duration;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ExecutorOptions {
     pub commit_sz: u32,
     pub channel_buffer_sz: usize,
     pub commit_time_threshold: Duration,
     pub error_threshold: Option<u32>,
+    pub checkpoint_factory_options: CheckpointFactoryOptions,
 }
 
 impl Default for ExecutorOptions {
@@ -31,6 +33,7 @@ impl Default for ExecutorOptions {
             channel_buffer_sz: 20_000,
             commit_time_threshold: Duration::from_millis(50),
             error_threshold: Some(0),
+            checkpoint_factory_options: Default::default(),
         }
     }
 }
@@ -69,16 +72,21 @@ pub struct DagExecutorJoinHandle {
 impl DagExecutor {
     pub async fn new<T: Clone + Debug>(
         dag: Dag<T>,
-        checkpoint_dir: String,
+        checkpoint_storage: Box<dyn Storage>,
+        checkpoint_prefix: String,
         options: ExecutorOptions,
     ) -> Result<Self, ExecutionError> {
         let dag_schemas = DagSchemas::new(dag)?;
 
         let record_store = ProcessorRecordStore::new()?;
-        let checkpoint_factory =
-            CheckpointFactory::new(Default::default(), checkpoint_dir, Arc::new(record_store))
-                .await?
-                .0;
+        let checkpoint_factory = CheckpointFactory::new(
+            checkpoint_storage,
+            checkpoint_prefix,
+            Arc::new(record_store),
+            options.checkpoint_factory_options.clone(),
+        )
+        .await
+        .0;
         let builder_dag = BuilderDag::new(Arc::new(checkpoint_factory), dag_schemas)?;
 
         Ok(Self {

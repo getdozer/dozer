@@ -9,11 +9,11 @@ use crate::tests::dag_base_run::NoopProcessorFactory;
 use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 
+use dozer_log::storage::create_temp_dir_local_storage;
 use dozer_log::tokio;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
 use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
-use tempdir::TempDir;
 
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
@@ -107,10 +107,11 @@ async fn test_create_src_err() {
     )
     .unwrap();
 
-    let temp_dir = TempDir::new("test_create_src_err").unwrap();
+    let (_temp_dir, storage) = create_temp_dir_local_storage().await;
     DagExecutor::new(
         dag,
-        temp_dir.path().to_str().unwrap().to_string(),
+        storage,
+        "test_create_src_err".to_string(),
         ExecutorOptions::default(),
     )
     .await
@@ -155,10 +156,11 @@ async fn test_create_src_panic() {
     )
     .unwrap();
 
-    let temp_dir = TempDir::new("test_create_src_panic").unwrap();
+    let (_temp_dir, storage) = create_temp_dir_local_storage().await;
     DagExecutor::new(
         dag,
-        temp_dir.path().to_str().unwrap().to_string(),
+        storage,
+        "test_create_src_panic".to_string(),
         ExecutorOptions::default(),
     )
     .await
@@ -272,10 +274,11 @@ async fn test_create_proc_err() {
     )
     .unwrap();
 
-    let temp_dir = TempDir::new("test_create_proc_err").unwrap();
+    let (_temp_dir, storage) = create_temp_dir_local_storage().await;
     DagExecutor::new(
         dag,
-        temp_dir.path().to_str().unwrap().to_string(),
+        storage,
+        "test_create_proc_err".to_string(),
         ExecutorOptions::default(),
     )
     .await
@@ -323,10 +326,11 @@ async fn test_create_proc_panic() {
     )
     .unwrap();
 
-    let temp_dir = TempDir::new("test_create_proc_panic").unwrap();
+    let (_temp_dir, storage) = create_temp_dir_local_storage().await;
     DagExecutor::new(
         dag,
-        temp_dir.path().to_str().unwrap().to_string(),
+        storage,
+        "test_create_proc_panic".to_string(),
         ExecutorOptions::default(),
     )
     .await

@@ -4,11 +4,11 @@ use crate::executor::{DagExecutor, ExecutorOptions};
 use crate::tests::dag_base_run::NoopJoinProcessorFactory;
 use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
+use dozer_log::storage::create_temp_dir_local_storage;
 use dozer_log::tokio;
 use dozer_types::node::NodeHandle;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use tempdir::TempDir;
 
 #[tokio::test]
 async fn test_checkpoint_consistency_ns() {
@@ -71,10 +71,11 @@ async fn test_checkpoint_consistency_ns() {
         .unwrap();
     }
 
-    let temp_dir = TempDir::new("test_checkpoint_consistency_ns").unwrap();
+    let (_temp_dir, storage) = create_temp_dir_local_storage().await;
     DagExecutor::new(
         dag,
-        temp_dir.path().to_str().unwrap().to_string(),
+        storage,
+        "test_checkpoint_consistency_ns".to_string(),
         ExecutorOptions::default(),
     )
     .await

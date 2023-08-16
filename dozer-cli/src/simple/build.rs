@@ -131,8 +131,10 @@ async fn needs_build(
     let mut futures = vec![];
     for endpoint in contract.endpoints.keys() {
         let endpoint_path = build_path.get_endpoint_path(endpoint);
-        let (storage, prefix) =
-            create_data_storage(storage_config.clone(), endpoint_path.log_dir.into()).await?;
+        let log_dir = build_path
+            .data_dir
+            .join(endpoint_path.log_dir_relative_to_data_dir);
+        let (storage, prefix) = create_data_storage(storage_config.clone(), log_dir.into()).await?;
         futures.push(is_empty(storage, prefix));
     }
     if !try_join_all(futures)

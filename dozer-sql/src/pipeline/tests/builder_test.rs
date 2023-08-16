@@ -1,6 +1,7 @@
 use dozer_core::app::{App, AppPipeline};
 use dozer_core::appsource::{AppSourceManager, AppSourceMappings};
 use dozer_core::channels::SourceChannelForwarder;
+use dozer_core::dozer_log::storage::{create_temp_dir_local_storage, Queue};
 use dozer_core::epoch::Epoch;
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::executor_operation::ProcessorOperation;
@@ -16,7 +17,6 @@ use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
 };
-use tempdir::TempDir;
 
 use std::collections::HashMap;
 
@@ -178,6 +178,10 @@ impl Sink for TestSink {
         Ok(())
     }
 
+    fn persist(&mut self, _queue: &Queue) -> Result<(), BoxedError> {
+        Ok(())
+    }
+
     fn on_source_snapshotting_done(&mut self, _connection_name: String) -> Result<(), BoxedError> {
         Ok(())
     }
@@ -228,10 +232,11 @@ async fn test_pipeline_builder() {
 
     let now = std::time::Instant::now();
 
-    let temp_dir = TempDir::new("test_pipeline_builder").unwrap();
+    let (_temp_dir, storage) = create_temp_dir_local_storage().await;
     DagExecutor::new(
         dag,
-        temp_dir.path().to_str().unwrap().to_string(),
+        storage,
+        "test_pipeline_builder".to_string(),
         ExecutorOptions::default(),
     )
     .await

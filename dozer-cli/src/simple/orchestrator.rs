@@ -6,7 +6,7 @@ use crate::simple::build;
 use crate::simple::helper::validate_config;
 use crate::utils::{
     get_api_security_config, get_app_grpc_config, get_cache_manager_options, get_executor_options,
-    get_grpc_config, get_log_options, get_rest_config,
+    get_grpc_config, get_rest_config, get_storage_config,
 };
 
 use crate::{flatten_join_handle, join_handle_map_err};
@@ -176,7 +176,7 @@ impl SimpleOrchestrator {
             &self.config.sources,
             self.config.sql.as_deref(),
             &self.config.endpoints,
-            get_log_options(&self.config),
+            get_storage_config(&self.config),
             self.multi_pb.clone(),
         ))?;
         let dag_executor = self.runtime.block_on(executor.create_dag_executor(
@@ -203,7 +203,7 @@ impl SimpleOrchestrator {
 
         let pipeline_future = self
             .runtime
-            .spawn_blocking(|| run_dag_executor(dag_executor, shutdown));
+            .spawn_blocking(move || run_dag_executor(dag_executor, shutdown.get_running_flag()));
 
         let mut futures = FuturesUnordered::new();
         futures.push(
@@ -312,7 +312,7 @@ impl SimpleOrchestrator {
         )?;
 
         // Run build
-        let storage_config = get_log_options(&self.config).storage_config;
+        let storage_config = get_storage_config(&self.config);
         self.runtime
             .block_on(build::build(&home_dir, &contract, &storage_config))?;
 

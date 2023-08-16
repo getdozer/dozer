@@ -22,3 +22,4 @@ pub mod record_store;
 pub mod tests;
 
 pub use daggy::{self, petgraph};
+pub use dozer_log;

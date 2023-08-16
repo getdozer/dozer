@@ -52,13 +52,13 @@ impl Drop for Object {
 
 #[cfg(test)]
 mod tests {
-    use crate::storage::tests::create_storage;
+    use crate::storage::create_temp_dir_local_storage;
 
     use super::*;
 
     #[tokio::test]
     async fn object_write_should_merge_data() {
-        let (_temp_dir, storage) = create_storage().await;
+        let (_temp_dir, storage) = create_temp_dir_local_storage().await;
         let (queue, join_handle) = Queue::new(dyn_clone::clone_box(&*storage), 1);
         let key = "test";
         let num_bytes = (u16::MAX as usize) * 2;

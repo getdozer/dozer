@@ -17,14 +17,9 @@ pub struct AppConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub commit_timeout: Option<u64>,
 
-    /// Max number of operations in one log entry.
-    #[prost(uint64, optional)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub log_entry_max_size: Option<u64>,
-
     #[prost(uint32, optional)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub log_max_num_immutable_entries: Option<u32>,
+    pub persist_queue_capacity: Option<u32>,
 
     /// The storage to use for the log.
     #[prost(oneof = "DataStorage", tags = "7,8")]
@@ -59,11 +54,7 @@ impl Default for DataStorage {
     }
 }
 
-pub fn default_log_entry_max_size() -> u64 {
-    100_000
-}
-
-pub fn default_log_max_num_immutable_entries() -> u32 {
+pub fn default_persist_queue_capacity() -> u32 {
     100
 }
 

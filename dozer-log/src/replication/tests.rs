@@ -1,35 +1,32 @@
 use std::{sync::Arc, time::Duration};
 
-use dozer_types::models::app_config::DataStorage;
+use dozer_types::parking_lot::Mutex;
 use tempdir::TempDir;
-use tokio::sync::Mutex;
+use tokio::runtime::Runtime;
 
-use crate::replication::{Log, LogOperation, LogResponse};
+use crate::{
+    replication::{Log, LogOperation, LogResponse},
+    storage::{create_temp_dir_local_storage, Queue},
+};
 
-use super::LogOptions;
+async fn create_test_log() -> (TempDir, Arc<Mutex<Log>>, Queue) {
+    let (temp_dir, storage) = create_temp_dir_local_storage().await;
+    let log = Log::new(&*storage, "log".to_string(), false).await.unwrap();
+    let queue = Queue::new(storage, 10).0;
+    (temp_dir, Arc::new(Mutex::new(log)), queue)
+}
 
-async fn create_test_log(
-    temp_dir_prefix: &str,
-    entry_max_size: usize,
-) -> (TempDir, Arc<Mutex<Log>>) {
-    let temp_dir = TempDir::new(temp_dir_prefix).unwrap();
-    let log = Log::new(
-        LogOptions {
-            storage_config: DataStorage::Local(()),
-            max_num_immutable_entries: 10,
-            entry_max_size,
-        },
-        temp_dir.path().to_str().unwrap().to_string(),
-        false,
-    )
-    .await
-    .unwrap();
-    (temp_dir, Arc::new(Mutex::new(log)))
+fn create_runtime() -> Arc<Runtime> {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .into()
 }
 
 #[tokio::test]
-async fn write_read_mutable() {
-    let (_temp_dir, log) = create_test_log("write_read_mutable", 10).await;
+async fn write_read() {
+    let (_temp_dir, log, _) = create_test_log().await;
 
     let ops = vec![
         LogOperation::SnapshottingDone {
@@ -43,9 +40,9 @@ async fn write_read_mutable() {
         },
     ];
 
-    let mut log_mut = log.lock().await;
+    let mut log_mut = log.lock();
     for op in &ops {
-        log_mut.write(op.clone(), log.clone()).await.unwrap();
+        log_mut.write(op.clone());
     }
 
     let range = 1..ops.len();
@@ -57,11 +54,11 @@ async fn write_read_mutable() {
 }
 
 #[tokio::test]
-async fn watch_write_mutable() {
-    let (_temp_dir, log) = create_test_log("watch_write_mutable", 10).await;
+async fn watch_write() {
+    let (_temp_dir, log, _) = create_test_log().await;
 
     let range = 1..3;
-    let mut log_mut = log.lock().await;
+    let mut log_mut = log.lock();
     let handle = tokio::spawn(log_mut.read(range.clone(), Duration::from_secs(1), log.clone()));
 
     let ops = vec![
@@ -76,7 +73,7 @@ async fn watch_write_mutable() {
         },
     ];
     for op in &ops {
-        log_mut.write(op.clone(), log.clone()).await.unwrap();
+        log_mut.write(op.clone());
     }
     drop(log_mut);
 
@@ -84,12 +81,16 @@ async fn watch_write_mutable() {
     assert_eq!(ops_read, LogResponse::Operations(ops[range].to_vec()));
 }
 
-#[tokio::test]
-async fn watch_partial_write_mutable() {
-    let (_temp_dir, log) = create_test_log("watch_partial_write_mutable", 2).await;
+#[test]
+fn watch_partial() {
+    let runtime = create_runtime();
 
-    let mut log_mut = log.lock().await;
-    let handle = tokio::spawn(log_mut.read(1..3, Duration::from_secs(1), log.clone()));
+    let (_temp_dir, log, queue) = runtime.block_on(create_test_log());
+
+    let mut log_mut = log.lock();
+    let future =
+        runtime.block_on(async { log_mut.read(1..3, Duration::from_secs(1), log.clone()) });
+    let handle = runtime.spawn(future);
 
     let ops = vec![
         LogOperation::SnapshottingDone {
@@ -100,21 +101,34 @@ async fn watch_partial_write_mutable() {
         },
     ];
     for op in &ops {
-        log_mut.write(op.clone(), log.clone()).await.unwrap();
+        log_mut.write(op.clone());
     }
     drop(log_mut);
+    // Persist must be called outside of tokio runtime.
+    let runtime_clone = runtime.clone();
+    std::thread::spawn(move || {
+        log.lock()
+            .persist(&queue, log.clone(), &runtime_clone)
+            .unwrap();
+    })
+    .join()
+    .unwrap();
 
-    let ops_read = handle.await.unwrap().unwrap();
+    let ops_read = runtime.block_on(handle).unwrap().unwrap();
     assert_eq!(ops_read, LogResponse::Operations(ops[1..].to_vec()));
 }
 
-#[tokio::test]
-async fn watch_out_of_range_write_mutable() {
-    let (_temp_dir, log) = create_test_log("watch_out_of_range_write_mutable", 2).await;
+#[test]
+fn watch_out_of_range() {
+    let runtime = create_runtime();
+
+    let (_temp_dir, log, queue) = runtime.block_on(create_test_log());
 
     let range = 2..3;
-    let mut log_mut = log.lock().await;
-    let handle = tokio::spawn(log_mut.read(range.clone(), Duration::from_secs(1), log.clone()));
+    let mut log_mut = log.lock();
+    let future = runtime
+        .block_on(async { log_mut.read(range.clone(), Duration::from_secs(1), log.clone()) });
+    let handle = runtime.spawn(future);
 
     let ops = vec![
         LogOperation::SnapshottingDone {
@@ -127,18 +141,33 @@ async fn watch_out_of_range_write_mutable() {
             connection_name: "2".to_string(),
         },
     ];
-    for op in &ops {
-        log_mut.write(op.clone(), log.clone()).await.unwrap();
+    for op in &ops[0..2] {
+        log_mut.write(op.clone());
     }
     drop(log_mut);
 
-    let ops_read = handle.await.unwrap().unwrap();
+    let log_clone = log.clone();
+    let runtime_clone = runtime.clone();
+    std::thread::spawn(move || {
+        log_clone
+            .lock()
+            .persist(&queue, log_clone.clone(), &runtime_clone)
+            .unwrap();
+    })
+    .join()
+    .unwrap();
+
+    log.lock().write(ops[2].clone());
+
+    let ops_read = runtime.block_on(handle).unwrap().unwrap();
     assert_eq!(ops_read, LogResponse::Operations(ops[range].to_vec()));
 }
 
-#[tokio::test]
-async fn in_memory_log_should_shrink() {
-    let (_temp_dir, log) = create_test_log("in_memory_log_should_shrink", 2).await;
+#[test]
+fn in_memory_log_should_shrink_after_persist() {
+    let runtime = create_runtime();
+
+    let (_temp_dir, log, queue) = runtime.block_on(create_test_log());
 
     let ops = vec![
         LogOperation::SnapshottingDone {
@@ -151,29 +180,27 @@ async fn in_memory_log_should_shrink() {
             connection_name: "2".to_string(),
         },
     ];
-    let mut log_mut = log.lock().await;
-    assert!(log_mut
-        .write(ops[0].clone(), log.clone())
-        .await
-        .unwrap()
-        .is_none());
-    let handle = log_mut
-        .write(ops[1].clone(), log.clone())
-        .await
-        .unwrap()
-        .unwrap();
-    assert!(log_mut
-        .write(ops[2].clone(), log.clone())
-        .await
-        .unwrap()
-        .is_none());
+    let mut log_mut = log.lock();
+    log_mut.write(ops[0].clone());
+    log_mut.write(ops[1].clone());
     drop(log_mut);
-    handle.await.unwrap();
+
+    let log_clone = log.clone();
+    let runtime_clone = runtime.clone();
+    let handle = std::thread::spawn(move || {
+        log_clone
+            .lock()
+            .persist(&queue, log_clone.clone(), &runtime_clone)
+            .unwrap()
+    })
+    .join()
+    .unwrap();
+
+    log.lock().write(ops[2].clone());
+    runtime.block_on(handle).unwrap().unwrap();
     assert!(matches!(
-        log.lock()
-            .await
-            .read(0..1, Duration::from_secs(1), log.clone())
-            .await
+        runtime
+            .block_on(log.lock().read(0..1, Duration::from_secs(1), log.clone()))
             .unwrap(),
         LogResponse::Persisted(_)
     ));
@@ -181,15 +208,15 @@ async fn in_memory_log_should_shrink() {
 
 #[tokio::test]
 async fn watch_partial_timeout() {
-    let (_temp_dir, log) = create_test_log("watch_partial_timeout", 10).await;
+    let (_temp_dir, log, _) = create_test_log().await;
 
-    let mut log_mut = log.lock().await;
+    let mut log_mut = log.lock();
     let handle = tokio::spawn(log_mut.read(0..2, Duration::from_secs(0), log.clone()));
 
     let op = LogOperation::SnapshottingDone {
         connection_name: "0".to_string(),
     };
-    log_mut.write(op.clone(), log.clone()).await.unwrap();
+    log_mut.write(op.clone());
     drop(log_mut);
 
     let ops_read = handle.await.unwrap().unwrap();
@@ -198,13 +225,13 @@ async fn watch_partial_timeout() {
 
 #[tokio::test]
 async fn write_watch_partial_timeout() {
-    let (_temp_dir, log) = create_test_log("write_watch_partial_timeout", 10).await;
+    let (_temp_dir, log, _) = create_test_log().await;
 
     let op = LogOperation::SnapshottingDone {
         connection_name: "0".to_string(),
     };
-    let mut log_mut = log.lock().await;
-    log_mut.write(op.clone(), log.clone()).await.unwrap();
+    let mut log_mut = log.lock();
+    log_mut.write(op.clone());
 
     let ops_read_future = log_mut.read(0..2, Duration::from_secs(0), log.clone());
     drop(log_mut);

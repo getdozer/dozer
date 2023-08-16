@@ -2,13 +2,11 @@ use std::sync::Arc;
 
 use dozer_log::{
     camino::Utf8Path,
-    replication::create_data_storage,
+    dyn_clone,
     storage::{Object, Queue, Storage},
     tokio::task::JoinHandle,
 };
-use dozer_types::{
-    log::error, models::app_config::DataStorage, node::NodeHandle, parking_lot::Mutex,
-};
+use dozer_types::{log::error, node::NodeHandle, parking_lot::Mutex};
 
 use crate::{errors::ExecutionError, processor_record::ProcessorRecordStore};
 
@@ -21,29 +19,27 @@ pub struct CheckpointFactory {
     state: Mutex<CheckpointWriterFactoryState>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CheckpointFactoryOptions {
-    pub storage_config: DataStorage,
     pub persist_queue_capacity: usize,
 }
 
 impl Default for CheckpointFactoryOptions {
     fn default() -> Self {
         Self {
-            storage_config: DataStorage::Local(()),
-            persist_queue_capacity: 100_000,
+            persist_queue_capacity: 100,
         }
     }
 }
 
 impl CheckpointFactory {
+    // We need tokio runtime so mark the function as async.
     pub async fn new(
-        options: CheckpointFactoryOptions,
-        checkpoint_dir: String,
+        storage: Box<dyn Storage>,
+        prefix: String,
         record_store: Arc<ProcessorRecordStore>,
-    ) -> Result<(Self, JoinHandle<()>), ExecutionError> {
-        let (storage, prefix) = create_data_storage(options.storage_config, checkpoint_dir).await?;
-        // We don't care about the worker handle here.
+        options: CheckpointFactoryOptions,
+    ) -> (Self, JoinHandle<()>) {
         let (queue, worker) = Queue::new(
             dyn_clone::clone_box(&*storage),
             options.persist_queue_capacity,
@@ -53,7 +49,7 @@ impl CheckpointFactory {
             next_record_index: record_store.num_records(),
         });
 
-        Ok((
+        (
             Self {
                 queue,
                 _storage: storage,
@@ -62,7 +58,7 @@ impl CheckpointFactory {
                 state,
             },
             worker,
-        ))
+        )
     }
 
     pub fn record_store(&self) -> &Arc<ProcessorRecordStore> {
@@ -76,12 +72,9 @@ impl CheckpointFactory {
         state.next_record_index += num_records_serialized;
         drop(state);
 
-        let mut object = Object::new(self.queue.clone(), key)
+        self.queue
+            .upload_object(key, data)
             .map_err(|_| ExecutionError::CheckpointWriterThreadPanicked)?;
-        object
-            .write(&data)
-            .map_err(|_| ExecutionError::CheckpointWriterThreadPanicked)?;
-        drop(object);
 
         Ok(())
     }
@@ -118,6 +111,10 @@ impl CheckpointWriter {
         }
     }
 
+    pub fn queue(&self) -> &Queue {
+        &self.factory.queue
+    }
+
     pub fn create_processor_object(
         &self,
         node_handle: &NodeHandle,
@@ -147,9 +144,8 @@ impl Drop for CheckpointWriter {
 mod tests {
     use super::*;
 
-    use dozer_log::tokio;
+    use dozer_log::{storage::create_temp_dir_local_storage, tokio};
     use dozer_types::types::Field;
-    use tempdir::TempDir;
 
     use crate::processor_record::ProcessorRecordStore;
 
@@ -159,14 +155,14 @@ mod tests {
         let record_store = Arc::new(ProcessorRecordStore::new().unwrap());
         record_store.create_ref(&[]).unwrap();
 
-        let temp_dir = TempDir::new("checkpoint_writer_should_write_records").unwrap();
+        let (_temp_dir, storage) = create_temp_dir_local_storage().await;
         let (factory, join_handle) = CheckpointFactory::new(
-            Default::default(),
-            temp_dir.path().to_str().unwrap().to_string(),
+            storage,
+            "checkpoint_writer_should_write_records".to_string(),
             record_store.clone(),
+            Default::default(),
         )
-        .await
-        .unwrap();
+        .await;
         let storage = dyn_clone::clone_box(&*factory._storage);
 
         let fields = vec![Field::Int(0)];

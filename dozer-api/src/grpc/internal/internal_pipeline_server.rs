@@ -1,5 +1,5 @@
 use dozer_cache::dozer_log::home_dir::BuildId;
-use dozer_cache::dozer_log::replication::Log;
+use dozer_cache::dozer_log::replication::{Log, LogResponseFuture};
 use dozer_types::bincode;
 use dozer_types::grpc_types::internal::internal_pipeline_service_server::{
     InternalPipelineService, InternalPipelineServiceServer,
@@ -11,13 +11,13 @@ use dozer_types::grpc_types::internal::{
 use dozer_types::log::info;
 use dozer_types::models::api_config::AppGrpcOptions;
 use dozer_types::models::api_endpoint::ApiEndpoint;
+use dozer_types::parking_lot::Mutex;
 use futures_util::future::Either;
 use futures_util::stream::BoxStream;
 use futures_util::{Future, StreamExt, TryStreamExt};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::Mutex;
 use tonic::transport::server::TcpIncoming;
 use tonic::transport::Server;
 use tonic::{Request, Response, Status, Streaming};
@@ -52,7 +52,7 @@ impl InternalPipelineService for InternalPipelineServer {
     ) -> Result<Response<StorageResponse>, Status> {
         let endpoint = request.into_inner().endpoint;
         let log = &find_log_endpoint(&self.endpoints, &endpoint)?.log;
-        let storage = log.lock().await.describe_storage();
+        let storage = log.lock().describe_storage();
         Ok(Response::new(StorageResponse {
             storage: Some(storage),
         }))
@@ -102,7 +102,14 @@ impl InternalPipelineService for InternalPipelineServer {
                         Err(e) => return Either::Left(std::future::ready(Err(e))),
                     }
                     .log;
-                    Either::Right(get_log(log.clone(), request))
+
+                    let response = log.lock().read(
+                        request.start as usize..request.end as usize,
+                        Duration::from_millis(request.timeout_in_millis as u64),
+                        log.clone(),
+                    );
+
+                    Either::Right(serialize_log_response(response))
                 })
                 .boxed(),
         ))
@@ -121,15 +128,7 @@ fn find_log_endpoint<'a>(
     })
 }
 
-async fn get_log(log: Arc<Mutex<Log>>, request: LogRequest) -> Result<LogResponse, Status> {
-    let mut log_mut = log.lock().await;
-    let response = log_mut.read(
-        request.start as usize..request.end as usize,
-        Duration::from_millis(request.timeout_in_millis as u64),
-        log.clone(),
-    );
-    // Must drop log before awaiting response, otherwise we will deadlock.
-    drop(log_mut);
+async fn serialize_log_response(response: LogResponseFuture) -> Result<LogResponse, Status> {
     let response = response
         .await
         .map_err(|e| Status::new(tonic::Code::Internal, e.to_string()))?;

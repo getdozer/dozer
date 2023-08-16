@@ -2,6 +2,8 @@ use ahash::AHasher;
 use dozer_core::app::{App, AppPipeline};
 use dozer_core::appsource::{AppSourceManager, AppSourceMappings};
 use dozer_core::channels::SourceChannelForwarder;
+use dozer_core::dozer_log::replication::create_data_storage;
+use dozer_core::dozer_log::storage::Queue;
 use dozer_core::epoch::Epoch;
 use dozer_core::errors::ExecutionError;
 use dozer_core::executor_operation::ProcessorOperation;
@@ -19,6 +21,7 @@ use dozer_types::crossbeam::channel::{Receiver, Sender};
 
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::ingestion_types::IngestionMessage;
+use dozer_types::models::app_config::DataStorage;
 use dozer_types::types::{Operation, Record, Schema, SourceDefinition};
 use std::collections::HashMap;
 use tempdir::TempDir;
@@ -257,6 +260,10 @@ impl Sink for TestSink {
         Ok(())
     }
 
+    fn persist(&mut self, _queue: &Queue) -> Result<(), BoxedError> {
+        Ok(())
+    }
+
     fn on_source_snapshotting_done(&mut self, _connection_name: String) -> Result<(), BoxedError> {
         Ok(())
     }
@@ -352,8 +359,15 @@ impl TestPipeline {
             .to_str()
             .expect("Path should always be utf8")
             .to_string();
-        let executor =
-            DagExecutor::new(self.dag, checkpoint_dir, ExecutorOptions::default()).await?;
+        let (checkpoint_storage, checkpoint_prefix) =
+            create_data_storage(DataStorage::Local(()), checkpoint_dir).await?;
+        let executor = DagExecutor::new(
+            self.dag,
+            checkpoint_storage,
+            checkpoint_prefix,
+            ExecutorOptions::default(),
+        )
+        .await?;
         let join_handle = executor.start(Arc::new(AtomicBool::new(true)))?;
 
         for (schema_name, op) in &self.ops {

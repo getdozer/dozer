@@ -11,11 +11,11 @@ use crate::tests::sources::{
     GENERATOR_SOURCE_OUTPUT_PORT,
 };
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
+use dozer_log::storage::create_temp_dir_local_storage;
 use dozer_log::tokio;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
 use dozer_types::types::Schema;
-use tempdir::TempDir;
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -119,10 +119,11 @@ async fn test_run_dag() {
     )
     .unwrap();
 
-    let temp_dir = TempDir::new("test_run_dag").unwrap();
+    let (_temp_dir, storage) = create_temp_dir_local_storage().await;
     DagExecutor::new(
         dag,
-        temp_dir.path().to_str().unwrap().to_string(),
+        storage,
+        "test_run_dag".to_string(),
         ExecutorOptions::default(),
     )
     .await
@@ -167,10 +168,11 @@ async fn test_run_dag_and_stop() {
     .unwrap();
 
     let running = Arc::new(AtomicBool::new(true));
-    let temp_dir = TempDir::new("test_run_dag_and_stop").unwrap();
+    let (_temp_dir, storage) = create_temp_dir_local_storage().await;
     let join_handle = DagExecutor::new(
         dag,
-        temp_dir.path().to_str().unwrap().to_string(),
+        storage,
+        "test_run_dag_and_stop".to_string(),
         ExecutorOptions::default(),
     )
     .await
@@ -292,10 +294,11 @@ async fn test_run_dag_2_sources_stateless() {
     )
     .unwrap();
 
-    let temp_dir = TempDir::new("test_run_dag_2_sources_stateless").unwrap();
+    let (_temp_dir, storage) = create_temp_dir_local_storage().await;
     DagExecutor::new(
         dag,
-        temp_dir.path().to_str().unwrap().to_string(),
+        storage,
+        "test_run_dag_2_sources_stateless".to_string(),
         ExecutorOptions::default(),
     )
     .await
@@ -351,10 +354,11 @@ async fn test_run_dag_2_sources_stateful() {
     )
     .unwrap();
 
-    let temp_dir = TempDir::new("test_run_dag_2_sources_stateful").unwrap();
+    let (_temp_dir, storage) = create_temp_dir_local_storage().await;
     DagExecutor::new(
         dag,
-        temp_dir.path().to_str().unwrap().to_string(),
+        storage,
+        "test_run_dag_2_sources_stateful".to_string(),
         ExecutorOptions::default(),
     )
     .await
@@ -411,10 +415,11 @@ async fn test_run_dag_1_source_2_ports_stateless() {
     )
     .unwrap();
 
-    let temp_dir = TempDir::new("test_run_dag_1_source_2_ports_stateless").unwrap();
+    let (_temp_dir, storage) = create_temp_dir_local_storage().await;
     DagExecutor::new(
         dag,
-        temp_dir.path().to_str().unwrap().to_string(),
+        storage,
+        "test_run_dag_1_source_2_ports_stateless".to_string(),
         ExecutorOptions::default(),
     )
     .await

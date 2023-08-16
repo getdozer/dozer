@@ -12,11 +12,11 @@ use crate::tests::sources::{
     GENERATOR_SOURCE_OUTPUT_PORT,
 };
 use crate::{Edge, Endpoint, DEFAULT_PORT_HANDLE};
+use dozer_log::storage::create_temp_dir_local_storage;
 use dozer_log::tokio;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
 use dozer_types::types::Schema;
-use tempdir::TempDir;
 
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
@@ -297,10 +297,11 @@ async fn test_app_dag() {
 
     assert_eq!(edges.len(), 6);
 
-    let temp_dir = TempDir::new("test_app_dag").unwrap();
+    let (_temp_dir, storage) = create_temp_dir_local_storage().await;
     DagExecutor::new(
         dag,
-        temp_dir.path().to_str().unwrap().to_string(),
+        storage,
+        "test_app_dag".to_string(),
         ExecutorOptions::default(),
     )
     .await

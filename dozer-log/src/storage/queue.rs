@@ -4,12 +4,15 @@ use std::{
 };
 
 use dozer_types::{
-    log::error,
+    log::{debug, error},
     thiserror::{self, Error},
 };
 use nonzero_ext::nonzero;
 use tokio::{
-    sync::mpsc::{self, Receiver, Sender},
+    sync::{
+        mpsc::{self, Receiver, Sender},
+        oneshot,
+    },
     task::JoinHandle,
 };
 
@@ -27,31 +30,44 @@ impl Queue {
         (Self { sender }, worker)
     }
 
-    pub fn create_upload(&self, key: String) -> Result<(), String> {
-        self.sender
-            .blocking_send(Request {
-                key,
-                kind: RequestKind::CreateUpload,
-            })
-            .map_err(|e| e.0.key)
+    pub fn create_upload(&self, key: String) -> Result<oneshot::Receiver<String>, String> {
+        self.send_request(key, RequestKind::CreateUpload)
     }
 
-    pub fn upload_chunk(&self, key: String, data: Vec<u8>) -> Result<(), String> {
-        self.sender
-            .blocking_send(Request {
-                key,
-                kind: RequestKind::UploadChunk(data),
-            })
-            .map_err(|e| e.0.key)
+    pub fn upload_chunk(
+        &self,
+        key: String,
+        data: Vec<u8>,
+    ) -> Result<oneshot::Receiver<String>, String> {
+        self.send_request(key, RequestKind::UploadChunk(data))
     }
 
-    pub fn complete_upload(&self, key: String) -> Result<(), String> {
+    pub fn complete_upload(&self, key: String) -> Result<oneshot::Receiver<String>, String> {
+        self.send_request(key, RequestKind::CompleteUpload)
+    }
+
+    pub fn upload_object(
+        &self,
+        key: String,
+        data: Vec<u8>,
+    ) -> Result<oneshot::Receiver<String>, String> {
+        self.send_request(key, RequestKind::UploadObject(data))
+    }
+
+    fn send_request(
+        &self,
+        key: String,
+        kind: RequestKind,
+    ) -> Result<oneshot::Receiver<String>, String> {
+        let (return_sender, return_receiver) = oneshot::channel();
         self.sender
             .blocking_send(Request {
                 key,
-                kind: RequestKind::CompleteUpload,
+                kind,
+                return_sender,
             })
-            .map_err(|e| e.0.key)
+            .map_err(|e| e.0.key)?;
+        Ok(return_receiver)
     }
 }
 
@@ -59,13 +75,15 @@ impl Queue {
 struct Request {
     key: String,
     kind: RequestKind,
+    return_sender: oneshot::Sender<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum RequestKind {
     CreateUpload,
     UploadChunk(Vec<u8>),
     CompleteUpload,
+    UploadObject(Vec<u8>),
 }
 
 struct MultipartUpload {
@@ -77,15 +95,25 @@ async fn upload_loop(storage: Box<dyn Storage>, mut requests: Receiver<Request>)
     let mut multipart_uploads = HashMap::new();
 
     while let Some(request) = requests.recv().await {
-        if let Err(e) = handle_request(
-            &*storage,
-            &mut multipart_uploads,
-            &request.key,
-            request.kind,
-        )
-        .await
-        {
-            error!("error uploading {}: {e}", request.key);
+        loop {
+            match handle_request(
+                &*storage,
+                &mut multipart_uploads,
+                &request.key,
+                request.kind.clone(),
+            )
+            .await
+            {
+                Ok(()) => {
+                    if let Err(key) = request.return_sender.send(request.key) {
+                        debug!("No one is waiting for the uploading result of {}", key);
+                    }
+                    break;
+                }
+                Err(e) => {
+                    error!("error uploading {}: {e}", request.key);
+                }
+            }
         }
     }
 }
@@ -144,19 +172,22 @@ async fn handle_request(
                 .complete_multipart_upload(key, upload.id, upload.parts)
                 .await?;
         }
+        RequestKind::UploadObject(data) => {
+            storage.put_object(key.to_string(), data).await?;
+        }
     }
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::storage::tests::create_storage;
+    use crate::storage::create_temp_dir_local_storage;
 
     use super::*;
 
     #[tokio::test]
     async fn test_handle_request() {
-        let (_temp_dir, storage) = create_storage().await;
+        let (_temp_dir, storage) = create_temp_dir_local_storage().await;
         let mut multipart_uploads = HashMap::new();
         let key = "test";
         let data = vec![1, 2, 3];
@@ -193,7 +224,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_handle_request_upload_already_exists() {
-        let (_temp_dir, storage) = create_storage().await;
+        let (_temp_dir, storage) = create_temp_dir_local_storage().await;
         let mut multipart_uploads = HashMap::new();
         let key = "test";
         handle_request(
@@ -217,7 +248,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_handle_request_upload_not_found() {
-        let (_temp_dir, storage) = create_storage().await;
+        let (_temp_dir, storage) = create_temp_dir_local_storage().await;
         let mut multipart_uploads = HashMap::new();
         let key = "test";
         let error = handle_request(

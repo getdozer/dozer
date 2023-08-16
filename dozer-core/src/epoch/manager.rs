@@ -246,7 +246,7 @@ impl EpochManager {
 mod tests {
     use std::thread::scope;
 
-    use dozer_log::tokio;
+    use dozer_log::{storage::create_temp_dir_local_storage, tokio};
     use tempdir::TempDir;
 
     use super::*;
@@ -257,14 +257,14 @@ mod tests {
         num_sources: usize,
         options: EpochManagerOptions,
     ) -> (TempDir, EpochManager) {
-        let temp_dir = TempDir::new("create_epoch_manager").unwrap();
+        let (temp_dir, storage) = create_temp_dir_local_storage().await;
         let checkpoint_factory = CheckpointFactory::new(
-            Default::default(),
-            temp_dir.path().to_str().unwrap().to_string(),
+            storage,
+            "create_epoch_manager".to_string(),
             Arc::new(ProcessorRecordStore::new().unwrap()),
+            Default::default(),
         )
         .await
-        .unwrap()
         .0;
 
         let epoch_manager = EpochManager::new(num_sources, Arc::new(checkpoint_factory), options);

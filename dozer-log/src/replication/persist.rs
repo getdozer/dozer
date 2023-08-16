@@ -1,14 +1,9 @@
-use std::{ops::Range, time::Duration};
+use std::ops::Range;
 
 use camino::Utf8Path;
-use dozer_types::{
-    bincode,
-    log::{debug, error},
-    models::app_config::DataStorage,
-};
-use tokio::task::JoinHandle;
+use dozer_types::{bincode, log::debug, models::app_config::DataStorage};
 
-use crate::storage::{self, LocalStorage, S3Storage, Storage};
+use crate::storage::{self, LocalStorage, Queue, S3Storage, Storage};
 
 use super::{Error, LogOperation, PersistedLogEntry};
 
@@ -80,99 +75,18 @@ pub fn persisted_log_entries_end(persisted: &[PersistedLogEntry]) -> Option<usiz
     persisted.last().map(|o| o.range.end)
 }
 
-#[derive(Debug)]
-struct PersistRequest {
-    ops: Vec<LogOperation>,
+pub fn persist(
+    queue: &Queue,
+    prefix: &str,
     range: Range<usize>,
-    return_key: tokio::sync::oneshot::Sender<String>,
-}
-
-#[derive(Debug)]
-pub struct PersistingQueue {
-    request_sender: tokio::sync::mpsc::Sender<PersistRequest>,
-    worker: Option<JoinHandle<()>>,
-}
-
-const RETRY_INTERVAL: Duration = Duration::from_secs(1);
-
-impl PersistingQueue {
-    pub async fn new(
-        storage: Box<dyn Storage>,
-        prefix: String,
-        max_num_immutable_entries: usize,
-    ) -> Result<Self, Error> {
-        let (request_sender, mut request_receiver) =
-            tokio::sync::mpsc::channel::<PersistRequest>(max_num_immutable_entries);
-        let worker = tokio::spawn(async move {
-            while let Some(mut request) = request_receiver.recv().await {
-                let name = log_entry_name(&request.range);
-                let key = AsRef::<Utf8Path>::as_ref(prefix.as_str())
-                    .join(&name)
-                    .to_string();
-                let data = loop {
-                    match bincode::serialize(&request.ops) {
-                        Ok(data) => {
-                            request.ops.clear(); // To save some memory
-                            break data;
-                        }
-                        Err(e) => {
-                            error!("Failed to serialize log entry: {e}, retrying in {RETRY_INTERVAL:?}");
-                            tokio::time::sleep(RETRY_INTERVAL).await;
-                        }
-                    }
-                };
-                loop {
-                    match storage.put_object(key.clone(), data.clone()).await {
-                        Ok(()) => {
-                            if request.return_key.send(key).is_err() {
-                                debug!("No one wants to know that we persisted {name}");
-                            }
-                            break;
-                        }
-                        Err(e) => {
-                            error!(
-                                "Failed to persist log entry: {e}, retrying in {RETRY_INTERVAL:?}"
-                            );
-                            tokio::time::sleep(RETRY_INTERVAL).await;
-                        }
-                    }
-                }
-            }
-        });
-        Ok(Self {
-            request_sender,
-            worker: Some(worker),
-        })
-    }
-
-    pub async fn persist(
-        &mut self,
-        range: Range<usize>,
-        ops: Vec<LogOperation>,
-    ) -> Result<tokio::sync::oneshot::Receiver<String>, Error> {
-        let (return_key, receiver) = tokio::sync::oneshot::channel();
-        if self
-            .request_sender
-            .send(PersistRequest {
-                ops,
-                range,
-                return_key,
-            })
-            .await
-            .is_err()
-        {
-            let worker = self
-                .worker
-                .take()
-                .ok_or(Error::PersistingThreadQuit(None))?;
-            // Worker has quit. It must have panicked.
-            let Err(e) = worker.await else {
-                panic!("Worker must have panicked");
-            };
-            return Err(Error::PersistingThreadQuit(Some(e)));
-        }
-        Ok(receiver)
-    }
+    ops: &[LogOperation],
+) -> Result<tokio::sync::oneshot::Receiver<String>, Error> {
+    let name = log_entry_name(&range);
+    let key = AsRef::<Utf8Path>::as_ref(prefix).join(name).to_string();
+    let data = bincode::serialize(&ops).expect("LogOperation must be serializable");
+    queue
+        .upload_object(key, data)
+        .map_err(|_| Error::PersistingThreadQuit)
 }
 
 fn parse_log_entry_name(name: &str) -> Option<Range<usize>> {

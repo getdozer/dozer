@@ -127,3 +127,14 @@ pub use object::Object;
 
 #[cfg(test)]
 mod tests;
+
+use tempdir::TempDir;
+
+/// This only meant for use in tests.
+pub async fn create_temp_dir_local_storage() -> (TempDir, Box<dyn Storage>) {
+    let temp_dir = TempDir::new("create_temp_dir_local_storage").unwrap();
+    let storage = LocalStorage::new(temp_dir.path().to_str().unwrap().to_string())
+        .await
+        .unwrap();
+    (temp_dir, Box::new(storage))
+}
