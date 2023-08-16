@@ -18,7 +18,7 @@ jobs:
   e2e:
     timeout-minutes: 60
     runs-on:
-      labels: macos-12
+      labels: ubuntu-latest
 
     steps:
       - if: github.event_name == 'pull_request_target'
