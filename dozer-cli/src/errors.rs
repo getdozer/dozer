@@ -56,8 +56,10 @@ pub enum OrchestrationError {
     CloudError(#[from] CloudError),
     #[error("Failed to initialize api server: {0}")]
     ApiInitFailed(#[from] ApiInitError),
-    #[error("Failed to server API: {0}")]
-    ApiServeFailed(#[source] std::io::Error),
+    #[error("Failed to server REST API: {0}")]
+    RestServeFailed(#[source] std::io::Error),
+    #[error("Failed to server gRPC API: {0:?}")]
+    GrpcServeFailed(#[source] tonic::transport::Error),
     #[error("Failed to initialize internal server: {0}")]
     InternalServerFailed(#[source] GrpcError),
     #[error("{0}: Failed to initialize cache. Have you run `dozer build`?")]

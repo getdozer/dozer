@@ -3,7 +3,7 @@ use dozer_types::{bincode, serde_json, thiserror, tonic};
 
 #[derive(Error, Debug)]
 pub enum ReaderBuilderError {
-    #[error("Tonic transport error: {0}")]
+    #[error("Tonic transport error: {0:?}")]
     TonicTransport(#[from] tonic::transport::Error),
     #[error("Tonic status: {0}")]
     TonicStatus(#[from] tonic::Status),
