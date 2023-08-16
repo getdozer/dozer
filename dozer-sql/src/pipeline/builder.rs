@@ -711,10 +711,7 @@ fn test_missing_into_in_simple_from_clause() {
     let sql = r#"SELECT a FROM B "#;
     let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None);
     //check if the result is an error
-    assert!(result.is_err());
-    //check if the error is of type MissingIntoClause
-    let error = result.unwrap_err();
-    assert!(matches!(error, PipelineError::MissingIntoClause));
+    assert!(matches!(result, Err(PipelineError::MissingIntoClause)))
 }
 
 #[test]
@@ -730,10 +727,7 @@ fn test_missing_into_in_nested_from_clause() {
     let sql = r#"SELECT a FROM (SELECT a from b)"#;
     let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None);
     //check if the result is an error
-    assert!(result.is_err());
-    //check if the error is of type MissingIntoClause
-    let error = result.unwrap_err();
-    assert!(matches!(error, PipelineError::MissingIntoClause));
+    assert!(matches!(result, Err(PipelineError::MissingIntoClause)))
 }
 
 #[test]
@@ -751,10 +745,7 @@ fn test_missing_into_in_with_clause() {
     from tbl;"#;
     let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None);
     //check if the result is an error
-    assert!(result.is_err());
-    //check if the error is of type MissingIntoClause
-    let error = result.unwrap_err();
-    assert!(matches!(error, PipelineError::MissingIntoClause));
+    assert!(matches!(result, Err(PipelineError::MissingIntoClause)))
 }
 
 #[test]

@@ -82,7 +82,7 @@ pub enum PipelineError {
     IllegalFieldIdentifier(String),
     #[error("Unable to cast {0} to {1}")]
     UnableToCast(String, String),
-    #[error("Each SQL Select Statement must have a corresponding INTO clause")]
+    #[error("Missing INTO clause for top-level SELECT statement")]
     MissingIntoClause,
     #[cfg(feature = "python")]
     #[error("Python Error: {0}")]
