@@ -126,7 +126,7 @@ impl SimpleOrchestrator {
                 let api_server = api_server
                     .run(cache_endpoints_for_rest, shutdown_for_rest)
                     .map_err(OrchestrationError::ApiInitFailed)?;
-                tokio::spawn(api_server.map_err(OrchestrationError::ApiServeFailed))
+                tokio::spawn(api_server.map_err(OrchestrationError::RestServeFailed))
             } else {
                 tokio::spawn(async move { Ok::<(), OrchestrationError>(()) })
             };
@@ -137,11 +137,14 @@ impl SimpleOrchestrator {
                 let api_security = get_api_security_config(&self.config).cloned();
                 let grpc_server = grpc::ApiServer::new(grpc_config, api_security, flags);
                 let shutdown = shutdown.create_shutdown_future();
+                let grpc_server = grpc_server
+                    .run(cache_endpoints, shutdown, operations_receiver)
+                    .await
+                    .map_err(OrchestrationError::ApiInitFailed)?;
                 tokio::spawn(async move {
                     grpc_server
-                        .run(cache_endpoints, shutdown, operations_receiver)
                         .await
-                        .map_err(OrchestrationError::ApiInitFailed)
+                        .map_err(OrchestrationError::GrpcServeFailed)
                 })
             } else {
                 tokio::spawn(async move { Ok::<(), OrchestrationError>(()) })
@@ -179,11 +182,14 @@ impl SimpleOrchestrator {
             .create_dag_executor(self.runtime.clone(), get_executor_options(&self.config))?;
 
         let app_grpc_config = get_app_grpc_config(&self.config);
-        let internal_server_future = start_internal_pipeline_server(
-            executor.endpoint_and_logs().to_vec(),
-            &app_grpc_config,
-            shutdown.create_shutdown_future(),
-        );
+        let internal_server_future = self
+            .runtime
+            .block_on(start_internal_pipeline_server(
+                executor.endpoint_and_logs().to_vec(),
+                &app_grpc_config,
+                shutdown.create_shutdown_future(),
+            ))
+            .map_err(OrchestrationError::InternalServerFailed)?;
 
         if let Some(api_notifier) = api_notifier {
             api_notifier
@@ -199,7 +205,7 @@ impl SimpleOrchestrator {
         let mut futures = FuturesUnordered::new();
         futures.push(
             internal_server_future
-                .map_err(OrchestrationError::InternalServerFailed)
+                .map_err(OrchestrationError::GrpcServeFailed)
                 .boxed(),
         );
         futures.push(flatten_join_handle(pipeline_future).boxed());

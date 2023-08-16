@@ -12,16 +12,18 @@ use dozer_types::log::info;
 use dozer_types::models::api_config::AppGrpcOptions;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use futures_util::future::Either;
-use futures_util::stream::{AbortHandle, Abortable, Aborted, BoxStream};
+use futures_util::stream::BoxStream;
 use futures_util::{Future, StreamExt, TryStreamExt};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
+use tonic::transport::server::TcpIncoming;
 use tonic::transport::Server;
 use tonic::{Request, Response, Status, Streaming};
 
 use crate::errors::GrpcError;
+use crate::grpc::run_server;
 
 #[derive(Debug, Clone)]
 pub struct LogEndpoint {
@@ -140,34 +142,27 @@ async fn get_log(log: Arc<Mutex<Log>>, request: LogRequest) -> Result<LogRespons
     Ok(LogResponse { data })
 }
 
+/// TcpIncoming::new requires a tokio runtime, so we mark this function as async.
 pub async fn start_internal_pipeline_server(
     endpoint_and_logs: Vec<(ApiEndpoint, LogEndpoint)>,
     options: &AppGrpcOptions,
     shutdown: impl Future<Output = ()> + Send + 'static,
-) -> Result<(), GrpcError> {
+) -> Result<impl Future<Output = Result<(), tonic::transport::Error>>, GrpcError> {
     let endpoints = endpoint_and_logs
         .into_iter()
         .map(|(endpoint, log)| (endpoint.name, log))
         .collect();
     let server = InternalPipelineServer::new(endpoints);
 
-    // Tonic graceful shutdown doesn't allow us to set a timeout, resulting in hanging if a client doesn't close the connection.
-    // So we just abort the server when the shutdown signal is received.
-    let (abort_handle, abort_registration) = AbortHandle::new_pair();
-    tokio::spawn(async move {
-        shutdown.await;
-        abort_handle.abort();
-    });
-
-    // Run server.
+    // Start listening.
     let addr = format!("{}:{}", options.host, options.port);
     info!("Starting Internal Server on {addr}");
     let addr = addr
         .parse()
         .map_err(|e| GrpcError::AddrParse(addr.clone(), e))?;
+    let incoming = TcpIncoming::new(addr, true, None).map_err(|e| GrpcError::Listen(addr, e))?;
+
+    // Run server.
     let server = Server::builder().add_service(InternalPipelineServiceServer::new(server));
-    match Abortable::new(server.serve(addr), abort_registration).await {
-        Ok(result) => result.map_err(GrpcError::Transport),
-        Err(Aborted) => Ok(()),
-    }
+    Ok(run_server(server, incoming, shutdown))
 }

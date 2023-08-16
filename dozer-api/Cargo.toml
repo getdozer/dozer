@@ -40,6 +40,9 @@ tower-http = {version = "0.3.5", features = ["full"]}
 arc-swap = "1.6.0"
 metrics = "0.21.0"
 gethostname = "0.4.3"
+http-body = "0.4.5"
+bytes = "1.4.0"
+http = "0.2.9"
 
 [dev-dependencies]
 tempdir = "0.3.7"
