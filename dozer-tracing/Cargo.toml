@@ -9,10 +9,10 @@ authors = ["getdozer/dozer-dev"]
 [dependencies]
 dozer-types = { path = "../dozer-types" }
 
-tracing-subscriber = {version = "0.3.11", features=["env-filter", "tracing-log"]}
-opentelemetry = {version = "0.18.0", features = ["rt-tokio", "rt-tokio-current-thread"] }
-opentelemetry-jaeger = {version = "0.17.0", features = ["rt-tokio", "rt-tokio-current-thread"] }
-tracing-opentelemetry = "0.18.0"
+tracing-subscriber = {version = "0.3.17", features=["env-filter", "tracing-log"]}
+opentelemetry = { version = "0.20.0", features = ["rt-tokio", "rt-tokio-current-thread"] }
+tracing-opentelemetry = "0.20.0"
 tokio = { version = "1", features = ["full"] }
 metrics-exporter-prometheus = "0.12.1"
 atty = "0.2.14"
+opentelemetry-otlp = "0.13.0"
