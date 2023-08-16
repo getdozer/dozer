@@ -75,7 +75,7 @@ pub fn statement_to_pipeline(
 ) -> Result<QueryContext, PipelineError> {
     let dialect = DozerDialect {};
     let mut ctx = QueryContext::default();
-
+    let is_top_select = true;
     let ast = Parser::parse_sql(&dialect, sql)
         .map_err(|err| PipelineError::InternalError(Box::new(err)))?;
     let query_name = NameOrAlias(format!("query_{}", ctx.get_next_processor_id()), None);
@@ -94,6 +94,7 @@ pub fn statement_to_pipeline(
                     &mut ctx,
                     false,
                     idx,
+                    is_top_select,
                 )?;
             }
             s => {
@@ -102,9 +103,6 @@ pub fn statement_to_pipeline(
                 ))
             }
         }
-    }
-    if ctx.output_tables_map.is_empty() {
-        return Err(PipelineError::NoIntoProvided);
     }
 
     Ok(ctx)
@@ -117,6 +115,7 @@ fn query_to_pipeline(
     query_ctx: &mut QueryContext,
     stateful: bool,
     pipeline_idx: usize,
+    is_top_select: bool,
 ) -> Result<(), PipelineError> {
     // return error if there is unsupported syntax
     if !query.order_by.is_empty() {
@@ -165,6 +164,7 @@ fn query_to_pipeline(
                 query_ctx,
                 true,
                 pipeline_idx,
+                false, //Inside a with clause, so not top select
             )?;
         }
     };
@@ -178,6 +178,7 @@ fn query_to_pipeline(
                 query_ctx,
                 stateful,
                 pipeline_idx,
+                is_top_select,
             )?;
         }
         SetExpr::Query(query) => {
@@ -194,6 +195,7 @@ fn query_to_pipeline(
                 &mut ctx,
                 stateful,
                 pipeline_idx,
+                false, //Inside a subquery, so not top select
             )?
         }
         SetExpr::SetOperation {
@@ -212,6 +214,7 @@ fn query_to_pipeline(
                     query_ctx,
                     stateful,
                     pipeline_idx,
+                    is_top_select,
                 )?;
             }
             _ => return Err(PipelineError::InvalidOperator(op.to_string())),
@@ -232,6 +235,7 @@ fn select_to_pipeline(
     query_ctx: &mut QueryContext,
     stateful: bool,
     pipeline_idx: usize,
+    is_top_select: bool,
 ) -> Result<String, PipelineError> {
     // FROM clause
     if select.from.len() != 1 {
@@ -324,6 +328,11 @@ fn select_to_pipeline(
     } else {
         table_info.override_name.clone()
     };
+
+    if is_top_select && output_table_name.is_none() {
+        return Err(PipelineError::MissingIntoClause);
+    }
+
     if let Some(table_name) = output_table_name {
         query_ctx.output_tables_map.insert(
             table_name,
@@ -348,6 +357,7 @@ fn set_to_pipeline(
     query_ctx: &mut QueryContext,
     stateful: bool,
     pipeline_idx: usize,
+    is_top_select: bool,
 ) -> Result<String, PipelineError> {
     let gen_left_set_name = format!("set_left_{}", query_ctx.get_next_processor_id());
     let left_table_info = TableInfo {
@@ -370,6 +380,7 @@ fn set_to_pipeline(
             query_ctx,
             stateful,
             pipeline_idx,
+            is_top_select,
         )?,
         SetExpr::SetOperation {
             op: _,
@@ -385,6 +396,7 @@ fn set_to_pipeline(
             query_ctx,
             stateful,
             pipeline_idx,
+            is_top_select,
         )?,
         _ => {
             return Err(PipelineError::InvalidQuery(
@@ -401,6 +413,7 @@ fn set_to_pipeline(
             query_ctx,
             stateful,
             pipeline_idx,
+            is_top_select,
         )?,
         SetExpr::SetOperation {
             op: _,
@@ -416,6 +429,7 @@ fn set_to_pipeline(
             query_ctx,
             stateful,
             pipeline_idx,
+            is_top_select,
         )?,
         _ => {
             return Err(PipelineError::InvalidQuery(
@@ -582,7 +596,7 @@ pub fn get_from_source(
             let alias_name = alias.as_ref().map(|alias_ident| {
                 ExpressionBuilder::fullname_from_ident(&[alias_ident.name.clone()])
             });
-
+            let is_top_select = false; //inside FROM clause, so not top select
             let name_or = NameOrAlias(name, alias_name);
             query_to_pipeline(
                 &TableInfo {
@@ -595,6 +609,7 @@ pub fn get_from_source(
                 query_ctx,
                 false,
                 pipeline_idx,
+                is_top_select,
             )?;
 
             Ok(name_or)
@@ -689,4 +704,57 @@ mod tests {
         expected_keys.sort();
         assert_eq!(output_keys, expected_keys);
     }
+}
+
+#[test]
+fn test_missing_into_in_simple_from_clause() {
+    let sql = r#"SELECT a FROM B "#;
+    let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None);
+    //check if the result is an error
+    assert!(matches!(result, Err(PipelineError::MissingIntoClause)))
+}
+
+#[test]
+fn test_correct_into_clause() {
+    let sql = r#"SELECT a INTO C FROM B"#;
+    let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None);
+    //check if the result is ok
+    assert!(result.is_ok());
+}
+
+#[test]
+fn test_missing_into_in_nested_from_clause() {
+    let sql = r#"SELECT a FROM (SELECT a from b)"#;
+    let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None);
+    //check if the result is an error
+    assert!(matches!(result, Err(PipelineError::MissingIntoClause)))
+}
+
+#[test]
+fn test_correct_into_in_nested_from() {
+    let sql = r#"SELECT a INTO c FROM (SELECT a from b)"#;
+    let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None);
+    //check if the result is ok
+    assert!(result.is_ok());
+}
+
+#[test]
+fn test_missing_into_in_with_clause() {
+    let sql = r#"WITH tbl as (select a from B)
+    select B
+    from tbl;"#;
+    let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None);
+    //check if the result is an error
+    assert!(matches!(result, Err(PipelineError::MissingIntoClause)))
+}
+
+#[test]
+fn test_correct_into_in_with_clause() {
+    let sql = r#"WITH tbl as (select a from B)
+    select B
+    into C
+    from tbl;"#;
+    let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None);
+    //check if the result is ok
+    assert!(result.is_ok());
 }
