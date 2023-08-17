@@ -35,11 +35,13 @@ pub enum NodeKind {
 pub struct BuilderDag {
     graph: daggy::Dag<NodeType, EdgeType>,
     checkpoint_factory: Arc<CheckpointFactory>,
+    initial_epoch_id: u64,
 }
 
 impl BuilderDag {
     pub fn new(
         checkpoint_factory: Arc<CheckpointFactory>,
+        initial_epoch_id: u64,
         dag_schemas: DagSchemas,
     ) -> Result<Self, ExecutionError> {
         // Decide the checkpoint to start from.
@@ -104,6 +106,7 @@ impl BuilderDag {
         );
         Ok(BuilderDag {
             graph,
+            initial_epoch_id,
             checkpoint_factory,
         })
     }
@@ -114,6 +117,10 @@ impl BuilderDag {
 
     pub fn checkpoint_factory(&self) -> &Arc<CheckpointFactory> {
         &self.checkpoint_factory
+    }
+
+    pub fn initial_epoch_id(&self) -> u64 {
+        self.initial_epoch_id
     }
 
     pub fn into_graph(self) -> daggy::Dag<NodeType, EdgeType> {

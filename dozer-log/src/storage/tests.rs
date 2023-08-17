@@ -21,8 +21,16 @@ pub async fn test_storage_basic<S: Storage>(storage: &S) {
         .objects;
     assert_eq!(objects[0].key, key);
 
-    let downloaded_data = storage.download_object(key).await.unwrap();
+    let downloaded_data = storage.download_object(key.clone()).await.unwrap();
     assert_eq!(downloaded_data, data);
+
+    storage.delete_objects(vec![key]).await.unwrap();
+    assert!(storage
+        .list_objects(Default::default(), None)
+        .await
+        .unwrap()
+        .objects
+        .is_empty());
 }
 
 pub async fn test_storage_multipart<S: Storage>(storage: &S) {

@@ -41,6 +41,16 @@ impl ProcessorRecordStore {
         Ok((data, slice.len()))
     }
 
+    pub fn deserialize_and_extend(&self, data: &[u8]) -> Result<(), StorageError> {
+        let slice: Vec<RecordRef> =
+            bincode::deserialize(data).map_err(|e| StorageError::DeserializationError {
+                typ: "[RecordRef]",
+                reason: Box::new(e),
+            })?;
+        self.records.write().extend(slice);
+        Ok(())
+    }
+
     pub fn create_ref(&self, values: &[Field]) -> Result<RecordRef, StorageError> {
         let record = RecordRef(values.to_vec().into());
         self.records.write().push(record.clone());
@@ -170,5 +180,17 @@ mod tests {
         let record_store = ProcessorRecordStore::new().unwrap();
         let processor_record = record_store.create_record(&record).unwrap();
         assert_eq!(record_store.load_record(&processor_record).unwrap(), record);
+    }
+
+    #[test]
+    fn test_serialization_roundtrip() {
+        let record_store = ProcessorRecordStore::new().unwrap();
+        let record = vec![Field::Int(1), Field::Null];
+        record_store.create_ref(&record).unwrap();
+        let data = record_store.serialize_slice(0).unwrap().0;
+
+        let record_store = ProcessorRecordStore::new().unwrap();
+        record_store.deserialize_and_extend(&data).unwrap();
+        assert_eq!(&*record_store.records.read(), &[RecordRef(record.into())]);
     }
 }

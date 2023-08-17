@@ -1,14 +1,18 @@
-use std::sync::Arc;
+use std::{num::NonZeroUsize, sync::Arc};
 
 use dozer_log::{
-    camino::Utf8Path,
+    camino::{Utf8Path, Utf8PathBuf},
     dyn_clone,
     replication::create_data_storage,
     storage::{Object, Queue, Storage},
     tokio::task::JoinHandle,
 };
 use dozer_types::{
-    log::error, models::app_config::DataStorage, node::NodeHandle, parking_lot::Mutex, types::Field,
+    log::{error, info},
+    models::app_config::DataStorage,
+    node::NodeHandle,
+    parking_lot::Mutex,
+    types::Field,
 };
 use tempdir::TempDir;
 
@@ -38,15 +42,34 @@ impl Default for CheckpointFactoryOptions {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct LastCheckpoint {
+    pub num_slices: NonZeroUsize,
+    pub epoch_id: u64,
+}
+
 impl CheckpointFactory {
     // We need tokio runtime so mark the function as async.
     pub async fn new(
-        record_store: Arc<ProcessorRecordStore>,
         checkpoint_dir: String,
         options: CheckpointFactoryOptions,
-    ) -> Result<(Self, JoinHandle<()>), ExecutionError> {
+    ) -> Result<(Self, Option<LastCheckpoint>, JoinHandle<()>), ExecutionError> {
+        let record_store = ProcessorRecordStore::new()?;
+
         let (storage, prefix) =
             create_data_storage(options.storage_config, checkpoint_dir.to_string()).await?;
+        let last_checkpoint = read_record_store_slices(
+            &*storage,
+            record_store_prefix(&prefix).as_str(),
+            &record_store,
+        )
+        .await?;
+        if let Some(checkpoint) = last_checkpoint {
+            info!(
+                "Restored record store from {}th checkpoint, last epoch id is {}",
+                checkpoint.num_slices, checkpoint.epoch_id,
+            );
+        }
 
         let (queue, worker) = Queue::new(
             dyn_clone::clone_box(&*storage),
@@ -62,9 +85,10 @@ impl CheckpointFactory {
                 queue,
                 storage,
                 prefix,
-                record_store,
+                record_store: Arc::new(record_store),
                 state,
             },
+            last_checkpoint,
             worker,
         ))
     }
@@ -108,18 +132,20 @@ pub struct CheckpointWriter {
     processor_prefix: String,
 }
 
-const RECORD_STORE_DIR_NAME: &str = "record_store";
+fn record_store_prefix(factory_prefix: &str) -> Utf8PathBuf {
+    AsRef::<Utf8Path>::as_ref(factory_prefix).join("record_store")
+}
 
 impl CheckpointWriter {
     pub fn new(factory: Arc<CheckpointFactory>, epoch_id: u64) -> Self {
-        let prefix: &Utf8Path = factory.prefix.as_ref();
         // Format with `u64` max number of digits.
         let epoch_id = format!("{:020}", epoch_id);
-        let record_store_key = prefix
-            .join(RECORD_STORE_DIR_NAME)
+        let record_store_key = record_store_prefix(&factory.prefix)
             .join(&epoch_id)
             .into_string();
-        let processor_prefix = prefix.join(epoch_id).into_string();
+        let processor_prefix = AsRef::<Utf8Path>::as_ref(&factory.prefix)
+            .join(epoch_id)
+            .into_string();
         Self {
             factory,
             record_store_key,
@@ -156,24 +182,92 @@ impl Drop for CheckpointWriter {
     }
 }
 
+async fn read_record_store_slices(
+    storage: &dyn Storage,
+    prefix: &str,
+    record_store: &ProcessorRecordStore,
+) -> Result<Option<LastCheckpoint>, ExecutionError> {
+    let mut last_checkpoint: Option<LastCheckpoint> = None;
+    let mut continuation_token = None;
+    loop {
+        let objects = storage
+            .list_objects(prefix.to_string(), continuation_token)
+            .await?;
+
+        if let Some(object) = objects.objects.last() {
+            let object_name = AsRef::<Utf8Path>::as_ref(&object.key)
+                .strip_prefix(prefix)
+                .map_err(|_| ExecutionError::UnrecognizedCheckpoint(object.key.clone()))?;
+            let epoch_id = object_name
+                .as_str()
+                .parse()
+                .map_err(|_| ExecutionError::UnrecognizedCheckpoint(object.key.clone()))?;
+
+            if let Some(last_checkpoint) = last_checkpoint.as_mut() {
+                last_checkpoint
+                    .num_slices
+                    .checked_add(objects.objects.len())
+                    .expect("shouldn't overflow");
+                last_checkpoint.epoch_id = epoch_id;
+            } else {
+                last_checkpoint = Some(LastCheckpoint {
+                    num_slices: NonZeroUsize::new(objects.objects.len())
+                        .expect("have at least one element"),
+                    epoch_id,
+                });
+            }
+        }
+
+        for object in objects.objects {
+            info!("Downloading {}", object.key);
+            let data = storage.download_object(object.key).await?;
+            record_store.deserialize_and_extend(&data)?;
+        }
+
+        continuation_token = objects.continuation_token;
+        if continuation_token.is_none() {
+            break;
+        }
+    }
+
+    Ok(last_checkpoint)
+}
+
 /// This is only meant to be used in tests.
 pub async fn create_checkpoint_factory_for_test(
     records: &[Vec<Field>],
 ) -> (TempDir, Arc<CheckpointFactory>, JoinHandle<()>) {
-    let record_store = Arc::new(ProcessorRecordStore::new().unwrap());
-    for record in records {
-        record_store.create_ref(record).unwrap();
-    }
-
+    // Create empty checkpoint storage.
     let temp_dir = TempDir::new("create_checkpoint_factory_for_test").unwrap();
-    let (checkpoint_factory, handle) = CheckpointFactory::new(
-        record_store,
-        temp_dir.path().to_str().unwrap().to_string(),
-        Default::default(),
-    )
-    .await
-    .unwrap();
-    (temp_dir, Arc::new(checkpoint_factory), handle)
+    let checkpoint_dir = temp_dir.path().to_str().unwrap().to_string();
+    let (checkpoint_factory, _, handle) =
+        CheckpointFactory::new(checkpoint_dir.clone(), Default::default())
+            .await
+            .unwrap();
+    let factory = Arc::new(checkpoint_factory);
+
+    // Write data to checkpoint.
+    for record in records {
+        factory.record_store().create_ref(record).unwrap();
+    }
+    // Writer must be dropped outside tokio context.
+    let epoch_id = 42;
+    std::thread::spawn(move || drop(CheckpointWriter::new(factory, epoch_id)))
+        .join()
+        .unwrap();
+    handle.await.unwrap();
+
+    // Create a new factory that loads from the checkpoint.
+    let (factory, last_checkpoint, handle) =
+        CheckpointFactory::new(checkpoint_dir, Default::default())
+            .await
+            .unwrap();
+    let last_checkpoint = last_checkpoint.unwrap();
+    assert_eq!(last_checkpoint.num_slices.get(), 1);
+    assert_eq!(last_checkpoint.epoch_id, epoch_id);
+    assert_eq!(factory.record_store().num_records(), records.len());
+
+    (temp_dir, Arc::new(factory), handle)
 }
 
 #[cfg(test)]
@@ -181,32 +275,9 @@ mod tests {
     use super::*;
 
     use dozer_log::tokio;
-    use dozer_types::types::Field;
 
     #[tokio::test]
     async fn checkpoint_writer_should_write_records() {
-        let (_temp_dir, factory, join_handle) = create_checkpoint_factory_for_test(&[vec![]]).await;
-        let storage = dyn_clone::clone_box(factory.storage());
-
-        let fields = vec![Field::Int(0)];
-        factory.record_store().create_ref(&fields).unwrap();
-
-        // Writer must be dropped outside tokio context.
-        let write_handle = std::thread::spawn(move || {
-            CheckpointWriter::new(factory, 0);
-        });
-        join_handle.await.unwrap();
-        write_handle.join().unwrap();
-
-        // We only assert something is written to the storage for now. Will check if data can be properly restored later.
-        assert_eq!(
-            storage
-                .list_objects("".to_string(), None)
-                .await
-                .unwrap()
-                .objects
-                .len(),
-            1
-        );
+        create_checkpoint_factory_for_test(&[vec![Field::Int(0)]]).await;
     }
 }

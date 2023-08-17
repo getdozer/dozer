@@ -64,6 +64,8 @@ pub trait Storage: Debug + DynClone + Send + Sync + 'static {
         key: String,
     ) -> Result<BoxStream<Result<Bytes, std::io::Error>>, Error>;
 
+    async fn delete_objects(&self, keys: Vec<String>) -> Result<(), Error>;
+
     async fn download_object(&self, key: String) -> Result<Vec<u8>, Error> {
         let mut stream = self.get_object(key).await?;
         let mut data = vec![];

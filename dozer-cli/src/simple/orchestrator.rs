@@ -212,6 +212,7 @@ impl SimpleOrchestrator {
             self.labels.clone(),
             &self.config.udfs,
         ))?;
+        let endpoint_and_logs = executor.endpoint_and_logs().to_vec();
         let dag_executor = self.runtime.block_on(executor.create_dag_executor(
             &self.runtime,
             get_executor_options(&self.config),
@@ -223,7 +224,7 @@ impl SimpleOrchestrator {
         let internal_server_future = self
             .runtime
             .block_on(start_internal_pipeline_server(
-                executor.endpoint_and_logs().to_vec(),
+                endpoint_and_logs,
                 &app_grpc_config,
                 shutdown.create_shutdown_future(),
             ))

@@ -11,7 +11,7 @@ use crate::{
 
 async fn create_test_log() -> (TempDir, Arc<Mutex<Log>>, Queue) {
     let (temp_dir, storage) = create_temp_dir_local_storage().await;
-    let log = Log::new(&*storage, "log".to_string(), false).await.unwrap();
+    let log = Log::new(&*storage, "log".to_string(), 0).await.unwrap();
     let queue = Queue::new(storage, 10).0;
     (temp_dir, Arc::new(Mutex::new(log)), queue)
 }
@@ -146,6 +146,7 @@ fn watch_out_of_range() {
     drop(log_mut);
 
     let log_clone = log.clone();
+    // Persist must be called outside of tokio runtime.
     let runtime_clone = runtime.clone();
     std::thread::spawn(move || {
         log_clone
@@ -185,6 +186,7 @@ fn in_memory_log_should_shrink_after_persist() {
     drop(log_mut);
 
     let log_clone = log.clone();
+    // Persist must be called outside of tokio runtime.
     let runtime_clone = runtime.clone();
     let handle = std::thread::spawn(move || {
         log_clone

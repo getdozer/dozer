@@ -41,6 +41,8 @@ pub enum ExecutionError {
     ObjectStorage(#[from] dozer_log::storage::Error),
     #[error("Checkpoint writer thread panicked")]
     CheckpointWriterThreadPanicked,
+    #[error("Unrecognized checkpoint: {0}")]
+    UnrecognizedCheckpoint(String),
 }
 
 impl<T> From<crossbeam::channel::SendError<T>> for ExecutionError {

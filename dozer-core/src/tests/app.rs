@@ -295,7 +295,7 @@ async fn test_app_dag() {
     assert_eq!(edges.len(), 6);
 
     let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
-    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
+    DagExecutor::new(dag, checkpoint_factory, 0, ExecutorOptions::default())
         .unwrap()
         .start(Arc::new(AtomicBool::new(true)), Default::default())
         .unwrap()

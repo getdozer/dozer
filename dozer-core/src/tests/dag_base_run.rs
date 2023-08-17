@@ -118,7 +118,7 @@ async fn test_run_dag() {
     .unwrap();
 
     let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
-    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
+    DagExecutor::new(dag, checkpoint_factory, 0, ExecutorOptions::default())
         .unwrap()
         .start(Arc::new(AtomicBool::new(true)), Default::default())
         .unwrap()
@@ -161,7 +161,7 @@ async fn test_run_dag_and_stop() {
 
     let running = Arc::new(AtomicBool::new(true));
     let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
-    let join_handle = DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
+    let join_handle = DagExecutor::new(dag, checkpoint_factory, 0, ExecutorOptions::default())
         .unwrap()
         .start(running.clone(), Default::default())
         .unwrap();
@@ -281,7 +281,7 @@ async fn test_run_dag_2_sources_stateless() {
     .unwrap();
 
     let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
-    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
+    DagExecutor::new(dag, checkpoint_factory, 0, ExecutorOptions::default())
         .unwrap()
         .start(Arc::new(AtomicBool::new(true)), Default::default())
         .unwrap()
@@ -335,7 +335,7 @@ async fn test_run_dag_2_sources_stateful() {
     .unwrap();
 
     let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
-    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
+    DagExecutor::new(dag, checkpoint_factory, 0, ExecutorOptions::default())
         .unwrap()
         .start(Arc::new(AtomicBool::new(true)), Default::default())
         .unwrap()
@@ -390,7 +390,7 @@ async fn test_run_dag_1_source_2_ports_stateless() {
     .unwrap();
 
     let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
-    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
+    DagExecutor::new(dag, checkpoint_factory, 0, ExecutorOptions::default())
         .unwrap()
         .start(Arc::new(AtomicBool::new(true)), Default::default())
         .unwrap()

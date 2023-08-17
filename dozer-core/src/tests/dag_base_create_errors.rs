@@ -103,7 +103,7 @@ async fn test_create_src_err() {
     .unwrap();
 
     let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
-    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
+    DagExecutor::new(dag, checkpoint_factory, 0, ExecutorOptions::default())
         .unwrap()
         .start(Arc::new(AtomicBool::new(true)), Default::default())
         .unwrap()
@@ -146,7 +146,7 @@ async fn test_create_src_panic() {
     .unwrap();
 
     let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
-    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
+    DagExecutor::new(dag, checkpoint_factory, 0, ExecutorOptions::default())
         .unwrap()
         .start(Arc::new(AtomicBool::new(true)), Default::default())
         .unwrap()
@@ -255,7 +255,7 @@ async fn test_create_proc_err() {
     .unwrap();
 
     let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
-    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
+    DagExecutor::new(dag, checkpoint_factory, 0, ExecutorOptions::default())
         .unwrap()
         .start(Arc::new(AtomicBool::new(true)), Default::default())
         .unwrap()
@@ -301,7 +301,7 @@ async fn test_create_proc_panic() {
     .unwrap();
 
     let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
-    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
+    DagExecutor::new(dag, checkpoint_factory, 0, ExecutorOptions::default())
         .unwrap()
         .start(Arc::new(AtomicBool::new(true)), Default::default())
         .unwrap()

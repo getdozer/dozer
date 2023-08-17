@@ -15,6 +15,8 @@ use super::{name::Name, InputPortState};
 ///
 /// They both select from their input channels, and respond to "op", "commit", and terminate.
 pub trait ReceiverLoop: Name {
+    /// Returns the epoch id that this node was constructed for.
+    fn initial_epoch_id(&self) -> u64;
     /// Returns input channels to this node. Will be called exactly once in [`receiver_loop`].
     fn receivers(&mut self) -> Vec<Receiver<ExecutorOperation>>;
     /// Returns the name of the receiver at `index`. Used for logging.
@@ -29,7 +31,7 @@ pub trait ReceiverLoop: Name {
     fn on_snapshotting_done(&mut self, connection_name: String) -> Result<(), ExecutionError>;
 
     /// The loop implementation, calls [`on_op`], [`on_commit`] and [`on_terminate`] at appropriate times.
-    fn receiver_loop(&mut self) -> Result<(), ExecutionError> {
+    fn receiver_loop(&mut self, initial_epoch_id: u64) -> Result<(), ExecutionError> {
         let receivers = self.receivers();
         debug_assert!(
             !receivers.is_empty(),
@@ -38,7 +40,7 @@ pub trait ReceiverLoop: Name {
         let mut port_states = vec![InputPortState::Open; receivers.len()];
 
         let mut commits_received: usize = 0;
-        let mut epoch_id = 0;
+        let mut epoch_id = initial_epoch_id;
 
         let mut sel = init_select(&receivers);
         loop {
@@ -122,6 +124,10 @@ mod tests {
     }
 
     impl ReceiverLoop for TestReceiverLoop {
+        fn initial_epoch_id(&self) -> u64 {
+            0
+        }
+
         fn receivers(&mut self) -> Vec<Receiver<ExecutorOperation>> {
             let mut result = vec![];
             swap(&mut self.receivers, &mut result);
@@ -174,7 +180,7 @@ mod tests {
         let (mut test_loop, senders) = TestReceiverLoop::new(2);
         senders[0].send(ExecutorOperation::Terminate).unwrap();
         senders[1].send(ExecutorOperation::Terminate).unwrap();
-        test_loop.receiver_loop().unwrap();
+        test_loop.receiver_loop(0).unwrap();
         assert_eq!(test_loop.num_terminations, 1);
     }
 
@@ -189,7 +195,7 @@ mod tests {
             .unwrap();
         senders[0].send(ExecutorOperation::Terminate).unwrap();
         senders[1].send(ExecutorOperation::Terminate).unwrap();
-        test_loop.receiver_loop().unwrap();
+        test_loop.receiver_loop(0).unwrap();
         assert_eq!(test_loop.snapshotting_done, vec![connection_name])
     }
 
@@ -209,7 +215,7 @@ mod tests {
             .unwrap();
         senders[0].send(ExecutorOperation::Terminate).unwrap();
         senders[1].send(ExecutorOperation::Terminate).unwrap();
-        test_loop.receiver_loop().unwrap();
+        test_loop.receiver_loop(0).unwrap();
         assert_eq!(
             test_loop.ops,
             vec![(0, ProcessorOperation::Insert { new: record })]
@@ -256,7 +262,7 @@ mod tests {
             .unwrap();
         senders[0].send(ExecutorOperation::Terminate).unwrap();
         senders[1].send(ExecutorOperation::Terminate).unwrap();
-        test_loop.receiver_loop().unwrap();
+        test_loop.receiver_loop(0).unwrap();
 
         assert_eq!(test_loop.commits[0].common_info.id, 0);
         assert_eq!(test_loop.commits[0].decision_instant, decision_instant);
@@ -289,6 +295,6 @@ mod tests {
             .unwrap();
         senders[0].send(ExecutorOperation::Terminate).unwrap();
         senders[1].send(ExecutorOperation::Terminate).unwrap();
-        test_loop.receiver_loop().unwrap();
+        test_loop.receiver_loop(0).unwrap();
     }
 }

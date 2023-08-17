@@ -346,7 +346,6 @@ impl TestPipeline {
     }
 
     pub async fn run(self) -> Result<Vec<Vec<String>>, ExecutionError> {
-        let record_store = Arc::new(ProcessorRecordStore::new()?);
         let temp_dir = TempDir::new("test")
             .map_err(|e| ExecutionError::FileSystemError("tempdir".into(), e))?;
         let checkpoint_dir = temp_dir
@@ -354,16 +353,14 @@ impl TestPipeline {
             .to_str()
             .expect("Path should always be utf8")
             .to_string();
-        let checkpoint_factory = CheckpointFactory::new(
-            record_store,
-            checkpoint_dir,
-            CheckpointFactoryOptions::default(),
-        )
-        .await?
-        .0;
+        let checkpoint_factory =
+            CheckpointFactory::new(checkpoint_dir, CheckpointFactoryOptions::default())
+                .await?
+                .0;
         let executor = DagExecutor::new(
             self.dag,
             Arc::new(checkpoint_factory),
+            0,
             ExecutorOptions::default(),
         )?;
         let join_handle = executor.start(Arc::new(AtomicBool::new(true)), Default::default())?;
