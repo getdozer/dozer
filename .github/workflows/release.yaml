@@ -390,7 +390,8 @@ jobs:
         run: |
           mkdir -p release
           cp {LICENSE,README.md,CHANGELOG.md} release/ 2> /dev/null || echo "Copy Failed...Ignoring.."
-          cp target/aarch64-unknown-linux-gnu/release/${{matrix.file_name}} release/
+          cp target/aarch64-unknown-linux-gnu/release/${{matrix.file_name}} target/release/${{matrix.file_name}}
+          cp target/release/${{matrix.file_name}} release/
 
           mv release/ ${{matrix.asset_name}}/
 
