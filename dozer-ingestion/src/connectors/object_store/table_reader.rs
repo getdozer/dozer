@@ -103,13 +103,16 @@ impl<T: Clone + Send + Sync> TableReader<T> {
                     },
                 };
 
-                sender
+                if sender
                     .send(Ok(Some(IngestionMessageKind::OperationEvent {
                         table_index,
                         op: evt,
                     })))
                     .await
-                    .unwrap();
+                    .is_err()
+                {
+                    break;
+                }
             }
         }
 
