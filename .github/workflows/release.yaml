@@ -378,7 +378,7 @@ jobs:
 
       - name: Build package for ubuntu (with kafka & snowflake)
         if: matrix.os == 'ubuntu-20-16-cores'
-        run: cargo build --target aarch64-unknown-linux-gnu --release --bin  ${{ matrix.file_name }} --features "kafka snowflake"
+        run: cargo build --target aarch64-unknown-linux-gnu --release --bin  ${{ matrix.file_name }} --features "snowflake"
 
       - name: Prepare release assets
         shell: bash
