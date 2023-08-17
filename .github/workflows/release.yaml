@@ -331,6 +331,7 @@ jobs:
         run: |
           sudo apt-get install -y ${{ matrix.linker }} odbcinst unixodbc
 
+
       - name: Configure target aarch64 GNU
         if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: |
@@ -380,6 +381,9 @@ jobs:
 #        shell: bash
 #        run: |
 #          curl https://sfc-repo.snowflakecomputing.com/odbc/linux/2.25.7/snowflake-odbc-2.25.7.x86_64.deb -o snowflake_driver.deb && sudo dpkg -i snowflake_driver.deb
+
+      - name: Setup upterm session
+        uses: lhotari/action-upterm@v1
 
       - name: Build package for ubuntu (with kafka & snowflake)
         if: matrix.os == 'ubuntu-20-16-cores'
