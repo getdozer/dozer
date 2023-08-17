@@ -12,22 +12,23 @@ use dozer_types::{grpc_types::live::ConnectResponse, log::info};
 mod progress;
 pub use errors::LiveError;
 use futures::stream::{AbortHandle, Abortable};
+use tokio::runtime::Runtime;
 
 const WEB_PORT: u16 = 3000;
-pub fn start_live_server(
-    runtime: Arc<tokio::runtime::Runtime>,
+pub async fn start_live_server(
+    runtime: &Arc<Runtime>,
     shutdown: ShutdownReceiver,
 ) -> Result<(), LiveError> {
     let (sender, receiver) = tokio::sync::broadcast::channel::<ConnectResponse>(100);
     let state = Arc::new(LiveState::new());
 
-    state.set_sender(sender.clone());
-    state.build()?;
+    state.set_sender(sender.clone()).await;
+    state.build(runtime.clone()).await?;
 
-    runtime.block_on(downloader::fetch_latest_dozer_explorer_code())?;
+    downloader::fetch_latest_dozer_explorer_code().await?;
 
     let react_app_server = downloader::start_react_app().map_err(LiveError::CannotStartUiServer)?;
-    runtime.spawn(react_app_server);
+    tokio::spawn(react_app_server);
 
     let state2 = state.clone();
 
@@ -40,7 +41,7 @@ pub fn start_live_server(
     info!("Starting live server");
 
     let rshudown = shutdown.clone();
-    runtime.spawn(async {
+    tokio::spawn(async {
         let (abort_handle, abort_registration) = AbortHandle::new_pair();
         tokio::spawn(async move {
             rshudown.create_shutdown_future().await;
@@ -53,7 +54,7 @@ pub fn start_live_server(
         res.unwrap();
     });
 
-    watcher::watch(state.clone(), shutdown)?;
+    watcher::watch(runtime, state.clone(), shutdown).await?;
 
     Ok(())
 }

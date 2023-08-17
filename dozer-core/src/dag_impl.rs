@@ -1,4 +1,3 @@
-use daggy::petgraph::dot;
 use daggy::petgraph::visit::{Bfs, EdgeRef, IntoEdges};
 use daggy::Walker;
 use dozer_types::node::NodeHandle;
@@ -69,9 +68,19 @@ impl EdgeType {
         Self { from, to }
     }
 }
-impl Display for EdgeType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?} -> {:?}", self.from, self.to)
+
+pub trait EdgeHavePorts {
+    fn output_port(&self) -> PortHandle;
+    fn input_port(&self) -> PortHandle;
+}
+
+impl EdgeHavePorts for EdgeType {
+    fn output_port(&self) -> PortHandle {
+        self.from
+    }
+
+    fn input_port(&self) -> PortHandle {
+        self.to
     }
 }
 
@@ -88,12 +97,6 @@ pub struct Dag<T> {
 impl<T> Default for Dag<T> {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl<T> Display for Dag<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", dot::Dot::new(&self.graph))
     }
 }
 
@@ -115,11 +118,6 @@ impl<T> Dag<T> {
     /// Returns the underlying daggy graph.
     pub fn into_graph(self) -> daggy::Dag<NodeType<T>, EdgeType> {
         self.graph
-    }
-
-    /// Print the DAG in DOT format.
-    pub fn print_dot(&self) {
-        println!("{}", dot::Dot::new(&self.graph));
     }
 
     /// Adds a source. Panics if the `handle` exists in the `Dag`.

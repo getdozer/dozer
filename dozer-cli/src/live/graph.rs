@@ -11,7 +11,7 @@ use dozer_core::{
         visit::{EdgeRef, IntoEdgeReferences, IntoEdgesDirected, IntoNodeReferences},
         Direction,
     },
-    Dag, NodeKind,
+    EdgeHavePorts, NodeKind, NodeType,
 };
 use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::grpc_types::live::Schema;
@@ -28,9 +28,9 @@ impl Display for Node {
     }
 }
 
-pub fn transform_dag_ui(input_dag: &Dag<SchemaSQLContext>) -> daggy::Dag<Node, &str> {
-    let input_graph = input_dag.graph();
-
+pub fn transform_dag_ui<T, E: EdgeHavePorts>(
+    input_graph: &daggy::Dag<NodeType<T>, E>,
+) -> daggy::Dag<Node, &str> {
     let mut dag = daggy::Dag::new();
     let mut sources: HashMap<String, daggy::NodeIndex> = HashMap::new();
     input_graph
@@ -51,7 +51,7 @@ pub fn transform_dag_ui(input_dag: &Dag<SchemaSQLContext>) -> daggy::Dag<Node, &
         let source_index = find_node(source_node_index.index(), &dag);
         let target_index = find_node(target_node_index.index(), &dag);
 
-        let from_port = edge.weight().from;
+        let from_port = edge.weight().output_port();
         let kind = &input_graph[source_node_index].kind;
         let label = get_label(kind, false);
         match &kind {
@@ -91,13 +91,13 @@ fn find_node(id: usize, dag: &daggy::Dag<Node, &str>) -> petgraph::graph::NodeIn
 
 // Return all input schemas for a given node
 // Hence, source schemas are to be mapped separately.
-pub fn map_dag_schemas(dag_schemas: DagSchemas<SchemaSQLContext>) -> HashMap<String, Schema> {
+pub fn map_dag_schemas(dag_schemas: &DagSchemas<SchemaSQLContext>) -> HashMap<String, Schema> {
     let mut schemas = HashMap::new();
-    let graph = dag_schemas.into_graph();
+    let graph = dag_schemas.graph();
     for (node_index, node) in graph.node_references() {
         // ignore source schemas
 
-        match node.kind {
+        match &node.kind {
             NodeKind::Sink(_) => {
                 for edge in graph.edges_directed(node_index, Direction::Incoming) {
                     let edge = edge.weight();
@@ -129,7 +129,7 @@ pub fn map_dag_schemas(dag_schemas: DagSchemas<SchemaSQLContext>) -> HashMap<Str
     schemas
 }
 
-fn get_label(kind: &NodeKind<SchemaSQLContext>, match_connection: bool) -> &str {
+fn get_label<T>(kind: &NodeKind<T>, match_connection: bool) -> &str {
     match kind {
         dozer_core::NodeKind::Source(_) => match match_connection {
             true => "connection",

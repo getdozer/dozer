@@ -7,8 +7,13 @@ use super::{state::LiveState, LiveError};
 use dozer_types::log::info;
 use notify::{RecursiveMode, Watcher};
 use notify_debouncer_full::new_debouncer;
+use tokio::runtime::Runtime;
 
-pub fn watch(state: Arc<LiveState>, shutdown: ShutdownReceiver) -> Result<(), LiveError> {
+pub async fn watch(
+    runtime: &Arc<Runtime>,
+    state: Arc<LiveState>,
+    shutdown: ShutdownReceiver,
+) -> Result<(), LiveError> {
     // setup debouncer
     let (tx, rx) = std::sync::mpsc::channel();
 
@@ -29,7 +34,7 @@ pub fn watch(state: Arc<LiveState>, shutdown: ShutdownReceiver) -> Result<(), Li
         match event {
             Ok(result) => match result {
                 Ok(_events) => {
-                    build(state.clone())?;
+                    build(runtime.clone(), state.clone()).await;
                 }
                 Err(errors) => errors.iter().for_each(|error| info!("{error:?}")),
             },
@@ -47,15 +52,15 @@ pub fn watch(state: Arc<LiveState>, shutdown: ShutdownReceiver) -> Result<(), Li
     Ok(())
 }
 
-pub fn build(state: Arc<LiveState>) -> Result<(), LiveError> {
-    state.set_dozer(None);
+pub async fn build(runtime: Arc<Runtime>, state: Arc<LiveState>) {
+    state.set_dozer(None).await;
 
-    state.broadcast()?;
+    state.broadcast().await;
 
-    if let Err(res) = state.build() {
-        state.set_error_message(Some(res.to_string()));
+    if let Err(res) = state.build(runtime).await {
+        state.set_error_message(Some(res.to_string())).await;
     } else {
-        state.set_error_message(None);
+        state.set_error_message(None).await;
     }
-    state.broadcast()
+    state.broadcast().await;
 }

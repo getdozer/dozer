@@ -42,9 +42,9 @@ impl<'a> SourceBuilder<'a> {
         ports
     }
 
-    pub fn build_source_manager(
+    pub async fn build_source_manager(
         &self,
-        runtime: Arc<Runtime>,
+        runtime: &Arc<Runtime>,
     ) -> Result<AppSourceManager<SchemaSQLContext>, OrchestrationError> {
         let mut asm = AppSourceManager::new();
 
@@ -68,12 +68,13 @@ impl<'a> SourceBuilder<'a> {
                 port += 1;
             }
 
-            let source_factory = runtime.block_on(ConnectorSourceFactory::new(
+            let source_factory = ConnectorSourceFactory::new(
                 table_and_ports,
                 connection.clone(),
                 runtime.clone(),
                 self.progress.cloned(),
-            ))?;
+            )
+            .await?;
 
             asm.add(
                 Box::new(source_factory),

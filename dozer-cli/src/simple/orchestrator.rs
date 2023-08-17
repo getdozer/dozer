@@ -179,8 +179,9 @@ impl SimpleOrchestrator {
             get_log_options(&self.config),
             self.multi_pb.clone(),
         ))?;
-        let dag_executor = executor
-            .create_dag_executor(self.runtime.clone(), get_executor_options(&self.config))?;
+        let dag_executor = self.runtime.block_on(
+            executor.create_dag_executor(&self.runtime, get_executor_options(&self.config)),
+        )?;
 
         let app_grpc_config = get_app_grpc_config(&self.config);
         let internal_server_future = self
@@ -279,7 +280,7 @@ impl SimpleOrchestrator {
             endpoint_and_logs,
             self.multi_pb.clone(),
         );
-        let dag = builder.build(self.runtime.clone())?;
+        let dag = self.runtime.block_on(builder.build(&self.runtime))?;
         // Populate schemas.
         let dag_schemas = DagSchemas::new(dag)?;
 

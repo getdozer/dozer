@@ -36,7 +36,7 @@ impl CodeService for LiveServer {
 
         let initial_state = self.state.clone();
         tokio::spawn(async move {
-            let initial_state = initial_state.get_current();
+            let initial_state = initial_state.get_current().await;
             if let Err(e) = tx
                 .send(Ok(ConnectResponse {
                     live: Some(initial_state),
@@ -89,8 +89,7 @@ impl CodeService for LiveServer {
         _request: Request<CommonRequest>,
     ) -> Result<Response<SchemasResponse>, Status> {
         let state = self.state.clone();
-        let handle = std::thread::spawn(move || state.get_endpoints_schemas());
-        let res = handle.join().unwrap();
+        let res = state.get_endpoints_schemas().await;
 
         match res {
             Ok(res) => Ok(Response::new(res)),
@@ -103,8 +102,7 @@ impl CodeService for LiveServer {
         _request: Request<CommonRequest>,
     ) -> Result<Response<DotResponse>, Status> {
         let state = self.state.clone();
-        let handle = std::thread::spawn(move || state.generate_dot());
-        let res = handle.join().unwrap();
+        let res = state.generate_dot().await;
 
         match res {
             Ok(res) => Ok(Response::new(res)),
@@ -116,7 +114,7 @@ impl CodeService for LiveServer {
         &self,
         _request: Request<CommonRequest>,
     ) -> Result<Response<SqlResponse>, Status> {
-        let res = self.state.get_sql();
+        let res = self.state.get_sql().await;
 
         match res {
             Ok(res) => Ok(Response::new(res)),
@@ -129,8 +127,7 @@ impl CodeService for LiveServer {
         _request: Request<CommonRequest>,
     ) -> Result<Response<SchemasResponse>, Status> {
         let state = self.state.clone();
-        let handle = std::thread::spawn(move || state.get_graph_schemas());
-        let res = handle.join().unwrap();
+        let res = state.get_graph_schemas().await;
 
         match res {
             Ok(res) => Ok(Response::new(res)),
@@ -142,7 +139,7 @@ impl CodeService for LiveServer {
         let req = request.into_inner();
         let state = self.state.clone();
         info!("Starting dozer");
-        match state.run(req) {
+        match state.run(req).await {
             Ok(_) => {
                 // let _err = state.broadcast();
                 Ok(Response::new(CommonResponse {}))
@@ -157,7 +154,7 @@ impl CodeService for LiveServer {
     ) -> Result<Response<CommonResponse>, Status> {
         let state = self.state.clone();
         info!("Stopping dozer");
-        match state.stop() {
+        match state.stop().await {
             Ok(_) => {
                 // let _err = state.broadcast();
                 Ok(Response::new(CommonResponse {}))

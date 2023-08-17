@@ -22,16 +22,14 @@ pub async fn progress_stream(
         if !shutdown_receiver.get_running_flag().load(Ordering::Relaxed) {
             return Ok(());
         }
-        let lines = match reqwest::get(METRICS_ENDPOINT).await {
-            Ok(texts) => texts.text().await.map_or(vec![], |body| {
-                body.lines().map(|s| Ok(s.to_owned())).collect()
-            }),
-            Err(e) => {
-                return Err(LiveError::BoxedError(Box::new(e)));
-            }
-        };
+        let text = reqwest::get(METRICS_ENDPOINT)
+            .await?
+            .error_for_status()?
+            .text()
+            .await?;
+        let lines = text.lines().map(|line| Ok(line.to_string()));
 
-        if let Ok(metrics) = prometheus_parse::Scrape::parse(lines.into_iter()) {
+        if let Ok(metrics) = prometheus_parse::Scrape::parse(lines) {
             for sample in metrics.samples {
                 if let Value::Counter(count) = sample.value {
                     progress.insert(
@@ -45,16 +43,20 @@ pub async fn progress_stream(
                 }
             }
 
-            tx.send(ConnectResponse {
-                live: None,
-                progress: Some(ProgressResponse {
-                    progress: progress.clone(),
-                }),
-            })
-            .map_err(|e| LiveError::BoxedError(Box::new(e)))?;
-            retry_interval.tick().await;
-        } else {
-            retry_interval.tick().await;
+            if tx
+                .send(ConnectResponse {
+                    live: None,
+                    progress: Some(ProgressResponse {
+                        progress: progress.clone(),
+                    }),
+                })
+                .is_err()
+            {
+                // If the receiver is dropped, we're done here.
+                return Ok(());
+            }
         }
+
+        retry_interval.tick().await;
     }
 }

@@ -1,5 +1,5 @@
 use crate::errors::ExecutionError;
-use crate::{Dag, NodeKind, DEFAULT_PORT_HANDLE};
+use crate::{Dag, EdgeHavePorts, NodeKind, DEFAULT_PORT_HANDLE};
 
 use crate::node::{OutputPortType, PortHandle};
 use daggy::petgraph::graph::EdgeReference;
@@ -70,13 +70,11 @@ impl EdgeType {
     }
 }
 
-pub trait EdgeHaveSchema {
-    fn output_port(&self) -> PortHandle;
-    fn input_port(&self) -> PortHandle;
+pub trait EdgeHaveSchema: EdgeHavePorts {
     fn schema(&self) -> &Schema;
 }
 
-impl EdgeHaveSchema for EdgeType {
+impl EdgeHavePorts for EdgeType {
     fn output_port(&self) -> PortHandle {
         self.output_port
     }
@@ -84,7 +82,9 @@ impl EdgeHaveSchema for EdgeType {
     fn input_port(&self) -> PortHandle {
         self.input_port
     }
+}
 
+impl EdgeHaveSchema for EdgeType {
     fn schema(&self) -> &Schema {
         &self.schema
     }
@@ -99,6 +99,10 @@ pub struct DagSchemas<T> {
 impl<T> DagSchemas<T> {
     pub fn into_graph(self) -> daggy::Dag<NodeType<T>, EdgeType> {
         self.graph
+    }
+
+    pub fn graph(&self) -> &daggy::Dag<NodeType<T>, EdgeType> {
+        &self.graph
     }
 
     /// Returns a map from the sink node id to the schema of sink.
