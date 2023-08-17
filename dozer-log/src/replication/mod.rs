@@ -289,7 +289,6 @@ pub enum LogOperation {
     Op { op: Operation },
     Commit { decision_instant: SystemTime },
     SnapshottingDone { connection_name: String },
-    Terminate,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
