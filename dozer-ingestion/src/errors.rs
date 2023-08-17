@@ -118,7 +118,11 @@ pub enum ConnectorError {
 
     #[error("mongodb feature is not enabled")]
     MongodbFeatureNotEnabled,
+
+    #[error(transparent)]
+    MySQLConnectorError(#[from] MySQLConnectorError),
 }
+
 impl ConnectorError {
     pub fn map_serialization_error(e: serde_json::Error) -> ConnectorError {
         ConnectorError::TypeError(TypeError::SerializationError(SerializationError::Json(e)))
@@ -508,4 +512,37 @@ pub enum ObjectStoreTableReaderError {
 
     #[error("Stream execution failed: {0}")]
     StreamExecutionError(DataFusionError),
+}
+
+#[derive(Error, Debug)]
+pub enum MySQLConnectorError {
+    #[error("Invalid connection URL: {0:?}")]
+    InvalidConnectionURLError(#[source] mysql_async::UrlError),
+
+    #[error("Failed to connect to mysql with the specified url {0}. {1}")]
+    ConnectionFailure(String, #[source] mysql_async::Error),
+
+    #[error("Unsupported field type: {0}")]
+    UnsupportedFieldType(String),
+
+    #[error("Invalid field value. {0}")]
+    InvalidFieldValue(#[from] mysql_common::FromValueError),
+
+    #[error("Invalid json value. {0}")]
+    JsonDeserializationError(#[from] DeserializationError),
+
+    #[error("Failed to open binlog. {0}")]
+    BinlogOpenError(#[source] mysql_async::Error),
+
+    #[error("Failed to read binlog. {0}")]
+    BinlogReadError(#[source] mysql_async::Error),
+
+    #[error("Binlog error: {0}")]
+    BinlogError(String),
+
+    #[error("Query failed. {0}")]
+    QueryExecutionError(#[source] mysql_async::Error),
+
+    #[error("Failed to fetch query result. {0}")]
+    QueryResultError(#[source] mysql_async::Error),
 }

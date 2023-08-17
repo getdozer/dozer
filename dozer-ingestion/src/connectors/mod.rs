@@ -3,6 +3,7 @@ pub mod ethereum;
 pub mod grpc;
 #[cfg(feature = "kafka")]
 pub mod kafka;
+pub mod mysql;
 pub mod object_store;
 pub mod postgres;
 
@@ -43,6 +44,7 @@ use self::ethereum::{EthLogConnector, EthTraceConnector};
 
 use self::grpc::connector::GrpcConnector;
 use self::grpc::{ArrowAdapter, DefaultAdapter};
+use self::mysql::connector::{mysql_connection_opts_from_url, MySQLConnector};
 use crate::connectors::snowflake::connector::SnowflakeConnector;
 use crate::errors::ConnectorError::{MissingConfiguration, WrongConnectionConfiguration};
 
@@ -238,6 +240,14 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
         }
         #[cfg(not(feature = "mongodb"))]
         ConnectionConfig::MongoDB(_) => Err(ConnectorError::MongodbFeatureNotEnabled),
+        ConnectionConfig::MySQL(mysql_config) => {
+            let opts = mysql_connection_opts_from_url(&mysql_config.url)?;
+            Ok(Box::new(MySQLConnector::new(
+                mysql_config.url,
+                opts,
+                mysql_config.server_id,
+            )))
+        }
     }
 }
 
