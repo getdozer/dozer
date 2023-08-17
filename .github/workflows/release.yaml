@@ -329,7 +329,7 @@ jobs:
       - name: Install target specific tools
         if: matrix.use-cross
         run: |
-          sudo apt-get install -y ${{ matrix.linker }} odbcinst unixodbc
+          sudo apt-get install -y ${{ matrix.linker }} odbcinst unixodbc unixodbc-dev
 
 
       - name: Configure target aarch64 GNU
@@ -388,6 +388,7 @@ jobs:
       - name: Build package for ubuntu (with kafka & snowflake)
         if: matrix.os == 'ubuntu-20-16-cores'
         run: cargo build --target ${{ matrix.target }} --release --bin  ${{ matrix.file_name }} --features snowflake
+#        run: cargo build --target aarch64-unknown-linux-gnu --release --bin  dozer-linux-aarch64 --features snowflake
 
       - name: Prepare release assets
         shell: bash
