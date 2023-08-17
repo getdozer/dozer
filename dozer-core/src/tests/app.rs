@@ -1,5 +1,6 @@
 use crate::app::{App, AppPipeline, PipelineEntryPoint};
 use crate::appsource::{AppSourceManager, AppSourceMappings};
+use crate::checkpoint::create_checkpoint_factory_for_test;
 use crate::executor::{DagExecutor, ExecutorOptions};
 use crate::node::{OutputPortDef, PortHandle, Source, SourceFactory};
 use crate::tests::dag_base_run::{
@@ -12,7 +13,6 @@ use crate::tests::sources::{
     GENERATOR_SOURCE_OUTPUT_PORT,
 };
 use crate::{Edge, Endpoint, DEFAULT_PORT_HANDLE};
-use dozer_log::storage::create_temp_dir_local_storage;
 use dozer_log::tokio;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
@@ -297,17 +297,11 @@ async fn test_app_dag() {
 
     assert_eq!(edges.len(), 6);
 
-    let (_temp_dir, storage) = create_temp_dir_local_storage().await;
-    DagExecutor::new(
-        dag,
-        storage,
-        "test_app_dag".to_string(),
-        ExecutorOptions::default(),
-    )
-    .await
-    .unwrap()
-    .start(Arc::new(AtomicBool::new(true)))
-    .unwrap()
-    .join()
-    .unwrap();
+    let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
+    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
+        .unwrap()
+        .start(Arc::new(AtomicBool::new(true)))
+        .unwrap()
+        .join()
+        .unwrap();
 }

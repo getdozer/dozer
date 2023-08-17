@@ -1,7 +1,8 @@
 use dozer_core::app::{App, AppPipeline};
 use dozer_core::appsource::{AppSourceManager, AppSourceMappings};
 use dozer_core::channels::SourceChannelForwarder;
-use dozer_core::dozer_log::storage::{create_temp_dir_local_storage, Queue};
+use dozer_core::checkpoint::create_checkpoint_factory_for_test;
+use dozer_core::dozer_log::storage::Queue;
 use dozer_core::epoch::Epoch;
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::executor_operation::ProcessorOperation;
@@ -232,19 +233,13 @@ async fn test_pipeline_builder() {
 
     let now = std::time::Instant::now();
 
-    let (_temp_dir, storage) = create_temp_dir_local_storage().await;
-    DagExecutor::new(
-        dag,
-        storage,
-        "test_pipeline_builder".to_string(),
-        ExecutorOptions::default(),
-    )
-    .await
-    .unwrap()
-    .start(Arc::new(AtomicBool::new(true)))
-    .unwrap()
-    .join()
-    .unwrap();
+    let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
+    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
+        .unwrap()
+        .start(Arc::new(AtomicBool::new(true)))
+        .unwrap()
+        .join()
+        .unwrap();
 
     let elapsed = now.elapsed();
     debug!("Elapsed: {:.2?}", elapsed);

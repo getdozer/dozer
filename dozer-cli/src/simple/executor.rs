@@ -1,12 +1,10 @@
 use dozer_api::grpc::internal::internal_pipeline_server::LogEndpoint;
 use dozer_cache::dozer_log::camino::Utf8Path;
-use dozer_cache::dozer_log::dyn_clone;
 use dozer_cache::dozer_log::home_dir::{BuildPath, HomeDir};
-use dozer_cache::dozer_log::replication::{create_data_storage, Log};
-use dozer_cache::dozer_log::storage::Storage;
-use dozer_core::errors::ExecutionError;
+use dozer_cache::dozer_log::replication::Log;
+use dozer_core::checkpoint::{CheckpointFactory, CheckpointFactoryOptions};
+use dozer_core::processor_record::ProcessorRecordStore;
 use dozer_types::models::api_endpoint::ApiEndpoint;
-use dozer_types::models::app_config::DataStorage;
 use dozer_types::parking_lot::Mutex;
 use tokio::runtime::Runtime;
 
@@ -28,8 +26,7 @@ pub struct Executor<'a> {
     connections: &'a [Connection],
     sources: &'a [Source],
     sql: Option<&'a str>,
-    checkpoint_storage: Box<dyn Storage>,
-    checkpoint_prefix: String,
+    checkpoint_factory: Arc<CheckpointFactory>,
     /// `ApiEndpoint` and its log.
     endpoint_and_logs: Vec<(ApiEndpoint, LogEndpoint)>,
     multi_pb: MultiProgress,
@@ -42,27 +39,29 @@ impl<'a> Executor<'a> {
         sources: &'a [Source],
         sql: Option<&'a str>,
         api_endpoints: &'a [ApiEndpoint],
-        storage_config: DataStorage,
+        checkpoint_factory_options: CheckpointFactoryOptions,
         multi_pb: MultiProgress,
     ) -> Result<Executor<'a>, OrchestrationError> {
+        // Find the build path.
         let build_path = home_dir
             .find_latest_build_path()
             .map_err(|(path, error)| OrchestrationError::FileSystem(path.into(), error))?
             .ok_or(OrchestrationError::NoBuildFound)?;
-        let (checkpoint_storage, checkpoint_prefix) =
-            create_data_storage(storage_config, build_path.data_dir.to_string())
-                .await
-                .map_err(ExecutionError::ObjectStorage)?;
+
+        // Load pipeline checkpoint.
+        let record_store = ProcessorRecordStore::new()?;
+        let checkpoint_factory = CheckpointFactory::new(
+            Arc::new(record_store),
+            build_path.data_dir.to_string(),
+            checkpoint_factory_options,
+        )
+        .await?
+        .0;
 
         let mut endpoint_and_logs = vec![];
         for endpoint in api_endpoints {
-            let log_endpoint = create_log_endpoint(
-                &build_path,
-                &endpoint.name,
-                &*checkpoint_storage,
-                &checkpoint_prefix,
-            )
-            .await?;
+            let log_endpoint =
+                create_log_endpoint(&build_path, &endpoint.name, &checkpoint_factory).await?;
             endpoint_and_logs.push((endpoint.clone(), log_endpoint));
         }
 
@@ -70,8 +69,7 @@ impl<'a> Executor<'a> {
             connections,
             sources,
             sql,
-            checkpoint_storage,
-            checkpoint_prefix,
+            checkpoint_factory: Arc::new(checkpoint_factory),
             endpoint_and_logs,
             multi_pb,
         })
@@ -99,13 +97,7 @@ impl<'a> Executor<'a> {
         );
 
         let dag = builder.build(runtime, shutdown).await?;
-        let exec = DagExecutor::new(
-            dag,
-            dyn_clone::clone_box(&*self.checkpoint_storage),
-            self.checkpoint_prefix.clone(),
-            executor_options,
-        )
-        .await?;
+        let exec = DagExecutor::new(dag, self.checkpoint_factory.clone(), executor_options)?;
 
         Ok(exec)
     }
@@ -124,8 +116,7 @@ pub fn run_dag_executor(
 async fn create_log_endpoint(
     build_path: &BuildPath,
     endpoint_name: &str,
-    checkpoint_storage: &dyn Storage,
-    checkpoint_prefix: &str,
+    checkpoint_factory: &CheckpointFactory,
 ) -> Result<LogEndpoint, OrchestrationError> {
     let endpoint_path = build_path.get_endpoint_path(endpoint_name);
 
@@ -139,9 +130,9 @@ async fn create_log_endpoint(
             OrchestrationError::FileSystem(build_path.descriptor_path.clone().into(), e)
         })?;
 
-    let log_prefix = AsRef::<Utf8Path>::as_ref(checkpoint_prefix)
+    let log_prefix = AsRef::<Utf8Path>::as_ref(checkpoint_factory.prefix())
         .join(&endpoint_path.log_dir_relative_to_data_dir);
-    let log = Log::new(checkpoint_storage, log_prefix.into(), false).await?;
+    let log = Log::new(checkpoint_factory.storage(), log_prefix.into(), false).await?;
     let log = Arc::new(Mutex::new(log));
 
     Ok(LogEndpoint {

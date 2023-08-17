@@ -1,4 +1,5 @@
 use crate::channels::ProcessorChannelForwarder;
+use crate::checkpoint::create_checkpoint_factory_for_test;
 use crate::epoch::Epoch;
 use crate::executor::{DagExecutor, ExecutorOptions};
 use crate::executor_operation::ProcessorOperation;
@@ -11,7 +12,6 @@ use crate::tests::sources::{
     GENERATOR_SOURCE_OUTPUT_PORT,
 };
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
-use dozer_log::storage::create_temp_dir_local_storage;
 use dozer_log::tokio;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
@@ -119,19 +119,13 @@ async fn test_run_dag() {
     )
     .unwrap();
 
-    let (_temp_dir, storage) = create_temp_dir_local_storage().await;
-    DagExecutor::new(
-        dag,
-        storage,
-        "test_run_dag".to_string(),
-        ExecutorOptions::default(),
-    )
-    .await
-    .unwrap()
-    .start(Arc::new(AtomicBool::new(true)))
-    .unwrap()
-    .join()
-    .unwrap();
+    let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
+    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
+        .unwrap()
+        .start(Arc::new(AtomicBool::new(true)))
+        .unwrap()
+        .join()
+        .unwrap();
 }
 
 #[tokio::test]
@@ -168,17 +162,11 @@ async fn test_run_dag_and_stop() {
     .unwrap();
 
     let running = Arc::new(AtomicBool::new(true));
-    let (_temp_dir, storage) = create_temp_dir_local_storage().await;
-    let join_handle = DagExecutor::new(
-        dag,
-        storage,
-        "test_run_dag_and_stop".to_string(),
-        ExecutorOptions::default(),
-    )
-    .await
-    .unwrap()
-    .start(running.clone())
-    .unwrap();
+    let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
+    let join_handle = DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
+        .unwrap()
+        .start(running.clone())
+        .unwrap();
 
     thread::sleep(Duration::from_millis(1000));
     running.store(false, Ordering::SeqCst);
@@ -294,19 +282,13 @@ async fn test_run_dag_2_sources_stateless() {
     )
     .unwrap();
 
-    let (_temp_dir, storage) = create_temp_dir_local_storage().await;
-    DagExecutor::new(
-        dag,
-        storage,
-        "test_run_dag_2_sources_stateless".to_string(),
-        ExecutorOptions::default(),
-    )
-    .await
-    .unwrap()
-    .start(Arc::new(AtomicBool::new(true)))
-    .unwrap()
-    .join()
-    .unwrap();
+    let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
+    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
+        .unwrap()
+        .start(Arc::new(AtomicBool::new(true)))
+        .unwrap()
+        .join()
+        .unwrap();
 }
 
 #[tokio::test]
@@ -354,19 +336,13 @@ async fn test_run_dag_2_sources_stateful() {
     )
     .unwrap();
 
-    let (_temp_dir, storage) = create_temp_dir_local_storage().await;
-    DagExecutor::new(
-        dag,
-        storage,
-        "test_run_dag_2_sources_stateful".to_string(),
-        ExecutorOptions::default(),
-    )
-    .await
-    .unwrap()
-    .start(Arc::new(AtomicBool::new(true)))
-    .unwrap()
-    .join()
-    .unwrap();
+    let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
+    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
+        .unwrap()
+        .start(Arc::new(AtomicBool::new(true)))
+        .unwrap()
+        .join()
+        .unwrap();
 }
 
 #[tokio::test]
@@ -415,17 +391,11 @@ async fn test_run_dag_1_source_2_ports_stateless() {
     )
     .unwrap();
 
-    let (_temp_dir, storage) = create_temp_dir_local_storage().await;
-    DagExecutor::new(
-        dag,
-        storage,
-        "test_run_dag_1_source_2_ports_stateless".to_string(),
-        ExecutorOptions::default(),
-    )
-    .await
-    .unwrap()
-    .start(Arc::new(AtomicBool::new(true)))
-    .unwrap()
-    .join()
-    .unwrap();
+    let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
+    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
+        .unwrap()
+        .start(Arc::new(AtomicBool::new(true)))
+        .unwrap()
+        .join()
+        .unwrap();
 }

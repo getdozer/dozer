@@ -17,5 +17,4 @@ crossbeam = "0.8.2"
 daggy = { git = "https://github.com/getdozer/daggy", branch = "feat/map_owned", features = ["serde-1"] }
 metrics = "0.21.0"
 
-[dev-dependencies]
 tempdir = "0.3.7"

@@ -2,7 +2,7 @@ use ahash::AHasher;
 use dozer_core::app::{App, AppPipeline};
 use dozer_core::appsource::{AppSourceManager, AppSourceMappings};
 use dozer_core::channels::SourceChannelForwarder;
-use dozer_core::dozer_log::replication::create_data_storage;
+use dozer_core::checkpoint::{CheckpointFactory, CheckpointFactoryOptions};
 use dozer_core::dozer_log::storage::Queue;
 use dozer_core::epoch::Epoch;
 use dozer_core::errors::ExecutionError;
@@ -21,7 +21,6 @@ use dozer_types::crossbeam::channel::{Receiver, Sender};
 
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::ingestion_types::IngestionMessage;
-use dozer_types::models::app_config::DataStorage;
 use dozer_types::types::{Operation, Record, Schema, SourceDefinition};
 use std::collections::HashMap;
 use tempdir::TempDir;
@@ -352,6 +351,7 @@ impl TestPipeline {
     }
 
     pub async fn run(self) -> Result<Vec<Vec<String>>, ExecutionError> {
+        let record_store = Arc::new(ProcessorRecordStore::new()?);
         let temp_dir = TempDir::new("test")
             .map_err(|e| ExecutionError::FileSystemError("tempdir".into(), e))?;
         let checkpoint_dir = temp_dir
@@ -359,15 +359,18 @@ impl TestPipeline {
             .to_str()
             .expect("Path should always be utf8")
             .to_string();
-        let (checkpoint_storage, checkpoint_prefix) =
-            create_data_storage(DataStorage::Local(()), checkpoint_dir).await?;
+        let checkpoint_factory = CheckpointFactory::new(
+            record_store,
+            checkpoint_dir,
+            CheckpointFactoryOptions::default(),
+        )
+        .await?
+        .0;
         let executor = DagExecutor::new(
             self.dag,
-            checkpoint_storage,
-            checkpoint_prefix,
+            Arc::new(checkpoint_factory),
             ExecutorOptions::default(),
-        )
-        .await?;
+        )?;
         let join_handle = executor.start(Arc::new(AtomicBool::new(true)))?;
 
         for (schema_name, op) in &self.ops {

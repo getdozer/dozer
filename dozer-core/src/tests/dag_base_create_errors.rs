@@ -1,3 +1,4 @@
+use crate::checkpoint::create_checkpoint_factory_for_test;
 use crate::executor::{DagExecutor, ExecutorOptions};
 use crate::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Source, SourceFactory,
@@ -9,7 +10,6 @@ use crate::tests::dag_base_run::NoopProcessorFactory;
 use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 
-use dozer_log::storage::create_temp_dir_local_storage;
 use dozer_log::tokio;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
@@ -107,19 +107,13 @@ async fn test_create_src_err() {
     )
     .unwrap();
 
-    let (_temp_dir, storage) = create_temp_dir_local_storage().await;
-    DagExecutor::new(
-        dag,
-        storage,
-        "test_create_src_err".to_string(),
-        ExecutorOptions::default(),
-    )
-    .await
-    .unwrap()
-    .start(Arc::new(AtomicBool::new(true)))
-    .unwrap()
-    .join()
-    .unwrap();
+    let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
+    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
+        .unwrap()
+        .start(Arc::new(AtomicBool::new(true)))
+        .unwrap()
+        .join()
+        .unwrap();
 }
 
 #[tokio::test]
@@ -156,19 +150,13 @@ async fn test_create_src_panic() {
     )
     .unwrap();
 
-    let (_temp_dir, storage) = create_temp_dir_local_storage().await;
-    DagExecutor::new(
-        dag,
-        storage,
-        "test_create_src_panic".to_string(),
-        ExecutorOptions::default(),
-    )
-    .await
-    .unwrap()
-    .start(Arc::new(AtomicBool::new(true)))
-    .unwrap()
-    .join()
-    .unwrap();
+    let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
+    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
+        .unwrap()
+        .start(Arc::new(AtomicBool::new(true)))
+        .unwrap()
+        .join()
+        .unwrap();
 }
 
 #[derive(Debug)]
@@ -274,19 +262,13 @@ async fn test_create_proc_err() {
     )
     .unwrap();
 
-    let (_temp_dir, storage) = create_temp_dir_local_storage().await;
-    DagExecutor::new(
-        dag,
-        storage,
-        "test_create_proc_err".to_string(),
-        ExecutorOptions::default(),
-    )
-    .await
-    .unwrap()
-    .start(Arc::new(AtomicBool::new(true)))
-    .unwrap()
-    .join()
-    .unwrap();
+    let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
+    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
+        .unwrap()
+        .start(Arc::new(AtomicBool::new(true)))
+        .unwrap()
+        .join()
+        .unwrap();
 }
 
 #[tokio::test]
@@ -326,17 +308,11 @@ async fn test_create_proc_panic() {
     )
     .unwrap();
 
-    let (_temp_dir, storage) = create_temp_dir_local_storage().await;
-    DagExecutor::new(
-        dag,
-        storage,
-        "test_create_proc_panic".to_string(),
-        ExecutorOptions::default(),
-    )
-    .await
-    .unwrap()
-    .start(Arc::new(AtomicBool::new(true)))
-    .unwrap()
-    .join()
-    .unwrap();
+    let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
+    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
+        .unwrap()
+        .start(Arc::new(AtomicBool::new(true)))
+        .unwrap()
+        .join()
+        .unwrap();
 }

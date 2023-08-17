@@ -91,20 +91,24 @@ pub fn get_api_security_config(config: &Config) -> Option<&ApiSecurity> {
         .and_then(|api| api.api_security.as_ref())
 }
 
+pub fn get_checkpoint_factory_options(config: &Config) -> CheckpointFactoryOptions {
+    CheckpointFactoryOptions {
+        persist_queue_capacity: config
+            .app
+            .as_ref()
+            .and_then(|app| app.persist_queue_capacity)
+            .unwrap_or_else(default_persist_queue_capacity)
+            as usize,
+        storage_config: get_storage_config(config),
+    }
+}
+
 pub fn get_executor_options(config: &Config) -> ExecutorOptions {
-    let persist_queue_capacity = config
-        .app
-        .as_ref()
-        .and_then(|app| app.persist_queue_capacity)
-        .unwrap_or_else(default_persist_queue_capacity) as usize;
     ExecutorOptions {
         commit_sz: get_commit_size(config),
         channel_buffer_sz: get_buffer_size(config) as usize,
         commit_time_threshold: get_commit_time_threshold(config),
         error_threshold: Some(get_error_threshold(config)),
-        checkpoint_factory_options: CheckpointFactoryOptions {
-            persist_queue_capacity,
-        },
     }
 }
 
