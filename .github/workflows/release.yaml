@@ -379,7 +379,7 @@ jobs:
       - name: Install snowflake
         shell: bash
         run: |
-          curl https://sfc-repo.snowflakecomputing.com/odbc/linux/2.25.7/snowflake-odbc-2.25.7.x86_64.deb -o snowflake_driver.deb && sudo dpkg -i snowflake_driver.deb
+          curl https://sfc-repo.snowflakecomputing.com/odbc/linux/2.25.7/snowflake-odbc-2.25.7.aarch64.deb -o snowflake_driver.deb && sudo dpkg -i snowflake_driver.deb
 
       - name: Build package for ubuntu (with kafka & snowflake)
         if: matrix.os == 'ubuntu-20-16-cores'
