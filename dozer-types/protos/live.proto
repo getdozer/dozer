@@ -4,21 +4,20 @@ package dozer.live;
 import "types.proto";
 
 service CodeService {  
-  rpc LiveConnect(CommonRequest) returns (stream LiveResponse);
+  rpc LiveConnect(CommonRequest) returns (stream ConnectResponse);
   rpc Sources(SourcesRequest) returns (SchemasResponse);
   rpc Endpoints(CommonRequest) returns (SchemasResponse);
   rpc GenerateDot(CommonRequest) returns (DotResponse);
+  rpc GetGraphSchemas(CommonRequest) returns (SchemasResponse);
   rpc GetSql(CommonRequest) returns (SqlResponse);
-  rpc BuildSql(SqlRequest) returns (SchemasResponse);
-  rpc RunSql(RunSqlRequest) returns (stream dozer.types.Operation);
-  rpc StopSql(CommonRequest) returns (CommonResponse);
+  rpc Run(RunRequest) returns (CommonResponse);
+  rpc Stop(CommonRequest) returns (CommonResponse);
 }
 
 message CommonRequest {
 
 }
 message CommonResponse {
-
 }
 
 message LiveApp {
@@ -28,8 +27,9 @@ message LiveApp {
 }
 message LiveResponse {
   bool initialized = 1;
-  optional string error_message = 2;
-  LiveApp app = 3;
+  bool running = 2;
+  optional string error_message = 3;
+  LiveApp app = 4;
 }
 
 message SourcesRequest {
@@ -52,16 +52,34 @@ message DotResponse {
   string dot = 1;
 }
 
-
-message SqlRequest {
+message RunRequest {
+  oneof request {
+    RunSqlRequest sql = 1;
+    RunSourceRequest source = 2;
+  }
+}
+message RunSqlRequest {
   string sql = 1;
 }
 
-message RunSqlRequest {
-  string sql = 1;
-  repeated string endpoints = 2;
+message RunSourceRequest {
+  string source = 1;
 }
 
 message SqlResponse {
   string sql = 1;
+}
+
+message ProgressResponse {
+  map<string, Metric> progress = 1;
+}
+
+message Metric {
+  uint32 value = 1;
+  map<string, string> labels = 2;
+  uint32 ts = 3;
+}
+message ConnectResponse {
+  LiveResponse live = 1;
+  ProgressResponse progress = 2;
 }

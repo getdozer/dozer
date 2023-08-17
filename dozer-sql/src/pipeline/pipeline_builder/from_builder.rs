@@ -71,7 +71,11 @@ fn insert_table_processor_to_pipeline(
     // let relation_name_or_alias = get_name_or_alias(relation)?;
     let relation_name_or_alias = get_from_source(relation, pipeline, query_context, pipeline_idx)?;
 
-    let product_processor_name = format!("from_{}", query_context.get_next_processor_id());
+    let product_processor_name = format!(
+        "from:{}--{}",
+        relation_name_or_alias.0,
+        query_context.get_next_processor_id()
+    );
     let product_processor_factory =
         TableProcessorFactory::new(product_processor_name.clone(), relation.to_owned());
 
@@ -122,7 +126,7 @@ fn insert_table_operator_processor_to_pipeline(
     // the sources names that are used in this pipeline
     let mut input_nodes = vec![];
 
-    let product_processor_name = format!("product_{}", query_context.get_next_processor_id());
+    let product_processor_name = format!("join--{}", query_context.get_next_processor_id());
     let product_processor =
         TableProcessorFactory::new(product_processor_name.clone(), relation.clone());
 
@@ -171,7 +175,7 @@ fn insert_table_operator_processor_to_pipeline(
             output_node: (product_processor_name, DEFAULT_PORT_HANDLE),
         })
     } else if operator.name.to_uppercase() == "TUMBLE" || operator.name.to_uppercase() == "HOP" {
-        let window_processor_name = format!("window_{}", query_context.get_next_processor_id());
+        let window_processor_name = format!("window--{}", query_context.get_next_processor_id());
         let window_processor =
             WindowProcessorFactory::new(window_processor_name.clone(), operator.clone());
 

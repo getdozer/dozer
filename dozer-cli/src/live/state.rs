@@ -1,223 +1,281 @@
-use std::thread::JoinHandle;
+use std::{collections::HashMap, sync::Arc, thread::JoinHandle};
 
 use clap::Parser;
-use dozer_api::grpc::types_helper::map_field_definitions;
-use dozer_cache::dozer_log::{
-    reader::{LogReaderBuilder, LogReaderOptions},
-    replication::LogOperation,
+use dozer_core::{
+    app::AppPipeline,
+    dag_schemas::DagSchemas,
+    petgraph::{
+        dot,
+        visit::{IntoEdgesDirected, IntoNodeReferences},
+        Direction,
+    },
+    Dag, NodeKind,
 };
-use dozer_core::{app::AppPipeline, dag_schemas::DagSchemas, petgraph::dot};
-use dozer_ingestion::connectors::get_connector;
-use dozer_sql::pipeline::builder::statement_to_pipeline;
+use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 use dozer_types::{
-    grpc_types::{
-        live::{DotResponse, LiveApp, LiveResponse, Schema, SchemasResponse, SqlResponse},
-        types::Operation,
+    grpc_types::live::{
+        ConnectResponse, DotResponse, LiveApp, LiveResponse, RunRequest, SchemasResponse,
+        SqlResponse,
     },
     indicatif::MultiProgress,
     log::info,
     models::{
         api_config::{ApiConfig, AppGrpcOptions},
         api_endpoint::ApiEndpoint,
+        telemetry::{TelemetryConfig, TelemetryMetricsConfig},
     },
-    parking_lot::RwLock,
 };
+use tokio::{runtime::Runtime, sync::RwLock};
 
 use crate::{
     cli::{init_dozer, types::Cli},
     errors::OrchestrationError,
-    live::helper::map_operation,
     pipeline::PipelineBuilder,
     shutdown::{self, ShutdownReceiver, ShutdownSender},
-    simple::SimpleOrchestrator,
-    utils::get_app_grpc_config,
+    simple::{helper::validate_config, SimpleOrchestrator},
 };
 
-use super::LiveError;
+use super::{
+    graph::{map_dag_schemas, transform_dag_ui},
+    helper::map_schema,
+    progress::progress_stream,
+    LiveError,
+};
+
+struct DozerAndSchemas {
+    dozer: SimpleOrchestrator,
+    schemas: Option<DagSchemas<SchemaSQLContext>>,
+}
 
 pub struct LiveState {
-    dozer: RwLock<Option<SimpleOrchestrator>>,
-    sql_thread: RwLock<Option<ShutdownSender>>,
+    dozer: RwLock<Option<DozerAndSchemas>>,
+    run_thread: RwLock<Option<ShutdownSender>>,
+    error_message: RwLock<Option<String>>,
+    sender: RwLock<Option<tokio::sync::broadcast::Sender<ConnectResponse>>>,
 }
 
 impl LiveState {
     pub fn new() -> Self {
         Self {
             dozer: RwLock::new(None),
-            sql_thread: RwLock::new(None),
+            run_thread: RwLock::new(None),
+            sender: RwLock::new(None),
+            error_message: RwLock::new(None),
         }
     }
 
-    pub fn get_dozer(&self) -> Result<SimpleOrchestrator, LiveError> {
-        match self.dozer.read().as_ref() {
-            Some(dozer) => Ok(dozer.clone()),
-            None => Err(LiveError::NotInitialized),
+    async fn create_dag_if_missing(&self) -> Result<(), LiveError> {
+        let mut dozer_and_schema_lock = self.dozer.write().await;
+        if let Some(dozer_and_schema) = dozer_and_schema_lock.as_mut() {
+            if dozer_and_schema.schemas.is_none() {
+                let dag = create_dag(&dozer_and_schema.dozer).await?;
+                let schemas = DagSchemas::new(dag)?;
+                dozer_and_schema.schemas = Some(schemas);
+            }
+        }
+        Ok(())
+    }
+
+    pub async fn set_sender(&self, sender: tokio::sync::broadcast::Sender<ConnectResponse>) {
+        *self.sender.write().await = Some(sender);
+    }
+
+    pub async fn broadcast(&self) {
+        let sender = self.sender.read().await;
+        info!("broadcasting current state");
+        if let Some(sender) = sender.as_ref() {
+            let res = self.get_current().await;
+            // Ignore broadcast error.
+            let _ = sender.send(ConnectResponse {
+                live: Some(res),
+                progress: None,
+            });
         }
     }
 
-    pub fn set_dozer(&self, dozer: SimpleOrchestrator) {
-        let mut lock = self.dozer.write();
-        *lock = Some(dozer);
+    pub async fn set_dozer(&self, dozer: Option<SimpleOrchestrator>) {
+        *self.dozer.write().await = dozer.map(|dozer| DozerAndSchemas {
+            dozer,
+            schemas: None,
+        });
     }
 
-    pub fn build(&self) -> Result<(), LiveError> {
+    pub async fn set_error_message(&self, error_message: Option<String>) {
+        *self.error_message.write().await = error_message;
+    }
+
+    pub async fn build(&self, runtime: Arc<Runtime>) -> Result<(), LiveError> {
+        // Taking lock to ensure that we don't have multiple builds running at the same time
+        let mut lock = self.dozer.write().await;
+
         let cli = Cli::parse();
 
-        let res = init_dozer(
+        let dozer = init_dozer(
+            runtime,
             cli.config_paths.clone(),
             cli.config_token.clone(),
             cli.config_overrides.clone(),
             cli.ignore_pipe,
-        )?;
+            false,
+        )
+        .await?;
 
-        self.set_dozer(res);
+        *lock = Some(DozerAndSchemas {
+            dozer,
+            schemas: None,
+        });
         Ok(())
     }
-    pub fn get_current(&self) -> Result<LiveResponse, LiveError> {
-        let dozer = self.get_dozer();
-        match dozer {
-            Ok(dozer) => {
-                let connections = dozer
-                    .config
-                    .connections
-                    .into_iter()
-                    .map(|c| c.name)
-                    .collect();
-                let endpoints = dozer.config.endpoints.into_iter().map(|c| c.name).collect();
-                let app = LiveApp {
-                    app_name: dozer.config.app_name,
-                    connections,
-                    endpoints,
-                };
-                Ok(LiveResponse {
-                    initialized: true,
-                    error_message: None,
-                    app: Some(app),
-                })
+    pub async fn get_current(&self) -> LiveResponse {
+        let dozer = self.dozer.read().await;
+        let app = dozer.as_ref().map(|dozer| {
+            let connections = dozer
+                .dozer
+                .config
+                .connections
+                .iter()
+                .map(|c| c.name.clone())
+                .collect();
+            let endpoints = dozer
+                .dozer
+                .config
+                .endpoints
+                .iter()
+                .map(|c| c.name.clone())
+                .collect();
+            LiveApp {
+                app_name: dozer.dozer.config.app_name.clone(),
+                connections,
+                endpoints,
             }
-            Err(e) => Ok(LiveResponse {
-                initialized: false,
-                error_message: Some(e.to_string()),
-                app: None,
-            }),
+        });
+
+        LiveResponse {
+            initialized: app.is_some(),
+            running: self.run_thread.read().await.is_some(),
+            error_message: self.error_message.read().await.as_ref().cloned(),
+            app,
         }
     }
 
-    pub fn get_sql(&self) -> Result<SqlResponse, LiveError> {
-        let dozer = self.get_dozer()?;
-        let sql = dozer.config.sql.clone().unwrap_or_default();
+    pub async fn get_sql(&self) -> Result<SqlResponse, LiveError> {
+        let dozer = self.dozer.read().await;
+        let dozer = dozer.as_ref().ok_or(LiveError::NotInitialized)?;
+
+        let sql = dozer.dozer.config.sql.clone().unwrap_or_default();
         Ok(SqlResponse { sql })
     }
-    pub fn get_endpoints_schemas(&self) -> Result<SchemasResponse, LiveError> {
-        let dozer = self.get_dozer()?;
-        get_endpoint_schemas(dozer).map_err(|e| LiveError::BuildError(Box::new(e)))
+    pub async fn get_endpoints_schemas(&self) -> Result<SchemasResponse, LiveError> {
+        self.create_dag_if_missing().await?;
+        let dozer = self.dozer.read().await;
+        let schemas = get_schemas(&dozer)?;
+
+        Ok(get_endpoint_schemas(schemas))
     }
     pub async fn get_source_schemas(
         &self,
         connection_name: String,
     ) -> Result<SchemasResponse, LiveError> {
-        let dozer = self.get_dozer()?;
-        get_source_schemas(dozer, connection_name)
-            .await
-            .map_err(|e| LiveError::BuildError(Box::new(e)))
+        self.create_dag_if_missing().await?;
+        let dozer = self.dozer.read().await;
+        let schemas = get_schemas(&dozer)?;
+
+        get_source_schemas(schemas, connection_name)
     }
 
-    pub fn generate_dot(&self) -> Result<DotResponse, LiveError> {
-        let dozer = self.get_dozer()?;
-        generate_dot(dozer).map_err(|e| LiveError::BuildError(Box::new(e)))
+    pub async fn get_graph_schemas(&self) -> Result<SchemasResponse, LiveError> {
+        self.create_dag_if_missing().await?;
+        let dozer = self.dozer.read().await;
+        let schemas = get_schemas(&dozer)?;
+
+        Ok(SchemasResponse {
+            schemas: map_dag_schemas(schemas),
+        })
     }
 
-    pub fn build_sql(&self, sql: String) -> Result<SchemasResponse, LiveError> {
-        let mut dozer = self.get_dozer()?;
+    pub async fn generate_dot(&self) -> Result<DotResponse, LiveError> {
+        self.create_dag_if_missing().await?;
+        let dozer = self.dozer.read().await;
+        let schemas = get_schemas(&dozer)?;
 
-        let context = statement_to_pipeline(&sql, &mut AppPipeline::new(), None)
-            .map_err(LiveError::PipelineError)?;
-
-        //overwrite sql
-        dozer.config.sql = Some(sql);
-
-        dozer.config.endpoints = vec![];
-        let endpoints = context.output_tables_map.keys().collect::<Vec<_>>();
-        for endpoint in endpoints {
-            let endpoint = ApiEndpoint {
-                name: endpoint.to_string(),
-                table_name: endpoint.to_string(),
-                path: format!("/{}", endpoint),
-                ..Default::default()
-            };
-            dozer.config.endpoints.push(endpoint);
-        }
-
-        get_endpoint_schemas(dozer).map_err(|e| LiveError::BuildError(Box::new(e)))
+        Ok(generate_dot(schemas))
     }
 
-    pub fn run_sql(
-        &self,
-        sql: String,
-        endpoints: Vec<String>,
-        sender: tokio::sync::mpsc::Sender<Result<Operation, tonic::Status>>,
-    ) -> Result<(), LiveError> {
-        let dozer = self.get_dozer()?;
+    pub async fn run(&self, request: RunRequest) -> Result<(), LiveError> {
+        let dozer = self.dozer.read().await;
+        let dozer = &dozer.as_ref().ok_or(LiveError::NotInitialized)?.dozer;
 
         // kill if a handle already exists
-        self.stop_sql();
+        self.stop().await?;
 
         let (shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
-        let _handle = run_sql(dozer, sql, endpoints, sender, shutdown_receiver)
-            .map_err(|e| LiveError::BuildError(Box::new(e)))?;
-        let mut lock = self.sql_thread.write();
+        let metrics_shutdown = shutdown_receiver.clone();
+        let _handle = run(dozer.clone(), request, shutdown_receiver)?;
+
+        // Initialize progress
+        let metrics_sender = self.sender.read().await.as_ref().unwrap().clone();
+        tokio::spawn(async {
+            progress_stream(metrics_sender, metrics_shutdown)
+                .await
+                .unwrap()
+        });
+
+        let mut lock = self.run_thread.write().await;
         *lock = Some(shutdown_sender);
+
         Ok(())
     }
 
-    pub fn stop_sql(&self) {
-        let mut lock = self.sql_thread.write();
+    pub async fn stop(&self) -> Result<(), LiveError> {
+        let mut lock = self.run_thread.write().await;
         if let Some(shutdown) = lock.take() {
             shutdown.shutdown()
         }
         *lock = None;
+        Ok(())
     }
 }
 
-pub async fn get_source_schemas(
-    dozer: SimpleOrchestrator,
-    connection_name: String,
-) -> Result<SchemasResponse, OrchestrationError> {
-    let connection = dozer
-        .config
-        .connections
-        .iter()
-        .find(|c| c.name == connection_name)
-        .unwrap();
-
-    let connector =
-        get_connector(connection.clone()).map_err(|e| LiveError::BuildError(Box::new(e)))?;
-
-    let (tables, schemas) = connector
-        .list_all_schemas()
-        .await
-        .map_err(|e| LiveError::BuildError(Box::new(e)))?;
-
-    let schemas = schemas
-        .into_iter()
-        .zip(tables)
-        .map(|(s, table)| {
-            let schema = s.schema;
-            let primary_index = schema.primary_index.into_iter().map(|i| i as i32).collect();
-            let schema = Schema {
-                primary_index,
-                fields: map_field_definitions(schema.fields),
-            };
-            (table.name, schema)
-        })
-        .collect();
-
-    Ok(SchemasResponse { schemas })
+fn get_schemas(
+    dozer_and_schema: &Option<DozerAndSchemas>,
+) -> Result<&DagSchemas<SchemaSQLContext>, LiveError> {
+    dozer_and_schema
+        .as_ref()
+        .ok_or(LiveError::NotInitialized)?
+        .schemas
+        .as_ref()
+        .ok_or(LiveError::NotInitialized)
 }
 
-pub fn get_endpoint_schemas(
-    dozer: SimpleOrchestrator,
-) -> Result<SchemasResponse, OrchestrationError> {
+fn get_source_schemas(
+    dag_schemas: &DagSchemas<SchemaSQLContext>,
+    connection_name: String,
+) -> Result<SchemasResponse, LiveError> {
+    let graph = dag_schemas.graph();
+    for (node_index, node) in graph.node_references() {
+        if node.handle.id == connection_name {
+            let NodeKind::Source(source) = &node.kind else {
+                continue;
+            };
+
+            let mut schemas = HashMap::new();
+            for edge in graph.edges_directed(node_index, Direction::Outgoing) {
+                let edge = edge.weight();
+                schemas.insert(
+                    source.get_output_port_name(&edge.output_port),
+                    map_schema(edge.schema.clone()),
+                );
+            }
+            return Ok(SchemasResponse { schemas });
+        }
+    }
+
+    Err(LiveError::ConnectionNotFound(connection_name))
+}
+
+async fn create_dag(
+    dozer: &SimpleOrchestrator,
+) -> Result<Dag<SchemaSQLContext>, OrchestrationError> {
     // Calculate schemas.
     let endpoint_and_logs = dozer
         .config
@@ -233,73 +291,88 @@ pub fn get_endpoint_schemas(
         endpoint_and_logs,
         MultiProgress::new(),
     );
-    let dag = builder.build(dozer.runtime.clone())?;
-    // Populate schemas.
-    let dag_schemas = DagSchemas::new(dag)?;
+    builder.build(&dozer.runtime).await
+}
 
+fn get_endpoint_schemas(dag_schemas: &DagSchemas<SchemaSQLContext>) -> SchemasResponse {
     let schemas = dag_schemas.get_sink_schemas();
 
     let schemas = schemas
         .into_iter()
         .map(|(name, tuple)| {
             let (schema, _) = tuple;
-            let primary_index = schema.primary_index.into_iter().map(|i| i as i32).collect();
-            let schema = Schema {
-                primary_index,
-                fields: map_field_definitions(schema.fields),
-            };
-            (name, schema)
+            (name, map_schema(schema))
         })
         .collect();
-    Ok(SchemasResponse { schemas })
+    SchemasResponse { schemas }
 }
 
-pub fn generate_dot(dozer: SimpleOrchestrator) -> Result<DotResponse, OrchestrationError> {
-    // Calculate schemas.
-    let endpoint_and_logs = dozer
-        .config
-        .endpoints
-        .iter()
-        // We're not really going to run the pipeline, so we don't create logs.
-        .map(|endpoint| (endpoint.clone(), None))
-        .collect();
-    let builder = PipelineBuilder::new(
-        &dozer.config.connections,
-        &dozer.config.sources,
-        dozer.config.sql.as_deref(),
-        endpoint_and_logs,
-        MultiProgress::new(),
-    );
-    let dag = builder.build(dozer.runtime.clone())?;
-    // Populate schemas.
-
-    let dot_str = dot::Dot::new(dag.graph()).to_string();
-
-    Ok(DotResponse { dot: dot_str })
+fn generate_dot(dag: &DagSchemas<SchemaSQLContext>) -> DotResponse {
+    let dot_str = dot::Dot::new(transform_dag_ui(dag.graph()).graph()).to_string();
+    DotResponse { dot: dot_str }
 }
 
-pub fn run_sql(
+fn run(
     dozer: SimpleOrchestrator,
-    sql: String,
-    endpoints: Vec<String>,
-    sender: tokio::sync::mpsc::Sender<Result<Operation, tonic::Status>>,
+    request: RunRequest,
     shutdown_receiver: ShutdownReceiver,
 ) -> Result<JoinHandle<()>, OrchestrationError> {
-    let mut dozer = dozer;
+    let mut dozer = get_dozer_run_instance(dozer, request)?;
+
+    validate_config(&dozer.config)?;
 
     let runtime = dozer.runtime.clone();
-    //overwrite sql
-    dozer.config.sql = Some(sql);
+    let run_thread = std::thread::spawn(move || {
+        dozer.build(true).unwrap();
+        dozer.run_all(shutdown_receiver)
+    });
 
-    dozer.config.endpoints = vec![];
-    for endpoint in &endpoints {
-        dozer.config.endpoints.push(ApiEndpoint {
-            name: endpoint.clone(),
-            table_name: endpoint.clone(),
-            path: format!("/{}", endpoint),
-            ..Default::default()
-        })
-    }
+    let handle = std::thread::spawn(move || {
+        runtime.block_on(async {
+            run_thread.join().unwrap().unwrap();
+        });
+    });
+
+    Ok(handle)
+}
+
+fn get_dozer_run_instance(
+    mut dozer: SimpleOrchestrator,
+    req: RunRequest,
+) -> Result<SimpleOrchestrator, LiveError> {
+    match req.request {
+        Some(dozer_types::grpc_types::live::run_request::Request::Sql(req)) => {
+            let context = statement_to_pipeline(&req.sql, &mut AppPipeline::new(), None)
+                .map_err(LiveError::PipelineError)?;
+
+            //overwrite sql
+            dozer.config.sql = Some(req.sql);
+
+            dozer.config.endpoints = vec![];
+            let endpoints = context.output_tables_map.keys().collect::<Vec<_>>();
+            for endpoint in endpoints {
+                let endpoint = ApiEndpoint {
+                    name: endpoint.to_string(),
+                    table_name: endpoint.to_string(),
+                    path: format!("/{}", endpoint),
+                    ..Default::default()
+                };
+                dozer.config.endpoints.push(endpoint);
+            }
+        }
+        Some(dozer_types::grpc_types::live::run_request::Request::Source(req)) => {
+            dozer.config.sql = None;
+            dozer.config.endpoints = vec![];
+            let endpoint = req.source;
+            dozer.config.endpoints.push(ApiEndpoint {
+                name: endpoint.to_string(),
+                table_name: endpoint.to_string(),
+                path: format!("/{}", endpoint),
+                ..Default::default()
+            });
+        }
+        None => {}
+    };
 
     dozer.config.api = Some(ApiConfig {
         app_grpc: Some(AppGrpcOptions {
@@ -316,51 +389,10 @@ pub fn run_sql(
         .to_string_lossy()
         .to_string();
 
-    let internal_grpc_config = get_app_grpc_config(&dozer.config);
-    let app_server_addr = format!(
-        "http://{}:{}",
-        internal_grpc_config.host, internal_grpc_config.port
-    );
-    let (tx, rx) = dozer_types::crossbeam::channel::unbounded::<bool>();
-    let pipeline_thread = std::thread::spawn(move || {
-        dozer.build(true).unwrap();
-        dozer.run_apps(shutdown_receiver, Some(tx))
-    });
-    let endpoint_name = endpoints[0].clone();
-
-    let recv_res = rx.recv();
-    if recv_res.is_err() {
-        return match pipeline_thread.join() {
-            Ok(Err(e)) => Err(e),
-            Ok(Ok(())) => panic!("An error must have happened"),
-            Err(e) => {
-                std::panic::panic_any(e);
-            }
-        };
-    }
-
-    info!("Starting log reader {:?}", endpoint_name);
-
-    let handle = std::thread::spawn(move || {
-        runtime.block_on(async {
-            let mut log_reader = LogReaderBuilder::new(
-                app_server_addr,
-                LogReaderOptions::new(endpoint_name.clone()),
-            )
-            .await
-            .unwrap()
-            .build(0, None);
-            loop {
-                let (op, _) = log_reader.next_op().await.unwrap();
-                if let LogOperation::Op { op } = op {
-                    let op = map_operation(endpoint_name.clone(), op);
-                    sender.send(Ok(op)).await.unwrap();
-                }
-            }
-        });
-
-        pipeline_thread.join().unwrap().unwrap();
+    dozer.config.telemetry = Some(TelemetryConfig {
+        trace: None,
+        metrics: Some(TelemetryMetricsConfig::Prometheus(())),
     });
 
-    Ok(handle)
+    Ok(dozer)
 }

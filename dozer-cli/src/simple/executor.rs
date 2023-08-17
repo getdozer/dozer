@@ -63,9 +63,9 @@ impl<'a> Executor<'a> {
         &self.endpoint_and_logs
     }
 
-    pub fn create_dag_executor(
+    pub async fn create_dag_executor(
         &self,
-        runtime: Arc<Runtime>,
+        runtime: &Arc<Runtime>,
         executor_options: ExecutorOptions,
     ) -> Result<DagExecutor, OrchestrationError> {
         let builder = PipelineBuilder::new(
@@ -79,7 +79,7 @@ impl<'a> Executor<'a> {
             self.multi_pb.clone(),
         );
 
-        let dag = builder.build(runtime)?;
+        let dag = builder.build(runtime).await?;
         let exec = DagExecutor::new(dag, executor_options)?;
 
         Ok(exec)

@@ -15,14 +15,15 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 
-pub fn init_dozer(
+pub async fn init_dozer(
+    runtime: Arc<Runtime>,
     config_paths: Vec<String>,
     config_token: Option<String>,
     config_overrides: Vec<(String, serde_json::Value)>,
     ignore_pipe: bool,
+    enable_progress: bool,
 ) -> Result<Dozer, CliError> {
-    let runtime = Runtime::new().map_err(CliError::FailedToCreateTokioRuntime)?;
-    let mut config = runtime.block_on(load_config(config_paths, config_token, ignore_pipe))?;
+    let mut config = load_config(config_paths, config_token, ignore_pipe).await?;
 
     config = apply_overrides(&config, config_overrides)?;
 
@@ -32,17 +33,26 @@ pub fn init_dozer(
     let page_size = page_size::get() as u64;
     config.cache_max_map_size = Some(cache_max_map_size / page_size * page_size);
 
-    Ok(Dozer::new(config, Arc::new(runtime)))
+    Ok(Dozer::new(config, runtime, enable_progress))
 }
 
-pub fn list_sources(
+pub async fn list_sources(
+    runtime: Arc<Runtime>,
     config_paths: Vec<String>,
     config_token: Option<String>,
     config_overrides: Vec<(String, serde_json::Value)>,
     ignore_pipe: bool,
     filter: Option<String>,
 ) -> Result<(), OrchestrationError> {
-    let dozer = init_dozer(config_paths, config_token, config_overrides, ignore_pipe)?;
+    let dozer = init_dozer(
+        runtime,
+        config_paths,
+        config_token,
+        config_overrides,
+        ignore_pipe,
+        false,
+    )
+    .await?;
     let connection_map = dozer.list_connectors()?;
     let mut table_parent = Table::new();
     for (connection_name, (tables, schemas)) in connection_map {

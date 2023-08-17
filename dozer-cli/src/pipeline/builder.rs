@@ -189,15 +189,16 @@ impl<'a> PipelineBuilder<'a> {
     }
 
     // This function is used by both building and actual execution
-    pub fn build(
+    pub async fn build(
         self,
-        runtime: Arc<Runtime>,
+        runtime: &Arc<Runtime>,
     ) -> Result<dozer_core::Dag<SchemaSQLContext>, OrchestrationError> {
         let calculated_sources = self.calculate_sources()?;
 
         debug!("Used Sources: {:?}", calculated_sources.original_sources);
-        let grouped_connections =
-            runtime.block_on(self.get_grouped_tables(&calculated_sources.original_sources))?;
+        let grouped_connections = self
+            .get_grouped_tables(&calculated_sources.original_sources)
+            .await?;
 
         let mut pipelines: Vec<AppPipeline<SchemaSQLContext>> = vec![];
 
@@ -276,7 +277,7 @@ impl<'a> PipelineBuilder<'a> {
         pipelines.push(pipeline);
 
         let source_builder = SourceBuilder::new(grouped_connections, Some(&self.progress));
-        let asm = source_builder.build_source_manager(runtime)?;
+        let asm = source_builder.build_source_manager(runtime).await?;
         let mut app = App::new(asm);
 
         Vec::into_iter(pipelines).for_each(|p| {
@@ -284,8 +285,6 @@ impl<'a> PipelineBuilder<'a> {
         });
 
         let dag = app.into_dag().map_err(ExecutionError)?;
-
-        debug!("{}", dag);
 
         // Emit metrics for monitoring
         emit_dag_metrics(&dag);

@@ -9,15 +9,17 @@ use dozer_cli::simple::SimpleOrchestrator;
 #[cfg(feature = "cloud")]
 use dozer_cli::CloudOrchestrator;
 use dozer_cli::{live, set_ctrl_handler, set_panic_hook, shutdown};
-use dozer_types::models::telemetry::TelemetryConfig;
+use dozer_types::models::telemetry::{TelemetryConfig, TelemetryMetricsConfig};
 use dozer_types::tracing::{error, info};
 use serde::Deserialize;
+use tokio::runtime::Runtime;
 use tokio::time;
 
 use clap::CommandFactory;
 #[cfg(feature = "cloud")]
 use dozer_cli::cloud_app_context::CloudAppContext;
 use std::cmp::Ordering;
+use std::sync::Arc;
 
 use dozer_types::log::{debug, warn};
 use std::time::Duration;
@@ -135,9 +137,20 @@ fn run() -> Result<(), OrchestrationError> {
         .cloud
         .as_ref()
         .map(|cloud| cloud.app_id.clone().unwrap_or(app_name));
+
+    // We always enable telemetry when running live.
+    let telemetry_config = if matches!(cli.cmd, Some(Commands::Live)) {
+        Some(TelemetryConfig {
+            trace: None,
+            metrics: Some(TelemetryMetricsConfig::Prometheus(())),
+        })
+    } else {
+        dozer.config.telemetry.clone()
+    };
+
     let _telemetry = dozer
         .runtime
-        .block_on(async { Telemetry::new(app_id.as_deref(), dozer.config.telemetry.clone()) });
+        .block_on(async { Telemetry::new(app_id.as_deref(), telemetry_config) });
 
     if let Some(cmd) = cli.cmd {
         // run individual servers
@@ -166,13 +179,16 @@ fn run() -> Result<(), OrchestrationError> {
 
                 dozer.build(force)
             }
-            Commands::Connectors(ConnectorCommand { filter }) => list_sources(
-                cli.config_paths,
-                cli.config_token,
-                cli.config_overrides,
-                cli.ignore_pipe,
-                filter,
-            ),
+            Commands::Connectors(ConnectorCommand { filter }) => {
+                dozer.runtime.block_on(list_sources(
+                    dozer.runtime.clone(),
+                    cli.config_paths,
+                    cli.config_token,
+                    cli.config_overrides,
+                    cli.ignore_pipe,
+                    filter,
+                ))
+            }
             Commands::Clean => dozer.clean(),
             #[cfg(feature = "cloud")]
             Commands::Cloud(cloud) => {
@@ -214,7 +230,9 @@ fn run() -> Result<(), OrchestrationError> {
             }
             Commands::Live => {
                 render_logo();
-                live::start_live_server(dozer.runtime.clone(), shutdown_receiver)?;
+                dozer
+                    .runtime
+                    .block_on(live::start_live_server(&dozer.runtime, shutdown_receiver))?;
                 Ok(())
             }
         }
@@ -248,12 +266,15 @@ fn parse_and_generate() -> Result<Cli, OrchestrationError> {
 
 fn init_orchestrator(cli: &Cli) -> Result<SimpleOrchestrator, CliError> {
     dozer_tracing::init_telemetry_closure(None, None, || -> Result<SimpleOrchestrator, CliError> {
-        let res = init_dozer(
+        let runtime = Arc::new(Runtime::new().map_err(CliError::FailedToCreateTokioRuntime)?);
+        let res = runtime.block_on(init_dozer(
+            runtime.clone(),
             cli.config_paths.clone(),
             cli.config_token.clone(),
             cli.config_overrides.clone(),
             cli.ignore_pipe,
-        );
+            cli.enable_progress,
+        ));
 
         match res {
             Ok(dozer) => {

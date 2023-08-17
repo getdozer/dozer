@@ -7,6 +7,6 @@ pub use build::Contract;
 mod cloud;
 #[cfg(feature = "cloud")]
 mod cloud_orchestrator;
-mod helper;
+pub mod helper;
 #[cfg(feature = "cloud")]
 mod token_layer;

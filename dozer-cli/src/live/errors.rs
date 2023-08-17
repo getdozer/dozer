@@ -1,6 +1,7 @@
-use crate::errors::CliError;
+use crate::errors::{CliError, OrchestrationError};
+use dozer_core::errors::ExecutionError;
 use dozer_sql::pipeline::errors::PipelineError;
-use dozer_types::errors::internal::BoxedError;
+
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
 use zip::result::ZipError;
@@ -13,10 +14,11 @@ pub enum LiveError {
     Notify(#[from] notify::Error),
     #[error(transparent)]
     CliError(#[from] CliError),
-    #[error(transparent)]
-    BuildError(#[from] BoxedError),
+
     #[error("Dozer is not initialized")]
     NotInitialized,
+    #[error("Connection {0} not found")]
+    ConnectionNotFound(String),
     #[error("Error in initializing live server: {0}")]
     Transport(#[from] tonic::transport::Error),
     #[error("Error in reading or extracting from Zip file: {0}")]
@@ -28,4 +30,14 @@ pub enum LiveError {
 
     #[error(transparent)]
     PipelineError(#[from] PipelineError),
+    #[error(transparent)]
+    ExecutionError(#[from] ExecutionError),
+    #[error(transparent)]
+    OrchestrationError(Box<OrchestrationError>),
+}
+
+impl From<OrchestrationError> for LiveError {
+    fn from(error: OrchestrationError) -> Self {
+        LiveError::OrchestrationError(Box::new(error))
+    }
 }
