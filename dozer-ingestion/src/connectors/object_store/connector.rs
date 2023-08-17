@@ -119,22 +119,14 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                     }
                     Some(evt) => {
                         match evt {
-                            IngestionMessageKind::SnapshottingStarted => {
-                                ingestor_clone
-                                    .handle_message(IngestionMessage::new_snapshotting_started(
-                                        0, seq_no,
-                                    ))
-                                    .map_err(ConnectorError::IngestorError)
-                                    .unwrap();
-                            }
-                            IngestionMessageKind::SnapshottingDone => {
-                                ingestor_clone
-                                    .handle_message(IngestionMessage::new_snapshotting_done(
-                                        0, seq_no,
-                                    ))
-                                    .map_err(ConnectorError::IngestorError)
-                                    .unwrap();
-                            }
+                            IngestionMessageKind::SnapshottingStarted => ingestor_clone
+                                .handle_message(IngestionMessage::new_snapshotting_started(
+                                    0, seq_no,
+                                ))
+                                .map_err(ConnectorError::IngestorError)?,
+                            IngestionMessageKind::SnapshottingDone => ingestor_clone
+                                .handle_message(IngestionMessage::new_snapshotting_done(0, seq_no))
+                                .map_err(ConnectorError::IngestorError)?,
                             IngestionMessageKind::OperationEvent { table_index, op } => {
                                 ingestor_clone
                                     .handle_message(IngestionMessage::new_op(
@@ -143,14 +135,14 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                                         table_index,
                                         op,
                                     ))
-                                    .map_err(ConnectorError::IngestorError)
-                                    .unwrap();
+                                    .map_err(ConnectorError::IngestorError)?
                             }
                         }
                         seq_no += 1;
                     }
                 }
             }
+            Ok::<_, ConnectorError>(())
         });
 
         // sender sending out message for pipeline

@@ -166,9 +166,14 @@ fn start_source(
             Ok(_) => {}
             // Channel disconnection means the source listener has quit.
             // Maybe it quit gracefully so we don't need to panic.
-            Err(ExecutionError::CannotSendToChannel) => {}
-            // Other errors result in panic.
-            Err(e) => std::panic::panic_any(e),
+            Err(e) => {
+                if let ExecutionError::Source(e) = &e {
+                    if let Some(ExecutionError::CannotSendToChannel) = e.downcast_ref() {
+                        return;
+                    }
+                }
+                std::panic::panic_any(e);
+            }
         })
         .map_err(ExecutionError::CannotSpawnWorkerThread)?;
 
