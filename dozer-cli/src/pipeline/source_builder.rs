@@ -1,4 +1,5 @@
 use crate::pipeline::connector_source::ConnectorSourceFactory;
+use crate::shutdown::ShutdownReceiver;
 use crate::OrchestrationError;
 use dozer_core::appsource::{AppSourceManager, AppSourceMappings};
 use dozer_ingestion::connectors::TableInfo;
@@ -45,6 +46,7 @@ impl<'a> SourceBuilder<'a> {
     pub async fn build_source_manager(
         &self,
         runtime: &Arc<Runtime>,
+        shutdown: ShutdownReceiver,
     ) -> Result<AppSourceManager<SchemaSQLContext>, OrchestrationError> {
         let mut asm = AppSourceManager::new();
 
@@ -73,6 +75,7 @@ impl<'a> SourceBuilder<'a> {
                 connection.clone(),
                 runtime.clone(),
                 self.progress.cloned(),
+                shutdown.clone(),
             )
             .await?;
 

@@ -5,12 +5,12 @@ use dozer_types::models::api_endpoint::ApiEndpoint;
 use tokio::runtime::Runtime;
 use tokio::sync::Mutex;
 
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use dozer_types::models::source::Source;
 
 use crate::pipeline::PipelineBuilder;
+use crate::shutdown::ShutdownReceiver;
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 
 use dozer_types::indicatif::MultiProgress;
@@ -67,6 +67,7 @@ impl<'a> Executor<'a> {
         &self,
         runtime: &Arc<Runtime>,
         executor_options: ExecutorOptions,
+        shutdown: ShutdownReceiver,
     ) -> Result<DagExecutor, OrchestrationError> {
         let builder = PipelineBuilder::new(
             self.connections,
@@ -79,7 +80,7 @@ impl<'a> Executor<'a> {
             self.multi_pb.clone(),
         );
 
-        let dag = builder.build(runtime).await?;
+        let dag = builder.build(runtime, shutdown).await?;
         let exec = DagExecutor::new(dag, executor_options)?;
 
         Ok(exec)
@@ -88,9 +89,9 @@ impl<'a> Executor<'a> {
 
 pub fn run_dag_executor(
     dag_executor: DagExecutor,
-    running: Arc<AtomicBool>,
+    shutdown: ShutdownReceiver,
 ) -> Result<(), OrchestrationError> {
-    let join_handle = dag_executor.start(running)?;
+    let join_handle = dag_executor.start(shutdown.get_running_flag())?;
     join_handle.join().map_err(ExecutionError)
 }
 

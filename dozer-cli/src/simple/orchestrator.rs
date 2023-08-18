@@ -179,9 +179,11 @@ impl SimpleOrchestrator {
             get_log_options(&self.config),
             self.multi_pb.clone(),
         ))?;
-        let dag_executor = self.runtime.block_on(
-            executor.create_dag_executor(&self.runtime, get_executor_options(&self.config)),
-        )?;
+        let dag_executor = self.runtime.block_on(executor.create_dag_executor(
+            &self.runtime,
+            get_executor_options(&self.config),
+            shutdown.clone(),
+        ))?;
 
         let app_grpc_config = get_app_grpc_config(&self.config);
         let internal_server_future = self
@@ -199,10 +201,9 @@ impl SimpleOrchestrator {
                 .expect("Failed to notify API server");
         }
 
-        let running = shutdown.get_running_flag();
         let pipeline_future = self
             .runtime
-            .spawn_blocking(|| run_dag_executor(dag_executor, running));
+            .spawn_blocking(|| run_dag_executor(dag_executor, shutdown));
 
         let mut futures = FuturesUnordered::new();
         futures.push(
@@ -253,7 +254,11 @@ impl SimpleOrchestrator {
         Err(OrchestrationError::MissingSecurityConfig)
     }
 
-    pub fn build(&mut self, force: bool) -> Result<(), OrchestrationError> {
+    pub fn build(
+        &mut self,
+        force: bool,
+        shutdown: ShutdownReceiver,
+    ) -> Result<(), OrchestrationError> {
         let home_dir = HomeDir::new(self.config.home_dir.clone(), self.config.cache_dir.clone());
 
         info!(
@@ -280,7 +285,9 @@ impl SimpleOrchestrator {
             endpoint_and_logs,
             self.multi_pb.clone(),
         );
-        let dag = self.runtime.block_on(builder.build(&self.runtime))?;
+        let dag = self
+            .runtime
+            .block_on(builder.build(&self.runtime, shutdown))?;
         // Populate schemas.
         let dag_schemas = DagSchemas::new(dag)?;
 
@@ -331,16 +338,16 @@ impl SimpleOrchestrator {
     }
 
     pub fn run_all(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError> {
-        let shutdown_api = shutdown.clone();
-
         let mut dozer_api = self.clone();
 
         let (tx, rx) = channel::unbounded::<bool>();
 
-        self.build(false)?;
+        self.build(false, shutdown.clone())?;
 
         let mut dozer_pipeline = self.clone();
-        let pipeline_thread = thread::spawn(move || dozer_pipeline.run_apps(shutdown, Some(tx)));
+        let pipeline_shutdown = shutdown.clone();
+        let pipeline_thread =
+            thread::spawn(move || dozer_pipeline.run_apps(pipeline_shutdown, Some(tx)));
 
         // Wait for pipeline to initialize caches before starting api server
         if rx.recv().is_err() {
@@ -354,7 +361,7 @@ impl SimpleOrchestrator {
             };
         }
 
-        dozer_api.run_api(shutdown_api)?;
+        dozer_api.run_api(shutdown)?;
 
         // wait for pipeline thread to shutdown gracefully
         pipeline_thread.join().unwrap()

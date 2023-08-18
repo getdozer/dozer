@@ -23,6 +23,7 @@ use tokio::sync::Mutex;
 
 use crate::pipeline::dummy_sink::DummySinkFactory;
 use crate::pipeline::LogSinkFactory;
+use crate::shutdown::ShutdownReceiver;
 use crate::ui_helper::transform_to_ui_graph;
 
 use super::source_builder::SourceBuilder;
@@ -192,6 +193,7 @@ impl<'a> PipelineBuilder<'a> {
     pub async fn build(
         self,
         runtime: &Arc<Runtime>,
+        shutdown: ShutdownReceiver,
     ) -> Result<dozer_core::Dag<SchemaSQLContext>, OrchestrationError> {
         let calculated_sources = self.calculate_sources()?;
 
@@ -277,7 +279,9 @@ impl<'a> PipelineBuilder<'a> {
         pipelines.push(pipeline);
 
         let source_builder = SourceBuilder::new(grouped_connections, Some(&self.progress));
-        let asm = source_builder.build_source_manager(runtime).await?;
+        let asm = source_builder
+            .build_source_manager(runtime, shutdown)
+            .await?;
         let mut app = App::new(asm);
 
         Vec::into_iter(pipelines).for_each(|p| {
