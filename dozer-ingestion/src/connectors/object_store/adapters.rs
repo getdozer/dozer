@@ -7,7 +7,7 @@ use object_store::ObjectStore;
 use std::fmt::Debug;
 use url::Url;
 
-pub trait DozerObjectStore: Clone + Send + Sync + Debug {
+pub trait DozerObjectStore: Clone + Send + Sync + Debug + 'static {
     type ObjectStore: ObjectStore;
 
     fn table_params(

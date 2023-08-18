@@ -1,7 +1,9 @@
 use dozer_types::ingestion_types::{IngestionMessage, IngestionMessageKind};
 use futures::future::join_all;
+use futures::TryStreamExt;
 use std::collections::HashMap;
 use tokio::sync::mpsc::channel;
+use tokio::task::JoinSet;
 use tonic::async_trait;
 
 use crate::connectors::object_store::adapters::DozerObjectStore;
@@ -27,7 +29,7 @@ pub struct ObjectStoreConnector<T: Clone> {
     config: T,
 }
 
-impl<T: DozerObjectStore> ObjectStoreConnector<T> {
+impl<T: DozerObjectStore + 'static> ObjectStoreConnector<T> {
     pub fn new(config: T) -> Self {
         Self { config }
     }
@@ -201,35 +203,58 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
             .await
             .unwrap();
 
-        for (table_index, table_info) in tables.iter().enumerate() {
-            for table_config in self.config.tables() {
-                if table_info.name == table_config.name {
-                    if let Some(config) = &table_config.config {
-                        match config {
-                            dozer_types::ingestion_types::TableConfig::CSV(config) => {
-                                let mut table = CsvTable::new(config.clone(), self.config.clone());
-                                table.update_state = state_hash.get(&table_index).unwrap().clone();
-                                table
-                                    .watch(table_index, table_info, sender.clone())
-                                    .await
-                                    .unwrap();
+        let mut joinset = JoinSet::new();
+        for (table_index, table_info) in tables.into_iter().enumerate() {
+            for table in self.config.tables() {
+                if table_info.name == table.name {
+                    if let Some(table_config) = table.config.clone() {
+                        let config = self.config.clone();
+                        let table_info = table_info.clone();
+                        let table_index = table_index.clone();
+                        let sender = sender.clone();
+                        match table_config {
+                            dozer_types::ingestion_types::TableConfig::CSV(csv_config) => {
+                                let state = state_hash.get(&table_index).unwrap().clone();
+
+                                joinset.spawn(async move {
+                                    let mut csv_table = CsvTable::new(csv_config, config);
+                                    csv_table.update_state = state;
+                                    let table_info = table_info;
+                                    csv_table.watch(table_index, &table_info, sender).await?;
+                                    Ok(())
+                                });
                             }
                             dozer_types::ingestion_types::TableConfig::Delta(config) => {
                                 let table = DeltaTable::new(config.clone(), self.config.clone());
-                                table.watch(table_index, table_info, sender.clone()).await?;
+                                joinset.spawn(async move {
+                                    table
+                                        .watch(table_index, &table_info, sender.clone())
+                                        .await?;
+                                    Ok(())
+                                });
                             }
-                            dozer_types::ingestion_types::TableConfig::Parquet(config) => {
-                                let mut table =
-                                    ParquetTable::new(config.clone(), self.config.clone());
-                                table.update_state = state_hash.get(&table_index).unwrap().clone();
-                                table.watch(table_index, table_info, sender.clone()).await?;
+                            dozer_types::ingestion_types::TableConfig::Parquet(parquet_config) => {
+                                let state = state_hash.get(&table_index).unwrap().clone();
+                                joinset.spawn(async move {
+                                    let mut table =
+                                        ParquetTable::new(parquet_config, config);
+                                    table.update_state = state;
+                                    table
+                                        .watch(table_index, &table_info, sender.clone())
+                                        .await?;
+                                    Ok(())
+                                });
                             }
                         }
                     }
                 }
             }
         }
-
+        while let Some(result) = joinset.join_next().await {
+            if let Err(e) = result.unwrap() {
+                return Err(e);
+            }
+        }
         Ok(())
     }
 }
