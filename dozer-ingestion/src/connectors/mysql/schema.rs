@@ -7,7 +7,7 @@ use dozer_types::types::FieldType;
 use mysql_async::{from_row, prelude::Queryable, BinaryProtocol, Conn, Pool, QueryResult};
 use mysql_common::Value;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TableDefinition {
     pub table_index: usize,
     pub table_name: String,
@@ -15,7 +15,7 @@ pub struct TableDefinition {
     pub columns: Vec<ColumnDefinition>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ColumnDefinition {
     pub ordinal_position: u32,
     pub name: String,
@@ -310,5 +310,86 @@ impl<'a> From<&'a TableInfo> for TableInfoRef<'a> {
             name: &value.name,
             column_names: &value.column_names,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ColumnDefinition, SchemaHelper, TableDefinition};
+    use crate::connectors::{
+        mysql::tests::{conn_pool, create_test_table, SERVER_URL},
+        TableIdentifier, TableInfo,
+    };
+    use dozer_types::types::FieldType;
+    use serial_test::serial;
+
+    #[tokio::test]
+    #[ignore]
+    #[serial]
+    async fn test_connector_schemas() {
+        // setup
+        let url = SERVER_URL.to_string();
+        let pool = conn_pool();
+
+        let schema_helper = SchemaHelper::new(&url, &pool);
+
+        let _ = create_test_table("test1").await;
+
+        // test
+        let tables = schema_helper.list_tables().await.unwrap();
+        let expected_table = TableIdentifier {
+            name: "test1".into(),
+            schema: Some("test".into()),
+        };
+        assert!(
+            tables.contains(&expected_table),
+            "Missing test table. Existing tables list is {tables:?}"
+        );
+
+        let columns = schema_helper
+            .list_columns(vec![expected_table])
+            .await
+            .unwrap();
+        assert_eq!(
+            columns,
+            vec![TableInfo {
+                schema: Some("test".into()),
+                name: "test1".into(),
+                column_names: vec!["c1".into(), "c2".into(), "c3".into()]
+            }]
+        );
+
+        let schemas = schema_helper.get_table_definitions(&columns).await.unwrap();
+        assert_eq!(
+            schemas,
+            vec![TableDefinition {
+                table_index: 0,
+                table_name: "test1".into(),
+                database_name: "test".into(),
+                columns: vec![
+                    ColumnDefinition {
+                        ordinal_position: 1,
+                        name: "c1".into(),
+                        typ: FieldType::Int,
+                        nullable: false,
+                        primary_key: true,
+                    },
+                    ColumnDefinition {
+                        ordinal_position: 2,
+                        name: "c2".into(),
+                        typ: FieldType::Text,
+                        nullable: true,
+                        primary_key: false,
+                    },
+                    ColumnDefinition {
+                        ordinal_position: 3,
+                        name: "c3".into(),
+                        typ: FieldType::Float,
+                        nullable: true,
+                        primary_key: false,
+                    },
+                ]
+            }]
+        );
     }
 }

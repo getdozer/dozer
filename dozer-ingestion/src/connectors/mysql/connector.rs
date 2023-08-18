@@ -16,6 +16,7 @@ use dozer_types::{
     types::{FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition},
 };
 use mysql_async::{prelude::Queryable, Conn, Opts, Pool};
+use mysql_common::Row;
 use tonic::async_trait;
 
 #[derive(Debug)]
@@ -254,6 +255,29 @@ impl MySQLConnector {
             .await
             .map_err(MySQLConnectorError::QueryExecutionError)?;
 
+            let row_count = {
+                let mut row: Row = conn
+                    .exec_first(
+                        format!(
+                            "SELECT COUNT(*) from {}",
+                            qualify_table_name(Some(&td.database_name), &td.table_name)
+                        ),
+                        (),
+                    )
+                    .await
+                    .map_err(MySQLConnectorError::QueryExecutionError)?
+                    .unwrap();
+                let count: u64 = row.take(0).unwrap();
+                count
+            };
+
+            if row_count == 0 {
+                conn.query_drop("UNLOCK TABLES")
+                    .await
+                    .map_err(MySQLConnectorError::QueryExecutionError)?;
+                continue;
+            }
+
             let mut seq_no = 0u64;
 
             ingestor
@@ -374,5 +398,398 @@ impl MySQLConnector {
         );
 
         binlog_ingestor.ingest().await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::MySQLConnector;
+    use crate::{
+        connectors::{
+            mysql::tests::{conn_opts, create_test_table, MockIngestionStream, SERVER_URL},
+            CdcType, Connector, SourceSchema, TableIdentifier,
+        },
+        ingestion::Ingestor,
+    };
+    use dozer_types::{
+        ingestion_types::IngestionMessage,
+        json_types::JsonValue,
+        types::{
+            Field, FieldDefinition, FieldType, Operation::*, Record, Schema, SourceDefinition,
+        },
+    };
+    use mysql_async::prelude::Queryable;
+    use serial_test::serial;
+    use std::{
+        sync::{mpsc::Receiver, Arc},
+        time::Duration,
+    };
+
+    struct TestCtx {
+        pub connector: MySQLConnector,
+        pub ingestor: Ingestor,
+        pub message_channel: Receiver<IngestionMessage>,
+    }
+
+    impl TestCtx {
+        async fn setup() -> Self {
+            let url = SERVER_URL.to_string();
+            let opts = conn_opts();
+
+            let (sender, receiver) = std::sync::mpsc::channel();
+
+            let ingestion_stream = MockIngestionStream::new(sender);
+            let ingestor = Ingestor {
+                sender: Arc::new(Box::new(ingestion_stream)),
+            };
+            let connector = MySQLConnector::new(url, opts, Some(10));
+
+            Self {
+                connector,
+                ingestor,
+                message_channel: receiver,
+            }
+        }
+    }
+
+    fn check_ingestion_messages(
+        message_channel: &Receiver<IngestionMessage>,
+        expected_ingestion_messages: Vec<IngestionMessage>,
+    ) {
+        let actual_ingestion_messages =
+            message_channel.take_timeout(expected_ingestion_messages.len(), Duration::from_secs(5));
+
+        for (i, (actual, expected)) in std::iter::zip(
+            actual_ingestion_messages.iter(),
+            expected_ingestion_messages.iter(),
+        )
+        .enumerate()
+        {
+            assert_eq!(
+                expected, actual,
+                "The {i}th message didn't match. Expected {expected:?}; Found {actual:?}\nThe actual message queue is {actual_ingestion_messages:?}"
+            );
+        }
+    }
+
+    trait TakeTimeout {
+        fn take_timeout(&self, n: usize, timeout: Duration) -> Vec<IngestionMessage>;
+    }
+
+    impl TakeTimeout for Receiver<IngestionMessage> {
+        fn take_timeout(&self, n: usize, timeout: Duration) -> Vec<IngestionMessage> {
+            let mut vec = Vec::new();
+            for _ in 0..n {
+                let msg = self.recv_timeout(timeout).unwrap();
+                vec.push(msg);
+            }
+            vec
+        }
+    }
+
+    #[tokio::test]
+    #[ignore]
+    #[serial]
+    async fn test_connector_simple_table_replication() {
+        // setup
+        let TestCtx {
+            connector,
+            ingestor,
+            message_channel,
+            ..
+        } = TestCtx::setup().await;
+
+        let table_info = create_test_table("test1").await;
+        let table_definitions = connector
+            .schema_helper()
+            .get_table_definitions(&[table_info])
+            .await
+            .unwrap();
+
+        let mut conn = connector.conn_pool.get_conn().await.unwrap();
+
+        // test
+        conn.exec_drop(
+            "
+                REPLACE INTO test1
+                VALUES
+                    (1, 'a', 1.0),
+                    (2, 'b', 2.0),
+                    (3, 'c', 3.0)
+                ",
+            (),
+        )
+        .await
+        .unwrap();
+
+        let result = connector
+            .replicate_tables(&ingestor, &table_definitions, &mut 0)
+            .await;
+        assert!(result.is_ok(), "unexpected error: {result:?}");
+
+        let expected_ingestion_messages = vec![
+            IngestionMessage::new_snapshotting_started(0, 0),
+            IngestionMessage::new_op(
+                0,
+                1,
+                0,
+                Insert {
+                    new: Record::new(vec![
+                        Field::Int(1),
+                        Field::Text("a".into()),
+                        Field::Float(1.0.into()),
+                    ]),
+                },
+            ),
+            IngestionMessage::new_op(
+                0,
+                2,
+                0,
+                Insert {
+                    new: Record::new(vec![
+                        Field::Int(2),
+                        Field::Text("b".into()),
+                        Field::Float(2.0.into()),
+                    ]),
+                },
+            ),
+            IngestionMessage::new_op(
+                0,
+                3,
+                0,
+                Insert {
+                    new: Record::new(vec![
+                        Field::Int(3),
+                        Field::Text("c".into()),
+                        Field::Float(3.0.into()),
+                    ]),
+                },
+            ),
+            IngestionMessage::new_snapshotting_done(0, 4),
+        ];
+
+        check_ingestion_messages(&message_channel, expected_ingestion_messages);
+    }
+
+    #[tokio::test]
+    #[ignore]
+    #[serial]
+    async fn test_connector_cdc() {
+        // setup
+        let TestCtx {
+            connector,
+            ingestor,
+            message_channel,
+            ..
+        } = TestCtx::setup().await;
+
+        let mut table_infos = Vec::new();
+        table_infos.push(create_test_table("test3").await);
+        table_infos.push(create_test_table("test2").await);
+
+        let mut conn = connector.conn_pool.get_conn().await.unwrap();
+
+        conn.exec_drop("DELETE FROM test2", ()).await.unwrap();
+        conn.exec_drop("DELETE FROM test3", ()).await.unwrap();
+
+        let _handle = std::thread::spawn(move || {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_io()
+                .build()
+                .unwrap()
+                .block_on(async move {
+                    let _ = connector.replicate(&ingestor, table_infos).await;
+                });
+        });
+
+        // test insert
+        conn.exec_drop("REPLACE INTO test3 VALUES (4, 4.0)", ())
+            .await
+            .unwrap();
+
+        conn.exec_drop("REPLACE INTO test2 VALUES (1, 'true')", ())
+            .await
+            .unwrap();
+
+        let expected_ingestion_messages = vec![
+            IngestionMessage::new_snapshotting_started(0, 0),
+            IngestionMessage::new_op(
+                0,
+                1,
+                0,
+                Insert {
+                    new: Record::new(vec![Field::Int(4), Field::Float(4.0.into())]),
+                },
+            ),
+            IngestionMessage::new_snapshotting_done(0, 2),
+            IngestionMessage::new_snapshotting_started(1, 0),
+            IngestionMessage::new_op(
+                1,
+                1,
+                1,
+                Insert {
+                    new: Record::new(vec![Field::Int(1), Field::Json(JsonValue::Bool(true))]),
+                },
+            ),
+            IngestionMessage::new_snapshotting_done(1, 2),
+        ];
+
+        check_ingestion_messages(&message_channel, expected_ingestion_messages);
+
+        // test update
+        conn.exec_drop("UPDATE test3 SET b = 5.0 WHERE a = 4", ())
+            .await
+            .unwrap();
+
+        let expected_ingestion_messages = vec![
+            IngestionMessage::new_snapshotting_started(2, 0),
+            IngestionMessage::new_op(
+                2,
+                1,
+                0,
+                Update {
+                    old: Record::new(vec![Field::Int(4), Field::Float(4.0.into())]),
+                    new: Record::new(vec![Field::Int(4), Field::Float(5.0.into())]),
+                },
+            ),
+            IngestionMessage::new_snapshotting_done(2, 2),
+        ];
+
+        check_ingestion_messages(&message_channel, expected_ingestion_messages);
+
+        // test delete
+        conn.exec_drop("DELETE FROM test3 WHERE a = 4", ())
+            .await
+            .unwrap();
+
+        let expected_ingestion_messages = vec![
+            IngestionMessage::new_snapshotting_started(3, 0),
+            IngestionMessage::new_op(
+                3,
+                1,
+                0,
+                Delete {
+                    old: Record::new(vec![Field::Int(4), Field::Float(5.0.into())]),
+                },
+            ),
+            IngestionMessage::new_snapshotting_done(3, 2),
+        ];
+
+        check_ingestion_messages(&message_channel, expected_ingestion_messages);
+    }
+
+    #[tokio::test]
+    #[ignore]
+    #[serial]
+    async fn test_connector_schemas() {
+        // setup
+        let TestCtx { connector, .. } = TestCtx::setup().await;
+
+        let mut expected_table_infos = Vec::new();
+        expected_table_infos.push(create_test_table("test1").await);
+        expected_table_infos.push(create_test_table("test2").await);
+
+        let expected_table_identifiers = vec![
+            TableIdentifier {
+                schema: Some("test".into()),
+                name: "test1".into(),
+            },
+            TableIdentifier {
+                schema: Some("test".into()),
+                name: "test2".into(),
+            },
+        ];
+
+        // test list_tables
+        let result = connector.list_tables().await;
+        assert!(result.is_ok(), "unexpected error: {result:?}");
+        let tables = result.unwrap();
+        for table_identifier in expected_table_identifiers.iter() {
+            assert!(
+                tables.contains(table_identifier),
+                "missing {table_identifier:?} from list {tables:?}"
+            );
+        }
+
+        // test list_columns
+        let result = connector.list_columns(expected_table_identifiers).await;
+        assert!(result.is_ok(), "unexpected error: {result:?}");
+        let table_infos = result.unwrap();
+        for (i, (expected, actual)) in
+            std::iter::zip(expected_table_infos.iter(), table_infos.iter()).enumerate()
+        {
+            assert_eq!(
+                expected, actual,
+                "The {i}th table doesn't match! Expected {expected:?}; Found {actual:?}"
+            );
+        }
+
+        // test get_schemas
+        let result = connector.get_schemas(&table_infos).await;
+        assert!(result.is_ok(), "unexpected error: {result:?}");
+        let source_schema_results = result.unwrap();
+
+        let expected_source_schema_results = [
+            SourceSchema {
+                schema: Schema {
+                    fields: vec![
+                        FieldDefinition {
+                            name: "c1".into(),
+                            typ: FieldType::Int,
+                            nullable: false,
+                            source: SourceDefinition::Dynamic,
+                        },
+                        FieldDefinition {
+                            name: "c2".into(),
+                            typ: FieldType::Text,
+                            nullable: true,
+                            source: SourceDefinition::Dynamic,
+                        },
+                        FieldDefinition {
+                            name: "c3".into(),
+                            typ: FieldType::Float,
+                            nullable: true,
+                            source: SourceDefinition::Dynamic,
+                        },
+                    ],
+                    primary_index: vec![0],
+                },
+                cdc_type: CdcType::FullChanges,
+            },
+            SourceSchema {
+                schema: Schema {
+                    fields: vec![
+                        FieldDefinition {
+                            name: "id".into(),
+                            typ: FieldType::Int,
+                            nullable: false,
+                            source: SourceDefinition::Dynamic,
+                        },
+                        FieldDefinition {
+                            name: "value".into(),
+                            typ: FieldType::Json,
+                            nullable: true,
+                            source: SourceDefinition::Dynamic,
+                        },
+                    ],
+                    primary_index: vec![0],
+                },
+                cdc_type: CdcType::FullChanges,
+            },
+        ];
+
+        for (i, (expected, actual)) in std::iter::zip(
+            expected_source_schema_results.iter(),
+            source_schema_results.iter(),
+        )
+        .enumerate()
+        {
+            assert!(actual.is_ok(), "unexpected error: {actual:?}");
+            let actual = actual.as_ref().unwrap();
+            assert_eq!(
+                expected, actual,
+                "The {i}th table doesn't match! Expected {expected:?}; Found {actual:?}"
+            );
+        }
     }
 }

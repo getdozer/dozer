@@ -184,6 +184,7 @@ impl BinlogIngestor<'_, '_, '_, '_, '_> {
                                 *self.txn, seq_no,
                             ))
                             .map_err(ConnectorError::IngestorError)?;
+                        seq_no += 1;
                     }
                 }
 
@@ -653,5 +654,189 @@ impl<'a> BinlogRowsEvent<'a> {
     pub fn is_delete(&self) -> bool {
         use binlog::events::RowsEventData::*;
         matches!(&self.0, DeleteRowsEventV1(_) | DeleteRowsEvent(_))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use dozer_types::{
+        json_types::JsonValue,
+        types::{Field, FieldType},
+    };
+
+    use mysql_common::{
+        binlog::{
+            jsonb::{self, JsonbString, JsonbType, OpaqueValue},
+            value::BinlogValue,
+        },
+        constants::ColumnType,
+        io::ParseBuf,
+        Value,
+    };
+
+    use crate::connectors::mysql::conversion::IntoField;
+
+    #[test]
+    fn test_field_conversion() {
+        use jsonb::Value::*;
+
+        assert_eq!(
+            Field::UInt(0),
+            Some(BinlogValue::Value(Value::UInt(0)))
+                .into_field(&FieldType::UInt)
+                .unwrap()
+        );
+
+        assert_eq!(
+            Field::Json(JsonValue::Null),
+            Some(BinlogValue::Jsonb(Null))
+                .into_field(&FieldType::Json)
+                .unwrap()
+        );
+
+        assert_eq!(
+            Field::Json(JsonValue::Number(2.0.into())),
+            Some(BinlogValue::Jsonb(I16(2)))
+                .into_field(&FieldType::Json)
+                .unwrap()
+        );
+
+        assert_eq!(
+            Field::Json(JsonValue::Number(3.0.into())),
+            Some(BinlogValue::Jsonb(I32(3)))
+                .into_field(&FieldType::Json)
+                .unwrap()
+        );
+
+        assert_eq!(
+            Field::Json(JsonValue::Number(4.0.into())),
+            Some(BinlogValue::Jsonb(U16(4)))
+                .into_field(&FieldType::Json)
+                .unwrap()
+        );
+
+        assert_eq!(
+            Field::Json(JsonValue::Number(5.0.into())),
+            Some(BinlogValue::Jsonb(U32(5)))
+                .into_field(&FieldType::Json)
+                .unwrap()
+        );
+
+        assert_eq!(
+            Field::Json(JsonValue::Number(6.0.into())),
+            Some(BinlogValue::Jsonb(I64(6)))
+                .into_field(&FieldType::Json)
+                .unwrap()
+        );
+
+        assert_eq!(
+            Field::Json(JsonValue::Number(7.0.into())),
+            Some(BinlogValue::Jsonb(U64(7)))
+                .into_field(&FieldType::Json)
+                .unwrap()
+        );
+
+        assert_eq!(
+            Field::Json(JsonValue::Number(8.0.into())),
+            Some(BinlogValue::Jsonb(F64(8.0)))
+                .into_field(&FieldType::Json)
+                .unwrap()
+        );
+
+        assert_eq!(
+            Field::Json(JsonValue::String("9".into())),
+            Some(BinlogValue::Jsonb(String(JsonbString::new(vec![b'9']))))
+                .into_field(&FieldType::Json)
+                .unwrap()
+        );
+
+        assert_eq!(
+            Field::Json(JsonValue::Array(vec![JsonValue::Number(10.0.into())])),
+            Some(BinlogValue::Jsonb(SmallArray(
+                ParseBuf(&[1, 0, 7, 0, JsonbType::JSONB_TYPE_INT16 as u8, 10, 0])
+                    .parse(())
+                    .unwrap(),
+            )))
+            .into_field(&FieldType::Json)
+            .unwrap()
+        );
+
+        assert_eq!(
+            Field::Json(JsonValue::Array(vec![])),
+            Some(BinlogValue::Jsonb(LargeArray(
+                ParseBuf(&[0, 0, 0, 0, 8, 0, 0, 0]).parse(()).unwrap(),
+            )))
+            .into_field(&FieldType::Json)
+            .unwrap()
+        );
+
+        assert_eq!(
+            Field::Json(JsonValue::Object({
+                let mut map = BTreeMap::new();
+                map.insert("k".into(), JsonValue::Number(12.0.into()));
+                map
+            })),
+            Some(BinlogValue::Jsonb(SmallObject(
+                ParseBuf(&[
+                    1,
+                    0,
+                    12,
+                    0,
+                    11,
+                    0,
+                    1,
+                    0,
+                    JsonbType::JSONB_TYPE_INT16 as u8,
+                    12,
+                    0,
+                    b'k',
+                ])
+                .parse(())
+                .unwrap(),
+            )))
+            .into_field(&FieldType::Json)
+            .unwrap()
+        );
+
+        assert_eq!(
+            Field::Json(JsonValue::Object(BTreeMap::new())),
+            Some(BinlogValue::Jsonb(LargeObject(
+                ParseBuf(&[0, 0, 0, 0, 8, 0, 0, 0]).parse(()).unwrap(),
+            )))
+            .into_field(&FieldType::Json)
+            .unwrap()
+        );
+
+        assert_eq!(
+            Field::Json(JsonValue::Object({
+                let mut map = BTreeMap::new();
+                map.insert(
+                    "value_type".into(),
+                    JsonValue::from(u8::from(ColumnType::MYSQL_TYPE_TINY) as usize),
+                );
+                map.insert("data".into(), JsonValue::String('a'.into()));
+                map
+            })),
+            Some(BinlogValue::Jsonb(Opaque(OpaqueValue::new(
+                ColumnType::MYSQL_TYPE_TINY,
+                vec![b'a']
+            ))))
+            .into_field(&FieldType::Json)
+            .unwrap()
+        );
+
+        assert_eq!(
+            Field::Json(JsonValue::Bool(true)),
+            Some(BinlogValue::Jsonb(Bool(true)))
+                .into_field(&FieldType::Json)
+                .unwrap()
+        );
+
+        assert_eq!(
+            Field::Null,
+            None::<BinlogValue<'_>>.into_field(&FieldType::Int).unwrap(),
+        );
     }
 }
