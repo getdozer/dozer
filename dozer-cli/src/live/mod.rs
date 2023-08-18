@@ -7,7 +7,7 @@ mod watcher;
 use std::sync::Arc;
 mod helper;
 use self::state::LiveState;
-use crate::shutdown::ShutdownReceiver;
+use crate::{cli::types::Live, live::server::LIVE_PORT, shutdown::ShutdownReceiver};
 use dozer_types::{grpc_types::live::ConnectResponse, log::info};
 mod progress;
 pub use errors::LiveError;
@@ -18,6 +18,7 @@ const WEB_PORT: u16 = 3000;
 pub async fn start_live_server(
     runtime: &Arc<Runtime>,
     shutdown: ShutdownReceiver,
+    live_flags: Live,
 ) -> Result<(), LiveError> {
     let (sender, receiver) = tokio::sync::broadcast::channel::<ConnectResponse>(100);
     let state = Arc::new(LiveState::new());
@@ -27,18 +28,20 @@ pub async fn start_live_server(
 
     downloader::fetch_latest_dozer_explorer_code().await?;
 
-    let react_app_server = downloader::start_react_app().map_err(LiveError::CannotStartUiServer)?;
-    tokio::spawn(react_app_server);
+    if !live_flags.disable_live_ui {
+        let react_app_server =
+            downloader::start_react_app().map_err(LiveError::CannotStartUiServer)?;
+        tokio::spawn(react_app_server);
+        let browser_url = format!("http://localhost:{}", WEB_PORT);
+
+        if webbrowser::open(&browser_url).is_err() {
+            info!("Failed to open browser. ");
+        }
+    }
 
     let state2 = state.clone();
 
-    let browser_url = format!("http://localhost:{}", WEB_PORT);
-
-    if webbrowser::open(&browser_url).is_err() {
-        info!("Failed to open browser. Connecto");
-    }
-
-    info!("Starting live server");
+    info!("Starting live server on port : {}", LIVE_PORT);
 
     let rshudown = shutdown.clone();
     tokio::spawn(async {
