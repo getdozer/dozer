@@ -1,6 +1,5 @@
 use dozer_types::ingestion_types::{IngestionMessage, IngestionMessageKind};
 use futures::future::join_all;
-use futures::TryStreamExt;
 use std::collections::HashMap;
 use tokio::sync::mpsc::channel;
 use tokio::task::JoinSet;
@@ -102,7 +101,7 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
 
     async fn start(&self, ingestor: &Ingestor, tables: Vec<TableInfo>) -> ConnectorResult<()> {
         let (sender, mut receiver) =
-            channel::<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>(100); // todo: increase buffer size
+            channel::<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>(100); // todo: increase buffer siz
         let ingestor_clone = ingestor.clone();
 
         // Ingestor loop - generating operation message out
@@ -112,9 +111,7 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                 let message = receiver
                     .recv()
                     .await
-                    .ok_or(ConnectorError::ObjectStoreConnectorError(RecvError))
-                    .unwrap()
-                    .unwrap();
+                    .ok_or(ConnectorError::ObjectStoreConnectorError(RecvError))??;
                 match message {
                     None => {
                         break;
@@ -210,7 +207,6 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                     if let Some(table_config) = table.config.clone() {
                         let config = self.config.clone();
                         let table_info = table_info.clone();
-                        let table_index = table_index.clone();
                         let sender = sender.clone();
                         match table_config {
                             dozer_types::ingestion_types::TableConfig::CSV(csv_config) => {
@@ -221,7 +217,7 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                                     csv_table.update_state = state;
                                     let table_info = table_info;
                                     csv_table.watch(table_index, &table_info, sender).await?;
-                                    Ok(())
+                                    Ok::<_, ConnectorError>(())
                                 });
                             }
                             dozer_types::ingestion_types::TableConfig::Delta(config) => {
@@ -230,19 +226,18 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                                     table
                                         .watch(table_index, &table_info, sender.clone())
                                         .await?;
-                                    Ok(())
+                                    Ok::<_, ConnectorError>(())
                                 });
                             }
                             dozer_types::ingestion_types::TableConfig::Parquet(parquet_config) => {
                                 let state = state_hash.get(&table_index).unwrap().clone();
                                 joinset.spawn(async move {
-                                    let mut table =
-                                        ParquetTable::new(parquet_config, config);
+                                    let mut table = ParquetTable::new(parquet_config, config);
                                     table.update_state = state;
                                     table
                                         .watch(table_index, &table_info, sender.clone())
                                         .await?;
-                                    Ok(())
+                                    Ok::<_, ConnectorError>(())
                                 });
                             }
                         }
@@ -251,9 +246,10 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
             }
         }
         while let Some(result) = joinset.join_next().await {
-            if let Err(e) = result.unwrap() {
-                return Err(e);
-            }
+            // Unwrap to propagate a panic in a task, then return
+            // short-circuit on any errors in connectors. The JoinSet
+            // will abort all other tasks when it is dropped
+            result.unwrap()?;
         }
         Ok(())
     }
