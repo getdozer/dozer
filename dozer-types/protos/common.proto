@@ -54,12 +54,8 @@ message CountResponse {
 
 // Request for `OnEvent`.
 message OnEventRequest {
-  // The event type to subscribe to.
-  dozer.types.EventType type = 1;
-  // The name of the endpoint to subscribe to.
-  string endpoint = 2;
-  // JSON filter string.
-  optional string filter = 3;
+  // The endpoints to subscribe to. Key is the endpoint name, value is the filter.
+  map<string, dozer.types.EventFilter> endpoints = 1;
 }
 
 // Request for `getFields`.
