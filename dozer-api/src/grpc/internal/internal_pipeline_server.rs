@@ -1,40 +1,45 @@
-use dozer_cache::dozer_log::home_dir::BuildPath;
+use dozer_cache::dozer_log::home_dir::BuildId;
 use dozer_cache::dozer_log::replication::Log;
 use dozer_types::bincode;
 use dozer_types::grpc_types::internal::internal_pipeline_service_server::{
     InternalPipelineService, InternalPipelineServiceServer,
 };
 use dozer_types::grpc_types::internal::{
-    BuildRequest, BuildResponse, LogRequest, LogResponse, StorageRequest, StorageResponse,
+    BuildRequest, BuildResponse, EndpointResponse, EndpointsResponse, LogRequest, LogResponse,
+    StorageRequest, StorageResponse,
 };
 use dozer_types::log::info;
 use dozer_types::models::api_config::AppGrpcOptions;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use futures_util::future::Either;
-use futures_util::stream::{AbortHandle, Abortable, Aborted, BoxStream};
+use futures_util::stream::BoxStream;
 use futures_util::{Future, StreamExt, TryStreamExt};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
+use tonic::transport::server::TcpIncoming;
 use tonic::transport::Server;
 use tonic::{Request, Response, Status, Streaming};
 
 use crate::errors::GrpcError;
+use crate::grpc::run_server;
 
 #[derive(Debug, Clone)]
-pub struct BuildAndLog {
-    pub build: BuildPath,
+pub struct LogEndpoint {
+    pub build_id: BuildId,
+    pub schema_string: String,
+    pub descriptor_bytes: Vec<u8>,
     pub log: Arc<Mutex<Log>>,
 }
 
 #[derive(Debug)]
 pub struct InternalPipelineServer {
-    endpoints: HashMap<String, BuildAndLog>,
+    endpoints: HashMap<String, LogEndpoint>,
 }
 
 impl InternalPipelineServer {
-    pub fn new(endpoints: HashMap<String, BuildAndLog>) -> Self {
+    pub fn new(endpoints: HashMap<String, LogEndpoint>) -> Self {
         Self { endpoints }
     }
 }
@@ -46,11 +51,26 @@ impl InternalPipelineService for InternalPipelineServer {
         request: Request<StorageRequest>,
     ) -> Result<Response<StorageResponse>, Status> {
         let endpoint = request.into_inner().endpoint;
-        let log = &find_build_and_log(&self.endpoints, &endpoint)?.log;
+        let log = &find_log_endpoint(&self.endpoints, &endpoint)?.log;
         let storage = log.lock().await.describe_storage();
         Ok(Response::new(StorageResponse {
             storage: Some(storage),
         }))
+    }
+
+    async fn list_endpoints(
+        &self,
+        _request: Request<()>,
+    ) -> Result<Response<EndpointsResponse>, Status> {
+        let endpoints = self
+            .endpoints
+            .iter()
+            .map(|(endpoint, log)| EndpointResponse {
+                endpoint: endpoint.clone(),
+                build_name: log.build_id.name().to_string(),
+            })
+            .collect();
+        Ok(Response::new(EndpointsResponse { endpoints }))
     }
 
     async fn describe_build(
@@ -58,26 +78,11 @@ impl InternalPipelineService for InternalPipelineServer {
         request: Request<BuildRequest>,
     ) -> Result<Response<BuildResponse>, Status> {
         let endpoint = request.into_inner().endpoint;
-        let build = &find_build_and_log(&self.endpoints, &endpoint)?.build;
-        let name = build.id.name().to_string();
-        let schema_string = tokio::fs::read_to_string(&build.schema_path)
-            .await
-            .map_err(|e| {
-                Status::new(
-                    tonic::Code::Internal,
-                    format!("Failed to read schema: {}", e),
-                )
-            })?;
-        let descriptor_bytes = tokio::fs::read(&build.descriptor_path).await.map_err(|e| {
-            Status::new(
-                tonic::Code::Internal,
-                format!("Failed to read descriptor: {}", e),
-            )
-        })?;
+        let endpoint = find_log_endpoint(&self.endpoints, &endpoint)?;
         Ok(Response::new(BuildResponse {
-            name,
-            schema_string,
-            descriptor_bytes,
+            name: endpoint.build_id.name().to_string(),
+            schema_string: endpoint.schema_string.clone(),
+            descriptor_bytes: endpoint.descriptor_bytes.clone(),
         }))
     }
 
@@ -92,7 +97,7 @@ impl InternalPipelineService for InternalPipelineServer {
             requests
                 .into_inner()
                 .and_then(move |request| {
-                    let log = &match find_build_and_log(&endpoints, &request.endpoint) {
+                    let log = &match find_log_endpoint(&endpoints, &request.endpoint) {
                         Ok(log) => log,
                         Err(e) => return Either::Left(std::future::ready(Err(e))),
                     }
@@ -104,10 +109,10 @@ impl InternalPipelineService for InternalPipelineServer {
     }
 }
 
-fn find_build_and_log<'a>(
-    endpoints: &'a HashMap<String, BuildAndLog>,
+fn find_log_endpoint<'a>(
+    endpoints: &'a HashMap<String, LogEndpoint>,
     endpoint: &str,
-) -> Result<&'a BuildAndLog, Status> {
+) -> Result<&'a LogEndpoint, Status> {
     endpoints.get(endpoint).ok_or_else(|| {
         Status::new(
             tonic::Code::NotFound,
@@ -137,34 +142,27 @@ async fn get_log(log: Arc<Mutex<Log>>, request: LogRequest) -> Result<LogRespons
     Ok(LogResponse { data })
 }
 
+/// TcpIncoming::new requires a tokio runtime, so we mark this function as async.
 pub async fn start_internal_pipeline_server(
-    endpoint_and_logs: Vec<(ApiEndpoint, BuildAndLog)>,
+    endpoint_and_logs: Vec<(ApiEndpoint, LogEndpoint)>,
     options: &AppGrpcOptions,
     shutdown: impl Future<Output = ()> + Send + 'static,
-) -> Result<(), GrpcError> {
+) -> Result<impl Future<Output = Result<(), tonic::transport::Error>>, GrpcError> {
     let endpoints = endpoint_and_logs
         .into_iter()
         .map(|(endpoint, log)| (endpoint.name, log))
         .collect();
     let server = InternalPipelineServer::new(endpoints);
 
-    // Tonic graceful shutdown doesn't allow us to set a timeout, resulting in hanging if a client doesn't close the connection.
-    // So we just abort the server when the shutdown signal is received.
-    let (abort_handle, abort_registration) = AbortHandle::new_pair();
-    tokio::spawn(async move {
-        shutdown.await;
-        abort_handle.abort();
-    });
-
-    // Run server.
+    // Start listening.
     let addr = format!("{}:{}", options.host, options.port);
     info!("Starting Internal Server on {addr}");
     let addr = addr
         .parse()
         .map_err(|e| GrpcError::AddrParse(addr.clone(), e))?;
+    let incoming = TcpIncoming::new(addr, true, None).map_err(|e| GrpcError::Listen(addr, e))?;
+
+    // Run server.
     let server = Server::builder().add_service(InternalPipelineServiceServer::new(server));
-    match Abortable::new(server.serve(addr), abort_registration).await {
-        Ok(result) => result.map_err(GrpcError::Transport),
-        Err(Aborted) => Ok(()),
-    }
+    Ok(run_server(server, incoming, shutdown))
 }

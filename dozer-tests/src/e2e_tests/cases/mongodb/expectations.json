@@ -1,0 +1,28 @@
+[
+    "HealthyService",
+    {
+        "Endpoint": {
+            "endpoint": "movies",
+            "expectations": [
+                {
+                    "Schema": {
+                        "fields": [
+                            {
+                                "name": "_id",
+                                "typ": "Json",
+                                "nullable": false,
+                                "source": "Dynamic"
+                            },
+                            {
+                                "name": "data",
+                                "typ": "Json",
+                                "nullable": false,
+                                "source": "Dynamic"
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    }
+]

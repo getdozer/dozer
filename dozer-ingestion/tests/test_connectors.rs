@@ -19,4 +19,12 @@ async fn test_postgres() {
     run_test_suite_basic_cud::<test_suite::PostgresConnectorTest>().await;
 }
 
+#[cfg(feature = "mongodb")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn test_mongodb() {
+    let _ = env_logger::builder().is_test(true).try_init();
+
+    run_test_suite_basic_data_ready::<test_suite::MongodbConnectorTest>().await;
+}
+
 mod test_suite;

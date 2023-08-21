@@ -1,24 +1,29 @@
+use crate::config_helper::combine_config;
 use crate::errors::CliError;
+use crate::errors::CliError::{ConfigurationFilePathNotProvided, FailedToFindConfigurationFiles};
+use crate::errors::ConfigCombineError::CannotReadConfig;
 use crate::errors::OrchestrationError;
 use crate::simple::SimpleOrchestrator as Dozer;
-
-use crate::config_helper::combine_config;
-use crate::errors::CliError::{ConfigurationFilePathNotProvided, FailedToFindConfigurationFiles};
+use atty::Stream;
 use dozer_types::models::config::default_cache_max_map_size;
 use dozer_types::prettytable::{row, Table};
 use dozer_types::{models::config::Config, serde_yaml};
 use handlebars::Handlebars;
 use std::collections::BTreeMap;
+use std::io::{self, Read};
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 
-pub fn init_dozer(
+pub async fn init_dozer(
+    runtime: Arc<Runtime>,
     config_paths: Vec<String>,
     config_token: Option<String>,
     config_overrides: Vec<(String, serde_json::Value)>,
+    ignore_pipe: bool,
+    enable_progress: bool,
 ) -> Result<Dozer, CliError> {
-    let runtime = Runtime::new().map_err(CliError::FailedToCreateTokioRuntime)?;
-    let mut config = runtime.block_on(load_config(config_paths, config_token))?;
+    let mut config = load_config(config_paths, config_token, ignore_pipe).await?;
 
     config = apply_overrides(&config, config_overrides)?;
 
@@ -28,16 +33,26 @@ pub fn init_dozer(
     let page_size = page_size::get() as u64;
     config.cache_max_map_size = Some(cache_max_map_size / page_size * page_size);
 
-    Ok(Dozer::new(config, Arc::new(runtime)))
+    Ok(Dozer::new(config, runtime, enable_progress))
 }
 
-pub fn list_sources(
+pub async fn list_sources(
+    runtime: Arc<Runtime>,
     config_paths: Vec<String>,
     config_token: Option<String>,
     config_overrides: Vec<(String, serde_json::Value)>,
+    ignore_pipe: bool,
     filter: Option<String>,
 ) -> Result<(), OrchestrationError> {
-    let dozer = init_dozer(config_paths, config_token, config_overrides)?;
+    let dozer = init_dozer(
+        runtime,
+        config_paths,
+        config_token,
+        config_overrides,
+        ignore_pipe,
+        false,
+    )
+    .await?;
     let connection_map = dozer.list_connectors()?;
     let mut table_parent = Table::new();
     for (connection_name, (tables, schemas)) in connection_map {
@@ -73,7 +88,9 @@ pub fn list_sources(
 async fn load_config(
     config_url_or_paths: Vec<String>,
     config_token: Option<String>,
+    ignore_pipe: bool,
 ) -> Result<Config, CliError> {
+    let read_stdin = atty::isnt(Stream::Stdin) && !ignore_pipe;
     let first_config_path = config_url_or_paths.get(0);
     match first_config_path {
         None => Err(ConfigurationFilePathNotProvided),
@@ -81,7 +98,7 @@ async fn load_config(
             if path.starts_with("https://") || path.starts_with("http://") {
                 load_config_from_http_url(path, config_token).await
             } else {
-                load_config_from_file(config_url_or_paths)
+                load_config_from_file(config_url_or_paths, read_stdin)
             }
         }
     }
@@ -101,8 +118,22 @@ async fn load_config_from_http_url(
     parse_config(&contents)
 }
 
-pub fn load_config_from_file(config_path: Vec<String>) -> Result<Config, CliError> {
-    let config_template = combine_config(config_path.clone())?;
+pub fn load_config_from_file(
+    config_path: Vec<String>,
+    read_stdin: bool,
+) -> Result<Config, CliError> {
+    let stdin_path = PathBuf::from("<stdin>");
+    let input = if read_stdin {
+        let mut input = String::new();
+        io::stdin()
+            .read_to_string(&mut input)
+            .map_err(|e| CannotReadConfig(stdin_path, e))?;
+        Some(input)
+    } else {
+        None
+    };
+
+    let config_template = combine_config(config_path.clone(), input)?;
     match config_template {
         Some(template) => parse_config(&template),
         None => Err(FailedToFindConfigurationFiles(config_path.join(", "))),

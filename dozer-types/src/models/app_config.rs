@@ -52,7 +52,6 @@ pub struct S3Storage {
     #[prost(string, tag = "2")]
     pub bucket_name: String,
 }
-
 impl Default for LogStorage {
     fn default() -> Self {
         Self::Local(())

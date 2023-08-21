@@ -56,8 +56,6 @@ pub enum PipelineError {
     InvalidRelation,
     #[error("Invalid relation")]
     DataTypeMismatch,
-    #[error("SQL provided doesnt have any outgoing nodes. Use `SELECT ... INTO` to create an output table")]
-    NoIntoProvided,
     #[error("Invalid argument for function {0}(): argument: {1}, index: {2}")]
     InvalidFunctionArgument(String, Field, usize),
     #[error("Too many arguments for function {0}()")]
@@ -84,7 +82,8 @@ pub enum PipelineError {
     IllegalFieldIdentifier(String),
     #[error("Unable to cast {0} to {1}")]
     UnableToCast(String, String),
-
+    #[error("Missing INTO clause for top-level SELECT statement")]
+    MissingIntoClause,
     #[cfg(feature = "python")]
     #[error("Python Error: {0}")]
     PythonErr(dozer_types::pyo3::PyErr),

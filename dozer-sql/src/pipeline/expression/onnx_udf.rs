@@ -4,12 +4,12 @@ use crate::pipeline::errors::UnsupportedSqlError::GenericError;
 use crate::pipeline::expression::execution::Expression;
 use dozer_types::log::warn;
 use dozer_types::types::{Field, FieldType, Record, Schema};
-use ort::sys::OrtTensorTypeAndShapeInfo;
-use ort::tensor::TensorElementDataType::{
+use dozer_types::ort::sys::OrtTensorTypeAndShapeInfo;
+use dozer_types::ort::tensor::TensorElementDataType::{
     Bool, Float16, Float32, Float64, Int16, Int32, Int64, String, Uint16, Uint32, Uint64,
 };
-use ort::tensor::TensorElementDataType;
-use ort::{Session, Value};
+use dozer_types::ort::tensor::TensorElementDataType;
+use dozer_types::ort::{Session, Value};
 use std::path::Path;
 use image::Pixel;
 

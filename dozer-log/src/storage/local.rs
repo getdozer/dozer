@@ -1,5 +1,6 @@
 use std::{
     collections::{hash_map::Entry, HashMap},
+    num::NonZeroU16,
     sync::Arc,
 };
 
@@ -7,13 +8,15 @@ use camino::Utf8Path;
 use dozer_types::{
     bytes::Bytes,
     grpc_types::internal::{self, storage_response},
-    parking_lot::Mutex,
     tonic::async_trait,
     tracing::debug,
 };
 use futures_util::{stream::BoxStream, StreamExt};
 use tempdir::TempDir;
-use tokio::io::{AsyncWriteExt, BufReader};
+use tokio::{
+    io::{AsyncWriteExt, BufReader},
+    sync::Mutex,
+};
 use tokio_util::io::ReaderStream;
 
 use super::{Error, ListObjectsOutput, Object, Storage};
@@ -69,7 +72,7 @@ impl Storage for LocalStorage {
             .to_str()
             .ok_or(Error::NonUtf8Path(path.to_path_buf()))?
             .to_string();
-        let mut multipart_uploads = self.multipart_uploads.lock();
+        let mut multipart_uploads = self.multipart_uploads.lock().await;
         match multipart_uploads.entry(key) {
             Entry::Occupied(mut entry) => {
                 entry.get_mut().insert(upload_id.clone(), temp_dir);
@@ -85,11 +88,12 @@ impl Storage for LocalStorage {
         &self,
         key: String,
         upload_id: String,
-        part_number: i32,
+        part_number: NonZeroU16,
         data: Vec<u8>,
     ) -> Result<String, Error> {
         self.multipart_uploads
             .lock()
+            .await
             .get(&key)
             .and_then(|uploads| uploads.get(&upload_id))
             .ok_or(Error::UploadNotFound {
@@ -105,7 +109,7 @@ impl Storage for LocalStorage {
         &self,
         key: String,
         upload_id: String,
-        mut parts: Vec<(i32, String)>,
+        mut parts: Vec<(NonZeroU16, String)>,
     ) -> Result<(), Error> {
         parts.sort();
 
@@ -125,6 +129,7 @@ impl Storage for LocalStorage {
 
         self.multipart_uploads
             .lock()
+            .await
             .get_mut(&key)
             .and_then(|uploads| uploads.remove(&upload_id))
             .ok_or(Error::UploadNotFound {
@@ -174,7 +179,7 @@ async fn read(path: String) -> Result<Vec<u8>, Error> {
         .map_err(|e| Error::FileSystem(path, e))
 }
 
-fn get_path_path(upload_id: &str, part_number: i32) -> String {
+fn get_path_path(upload_id: &str, part_number: NonZeroU16) -> String {
     AsRef::<Utf8Path>::as_ref(upload_id)
         .join(part_number.to_string())
         .to_string()
@@ -242,5 +247,14 @@ mod tests {
             .await
             .unwrap();
         super::super::tests::test_storage_prefix(&storage).await;
+    }
+
+    #[tokio::test]
+    async fn test_local_storage_empty_multipart() {
+        let temp_dir = TempDir::new("test_local_storage_empty_multipart").unwrap();
+        let storage = LocalStorage::new(temp_dir.path().to_str().unwrap().to_string())
+            .await
+            .unwrap();
+        super::super::tests::test_storage_empty_multipart(&storage).await;
     }
 }

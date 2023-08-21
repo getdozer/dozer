@@ -1,6 +1,6 @@
 [package]
 name = "dozer-ingestion"
-version = "0.1.33"
+version = "0.1.35"
 edition = "2021"
 authors = ["getdozer/dozer-dev"]
 
@@ -25,6 +25,8 @@ web3 = { version = "0.18.0", optional = true }
 rdkafka = {version = "0.32.2", optional = true }
 # odbc connector
 odbc = { version = "0.17.0", optional = true }
+# Mongodb connector
+mongodb = { version = "2.6.0", optional = true }
 base64 = "0.21.0"
 include_dir = {version = "0.7.3", optional = true }
 schema_registry_converter = { version = "3.1.0", features = ["avro"], optional = true }
@@ -43,6 +45,10 @@ tokio-postgres-rustls = "0.10.0"
 rustls-native-certs = "0.6.2"
 rand = "0.8.5"
 url = "2.4.0"
+mysql_async = { version = "0.32.2", default-features = false, features = ["default-rustls"] }
+mysql_common = { version = "0.30", default-features = false, features = ["chrono", "rust_decimal"] }
+chrono = "0.4.26"
+geozero = { version = "0.10.0", default-features = false, features = ["with-wkb"] }
 
 [dev-dependencies]
 criterion = { version = "0.4.0", features = ["html_reports"] }
@@ -60,6 +66,7 @@ hex = "0.4.3"
 snowflake = ["dep:odbc", "dep:include_dir"]
 ethereum = ["dep:web3"]
 kafka = ["dep:rdkafka", "dep:schema_registry_converter"]
+mongodb = ["dep:mongodb"]
 
 [[bench]]
 name = "connectors"

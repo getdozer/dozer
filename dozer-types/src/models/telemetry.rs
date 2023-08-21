@@ -12,7 +12,7 @@ pub enum TelemetryTraceConfig {
     #[prost(message, tag = "1")]
     Dozer(DozerTelemetryConfig),
     #[prost(message, tag = "2")]
-    Jaeger(JaegerTelemetryConfig),
+    XRay(XRayConfig),
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Clone, prost::Message)]
@@ -29,7 +29,7 @@ pub struct DozerTelemetryConfig {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Clone, prost::Message)]
-pub struct JaegerTelemetryConfig {}
+pub struct XRayConfig {}
 
 fn default_grpc_adapter() -> String {
     "arrow".to_owned()

@@ -1,0 +1,16 @@
+container_name: chinook_mysql
+build:
+  context: .
+ports:
+  - target: 3306
+    published: 3306
+environment:
+  - MYSQL_ROOT_PASSWORD=mysql
+  - MYSQL_ROOT_HOST=%
+healthcheck:
+  test:
+    - CMD-SHELL
+    - is_ready.sh
+  interval: 5s
+  timeout: 5s
+  retries: 15

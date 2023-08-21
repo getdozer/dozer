@@ -1,5 +1,5 @@
 use crate::errors::ExecutionError;
-use crate::{Dag, NodeKind, DEFAULT_PORT_HANDLE};
+use crate::{Dag, EdgeHavePorts, NodeKind, DEFAULT_PORT_HANDLE};
 
 use crate::node::{OutputPortType, PortHandle};
 use daggy::petgraph::graph::EdgeReference;
@@ -7,6 +7,7 @@ use daggy::petgraph::visit::{EdgeRef, IntoEdges, IntoEdgesDirected, IntoNodeRefe
 use daggy::petgraph::Direction;
 use daggy::{NodeIndex, Walker};
 use dozer_types::log::{error, info};
+use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::Schema;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
@@ -44,7 +45,8 @@ impl<T> NodeSchemas<T> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(crate = "dozer_types::serde")]
 pub struct EdgeType {
     pub output_port: PortHandle,
     pub output_port_type: OutputPortType,
@@ -68,13 +70,11 @@ impl EdgeType {
     }
 }
 
-pub trait EdgeHaveSchema {
-    fn output_port(&self) -> PortHandle;
-    fn input_port(&self) -> PortHandle;
+pub trait EdgeHaveSchema: EdgeHavePorts {
     fn schema(&self) -> &Schema;
 }
 
-impl EdgeHaveSchema for EdgeType {
+impl EdgeHavePorts for EdgeType {
     fn output_port(&self) -> PortHandle {
         self.output_port
     }
@@ -82,7 +82,9 @@ impl EdgeHaveSchema for EdgeType {
     fn input_port(&self) -> PortHandle {
         self.input_port
     }
+}
 
+impl EdgeHaveSchema for EdgeType {
     fn schema(&self) -> &Schema {
         &self.schema
     }
@@ -97,6 +99,10 @@ pub struct DagSchemas<T> {
 impl<T> DagSchemas<T> {
     pub fn into_graph(self) -> daggy::Dag<NodeType<T>, EdgeType> {
         self.graph
+    }
+
+    pub fn graph(&self) -> &daggy::Dag<NodeType<T>, EdgeType> {
+        &self.graph
     }
 
     /// Returns a map from the sink node id to the schema of sink.

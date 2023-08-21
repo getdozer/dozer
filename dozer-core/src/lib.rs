@@ -20,4 +20,4 @@ pub mod record_store;
 #[cfg(test)]
 pub mod tests;
 
-pub use daggy::petgraph;
+pub use daggy::{self, petgraph};

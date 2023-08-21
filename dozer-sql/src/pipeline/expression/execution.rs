@@ -8,6 +8,7 @@ use crate::pipeline::expression::case::evaluate_case;
 use crate::pipeline::expression::conditional::{
     get_conditional_expr_type, ConditionalExpressionType,
 };
+use dozer_types::ort::Session;
 use crate::pipeline::expression::datetime::{get_datetime_function_type, DateTimeFunctionType};
 use crate::pipeline::expression::geo::common::{get_geo_function_type, GeoFunctionType};
 use crate::pipeline::expression::json_functions::JsonFunctionType;
@@ -103,10 +104,16 @@ pub enum Expression {
     #[cfg(feature = "onnx")]
     OnnxUDF {
         name: String,
-        session: ort::Session,
+        session: Session,
         args: Vec<Expression>,
         return_type: FieldType,
     },
+}
+
+impl Clone for Session {
+    fn clone(&self) -> Self {
+        Session(self.0)
+    }
 }
 
 impl Expression {

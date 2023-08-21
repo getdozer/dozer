@@ -47,3 +47,6 @@ pub use serde_json;
 pub use serde_yaml;
 pub use thiserror;
 pub use tracing;
+
+#[cfg(feature = "onnx")]
+pub extern crate ort;

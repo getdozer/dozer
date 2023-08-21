@@ -4,13 +4,15 @@ use crate::executor_operation::ProcessorOperation;
 use crate::processor_record::ProcessorRecordStore;
 
 use dozer_types::errors::internal::BoxedError;
+use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::Schema;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 
 pub type PortHandle = u16;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(crate = "dozer_types::serde")]
 pub enum OutputPortType {
     Stateless,
     StatefulWithPrimaryKeyLookup,

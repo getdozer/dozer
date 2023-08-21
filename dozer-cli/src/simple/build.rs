@@ -1,10 +1,19 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, collections::BTreeMap, fs::OpenOptions, path::Path};
 
 use dozer_api::generator::protoc::generator::ProtoGenerator;
 use dozer_cache::dozer_log::{
-    home_dir::{BuildId, HomeDir},
+    home_dir::{BuildId, BuildPath, HomeDir},
     replication::create_log_storage,
-    schemas::{load_schema, write_schema, BuildSchema},
+    schemas::EndpointSchema,
+    storage::Storage,
+};
+use dozer_core::{
+    dag_schemas::{DagSchemas, EdgeType},
+    daggy,
+    petgraph::{
+        visit::{IntoEdgesDirected, IntoNodeReferences},
+        Direction,
+    },
 };
 use dozer_types::{
     log::info,
@@ -14,76 +23,167 @@ use dozer_types::{
         },
         app_config::LogStorage,
     },
+    node::NodeHandle,
     types::{FieldDefinition, FieldType, IndexDefinition, Schema, SchemaWithIndex},
 };
+use futures::future::try_join_all;
+use serde::{de::DeserializeOwned, Serialize};
 
 use crate::errors::BuildError;
 
+#[derive(Debug)]
+pub struct Contract {
+    pub pipeline: daggy::Dag<NodeHandle, EdgeType>,
+    pub endpoints: BTreeMap<String, EndpointSchema>,
+}
+
+impl Contract {
+    pub fn new<T>(
+        dag_schemas: DagSchemas<T>,
+        endpoints: &[ApiEndpoint],
+        enable_token: bool,
+        enable_on_event: bool,
+    ) -> Result<Self, BuildError> {
+        let sink_schemas = dag_schemas.get_sink_schemas();
+        let mut endpoint_schemas = BTreeMap::new();
+        for (endpoint_name, (schema, connections)) in sink_schemas {
+            let endpoint = endpoints
+                .iter()
+                .find(|e| e.name == *endpoint_name)
+                .ok_or(BuildError::MissingEndpoint(endpoint_name.clone()))?;
+            let (schema, secondary_indexes) = modify_schema(&schema, endpoint)?;
+            let schema = EndpointSchema {
+                schema,
+                secondary_indexes,
+                enable_token,
+                enable_on_event,
+                connections,
+            };
+            endpoint_schemas.insert(endpoint_name, schema);
+        }
+
+        let pipeline = dag_schemas
+            .into_graph()
+            .map_owned(|_, node| node.handle, |_, edge| edge);
+
+        Ok(Self {
+            pipeline,
+            endpoints: endpoint_schemas,
+        })
+    }
+
+    pub fn deserialize(build_path: &BuildPath) -> Result<Self, BuildError> {
+        let pipeline: daggy::Dag<NodeHandle, EdgeType> =
+            serde_json_from_path(&build_path.dag_path)?;
+
+        let mut endpoints = BTreeMap::new();
+        for (node_index, node) in pipeline.node_references() {
+            // Endpoint must have zero out degree.
+            if pipeline
+                .edges_directed(node_index, Direction::Outgoing)
+                .count()
+                > 0
+            {
+                continue;
+            }
+
+            // `NodeHandle::id` is the endpoint name.
+            let endpoint_name = node.id.clone();
+            let endpoint_path = build_path.get_endpoint_path(&endpoint_name);
+            let schema: EndpointSchema = serde_json_from_path(&endpoint_path.schema_path)?;
+            endpoints.insert(endpoint_name, schema);
+        }
+
+        Ok(Self {
+            pipeline,
+            endpoints,
+        })
+    }
+}
+
 pub async fn build(
     home_dir: &HomeDir,
-    endpoint_name: String,
-    schema: BuildSchema,
-    storage_config: LogStorage,
+    contract: &Contract,
+    storage_config: &LogStorage,
 ) -> Result<(), BuildError> {
-    if let Some(build_id) = needs_build(home_dir, &endpoint_name, &schema, storage_config).await? {
+    if let Some(build_id) = needs_build(home_dir, contract, storage_config).await? {
         let build_name = build_id.name().to_string();
-        create_build(home_dir, &endpoint_name, build_id, &schema)?;
-        info!("Created new build {build_name} for endpoint: {endpoint_name}");
+        create_build(home_dir, build_id, contract)?;
+        info!("Created new build {build_name}");
     } else {
-        info!("Building not needed for endpoint: {endpoint_name}");
+        info!("Building not needed");
     }
     Ok(())
 }
 
 async fn needs_build(
     home_dir: &HomeDir,
-    endpoint_name: &str,
-    schema: &BuildSchema,
-    storage_config: LogStorage,
+    contract: &Contract,
+    storage_config: &LogStorage,
 ) -> Result<Option<BuildId>, BuildError> {
     let build_path = home_dir
-        .find_latest_build_path(endpoint_name)
+        .find_latest_build_path()
         .map_err(|(path, error)| BuildError::FileSystem(path.into(), error))?;
     let Some(build_path) = build_path else {
         return Ok(Some(BuildId::first()));
     };
 
-    let (storage, prefix) = create_log_storage(storage_config, &build_path).await?;
-    if !storage.list_objects(prefix, None).await?.objects.is_empty() {
+    let mut futures = vec![];
+    for endpoint in contract.endpoints.keys() {
+        let endpoint_path = build_path.get_endpoint_path(endpoint);
+        let (storage, prefix) =
+            create_log_storage(storage_config.clone(), endpoint_path.log_dir.into()).await?;
+        futures.push(is_empty(storage, prefix));
+    }
+    if !try_join_all(futures)
+        .await?
+        .into_iter()
+        .all(|is_empty| is_empty)
+    {
         return Ok(Some(build_path.id.next()));
     }
 
-    let existing_schema =
-        load_schema(&build_path.schema_path).map_err(BuildError::CannotLoadExistingSchema)?;
-    if existing_schema == *schema {
-        Ok(None)
-    } else {
-        Ok(Some(build_path.id.next()))
+    let existing_contract = Contract::deserialize(&build_path)?;
+    for (endpoint, schema) in &contract.endpoints {
+        if let Some(existing_schema) = existing_contract.endpoints.get(endpoint) {
+            if schema == existing_schema {
+                continue;
+            }
+        } else {
+            return Ok(Some(build_path.id.next()));
+        }
     }
+    Ok(None)
+}
+
+async fn is_empty(storage: Box<dyn Storage>, prefix: String) -> Result<bool, BuildError> {
+    let objects = storage.list_objects(prefix, None).await?;
+    Ok(objects.objects.is_empty())
 }
 
 fn create_build(
     home_dir: &HomeDir,
-    endpoint_name: &str,
     build_id: BuildId,
-    schema: &BuildSchema,
+    contract: &Contract,
 ) -> Result<(), BuildError> {
     let build_path = home_dir
-        .create_build_dir_all(endpoint_name, build_id)
+        .create_build_dir_all(build_id)
         .map_err(|(path, error)| BuildError::FileSystem(path.into(), error))?;
 
-    write_schema(schema, build_path.schema_path.as_ref()).map_err(BuildError::CannotWriteSchema)?;
-
-    let proto_folder_path = build_path.api_dir.as_ref();
-    ProtoGenerator::generate(proto_folder_path, endpoint_name, schema)?;
+    contract.serialize(&build_path)?;
 
     let mut resources = Vec::new();
-    resources.push(endpoint_name);
+
+    let proto_folder_path = build_path.contracts_dir.as_ref();
+    for (endpoint_name, schema) in &contract.endpoints {
+        ProtoGenerator::generate(proto_folder_path, endpoint_name, schema)?;
+        resources.push(endpoint_name.clone());
+    }
 
     let common_resources = ProtoGenerator::copy_common(proto_folder_path)?;
 
     // Copy common service to be included in descriptor.
-    resources.extend(common_resources.iter().map(|str| str.as_str()));
+    resources.extend(common_resources);
 
     // Generate a descriptor based on all proto files generated within sink.
     ProtoGenerator::generate_descriptor(
@@ -95,7 +195,7 @@ fn create_build(
     Ok(())
 }
 
-pub fn modify_schema(
+fn modify_schema(
     schema: &Schema,
     api_endpoint: &ApiEndpoint,
 ) -> Result<SchemaWithIndex, BuildError> {
@@ -234,4 +334,38 @@ fn field_index_from_field_name(
         .iter()
         .position(|field| field.name == field_name)
         .ok_or(BuildError::FieldNotFound(field_name.to_string()))
+}
+
+impl Contract {
+    fn serialize(&self, build_path: &BuildPath) -> Result<(), BuildError> {
+        serde_json_to_path(&build_path.dag_path, &self.pipeline)?;
+
+        for (endpoint_name, schema) in &self.endpoints {
+            let endpoint_path = build_path.get_endpoint_path(endpoint_name);
+            serde_json_to_path(&endpoint_path.schema_path, schema)?;
+        }
+
+        Ok(())
+    }
+}
+
+fn serde_json_to_path(path: impl AsRef<Path>, value: &impl Serialize) -> Result<(), BuildError> {
+    let file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(path.as_ref())
+        .map_err(|e| BuildError::FileSystem(path.as_ref().into(), e))?;
+    serde_json::to_writer_pretty(file, value)?;
+    Ok(())
+}
+
+fn serde_json_from_path<T>(path: impl AsRef<Path>) -> Result<T, BuildError>
+where
+    T: DeserializeOwned,
+{
+    let file = OpenOptions::new()
+        .read(true)
+        .open(path.as_ref())
+        .map_err(|e| BuildError::FileSystem(path.as_ref().into(), e))?;
+    Ok(serde_json::from_reader(file)?)
 }

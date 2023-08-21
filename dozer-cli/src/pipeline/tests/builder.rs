@@ -8,7 +8,6 @@ use dozer_types::models::config::Config;
 use dozer_types::indicatif::MultiProgress;
 use dozer_types::models::connection::{Connection, ConnectionConfig};
 use dozer_types::models::source::Source;
-use tokio::runtime::Runtime;
 
 fn get_default_config() -> Config {
     let schema_str = include_str!("./schemas.json");
@@ -70,14 +69,19 @@ fn load_multi_sources() {
         &config.udfs,
     );
 
-    let runtime = Runtime::new().unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let runtime = Arc::new(runtime);
     let grouped_connections = runtime
         .block_on(builder.get_grouped_tables(&used_sources))
         .unwrap();
 
     let source_builder = SourceBuilder::new(grouped_connections, None);
-    let asm = source_builder
-        .build_source_manager(Arc::new(runtime))
+    let (_sender, shutdown_receiver) = crate::shutdown::new(&runtime);
+    let asm = runtime
+        .block_on(source_builder.build_source_manager(&runtime, shutdown_receiver))
         .unwrap();
 
     asm.get_endpoint(&config.sources[0].name).unwrap();

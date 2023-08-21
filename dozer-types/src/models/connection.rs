@@ -1,5 +1,6 @@
 use crate::ingestion_types::{
-    DeltaLakeConfig, EthConfig, GrpcConfig, KafkaConfig, LocalStorage, S3Storage, SnowflakeConfig,
+    DeltaLakeConfig, EthConfig, GrpcConfig, KafkaConfig, LocalStorage, MongodbConfig, MySQLConfig,
+    S3Storage, SnowflakeConfig,
 };
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -190,4 +191,10 @@ pub enum ConnectionConfig {
     #[prost(message, tag = "8")]
     /// In yaml, present as tag" `!DeltaLake`
     DeltaLake(DeltaLakeConfig),
+    #[prost(message, tag = "9")]
+    /// In yaml, present as tag: `!MongoDB`
+    MongoDB(MongodbConfig),
+    #[prost(message, tag = "10")]
+    /// In yaml, present as tag" `!MySQL`
+    MySQL(MySQLConfig),
 }

@@ -1,6 +1,6 @@
 [package]
 name = "dozer-sql"
-version = "0.1.33"
+version = "0.1.35"
 edition = "2021"
 authors = ["getdozer/dozer-dev"]
 
@@ -40,4 +40,4 @@ proptest = "1.1.0"
 [features]
 python = ["dozer-types/python-auto-initialize"]
 bigdecimal = ["dep:bigdecimal", "sqlparser/bigdecimal"]
-onnx = ["dep:ort", "dep:ndarray", "dep:image", "dozer-types/onnx"]
+onnx = ["dep:ndarray", "dep:image", "dozer-types/onnx"]

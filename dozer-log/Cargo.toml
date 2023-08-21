@@ -1,6 +1,6 @@
 [package]
 name = "dozer-log"
-version = "0.1.33"
+version = "0.1.35"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -15,6 +15,7 @@ camino = "1.1.4"
 dozer-types = {path = "../dozer-types"}
 dyn-clone = "1.0.11"
 futures-util = "0.3.27"
+nonzero_ext = "0.3.0"
 pin-project = "1.1.2"
 tempdir = "0.3.7"
 tokio = { version = "1", features = ["full"] }
@@ -22,5 +23,5 @@ tokio-stream = "0.1.14"
 tokio-util = { version = "0.7.8", features = ["io"] }
 
 [dev-dependencies]
-clap = "4.3.11"
+clap = { version = "4.3.11", features = ["derive"] }
 env_logger = "0.10.0"
