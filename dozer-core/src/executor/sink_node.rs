@@ -102,10 +102,14 @@ impl ReceiverLoop for SinkNode {
             self.error_manager.report(e);
         }
 
-        self.epoch_manager.finalize_epoch(epoch);
-
         if let Ok(duration) = epoch.decision_instant.elapsed() {
             histogram!(PIPELINE_LATENCY_HISTOGRAM_NAME, duration, "endpoint" => self.node_handle.id.clone());
+        }
+
+        if let Some(checkpoint_writer) = epoch.common_info.checkpoint_writer.as_ref() {
+            if let Err(e) = self.sink.persist(checkpoint_writer.queue()) {
+                self.error_manager.report(e);
+            }
         }
 
         Ok(())

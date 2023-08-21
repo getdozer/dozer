@@ -3,7 +3,9 @@ use std::sync::Arc;
 
 use dozer_storage::errors::StorageError;
 use dozer_types::{
+    bincode,
     parking_lot::RwLock,
+    serde::{Deserialize, Serialize},
     types::{Field, Lifetime, Operation, Record},
 };
 
@@ -14,7 +16,8 @@ pub struct ProcessorRecordStore {
     records: RwLock<Vec<RecordRef>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(crate = "dozer_types::serde")]
 pub struct RecordRef(Arc<[Field]>);
 
 impl ProcessorRecordStore {
@@ -24,8 +27,18 @@ impl ProcessorRecordStore {
         })
     }
 
-    pub fn num_record(&self) -> usize {
+    pub fn num_records(&self) -> usize {
         self.records.read().len()
+    }
+
+    pub fn serialize_slice(&self, start: usize) -> Result<(Vec<u8>, usize), StorageError> {
+        let records = self.records.read();
+        let slice = &records[start..];
+        let data = bincode::serialize(slice).map_err(|e| StorageError::SerializationError {
+            typ: "[RecordRef]",
+            reason: Box::new(e),
+        })?;
+        Ok((data, slice.len()))
     }
 
     pub fn create_ref(&self, values: &[Field]) -> Result<RecordRef, StorageError> {

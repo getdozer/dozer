@@ -1,6 +1,8 @@
 use dozer_core::app::{App, AppPipeline};
 use dozer_core::appsource::{AppSourceManager, AppSourceMappings};
 use dozer_core::channels::SourceChannelForwarder;
+use dozer_core::checkpoint::create_checkpoint_factory_for_test;
+use dozer_core::dozer_log::storage::Queue;
 use dozer_core::epoch::Epoch;
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::executor_operation::ProcessorOperation;
@@ -177,13 +179,17 @@ impl Sink for TestSink {
         Ok(())
     }
 
+    fn persist(&mut self, _queue: &Queue) -> Result<(), BoxedError> {
+        Ok(())
+    }
+
     fn on_source_snapshotting_done(&mut self, _connection_name: String) -> Result<(), BoxedError> {
         Ok(())
     }
 }
 
-#[test]
-fn test_pipeline_builder() {
+#[tokio::test]
+async fn test_pipeline_builder() {
     let mut pipeline = AppPipeline::new();
     let context = statement_to_pipeline(
         "SELECT COUNT(Spending), users.Country \
@@ -227,7 +233,8 @@ fn test_pipeline_builder() {
 
     let now = std::time::Instant::now();
 
-    DagExecutor::new(dag, ExecutorOptions::default())
+    let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
+    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
         .unwrap()
         .start(Arc::new(AtomicBool::new(true)))
         .unwrap()

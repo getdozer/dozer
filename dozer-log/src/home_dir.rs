@@ -23,8 +23,8 @@ impl HomeDir {
 
         std::fs::create_dir_all(&build_path.contracts_dir)
             .map_err(|e| (build_path.contracts_dir.clone(), e))?;
-        std::fs::create_dir_all(&build_path.log_dir)
-            .map_err(|e: std::io::Error| (build_path.log_dir.clone(), e))?;
+        std::fs::create_dir_all(&build_path.data_dir)
+            .map_err(|e: std::io::Error| (build_path.data_dir.clone(), e))?;
 
         Ok(build_path)
     }
@@ -51,7 +51,7 @@ impl HomeDir {
         let descriptor_path = contracts_dir.join("file_descriptor_set.bin");
 
         let data_dir = build_dir.join("data");
-        let log_dir = data_dir.join("log");
+        let log_dir_relative_to_data_dir = "log".into();
 
         BuildPath {
             id: build_id,
@@ -59,7 +59,7 @@ impl HomeDir {
             dag_path,
             descriptor_path,
             data_dir,
-            log_dir,
+            log_dir_relative_to_data_dir,
         }
     }
 }
@@ -170,18 +170,18 @@ pub struct BuildPath {
     pub contracts_dir: Utf8PathBuf,
     pub dag_path: Utf8PathBuf,
     pub descriptor_path: Utf8PathBuf,
-    data_dir: Utf8PathBuf,
-    log_dir: Utf8PathBuf,
+    pub data_dir: Utf8PathBuf,
+    log_dir_relative_to_data_dir: Utf8PathBuf,
 }
 
 impl BuildPath {
     pub fn get_endpoint_path(&self, endpoint_name: &str) -> EndpointPath {
         let schema_path = self.contracts_dir.join(format!("{}.json", endpoint_name));
-        let log_dir = self.log_dir.join(endpoint_name);
+        let log_dir_relative_to_data_dir = self.log_dir_relative_to_data_dir.join(endpoint_name);
         EndpointPath {
             build_id: self.id.clone(),
             schema_path,
-            log_dir,
+            log_dir_relative_to_data_dir,
         }
     }
 
@@ -194,5 +194,5 @@ impl BuildPath {
 pub struct EndpointPath {
     pub build_id: BuildId,
     pub schema_path: Utf8PathBuf,
-    pub log_dir: Utf8PathBuf,
+    pub log_dir_relative_to_data_dir: Utf8PathBuf,
 }

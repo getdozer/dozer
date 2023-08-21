@@ -274,13 +274,12 @@ mod tests {
         let mut details = SourceStates::new();
         details.extend(epoch0.details);
         details.extend(epoch1.details);
-        assert_eq!(
-            test_loop.commits,
-            vec![
-                Epoch::new(0, details.clone(), None, decision_instant),
-                Epoch::new(1, details, None, decision_instant)
-            ]
-        );
+        assert_eq!(test_loop.commits[0].common_info.id, 0);
+        assert_eq!(test_loop.commits[0].details, details);
+        assert_eq!(test_loop.commits[0].decision_instant, decision_instant);
+        assert_eq!(test_loop.commits[1].common_info.id, 1);
+        assert_eq!(test_loop.commits[1].details, details);
+        assert_eq!(test_loop.commits[1].decision_instant, decision_instant);
     }
 
     #[test]

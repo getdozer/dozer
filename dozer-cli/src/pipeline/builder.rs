@@ -17,9 +17,9 @@ use dozer_types::log::debug;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::connection::Connection;
 use dozer_types::models::source::Source;
+use dozer_types::parking_lot::Mutex;
 use std::hash::Hash;
 use tokio::runtime::Runtime;
-use tokio::sync::Mutex;
 
 use crate::pipeline::dummy_sink::DummySinkFactory;
 use crate::pipeline::LogSinkFactory;

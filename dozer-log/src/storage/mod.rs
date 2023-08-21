@@ -18,14 +18,14 @@ use dozer_types::{
 pub use nonzero_ext::nonzero;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Object {
+pub struct ListedObject {
     pub key: String,
     pub last_modified: SystemTime,
 }
 
 #[derive(Debug, Clone)]
 pub struct ListObjectsOutput {
-    pub objects: Vec<Object>,
+    pub objects: Vec<ListedObject>,
     pub continuation_token: Option<String>,
 }
 
@@ -119,5 +119,22 @@ mod local;
 
 pub use local::LocalStorage;
 
+mod queue;
+pub use queue::Queue;
+
+mod object;
+pub use object::Object;
+
 #[cfg(test)]
 mod tests;
+
+use tempdir::TempDir;
+
+/// This only meant for use in tests.
+pub async fn create_temp_dir_local_storage() -> (TempDir, Box<dyn Storage>) {
+    let temp_dir = TempDir::new("create_temp_dir_local_storage").unwrap();
+    let storage = LocalStorage::new(temp_dir.path().to_str().unwrap().to_string())
+        .await
+        .unwrap();
+    (temp_dir, Box::new(storage))
+}

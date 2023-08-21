@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use dozer_cache::dozer_log::storage::Queue;
 use dozer_core::{
     epoch::Epoch,
     executor_operation::ProcessorOperation,
@@ -43,6 +44,10 @@ impl Sink for DummySink {
     }
 
     fn commit(&mut self, _epoch_details: &Epoch) -> Result<(), BoxedError> {
+        Ok(())
+    }
+
+    fn persist(&mut self, _queue: &Queue) -> Result<(), BoxedError> {
         Ok(())
     }
 

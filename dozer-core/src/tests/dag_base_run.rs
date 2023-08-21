@@ -1,4 +1,5 @@
 use crate::channels::ProcessorChannelForwarder;
+use crate::checkpoint::create_checkpoint_factory_for_test;
 use crate::epoch::Epoch;
 use crate::executor::{DagExecutor, ExecutorOptions};
 use crate::executor_operation::ProcessorOperation;
@@ -11,6 +12,7 @@ use crate::tests::sources::{
     GENERATOR_SOURCE_OUTPUT_PORT,
 };
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
+use dozer_log::tokio;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
 use dozer_types::types::Schema;
@@ -84,8 +86,8 @@ impl Processor for NoopProcessor {
     }
 }
 
-#[test]
-fn test_run_dag() {
+#[tokio::test]
+async fn test_run_dag() {
     let count: u64 = 1_000;
 
     let mut dag = Dag::new();
@@ -117,7 +119,8 @@ fn test_run_dag() {
     )
     .unwrap();
 
-    DagExecutor::new(dag, ExecutorOptions::default())
+    let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
+    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
         .unwrap()
         .start(Arc::new(AtomicBool::new(true)))
         .unwrap()
@@ -125,8 +128,8 @@ fn test_run_dag() {
         .unwrap();
 }
 
-#[test]
-fn test_run_dag_and_stop() {
+#[tokio::test]
+async fn test_run_dag_and_stop() {
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
@@ -159,7 +162,8 @@ fn test_run_dag_and_stop() {
     .unwrap();
 
     let running = Arc::new(AtomicBool::new(true));
-    let join_handle = DagExecutor::new(dag, ExecutorOptions::default())
+    let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
+    let join_handle = DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
         .unwrap()
         .start(running.clone())
         .unwrap();
@@ -233,8 +237,8 @@ impl Processor for NoopJoinProcessor {
     }
 }
 
-#[test]
-fn test_run_dag_2_sources_stateless() {
+#[tokio::test]
+async fn test_run_dag_2_sources_stateless() {
     let count: u64 = 50_000;
 
     let mut dag = Dag::new();
@@ -278,7 +282,8 @@ fn test_run_dag_2_sources_stateless() {
     )
     .unwrap();
 
-    DagExecutor::new(dag, ExecutorOptions::default())
+    let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
+    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
         .unwrap()
         .start(Arc::new(AtomicBool::new(true)))
         .unwrap()
@@ -286,8 +291,8 @@ fn test_run_dag_2_sources_stateless() {
         .unwrap();
 }
 
-#[test]
-fn test_run_dag_2_sources_stateful() {
+#[tokio::test]
+async fn test_run_dag_2_sources_stateful() {
     let count: u64 = 50_000;
 
     let mut dag = Dag::new();
@@ -331,7 +336,8 @@ fn test_run_dag_2_sources_stateful() {
     )
     .unwrap();
 
-    DagExecutor::new(dag, ExecutorOptions::default())
+    let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
+    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
         .unwrap()
         .start(Arc::new(AtomicBool::new(true)))
         .unwrap()
@@ -339,8 +345,8 @@ fn test_run_dag_2_sources_stateful() {
         .unwrap();
 }
 
-#[test]
-fn test_run_dag_1_source_2_ports_stateless() {
+#[tokio::test]
+async fn test_run_dag_1_source_2_ports_stateless() {
     let count: u64 = 50_000;
 
     let mut dag = Dag::new();
@@ -385,7 +391,8 @@ fn test_run_dag_1_source_2_ports_stateless() {
     )
     .unwrap();
 
-    DagExecutor::new(dag, ExecutorOptions::default())
+    let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
+    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
         .unwrap()
         .start(Arc::new(AtomicBool::new(true)))
         .unwrap()
