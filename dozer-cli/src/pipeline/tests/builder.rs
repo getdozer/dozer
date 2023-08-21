@@ -78,8 +78,9 @@ fn load_multi_sources() {
         .unwrap();
 
     let source_builder = SourceBuilder::new(grouped_connections, None);
+    let (_sender, shutdown_receiver) = crate::shutdown::new(&runtime);
     let asm = runtime
-        .block_on(source_builder.build_source_manager(&runtime))
+        .block_on(source_builder.build_source_manager(&runtime, shutdown_receiver))
         .unwrap();
 
     asm.get_endpoint(&config.sources[0].name).unwrap();

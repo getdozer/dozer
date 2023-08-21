@@ -177,7 +177,7 @@ fn run() -> Result<(), OrchestrationError> {
             Commands::Build(build) => {
                 let force = build.force.is_some();
 
-                dozer.build(force)
+                dozer.build(force, shutdown_receiver)
             }
             Commands::Connectors(ConnectorCommand { filter }) => {
                 dozer.runtime.block_on(list_sources(

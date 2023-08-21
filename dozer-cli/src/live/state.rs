@@ -291,7 +291,8 @@ async fn create_dag(
         endpoint_and_logs,
         MultiProgress::new(),
     );
-    builder.build(&dozer.runtime).await
+    let (_shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
+    builder.build(&dozer.runtime, shutdown_receiver).await
 }
 
 fn get_endpoint_schemas(dag_schemas: &DagSchemas<SchemaSQLContext>) -> SchemasResponse {
@@ -323,7 +324,7 @@ fn run(
 
     let runtime = dozer.runtime.clone();
     let run_thread = std::thread::spawn(move || {
-        dozer.build(true).unwrap();
+        dozer.build(true, shutdown_receiver.clone()).unwrap();
         dozer.run_all(shutdown_receiver)
     });
 
