@@ -1,6 +1,7 @@
 use std::{
     collections::{hash_map::Entry, HashMap},
     num::NonZeroU16,
+    time::Duration,
 };
 
 use dozer_types::{
@@ -10,7 +11,7 @@ use dozer_types::{
 use nonzero_ext::nonzero;
 use tokio::{
     sync::{
-        mpsc::{self, Receiver, Sender},
+        mpsc::{self, error::SendError, Receiver, Sender},
         oneshot,
     },
     task::JoinHandle,
@@ -30,7 +31,10 @@ impl Queue {
         (Self { sender }, worker)
     }
 
-    pub fn create_upload(&self, key: String) -> Result<oneshot::Receiver<String>, String> {
+    pub fn create_upload(
+        &self,
+        key: String,
+    ) -> Result<oneshot::Receiver<String>, SendError<String>> {
         self.send_request(key, RequestKind::CreateUpload)
     }
 
@@ -38,11 +42,14 @@ impl Queue {
         &self,
         key: String,
         data: Vec<u8>,
-    ) -> Result<oneshot::Receiver<String>, String> {
+    ) -> Result<oneshot::Receiver<String>, SendError<String>> {
         self.send_request(key, RequestKind::UploadChunk(data))
     }
 
-    pub fn complete_upload(&self, key: String) -> Result<oneshot::Receiver<String>, String> {
+    pub fn complete_upload(
+        &self,
+        key: String,
+    ) -> Result<oneshot::Receiver<String>, SendError<String>> {
         self.send_request(key, RequestKind::CompleteUpload)
     }
 
@@ -50,7 +57,7 @@ impl Queue {
         &self,
         key: String,
         data: Vec<u8>,
-    ) -> Result<oneshot::Receiver<String>, String> {
+    ) -> Result<oneshot::Receiver<String>, SendError<String>> {
         self.send_request(key, RequestKind::UploadObject(data))
     }
 
@@ -58,7 +65,7 @@ impl Queue {
         &self,
         key: String,
         kind: RequestKind,
-    ) -> Result<oneshot::Receiver<String>, String> {
+    ) -> Result<oneshot::Receiver<String>, SendError<String>> {
         let (return_sender, return_receiver) = oneshot::channel();
         self.sender
             .blocking_send(Request {
@@ -66,7 +73,7 @@ impl Queue {
                 kind,
                 return_sender,
             })
-            .map_err(|e| e.0.key)?;
+            .map_err(|e| SendError(e.0.key))?;
         Ok(return_receiver)
     }
 }
@@ -110,8 +117,17 @@ async fn upload_loop(storage: Box<dyn Storage>, mut requests: Receiver<Request>)
                     }
                     break;
                 }
+                Err(Error::Storage(e)) => {
+                    const RETRY_INTERVAL: Duration = Duration::from_secs(5);
+                    error!(
+                        "error uploading {}: {e}. Retrying in {RETRY_INTERVAL:?}",
+                        request.key
+                    );
+                    tokio::time::sleep(RETRY_INTERVAL).await;
+                }
                 Err(e) => {
                     error!("error uploading {}: {e}", request.key);
+                    break;
                 }
             }
         }

@@ -1,4 +1,5 @@
 use dozer_types::log::error;
+use tokio::sync::mpsc::error::SendError;
 
 use super::queue::Queue;
 
@@ -10,7 +11,7 @@ pub struct Object {
 }
 
 impl Object {
-    pub fn new(queue: Queue, key: String) -> Result<Self, String> {
+    pub fn new(queue: Queue, key: String) -> Result<Self, SendError<String>> {
         queue.create_upload(key.clone())?;
         Ok(Self {
             queue,
@@ -19,7 +20,7 @@ impl Object {
         })
     }
 
-    pub fn write(&mut self, data: &[u8]) -> Result<(), String> {
+    pub fn write(&mut self, data: &[u8]) -> Result<(), SendError<String>> {
         self.data.extend_from_slice(data);
         if self.data.len() >= 100 * 1024 * 1024 {
             self.queue
@@ -32,7 +33,7 @@ impl Object {
         &self.queue
     }
 
-    fn drop(&mut self) -> Result<(), String> {
+    fn drop(&mut self) -> Result<(), SendError<String>> {
         if !self.data.is_empty() {
             self.queue
                 .upload_chunk(self.key.clone(), std::mem::take(&mut self.data))?;

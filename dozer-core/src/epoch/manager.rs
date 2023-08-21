@@ -35,7 +35,7 @@ enum EpochManagerStateKind {
         terminating: bool,
         /// - `None`: Should not commit.
         /// - `Some(false)`: Should commit but should not persist.
-        /// - `Some(true)`: Should commit and persist records from `index`.
+        /// - `Some(true)`: Should commit and persist records from `next_record_index_to_persist`.
         should_persist_if_committing: Option<bool>,
         /// Closed epoch id.
         epoch_id: u64,
