@@ -1,7 +1,12 @@
 use super::errors::LiveError;
 use super::WEB_PORT;
+use actix_files::NamedFile;
+use dozer_api::actix_web;
 use dozer_api::actix_web::dev::Server;
+use dozer_api::actix_web::middleware;
+use dozer_api::actix_web::web;
 use dozer_api::actix_web::App;
+use dozer_api::actix_web::HttpRequest;
 use dozer_api::actix_web::HttpServer;
 use dozer_types::log::info;
 use std::env;
@@ -12,6 +17,7 @@ use std::io::Read;
 use std::io::Seek;
 use std::io::Write;
 use std::path::Path;
+use std::path::PathBuf;
 use zip::ZipArchive;
 
 pub async fn fetch_latest_dozer_explorer_code() -> Result<(), LiveError> {
@@ -124,16 +130,23 @@ fn delete_file_if_present(file_name: &str) -> Result<(), LiveError> {
     Ok(())
 }
 
+async fn index(_req: HttpRequest) -> actix_web::Result<NamedFile> {
+    let build_path = get_build_path();
+    let index_path = build_path.join("index.html");
+    let path: PathBuf = index_path; // Update this with the actual path to your build folder
+    Ok(NamedFile::open(path)?)
+}
 //This function navigates to the react app and starts it
 pub fn start_react_app() -> Result<Server, std::io::Error> {
-    let directory_path = get_directory_path();
-    let build_path = Path::new(&directory_path)
-        .join("local-ui")
-        .join("contents")
-        .join("build");
+    let build_path = get_build_path();
+    let static_path = build_path.join("static");
+    let assets_path = build_path.join("assets");
     let server = HttpServer::new(move || {
         App::new()
-            .service(actix_files::Files::new("/", build_path.clone()).index_file("index.html"))
+            .wrap(middleware::Logger::default())
+            .service(actix_files::Files::new("/static", &static_path).show_files_listing())
+            .service(actix_files::Files::new("/assets", &assets_path).show_files_listing())
+            .route("/{anyname:.*}", web::get().to(index))
     })
     .bind(("0.0.0.0", WEB_PORT))?
     .run();
@@ -143,4 +156,12 @@ pub fn start_react_app() -> Result<Server, std::io::Error> {
 fn get_directory_path() -> String {
     let home_dir = env::var("HOME").unwrap_or_else(|_| ".".to_string());
     format!("{}/{}", home_dir, ".dozer")
+}
+
+fn get_build_path() -> PathBuf {
+    let directory_path = get_directory_path();
+    Path::new(&directory_path)
+        .join("local-ui")
+        .join("contents")
+        .join("build")
 }
