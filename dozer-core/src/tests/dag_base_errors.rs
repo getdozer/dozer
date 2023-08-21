@@ -12,7 +12,7 @@ use crate::tests::dag_base_run::NoopProcessorFactory;
 use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
-use dozer_log::storage::Queue;
+use dozer_log::storage::{Object, Queue};
 use dozer_log::tokio;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::ingestion_types::IngestionMessage;
@@ -106,6 +106,14 @@ impl Processor for ErrorProcessor {
         }
 
         fw.send(op, DEFAULT_PORT_HANDLE);
+        Ok(())
+    }
+
+    fn serialize(
+        &mut self,
+        _record_store: &ProcessorRecordStore,
+        _object: Object,
+    ) -> Result<(), BoxedError> {
         Ok(())
     }
 }

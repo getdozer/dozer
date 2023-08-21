@@ -1,9 +1,11 @@
 use super::operator::{SetAction, SetOperation};
 use super::record_map::{
-    AccurateCountingRecordMap, CountingRecordMapEnum, ProbabilisticCountingRecordMap,
+    AccurateCountingRecordMap, CountingRecordMap, CountingRecordMapEnum,
+    ProbabilisticCountingRecordMap,
 };
 use crate::pipeline::errors::{PipelineError, ProductError};
 use dozer_core::channels::ProcessorChannelForwarder;
+use dozer_core::dozer_log::storage::Object;
 use dozer_core::epoch::Epoch;
 use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{PortHandle, Processor};
@@ -179,5 +181,15 @@ impl Processor for SetProcessor {
             }
         }
         Ok(())
+    }
+
+    fn serialize(
+        &mut self,
+        record_store: &ProcessorRecordStore,
+        mut object: Object,
+    ) -> Result<(), BoxedError> {
+        self.record_map
+            .serialize(record_store, &mut object)
+            .map_err(Into::into)
     }
 }

@@ -9,6 +9,7 @@ use crate::pipeline::expression::execution::{Expression, ExpressionType};
 use dozer_types::arrow::datatypes::ArrowNativeTypeOp;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
+use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::{DozerDuration, Field, FieldType, Schema, SourceDefinition, TimeUnit};
 use num_traits::FromPrimitive;
 
@@ -58,7 +59,8 @@ pub fn validate_avg(args: &[Expression], schema: &Schema) -> Result<ExpressionTy
     ))
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(crate = "dozer_types::serde")]
 pub struct AvgAggregator {
     current_state: SumState,
     current_count: u64,

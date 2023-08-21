@@ -43,6 +43,8 @@ pub enum ExecutionError {
     CheckpointWriterThreadPanicked,
     #[error("Unrecognized checkpoint: {0}")]
     UnrecognizedCheckpoint(String),
+    #[error("Failed to create checkpoint: {0}")]
+    FailedToCreateCheckpoint(BoxedError),
 }
 
 impl<T> From<crossbeam::channel::SendError<T>> for ExecutionError {

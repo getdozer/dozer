@@ -1,4 +1,5 @@
 use dozer_core::channels::ProcessorChannelForwarder;
+use dozer_core::dozer_log::storage::Object;
 use dozer_core::epoch::Epoch;
 use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{PortHandle, Processor};
@@ -89,6 +90,14 @@ impl Processor for TableOperatorProcessor {
                 }
             }
         }
+        Ok(())
+    }
+
+    fn serialize(
+        &mut self,
+        _record_store: &ProcessorRecordStore,
+        _object: Object,
+    ) -> Result<(), BoxedError> {
         Ok(())
     }
 }

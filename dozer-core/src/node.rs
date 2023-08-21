@@ -3,7 +3,7 @@ use crate::epoch::Epoch;
 use crate::executor_operation::ProcessorOperation;
 use crate::processor_record::ProcessorRecordStore;
 
-use dozer_log::storage::Queue;
+use dozer_log::storage::{Object, Queue};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::Schema;
@@ -89,6 +89,11 @@ pub trait Processor: Send + Sync + Debug {
         record_store: &ProcessorRecordStore,
         op: ProcessorOperation,
         fw: &mut dyn ProcessorChannelForwarder,
+    ) -> Result<(), BoxedError>;
+    fn serialize(
+        &mut self,
+        record_store: &ProcessorRecordStore,
+        object: Object,
     ) -> Result<(), BoxedError>;
 }
 

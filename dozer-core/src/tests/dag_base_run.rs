@@ -12,6 +12,7 @@ use crate::tests::sources::{
     GENERATOR_SOURCE_OUTPUT_PORT,
 };
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
+use dozer_log::storage::Object;
 use dozer_log::tokio;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
@@ -80,6 +81,14 @@ impl Processor for NoopProcessor {
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         fw.send(op, DEFAULT_PORT_HANDLE);
+        Ok(())
+    }
+
+    fn serialize(
+        &mut self,
+        _record_store: &ProcessorRecordStore,
+        _object: Object,
+    ) -> Result<(), BoxedError> {
         Ok(())
     }
 }
@@ -231,6 +240,14 @@ impl Processor for NoopJoinProcessor {
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         fw.send(op, DEFAULT_PORT_HANDLE);
+        Ok(())
+    }
+
+    fn serialize(
+        &mut self,
+        _record_store: &ProcessorRecordStore,
+        _object: Object,
+    ) -> Result<(), BoxedError> {
         Ok(())
     }
 }

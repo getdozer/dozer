@@ -1,6 +1,14 @@
-use dozer_core::processor_record::ProcessorRecord;
+use dozer_core::{
+    dozer_log::storage::Object,
+    processor_record::{ProcessorRecord, ProcessorRecordStore},
+};
+use dozer_types::serde::{Deserialize, Serialize};
 use enum_dispatch::enum_dispatch;
 use std::collections::HashMap;
+
+use crate::pipeline::utils::serialize::{
+    serialize_bincode, serialize_u64, serialize_vec_u8, SerializationError,
+};
 
 #[enum_dispatch(CountingRecordMap)]
 pub enum CountingRecordMapEnum {
@@ -22,6 +30,13 @@ pub trait CountingRecordMap {
 
     /// Clears the map, removing all records.
     fn clear(&mut self);
+
+    /// Serializes the map to a `Object`. `ProcessorRecord`s should be serialized as an `u64`.
+    fn serialize(
+        &self,
+        record_store: &ProcessorRecordStore,
+        object: &mut Object,
+    ) -> Result<(), SerializationError>;
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -61,8 +76,24 @@ impl CountingRecordMap for AccurateCountingRecordMap {
     fn clear(&mut self) {
         self.map.clear();
     }
+
+    fn serialize(
+        &self,
+        record_store: &ProcessorRecordStore,
+        object: &mut Object,
+    ) -> Result<(), SerializationError> {
+        serialize_u64(self.map.len() as u64, object)?;
+        for (key, value) in &self.map {
+            let record = record_store.serialize_record(key)?;
+            serialize_vec_u8(&record, object)?;
+            serialize_u64(*value, object)?;
+        }
+        Ok(())
+    }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(crate = "dozer_types::serde")]
 pub struct ProbabilisticCountingRecordMap {
     map: bloom::CountingBloomFilter,
 }
@@ -96,6 +127,14 @@ impl CountingRecordMap for ProbabilisticCountingRecordMap {
 
     fn clear(&mut self) {
         self.map.clear();
+    }
+
+    fn serialize(
+        &self,
+        _record_store: &ProcessorRecordStore,
+        object: &mut Object,
+    ) -> Result<(), SerializationError> {
+        serialize_bincode(&self.map, object)
     }
 }
 

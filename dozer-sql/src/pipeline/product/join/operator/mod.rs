@@ -1,7 +1,10 @@
-use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordStore};
+use dozer_core::{
+    dozer_log::storage::Object,
+    processor_record::{ProcessorRecord, ProcessorRecordStore},
+};
 use dozer_types::types::{Record, Schema, Timestamp};
 
-use crate::pipeline::errors::JoinError;
+use crate::pipeline::{errors::JoinError, utils::serialize::SerializationError};
 
 use self::table::{JoinKey, JoinTable};
 
@@ -215,6 +218,16 @@ impl JoinOperator {
     pub fn evict_index(&mut self, now: &Timestamp) {
         self.left.evict_index(now);
         self.right.evict_index(now);
+    }
+
+    pub fn serialize(
+        &self,
+        record_store: &ProcessorRecordStore,
+        mut object: Object,
+    ) -> Result<(), SerializationError> {
+        self.left.serialize(record_store, &mut object)?;
+        self.right.serialize(record_store, &mut object)?;
+        Ok(())
     }
 }
 

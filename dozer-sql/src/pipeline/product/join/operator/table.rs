@@ -3,7 +3,10 @@ use std::{
     iter::{once, Flatten, Once},
 };
 
-use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordStore};
+use dozer_core::{
+    dozer_log::storage::Object,
+    processor_record::{ProcessorRecord, ProcessorRecordStore},
+};
 use dozer_types::{
     chrono,
     types::{Field, Record, Schema, Timestamp},
@@ -12,7 +15,10 @@ use linked_hash_map::LinkedHashMap;
 
 use crate::pipeline::{
     errors::JoinError,
-    utils::record_hashtable_key::{get_record_hash, RecordKey},
+    utils::{
+        record_hashtable_key::{get_record_hash, RecordKey},
+        serialize::{serialize_bincode, serialize_u64, serialize_vec_u8, SerializationError},
+    },
 };
 
 pub type JoinKey = RecordKey;
@@ -138,6 +144,17 @@ impl JoinTable {
         }
     }
 
+    pub fn serialize(
+        &self,
+        record_store: &ProcessorRecordStore,
+        object: &mut Object,
+    ) -> Result<(), SerializationError> {
+        serialize_record(&self.default_record, record_store, object)?;
+        serialize_join_map(&self.map, record_store, object)?;
+        serialize_bincode(&self.lifetime_map, object)?;
+        Ok(())
+    }
+
     fn get_join_key(&self, record: &Record) -> JoinKey {
         if self.accurate_keys {
             JoinKey::Accurate(get_record_key_fields(record, &self.join_key_indexes))
@@ -185,4 +202,50 @@ fn remove_record_using_primary_key(
     if let Some(record_vec) = record_map.get_mut(&primary_key) {
         record_vec.pop();
     }
+}
+
+fn serialize_join_map(
+    join_map: &HashMap<RecordKey, HashMap<u64, Vec<ProcessorRecord>>>,
+    record_store: &ProcessorRecordStore,
+    object: &mut Object,
+) -> Result<(), SerializationError> {
+    serialize_u64(join_map.len() as u64, object)?;
+    for (key, value) in join_map {
+        serialize_bincode(key, object)?;
+        serialize_map(value, record_store, object)?;
+    }
+    Ok(())
+}
+
+fn serialize_map(
+    map: &HashMap<u64, Vec<ProcessorRecord>>,
+    record_store: &ProcessorRecordStore,
+    object: &mut Object,
+) -> Result<(), SerializationError> {
+    serialize_u64(map.len() as u64, object)?;
+    for (key, value) in map {
+        serialize_u64(*key, object)?;
+        serialize_vec(value, record_store, object)?;
+    }
+    Ok(())
+}
+
+fn serialize_vec(
+    vec: &[ProcessorRecord],
+    record_store: &ProcessorRecordStore,
+    object: &mut Object,
+) -> Result<(), SerializationError> {
+    serialize_u64(vec.len() as u64, object)?;
+    for record in vec {
+        serialize_record(record, record_store, object)?;
+    }
+    Ok(())
+}
+
+fn serialize_record(
+    record: &ProcessorRecord,
+    record_store: &ProcessorRecordStore,
+    object: &mut Object,
+) -> Result<(), SerializationError> {
+    serialize_vec_u8(&record_store.serialize_record(record)?, object)
 }
