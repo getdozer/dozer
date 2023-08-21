@@ -33,10 +33,8 @@ enum EpochManagerStateKind {
     Closed {
         /// Whether sources should terminate.
         terminating: bool,
-        /// - `None`: Should not commit.
-        /// - `Some(false)`: Should commit but should not persist.
-        /// - `Some(true)`: Should commit and persist records from `next_record_index_to_persist`.
-        should_persist_if_committing: Option<bool>,
+        /// The action to take, commit, commit and persist, or nothing.
+        action: Action,
         /// Closed epoch id.
         epoch_id: u64,
         /// Instant when the epoch was closed.
@@ -44,6 +42,23 @@ enum EpochManagerStateKind {
         /// Number of sources that have confirmed the epoch close.
         num_source_confirmations: usize,
     },
+}
+
+#[derive(Debug)]
+enum Action {
+    Commit,
+    CommitAndPersist,
+    Nothing,
+}
+
+impl Action {
+    fn should_commit(&self) -> bool {
+        matches!(self, Action::Commit | Action::CommitAndPersist)
+    }
+
+    fn should_persist(&self) -> bool {
+        matches!(self, Action::CommitAndPersist)
+    }
 }
 
 impl EpochManagerStateKind {
@@ -161,9 +176,9 @@ impl EpochManager {
         } = &mut state.kind
         {
             let instant = SystemTime::now();
-            let should_persist_if_committing = if *should_commit {
+            let action = if *should_commit {
                 let num_records = self.record_store().num_records();
-                let should_persist = if num_records - state.next_record_index_to_persist
+                if num_records - state.next_record_index_to_persist
                     >= self.options.max_num_records_before_persist
                     || instant
                         .duration_since(state.last_persisted_epoch_decision_instant)
@@ -172,19 +187,17 @@ impl EpochManager {
                 {
                     state.next_record_index_to_persist = num_records;
                     state.last_persisted_epoch_decision_instant = instant;
-                    true
+                    Action::CommitAndPersist
                 } else {
-                    false
-                };
-
-                Some(should_persist)
+                    Action::Commit
+                }
             } else {
-                None
+                Action::Nothing
             };
 
             state.kind = EpochManagerStateKind::Closed {
                 terminating: *should_terminate,
-                should_persist_if_committing,
+                action,
                 epoch_id: *epoch_id,
                 instant,
                 num_source_confirmations: 0,
@@ -194,20 +207,18 @@ impl EpochManager {
         match &mut state.kind {
             EpochManagerStateKind::Closed {
                 terminating,
-                should_persist_if_committing,
+                action,
                 epoch_id,
                 instant,
                 num_source_confirmations,
             } => {
-                let common_info = should_persist_if_committing.map(|should_persist| {
-                    let checkpoint_writer = if should_persist {
-                        Some(Arc::new(CheckpointWriter::new(
+                let common_info = action.should_commit().then(|| {
+                    let checkpoint_writer = action.should_persist().then(|| {
+                        Arc::new(CheckpointWriter::new(
                             self.checkpoint_factory.clone(),
                             *epoch_id,
-                        )))
-                    } else {
-                        None
-                    };
+                        ))
+                    });
                     EpochCommonInfo {
                         id: *epoch_id,
                         checkpoint_writer,
@@ -224,7 +235,7 @@ impl EpochManager {
                 if *num_source_confirmations == self.num_sources {
                     // This thread is the last one in this critical area.
                     state.kind = EpochManagerStateKind::new_closing(
-                        if should_persist_if_committing.is_some() {
+                        if action.should_commit() {
                             *epoch_id + 1
                         } else {
                             *epoch_id
