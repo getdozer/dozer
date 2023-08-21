@@ -51,8 +51,10 @@ mod tests {
         let de_access = dozer_types::serde_json::from_value::<Access>(
             json!({"Custom":{"films":{"filter":null,"fields":[]}}}),
         );
-        assert!(de_access.is_ok());
 
-        assert_eq!(de_access.unwrap(), access, "are equal");
+        assert_eq!(de_access.unwrap(), access);
+
+        let de_access = dozer_types::serde_json::from_value::<Access>(json!("All"));
+        assert_eq!(de_access.unwrap(), Access::All);
     }
 }
