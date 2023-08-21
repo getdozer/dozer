@@ -17,7 +17,7 @@ use dozer_types::tracing::Level;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 use tower_http::trace::{self, TraceLayer};
-const LIVE_PORT: u16 = 4556;
+pub const LIVE_PORT: u16 = 4556;
 pub struct LiveServer {
     pub receiver: Receiver<ConnectResponse>,
     pub state: Arc<LiveState>,

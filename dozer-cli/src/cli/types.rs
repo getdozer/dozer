@@ -51,7 +51,7 @@ pub enum Commands {
     )]
     Init,
     #[command(about = "Edit code interactively")]
-    Live,
+    Live(Live),
     #[command(
         about = "Clean home directory",
         long_about = "Clean home directory. It removes all data, schemas and other files in app \
@@ -75,6 +75,13 @@ pub enum Commands {
     #[cfg(feature = "cloud")]
     #[command(about = "Deploy cloud applications")]
     Cloud(Cloud),
+}
+
+#[derive(Debug, Args)]
+#[command(args_conflicts_with_subcommands = true)]
+pub struct Live {
+    #[arg(long, hide = true)]
+    pub disable_live_ui: bool,
 }
 
 #[derive(Debug, Args)]

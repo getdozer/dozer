@@ -139,7 +139,7 @@ fn run() -> Result<(), OrchestrationError> {
         .map(|cloud| cloud.app_id.clone().unwrap_or(app_name));
 
     // We always enable telemetry when running live.
-    let telemetry_config = if matches!(cli.cmd, Some(Commands::Live)) {
+    let telemetry_config = if matches!(cli.cmd, Some(Commands::Live(_))) {
         Some(TelemetryConfig {
             trace: None,
             metrics: Some(TelemetryMetricsConfig::Prometheus(())),
@@ -228,11 +228,13 @@ fn run() -> Result<(), OrchestrationError> {
             Commands::Init => {
                 panic!("This should not happen as it is handled in parse_and_generate");
             }
-            Commands::Live => {
+            Commands::Live(live_flags) => {
                 render_logo();
-                dozer
-                    .runtime
-                    .block_on(live::start_live_server(&dozer.runtime, shutdown_receiver))?;
+                dozer.runtime.block_on(live::start_live_server(
+                    &dozer.runtime,
+                    shutdown_receiver,
+                    live_flags,
+                ))?;
                 Ok(())
             }
         }
