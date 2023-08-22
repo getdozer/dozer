@@ -76,21 +76,9 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: ⚡ Cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/.crates.toml
-            ~/.cargo/.crates2.json
-            ~/.cargo/.package-cache
-            ~/.cargo/registry/
-            ~/.cargo/git/db/
-            target/
-          key: coverage-${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
-          restore-keys: |
-            coverage-${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
-            coverage-${{ runner.os }}-cargo-
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+
       - name: MongoDB in GitHub Actions
         uses: supercharge/mongodb-github-action@1.8.0
 
