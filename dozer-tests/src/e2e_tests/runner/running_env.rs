@@ -367,6 +367,9 @@ fn write_dozer_config_for_running_in_docker_compose(
                     .unwrap();
                 mysql.url = url.into();
             }
+            ConnectionConfig::Dozer(_) => {
+                todo!("Map dozer host and port")
+            }
         }
     }
 

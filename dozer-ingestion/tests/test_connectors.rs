@@ -27,4 +27,13 @@ async fn test_mongodb() {
     run_test_suite_basic_data_ready::<test_suite::MongodbConnectorTest>().await;
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn test_nested_dozer() {
+    let _ = env_logger::builder().is_test(true).try_init();
+
+    run_test_suite_basic_data_ready::<test_suite::DozerConnectorTest>().await;
+    run_test_suite_basic_insert_only::<test_suite::DozerConnectorTest>().await;
+    run_test_suite_basic_cud::<test_suite::DozerConnectorTest>().await;
+}
+
 mod test_suite;

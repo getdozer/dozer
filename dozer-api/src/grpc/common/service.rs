@@ -4,9 +4,10 @@ use std::sync::Arc;
 use crate::auth::Access;
 
 use crate::grpc::shared_impl;
-use crate::grpc::types_helper::{map_field_definitions, map_record};
+use crate::grpc::types_helper::map_record;
 use crate::CacheEndpoint;
 use dozer_types::grpc_types::common::common_grpc_service_server::CommonGrpcService;
+use dozer_types::grpc_types::conversions::field_definition_to_grpc;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 
@@ -94,7 +95,7 @@ impl CommonGrpcService for CommonService {
         )?;
         let schema = &cache_reader.get_schema().0;
 
-        let fields = map_field_definitions(schema.fields.clone());
+        let fields = field_definition_to_grpc(schema.fields.clone());
         let records = records.into_iter().map(map_record).collect();
         let reply = QueryResponse { fields, records };
 
@@ -151,7 +152,7 @@ impl CommonGrpcService for CommonService {
         let cache_reader = cache_endpoint.cache_reader();
         let schema = &cache_reader.get_schema().0;
 
-        let fields = map_field_definitions(schema.fields.clone());
+        let fields = field_definition_to_grpc(schema.fields.clone());
 
         let primary_index = schema.primary_index.iter().map(|f| *f as i32).collect();
         Ok(Response::new(GetFieldsResponse {
