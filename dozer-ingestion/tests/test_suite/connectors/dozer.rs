@@ -8,9 +8,10 @@ use dozer_cli::shutdown::{self, ShutdownSender};
 use dozer_cli::simple::SimpleOrchestrator;
 use dozer_ingestion::connectors::dozer::NestedDozerConnector;
 use dozer_ingestion::connectors::{CdcType, SourceSchema};
+use dozer_types::grpc_types::conversions::field_to_grpc;
 use dozer_types::grpc_types::ingest::ingest_service_client::IngestServiceClient;
 use dozer_types::grpc_types::ingest::{IngestRequest, OperationType};
-use dozer_types::grpc_types::types::{value, DurationType, PointType, Record, Value};
+use dozer_types::grpc_types::types::Record;
 use dozer_types::ingestion_types::GrpcConfig;
 use dozer_types::log::info;
 use dozer_types::models::api_endpoint::ApiEndpoint;
@@ -19,6 +20,7 @@ use dozer_types::types::{Field, FieldDefinition, FieldType};
 use dozer_types::{
     ingestion_types::{NestedDozerConfig, NestedDozerLogOptions},
     models::api_config::AppGrpcOptions,
+    serde_json,
 };
 
 use futures::lock::Mutex;
@@ -39,35 +41,6 @@ pub struct DozerConnectorTest {
     schema: String,
 }
 
-fn field_to_grpc(field: Field) -> Option<value::Value> {
-    use value::Value::*;
-    let value = match field {
-        Field::UInt(v) => UintValue(v),
-        Field::U128(v) => Uint128Value(v.to_string()),
-        Field::Int(v) => IntValue(v),
-        Field::I128(v) => Int128Value(v.to_string()),
-        Field::Float(v) => FloatValue(v.0),
-        Field::Boolean(v) => BoolValue(v),
-        Field::String(v) => StringValue(v),
-        Field::Text(v) => StringValue(v),
-        Field::Binary(v) => BytesValue(v),
-        Field::Decimal(_) => todo!(),
-        Field::Timestamp(_) => todo!(),
-        Field::Date(v) => DateValue(v.to_string()),
-        Field::Json(_) => todo!(),
-        Field::Point(v) => PointValue(PointType {
-            x: v.0.x().0,
-            y: v.0.y().0,
-        }),
-        Field::Duration(v) => DurationValue(DurationType {
-            value: v.0.as_nanos().to_string(),
-            time_unit: "nanoseconds".to_owned(),
-        }),
-        Field::Null => return None,
-    };
-    Some(value)
-}
-
 async fn ingest(
     client: &mut IngestServiceClient<Channel>,
     seq_no: &mut u32,
@@ -82,21 +55,11 @@ async fn ingest(
 
     let old = old.map(|fields| Record {
         version: 0,
-        values: fields
-            .into_iter()
-            .map(|field| Value {
-                value: field_to_grpc(field),
-            })
-            .collect::<Vec<_>>(),
+        values: fields.into_iter().map(field_to_grpc).collect::<Vec<_>>(),
     });
     let new = new.map(|fields| Record {
         version: 0,
-        values: fields
-            .into_iter()
-            .map(|field| Value {
-                value: field_to_grpc(field),
-            })
-            .collect::<Vec<_>>(),
+        values: fields.into_iter().map(field_to_grpc).collect::<Vec<_>>(),
     });
 
     let request = IngestRequest {

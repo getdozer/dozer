@@ -1,5 +1,4 @@
 use dozer_log::{
-    errors::ReaderError,
     reader::{LogReaderBuilder, LogReaderOptions},
     replication::LogOperation,
 };
@@ -14,9 +13,12 @@ use dozer_types::{
     },
     models::api_config::AppGrpcOptions,
     serde_json,
-    types::SourceDefinition,
+    types::{Operation, SourceDefinition},
 };
-use tokio::task::JoinSet;
+use tokio::{
+    sync::mpsc::{channel, Sender},
+    task::JoinSet,
+};
 use tonic::{async_trait, transport::Channel};
 
 use crate::{
@@ -31,8 +33,6 @@ use crate::{
 pub struct NestedDozerConnector {
     config: NestedDozerConfig,
 }
-
-impl NestedDozerConnector {}
 
 #[async_trait]
 impl Connector for NestedDozerConnector {
@@ -125,10 +125,23 @@ impl Connector for NestedDozerConnector {
         tables: Vec<TableInfo>,
     ) -> Result<(), ConnectorError> {
         let mut joinset = JoinSet::new();
+        let (sender, mut receiver) = channel(100);
         for (table_index, table) in tables.into_iter().enumerate() {
             let builder = self.get_reader_builder(table.name.clone()).await?;
-            joinset.spawn(read_table(table_index, builder, ingestor.clone()));
+            joinset.spawn(read_table(table_index, builder, sender.clone()));
         }
+
+        let ingestor = ingestor.clone();
+        joinset.spawn(async move {
+            let mut seq_no = 0;
+            while let Some((table_idx, op)) = receiver.recv().await {
+                ingestor
+                    .handle_message(IngestionMessage::new_op(0, seq_no, table_idx, op))
+                    .map_err(ConnectorError::IngestorError)?;
+                seq_no += 1;
+            }
+            Ok(())
+        });
 
         while let Some(result) = joinset.join_next().await {
             // Unwrap to propagate panics inside the tasks
@@ -147,8 +160,12 @@ impl NestedDozerConnector {
     async fn get_client(
         config: &NestedDozerConfig,
     ) -> Result<InternalPipelineServiceClient<Channel>, ConnectorError> {
-        let app_server_addr =
-            Self::get_server_addr(config.grpc.as_ref().expect("grpc is required"));
+        let app_server_addr = Self::get_server_addr(
+            config
+                .grpc
+                .as_ref()
+                .ok_or(ConnectorError::MissingConfiguration("grpc".to_owned()))?,
+        );
         let client = InternalPipelineServiceClient::connect(app_server_addr)
             .await
             .map_err(|e| {
@@ -196,14 +213,12 @@ impl NestedDozerConnector {
 
         let log_options = match self.config.log_options.as_ref() {
             Some(opts) => opts.clone(),
-            None => default_log_options().unwrap(),
+            None => default_log_options(),
         };
         let log_options = Self::get_log_options(endpoint, log_options);
         let log_reader_builder = LogReaderBuilder::new(app_server_addr, log_options)
             .await
-            .map_err(|e| {
-                NestedDozerConnectorError::ReaderError(ReaderError::ReaderBuilderError(e))
-            })?;
+            .map_err(NestedDozerConnectorError::ReaderBuilderError)?;
         Ok(log_reader_builder)
     }
 }
@@ -211,25 +226,24 @@ impl NestedDozerConnector {
 async fn read_table(
     table_idx: usize,
     reader_builder: LogReaderBuilder,
-    ingestor: Ingestor,
+    sender: Sender<(usize, Operation)>,
 ) -> Result<(), ConnectorError> {
     let mut reader = reader_builder.build(0, None);
     loop {
-        let (op, seq_no) = reader.next_op().await.map_err(|e| {
+        let (op, _) = reader.next_op().await.map_err(|e| {
             ConnectorError::NestedDozerConnectorError(NestedDozerConnectorError::ReaderError(e))
         })?;
-        let msg = match op {
-            LogOperation::Op { op } => IngestionMessage::new_op(0, seq_no, table_idx, op),
-            LogOperation::Commit { .. } | LogOperation::SnapshottingDone { .. } => continue,
+        let op = match op {
+            LogOperation::Op { op } => op,
             LogOperation::Terminate => {
                 return Err(ConnectorError::NestedDozerConnectorError(
                     NestedDozerConnectorError::TerminateError,
                 ))
             }
+            LogOperation::Commit { .. } | LogOperation::SnapshottingDone { .. } => continue,
         };
 
-        ingestor
-            .handle_message(msg)
-            .map_err(ConnectorError::IngestorError)?;
+        // If the other side of the channel is dropped, they are handling the error
+        let _ = sender.send((table_idx, op)).await;
     }
 }

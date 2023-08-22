@@ -77,8 +77,9 @@ impl InternalPipelineService for InternalPipelineServer {
         _: Request<DescribeApplicationRequest>,
     ) -> Result<Response<DescribeApplicationResponse>, Status> {
         let mut endpoints = HashMap::with_capacity(self.endpoints.len());
+
         for (endpoint, log_endpoint) in &self.endpoints {
-            let build_response = get_build_response(log_endpoint).await?;
+            let build_response = get_build_response(log_endpoint);
             endpoints.insert(endpoint.clone(), build_response);
         }
 
@@ -91,7 +92,7 @@ impl InternalPipelineService for InternalPipelineServer {
     ) -> Result<Response<BuildResponse>, Status> {
         let endpoint = request.into_inner().endpoint;
         let endpoint = find_log_endpoint(&self.endpoints, &endpoint)?;
-        let build_response = get_build_response(endpoint).await?;
+        let build_response = get_build_response(endpoint);
         Ok(Response::new(build_response))
     }
 
@@ -125,12 +126,12 @@ impl InternalPipelineService for InternalPipelineServer {
     }
 }
 
-async fn get_build_response(endpoint: &LogEndpoint) -> Result<BuildResponse, Status> {
-    Ok(BuildResponse {
+fn get_build_response(endpoint: &LogEndpoint) -> BuildResponse {
+    BuildResponse {
         name: endpoint.build_id.name().to_owned(),
         schema_string: endpoint.schema_string.clone(),
         descriptor_bytes: endpoint.descriptor_bytes.clone(),
-    })
+    }
 }
 
 fn find_log_endpoint<'a>(

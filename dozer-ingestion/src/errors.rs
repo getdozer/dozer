@@ -1,6 +1,6 @@
 #![allow(clippy::enum_variant_names)]
 
-use dozer_log::errors::ReaderError;
+use dozer_log::errors::{ReaderBuilderError, ReaderError};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::{DeserializationError, SerializationError, TypeError};
 use dozer_types::ingestion_types::IngestorError;
@@ -159,6 +159,9 @@ pub enum NestedDozerConnectorError {
 
     #[error(transparent)]
     ReaderError(#[from] ReaderError),
+
+    #[error(transparent)]
+    ReaderBuilderError(#[from] ReaderBuilderError),
 }
 
 #[derive(Error, Debug)]

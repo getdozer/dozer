@@ -61,7 +61,6 @@ tempdir = "0.3.7"
 parquet = "42.0.0"
 env_logger = "0.10.0"
 hex = "0.4.3"
-serde_json = "1.0"
 dozer-cli = { path = "../dozer-cli" }
 
 [features]

@@ -445,7 +445,6 @@ pub struct NestedDozerConfig {
     pub grpc: Option<AppGrpcOptions>,
 
     #[prost(message, tag = "2")]
-    #[serde(default = "default_log_options")]
     pub log_options: Option<NestedDozerLogOptions>,
 }
 
@@ -473,10 +472,10 @@ fn default_buffer_size() -> u32 {
     1000
 }
 
-pub fn default_log_options() -> Option<NestedDozerLogOptions> {
-    Some(NestedDozerLogOptions {
+pub fn default_log_options() -> NestedDozerLogOptions {
+    NestedDozerLogOptions {
         batch_size: default_log_batch_size(),
         timeout_in_millis: default_timeout(),
         buffer_size: default_buffer_size(),
-    })
+    }
 }
