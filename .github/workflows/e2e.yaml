@@ -40,21 +40,8 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: ⚡ Cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/.crates.toml
-            ~/.cargo/.crates2.json
-            ~/.cargo/.package-cache
-            ~/.cargo/registry/
-            ~/.cargo/git/db/
-            target/
-          key: build-${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
-          restore-keys: |
-            build-${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
-            build-${{ runner.os }}-cargo-
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
 
       - name: Build dozer
         run: cargo build --features ethereum,mongodb --bin dozer 
