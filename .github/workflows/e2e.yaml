@@ -1,10 +1,9 @@
 name: Dozer E2E Test
 
 on:
-  pull_request_target:
-    branches: [main]
+  schedule:
+    - cron:  '0 0 * * *'
   workflow_dispatch:
-  merge_group:
 
 env:
   CARGO_TERM_COLOR: always
@@ -19,8 +18,7 @@ jobs:
   e2e:
     timeout-minutes: 60
     runs-on:
-      group: Default Larger Runners
-      labels: ubuntu-latest-16-cores
+      labels: ubuntu-latest
 
     steps:
       - if: github.event_name == 'pull_request_target'
@@ -42,21 +40,8 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: ⚡ Cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/.crates.toml
-            ~/.cargo/.crates2.json
-            ~/.cargo/.package-cache
-            ~/.cargo/registry/
-            ~/.cargo/git/db/
-            target/
-          key: build-${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
-          restore-keys: |
-            build-${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
-            build-${{ runner.os }}-cargo-
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
 
       - name: Build dozer
         run: cargo build --features ethereum,mongodb --bin dozer 
