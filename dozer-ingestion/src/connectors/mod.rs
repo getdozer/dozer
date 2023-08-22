@@ -285,3 +285,12 @@ pub struct ListOrFilterColumns {
     pub name: String,
     pub columns: Option<Vec<String>>,
 }
+
+pub(crate) fn warn_dropped_primary_index(table_name: &str) {
+    dozer_types::log::warn!(
+        "One or more primary index columns from the source table are \
+                    not part of the defined schema for table: '{0}'. \
+                    The primary index will therefore not be present in the Dozer table",
+        table_name
+    );
+}

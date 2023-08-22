@@ -162,6 +162,9 @@ pub enum NestedDozerConnectorError {
 
     #[error(transparent)]
     ReaderBuilderError(#[from] ReaderBuilderError),
+
+    #[error("Column {0} not found")]
+    ColumnNotFound(String),
 }
 
 #[derive(Error, Debug)]

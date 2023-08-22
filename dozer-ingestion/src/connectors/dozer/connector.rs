@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use dozer_log::{
     reader::{LogReaderBuilder, LogReaderOptions},
     replication::LogOperation,
@@ -11,9 +13,8 @@ use dozer_types::{
     ingestion_types::{
         default_log_options, IngestionMessage, NestedDozerConfig, NestedDozerLogOptions,
     },
-    models::api_config::AppGrpcOptions,
     serde_json,
-    types::{Operation, SourceDefinition},
+    types::{Operation, Record, Schema},
 };
 use tokio::{
     sync::mpsc::{channel, Sender},
@@ -23,7 +24,8 @@ use tonic::{async_trait, transport::Channel};
 
 use crate::{
     connectors::{
-        CdcType, Connector, SourceSchema, SourceSchemaResult, TableIdentifier, TableInfo,
+        warn_dropped_primary_index, CdcType, Connector, SourceSchema, SourceSchemaResult,
+        TableIdentifier, TableInfo,
     },
     errors::{ConnectorError, NestedDozerConnectorError},
     ingestion::Ingestor,
@@ -44,7 +46,7 @@ impl Connector for NestedDozerConnector {
     }
 
     async fn validate_connection(&self) -> Result<(), ConnectorError> {
-        let _ = Self::get_client(&self.config).await?;
+        let _ = self.get_client().await?;
 
         Ok(())
     }
@@ -59,9 +61,12 @@ impl Connector for NestedDozerConnector {
         Ok(tables)
     }
 
-    async fn validate_tables(&self, _tables: &[TableIdentifier]) -> Result<(), ConnectorError> {
+    async fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), ConnectorError> {
         self.validate_connection().await?;
 
+        for table in tables {
+            self.get_reader_builder(table.name.clone()).await?;
+        }
         Ok(())
     }
 
@@ -101,19 +106,18 @@ impl Connector for NestedDozerConnector {
         for table_info in table_infos {
             let log_reader = self.get_reader_builder(table_info.name.clone()).await;
 
-            match log_reader {
-                Ok(log_reader) => {
-                    let mut schema = log_reader.schema.schema.clone();
-                    for field in schema.fields.iter_mut() {
-                        // All fields are dynamically defined by the upstream instance
-                        field.source = SourceDefinition::Dynamic;
-                    }
-                    schemas.push(Ok(SourceSchema::new(schema, CdcType::FullChanges)));
+            schemas.push(log_reader.and_then(|log_reader| {
+                let source_primary_index_len = log_reader.schema.schema.primary_index.len();
+                let source_schema = log_reader.schema.schema.clone();
+                let schema_mapper = SchemaMapper::new(source_schema, &table_info.column_names)?;
+                let mut schema = schema_mapper.map()?;
+                if schema.primary_index.len() < source_primary_index_len {
+                    schema.primary_index.clear();
+                    warn_dropped_primary_index(&table_info.name);
                 }
-                Err(e) => {
-                    schemas.push(Err(e));
-                }
-            }
+
+                Ok(SourceSchema::new(schema, CdcType::FullChanges))
+            }));
         }
 
         Ok(schemas)
@@ -126,9 +130,10 @@ impl Connector for NestedDozerConnector {
     ) -> Result<(), ConnectorError> {
         let mut joinset = JoinSet::new();
         let (sender, mut receiver) = channel(100);
+
         for (table_index, table) in tables.into_iter().enumerate() {
             let builder = self.get_reader_builder(table.name.clone()).await?;
-            joinset.spawn(read_table(table_index, builder, sender.clone()));
+            joinset.spawn(read_table(table_index, table, builder, sender.clone()));
         }
 
         let ingestor = ingestor.clone();
@@ -157,15 +162,8 @@ impl NestedDozerConnector {
     pub fn new(config: NestedDozerConfig) -> Self {
         Self { config }
     }
-    async fn get_client(
-        config: &NestedDozerConfig,
-    ) -> Result<InternalPipelineServiceClient<Channel>, ConnectorError> {
-        let app_server_addr = Self::get_server_addr(
-            config
-                .grpc
-                .as_ref()
-                .ok_or(ConnectorError::MissingConfiguration("grpc".to_owned()))?,
-        );
+    async fn get_client(&self) -> Result<InternalPipelineServiceClient<Channel>, ConnectorError> {
+        let app_server_addr = self.get_server_addr()?;
         let client = InternalPipelineServiceClient::connect(app_server_addr)
             .await
             .map_err(|e| {
@@ -177,7 +175,7 @@ impl NestedDozerConnector {
     }
 
     async fn describe_application(&self) -> Result<DescribeApplicationResponse, ConnectorError> {
-        let mut client = Self::get_client(&self.config).await?;
+        let mut client = self.get_client().await?;
 
         let response = client
             .describe_application(DescribeApplicationRequest {})
@@ -191,8 +189,13 @@ impl NestedDozerConnector {
         Ok(response.into_inner())
     }
 
-    fn get_server_addr(config: &AppGrpcOptions) -> String {
-        format!("http://{}:{}", config.host, config.port)
+    fn get_server_addr(&self) -> Result<String, ConnectorError> {
+        let config = self
+            .config
+            .grpc
+            .as_ref()
+            .ok_or(ConnectorError::MissingConfiguration("grpc".to_owned()))?;
+        Ok(format!("http://{}:{}", &config.host, &config.port))
     }
 
     fn get_log_options(endpoint: String, value: NestedDozerLogOptions) -> LogReaderOptions {
@@ -208,8 +211,7 @@ impl NestedDozerConnector {
         &self,
         endpoint: String,
     ) -> Result<LogReaderBuilder, ConnectorError> {
-        let app_server_addr =
-            Self::get_server_addr(self.config.grpc.as_ref().expect("grpc is required"));
+        let app_server_addr = self.get_server_addr()?;
 
         let log_options = match self.config.log_options.as_ref() {
             Some(opts) => opts.clone(),
@@ -225,10 +227,13 @@ impl NestedDozerConnector {
 
 async fn read_table(
     table_idx: usize,
+    table_info: TableInfo,
     reader_builder: LogReaderBuilder,
     sender: Sender<(usize, Operation)>,
 ) -> Result<(), ConnectorError> {
     let mut reader = reader_builder.build(0, None);
+    let schema = reader.schema.schema.clone();
+    let map = SchemaMapper::new(schema, &table_info.column_names)?;
     loop {
         let (op, _) = reader.next_op().await.map_err(|e| {
             ConnectorError::NestedDozerConnectorError(NestedDozerConnectorError::ReaderError(e))
@@ -243,7 +248,178 @@ async fn read_table(
             LogOperation::Commit { .. } | LogOperation::SnapshottingDone { .. } => continue,
         };
 
+        let op = match op {
+            Operation::Delete { old } => Operation::Delete {
+                old: map.map_record(old),
+            },
+            Operation::Insert { new } => Operation::Insert {
+                new: map.map_record(new),
+            },
+            Operation::Update { old, new } => Operation::Update {
+                old: map.map_record(old),
+                new: map.map_record(new),
+            },
+        };
+
         // If the other side of the channel is dropped, they are handling the error
         let _ = sender.send((table_idx, op)).await;
+    }
+}
+
+struct SchemaMapper {
+    source_schema: Schema,
+    fields: Vec<usize>,
+    // The primary index as indices in `fields`
+    primary_index: Vec<usize>,
+}
+
+fn reorder<'a, T>(values: &'a [T], indices: &'a [usize]) -> impl Iterator<Item = T> + 'a
+where
+    T: Clone,
+{
+    indices.iter().map(|index| values[*index].clone())
+}
+
+impl SchemaMapper {
+    fn new(
+        source_schema: dozer_types::types::Schema,
+        columns: &[String],
+    ) -> Result<SchemaMapper, ConnectorError> {
+        let mut our_fields = Vec::with_capacity(columns.len());
+        let upstream_fields: HashMap<String, (usize, bool)> = source_schema
+            .fields
+            .iter()
+            .enumerate()
+            .map(|(i, field)| {
+                (
+                    field.name.clone(),
+                    (i, source_schema.primary_index.contains(&i)),
+                )
+            })
+            .collect();
+
+        let mut primary_index = Vec::with_capacity(source_schema.primary_index.len());
+        for (i, column) in columns.iter().enumerate() {
+            if let Some((idx, is_primary_key)) = upstream_fields.get(column) {
+                our_fields.push(*idx);
+                if *is_primary_key {
+                    primary_index.push(i);
+                }
+            } else {
+                return Err(ConnectorError::NestedDozerConnectorError(
+                    NestedDozerConnectorError::ColumnNotFound(column.to_owned()),
+                ));
+            }
+        }
+
+        Ok(Self {
+            source_schema,
+            fields: our_fields,
+            primary_index,
+        })
+    }
+
+    fn map(self) -> Result<Schema, ConnectorError> {
+        let field_definitions = reorder(&self.source_schema.fields, &self.fields)
+            .map(|mut field| {
+                field.source = Default::default();
+                field
+            })
+            .collect();
+
+        Ok(Schema {
+            fields: field_definitions,
+            primary_index: self.primary_index,
+        })
+    }
+
+    fn map_record(&self, record: Record) -> Record {
+        let values = record.values;
+        Record::new(reorder(&values, &self.fields).collect())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use dozer_types::types::{Field, FieldDefinition, FieldType};
+
+    use super::*;
+
+    fn fields(column_names: &[&'static str]) -> Vec<FieldDefinition> {
+        column_names
+            .iter()
+            .map(|name| FieldDefinition {
+                name: (*name).to_owned(),
+                typ: FieldType::Int,
+                nullable: true,
+                source: Default::default(),
+            })
+            .collect()
+    }
+
+    fn columns(column_names: &[&'static str]) -> Vec<String> {
+        column_names.iter().map(|s| (*s).to_owned()).collect()
+    }
+
+    fn map(
+        source_schema: Schema,
+        output_fields: &[&'static str],
+    ) -> Result<Schema, ConnectorError> {
+        let mapper = SchemaMapper::new(source_schema, &columns(output_fields))?;
+
+        mapper.map()
+    }
+
+    #[test]
+    fn test_map_schema_rearranges_cols() {
+        assert_eq!(
+            map(
+                Schema {
+                    fields: fields(&["0", "1", "2"]),
+                    primary_index: vec![]
+                },
+                &["0", "2", "1"]
+            )
+            .unwrap()
+            .fields,
+            fields(&["0", "2", "1"])
+        );
+    }
+
+    #[test]
+    fn test_map_schema_maps_primary_key() {
+        let source_schema = Schema {
+            fields: fields(&["0", "1"]),
+            primary_index: vec![0],
+        };
+
+        assert_eq!(
+            map(source_schema, &["1", "0"]).unwrap().primary_index,
+            vec![1]
+        );
+    }
+
+    #[test]
+    fn test_map_schema_missing_col_err() {
+        let source_schema = Schema {
+            fields: fields(&["0", "2"]),
+            primary_index: vec![],
+        };
+        assert!(map(source_schema, &["0", "1"]).is_err());
+    }
+
+    #[test]
+    fn test_map_record() {
+        let source_schema = Schema {
+            fields: fields(&["0", "1"]),
+            primary_index: vec![],
+        };
+
+        let mapper = SchemaMapper::new(source_schema, &columns(&["1", "0"])).unwrap();
+
+        assert_eq!(
+            mapper.map_record(Record::new(vec![Field::UInt(0), Field::UInt(1)])),
+            Record::new(vec![Field::UInt(1), Field::UInt(0)])
+        )
     }
 }
