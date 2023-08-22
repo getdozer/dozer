@@ -144,6 +144,7 @@ Check out Dozer's [samples repository](https://github.com/getdozer/dozer-samples
 |                  | [AWS S3](https://github.com/getdozer/dozer-samples/tree/main/connectors/aws-s3)                                            | Load data from AWS S3 bucket                                                 |
 |                  | [Ethereum](https://github.com/getdozer/dozer-samples/tree/main/connectors/ethereum)                              | Load data from Ethereum                                                   |
 |                  | [Kafka](https://github.com/getdozer/dozer-samples/tree/main/connectors/kafka)                              | Load data from kafka stream                                                   |
+|                  | [MySQL](https://github.com/getdozer/dozer-samples/tree/main/connectors/mysql)                                              | Load data using MySQL CDC                                                 |
 |                  | Snowflake (Coming soon)                                                                                                    | Load data using Snowflake table streams                                      |
 | SQL              | [Using JOINs](https://github.com/getdozer/dozer-samples/tree/main/sql/join)                                                | Dozer APIs over multiple sources using JOIN                                  |
 |                  | [Using Aggregations](https://github.com/getdozer/dozer-samples/tree/main/sql/aggregations)                                 | How to aggregate using Dozer                                                 |
@@ -170,7 +171,7 @@ Refer to the full list of connectors and example configurations [here](https://g
 | Google Cloud Storage(CSV, Parquet) |    Alpha    | Object Storage |      Source       | Polling   | Data Fusion     |
 | Ethereum                                       | Available ✅ | Blockchain     | Logs/Contract ABI | Real Time | Direct          |
 | Kafka Stream                                                      | Available ✅  |          |  Schema Registry  | Real Time | Debezium        |
-| MySQL                                                       | In Roadmap  | Relational     |      Source       | Real Time | Debezium        |
+| MySQL                                          | Available ✅ | Relational     |      Source       | Real Time | Direct          |
 | Google Sheets                                               | In Roadmap  | Applications   |      Source       |           |                 |
 | Excel                                                       | In Roadmap  | Applications   |      Source       |           |                 |
 | Airtable                                                    | In Roadmap  | Applications   |      Source       |           |                 |
