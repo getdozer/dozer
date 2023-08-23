@@ -109,7 +109,8 @@ impl CodeService for LiveServer {
                 .await
             {
                 info!("Error getting initial state");
-                info!("{:?}", e);
+                info!("{}", e.to_string());
+                return {};
             }
             loop {
                 let res = receiver.recv().await;
