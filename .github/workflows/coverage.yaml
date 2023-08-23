@@ -24,7 +24,8 @@ jobs:
   coverage:
     timeout-minutes: 60
     runs-on:
-      labels: ubuntu-22.04
+      group: Org Larger Runners
+      labels: ubuntu-latest-8-cores
     services:
       postgres:
         image: debezium/postgres:13
@@ -142,7 +143,7 @@ jobs:
 
   discord_notification:
     if: ${{ github.event_name == 'push' }}
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - name: Discord notification
         env:
