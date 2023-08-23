@@ -4,6 +4,7 @@ use crate::shutdown::ShutdownReceiver;
 
 use super::{state::LiveState, LiveError};
 
+use crate::live::state::BroadcastType;
 use dozer_types::log::info;
 use notify::{RecursiveMode, Watcher};
 use notify_debouncer_full::new_debouncer;
@@ -22,7 +23,13 @@ pub async fn watch(
 
     let watcher = debouncer.watcher();
 
-    watcher.watch(dir.as_path(), RecursiveMode::Recursive)?;
+    watcher.watch(dir.as_path(), RecursiveMode::NonRecursive)?;
+
+    let additional_paths = vec![dir.join("sql")];
+
+    for path in additional_paths {
+        let _ = watcher.watch(path.as_path(), RecursiveMode::NonRecursive);
+    }
 
     debouncer
         .cache()
@@ -34,6 +41,8 @@ pub async fn watch(
         match event {
             Ok(result) => match result {
                 Ok(_events) => {
+                    info!("Rebuilding....");
+                    info!("Events: {:?}", _events);
                     build(runtime.clone(), state.clone()).await;
                 }
                 Err(errors) => errors.iter().for_each(|error| info!("{error:?}")),
@@ -53,14 +62,14 @@ pub async fn watch(
 }
 
 async fn build(runtime: Arc<Runtime>, state: Arc<LiveState>) {
-    state.set_dozer(None).await;
-
-    state.broadcast().await;
+    state.broadcast(BroadcastType::BuildStart).await;
     if let Err(res) = state.build(runtime).await {
-        state.set_error_message(Some(res.to_string())).await;
+        let message = res.to_string();
+        state.set_error_message(Some(message.clone())).await;
+        state.broadcast(BroadcastType::BuildFailed(message)).await;
     } else {
         state.set_error_message(None).await;
+        state.broadcast(BroadcastType::BuildSuccess).await;
     }
     info!("Broadcasting state");
-    state.broadcast().await;
 }

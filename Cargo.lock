@@ -2649,8 +2649,6 @@ dependencies = [
  "reqwest",
  "rustyline",
  "rustyline-derive",
- "serde",
- "serde_json",
  "tempdir",
  "tempfile",
  "tokio",

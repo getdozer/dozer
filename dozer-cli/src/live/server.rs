@@ -105,6 +105,7 @@ impl CodeService for LiveServer {
                 .send(Ok(ConnectResponse {
                     live: Some(initial_state),
                     progress: None,
+                    build: None,
                 }))
                 .await
             {

@@ -6,10 +6,9 @@ use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 use dozer_types::{
     grpc_types::{
         contract::{DotResponse, SchemasResponse},
-        live::{ConnectResponse, LiveApp, LiveResponse, RunRequest},
+        live::{BuildResponse, BuildStatus, ConnectResponse, LiveApp, LiveResponse, RunRequest},
     },
     indicatif::MultiProgress,
-    log::info,
     models::{
         api_config::{ApiConfig, AppGrpcOptions},
         api_endpoint::ApiEndpoint,
@@ -31,6 +30,12 @@ use super::{progress::progress_stream, LiveError};
 struct DozerAndContract {
     dozer: SimpleOrchestrator,
     contract: Option<Contract>,
+}
+
+pub enum BroadcastType {
+    BuildStart,
+    BuildSuccess,
+    BuildFailed(String),
 }
 
 pub struct LiveState {
@@ -73,16 +78,37 @@ impl LiveState {
         *self.sender.write().await = Some(sender);
     }
 
-    pub async fn broadcast(&self) {
+    pub async fn broadcast(&self, broadcast_type: BroadcastType) {
         let sender = self.sender.read().await;
-        info!("broadcasting current state");
+
         if let Some(sender) = sender.as_ref() {
-            let res = self.get_current().await;
-            // Ignore broadcast error.
-            let _ = sender.send(ConnectResponse {
-                live: Some(res),
-                progress: None,
-            });
+            let res = match broadcast_type {
+                BroadcastType::BuildStart => ConnectResponse {
+                    live: None,
+                    progress: None,
+                    build: Some(BuildResponse {
+                        status: BuildStatus::BuildStart as i32,
+                        message: None,
+                    }),
+                },
+                BroadcastType::BuildFailed(msg) => ConnectResponse {
+                    live: None,
+                    progress: None,
+                    build: Some(BuildResponse {
+                        status: BuildStatus::BuildFailed as i32,
+                        message: Some(msg),
+                    }),
+                },
+                BroadcastType::BuildSuccess => {
+                    let res = self.get_current().await;
+                    ConnectResponse {
+                        live: Some(res),
+                        progress: None,
+                        build: None,
+                    }
+                }
+            };
+            let _ = sender.send(res);
         }
     }
 
