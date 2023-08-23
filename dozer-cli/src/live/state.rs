@@ -13,9 +13,9 @@ use dozer_core::{
 };
 use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 use dozer_types::{
-    grpc_types::live::{
-        ConnectResponse, DotResponse, LiveApp, LiveResponse, RunRequest, SchemasResponse,
-        SqlResponse,
+    grpc_types::{
+        contract::{DotResponse, SchemasResponse},
+        live::{ConnectResponse, LiveApp, LiveResponse, RunRequest},
     },
     indicatif::MultiProgress,
     log::info,
@@ -158,13 +158,6 @@ impl LiveState {
         }
     }
 
-    pub async fn get_sql(&self) -> Result<SqlResponse, LiveError> {
-        let dozer = self.dozer.read().await;
-        let dozer = dozer.as_ref().ok_or(LiveError::NotInitialized)?;
-
-        let sql = dozer.dozer.config.sql.clone().unwrap_or_default();
-        Ok(SqlResponse { sql })
-    }
     pub async fn get_endpoints_schemas(&self) -> Result<SchemasResponse, LiveError> {
         self.create_dag_if_missing().await?;
         let dozer = self.dozer.read().await;

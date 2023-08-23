@@ -1,4 +1,4 @@
-use dozer_types::grpc_types::{conversions::field_definition_to_grpc, live::Schema};
+use dozer_types::grpc_types::{contract::Schema, conversions::field_definition_to_grpc};
 
 pub fn map_schema(schema: dozer_types::types::Schema) -> Schema {
     Schema {
