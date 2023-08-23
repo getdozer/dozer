@@ -10,8 +10,8 @@ use dozer_cli::simple::SimpleOrchestrator;
 use dozer_cli::CloudOrchestrator;
 use dozer_cli::{live, set_ctrl_handler, set_panic_hook, shutdown};
 use dozer_types::models::telemetry::{TelemetryConfig, TelemetryMetricsConfig};
+use dozer_types::serde::Deserialize;
 use dozer_types::tracing::{error, info};
-use serde::Deserialize;
 use tokio::runtime::Runtime;
 use tokio::time;
 
@@ -42,6 +42,7 @@ fn render_logo() {
 }
 
 #[derive(Deserialize, Debug)]
+#[serde(crate = "dozer_types::serde")]
 struct DozerPackage {
     #[serde(rename(deserialize = "latestVersion"))]
     pub latest_version: String,

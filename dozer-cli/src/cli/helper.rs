@@ -7,6 +7,7 @@ use crate::simple::SimpleOrchestrator as Dozer;
 use atty::Stream;
 use dozer_types::models::config::default_cache_max_map_size;
 use dozer_types::prettytable::{row, Table};
+use dozer_types::serde_json;
 use dozer_types::{models::config::Config, serde_yaml};
 use handlebars::Handlebars;
 use std::collections::BTreeMap;

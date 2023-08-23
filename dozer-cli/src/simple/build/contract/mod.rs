@@ -10,7 +10,10 @@ use dozer_core::{
     },
 };
 use dozer_types::{models::api_endpoint::ApiEndpoint, node::NodeHandle};
-use serde::{de::DeserializeOwned, Serialize};
+use dozer_types::{
+    serde::{de::DeserializeOwned, Serialize},
+    serde_json,
+};
 
 use crate::errors::BuildError;
 
