@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::auth::Access;
@@ -8,6 +7,7 @@ use crate::grpc::types_helper::map_record;
 use crate::CacheEndpoint;
 use dozer_types::grpc_types::common::common_grpc_service_server::CommonGrpcService;
 use dozer_types::grpc_types::conversions::field_definition_to_grpc;
+use dozer_types::indexmap::IndexMap;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 
@@ -22,8 +22,8 @@ type ResponseStream = ReceiverStream<Result<Operation, tonic::Status>>;
 
 // #[derive(Clone)]
 pub struct CommonService {
-    /// For look up endpoint from its name. `key == value.endpoint.name`.
-    pub endpoint_map: HashMap<String, Arc<CacheEndpoint>>,
+    /// For look up endpoint from its name. `key == value.endpoint.name`. Using index map to keep endpoint order.
+    pub endpoint_map: IndexMap<String, Arc<CacheEndpoint>>,
     pub event_notifier: Option<tokio::sync::broadcast::Receiver<Operation>>,
 }
 
