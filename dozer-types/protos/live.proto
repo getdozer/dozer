@@ -9,7 +9,6 @@ service CodeService {
   rpc Endpoints(CommonRequest) returns (SchemasResponse);
   rpc GenerateDot(CommonRequest) returns (DotResponse);
   rpc GetGraphSchemas(CommonRequest) returns (SchemasResponse);
-  rpc GetSql(CommonRequest) returns (SqlResponse);
   rpc Run(RunRequest) returns (CommonResponse);
   rpc Stop(CommonRequest) returns (CommonResponse);
 }
@@ -64,10 +63,6 @@ message RunSqlRequest {
 
 message RunSourceRequest {
   string source = 1;
-}
-
-message SqlResponse {
-  string sql = 1;
 }
 
 message ProgressResponse {

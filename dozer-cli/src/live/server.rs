@@ -5,7 +5,7 @@ use dozer_types::{
     grpc_types::live::{
         code_service_server::{CodeService, CodeServiceServer},
         CommonRequest, CommonResponse, ConnectResponse, DotResponse, RunRequest, SchemasResponse,
-        SourcesRequest, SqlResponse,
+        SourcesRequest,
     },
     log::{error, info},
 };
@@ -103,18 +103,6 @@ impl CodeService for LiveServer {
     ) -> Result<Response<DotResponse>, Status> {
         let state = self.state.clone();
         let res = state.generate_dot().await;
-
-        match res {
-            Ok(res) => Ok(Response::new(res)),
-            Err(e) => Err(Status::internal(e.to_string())),
-        }
-    }
-
-    async fn get_sql(
-        &self,
-        _request: Request<CommonRequest>,
-    ) -> Result<Response<SqlResponse>, Status> {
-        let res = self.state.get_sql().await;
 
         match res {
             Ok(res) => Ok(Response::new(res)),
