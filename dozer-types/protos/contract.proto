@@ -11,15 +11,20 @@ service ContractService {
   rpc GetGraphSchemas(CommonRequest) returns (SchemasResponse);
 }
 
+message CloudDeploymentId {
+  string app_id = 1;
+  uint32 deployment = 2;
+}
+
 message SourcesRequest {
   // Only used in cloud context.
-  optional string app_id = 1;
+  optional CloudDeploymentId cloud_id = 1;
   string connection_name = 2;
 }
   
 message CommonRequest {
   // Only used in cloud context.
-  optional string app_id = 1;
+  optional CloudDeploymentId cloud_id = 1;
 }
 
 message SchemasResponse {
