@@ -86,13 +86,6 @@ impl LiveState {
         }
     }
 
-    pub async fn set_dozer(&self, dozer: Option<SimpleOrchestrator>) {
-        *self.dozer.write().await = dozer.map(|dozer| DozerAndContract {
-            dozer,
-            contract: None,
-        });
-    }
-
     pub async fn set_error_message(&self, error_message: Option<String>) {
         *self.error_message.write().await = error_message;
     }
@@ -269,10 +262,7 @@ fn run(
     validate_config(&dozer.config)?;
 
     let runtime = dozer.runtime.clone();
-    let run_thread = std::thread::spawn(move || {
-        dozer.build(true, shutdown_receiver.clone()).unwrap();
-        dozer.run_all(shutdown_receiver)
-    });
+    let run_thread = std::thread::spawn(move || dozer.run_all(shutdown_receiver));
 
     let handle = std::thread::spawn(move || {
         runtime.block_on(async {

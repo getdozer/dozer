@@ -142,10 +142,7 @@ impl CodeService for LiveServer {
         let state = self.state.clone();
         info!("Starting dozer");
         match state.run(req).await {
-            Ok(_) => {
-                // let _err = state.broadcast();
-                Ok(Response::new(CommonResponse {}))
-            }
+            Ok(_) => Ok(Response::new(CommonResponse {})),
             Err(e) => Err(Status::internal(e.to_string())),
         }
     }
@@ -154,10 +151,7 @@ impl CodeService for LiveServer {
         let state = self.state.clone();
         info!("Stopping dozer");
         match state.stop().await {
-            Ok(_) => {
-                // let _err = state.broadcast();
-                Ok(Response::new(CommonResponse {}))
-            }
+            Ok(_) => Ok(Response::new(CommonResponse {})),
             Err(e) => Err(Status::internal(e.to_string())),
         }
     }

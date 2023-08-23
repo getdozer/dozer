@@ -56,11 +56,11 @@ async fn build(runtime: Arc<Runtime>, state: Arc<LiveState>) {
     state.set_dozer(None).await;
 
     state.broadcast().await;
-
     if let Err(res) = state.build(runtime).await {
         state.set_error_message(Some(res.to_string())).await;
     } else {
         state.set_error_message(None).await;
     }
+    info!("Broadcasting state");
     state.broadcast().await;
 }
