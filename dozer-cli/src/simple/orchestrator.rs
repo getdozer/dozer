@@ -306,7 +306,7 @@ impl SimpleOrchestrator {
             .map(|flags| flags.push_events)
             .unwrap_or(false);
         let contract = build::Contract::new(
-            dag_schemas,
+            &dag_schemas,
             &self.config.endpoints,
             enable_token,
             enable_on_event,

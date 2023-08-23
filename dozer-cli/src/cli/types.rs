@@ -4,7 +4,7 @@ use super::helper::{DESCRIPTION, LOGO};
 
 #[cfg(feature = "cloud")]
 use crate::cli::cloud::Cloud;
-use dozer_types::constants::DEFAULT_CONFIG_PATH_PATTERNS;
+use dozer_types::{constants::DEFAULT_CONFIG_PATH_PATTERNS, serde_json};
 
 #[derive(Parser, Debug)]
 #[command(author, version, name = "dozer")]
@@ -149,6 +149,8 @@ pub struct ConnectorCommand {
 
 #[cfg(test)]
 mod tests {
+    use dozer_types::serde_json;
+
     #[test]
     fn test_parse_config_override_string() {
         let arg = "/app=\"abc\"";

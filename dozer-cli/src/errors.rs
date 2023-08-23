@@ -18,8 +18,8 @@ use dozer_cache::errors::CacheError;
 use dozer_core::errors::ExecutionError;
 use dozer_ingestion::errors::ConnectorError;
 use dozer_sql::pipeline::errors::PipelineError;
-use dozer_types::errors::internal::BoxedError;
 use dozer_types::thiserror::Error;
+use dozer_types::{errors::internal::BoxedError, serde_json};
 use dozer_types::{serde_yaml, thiserror};
 
 use crate::pipeline::connector_source::ConnectorSourceFactoryError;
@@ -190,7 +190,7 @@ pub enum ConfigCombineError {
 
 #[derive(Debug, Error)]
 pub enum BuildError {
-    #[error("Endpoint {0} found in DAG but not in configuration file")]
+    #[error("Endpoint {0} not found in DAG")]
     MissingEndpoint(String),
     #[error("Got mismatching primary key for `{endpoint_name}`. Expected: `{expected:?}`, got: `{actual:?}`")]
     MismatchPrimaryKey {

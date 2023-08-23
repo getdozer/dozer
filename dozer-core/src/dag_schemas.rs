@@ -1,5 +1,5 @@
 use crate::errors::ExecutionError;
-use crate::{Dag, EdgeHavePorts, NodeKind, DEFAULT_PORT_HANDLE};
+use crate::{Dag, EdgeHavePorts, NodeKind};
 
 use crate::node::{OutputPortType, PortHandle};
 use daggy::petgraph::graph::EdgeReference;
@@ -9,7 +9,7 @@ use daggy::{NodeIndex, Walker};
 use dozer_types::log::{error, info};
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::Schema;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt::Debug;
 
 use super::node::OutputPortDef;
@@ -103,44 +103,6 @@ impl<T> DagSchemas<T> {
 
     pub fn graph(&self) -> &daggy::Dag<NodeType<T>, EdgeType> {
         &self.graph
-    }
-
-    /// Returns a map from the sink node id to the schema of sink.
-    ///
-    /// The schema includes:
-    ///
-    /// - The input schema on the default port, panicking if missing.
-    /// - A `Vec` of the id of source nodes ids that are ancestors of this sink.
-    pub fn get_sink_schemas(&self) -> HashMap<String, (Schema, HashSet<String>)> {
-        let mut schemas = HashMap::new();
-
-        for (node_index, node) in self.graph.node_references() {
-            if let NodeKind::Sink(_) = &node.kind {
-                let mut input_schemas = self.get_node_input_schemas(node_index);
-                let schema = input_schemas
-                    .remove(&DEFAULT_PORT_HANDLE)
-                    .expect("Sink must have input schema on default port");
-
-                let mut sources = Default::default();
-                self.get_ancestor_sources_rec(node_index, &mut sources);
-
-                let old_value = schemas.insert(node.handle.id.clone(), (schema, sources));
-                debug_assert!(old_value.is_none(), "Duplicate sink id");
-            }
-        }
-
-        schemas
-    }
-
-    fn get_ancestor_sources_rec(&self, node_index: NodeIndex, sources: &mut HashSet<String>) {
-        for edge in self.graph.edges_directed(node_index, Direction::Incoming) {
-            let node_index = edge.source();
-            let node = &self.graph[node_index];
-            if let NodeKind::Source(_) = &node.kind {
-                sources.insert(node.handle.id.clone());
-            }
-            self.get_ancestor_sources_rec(node_index, sources);
-        }
     }
 }
 
