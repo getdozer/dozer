@@ -52,7 +52,7 @@ pub async fn watch(
     Ok(())
 }
 
-pub async fn build(runtime: Arc<Runtime>, state: Arc<LiveState>) {
+async fn build(runtime: Arc<Runtime>, state: Arc<LiveState>) {
     state.set_dozer(None).await;
 
     state.broadcast().await;
