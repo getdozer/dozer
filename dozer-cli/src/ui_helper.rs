@@ -161,7 +161,9 @@ pub fn config_to_ui_dag(config: Config) -> Result<QueryGraph, OrchestrationError
             .iter()
             .find(|connection| connection.name == source.connection)
             .cloned()
-            .ok_or(OrchestrationError::SourceValidationError)?;
+            .ok_or(OrchestrationError::ConnectionNotFound(
+                source.connection.clone(),
+            ))?;
         let sources_same_connection = connection_sources.entry(connection).or_insert(vec![]);
         sources_same_connection.push(source);
     }

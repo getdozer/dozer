@@ -9,6 +9,7 @@ use dozer_types::{
         live::{BuildResponse, BuildStatus, ConnectResponse, LiveApp, LiveResponse, RunRequest},
     },
     indicatif::MultiProgress,
+    log::info,
     models::{
         api_config::{ApiConfig, AppGrpcOptions},
         api_endpoint::ApiEndpoint,
@@ -32,10 +33,11 @@ struct DozerAndContract {
     contract: Option<Contract>,
 }
 
+#[derive(Debug)]
 pub enum BroadcastType {
-    BuildStart,
-    BuildSuccess,
-    BuildFailed(String),
+    Start,
+    Success,
+    Failed(String),
 }
 
 pub struct LiveState {
@@ -59,15 +61,7 @@ impl LiveState {
         let mut dozer_and_contract_lock = self.dozer.write().await;
         if let Some(dozer_and_contract) = dozer_and_contract_lock.as_mut() {
             if dozer_and_contract.contract.is_none() {
-                let dag = create_dag(&dozer_and_contract.dozer).await?;
-                let schemas = DagSchemas::new(dag)?;
-                let contract = Contract::new(
-                    &schemas,
-                    &dozer_and_contract.dozer.config.endpoints,
-                    // We don't care about API generation options here. They are handled in `run_all`.
-                    false,
-                    true,
-                )?;
+                let contract = create_contract(dozer_and_contract.dozer.clone()).await?;
                 dozer_and_contract.contract = Some(contract);
             }
         }
@@ -80,10 +74,10 @@ impl LiveState {
 
     pub async fn broadcast(&self, broadcast_type: BroadcastType) {
         let sender = self.sender.read().await;
-
+        info!("Broadcasting state: {:?}", broadcast_type);
         if let Some(sender) = sender.as_ref() {
             let res = match broadcast_type {
-                BroadcastType::BuildStart => ConnectResponse {
+                BroadcastType::Start => ConnectResponse {
                     live: None,
                     progress: None,
                     build: Some(BuildResponse {
@@ -91,7 +85,7 @@ impl LiveState {
                         message: None,
                     }),
                 },
-                BroadcastType::BuildFailed(msg) => ConnectResponse {
+                BroadcastType::Failed(msg) => ConnectResponse {
                     live: None,
                     progress: None,
                     build: Some(BuildResponse {
@@ -99,7 +93,7 @@ impl LiveState {
                         message: Some(msg),
                     }),
                 },
-                BroadcastType::BuildSuccess => {
+                BroadcastType::Success => {
                     let res = self.get_current().await;
                     ConnectResponse {
                         live: Some(res),
@@ -132,11 +126,23 @@ impl LiveState {
         )
         .await?;
 
+        let contract = create_contract(dozer.clone()).await;
         *lock = Some(DozerAndContract {
             dozer,
-            contract: None,
+            contract: match &contract {
+                Ok(contract) => Some(contract.clone()),
+                Err(_) => None,
+            },
         });
-        Ok(())
+        if let Err(e) = &contract {
+            self.set_error_message(Some(e.to_string())).await;
+        } else {
+            self.set_error_message(None).await;
+        }
+
+        contract
+            .map(|_| ())
+            .map_err(|e| LiveError::OrchestrationError(Box::new(e)))
     }
     pub async fn get_current(&self) -> LiveResponse {
         let dozer = self.dozer.read().await;
@@ -255,6 +261,19 @@ fn get_contract(dozer_and_contract: &Option<DozerAndContract>) -> Result<&Contra
         .contract
         .as_ref()
         .ok_or(LiveError::NotInitialized)
+}
+
+async fn create_contract(dozer: SimpleOrchestrator) -> Result<Contract, OrchestrationError> {
+    let dag = create_dag(&dozer).await?;
+    let schemas = DagSchemas::new(dag)?;
+    let contract = Contract::new(
+        &schemas,
+        &dozer.config.endpoints,
+        // We don't care about API generation options here. They are handled in `run_all`.
+        false,
+        true,
+    )?;
+    Ok(contract)
 }
 
 async fn create_dag(

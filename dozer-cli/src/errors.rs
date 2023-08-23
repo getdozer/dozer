@@ -80,8 +80,10 @@ pub enum OrchestrationError {
     PipelineError(#[from] PipelineError),
     #[error(transparent)]
     CliError(#[from] CliError),
-    #[error("Source validation failed")]
-    SourceValidationError,
+    #[error("table_name: {0:?} not found in any of the connections")]
+    SourceValidationError(String),
+    #[error("connection: {0:?} not found")]
+    ConnectionNotFound(String),
     #[error("Pipeline validation failed")]
     PipelineValidationError,
     #[error("Table name specified in endpoint not found: {0:?}")]

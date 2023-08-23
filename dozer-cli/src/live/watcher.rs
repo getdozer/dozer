@@ -41,8 +41,6 @@ pub async fn watch(
         match event {
             Ok(result) => match result {
                 Ok(_events) => {
-                    info!("Rebuilding....");
-                    info!("Events: {:?}", _events);
                     build(runtime.clone(), state.clone()).await;
                 }
                 Err(errors) => errors.iter().for_each(|error| info!("{error:?}")),
@@ -62,14 +60,11 @@ pub async fn watch(
 }
 
 async fn build(runtime: Arc<Runtime>, state: Arc<LiveState>) {
-    state.broadcast(BroadcastType::BuildStart).await;
+    state.broadcast(BroadcastType::Start).await;
     if let Err(res) = state.build(runtime).await {
         let message = res.to_string();
-        state.set_error_message(Some(message.clone())).await;
-        state.broadcast(BroadcastType::BuildFailed(message)).await;
+        state.broadcast(BroadcastType::Failed(message)).await;
     } else {
-        state.set_error_message(None).await;
-        state.broadcast(BroadcastType::BuildSuccess).await;
+        state.broadcast(BroadcastType::Success).await;
     }
-    info!("Broadcasting state");
 }
