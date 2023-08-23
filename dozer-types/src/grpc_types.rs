@@ -43,6 +43,12 @@ pub mod cloud {
     }
 }
 
+pub mod contract {
+    #![allow(clippy::derive_partial_eq_without_eq)]
+    tonic::include_proto!("dozer.contract");
+    pub const FILE_DESCRIPTOR_SET: &[u8] = tonic::include_file_descriptor_set!("contract");
+}
+
 pub mod live {
     #![allow(clippy::derive_partial_eq_without_eq)]
     tonic::include_proto!("dozer.live");

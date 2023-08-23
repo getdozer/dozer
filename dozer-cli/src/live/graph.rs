@@ -14,7 +14,7 @@ use dozer_core::{
     EdgeHavePorts, NodeKind, NodeType,
 };
 use dozer_sql::pipeline::builder::SchemaSQLContext;
-use dozer_types::grpc_types::live::Schema;
+use dozer_types::grpc_types::contract::Schema;
 
 use super::helper::map_schema;
 

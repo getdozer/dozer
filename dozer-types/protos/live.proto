@@ -1,21 +1,14 @@
 syntax = "proto3";
 
 package dozer.live;
-import "types.proto";
+import "google/protobuf/empty.proto";
 
 service CodeService {  
-  rpc LiveConnect(CommonRequest) returns (stream ConnectResponse);
-  rpc Sources(SourcesRequest) returns (SchemasResponse);
-  rpc Endpoints(CommonRequest) returns (SchemasResponse);
-  rpc GenerateDot(CommonRequest) returns (DotResponse);
-  rpc GetGraphSchemas(CommonRequest) returns (SchemasResponse);
+  rpc LiveConnect(google.protobuf.Empty) returns (stream ConnectResponse);
   rpc Run(RunRequest) returns (CommonResponse);
-  rpc Stop(CommonRequest) returns (CommonResponse);
+  rpc Stop(google.protobuf.Empty) returns (CommonResponse);
 }
 
-message CommonRequest {
-
-}
 message CommonResponse {
 }
 
@@ -29,26 +22,6 @@ message LiveResponse {
   bool running = 2;
   optional string error_message = 3;
   LiveApp app = 4;
-}
-
-message SourcesRequest {
-  string connection_name = 1;
-}
-
-message SchemasResponse {
-  map<string, Schema> schemas = 1;
-}
-
-
-message Schema  {
-  // The list of indexes of the keys that are used as the primary index.
-  repeated int32 primary_index = 1;
-  // The list of field definitions.
-  repeated dozer.types.FieldDefinition fields = 2;
-}
-
-message DotResponse {
-  string dot = 1;
 }
 
 message RunRequest {

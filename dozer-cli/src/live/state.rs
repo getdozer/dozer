@@ -13,8 +13,9 @@ use dozer_core::{
 };
 use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 use dozer_types::{
-    grpc_types::live::{
-        ConnectResponse, DotResponse, LiveApp, LiveResponse, RunRequest, SchemasResponse,
+    grpc_types::{
+        contract::{DotResponse, SchemasResponse},
+        live::{ConnectResponse, LiveApp, LiveResponse, RunRequest},
     },
     indicatif::MultiProgress,
     log::info,
