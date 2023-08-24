@@ -204,8 +204,12 @@ pub enum BuildError {
     FieldNotFound(String),
     #[error("File system error {0:?}: {1}")]
     FileSystem(PathBuf, std::io::Error),
+    #[error(
+        "Failed to load existing contract: {0}. You have to run a force build: `dozer build --force`."
+    )]
+    FailedToLoadExistingContract(#[source] serde_json::Error),
     #[error("Serde json error: {0}")]
-    SerdeJson(#[from] serde_json::Error),
+    SerdeJson(#[source] serde_json::Error),
     #[error("Failed to generate proto files: {0:?}")]
     FailedToGenerateProtoFiles(#[from] GenerationError),
     #[error("Storage error: {0}")]
