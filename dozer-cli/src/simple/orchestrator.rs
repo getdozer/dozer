@@ -188,6 +188,7 @@ impl SimpleOrchestrator {
             &self.runtime,
             get_executor_options(&self.config),
             shutdown.clone(),
+            self.config.flags.clone().unwrap_or_default(),
         ))?;
 
         let app_grpc_config = get_app_grpc_config(&self.config);
@@ -289,6 +290,7 @@ impl SimpleOrchestrator {
             self.config.sql.as_deref(),
             endpoint_and_logs,
             self.multi_pb.clone(),
+            self.config.flags.clone().unwrap_or_default(),
         );
         let dag = self
             .runtime
@@ -374,7 +376,7 @@ impl SimpleOrchestrator {
 }
 
 pub fn validate_sql(sql: String) -> Result<(), PipelineError> {
-    statement_to_pipeline(&sql, &mut AppPipeline::new(), None).map_or_else(
+    statement_to_pipeline(&sql, &mut AppPipeline::new_with_default_flags(), None).map_or_else(
         |e| {
             error!(
                 "[sql][{}] Transforms validation error: {}",

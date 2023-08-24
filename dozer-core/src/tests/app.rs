@@ -174,7 +174,7 @@ async fn test_app_dag() {
 
     let mut app = App::new(asm);
 
-    let mut p1 = AppPipeline::new();
+    let mut p1 = AppPipeline::new_with_default_flags();
     p1.add_processor(
         Box::new(NoopJoinProcessorFactory {}),
         "join",
@@ -197,7 +197,7 @@ async fn test_app_dag() {
 
     app.add_pipeline(p1);
 
-    let mut p2 = AppPipeline::new();
+    let mut p2 = AppPipeline::new_with_default_flags();
     p2.add_processor(
         Box::new(NoopJoinProcessorFactory {}),
         "join",
