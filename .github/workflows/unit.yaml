@@ -83,9 +83,6 @@ jobs:
 
       - name: Run connectors tests
         env:
-          CARGO_INCREMENTAL: "0"
-          RUSTFLAGS: "-Cinstrument-coverage"
-          LLVM_PROFILE_FILE: "cargo-test-%p-%m.profraw"
           SN_SERVER: ${{ secrets.SN_SERVER }}
           SN_USER: ${{ secrets.SN_USER }}
           SN_PASSWORD: ${{ secrets.SN_PASSWORD }}
@@ -97,9 +94,6 @@ jobs:
           cargo test test_connector_ --lib --features snowflake,ethereum,kafka,python  --no-fail-fast -- --ignored
 
       - name: Run tests
-        env:
-          CARGO_INCREMENTAL: "0"
-          LLVM_PROFILE_FILE: "cargo-test-%p-%m.profraw"
         shell: bash
         run: |
           source ./dozer-tests/python_udf/virtualenv.sh
