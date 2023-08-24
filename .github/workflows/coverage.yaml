@@ -4,8 +4,6 @@ on:
   workflow_dispatch:
   pull_request_target:
     branches: [main]
-    tags:
-      - "v*.*.*"
   merge_group:
 
 env:
@@ -22,10 +20,11 @@ permissions:
 jobs:
   # Run coverage
   coverage:
+    if: ${{ github.event_name != 'pull_request_target' }}
     timeout-minutes: 60
     runs-on:
       group: Org Larger Runners
-      labels: ubuntu-latest-8-cores
+      labels: ubuntu-latest-16-cores
     services:
       postgres:
         image: debezium/postgres:13
@@ -39,6 +38,19 @@ jobs:
         #        command: postgres -c hba_file=/var/lib/stock-sample/pg_hba.conf
         options: >-
           --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      mysql:
+        image: mysql:8
+        ports:
+          - 3306:3306
+        env:
+          MYSQL_ROOT_PASSWORD: mysql
+          MYSQL_ROOT_HOST: '%'
+          MYSQL_DATABASE: test
+        options: >-
+          --health-cmd "mysqladmin ping -uroot --password=mysql"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
