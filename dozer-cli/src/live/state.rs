@@ -1,6 +1,7 @@
 use std::{sync::Arc, thread::JoinHandle};
 
 use clap::Parser;
+use dozer_cache::dozer_log::camino::Utf8Path;
 use dozer_core::{app::AppPipeline, dag_schemas::DagSchemas, Dag};
 use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 use dozer_types::{
@@ -13,7 +14,6 @@ use dozer_types::{
     models::{
         api_config::{ApiConfig, AppGrpcOptions},
         api_endpoint::ApiEndpoint,
-        telemetry::{TelemetryConfig, TelemetryMetricsConfig},
     },
 };
 use tokio::{runtime::Runtime, sync::RwLock};
@@ -365,16 +365,10 @@ fn get_dozer_run_instance(
         ..Default::default()
     });
 
-    dozer.config.home_dir = tempdir::TempDir::new("live")
-        .unwrap()
-        .into_path()
-        .to_string_lossy()
-        .to_string();
-
-    dozer.config.telemetry = Some(TelemetryConfig {
-        trace: None,
-        metrics: Some(TelemetryMetricsConfig::Prometheus(())),
-    });
+    let temp_dir = tempdir::TempDir::new("live").unwrap();
+    let temp_dir = temp_dir.path().to_str().unwrap();
+    dozer.config.home_dir = temp_dir.to_string();
+    dozer.config.cache_dir = AsRef::<Utf8Path>::as_ref(temp_dir).join("cache").into();
 
     Ok(dozer)
 }
