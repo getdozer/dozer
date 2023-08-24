@@ -20,6 +20,7 @@ permissions:
 jobs:
   # Run coverage
   coverage:
+    if: ${{ github.event_name != 'pull_request_target' }}
     timeout-minutes: 60
     runs-on:
       group: Org Larger Runners
