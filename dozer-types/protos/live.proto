@@ -50,4 +50,14 @@ message Metric {
 message ConnectResponse {
   LiveResponse live = 1;
   ProgressResponse progress = 2;
+  BuildResponse build = 3;
+}
+
+message BuildResponse {
+  BuildStatus status = 1;
+  optional string message = 2;
+}
+enum BuildStatus {
+  BUILD_START = 0; 
+  BUILD_FAILED = 1; 
 }

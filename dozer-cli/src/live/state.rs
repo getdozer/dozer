@@ -6,7 +6,7 @@ use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 use dozer_types::{
     grpc_types::{
         contract::{DotResponse, SchemasResponse},
-        live::{ConnectResponse, LiveApp, LiveResponse, RunRequest},
+        live::{BuildResponse, BuildStatus, ConnectResponse, LiveApp, LiveResponse, RunRequest},
     },
     indicatif::MultiProgress,
     log::info,
@@ -33,6 +33,13 @@ struct DozerAndContract {
     contract: Option<Contract>,
 }
 
+#[derive(Debug)]
+pub enum BroadcastType {
+    Start,
+    Success,
+    Failed(String),
+}
+
 pub struct LiveState {
     dozer: RwLock<Option<DozerAndContract>>,
     run_thread: RwLock<Option<ShutdownSender>>,
@@ -54,15 +61,7 @@ impl LiveState {
         let mut dozer_and_contract_lock = self.dozer.write().await;
         if let Some(dozer_and_contract) = dozer_and_contract_lock.as_mut() {
             if dozer_and_contract.contract.is_none() {
-                let dag = create_dag(&dozer_and_contract.dozer).await?;
-                let schemas = DagSchemas::new(dag)?;
-                let contract = Contract::new(
-                    &schemas,
-                    &dozer_and_contract.dozer.config.endpoints,
-                    // We don't care about API generation options here. They are handled in `run_all`.
-                    false,
-                    true,
-                )?;
+                let contract = create_contract(dozer_and_contract.dozer.clone()).await?;
                 dozer_and_contract.contract = Some(contract);
             }
         }
@@ -73,24 +72,38 @@ impl LiveState {
         *self.sender.write().await = Some(sender);
     }
 
-    pub async fn broadcast(&self) {
+    pub async fn broadcast(&self, broadcast_type: BroadcastType) {
         let sender = self.sender.read().await;
-        info!("broadcasting current state");
+        info!("Broadcasting state: {:?}", broadcast_type);
         if let Some(sender) = sender.as_ref() {
-            let res = self.get_current().await;
-            // Ignore broadcast error.
-            let _ = sender.send(ConnectResponse {
-                live: Some(res),
-                progress: None,
-            });
+            let res = match broadcast_type {
+                BroadcastType::Start => ConnectResponse {
+                    live: None,
+                    progress: None,
+                    build: Some(BuildResponse {
+                        status: BuildStatus::BuildStart as i32,
+                        message: None,
+                    }),
+                },
+                BroadcastType::Failed(msg) => ConnectResponse {
+                    live: None,
+                    progress: None,
+                    build: Some(BuildResponse {
+                        status: BuildStatus::BuildFailed as i32,
+                        message: Some(msg),
+                    }),
+                },
+                BroadcastType::Success => {
+                    let res = self.get_current().await;
+                    ConnectResponse {
+                        live: Some(res),
+                        progress: None,
+                        build: None,
+                    }
+                }
+            };
+            let _ = sender.send(res);
         }
-    }
-
-    pub async fn set_dozer(&self, dozer: Option<SimpleOrchestrator>) {
-        *self.dozer.write().await = dozer.map(|dozer| DozerAndContract {
-            dozer,
-            contract: None,
-        });
     }
 
     pub async fn set_error_message(&self, error_message: Option<String>) {
@@ -113,11 +126,23 @@ impl LiveState {
         )
         .await?;
 
+        let contract = create_contract(dozer.clone()).await;
         *lock = Some(DozerAndContract {
             dozer,
-            contract: None,
+            contract: match &contract {
+                Ok(contract) => Some(contract.clone()),
+                Err(_) => None,
+            },
         });
-        Ok(())
+        if let Err(e) = &contract {
+            self.set_error_message(Some(e.to_string())).await;
+        } else {
+            self.set_error_message(None).await;
+        }
+
+        contract
+            .map(|_| ())
+            .map_err(|e| LiveError::OrchestrationError(Box::new(e)))
     }
     pub async fn get_current(&self) -> LiveResponse {
         let dozer = self.dozer.read().await;
@@ -238,6 +263,19 @@ fn get_contract(dozer_and_contract: &Option<DozerAndContract>) -> Result<&Contra
         .ok_or(LiveError::NotInitialized)
 }
 
+async fn create_contract(dozer: SimpleOrchestrator) -> Result<Contract, OrchestrationError> {
+    let dag = create_dag(&dozer).await?;
+    let schemas = DagSchemas::new(dag)?;
+    let contract = Contract::new(
+        &schemas,
+        &dozer.config.endpoints,
+        // We don't care about API generation options here. They are handled in `run_all`.
+        false,
+        true,
+    )?;
+    Ok(contract)
+}
+
 async fn create_dag(
     dozer: &SimpleOrchestrator,
 ) -> Result<Dag<SchemaSQLContext>, OrchestrationError> {
@@ -269,10 +307,7 @@ fn run(
     validate_config(&dozer.config)?;
 
     let runtime = dozer.runtime.clone();
-    let run_thread = std::thread::spawn(move || {
-        dozer.build(true, shutdown_receiver.clone()).unwrap();
-        dozer.run_all(shutdown_receiver)
-    });
+    let run_thread = std::thread::spawn(move || dozer.run_all(shutdown_receiver));
 
     let handle = std::thread::spawn(move || {
         runtime.block_on(async {

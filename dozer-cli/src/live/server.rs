@@ -105,11 +105,13 @@ impl CodeService for LiveServer {
                 .send(Ok(ConnectResponse {
                     live: Some(initial_state),
                     progress: None,
+                    build: None,
                 }))
                 .await
             {
                 info!("Error getting initial state");
-                info!("{:?}", e);
+                info!("{}", e.to_string());
+                return {};
             }
             loop {
                 let res = receiver.recv().await;
@@ -141,10 +143,7 @@ impl CodeService for LiveServer {
         let state = self.state.clone();
         info!("Starting dozer");
         match state.run(req).await {
-            Ok(_) => {
-                // let _err = state.broadcast();
-                Ok(Response::new(CommonResponse {}))
-            }
+            Ok(_) => Ok(Response::new(CommonResponse {})),
             Err(e) => Err(Status::internal(e.to_string())),
         }
     }
@@ -153,10 +152,7 @@ impl CodeService for LiveServer {
         let state = self.state.clone();
         info!("Stopping dozer");
         match state.stop().await {
-            Ok(_) => {
-                // let _err = state.broadcast();
-                Ok(Response::new(CommonResponse {}))
-            }
+            Ok(_) => Ok(Response::new(CommonResponse {})),
             Err(e) => Err(Status::internal(e.to_string())),
         }
     }

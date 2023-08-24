@@ -22,7 +22,8 @@ pub async fn start_live_server(
     let state = Arc::new(LiveState::new());
 
     state.set_sender(sender.clone()).await;
-    state.build(runtime.clone()).await?;
+    // Ignore if build fails
+    let _ = state.build(runtime.clone()).await;
 
     downloader::fetch_latest_dozer_explorer_code().await?;
 

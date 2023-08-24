@@ -4,6 +4,7 @@ use crate::shutdown::ShutdownReceiver;
 
 use super::{state::LiveState, LiveError};
 
+use crate::live::state::BroadcastType;
 use dozer_types::log::info;
 use notify::{RecursiveMode, Watcher};
 use notify_debouncer_full::new_debouncer;
@@ -22,7 +23,13 @@ pub async fn watch(
 
     let watcher = debouncer.watcher();
 
-    watcher.watch(dir.as_path(), RecursiveMode::Recursive)?;
+    watcher.watch(dir.as_path(), RecursiveMode::NonRecursive)?;
+
+    let additional_paths = vec![dir.join("sql")];
+
+    for path in additional_paths {
+        let _ = watcher.watch(path.as_path(), RecursiveMode::NonRecursive);
+    }
 
     debouncer
         .cache()
@@ -53,14 +60,11 @@ pub async fn watch(
 }
 
 async fn build(runtime: Arc<Runtime>, state: Arc<LiveState>) {
-    state.set_dozer(None).await;
-
-    state.broadcast().await;
-
+    state.broadcast(BroadcastType::Start).await;
     if let Err(res) = state.build(runtime).await {
-        state.set_error_message(Some(res.to_string())).await;
+        let message = res.to_string();
+        state.broadcast(BroadcastType::Failed(message)).await;
     } else {
-        state.set_error_message(None).await;
+        state.broadcast(BroadcastType::Success).await;
     }
-    state.broadcast().await;
 }

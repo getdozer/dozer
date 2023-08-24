@@ -28,7 +28,7 @@ use crate::ui_helper::transform_to_ui_graph;
 
 use super::source_builder::SourceBuilder;
 use crate::errors::OrchestrationError;
-use dozer_types::log::{error, info};
+use dozer_types::log::info;
 use metrics::{describe_counter, increment_counter};
 use OrchestrationError::ExecutionError;
 
@@ -133,8 +133,9 @@ impl<'a> PipelineBuilder<'a> {
             }
 
             if !table_found {
-                error!("Table {} not found in any of the connections", table_name);
-                return Err(OrchestrationError::SourceValidationError);
+                return Err(OrchestrationError::SourceValidationError(
+                    table_name.to_string(),
+                ));
             }
         }
 
