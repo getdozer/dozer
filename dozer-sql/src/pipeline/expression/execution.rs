@@ -8,7 +8,6 @@ use crate::pipeline::expression::case::evaluate_case;
 use crate::pipeline::expression::conditional::{
     get_conditional_expr_type, ConditionalExpressionType,
 };
-use dozer_types::ort::Session;
 use crate::pipeline::expression::datetime::{get_datetime_function_type, DateTimeFunctionType};
 use crate::pipeline::expression::geo::common::{get_geo_function_type, GeoFunctionType};
 use crate::pipeline::expression::json_functions::JsonFunctionType;
@@ -19,9 +18,13 @@ use std::iter::zip;
 
 use crate::pipeline::aggregation::max_value::validate_max_value;
 use crate::pipeline::aggregation::min_value::validate_min_value;
+#[cfg(feature = "onnx")]
+use dozer_types::types::DozerSession;
 use dozer_types::types::Record;
 use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
 use uuid::Uuid;
+#[cfg(feature = "onnx")]
+use dozer_types::ort::Session;
 
 use super::aggregate::AggregateFunctionType;
 use super::cast::CastOperatorType;
@@ -104,16 +107,10 @@ pub enum Expression {
     #[cfg(feature = "onnx")]
     OnnxUDF {
         name: String,
-        session: Session,
+        session: DozerSession,
         args: Vec<Expression>,
         return_type: FieldType,
     },
-}
-
-impl Clone for Session {
-    fn clone(&self) -> Self {
-        Session(self.0)
-    }
 }
 
 impl Expression {
@@ -345,14 +342,15 @@ impl Expression {
             }
             #[cfg(feature = "onnx")]
             Expression::OnnxUDF {
-                name: _name,
+                name,
                 session,
                 args,
                 return_type,
                 ..
             } => {
                 use crate::pipeline::expression::onnx_udf::evaluate_onnx_udf;
-                evaluate_onnx_udf(schema, session, args, return_type, record)
+                use std::borrow::Borrow;
+                evaluate_onnx_udf(schema, session.0.borrow(), args, return_type, record)
             }
 
             Expression::UnaryOperator { operator, arg } => operator.evaluate(schema, arg, record),

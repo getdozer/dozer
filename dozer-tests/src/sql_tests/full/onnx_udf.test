@@ -5,6 +5,6 @@ statement ok
 INSERT INTO t1(a, b) VALUES (2, 3)
 
 query II
-SELECT py_add<float>(a), py_sum<float>(a, b) from t1
+SELECT tf2onnx<float>(a) from t1
 ----
-3 5
+3

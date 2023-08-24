@@ -31,8 +31,8 @@ pub struct Executor<'a> {
     udfs: &'a [UdfConfig],
 }
 
-#[ignore(clippy::too_many_arguments)]
 impl<'a> Executor<'a> {
+    #[ignore = "clippy::too_many_arguments"]
     pub async fn new(
         home_dir: &'a HomeDir,
         connections: &'a [Connection],

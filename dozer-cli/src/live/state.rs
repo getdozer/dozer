@@ -344,7 +344,7 @@ fn get_dozer_run_instance(
 ) -> Result<SimpleOrchestrator, LiveError> {
     match req.request {
         Some(dozer_types::grpc_types::live::run_request::Request::Sql(req)) => {
-            let context = statement_to_pipeline(&req.sql, &mut AppPipeline::new(), None)
+            let context = statement_to_pipeline(&req.sql, &mut AppPipeline::new(), None, &dozer.config.udfs)
                 .map_err(LiveError::PipelineError)?;
 
             //overwrite sql

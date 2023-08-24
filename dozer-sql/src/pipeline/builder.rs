@@ -739,7 +739,7 @@ mod tests {
 #[test]
 fn test_missing_into_in_simple_from_clause() {
     let sql = r#"SELECT a FROM B "#;
-    let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None);
+    let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None, &vec![]);
     //check if the result is an error
     assert!(matches!(result, Err(PipelineError::MissingIntoClause)))
 }
@@ -747,7 +747,7 @@ fn test_missing_into_in_simple_from_clause() {
 #[test]
 fn test_correct_into_clause() {
     let sql = r#"SELECT a INTO C FROM B"#;
-    let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None);
+    let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None, &vec![]);
     //check if the result is ok
     assert!(result.is_ok());
 }
@@ -755,7 +755,7 @@ fn test_correct_into_clause() {
 #[test]
 fn test_missing_into_in_nested_from_clause() {
     let sql = r#"SELECT a FROM (SELECT a from b)"#;
-    let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None);
+    let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None, &vec![]);
     //check if the result is an error
     assert!(matches!(result, Err(PipelineError::MissingIntoClause)))
 }
@@ -763,7 +763,7 @@ fn test_missing_into_in_nested_from_clause() {
 #[test]
 fn test_correct_into_in_nested_from() {
     let sql = r#"SELECT a INTO c FROM (SELECT a from b)"#;
-    let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None);
+    let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None, &vec![]);
     //check if the result is ok
     assert!(result.is_ok());
 }
@@ -773,7 +773,7 @@ fn test_missing_into_in_with_clause() {
     let sql = r#"WITH tbl as (select a from B)
     select B
     from tbl;"#;
-    let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None);
+    let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None, &vec![]);
     //check if the result is an error
     assert!(matches!(result, Err(PipelineError::MissingIntoClause)))
 }
@@ -784,7 +784,7 @@ fn test_correct_into_in_with_clause() {
     select B
     into C
     from tbl;"#;
-    let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None);
+    let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None, &vec![]);
     //check if the result is ok
     assert!(result.is_ok());
 }

@@ -28,4 +28,7 @@ mod number;
 mod point;
 #[cfg(test)]
 mod string;
+#[cfg(test)]
+#[cfg(feature = "onnx")]
+mod onnx;
 mod test_common;

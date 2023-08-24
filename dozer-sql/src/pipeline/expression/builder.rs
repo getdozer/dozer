@@ -9,7 +9,8 @@ use sqlparser::ast::{
     UnaryOperator as SqlUnaryOperator, Value as SqlValue,
 };
 use dozer_types::models::udf_config::UdfType::Onnx;
-
+#[cfg(feature = "onnx")]
+use dozer_types::types::DozerSession;
 
 use crate::pipeline::errors::PipelineError::{
     InvalidArgument, InvalidExpression, InvalidFunction, InvalidNestedAggregationFunction,
@@ -466,7 +467,7 @@ impl ExpressionBuilder {
 
         // config check for udfs
         #[cfg(feature = "onnx")]
-        if !udfs.is_empty() {
+        if !udfs.is_empty() || function_name.ends_with("onnx") {
             for udf in udfs {
                 match udf.config.clone() {
                     Some(udf_type) => match udf_type {
@@ -875,7 +876,7 @@ impl ExpressionBuilder {
         // Then, transfer onnx function to Expression::OnnxUDF
 
         use dozer_types::types::FieldType;
-        use ort::{
+        use dozer_types::ort::{
             Environment, GraphOptimizationLevel, LoggingLevel, SessionBuilder,
         };
         use std::path::Path;
@@ -901,26 +902,26 @@ impl ExpressionBuilder {
         let session = SessionBuilder::new(&environment).unwrap()
             .with_optimization_level(GraphOptimizationLevel::Level1).unwrap()
             .with_intra_threads(1).unwrap()
-            .with_model_from_file(Path::new("/Users/chloeminkyung/CLionProjects/dozer/dozer-sql/src/pipeline/expression/tests/models/upsample.onnx"))
+            .with_model_from_file(Path::new(config.path.as_str()))
             .expect("Could not read model from memory");
 
         let metadata = session.metadata().unwrap();
-        assert_eq!(metadata.name().unwrap(), "tf2onnx");
+        assert_eq!(metadata.name().unwrap(), udfs.first().unwrap().name);
         // assert_eq!(metadata.name()?, name);
 
         let return_type = {
             let ident = function
                 .return_type
                 .as_ref()
-                .ok_or_else(|| InvalidQuery("Python UDF must have a return type. The syntax is: function_name<return_type>(arguments)".to_string()))?;
+                .ok_or_else(|| InvalidQuery("Onnx UDF must have a return type. The syntax is: function_name<return_type>(arguments)".to_string()))?;
 
             FieldType::try_from(ident.value.as_str())
-                .map_err(|e| InvalidQuery(format!("Failed to parse Python UDF return type: {e}")))?
+                .map_err(|e| InvalidQuery(format!("Failed to parse Onnx UDF return type: {e}")))?
         };
 
         Ok(Expression::OnnxUDF {
             name: name.to_string(),
-            session,
+            session: DozerSession(session.into()),
             args,
             return_type,
         })
