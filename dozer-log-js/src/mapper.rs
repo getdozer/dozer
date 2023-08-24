@@ -34,7 +34,6 @@ pub fn map_executor_operation<'a, C: Context<'a>>(
             let connection_name = cx.string(&connection_name);
             result.set(cx, "connection_name", connection_name)?;
         }
-        LogOperation::Terminate => {}
     }
 
     Ok(result)

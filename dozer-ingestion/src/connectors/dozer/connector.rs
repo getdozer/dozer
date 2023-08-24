@@ -240,11 +240,6 @@ async fn read_table(
         })?;
         let op = match op {
             LogOperation::Op { op } => op,
-            LogOperation::Terminate => {
-                return Err(ConnectorError::NestedDozerConnectorError(
-                    NestedDozerConnectorError::TerminateError,
-                ))
-            }
             LogOperation::Commit { .. } | LogOperation::SnapshottingDone { .. } => continue,
         };
 

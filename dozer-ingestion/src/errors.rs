@@ -154,9 +154,6 @@ pub enum NestedDozerConnectorError {
     #[error("Failed to query endpoints from upstream dozer app. {0}")]
     DescribeEndpointsError(#[source] tonic::Status),
 
-    #[error("Received Terminate")]
-    TerminateError,
-
     #[error(transparent)]
     ReaderError(#[from] ReaderError),
 
