@@ -288,7 +288,7 @@ fn create_dir_if_not_existing(path: &Path) {
 }
 
 fn get_dozer_image() -> String {
-    let version = env::var("DOZER_VERSION").unwrap_or_else(|_| "latest".to_string());
+    let version = env::var("DOZER_VERSION").unwrap_or_else(|_| "7a27e07152d3eb8d6e67003eed8a5f97da645eb6".to_string());
     let result = format!("public.ecr.aws/k7k6x1d4/dozer:{version}");
     info!("Using dozer image: {}", result);
     result
