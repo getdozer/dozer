@@ -8,6 +8,7 @@ service InternalPipelineService {
   rpc DescribeStorage(StorageRequest) returns (StorageResponse);
   rpc ListEndpoints(google.protobuf.Empty) returns (EndpointsResponse);
   rpc DescribeBuild(BuildRequest) returns (BuildResponse);
+  rpc DescribeApplication(DescribeApplicationRequest) returns (DescribeApplicationResponse);
   /// For every `LogRequest` sent, the server will reply one `LogResponse`.
   rpc GetLog(stream LogRequest) returns (stream LogResponse);
 }
@@ -39,6 +40,14 @@ message EndpointResponse {
 
 message EndpointsResponse {
   repeated EndpointResponse endpoints = 1;
+}
+
+message DescribeApplicationRequest {
+  
+}
+
+message DescribeApplicationResponse {
+  map <string, BuildResponse> endpoints = 1;
 }
 
 message BuildRequest {

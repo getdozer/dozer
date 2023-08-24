@@ -49,6 +49,7 @@ pub async fn progress_stream(
                     progress: Some(ProgressResponse {
                         progress: progress.clone(),
                     }),
+                    build: None,
                 })
                 .is_err()
             {

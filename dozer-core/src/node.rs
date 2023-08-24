@@ -3,6 +3,7 @@ use crate::epoch::Epoch;
 use crate::executor_operation::ProcessorOperation;
 use crate::processor_record::ProcessorRecordStore;
 
+use dozer_log::storage::Queue;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::Schema;
@@ -108,6 +109,7 @@ pub trait Sink: Send + Sync + Debug {
         record_store: &ProcessorRecordStore,
         op: ProcessorOperation,
     ) -> Result<(), BoxedError>;
+    fn persist(&mut self, queue: &Queue) -> Result<(), BoxedError>;
 
     fn on_source_snapshotting_done(&mut self, connection_name: String) -> Result<(), BoxedError>;
 }

@@ -4,6 +4,7 @@ mod builder_dag;
 pub mod channels;
 mod dag_impl;
 pub use dag_impl::*;
+pub mod checkpoint;
 mod dag_checkpoint;
 pub mod dag_schemas;
 pub mod epoch;
@@ -21,3 +22,4 @@ pub mod record_store;
 pub mod tests;
 
 pub use daggy::{self, petgraph};
+pub use dozer_log;

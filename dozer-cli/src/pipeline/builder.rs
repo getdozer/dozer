@@ -18,9 +18,9 @@ use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::connection::Connection;
 use dozer_types::models::source::Source;
 use dozer_types::models::udf_config::UdfConfig;
+use dozer_types::parking_lot::Mutex;
 use std::hash::Hash;
 use tokio::runtime::Runtime;
-use tokio::sync::Mutex;
 
 use crate::pipeline::dummy_sink::DummySinkFactory;
 use crate::pipeline::LogSinkFactory;
@@ -29,7 +29,7 @@ use crate::ui_helper::transform_to_ui_graph;
 
 use super::source_builder::SourceBuilder;
 use crate::errors::OrchestrationError;
-use dozer_types::log::{error, info};
+use dozer_types::log::info;
 use metrics::{describe_counter, increment_counter};
 use OrchestrationError::ExecutionError;
 
@@ -137,8 +137,9 @@ impl<'a> PipelineBuilder<'a> {
             }
 
             if !table_found {
-                error!("Table {} not found in any of the connections", table_name);
-                return Err(OrchestrationError::SourceValidationError);
+                return Err(OrchestrationError::SourceValidationError(
+                    table_name.to_string(),
+                ));
             }
         }
 

@@ -10,9 +10,9 @@ pub struct Flags {
     #[serde(default = "default_true")]
     pub grpc_web: bool,
 
-    /// push events enabled. Currently unstable.; Default: false
-    #[prost(bool, tag = "3", default = false)]
-    #[serde(default = "default_false")]
+    /// push events enabled.; Default: true
+    #[prost(bool, tag = "3", default = true)]
+    #[serde(default = "default_true")]
     pub push_events: bool,
 
     /// require authentication to access grpc server reflection service if true.; Default: false

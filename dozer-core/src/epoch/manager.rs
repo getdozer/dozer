@@ -4,9 +4,10 @@ use std::sync::{Arc, Barrier};
 use std::thread::sleep;
 use std::time::{Duration, SystemTime};
 
+use crate::checkpoint::{CheckpointFactory, CheckpointWriter};
 use crate::processor_record::ProcessorRecordStore;
 
-use super::{Epoch, EpochCommonInfo};
+use super::EpochCommonInfo;
 
 #[derive(Debug)]
 struct EpochManagerState {
@@ -32,10 +33,8 @@ enum EpochManagerStateKind {
     Closed {
         /// Whether sources should terminate.
         terminating: bool,
-        /// - `None`: Should not commit.
-        /// - `Some(None)`: Should commit but should not persist.
-        /// - `Some(Some(index))`: Should commit and persist records from `index`.
-        next_record_index_to_persist_if_committing: Option<Option<usize>>,
+        /// The action to take, commit, commit and persist, or nothing.
+        action: Action,
         /// Closed epoch id.
         epoch_id: u64,
         /// Instant when the epoch was closed.
@@ -43,6 +42,23 @@ enum EpochManagerStateKind {
         /// Number of sources that have confirmed the epoch close.
         num_source_confirmations: usize,
     },
+}
+
+#[derive(Debug)]
+enum Action {
+    Commit,
+    CommitAndPersist,
+    Nothing,
+}
+
+impl Action {
+    fn should_commit(&self) -> bool {
+        matches!(self, Action::Commit | Action::CommitAndPersist)
+    }
+
+    fn should_persist(&self) -> bool {
+        matches!(self, Action::CommitAndPersist)
+    }
 }
 
 impl EpochManagerStateKind {
@@ -74,12 +90,12 @@ impl Default for EpochManagerOptions {
 #[derive(Debug)]
 pub struct EpochManager {
     num_sources: usize,
-    record_store: Arc<ProcessorRecordStore>,
+    checkpoint_factory: Arc<CheckpointFactory>,
     options: EpochManagerOptions,
     state: Mutex<EpochManagerState>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 /// When all sources agrees on closing an epoch, the `EpochManager` will make decisions on how to close this epoch and return this struct.
 pub struct ClosedEpoch {
     pub should_terminate: bool,
@@ -91,13 +107,13 @@ pub struct ClosedEpoch {
 impl EpochManager {
     pub fn new(
         num_sources: usize,
-        record_store: Arc<ProcessorRecordStore>,
+        checkpoint_factory: Arc<CheckpointFactory>,
         options: EpochManagerOptions,
     ) -> Self {
         debug_assert!(num_sources > 0);
         Self {
             num_sources,
-            record_store,
+            checkpoint_factory,
             options,
             state: Mutex::new(EpochManagerState {
                 kind: EpochManagerStateKind::new_closing(0, num_sources),
@@ -108,7 +124,7 @@ impl EpochManager {
     }
 
     pub fn record_store(&self) -> &Arc<ProcessorRecordStore> {
-        &self.record_store
+        self.checkpoint_factory.record_store()
     }
 
     /// Waits for the epoch to close until all sources do so.
@@ -160,32 +176,28 @@ impl EpochManager {
         } = &mut state.kind
         {
             let instant = SystemTime::now();
-            let next_record_index_to_persist_if_committing = if *should_commit {
-                let num_records = self.record_store.num_record();
-                let next_record_index_to_persist = if num_records
-                    - state.next_record_index_to_persist
+            let action = if *should_commit {
+                let num_records = self.record_store().num_records();
+                if num_records - state.next_record_index_to_persist
                     >= self.options.max_num_records_before_persist
                     || instant
                         .duration_since(state.last_persisted_epoch_decision_instant)
                         .unwrap_or(Duration::from_secs(0))
                         >= Duration::from_secs(self.options.max_interval_before_persist_in_seconds)
                 {
-                    let result = Some(state.next_record_index_to_persist);
                     state.next_record_index_to_persist = num_records;
                     state.last_persisted_epoch_decision_instant = instant;
-                    result
+                    Action::CommitAndPersist
                 } else {
-                    None
-                };
-
-                Some(next_record_index_to_persist)
+                    Action::Commit
+                }
             } else {
-                None
+                Action::Nothing
             };
 
             state.kind = EpochManagerStateKind::Closed {
                 terminating: *should_terminate,
-                next_record_index_to_persist_if_committing,
+                action,
                 epoch_id: *epoch_id,
                 instant,
                 num_source_confirmations: 0,
@@ -195,17 +207,23 @@ impl EpochManager {
         match &mut state.kind {
             EpochManagerStateKind::Closed {
                 terminating,
-                next_record_index_to_persist_if_committing,
+                action,
                 epoch_id,
                 instant,
                 num_source_confirmations,
             } => {
-                let common_info = next_record_index_to_persist_if_committing.map(
-                    |next_record_index_to_persist| EpochCommonInfo {
+                let common_info = action.should_commit().then(|| {
+                    let checkpoint_writer = action.should_persist().then(|| {
+                        Arc::new(CheckpointWriter::new(
+                            self.checkpoint_factory.clone(),
+                            *epoch_id,
+                        ))
+                    });
+                    EpochCommonInfo {
                         id: *epoch_id,
-                        next_record_index_to_persist,
-                    },
-                );
+                        checkpoint_writer,
+                    }
+                });
 
                 let result = ClosedEpoch {
                     should_terminate: *terminating,
@@ -217,7 +235,7 @@ impl EpochManager {
                 if *num_source_confirmations == self.num_sources {
                     // This thread is the last one in this critical area.
                     state.kind = EpochManagerStateKind::new_closing(
-                        if next_record_index_to_persist_if_committing.is_some() {
+                        if action.should_commit() {
                             *epoch_id + 1
                         } else {
                             *epoch_id
@@ -233,28 +251,37 @@ impl EpochManager {
             }
         }
     }
-
-    pub fn finalize_epoch(&self, _epoch: &Epoch) {}
 }
 
 #[cfg(test)]
 mod tests {
     use std::thread::scope;
 
+    use dozer_log::tokio;
+    use tempdir::TempDir;
+
+    use crate::checkpoint::create_checkpoint_factory_for_test;
+
     use super::*;
 
     const NUM_THREADS: u16 = 10;
 
+    async fn create_epoch_manager(
+        num_sources: usize,
+        options: EpochManagerOptions,
+    ) -> (TempDir, EpochManager) {
+        let (temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
+
+        let epoch_manager = EpochManager::new(num_sources, checkpoint_factory, options);
+
+        (temp_dir, epoch_manager)
+    }
+
     fn run_epoch_manager(
+        epoch_manager: &EpochManager,
         termination_gen: &(impl Fn(u16) -> bool + Sync),
         commit_gen: &(impl Fn(u16) -> bool + Sync),
     ) -> ClosedEpoch {
-        let epoch_manager = EpochManager::new(
-            NUM_THREADS as usize,
-            Arc::new(ProcessorRecordStore::new().unwrap()),
-            Default::default(),
-        );
-        let epoch_manager = &epoch_manager;
         scope(|scope| {
             let handles = (0..NUM_THREADS)
                 .map(|index| {
@@ -268,70 +295,76 @@ mod tests {
                 .into_iter()
                 .map(|handle| handle.join().unwrap())
                 .collect::<Vec<_>>();
+
+            let first = results.first().unwrap();
             for result in &results {
-                assert_eq!(result, results.first().unwrap());
+                assert_eq!(result.should_terminate, first.should_terminate);
+                assert_eq!(result.common_info.is_some(), first.common_info.is_some());
+                if let Some(common_info) = &result.common_info {
+                    assert_eq!(common_info.id, first.common_info.as_ref().unwrap().id);
+                }
+                assert_eq!(result.decision_instant, first.decision_instant);
             }
             results.into_iter().next().unwrap()
         })
     }
 
-    #[test]
-    fn test_epoch_manager() {
+    #[tokio::test]
+    async fn test_epoch_manager() {
+        let (_temp_dir, epoch_manager) =
+            create_epoch_manager(NUM_THREADS as usize, Default::default()).await;
+
         // All sources have no new data, epoch should not be closed.
-        let ClosedEpoch { common_info, .. } = run_epoch_manager(&|_| false, &|_| false);
+        let ClosedEpoch { common_info, .. } =
+            run_epoch_manager(&epoch_manager, &|_| false, &|_| false);
         assert!(common_info.is_none());
 
         // One source has new data, epoch should be closed.
-        let ClosedEpoch { common_info, .. } = run_epoch_manager(&|_| false, &|index| index == 0);
+        let ClosedEpoch { common_info, .. } =
+            run_epoch_manager(&epoch_manager, &|_| false, &|index| index == 0);
         assert_eq!(common_info.unwrap().id, 0);
 
         // All but one source requests termination, should not terminate.
         let ClosedEpoch {
             should_terminate, ..
-        } = run_epoch_manager(&|index| index != 0, &|_| false);
+        } = run_epoch_manager(&epoch_manager, &|index| index != 0, &|_| false);
         assert!(!should_terminate);
 
         // All sources requests termination, should terminate.
         let ClosedEpoch {
             should_terminate, ..
-        } = run_epoch_manager(&|_| true, &|_| false);
+        } = run_epoch_manager(&epoch_manager, &|_| true, &|_| false);
         assert!(should_terminate);
     }
 
-    #[test]
-    fn test_epoch_manager_persist_message() {
-        let record_store = Arc::new(ProcessorRecordStore::new().unwrap());
-        let epoch_manager = EpochManager::new(
+    #[tokio::test]
+    async fn test_epoch_manager_persist_message() {
+        let (_temp_dir, epoch_manager) = create_epoch_manager(
             1,
-            record_store.clone(),
             EpochManagerOptions {
                 max_num_records_before_persist: 1,
                 max_interval_before_persist_in_seconds: 1,
             },
-        );
+        )
+        .await;
 
-        // No record, no persist.
-        let epoch = epoch_manager.wait_for_epoch_close(false, true);
-        assert!(epoch
-            .common_info
-            .unwrap()
-            .next_record_index_to_persist
-            .is_none());
+        // Epoch manager must be used from non-tokio threads.
+        std::thread::spawn(move || {
+            // No record, no persist.
+            let epoch = epoch_manager.wait_for_epoch_close(false, true);
+            assert!(epoch.common_info.unwrap().checkpoint_writer.is_none());
 
-        // One record, persist.
-        record_store.create_ref(&[]).unwrap();
-        let epoch = epoch_manager.wait_for_epoch_close(false, true);
-        assert_eq!(
-            epoch.common_info.unwrap().next_record_index_to_persist,
-            Some(0)
-        );
+            // One record, persist.
+            epoch_manager.record_store().create_ref(&[]).unwrap();
+            let epoch = epoch_manager.wait_for_epoch_close(false, true);
+            assert!(epoch.common_info.unwrap().checkpoint_writer.is_some());
 
-        // Time passes, persist.
-        std::thread::sleep(Duration::from_secs(1));
-        let epoch = epoch_manager.wait_for_epoch_close(false, true);
-        assert_eq!(
-            epoch.common_info.unwrap().next_record_index_to_persist,
-            Some(1)
-        );
+            // Time passes, persist.
+            std::thread::sleep(Duration::from_secs(1));
+            let epoch = epoch_manager.wait_for_epoch_close(false, true);
+            assert!(epoch.common_info.unwrap().checkpoint_writer.is_some());
+        })
+        .join()
+        .unwrap();
     }
 }

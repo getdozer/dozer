@@ -4,7 +4,7 @@ use super::helper::{DESCRIPTION, LOGO};
 
 #[cfg(feature = "cloud")]
 use crate::cli::cloud::Cloud;
-use dozer_types::constants::DEFAULT_CONFIG_PATH_PATTERNS;
+use dozer_types::{constants::DEFAULT_CONFIG_PATH_PATTERNS, serde_json};
 
 #[derive(Parser, Debug)]
 #[command(author, version, name = "dozer")]
@@ -22,7 +22,7 @@ pub struct Cli {
     pub config_paths: Vec<String>,
     #[arg(global = true, long, hide = true)]
     pub config_token: Option<String>,
-    #[arg(global = true, short = 'p', long = "enable-progress")]
+    #[arg(global = true, long = "enable-progress")]
     pub enable_progress: bool,
     #[arg(global = true, long, value_parser(parse_config_override))]
     pub config_overrides: Vec<(String, serde_json::Value)>,
@@ -51,7 +51,7 @@ pub enum Commands {
     )]
     Init,
     #[command(about = "Edit code interactively")]
-    Live,
+    Live(Live),
     #[command(
         about = "Clean home directory",
         long_about = "Clean home directory. It removes all data, schemas and other files in app \
@@ -75,6 +75,13 @@ pub enum Commands {
     #[cfg(feature = "cloud")]
     #[command(about = "Deploy cloud applications")]
     Cloud(Cloud),
+}
+
+#[derive(Debug, Args)]
+#[command(args_conflicts_with_subcommands = true)]
+pub struct Live {
+    #[arg(long, hide = true)]
+    pub disable_live_ui: bool,
 }
 
 #[derive(Debug, Args)]
@@ -142,6 +149,8 @@ pub struct ConnectorCommand {
 
 #[cfg(test)]
 mod tests {
+    use dozer_types::serde_json;
+
     #[test]
     fn test_parse_config_override_string() {
         let arg = "/app=\"abc\"";

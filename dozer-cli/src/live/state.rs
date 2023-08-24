@@ -1,21 +1,12 @@
-use std::{collections::HashMap, sync::Arc, thread::JoinHandle};
+use std::{sync::Arc, thread::JoinHandle};
 
 use clap::Parser;
-use dozer_core::{
-    app::AppPipeline,
-    dag_schemas::DagSchemas,
-    petgraph::{
-        dot,
-        visit::{IntoEdgesDirected, IntoNodeReferences},
-        Direction,
-    },
-    Dag, NodeKind,
-};
+use dozer_core::{app::AppPipeline, dag_schemas::DagSchemas, Dag};
 use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 use dozer_types::{
-    grpc_types::live::{
-        ConnectResponse, DotResponse, LiveApp, LiveResponse, RunRequest, SchemasResponse,
-        SqlResponse,
+    grpc_types::{
+        contract::{DotResponse, SchemasResponse},
+        live::{BuildResponse, BuildStatus, ConnectResponse, LiveApp, LiveResponse, RunRequest},
     },
     indicatif::MultiProgress,
     log::info,
@@ -32,23 +23,25 @@ use crate::{
     errors::OrchestrationError,
     pipeline::PipelineBuilder,
     shutdown::{self, ShutdownReceiver, ShutdownSender},
-    simple::{helper::validate_config, SimpleOrchestrator},
+    simple::{helper::validate_config, Contract, SimpleOrchestrator},
 };
 
-use super::{
-    graph::{map_dag_schemas, transform_dag_ui},
-    helper::map_schema,
-    progress::progress_stream,
-    LiveError,
-};
+use super::{progress::progress_stream, LiveError};
 
-struct DozerAndSchemas {
+struct DozerAndContract {
     dozer: SimpleOrchestrator,
-    schemas: Option<DagSchemas<SchemaSQLContext>>,
+    contract: Option<Contract>,
+}
+
+#[derive(Debug)]
+pub enum BroadcastType {
+    Start,
+    Success,
+    Failed(String),
 }
 
 pub struct LiveState {
-    dozer: RwLock<Option<DozerAndSchemas>>,
+    dozer: RwLock<Option<DozerAndContract>>,
     run_thread: RwLock<Option<ShutdownSender>>,
     error_message: RwLock<Option<String>>,
     sender: RwLock<Option<tokio::sync::broadcast::Sender<ConnectResponse>>>,
@@ -64,13 +57,12 @@ impl LiveState {
         }
     }
 
-    async fn create_dag_if_missing(&self) -> Result<(), LiveError> {
-        let mut dozer_and_schema_lock = self.dozer.write().await;
-        if let Some(dozer_and_schema) = dozer_and_schema_lock.as_mut() {
-            if dozer_and_schema.schemas.is_none() {
-                let dag = create_dag(&dozer_and_schema.dozer).await?;
-                let schemas = DagSchemas::new(dag)?;
-                dozer_and_schema.schemas = Some(schemas);
+    async fn create_contract_if_missing(&self) -> Result<(), LiveError> {
+        let mut dozer_and_contract_lock = self.dozer.write().await;
+        if let Some(dozer_and_contract) = dozer_and_contract_lock.as_mut() {
+            if dozer_and_contract.contract.is_none() {
+                let contract = create_contract(dozer_and_contract.dozer.clone()).await?;
+                dozer_and_contract.contract = Some(contract);
             }
         }
         Ok(())
@@ -80,24 +72,38 @@ impl LiveState {
         *self.sender.write().await = Some(sender);
     }
 
-    pub async fn broadcast(&self) {
+    pub async fn broadcast(&self, broadcast_type: BroadcastType) {
         let sender = self.sender.read().await;
-        info!("broadcasting current state");
+        info!("Broadcasting state: {:?}", broadcast_type);
         if let Some(sender) = sender.as_ref() {
-            let res = self.get_current().await;
-            // Ignore broadcast error.
-            let _ = sender.send(ConnectResponse {
-                live: Some(res),
-                progress: None,
-            });
+            let res = match broadcast_type {
+                BroadcastType::Start => ConnectResponse {
+                    live: None,
+                    progress: None,
+                    build: Some(BuildResponse {
+                        status: BuildStatus::BuildStart as i32,
+                        message: None,
+                    }),
+                },
+                BroadcastType::Failed(msg) => ConnectResponse {
+                    live: None,
+                    progress: None,
+                    build: Some(BuildResponse {
+                        status: BuildStatus::BuildFailed as i32,
+                        message: Some(msg),
+                    }),
+                },
+                BroadcastType::Success => {
+                    let res = self.get_current().await;
+                    ConnectResponse {
+                        live: Some(res),
+                        progress: None,
+                        build: None,
+                    }
+                }
+            };
+            let _ = sender.send(res);
         }
-    }
-
-    pub async fn set_dozer(&self, dozer: Option<SimpleOrchestrator>) {
-        *self.dozer.write().await = dozer.map(|dozer| DozerAndSchemas {
-            dozer,
-            schemas: None,
-        });
     }
 
     pub async fn set_error_message(&self, error_message: Option<String>) {
@@ -120,11 +126,23 @@ impl LiveState {
         )
         .await?;
 
-        *lock = Some(DozerAndSchemas {
+        let contract = create_contract(dozer.clone()).await;
+        *lock = Some(DozerAndContract {
             dozer,
-            schemas: None,
+            contract: match &contract {
+                Ok(contract) => Some(contract.clone()),
+                Err(_) => None,
+            },
         });
-        Ok(())
+        if let Err(e) = &contract {
+            self.set_error_message(Some(e.to_string())).await;
+        } else {
+            self.set_error_message(None).await;
+        }
+
+        contract
+            .map(|_| ())
+            .map_err(|e| LiveError::OrchestrationError(Box::new(e)))
     }
     pub async fn get_current(&self) -> LiveResponse {
         let dozer = self.dozer.read().await;
@@ -158,47 +176,47 @@ impl LiveState {
         }
     }
 
-    pub async fn get_sql(&self) -> Result<SqlResponse, LiveError> {
-        let dozer = self.dozer.read().await;
-        let dozer = dozer.as_ref().ok_or(LiveError::NotInitialized)?;
-
-        let sql = dozer.dozer.config.sql.clone().unwrap_or_default();
-        Ok(SqlResponse { sql })
-    }
     pub async fn get_endpoints_schemas(&self) -> Result<SchemasResponse, LiveError> {
-        self.create_dag_if_missing().await?;
+        self.create_contract_if_missing().await?;
         let dozer = self.dozer.read().await;
-        let schemas = get_schemas(&dozer)?;
+        let contract = get_contract(&dozer)?;
 
-        Ok(get_endpoint_schemas(schemas))
+        Ok(SchemasResponse {
+            schemas: contract.get_endpoints_schemas(),
+        })
     }
     pub async fn get_source_schemas(
         &self,
         connection_name: String,
     ) -> Result<SchemasResponse, LiveError> {
-        self.create_dag_if_missing().await?;
+        self.create_contract_if_missing().await?;
         let dozer = self.dozer.read().await;
-        let schemas = get_schemas(&dozer)?;
+        let contract = get_contract(&dozer)?;
 
-        get_source_schemas(schemas, connection_name)
+        contract
+            .get_source_schemas(&connection_name)
+            .ok_or(LiveError::ConnectionNotFound(connection_name))
+            .map(|schemas| SchemasResponse { schemas })
     }
 
     pub async fn get_graph_schemas(&self) -> Result<SchemasResponse, LiveError> {
-        self.create_dag_if_missing().await?;
+        self.create_contract_if_missing().await?;
         let dozer = self.dozer.read().await;
-        let schemas = get_schemas(&dozer)?;
+        let contract = get_contract(&dozer)?;
 
         Ok(SchemasResponse {
-            schemas: map_dag_schemas(schemas),
+            schemas: contract.get_graph_schemas(),
         })
     }
 
     pub async fn generate_dot(&self) -> Result<DotResponse, LiveError> {
-        self.create_dag_if_missing().await?;
+        self.create_contract_if_missing().await?;
         let dozer = self.dozer.read().await;
-        let schemas = get_schemas(&dozer)?;
+        let contract = get_contract(&dozer)?;
 
-        Ok(generate_dot(schemas))
+        Ok(DotResponse {
+            dot: contract.generate_dot(),
+        })
     }
 
     pub async fn run(&self, request: RunRequest) -> Result<(), LiveError> {
@@ -236,47 +254,31 @@ impl LiveState {
     }
 }
 
-fn get_schemas(
-    dozer_and_schema: &Option<DozerAndSchemas>,
-) -> Result<&DagSchemas<SchemaSQLContext>, LiveError> {
-    dozer_and_schema
+fn get_contract(dozer_and_contract: &Option<DozerAndContract>) -> Result<&Contract, LiveError> {
+    dozer_and_contract
         .as_ref()
         .ok_or(LiveError::NotInitialized)?
-        .schemas
+        .contract
         .as_ref()
         .ok_or(LiveError::NotInitialized)
 }
 
-fn get_source_schemas(
-    dag_schemas: &DagSchemas<SchemaSQLContext>,
-    connection_name: String,
-) -> Result<SchemasResponse, LiveError> {
-    let graph = dag_schemas.graph();
-    for (node_index, node) in graph.node_references() {
-        if node.handle.id == connection_name {
-            let NodeKind::Source(source) = &node.kind else {
-                continue;
-            };
-
-            let mut schemas = HashMap::new();
-            for edge in graph.edges_directed(node_index, Direction::Outgoing) {
-                let edge = edge.weight();
-                schemas.insert(
-                    source.get_output_port_name(&edge.output_port),
-                    map_schema(edge.schema.clone()),
-                );
-            }
-            return Ok(SchemasResponse { schemas });
-        }
-    }
-
-    Err(LiveError::ConnectionNotFound(connection_name))
+async fn create_contract(dozer: SimpleOrchestrator) -> Result<Contract, OrchestrationError> {
+    let dag = create_dag(&dozer).await?;
+    let schemas = DagSchemas::new(dag)?;
+    let contract = Contract::new(
+        &schemas,
+        &dozer.config.endpoints,
+        // We don't care about API generation options here. They are handled in `run_all`.
+        false,
+        true,
+    )?;
+    Ok(contract)
 }
 
 async fn create_dag(
     dozer: &SimpleOrchestrator,
 ) -> Result<Dag<SchemaSQLContext>, OrchestrationError> {
-    // Calculate schemas.
     let endpoint_and_logs = dozer
         .config
         .endpoints
@@ -296,24 +298,6 @@ async fn create_dag(
     builder.build(&dozer.runtime, shutdown_receiver).await
 }
 
-fn get_endpoint_schemas(dag_schemas: &DagSchemas<SchemaSQLContext>) -> SchemasResponse {
-    let schemas = dag_schemas.get_sink_schemas();
-
-    let schemas = schemas
-        .into_iter()
-        .map(|(name, tuple)| {
-            let (schema, _) = tuple;
-            (name, map_schema(schema))
-        })
-        .collect();
-    SchemasResponse { schemas }
-}
-
-fn generate_dot(dag: &DagSchemas<SchemaSQLContext>) -> DotResponse {
-    let dot_str = dot::Dot::new(transform_dag_ui(dag.graph()).graph()).to_string();
-    DotResponse { dot: dot_str }
-}
-
 fn run(
     dozer: SimpleOrchestrator,
     request: RunRequest,
@@ -324,10 +308,7 @@ fn run(
     validate_config(&dozer.config)?;
 
     let runtime = dozer.runtime.clone();
-    let run_thread = std::thread::spawn(move || {
-        dozer.build(true, shutdown_receiver.clone()).unwrap();
-        dozer.run_all(shutdown_receiver)
-    });
+    let run_thread = std::thread::spawn(move || dozer.run_all(shutdown_receiver));
 
     let handle = std::thread::spawn(move || {
         runtime.block_on(async {

@@ -31,3 +31,16 @@ fn test_storage_params_config() {
     let deserializer_result = serde_yaml::from_str::<Config>(input_config_without_flag).unwrap();
     assert_eq!(deserializer_result.cache_max_map_size, Some(1073741824));
 }
+
+#[test]
+fn test_flags_default() {
+    assert_eq!(
+        Flags::default(),
+        Flags {
+            dynamic: true,
+            grpc_web: true,
+            push_events: true,
+            authenticate_server_reflection: false,
+        }
+    );
+}

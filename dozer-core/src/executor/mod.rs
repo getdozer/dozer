@@ -1,4 +1,5 @@
 use crate::builder_dag::{BuilderDag, NodeKind};
+use crate::checkpoint::CheckpointFactory;
 use crate::dag_schemas::DagSchemas;
 use crate::errors::ExecutionError;
 use crate::Dag;
@@ -14,7 +15,7 @@ use std::thread::JoinHandle;
 use std::thread::{self, Builder};
 use std::time::Duration;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ExecutorOptions {
     pub commit_sz: u32,
     pub channel_buffer_sz: usize,
@@ -67,10 +68,12 @@ pub struct DagExecutorJoinHandle {
 impl DagExecutor {
     pub fn new<T: Clone + Debug>(
         dag: Dag<T>,
+        checkpoint_factory: Arc<CheckpointFactory>,
         options: ExecutorOptions,
     ) -> Result<Self, ExecutionError> {
         let dag_schemas = DagSchemas::new(dag)?;
-        let builder_dag = BuilderDag::new(dag_schemas)?;
+
+        let builder_dag = BuilderDag::new(checkpoint_factory, dag_schemas)?;
 
         Ok(Self {
             builder_dag,

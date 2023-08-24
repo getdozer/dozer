@@ -10,8 +10,8 @@ use dozer_cli::simple::SimpleOrchestrator;
 use dozer_cli::CloudOrchestrator;
 use dozer_cli::{live, set_ctrl_handler, set_panic_hook, shutdown};
 use dozer_types::models::telemetry::{TelemetryConfig, TelemetryMetricsConfig};
+use dozer_types::serde::Deserialize;
 use dozer_types::tracing::{error, info};
-use serde::Deserialize;
 use tokio::runtime::Runtime;
 use tokio::time;
 
@@ -42,6 +42,7 @@ fn render_logo() {
 }
 
 #[derive(Deserialize, Debug)]
+#[serde(crate = "dozer_types::serde")]
 struct DozerPackage {
     #[serde(rename(deserialize = "latestVersion"))]
     pub latest_version: String,
@@ -139,7 +140,7 @@ fn run() -> Result<(), OrchestrationError> {
         .map(|cloud| cloud.app_id.clone().unwrap_or(app_name));
 
     // We always enable telemetry when running live.
-    let telemetry_config = if matches!(cli.cmd, Some(Commands::Live)) {
+    let telemetry_config = if matches!(cli.cmd, Some(Commands::Live(_))) {
         Some(TelemetryConfig {
             trace: None,
             metrics: Some(TelemetryMetricsConfig::Prometheus(())),
@@ -228,11 +229,13 @@ fn run() -> Result<(), OrchestrationError> {
             Commands::Init => {
                 panic!("This should not happen as it is handled in parse_and_generate");
             }
-            Commands::Live => {
+            Commands::Live(live_flags) => {
                 render_logo();
-                dozer
-                    .runtime
-                    .block_on(live::start_live_server(&dozer.runtime, shutdown_receiver))?;
+                dozer.runtime.block_on(live::start_live_server(
+                    &dozer.runtime,
+                    shutdown_receiver,
+                    live_flags,
+                ))?;
                 Ok(())
             }
         }
