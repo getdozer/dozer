@@ -47,9 +47,11 @@ pub struct EdgeType {
     pub schema: Schema,
 }
 
+pub type PipelineContract = daggy::Dag<NodeType, EdgeType>;
+
 #[derive(Debug, Clone)]
 pub struct Contract {
-    pub pipeline: daggy::Dag<NodeType, EdgeType>,
+    pub pipeline: PipelineContract,
     pub endpoints: BTreeMap<String, EndpointSchema>,
 }
 
