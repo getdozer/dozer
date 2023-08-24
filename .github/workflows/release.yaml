@@ -387,7 +387,7 @@ jobs:
 
       - name: Build package for ubuntu (with kafka & snowflake)
         if: matrix.os == 'ubuntu-20-16-cores'
-        run: cargo build --target ${{ matrix.target }} --release --bin  ${{ matrix.file_name }} --features snowflake
+        run: cargo build --target ${{ matrix.target }} --release --bin  ${{ matrix.file_name }}
 #        run: cargo build --target aarch64-unknown-linux-gnu --release --bin  dozer-linux-aarch64 --features snowflake
 
       - name: Prepare release assets
@@ -456,7 +456,7 @@ jobs:
           IMAGE_TAG: ${{ needs.prepare.outputs.version }}
         run: |
           aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin $ECR_REGISTRY
-          docker buildx build --push --platform linux/arm/v7 -f ci/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:$GITHUB_SHA .
+          docker buildx build --push --platform linux/arm/v7 -f ci/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:arm_test .
 #          docker push $ECR_REGISTRY/$ECR_REPOSITORY --all-tags
 
       - name: Update latest image if releasing
