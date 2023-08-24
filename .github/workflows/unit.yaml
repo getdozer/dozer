@@ -1,4 +1,4 @@
-name: Dozer Coverage
+name: Unit Tests
 
 on:
   workflow_dispatch:
@@ -68,13 +68,6 @@ jobs:
       - if: github.event_name != 'pull_request_target'
         uses: actions/checkout@v3
 
-      - name: Install stable with llvm-tools-preview
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          components: llvm-tools-preview
-
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
         with:
@@ -112,6 +105,3 @@ jobs:
           source ./dozer-tests/python_udf/virtualenv.sh
           cargo test --features snowflake,ethereum,kafka,python,mongodb --no-fail-fast
 
-      - name: Get current date
-        id: date
-        run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
