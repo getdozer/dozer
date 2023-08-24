@@ -165,7 +165,7 @@ pub async fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
             }
 
             // Filter out non-operation events.
-            let IngestionMessageKind::OperationEvent{ op: operation, .. } = message.kind else {
+            let IngestionMessageKind::OperationEvent { op: operation, .. } = message.kind else {
                 continue;
             };
 
@@ -244,7 +244,7 @@ pub async fn run_test_suite_basic_cud<T: CudConnectorTest>() {
         }
 
         // Filter out non-operation events.
-        let IngestionMessageKind::OperationEvent{ op: operation, .. } = message.kind else {
+        let IngestionMessageKind::OperationEvent { op: operation, .. } = message.kind else {
             continue;
         };
 
