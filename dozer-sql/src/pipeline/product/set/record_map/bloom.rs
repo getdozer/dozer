@@ -128,3 +128,68 @@ mod hash {
         (0..num_hashes).map(move |i| hash1.wrapping_add((i as u64).wrapping_mul(hash2)))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bloom_hashes_consistently() {
+        let hasher1 = hash::BloomHasher::default();
+        let hasher2 = hash::BloomHasher::default();
+
+        for value in &["foo", "bar", "baz"] {
+            let hashes1 = hasher1.calculate_hashes(value, 3).collect::<Vec<_>>();
+            let hashes2 = hasher2.calculate_hashes(value, 3).collect::<Vec<_>>();
+            assert_eq!(hashes1, hashes2);
+        }
+    }
+
+    #[test]
+    fn test_counting_bloom_filter() {
+        let mut filter = CountingBloomFilter::with_rate(0.01, 100);
+        assert_eq!(filter.estimate_count(&"foo"), 0);
+        assert_eq!(filter.estimate_count(&"bar"), 0);
+        assert_eq!(filter.estimate_count(&"baz"), 0);
+
+        filter.insert(&"foo");
+        assert_eq!(filter.estimate_count(&"foo"), 1);
+        assert_eq!(filter.estimate_count(&"bar"), 0);
+        assert_eq!(filter.estimate_count(&"baz"), 0);
+
+        filter.insert(&"foo");
+        assert_eq!(filter.estimate_count(&"foo"), 2);
+        assert_eq!(filter.estimate_count(&"bar"), 0);
+        assert_eq!(filter.estimate_count(&"baz"), 0);
+
+        filter.insert(&"bar");
+        assert_eq!(filter.estimate_count(&"foo"), 2);
+        assert_eq!(filter.estimate_count(&"bar"), 1);
+        assert_eq!(filter.estimate_count(&"baz"), 0);
+
+        filter.insert(&"baz");
+        assert_eq!(filter.estimate_count(&"foo"), 2);
+        assert_eq!(filter.estimate_count(&"bar"), 1);
+        assert_eq!(filter.estimate_count(&"baz"), 1);
+
+        filter.remove(&"foo");
+        assert_eq!(filter.estimate_count(&"foo"), 1);
+        assert_eq!(filter.estimate_count(&"bar"), 1);
+        assert_eq!(filter.estimate_count(&"baz"), 1);
+
+        filter.remove(&"foo");
+        assert_eq!(filter.estimate_count(&"foo"), 0);
+        assert_eq!(filter.estimate_count(&"bar"), 1);
+        assert_eq!(filter.estimate_count(&"baz"), 1);
+
+        filter.remove(&"bar");
+        assert_eq!(filter.estimate_count(&"foo"), 0);
+        assert_eq!(filter.estimate_count(&"bar"), 0);
+        assert_eq!(filter.estimate_count(&"baz"), 1);
+
+        filter.remove(&"baz");
+        assert_eq!(filter.estimate_count(&"foo"), 0);
+        assert_eq!(filter.estimate_count(&"bar"), 0);
+        assert_eq!(filter.estimate_count(&"baz"), 0);
+    }
+}
