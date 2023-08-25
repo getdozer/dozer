@@ -2855,7 +2855,7 @@ dependencies = [
  "indicatif",
  "log",
  "metrics",
- "ordered-float 3.4.0",
+ "ordered-float 3.9.1",
  "parking_lot",
  "prettytable-rs",
  "prost",
@@ -5366,7 +5366,7 @@ dependencies = [
  "futures-util",
  "once_cell",
  "opentelemetry_api",
- "ordered-float 3.4.0",
+ "ordered-float 3.9.1",
  "percent-encoding",
  "rand 0.8.5",
  "regex",
@@ -5387,11 +5387,12 @@ dependencies = [
 
 [[package]]
 name = "ordered-float"
-version = "3.4.0"
+version = "3.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d84eb1409416d254e4a9c8fa56cc24701755025b458f0fcd8e59e1f5f40c23bf"
+checksum = "2a54938017eacd63036332b4ae5c8a49fc8c0c1d6d629893057e4f13609edd06"
 dependencies = [
  "num-traits",
+ "rand 0.8.5",
  "serde",
 ]
 
@@ -6212,6 +6213,7 @@ dependencies = [
  "libc",
  "rand_chacha",
  "rand_core 0.6.4",
+ "serde",
 ]
 
 [[package]]
@@ -6246,6 +6248,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 dependencies = [
  "getrandom",
+ "serde",
 ]
 
 [[package]]
