@@ -1,6 +1,7 @@
 use std::{sync::Arc, thread::JoinHandle};
 
 use clap::Parser;
+use dozer_cache::dozer_log::camino::Utf8Path;
 use dozer_core::{app::AppPipeline, dag_schemas::DagSchemas, Dag};
 use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 use dozer_types::{
@@ -13,7 +14,7 @@ use dozer_types::{
     models::{
         api_config::{ApiConfig, AppGrpcOptions},
         api_endpoint::ApiEndpoint,
-        telemetry::{TelemetryConfig, TelemetryMetricsConfig},
+        flags::Flags,
     },
 };
 use tokio::{runtime::Runtime, sync::RwLock};
@@ -292,6 +293,7 @@ async fn create_dag(
         dozer.config.sql.as_deref(),
         endpoint_and_logs,
         MultiProgress::new(),
+        Flags::default(),
         &dozer.config.udfs,
     );
     let (_shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
@@ -325,8 +327,13 @@ fn get_dozer_run_instance(
 ) -> Result<SimpleOrchestrator, LiveError> {
     match req.request {
         Some(dozer_types::grpc_types::live::run_request::Request::Sql(req)) => {
-            let context = statement_to_pipeline(&req.sql, &mut AppPipeline::new(), None, &dozer.config.udfs)
-                .map_err(LiveError::PipelineError)?;
+            let context = statement_to_pipeline(
+                &req.sql,
+                &mut AppPipeline::new(dozer.config.flags.clone().unwrap_or_default().into()),
+                None,
+                &dozer.config.udfs,
+            )
+            .map_err(LiveError::PipelineError)?;
 
             //overwrite sql
             dozer.config.sql = Some(req.sql);
@@ -366,16 +373,10 @@ fn get_dozer_run_instance(
         ..Default::default()
     });
 
-    dozer.config.home_dir = tempdir::TempDir::new("live")
-        .unwrap()
-        .into_path()
-        .to_string_lossy()
-        .to_string();
-
-    dozer.config.telemetry = Some(TelemetryConfig {
-        trace: None,
-        metrics: Some(TelemetryMetricsConfig::Prometheus(())),
-    });
+    let temp_dir = tempdir::TempDir::new("live").unwrap();
+    let temp_dir = temp_dir.path().to_str().unwrap();
+    dozer.config.home_dir = temp_dir.to_string();
+    dozer.config.cache_dir = AsRef::<Utf8Path>::as_ref(temp_dir).join("cache").into();
 
     Ok(dozer)
 }

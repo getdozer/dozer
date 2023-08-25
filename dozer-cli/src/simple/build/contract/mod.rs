@@ -47,9 +47,11 @@ pub struct EdgeType {
     pub schema: Schema,
 }
 
+pub type PipelineContract = daggy::Dag<NodeType, EdgeType>;
+
 #[derive(Debug, Clone)]
 pub struct Contract {
-    pub pipeline: daggy::Dag<NodeType, EdgeType>,
+    pub pipeline: PipelineContract,
     pub endpoints: BTreeMap<String, EndpointSchema>,
 }
 
@@ -205,8 +207,7 @@ fn serde_json_to_path(path: impl AsRef<Path>, value: &impl Serialize) -> Result<
         .write(true)
         .open(path.as_ref())
         .map_err(|e| BuildError::FileSystem(path.as_ref().into(), e))?;
-    serde_json::to_writer_pretty(file, value)?;
-    Ok(())
+    serde_json::to_writer_pretty(file, value).map_err(BuildError::SerdeJson)
 }
 
 fn serde_json_from_path<T>(path: impl AsRef<Path>) -> Result<T, BuildError>
@@ -217,7 +218,7 @@ where
         .read(true)
         .open(path.as_ref())
         .map_err(|e| BuildError::FileSystem(path.as_ref().into(), e))?;
-    Ok(serde_json::from_reader(file)?)
+    serde_json::from_reader(file).map_err(BuildError::FailedToLoadExistingContract)
 }
 
 mod modify_schema;

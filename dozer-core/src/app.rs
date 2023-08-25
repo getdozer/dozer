@@ -1,3 +1,4 @@
+use dozer_types::models::flags::{EnableProbabilisticOptimizations, Flags};
 use dozer_types::node::NodeHandle;
 
 use crate::appsource::{self, AppSourceManager};
@@ -28,12 +29,7 @@ pub struct AppPipeline<T> {
     processors: Vec<(NodeHandle, Box<dyn ProcessorFactory<T>>)>,
     sinks: Vec<(NodeHandle, Box<dyn SinkFactory<T>>)>,
     entry_points: Vec<(NodeHandle, PipelineEntryPoint)>,
-}
-
-impl<T> Default for AppPipeline<T> {
-    fn default() -> Self {
-        Self::new()
-    }
+    flags: PipelineFlags,
 }
 
 impl<T> AppPipeline<T> {
@@ -79,13 +75,18 @@ impl<T> AppPipeline<T> {
         self.edges.push(edge);
     }
 
-    pub fn new() -> Self {
+    pub fn new(flags: PipelineFlags) -> Self {
         Self {
             processors: Vec::new(),
             sinks: Vec::new(),
             edges: Vec::new(),
             entry_points: Vec::new(),
+            flags,
         }
+    }
+
+    pub fn new_with_default_flags() -> Self {
+        Self::new(Default::default())
     }
 
     pub fn get_entry_points_sources_names(&self) -> Vec<String> {
@@ -93,6 +94,38 @@ impl<T> AppPipeline<T> {
             .iter()
             .map(|(_, p)| p.source_name().to_string())
             .collect()
+    }
+
+    pub fn flags(&self) -> &PipelineFlags {
+        &self.flags
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PipelineFlags {
+    pub enable_probabilistic_optimizations: EnableProbabilisticOptimizations,
+}
+
+impl From<&Flags> for PipelineFlags {
+    fn from(flags: &Flags) -> Self {
+        Self {
+            enable_probabilistic_optimizations: flags
+                .enable_probabilistic_optimizations
+                .clone()
+                .unwrap_or_default(),
+        }
+    }
+}
+
+impl From<Flags> for PipelineFlags {
+    fn from(flags: Flags) -> Self {
+        Self::from(&flags)
+    }
+}
+
+impl Default for PipelineFlags {
+    fn default() -> Self {
+        Flags::default().into()
     }
 }
 

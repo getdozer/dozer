@@ -291,7 +291,7 @@ impl TestPipeline {
         schemas: HashMap<String, Schema>,
         ops: Vec<(String, Operation)>,
     ) -> Result<TestPipeline, ExecutionError> {
-        let mut pipeline = AppPipeline::new();
+        let mut pipeline = AppPipeline::new_with_default_flags();
 
         let transform_response =
             statement_to_pipeline(&sql, &mut pipeline, Some("results".to_string()), &vec![])

@@ -32,6 +32,7 @@ pub struct JoinProcessorFactory {
     left: Option<NameOrAlias>,
     right: Option<NameOrAlias>,
     join_operator: SqlJoinOperator,
+    enable_probabilistic_optimizations: bool,
 }
 
 impl JoinProcessorFactory {
@@ -40,12 +41,14 @@ impl JoinProcessorFactory {
         left: Option<NameOrAlias>,
         right: Option<NameOrAlias>,
         join_operator: SqlJoinOperator,
+        enable_probabilistic_optimizations: bool,
     ) -> Self {
         Self {
             id,
             left,
             right,
             join_operator,
+            enable_probabilistic_optimizations,
         }
     }
 }
@@ -180,12 +183,10 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
 
         let join_operator = JoinOperator::new(
             join_type,
-            left_join_key_indexes,
-            right_join_key_indexes,
-            left_primary_key_indexes,
-            right_primary_key_indexes,
-            left_default_record,
-            right_default_record,
+            (left_join_key_indexes, right_join_key_indexes),
+            (left_primary_key_indexes, right_primary_key_indexes),
+            (left_default_record, right_default_record),
+            self.enable_probabilistic_optimizations,
         );
 
         Ok(Box::new(ProductProcessor::new(

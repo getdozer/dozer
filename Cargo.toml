@@ -15,6 +15,7 @@ members = [
   "dozer-log-python",
   "dozer-utils"
 ]
+resolver = "2"
 
 [patch.crates-io]
 postgres = { git = "https://github.com/getdozer/rust-postgres" }

@@ -36,6 +36,7 @@ pub(crate) fn init_processor(
         projection_planner.having,
         input_schema.clone(),
         projection_planner.post_aggregation_schema,
+        false,
     )
     .unwrap_or_else(|e| panic!("{}", e.to_string()));
 

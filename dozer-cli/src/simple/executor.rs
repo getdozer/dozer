@@ -5,6 +5,7 @@ use dozer_cache::dozer_log::replication::Log;
 use dozer_core::checkpoint::{CheckpointFactory, CheckpointFactoryOptions};
 use dozer_core::processor_record::ProcessorRecordStore;
 use dozer_types::models::api_endpoint::ApiEndpoint;
+use dozer_types::models::flags::Flags;
 use dozer_types::parking_lot::Mutex;
 use tokio::runtime::Runtime;
 
@@ -89,6 +90,7 @@ impl<'a> Executor<'a> {
         runtime: &Arc<Runtime>,
         executor_options: ExecutorOptions,
         shutdown: ShutdownReceiver,
+        flags: Flags,
     ) -> Result<DagExecutor, OrchestrationError> {
         let builder = PipelineBuilder::new(
             self.connections,
@@ -99,6 +101,7 @@ impl<'a> Executor<'a> {
                 .map(|(endpoint, log)| (endpoint.clone(), Some(log.log.clone())))
                 .collect(),
             self.multi_pb.clone(),
+            flags,
             self.udfs,
         );
 

@@ -11,7 +11,7 @@ use crate::errors::BuildError;
 
 mod contract;
 
-pub use contract::Contract;
+pub use contract::{Contract, PipelineContract};
 
 pub async fn build(
     home_dir: &HomeDir,

@@ -220,9 +220,6 @@ fn build_cache_task(
                 cache.commit()?;
                 snapshotting = !cache.is_snapshotting_done()?;
             }
-            LogOperation::Terminate => {
-                break;
-            }
         }
     }
 
