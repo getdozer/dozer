@@ -2,7 +2,7 @@ use dozer_api::grpc::internal::internal_pipeline_server::LogEndpoint;
 use dozer_cache::dozer_log::camino::Utf8Path;
 use dozer_cache::dozer_log::home_dir::{BuildPath, HomeDir};
 use dozer_cache::dozer_log::replication::Log;
-use dozer_core::checkpoint::{CheckpointFactory, CheckpointFactoryOptions};
+use dozer_core::checkpoint::{CheckpointFactory, CheckpointFactoryOptions, OptionCheckpoint};
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::flags::Flags;
@@ -29,7 +29,7 @@ pub struct Executor<'a> {
     sources: &'a [Source],
     sql: Option<&'a str>,
     checkpoint_factory: Arc<CheckpointFactory>,
-    initial_epoch_id: u64,
+    checkpoint: OptionCheckpoint,
     /// `ApiEndpoint` and its log.
     endpoint_and_logs: Vec<(ApiEndpoint, LogEndpoint)>,
     labels: LabelsAndProgress,
@@ -69,9 +69,7 @@ impl<'a> Executor<'a> {
                 &build_path,
                 &endpoint.name,
                 &checkpoint_factory,
-                last_checkpoint
-                    .map(|last_checkpoint| last_checkpoint.num_slices.get())
-                    .unwrap_or(0),
+                last_checkpoint.num_slices(),
             )
             .await?;
             endpoint_and_logs.push((endpoint.clone(), log_endpoint));
@@ -82,9 +80,7 @@ impl<'a> Executor<'a> {
             sources,
             sql,
             checkpoint_factory: Arc::new(checkpoint_factory),
-            initial_epoch_id: last_checkpoint
-                .map(|last_checkpoint| last_checkpoint.epoch_id + 1)
-                .unwrap_or(0),
+            checkpoint: last_checkpoint,
             endpoint_and_logs,
             labels,
             udfs,
@@ -119,9 +115,10 @@ impl<'a> Executor<'a> {
         let exec = DagExecutor::new(
             dag,
             self.checkpoint_factory.clone(),
-            self.initial_epoch_id,
+            self.checkpoint,
             executor_options,
-        )?;
+        )
+        .await?;
 
         Ok(exec)
     }

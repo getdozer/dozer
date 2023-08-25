@@ -4,7 +4,7 @@ use dozer_log::{
     camino::{Utf8Path, Utf8PathBuf},
     dyn_clone,
     replication::create_data_storage,
-    storage::{Object, Queue, Storage},
+    storage::{self, Object, Queue, Storage},
     tokio::task::JoinHandle,
 };
 use dozer_types::{
@@ -42,10 +42,45 @@ impl Default for CheckpointFactoryOptions {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct LastCheckpoint {
-    pub num_slices: NonZeroUsize,
-    pub epoch_id: u64,
+#[derive(Debug, Clone)]
+pub struct Checkpoint {
+    /// The number of slices that the record store is split into.
+    num_slices: NonZeroUsize,
+    processor_prefix: String,
+    epoch_id: u64,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct OptionCheckpoint {
+    checkpoint: Option<Checkpoint>,
+}
+
+impl OptionCheckpoint {
+    pub fn num_slices(&self) -> usize {
+        self.checkpoint
+            .as_ref()
+            .map_or(0, |checkpoint| checkpoint.num_slices.get())
+    }
+
+    pub fn next_epoch_id(&self) -> u64 {
+        self.checkpoint
+            .as_ref()
+            .map_or(0, |checkpoint| checkpoint.epoch_id + 1)
+    }
+
+    pub async fn load_processor_data(
+        &self,
+        factory: &CheckpointFactory,
+        node_handle: &NodeHandle,
+    ) -> Result<Option<Vec<u8>>, storage::Error> {
+        if let Some(checkpoint) = &self.checkpoint {
+            let key = processor_key(&checkpoint.processor_prefix, node_handle);
+            info!("Restoring processor {node_handle} from {key}");
+            factory.storage.download_object(key).await.map(Some)
+        } else {
+            Ok(None)
+        }
+    }
 }
 
 impl CheckpointFactory {
@@ -53,21 +88,14 @@ impl CheckpointFactory {
     pub async fn new(
         checkpoint_dir: String,
         options: CheckpointFactoryOptions,
-    ) -> Result<(Self, Option<LastCheckpoint>, JoinHandle<()>), ExecutionError> {
-        let record_store = ProcessorRecordStore::new()?;
-
+    ) -> Result<(Self, OptionCheckpoint, JoinHandle<()>), ExecutionError> {
         let (storage, prefix) =
             create_data_storage(options.storage_config, checkpoint_dir.to_string()).await?;
-        let last_checkpoint = read_record_store_slices(
-            &*storage,
-            record_store_prefix(&prefix).as_str(),
-            &record_store,
-        )
-        .await?;
-        if let Some(checkpoint) = last_checkpoint {
+        let (record_store, checkpoint) = read_record_store_slices(&*storage, &prefix).await?;
+        if let Some(checkpoint) = &checkpoint.checkpoint {
             info!(
-                "Restored record store from {}th checkpoint, last epoch id is {}",
-                checkpoint.num_slices, checkpoint.epoch_id,
+                "Restored record store from {}th checkpoint, last epoch id is {}, processor states are stored in {}",
+                checkpoint.num_slices, checkpoint.epoch_id, checkpoint.processor_prefix
             );
         }
 
@@ -88,7 +116,7 @@ impl CheckpointFactory {
                 record_store: Arc::new(record_store),
                 state,
             },
-            last_checkpoint,
+            checkpoint,
             worker,
         ))
     }
@@ -136,6 +164,18 @@ fn record_store_prefix(factory_prefix: &str) -> Utf8PathBuf {
     AsRef::<Utf8Path>::as_ref(factory_prefix).join("record_store")
 }
 
+fn processor_prefix(factory_prefix: &str, epoch_id: &str) -> String {
+    AsRef::<Utf8Path>::as_ref(factory_prefix)
+        .join(epoch_id)
+        .into_string()
+}
+
+fn processor_key(processor_prefix: &str, node_handle: &NodeHandle) -> String {
+    AsRef::<Utf8Path>::as_ref(processor_prefix)
+        .join(node_handle.to_string())
+        .into_string()
+}
+
 impl CheckpointWriter {
     pub fn new(factory: Arc<CheckpointFactory>, epoch_id: u64) -> Self {
         // Format with `u64` max number of digits.
@@ -143,9 +183,7 @@ impl CheckpointWriter {
         let record_store_key = record_store_prefix(&factory.prefix)
             .join(&epoch_id)
             .into_string();
-        let processor_prefix = AsRef::<Utf8Path>::as_ref(&factory.prefix)
-            .join(epoch_id)
-            .into_string();
+        let processor_prefix = processor_prefix(&factory.prefix, &epoch_id);
         Self {
             factory,
             record_store_key,
@@ -161,9 +199,7 @@ impl CheckpointWriter {
         &self,
         node_handle: &NodeHandle,
     ) -> Result<Object, ExecutionError> {
-        let key = AsRef::<Utf8Path>::as_ref(&self.processor_prefix)
-            .join(node_handle.to_string())
-            .into_string();
+        let key = processor_key(&self.processor_prefix, node_handle);
         Object::new(self.factory.queue.clone(), key)
             .map_err(|_| ExecutionError::CheckpointWriterThreadPanicked)
     }
@@ -184,24 +220,27 @@ impl Drop for CheckpointWriter {
 
 async fn read_record_store_slices(
     storage: &dyn Storage,
-    prefix: &str,
-    record_store: &ProcessorRecordStore,
-) -> Result<Option<LastCheckpoint>, ExecutionError> {
-    let mut last_checkpoint: Option<LastCheckpoint> = None;
+    factory_prefix: &str,
+) -> Result<(ProcessorRecordStore, OptionCheckpoint), ExecutionError> {
+    let record_store = ProcessorRecordStore::new()?;
+    let record_store_prefix = record_store_prefix(factory_prefix);
+
+    let mut last_checkpoint: Option<Checkpoint> = None;
     let mut continuation_token = None;
     loop {
         let objects = storage
-            .list_objects(prefix.to_string(), continuation_token)
+            .list_objects(record_store_prefix.to_string(), continuation_token)
             .await?;
 
         if let Some(object) = objects.objects.last() {
             let object_name = AsRef::<Utf8Path>::as_ref(&object.key)
-                .strip_prefix(prefix)
+                .strip_prefix(&record_store_prefix)
                 .map_err(|_| ExecutionError::UnrecognizedCheckpoint(object.key.clone()))?;
             let epoch_id = object_name
                 .as_str()
                 .parse()
                 .map_err(|_| ExecutionError::UnrecognizedCheckpoint(object.key.clone()))?;
+            let processor_prefix = processor_prefix(factory_prefix, object_name.as_str());
 
             if let Some(last_checkpoint) = last_checkpoint.as_mut() {
                 last_checkpoint
@@ -209,11 +248,13 @@ async fn read_record_store_slices(
                     .checked_add(objects.objects.len())
                     .expect("shouldn't overflow");
                 last_checkpoint.epoch_id = epoch_id;
+                last_checkpoint.processor_prefix = processor_prefix;
             } else {
-                last_checkpoint = Some(LastCheckpoint {
+                last_checkpoint = Some(Checkpoint {
                     num_slices: NonZeroUsize::new(objects.objects.len())
                         .expect("have at least one element"),
                     epoch_id,
+                    processor_prefix,
                 });
             }
         }
@@ -230,7 +271,12 @@ async fn read_record_store_slices(
         }
     }
 
-    Ok(last_checkpoint)
+    Ok((
+        record_store,
+        OptionCheckpoint {
+            checkpoint: last_checkpoint,
+        },
+    ))
 }
 
 /// This is only meant to be used in tests.
@@ -262,7 +308,7 @@ pub async fn create_checkpoint_factory_for_test(
         CheckpointFactory::new(checkpoint_dir, Default::default())
             .await
             .unwrap();
-    let last_checkpoint = last_checkpoint.unwrap();
+    let last_checkpoint = last_checkpoint.checkpoint.unwrap();
     assert_eq!(last_checkpoint.num_slices.get(), 1);
     assert_eq!(last_checkpoint.epoch_id, epoch_id);
     assert_eq!(factory.record_store().num_records(), records.len());

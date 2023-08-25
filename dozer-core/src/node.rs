@@ -76,6 +76,7 @@ pub trait ProcessorFactory: Send + Sync + Debug {
         input_schemas: HashMap<PortHandle, Schema>,
         output_schemas: HashMap<PortHandle, Schema>,
         record_store: &ProcessorRecordStore,
+        checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Box<dyn Processor>, BoxedError>;
     fn type_name(&self) -> String;
     fn id(&self) -> String;

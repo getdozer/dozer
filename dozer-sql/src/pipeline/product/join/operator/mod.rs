@@ -4,7 +4,10 @@ use dozer_core::{
 };
 use dozer_types::types::{Record, Schema, Timestamp};
 
-use crate::pipeline::{errors::JoinError, utils::serialize::SerializationError};
+use crate::pipeline::{
+    errors::JoinError,
+    utils::serialize::{Cursor, SerializationError},
+};
 
 use self::table::{JoinKey, JoinTable};
 
@@ -52,19 +55,23 @@ impl JoinOperator {
         (left_schema, right_schema): (&Schema, &Schema),
         record_store: &ProcessorRecordStore,
         enable_probabilistic_optimizations: bool,
+        checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Self, JoinError> {
         let accurate_keys = !enable_probabilistic_optimizations;
+        let mut cursor = checkpoint_data.as_deref().map(Cursor::new);
         let left = JoinTable::new(
             left_schema,
             left_join_key_indexes,
             record_store,
             accurate_keys,
+            cursor.as_mut(),
         )?;
         let right = JoinTable::new(
             right_schema,
             right_join_key_indexes,
             record_store,
             accurate_keys,
+            cursor.as_mut(),
         )?;
         Ok(Self {
             join_type,

@@ -81,7 +81,8 @@ impl AggregationProcessor {
         input_schema: Schema,
         aggregation_schema: Schema,
         enable_probabilistic_optimizations: bool,
-    ) -> Result<Self, PipelineError> {
+        checkpoint_data: Option<Vec<u8>>,
+    ) -> Result<Self, BoxedError> {
         let mut aggr_types = Vec::new();
         let mut aggr_measures = Vec::new();
         let mut aggr_measures_ret_types = Vec::new();
@@ -99,13 +100,19 @@ impl AggregationProcessor {
 
         let accurate_keys = !enable_probabilistic_optimizations;
 
+        let states = if let Some(data) = checkpoint_data {
+            bincode::deserialize(&data)?
+        } else {
+            HashMap::new()
+        };
+
         Ok(Self {
             _id: id,
             dimensions,
             projections,
             input_schema,
             aggregation_schema,
-            states: HashMap::new(),
+            states,
             measures: aggr_measures,
             having,
             measures_types: aggr_types,

@@ -43,6 +43,7 @@ pub(crate) fn run_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Field {
             HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
             HashMap::new(),
             &record_store,
+            None,
         )
         .unwrap();
 

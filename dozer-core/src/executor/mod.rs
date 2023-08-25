@@ -1,5 +1,5 @@
 use crate::builder_dag::{BuilderDag, NodeKind};
-use crate::checkpoint::CheckpointFactory;
+use crate::checkpoint::{CheckpointFactory, OptionCheckpoint};
 use crate::dag_schemas::DagSchemas;
 use crate::errors::ExecutionError;
 use crate::Dag;
@@ -67,15 +67,15 @@ pub struct DagExecutorJoinHandle {
 }
 
 impl DagExecutor {
-    pub fn new(
+    pub async fn new(
         dag: Dag,
         checkpoint_factory: Arc<CheckpointFactory>,
-        initial_epoch_id: u64,
+        checkpoint: OptionCheckpoint,
         options: ExecutorOptions,
     ) -> Result<Self, ExecutionError> {
         let dag_schemas = DagSchemas::new(dag)?;
 
-        let builder_dag = BuilderDag::new(checkpoint_factory, initial_epoch_id, dag_schemas)?;
+        let builder_dag = BuilderDag::new(checkpoint_factory, checkpoint, dag_schemas).await?;
 
         Ok(Self {
             builder_dag,

@@ -41,6 +41,7 @@ impl ProcessorFactory for ConnectivityTestProcessorFactory {
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
         _record_store: &ProcessorRecordStore,
+        _checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         unimplemented!(
             "This struct is for connectivity test, only input and output ports are defined"
@@ -82,6 +83,7 @@ impl ProcessorFactory for NoInputPortProcessorFactory {
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
         _record_store: &ProcessorRecordStore,
+        _checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         unimplemented!(
             "This struct is for connectivity test, only input and output ports are defined"

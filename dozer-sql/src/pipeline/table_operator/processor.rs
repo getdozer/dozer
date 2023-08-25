@@ -20,7 +20,12 @@ pub struct TableOperatorProcessor {
 }
 
 impl TableOperatorProcessor {
-    pub fn new(id: String, operator: TableOperatorType, input_schema: Schema) -> Self {
+    pub fn new(
+        id: String,
+        operator: TableOperatorType,
+        input_schema: Schema,
+        _checkpoint_data: Option<Vec<u8>>,
+    ) -> Self {
         Self {
             _id: id,
             operator,

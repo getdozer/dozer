@@ -17,7 +17,10 @@ use crate::pipeline::{
     errors::JoinError,
     utils::{
         record_hashtable_key::{get_record_hash, RecordKey},
-        serialize::{serialize_bincode, serialize_u64, serialize_vec_u8, SerializationError},
+        serialize::{
+            deserialize_bincode, deserialize_record, deserialize_u64, serialize_bincode,
+            serialize_record, serialize_u64, Cursor, DeserializationError, SerializationError,
+        },
     },
 };
 
@@ -40,20 +43,33 @@ impl JoinTable {
         join_key_indexes: Vec<usize>,
         record_store: &ProcessorRecordStore,
         accurate_keys: bool,
+        cursor: Option<&mut Cursor>,
     ) -> Result<Self, JoinError> {
         let primary_key_indexes = if schema.primary_index.is_empty() {
             (0..schema.fields.len()).collect()
         } else {
             schema.primary_index.clone()
         };
-        let default_record = Record::nulls_from_schema(schema);
-        let default_record = record_store.create_record(&default_record)?;
+
+        let (default_record, map, lifetime_map) = if let Some(cursor) = cursor {
+            (
+                deserialize_record(cursor, record_store)?,
+                deserialize_join_map(cursor, record_store)?,
+                deserialize_bincode(cursor)?,
+            )
+        } else {
+            (
+                record_store.create_record(&Record::nulls_from_schema(schema))?,
+                Default::default(),
+                Default::default(),
+            )
+        };
         Ok(Self {
             join_key_indexes,
             primary_key_indexes,
             default_record,
-            map: HashMap::new(),
-            lifetime_map: LinkedHashMap::new(),
+            map,
+            lifetime_map,
             accurate_keys,
         })
     }
@@ -217,6 +233,20 @@ fn serialize_join_map(
     Ok(())
 }
 
+fn deserialize_join_map(
+    cursor: &mut Cursor,
+    record_store: &ProcessorRecordStore,
+) -> Result<HashMap<RecordKey, HashMap<u64, Vec<ProcessorRecord>>>, DeserializationError> {
+    let len = deserialize_u64(cursor)? as usize;
+    let mut map = HashMap::with_capacity(len);
+    for _ in 0..len {
+        let key = deserialize_bincode(cursor)?;
+        let value = deserialize_map(cursor, record_store)?;
+        map.insert(key, value);
+    }
+    Ok(map)
+}
+
 fn serialize_map(
     map: &HashMap<u64, Vec<ProcessorRecord>>,
     record_store: &ProcessorRecordStore,
@@ -228,6 +258,20 @@ fn serialize_map(
         serialize_vec(value, record_store, object)?;
     }
     Ok(())
+}
+
+fn deserialize_map(
+    cursor: &mut Cursor,
+    record_store: &ProcessorRecordStore,
+) -> Result<HashMap<u64, Vec<ProcessorRecord>>, DeserializationError> {
+    let len = deserialize_u64(cursor)? as usize;
+    let mut map = HashMap::with_capacity(len);
+    for _ in 0..len {
+        let key = deserialize_u64(cursor)?;
+        let value = deserialize_vec(cursor, record_store)?;
+        map.insert(key, value);
+    }
+    Ok(map)
 }
 
 fn serialize_vec(
@@ -242,10 +286,14 @@ fn serialize_vec(
     Ok(())
 }
 
-fn serialize_record(
-    record: &ProcessorRecord,
+fn deserialize_vec(
+    cursor: &mut Cursor,
     record_store: &ProcessorRecordStore,
-    object: &mut Object,
-) -> Result<(), SerializationError> {
-    serialize_vec_u8(&record_store.serialize_record(record)?, object)
+) -> Result<Vec<ProcessorRecord>, DeserializationError> {
+    let len = deserialize_u64(cursor)? as usize;
+    let mut vec = Vec::with_capacity(len);
+    for _ in 0..len {
+        vec.push(deserialize_record(cursor, record_store)?);
+    }
+    Ok(vec)
 }

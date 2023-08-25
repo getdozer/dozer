@@ -4,7 +4,7 @@ use daggy::petgraph::visit::IntoNodeIdentifiers;
 use dozer_types::node::{NodeHandle, OpIdentifier};
 
 use crate::{
-    checkpoint::CheckpointFactory,
+    checkpoint::{CheckpointFactory, OptionCheckpoint},
     dag_checkpoint::{DagCheckpoint, NodeKind as CheckpointNodeKind},
     dag_schemas::{DagHaveSchemas, DagSchemas, EdgeType},
     errors::ExecutionError,
@@ -39,9 +39,9 @@ pub struct BuilderDag {
 }
 
 impl BuilderDag {
-    pub fn new(
+    pub async fn new(
         checkpoint_factory: Arc<CheckpointFactory>,
-        initial_epoch_id: u64,
+        checkpoint: OptionCheckpoint,
         dag_schemas: DagSchemas,
     ) -> Result<Self, ExecutionError> {
         // Decide the checkpoint to start from.
@@ -62,11 +62,15 @@ impl BuilderDag {
             let kind = match &node.kind {
                 CheckpointNodeKind::Source(_) => None,
                 CheckpointNodeKind::Processor(processor) => {
+                    let checkpoint_data = checkpoint
+                        .load_processor_data(&checkpoint_factory, &node.handle)
+                        .await?;
                     let processor = processor
                         .build(
                             input_schemas,
                             output_schemas,
                             checkpoint_factory.record_store(),
+                            checkpoint_data,
                         )
                         .map_err(ExecutionError::Factory)?;
                     Some(NodeKind::Processor(processor))
@@ -106,7 +110,7 @@ impl BuilderDag {
         );
         Ok(BuilderDag {
             graph,
-            initial_epoch_id,
+            initial_epoch_id: checkpoint.next_epoch_id(),
             checkpoint_factory,
         })
     }

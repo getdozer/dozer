@@ -360,9 +360,10 @@ impl TestPipeline {
         let executor = DagExecutor::new(
             self.dag,
             Arc::new(checkpoint_factory),
-            0,
+            Default::default(),
             ExecutorOptions::default(),
-        )?;
+        )
+        .await?;
         let join_handle = executor.start(Arc::new(AtomicBool::new(true)), Default::default())?;
 
         for (schema_name, op) in &self.ops {

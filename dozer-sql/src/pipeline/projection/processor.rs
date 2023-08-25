@@ -18,7 +18,11 @@ pub struct ProjectionProcessor {
 }
 
 impl ProjectionProcessor {
-    pub fn new(input_schema: Schema, expressions: Vec<Expression>) -> Self {
+    pub fn new(
+        input_schema: Schema,
+        expressions: Vec<Expression>,
+        _checkpoint_data: Option<Vec<u8>>,
+    ) -> Self {
         Self {
             input_schema,
             expressions,

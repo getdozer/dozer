@@ -17,7 +17,7 @@ pub struct WindowProcessor {
 }
 
 impl WindowProcessor {
-    pub fn new(id: String, window: WindowType) -> Self {
+    pub fn new(id: String, window: WindowType, _checkpoint_data: Option<Vec<u8>>) -> Self {
         Self { _id: id, window }
     }
 }

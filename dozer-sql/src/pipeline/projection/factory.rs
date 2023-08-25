@@ -108,6 +108,7 @@ impl ProcessorFactory for ProjectionProcessorFactory {
         input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
         _record_store: &ProcessorRecordStore,
+        checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         let schema = match input_schemas.get(&DEFAULT_PORT_HANDLE) {
             Some(schema) => Ok(schema),
@@ -123,6 +124,7 @@ impl ProcessorFactory for ProjectionProcessorFactory {
             Ok(expressions) => Ok(Box::new(ProjectionProcessor::new(
                 schema.clone(),
                 expressions.into_iter().map(|e| e.1).collect(),
+                checkpoint_data,
             ))),
             Err(error) => Err(error.into()),
         }

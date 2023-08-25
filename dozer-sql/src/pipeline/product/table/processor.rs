@@ -13,7 +13,7 @@ pub struct TableProcessor {
 }
 
 impl TableProcessor {
-    pub fn new(id: String) -> Self {
+    pub fn new(id: String, _checkpoint_data: Option<Vec<u8>>) -> Self {
         Self { _id: id }
     }
 }
