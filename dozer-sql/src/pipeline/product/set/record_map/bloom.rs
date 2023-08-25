@@ -53,7 +53,7 @@ impl CountingBloomFilter {
 }
 
 fn optimal_num_counters(num_items: u32, false_positive_rate: f32) -> usize {
-    -(num_items as f32 * false_positive_rate.ln() / (2.0f32.ln().powi(2))).ceil() as usize
+    -(num_items as f64 * (false_positive_rate as f64).ln() / (2.0f64.ln().powi(2))).ceil() as usize
 }
 
 fn optimal_num_hashes(num_items: u32, num_counters: usize) -> u32 {
