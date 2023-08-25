@@ -17,14 +17,21 @@ pub struct AggregationProcessorFactory {
     id: String,
     projection: Select,
     _stateful: bool,
+    enable_probabilistic_optimizations: bool,
 }
 
 impl AggregationProcessorFactory {
-    pub fn new(id: String, projection: Select, stateful: bool) -> Self {
+    pub fn new(
+        id: String,
+        projection: Select,
+        stateful: bool,
+        enable_probabilistic_optimizations: bool,
+    ) -> Self {
         Self {
             id,
             projection,
             _stateful: stateful,
+            enable_probabilistic_optimizations,
         }
     }
 
@@ -90,6 +97,7 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
                 planner.having,
                 input_schema.clone(),
                 planner.post_aggregation_schema,
+                self.enable_probabilistic_optimizations,
             )?)
         };
         Ok(processor)

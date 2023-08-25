@@ -14,6 +14,7 @@ use dozer_types::{
     models::{
         api_config::{ApiConfig, AppGrpcOptions},
         api_endpoint::ApiEndpoint,
+        flags::Flags,
     },
 };
 use tokio::{runtime::Runtime, sync::RwLock};
@@ -292,6 +293,7 @@ async fn create_dag(
         dozer.config.sql.as_deref(),
         endpoint_and_logs,
         MultiProgress::new(),
+        Flags::default(),
     );
     let (_shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
     builder.build(&dozer.runtime, shutdown_receiver).await
@@ -324,8 +326,12 @@ fn get_dozer_run_instance(
 ) -> Result<SimpleOrchestrator, LiveError> {
     match req.request {
         Some(dozer_types::grpc_types::live::run_request::Request::Sql(req)) => {
-            let context = statement_to_pipeline(&req.sql, &mut AppPipeline::new(), None)
-                .map_err(LiveError::PipelineError)?;
+            let context = statement_to_pipeline(
+                &req.sql,
+                &mut AppPipeline::new(dozer.config.flags.clone().unwrap_or_default().into()),
+                None,
+            )
+            .map_err(LiveError::PipelineError)?;
 
             //overwrite sql
             dozer.config.sql = Some(req.sql);

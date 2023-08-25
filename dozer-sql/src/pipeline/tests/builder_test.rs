@@ -190,7 +190,7 @@ impl Sink for TestSink {
 
 #[tokio::test]
 async fn test_pipeline_builder() {
-    let mut pipeline = AppPipeline::new();
+    let mut pipeline = AppPipeline::new_with_default_flags();
     let context = statement_to_pipeline(
         "SELECT COUNT(Spending), users.Country \
         FROM users \

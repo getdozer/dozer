@@ -16,6 +16,7 @@ use dozer_types::indicatif::MultiProgress;
 use dozer_types::log::debug;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::connection::Connection;
+use dozer_types::models::flags::Flags;
 use dozer_types::models::source::Source;
 use dozer_types::parking_lot::Mutex;
 use std::hash::Hash;
@@ -57,6 +58,7 @@ pub struct PipelineBuilder<'a> {
     /// `ApiEndpoint` and its log.
     endpoint_and_logs: Vec<(ApiEndpoint, OptionLog)>,
     progress: MultiProgress,
+    flags: Flags,
 }
 
 impl<'a> PipelineBuilder<'a> {
@@ -66,6 +68,7 @@ impl<'a> PipelineBuilder<'a> {
         sql: Option<&'a str>,
         endpoint_and_logs: Vec<(ApiEndpoint, OptionLog)>,
         progress: MultiProgress,
+        flags: Flags,
     ) -> Self {
         Self {
             connections,
@@ -73,6 +76,7 @@ impl<'a> PipelineBuilder<'a> {
             sql,
             endpoint_and_logs,
             progress,
+            flags,
         }
     }
 
@@ -148,7 +152,7 @@ impl<'a> PipelineBuilder<'a> {
         let mut original_sources = vec![];
 
         let mut query_ctx = None;
-        let mut pipeline = AppPipeline::new();
+        let mut pipeline = AppPipeline::new((&self.flags).into());
 
         let mut transformed_sources = vec![];
 
@@ -205,7 +209,7 @@ impl<'a> PipelineBuilder<'a> {
 
         let mut pipelines: Vec<AppPipeline<SchemaSQLContext>> = vec![];
 
-        let mut pipeline = AppPipeline::new();
+        let mut pipeline = AppPipeline::new(self.flags.into());
 
         let mut available_output_tables: HashMap<String, OutputTableInfo> = HashMap::new();
 
