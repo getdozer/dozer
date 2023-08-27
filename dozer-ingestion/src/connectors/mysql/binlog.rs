@@ -13,7 +13,7 @@ use dozer_types::{
 };
 use dozer_types::{json_types::JsonValue, types::Field};
 use futures::StreamExt;
-use mysql_async::{prelude::Queryable, BinlogStream, Conn, Pool};
+use mysql_async::{binlog::EventFlags, prelude::Queryable, BinlogStream, Conn, Pool};
 use mysql_common::{
     binlog::{
         self,
@@ -139,7 +139,23 @@ impl BinlogIngestor<'_, '_, '_, '_, '_> {
         let mut table_cache = BinlogTableCache::new(self.tables);
 
         'binlog_read: while let Some(event) = self.binlog_stream.as_mut().unwrap().next().await {
+            match self.local_stop_position {
+                Some(stop_position) if self.next_position.position >= stop_position => {
+                    break 'binlog_read;
+                }
+                _ => {}
+            }
+
             let binlog_event = event.map_err(MySQLConnectorError::BinlogReadError)?;
+
+            let is_artificial = binlog_event
+                .header()
+                .flags()
+                .contains(EventFlags::LOG_EVENT_ARTIFICIAL_F);
+
+            if is_artificial {
+                continue;
+            }
 
             self.next_position.position = binlog_event.header().log_pos().into();
 
@@ -219,13 +235,6 @@ impl BinlogIngestor<'_, '_, '_, '_, '_> {
                 event_type => {
                     trace!("other binlog event {event_type:?}");
                 }
-            }
-
-            match self.local_stop_position {
-                Some(stop_position) if self.next_position.position >= stop_position => {
-                    break 'binlog_read;
-                }
-                _ => {}
             }
         }
 

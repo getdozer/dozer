@@ -81,6 +81,7 @@ impl SchemaHelper<'_, '_> {
             &mut conn,
             &tables,
             &["table_name", "table_schema", "column_name"],
+            &[],
         )
         .await?;
 
@@ -136,6 +137,7 @@ impl SchemaHelper<'_, '_> {
                 "column_key",
                 "ordinal_position",
             ],
+            &[Self::MARIADB_JSON_CHECK],
         )
         .await?;
 
@@ -154,14 +156,19 @@ impl SchemaHelper<'_, '_> {
                     is_nullable,
                     column_key,
                     ordinal_position,
-                ) = from_row::<(String, String, String, String, String, String, u32)>(row);
+                    is_mariadb_json,
+                ) = from_row::<(String, String, String, String, String, String, u32, bool)>(row);
 
                 let nullable = is_nullable == "YES";
                 let primary_key = column_key == "PRI";
                 let column_definiton = ColumnDefinition {
                     ordinal_position,
                     name: column_name.clone(),
-                    typ: get_field_type_for_mysql_column_type(&column_type)?,
+                    typ: if is_mariadb_json {
+                        FieldType::Json
+                    } else {
+                        get_field_type_for_mysql_column_type(&column_type)?
+                    },
                     nullable,
                     primary_key,
                 };
@@ -187,10 +194,24 @@ impl SchemaHelper<'_, '_> {
         Ok(table_definitions)
     }
 
+    const MARIADB_JSON_CHECK: &str = "(column_type = 'longtext'
+        AND (
+            SELECT COUNT(*) > 0
+            FROM information_schema.check_constraints
+            WHERE (
+                constraint_schema = table_schema
+                AND table_name = table_name
+                AND constraint_name = column_name
+                AND check_clause LIKE CONCAT('%json_valid(`', column_name, '`)%')
+            )
+        )
+    ) as is_mariadb_json";
+
     async fn query_information_schema_columns<'a, 'b, T>(
         conn: &'b mut Conn,
         table_infos: &'a [T],
         select_columns: &[&str],
+        additional_select_expressions: &[&str],
     ) -> Result<QueryResult<'b, 'static, BinaryProtocol>, MySQLConnectorError>
     where
         TableInfoRef<'a>: From<&'a T>,
@@ -203,12 +224,21 @@ impl SchemaHelper<'_, '_> {
                 WHERE {}
                 ORDER BY {}, ordinal_position ASC
             ",
-            select_columns
-                .iter()
-                .copied()
-                .map(escape_identifier)
-                .collect::<Vec<_>>()
-                .join(", "),
+            {
+                let mut select = select_columns
+                    .iter()
+                    .copied()
+                    .map(escape_identifier)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                if !additional_select_expressions.is_empty() {
+                    select.push_str(", ");
+                    select.push_str(additional_select_expressions.join(", ").as_str());
+                }
+
+                select
+            },
             // where clause: filter by table name and table schema
             table_infos
                 .iter()
