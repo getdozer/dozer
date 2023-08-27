@@ -406,7 +406,10 @@ mod tests {
     use super::MySQLConnector;
     use crate::{
         connectors::{
-            mysql::tests::{conn_opts, create_test_table, MockIngestionStream, SERVER_URL},
+            mysql::tests::{
+                create_test_table, mariadb_test_config, mysql_test_config, MockIngestionStream,
+                TestConfig,
+            },
             CdcType, Connector, SourceSchema, TableIdentifier,
         },
         ingestion::Ingestor,
@@ -432,9 +435,9 @@ mod tests {
     }
 
     impl TestCtx {
-        async fn setup() -> Self {
-            let url = SERVER_URL.to_string();
-            let opts = conn_opts();
+        async fn setup(config: &TestConfig) -> Self {
+            let url = config.url.clone();
+            let opts = config.opts.clone();
 
             let (sender, receiver) = std::sync::mpsc::channel();
 
@@ -487,19 +490,16 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    #[ignore]
-    #[serial]
-    async fn test_connector_simple_table_replication() {
+    async fn test_connector_simple_table_replication(config: TestConfig) {
         // setup
         let TestCtx {
             connector,
             ingestor,
             message_channel,
             ..
-        } = TestCtx::setup().await;
+        } = TestCtx::setup(&config).await;
 
-        let table_info = create_test_table("test1").await;
+        let table_info = create_test_table("test1", &config).await;
         let table_definitions = connector
             .schema_helper()
             .get_table_definitions(&[table_info])
@@ -574,18 +574,29 @@ mod tests {
     #[tokio::test]
     #[ignore]
     #[serial]
-    async fn test_connector_cdc() {
+    async fn test_connector_simple_table_replication_mysql() {
+        test_connector_simple_table_replication(mysql_test_config()).await;
+    }
+
+    #[tokio::test]
+    #[ignore]
+    #[serial]
+    async fn test_connector_simple_table_replication_mariadb() {
+        test_connector_simple_table_replication(mariadb_test_config()).await;
+    }
+
+    async fn test_connector_cdc(config: TestConfig) {
         // setup
         let TestCtx {
             connector,
             ingestor,
             message_channel,
             ..
-        } = TestCtx::setup().await;
+        } = TestCtx::setup(&config).await;
 
         let mut table_infos = Vec::new();
-        table_infos.push(create_test_table("test3").await);
-        table_infos.push(create_test_table("test2").await);
+        table_infos.push(create_test_table("test3", &config).await);
+        table_infos.push(create_test_table("test2", &config).await);
 
         let mut conn = connector.conn_pool.get_conn().await.unwrap();
 
@@ -681,13 +692,24 @@ mod tests {
     #[tokio::test]
     #[ignore]
     #[serial]
-    async fn test_connector_schemas() {
+    async fn test_connector_cdc_mysql() {
+        test_connector_cdc(mysql_test_config()).await;
+    }
+
+    #[tokio::test]
+    #[ignore]
+    #[serial]
+    async fn test_connector_cdc_mariadb() {
+        test_connector_cdc(mariadb_test_config()).await;
+    }
+
+    async fn test_connector_schemas(config: TestConfig) {
         // setup
-        let TestCtx { connector, .. } = TestCtx::setup().await;
+        let TestCtx { connector, .. } = TestCtx::setup(&config).await;
 
         let mut expected_table_infos = Vec::new();
-        expected_table_infos.push(create_test_table("test1").await);
-        expected_table_infos.push(create_test_table("test2").await);
+        expected_table_infos.push(create_test_table("test1", &config).await);
+        expected_table_infos.push(create_test_table("test2", &config).await);
 
         let expected_table_identifiers = vec![
             TableIdentifier {
@@ -791,5 +813,19 @@ mod tests {
                 "The {i}th table doesn't match! Expected {expected:?}; Found {actual:?}"
             );
         }
+    }
+
+    #[tokio::test]
+    #[ignore]
+    #[serial]
+    async fn test_connector_schemas_mysql() {
+        test_connector_schemas(mysql_test_config()).await;
+    }
+
+    #[tokio::test]
+    #[ignore]
+    #[serial]
+    async fn test_connector_schemas_mariadb() {
+        test_connector_schemas(mariadb_test_config()).await;
     }
 }

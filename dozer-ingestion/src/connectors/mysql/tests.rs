@@ -6,24 +6,37 @@ use dozer_types::{
 use mysql_async::{prelude::Queryable, Opts, Pool};
 use std::sync::{mpsc::Sender, Mutex};
 
-pub const SERVER_URL: &str = "mysql://root:mysql@localhost:3306/test";
-
-pub fn conn_opts() -> Opts {
-    Opts::from_url(SERVER_URL).unwrap()
+pub struct TestConfig {
+    pub url: String,
+    pub opts: Opts,
+    pub pool: Pool,
 }
 
-pub fn conn_pool() -> Pool {
-    Pool::new(conn_opts())
+impl TestConfig {
+    pub fn new(url: String) -> Self {
+        let opts = Opts::from_url(url.as_str()).unwrap();
+        let pool = Pool::new(opts.clone());
+        Self { url, opts, pool }
+    }
 }
 
-pub async fn create_test_table(name: &str) -> TableInfo {
+pub fn mysql_test_config() -> TestConfig {
+    TestConfig::new("mysql://root:mysql@localhost:3306/test".into())
+}
+
+pub fn mariadb_test_config() -> TestConfig {
+    TestConfig::new("mysql://root:mariadb@localhost:3307/test".into())
+}
+
+pub async fn create_test_table(name: &str, config: &TestConfig) -> TableInfo {
     let TestTable {
         create_table_sql,
         table_info,
         ..
     } = test_tables().into_iter().find(|t| t.name == name).unwrap();
 
-    conn_pool()
+    config
+        .pool
         .get_conn()
         .await
         .unwrap()

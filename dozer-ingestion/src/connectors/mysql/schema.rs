@@ -347,23 +347,20 @@ impl<'a> From<&'a TableInfo> for TableInfoRef<'a> {
 mod tests {
     use super::{ColumnDefinition, SchemaHelper, TableDefinition};
     use crate::connectors::{
-        mysql::tests::{conn_pool, create_test_table, SERVER_URL},
+        mysql::tests::{create_test_table, mariadb_test_config, mysql_test_config, TestConfig},
         TableIdentifier, TableInfo,
     };
     use dozer_types::types::FieldType;
     use serial_test::serial;
 
-    #[tokio::test]
-    #[ignore]
-    #[serial]
-    async fn test_connector_schemas() {
+    async fn test_connector_schemas(config: TestConfig) {
         // setup
-        let url = SERVER_URL.to_string();
-        let pool = conn_pool();
+        let url = &config.url;
+        let pool = &config.pool;
 
-        let schema_helper = SchemaHelper::new(&url, &pool);
+        let schema_helper = SchemaHelper::new(url, pool);
 
-        let _ = create_test_table("test1").await;
+        let _ = create_test_table("test1", &config).await;
 
         // test
         let tables = schema_helper.list_tables().await.unwrap();
@@ -421,5 +418,19 @@ mod tests {
                 ]
             }]
         );
+    }
+
+    #[tokio::test]
+    #[ignore]
+    #[serial]
+    async fn test_connector_schemas_mysql() {
+        test_connector_schemas(mysql_test_config()).await;
+    }
+
+    #[tokio::test]
+    #[ignore]
+    #[serial]
+    async fn test_connector_schemas_mariadb() {
+        test_connector_schemas(mariadb_test_config()).await;
     }
 }
