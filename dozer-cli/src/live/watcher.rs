@@ -8,7 +8,7 @@ use crate::live::state::BroadcastType;
 use dozer_types::log::info;
 use notify::{RecursiveMode, Watcher};
 use notify_debouncer_full::new_debouncer;
-use tokio::runtime::Runtime;
+use tokio::{runtime::Runtime, select};
 
 pub async fn watch(
     runtime: &Arc<Runtime>,
@@ -20,7 +20,9 @@ pub async fn watch(
 
     let dir: std::path::PathBuf = std::env::current_dir()?;
     let mut debouncer = new_debouncer(Duration::from_millis(500), None, tx)?;
-
+    debouncer
+        .cache()
+        .add_root(dir.as_path(), RecursiveMode::Recursive);
     let watcher = debouncer.watcher();
 
     watcher.watch(dir.as_path(), RecursiveMode::NonRecursive)?;
@@ -31,30 +33,37 @@ pub async fn watch(
         let _ = watcher.watch(path.as_path(), RecursiveMode::NonRecursive);
     }
 
-    debouncer
-        .cache()
-        .add_root(dir.as_path(), RecursiveMode::Recursive);
+    let (async_sender, mut async_receiver) = tokio::sync::mpsc::channel(10);
 
-    let running = shutdown.get_running_flag();
+    // Thread that adapts the sync watcher channel to an async channel
+    let adapter = runtime.spawn_blocking(move || loop {
+        let res = rx.recv();
+        let Ok(msg) = res else {
+            break;
+        };
+        let _ = async_sender.blocking_send(msg);
+    });
+
     loop {
-        let event = rx.recv_timeout(Duration::from_millis(100));
-        match event {
-            Ok(result) => match result {
+        select! {
+            Some(msg) = async_receiver.recv() => match msg {
                 Ok(_events) => {
                     build(runtime.clone(), state.clone()).await;
                 }
                 Err(errors) => errors.iter().for_each(|error| info!("{error:?}")),
             },
-            Err(e) => {
-                if !running.load(std::sync::atomic::Ordering::Relaxed) {
-                    break;
-                }
-                if e == std::sync::mpsc::RecvTimeoutError::Disconnected {
-                    break;
-                }
-            }
+            // We are shutting down
+            _ = shutdown.create_shutdown_future() => break,
+            // The watcher quit
+            else => break
         }
     }
+
+    // Drop the channels that may keep the adapter thread alive
+    drop(async_receiver);
+    drop(debouncer);
+
+    let _ = adapter.await;
 
     Ok(())
 }

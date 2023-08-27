@@ -11,6 +11,8 @@ use sqlparser::ast::{
 use dozer_types::models::udf_config::UdfType::Onnx;
 #[cfg(feature = "onnx")]
 use dozer_types::types::DozerSession;
+#[cfg(feature = "onnx")]
+use dozer_types::ort::tensor::TensorElementDataType;
 
 use crate::pipeline::errors::PipelineError::{
     InvalidArgument, InvalidExpression, InvalidFunction, InvalidNestedAggregationFunction,
@@ -881,6 +883,7 @@ impl ExpressionBuilder {
         };
         use std::path::Path;
         use PipelineError::InvalidQuery;
+        use dozer_types::ort::tensor::TensorElementDataType;
 
         let args = function
             .args
@@ -913,7 +916,7 @@ impl ExpressionBuilder {
             let ident = function
                 .return_type
                 .as_ref()
-                .ok_or_else(|| InvalidQuery("Onnx UDF must have a return type. The syntax is: function_name<return_type>(arguments)".to_string()))?;
+                .ok_or_else(|| InvalidQuery("Onnx UDF must have a onnx return type. The syntax is: function_name<return_type>(arguments)".to_string()))?;
 
             FieldType::try_from(ident.value.as_str())
                 .map_err(|e| InvalidQuery(format!("Failed to parse Onnx UDF return type: {e}")))?

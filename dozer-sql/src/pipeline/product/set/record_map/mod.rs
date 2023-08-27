@@ -1,4 +1,3 @@
-use bloom::{CountingBloomFilter, ASMS};
 use dozer_core::processor_record::ProcessorRecord;
 use enum_dispatch::enum_dispatch;
 use std::collections::HashMap;
@@ -65,18 +64,16 @@ impl CountingRecordMap for AccurateCountingRecordMap {
 }
 
 pub struct ProbabilisticCountingRecordMap {
-    map: CountingBloomFilter,
+    map: bloom::CountingBloomFilter,
 }
 
 impl ProbabilisticCountingRecordMap {
-    const BITS_PER_ENTRY: usize = 8;
     const FALSE_POSITIVE_RATE: f32 = 0.01;
     const EXPECTED_NUM_ITEMS: u32 = 10000000;
 
     pub fn new() -> Self {
         Self {
-            map: CountingBloomFilter::with_rate(
-                Self::BITS_PER_ENTRY,
+            map: bloom::CountingBloomFilter::with_rate(
                 Self::FALSE_POSITIVE_RATE,
                 Self::EXPECTED_NUM_ITEMS,
             ),
@@ -101,6 +98,8 @@ impl CountingRecordMap for ProbabilisticCountingRecordMap {
         self.map.clear();
     }
 }
+
+mod bloom;
 
 #[cfg(test)]
 mod tests {

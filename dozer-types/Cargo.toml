@@ -18,7 +18,7 @@ crossbeam = "0.8.2"
 parking_lot = "0.12"
 bytes = "1.4.0"
 indexmap = "1.9.2"
-ordered-float = { version = "3.4.0", features = ["serde"] }
+ordered-float = { version = "3.9.1", features = ["serde"] }
 tracing = "0.1.35"
 log = "0.4.17"
 serde_yaml = "0.9.17"
