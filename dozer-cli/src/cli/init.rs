@@ -4,7 +4,7 @@ use dozer_types::log::warn;
 use dozer_types::models::config::{default_cache_dir, default_home_dir, get_cache_dir};
 use dozer_types::{
     constants::DEFAULT_CONFIG_PATH,
-    ingestion_types::{EthConfig, EthFilter, EthLogConfig, EthProviderConfig, SnowflakeConfig},
+    ingestion_types::{EthConfig, EthFilter, EthLogConfig, EthProviderConfig, SnowflakeConfig, MySQLConfig},
     log::info,
     models::{
         config::Config,
@@ -40,6 +40,7 @@ impl Completer for InitHelper {
             "Postgres".to_owned(),
             "Ethereum".to_owned(),
             "Snowflake".to_owned(),
+            "MySQL".to_owned(),
         ];
         let mut match_pair: Vec<Pair> = candidates
             .iter()
@@ -104,6 +105,17 @@ pub fn generate_connection(connection_name: &str) -> Connection {
             };
             connection
         }
+        "MySQL" | "MYSQL" | "mysql" | "Mysql" | "My" => {
+            let mysql_config = MySQLConfig {
+                url: "mysql://<user>:<password>@localhost:3306/<database>".to_owned(),
+                server_id: Some((1).to_owned()),
+            };
+            let connection: Connection = Connection {
+                name: "mysql".to_owned(),
+                config: Some(ConnectionConfig::MySQL(mysql_config)),
+            };
+            connection
+        }
         _ => {
             let postgres_config = PostgresConfig {
                 user: Some("postgres".to_owned()),
@@ -159,7 +171,7 @@ pub fn generate_config_repl() -> Result<(), OrchestrationError> {
             }),
         ),
         (
-            "question: Connection Type - one of: [P]ostgres, [E]thereum, [S]nowflake (Postgres): "
+            "question: Connection Type - one of: [P]ostgres, [E]thereum, [S]nowflake, [My]SQL (Postgres): "
                 .to_string(),
             Box::new(move |(connection, config)| {
                 let sample_connection = generate_connection(&connection);
