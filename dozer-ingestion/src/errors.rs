@@ -13,6 +13,7 @@ use base64::DecodeError;
 
 use deltalake::datafusion::error::DataFusionError;
 use deltalake::DeltaTableError;
+use geozero::error::GeozeroError;
 #[cfg(feature = "snowflake")]
 use std::num::TryFromIntError;
 #[cfg(feature = "kafka")]
@@ -551,6 +552,9 @@ pub enum MySQLConnectorError {
 
     #[error("Invalid json value. {0}")]
     JsonDeserializationError(#[from] DeserializationError),
+
+    #[error("Invalid geometric value. {0}")]
+    InvalidGeometricValue(#[from] GeozeroError),
 
     #[error("Failed to open binlog. {0}")]
     BinlogOpenError(#[source] mysql_async::Error),
