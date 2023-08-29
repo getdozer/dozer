@@ -60,4 +60,3 @@ libtest-mimic = "0.6.1"
 [features]
 mongodb = ["dep:bson", "dep:mongodb", "dep:futures"]
 python=["dozer-sql/python"]
-onnx=["dozer-sql/onnx"]
