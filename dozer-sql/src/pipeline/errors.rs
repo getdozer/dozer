@@ -5,13 +5,13 @@ use dozer_storage::errors::StorageError;
 use dozer_types::chrono::RoundingError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::TypeError;
+#[cfg(feature = "onnx")]
+use dozer_types::ort::OrtError;
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
 use dozer_types::types::{Field, FieldType};
-use std::fmt::{Display, Formatter};
 use ndarray::ShapeError;
-#[cfg(feature = "onnx")]
-use dozer_types::ort::OrtError;
+use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone)]
 pub struct FieldTypes {

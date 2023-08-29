@@ -1,5 +1,5 @@
-use dozer_types::models::udf_config::UdfType::Onnx;
 use dozer_types::models::udf_config::UdfConfig;
+use dozer_types::models::udf_config::UdfType::Onnx;
 use dozer_types::{
     ordered_float::OrderedFloat,
     types::{Field, FieldDefinition, Schema, SourceDefinition},
@@ -32,9 +32,9 @@ use crate::pipeline::expression::scalar::string::TrimType;
 use super::cast::CastOperatorType;
 
 #[cfg(feature = "onnx")]
-use dozer_types::ort::tensor::TensorElementDataType;
-#[cfg(feature = "onnx")]
 use dozer_types::models::udf_config::OnnxConfig;
+#[cfg(feature = "onnx")]
+use dozer_types::ort::tensor::TensorElementDataType;
 #[cfg(feature = "onnx")]
 use dozer_types::types::DozerSession;
 
