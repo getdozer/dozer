@@ -168,11 +168,11 @@ impl Contract {
             }
         }
 
-        ui_graph
+        remove_from_processor(&ui_graph)
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct UiNodeType {
     kind: UiNodeKind,
     output_schema: Option<Schema>,
@@ -184,7 +184,7 @@ impl Display for UiNodeType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum UiNodeKind {
     Connection { typ: String, name: String },
     Source { name: String },
@@ -218,5 +218,72 @@ fn map_schema(schema: dozer_types::types::Schema) -> Schema {
     Schema {
         primary_index: schema.primary_index.into_iter().map(|i| i as i32).collect(),
         fields: field_definition_to_grpc(schema.fields),
+    }
+}
+
+fn remove_from_processor(graph: &UiGraph) -> UiGraph {
+    let mut output = UiGraph::new();
+
+    // Create nodes that are not "from".
+    let mut input_node_index_to_output_node_index = HashMap::new();
+    for (node_index, node) in graph.node_references() {
+        if !is_from(&node.kind) {
+            let output_node_index = output.add_node(node.clone());
+            input_node_index_to_output_node_index.insert(node_index, output_node_index);
+        }
+    }
+
+    // Map "from" nodes to its only child.
+    let mut input_from_node_index_to_output_node_index = HashMap::new();
+    for (node_index, node) in graph.node_references() {
+        if is_from(&node.kind) {
+            let mut edges = graph
+                .edges_directed(node_index, Direction::Outgoing)
+                .collect::<Vec<_>>();
+            assert!(
+                edges.len() == 1,
+                "We only support visualizing processors with one output port"
+            );
+            let edge = edges.remove(0);
+            let output_node_index = input_node_index_to_output_node_index[&edge.target()];
+            input_from_node_index_to_output_node_index.insert(node_index, output_node_index);
+        }
+    }
+
+    // Create edges. Edges pointing to "from" nodes are pointed to its only child. Edges from "from" nodes are ignored.
+    for edge in graph.edge_references() {
+        let input_source_index = edge.source();
+        let input_target_index = edge.target();
+        if let Some(output_source_index) =
+            input_node_index_to_output_node_index.get(&input_source_index)
+        {
+            if let Some(output_target_index) =
+                input_node_index_to_output_node_index.get(&input_target_index)
+            {
+                output
+                    .add_edge(*output_source_index, *output_target_index, UiEdgeType)
+                    .unwrap();
+            } else {
+                output
+                    .add_edge(
+                        *output_source_index,
+                        input_from_node_index_to_output_node_index[&input_target_index],
+                        UiEdgeType,
+                    )
+                    .unwrap();
+            }
+        } else {
+            // Ignore
+        }
+    }
+
+    output
+}
+
+fn is_from(node_kind: &UiNodeKind) -> bool {
+    if let UiNodeKind::Processor { typ, .. } = node_kind {
+        typ == "Table"
+    } else {
+        false
     }
 }
