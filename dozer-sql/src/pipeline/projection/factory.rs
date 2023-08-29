@@ -11,7 +11,6 @@ use dozer_types::{
 };
 use sqlparser::ast::{Expr, Ident, SelectItem};
 
-use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::{
     errors::PipelineError,
     expression::{builder::ExpressionBuilder, execution::Expression},
@@ -32,7 +31,7 @@ impl ProjectionProcessorFactory {
     }
 }
 
-impl ProcessorFactory<SchemaSQLContext> for ProjectionProcessorFactory {
+impl ProcessorFactory for ProjectionProcessorFactory {
     fn id(&self) -> String {
         self.id.clone()
     }
@@ -54,9 +53,9 @@ impl ProcessorFactory<SchemaSQLContext> for ProjectionProcessorFactory {
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(Schema, SchemaSQLContext), BoxedError> {
-        let (input_schema, context) = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap();
+        input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> Result<Schema, BoxedError> {
+        let input_schema = input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap();
 
         let mut select_expr: Vec<(String, Expression)> = vec![];
         for s in self.select.iter() {
@@ -99,7 +98,7 @@ impl ProcessorFactory<SchemaSQLContext> for ProjectionProcessorFactory {
         }
         output_schema.fields = fields;
 
-        Ok((output_schema, context.clone()))
+        Ok(output_schema)
     }
 
     fn build(

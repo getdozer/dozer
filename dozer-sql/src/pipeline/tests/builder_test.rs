@@ -24,7 +24,7 @@ use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-use crate::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
+use crate::pipeline::builder::statement_to_pipeline;
 
 /// Test Source
 #[derive(Debug)]
@@ -38,7 +38,7 @@ impl TestSourceFactory {
     }
 }
 
-impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
+impl SourceFactory for TestSourceFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         self.output_ports
             .iter()
@@ -46,42 +46,36 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
             .collect()
     }
 
-    fn get_output_schema(
-        &self,
-        _port: &PortHandle,
-    ) -> Result<(Schema, SchemaSQLContext), BoxedError> {
-        Ok((
-            Schema::default()
-                .field(
-                    FieldDefinition::new(
-                        String::from("CustomerID"),
-                        FieldType::Int,
-                        false,
-                        SourceDefinition::Dynamic,
-                    ),
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, BoxedError> {
+        Ok(Schema::default()
+            .field(
+                FieldDefinition::new(
+                    String::from("CustomerID"),
+                    FieldType::Int,
                     false,
-                )
-                .field(
-                    FieldDefinition::new(
-                        String::from("Country"),
-                        FieldType::String,
-                        false,
-                        SourceDefinition::Dynamic,
-                    ),
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .field(
+                FieldDefinition::new(
+                    String::from("Country"),
+                    FieldType::String,
                     false,
-                )
-                .field(
-                    FieldDefinition::new(
-                        String::from("Spending"),
-                        FieldType::Float,
-                        false,
-                        SourceDefinition::Dynamic,
-                    ),
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .field(
+                FieldDefinition::new(
+                    String::from("Spending"),
+                    FieldType::Float,
                     false,
-                )
-                .clone(),
-            SchemaSQLContext::default(),
-        ))
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone())
     }
 
     fn get_output_port_name(&self, port: &PortHandle) -> String {
@@ -142,7 +136,7 @@ impl TestSinkFactory {
     }
 }
 
-impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
+impl SinkFactory for TestSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
@@ -154,10 +148,7 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
         Ok(Box::new(TestSink {}))
     }
 
-    fn prepare(
-        &self,
-        _input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), BoxedError> {
+    fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), BoxedError> {
         Ok(())
     }
 }

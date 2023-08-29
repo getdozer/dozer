@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
+use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::builder::ExpressionBuilder;
-use crate::pipeline::{builder::SchemaSQLContext, errors::PipelineError};
 use dozer_core::processor_record::ProcessorRecordStore;
 use dozer_core::{
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
@@ -25,7 +25,7 @@ impl SelectionProcessorFactory {
     }
 }
 
-impl ProcessorFactory<SchemaSQLContext> for SelectionProcessorFactory {
+impl ProcessorFactory for SelectionProcessorFactory {
     fn id(&self) -> String {
         self.id.clone()
     }
@@ -46,8 +46,8 @@ impl ProcessorFactory<SchemaSQLContext> for SelectionProcessorFactory {
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(Schema, SchemaSQLContext), BoxedError> {
+        input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> Result<Schema, BoxedError> {
         let schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
             .ok_or(PipelineError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;

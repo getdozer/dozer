@@ -23,12 +23,10 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-use crate::tests::app::NoneContext;
-
 #[derive(Debug)]
 pub(crate) struct NoopProcessorFactory {}
 
-impl ProcessorFactory<NoneContext> for NoopProcessorFactory {
+impl ProcessorFactory for NoopProcessorFactory {
     fn type_name(&self) -> String {
         "Noop".to_owned()
     }
@@ -36,8 +34,8 @@ impl ProcessorFactory<NoneContext> for NoopProcessorFactory {
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(Schema, NoneContext), BoxedError> {
+        input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> Result<Schema, BoxedError> {
         Ok(input_schemas.get(&DEFAULT_PORT_HANDLE).unwrap().clone())
     }
 
@@ -179,7 +177,7 @@ pub(crate) struct NoopJoinProcessorFactory {}
 pub const NOOP_JOIN_LEFT_INPUT_PORT: u16 = 1;
 pub const NOOP_JOIN_RIGHT_INPUT_PORT: u16 = 2;
 
-impl ProcessorFactory<NoneContext> for NoopJoinProcessorFactory {
+impl ProcessorFactory for NoopJoinProcessorFactory {
     fn type_name(&self) -> String {
         "NoopJoin".to_owned()
     }
@@ -187,8 +185,8 @@ impl ProcessorFactory<NoneContext> for NoopJoinProcessorFactory {
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(Schema, NoneContext), BoxedError> {
+        input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> Result<Schema, BoxedError> {
         Ok(input_schemas.get(&1).unwrap().clone())
     }
 

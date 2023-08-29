@@ -8,12 +8,10 @@ use crate::{
     DEFAULT_PORT_HANDLE,
 };
 
-use super::app::NoneContext;
-
 #[derive(Debug)]
 pub struct ConnectivityTestProcessorFactory;
 
-impl ProcessorFactory<NoneContext> for ConnectivityTestProcessorFactory {
+impl ProcessorFactory for ConnectivityTestProcessorFactory {
     fn type_name(&self) -> String {
         "ConnectivityTest".to_owned()
     }
@@ -31,8 +29,8 @@ impl ProcessorFactory<NoneContext> for ConnectivityTestProcessorFactory {
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
-        _input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(Schema, NoneContext), BoxedError> {
+        _input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> Result<Schema, BoxedError> {
         unimplemented!(
             "This struct is for connectivity test, only input and output ports are defined"
         )
@@ -57,7 +55,7 @@ impl ProcessorFactory<NoneContext> for ConnectivityTestProcessorFactory {
 #[derive(Debug)]
 pub struct NoInputPortProcessorFactory;
 
-impl ProcessorFactory<NoneContext> for NoInputPortProcessorFactory {
+impl ProcessorFactory for NoInputPortProcessorFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![]
     }
@@ -72,8 +70,8 @@ impl ProcessorFactory<NoneContext> for NoInputPortProcessorFactory {
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
-        _input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(Schema, NoneContext), BoxedError> {
+        _input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> Result<Schema, BoxedError> {
         unimplemented!(
             "This struct is for connectivity test, only input and output ports are defined"
         )

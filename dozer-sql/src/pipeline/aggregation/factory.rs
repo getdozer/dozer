@@ -1,4 +1,3 @@
-use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::planner::projection::CommonPlanner;
 use crate::pipeline::projection::processor::ProjectionProcessor;
 use crate::pipeline::{aggregation::processor::AggregationProcessor, errors::PipelineError};
@@ -42,7 +41,7 @@ impl AggregationProcessorFactory {
     }
 }
 
-impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
+impl ProcessorFactory for AggregationProcessorFactory {
     fn type_name(&self) -> String {
         "Aggregation".to_string()
     }
@@ -60,14 +59,14 @@ impl ProcessorFactory<SchemaSQLContext> for AggregationProcessorFactory {
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(Schema, SchemaSQLContext), BoxedError> {
-        let (input_schema, ctx) = input_schemas
+        input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> Result<Schema, BoxedError> {
+        let input_schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
             .ok_or(PipelineError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
 
         let planner = self.get_planner(input_schema.clone())?;
-        Ok((planner.post_projection_schema, ctx.clone()))
+        Ok(planner.post_projection_schema)
     }
 
     fn build(

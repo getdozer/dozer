@@ -12,8 +12,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 
-use crate::tests::app::NoneContext;
-
 use std::time::Duration;
 
 pub(crate) const GENERATOR_SOURCE_OUTPUT_PORT: PortHandle = 100;
@@ -35,31 +33,28 @@ impl GeneratorSourceFactory {
     }
 }
 
-impl SourceFactory<NoneContext> for GeneratorSourceFactory {
-    fn get_output_schema(&self, _port: &PortHandle) -> Result<(Schema, NoneContext), BoxedError> {
-        Ok((
-            Schema::default()
-                .field(
-                    FieldDefinition::new(
-                        "id".to_string(),
-                        FieldType::String,
-                        false,
-                        SourceDefinition::Dynamic,
-                    ),
-                    true,
-                )
-                .field(
-                    FieldDefinition::new(
-                        "value".to_string(),
-                        FieldType::String,
-                        false,
-                        SourceDefinition::Dynamic,
-                    ),
+impl SourceFactory for GeneratorSourceFactory {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, BoxedError> {
+        Ok(Schema::default()
+            .field(
+                FieldDefinition::new(
+                    "id".to_string(),
+                    FieldType::String,
                     false,
-                )
-                .clone(),
-            NoneContext {},
-        ))
+                    SourceDefinition::Dynamic,
+                ),
+                true,
+            )
+            .field(
+                FieldDefinition::new(
+                    "value".to_string(),
+                    FieldType::String,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone())
     }
 
     fn get_output_port_name(&self, _port: &PortHandle) -> String {
@@ -154,31 +149,28 @@ impl DualPortGeneratorSourceFactory {
     }
 }
 
-impl SourceFactory<NoneContext> for DualPortGeneratorSourceFactory {
-    fn get_output_schema(&self, _port: &PortHandle) -> Result<(Schema, NoneContext), BoxedError> {
-        Ok((
-            Schema::default()
-                .field(
-                    FieldDefinition::new(
-                        "id".to_string(),
-                        FieldType::String,
-                        false,
-                        SourceDefinition::Dynamic,
-                    ),
-                    true,
-                )
-                .field(
-                    FieldDefinition::new(
-                        "value".to_string(),
-                        FieldType::String,
-                        false,
-                        SourceDefinition::Dynamic,
-                    ),
+impl SourceFactory for DualPortGeneratorSourceFactory {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, BoxedError> {
+        Ok(Schema::default()
+            .field(
+                FieldDefinition::new(
+                    "id".to_string(),
+                    FieldType::String,
                     false,
-                )
-                .clone(),
-            NoneContext {},
-        ))
+                    SourceDefinition::Dynamic,
+                ),
+                true,
+            )
+            .field(
+                FieldDefinition::new(
+                    "value".to_string(),
+                    FieldType::String,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone())
     }
 
     fn get_output_port_name(&self, port: &PortHandle) -> String {
@@ -280,8 +272,8 @@ impl Source for DualPortGeneratorSource {
 #[derive(Debug)]
 pub struct ConnectivityTestSourceFactory;
 
-impl SourceFactory<NoneContext> for ConnectivityTestSourceFactory {
-    fn get_output_schema(&self, _port: &PortHandle) -> Result<(Schema, NoneContext), BoxedError> {
+impl SourceFactory for ConnectivityTestSourceFactory {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, BoxedError> {
         unimplemented!("This struct is for connectivity test, only output ports are defined")
     }
 

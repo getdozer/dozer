@@ -8,7 +8,7 @@ use dozer_core::{
 use sqlparser::ast::{FunctionArg, ObjectName, TableFactor, TableWithJoins};
 
 use crate::pipeline::{
-    builder::{get_from_source, OutputNodeInfo, QueryContext, SchemaSQLContext},
+    builder::{get_from_source, OutputNodeInfo, QueryContext},
     errors::PipelineError,
     expression::builder::ExpressionBuilder,
     product::table::factory::TableProcessorFactory,
@@ -32,7 +32,7 @@ pub struct TableOperatorDescriptor {
 
 pub fn insert_from_to_pipeline(
     from: &TableWithJoins,
-    pipeline: &mut AppPipeline<SchemaSQLContext>,
+    pipeline: &mut AppPipeline,
     pipeline_idx: usize,
     query_context: &mut QueryContext,
 ) -> Result<ConnectionInfo, PipelineError> {
@@ -45,7 +45,7 @@ pub fn insert_from_to_pipeline(
 
 fn insert_table_to_pipeline(
     relation: &TableFactor,
-    pipeline: &mut AppPipeline<SchemaSQLContext>,
+    pipeline: &mut AppPipeline,
     pipeline_idx: usize,
     query_context: &mut QueryContext,
 ) -> Result<ConnectionInfo, PipelineError> {
@@ -64,7 +64,7 @@ fn insert_table_to_pipeline(
 
 fn insert_table_processor_to_pipeline(
     relation: &TableFactor,
-    pipeline: &mut AppPipeline<SchemaSQLContext>,
+    pipeline: &mut AppPipeline,
     pipeline_idx: usize,
     query_context: &mut QueryContext,
 ) -> Result<ConnectionInfo, PipelineError> {
@@ -119,7 +119,7 @@ fn insert_table_processor_to_pipeline(
 fn insert_table_operator_processor_to_pipeline(
     relation: &TableFactor,
     operator: &TableOperatorDescriptor,
-    pipeline: &mut AppPipeline<SchemaSQLContext>,
+    pipeline: &mut AppPipeline,
     pipeline_idx: usize,
     query_context: &mut QueryContext,
 ) -> Result<ConnectionInfo, PipelineError> {
