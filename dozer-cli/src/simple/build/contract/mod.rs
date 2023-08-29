@@ -59,14 +59,17 @@ pub struct EdgeType {
 
 pub type PipelineContract = daggy::Dag<NodeType, EdgeType>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(crate = "dozer_types::serde")]
 pub struct Contract {
+    pub version: usize,
     pub pipeline: PipelineContract,
     pub endpoints: BTreeMap<String, EndpointSchema>,
 }
 
 impl Contract {
     pub fn new(
+        version: usize,
         dag_schemas: &DagSchemas,
         connections: &[Connection],
         endpoints: &[ApiEndpoint],
@@ -153,47 +156,19 @@ impl Contract {
         );
 
         Ok(Self {
+            version,
             pipeline,
             endpoints: endpoint_schemas,
         })
     }
 
     pub fn serialize(&self, build_path: &BuildPath) -> Result<(), BuildError> {
-        serde_json_to_path(&build_path.dag_path, &self.pipeline)?;
-
-        for (endpoint_name, schema) in &self.endpoints {
-            let endpoint_path = build_path.get_endpoint_path(endpoint_name);
-            serde_json_to_path(&endpoint_path.schema_path, schema)?;
-        }
-
+        serde_json_to_path(&build_path.dag_path, &self)?;
         Ok(())
     }
 
     pub fn deserialize(build_path: &BuildPath) -> Result<Self, BuildError> {
-        let pipeline: daggy::Dag<NodeType, EdgeType> = serde_json_from_path(&build_path.dag_path)?;
-
-        let mut endpoints = BTreeMap::new();
-        for (node_index, node) in pipeline.node_references() {
-            // Endpoint must have zero out degree.
-            if pipeline
-                .edges_directed(node_index, Direction::Outgoing)
-                .count()
-                > 0
-            {
-                continue;
-            }
-
-            // `NodeHandle::id` is the endpoint name.
-            let endpoint_name = node.handle.id.clone();
-            let endpoint_path = build_path.get_endpoint_path(&endpoint_name);
-            let schema: EndpointSchema = serde_json_from_path(&endpoint_path.schema_path)?;
-            endpoints.insert(endpoint_name, schema);
-        }
-
-        Ok(Self {
-            pipeline,
-            endpoints,
-        })
+        serde_json_from_path(&build_path.dag_path)
     }
 }
 

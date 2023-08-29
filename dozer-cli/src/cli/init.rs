@@ -175,7 +175,10 @@ pub fn generate_config_repl() -> Result<(), OrchestrationError> {
     let mut rl = Editor::<InitHelper, DefaultHistory>::new()
         .map_err(|e| OrchestrationError::CliError(CliError::ReadlineError(e)))?;
     rl.set_helper(Some(InitHelper {}));
-    let mut default_config = Config::default();
+    let mut default_config = Config {
+        version: 1,
+        ..Default::default()
+    };
     let default_app_name = "quick-start-app";
     let questions: Vec<Question> = vec![
         (
