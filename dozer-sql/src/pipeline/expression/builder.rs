@@ -1,5 +1,4 @@
 use dozer_types::models::udf_config::UdfConfig;
-use dozer_types::models::udf_config::UdfType::Onnx;
 use dozer_types::{
     ordered_float::OrderedFloat,
     types::{Field, FieldDefinition, Schema, SourceDefinition},
@@ -37,6 +36,8 @@ use dozer_types::models::udf_config::OnnxConfig;
 use dozer_types::ort::tensor::TensorElementDataType;
 #[cfg(feature = "onnx")]
 use dozer_types::types::DozerSession;
+#[cfg(feature = "onnx")]
+use dozer_types::models::udf_config::UdfType::Onnx;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct ExpressionBuilder {

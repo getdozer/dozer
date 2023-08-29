@@ -108,7 +108,7 @@ impl Connector for NestedDozerConnector {
 
             schemas.push(log_reader.and_then(|log_reader| {
                 let source_primary_index_len = log_reader.schema.schema.primary_index.len();
-                let source_schema = log_reader.schema.schema.clone();
+                let source_schema = log_reader.schema.schema;
                 let schema_mapper = SchemaMapper::new(source_schema, &table_info.column_names)?;
                 let mut schema = schema_mapper.map()?;
                 if schema.primary_index.len() < source_primary_index_len {

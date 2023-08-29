@@ -10,6 +10,7 @@ use dozer_types::ort::OrtError;
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
 use dozer_types::types::{Field, FieldType};
+#[cfg(feature = "onnx")]
 use ndarray::ShapeError;
 use std::fmt::{Display, Formatter};
 
