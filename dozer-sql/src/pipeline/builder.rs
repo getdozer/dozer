@@ -111,6 +111,7 @@ pub fn statement_to_pipeline(
     Ok(ctx)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn query_to_pipeline(
     table_info: &TableInfo,
     query: &Query,
@@ -236,6 +237,7 @@ fn query_to_pipeline(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn select_to_pipeline(
     table_info: &TableInfo,
     select: Select,

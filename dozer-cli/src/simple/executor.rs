@@ -36,7 +36,7 @@ pub struct Executor<'a> {
 }
 
 impl<'a> Executor<'a> {
-    #[ignore = "clippy::too_many_arguments"]
+    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         home_dir: &'a HomeDir,
         connections: &'a [Connection],

@@ -19,8 +19,6 @@ use std::iter::zip;
 use crate::pipeline::aggregation::max_value::validate_max_value;
 use crate::pipeline::aggregation::min_value::validate_min_value;
 #[cfg(feature = "onnx")]
-use dozer_types::ort::Session;
-#[cfg(feature = "onnx")]
 use dozer_types::types::DozerSession;
 use dozer_types::types::Record;
 use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
@@ -342,7 +340,7 @@ impl Expression {
             }
             #[cfg(feature = "onnx")]
             Expression::OnnxUDF {
-                name,
+                name: _name,
                 session,
                 args,
                 return_type,

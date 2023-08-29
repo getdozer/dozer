@@ -33,8 +33,6 @@ use super::cast::CastOperatorType;
 #[cfg(feature = "onnx")]
 use dozer_types::models::udf_config::OnnxConfig;
 #[cfg(feature = "onnx")]
-use dozer_types::ort::tensor::TensorElementDataType;
-#[cfg(feature = "onnx")]
 use dozer_types::types::DozerSession;
 #[cfg(feature = "onnx")]
 use dozer_types::models::udf_config::UdfType::Onnx;
@@ -475,10 +473,10 @@ impl ExpressionBuilder {
         #[cfg(feature = "onnx")]
         if !udfs.is_empty() || function_name.ends_with("onnx") {
             for udf in udfs {
-                match udf.config.clone() {
-                    Some(udf_type) => match udf_type {
+                return if let Some(udf) = udfs.iter().next() {
+                    match udf_type {
                         Onnx(config) => {
-                            return self.parse_onnx_udf(
+                            self.parse_onnx_udf(
                                 udf.name.clone(),
                                 &config,
                                 sql_function,
@@ -486,8 +484,9 @@ impl ExpressionBuilder {
                                 udfs,
                             )
                         }
-                    },
-                    None => return Err(PipelineError::UdfConfigMissing(udf.name.clone())),
+                    }
+                } else {
+                    Err(PipelineError::UdfConfigMissing(udf.name.clone()))
                 }
             }
         }
@@ -881,7 +880,6 @@ impl ExpressionBuilder {
         // First, get onnx function define by name.
         // Then, transfer onnx function to Expression::OnnxUDF
 
-        use dozer_types::ort::tensor::TensorElementDataType;
         use dozer_types::ort::{Environment, GraphOptimizationLevel, LoggingLevel, SessionBuilder};
         use dozer_types::types::FieldType;
         use std::path::Path;
@@ -893,7 +891,7 @@ impl ExpressionBuilder {
             .map(|argument| self.parse_sql_function_arg(false, argument, schema, udfs))
             .collect::<Result<Vec<_>, PipelineError>>()?;
 
-        let last_arg = args
+        args
             .last()
             .ok_or_else(|| InvalidQuery("Can't get onnx udf return type".to_string()))?;
 
