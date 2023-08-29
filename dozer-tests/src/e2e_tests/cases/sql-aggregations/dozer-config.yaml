@@ -1,4 +1,5 @@
 app_name: sql-aggregations
+version: 1
 
 connections:
   - config : !LocalStorage

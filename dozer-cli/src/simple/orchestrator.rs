@@ -312,7 +312,10 @@ impl SimpleOrchestrator {
             .as_ref()
             .map(|flags| flags.push_events)
             .unwrap_or_else(default_push_events);
+        let version = self.config.version as usize;
+
         let contract = build::Contract::new(
+            version,
             &dag_schemas,
             &self.config.endpoints,
             enable_token,

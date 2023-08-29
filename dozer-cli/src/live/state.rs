@@ -266,8 +266,10 @@ fn get_contract(dozer_and_contract: &Option<DozerAndContract>) -> Result<&Contra
 
 async fn create_contract(dozer: SimpleOrchestrator) -> Result<Contract, OrchestrationError> {
     let dag = create_dag(&dozer).await?;
+    let version = dozer.config.version;
     let schemas = DagSchemas::new(dag)?;
     let contract = Contract::new(
+        version as usize,
         &schemas,
         &dozer.config.endpoints,
         // We don't care about API generation options here. They are handled in `run_all`.

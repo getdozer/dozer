@@ -22,6 +22,7 @@ fn get_default_config() -> Config {
 
     Config {
         app_name: "multi".to_string(),
+        version: 1,
         api: Default::default(),
         flags: Default::default(),
         connections: vec![grpc_conn.clone()],

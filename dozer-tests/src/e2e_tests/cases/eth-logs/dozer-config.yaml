@@ -1,4 +1,5 @@
 app_name: working_app
+version: 1
 connections:
   - config: !Ethereum
       provider: !Log

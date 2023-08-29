@@ -11,6 +11,7 @@ fn test_sql_merge_in_config() {
     let yaml = format!(
         r#"
     app_name: dozer-config-sample
+    version: 1
     sql:
         {}
     "#,
@@ -31,7 +32,10 @@ fn test_sql_merge_in_config() {
 fn test_sql_from_single_sql_source_in_config() {
     let query = "select * from table_b";
 
-    let yaml = r#"app_name: dozer-config-sample"#;
+    let yaml = r#"
+    app_name: dozer-config-sample
+    version: 1
+    "#;
 
     let mut combined_yaml = serde_yaml::Value::Mapping(Mapping::new());
 
@@ -50,6 +54,7 @@ fn test_sql_from_single_yaml_source_in_config() {
     let yaml = format!(
         r#"
     app_name: dozer-config-sample
+    version: 1
     sql:
         {}
     "#,

@@ -5,6 +5,7 @@ use crate::models::config::Config;
 fn error_wrong_reference_connection_name() {
     let input_config = r#"
     app_name: working_app
+    version: 1
     home_dir: './.dozer'
     connections:
     - authentication: !Postgres
@@ -45,6 +46,7 @@ fn error_wrong_reference_connection_name() {
 fn error_missing_field_general() {
     let input_config = r#"
     app_name: working_app
+    version: 1
     home_dir: './.dozer'
     connections:
     - authentication: !Postgres
@@ -81,6 +83,7 @@ fn error_missing_field_general() {
 fn error_missing_field_in_source() {
     let input_config = r#"
     app_name: working_app
+    version: 1
     home_dir: './.dozer'
     connections:
     - authentication: !Postgres
@@ -112,6 +115,7 @@ fn error_missing_field_in_source() {
 fn error_missing_field_connection_ref_in_source() {
     let input_config = r#"
     app_name: working_app
+    version: 1
     home_dir: './.dozer'
     connections:
     - authentication: !Postgres
@@ -143,6 +147,7 @@ fn error_missing_field_connection_ref_in_source() {
 fn error_missing_connection_ref() {
     let input_config = r#"
     app_name: working_app
+    version: 1
     home_dir: './.dozer'
     connections:
     - config: !Postgres
