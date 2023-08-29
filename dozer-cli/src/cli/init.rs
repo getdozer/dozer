@@ -4,7 +4,10 @@ use dozer_types::log::warn;
 use dozer_types::models::config::{default_cache_dir, default_home_dir, get_cache_dir};
 use dozer_types::{
     constants::DEFAULT_CONFIG_PATH,
-    ingestion_types::{EthConfig, EthFilter, EthLogConfig, EthProviderConfig, SnowflakeConfig, MySQLConfig, S3Details, S3Storage, MongodbConfig},
+    ingestion_types::{
+        EthConfig, EthFilter, EthLogConfig, EthProviderConfig, MongodbConfig, MySQLConfig,
+        S3Details, S3Storage, SnowflakeConfig,
+    },
     log::info,
     models::{
         config::Config,
@@ -126,8 +129,8 @@ pub fn generate_connection(connection_name: &str) -> Connection {
                 bucket_name: "<your_bucket_name>".to_owned(),
             };
             let s3_config = S3Storage {
-              details: Some(s3_details),
-              tables: vec![],
+                details: Some(s3_details),
+                tables: vec![],
             };
             let connection: Connection = Connection {
                 name: "s3".to_owned(),
@@ -137,7 +140,8 @@ pub fn generate_connection(connection_name: &str) -> Connection {
         }
         "MongoDB" | "mongodb" | "MONGODB" | "Mongodb" | "Mo" | "MO" => {
             let mongo_config = MongodbConfig {
-               connection_string: "mongodb://<username>:<password>@localhost:27017/<database_name>".to_owned(),
+                connection_string:
+                    "mongodb://<username>:<password>@localhost:27017/<database_name>".to_owned(),
             };
             let connection: Connection = Connection {
                 name: "mongodb".to_owned(),
