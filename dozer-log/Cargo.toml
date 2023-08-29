@@ -23,5 +23,5 @@ tokio-stream = "0.1.14"
 tokio-util = { version = "0.7.8", features = ["io"] }
 
 [dev-dependencies]
-clap = { version = "4.3.11", features = ["derive"] }
+clap = { version = "4.4.1", features = ["derive"] }
 env_logger = "0.10.0"
