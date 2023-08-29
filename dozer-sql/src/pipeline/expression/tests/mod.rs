@@ -25,10 +25,10 @@ mod mathematical;
 #[cfg(test)]
 mod number;
 #[cfg(test)]
+#[cfg(feature = "onnx")]
+mod onnx;
+#[cfg(test)]
 mod point;
 #[cfg(test)]
 mod string;
-#[cfg(test)]
-#[cfg(feature = "onnx")]
-mod onnx;
 mod test_common;

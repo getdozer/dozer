@@ -10,7 +10,9 @@ use dozer_core::{
 use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
 use dozer_types::{
     grpc_types::cloud::{QueryEdge, QueryGraph, QueryNode, QueryNodeType},
-    models::{config::Config, connection::Connection, flags::Flags, source::Source, udf_config::UdfConfig},
+    models::{
+        config::Config, connection::Connection, flags::Flags, source::Source, udf_config::UdfConfig,
+    },
 };
 
 use crate::{errors::OrchestrationError, pipeline::source_builder::SourceBuilder};

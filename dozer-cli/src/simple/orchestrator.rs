@@ -378,7 +378,13 @@ impl SimpleOrchestrator {
 }
 
 pub fn validate_sql(sql: String) -> Result<(), PipelineError> {
-    statement_to_pipeline(&sql, &mut AppPipeline::new_with_default_flags(), None, &vec![]).map_or_else(
+    statement_to_pipeline(
+        &sql,
+        &mut AppPipeline::new_with_default_flags(),
+        None,
+        &vec![],
+    )
+    .map_or_else(
         |e| {
             error!(
                 "[sql][{}] Transforms validation error: {}",

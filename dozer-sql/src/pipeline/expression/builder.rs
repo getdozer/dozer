@@ -1,4 +1,9 @@
+use dozer_types::models::udf_config::UdfType::Onnx;
 use dozer_types::models::udf_config::{OnnxConfig, UdfConfig};
+#[cfg(feature = "onnx")]
+use dozer_types::ort::tensor::TensorElementDataType;
+#[cfg(feature = "onnx")]
+use dozer_types::types::DozerSession;
 use dozer_types::{
     ordered_float::OrderedFloat,
     types::{Field, FieldDefinition, Schema, SourceDefinition},
@@ -8,11 +13,6 @@ use sqlparser::ast::{
     FunctionArg, FunctionArgExpr, Ident, Interval, TrimWhereField,
     UnaryOperator as SqlUnaryOperator, Value as SqlValue,
 };
-use dozer_types::models::udf_config::UdfType::Onnx;
-#[cfg(feature = "onnx")]
-use dozer_types::types::DozerSession;
-#[cfg(feature = "onnx")]
-use dozer_types::ort::tensor::TensorElementDataType;
 
 use crate::pipeline::errors::PipelineError::{
     InvalidArgument, InvalidExpression, InvalidFunction, InvalidNestedAggregationFunction,
@@ -877,13 +877,11 @@ impl ExpressionBuilder {
         // First, get onnx function define by name.
         // Then, transfer onnx function to Expression::OnnxUDF
 
+        use dozer_types::ort::tensor::TensorElementDataType;
+        use dozer_types::ort::{Environment, GraphOptimizationLevel, LoggingLevel, SessionBuilder};
         use dozer_types::types::FieldType;
-        use dozer_types::ort::{
-            Environment, GraphOptimizationLevel, LoggingLevel, SessionBuilder,
-        };
         use std::path::Path;
         use PipelineError::InvalidQuery;
-        use dozer_types::ort::tensor::TensorElementDataType;
 
         let args = function
             .args
@@ -902,9 +900,12 @@ impl ExpressionBuilder {
             .unwrap()
             .into_arc();
 
-        let session = SessionBuilder::new(&environment).unwrap()
-            .with_optimization_level(GraphOptimizationLevel::Level1).unwrap()
-            .with_intra_threads(1).unwrap()
+        let session = SessionBuilder::new(&environment)
+            .unwrap()
+            .with_optimization_level(GraphOptimizationLevel::Level1)
+            .unwrap()
+            .with_intra_threads(1)
+            .unwrap()
             .with_model_from_file(Path::new(config.path.as_str()))
             .expect("Could not read model from memory");
 

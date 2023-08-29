@@ -1,8 +1,8 @@
-use std::path::Path;
+use crate::pipeline::expression::onnx_udf::evaluate_onnx_udf;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::ort::{Environment, GraphOptimizationLevel, LoggingLevel, SessionBuilder};
-use dozer_types::types::{FieldType, Record, Schema, Field};
-use crate::pipeline::expression::onnx_udf::evaluate_onnx_udf;
+use dozer_types::types::{Field, FieldType, Record, Schema};
+use std::path::Path;
 
 #[test]
 fn test_standard() {
@@ -19,10 +19,15 @@ fn test_standard() {
         .with_model_from_file(Path::new("/Users/chloeminkyung/CLionProjects/dozer/dozer-sql/src/pipeline/expression/tests/models/vectorizer.onnx"))
         .expect("Could not read model from memory");
 
-    let record = Record::new(vec![
-        Field::String("document".to_string()),
-    ]);
+    let record =
+        Record::new(vec![Field::String("document".to_string())]);
 
-    let res = evaluate_onnx_udf(&Schema::default(), &session, &vec![], &FieldType::String, &record);
+    let res = evaluate_onnx_udf(
+        &Schema::default(),
+        &session,
+        &vec![],
+        &FieldType::String,
+        &record,
+    );
     let record = res.unwrap();
 }
