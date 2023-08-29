@@ -84,7 +84,7 @@ impl Runner {
 fn spawn_dozer_same_process(dozer_bin: &str, dozer_config_path: &str) -> Vec<Cleanup> {
     let child = spawn_command(
         dozer_bin,
-        &["--config-path", dozer_config_path, "--ignore-pipe"],
+        &["--config-path", dozer_config_path, "--ignore-pipe", "run"],
     );
     vec![Cleanup::KillProcess(child)]
 }

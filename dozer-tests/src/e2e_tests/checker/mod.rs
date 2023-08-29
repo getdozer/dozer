@@ -40,7 +40,7 @@ fn check_build_failure(
 ) {
     {
         let (mut command, _cleanups) = dozer_command();
-        command.args(["--ignore-pipe", "--config-path", dozer_config_path]);
+        command.args(["--ignore-pipe", "--config-path", dozer_config_path, "run"]);
         assert_command_fails(command, message);
     }
     {

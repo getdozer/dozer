@@ -30,7 +30,7 @@ pub struct Cli {
     #[arg(global = true, long = "ignore-pipe")]
     pub ignore_pipe: bool,
     #[clap(subcommand)]
-    pub cmd: Option<Commands>,
+    pub cmd: Commands,
 }
 
 fn parse_config_override(
@@ -94,7 +94,7 @@ pub struct Build {
 #[derive(Debug, Args)]
 pub struct Run {
     #[command(subcommand)]
-    pub command: RunCommands,
+    pub command: Option<RunCommands>,
 }
 
 #[derive(Debug, Subcommand)]
