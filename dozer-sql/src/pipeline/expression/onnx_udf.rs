@@ -52,7 +52,7 @@ pub fn evaluate_onnx_udf(
                         output.try_extract::<f32>().map_err(OnnxOrtErr)?;
                     let mut result = vec![];
                     for val in output_array_view.view().deref() {
-                        result.push(JsonValue::Number(OrderedFloat(*val.into())));
+                        result.push(JsonValue::Number(OrderedFloat(<&f32 as Into<f64>>::into(val))));
                     }
                     Ok(Field::Json(JsonValue::Array(result)))
                 }
