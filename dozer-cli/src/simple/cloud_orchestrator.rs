@@ -136,10 +136,17 @@ impl CloudOrchestrator for SimpleOrchestrator {
     }
 
     fn delete(&mut self, cloud: Cloud) -> Result<(), OrchestrationError> {
-        let app_id = cloud
-            .app_id
-            .clone()
-            .unwrap_or(CloudAppContext::get_app_id(self.config.cloud.as_ref())?);
+        // Get app_id from command line argument if there, otherwise take it from the cloud config file
+        // if the app_id is from the cloud config file then set `delete_cloud_file` to true and use it later
+        // to delete the file after deleting the app
+        let (app_id, delete_cloud_file) = if let Some(app_id) = cloud.app_id.clone() {
+            (app_id, false)
+        } else {
+            (
+                CloudAppContext::get_app_id(self.config.cloud.as_ref())?,
+                true,
+            )
+        };
 
         let cloud_config = self.config.cloud.as_ref();
         self.runtime.block_on(async move {
@@ -163,7 +170,9 @@ impl CloudOrchestrator for SimpleOrchestrator {
             if delete_result.success {
                 steps.complete_step(Some(&format!("Deleted {}", &app_id)));
 
-                let _ = CloudAppContext::delete_config_file();
+                if delete_cloud_file {
+                    let _ = CloudAppContext::delete_config_file();
+                }
             }
 
             Ok::<(), CloudError>(())
