@@ -4,7 +4,10 @@ use dozer_types::log::warn;
 use dozer_types::models::config::{default_cache_dir, default_home_dir, get_cache_dir};
 use dozer_types::{
     constants::DEFAULT_CONFIG_PATH,
-    ingestion_types::{EthConfig, EthFilter, EthLogConfig, EthProviderConfig, SnowflakeConfig},
+    ingestion_types::{
+        EthConfig, EthFilter, EthLogConfig, EthProviderConfig, MongodbConfig, MySQLConfig,
+        S3Details, S3Storage, SnowflakeConfig,
+    },
     log::info,
     models::{
         config::Config,
@@ -40,6 +43,9 @@ impl Completer for InitHelper {
             "Postgres".to_owned(),
             "Ethereum".to_owned(),
             "Snowflake".to_owned(),
+            "MySQL".to_owned(),
+            "S3".to_owned(),
+            "MongoDB".to_owned(),
         ];
         let mut match_pair: Vec<Pair> = candidates
             .iter()
@@ -104,6 +110,45 @@ pub fn generate_connection(connection_name: &str) -> Connection {
             };
             connection
         }
+        "MySQL" | "MYSQL" | "mysql" | "Mysql" | "My" => {
+            let mysql_config = MySQLConfig {
+                url: "mysql://<user>:<password>@localhost:3306/<database>".to_owned(),
+                server_id: Some((1).to_owned()),
+            };
+            let connection: Connection = Connection {
+                name: "mysql".to_owned(),
+                config: Some(ConnectionConfig::MySQL(mysql_config)),
+            };
+            connection
+        }
+        "S3" | "s3" => {
+            let s3_details = S3Details {
+                access_key_id: "<your_access_key_id>".to_owned(),
+                secret_access_key: "<your_secret_access_key>".to_owned(),
+                region: "<your_region>".to_owned(),
+                bucket_name: "<your_bucket_name>".to_owned(),
+            };
+            let s3_config = S3Storage {
+                details: Some(s3_details),
+                tables: vec![],
+            };
+            let connection: Connection = Connection {
+                name: "s3".to_owned(),
+                config: Some(ConnectionConfig::S3Storage(s3_config)),
+            };
+            connection
+        }
+        "MongoDB" | "mongodb" | "MONGODB" | "Mongodb" | "Mo" | "MO" => {
+            let mongo_config = MongodbConfig {
+                connection_string:
+                    "mongodb://<username>:<password>@localhost:27017/<database_name>".to_owned(),
+            };
+            let connection: Connection = Connection {
+                name: "mongodb".to_owned(),
+                config: Some(ConnectionConfig::MongoDB(mongo_config)),
+            };
+            connection
+        }
         _ => {
             let postgres_config = PostgresConfig {
                 user: Some("postgres".to_owned()),
@@ -159,7 +204,7 @@ pub fn generate_config_repl() -> Result<(), OrchestrationError> {
             }),
         ),
         (
-            "question: Connection Type - one of: [P]ostgres, [E]thereum, [S]nowflake (Postgres): "
+            "question: Connection Type - one of: [P]ostgres, [E]thereum, [S]nowflake, [My]SQL, [S3]Storage, [Mo]ngoDB: "
                 .to_string(),
             Box::new(move |(connection, config)| {
                 let sample_connection = generate_connection(&connection);
