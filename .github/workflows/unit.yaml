@@ -23,7 +23,7 @@ jobs:
     timeout-minutes: 60
     runs-on:
       group: Org Larger Runners
-      labels: ubuntu-latest-8-cores
+      labels: ubuntu-latest-16-cores
     services:
       postgres:
         image: debezium/postgres:13
