@@ -52,7 +52,7 @@ pub fn evaluate_onnx_udf(
                         output.try_extract::<f32>().map_err(OnnxOrtErr)?;
                     let mut result = vec![];
                     for val in output_array_view.view().deref() {
-                        result.push(JsonValue::Number(OrderedFloat(val.clone().into())));
+                        result.push(JsonValue::Number(OrderedFloat(*val.into())));
                     }
                     Ok(Field::Json(JsonValue::Array(result)))
                 }
@@ -60,7 +60,7 @@ pub fn evaluate_onnx_udf(
                     let output_array_view =
                         output.try_extract::<f32>().map_err(OnnxOrtErr)?;
                     Ok(Field::Float(OrderedFloat(
-                        output_array_view.view().deref()[0].clone().into(),
+                        output_array_view.view().deref()[0].into(),
                     )))
                 }
                 _ => Err(InvalidValue(format!(
@@ -87,7 +87,7 @@ pub fn evaluate_onnx_udf(
                         output.try_extract::<f32>().map_err(OnnxOrtErr)?;
                     let mut result = vec![];
                     for val in output_array_view.view().deref() {
-                        result.push(JsonValue::Number(OrderedFloat(val.clone().into())));
+                        result.push(JsonValue::Number(OrderedFloat(*val.into())));
                     }
                     Ok(Field::Json(JsonValue::Array(result)))
                 }
@@ -95,14 +95,14 @@ pub fn evaluate_onnx_udf(
                     let output_array_view =
                         output.try_extract::<f32>().map_err(OnnxOrtErr)?;
                     Ok(Field::Float(OrderedFloat(
-                        output_array_view.view().deref()[0].clone().into(),
+                        output_array_view.view().deref()[0].into(),
                     )))
                 }
                 FieldType::UInt => {
                     let output_array_view =
                         output.try_extract::<u32>().map_err(OnnxOrtErr)?;
                     Ok(Field::UInt(
-                        output_array_view.view().deref()[0].clone().into(),
+                        output_array_view.view().deref()[0].into(),
                     ))
                 }
                 _ => Err(InvalidValue(format!(
@@ -134,7 +134,7 @@ pub fn evaluate_onnx_udf(
                         output.try_extract::<f32>().map_err(OnnxOrtErr)?;
                     let mut result = vec![];
                     for val in output_array_view.view().deref() {
-                        result.push(JsonValue::Number(OrderedFloat(val.clone().into())));
+                        result.push(JsonValue::Number(OrderedFloat(*val.into())));
                     }
                     Ok(Field::Json(JsonValue::Array(result)))
                 }
@@ -142,14 +142,14 @@ pub fn evaluate_onnx_udf(
                     let output_array_view =
                         output.try_extract::<f32>().map_err(OnnxOrtErr)?;
                     Ok(Field::Float(OrderedFloat(
-                        output_array_view.view().deref()[0].clone().into(),
+                        output_array_view.view().deref()[0].into(),
                     )))
                 }
                 FieldType::U128 => {
                     let output_array_view =
                         output.try_extract::<u32>().map_err(OnnxOrtErr)?;
                     Ok(Field::U128(
-                        output_array_view.view().deref()[0].clone().into(),
+                        output_array_view.view().deref()[0].into(),
                     ))
                 }
                 _ => Err(InvalidValue(format!(
@@ -176,7 +176,7 @@ pub fn evaluate_onnx_udf(
                         output.try_extract::<f32>().map_err(OnnxOrtErr)?;
                     let mut result = vec![];
                     for val in output_array_view.view().deref() {
-                        result.push(JsonValue::Number(OrderedFloat(val.clone().into())));
+                        result.push(JsonValue::Number(OrderedFloat(*val.into())));
                     }
                     Ok(Field::Json(JsonValue::Array(result)))
                 }
@@ -223,7 +223,7 @@ pub fn evaluate_onnx_udf(
                         output.try_extract::<f32>().map_err(OnnxOrtErr)?;
                     let mut result = vec![];
                     for val in output_array_view.view().deref() {
-                        result.push(JsonValue::Number(OrderedFloat(val.clone().into())));
+                        result.push(JsonValue::Number(OrderedFloat(*val.into())));
                     }
                     Ok(Field::Json(JsonValue::Array(result)))
                 }
@@ -270,7 +270,7 @@ pub fn evaluate_onnx_udf(
                         output.try_extract::<f32>().map_err(OnnxOrtErr)?;
                     let mut result = vec![];
                     for val in output_array_view.view().deref() {
-                        result.push(JsonValue::Number(OrderedFloat(val.clone().into())));
+                        result.push(JsonValue::Number(OrderedFloat(*val.into())));
                     }
                     Ok(Field::Json(JsonValue::Array(result)))
                 }

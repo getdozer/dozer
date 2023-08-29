@@ -474,7 +474,7 @@ impl ExpressionBuilder {
         if !udfs.is_empty() || function_name.ends_with("onnx") {
             for udf in udfs {
                 return match udf.config.clone() {
-                    Some(udf_type) => Ok(return match udf_type {
+                    Some(udf_type) => return match udf_type {
                         Onnx(config) => {
                             self.parse_onnx_udf(
                                 udf.name.clone(),
@@ -484,7 +484,7 @@ impl ExpressionBuilder {
                                 udfs,
                             )
                         }
-                    }),
+                    },
                     None => Err(PipelineError::UdfConfigMissing(udf.name.clone())),
                 }
             }
@@ -578,6 +578,7 @@ impl ExpressionBuilder {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn parse_sql_case_expression(
         &mut self,
         parse_aggregations: bool,
@@ -723,6 +724,7 @@ impl ExpressionBuilder {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn parse_sql_like_operator(
         &mut self,
         parse_aggregations: bool,
