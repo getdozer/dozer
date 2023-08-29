@@ -16,7 +16,7 @@ fn test_standard() {
     let session = SessionBuilder::new(&environment).unwrap()
         .with_optimization_level(GraphOptimizationLevel::Level1).unwrap()
         .with_intra_threads(1).unwrap()
-        .with_model_from_file(Path::new("/Users/chloeminkyung/CLionProjects/dozer/dozer-sql/src/pipeline/expression/tests/models/vectorizer.onnx"))
+        .with_model_from_file(Path::new("./models/vectorizer.onnx"))
         .expect("Could not read model from memory");
 
     let record =
