@@ -1,8 +1,9 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::auth::Access;
 
-use crate::grpc::shared_impl;
+use crate::grpc::shared_impl::{self, EndpointFilter};
 use crate::grpc::types_helper::map_record;
 use crate::CacheEndpoint;
 use dozer_types::grpc_types::common::common_grpc_service_server::CommonGrpcService;
@@ -109,24 +110,25 @@ impl CommonGrpcService for CommonService {
         let extensions = parts.1;
         let query_request = parts.2;
         let access = extensions.get::<Access>();
-        let endpoint = &query_request.endpoint;
-        let cache_endpoint = self
-            .endpoint_map
-            .get(endpoint)
-            .ok_or_else(|| Status::invalid_argument(endpoint))?;
+
+        let mut endpoints = HashMap::new();
+        for (endpoint, filter) in query_request.endpoints {
+            let cache_endpoint = self
+                .endpoint_map
+                .get(&endpoint)
+                .ok_or_else(|| Status::invalid_argument(&endpoint))?;
+            let schema = cache_endpoint.cache_reader().get_schema().0.clone();
+            endpoints.insert(
+                endpoint,
+                EndpointFilter::new(schema, filter.filter.as_deref())?,
+            );
+        }
 
         shared_impl::on_event(
-            &cache_endpoint.cache_reader(),
-            query_request.filter.as_deref(),
+            endpoints,
             self.event_notifier.as_ref().map(|r| r.resubscribe()),
             access.cloned(),
-            move |op| {
-                if op.endpoint_name == query_request.endpoint {
-                    Some(Ok(op))
-                } else {
-                    None
-                }
-            },
+            Ok,
         )
     }
 
