@@ -474,7 +474,7 @@ impl ExpressionBuilder {
         if !udfs.is_empty() || function_name.ends_with("onnx") {
             for udf in udfs {
                 return if let Some(udf) = udfs.iter().next() {
-                    match udf_type {
+                    match udf {
                         Onnx(config) => {
                             self.parse_onnx_udf(
                                 udf.name.clone(),
