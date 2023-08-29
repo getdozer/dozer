@@ -473,8 +473,8 @@ impl ExpressionBuilder {
         #[cfg(feature = "onnx")]
         if !udfs.is_empty() || function_name.ends_with("onnx") {
             for udf in udfs {
-                return if let Some(udf) = udfs.iter().next() {
-                    match udf {
+                return match udf.config.clone() {
+                    Some(udf_type) => Ok(return match udf_type {
                         Onnx(config) => {
                             self.parse_onnx_udf(
                                 udf.name.clone(),
@@ -484,9 +484,8 @@ impl ExpressionBuilder {
                                 udfs,
                             )
                         }
-                    }
-                } else {
-                    Err(PipelineError::UdfConfigMissing(udf.name.clone()))
+                    }),
+                    None => Err(PipelineError::UdfConfigMissing(udf.name.clone())),
                 }
             }
         }
