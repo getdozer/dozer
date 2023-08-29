@@ -21,7 +21,7 @@ jobs:
     # will make branch protection happy, so we can add it to the merge queue and
     # run the job there
     if: ${{ github.event_name != 'pull_request_target' }}
-    timeout-minutes: 60
+    timeout-minutes: 90
     runs-on:
       labels: ubuntu-latest
     steps:
