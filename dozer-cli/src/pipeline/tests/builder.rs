@@ -7,6 +7,7 @@ use dozer_types::models::config::Config;
 
 use dozer_types::indicatif::MultiProgress;
 use dozer_types::models::connection::{Connection, ConnectionConfig};
+use dozer_types::models::flags::Flags;
 use dozer_types::models::source::Source;
 
 fn get_default_config() -> Config {
@@ -66,6 +67,7 @@ fn load_multi_sources() {
             .map(|endpoint| (endpoint, None))
             .collect(),
         MultiProgress::new(),
+        Flags::default(),
     );
 
     let runtime = tokio::runtime::Builder::new_current_thread()

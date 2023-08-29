@@ -1,4 +1,7 @@
-use crate::models::{config::Config, flags::Flags};
+use crate::models::{
+    config::Config,
+    flags::{EnableProbabilisticOptimizations, Flags},
+};
 
 #[test]
 fn test_partial_flag_config_input() {
@@ -41,6 +44,16 @@ fn test_flags_default() {
             grpc_web: true,
             push_events: true,
             authenticate_server_reflection: false,
+            enable_probabilistic_optimizations: None,
         }
     );
+
+    assert_eq!(
+        EnableProbabilisticOptimizations::default(),
+        EnableProbabilisticOptimizations {
+            in_sets: false,
+            in_joins: false,
+            in_aggregations: false
+        }
+    )
 }

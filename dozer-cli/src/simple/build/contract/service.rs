@@ -74,10 +74,7 @@ impl Contract {
                         let edge = edge.weight();
                         let schema = edge.schema.clone();
                         let id = if let NodeKind::Source { port_names } = &node.kind {
-                            port_names
-                                .get(&edge.from_port)
-                                .expect("All output port names must have been added")
-                                .clone()
+                            port_names[&edge.from_port].clone()
                         } else {
                             node.handle.id.clone()
                         };
@@ -94,12 +91,23 @@ impl Contract {
     pub fn generate_dot(&self) -> String {
         let mut dag = daggy::Dag::<String, &'static str>::new();
         let mut node_index_map = HashMap::new();
+        let mut source_port_node_indexes = HashMap::new();
         self.pipeline
             .node_references()
             .for_each(|(node_index, node)| {
                 let label = get_label(&node.kind, true);
                 let new_node_index = dag.add_node(format!("{}::{}", label, node.handle.id));
                 node_index_map.insert(node_index, new_node_index);
+
+                if let NodeKind::Source { port_names } = &node.kind {
+                    for (port, source_name) in port_names {
+                        let label = get_label(&node.kind, false);
+                        let source_port_node_index =
+                            dag.add_node(format!("{}::{}", label, source_name));
+                        source_port_node_indexes
+                            .insert((new_node_index, *port), source_port_node_index);
+                    }
+                }
             });
         self.pipeline.edge_references().for_each(|edge| {
             let source_node_index = edge.source();
@@ -111,13 +119,9 @@ impl Contract {
 
             let from_port = edge.weight().from_port;
             let kind = &source_node.kind;
-            let label = get_label(kind, false);
             match &kind {
-                NodeKind::Source { port_names } => {
-                    let source_name = port_names
-                        .get(&from_port)
-                        .expect("All output port names must have been added to the source node");
-                    let new_node_index = dag.add_node(format!("{}::{}", label, source_name));
+                NodeKind::Source { .. } => {
+                    let new_node_index = source_port_node_indexes[&(source_node_index, from_port)];
 
                     dag.add_edge(source_node_index, new_node_index, "").unwrap();
                     dag.add_edge(new_node_index, target_node_index, "").unwrap();

@@ -20,12 +20,21 @@ use super::set_processor::SetProcessor;
 pub struct SetProcessorFactory {
     id: String,
     set_quantifier: SetQuantifier,
+    enable_probabilistic_optimizations: bool,
 }
 
 impl SetProcessorFactory {
     /// Creates a new [`FromProcessorFactory`].
-    pub fn new(id: String, set_quantifier: SetQuantifier) -> Self {
-        Self { id, set_quantifier }
+    pub fn new(
+        id: String,
+        set_quantifier: SetQuantifier,
+        enable_probabilistic_optimizations: bool,
+    ) -> Self {
+        Self {
+            id,
+            set_quantifier,
+            enable_probabilistic_optimizations,
+        }
     }
 }
 
@@ -81,6 +90,7 @@ impl ProcessorFactory<SchemaSQLContext> for SetProcessorFactory {
                 op: SetOperator::Union,
                 quantifier: self.set_quantifier,
             },
+            self.enable_probabilistic_optimizations,
         )?))
     }
 }

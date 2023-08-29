@@ -281,8 +281,15 @@ fn select_to_pipeline(
         }
     }
 
-    let aggregation =
-        AggregationProcessorFactory::new(gen_agg_name.clone(), select.clone(), stateful);
+    let aggregation = AggregationProcessorFactory::new(
+        gen_agg_name.clone(),
+        select.clone(),
+        stateful,
+        pipeline
+            .flags()
+            .enable_probabilistic_optimizations
+            .in_aggregations,
+    );
 
     pipeline.add_processor(Box::new(aggregation), &gen_agg_name, vec![]);
 
@@ -468,7 +475,11 @@ fn set_to_pipeline(
         gen_set_name = table_info.override_name.to_owned().unwrap();
     }
 
-    let set_proc_fac = SetProcessorFactory::new(gen_set_name.clone(), set_quantifier);
+    let set_proc_fac = SetProcessorFactory::new(
+        gen_set_name.clone(),
+        set_quantifier,
+        pipeline.flags().enable_probabilistic_optimizations.in_sets,
+    );
 
     pipeline.add_processor(Box::new(set_proc_fac), &gen_set_name, vec![]);
 
@@ -629,7 +640,7 @@ mod tests {
     #[should_panic]
     fn disallow_zero_outgoing_ndes() {
         let sql = "select * from film";
-        statement_to_pipeline(sql, &mut AppPipeline::new(), None).unwrap();
+        statement_to_pipeline(sql, &mut AppPipeline::new_with_default_flags(), None).unwrap();
     }
     #[test]
     fn parse_sql_pipeline() {
@@ -688,7 +699,8 @@ mod tests {
                 from  stocks join tbl on tbl.id = stocks.id;
             "#;
 
-        let context = statement_to_pipeline(sql, &mut AppPipeline::new(), None).unwrap();
+        let context =
+            statement_to_pipeline(sql, &mut AppPipeline::new_with_default_flags(), None).unwrap();
 
         // Should create as many output tables as into statements
         let mut output_keys = context.output_tables_map.keys().collect::<Vec<_>>();
@@ -709,7 +721,7 @@ mod tests {
 #[test]
 fn test_missing_into_in_simple_from_clause() {
     let sql = r#"SELECT a FROM B "#;
-    let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None);
+    let result = statement_to_pipeline(sql, &mut AppPipeline::new_with_default_flags(), None);
     //check if the result is an error
     assert!(matches!(result, Err(PipelineError::MissingIntoClause)))
 }
@@ -717,7 +729,7 @@ fn test_missing_into_in_simple_from_clause() {
 #[test]
 fn test_correct_into_clause() {
     let sql = r#"SELECT a INTO C FROM B"#;
-    let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None);
+    let result = statement_to_pipeline(sql, &mut AppPipeline::new_with_default_flags(), None);
     //check if the result is ok
     assert!(result.is_ok());
 }
@@ -725,7 +737,7 @@ fn test_correct_into_clause() {
 #[test]
 fn test_missing_into_in_nested_from_clause() {
     let sql = r#"SELECT a FROM (SELECT a from b)"#;
-    let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None);
+    let result = statement_to_pipeline(sql, &mut AppPipeline::new_with_default_flags(), None);
     //check if the result is an error
     assert!(matches!(result, Err(PipelineError::MissingIntoClause)))
 }
@@ -733,7 +745,7 @@ fn test_missing_into_in_nested_from_clause() {
 #[test]
 fn test_correct_into_in_nested_from() {
     let sql = r#"SELECT a INTO c FROM (SELECT a from b)"#;
-    let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None);
+    let result = statement_to_pipeline(sql, &mut AppPipeline::new_with_default_flags(), None);
     //check if the result is ok
     assert!(result.is_ok());
 }
@@ -743,7 +755,7 @@ fn test_missing_into_in_with_clause() {
     let sql = r#"WITH tbl as (select a from B)
     select B
     from tbl;"#;
-    let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None);
+    let result = statement_to_pipeline(sql, &mut AppPipeline::new_with_default_flags(), None);
     //check if the result is an error
     assert!(matches!(result, Err(PipelineError::MissingIntoClause)))
 }
@@ -754,7 +766,7 @@ fn test_correct_into_in_with_clause() {
     select B
     into C
     from tbl;"#;
-    let result = statement_to_pipeline(sql, &mut AppPipeline::new(), None);
+    let result = statement_to_pipeline(sql, &mut AppPipeline::new_with_default_flags(), None);
     //check if the result is ok
     assert!(result.is_ok());
 }

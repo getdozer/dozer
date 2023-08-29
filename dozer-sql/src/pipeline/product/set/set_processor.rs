@@ -1,5 +1,8 @@
+use super::operator::{SetAction, SetOperation};
+use super::record_map::{
+    AccurateCountingRecordMap, CountingRecordMapEnum, ProbabilisticCountingRecordMap,
+};
 use crate::pipeline::errors::{PipelineError, ProductError};
-use bloom::CountingBloomFilter;
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::epoch::Epoch;
 use dozer_core::executor_operation::ProcessorOperation;
@@ -10,32 +13,30 @@ use dozer_types::errors::internal::BoxedError;
 use std::collections::hash_map::RandomState;
 use std::fmt::{Debug, Formatter};
 
-use super::operator::{SetAction, SetOperation};
-
 pub struct SetProcessor {
     _id: String,
     /// Set operations
     operator: SetOperation,
     /// Hashmap containing records with its occurrence
-    record_map: CountingBloomFilter,
+    record_map: CountingRecordMapEnum,
 }
-
-const BITS_PER_ENTRY: usize = 8;
-const FALSE_POSITIVE_RATE: f32 = 0.01;
-const EXPECTED_NUM_ITEMS: u32 = 10000000;
 
 impl SetProcessor {
     /// Creates a new [`SetProcessor`].
-    pub fn new(id: String, operator: SetOperation) -> Result<Self, PipelineError> {
+    pub fn new(
+        id: String,
+        operator: SetOperation,
+        enable_probabilistic_optimizations: bool,
+    ) -> Result<Self, PipelineError> {
         let _s = RandomState::new();
         Ok(Self {
             _id: id,
             operator,
-            record_map: CountingBloomFilter::with_rate(
-                BITS_PER_ENTRY,
-                FALSE_POSITIVE_RATE,
-                EXPECTED_NUM_ITEMS,
-            ),
+            record_map: if enable_probabilistic_optimizations {
+                ProbabilisticCountingRecordMap::new().into()
+            } else {
+                AccurateCountingRecordMap::new().into()
+            },
         })
     }
 

@@ -1,15 +1,11 @@
-use ahash::AHasher;
+use crate::pipeline::utils::record_hashtable_key::{get_record_hash, RecordKey};
 use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordStore};
 use dozer_types::{
     chrono,
-    types::{Lifetime, Record, Timestamp},
+    types::{Field, Lifetime, Record, Timestamp},
 };
 use linked_hash_map::LinkedHashMap;
-use std::{
-    collections::HashMap,
-    fmt::Debug,
-    hash::{Hash, Hasher},
-};
+use std::{collections::HashMap, fmt::Debug};
 
 use crate::pipeline::errors::JoinError;
 
@@ -39,7 +35,8 @@ pub enum JoinAction {
     Delete,
 }
 
-type IndexKey = (u64, u64); // (join_key, primary_key)
+type JoinKey = RecordKey;
+type IndexKey = (JoinKey, u64); // (join_key, primary_key)
 
 #[derive(Debug, Clone)]
 pub struct JoinOperator {
@@ -54,23 +51,24 @@ pub struct JoinOperator {
     left_default_record: ProcessorRecord,
     right_default_record: ProcessorRecord,
 
-    left_map: HashMap<u64, HashMap<u64, Vec<ProcessorRecord>>>,
-    right_map: HashMap<u64, HashMap<u64, Vec<ProcessorRecord>>>,
+    left_map: HashMap<JoinKey, HashMap<u64, Vec<ProcessorRecord>>>,
+    right_map: HashMap<JoinKey, HashMap<u64, Vec<ProcessorRecord>>>,
 
     left_lifetime_map: LinkedHashMap<Timestamp, Vec<IndexKey>>,
     right_lifetime_map: LinkedHashMap<Timestamp, Vec<IndexKey>>,
+
+    accurate_keys: bool,
 }
 
 impl JoinOperator {
     pub fn new(
         join_type: JoinType,
-        left_join_key_indexes: Vec<usize>,
-        right_join_key_indexes: Vec<usize>,
-        left_primary_key_indexes: Vec<usize>,
-        right_primary_key_indexes: Vec<usize>,
-        left_default_record: ProcessorRecord,
-        right_default_record: ProcessorRecord,
+        (left_join_key_indexes, right_join_key_indexes): (Vec<usize>, Vec<usize>),
+        (left_primary_key_indexes, right_primary_key_indexes): (Vec<usize>, Vec<usize>),
+        (left_default_record, right_default_record): (ProcessorRecord, ProcessorRecord),
+        enable_probabilistic_optimizations: bool,
     ) -> Self {
+        let accurate_keys = !enable_probabilistic_optimizations;
         Self {
             join_type,
             left_join_key_indexes,
@@ -83,6 +81,7 @@ impl JoinOperator {
             right_map: HashMap::new(),
             left_lifetime_map: LinkedHashMap::new(),
             right_lifetime_map: LinkedHashMap::new(),
+            accurate_keys,
         }
     }
 
@@ -97,7 +96,7 @@ impl JoinOperator {
     fn inner_join_from_left(
         &self,
         action: &JoinAction,
-        join_key: u64,
+        join_key: &JoinKey,
         left_record: ProcessorRecord,
     ) -> JoinResult<Vec<(JoinAction, ProcessorRecord)>> {
         let right_records = get_join_records(&self.right_map, join_key);
@@ -118,7 +117,7 @@ impl JoinOperator {
     fn inner_join_from_right(
         &self,
         action: &JoinAction,
-        join_key: u64,
+        join_key: &JoinKey,
         right_record: ProcessorRecord,
     ) -> JoinResult<Vec<(JoinAction, ProcessorRecord)>> {
         let left_records = get_join_records(&self.left_map, join_key);
@@ -139,7 +138,7 @@ impl JoinOperator {
     fn left_join_from_left(
         &self,
         action: &JoinAction,
-        join_key: u64,
+        join_key: &JoinKey,
         left_record: ProcessorRecord,
     ) -> JoinResult<Vec<(JoinAction, ProcessorRecord)>> {
         let right_records = get_join_records(&self.right_map, join_key);
@@ -166,7 +165,7 @@ impl JoinOperator {
     fn left_join_from_right(
         &self,
         action: &JoinAction,
-        join_key: u64,
+        join_key: &JoinKey,
         record_store: &ProcessorRecordStore,
         right_record: ProcessorRecord,
     ) -> JoinResult<Vec<(JoinAction, ProcessorRecord)>> {
@@ -215,7 +214,7 @@ impl JoinOperator {
     fn right_join_from_left(
         &self,
         action: &JoinAction,
-        join_key: u64,
+        join_key: &JoinKey,
         record_store: &ProcessorRecordStore,
         left_record: ProcessorRecord,
     ) -> JoinResult<Vec<(JoinAction, ProcessorRecord)>> {
@@ -264,7 +263,7 @@ impl JoinOperator {
     fn right_join_from_right(
         &self,
         action: &JoinAction,
-        join_key: u64,
+        join_key: &JoinKey,
         right_record: ProcessorRecord,
     ) -> JoinResult<Vec<(JoinAction, ProcessorRecord)>> {
         let left_records = get_join_records(&self.left_map, join_key);
@@ -289,9 +288,9 @@ impl JoinOperator {
     }
 
     fn get_left_matching_count(&self, action: &JoinAction, record: &Record) -> JoinResult<usize> {
-        let join_key = get_record_key(record, &self.right_join_key_indexes);
+        let join_key = self.get_join_key(record, &self.right_join_key_indexes);
 
-        let mut matching_count = get_join_records(&self.left_map, join_key).len();
+        let mut matching_count = get_join_records(&self.left_map, &join_key).len();
         if action == &JoinAction::Insert {
             matching_count -= 1;
         }
@@ -299,9 +298,9 @@ impl JoinOperator {
     }
 
     fn get_right_matching_count(&self, action: &JoinAction, record: &Record) -> JoinResult<usize> {
-        let join_key = get_record_key(record, &self.left_join_key_indexes);
+        let join_key = self.get_join_key(record, &self.left_join_key_indexes);
 
-        let mut matching_count = get_join_records(&self.right_map, join_key).len();
+        let mut matching_count = get_join_records(&self.right_map, &join_key).len();
         if action == &JoinAction::Insert {
             matching_count -= 1;
         }
@@ -319,7 +318,7 @@ impl JoinOperator {
             if eviction_instant <= now {
                 old_instants.push(*eviction_instant);
                 for (join_key, primary_key) in join_index_keys {
-                    evict_join_record(join_index, *join_key, *primary_key);
+                    evict_join_record(join_index, join_key, *primary_key);
                 }
             } else {
                 break;
@@ -332,7 +331,7 @@ impl JoinOperator {
         &mut self,
         from_branch: &JoinBranch,
         lifetime: Lifetime,
-        join_key: u64,
+        join_key: JoinKey,
         primary_key: u64,
     ) -> JoinResult<()> {
         let eviction_index = match from_branch {
@@ -383,75 +382,75 @@ impl JoinOperator {
     ) -> JoinResult<Vec<(JoinAction, ProcessorRecord)>> {
         match (&self.join_type, from) {
             (JoinType::Inner, JoinBranch::Left) => {
-                let join_key = get_record_key(&old_decoded, &self.left_join_key_indexes);
+                let join_key = self.get_join_key(&old_decoded, &self.left_join_key_indexes);
 
                 remove_join_record(
                     &mut self.left_map,
                     &self.left_primary_key_indexes,
-                    join_key,
+                    &join_key,
                     &old_decoded,
                 );
 
-                let records = self.inner_join_from_left(&JoinAction::Delete, join_key, old)?;
+                let records = self.inner_join_from_left(&JoinAction::Delete, &join_key, old)?;
                 Ok(records)
             }
             (JoinType::Inner, JoinBranch::Right) => {
-                let join_key = get_record_key(&old_decoded, &self.right_join_key_indexes);
+                let join_key = self.get_join_key(&old_decoded, &self.right_join_key_indexes);
 
                 remove_join_record(
                     &mut self.right_map,
                     &self.right_primary_key_indexes,
-                    join_key,
+                    &join_key,
                     &old_decoded,
                 );
 
-                let records = self.inner_join_from_right(&JoinAction::Delete, join_key, old)?;
+                let records = self.inner_join_from_right(&JoinAction::Delete, &join_key, old)?;
                 Ok(records)
             }
             (JoinType::LeftOuter, JoinBranch::Left) => {
-                let join_key = get_record_key(&old_decoded, &self.left_join_key_indexes);
+                let join_key = self.get_join_key(&old_decoded, &self.left_join_key_indexes);
                 remove_join_record(
                     &mut self.left_map,
                     &self.left_primary_key_indexes,
-                    join_key,
+                    &join_key,
                     &old_decoded,
                 );
-                let records = self.left_join_from_left(&JoinAction::Delete, join_key, old)?;
+                let records = self.left_join_from_left(&JoinAction::Delete, &join_key, old)?;
                 Ok(records)
             }
             (JoinType::LeftOuter, JoinBranch::Right) => {
-                let join_key = get_record_key(&old_decoded, &self.right_join_key_indexes);
+                let join_key = self.get_join_key(&old_decoded, &self.right_join_key_indexes);
                 remove_join_record(
                     &mut self.right_map,
                     &self.right_primary_key_indexes,
-                    join_key,
+                    &join_key,
                     &old_decoded,
                 );
                 let records =
-                    self.left_join_from_right(&JoinAction::Delete, join_key, record_store, old)?;
+                    self.left_join_from_right(&JoinAction::Delete, &join_key, record_store, old)?;
                 Ok(records)
             }
             (JoinType::RightOuter, JoinBranch::Left) => {
-                let join_key = get_record_key(&old_decoded, &self.left_join_key_indexes);
+                let join_key = self.get_join_key(&old_decoded, &self.left_join_key_indexes);
                 remove_join_record(
                     &mut self.left_map,
                     &self.left_primary_key_indexes,
-                    join_key,
+                    &join_key,
                     &old_decoded,
                 );
                 let records =
-                    self.right_join_from_left(&JoinAction::Delete, join_key, record_store, old)?;
+                    self.right_join_from_left(&JoinAction::Delete, &join_key, record_store, old)?;
                 Ok(records)
             }
             (JoinType::RightOuter, JoinBranch::Right) => {
-                let join_key = get_record_key(&old_decoded, &self.right_join_key_indexes);
+                let join_key = self.get_join_key(&old_decoded, &self.right_join_key_indexes);
                 remove_join_record(
                     &mut self.right_map,
                     &self.right_primary_key_indexes,
-                    join_key,
+                    &join_key,
                     &old_decoded,
                 );
-                let records = self.right_join_from_right(&JoinAction::Delete, join_key, old)?;
+                let records = self.right_join_from_right(&JoinAction::Delete, &join_key, old)?;
                 Ok(records)
             }
         }
@@ -466,97 +465,108 @@ impl JoinOperator {
     ) -> JoinResult<Vec<(JoinAction, ProcessorRecord)>> {
         match (&self.join_type, from) {
             (JoinType::Inner, JoinBranch::Left) => {
-                let join_key = get_record_key(&new_decoded, &self.left_join_key_indexes);
-                let primary_key = get_record_key(&new_decoded, &self.left_primary_key_indexes);
+                let join_key = self.get_join_key(&new_decoded, &self.left_join_key_indexes);
+                let primary_key = get_record_key_hash(&new_decoded, &self.left_primary_key_indexes);
 
-                add_join_record(&mut self.left_map, join_key, primary_key, &new);
+                add_join_record(&mut self.left_map, join_key.clone(), primary_key, &new);
 
                 if let Some(lifetime) = new.get_lifetime() {
-                    self.insert_evict_index(from, lifetime, join_key, primary_key)?
+                    self.insert_evict_index(from, lifetime, join_key.clone(), primary_key)?
                 }
 
-                let records = self.inner_join_from_left(&JoinAction::Insert, join_key, new)?;
+                let records = self.inner_join_from_left(&JoinAction::Insert, &join_key, new)?;
                 Ok(records)
             }
             (JoinType::Inner, JoinBranch::Right) => {
-                let join_key = get_record_key(&new_decoded, &self.right_join_key_indexes);
-                let primary_key = get_record_key(&new_decoded, &self.right_primary_key_indexes);
+                let join_key = self.get_join_key(&new_decoded, &self.right_join_key_indexes);
+                let primary_key =
+                    get_record_key_hash(&new_decoded, &self.right_primary_key_indexes);
 
-                add_join_record(&mut self.right_map, join_key, primary_key, &new);
+                add_join_record(&mut self.right_map, join_key.clone(), primary_key, &new);
 
                 if let Some(lifetime) = new.get_lifetime() {
-                    self.insert_evict_index(from, lifetime, join_key, primary_key)?
+                    self.insert_evict_index(from, lifetime, join_key.clone(), primary_key)?
                 }
 
-                let records = self.inner_join_from_right(&JoinAction::Insert, join_key, new)?;
+                let records = self.inner_join_from_right(&JoinAction::Insert, &join_key, new)?;
 
                 Ok(records)
             }
             (JoinType::LeftOuter, JoinBranch::Left) => {
-                let join_key = get_record_key(&new_decoded, &self.left_join_key_indexes);
-                let primary_key = get_record_key(&new_decoded, &self.left_primary_key_indexes);
+                let join_key = self.get_join_key(&new_decoded, &self.left_join_key_indexes);
+                let primary_key = get_record_key_hash(&new_decoded, &self.left_primary_key_indexes);
 
-                add_join_record(&mut self.left_map, join_key, primary_key, &new);
+                add_join_record(&mut self.left_map, join_key.clone(), primary_key, &new);
 
                 if let Some(lifetime) = new.get_lifetime() {
-                    self.insert_evict_index(from, lifetime, join_key, primary_key)?
+                    self.insert_evict_index(from, lifetime, join_key.clone(), primary_key)?
                 }
 
-                let records = self.left_join_from_left(&JoinAction::Insert, join_key, new)?;
+                let records = self.left_join_from_left(&JoinAction::Insert, &join_key, new)?;
 
                 Ok(records)
             }
             (JoinType::LeftOuter, JoinBranch::Right) => {
-                let join_key = get_record_key(&new_decoded, &self.right_join_key_indexes);
-                let primary_key = get_record_key(&new_decoded, &self.right_primary_key_indexes);
+                let join_key = self.get_join_key(&new_decoded, &self.right_join_key_indexes);
+                let primary_key =
+                    get_record_key_hash(&new_decoded, &self.right_primary_key_indexes);
 
-                add_join_record(&mut self.right_map, join_key, primary_key, &new);
+                add_join_record(&mut self.right_map, join_key.clone(), primary_key, &new);
 
                 if let Some(lifetime) = new.get_lifetime() {
-                    self.insert_evict_index(from, lifetime, join_key, primary_key)?
+                    self.insert_evict_index(from, lifetime, join_key.clone(), primary_key)?
                 }
 
                 let records =
-                    self.left_join_from_right(&JoinAction::Insert, join_key, record_store, new)?;
+                    self.left_join_from_right(&JoinAction::Insert, &join_key, record_store, new)?;
 
                 Ok(records)
             }
             (JoinType::RightOuter, JoinBranch::Left) => {
-                let join_key = get_record_key(&new_decoded, &self.left_join_key_indexes);
-                let primary_key = get_record_key(&new_decoded, &self.left_primary_key_indexes);
+                let join_key = self.get_join_key(&new_decoded, &self.left_join_key_indexes);
+                let primary_key = get_record_key_hash(&new_decoded, &self.left_primary_key_indexes);
 
-                add_join_record(&mut self.left_map, join_key, primary_key, &new);
+                add_join_record(&mut self.left_map, join_key.clone(), primary_key, &new);
 
                 if let Some(lifetime) = new.get_lifetime() {
-                    self.insert_evict_index(from, lifetime, join_key, primary_key)?
+                    self.insert_evict_index(from, lifetime, join_key.clone(), primary_key)?
                 }
 
                 let records =
-                    self.right_join_from_left(&JoinAction::Insert, join_key, record_store, new)?;
+                    self.right_join_from_left(&JoinAction::Insert, &join_key, record_store, new)?;
 
                 Ok(records)
             }
             (JoinType::RightOuter, JoinBranch::Right) => {
-                let join_key = get_record_key(&new_decoded, &self.right_join_key_indexes);
-                let primary_key = get_record_key(&new_decoded, &self.right_primary_key_indexes);
+                let join_key = self.get_join_key(&new_decoded, &self.right_join_key_indexes);
+                let primary_key =
+                    get_record_key_hash(&new_decoded, &self.right_primary_key_indexes);
 
-                add_join_record(&mut self.right_map, join_key, primary_key, &new);
+                add_join_record(&mut self.right_map, join_key.clone(), primary_key, &new);
 
                 if let Some(lifetime) = new.get_lifetime() {
-                    self.insert_evict_index(from, lifetime, join_key, primary_key)?
+                    self.insert_evict_index(from, lifetime, join_key.clone(), primary_key)?
                 }
 
-                let records = self.right_join_from_right(&JoinAction::Insert, join_key, new)?;
+                let records = self.right_join_from_right(&JoinAction::Insert, &join_key, new)?;
 
                 Ok(records)
             }
         }
     }
+
+    fn get_join_key(&self, record: &Record, key_indexes: &[usize]) -> JoinKey {
+        if self.accurate_keys {
+            JoinKey::Accurate(get_record_key_fields(record, key_indexes))
+        } else {
+            JoinKey::Hash(get_record_key_hash(record, key_indexes))
+        }
+    }
 }
 
 fn add_join_record(
-    join_map: &mut HashMap<u64, HashMap<u64, Vec<ProcessorRecord>>>,
-    join_key: u64,
+    join_map: &mut HashMap<JoinKey, HashMap<u64, Vec<ProcessorRecord>>>,
+    join_key: JoinKey,
     record_key: u64,
     record: &ProcessorRecord,
 ) {
@@ -574,13 +584,13 @@ fn add_join_record(
 }
 
 fn remove_join_record(
-    join_map: &mut HashMap<u64, HashMap<u64, Vec<ProcessorRecord>>>,
+    join_map: &mut HashMap<JoinKey, HashMap<u64, Vec<ProcessorRecord>>>,
     primary_key_indexes: &[usize],
-    join_key: u64,
+    join_key: &JoinKey,
     record: &Record,
 ) {
-    if let Some(record_map) = join_map.get_mut(&join_key) {
-        let record_key = get_record_key(record, primary_key_indexes);
+    if let Some(record_map) = join_map.get_mut(join_key) {
+        let record_key = get_record_key_hash(record, primary_key_indexes);
         if let Some(record_vec) = record_map.get_mut(&record_key) {
             record_vec.pop();
         }
@@ -588,31 +598,34 @@ fn remove_join_record(
 }
 
 fn evict_join_record(
-    join_map: &mut HashMap<u64, HashMap<u64, Vec<ProcessorRecord>>>,
-    join_key: u64,
+    join_map: &mut HashMap<JoinKey, HashMap<u64, Vec<ProcessorRecord>>>,
+    join_key: &JoinKey,
     primary_key: u64,
 ) {
-    if let Some(record_map) = join_map.get_mut(&join_key) {
+    if let Some(record_map) = join_map.get_mut(join_key) {
         if let Some(record_vec) = record_map.get_mut(&primary_key) {
             record_vec.pop();
         }
     }
 }
 
-fn get_record_key(record: &Record, key_indexes: &[usize]) -> u64 {
-    let mut hasher = AHasher::default();
-    for index in key_indexes.iter() {
-        let val = &record.values[*index];
-        val.hash(&mut hasher);
-    }
-    hasher.finish()
+fn get_record_key_hash(record: &Record, key_indexes: &[usize]) -> u64 {
+    let key_fields = key_indexes.iter().map(|i| &record.values[*i]);
+    get_record_hash(key_fields)
+}
+
+fn get_record_key_fields(record: &Record, key_indexes: &[usize]) -> Vec<Field> {
+    key_indexes
+        .iter()
+        .map(|i| record.values[*i].clone())
+        .collect()
 }
 
 fn get_join_records(
-    join_map: &HashMap<u64, HashMap<u64, Vec<ProcessorRecord>>>,
-    join_key: u64,
+    join_map: &HashMap<JoinKey, HashMap<u64, Vec<ProcessorRecord>>>,
+    join_key: &JoinKey,
 ) -> Vec<ProcessorRecord> {
-    let join_map = join_map.get(&join_key);
+    let join_map = join_map.get(join_key);
 
     if let Some(records_map) = join_map {
         records_map.values().flatten().cloned().collect()
