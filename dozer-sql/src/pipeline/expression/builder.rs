@@ -33,9 +33,9 @@ use super::cast::CastOperatorType;
 #[cfg(feature = "onnx")]
 use dozer_types::models::udf_config::OnnxConfig;
 #[cfg(feature = "onnx")]
-use dozer_types::types::DozerSession;
-#[cfg(feature = "onnx")]
 use dozer_types::models::udf_config::UdfType::Onnx;
+#[cfg(feature = "onnx")]
+use dozer_types::types::DozerSession;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct ExpressionBuilder {
@@ -474,19 +474,19 @@ impl ExpressionBuilder {
         if !udfs.is_empty() || function_name.ends_with("onnx") {
             if let Some(udf) = udfs.iter().next() {
                 return match udf.config.clone() {
-                    Some(udf_type) => return match udf_type {
-                        Onnx(config) => {
-                            self.parse_onnx_udf(
+                    Some(udf_type) => {
+                        return match udf_type {
+                            Onnx(config) => self.parse_onnx_udf(
                                 udf.name.clone(),
                                 &config,
                                 sql_function,
                                 schema,
                                 udfs,
-                            )
+                            ),
                         }
-                    },
+                    }
                     None => Err(PipelineError::UdfConfigMissing(udf.name.clone())),
-                }
+                };
             }
         }
 
@@ -892,8 +892,7 @@ impl ExpressionBuilder {
             .map(|argument| self.parse_sql_function_arg(false, argument, schema, udfs))
             .collect::<Result<Vec<_>, PipelineError>>()?;
 
-        args
-            .last()
+        args.last()
             .ok_or_else(|| InvalidQuery("Can't get onnx udf return type".to_string()))?;
 
         let environment = Environment::builder()
