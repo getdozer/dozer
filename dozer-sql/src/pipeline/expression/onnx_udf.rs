@@ -1,5 +1,5 @@
 use crate::pipeline::errors::PipelineError;
-use crate::pipeline::errors::PipelineError::{InvalidType, InvalidValue, UnsupportedSqlError};
+use crate::pipeline::errors::PipelineError::{InvalidType, InvalidValue, OnnxOrtErr, OnnxShapeErr, UnsupportedSqlError};
 use crate::pipeline::errors::UnsupportedSqlError::GenericError;
 use crate::pipeline::expression::execution::Expression;
 use dozer_core::daggy::Walker;
@@ -40,18 +40,18 @@ pub fn evaluate_onnx_udf(
     match (field.clone(), return_type) {
         (Field::String(v), FieldType::String | FieldType::Json | FieldType::Float) => {
             let array =
-                ndarray::CowArray::from(Array::from_shape_vec((1,), vec![v]).unwrap().into_dyn());
-            let input_tensor_values = vec![Value::from_array(session.allocator(), &array).unwrap()];
-            let outputs: Vec<Value> = session.run(input_tensor_values).unwrap();
+                ndarray::CowArray::from(Array::from_shape_vec((1,), vec![v]).map_err(|e| OnnxShapeErr(e))?.into_dyn());
+            let input_tensor_values = vec![Value::from_array(session.allocator(), &array).map_err(|e| OnnxOrtErr(e))?];
+            let outputs: Vec<Value> = session.run(input_tensor_values).map_err(|e| OnnxOrtErr(e))?;
             let output = outputs[0].borrow();
 
             match return_type {
                 FieldType::String => {
-                    let output_array_view = output.try_extract::<std::string::String>().unwrap();
+                    let output_array_view = output.try_extract::<std::string::String>().map_err(|e| OnnxOrtErr(e))?;
                     Ok(Field::String(output_array_view.view().deref()[0].clone()))
                 }
                 FieldType::Json => {
-                    let output_array_view = output.try_extract::<f32>().unwrap();
+                    let output_array_view = output.try_extract::<f32>().map_err(|e| OnnxOrtErr(e))?;
                     let mut result = vec![];
                     for val in output_array_view.view().deref() {
                         result.push(JsonValue::Number(OrderedFloat(val.clone().into())));
@@ -59,7 +59,7 @@ pub fn evaluate_onnx_udf(
                     Ok(Field::Json(JsonValue::Array(result)))
                 }
                 FieldType::Float => {
-                    let output_array_view = output.try_extract::<f32>().unwrap();
+                    let output_array_view = output.try_extract::<f32>().map_err(|e| OnnxOrtErr(e))?;
                     Ok(Field::Float(OrderedFloat(
                         output_array_view.view().deref()[0].clone().into(),
                     )))
@@ -71,14 +71,14 @@ pub fn evaluate_onnx_udf(
         }
         (Field::UInt(v), FieldType::Json | FieldType::Float | FieldType::UInt) => {
             let array =
-                ndarray::CowArray::from(Array::from_shape_vec((1,), vec![v]).unwrap().into_dyn());
-            let input_tensor_values = vec![Value::from_array(session.allocator(), &array).unwrap()];
-            let outputs: Vec<Value> = session.run(input_tensor_values).unwrap();
+                ndarray::CowArray::from(Array::from_shape_vec((1,), vec![v]).map_err(|e| OnnxShapeErr(e))?.into_dyn());
+            let input_tensor_values = vec![Value::from_array(session.allocator(), &array).map_err(|e| OnnxOrtErr(e))?];
+            let outputs: Vec<Value> = session.run(input_tensor_values).map_err(|e| OnnxOrtErr(e))?;
             let output = outputs[0].borrow();
 
             match return_type {
                 FieldType::Json => {
-                    let output_array_view = output.try_extract::<f32>().unwrap();
+                    let output_array_view = output.try_extract::<f32>().map_err(|e| OnnxOrtErr(e))?;
                     let mut result = vec![];
                     for val in output_array_view.view().deref() {
                         result.push(JsonValue::Number(OrderedFloat(val.clone().into())));
@@ -86,13 +86,13 @@ pub fn evaluate_onnx_udf(
                     Ok(Field::Json(JsonValue::Array(result)))
                 }
                 FieldType::Float => {
-                    let output_array_view = output.try_extract::<f32>().unwrap();
+                    let output_array_view = output.try_extract::<f32>().map_err(|e| OnnxOrtErr(e))?;
                     Ok(Field::Float(OrderedFloat(
                         output_array_view.view().deref()[0].clone().into(),
                     )))
                 }
                 FieldType::UInt => {
-                    let output_array_view = output.try_extract::<u32>().unwrap();
+                    let output_array_view = output.try_extract::<u32>().map_err(|e| OnnxOrtErr(e))?;
                     Ok(Field::UInt(
                         output_array_view.view().deref()[0].clone().into(),
                     ))
@@ -110,16 +110,16 @@ pub fn evaluate_onnx_udf(
                     vec![u64::try_from(v)
                         .map_err(|e| InvalidType(field.clone(), return_type.to_string()))?],
                 )
-                .unwrap()
+                .map_err(|e| OnnxShapeErr(e))?
                 .into_dyn(),
             );
-            let input_tensor_values = vec![Value::from_array(session.allocator(), &array).unwrap()];
-            let outputs: Vec<Value> = session.run(input_tensor_values).unwrap();
+            let input_tensor_values = vec![Value::from_array(session.allocator(), &array).map_err(|e| OnnxOrtErr(e))?];
+            let outputs: Vec<Value> = session.run(input_tensor_values).map_err(|e| OnnxOrtErr(e))?;
             let output = outputs[0].borrow();
 
             match return_type {
                 FieldType::Json => {
-                    let output_array_view = output.try_extract::<f32>().unwrap();
+                    let output_array_view = output.try_extract::<f32>().map_err(|e| OnnxOrtErr(e))?;
                     let mut result = vec![];
                     for val in output_array_view.view().deref() {
                         result.push(JsonValue::Number(OrderedFloat(val.clone().into())));
@@ -127,13 +127,13 @@ pub fn evaluate_onnx_udf(
                     Ok(Field::Json(JsonValue::Array(result)))
                 }
                 FieldType::Float => {
-                    let output_array_view = output.try_extract::<f32>().unwrap();
+                    let output_array_view = output.try_extract::<f32>().map_err(|e| OnnxOrtErr(e))?;
                     Ok(Field::Float(OrderedFloat(
                         output_array_view.view().deref()[0].clone().into(),
                     )))
                 }
                 FieldType::U128 => {
-                    let output_array_view = output.try_extract::<u32>().unwrap();
+                    let output_array_view = output.try_extract::<u32>().map_err(|e| OnnxOrtErr(e))?;
                     Ok(Field::U128(
                         output_array_view.view().deref()[0].clone().into(),
                     ))
@@ -145,14 +145,14 @@ pub fn evaluate_onnx_udf(
         }
         (Field::Int(v), FieldType::Json | FieldType::Float | FieldType::Int) => {
             let array =
-                ndarray::CowArray::from(Array::from_shape_vec((1,), vec![v]).unwrap().into_dyn());
-            let input_tensor_values = vec![Value::from_array(session.allocator(), &array).unwrap()];
-            let outputs: Vec<Value> = session.run(input_tensor_values).unwrap();
+                ndarray::CowArray::from(Array::from_shape_vec((1,), vec![v]).map_err(|e| OnnxShapeErr(e))?.into_dyn());
+            let input_tensor_values = vec![Value::from_array(session.allocator(), &array).map_err(|e| OnnxOrtErr(e))?];
+            let outputs: Vec<Value> = session.run(input_tensor_values).map_err(|e| OnnxOrtErr(e))?;
             let output = outputs[0].borrow();
 
             match return_type {
                 FieldType::Json => {
-                    let output_array_view = output.try_extract::<f32>().unwrap();
+                    let output_array_view = output.try_extract::<f32>().map_err(|e| OnnxOrtErr(e))?;
                     let mut result = vec![];
                     for val in output_array_view.view().deref() {
                         result.push(JsonValue::Number(OrderedFloat(val.clone().into())));
@@ -160,13 +160,13 @@ pub fn evaluate_onnx_udf(
                     Ok(Field::Json(JsonValue::Array(result)))
                 }
                 FieldType::Float => {
-                    let output_array_view = output.try_extract::<f32>().unwrap();
+                    let output_array_view = output.try_extract::<f32>().map_err(|e| OnnxOrtErr(e))?;
                     Ok(Field::Float(OrderedFloat(
                         output_array_view.view().deref()[0].clone().into(),
                     )))
                 }
                 FieldType::Int => {
-                    let output_array_view = output.try_extract::<i32>().unwrap();
+                    let output_array_view = output.try_extract::<i32>().map_err(|e| OnnxOrtErr(e))?;
                     Ok(Field::Int(
                         output_array_view.view().deref()[0].clone().into(),
                     ))
@@ -184,16 +184,16 @@ pub fn evaluate_onnx_udf(
                     vec![i64::try_from(v)
                         .map_err(|e| InvalidType(field.clone(), return_type.to_string()))?],
                 )
-                .unwrap()
+                .map_err(|e| OnnxShapeErr(e))?
                 .into_dyn(),
             );
-            let input_tensor_values = vec![Value::from_array(session.allocator(), &array).unwrap()];
-            let outputs: Vec<Value> = session.run(input_tensor_values).unwrap();
+            let input_tensor_values = vec![Value::from_array(session.allocator(), &array).map_err(|e| OnnxOrtErr(e))?];
+            let outputs: Vec<Value> = session.run(input_tensor_values).map_err(|e| OnnxOrtErr(e))?;
             let output = outputs[0].borrow();
 
             match return_type {
                 FieldType::Json => {
-                    let output_array_view = output.try_extract::<f32>().unwrap();
+                    let output_array_view = output.try_extract::<f32>().map_err(|e| OnnxOrtErr(e))?;
                     let mut result = vec![];
                     for val in output_array_view.view().deref() {
                         result.push(JsonValue::Number(OrderedFloat(val.clone().into())));
@@ -201,13 +201,13 @@ pub fn evaluate_onnx_udf(
                     Ok(Field::Json(JsonValue::Array(result)))
                 }
                 FieldType::Float => {
-                    let output_array_view = output.try_extract::<f32>().unwrap();
+                    let output_array_view = output.try_extract::<f32>().map_err(|e| OnnxOrtErr(e))?;
                     Ok(Field::Float(OrderedFloat(
                         output_array_view.view().deref()[0].clone().into(),
                     )))
                 }
                 FieldType::I128 => {
-                    let output_array_view = output.try_extract::<i32>().unwrap();
+                    let output_array_view = output.try_extract::<i32>().map_err(|e| OnnxOrtErr(e))?;
                     Ok(Field::I128(
                         output_array_view.view().deref()[0].clone().into(),
                     ))
@@ -224,14 +224,14 @@ pub fn evaluate_onnx_udf(
                 None => return Err(InvalidType(field.clone(), return_type.to_string())),
             };
             let array =
-                ndarray::CowArray::from(Array::from_shape_vec((1,), vec![num]).unwrap().into_dyn());
-            let input_tensor_values = vec![Value::from_array(session.allocator(), &array).unwrap()];
-            let outputs: Vec<Value> = session.run(input_tensor_values).unwrap();
+                ndarray::CowArray::from(Array::from_shape_vec((1,), vec![num]).map_err(|e| OnnxShapeErr(e))?.into_dyn());
+            let input_tensor_values = vec![Value::from_array(session.allocator(), &array).map_err(|e| OnnxOrtErr(e))?];
+            let outputs: Vec<Value> = session.run(input_tensor_values).map_err(|e| OnnxOrtErr(e))?;
             let output = outputs[0].borrow();
 
             match return_type {
                 FieldType::Json => {
-                    let output_array_view = output.try_extract::<f32>().unwrap();
+                    let output_array_view = output.try_extract::<f32>().map_err(|e| OnnxOrtErr(e))?;
                     let mut result = vec![];
                     for val in output_array_view.view().deref() {
                         result.push(JsonValue::Number(OrderedFloat(val.clone().into())));
@@ -239,7 +239,7 @@ pub fn evaluate_onnx_udf(
                     Ok(Field::Json(JsonValue::Array(result)))
                 }
                 FieldType::Float => {
-                    let output_array_view = output.try_extract::<f32>().unwrap();
+                    let output_array_view = output.try_extract::<f32>().map_err(|e| OnnxOrtErr(e))?;
                     Ok(Field::Float(OrderedFloat(
                         output_array_view.view().deref()[0].clone().into(),
                     )))
@@ -259,28 +259,28 @@ pub fn evaluate_onnx_udf(
                     None => return Err(InvalidType(field.clone(), return_type.to_string())),
                 };
                 let array = ndarray::CowArray::from(
-                    Array::from_shape_vec((1,), vec![num]).unwrap().into_dyn(),
+                    Array::from_shape_vec((1,), vec![num]).map_err(|e| OnnxShapeErr(e))?.into_dyn(),
                 );
                 let input_tensor_values =
-                    vec![Value::from_array(session.allocator(), &array).unwrap()];
-                let outputs: Vec<Value> = session.run(input_tensor_values).unwrap();
+                    vec![Value::from_array(session.allocator(), &array).map_err(|e| OnnxOrtErr(e))?];
+                let outputs: Vec<Value> = session.run(input_tensor_values).map_err(|e| OnnxOrtErr(e))?;
                 let output = outputs[0].borrow();
 
-                let output_array_view = output.try_extract::<f32>().unwrap();
+                let output_array_view = output.try_extract::<f32>().map_err(|e| OnnxOrtErr(e))?;
                 Ok(Field::Float(OrderedFloat(
                     output_array_view.view().deref()[0].clone().into(),
                 )))
             }
             JsonValue::String(v) => {
                 let array = ndarray::CowArray::from(
-                    Array::from_shape_vec((1,), vec![v]).unwrap().into_dyn(),
+                    Array::from_shape_vec((1,), vec![v]).map_err(|e| OnnxShapeErr(e))?.into_dyn(),
                 );
                 let input_tensor_values =
-                    vec![Value::from_array(session.allocator(), &array).unwrap()];
-                let outputs: Vec<Value> = session.run(input_tensor_values).unwrap();
+                    vec![Value::from_array(session.allocator(), &array).map_err(|e| OnnxOrtErr(e))?];
+                let outputs: Vec<Value> = session.run(input_tensor_values).map_err(|e| OnnxOrtErr(e))?;
                 let output = outputs[0].borrow();
 
-                let output_array_view = output.try_extract::<std::string::String>().unwrap();
+                let output_array_view = output.try_extract::<std::string::String>().map_err(|e| OnnxOrtErr(e))?;
                 Ok(Field::String(output_array_view.view().deref()[0].clone()))
             }
             _ => Err(InvalidValue(format!(

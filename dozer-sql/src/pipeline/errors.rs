@@ -9,6 +9,9 @@ use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
 use dozer_types::types::{Field, FieldType};
 use std::fmt::{Display, Formatter};
+use ndarray::ShapeError;
+#[cfg(feature = "onnx")]
+use dozer_types::ort::OrtError;
 
 #[derive(Debug, Clone)]
 pub struct FieldTypes {
@@ -87,6 +90,12 @@ pub enum PipelineError {
     #[cfg(feature = "python")]
     #[error("Python Error: {0}")]
     PythonErr(dozer_types::pyo3::PyErr),
+    #[cfg(feature = "onnx")]
+    #[error("Onnx Ndarray Error: {0}")]
+    OnnxShapeErr(ShapeError),
+    #[cfg(feature = "onnx")]
+    #[error("Onnx Runtime Error: {0}")]
+    OnnxOrtErr(OrtError),
 
     #[error("Udf is defined but missing with config: {0}")]
     UdfConfigMissing(String),
