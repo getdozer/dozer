@@ -40,19 +40,6 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-      mysql:
-        image: mysql:8
-        ports:
-          - 3306:3306
-        env:
-          MYSQL_ROOT_PASSWORD: mysql
-          MYSQL_ROOT_HOST: '%'
-          MYSQL_DATABASE: test
-        options: >-
-          --health-cmd "mysqladmin ping -uroot --password=mysql"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
 
     steps:
       - name: Configure AWS credentials
@@ -82,6 +69,8 @@ jobs:
         uses: supercharge/mongodb-github-action@1.8.0
 
       - uses: ./.github/workflows/setup-snowflake-and-kafka
+
+      - uses: ./.github/workflows/setup-mysql-and-mariadb
 
       - name: Run connectors tests
         env:
