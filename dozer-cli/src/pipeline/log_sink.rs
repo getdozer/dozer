@@ -12,7 +12,6 @@ use dozer_core::{
     processor_record::ProcessorRecordStore,
     DEFAULT_PORT_HANDLE,
 };
-use dozer_sql::pipeline::builder::SchemaSQLContext;
 use dozer_types::indicatif::{MultiProgress, ProgressBar};
 use dozer_types::types::Schema;
 use dozer_types::{errors::internal::BoxedError, parking_lot::Mutex};
@@ -42,15 +41,12 @@ impl LogSinkFactory {
     }
 }
 
-impl SinkFactory<SchemaSQLContext> for LogSinkFactory {
+impl SinkFactory for LogSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn prepare(
-        &self,
-        input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), BoxedError> {
+    fn prepare(&self, input_schemas: HashMap<PortHandle, Schema>) -> Result<(), BoxedError> {
         debug_assert!(input_schemas.len() == 1);
         Ok(())
     }

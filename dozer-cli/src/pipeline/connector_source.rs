@@ -3,7 +3,6 @@ use dozer_core::node::{OutputPortDef, OutputPortType, PortHandle, Source, Source
 use dozer_ingestion::connectors::{get_connector, CdcType, Connector, TableInfo};
 use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
-use dozer_sql::pipeline::builder::SchemaSQLContext;
 
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
@@ -131,11 +130,8 @@ impl ConnectorSourceFactory {
     }
 }
 
-impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
-    fn get_output_schema(
-        &self,
-        port: &PortHandle,
-    ) -> Result<(Schema, SchemaSQLContext), BoxedError> {
+impl SourceFactory for ConnectorSourceFactory {
+    fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, BoxedError> {
         let table = self
             .tables
             .iter()
@@ -158,7 +154,7 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
             schema.print()
         );
 
-        Ok((schema, SchemaSQLContext::default()))
+        Ok(schema)
     }
 
     fn get_output_port_name(&self, port: &PortHandle) -> String {

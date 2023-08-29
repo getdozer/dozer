@@ -56,8 +56,8 @@ pub struct Contract {
 }
 
 impl Contract {
-    pub fn new<T>(
-        dag_schemas: &DagSchemas<T>,
+    pub fn new(
+        dag_schemas: &DagSchemas,
         endpoints: &[ApiEndpoint],
         enable_token: bool,
         enable_on_event: bool,
@@ -158,7 +158,7 @@ impl Contract {
 mod service;
 
 /// Sink's `NodeHandle::id` must be `endpoint_name`.
-fn find_sink<T>(dag: &DagSchemas<T>, endpoint_name: &str) -> Option<NodeIndex> {
+fn find_sink(dag: &DagSchemas, endpoint_name: &str) -> Option<NodeIndex> {
     dag.graph()
         .node_references()
         .find(|(_node_index, node)| {
@@ -171,7 +171,7 @@ fn find_sink<T>(dag: &DagSchemas<T>, endpoint_name: &str) -> Option<NodeIndex> {
         .map(|(node_index, _)| node_index)
 }
 
-fn sink_input_schema<T>(dag: &DagSchemas<T>, node_index: NodeIndex) -> &Schema {
+fn sink_input_schema(dag: &DagSchemas, node_index: NodeIndex) -> &Schema {
     let edge = dag
         .graph()
         .edges_directed(node_index, Direction::Incoming)
@@ -180,14 +180,14 @@ fn sink_input_schema<T>(dag: &DagSchemas<T>, node_index: NodeIndex) -> &Schema {
     &edge.weight().schema
 }
 
-fn collect_ancestor_sources<T>(dag: &DagSchemas<T>, node_index: NodeIndex) -> HashSet<String> {
+fn collect_ancestor_sources(dag: &DagSchemas, node_index: NodeIndex) -> HashSet<String> {
     let mut sources = HashSet::new();
     collect_ancestor_sources_recursive(dag, node_index, &mut sources);
     sources
 }
 
-fn collect_ancestor_sources_recursive<T>(
-    dag: &DagSchemas<T>,
+fn collect_ancestor_sources_recursive(
+    dag: &DagSchemas,
     node_index: NodeIndex,
     sources: &mut HashSet<String>,
 ) {

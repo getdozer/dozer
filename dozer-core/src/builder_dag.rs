@@ -38,9 +38,9 @@ pub struct BuilderDag {
 }
 
 impl BuilderDag {
-    pub fn new<T>(
+    pub fn new(
         checkpoint_factory: Arc<CheckpointFactory>,
-        dag_schemas: DagSchemas<T>,
+        dag_schemas: DagSchemas,
     ) -> Result<Self, ExecutionError> {
         // Decide the checkpoint to start from.
         let dag_checkpoint = DagCheckpoint::new(dag_schemas)?;

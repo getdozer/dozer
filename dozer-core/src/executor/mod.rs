@@ -66,8 +66,8 @@ pub struct DagExecutorJoinHandle {
 }
 
 impl DagExecutor {
-    pub fn new<T: Clone + Debug>(
-        dag: Dag<T>,
+    pub fn new(
+        dag: Dag,
         checkpoint_factory: Arc<CheckpointFactory>,
         options: ExecutorOptions,
     ) -> Result<Self, ExecutionError> {
@@ -81,7 +81,7 @@ impl DagExecutor {
         })
     }
 
-    pub fn validate<T: Clone + Debug>(dag: Dag<T>) -> Result<(), ExecutionError> {
+    pub fn validate<T: Clone + Debug>(dag: Dag) -> Result<(), ExecutionError> {
         DagSchemas::new(dag)?;
         Ok(())
     }

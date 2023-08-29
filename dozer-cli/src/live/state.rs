@@ -3,7 +3,7 @@ use std::{sync::Arc, thread::JoinHandle};
 use clap::Parser;
 use dozer_cache::dozer_log::camino::Utf8Path;
 use dozer_core::{app::AppPipeline, dag_schemas::DagSchemas, Dag};
-use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
+use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_types::{
     grpc_types::{
         contract::{DotResponse, SchemasResponse},
@@ -277,9 +277,7 @@ async fn create_contract(dozer: SimpleOrchestrator) -> Result<Contract, Orchestr
     Ok(contract)
 }
 
-async fn create_dag(
-    dozer: &SimpleOrchestrator,
-) -> Result<Dag<SchemaSQLContext>, OrchestrationError> {
+async fn create_dag(dozer: &SimpleOrchestrator) -> Result<Dag, OrchestrationError> {
     let endpoint_and_logs = dozer
         .config
         .endpoints

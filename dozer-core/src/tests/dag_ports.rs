@@ -2,7 +2,6 @@ use crate::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Source, SourceFactory,
 };
 use crate::processor_record::ProcessorRecordStore;
-use crate::tests::app::NoneContext;
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::{node::NodeHandle, types::Schema};
@@ -19,8 +18,8 @@ impl DynPortsSourceFactory {
     }
 }
 
-impl SourceFactory<NoneContext> for DynPortsSourceFactory {
-    fn get_output_schema(&self, _port: &PortHandle) -> Result<(Schema, NoneContext), BoxedError> {
+impl SourceFactory for DynPortsSourceFactory {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, BoxedError> {
         todo!()
     }
 
@@ -58,12 +57,12 @@ impl DynPortsProcessorFactory {
     }
 }
 
-impl ProcessorFactory<NoneContext> for DynPortsProcessorFactory {
+impl ProcessorFactory for DynPortsProcessorFactory {
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
-        _input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(Schema, NoneContext), BoxedError> {
+        _input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> Result<Schema, BoxedError> {
         todo!()
     }
 
