@@ -194,6 +194,8 @@ pub enum ConfigCombineError {
 pub enum BuildError {
     #[error("Endpoint {0} not found in DAG")]
     MissingEndpoint(String),
+    #[error("Connection {0} found in DAG but not in config")]
+    MissingConnection(String),
     #[error("Got mismatching primary key for `{endpoint_name}`. Expected: `{expected:?}`, got: `{actual:?}`")]
     MismatchPrimaryKey {
         endpoint_name: String,

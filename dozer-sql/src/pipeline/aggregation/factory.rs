@@ -7,6 +7,7 @@ use dozer_core::{
     DEFAULT_PORT_HANDLE,
 };
 use dozer_types::errors::internal::BoxedError;
+use dozer_types::parking_lot::Mutex;
 use dozer_types::types::Schema;
 use sqlparser::ast::Select;
 use std::collections::HashMap;
@@ -17,6 +18,9 @@ pub struct AggregationProcessorFactory {
     projection: Select,
     _stateful: bool,
     enable_probabilistic_optimizations: bool,
+
+    /// Type name can only be determined after schema propagation.
+    type_name: Mutex<Option<String>>,
 }
 
 impl AggregationProcessorFactory {
@@ -31,6 +35,7 @@ impl AggregationProcessorFactory {
             projection,
             _stateful: stateful,
             enable_probabilistic_optimizations,
+            type_name: Mutex::new(None),
         }
     }
 
@@ -43,7 +48,11 @@ impl AggregationProcessorFactory {
 
 impl ProcessorFactory for AggregationProcessorFactory {
     fn type_name(&self) -> String {
-        "Aggregation".to_string()
+        self.type_name
+            .lock()
+            .as_deref()
+            .unwrap_or("Aggregation")
+            .to_string()
     }
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
@@ -66,6 +75,16 @@ impl ProcessorFactory for AggregationProcessorFactory {
             .ok_or(PipelineError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
 
         let planner = self.get_planner(input_schema.clone())?;
+
+        *self.type_name.lock() = Some(
+            if is_projection(&planner) {
+                "Projection"
+            } else {
+                "Aggregation"
+            }
+            .to_string(),
+        );
+
         Ok(planner.post_projection_schema)
     }
 
@@ -81,8 +100,7 @@ impl ProcessorFactory for AggregationProcessorFactory {
 
         let planner = self.get_planner(input_schema.clone())?;
 
-        let is_projection = planner.aggregation_output.is_empty() && planner.groupby.is_empty();
-        let processor: Box<dyn Processor> = if is_projection {
+        let processor: Box<dyn Processor> = if is_projection(&planner) {
             Box::new(ProjectionProcessor::new(
                 input_schema.clone(),
                 planner.projection_output,
@@ -105,4 +123,8 @@ impl ProcessorFactory for AggregationProcessorFactory {
     fn id(&self) -> String {
         self.id.clone()
     }
+}
+
+fn is_projection(planner: &CommonPlanner) -> bool {
+    planner.aggregation_output.is_empty() && planner.groupby.is_empty()
 }

@@ -269,6 +269,7 @@ async fn create_contract(dozer: SimpleOrchestrator) -> Result<Contract, Orchestr
     let schemas = DagSchemas::new(dag)?;
     let contract = Contract::new(
         &schemas,
+        &dozer.config.connections,
         &dozer.config.endpoints,
         // We don't care about API generation options here. They are handled in `run_all`.
         false,
