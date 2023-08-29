@@ -313,6 +313,7 @@ impl SimpleOrchestrator {
             .unwrap_or(false);
         let contract = build::Contract::new(
             &dag_schemas,
+            &self.config.connections,
             &self.config.endpoints,
             enable_token,
             enable_on_event,

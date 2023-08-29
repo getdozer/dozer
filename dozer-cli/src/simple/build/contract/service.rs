@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display};
 
 use dozer_core::{
     daggy,
@@ -16,7 +16,7 @@ impl Contract {
     pub fn get_source_schemas(&self, connection_name: &str) -> Option<HashMap<String, Schema>> {
         // Find the source node.
         for (node_index, node) in self.pipeline.node_references() {
-            if let NodeKind::Source { port_names } = &node.kind {
+            if let NodeKind::Source { port_names, .. } = &node.kind {
                 if node.handle.id == connection_name {
                     let mut result = HashMap::new();
                     for edge in self
@@ -45,111 +45,178 @@ impl Contract {
             .collect()
     }
 
-    // Return all input schemas for a given node
-    // Hence, source schemas are to be mapped separately.
     pub fn get_graph_schemas(&self) -> HashMap<String, Schema> {
-        let mut schemas = HashMap::new();
-        for (node_index, node) in self.pipeline.node_references() {
-            // ignore source schemas
+        let graph = self.create_ui_graph();
+        let nodes = graph.into_graph().into_nodes_edges().0;
+        nodes
+            .into_iter()
+            .filter_map(|node| {
+                let node = node.weight;
+                node.output_schema
+                    .map(|schema| (node.kind.to_string(), schema))
+            })
+            .collect()
+    }
 
+    pub fn generate_dot(&self) -> String {
+        dot::Dot::new(&self.create_ui_graph()).to_string()
+    }
+
+    fn create_ui_graph(&self) -> UiGraph {
+        let mut ui_graph = UiGraph::new();
+        let mut pipeline_node_index_to_ui_node_index = HashMap::new();
+        let mut pipeline_source_to_ui_node_index = HashMap::new();
+
+        // Create nodes.
+        for (node_index, node) in self.pipeline.node_references() {
             match &node.kind {
-                NodeKind::Sink => {
-                    for edge in self
-                        .pipeline
-                        .edges_directed(node_index, Direction::Incoming)
-                    {
-                        let edge = edge.weight();
-                        let schema = edge.schema.clone();
-                        let id = node.handle.id.clone();
-                        let label = get_label(&node.kind, false);
-                        let key = format!("{}::{}", label, id);
-                        schemas.insert(key, map_schema(schema.clone()));
-                    }
-                }
-                _ => {
+                NodeKind::Source { typ, port_names } => {
+                    // Create connection ui node.
+                    let connection_node_index = ui_graph.add_node(UiNodeType {
+                        kind: UiNodeKind::Connection {
+                            typ: typ.clone(),
+                            name: node.handle.id.clone(),
+                        },
+                        output_schema: None,
+                    });
+                    pipeline_node_index_to_ui_node_index.insert(node_index, connection_node_index);
+
+                    // Create source ui node. Schema comes from connection's outgoing edge.
                     for edge in self
                         .pipeline
                         .edges_directed(node_index, Direction::Outgoing)
                     {
-                        let edge = edge.weight();
-                        let schema = edge.schema.clone();
-                        let id = if let NodeKind::Source { port_names } = &node.kind {
-                            port_names[&edge.from_port].clone()
-                        } else {
-                            node.handle.id.clone()
-                        };
-                        let label = get_label(&node.kind, false);
-                        let key = format!("{}::{}", label, id);
-                        schemas.insert(key, map_schema(schema.clone()));
+                        if let std::collections::hash_map::Entry::Vacant(entry) =
+                            pipeline_source_to_ui_node_index
+                                .entry((node_index, edge.weight().from_port))
+                        {
+                            let edge = edge.weight();
+                            let schema = edge.schema.clone();
+                            let source_node_index = ui_graph.add_node(UiNodeType {
+                                kind: UiNodeKind::Source {
+                                    name: port_names[&edge.from_port].clone(),
+                                },
+                                output_schema: Some(map_schema(schema)),
+                            });
+                            entry.insert(source_node_index);
+                        }
                     }
+                }
+                NodeKind::Processor { typ } => {
+                    // Create processor ui node. Schema comes from the outgoing edge.
+                    let mut edges = self
+                        .pipeline
+                        .edges_directed(node_index, Direction::Outgoing)
+                        .collect::<Vec<_>>();
+                    assert!(
+                        edges.len() == 1,
+                        "We only support visualizing processors with one output port"
+                    );
+                    let edge = edges.remove(0);
+
+                    let processor_node_index = ui_graph.add_node(UiNodeType {
+                        kind: UiNodeKind::Processor {
+                            typ: typ.clone(),
+                            name: node.handle.id.clone(),
+                        },
+                        output_schema: Some(map_schema(edge.weight().schema.clone())),
+                    });
+                    pipeline_node_index_to_ui_node_index.insert(node_index, processor_node_index);
+                }
+                NodeKind::Sink => {
+                    // Create sink ui node. Schema comes from endpoint.
+                    let schema = self.endpoints[&node.handle.id].schema.clone();
+                    let sink_node_index = ui_graph.add_node(UiNodeType {
+                        kind: UiNodeKind::Sink {
+                            name: node.handle.id.clone(),
+                        },
+                        output_schema: Some(map_schema(schema)),
+                    });
+                    pipeline_node_index_to_ui_node_index.insert(node_index, sink_node_index);
                 }
             }
         }
-        schemas
-    }
 
-    pub fn generate_dot(&self) -> String {
-        let mut dag = daggy::Dag::<String, &'static str>::new();
-        let mut node_index_map = HashMap::new();
-        let mut source_port_node_indexes = HashMap::new();
-        self.pipeline
-            .node_references()
-            .for_each(|(node_index, node)| {
-                let label = get_label(&node.kind, true);
-                let new_node_index = dag.add_node(format!("{}::{}", label, node.handle.id));
-                node_index_map.insert(node_index, new_node_index);
+        // Create edges.
+        for edge in self.pipeline.edge_references() {
+            let from_node_index = edge.source();
+            let to_node_index = edge.target();
+            let from_ui_node_index = pipeline_node_index_to_ui_node_index[&from_node_index];
+            let to_ui_node_index = pipeline_node_index_to_ui_node_index[&to_node_index];
 
-                if let NodeKind::Source { port_names } = &node.kind {
-                    for (port, source_name) in port_names {
-                        let label = get_label(&node.kind, false);
-                        let source_port_node_index =
-                            dag.add_node(format!("{}::{}", label, source_name));
-                        source_port_node_indexes
-                            .insert((new_node_index, *port), source_port_node_index);
-                    }
-                }
-            });
-        self.pipeline.edge_references().for_each(|edge| {
-            let source_node_index = edge.source();
-            let source_node = &self.pipeline[source_node_index];
-            let target_node_index = edge.target();
-
-            let source_node_index = node_index_map[&source_node_index];
-            let target_node_index = node_index_map[&target_node_index];
-
-            let from_port = edge.weight().from_port;
-            let kind = &source_node.kind;
+            let from_node = &self.pipeline[from_node_index];
+            let kind = &from_node.kind;
             match &kind {
                 NodeKind::Source { .. } => {
-                    let new_node_index = source_port_node_indexes[&(source_node_index, from_port)];
-
-                    dag.add_edge(source_node_index, new_node_index, "").unwrap();
-                    dag.add_edge(new_node_index, target_node_index, "").unwrap();
+                    let ui_source_node_index = pipeline_source_to_ui_node_index
+                        [&(from_node_index, edge.weight().from_port)];
+                    // Connect ui connection node to ui source node.
+                    ui_graph
+                        .add_edge(from_ui_node_index, ui_source_node_index, UiEdgeType)
+                        .unwrap();
+                    // Connect ui source node to target node.
+                    ui_graph
+                        .add_edge(ui_source_node_index, to_ui_node_index, UiEdgeType)
+                        .unwrap();
                 }
                 _ => {
-                    dag.add_edge(source_node_index, target_node_index, "")
+                    // Connect ui node to target node.
+                    ui_graph
+                        .add_edge(from_ui_node_index, to_ui_node_index, UiEdgeType)
                         .unwrap();
                 }
             }
-        });
-        dot::Dot::new(&dag).to_string()
+        }
+
+        ui_graph
     }
 }
+
+#[derive(Debug)]
+struct UiNodeType {
+    kind: UiNodeKind,
+    output_schema: Option<Schema>,
+}
+
+impl Display for UiNodeType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.kind.fmt(f)
+    }
+}
+
+#[derive(Debug)]
+enum UiNodeKind {
+    Connection { typ: String, name: String },
+    Source { name: String },
+    Processor { typ: String, name: String },
+    Sink { name: String },
+}
+
+impl Display for UiNodeKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UiNodeKind::Connection { typ, name } => write!(f, "connection::{typ}::{name}"),
+            UiNodeKind::Source { name } => write!(f, "source::source::{name}"),
+            UiNodeKind::Processor { typ, name } => write!(f, "processor::{typ}::{name}"),
+            UiNodeKind::Sink { name } => write!(f, "sink::sink::{name}"),
+        }
+    }
+}
+
+#[derive(Debug)]
+struct UiEdgeType;
+
+impl Display for UiEdgeType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "")
+    }
+}
+
+type UiGraph = daggy::Dag<UiNodeType, UiEdgeType>;
 
 fn map_schema(schema: dozer_types::types::Schema) -> Schema {
     Schema {
         primary_index: schema.primary_index.into_iter().map(|i| i as i32).collect(),
         fields: field_definition_to_grpc(schema.fields),
-    }
-}
-
-fn get_label(kind: &NodeKind, match_connection: bool) -> &str {
-    match kind {
-        NodeKind::Source { .. } => match match_connection {
-            true => "connection",
-            false => "source",
-        },
-        NodeKind::Processor => "processor",
-        NodeKind::Sink => "sink",
     }
 }

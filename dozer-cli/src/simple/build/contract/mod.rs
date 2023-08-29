@@ -14,7 +14,14 @@ use dozer_core::{
         Direction,
     },
 };
-use dozer_types::{models::api_endpoint::ApiEndpoint, node::NodeHandle, types::Schema};
+use dozer_types::{
+    models::{
+        api_endpoint::ApiEndpoint,
+        connection::{Connection, ConnectionConfig},
+    },
+    node::NodeHandle,
+    types::Schema,
+};
 use dozer_types::{
     serde::{de::DeserializeOwned, Deserialize, Serialize},
     serde_json,
@@ -33,9 +40,12 @@ pub struct NodeType {
 #[serde(crate = "dozer_types::serde")]
 pub enum NodeKind {
     Source {
+        typ: String,
         port_names: HashMap<PortHandle, String>,
     },
-    Processor,
+    Processor {
+        typ: String,
+    },
     Sink,
 }
 
@@ -58,6 +68,7 @@ pub struct Contract {
 impl Contract {
     pub fn new(
         dag_schemas: &DagSchemas,
+        connections: &[Connection],
         endpoints: &[ApiEndpoint],
         enable_token: bool,
         enable_on_event: bool,
@@ -82,12 +93,41 @@ impl Contract {
             endpoint_schemas.insert(endpoint.name.clone(), schema);
         }
 
+        let mut source_types = HashMap::new();
+        for (node_index, node) in dag_schemas.graph().node_references() {
+            if let dozer_core::NodeKind::Source(_) = &node.kind {
+                let connection = connections
+                    .iter()
+                    .find(|connection| connection.name == node.handle.id)
+                    .ok_or(BuildError::MissingConnection(node.handle.id.clone()))?;
+                let typ = match &connection.config {
+                    None => "None",
+                    Some(ConnectionConfig::Postgres(_)) => "Postgres",
+                    Some(ConnectionConfig::Ethereum(_)) => "Ethereum",
+                    Some(ConnectionConfig::Grpc(_)) => "Grpc",
+                    Some(ConnectionConfig::Snowflake(_)) => "Snowflake",
+                    Some(ConnectionConfig::Kafka(_)) => "Kafka",
+                    Some(ConnectionConfig::S3Storage(_)) => "S3Storage",
+                    Some(ConnectionConfig::LocalStorage(_)) => "LocalStorage",
+                    Some(ConnectionConfig::DeltaLake(_)) => "DeltaLake",
+                    Some(ConnectionConfig::MongoDB(_)) => "MongoDB",
+                    Some(ConnectionConfig::MySQL(_)) => "MySQL",
+                    Some(ConnectionConfig::Dozer(_)) => "Dozer",
+                };
+                source_types.insert(node_index, typ);
+            }
+        }
+
         let graph = dag_schemas.graph();
         let pipeline = graph.map(
-            |_, node| {
+            |node_index, node| {
                 let handle = node.handle.clone();
                 let kind = match &node.kind {
                     dozer_core::NodeKind::Source(source) => {
+                        let typ = source_types
+                            .get(&node_index)
+                            .expect("Source must have a type")
+                            .to_string();
                         let port_names = source
                             .get_output_ports()
                             .iter()
@@ -96,9 +136,11 @@ impl Contract {
                                 (port.handle, port_name)
                             })
                             .collect();
-                        NodeKind::Source { port_names }
+                        NodeKind::Source { typ, port_names }
                     }
-                    dozer_core::NodeKind::Processor(_) => NodeKind::Processor,
+                    dozer_core::NodeKind::Processor(processor) => NodeKind::Processor {
+                        typ: processor.type_name(),
+                    },
                     dozer_core::NodeKind::Sink(_) => NodeKind::Sink,
                 };
                 NodeType { handle, kind }
