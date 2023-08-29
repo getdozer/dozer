@@ -128,7 +128,7 @@ fn insert_table_operator_processor_to_pipeline(
     pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_idx: usize,
     query_context: &mut QueryContext,
-    udfs: &Vec<UdfConfig>,
+    udfs: &[UdfConfig],
 ) -> Result<ConnectionInfo, PipelineError> {
     // the sources names that are used in this pipeline
     let mut input_nodes = vec![];
@@ -148,7 +148,7 @@ fn insert_table_operator_processor_to_pipeline(
         let processor = TableOperatorProcessorFactory::new(
             processor_name.clone(),
             operator.clone(),
-            udfs.clone(),
+            udfs.to_owned(),
         );
 
         let source_name = processor

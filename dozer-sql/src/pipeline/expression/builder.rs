@@ -472,7 +472,7 @@ impl ExpressionBuilder {
         // config check for udfs
         #[cfg(feature = "onnx")]
         if !udfs.is_empty() || function_name.ends_with("onnx") {
-            for udf in udfs {
+            if let Some(udf) = udfs.iter().next() {
                 return match udf.config.clone() {
                     Some(udf_type) => return match udf_type {
                         Onnx(config) => {
