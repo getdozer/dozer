@@ -1,11 +1,12 @@
-name: Dozer CI
+name: Lint
 
 on:
-  workflow_dispatch:
-  pull_request:
-    branches: [main]
-  merge_group:
-
+  # workflow_dispatch:
+  # pull_request:
+  #   branches: [main]
+  # merge_group:
+  # push:
+  #   branches: [chore/modify-ci]
 env:
   CARGO_TERM_COLOR: always
 
@@ -16,8 +17,7 @@ concurrency:
 jobs:
   lint:
     timeout-minutes: 60
-    runs-on:
-      labels: ubuntu-latest
+    runs-on: ["self-hosted", "linux", "x64", "ubuntu-latest"]
     steps:
       - uses: actions/checkout@v3
 
