@@ -4,6 +4,7 @@ use clap::Parser;
 use dozer_cache::dozer_log::camino::Utf8Path;
 use dozer_core::{app::AppPipeline, dag_schemas::DagSchemas, Dag};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
+use dozer_tracing::{Labels, LabelsAndProgress};
 use dozer_types::{
     grpc_types::{
         contract::{DotResponse, SchemasResponse},
@@ -219,16 +220,19 @@ impl LiveState {
         })
     }
 
-    pub async fn run(&self, request: RunRequest) -> Result<(), LiveError> {
+    pub async fn run(&self, request: RunRequest) -> Result<Labels, LiveError> {
         let dozer = self.dozer.read().await;
         let dozer = &dozer.as_ref().ok_or(LiveError::NotInitialized)?.dozer;
 
         // kill if a handle already exists
         self.stop().await?;
 
+        let labels: Labels = [("live_run_id", uuid::Uuid::new_v4().to_string())]
+            .into_iter()
+            .collect();
         let (shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
         let metrics_shutdown = shutdown_receiver.clone();
-        let _handle = run(dozer.clone(), request, shutdown_receiver)?;
+        let _handle = run(dozer.clone(), labels.clone(), request, shutdown_receiver)?;
 
         // Initialize progress
         let metrics_sender = self.sender.read().await.as_ref().unwrap().clone();
@@ -241,7 +245,7 @@ impl LiveState {
         let mut lock = self.run_thread.write().await;
         *lock = Some(shutdown_sender);
 
-        Ok(())
+        Ok(labels)
     }
 
     pub async fn stop(&self) -> Result<(), LiveError> {
@@ -301,10 +305,11 @@ async fn create_dag(dozer: &SimpleOrchestrator) -> Result<Dag, OrchestrationErro
 
 fn run(
     dozer: SimpleOrchestrator,
+    labels: Labels,
     request: RunRequest,
     shutdown_receiver: ShutdownReceiver,
 ) -> Result<JoinHandle<()>, OrchestrationError> {
-    let mut dozer = get_dozer_run_instance(dozer, request)?;
+    let mut dozer = get_dozer_run_instance(dozer, labels, request)?;
 
     validate_config(&dozer.config)?;
 
@@ -322,6 +327,7 @@ fn run(
 
 fn get_dozer_run_instance(
     mut dozer: SimpleOrchestrator,
+    labels: Labels,
     req: RunRequest,
 ) -> Result<SimpleOrchestrator, LiveError> {
     match req.request {
@@ -375,6 +381,8 @@ fn get_dozer_run_instance(
     let temp_dir = temp_dir.path().to_str().unwrap();
     dozer.config.home_dir = temp_dir.to_string();
     dozer.config.cache_dir = AsRef::<Utf8Path>::as_ref(temp_dir).join("cache").into();
+
+    dozer.labels = LabelsAndProgress::new(labels, false);
 
     Ok(dozer)
 }
