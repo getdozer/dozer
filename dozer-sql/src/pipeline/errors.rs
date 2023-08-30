@@ -200,6 +200,8 @@ pub enum OnnxError {
     OnnxInputSizeErr(usize),
     #[error("Expected model input shape {0} doesn't match with actual input shape {1}")]
     OnnxInputShapeErr(usize, usize),
+    #[error("Invalid input shape")]
+    OnnxInvalidInputShapeErr,
     #[error("Expected model input datatype {0:?} doesn't match with actual input datatype {1}")]
     OnnxInputDataTypeMismatchErr(TensorElementDataType, FieldType),
     #[error("Expected model input datatype {0:?} doesn't match with actual input field {1}")]

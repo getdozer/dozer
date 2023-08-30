@@ -11,7 +11,7 @@ use std::borrow::Borrow;
 use std::ops::Deref;
 use half::f16;
 use ort::tensor::TensorElementDataType;
-use crate::pipeline::errors::OnnxError::{OnnxInputDataMismatchErr, OnnxNotSupportedDataTypeErr, OnnxOrtErr, OnnxShapeErr};
+use crate::pipeline::errors::OnnxError::{OnnxInputDataMismatchErr, OnnxInvalidInputShapeErr, OnnxNotSupportedDataTypeErr, OnnxOrtErr, OnnxShapeErr};
 
 pub fn evaluate_onnx_udf(
     schema: &Schema,
@@ -24,8 +24,20 @@ pub fn evaluate_onnx_udf(
         .map(|arg| arg.evaluate(record, schema))
         .collect::<Result<Vec<_>, PipelineError>>()?;
 
-    let input_shape: Vec<usize> = session.inputs[0].dimensions().map(|d| d.unwrap()).collect();
-    let output_shape: Vec<usize> = session.outputs[0].dimensions().map(|d| d.unwrap()).collect();
+    let mut input_shape = vec![];
+    for d in session.inputs[0].dimensions() {
+        match d {
+            Some(v) => input_shape.push(v),
+            None => return Err(OnnxError(OnnxInvalidInputShapeErr)),
+        }
+    }
+    let mut output_shape = vec![];
+    for d in session.outputs[0].dimensions() {
+        match d {
+            Some(v) => output_shape.push(v),
+            None => return Err(OnnxError(OnnxInvalidInputShapeErr)),
+        }
+    }
     let input_type = session.inputs[0].input_type;
     let return_type = session.outputs[0].output_type;
 
