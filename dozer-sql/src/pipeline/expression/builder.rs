@@ -34,6 +34,7 @@ use dozer_types::models::udf_config::OnnxConfig;
 use dozer_types::models::udf_config::UdfType::Onnx;
 use ort::session::{Input, Output};
 use ort::tensor::TensorElementDataType;
+use dozer_types::types::FieldType;
 #[cfg(feature = "onnx")]
 use crate::pipeline::DozerSession;
 
@@ -837,8 +838,6 @@ impl ExpressionBuilder {
     ) -> Result<Expression, PipelineError> {
         // First, get python function define by name.
         // Then, transfer python function to Expression::PythonUDF
-
-        use dozer_types::types::FieldType;
         use PipelineError::InvalidQuery;
 
         let args = function
