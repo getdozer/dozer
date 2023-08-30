@@ -469,22 +469,6 @@ impl ExpressionBuilder {
             return self.parse_python_udf(udf_name, sql_function, schema, udfs);
         }
 
-        // config check for udfs
-        if !udfs.is_empty() {
-            let udf_type = udfs.iter().find(|udf| udf.name == function_name).ok_or(PipelineError::UdfConfigMissing(function_name.clone()))?;
-            return match &udf_type.config {
-                #[cfg(feature = "onnx")]
-                Some(Onnx(config)) => self.parse_onnx_udf(
-                    function_name,
-                    &config,
-                    sql_function,
-                    schema,
-                    udfs,
-                ),
-                None => Err(PipelineError::UdfConfigMissing(function_name)),
-            }
-        }
-
         let aggr_check = self.aggr_function_check(
             function_name.clone(),
             parse_aggregations,
@@ -534,13 +518,30 @@ impl ExpressionBuilder {
             return datetime_check;
         }
 
-        self.json_func_check(
+        let json_check = self.json_func_check(
             function_name,
             parse_aggregations,
             sql_function,
             schema,
             udfs,
-        )
+        );
+        if json_check.is_ok() {
+            return json_check;
+        }
+
+        // config check for udfs
+        let udf_type = udfs.iter().find(|udf| udf.name == function_name).ok_or(PipelineError::UdfConfigMissing(function_name.clone()))?;
+        return match &udf_type.config {
+            #[cfg(feature = "onnx")]
+            Some(Onnx(config)) => self.parse_onnx_udf(
+                function_name.clone(),
+                &config,
+                sql_function,
+                schema,
+                udfs,
+            ),
+            None => Err(PipelineError::UdfConfigMissing(function_name)),
+        }
     }
 
     fn parse_sql_function_arg(
