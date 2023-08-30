@@ -239,7 +239,7 @@ async fn create_nested_dozer_server(
 
     let dozer_runtime = Runtime::new().expect("Failed to start tokio runtime for nested dozer");
     let runtime = Arc::new(dozer_runtime);
-    let mut dozer = SimpleOrchestrator::new(config, runtime.clone(), false);
+    let mut dozer = SimpleOrchestrator::new(config, runtime.clone(), Default::default());
     let (shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
     let dozer_thread = std::thread::spawn(move || dozer.run_all(shutdown_receiver).unwrap());
 

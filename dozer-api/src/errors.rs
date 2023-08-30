@@ -6,9 +6,9 @@ use actix_web::http::header::ContentType;
 use actix_web::http::StatusCode;
 use actix_web::HttpResponse;
 use dozer_cache::dozer_log::errors::ReaderBuilderError;
+use dozer_tracing::Labels;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::{CannotConvertF64ToJson, TypeError};
-use dozer_types::labels::Labels;
 use dozer_types::thiserror::Error;
 use dozer_types::{serde_json, thiserror};
 

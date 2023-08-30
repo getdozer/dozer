@@ -12,7 +12,7 @@ use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_ingestion::connectors::{get_connector, get_connector_info_table};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::builder::{OutputNodeInfo, QueryContext};
-use dozer_types::indicatif::MultiProgress;
+use dozer_tracing::LabelsAndProgress;
 use dozer_types::log::debug;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::connection::Connection;
@@ -57,7 +57,7 @@ pub struct PipelineBuilder<'a> {
     sql: Option<&'a str>,
     /// `ApiEndpoint` and its log.
     endpoint_and_logs: Vec<(ApiEndpoint, OptionLog)>,
-    progress: MultiProgress,
+    labels: LabelsAndProgress,
     flags: Flags,
 }
 
@@ -67,7 +67,7 @@ impl<'a> PipelineBuilder<'a> {
         sources: &'a [Source],
         sql: Option<&'a str>,
         endpoint_and_logs: Vec<(ApiEndpoint, OptionLog)>,
-        progress: MultiProgress,
+        labels: LabelsAndProgress,
         flags: Flags,
     ) -> Self {
         Self {
@@ -75,7 +75,7 @@ impl<'a> PipelineBuilder<'a> {
             sources,
             sql,
             endpoint_and_logs,
-            progress,
+            labels,
             flags,
         }
     }
@@ -251,7 +251,7 @@ impl<'a> PipelineBuilder<'a> {
                     runtime.clone(),
                     log,
                     api_endpoint.name.clone(),
-                    self.progress.clone(),
+                    self.labels.clone(),
                 ))
             } else {
                 Box::new(DummySinkFactory)
@@ -283,7 +283,7 @@ impl<'a> PipelineBuilder<'a> {
 
         pipelines.push(pipeline);
 
-        let source_builder = SourceBuilder::new(grouped_connections, Some(&self.progress));
+        let source_builder = SourceBuilder::new(grouped_connections, self.labels);
         let asm = source_builder
             .build_source_manager(runtime, shutdown)
             .await?;

@@ -23,6 +23,7 @@ use daggy::petgraph::{
     visit::{EdgeRef, IntoEdges, IntoEdgesDirected, IntoNodeIdentifiers},
     Direction,
 };
+use dozer_tracing::LabelsAndProgress;
 
 pub type SharedRecordWriter = Rc<RefCell<Option<Box<dyn RecordWriter>>>>;
 
@@ -46,11 +47,13 @@ pub struct ExecutionDag {
     graph: daggy::Dag<Option<NodeType>, EdgeType>,
     epoch_manager: Arc<EpochManager>,
     error_manager: Arc<ErrorManager>,
+    labels: LabelsAndProgress,
 }
 
 impl ExecutionDag {
     pub fn new(
         builder_dag: BuilderDag,
+        labels: LabelsAndProgress,
         channel_buffer_sz: usize,
         error_threshold: Option<u32>,
     ) -> Result<Self, ExecutionError> {
@@ -136,6 +139,7 @@ impl ExecutionDag {
             } else {
                 ErrorManager::new_unlimited()
             }),
+            labels,
         })
     }
 
@@ -157,6 +161,10 @@ impl ExecutionDag {
 
     pub fn error_manager(&self) -> &Arc<ErrorManager> {
         &self.error_manager
+    }
+
+    pub fn labels(&self) -> &LabelsAndProgress {
+        &self.labels
     }
 
     #[allow(clippy::type_complexity)]

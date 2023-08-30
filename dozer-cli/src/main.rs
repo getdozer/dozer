@@ -9,6 +9,7 @@ use dozer_cli::simple::SimpleOrchestrator;
 #[cfg(feature = "cloud")]
 use dozer_cli::CloudOrchestrator;
 use dozer_cli::{live, set_ctrl_handler, set_panic_hook, shutdown};
+use dozer_tracing::LabelsAndProgress;
 use dozer_types::models::telemetry::{TelemetryConfig, TelemetryMetricsConfig};
 use dozer_types::serde::Deserialize;
 use dozer_types::tracing::{error, info};
@@ -270,7 +271,7 @@ fn init_orchestrator(cli: &Cli) -> Result<SimpleOrchestrator, CliError> {
             cli.config_token.clone(),
             cli.config_overrides.clone(),
             cli.ignore_pipe,
-            cli.enable_progress,
+            LabelsAndProgress::new(Default::default(), cli.enable_progress),
         ));
 
         match res {

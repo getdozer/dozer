@@ -1,7 +1,6 @@
 use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
 use dozer_cache::dozer_log::{
-    attach_progress,
     replication::{Log, LogOperation},
     storage::Queue,
 };
@@ -12,7 +11,8 @@ use dozer_core::{
     processor_record::ProcessorRecordStore,
     DEFAULT_PORT_HANDLE,
 };
-use dozer_types::indicatif::{MultiProgress, ProgressBar};
+use dozer_tracing::LabelsAndProgress;
+use dozer_types::indicatif::ProgressBar;
 use dozer_types::types::Schema;
 use dozer_types::{errors::internal::BoxedError, parking_lot::Mutex};
 use tokio::runtime::Runtime;
@@ -22,7 +22,7 @@ pub struct LogSinkFactory {
     runtime: Arc<Runtime>,
     log: Arc<Mutex<Log>>,
     endpoint_name: String,
-    multi_pb: MultiProgress,
+    labels: LabelsAndProgress,
 }
 
 impl LogSinkFactory {
@@ -30,13 +30,13 @@ impl LogSinkFactory {
         runtime: Arc<Runtime>,
         log: Arc<Mutex<Log>>,
         endpoint_name: String,
-        multi_pb: MultiProgress,
+        labels: LabelsAndProgress,
     ) -> Self {
         Self {
             runtime,
             log,
             endpoint_name,
-            multi_pb,
+            labels,
         }
     }
 }
@@ -59,7 +59,7 @@ impl SinkFactory for LogSinkFactory {
             self.runtime.clone(),
             self.log.clone(),
             self.endpoint_name.clone(),
-            Some(self.multi_pb.clone()),
+            self.labels.clone(),
         )))
     }
 }
@@ -77,10 +77,9 @@ impl LogSink {
         runtime: Arc<Runtime>,
         log: Arc<Mutex<Log>>,
         endpoint_name: String,
-        multi_pb: Option<MultiProgress>,
+        labels: LabelsAndProgress,
     ) -> Self {
-        let pb = attach_progress(multi_pb);
-        pb.set_message(endpoint_name);
+        let pb = labels.create_progress_bar(endpoint_name);
         Self {
             runtime,
             log,
