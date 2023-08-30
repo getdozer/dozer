@@ -53,7 +53,7 @@ fn prepare_pipeline_dag(
     connection_sources: HashMap<Connection, Vec<Source>>,
     connection_source_ports: HashMap<(&str, &str), u16>,
     flags: Flags,
-    udfs: &Vec<UdfConfig>,
+    udfs: Vec<UdfConfig>,
 ) -> Result<Dag, OrchestrationError> {
     let mut pipeline = AppPipeline::new(flags.into());
     let mut asm = AppSourceManager::new();
