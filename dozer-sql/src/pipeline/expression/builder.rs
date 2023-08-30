@@ -900,7 +900,7 @@ impl ExpressionBuilder {
             .map_err(OnnxOrtErr)?;
 
         // input number, type, shape validation
-        onnx_input_validation(schema, args.clone(), &session.inputs)?;
+        onnx_input_validation(schema, &args, &session.inputs)?;
         // output number, type, shape validation
         onnx_output_validation(&session.outputs)?;
 
