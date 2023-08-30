@@ -15,7 +15,7 @@ async fn main() {
         LogReaderBuilder::new(cli.server_addr, LogReaderOptions::new(cli.endpoint))
             .await
             .unwrap()
-            .build(0, None);
+            .build(0);
 
     let mut counter = 0;
     loop {

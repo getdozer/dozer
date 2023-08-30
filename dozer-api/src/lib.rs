@@ -39,7 +39,7 @@ impl CacheEndpoint {
         endpoint: ApiEndpoint,
         cancel: impl Future<Output = ()> + Unpin + Send + 'static,
         operations_sender: Option<Sender<Operation>>,
-        multi_pb: Option<MultiProgress>,
+        multi_pb: MultiProgress,
     ) -> Result<(Self, JoinHandle<Result<(), CacheError>>), ApiInitError> {
         // Create log reader builder.
         let log_reader_builder =

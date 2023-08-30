@@ -10,9 +10,9 @@ pub mod storage;
 use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 pub use tokio;
 
-pub fn attach_progress(multi_pb: Option<MultiProgress>) -> ProgressBar {
+pub fn attach_progress(multi_pb: MultiProgress) -> ProgressBar {
     let pb = ProgressBar::new_spinner();
-    multi_pb.as_ref().map(|m| m.add(pb.clone()));
+    multi_pb.add(pb.clone());
     pb.set_style(
         ProgressStyle::with_template("{spinner:.blue} {msg}: {pos}: {per_sec}")
             .unwrap()

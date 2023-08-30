@@ -59,7 +59,7 @@ impl SinkFactory for LogSinkFactory {
             self.runtime.clone(),
             self.log.clone(),
             self.endpoint_name.clone(),
-            Some(self.multi_pb.clone()),
+            self.multi_pb.clone(),
         )))
     }
 }
@@ -77,7 +77,7 @@ impl LogSink {
         runtime: Arc<Runtime>,
         log: Arc<Mutex<Log>>,
         endpoint_name: String,
-        multi_pb: Option<MultiProgress>,
+        multi_pb: MultiProgress,
     ) -> Self {
         let pb = attach_progress(multi_pb);
         pb.set_message(endpoint_name);

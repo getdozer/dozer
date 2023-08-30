@@ -109,7 +109,7 @@ impl SimpleOrchestrator {
                         endpoint.clone(),
                         Box::pin(shutdown.create_shutdown_future()),
                         operations_sender.clone(),
-                        Some(self.multi_pb.clone()),
+                        self.multi_pb.clone(),
                     ) => result?
                 };
                 let cache_name = endpoint.name.clone();

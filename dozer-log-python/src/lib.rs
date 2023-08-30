@@ -23,7 +23,7 @@ impl LogReader {
                 LogReaderBuilder::new(server_addr, LogReaderOptions::new(endpoint_name)).await;
             let reader = reader_result
                 .map_err(|e| PyException::new_err(e.to_string()))?
-                .build(0, None);
+                .build(0);
             Ok(LogReader {
                 reader: Arc::new(Mutex::new(reader)),
             })
