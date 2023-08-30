@@ -79,7 +79,7 @@ pub fn statement_to_pipeline(
     sql: &str,
     pipeline: &mut AppPipeline,
     override_name: Option<String>,
-    udfs: &Vec<UdfConfig>,
+    udfs: Vec<UdfConfig>,
 ) -> Result<QueryContext, PipelineError> {
     let dialect = DozerDialect {};
     let mut ctx = QueryContext::new(udfs);
