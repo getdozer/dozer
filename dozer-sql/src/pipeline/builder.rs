@@ -63,7 +63,7 @@ impl QueryContext {
         self.processor_counter
     }
 
-    pub fn new(udfs: &[UdfConfig]) -> Self {
+    pub fn new(udfs: Vec<UdfConfig>) -> Self {
         let mut context = QueryContext::default();
         context.udfs = udfs.to_vec();
         context
