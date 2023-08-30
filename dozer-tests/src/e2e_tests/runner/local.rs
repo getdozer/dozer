@@ -1,5 +1,6 @@
 use std::{path::Path, process::Command};
 
+use dozer_types::constants::LOCK_FILE;
 use dozer_utils::{
     process::{run_command, run_docker_compose},
     Cleanup,
@@ -49,6 +50,7 @@ impl Runner {
 
                     // Start dozer.
                     cleanups.push(Cleanup::RemoveDirectory(case.dozer_config.home_dir.clone()));
+                    cleanups.push(Cleanup::RemoveFile(LOCK_FILE.to_owned()));
                     cleanups.extend(spawn_dozer(&self.dozer_bin, &case.dozer_config_path));
 
                     // Run test case.
@@ -69,6 +71,7 @@ impl Runner {
                             ));
                         }
                         cleanups.push(Cleanup::RemoveDirectory(case.dozer_config.home_dir.clone()));
+                        cleanups.push(Cleanup::RemoveFile(LOCK_FILE.to_owned()));
 
                         (Command::new(&self.dozer_bin), cleanups)
                     },

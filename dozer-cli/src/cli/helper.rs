@@ -4,7 +4,9 @@ use crate::errors::CliError::{ConfigurationFilePathNotProvided, FailedToFindConf
 use crate::errors::ConfigCombineError::CannotReadConfig;
 use crate::errors::OrchestrationError;
 use crate::simple::SimpleOrchestrator as Dozer;
+
 use atty::Stream;
+use dozer_cache::dozer_log::camino::Utf8PathBuf;
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::models::config::default_cache_max_map_size;
 use dozer_types::prettytable::{row, Table};
@@ -35,7 +37,11 @@ pub async fn init_dozer(
     let page_size = page_size::get() as u64;
     config.cache_max_map_size = Some(cache_max_map_size / page_size * page_size);
 
-    Ok(Dozer::new(config, runtime, labels))
+    let base_directory = std::env::current_dir().map_err(CliError::Io)?;
+    let base_directory =
+        Utf8PathBuf::try_from(base_directory).map_err(|e| CliError::Io(e.into_io_error()))?;
+
+    Ok(Dozer::new(base_directory, config, runtime, labels))
 }
 
 pub async fn list_sources(

@@ -8,6 +8,7 @@ use dozer_cli::shutdown::{self, ShutdownSender};
 use dozer_cli::simple::SimpleOrchestrator;
 use dozer_ingestion::connectors::dozer::NestedDozerConnector;
 use dozer_ingestion::connectors::{CdcType, SourceSchema};
+use dozer_types::constants::LOCK_FILE;
 use dozer_types::grpc_types::conversions::field_to_grpc;
 use dozer_types::grpc_types::ingest::ingest_service_client::IngestServiceClient;
 use dozer_types::grpc_types::ingest::{IngestRequest, OperationType};
@@ -15,6 +16,7 @@ use dozer_types::grpc_types::types::Record;
 use dozer_types::ingestion_types::GrpcConfig;
 use dozer_types::log::info;
 use dozer_types::models::api_endpoint::ApiEndpoint;
+use dozer_types::models::config::{default_cache_dir, default_home_dir};
 use dozer_types::models::source::Source;
 use dozer_types::types::{Field, FieldDefinition, FieldType};
 use dozer_types::{
@@ -196,14 +198,12 @@ async fn create_nested_dozer_server(
         )),
         adapter: "default".to_owned(),
     };
-    let dozer_dir = temp_dir.path().join(".dozer");
-    let cache_dir = dozer_dir.join("cache");
-    std::fs::create_dir_all(&cache_dir).unwrap();
+
     let config = dozer_types::models::config::Config {
         version: 1,
         app_name: "nested-dozer-connector-test".to_owned(),
-        home_dir: dozer_dir.to_str().unwrap().to_owned(),
-        cache_dir: cache_dir.to_str().unwrap().to_owned(),
+        home_dir: default_home_dir(),
+        cache_dir: default_cache_dir(),
         connections: vec![dozer_types::models::connection::Connection {
             config: Some(dozer_types::models::connection::ConnectionConfig::Grpc(
                 grpc_config,
@@ -227,19 +227,13 @@ async fn create_nested_dozer_server(
             version: None,
             log_reader_options: None,
         }],
-        api: None,
-        sql: None,
-        flags: None,
-        cache_max_map_size: None,
-        app: None,
-        telemetry: None,
-        cloud: None,
-        udfs: vec![],
+        ..Default::default()
     };
 
     let dozer_runtime = Runtime::new().expect("Failed to start tokio runtime for nested dozer");
     let runtime = Arc::new(dozer_runtime);
-    let mut dozer = SimpleOrchestrator::new(config, runtime.clone(), Default::default());
+    let directory = temp_dir.path().to_owned().try_into().unwrap();
+    let mut dozer = SimpleOrchestrator::new(directory, config, runtime.clone(), Default::default());
     let (shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
     let dozer_thread = std::thread::spawn(move || dozer.run_all(shutdown_receiver).unwrap());
 
@@ -281,7 +275,7 @@ impl Drop for DozerConnectorTest {
         if let Some((join_handle, shutdown)) = self.shutdown.take() {
             shutdown.shutdown();
             info!("Sent shutdown signal");
-            join_handle.join().unwrap();
+            let _ = join_handle.join();
             info!("Joined dozer thread");
         }
     }

@@ -9,10 +9,10 @@ pub struct HomeDir {
 pub type Error = (Utf8PathBuf, std::io::Error);
 
 impl HomeDir {
-    pub fn new(home_dir: String, cache_dir: String) -> Self {
+    pub fn new(home_dir: Utf8PathBuf, cache_dir: Utf8PathBuf) -> Self {
         Self {
-            home_dir: home_dir.into(),
-            cache_dir: cache_dir.into(),
+            home_dir,
+            cache_dir,
         }
     }
 
