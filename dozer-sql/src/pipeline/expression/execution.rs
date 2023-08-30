@@ -19,11 +19,12 @@ use std::iter::zip;
 use crate::pipeline::aggregation::max_value::validate_max_value;
 use crate::pipeline::aggregation::min_value::validate_min_value;
 #[cfg(feature = "onnx")]
+use crate::pipeline::expression::onnx::onnx_udf::evaluate_onnx_udf;
+#[cfg(feature = "onnx")]
 use crate::pipeline::DozerSession;
 use dozer_types::types::Record;
 use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
 use uuid::Uuid;
-
 use super::aggregate::AggregateFunctionType;
 use super::cast::CastOperatorType;
 use super::in_list::evaluate_in_list;
@@ -107,7 +108,6 @@ pub enum Expression {
         name: String,
         session: DozerSession,
         args: Vec<Expression>,
-        return_type: FieldType,
     },
 }
 
@@ -343,10 +343,8 @@ impl Expression {
                 name: _name,
                 session,
                 args,
-                return_type: _return_type,
                 ..
             } => {
-                use crate::pipeline::expression::onnx_udf::evaluate_onnx_udf;
                 use std::borrow::Borrow;
                 evaluate_onnx_udf(schema, session.0.borrow(), args, record)
             }
@@ -483,8 +481,8 @@ impl Expression {
                 false,
             )),
             #[cfg(feature = "onnx")]
-            Expression::OnnxUDF { return_type, .. } => Ok(ExpressionType::new(
-                *return_type,
+            Expression::OnnxUDF { .. } => Ok(ExpressionType::new(
+                FieldType::Float,
                 false,
                 SourceDefinition::Dynamic,
                 false,

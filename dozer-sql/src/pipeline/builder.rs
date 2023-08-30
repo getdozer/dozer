@@ -79,10 +79,10 @@ pub fn statement_to_pipeline(
     sql: &str,
     pipeline: &mut AppPipeline,
     override_name: Option<String>,
-    udfs: Vec<UdfConfig>,
+    udfs: &[UdfConfig],
 ) -> Result<QueryContext, PipelineError> {
     let dialect = DozerDialect {};
-    let mut ctx = QueryContext::new(udfs);
+    let mut ctx = QueryContext::new(udfs.to_vec());
     let is_top_select = true;
     let ast = Parser::parse_sql(&dialect, sql)
         .map_err(|err| PipelineError::InternalError(Box::new(err)))?;
@@ -191,7 +191,7 @@ fn query_to_pipeline(
         }
         SetExpr::Query(query) => {
             let query_name = format!("subquery_{}", query_ctx.get_next_processor_id());
-            let mut ctx = QueryContext::new(&query_ctx.udfs.clone());
+            let mut ctx = QueryContext::new(query_ctx.udfs.clone());
             query_to_pipeline(
                 &TableInfo {
                     name: NameOrAlias(query_name, None),
