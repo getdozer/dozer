@@ -176,11 +176,9 @@ pub struct BuildPath {
 
 impl BuildPath {
     pub fn get_endpoint_path(&self, endpoint_name: &str) -> EndpointPath {
-        let schema_path = self.contracts_dir.join(format!("{}.json", endpoint_name));
         let log_dir_relative_to_data_dir = self.log_dir_relative_to_data_dir.join(endpoint_name);
         EndpointPath {
             build_id: self.id.clone(),
-            schema_path,
             log_dir_relative_to_data_dir,
         }
     }
@@ -193,6 +191,5 @@ impl BuildPath {
 #[derive(Debug, Clone)]
 pub struct EndpointPath {
     pub build_id: BuildId,
-    pub schema_path: Utf8PathBuf,
     pub log_dir_relative_to_data_dir: Utf8PathBuf,
 }

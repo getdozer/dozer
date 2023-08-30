@@ -1,4 +1,3 @@
-use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::mathematical::evaluate_sub;
 use crate::pipeline::expression::operator::{BinaryOperatorType, UnaryOperatorType};
@@ -147,12 +146,9 @@ fn test_alias() {
     let r = processor_factory
         .get_output_schema(
             &DEFAULT_PORT_HANDLE,
-            &[(DEFAULT_PORT_HANDLE, (schema, SchemaSQLContext::default()))]
-                .into_iter()
-                .collect(),
+            &[(DEFAULT_PORT_HANDLE, schema)].into_iter().collect(),
         )
-        .unwrap()
-        .0;
+        .unwrap();
 
     assert_eq!(
         r,
@@ -208,12 +204,9 @@ fn test_wildcard() {
     let r = processor_factory
         .get_output_schema(
             &DEFAULT_PORT_HANDLE,
-            &[(DEFAULT_PORT_HANDLE, (schema, SchemaSQLContext::default()))]
-                .into_iter()
-                .collect(),
+            &[(DEFAULT_PORT_HANDLE, schema)].into_iter().collect(),
         )
-        .unwrap()
-        .0;
+        .unwrap();
 
     assert_eq!(
         r,

@@ -19,8 +19,6 @@ use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-use crate::tests::app::NoneContext;
-
 #[derive(Debug)]
 struct CreateErrSourceFactory {
     panic: bool,
@@ -32,22 +30,19 @@ impl CreateErrSourceFactory {
     }
 }
 
-impl SourceFactory<NoneContext> for CreateErrSourceFactory {
-    fn get_output_schema(&self, _port: &PortHandle) -> Result<(Schema, NoneContext), BoxedError> {
-        Ok((
-            Schema::default()
-                .field(
-                    FieldDefinition::new(
-                        "id".to_string(),
-                        FieldType::Int,
-                        false,
-                        SourceDefinition::Dynamic,
-                    ),
-                    true,
-                )
-                .clone(),
-            NoneContext {},
-        ))
+impl SourceFactory for CreateErrSourceFactory {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, BoxedError> {
+        Ok(Schema::default()
+            .field(
+                FieldDefinition::new(
+                    "id".to_string(),
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                true,
+            )
+            .clone())
     }
 
     fn get_output_port_name(&self, _port: &PortHandle) -> String {
@@ -170,7 +165,7 @@ impl CreateErrProcessorFactory {
     }
 }
 
-impl ProcessorFactory<NoneContext> for CreateErrProcessorFactory {
+impl ProcessorFactory for CreateErrProcessorFactory {
     fn type_name(&self) -> String {
         "CreateErr".to_owned()
     }
@@ -178,22 +173,19 @@ impl ProcessorFactory<NoneContext> for CreateErrProcessorFactory {
     fn get_output_schema(
         &self,
         _port: &PortHandle,
-        _input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(Schema, NoneContext), BoxedError> {
-        Ok((
-            Schema::default()
-                .field(
-                    FieldDefinition::new(
-                        "id".to_string(),
-                        FieldType::Int,
-                        false,
-                        SourceDefinition::Dynamic,
-                    ),
-                    true,
-                )
-                .clone(),
-            NoneContext {},
-        ))
+        _input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> Result<Schema, BoxedError> {
+        Ok(Schema::default()
+            .field(
+                FieldDefinition::new(
+                    "id".to_string(),
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                true,
+            )
+            .clone())
     }
 
     fn get_input_ports(&self) -> Vec<PortHandle> {

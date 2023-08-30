@@ -22,7 +22,9 @@ use dozer_types::indicatif::MultiProgress;
 
 use dozer_types::models::connection::Connection;
 
-use crate::errors::OrchestrationError;
+use crate::errors::{BuildError, OrchestrationError};
+
+use super::Contract;
 
 pub struct Executor<'a> {
     connections: &'a [Connection],
@@ -129,9 +131,13 @@ async fn create_log_endpoint(
 ) -> Result<LogEndpoint, OrchestrationError> {
     let endpoint_path = build_path.get_endpoint_path(endpoint_name);
 
-    let schema_string = tokio::fs::read_to_string(&endpoint_path.schema_path)
-        .await
-        .map_err(|e| OrchestrationError::FileSystem(endpoint_path.schema_path.into(), e))?;
+    let contract = Contract::deserialize(build_path)?;
+    let schema = contract
+        .endpoints
+        .get(endpoint_name)
+        .ok_or_else(|| BuildError::MissingEndpoint(endpoint_name.to_owned()))?;
+    let schema_string =
+        dozer_types::serde_json::to_string(schema).map_err(BuildError::SerdeJson)?;
 
     let descriptor_bytes = tokio::fs::read(&build_path.descriptor_path)
         .await

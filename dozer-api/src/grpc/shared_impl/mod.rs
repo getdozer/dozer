@@ -1,9 +1,12 @@
-use dozer_cache::cache::expression::{default_limit_for_query, QueryExpression};
+use std::collections::HashMap;
+
+use dozer_cache::cache::expression::{default_limit_for_query, FilterExpression, QueryExpression};
 use dozer_cache::cache::CacheRecord;
 use dozer_cache::CacheReader;
 use dozer_types::grpc_types::types::Operation;
 use dozer_types::log::warn;
 use dozer_types::serde_json;
+use dozer_types::types::Schema;
 use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::broadcast::Receiver;
 use tokio_stream::wrappers::ReceiverStream;
@@ -58,12 +61,33 @@ pub fn query(
     Ok(records)
 }
 
+#[derive(Debug)]
+pub struct EndpointFilter {
+    schema: Schema,
+    filter: Option<FilterExpression>,
+}
+
+impl EndpointFilter {
+    pub fn new(schema: Schema, filter: Option<&str>) -> Result<Self, Status> {
+        let filter = filter
+            .and_then(|filter| {
+                if filter.is_empty() {
+                    None
+                } else {
+                    Some(serde_json::from_str(filter))
+                }
+            })
+            .transpose()
+            .map_err(from_error)?;
+        Ok(Self { schema, filter })
+    }
+}
+
 pub fn on_event<T: Send + 'static>(
-    reader: &CacheReader,
-    filter: Option<&str>,
+    endpoints: HashMap<String, EndpointFilter>,
     mut broadcast_receiver: Option<Receiver<Operation>>,
     _access: Option<Access>,
-    event_mapper: impl Fn(Operation) -> Option<T> + Send + Sync + 'static,
+    event_mapper: impl Fn(Operation) -> T + Send + Sync + 'static,
 ) -> Result<Response<ReceiverStream<T>>, Status> {
     // TODO: Use access.
 
@@ -73,18 +97,6 @@ pub fn on_event<T: Send + 'static>(
         ));
     }
 
-    let filter = match filter {
-        Some(filter) => {
-            if filter.is_empty() {
-                None
-            } else {
-                Some(serde_json::from_str(filter).map_err(from_error)?)
-            }
-        }
-        None => None,
-    };
-    let schema = reader.get_schema().0.clone();
-
     let (tx, rx) = tokio::sync::mpsc::channel(1);
 
     tokio::spawn(async move {
@@ -93,12 +105,15 @@ pub fn on_event<T: Send + 'static>(
                 let event = broadcast_receiver.recv().await;
                 match event {
                     Ok(op) => {
-                        if filter::op_satisfies_filter(&op, filter.as_ref(), &schema) {
-                            if let Some(event) = event_mapper(op) {
-                                if (tx.send(event).await).is_err() {
-                                    // receiver dropped
-                                    break;
-                                }
+                        if let Some(filter) = endpoints.get(&op.endpoint_name) {
+                            if filter::op_satisfies_filter(
+                                &op,
+                                filter.filter.as_ref(),
+                                &filter.schema,
+                            ) && (tx.send(event_mapper(op)).await).is_err()
+                            {
+                                // receiver dropped
+                                break;
                             }
                         }
                     }

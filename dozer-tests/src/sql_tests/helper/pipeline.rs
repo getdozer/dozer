@@ -16,7 +16,7 @@ use dozer_core::{Dag, DEFAULT_PORT_HANDLE};
 
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 
-use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
+use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_types::crossbeam::channel::{Receiver, Sender};
 
 use dozer_types::errors::internal::BoxedError;
@@ -53,11 +53,8 @@ impl TestSourceFactory {
     }
 }
 
-impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
-    fn get_output_schema(
-        &self,
-        port: &PortHandle,
-    ) -> Result<(Schema, SchemaSQLContext), BoxedError> {
+impl SourceFactory for TestSourceFactory {
+    fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, BoxedError> {
         let mut schema = self
             .schemas
             .get(port)
@@ -83,7 +80,7 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
         }
         schema.fields = fields;
 
-        Ok((schema, SchemaSQLContext::default()))
+        Ok(schema)
     }
 
     fn get_output_port_name(&self, port: &PortHandle) -> String {
@@ -168,15 +165,12 @@ impl TestSinkFactory {
     }
 }
 
-impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
+impl SinkFactory for TestSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
 
-    fn prepare(
-        &self,
-        _input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), BoxedError> {
+    fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), BoxedError> {
         Ok(())
     }
 
@@ -270,7 +264,7 @@ impl Sink for TestSink {
 
 pub struct TestPipeline {
     pub schema: Schema,
-    pub dag: Dag<SchemaSQLContext>,
+    pub dag: Dag,
     pub used_schemas: Vec<String>,
     pub sender: Sender<Option<(String, Operation)>>,
     pub ops: Vec<(String, Operation)>,

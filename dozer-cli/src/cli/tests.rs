@@ -24,6 +24,7 @@ fn test_yml_content_full() -> (&'static str, Config) {
     });
     let config = Config {
         app_name: "dozer-config-sample".to_owned(),
+        version: 1,
         home_dir: DEFAULT_HOME_DIR.to_owned(),
         api: Some(api_config),
         connections: vec![test_connection],
@@ -35,6 +36,7 @@ fn test_yml_content_full() -> (&'static str, Config) {
     (
         r#"
     app_name: dozer-config-sample
+    version: 1,
     home_dir: './.dozer'
     api:
       rest:
@@ -91,6 +93,7 @@ fn test_yml_content_full() -> (&'static str, Config) {
 fn test_yml_content_missing_api_config() -> &'static str {
     r#"
     app_name: dozer-config-sample
+    version: 1,
     connections:
       - db_type: Postgres
         authentication: !Postgres
@@ -121,6 +124,7 @@ fn test_yml_content_missing_api_config() -> &'static str {
 fn test_yml_content_missing_internal_config() -> &'static str {
     r#"
     app_name: dozer-config-sample
+    version: 1,
     api:
       rest:
         port: 8080
@@ -228,6 +232,7 @@ fn test_config() -> Config {
     let api_config = test_api_config();
     Config {
         app_name: "dozer-config-sample".to_owned(),
+        version: 1,
         home_dir: DEFAULT_HOME_DIR.to_owned(),
         api: Some(api_config),
         connections: vec![test_connection],

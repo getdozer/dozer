@@ -3,7 +3,6 @@ use crate::shutdown::ShutdownReceiver;
 use crate::OrchestrationError;
 use dozer_core::appsource::{AppSourceManager, AppSourceMappings};
 use dozer_ingestion::connectors::TableInfo;
-use dozer_sql::pipeline::builder::SchemaSQLContext;
 
 use dozer_types::indicatif::MultiProgress;
 use dozer_types::models::connection::Connection;
@@ -47,7 +46,7 @@ impl<'a> SourceBuilder<'a> {
         &self,
         runtime: &Arc<Runtime>,
         shutdown: ShutdownReceiver,
-    ) -> Result<AppSourceManager<SchemaSQLContext>, OrchestrationError> {
+    ) -> Result<AppSourceManager, OrchestrationError> {
         let mut asm = AppSourceManager::new();
 
         let mut port: u16 = SOURCE_PORTS_RANGE_START;

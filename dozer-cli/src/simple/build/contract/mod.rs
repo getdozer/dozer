@@ -14,7 +14,14 @@ use dozer_core::{
         Direction,
     },
 };
-use dozer_types::{models::api_endpoint::ApiEndpoint, node::NodeHandle, types::Schema};
+use dozer_types::{
+    models::{
+        api_endpoint::ApiEndpoint,
+        connection::{Connection, ConnectionConfig},
+    },
+    node::NodeHandle,
+    types::Schema,
+};
 use dozer_types::{
     serde::{de::DeserializeOwned, Deserialize, Serialize},
     serde_json,
@@ -33,9 +40,12 @@ pub struct NodeType {
 #[serde(crate = "dozer_types::serde")]
 pub enum NodeKind {
     Source {
+        typ: String,
         port_names: HashMap<PortHandle, String>,
     },
-    Processor,
+    Processor {
+        typ: String,
+    },
     Sink,
 }
 
@@ -49,15 +59,19 @@ pub struct EdgeType {
 
 pub type PipelineContract = daggy::Dag<NodeType, EdgeType>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(crate = "dozer_types::serde")]
 pub struct Contract {
+    pub version: usize,
     pub pipeline: PipelineContract,
     pub endpoints: BTreeMap<String, EndpointSchema>,
 }
 
 impl Contract {
-    pub fn new<T>(
-        dag_schemas: &DagSchemas<T>,
+    pub fn new(
+        version: usize,
+        dag_schemas: &DagSchemas,
+        connections: &[Connection],
         endpoints: &[ApiEndpoint],
         enable_token: bool,
         enable_on_event: bool,
@@ -82,12 +96,41 @@ impl Contract {
             endpoint_schemas.insert(endpoint.name.clone(), schema);
         }
 
+        let mut source_types = HashMap::new();
+        for (node_index, node) in dag_schemas.graph().node_references() {
+            if let dozer_core::NodeKind::Source(_) = &node.kind {
+                let connection = connections
+                    .iter()
+                    .find(|connection| connection.name == node.handle.id)
+                    .ok_or(BuildError::MissingConnection(node.handle.id.clone()))?;
+                let typ = match &connection.config {
+                    None => "None",
+                    Some(ConnectionConfig::Postgres(_)) => "Postgres",
+                    Some(ConnectionConfig::Ethereum(_)) => "Ethereum",
+                    Some(ConnectionConfig::Grpc(_)) => "Grpc",
+                    Some(ConnectionConfig::Snowflake(_)) => "Snowflake",
+                    Some(ConnectionConfig::Kafka(_)) => "Kafka",
+                    Some(ConnectionConfig::S3Storage(_)) => "S3Storage",
+                    Some(ConnectionConfig::LocalStorage(_)) => "LocalStorage",
+                    Some(ConnectionConfig::DeltaLake(_)) => "DeltaLake",
+                    Some(ConnectionConfig::MongoDB(_)) => "MongoDB",
+                    Some(ConnectionConfig::MySQL(_)) => "MySQL",
+                    Some(ConnectionConfig::Dozer(_)) => "Dozer",
+                };
+                source_types.insert(node_index, typ);
+            }
+        }
+
         let graph = dag_schemas.graph();
         let pipeline = graph.map(
-            |_, node| {
+            |node_index, node| {
                 let handle = node.handle.clone();
                 let kind = match &node.kind {
                     dozer_core::NodeKind::Source(source) => {
+                        let typ = source_types
+                            .get(&node_index)
+                            .expect("Source must have a type")
+                            .to_string();
                         let port_names = source
                             .get_output_ports()
                             .iter()
@@ -96,9 +139,11 @@ impl Contract {
                                 (port.handle, port_name)
                             })
                             .collect();
-                        NodeKind::Source { port_names }
+                        NodeKind::Source { typ, port_names }
                     }
-                    dozer_core::NodeKind::Processor(_) => NodeKind::Processor,
+                    dozer_core::NodeKind::Processor(processor) => NodeKind::Processor {
+                        typ: processor.type_name(),
+                    },
                     dozer_core::NodeKind::Sink(_) => NodeKind::Sink,
                 };
                 NodeType { handle, kind }
@@ -111,54 +156,26 @@ impl Contract {
         );
 
         Ok(Self {
+            version,
             pipeline,
             endpoints: endpoint_schemas,
         })
     }
 
     pub fn serialize(&self, build_path: &BuildPath) -> Result<(), BuildError> {
-        serde_json_to_path(&build_path.dag_path, &self.pipeline)?;
-
-        for (endpoint_name, schema) in &self.endpoints {
-            let endpoint_path = build_path.get_endpoint_path(endpoint_name);
-            serde_json_to_path(&endpoint_path.schema_path, schema)?;
-        }
-
+        serde_json_to_path(&build_path.dag_path, &self)?;
         Ok(())
     }
 
     pub fn deserialize(build_path: &BuildPath) -> Result<Self, BuildError> {
-        let pipeline: daggy::Dag<NodeType, EdgeType> = serde_json_from_path(&build_path.dag_path)?;
-
-        let mut endpoints = BTreeMap::new();
-        for (node_index, node) in pipeline.node_references() {
-            // Endpoint must have zero out degree.
-            if pipeline
-                .edges_directed(node_index, Direction::Outgoing)
-                .count()
-                > 0
-            {
-                continue;
-            }
-
-            // `NodeHandle::id` is the endpoint name.
-            let endpoint_name = node.handle.id.clone();
-            let endpoint_path = build_path.get_endpoint_path(&endpoint_name);
-            let schema: EndpointSchema = serde_json_from_path(&endpoint_path.schema_path)?;
-            endpoints.insert(endpoint_name, schema);
-        }
-
-        Ok(Self {
-            pipeline,
-            endpoints,
-        })
+        serde_json_from_path(&build_path.dag_path)
     }
 }
 
 mod service;
 
 /// Sink's `NodeHandle::id` must be `endpoint_name`.
-fn find_sink<T>(dag: &DagSchemas<T>, endpoint_name: &str) -> Option<NodeIndex> {
+fn find_sink(dag: &DagSchemas, endpoint_name: &str) -> Option<NodeIndex> {
     dag.graph()
         .node_references()
         .find(|(_node_index, node)| {
@@ -171,7 +188,7 @@ fn find_sink<T>(dag: &DagSchemas<T>, endpoint_name: &str) -> Option<NodeIndex> {
         .map(|(node_index, _)| node_index)
 }
 
-fn sink_input_schema<T>(dag: &DagSchemas<T>, node_index: NodeIndex) -> &Schema {
+fn sink_input_schema(dag: &DagSchemas, node_index: NodeIndex) -> &Schema {
     let edge = dag
         .graph()
         .edges_directed(node_index, Direction::Incoming)
@@ -180,14 +197,14 @@ fn sink_input_schema<T>(dag: &DagSchemas<T>, node_index: NodeIndex) -> &Schema {
     &edge.weight().schema
 }
 
-fn collect_ancestor_sources<T>(dag: &DagSchemas<T>, node_index: NodeIndex) -> HashSet<String> {
+fn collect_ancestor_sources(dag: &DagSchemas, node_index: NodeIndex) -> HashSet<String> {
     let mut sources = HashSet::new();
     collect_ancestor_sources_recursive(dag, node_index, &mut sources);
     sources
 }
 
-fn collect_ancestor_sources_recursive<T>(
-    dag: &DagSchemas<T>,
+fn collect_ancestor_sources_recursive(
+    dag: &DagSchemas,
     node_index: NodeIndex,
     sources: &mut HashSet<String>,
 ) {

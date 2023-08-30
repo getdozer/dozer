@@ -18,6 +18,7 @@ use dozer_cache::cache::LmdbRwCacheManager;
 use dozer_cache::dozer_log::home_dir::HomeDir;
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::DagSchemas;
+use dozer_types::models::flags::default_push_events;
 use tokio::select;
 
 use crate::console_helper::get_colored_text;
@@ -312,9 +313,13 @@ impl SimpleOrchestrator {
             .flags
             .as_ref()
             .map(|flags| flags.push_events)
-            .unwrap_or(false);
+            .unwrap_or_else(default_push_events);
+        let version = self.config.version as usize;
+
         let contract = build::Contract::new(
+            version,
             &dag_schemas,
+            &self.config.connections,
             &self.config.endpoints,
             enable_token,
             enable_on_event,

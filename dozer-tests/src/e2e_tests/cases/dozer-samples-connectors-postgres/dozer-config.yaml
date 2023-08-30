@@ -1,4 +1,5 @@
 app_name: dozer-samples-connectors-postgres
+version: 1
 
 connections:
   - name: pagila_conn

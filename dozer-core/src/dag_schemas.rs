@@ -16,18 +16,18 @@ use super::node::OutputPortDef;
 use super::{EdgeType as DagEdgeType, NodeType};
 
 #[derive(Debug, Clone)]
-pub struct NodeSchemas<T> {
-    pub input_schemas: HashMap<PortHandle, (Schema, T)>,
-    pub output_schemas: HashMap<PortHandle, (Schema, T)>,
+pub struct NodeSchemas {
+    pub input_schemas: HashMap<PortHandle, Schema>,
+    pub output_schemas: HashMap<PortHandle, Schema>,
 }
 
-impl<T> Default for NodeSchemas<T> {
+impl Default for NodeSchemas {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T> NodeSchemas<T> {
+impl NodeSchemas {
     pub fn new() -> Self {
         Self {
             input_schemas: HashMap::new(),
@@ -35,8 +35,8 @@ impl<T> NodeSchemas<T> {
         }
     }
     pub fn from(
-        input_schemas: HashMap<PortHandle, (Schema, T)>,
-        output_schemas: HashMap<PortHandle, (Schema, T)>,
+        input_schemas: HashMap<PortHandle, Schema>,
+        output_schemas: HashMap<PortHandle, Schema>,
     ) -> Self {
         Self {
             input_schemas,
@@ -92,24 +92,24 @@ impl EdgeHaveSchema for EdgeType {
 
 #[derive(Debug)]
 /// `DagSchemas` is a `Dag` with validated schema on the edge.
-pub struct DagSchemas<T> {
-    graph: daggy::Dag<NodeType<T>, EdgeType>,
+pub struct DagSchemas {
+    graph: daggy::Dag<NodeType, EdgeType>,
 }
 
-impl<T> DagSchemas<T> {
-    pub fn into_graph(self) -> daggy::Dag<NodeType<T>, EdgeType> {
+impl DagSchemas {
+    pub fn into_graph(self) -> daggy::Dag<NodeType, EdgeType> {
         self.graph
     }
 
-    pub fn graph(&self) -> &daggy::Dag<NodeType<T>, EdgeType> {
+    pub fn graph(&self) -> &daggy::Dag<NodeType, EdgeType> {
         &self.graph
     }
 }
 
-impl<T: Clone> DagSchemas<T> {
+impl DagSchemas {
     /// Validate and populate the schemas, the resultant DAG will have the exact same structure as the input DAG,
     /// with validated schema information on the edges.
-    pub fn new(dag: Dag<T>) -> Result<Self, ExecutionError> {
+    pub fn new(dag: Dag) -> Result<Self, ExecutionError> {
         validate_connectivity(&dag);
 
         match populate_schemas(dag.into_graph()) {
@@ -156,8 +156,8 @@ pub trait DagHaveSchemas {
     }
 }
 
-impl<T> DagHaveSchemas for DagSchemas<T> {
-    type NodeType = NodeType<T>;
+impl DagHaveSchemas for DagSchemas {
+    type NodeType = NodeType;
     type EdgeType = EdgeType;
 
     fn graph(&self) -> &daggy::Dag<Self::NodeType, Self::EdgeType> {
@@ -165,7 +165,7 @@ impl<T> DagHaveSchemas for DagSchemas<T> {
     }
 }
 
-fn validate_connectivity<T>(dag: &Dag<T>) {
+fn validate_connectivity(dag: &Dag) {
     // Every source or processor has at least one outgoing edge.
     for (node_index, node) in dag.graph().node_references() {
         match &node.kind {
@@ -208,9 +208,9 @@ fn validate_connectivity<T>(dag: &Dag<T>) {
 }
 
 /// In topological order, pass output schemas to downstream nodes' input schemas.
-fn populate_schemas<T: Clone>(
-    dag: daggy::Dag<NodeType<T>, DagEdgeType>,
-) -> Result<daggy::Dag<NodeType<T>, EdgeType>, ExecutionError> {
+fn populate_schemas(
+    dag: daggy::Dag<NodeType, DagEdgeType>,
+) -> Result<daggy::Dag<NodeType, EdgeType>, ExecutionError> {
     let mut edges = vec![None; dag.graph().edge_count()];
 
     for node_index in Topo::new(&dag).iter(&dag) {
@@ -222,10 +222,10 @@ fn populate_schemas<T: Clone>(
 
                 for edge in dag.graph().edges(node_index) {
                     let port = find_output_port_def(&ports, edge);
-                    let (schema, ctx) = source
+                    let schema = source
                         .get_output_schema(&port.handle)
                         .map_err(ExecutionError::Factory)?;
-                    create_edge(&mut edges, edge, port, schema, ctx);
+                    create_edge(&mut edges, edge, port, schema);
                 }
             }
 
@@ -237,10 +237,10 @@ fn populate_schemas<T: Clone>(
 
                 for edge in dag.graph().edges(node_index) {
                     let port = find_output_port_def(&ports, edge);
-                    let (schema, ctx) = processor
+                    let schema = processor
                         .get_output_schema(&port.handle, &input_schemas)
                         .map_err(ExecutionError::Factory)?;
-                    create_edge(&mut edges, edge, port, schema, ctx);
+                    create_edge(&mut edges, edge, port, schema);
                 }
             }
 
@@ -255,12 +255,7 @@ fn populate_schemas<T: Clone>(
 
     Ok(dag.map_owned(
         |_, node| node,
-        |edge, _| {
-            edges[edge.index()]
-                .take()
-                .expect("We traversed every edge")
-                .0
-        },
+        |edge, _| edges[edge.index()].take().expect("We traversed every edge"),
     ))
 }
 
@@ -277,40 +272,41 @@ fn find_output_port_def<'a>(
     panic!("BUG: port {handle} not found")
 }
 
-fn create_edge<T>(
-    edges: &mut [Option<(EdgeType, T)>],
+fn create_edge(
+    edges: &mut [Option<EdgeType>],
     edge: EdgeReference<DagEdgeType>,
     port: &OutputPortDef,
     schema: Schema,
-    ctx: T,
 ) {
     debug_assert!(port.handle == edge.weight().from);
     let edge_ref = &mut edges[edge.id().index()];
     debug_assert!(edge_ref.is_none());
-    *edge_ref = Some((
-        EdgeType::new(port.handle, port.typ, edge.weight().to, schema),
-        ctx,
+    *edge_ref = Some(EdgeType::new(
+        port.handle,
+        port.typ,
+        edge.weight().to,
+        schema,
     ));
 }
 
-fn validate_input_schemas<T: Clone>(
-    dag: &daggy::Dag<NodeType<T>, DagEdgeType>,
-    edge_and_contexts: &[Option<(EdgeType, T)>],
+fn validate_input_schemas(
+    dag: &daggy::Dag<NodeType, DagEdgeType>,
+    edge_and_contexts: &[Option<EdgeType>],
     node_index: NodeIndex,
     input_ports: Vec<PortHandle>,
-) -> Result<HashMap<PortHandle, (Schema, T)>, ExecutionError> {
+) -> Result<HashMap<PortHandle, Schema>, ExecutionError> {
     let node_handle = &dag.graph()[node_index].handle;
 
     let mut input_schemas = HashMap::new();
     for edge in dag.graph().edges_directed(node_index, Direction::Incoming) {
         let port_handle = edge.weight().to;
 
-        let (edge, context) = edge_and_contexts[edge.id().index()].as_ref().expect(
+        let edge = edge_and_contexts[edge.id().index()].as_ref().expect(
             "This edge has been created from the source node because we traverse in topological order"
         );
 
         if input_schemas
-            .insert(port_handle, (edge.schema.clone(), context.clone()))
+            .insert(port_handle, edge.schema.clone())
             .is_some()
         {
             return Err(ExecutionError::DuplicateInput {

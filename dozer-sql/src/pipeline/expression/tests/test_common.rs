@@ -1,4 +1,3 @@
-use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::{projection::factory::ProjectionProcessorFactory, tests::utils::get_select};
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::executor_operation::ProcessorOperation;
@@ -33,12 +32,9 @@ pub(crate) fn run_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Field {
     processor_factory
         .get_output_schema(
             &DEFAULT_PORT_HANDLE,
-            &[(
-                DEFAULT_PORT_HANDLE,
-                (schema.clone(), SchemaSQLContext::default()),
-            )]
-            .into_iter()
-            .collect(),
+            &[(DEFAULT_PORT_HANDLE, schema.clone())]
+                .into_iter()
+                .collect(),
         )
         .unwrap();
 

@@ -1,4 +1,5 @@
 app_name: dozer-samples-connectors-local-storage
+version: 1
 
 connections:
   - config : !LocalStorage

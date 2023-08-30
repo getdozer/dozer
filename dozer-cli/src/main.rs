@@ -140,7 +140,7 @@ fn run() -> Result<(), OrchestrationError> {
         .map(|cloud| cloud.app_id.clone().unwrap_or(app_name));
 
     // We always enable telemetry when running live.
-    let telemetry_config = if matches!(cli.cmd, Some(Commands::Live(_))) {
+    let telemetry_config = if matches!(cli.cmd, Commands::Live(_)) {
         Some(TelemetryConfig {
             trace: None,
             metrics: Some(TelemetryMetricsConfig::Prometheus(())),
@@ -153,96 +153,90 @@ fn run() -> Result<(), OrchestrationError> {
         .runtime
         .block_on(async { Telemetry::new(app_id.as_deref(), telemetry_config) });
 
-    if let Some(cmd) = cli.cmd {
-        // run individual servers
-        match cmd {
-            Commands::Run(run) => match run.command {
-                RunCommands::Api => {
-                    render_logo();
-
-                    dozer.run_api(shutdown_receiver)
-                }
-                RunCommands::App => {
-                    render_logo();
-
-                    dozer.run_apps(shutdown_receiver, None)
-                }
-            },
-            Commands::Security(security) => match security.command {
-                SecurityCommands::GenerateToken => {
-                    let token = dozer.generate_token()?;
-                    info!("token: {:?} ", token);
-                    Ok(())
-                }
-            },
-            Commands::Build(build) => {
-                let force = build.force.is_some();
-
-                dozer.build(force, shutdown_receiver)
-            }
-            Commands::Connectors(ConnectorCommand { filter }) => {
-                dozer.runtime.block_on(list_sources(
-                    dozer.runtime.clone(),
-                    cli.config_paths,
-                    cli.config_token,
-                    cli.config_overrides,
-                    cli.ignore_pipe,
-                    filter,
-                ))
-            }
-            Commands::Clean => dozer.clean(),
-            #[cfg(feature = "cloud")]
-            Commands::Cloud(cloud) => {
+    // run individual servers
+    match cli.cmd {
+        Commands::Run(run) => match run.command {
+            Some(RunCommands::Api) => {
                 render_logo();
 
-                match cloud.command.clone() {
-                    CloudCommands::Deploy(deploy) => dozer.deploy(cloud, deploy, cli.config_paths),
-                    CloudCommands::Api(api) => dozer.api(cloud, api),
-                    CloudCommands::Login {
-                        organisation_slug,
-                        profile_name,
-                        client_id,
-                        client_secret,
-                    } => dozer.login(
-                        cloud,
-                        organisation_slug,
-                        profile_name,
-                        client_id,
-                        client_secret,
-                    ),
-                    CloudCommands::Secrets(command) => {
-                        dozer.execute_secrets_command(cloud, command)
-                    }
-                    CloudCommands::Delete => dozer.delete(cloud),
-                    CloudCommands::Status => dozer.status(cloud),
-                    CloudCommands::Monitor => dozer.monitor(cloud),
-                    CloudCommands::Logs(logs) => dozer.trace_logs(cloud, logs),
-                    CloudCommands::Version(version) => dozer.version(cloud, version),
-                    CloudCommands::List(list) => dozer.list(cloud, list),
-                    CloudCommands::SetApp { app_id } => {
-                        CloudAppContext::save_app_id(app_id.clone())?;
-                        info!("Using \"{app_id}\" app");
-                        Ok(())
-                    }
-                }
+                dozer.run_api(shutdown_receiver)
             }
-            Commands::Init => {
-                panic!("This should not happen as it is handled in parse_and_generate");
-            }
-            Commands::Live(live_flags) => {
+            Some(RunCommands::App) => {
                 render_logo();
-                dozer.runtime.block_on(live::start_live_server(
-                    &dozer.runtime,
-                    shutdown_receiver,
-                    live_flags,
-                ))?;
+
+                dozer.run_apps(shutdown_receiver, None)
+            }
+            None => {
+                render_logo();
+                dozer.run_all(shutdown_receiver)
+            }
+        },
+        Commands::Security(security) => match security.command {
+            SecurityCommands::GenerateToken => {
+                let token = dozer.generate_token()?;
+                info!("token: {:?} ", token);
                 Ok(())
             }
-        }
-    } else {
-        render_logo();
+        },
+        Commands::Build(build) => {
+            let force = build.force.is_some();
 
-        dozer.run_all(shutdown_receiver)
+            dozer.build(force, shutdown_receiver)
+        }
+        Commands::Connectors(ConnectorCommand { filter }) => dozer.runtime.block_on(list_sources(
+            dozer.runtime.clone(),
+            cli.config_paths,
+            cli.config_token,
+            cli.config_overrides,
+            cli.ignore_pipe,
+            filter,
+        )),
+        Commands::Clean => dozer.clean(),
+        #[cfg(feature = "cloud")]
+        Commands::Cloud(cloud) => {
+            render_logo();
+
+            match cloud.command.clone() {
+                CloudCommands::Deploy(deploy) => dozer.deploy(cloud, deploy, cli.config_paths),
+                CloudCommands::Api(api) => dozer.api(cloud, api),
+                CloudCommands::Login {
+                    organisation_slug,
+                    profile_name,
+                    client_id,
+                    client_secret,
+                } => dozer.login(
+                    cloud,
+                    organisation_slug,
+                    profile_name,
+                    client_id,
+                    client_secret,
+                ),
+                CloudCommands::Secrets(command) => dozer.execute_secrets_command(cloud, command),
+                CloudCommands::Delete => dozer.delete(cloud),
+                CloudCommands::Status => dozer.status(cloud),
+                CloudCommands::Monitor => dozer.monitor(cloud),
+                CloudCommands::Logs(logs) => dozer.trace_logs(cloud, logs),
+                CloudCommands::Version(version) => dozer.version(cloud, version),
+                CloudCommands::List(list) => dozer.list(cloud, list),
+                CloudCommands::SetApp { app_id } => {
+                    CloudAppContext::save_app_id(app_id.clone())?;
+                    info!("Using \"{app_id}\" app");
+                    Ok(())
+                }
+            }
+        }
+        Commands::Init => {
+            panic!("This should not happen as it is handled in parse_and_generate");
+        }
+        Commands::Live(live_flags) => {
+            render_logo();
+            dozer.runtime.block_on(live::start_live_server(
+                &dozer.runtime,
+                shutdown_receiver,
+                live_flags,
+            ))?;
+            Ok(())
+        }
     }
 }
 
@@ -252,7 +246,7 @@ fn parse_and_generate() -> Result<Cli, OrchestrationError> {
     dozer_tracing::init_telemetry_closure(None, None, || -> Result<Cli, OrchestrationError> {
         let cli = Cli::parse();
 
-        if let Some(Commands::Init) = cli.cmd {
+        if let Commands::Init = cli.cmd {
             Telemetry::new(None, None);
             if let Err(e) = generate_config_repl() {
                 error!("{}", e);

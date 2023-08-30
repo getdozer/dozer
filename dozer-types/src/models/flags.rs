@@ -12,7 +12,7 @@ pub struct Flags {
 
     /// push events enabled.; Default: true
     #[prost(bool, tag = "3", default = true)]
-    #[serde(default = "default_true")]
+    #[serde(default = "default_push_events")]
     pub push_events: bool,
 
     /// require authentication to access grpc server reflection service if true.; Default: false
@@ -42,6 +42,10 @@ pub struct EnableProbabilisticOptimizations {
     #[prost(bool, tag = "3", default = false)]
     #[serde(default = "default_false")]
     pub in_aggregations: bool,
+}
+
+pub fn default_push_events() -> bool {
+    true
 }
 
 fn default_true() -> bool {

@@ -173,8 +173,8 @@ pub enum ConnectionConfig {
     #[prost(message, tag = "2")]
     /// In yaml, present as tag: `!Ethereum`
     Ethereum(EthConfig),
-    /// In yaml, present as tag: `!Grpc`
     #[prost(message, tag = "3")]
+    /// In yaml, present as tag: `!Grpc`
     Grpc(GrpcConfig),
     #[prost(message, tag = "4")]
     /// In yaml, present as tag: `!Snowflake`
