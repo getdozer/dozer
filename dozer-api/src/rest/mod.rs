@@ -10,6 +10,7 @@ use crate::{
 use actix_cors::Cors;
 use actix_web::dev::Server;
 use actix_web::middleware::DefaultHeaders;
+use actix_web::web::PayloadConfig;
 use actix_web::{
     body::MessageBody,
     dev::{Service, ServiceFactory, ServiceRequest, ServiceResponse},
@@ -98,9 +99,10 @@ impl ApiServer {
             .iter()
             .map(|cache_endpoint| cache_endpoint.endpoint.path.clone())
             .collect();
-
+        let cfg = PayloadConfig::default().limit(4 * 1024);
         let mut app = App::new()
             .app_data(web::Data::new(endpoint_paths))
+            .app_data(cfg)
             .wrap(Logger::default())
             .wrap(TracingLogger::default())
             .wrap(DefaultHeaders::new().add((
