@@ -200,6 +200,7 @@ async fn create_nested_dozer_server(
     let cache_dir = dozer_dir.join("cache");
     std::fs::create_dir_all(&cache_dir).unwrap();
     let config = dozer_types::models::config::Config {
+        version: 1,
         app_name: "nested-dozer-connector-test".to_owned(),
         home_dir: dozer_dir.to_str().unwrap().to_owned(),
         cache_dir: cache_dir.to_str().unwrap().to_owned(),
@@ -288,6 +289,7 @@ impl Drop for DozerConnectorTest {
 
 static DOZER_CONFIG: &str = r#"
 app_name: dozer-nested
+version: 1
 connections:
   - config: !Grpc
       schemas: !Path ./schema.json

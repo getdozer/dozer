@@ -21,9 +21,6 @@ use super::pipeline_builder::from_builder::insert_from_to_pipeline;
 
 use super::product::set::set_factory::SetProcessorFactory;
 
-#[derive(Debug, Clone, Default)]
-pub struct SchemaSQLContext {}
-
 #[derive(Debug, Clone)]
 pub struct OutputNodeInfo {
     // Name to connect in dag
@@ -70,7 +67,7 @@ pub struct IndexedTableWithJoins {
 }
 pub fn statement_to_pipeline(
     sql: &str,
-    pipeline: &mut AppPipeline<SchemaSQLContext>,
+    pipeline: &mut AppPipeline,
     override_name: Option<String>,
 ) -> Result<QueryContext, PipelineError> {
     let dialect = DozerDialect {};
@@ -111,7 +108,7 @@ pub fn statement_to_pipeline(
 fn query_to_pipeline(
     table_info: &TableInfo,
     query: &Query,
-    pipeline: &mut AppPipeline<SchemaSQLContext>,
+    pipeline: &mut AppPipeline,
     query_ctx: &mut QueryContext,
     stateful: bool,
     pipeline_idx: usize,
@@ -231,7 +228,7 @@ fn query_to_pipeline(
 fn select_to_pipeline(
     table_info: &TableInfo,
     select: Select,
-    pipeline: &mut AppPipeline<SchemaSQLContext>,
+    pipeline: &mut AppPipeline,
     query_ctx: &mut QueryContext,
     stateful: bool,
     pipeline_idx: usize,
@@ -360,7 +357,7 @@ fn set_to_pipeline(
     left_select: Box<SetExpr>,
     right_select: Box<SetExpr>,
     set_quantifier: SetQuantifier,
-    pipeline: &mut AppPipeline<SchemaSQLContext>,
+    pipeline: &mut AppPipeline,
     query_ctx: &mut QueryContext,
     stateful: bool,
     pipeline_idx: usize,
@@ -520,7 +517,7 @@ fn set_to_pipeline(
 /// This function will return an error if it's not possible to get an input name.
 pub fn get_input_tables(
     from: &TableWithJoins,
-    pipeline: &mut AppPipeline<SchemaSQLContext>,
+    pipeline: &mut AppPipeline,
     query_ctx: &mut QueryContext,
     pipeline_idx: usize,
 ) -> Result<IndexedTableWithJoins, PipelineError> {
@@ -580,7 +577,7 @@ pub fn is_an_entry_point(
 
 pub fn get_from_source(
     relation: &TableFactor,
-    pipeline: &mut AppPipeline<SchemaSQLContext>,
+    pipeline: &mut AppPipeline,
     query_ctx: &mut QueryContext,
     pipeline_idx: usize,
 ) -> Result<NameOrAlias, PipelineError> {

@@ -11,8 +11,6 @@ use dozer_types::node::NodeHandle;
 use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
 use std::collections::HashMap;
 
-use crate::tests::app::NoneContext;
-
 macro_rules! chk {
     ($stmt:expr) => {
         $stmt.unwrap_or_else(|e| panic!("{}", e.to_string()))
@@ -22,40 +20,37 @@ macro_rules! chk {
 #[derive(Debug)]
 struct TestUsersSourceFactory {}
 
-impl SourceFactory<NoneContext> for TestUsersSourceFactory {
-    fn get_output_schema(&self, _port: &PortHandle) -> Result<(Schema, NoneContext), BoxedError> {
-        Ok((
-            Schema::default()
-                .field(
-                    FieldDefinition::new(
-                        "user_id".to_string(),
-                        FieldType::String,
-                        false,
-                        SourceDefinition::Dynamic,
-                    ),
-                    true,
-                )
-                .field(
-                    FieldDefinition::new(
-                        "username".to_string(),
-                        FieldType::String,
-                        false,
-                        SourceDefinition::Dynamic,
-                    ),
-                    true,
-                )
-                .field(
-                    FieldDefinition::new(
-                        "country_id".to_string(),
-                        FieldType::String,
-                        false,
-                        SourceDefinition::Dynamic,
-                    ),
-                    true,
-                )
-                .clone(),
-            NoneContext {},
-        ))
+impl SourceFactory for TestUsersSourceFactory {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, BoxedError> {
+        Ok(Schema::default()
+            .field(
+                FieldDefinition::new(
+                    "user_id".to_string(),
+                    FieldType::String,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                true,
+            )
+            .field(
+                FieldDefinition::new(
+                    "username".to_string(),
+                    FieldType::String,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                true,
+            )
+            .field(
+                FieldDefinition::new(
+                    "country_id".to_string(),
+                    FieldType::String,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                true,
+            )
+            .clone())
     }
 
     fn get_output_port_name(&self, _port: &PortHandle) -> String {
@@ -80,31 +75,28 @@ impl SourceFactory<NoneContext> for TestUsersSourceFactory {
 #[derive(Debug)]
 struct TestCountriesSourceFactory {}
 
-impl SourceFactory<NoneContext> for TestCountriesSourceFactory {
-    fn get_output_schema(&self, _port: &PortHandle) -> Result<(Schema, NoneContext), BoxedError> {
-        Ok((
-            Schema::default()
-                .field(
-                    FieldDefinition::new(
-                        "country_id".to_string(),
-                        FieldType::String,
-                        false,
-                        SourceDefinition::Dynamic,
-                    ),
-                    true,
-                )
-                .field(
-                    FieldDefinition::new(
-                        "country_name".to_string(),
-                        FieldType::String,
-                        false,
-                        SourceDefinition::Dynamic,
-                    ),
-                    true,
-                )
-                .clone(),
-            NoneContext {},
-        ))
+impl SourceFactory for TestCountriesSourceFactory {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, BoxedError> {
+        Ok(Schema::default()
+            .field(
+                FieldDefinition::new(
+                    "country_id".to_string(),
+                    FieldType::String,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                true,
+            )
+            .field(
+                FieldDefinition::new(
+                    "country_name".to_string(),
+                    FieldType::String,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                true,
+            )
+            .clone())
     }
 
     fn get_output_port_name(&self, _port: &PortHandle) -> String {
@@ -129,22 +121,19 @@ impl SourceFactory<NoneContext> for TestCountriesSourceFactory {
 #[derive(Debug)]
 struct TestJoinProcessorFactory {}
 
-impl ProcessorFactory<NoneContext> for TestJoinProcessorFactory {
+impl ProcessorFactory for TestJoinProcessorFactory {
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(Schema, NoneContext), BoxedError> {
+        input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> Result<Schema, BoxedError> {
         let mut joined: Vec<FieldDefinition> = Vec::new();
-        joined.extend(input_schemas.get(&1).unwrap().0.fields.clone());
-        joined.extend(input_schemas.get(&2).unwrap().0.fields.clone());
-        Ok((
-            Schema {
-                fields: joined,
-                primary_index: vec![],
-            },
-            NoneContext {},
-        ))
+        joined.extend(input_schemas.get(&1).unwrap().fields.clone());
+        joined.extend(input_schemas.get(&2).unwrap().fields.clone());
+        Ok(Schema {
+            fields: joined,
+            primary_index: vec![],
+        })
     }
 
     fn get_input_ports(&self) -> Vec<PortHandle> {
@@ -179,15 +168,12 @@ impl ProcessorFactory<NoneContext> for TestJoinProcessorFactory {
 #[derive(Debug)]
 struct TestSinkFactory {}
 
-impl SinkFactory<NoneContext> for TestSinkFactory {
+impl SinkFactory for TestSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn prepare(
-        &self,
-        _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), BoxedError> {
+    fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), BoxedError> {
         Ok(())
     }
 

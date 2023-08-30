@@ -9,7 +9,6 @@ use dozer_types::{errors::internal::BoxedError, types::Schema};
 use sqlparser::ast::{Expr, FunctionArg, FunctionArgExpr, Value};
 
 use crate::pipeline::{
-    builder::SchemaSQLContext,
     errors::{PipelineError, TableOperatorError},
     expression::{builder::ExpressionBuilder, execution::Expression},
     pipeline_builder::from_builder::TableOperatorDescriptor,
@@ -50,7 +49,7 @@ impl TableOperatorProcessorFactory {
     }
 }
 
-impl ProcessorFactory<SchemaSQLContext> for TableOperatorProcessorFactory {
+impl ProcessorFactory for TableOperatorProcessorFactory {
     fn id(&self) -> String {
         self.id.clone()
     }
@@ -72,17 +71,16 @@ impl ProcessorFactory<SchemaSQLContext> for TableOperatorProcessorFactory {
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(Schema, SchemaSQLContext), BoxedError> {
-        let (input_schema, _) = input_schemas
+        input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> Result<Schema, BoxedError> {
+        let input_schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
-            .ok_or(PipelineError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?
-            .clone();
+            .ok_or(PipelineError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
 
         let output_schema =
-            match operator_from_descriptor(&self.table, &input_schema)? {
+            match operator_from_descriptor(&self.table, input_schema)? {
                 Some(operator) => operator
-                    .get_output_schema(&input_schema)
+                    .get_output_schema(input_schema)
                     .map_err(PipelineError::TableOperatorError)?,
                 None => {
                     return Err(PipelineError::TableOperatorError(
@@ -92,7 +90,7 @@ impl ProcessorFactory<SchemaSQLContext> for TableOperatorProcessorFactory {
                 }
             };
 
-        Ok((output_schema, SchemaSQLContext::default()))
+        Ok(output_schema)
     }
 
     fn build(

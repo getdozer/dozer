@@ -10,6 +10,7 @@ use crate::models::{
 fn override_rest_port() {
     let input_config = r#"
     app_name: working_app
+    version: 1
     api:
       rest:
         port: 9876
@@ -35,6 +36,7 @@ fn override_rest_port() {
 fn override_rest_host() {
     let input_config = r#"
     app_name: working_app
+    version: 1
     api:
       rest:
         host: localhost
@@ -60,6 +62,7 @@ fn override_rest_host() {
 fn override_rest_enabled() {
     let input_config = r#"
     app_name: working_app
+    version: 1
     api:
       rest:
         enabled: false
@@ -85,6 +88,7 @@ fn override_rest_enabled() {
 fn override_grpc_port() {
     let input_config = r#"
   app_name: working_app
+  version: 1
   api:
     grpc:
       port: 4232
@@ -110,6 +114,7 @@ fn override_grpc_port() {
 fn override_grpc_enabled() {
     let input_config = r#"
   app_name: working_app
+  version: 1
   api:
     grpc:
       enabled: false
@@ -135,6 +140,7 @@ fn override_grpc_enabled() {
 fn override_grpc_and_rest_port() {
     let input_config = r#"
   app_name: working_app
+  version: 1
   api:
     grpc:
       port: 4232
@@ -171,6 +177,7 @@ fn override_grpc_and_rest_port() {
 fn override_grpc_and_rest_port_jwt() {
     let input_config = r#"
   app_name: working_app
+  version: 1
   api:
     grpc:
       port: 4232
@@ -214,6 +221,7 @@ fn override_grpc_and_rest_port_jwt() {
 fn override_grpc_and_rest_port_jwt_pipeline_home_dir() {
     let input_config = r#"
   app_name: working_app
+  version: 1
   api:
     grpc:
       port: 4232

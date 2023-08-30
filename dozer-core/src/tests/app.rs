@@ -22,13 +22,10 @@ use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-#[derive(Debug, Clone)]
-pub(crate) struct NoneContext {}
-
 #[derive(Debug)]
 struct NoneSourceFactory {}
-impl SourceFactory<NoneContext> for NoneSourceFactory {
-    fn get_output_schema(&self, _port: &PortHandle) -> Result<(Schema, NoneContext), BoxedError> {
+impl SourceFactory for NoneSourceFactory {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, BoxedError> {
         todo!()
     }
 

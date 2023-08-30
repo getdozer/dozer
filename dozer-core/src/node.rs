@@ -42,8 +42,8 @@ impl OutputPortDef {
     }
 }
 
-pub trait SourceFactory<T>: Send + Sync + Debug {
-    fn get_output_schema(&self, port: &PortHandle) -> Result<(Schema, T), BoxedError>;
+pub trait SourceFactory: Send + Sync + Debug {
+    fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, BoxedError>;
     fn get_output_port_name(&self, port: &PortHandle) -> String;
     fn get_output_ports(&self) -> Vec<OutputPortDef>;
     fn build(
@@ -63,12 +63,12 @@ pub trait Source: Send + Sync + Debug {
     ) -> Result<(), BoxedError>;
 }
 
-pub trait ProcessorFactory<T>: Send + Sync + Debug {
+pub trait ProcessorFactory: Send + Sync + Debug {
     fn get_output_schema(
         &self,
         output_port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, (Schema, T)>,
-    ) -> Result<(Schema, T), BoxedError>;
+        input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> Result<Schema, BoxedError>;
     fn get_input_ports(&self) -> Vec<PortHandle>;
     fn get_output_ports(&self) -> Vec<OutputPortDef>;
     fn build(
@@ -92,9 +92,9 @@ pub trait Processor: Send + Sync + Debug {
     ) -> Result<(), BoxedError>;
 }
 
-pub trait SinkFactory<T>: Send + Sync + Debug {
+pub trait SinkFactory: Send + Sync + Debug {
     fn get_input_ports(&self) -> Vec<PortHandle>;
-    fn prepare(&self, input_schemas: HashMap<PortHandle, (Schema, T)>) -> Result<(), BoxedError>;
+    fn prepare(&self, input_schemas: HashMap<PortHandle, Schema>) -> Result<(), BoxedError>;
     fn build(
         &self,
         input_schemas: HashMap<PortHandle, Schema>,

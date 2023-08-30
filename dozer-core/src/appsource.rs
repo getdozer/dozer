@@ -24,25 +24,16 @@ impl AppSourceMappings {
     }
 }
 
-#[derive(Debug)]
-pub struct AppSourceManager<T> {
-    pub(crate) sources: Vec<Box<dyn SourceFactory<T>>>,
+#[derive(Debug, Default)]
+pub struct AppSourceManager {
+    pub(crate) sources: Vec<Box<dyn SourceFactory>>,
     pub(crate) mappings: Vec<AppSourceMappings>,
 }
 
-impl<T> Default for AppSourceManager<T> {
-    fn default() -> Self {
-        Self {
-            sources: vec![],
-            mappings: vec![],
-        }
-    }
-}
-
-impl<T> AppSourceManager<T> {
+impl AppSourceManager {
     pub fn add(
         &mut self,
-        source: Box<dyn SourceFactory<T>>,
+        source: Box<dyn SourceFactory>,
         mapping: AppSourceMappings,
     ) -> Result<(), ExecutionError> {
         if self

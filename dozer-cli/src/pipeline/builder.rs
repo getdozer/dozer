@@ -11,7 +11,7 @@ use dozer_core::Dag;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_ingestion::connectors::{get_connector, get_connector_info_table};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
-use dozer_sql::pipeline::builder::{OutputNodeInfo, QueryContext, SchemaSQLContext};
+use dozer_sql::pipeline::builder::{OutputNodeInfo, QueryContext};
 use dozer_types::indicatif::MultiProgress;
 use dozer_types::log::debug;
 use dozer_types::models::api_endpoint::ApiEndpoint;
@@ -199,7 +199,7 @@ impl<'a> PipelineBuilder<'a> {
         self,
         runtime: &Arc<Runtime>,
         shutdown: ShutdownReceiver,
-    ) -> Result<dozer_core::Dag<SchemaSQLContext>, OrchestrationError> {
+    ) -> Result<dozer_core::Dag, OrchestrationError> {
         let calculated_sources = self.calculate_sources()?;
 
         debug!("Used Sources: {:?}", calculated_sources.original_sources);
@@ -207,7 +207,7 @@ impl<'a> PipelineBuilder<'a> {
             .get_grouped_tables(&calculated_sources.original_sources)
             .await?;
 
-        let mut pipelines: Vec<AppPipeline<SchemaSQLContext>> = vec![];
+        let mut pipelines: Vec<AppPipeline> = vec![];
 
         let mut pipeline = AppPipeline::new(self.flags.into());
 
@@ -246,7 +246,7 @@ impl<'a> PipelineBuilder<'a> {
                 .get(table_name)
                 .ok_or_else(|| OrchestrationError::EndpointTableNotFound(table_name.clone()))?;
 
-            let snk_factory: Box<dyn SinkFactory<SchemaSQLContext>> = if let Some(log) = log {
+            let snk_factory: Box<dyn SinkFactory> = if let Some(log) = log {
                 Box::new(LogSinkFactory::new(
                     runtime.clone(),
                     log,
@@ -307,7 +307,7 @@ fn dedup<T: Eq + Hash + Clone>(v: &mut Vec<T>) {
     v.retain(|e| uniques.insert(e.clone()));
 }
 
-pub fn emit_dag_metrics(input_dag: &Dag<SchemaSQLContext>) {
+pub fn emit_dag_metrics(input_dag: &Dag) {
     const GRAPH_NODES: &str = "pipeline_nodes";
     const GRAPH_EDGES: &str = "pipeline_edges";
 

@@ -1,4 +1,5 @@
 app_name: dozer-eth-dashboard
+version: 1
 connections:
   - config: !Ethereum
       provider: !Trace
