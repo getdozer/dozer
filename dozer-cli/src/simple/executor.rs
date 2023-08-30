@@ -4,6 +4,7 @@ use dozer_cache::dozer_log::home_dir::{BuildPath, HomeDir};
 use dozer_cache::dozer_log::replication::Log;
 use dozer_core::checkpoint::{CheckpointFactory, CheckpointFactoryOptions};
 use dozer_core::processor_record::ProcessorRecordStore;
+use dozer_tracing::LabelsAndProgress;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::flags::Flags;
 use dozer_types::parking_lot::Mutex;
@@ -18,8 +19,6 @@ use crate::pipeline::PipelineBuilder;
 use crate::shutdown::ShutdownReceiver;
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 
-use dozer_types::indicatif::MultiProgress;
-
 use dozer_types::models::connection::Connection;
 
 use crate::errors::{BuildError, OrchestrationError};
@@ -33,7 +32,7 @@ pub struct Executor<'a> {
     checkpoint_factory: Arc<CheckpointFactory>,
     /// `ApiEndpoint` and its log.
     endpoint_and_logs: Vec<(ApiEndpoint, LogEndpoint)>,
-    multi_pb: MultiProgress,
+    labels: LabelsAndProgress,
     udfs: &'a [UdfConfig],
 }
 
@@ -46,7 +45,7 @@ impl<'a> Executor<'a> {
         sql: Option<&'a str>,
         api_endpoints: &'a [ApiEndpoint],
         checkpoint_factory_options: CheckpointFactoryOptions,
-        multi_pb: MultiProgress,
+        labels: LabelsAndProgress,
         udfs: &'a [UdfConfig],
     ) -> Result<Executor<'a>, OrchestrationError> {
         // Find the build path.
@@ -78,7 +77,7 @@ impl<'a> Executor<'a> {
             sql,
             checkpoint_factory: Arc::new(checkpoint_factory),
             endpoint_and_logs,
-            multi_pb,
+            labels,
             udfs,
         })
     }
@@ -102,7 +101,7 @@ impl<'a> Executor<'a> {
                 .iter()
                 .map(|(endpoint, log)| (endpoint.clone(), Some(log.log.clone())))
                 .collect(),
-            self.multi_pb.clone(),
+            self.labels.clone(),
             flags,
             self.udfs,
         );
@@ -117,8 +116,9 @@ impl<'a> Executor<'a> {
 pub fn run_dag_executor(
     dag_executor: DagExecutor,
     running: Arc<AtomicBool>,
+    labels: LabelsAndProgress,
 ) -> Result<(), OrchestrationError> {
-    let join_handle = dag_executor.start(running)?;
+    let join_handle = dag_executor.start(running, labels)?;
     join_handle
         .join()
         .map_err(OrchestrationError::ExecutionError)
