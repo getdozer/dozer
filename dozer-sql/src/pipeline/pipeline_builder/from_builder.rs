@@ -5,7 +5,6 @@ use dozer_core::{
     node::PortHandle,
     DEFAULT_PORT_HANDLE,
 };
-use dozer_types::models::udf_config::UdfConfig;
 use sqlparser::ast::{FunctionArg, ObjectName, TableFactor, TableWithJoins};
 
 use crate::pipeline::{
@@ -36,12 +35,11 @@ pub fn insert_from_to_pipeline(
     pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_idx: usize,
     query_context: &mut QueryContext,
-    udfs: &Vec<UdfConfig>,
 ) -> Result<ConnectionInfo, PipelineError> {
     if from.joins.is_empty() {
-        insert_table_to_pipeline(&from.relation, pipeline, pipeline_idx, query_context, udfs)
+        insert_table_to_pipeline(&from.relation, pipeline, pipeline_idx, query_context)
     } else {
-        insert_join_to_pipeline(from, pipeline, pipeline_idx, query_context, udfs)
+        insert_join_to_pipeline(from, pipeline, pipeline_idx, query_context)
     }
 }
 
@@ -50,7 +48,6 @@ fn insert_table_to_pipeline(
     pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_idx: usize,
     query_context: &mut QueryContext,
-    udfs: &Vec<UdfConfig>,
 ) -> Result<ConnectionInfo, PipelineError> {
     if let Some(operator) = is_table_operator(relation)? {
         insert_table_operator_processor_to_pipeline(
@@ -59,10 +56,9 @@ fn insert_table_to_pipeline(
             pipeline,
             pipeline_idx,
             query_context,
-            udfs,
         )
     } else {
-        insert_table_processor_to_pipeline(relation, pipeline, pipeline_idx, query_context, udfs)
+        insert_table_processor_to_pipeline(relation, pipeline, pipeline_idx, query_context)
     }
 }
 
@@ -71,11 +67,10 @@ fn insert_table_processor_to_pipeline(
     pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_idx: usize,
     query_context: &mut QueryContext,
-    udfs: &Vec<UdfConfig>,
 ) -> Result<ConnectionInfo, PipelineError> {
     // let relation_name_or_alias = get_name_or_alias(relation)?;
     let relation_name_or_alias =
-        get_from_source(relation, pipeline, query_context, pipeline_idx, udfs)?;
+        get_from_source(relation, pipeline, query_context, pipeline_idx)?;
 
     let product_processor_name = format!(
         "from:{}--{}",
@@ -128,7 +123,6 @@ fn insert_table_operator_processor_to_pipeline(
     pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_idx: usize,
     query_context: &mut QueryContext,
-    udfs: &[UdfConfig],
 ) -> Result<ConnectionInfo, PipelineError> {
     // the sources names that are used in this pipeline
     let mut input_nodes = vec![];
@@ -148,7 +142,7 @@ fn insert_table_operator_processor_to_pipeline(
         let processor = TableOperatorProcessorFactory::new(
             processor_name.clone(),
             operator.clone(),
-            udfs.to_owned(),
+            query_context.udfs.to_owned(),
         );
 
         let source_name = processor

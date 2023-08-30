@@ -6,7 +6,7 @@ use dozer_types::chrono::RoundingError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::TypeError;
 #[cfg(feature = "onnx")]
-use dozer_types::ort::OrtError;
+use ort::OrtError;
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
 use dozer_types::types::{Field, FieldType};
@@ -97,6 +97,9 @@ pub enum PipelineError {
     #[cfg(feature = "onnx")]
     #[error("Onnx Runtime Error: {0}")]
     OnnxOrtErr(OrtError),
+    #[cfg(feature = "onnx")]
+    #[error("Onnx Validation Error: {0}")]
+    OnnxValidationErr(String),
 
     #[error("Udf is defined but missing with config: {0}")]
     UdfConfigMissing(String),

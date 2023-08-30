@@ -55,12 +55,21 @@ pub struct QueryContext {
 
     // Processors counter
     pub processor_counter: usize,
+
+    // Udf related configs
+    pub udfs: Vec<UdfConfig>,
 }
 
 impl QueryContext {
     pub fn get_next_processor_id(&mut self) -> usize {
         self.processor_counter += 1;
         self.processor_counter
+    }
+
+    pub fn new(udfs: &[UdfConfig]) -> Self {
+        let mut context = QueryContext::default();
+        context.udfs = udfs.to_vec();
+        context
     }
 }
 
@@ -76,7 +85,7 @@ pub fn statement_to_pipeline(
     udfs: &Vec<UdfConfig>,
 ) -> Result<QueryContext, PipelineError> {
     let dialect = DozerDialect {};
-    let mut ctx = QueryContext::default();
+    let mut ctx = QueryContext::new(udfs);
     let is_top_select = true;
     let ast = Parser::parse_sql(&dialect, sql)
         .map_err(|err| PipelineError::InternalError(Box::new(err)))?;
@@ -97,7 +106,6 @@ pub fn statement_to_pipeline(
                     false,
                     idx,
                     is_top_select,
-                    udfs,
                 )?;
             }
             s => {
@@ -120,7 +128,6 @@ fn query_to_pipeline(
     stateful: bool,
     pipeline_idx: usize,
     is_top_select: bool,
-    udf_config: &Vec<UdfConfig>,
 ) -> Result<(), PipelineError> {
     // return error if there is unsupported syntax
     if !query.order_by.is_empty() {
@@ -170,7 +177,6 @@ fn query_to_pipeline(
                 true,
                 pipeline_idx,
                 false, //Inside a with clause, so not top select
-                udf_config,
             )?;
         }
     };
@@ -185,12 +191,11 @@ fn query_to_pipeline(
                 stateful,
                 pipeline_idx,
                 is_top_select,
-                udf_config,
             )?;
         }
         SetExpr::Query(query) => {
             let query_name = format!("subquery_{}", query_ctx.get_next_processor_id());
-            let mut ctx = QueryContext::default();
+            let mut ctx = QueryContext::new(&query_ctx.udfs.clone());
             query_to_pipeline(
                 &TableInfo {
                     name: NameOrAlias(query_name, None),
@@ -203,7 +208,6 @@ fn query_to_pipeline(
                 stateful,
                 pipeline_idx,
                 false, //Inside a subquery, so not top select
-                udf_config,
             )?
         }
         SetExpr::SetOperation {
@@ -223,7 +227,6 @@ fn query_to_pipeline(
                     stateful,
                     pipeline_idx,
                     is_top_select,
-                    udf_config,
                 )?;
             }
             _ => return Err(PipelineError::InvalidOperator(op.to_string())),
@@ -246,7 +249,6 @@ fn select_to_pipeline(
     stateful: bool,
     pipeline_idx: usize,
     is_top_select: bool,
-    udf_config: &Vec<UdfConfig>,
 ) -> Result<String, PipelineError> {
     // FROM clause
     if select.from.len() != 1 {
@@ -269,7 +271,6 @@ fn select_to_pipeline(
         pipeline,
         pipeline_idx,
         query_ctx,
-        udf_config,
     )?;
 
     let input_nodes = connection_info.input_nodes;
@@ -305,7 +306,7 @@ fn select_to_pipeline(
             .flags()
             .enable_probabilistic_optimizations
             .in_aggregations,
-        udf_config.clone(),
+        query_ctx.udfs.clone(),
     );
 
     pipeline.add_processor(Box::new(aggregation), &gen_agg_name, vec![]);
@@ -315,7 +316,7 @@ fn select_to_pipeline(
         let selection = SelectionProcessorFactory::new(
             gen_selection_name.to_owned(),
             selection,
-            udf_config.clone(),
+            query_ctx.udfs.clone(),
         );
 
         pipeline.add_processor(Box::new(selection), &gen_selection_name, vec![]);
@@ -386,7 +387,6 @@ fn set_to_pipeline(
     stateful: bool,
     pipeline_idx: usize,
     is_top_select: bool,
-    udf_config: &Vec<UdfConfig>,
 ) -> Result<String, PipelineError> {
     let gen_left_set_name = format!("set_left_{}", query_ctx.get_next_processor_id());
     let left_table_info = TableInfo {
@@ -410,7 +410,6 @@ fn set_to_pipeline(
             stateful,
             pipeline_idx,
             is_top_select,
-            udf_config,
         )?,
         SetExpr::SetOperation {
             op: _,
@@ -427,7 +426,6 @@ fn set_to_pipeline(
             stateful,
             pipeline_idx,
             is_top_select,
-            udf_config,
         )?,
         _ => {
             return Err(PipelineError::InvalidQuery(
@@ -445,7 +443,6 @@ fn set_to_pipeline(
             stateful,
             pipeline_idx,
             is_top_select,
-            udf_config,
         )?,
         SetExpr::SetOperation {
             op: _,
@@ -462,7 +459,6 @@ fn set_to_pipeline(
             stateful,
             pipeline_idx,
             is_top_select,
-            udf_config,
         )?,
         _ => {
             return Err(PipelineError::InvalidQuery(
@@ -549,13 +545,12 @@ pub fn get_input_tables(
     pipeline: &mut AppPipeline<SchemaSQLContext>,
     query_ctx: &mut QueryContext,
     pipeline_idx: usize,
-    udfs: &Vec<UdfConfig>,
 ) -> Result<IndexedTableWithJoins, PipelineError> {
-    let name = get_from_source(&from.relation, pipeline, query_ctx, pipeline_idx, udfs)?;
+    let name = get_from_source(&from.relation, pipeline, query_ctx, pipeline_idx)?;
     let mut joins = vec![];
 
     for join in from.joins.iter() {
-        let input_name = get_from_source(&join.relation, pipeline, query_ctx, pipeline_idx, udfs)?;
+        let input_name = get_from_source(&join.relation, pipeline, query_ctx, pipeline_idx)?;
         joins.push((input_name.clone(), join.clone()));
     }
 
@@ -610,7 +605,6 @@ pub fn get_from_source(
     pipeline: &mut AppPipeline<SchemaSQLContext>,
     query_ctx: &mut QueryContext,
     pipeline_idx: usize,
-    udfs: &Vec<UdfConfig>,
 ) -> Result<NameOrAlias, PipelineError> {
     match relation {
         TableFactor::Table { name, alias, .. } => {
@@ -649,7 +643,6 @@ pub fn get_from_source(
                 false,
                 pipeline_idx,
                 is_top_select,
-                udfs,
             )?;
 
             Ok(name_or)

@@ -2,7 +2,6 @@ use dozer_core::{
     app::{AppPipeline, PipelineEntryPoint},
     DEFAULT_PORT_HANDLE,
 };
-use dozer_types::models::udf_config::UdfConfig;
 use sqlparser::ast::TableWithJoins;
 
 use crate::pipeline::{
@@ -32,7 +31,6 @@ pub(crate) fn insert_join_to_pipeline(
     pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_idx: usize,
     query_context: &mut QueryContext,
-    udfs: &Vec<UdfConfig>,
 ) -> Result<ConnectionInfo, PipelineError> {
     let mut input_nodes = vec![];
 
@@ -43,7 +41,6 @@ pub(crate) fn insert_join_to_pipeline(
         pipeline,
         pipeline_idx,
         query_context,
-        udfs,
     )?;
 
     for join in &from.joins {
@@ -54,7 +51,6 @@ pub(crate) fn insert_join_to_pipeline(
             pipeline,
             pipeline_idx,
             query_context,
-            udfs,
         )?;
 
         let join_processor_name = format!("join_{}", query_context.get_next_processor_id());
@@ -160,7 +156,6 @@ fn insert_join_source_to_pipeline(
     pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_idx: usize,
     query_context: &mut QueryContext,
-    udfs: &Vec<UdfConfig>,
 ) -> Result<JoinSource, PipelineError> {
     let join_source = if let Some(table_operator) = is_table_operator(&source)? {
         let connection_info = insert_table_operator_to_pipeline(
@@ -168,7 +163,6 @@ fn insert_join_source_to_pipeline(
             pipeline,
             pipeline_idx,
             query_context,
-            udfs,
         )?;
         JoinSource::Operator(connection_info)
     } else if is_nested_join(&source) {
@@ -176,7 +170,7 @@ fn insert_join_source_to_pipeline(
             "Nested JOINs are not supported".to_string(),
         ));
     } else {
-        let name_or_alias = get_from_source(&source, pipeline, query_context, pipeline_idx, udfs)?;
+        let name_or_alias = get_from_source(&source, pipeline, query_context, pipeline_idx)?;
         JoinSource::Table(name_or_alias.0)
     };
     Ok(join_source)
@@ -187,7 +181,6 @@ fn insert_table_operator_to_pipeline(
     pipeline: &mut AppPipeline<SchemaSQLContext>,
     pipeline_idx: usize,
     query_context: &mut QueryContext,
-    udfs: &[UdfConfig],
 ) -> Result<ConnectionInfo, PipelineError> {
     let mut input_nodes = vec![];
 
@@ -200,7 +193,7 @@ fn insert_table_operator_to_pipeline(
         let processor = TableOperatorProcessorFactory::new(
             processor_name.clone(),
             table_operator.clone(),
-            udfs.to_owned(),
+            query_context.udfs.to_owned(),
         );
 
         let source_name = processor

@@ -19,7 +19,7 @@ use std::iter::zip;
 use crate::pipeline::aggregation::max_value::validate_max_value;
 use crate::pipeline::aggregation::min_value::validate_min_value;
 #[cfg(feature = "onnx")]
-use dozer_types::types::DozerSession;
+use crate::pipeline::DozerSession;
 use dozer_types::types::Record;
 use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
 use uuid::Uuid;
@@ -343,12 +343,12 @@ impl Expression {
                 name: _name,
                 session,
                 args,
-                return_type,
+                return_type: _return_type,
                 ..
             } => {
                 use crate::pipeline::expression::onnx_udf::evaluate_onnx_udf;
                 use std::borrow::Borrow;
-                evaluate_onnx_udf(schema, session.0.borrow(), args, return_type, record)
+                evaluate_onnx_udf(schema, session.0.borrow(), args, record)
             }
 
             Expression::UnaryOperator { operator, arg } => operator.evaluate(schema, arg, record),

@@ -8,11 +8,9 @@ use sqlparser::ast::{
     FunctionArg, FunctionArgExpr, Ident, Interval, TrimWhereField,
     UnaryOperator as SqlUnaryOperator, Value as SqlValue,
 };
+use dozer_types::arrow::datatypes::ArrowNativeTypeOp;
 
-use crate::pipeline::errors::PipelineError::{
-    InvalidArgument, InvalidExpression, InvalidFunction, InvalidNestedAggregationFunction,
-    InvalidOperator, InvalidValue,
-};
+use crate::pipeline::errors::PipelineError::{InvalidArgument, InvalidExpression, InvalidFunction, InvalidNestedAggregationFunction, InvalidOperator, InvalidValue, OnnxOrtErr, OnnxValidationErr};
 use crate::pipeline::errors::{PipelineError, SqlError};
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::conditional::ConditionalExpressionType;
@@ -34,8 +32,11 @@ use super::cast::CastOperatorType;
 use dozer_types::models::udf_config::OnnxConfig;
 #[cfg(feature = "onnx")]
 use dozer_types::models::udf_config::UdfType::Onnx;
+use ort::session::{Input, Output};
+use ort::tensor::TensorElementDataType;
 #[cfg(feature = "onnx")]
-use dozer_types::types::DozerSession;
+use crate::pipeline::DozerSession;
+use dozer_types::types::FieldType;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct ExpressionBuilder {
@@ -470,23 +471,18 @@ impl ExpressionBuilder {
         }
 
         // config check for udfs
-        #[cfg(feature = "onnx")]
-        if !udfs.is_empty() || function_name.ends_with("onnx") {
-            if let Some(udf) = udfs.iter().next() {
-                return match udf.config.clone() {
-                    Some(udf_type) => {
-                        return match udf_type {
-                            Onnx(config) => self.parse_onnx_udf(
-                                udf.name.clone(),
-                                &config,
-                                sql_function,
-                                schema,
-                                udfs,
-                            ),
-                        }
-                    }
-                    None => Err(PipelineError::UdfConfigMissing(udf.name.clone())),
-                };
+        if !udfs.is_empty() {
+            let udf_type = udfs.iter().find(|udf| udf.name == function_name).ok_or(PipelineError::UdfConfigMissing(function_name.clone()))?;
+            return match udf_type.config.clone() {
+                #[cfg(feature = "onnx")]
+                Some(Onnx(config)) => self.parse_onnx_udf(
+                    function_name,
+                    &config,
+                    sql_function,
+                    schema,
+                    udfs,
+                ),
+                None => Err(PipelineError::UdfConfigMissing(function_name)),
             }
         }
 
@@ -880,11 +876,8 @@ impl ExpressionBuilder {
     ) -> Result<Expression, PipelineError> {
         // First, get onnx function define by name.
         // Then, transfer onnx function to Expression::OnnxUDF
-
-        use dozer_types::ort::{Environment, GraphOptimizationLevel, LoggingLevel, SessionBuilder};
-        use dozer_types::types::FieldType;
+        use ort::{Environment, GraphOptimizationLevel, LoggingLevel, SessionBuilder};
         use std::path::Path;
-        use PipelineError::InvalidQuery;
 
         let args = function
             .args
@@ -892,44 +885,32 @@ impl ExpressionBuilder {
             .map(|argument| self.parse_sql_function_arg(false, argument, schema, udfs))
             .collect::<Result<Vec<_>, PipelineError>>()?;
 
-        args.last()
-            .ok_or_else(|| InvalidQuery("Can't get onnx udf return type".to_string()))?;
-
         let environment = Environment::builder()
             .with_name("dozer_onnx")
             .with_log_level(LoggingLevel::Verbose)
             .build()
-            .unwrap()
+            .map_err(OnnxOrtErr)?
             .into_arc();
 
         let session = SessionBuilder::new(&environment)
             .unwrap()
             .with_optimization_level(GraphOptimizationLevel::Level1)
-            .unwrap()
+            .map_err(OnnxOrtErr)?
             .with_intra_threads(1)
-            .unwrap()
+            .map_err(OnnxOrtErr)?
             .with_model_from_file(Path::new(config.path.as_str()))
-            .expect("Could not read model from memory");
+            .map_err(OnnxOrtErr)?;
 
-        let metadata = session.metadata().unwrap();
-        assert_eq!(metadata.name().unwrap(), udfs.first().unwrap().name);
-        // assert_eq!(metadata.name()?, name);
-
-        let return_type = {
-            let ident = function
-                .return_type
-                .as_ref()
-                .ok_or_else(|| InvalidQuery("Onnx UDF must have a onnx return type. The syntax is: function_name<return_type>(arguments)".to_string()))?;
-
-            FieldType::try_from(ident.value.as_str())
-                .map_err(|e| InvalidQuery(format!("Failed to parse Onnx UDF return type: {e}")))?
-        };
+        // input number, type, shape validation
+        onnx_input_validation(schema, args.clone(), &session.inputs)?;
+        // output number, type, shape validation
+        onnx_output_validation(&session.outputs)?;
 
         Ok(Expression::OnnxUDF {
             name: name.to_string(),
             session: DozerSession(session.into()),
             args,
-            return_type,
+            return_type: FieldType::Float,
         })
     }
 
@@ -955,6 +936,139 @@ impl ExpressionBuilder {
 
         Ok(in_list_expression)
     }
+}
+
+fn onnx_input_validation(schema: &Schema, args: Vec<Expression>, inputs: &Vec<Input>) -> Result<(), PipelineError> {
+    // 1. number of input & input shape check
+    if inputs.len() != 1 {
+        return Err(OnnxValidationErr("Dozer expect onnx model to ingest single 1d input tensor".to_string()))
+    }
+    let mut flattened = 1_u32;
+    let dim = inputs[0].dimensions.clone();
+    for d in dim {
+        match d {
+            None => continue,
+            Some(v) => {
+                flattened = flattened.mul_wrapping(v);
+            },
+        }
+    }
+    if flattened as usize != args.len() || inputs.len() != 1 {
+        return Err(OnnxValidationErr(format!("Expected model input shape {} doesn't match with actual input shape {}", flattened, args.len())))
+    }
+    // 2. input datatype check
+    for (input, arg) in inputs.into_iter().zip(args) {
+        match arg {
+            Expression::Column {index} => {
+                match schema.fields.get(index) {
+                    Some(def) => {
+                        match input.input_type {
+                            TensorElementDataType::Float32
+                            | TensorElementDataType::Float64 => {
+                                if def.typ != FieldType::Float {
+                                    return Err(OnnxValidationErr(
+                                        format!("Expected model input datatype {:?} doesn't match with actual input datatype {}",
+                                                input.input_type, def.typ)
+                                    ))
+                                }
+                            },
+                            TensorElementDataType::Uint8
+                            | TensorElementDataType::Uint16
+                            | TensorElementDataType::Uint32
+                            | TensorElementDataType::Uint64 => {
+                                if def.typ != FieldType::UInt && def.typ != FieldType::U128 {
+                                    return Err(OnnxValidationErr(
+                                        format!("Expected model input datatype {:?} doesn't match with actual input datatype {}",
+                                                input.input_type, def.typ)
+                                    ))
+                                }
+                            },
+                            TensorElementDataType::Int8
+                            | TensorElementDataType::Int16
+                            | TensorElementDataType::Int32
+                            | TensorElementDataType::Int64 => {
+                                if def.typ != FieldType::Int && def.typ != FieldType::I128 {
+                                    return Err(OnnxValidationErr(
+                                        format!("Expected model input datatype {:?} doesn't match with actual input datatype {}",
+                                                input.input_type, def.typ)
+                                    ))
+                                }
+                            },
+                            TensorElementDataType::String => {
+                                if def.typ != FieldType::String && def.typ != FieldType::Text {
+                                    return Err(OnnxValidationErr(
+                                        format!("Expected model input datatype {:?} doesn't match with actual input datatype {}",
+                                                input.input_type, def.typ)
+                                    ))
+                                }
+                            },
+                            TensorElementDataType::Bool => {
+                                if def.typ != FieldType::Boolean {
+                                    return Err(OnnxValidationErr(
+                                        format!("Expected model input datatype {:?} doesn't match with actual input datatype {}",
+                                                input.input_type, def.typ)
+                                    ))
+                                }
+                            },
+                            _ => return Err(OnnxValidationErr(
+                                format!("Dozer doesn't support following input datatype {:?}", input.input_type)
+                            ))
+                        }
+                    },
+                    None => return Err(OnnxValidationErr(
+                        format!("Dozer can't find following column in the input schema {:?}", arg)
+                    ))
+                }
+            }
+            _ => return Err(OnnxValidationErr(
+                format!("Dozer doesn't support non-column for onnx arguments {:?}", arg)
+            ))
+        }
+    }
+    Ok(())
+}
+
+fn onnx_output_validation(outputs: &Vec<Output>) -> Result<(), PipelineError> {
+    // 1. number of output & output shape check
+    let mut flattened = 1_u32;
+    for output_shape in outputs {
+        let dim = output_shape.dimensions.clone();
+        for d in dim {
+            match d {
+                None => continue,
+                Some(v) => {
+                    flattened = flattened.mul_wrapping(v);
+                },
+            }
+        }
+    }
+    // output needs to be 1d single dim tensor
+    // if flattened as usize != 1_usize {
+    //     return Err(OnnxValidationErr(format!("Expected model output shape {} doesn't match with actual output shape {}", flattened, 1_usize)))
+    // }
+    // 2. output datatype check
+    for output in outputs {
+        match output.output_type {
+            TensorElementDataType::Float32
+            | TensorElementDataType::Float64
+            | TensorElementDataType::Uint8
+            | TensorElementDataType::Uint16
+            | TensorElementDataType::Uint32
+            | TensorElementDataType::Uint64
+            | TensorElementDataType::Int8
+            | TensorElementDataType::Int16
+            | TensorElementDataType::Int32
+            | TensorElementDataType::Int64
+            | TensorElementDataType::String
+            | TensorElementDataType::Bool => {
+                continue
+            },
+            _ => return Err(OnnxValidationErr(
+                format!("Dozer doesn't support following output datatype {:?}", output.output_type)
+            ))
+        }
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]

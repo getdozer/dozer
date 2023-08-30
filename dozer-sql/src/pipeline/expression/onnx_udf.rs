@@ -1,21 +1,21 @@
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::{InvalidType, InvalidValue, OnnxOrtErr, OnnxShapeErr};
 use crate::pipeline::expression::execution::Expression;
-use dozer_types::json_types::JsonValue;
 use dozer_types::log::warn;
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::ort::{Session, Value};
-use dozer_types::types::{Field, FieldType, Record, Schema};
+use ort::{Session, Value};
+use dozer_types::types::{Field, Record, Schema};
 use ndarray::Array;
 use num_traits::FromPrimitive;
 use std::borrow::Borrow;
 use std::ops::Deref;
+use half::f16;
+use ort::tensor::TensorElementDataType;
 
 pub fn evaluate_onnx_udf(
     schema: &Schema,
     session: &Session,
     args: &[Expression],
-    return_type: &FieldType,
     record: &Record,
 ) -> Result<Field, PipelineError> {
     let input_values = args
@@ -23,11 +23,21 @@ pub fn evaluate_onnx_udf(
         .map(|arg| arg.evaluate(record, schema))
         .collect::<Result<Vec<_>, PipelineError>>()?;
 
-    let field = input_values[0].clone();
-    match (field.clone(), return_type) {
-        (Field::String(v), FieldType::String | FieldType::Json | FieldType::Float) => {
+    let input_shape: Vec<usize> = session.inputs[0].dimensions().map(|d| d.unwrap()).collect();
+    let output_shape: Vec<usize> = session.outputs[0].dimensions().map(|d| d.unwrap()).collect();
+    let return_type = session.outputs[0].output_type;
+
+    match input_values[0].clone() {
+        Field::String(_) => {
+            let mut input_array = vec![];
+            for field in input_values {
+                match field {
+                    Field::String(val) => input_array.push(val),
+                    _ => return Err(InvalidValue(format!("Field {field} is incompatible input"))),
+                }
+            }
             let array = ndarray::CowArray::from(
-                Array::from_shape_vec((1,), vec![v])
+                Array::from_shape_vec(input_shape, input_array)
                     .map_err(OnnxShapeErr)?
                     .into_dyn(),
             );
@@ -36,37 +46,42 @@ pub fn evaluate_onnx_udf(
             let outputs: Vec<Value> = session.run(input_tensor_values).map_err(OnnxOrtErr)?;
             let output = outputs[0].borrow();
 
+            // number of output validation
+            assert_eq!(outputs.len(), 1);
+
             match return_type {
-                FieldType::String => {
-                    let output_array_view = output
-                        .try_extract::<std::string::String>()
-                        .map_err(OnnxOrtErr)?;
-                    Ok(Field::String(output_array_view.view().deref()[0].clone()))
+                TensorElementDataType::Float16 => {
+                    let output_array_view = output.try_extract::<f16>().map_err(OnnxOrtErr)?;
+                    assert_eq!(output_array_view.view().shape(), output_shape);
+                    Ok(Field::Float(OrderedFloat(output_array_view.view().deref()[0].into())))
                 }
-                FieldType::Json => {
+                TensorElementDataType::Float32 => {
                     let output_array_view = output.try_extract::<f32>().map_err(OnnxOrtErr)?;
-                    let mut result = vec![];
-                    for val in output_array_view.view().deref() {
-                        result.push(JsonValue::Number(OrderedFloat(<f32 as Into<f64>>::into(
-                            *val,
-                        ))));
-                    }
-                    Ok(Field::Json(JsonValue::Array(result)))
+                    assert_eq!(output_array_view.view().shape(), output_shape);
+                    Ok(Field::Float(OrderedFloat(output_array_view.view().deref()[0].into())))
                 }
-                FieldType::Float => {
-                    let output_array_view = output.try_extract::<f32>().map_err(OnnxOrtErr)?;
-                    Ok(Field::Float(OrderedFloat(
-                        output_array_view.view().deref()[0].into(),
-                    )))
+                TensorElementDataType::Float64 => {
+                    let output_array_view = output.try_extract::<f64>().map_err(OnnxOrtErr)?;
+                    assert_eq!(output_array_view.view().shape(), output_shape);
+                    Ok(Field::Float(OrderedFloat(output_array_view.view().deref()[0].into())))
                 }
                 _ => Err(InvalidValue(format!(
-                    "{field} incompatible with {return_type}"
+                    "{return_type:?} is incompatible return type"
                 ))),
             }
         }
-        (Field::UInt(v), FieldType::Json | FieldType::Float | FieldType::UInt) => {
+        Field::UInt(_) => {
+            warn!("Precision loss happens due to conversion from u64 to u32");
+            let mut input_array = vec![];
+            for field in input_values {
+                match field {
+                    Field::UInt(val) => input_array.push(u32::try_from(val)
+                        .map_err(|_e| InvalidType(field.clone(), format!("{:?}", return_type)))?),
+                    _ => return Err(InvalidValue(format!("Field {field} is incompatible input"))),
+                }
+            }
             let array = ndarray::CowArray::from(
-                Array::from_shape_vec((1,), vec![v])
+                Array::from_shape_vec(input_shape, input_array)
                     .map_err(OnnxShapeErr)?
                     .into_dyn(),
             );
@@ -75,77 +90,42 @@ pub fn evaluate_onnx_udf(
             let outputs: Vec<Value> = session.run(input_tensor_values).map_err(OnnxOrtErr)?;
             let output = outputs[0].borrow();
 
-            match return_type {
-                FieldType::Json => {
-                    let output_array_view = output.try_extract::<f32>().map_err(OnnxOrtErr)?;
-                    let mut result = vec![];
-                    for val in output_array_view.view().deref() {
-                        result.push(JsonValue::Number(OrderedFloat(<f32 as Into<f64>>::into(
-                            *val,
-                        ))));
-                    }
-                    Ok(Field::Json(JsonValue::Array(result)))
-                }
-                FieldType::Float => {
-                    let output_array_view = output.try_extract::<f32>().map_err(OnnxOrtErr)?;
-                    Ok(Field::Float(OrderedFloat(
-                        output_array_view.view().deref()[0].into(),
-                    )))
-                }
-                FieldType::UInt => {
-                    let output_array_view = output.try_extract::<u32>().map_err(OnnxOrtErr)?;
-                    Ok(Field::UInt(output_array_view.view().deref()[0].into()))
-                }
-                _ => Err(InvalidValue(format!(
-                    "{field} incompatible with {return_type}"
-                ))),
-            }
-        }
-        (Field::U128(v), FieldType::Json | FieldType::Float | FieldType::U128) => {
-            warn!("Precision loss happens due to conversion");
-            let array = ndarray::CowArray::from(
-                Array::from_shape_vec(
-                    (1,),
-                    vec![u64::try_from(v)
-                        .map_err(|_e| InvalidType(field.clone(), return_type.to_string()))?],
-                )
-                .map_err(OnnxShapeErr)?
-                .into_dyn(),
-            );
-            let input_tensor_values =
-                vec![Value::from_array(session.allocator(), &array).map_err(OnnxOrtErr)?];
-            let outputs: Vec<Value> = session.run(input_tensor_values).map_err(OnnxOrtErr)?;
-            let output = outputs[0].borrow();
+            // number of output validation
+            assert_eq!(outputs.len(), 1);
 
             match return_type {
-                FieldType::Json => {
-                    let output_array_view = output.try_extract::<f32>().map_err(OnnxOrtErr)?;
-                    let mut result = vec![];
-                    for val in output_array_view.view().deref() {
-                        result.push(JsonValue::Number(OrderedFloat(<f32 as Into<f64>>::into(
-                            *val,
-                        ))));
-                    }
-                    Ok(Field::Json(JsonValue::Array(result)))
+                TensorElementDataType::Float16 => {
+                    let output_array_view = output.try_extract::<f16>().map_err(OnnxOrtErr)?;
+                    assert_eq!(output_array_view.view().shape(), output_shape);
+                    Ok(Field::Float(OrderedFloat(output_array_view.view().deref()[0].into())))
                 }
-                FieldType::Float => {
+                TensorElementDataType::Float32 => {
                     let output_array_view = output.try_extract::<f32>().map_err(OnnxOrtErr)?;
-                    Ok(Field::Float(OrderedFloat(
-                        output_array_view.view().deref()[0].into(),
-                    )))
+                    assert_eq!(output_array_view.view().shape(), output_shape);
+                    Ok(Field::Float(OrderedFloat(output_array_view.view().deref()[0].into())))
                 }
-                FieldType::U128 => {
-                    let output_array_view = output.try_extract::<u32>().map_err(OnnxOrtErr)?;
-                    Ok(Field::U128(output_array_view.view().deref()[0].into()))
+                TensorElementDataType::Float64 => {
+                    let output_array_view = output.try_extract::<f64>().map_err(OnnxOrtErr)?;
+                    assert_eq!(output_array_view.view().shape(), output_shape);
+                    Ok(Field::Float(OrderedFloat(output_array_view.view().deref()[0].into())))
                 }
                 _ => Err(InvalidValue(format!(
-                    "{field} incompatible with {return_type}"
+                    "{return_type:?} is incompatible return type"
                 ))),
             }
         }
-        (Field::Int(v), FieldType::Json | FieldType::Float | FieldType::Int) => {
+        Field::U128(_) => {
+            warn!("Precision loss happens due to conversion from u128 to u32");
+            let mut input_array = vec![];
+            for field in input_values {
+                match field {
+                    Field::U128(val) => input_array.push(u32::try_from(val)
+                        .map_err(|_e| InvalidType(field.clone(), format!("{:?}", return_type)))?),
+                    _ => return Err(InvalidValue(format!("Field {field} is incompatible input"))),
+                }
+            }
             let array = ndarray::CowArray::from(
-                Array::from_shape_vec((1,), vec![v])
+                Array::from_shape_vec(input_shape, input_array)
                     .map_err(OnnxShapeErr)?
                     .into_dyn(),
             );
@@ -154,82 +134,42 @@ pub fn evaluate_onnx_udf(
             let outputs: Vec<Value> = session.run(input_tensor_values).map_err(OnnxOrtErr)?;
             let output = outputs[0].borrow();
 
-            match return_type {
-                FieldType::Json => {
-                    let output_array_view = output.try_extract::<f32>().map_err(OnnxOrtErr)?;
-                    let mut result = vec![];
-                    for val in output_array_view.view().deref() {
-                        result.push(JsonValue::Number(OrderedFloat(<f32 as Into<f64>>::into(
-                            *val,
-                        ))));
-                    }
-                    Ok(Field::Json(JsonValue::Array(result)))
-                }
-                FieldType::Float => {
-                    let output_array_view = output.try_extract::<f32>().map_err(OnnxOrtErr)?;
-                    Ok(Field::Float(OrderedFloat(
-                        output_array_view.view().deref()[0].into(),
-                    )))
-                }
-                FieldType::Int => {
-                    let output_array_view = output.try_extract::<i32>().map_err(OnnxOrtErr)?;
-                    Ok(Field::Int(output_array_view.view().deref()[0].into()))
-                }
-                _ => Err(InvalidValue(format!(
-                    "{field} incompatible with {return_type}"
-                ))),
-            }
-        }
-        (Field::I128(v), FieldType::Json | FieldType::Float | FieldType::I128) => {
-            warn!("Precision loss happens due to conversion");
-            let array = ndarray::CowArray::from(
-                Array::from_shape_vec(
-                    (1,),
-                    vec![i64::try_from(v)
-                        .map_err(|_e| InvalidType(field.clone(), return_type.to_string()))?],
-                )
-                .map_err(OnnxShapeErr)?
-                .into_dyn(),
-            );
-            let input_tensor_values =
-                vec![Value::from_array(session.allocator(), &array).map_err(OnnxOrtErr)?];
-            let outputs: Vec<Value> = session.run(input_tensor_values).map_err(OnnxOrtErr)?;
-            let output = outputs[0].borrow();
+            // number of output validation
+            assert_eq!(outputs.len(), 1);
 
             match return_type {
-                FieldType::Json => {
-                    let output_array_view = output.try_extract::<f32>().map_err(OnnxOrtErr)?;
-                    let mut result = vec![];
-                    for val in output_array_view.view().deref() {
-                        result.push(JsonValue::Number(OrderedFloat(<f32 as Into<f64>>::into(
-                            *val,
-                        ))));
-                    }
-                    Ok(Field::Json(JsonValue::Array(result)))
+                TensorElementDataType::Float16 => {
+                    let output_array_view = output.try_extract::<f16>().map_err(OnnxOrtErr)?;
+                    assert_eq!(output_array_view.view().shape(), output_shape);
+                    Ok(Field::Float(OrderedFloat(output_array_view.view().deref()[0].into())))
                 }
-                FieldType::Float => {
+                TensorElementDataType::Float32 => {
                     let output_array_view = output.try_extract::<f32>().map_err(OnnxOrtErr)?;
-                    Ok(Field::Float(OrderedFloat(
-                        output_array_view.view().deref()[0].into(),
-                    )))
+                    assert_eq!(output_array_view.view().shape(), output_shape);
+                    Ok(Field::Float(OrderedFloat(output_array_view.view().deref()[0].into())))
                 }
-                FieldType::I128 => {
-                    let output_array_view = output.try_extract::<i32>().map_err(OnnxOrtErr)?;
-                    Ok(Field::I128(output_array_view.view().deref()[0].into()))
+                TensorElementDataType::Float64 => {
+                    let output_array_view = output.try_extract::<f64>().map_err(OnnxOrtErr)?;
+                    assert_eq!(output_array_view.view().shape(), output_shape);
+                    Ok(Field::Float(OrderedFloat(output_array_view.view().deref()[0].into())))
                 }
                 _ => Err(InvalidValue(format!(
-                    "{field} incompatible with {return_type}"
+                    "{return_type:?} is incompatible return type"
                 ))),
             }
         }
-        (Field::Float(v), FieldType::Json | FieldType::Float) => {
-            warn!("Precision loss happens due to conversion");
-            let num = match f32::from_f64(*v) {
-                Some(val) => val,
-                None => return Err(InvalidType(field.clone(), return_type.to_string())),
-            };
+        Field::Int(_) => {
+            warn!("Precision loss happens due to conversion from i64 to u32");
+            let mut input_array = vec![];
+            for field in input_values {
+                match field {
+                    Field::Int(val) => input_array.push(i32::try_from(val)
+                        .map_err(|_e| InvalidType(field.clone(), format!("{:?}", return_type)))?),
+                    _ => return Err(InvalidValue(format!("Field {field} is incompatible input"))),
+                }
+            }
             let array = ndarray::CowArray::from(
-                Array::from_shape_vec((1,), vec![num])
+                Array::from_shape_vec(input_shape, input_array)
                     .map_err(OnnxShapeErr)?
                     .into_dyn(),
             );
@@ -238,74 +178,126 @@ pub fn evaluate_onnx_udf(
             let outputs: Vec<Value> = session.run(input_tensor_values).map_err(OnnxOrtErr)?;
             let output = outputs[0].borrow();
 
+            // number of output validation
+            assert_eq!(outputs.len(), 1);
+
             match return_type {
-                FieldType::Json => {
-                    let output_array_view = output.try_extract::<f32>().map_err(OnnxOrtErr)?;
-                    let mut result = vec![];
-                    for val in output_array_view.view().deref() {
-                        result.push(JsonValue::Number(OrderedFloat(<f32 as Into<f64>>::into(
-                            *val,
-                        ))));
-                    }
-                    Ok(Field::Json(JsonValue::Array(result)))
+                TensorElementDataType::Float16 => {
+                    let output_array_view = output.try_extract::<f16>().map_err(OnnxOrtErr)?;
+                    assert_eq!(output_array_view.view().shape(), output_shape);
+                    Ok(Field::Float(OrderedFloat(output_array_view.view().deref()[0].into())))
                 }
-                FieldType::Float => {
+                TensorElementDataType::Float32 => {
                     let output_array_view = output.try_extract::<f32>().map_err(OnnxOrtErr)?;
-                    Ok(Field::Float(OrderedFloat(
-                        output_array_view.view().deref()[0].into(),
-                    )))
+                    assert_eq!(output_array_view.view().shape(), output_shape);
+                    Ok(Field::Float(OrderedFloat(output_array_view.view().deref()[0].into())))
+                }
+                TensorElementDataType::Float64 => {
+                    let output_array_view = output.try_extract::<f64>().map_err(OnnxOrtErr)?;
+                    assert_eq!(output_array_view.view().shape(), output_shape);
+                    Ok(Field::Float(OrderedFloat(output_array_view.view().deref()[0].into())))
                 }
                 _ => Err(InvalidValue(format!(
-                    "{field} incompatible with {return_type}"
+                    "{return_type:?} is incompatible return type"
                 ))),
             }
         }
-        (Field::Json(val), _) => match val {
-            // JsonValue::Array(v) => {
-            // },
-            JsonValue::Number(v) => {
-                warn!("Precision loss happens due to conversion");
-                let num = match f32::from_f64(*v) {
-                    Some(val) => val,
-                    None => return Err(InvalidType(field.clone(), return_type.to_string())),
-                };
-                let array = ndarray::CowArray::from(
-                    Array::from_shape_vec((1,), vec![num])
-                        .map_err(OnnxShapeErr)?
-                        .into_dyn(),
-                );
-                let input_tensor_values =
-                    vec![Value::from_array(session.allocator(), &array).map_err(OnnxOrtErr)?];
-                let outputs: Vec<Value> = session.run(input_tensor_values).map_err(OnnxOrtErr)?;
-                let output = outputs[0].borrow();
-
-                let output_array_view = output.try_extract::<f32>().map_err(OnnxOrtErr)?;
-                Ok(Field::Float(OrderedFloat(
-                    output_array_view.view().deref()[0].into(),
-                )))
+        Field::I128(_) => {
+            warn!("Precision loss happens due to conversion from i128 to i32");
+            let mut input_array = vec![];
+            for field in input_values {
+                match field {
+                    Field::I128(val) => input_array.push(i32::try_from(val)
+                        .map_err(|_e| InvalidType(field.clone(), format!("{:?}", return_type)))?),
+                    _ => return Err(InvalidValue(format!("Field {field} is incompatible input"))),
+                }
             }
-            JsonValue::String(v) => {
-                let array = ndarray::CowArray::from(
-                    Array::from_shape_vec((1,), vec![v])
-                        .map_err(OnnxShapeErr)?
-                        .into_dyn(),
-                );
-                let input_tensor_values =
-                    vec![Value::from_array(session.allocator(), &array).map_err(OnnxOrtErr)?];
-                let outputs: Vec<Value> = session.run(input_tensor_values).map_err(OnnxOrtErr)?;
-                let output = outputs[0].borrow();
+            let array = ndarray::CowArray::from(
+                Array::from_shape_vec(input_shape, input_array)
+                    .map_err(OnnxShapeErr)?
+                    .into_dyn(),
+            );
+            let input_tensor_values =
+                vec![Value::from_array(session.allocator(), &array).map_err(OnnxOrtErr)?];
+            let outputs: Vec<Value> = session.run(input_tensor_values).map_err(OnnxOrtErr)?;
+            let output = outputs[0].borrow();
 
-                let output_array_view = output
-                    .try_extract::<std::string::String>()
-                    .map_err(OnnxOrtErr)?;
-                Ok(Field::String(output_array_view.view().deref()[0].clone()))
+            // number of output validation
+            assert_eq!(outputs.len(), 1);
+
+            match return_type {
+                TensorElementDataType::Float16 => {
+                    let output_array_view = output.try_extract::<f16>().map_err(OnnxOrtErr)?;
+                    assert_eq!(output_array_view.view().shape(), output_shape);
+                    Ok(Field::Float(OrderedFloat(output_array_view.view().deref()[0].into())))
+                }
+                TensorElementDataType::Float32 => {
+                    let output_array_view = output.try_extract::<f32>().map_err(OnnxOrtErr)?;
+                    assert_eq!(output_array_view.view().shape(), output_shape);
+                    Ok(Field::Float(OrderedFloat(output_array_view.view().deref()[0].into())))
+                }
+                TensorElementDataType::Float64 => {
+                    let output_array_view = output.try_extract::<f64>().map_err(OnnxOrtErr)?;
+                    assert_eq!(output_array_view.view().shape(), output_shape);
+                    Ok(Field::Float(OrderedFloat(output_array_view.view().deref()[0].into())))
+                }
+                _ => Err(InvalidValue(format!(
+                    "{return_type:?} is incompatible return type"
+                ))),
             }
-            _ => Err(InvalidValue(format!(
-                "{field} incompatible with {return_type}"
-            ))),
-        },
+        }
+        Field::Float(_) => {
+            warn!("Precision loss happens due to conversion from f64 to f32");
+            let mut input_array = vec![];
+            for field in input_values {
+                match field {
+                    Field::Float(val) => {
+                        let num = match f32::from_f64(*val) {
+                            Some(val) => val,
+                            None => return Err(InvalidType(field.clone(), format!("{:?}", return_type))),
+                        };
+                        input_array.push(num)
+                    },
+                    _ => return Err(InvalidValue(format!("Field {field} is incompatible input"))),
+                }
+            }
+            let array = ndarray::CowArray::from(
+                Array::from_shape_vec(input_shape, input_array)
+                    .map_err(OnnxShapeErr)?
+                    .into_dyn(),
+            );
+            let input_tensor_values =
+                vec![Value::from_array(session.allocator(), &array).map_err(OnnxOrtErr)?];
+            let outputs: Vec<Value> = session.run(input_tensor_values).map_err(OnnxOrtErr)?;
+            let output = outputs[0].borrow();
+
+            // number of output validation
+            assert_eq!(outputs.len(), 1);
+
+            match return_type {
+                TensorElementDataType::Float16 => {
+                    let output_array_view = output.try_extract::<f16>().map_err(OnnxOrtErr)?;
+                    assert_eq!(output_array_view.view().shape(), output_shape);
+                    Ok(Field::Float(OrderedFloat(output_array_view.view().deref()[0].into())))
+                }
+                TensorElementDataType::Float32 => {
+                    let output_array_view = output.try_extract::<f32>().map_err(OnnxOrtErr)?;
+                    assert_eq!(output_array_view.view().shape(), output_shape);
+                    let result = output_array_view.view().deref()[0].into();
+                    Ok(Field::Float(OrderedFloat(result)))
+                }
+                TensorElementDataType::Float64 => {
+                    let output_array_view = output.try_extract::<f64>().map_err(OnnxOrtErr)?;
+                    assert_eq!(output_array_view.view().shape(), output_shape);
+                    Ok(Field::Float(OrderedFloat(output_array_view.view().deref()[0].into())))
+                }
+                _ => Err(InvalidValue(format!(
+                    "{return_type:?} is incompatible return type"
+                ))),
+            }
+        }
         _ => Err(InvalidValue(format!(
-            "{field} incompatible with {return_type}"
+            "{:?} is incompatible input type", input_values[0]
         ))),
     }
 }

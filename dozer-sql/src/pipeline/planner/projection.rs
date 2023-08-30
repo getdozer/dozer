@@ -1,5 +1,4 @@
 #![allow(dead_code)]
-
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::builder::ExpressionBuilder;
 use crate::pipeline::expression::execution::Expression;
@@ -15,7 +14,7 @@ pub enum PrimaryKeyAction {
     Force,
 }
 
-pub struct CommonPlanner {
+pub struct CommonPlanner<'a> {
     input_schema: Schema,
     pub post_aggregation_schema: Schema,
     pub post_projection_schema: Schema,
@@ -24,10 +23,10 @@ pub struct CommonPlanner {
     pub having: Option<Expression>,
     pub groupby: Vec<Expression>,
     pub projection_output: Vec<Expression>,
-    pub udfs: Vec<UdfConfig>,
+    pub udfs: &'a [UdfConfig],
 }
 
-impl CommonPlanner {
+impl<'a> CommonPlanner<'_> {
     fn append_to_schema(
         expr: &Expression,
         alias: Option<String>,
@@ -77,7 +76,7 @@ impl CommonPlanner {
                 self.input_schema.fields.len() + self.aggregation_output.len(),
             );
             let projection_expression =
-                builder.build(true, &expr, &self.input_schema, &self.udfs)?;
+                builder.build(true, &expr, &self.input_schema, &self.udfs.to_vec())?;
 
             for new_aggr in builder.aggregations {
                 Self::append_to_schema(
@@ -114,7 +113,7 @@ impl CommonPlanner {
                 self.input_schema.fields.len() + self.aggregation_output.len(),
             );
             let projection_expression =
-                builder.build(true, &expr, &self.input_schema, &self.udfs)?;
+                builder.build(true, &expr, &self.input_schema, &self.udfs.to_vec())?;
 
             for new_aggr in builder.aggregations {
                 Self::append_to_schema(
@@ -143,7 +142,7 @@ impl CommonPlanner {
             self.input_schema.fields.len(),
             self.aggregation_output.clone(),
         );
-        let having_expression = builder.build(true, &expr, &self.input_schema, &self.udfs)?;
+        let having_expression = builder.build(true, &expr, &self.input_schema, &self.udfs.to_vec())?;
 
         let mut post_aggregation_schema = self.input_schema.clone();
         let mut aggregation_output = Vec::new();
@@ -172,7 +171,7 @@ impl CommonPlanner {
             let mut builder = ExpressionBuilder::new(
                 self.input_schema.fields.len() + self.aggregation_output.len(),
             );
-            let groupby_expression = builder.build(false, &expr, &self.input_schema, &self.udfs)?;
+            let groupby_expression = builder.build(false, &expr, &self.input_schema, &self.udfs.to_vec())?;
             self.groupby.push(groupby_expression.clone());
 
             if let Some(e) = self
@@ -210,8 +209,8 @@ impl CommonPlanner {
         Ok(())
     }
 
-    pub fn new(input_schema: Schema, udfs: Vec<UdfConfig>) -> Self {
-        Self {
+    pub fn new(input_schema: Schema, udfs: &'a[UdfConfig]) -> CommonPlanner<'a> {
+        CommonPlanner {
             input_schema: input_schema.clone(),
             post_aggregation_schema: input_schema,
             post_projection_schema: Schema::default(),
