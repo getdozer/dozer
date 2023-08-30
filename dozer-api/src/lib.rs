@@ -6,9 +6,9 @@ use dozer_cache::{
     errors::CacheError,
     CacheReader,
 };
+use dozer_tracing::Labels;
 use dozer_types::{
     grpc_types::types::Operation,
-    labels::Labels,
     models::api_endpoint::{
         default_log_reader_batch_size, default_log_reader_buffer_size,
         default_log_reader_timeout_in_millis, ApiEndpoint,

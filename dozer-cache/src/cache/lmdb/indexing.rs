@@ -4,8 +4,8 @@ use std::sync::{
 };
 
 use dozer_storage::LmdbEnvironment;
+use dozer_tracing::Labels;
 use dozer_types::{
-    labels::Labels,
     log::{debug, error},
     parking_lot::Mutex,
     types::IndexDefinition,

@@ -6,7 +6,7 @@ use dozer_cache::cache::{
     LmdbRwCacheManager, RoCache,
 };
 use dozer_storage::generator::{Generator, IntoGenerator};
-use dozer_types::labels::Labels;
+use dozer_tracing::Labels;
 use tokio::io::AsyncWriteExt;
 
 #[derive(Debug, Parser)]

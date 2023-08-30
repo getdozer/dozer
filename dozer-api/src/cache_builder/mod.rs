@@ -9,8 +9,8 @@ use dozer_cache::{
     cache::{CacheRecord, CacheWriteOptions, RwCache, RwCacheManager, UpsertResult},
     errors::CacheError,
 };
+use dozer_tracing::Labels;
 use dozer_types::indicatif::{MultiProgress, ProgressBar};
-use dozer_types::labels::Labels;
 use dozer_types::log::debug;
 use dozer_types::types::SchemaWithIndex;
 use dozer_types::{
