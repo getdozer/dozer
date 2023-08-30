@@ -366,7 +366,7 @@ impl TestPipeline {
             Arc::new(checkpoint_factory),
             ExecutorOptions::default(),
         )?;
-        let join_handle = executor.start(Arc::new(AtomicBool::new(true)))?;
+        let join_handle = executor.start(Arc::new(AtomicBool::new(true)), Default::default())?;
 
         for (schema_name, op) in &self.ops {
             if self.used_schemas.contains(&schema_name.to_string()) {

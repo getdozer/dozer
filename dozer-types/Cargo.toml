@@ -31,7 +31,6 @@ prost-types = "0.11.1"
 prost = "0.11.8"
 arrow = { version = "42.0.0"}
 arrow-schema = { version = "42.0.0", features=["serde"]}
-metrics = "0.21.0"
 tokio-postgres = { version = "0.7.7", features = ["with-chrono-0_4", "with-geo-types-0_7", "with-uuid-1"] }
 
 [build-dependencies]

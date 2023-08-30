@@ -2591,6 +2591,7 @@ dependencies = [
  "criterion",
  "dozer-log",
  "dozer-storage",
+ "dozer-tracing",
  "dozer-types",
  "env_logger",
  "futures",
@@ -2833,6 +2834,7 @@ version = "0.1.35"
 dependencies = [
  "atty",
  "dozer-types",
+ "metrics",
  "metrics-exporter-prometheus",
  "opentelemetry",
  "opentelemetry-otlp",
@@ -2856,7 +2858,6 @@ dependencies = [
  "indexmap 1.9.2",
  "indicatif",
  "log",
- "metrics",
  "ordered-float 3.9.1",
  "parking_lot",
  "prettytable-rs",
@@ -4657,9 +4658,9 @@ dependencies = [
 
 [[package]]
 name = "metrics"
-version = "0.21.0"
+version = "0.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa8ebbd1a9e57bbab77b9facae7f5136aea44c356943bf9a198f647da64285d6"
+checksum = "fde3af1a009ed76a778cb84fdef9e7dbbdf5775ae3e4cc1f434a6a307f6f76c5"
 dependencies = [
  "ahash 0.8.3",
  "metrics-macros",

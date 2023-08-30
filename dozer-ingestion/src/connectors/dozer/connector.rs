@@ -231,7 +231,7 @@ async fn read_table(
     reader_builder: LogReaderBuilder,
     sender: Sender<(usize, Operation)>,
 ) -> Result<(), ConnectorError> {
-    let mut reader = reader_builder.build(0, None);
+    let mut reader = reader_builder.build(0);
     let schema = reader.schema.schema.clone();
     let map = SchemaMapper::new(schema, &table_info.column_names)?;
     loop {

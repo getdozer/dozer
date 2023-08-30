@@ -34,6 +34,7 @@ async fn list_route() {
         vec![Arc::new(
             CacheEndpoint::open(&*cache_manager, Default::default(), endpoint.clone()).unwrap(),
         )],
+        Default::default(),
     );
     let app = actix_web::test::init_service(api_server).await;
 
@@ -93,6 +94,7 @@ async fn count_and_query_route() {
         vec![Arc::new(
             CacheEndpoint::open(&*cache_manager, Default::default(), endpoint.clone()).unwrap(),
         )],
+        Default::default(),
     );
     let app = actix_web::test::init_service(api_server).await;
 
@@ -138,6 +140,7 @@ async fn get_route() {
         vec![Arc::new(
             CacheEndpoint::open(&*cache_manager, Default::default(), endpoint.clone()).unwrap(),
         )],
+        Default::default(),
     );
     let app = actix_web::test::init_service(api_server).await;
     let req = actix_web::test::TestRequest::get()
@@ -167,6 +170,7 @@ async fn get_phase_test() {
         vec![Arc::new(
             CacheEndpoint::open(&*cache_manager, Default::default(), endpoint.clone()).unwrap(),
         )],
+        Default::default(),
     );
     let app = actix_web::test::init_service(api_server).await;
 
@@ -191,6 +195,7 @@ async fn get_endpoint_paths_test() {
         vec![Arc::new(
             CacheEndpoint::open(&*cache_manager, Default::default(), endpoint.clone()).unwrap(),
         )],
+        Default::default(),
     );
     let app = actix_web::test::init_service(api_server).await;
 
@@ -239,6 +244,7 @@ async fn path_collision_test() {
                 .unwrap(),
             ),
         ],
+        Default::default(),
     );
     let app = actix_web::test::init_service(api_server).await;
 

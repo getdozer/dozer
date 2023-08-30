@@ -153,7 +153,7 @@ async fn test_run_dag_proc_err_panic() {
     let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
     DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
         .unwrap()
-        .start(Arc::new(AtomicBool::new(true)))
+        .start(Arc::new(AtomicBool::new(true)), Default::default())
         .unwrap()
         .join()
         .unwrap();
@@ -212,7 +212,7 @@ async fn test_run_dag_proc_err_2() {
     let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
     DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
         .unwrap()
-        .start(Arc::new(AtomicBool::new(true)))
+        .start(Arc::new(AtomicBool::new(true)), Default::default())
         .unwrap()
         .join()
         .unwrap();
@@ -272,7 +272,7 @@ async fn test_run_dag_proc_err_3() {
     let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
     DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
         .unwrap()
-        .start(Arc::new(AtomicBool::new(true)))
+        .start(Arc::new(AtomicBool::new(true)), Default::default())
         .unwrap()
         .join()
         .unwrap();
@@ -414,7 +414,7 @@ async fn test_run_dag_src_err() {
     let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
     DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
         .unwrap()
-        .start(Arc::new(AtomicBool::new(true)))
+        .start(Arc::new(AtomicBool::new(true)), Default::default())
         .unwrap();
     // join_handle.join().unwrap();
 }
@@ -526,7 +526,7 @@ async fn test_run_dag_sink_err() {
     let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
     DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
         .unwrap()
-        .start(Arc::new(AtomicBool::new(true)))
+        .start(Arc::new(AtomicBool::new(true)), Default::default())
         .unwrap()
         .join()
         .unwrap();
@@ -569,7 +569,7 @@ async fn test_run_dag_sink_err_panic() {
     let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
     DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
         .unwrap()
-        .start(Arc::new(AtomicBool::new(true)))
+        .start(Arc::new(AtomicBool::new(true)), Default::default())
         .unwrap()
         .join()
         .unwrap();

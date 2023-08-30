@@ -10,9 +10,9 @@ use dozer_storage::{
     lmdb_storage::{RoLmdbEnvironment, RwLmdbEnvironment},
     LmdbEnvironment, LmdbMap, LmdbOption,
 };
+use dozer_tracing::Labels;
 use dozer_types::{
     borrow::IntoOwned,
-    labels::Labels,
     types::{Field, FieldType, Record, Schema, SchemaWithIndex},
 };
 use dozer_types::{

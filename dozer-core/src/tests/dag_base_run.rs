@@ -120,7 +120,7 @@ async fn test_run_dag() {
     let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
     DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
         .unwrap()
-        .start(Arc::new(AtomicBool::new(true)))
+        .start(Arc::new(AtomicBool::new(true)), Default::default())
         .unwrap()
         .join()
         .unwrap();
@@ -163,7 +163,7 @@ async fn test_run_dag_and_stop() {
     let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
     let join_handle = DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
         .unwrap()
-        .start(running.clone())
+        .start(running.clone(), Default::default())
         .unwrap();
 
     thread::sleep(Duration::from_millis(1000));
@@ -283,7 +283,7 @@ async fn test_run_dag_2_sources_stateless() {
     let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
     DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
         .unwrap()
-        .start(Arc::new(AtomicBool::new(true)))
+        .start(Arc::new(AtomicBool::new(true)), Default::default())
         .unwrap()
         .join()
         .unwrap();
@@ -337,7 +337,7 @@ async fn test_run_dag_2_sources_stateful() {
     let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
     DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
         .unwrap()
-        .start(Arc::new(AtomicBool::new(true)))
+        .start(Arc::new(AtomicBool::new(true)), Default::default())
         .unwrap()
         .join()
         .unwrap();
@@ -392,7 +392,7 @@ async fn test_run_dag_1_source_2_ports_stateless() {
     let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
     DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
         .unwrap()
-        .start(Arc::new(AtomicBool::new(true)))
+        .start(Arc::new(AtomicBool::new(true)), Default::default())
         .unwrap()
         .join()
         .unwrap();
