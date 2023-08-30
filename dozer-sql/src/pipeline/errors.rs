@@ -5,13 +5,10 @@ use dozer_storage::errors::StorageError;
 use dozer_types::chrono::RoundingError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::TypeError;
-#[cfg(feature = "onnx")]
-use ort::OrtError;
+
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
 use dozer_types::types::{Field, FieldType};
-#[cfg(feature = "onnx")]
-use ndarray::ShapeError;
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone)]
@@ -91,15 +88,6 @@ pub enum PipelineError {
     #[cfg(feature = "python")]
     #[error("Python Error: {0}")]
     PythonErr(dozer_types::pyo3::PyErr),
-    #[cfg(feature = "onnx")]
-    #[error("Onnx Ndarray Error: {0}")]
-    OnnxShapeErr(ShapeError),
-    #[cfg(feature = "onnx")]
-    #[error("Onnx Runtime Error: {0}")]
-    OnnxOrtErr(OrtError),
-    #[cfg(feature = "onnx")]
-    #[error("Onnx Validation Error: {0}")]
-    OnnxValidationErr(String),
 
     #[error("Udf is defined but missing with config: {0}")]
     UdfConfigMissing(String),
@@ -188,6 +176,20 @@ impl From<dozer_types::pyo3::PyErr> for PipelineError {
     fn from(py_err: dozer_types::pyo3::PyErr) -> Self {
         PipelineError::PythonErr(py_err)
     }
+}
+
+#[cfg(feature = "onnx")]
+use ort::OrtError;
+#[cfg(feature = "onnx")]
+use ndarray::ShapeError;
+#[cfg(feature = "onnx")]
+enum OnnxError {
+    #[error("Onnx Ndarray Error: {0}")]
+    OnnxShapeErr(ShapeError),
+    #[error("Onnx Runtime Error: {0}")]
+    OnnxOrtErr(OrtError),
+    #[error("Onnx Validation Error: {0}")]
+    OnnxValidationErr(String),
 }
 
 #[derive(Error, Debug)]
