@@ -69,14 +69,7 @@ fn labels_match(
     prom_labels: &prometheus_parse::Labels,
     dozer_labels: &dozer_tracing::Labels,
 ) -> bool {
-    for (key, value) in dozer_labels.iter() {
-        if let Some(prom_value) = prom_labels.get(key) {
-            if prom_value != value {
-                return false;
-            }
-        } else {
-            return false;
-        }
-    }
-    true
+    dozer_labels
+        .iter()
+        .all(|(key, value)| prom_labels.get(key) == Some(value))
 }
