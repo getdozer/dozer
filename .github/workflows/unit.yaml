@@ -80,8 +80,8 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
+      # - name: Rust cache
+      #   uses: swatinem/rust-cache@v2
 
       - name: MongoDB in GitHub Actions
         uses: supercharge/mongodb-github-action@1.8.0
