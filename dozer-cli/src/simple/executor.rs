@@ -110,8 +110,9 @@ impl<'a> Executor<'a> {
 pub fn run_dag_executor(
     dag_executor: DagExecutor,
     running: Arc<AtomicBool>,
+    labels: LabelsAndProgress,
 ) -> Result<(), OrchestrationError> {
-    let join_handle = dag_executor.start(running)?;
+    let join_handle = dag_executor.start(running, labels)?;
     join_handle
         .join()
         .map_err(OrchestrationError::ExecutionError)

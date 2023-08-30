@@ -125,7 +125,11 @@ impl SimpleOrchestrator {
                 let shutdown_for_rest = shutdown.create_shutdown_future();
                 let api_server = rest::ApiServer::new(rest_config, security);
                 let api_server = api_server
-                    .run(cache_endpoints_for_rest, shutdown_for_rest)
+                    .run(
+                        cache_endpoints_for_rest,
+                        shutdown_for_rest,
+                        self.labels.clone(),
+                    )
                     .map_err(OrchestrationError::ApiInitFailed)?;
                 tokio::spawn(api_server.map_err(OrchestrationError::RestServeFailed))
             } else {
@@ -139,7 +143,12 @@ impl SimpleOrchestrator {
                 let grpc_server = grpc::ApiServer::new(grpc_config, api_security, flags);
                 let shutdown = shutdown.create_shutdown_future();
                 let grpc_server = grpc_server
-                    .run(cache_endpoints, shutdown, operations_receiver)
+                    .run(
+                        cache_endpoints,
+                        shutdown,
+                        operations_receiver,
+                        self.labels.clone(),
+                    )
                     .await
                     .map_err(OrchestrationError::ApiInitFailed)?;
                 tokio::spawn(async move {
@@ -202,9 +211,10 @@ impl SimpleOrchestrator {
                 .expect("Failed to notify API server");
         }
 
-        let pipeline_future = self
-            .runtime
-            .spawn_blocking(move || run_dag_executor(dag_executor, shutdown.get_running_flag()));
+        let labels = self.labels.clone();
+        let pipeline_future = self.runtime.spawn_blocking(move || {
+            run_dag_executor(dag_executor, shutdown.get_running_flag(), labels)
+        });
 
         let mut futures = FuturesUnordered::new();
         futures.push(

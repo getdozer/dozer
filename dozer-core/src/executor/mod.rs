@@ -6,6 +6,7 @@ use crate::Dag;
 
 use daggy::petgraph::visit::IntoNodeIdentifiers;
 
+use dozer_tracing::LabelsAndProgress;
 use dozer_types::serde::{self, Deserialize, Serialize};
 use std::fmt::Debug;
 use std::panic::panic_any;
@@ -86,10 +87,15 @@ impl DagExecutor {
         Ok(())
     }
 
-    pub fn start(self, running: Arc<AtomicBool>) -> Result<DagExecutorJoinHandle, ExecutionError> {
+    pub fn start(
+        self,
+        running: Arc<AtomicBool>,
+        labels: LabelsAndProgress,
+    ) -> Result<DagExecutorJoinHandle, ExecutionError> {
         // Construct execution dag.
         let mut execution_dag = ExecutionDag::new(
             self.builder_dag,
+            labels,
             self.options.channel_buffer_sz,
             self.options.error_threshold,
         )?;
