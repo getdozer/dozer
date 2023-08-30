@@ -473,7 +473,7 @@ impl ExpressionBuilder {
         // config check for udfs
         if !udfs.is_empty() {
             let udf_type = udfs.iter().find(|udf| udf.name == function_name).ok_or(PipelineError::UdfConfigMissing(function_name.clone()))?;
-            return match udf_type.config.clone() {
+            return match &udf_type.config {
                 #[cfg(feature = "onnx")]
                 Some(Onnx(config)) => self.parse_onnx_udf(
                     function_name,
