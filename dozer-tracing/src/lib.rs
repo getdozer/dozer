@@ -4,4 +4,4 @@ mod exporter;
 mod helper;
 
 mod labels;
-pub use labels::Labels;
+pub use labels::{Labels, LabelsAndProgress};

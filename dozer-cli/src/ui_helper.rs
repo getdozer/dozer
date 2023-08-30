@@ -164,7 +164,7 @@ pub fn config_to_ui_dag(config: Config) -> Result<QueryGraph, OrchestrationError
         let sources_same_connection = connection_sources.entry(connection).or_insert(vec![]);
         sources_same_connection.push(source);
     }
-    let source_builder = SourceBuilder::new(connection_sources.clone(), None);
+    let source_builder = SourceBuilder::new(connection_sources.clone(), Default::default());
     let connection_source_ports = source_builder.get_ports();
     let sql_dag = prepare_pipeline_dag(
         sql,

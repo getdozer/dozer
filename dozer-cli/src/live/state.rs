@@ -9,7 +9,6 @@ use dozer_types::{
         contract::{DotResponse, SchemasResponse},
         live::{BuildResponse, BuildStatus, ConnectResponse, LiveApp, LiveResponse, RunRequest},
     },
-    indicatif::MultiProgress,
     log::info,
     models::{
         api_config::{ApiConfig, AppGrpcOptions},
@@ -123,7 +122,7 @@ impl LiveState {
             cli.config_token.clone(),
             cli.config_overrides.clone(),
             cli.ignore_pipe,
-            false,
+            Default::default(),
         )
         .await?;
 
@@ -293,7 +292,7 @@ async fn create_dag(dozer: &SimpleOrchestrator) -> Result<Dag, OrchestrationErro
         &dozer.config.sources,
         dozer.config.sql.as_deref(),
         endpoint_and_logs,
-        MultiProgress::new(),
+        Default::default(),
         Flags::default(),
     );
     let (_shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);

@@ -4,28 +4,28 @@ use crate::OrchestrationError;
 use dozer_core::appsource::{AppSourceManager, AppSourceMappings};
 use dozer_ingestion::connectors::TableInfo;
 
-use dozer_types::indicatif::MultiProgress;
+use dozer_tracing::LabelsAndProgress;
 use dozer_types::models::connection::Connection;
 use dozer_types::models::source::Source;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 
-pub struct SourceBuilder<'a> {
+pub struct SourceBuilder {
     grouped_connections: HashMap<Connection, Vec<Source>>,
-    progress: Option<&'a MultiProgress>,
+    labels: LabelsAndProgress,
 }
 
 const SOURCE_PORTS_RANGE_START: u16 = 1000;
 
-impl<'a> SourceBuilder<'a> {
+impl SourceBuilder {
     pub fn new(
         grouped_connections: HashMap<Connection, Vec<Source>>,
-        progress: Option<&'a MultiProgress>,
+        labels: LabelsAndProgress,
     ) -> Self {
         Self {
             grouped_connections,
-            progress,
+            labels,
         }
     }
 
@@ -73,7 +73,7 @@ impl<'a> SourceBuilder<'a> {
                 table_and_ports,
                 connection.clone(),
                 runtime.clone(),
-                self.progress.cloned(),
+                self.labels.clone(),
                 shutdown.clone(),
             )
             .await?;

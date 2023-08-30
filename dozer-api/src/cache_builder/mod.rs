@@ -2,15 +2,14 @@ use std::collections::HashSet;
 use std::time::Duration;
 
 use crate::grpc::types_helper;
-use dozer_cache::dozer_log::attach_progress;
 use dozer_cache::dozer_log::reader::{LogReader, LogReaderBuilder};
 use dozer_cache::dozer_log::replication::LogOperation;
 use dozer_cache::{
     cache::{CacheRecord, CacheWriteOptions, RwCache, RwCacheManager, UpsertResult},
     errors::CacheError,
 };
-use dozer_tracing::Labels;
-use dozer_types::indicatif::{MultiProgress, ProgressBar};
+use dozer_tracing::{Labels, LabelsAndProgress};
+use dozer_types::indicatif::ProgressBar;
 use dozer_types::log::debug;
 use dozer_types::types::SchemaWithIndex;
 use dozer_types::{
@@ -33,7 +32,7 @@ pub async fn build_cache(
     cancel: impl Future<Output = ()> + Unpin + Send + 'static,
     log_reader_builder: LogReaderBuilder,
     operations_sender: Option<(String, Sender<GrpcOperation>)>,
-    multi_pb: MultiProgress,
+    labels: LabelsAndProgress,
 ) -> Result<(), CacheError> {
     // Create log reader.
     let pos = cache.get_metadata()?.unwrap_or(0);
@@ -41,8 +40,7 @@ pub async fn build_cache(
         "Starting log reader {} from position {pos}",
         log_reader_builder.options.endpoint
     );
-    let pb = attach_progress(multi_pb);
-    pb.set_message(format!("cache: {}", log_reader_builder.options.endpoint));
+    let pb = labels.create_progress_bar(format!("cache: {}", log_reader_builder.options.endpoint));
     pb.set_position(pos);
     let log_reader = log_reader_builder.build(pos);
 

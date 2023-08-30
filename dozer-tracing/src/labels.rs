@@ -3,6 +3,7 @@ use std::{
     fmt::{self, Display, Formatter},
 };
 
+use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressDrawTarget, ProgressStyle};
 use metrics::{IntoLabels, Label, SharedString};
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -36,6 +37,10 @@ impl Labels {
         Self::default()
     }
 
+    pub fn extend(&mut self, other: Self) {
+        self.0.extend(other.0)
+    }
+
     pub fn push(&mut self, key: impl Into<SharedString>, value: impl Into<SharedString>) {
         self.0.push(Label::new(key, value))
     }
@@ -46,5 +51,72 @@ impl Labels {
         } else {
             Cow::Owned(self.to_string())
         }
+    }
+}
+
+impl<Key: Into<SharedString>, Value: Into<SharedString>> FromIterator<(Key, Value)> for Labels {
+    fn from_iter<T: IntoIterator<Item = (Key, Value)>>(iter: T) -> Self {
+        let mut labels = Self::new();
+        for (key, value) in iter {
+            labels.push(key, value);
+        }
+        labels
+    }
+}
+
+#[derive(Debug, Clone)]
+/// Dozer components make themselves observable through two means:
+///
+/// - Using `metrics` to emit metrics.
+/// - Updating a progress bar.
+///
+/// Here we define a struct that holds both the metrics labels and the multi progress bar.
+/// All components should include labels in this struct and create progress bar from the multi progress bar.
+pub struct LabelsAndProgress {
+    labels: Labels,
+    progress: MultiProgress,
+}
+
+impl LabelsAndProgress {
+    pub fn new(labels: Labels, enable_progress: bool) -> Self {
+        let progress_draw_target = if enable_progress && atty::is(atty::Stream::Stderr) {
+            ProgressDrawTarget::stderr()
+        } else {
+            ProgressDrawTarget::hidden()
+        };
+        let progress = MultiProgress::with_draw_target(progress_draw_target);
+        Self { labels, progress }
+    }
+
+    pub fn labels(&self) -> &Labels {
+        &self.labels
+    }
+
+    pub fn create_progress_bar(&self, msg: impl Into<Cow<'static, str>>) -> ProgressBar {
+        let progress = ProgressBar::new_spinner();
+        self.progress.add(progress.clone());
+        progress.set_style(
+            ProgressStyle::with_template("{spinner:.blue} {msg}: {pos}: {per_sec}")
+                .unwrap()
+                // For more spinners check out the cli-spinners project:
+                // https://github.com/sindresorhus/cli-spinners/blob/master/spinners.json
+                .tick_strings(&[
+                    "▹▹▹▹▹",
+                    "▸▹▹▹▹",
+                    "▹▸▹▹▹",
+                    "▹▹▸▹▹",
+                    "▹▹▹▸▹",
+                    "▹▹▹▹▸",
+                    "▪▪▪▪▪",
+                ]),
+        );
+        progress.set_message(msg);
+        progress
+    }
+}
+
+impl Default for LabelsAndProgress {
+    fn default() -> Self {
+        Self::new(Labels::default(), false)
     }
 }

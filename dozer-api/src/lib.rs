@@ -6,7 +6,7 @@ use dozer_cache::{
     errors::CacheError,
     CacheReader,
 };
-use dozer_tracing::Labels;
+use dozer_tracing::{Labels, LabelsAndProgress};
 use dozer_types::{
     grpc_types::types::Operation,
     models::api_endpoint::{
@@ -39,7 +39,7 @@ impl CacheEndpoint {
         endpoint: ApiEndpoint,
         cancel: impl Future<Output = ()> + Unpin + Send + 'static,
         operations_sender: Option<Sender<Operation>>,
-        multi_pb: MultiProgress,
+        labels: LabelsAndProgress,
     ) -> Result<(Self, JoinHandle<Result<(), CacheError>>), ApiInitError> {
         // Create log reader builder.
         let log_reader_builder =
@@ -47,8 +47,9 @@ impl CacheEndpoint {
         let descriptor = log_reader_builder.descriptor.clone();
 
         // Open or create cache.
-        let cache_labels =
+        let mut cache_labels =
             cache_labels(endpoint.name.clone(), log_reader_builder.build_name.clone());
+        cache_labels.extend(labels.labels().clone());
         let schema = log_reader_builder.schema.clone();
         let conflict_resolution = endpoint.conflict_resolution.unwrap_or_default();
         let write_options = CacheWriteOptions {
@@ -79,7 +80,7 @@ impl CacheEndpoint {
                     cancel,
                     log_reader_builder,
                     operations_sender,
-                    multi_pb,
+                    labels,
                 )
                 .await
             })
@@ -182,7 +183,6 @@ pub use actix_web_httpauth;
 pub use api_helper::API_LATENCY_HISTOGRAM_NAME;
 pub use api_helper::API_REQUEST_COUNTER_NAME;
 pub use async_trait;
-use dozer_types::indicatif::MultiProgress;
 use errors::ApiInitError;
 pub use openapiv3;
 pub use tokio;

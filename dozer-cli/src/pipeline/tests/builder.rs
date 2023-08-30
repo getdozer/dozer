@@ -5,7 +5,6 @@ use crate::pipeline::PipelineBuilder;
 use dozer_types::ingestion_types::{GrpcConfig, GrpcConfigSchemas};
 use dozer_types::models::config::Config;
 
-use dozer_types::indicatif::MultiProgress;
 use dozer_types::models::connection::{Connection, ConnectionConfig};
 use dozer_types::models::flags::Flags;
 use dozer_types::models::source::Source;
@@ -67,7 +66,7 @@ fn load_multi_sources() {
             .into_iter()
             .map(|endpoint| (endpoint, None))
             .collect(),
-        MultiProgress::new(),
+        Default::default(),
         Flags::default(),
     );
 
@@ -80,7 +79,7 @@ fn load_multi_sources() {
         .block_on(builder.get_grouped_tables(&used_sources))
         .unwrap();
 
-    let source_builder = SourceBuilder::new(grouped_connections, None);
+    let source_builder = SourceBuilder::new(grouped_connections, Default::default());
     let (_sender, shutdown_receiver) = crate::shutdown::new(&runtime);
     let asm = runtime
         .block_on(source_builder.build_source_manager(&runtime, shutdown_receiver))
