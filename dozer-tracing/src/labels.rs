@@ -37,6 +37,10 @@ impl Labels {
         Self::default()
     }
 
+    pub fn iter(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.0.iter().map(|label| (label.key(), label.value()))
+    }
+
     pub fn extend(&mut self, other: Self) {
         self.0.extend(other.0)
     }

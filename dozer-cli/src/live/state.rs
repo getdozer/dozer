@@ -236,8 +236,9 @@ impl LiveState {
 
         // Initialize progress
         let metrics_sender = self.sender.read().await.as_ref().unwrap().clone();
+        let labels_clone = labels.clone();
         tokio::spawn(async {
-            progress_stream(metrics_sender, metrics_shutdown)
+            progress_stream(metrics_sender, metrics_shutdown, labels_clone)
                 .await
                 .unwrap()
         });
