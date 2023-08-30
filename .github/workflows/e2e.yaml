@@ -1,10 +1,10 @@
 name: Dozer E2E Test
 
 on:
-  pull_request_target:
-    branches: [main]
   workflow_dispatch:
   merge_group:
+  pull_request_target:
+    branches: [main]
 
 env:
   CARGO_TERM_COLOR: always
@@ -17,11 +17,13 @@ concurrency:
 jobs:
   # Run e2e test
   e2e:
-    timeout-minutes: 60
+    # Skip on PR, because it takes too long. Skipping instead of not triggering
+    # will make branch protection happy, so we can add it to the merge queue and
+    # run the job there
+    if: ${{ github.event_name != 'pull_request_target' }}
+    timeout-minutes: 90
     runs-on:
-      group: Default Larger Runners
-      labels: ubuntu-latest-16-cores
-
+      labels: ubuntu-latest
     steps:
       - if: github.event_name == 'pull_request_target'
         uses: actions/checkout@v3
@@ -42,21 +44,8 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: ⚡ Cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/.crates.toml
-            ~/.cargo/.crates2.json
-            ~/.cargo/.package-cache
-            ~/.cargo/registry/
-            ~/.cargo/git/db/
-            target/
-          key: build-${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
-          restore-keys: |
-            build-${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
-            build-${{ runner.os }}-cargo-
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
 
       - name: Build dozer
         run: cargo build --features ethereum,mongodb --bin dozer 

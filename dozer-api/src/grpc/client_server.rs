@@ -5,6 +5,7 @@ use crate::grpc::auth::AuthService;
 use crate::grpc::health::HealthService;
 use crate::grpc::{common, run_server, typed};
 use crate::{errors::GrpcError, CacheEndpoint};
+use dozer_tracing::LabelsAndProgress;
 use dozer_types::grpc_types::health::health_check_response::ServingStatus;
 use dozer_types::grpc_types::types::Operation;
 use dozer_types::grpc_types::{
@@ -85,6 +86,7 @@ impl ApiServer {
         cache_endpoints: Vec<Arc<CacheEndpoint>>,
         shutdown: impl Future<Output = ()> + Send + 'static,
         operations_receiver: Option<Receiver<Operation>>,
+        labels: LabelsAndProgress,
     ) -> Result<impl Future<Output = Result<(), tonic::transport::Error>>, ApiInitError> {
         // Create our services.
         let mut web_config = tonic_web::config();
@@ -138,7 +140,7 @@ impl ApiServer {
             )));
             auth_service = Some(auth_middleware.layer(service));
         }
-        let metric_middleware = MetricMiddlewareLayer::new();
+        let metric_middleware = MetricMiddlewareLayer::new(labels);
         // Add services to server.
         let mut grpc_router = Server::builder()
             .layer(

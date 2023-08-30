@@ -7,7 +7,7 @@ use dozer_types::types::FieldType;
 use mysql_async::{from_row, prelude::Queryable, BinaryProtocol, Conn, Pool, QueryResult};
 use mysql_common::Value;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TableDefinition {
     pub table_index: usize,
     pub table_name: String,
@@ -15,7 +15,7 @@ pub struct TableDefinition {
     pub columns: Vec<ColumnDefinition>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ColumnDefinition {
     pub ordinal_position: u32,
     pub name: String,
@@ -81,6 +81,7 @@ impl SchemaHelper<'_, '_> {
             &mut conn,
             &tables,
             &["table_name", "table_schema", "column_name"],
+            &[],
         )
         .await?;
 
@@ -136,6 +137,7 @@ impl SchemaHelper<'_, '_> {
                 "column_key",
                 "ordinal_position",
             ],
+            &[Self::MARIADB_JSON_CHECK],
         )
         .await?;
 
@@ -154,14 +156,19 @@ impl SchemaHelper<'_, '_> {
                     is_nullable,
                     column_key,
                     ordinal_position,
-                ) = from_row::<(String, String, String, String, String, String, u32)>(row);
+                    is_mariadb_json,
+                ) = from_row::<(String, String, String, String, String, String, u32, bool)>(row);
 
                 let nullable = is_nullable == "YES";
                 let primary_key = column_key == "PRI";
                 let column_definiton = ColumnDefinition {
                     ordinal_position,
                     name: column_name.clone(),
-                    typ: get_field_type_for_mysql_column_type(&column_type)?,
+                    typ: if is_mariadb_json {
+                        FieldType::Json
+                    } else {
+                        get_field_type_for_mysql_column_type(&column_type)?
+                    },
                     nullable,
                     primary_key,
                 };
@@ -187,10 +194,24 @@ impl SchemaHelper<'_, '_> {
         Ok(table_definitions)
     }
 
+    const MARIADB_JSON_CHECK: &str = "(column_type = 'longtext'
+        AND (
+            SELECT COUNT(*) > 0
+            FROM information_schema.check_constraints
+            WHERE (
+                constraint_schema = table_schema
+                AND table_name = table_name
+                AND constraint_name = column_name
+                AND check_clause LIKE CONCAT('%json_valid(`', column_name, '`)%')
+            )
+        )
+    ) as is_mariadb_json";
+
     async fn query_information_schema_columns<'a, 'b, T>(
         conn: &'b mut Conn,
         table_infos: &'a [T],
         select_columns: &[&str],
+        additional_select_expressions: &[&str],
     ) -> Result<QueryResult<'b, 'static, BinaryProtocol>, MySQLConnectorError>
     where
         TableInfoRef<'a>: From<&'a T>,
@@ -203,12 +224,21 @@ impl SchemaHelper<'_, '_> {
                 WHERE {}
                 ORDER BY {}, ordinal_position ASC
             ",
-            select_columns
-                .iter()
-                .copied()
-                .map(escape_identifier)
-                .collect::<Vec<_>>()
-                .join(", "),
+            {
+                let mut select = select_columns
+                    .iter()
+                    .copied()
+                    .map(escape_identifier)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                if !additional_select_expressions.is_empty() {
+                    select.push_str(", ");
+                    select.push_str(additional_select_expressions.join(", ").as_str());
+                }
+
+                select
+            },
             // where clause: filter by table name and table schema
             table_infos
                 .iter()
@@ -310,5 +340,97 @@ impl<'a> From<&'a TableInfo> for TableInfoRef<'a> {
             name: &value.name,
             column_names: &value.column_names,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ColumnDefinition, SchemaHelper, TableDefinition};
+    use crate::connectors::{
+        mysql::tests::{create_test_table, mariadb_test_config, mysql_test_config, TestConfig},
+        TableIdentifier, TableInfo,
+    };
+    use dozer_types::types::FieldType;
+    use serial_test::serial;
+
+    async fn test_connector_schemas(config: TestConfig) {
+        // setup
+        let url = &config.url;
+        let pool = &config.pool;
+
+        let schema_helper = SchemaHelper::new(url, pool);
+
+        let _ = create_test_table("test1", &config).await;
+
+        // test
+        let tables = schema_helper.list_tables().await.unwrap();
+        let expected_table = TableIdentifier {
+            name: "test1".into(),
+            schema: Some("test".into()),
+        };
+        assert!(
+            tables.contains(&expected_table),
+            "Missing test table. Existing tables list is {tables:?}"
+        );
+
+        let columns = schema_helper
+            .list_columns(vec![expected_table])
+            .await
+            .unwrap();
+        assert_eq!(
+            columns,
+            vec![TableInfo {
+                schema: Some("test".into()),
+                name: "test1".into(),
+                column_names: vec!["c1".into(), "c2".into(), "c3".into()]
+            }]
+        );
+
+        let schemas = schema_helper.get_table_definitions(&columns).await.unwrap();
+        assert_eq!(
+            schemas,
+            vec![TableDefinition {
+                table_index: 0,
+                table_name: "test1".into(),
+                database_name: "test".into(),
+                columns: vec![
+                    ColumnDefinition {
+                        ordinal_position: 1,
+                        name: "c1".into(),
+                        typ: FieldType::Int,
+                        nullable: false,
+                        primary_key: true,
+                    },
+                    ColumnDefinition {
+                        ordinal_position: 2,
+                        name: "c2".into(),
+                        typ: FieldType::Text,
+                        nullable: true,
+                        primary_key: false,
+                    },
+                    ColumnDefinition {
+                        ordinal_position: 3,
+                        name: "c3".into(),
+                        typ: FieldType::Float,
+                        nullable: true,
+                        primary_key: false,
+                    },
+                ]
+            }]
+        );
+    }
+
+    #[tokio::test]
+    #[ignore]
+    #[serial]
+    async fn test_connector_schemas_mysql() {
+        test_connector_schemas(mysql_test_config()).await;
+    }
+
+    #[tokio::test]
+    #[ignore]
+    #[serial]
+    async fn test_connector_schemas_mariadb() {
+        test_connector_schemas(mariadb_test_config()).await;
     }
 }

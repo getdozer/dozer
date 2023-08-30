@@ -1,6 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 
 use crate::pipeline::errors::PipelineError;
+use crate::pipeline::utils::record_hashtable_key::{get_record_hash, RecordKey};
 use crate::pipeline::{aggregation::aggregator::Aggregator, expression::execution::Expression};
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::executor_operation::ProcessorOperation;
@@ -9,15 +10,13 @@ use dozer_core::processor_record::ProcessorRecordStore;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::{Field, FieldType, Operation, Record, Schema};
-use std::hash::{Hash, Hasher};
+use std::collections::HashMap;
 
 use crate::pipeline::aggregation::aggregator::{
     get_aggregator_from_aggregator_type, get_aggregator_type_from_aggregation_expression,
     AggregatorEnum, AggregatorType,
 };
-use ahash::AHasher;
 use dozer_core::epoch::Epoch;
-use hashbrown::HashMap;
 
 const DEFAULT_SEGMENT_KEY: &str = "DOZER_DEFAULT_SEGMENT_KEY";
 
@@ -56,9 +55,10 @@ pub struct AggregationProcessor {
     having: Option<Expression>,
     input_schema: Schema,
     aggregation_schema: Schema,
-    states: HashMap<u64, AggregationState>,
-    default_segment_key: u64,
+    states: HashMap<RecordKey, AggregationState>,
+    default_segment_key: RecordKey,
     having_eval_schema: Schema,
+    accurate_keys: bool,
 }
 
 enum AggregatorOperation {
@@ -76,6 +76,7 @@ impl AggregationProcessor {
         having: Option<Expression>,
         input_schema: Schema,
         aggregation_schema: Schema,
+        enable_probabilistic_optimizations: bool,
     ) -> Result<Self, PipelineError> {
         let mut aggr_types = Vec::new();
         let mut aggr_measures = Vec::new();
@@ -89,11 +90,10 @@ impl AggregationProcessor {
             aggr_measures_ret_types.push(measure.get_type(&input_schema)?.return_type)
         }
 
-        let mut hasher = AHasher::default();
-        DEFAULT_SEGMENT_KEY.hash(&mut hasher);
-
         let mut having_eval_schema_fields = input_schema.fields.clone();
         having_eval_schema_fields.extend(aggregation_schema.fields.clone());
+
+        let accurate_keys = !enable_probabilistic_optimizations;
 
         Ok(Self {
             _id: id,
@@ -106,11 +106,19 @@ impl AggregationProcessor {
             having,
             measures_types: aggr_types,
             measures_return_types: aggr_measures_ret_types,
-            default_segment_key: hasher.finish(),
+            default_segment_key: {
+                let fields = vec![Field::String(DEFAULT_SEGMENT_KEY.into())];
+                if accurate_keys {
+                    RecordKey::Accurate(fields)
+                } else {
+                    RecordKey::Hash(get_record_hash(fields.iter()))
+                }
+            },
             having_eval_schema: Schema {
                 fields: having_eval_schema_fields,
                 primary_index: vec![],
             },
+            accurate_keys,
         })
     }
 
@@ -177,12 +185,13 @@ impl AggregationProcessor {
         let mut out_rec_insert: Vec<Field> = Vec::with_capacity(self.measures.len());
 
         let key = if !self.dimensions.is_empty() {
-            get_key(&self.input_schema, old, &self.dimensions)?
+            Some(self.get_key(old)?)
         } else {
-            self.default_segment_key
+            None
         };
+        let key = key.as_ref().unwrap_or(&self.default_segment_key);
 
-        let curr_state_opt = self.states.get_mut(&key);
+        let curr_state_opt = self.states.get_mut(key);
         assert!(
             curr_state_opt.is_some(),
             "Unable to find aggregator state during DELETE operation"
@@ -220,7 +229,7 @@ impl AggregationProcessor {
         };
 
         let res = if curr_state.count == 1 {
-            self.states.remove(&key);
+            self.states.remove(key);
             if out_rec_delete_having_satisfied {
                 vec![Operation::Delete {
                     old: Self::build_projection(
@@ -256,9 +265,9 @@ impl AggregationProcessor {
         let mut out_rec_insert: Vec<Field> = Vec::with_capacity(self.measures.len());
 
         let key = if !self.dimensions.is_empty() {
-            get_key(&self.input_schema, new, &self.dimensions)?
+            self.get_key(new)?
         } else {
-            self.default_segment_key
+            self.default_segment_key.clone()
         };
 
         let curr_state = self.states.entry(key).or_insert(AggregationState::new(
@@ -407,7 +416,7 @@ impl AggregationProcessor {
         &mut self,
         old: &mut Record,
         new: &mut Record,
-        key: u64,
+        key: RecordKey,
     ) -> Result<Vec<Operation>, PipelineError> {
         let mut out_rec_delete: Vec<Field> = Vec::with_capacity(self.measures.len());
         let mut out_rec_insert: Vec<Field> = Vec::with_capacity(self.measures.len());
@@ -519,12 +528,12 @@ impl AggregationProcessor {
                 ref mut new,
             } => {
                 let (old_record_hash, new_record_hash) = if self.dimensions.is_empty() {
-                    (self.default_segment_key, self.default_segment_key)
-                } else {
                     (
-                        get_key(&self.input_schema, old, &self.dimensions)?,
-                        get_key(&self.input_schema, new, &self.dimensions)?,
+                        self.default_segment_key.clone(),
+                        self.default_segment_key.clone(),
                     )
+                } else {
+                    (self.get_key(old)?, self.get_key(new)?)
                 };
 
                 if old_record_hash == new_record_hash {
@@ -538,21 +547,18 @@ impl AggregationProcessor {
             }
         }
     }
-}
 
-fn get_key(
-    schema: &Schema,
-    record: &Record,
-    dimensions: &[Expression],
-) -> Result<u64, PipelineError> {
-    let mut key = Vec::<Field>::with_capacity(dimensions.len());
-    for dimension in dimensions.iter() {
-        key.push(dimension.evaluate(record, schema)?);
+    fn get_key(&self, record: &Record) -> Result<RecordKey, PipelineError> {
+        let mut key = Vec::<Field>::with_capacity(self.dimensions.len());
+        for dimension in self.dimensions.iter() {
+            key.push(dimension.evaluate(record, &self.input_schema)?);
+        }
+        if self.accurate_keys {
+            Ok(RecordKey::Accurate(key))
+        } else {
+            Ok(RecordKey::Hash(get_record_hash(key.iter())))
+        }
     }
-    let mut hasher = AHasher::default();
-    key.hash(&mut hasher);
-    let v = hasher.finish();
-    Ok(v)
 }
 
 impl Processor for AggregationProcessor {

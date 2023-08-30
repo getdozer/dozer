@@ -2,7 +2,8 @@ use std::{borrow::Cow, mem::swap, sync::Arc};
 
 use crossbeam::channel::Receiver;
 use daggy::NodeIndex;
-use dozer_types::{log::debug, node::NodeHandle};
+use dozer_tracing::LabelsAndProgress;
+use dozer_types::node::NodeHandle;
 use metrics::{describe_histogram, histogram};
 
 use crate::{
@@ -32,6 +33,8 @@ pub struct SinkNode {
     epoch_manager: Arc<EpochManager>,
     /// The error manager, for reporting non-fatal errors.
     error_manager: Arc<ErrorManager>,
+    /// The metrics labels.
+    labels: LabelsAndProgress,
 }
 
 const PIPELINE_LATENCY_HISTOGRAM_NAME: &str = "pipeline_latency";
@@ -60,6 +63,7 @@ impl SinkNode {
             sink,
             epoch_manager: dag.epoch_manager().clone(),
             error_manager: dag.error_manager().clone(),
+            labels: dag.labels().clone(),
         }
     }
 
@@ -97,15 +101,21 @@ impl ReceiverLoop for SinkNode {
     }
 
     fn on_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError> {
-        debug!("[{}] Checkpointing - {}", self.node_handle, epoch);
+        // debug!("[{}] Checkpointing - {}", self.node_handle, epoch);
         if let Err(e) = self.sink.commit(epoch) {
             self.error_manager.report(e);
         }
 
-        self.epoch_manager.finalize_epoch(epoch);
-
         if let Ok(duration) = epoch.decision_instant.elapsed() {
-            histogram!(PIPELINE_LATENCY_HISTOGRAM_NAME, duration, "endpoint" => self.node_handle.id.clone());
+            let mut labels = self.labels.labels().clone();
+            labels.push("endpoint", self.node_handle.id.clone());
+            histogram!(PIPELINE_LATENCY_HISTOGRAM_NAME, duration, labels);
+        }
+
+        if let Some(checkpoint_writer) = epoch.common_info.checkpoint_writer.as_ref() {
+            if let Err(e) = self.sink.persist(checkpoint_writer.queue()) {
+                self.error_manager.report(e);
+            }
         }
 
         Ok(())

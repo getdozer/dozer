@@ -5,8 +5,9 @@ use crate::shutdown::ShutdownReceiver;
 use crate::simple::build;
 use crate::simple::helper::validate_config;
 use crate::utils::{
-    get_api_security_config, get_app_grpc_config, get_cache_manager_options, get_executor_options,
-    get_grpc_config, get_log_options, get_rest_config,
+    get_api_security_config, get_app_grpc_config, get_cache_manager_options,
+    get_checkpoint_factory_options, get_executor_options, get_grpc_config, get_rest_config,
+    get_storage_config,
 };
 
 use crate::{flatten_join_handle, join_handle_map_err};
@@ -17,6 +18,9 @@ use dozer_cache::cache::LmdbRwCacheManager;
 use dozer_cache::dozer_log::home_dir::HomeDir;
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::DagSchemas;
+use dozer_tracing::LabelsAndProgress;
+use dozer_types::models::flags::default_push_events;
+use tokio::select;
 
 use crate::console_helper::get_colored_text;
 use crate::console_helper::GREEN;
@@ -27,7 +31,6 @@ use dozer_ingestion::connectors::{get_connector, SourceSchema, TableInfo};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
 use dozer_types::crossbeam::channel::{self, Sender};
-use dozer_types::indicatif::{MultiProgress, ProgressDrawTarget};
 use dozer_types::log::info;
 use dozer_types::models::config::Config;
 use dozer_types::tracing::error;
@@ -47,21 +50,15 @@ use tokio::sync::broadcast;
 pub struct SimpleOrchestrator {
     pub config: Config,
     pub runtime: Arc<Runtime>,
-    pub multi_pb: MultiProgress,
+    pub labels: LabelsAndProgress,
 }
 
 impl SimpleOrchestrator {
-    pub fn new(config: Config, runtime: Arc<Runtime>, enable_progress: bool) -> Self {
-        let progress_draw_target = if enable_progress && atty::is(atty::Stream::Stderr) {
-            ProgressDrawTarget::stderr()
-        } else {
-            ProgressDrawTarget::hidden()
-        };
-
+    pub fn new(config: Config, runtime: Arc<Runtime>, labels: LabelsAndProgress) -> Self {
         Self {
             config,
             runtime,
-            multi_pb: MultiProgress::with_draw_target(progress_draw_target),
+            labels,
         }
     }
 
@@ -97,15 +94,18 @@ impl SimpleOrchestrator {
             );
             let mut cache_endpoints = vec![];
             for endpoint in &self.config.endpoints {
-                let (cache_endpoint, handle) = CacheEndpoint::new(
-                    app_server_addr.clone(),
-                    &*cache_manager,
-                    endpoint.clone(),
-                    Box::pin(shutdown.create_shutdown_future()),
-                    operations_sender.clone(),
-                    Some(self.multi_pb.clone()),
-                )
-                .await?;
+                let (cache_endpoint, handle) = select! {
+                    // If we're shutting down, the cache endpoint will fail to connect
+                    _shutdown_future = shutdown.create_shutdown_future() => return Ok(()),
+                    result = CacheEndpoint::new(
+                        app_server_addr.clone(),
+                        &*cache_manager,
+                        endpoint.clone(),
+                        Box::pin(shutdown.create_shutdown_future()),
+                        operations_sender.clone(),
+                        self.labels.clone(),
+                    ) => result?
+                };
                 let cache_name = endpoint.name.clone();
                 futures.push(flatten_join_handle(join_handle_map_err(handle, move |e| {
                     if e.is_map_full() {
@@ -125,7 +125,11 @@ impl SimpleOrchestrator {
                 let shutdown_for_rest = shutdown.create_shutdown_future();
                 let api_server = rest::ApiServer::new(rest_config, security);
                 let api_server = api_server
-                    .run(cache_endpoints_for_rest, shutdown_for_rest)
+                    .run(
+                        cache_endpoints_for_rest,
+                        shutdown_for_rest,
+                        self.labels.clone(),
+                    )
                     .map_err(OrchestrationError::ApiInitFailed)?;
                 tokio::spawn(api_server.map_err(OrchestrationError::RestServeFailed))
             } else {
@@ -139,7 +143,12 @@ impl SimpleOrchestrator {
                 let grpc_server = grpc::ApiServer::new(grpc_config, api_security, flags);
                 let shutdown = shutdown.create_shutdown_future();
                 let grpc_server = grpc_server
-                    .run(cache_endpoints, shutdown, operations_receiver)
+                    .run(
+                        cache_endpoints,
+                        shutdown,
+                        operations_receiver,
+                        self.labels.clone(),
+                    )
                     .await
                     .map_err(OrchestrationError::ApiInitFailed)?;
                 tokio::spawn(async move {
@@ -176,13 +185,14 @@ impl SimpleOrchestrator {
             &self.config.sources,
             self.config.sql.as_deref(),
             &self.config.endpoints,
-            get_log_options(&self.config),
-            self.multi_pb.clone(),
+            get_checkpoint_factory_options(&self.config),
+            self.labels.clone(),
         ))?;
         let dag_executor = self.runtime.block_on(executor.create_dag_executor(
             &self.runtime,
             get_executor_options(&self.config),
             shutdown.clone(),
+            self.config.flags.clone().unwrap_or_default(),
         ))?;
 
         let app_grpc_config = get_app_grpc_config(&self.config);
@@ -201,9 +211,10 @@ impl SimpleOrchestrator {
                 .expect("Failed to notify API server");
         }
 
-        let pipeline_future = self
-            .runtime
-            .spawn_blocking(|| run_dag_executor(dag_executor, shutdown));
+        let labels = self.labels.clone();
+        let pipeline_future = self.runtime.spawn_blocking(move || {
+            run_dag_executor(dag_executor, shutdown.get_running_flag(), labels)
+        });
 
         let mut futures = FuturesUnordered::new();
         futures.push(
@@ -283,7 +294,8 @@ impl SimpleOrchestrator {
             &self.config.sources,
             self.config.sql.as_deref(),
             endpoint_and_logs,
-            self.multi_pb.clone(),
+            self.labels.clone(),
+            self.config.flags.clone().unwrap_or_default(),
         );
         let dag = self
             .runtime
@@ -303,16 +315,20 @@ impl SimpleOrchestrator {
             .flags
             .as_ref()
             .map(|flags| flags.push_events)
-            .unwrap_or(false);
+            .unwrap_or_else(default_push_events);
+        let version = self.config.version as usize;
+
         let contract = build::Contract::new(
-            dag_schemas,
+            version,
+            &dag_schemas,
+            &self.config.connections,
             &self.config.endpoints,
             enable_token,
             enable_on_event,
         )?;
 
         // Run build
-        let storage_config = get_log_options(&self.config).storage_config;
+        let storage_config = get_storage_config(&self.config);
         self.runtime
             .block_on(build::build(&home_dir, &contract, &storage_config))?;
 
@@ -369,7 +385,7 @@ impl SimpleOrchestrator {
 }
 
 pub fn validate_sql(sql: String) -> Result<(), PipelineError> {
-    statement_to_pipeline(&sql, &mut AppPipeline::new(), None).map_or_else(
+    statement_to_pipeline(&sql, &mut AppPipeline::new_with_default_flags(), None).map_or_else(
         |e| {
             error!(
                 "[sql][{}] Transforms validation error: {}",

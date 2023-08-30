@@ -9,6 +9,7 @@ authors = ["getdozer/dozer-dev"]
 [dependencies]
 dozer-utils = { path = "../dozer-utils" }
 dozer-types = { path = "../dozer-types" }
+dozer-log = { path = "../dozer-log" }
 
 tokio = { version = "1", features = ["full"] }
 futures = "0.3.26"
@@ -60,6 +61,7 @@ tempdir = "0.3.7"
 parquet = "42.0.0"
 env_logger = "0.10.0"
 hex = "0.4.3"
+dozer-cli = { path = "../dozer-cli" }
 
 [features]
 # Defines a feature named `odbc` that does not enable any other features.

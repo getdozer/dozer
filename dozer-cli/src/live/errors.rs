@@ -1,4 +1,4 @@
-use crate::errors::{CliError, OrchestrationError};
+use crate::errors::{BuildError, CliError, OrchestrationError};
 use dozer_core::errors::ExecutionError;
 use dozer_sql::pipeline::errors::PipelineError;
 
@@ -28,6 +28,8 @@ pub enum LiveError {
     #[error("Cannot start ui server: {0}")]
     CannotStartUiServer(#[source] std::io::Error),
 
+    #[error(transparent)]
+    Build(#[from] BuildError),
     #[error(transparent)]
     PipelineError(#[from] PipelineError),
     #[error(transparent)]

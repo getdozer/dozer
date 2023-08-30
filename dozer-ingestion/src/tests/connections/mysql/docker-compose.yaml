@@ -1,0 +1,26 @@
+version: '2.4'
+services:
+  dozer-wait-for-connections-healthy:
+    image: alpine
+    command: echo 'All connections are healthy'
+    depends_on:
+      mysql-dozer-tests-db:
+        condition: service_healthy
+  mysql-dozer-tests-db:
+    container_name: mysql-dozer-tests-db
+    build:
+      context: .
+    ports:
+      - target: 3306
+        published: 3306
+    environment:
+      - MYSQL_ROOT_PASSWORD=mysql
+      - MYSQL_ROOT_HOST=%
+      - MYSQL_DATABASE=test
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - mysqladmin ping -uroot --password=$$MYSQL_ROOT_PASSWORD
+      interval: 5s
+      timeout: 5s
+      retries: 5

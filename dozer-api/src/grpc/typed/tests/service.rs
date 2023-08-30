@@ -5,12 +5,11 @@ use crate::{
 };
 use dozer_cache::cache::expression::{FilterExpression, QueryExpression};
 use dozer_types::grpc_types::{
-    generated::films::FilmEventRequest,
     generated::films::{
         films_client::FilmsClient, CountFilmsResponse, FilmEvent, QueryFilmsRequest,
         QueryFilmsResponse,
     },
-    types::{value, EventType, Operation, OperationType, Record, Value},
+    types::{value, EventFilter, EventType, Operation, OperationType, Record, Value},
 };
 use dozer_types::models::api_security::ApiSecurity;
 use futures_util::FutureExt;
@@ -234,7 +233,7 @@ async fn test_typed_streaming1() {
     let address = "http://127.0.0.1:14321".to_owned();
     let mut client = FilmsClient::connect(address.to_owned()).await.unwrap();
 
-    let request = FilmEventRequest {
+    let request = EventFilter {
         r#type: EventType::All as i32,
         filter: None,
     };
@@ -263,7 +262,7 @@ async fn test_typed_streaming2() {
     });
     tokio::time::sleep(Duration::from_millis(1001)).await;
     let address = "http://127.0.0.1:14322".to_owned();
-    let request = FilmEventRequest {
+    let request = EventFilter {
         r#type: EventType::All as i32,
         filter: Some(r#"{ "film_id": 32 }"#.into()),
     };
@@ -294,7 +293,7 @@ async fn test_typed_streaming3() {
     tokio::time::sleep(Duration::from_millis(1001)).await;
     let address = "http://127.0.0.1:14323".to_owned();
     let mut client = FilmsClient::connect(address.to_owned()).await.unwrap();
-    let request = FilmEventRequest {
+    let request = EventFilter {
         r#type: EventType::All as i32,
         filter: Some(r#"{ "film_id": 0 }"#.into()),
     };

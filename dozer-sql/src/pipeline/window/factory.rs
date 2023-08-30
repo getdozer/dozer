@@ -8,7 +8,6 @@ use dozer_core::{
 use dozer_types::{errors::internal::BoxedError, types::Schema};
 
 use crate::pipeline::{
-    builder::SchemaSQLContext,
     errors::{PipelineError, WindowError},
     pipeline_builder::from_builder::TableOperatorDescriptor,
 };
@@ -34,7 +33,7 @@ impl WindowProcessorFactory {
     }
 }
 
-impl ProcessorFactory<SchemaSQLContext> for WindowProcessorFactory {
+impl ProcessorFactory for WindowProcessorFactory {
     fn id(&self) -> String {
         self.id.clone()
     }
@@ -57,8 +56,8 @@ impl ProcessorFactory<SchemaSQLContext> for WindowProcessorFactory {
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(Schema, SchemaSQLContext), BoxedError> {
+        input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> Result<Schema, BoxedError> {
         let input_schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
             .ok_or(PipelineError::InternalError(
@@ -66,16 +65,16 @@ impl ProcessorFactory<SchemaSQLContext> for WindowProcessorFactory {
             ))?
             .clone();
 
-        let output_schema = match window_from_table_operator(&self.table, &input_schema.0)
+        let output_schema = match window_from_table_operator(&self.table, &input_schema)
             .map_err(PipelineError::WindowError)?
         {
             Some(window) => window
-                .get_output_schema(&input_schema.0)
+                .get_output_schema(&input_schema)
                 .map_err(PipelineError::WindowError)?,
             None => return Err(PipelineError::WindowError(WindowError::InvalidWindow()).into()),
         };
 
-        Ok((output_schema, SchemaSQLContext::default()))
+        Ok(output_schema)
     }
 
     fn build(

@@ -1,4 +1,5 @@
 app_name: chinook-mysql
+version: 1
 
 connections:
   - name: chinook_mysql

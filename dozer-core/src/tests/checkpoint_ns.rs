@@ -1,15 +1,17 @@
+use crate::checkpoint::create_checkpoint_factory_for_test;
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 
 use crate::executor::{DagExecutor, ExecutorOptions};
 use crate::tests::dag_base_run::NoopJoinProcessorFactory;
 use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
+use dozer_log::tokio;
 use dozer_types::node::NodeHandle;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-#[test]
-fn test_checkpoint_consistency_ns() {
+#[tokio::test]
+async fn test_checkpoint_consistency_ns() {
     const MESSAGES_COUNT: u64 = 25_000;
 
     let mut dag = Dag::new();
@@ -69,9 +71,10 @@ fn test_checkpoint_consistency_ns() {
         .unwrap();
     }
 
-    DagExecutor::new(dag, ExecutorOptions::default())
+    let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
+    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
         .unwrap()
-        .start(Arc::new(AtomicBool::new(true)))
+        .start(Arc::new(AtomicBool::new(true)), Default::default())
         .unwrap()
         .join()
         .unwrap();

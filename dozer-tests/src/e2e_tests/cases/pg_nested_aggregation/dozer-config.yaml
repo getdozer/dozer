@@ -1,4 +1,5 @@
 app_name: pg_nested_aggregation
+version: 1
 connections:
   - config: !Postgres
       user: postgres

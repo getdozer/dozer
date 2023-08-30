@@ -1,8 +1,8 @@
 use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
 use dozer_cache::dozer_log::{
-    attach_progress,
     replication::{Log, LogOperation},
+    storage::Queue,
 };
 use dozer_core::{
     epoch::Epoch,
@@ -11,18 +11,18 @@ use dozer_core::{
     processor_record::ProcessorRecordStore,
     DEFAULT_PORT_HANDLE,
 };
-use dozer_sql::pipeline::builder::SchemaSQLContext;
-use dozer_types::errors::internal::BoxedError;
-use dozer_types::indicatif::{MultiProgress, ProgressBar};
+use dozer_tracing::LabelsAndProgress;
+use dozer_types::indicatif::ProgressBar;
 use dozer_types::types::Schema;
-use tokio::{runtime::Runtime, sync::Mutex};
+use dozer_types::{errors::internal::BoxedError, parking_lot::Mutex};
+use tokio::runtime::Runtime;
 
 #[derive(Debug)]
 pub struct LogSinkFactory {
     runtime: Arc<Runtime>,
     log: Arc<Mutex<Log>>,
     endpoint_name: String,
-    multi_pb: MultiProgress,
+    labels: LabelsAndProgress,
 }
 
 impl LogSinkFactory {
@@ -30,26 +30,23 @@ impl LogSinkFactory {
         runtime: Arc<Runtime>,
         log: Arc<Mutex<Log>>,
         endpoint_name: String,
-        multi_pb: MultiProgress,
+        labels: LabelsAndProgress,
     ) -> Self {
         Self {
             runtime,
             log,
             endpoint_name,
-            multi_pb,
+            labels,
         }
     }
 }
 
-impl SinkFactory<SchemaSQLContext> for LogSinkFactory {
+impl SinkFactory for LogSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn prepare(
-        &self,
-        input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), BoxedError> {
+    fn prepare(&self, input_schemas: HashMap<PortHandle, Schema>) -> Result<(), BoxedError> {
         debug_assert!(input_schemas.len() == 1);
         Ok(())
     }
@@ -62,7 +59,7 @@ impl SinkFactory<SchemaSQLContext> for LogSinkFactory {
             self.runtime.clone(),
             self.log.clone(),
             self.endpoint_name.clone(),
-            Some(self.multi_pb.clone()),
+            self.labels.clone(),
         )))
     }
 }
@@ -80,10 +77,9 @@ impl LogSink {
         runtime: Arc<Runtime>,
         log: Arc<Mutex<Log>>,
         endpoint_name: String,
-        multi_pb: Option<MultiProgress>,
+        labels: LabelsAndProgress,
     ) -> Self {
-        let pb = attach_progress(multi_pb);
-        pb.set_message(endpoint_name);
+        let pb = labels.create_progress_bar(endpoint_name);
         Self {
             runtime,
             log,
@@ -105,47 +101,36 @@ impl Sink for LogSink {
         record_store: &ProcessorRecordStore,
         op: ProcessorOperation,
     ) -> Result<(), BoxedError> {
-        self.runtime.block_on(async {
-            let mut log = self.log.lock().await;
-            log.write(
-                dozer_cache::dozer_log::replication::LogOperation::Op {
-                    op: record_store
-                        .load_operation(&op)
-                        .map_err(Into::<BoxedError>::into)?,
-                },
-                self.log.clone(),
-            )
-            .await
-            .map_err(Into::<BoxedError>::into)
-        })?;
+        self.log
+            .lock()
+            .write(dozer_cache::dozer_log::replication::LogOperation::Op {
+                op: record_store
+                    .load_operation(&op)
+                    .map_err(Into::<BoxedError>::into)?,
+            });
         self.update_counter();
         Ok(())
     }
 
     fn commit(&mut self, epoch_details: &Epoch) -> Result<(), BoxedError> {
-        self.runtime.block_on(async {
-            let mut log = self.log.lock().await;
-            log.write(
-                LogOperation::Commit {
-                    decision_instant: epoch_details.decision_instant,
-                },
-                self.log.clone(),
-            )
-            .await
-        })?;
+        self.log.lock().write(LogOperation::Commit {
+            decision_instant: epoch_details.decision_instant,
+        });
         self.update_counter();
         Ok(())
     }
 
+    fn persist(&mut self, queue: &Queue) -> Result<(), BoxedError> {
+        self.log
+            .lock()
+            .persist(queue, self.log.clone(), &self.runtime)?;
+        Ok(())
+    }
+
     fn on_source_snapshotting_done(&mut self, connection_name: String) -> Result<(), BoxedError> {
-        self.runtime.block_on(async {
-            let mut log = self.log.lock().await;
-            log.write(
-                LogOperation::SnapshottingDone { connection_name },
-                self.log.clone(),
-            )
-            .await
-        })?;
+        self.log
+            .lock()
+            .write(LogOperation::SnapshottingDone { connection_name });
         self.update_counter();
         Ok(())
     }

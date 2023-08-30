@@ -23,6 +23,7 @@ use daggy::petgraph::{
     visit::{EdgeRef, IntoEdges, IntoEdgesDirected, IntoNodeIdentifiers},
     Direction,
 };
+use dozer_tracing::LabelsAndProgress;
 
 pub type SharedRecordWriter = Rc<RefCell<Option<Box<dyn RecordWriter>>>>;
 
@@ -44,14 +45,15 @@ pub struct EdgeType {
 pub struct ExecutionDag {
     /// Nodes will be moved into execution threads.
     graph: daggy::Dag<Option<NodeType>, EdgeType>,
-    record_store: Arc<ProcessorRecordStore>,
     epoch_manager: Arc<EpochManager>,
     error_manager: Arc<ErrorManager>,
+    labels: LabelsAndProgress,
 }
 
 impl ExecutionDag {
     pub fn new(
         builder_dag: BuilderDag,
+        labels: LabelsAndProgress,
         channel_buffer_sz: usize,
         error_threshold: Option<u32>,
     ) -> Result<Self, ExecutionError> {
@@ -74,6 +76,7 @@ impl ExecutionDag {
         ];
 
         // Create new edges.
+        let checkpoint_factory = builder_dag.checkpoint_factory();
         let mut edges = vec![];
         for builder_dag_edge in builder_dag.graph().raw_edges().iter() {
             let source_node_index = builder_dag_edge.source();
@@ -88,7 +91,7 @@ impl ExecutionDag {
                             output_port,
                             edge.output_port_type,
                             edge.schema.clone(),
-                            builder_dag.record_store().clone(),
+                            checkpoint_factory.record_store().clone(),
                         );
                         let record_writer = if let Some(record_writer) = record_writer {
                             Rc::new(RefCell::new(Some(record_writer)))
@@ -115,10 +118,9 @@ impl ExecutionDag {
         }
 
         // Create new graph.
-        let record_store = builder_dag.record_store().clone();
         let epoch_manager = Arc::new(EpochManager::new(
             num_sources,
-            record_store.clone(),
+            checkpoint_factory.clone(),
             Default::default(),
         ));
         let graph = builder_dag.into_graph().map_owned(
@@ -131,13 +133,13 @@ impl ExecutionDag {
         );
         Ok(ExecutionDag {
             graph,
-            record_store,
             epoch_manager,
             error_manager: Arc::new(if let Some(threshold) = error_threshold {
                 ErrorManager::new_threshold(threshold)
             } else {
                 ErrorManager::new_unlimited()
             }),
+            labels,
         })
     }
 
@@ -150,7 +152,7 @@ impl ExecutionDag {
     }
 
     pub fn record_store(&self) -> &Arc<ProcessorRecordStore> {
-        &self.record_store
+        self.epoch_manager.record_store()
     }
 
     pub fn epoch_manager(&self) -> &Arc<EpochManager> {
@@ -159,6 +161,10 @@ impl ExecutionDag {
 
     pub fn error_manager(&self) -> &Arc<ErrorManager> {
         &self.error_manager
+    }
+
+    pub fn labels(&self) -> &LabelsAndProgress {
+        &self.labels
     }
 
     #[allow(clippy::type_complexity)]

@@ -13,6 +13,7 @@ const METRICS_ENDPOINT: &str = "http://localhost:9000/metrics";
 pub async fn progress_stream(
     tx: tokio::sync::broadcast::Sender<ConnectResponse>,
     shutdown_receiver: ShutdownReceiver,
+    labels: dozer_tracing::Labels,
 ) -> Result<(), LiveError> {
     let mut retry_interval = interval(Duration::from_millis(PROGRESS_POLL_FREQUENCY));
 
@@ -32,14 +33,16 @@ pub async fn progress_stream(
         if let Ok(metrics) = prometheus_parse::Scrape::parse(lines) {
             for sample in metrics.samples {
                 if let Value::Counter(count) = sample.value {
-                    progress.insert(
-                        sample.metric,
-                        Metric {
-                            value: count as u32,
-                            labels: sample.labels.deref().clone(),
-                            ts: sample.timestamp.timestamp_millis() as u32,
-                        },
-                    );
+                    if labels_match(&sample.labels, &labels) {
+                        progress.insert(
+                            sample.metric,
+                            Metric {
+                                value: count as u32,
+                                labels: sample.labels.deref().clone(),
+                                ts: sample.timestamp.timestamp_millis() as u32,
+                            },
+                        );
+                    }
                 }
             }
 
@@ -49,6 +52,7 @@ pub async fn progress_stream(
                     progress: Some(ProgressResponse {
                         progress: progress.clone(),
                     }),
+                    build: None,
                 })
                 .is_err()
             {
@@ -59,4 +63,13 @@ pub async fn progress_stream(
 
         retry_interval.tick().await;
     }
+}
+
+fn labels_match(
+    prom_labels: &prometheus_parse::Labels,
+    dozer_labels: &dozer_tracing::Labels,
+) -> bool {
+    dozer_labels
+        .iter()
+        .all(|(key, value)| prom_labels.get(key) == Some(value))
 }

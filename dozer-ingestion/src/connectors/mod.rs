@@ -1,3 +1,4 @@
+pub mod dozer;
 #[cfg(feature = "ethereum")]
 pub mod ethereum;
 pub mod grpc;
@@ -39,6 +40,7 @@ use dozer_types::types::{FieldType, Schema};
 pub mod delta_lake;
 pub mod snowflake;
 
+use self::dozer::NestedDozerConnector;
 #[cfg(feature = "ethereum")]
 use self::ethereum::{EthLogConnector, EthTraceConnector};
 
@@ -248,6 +250,9 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
                 mysql_config.server_id,
             )))
         }
+        ConnectionConfig::Dozer(dozer_config) => {
+            Ok(Box::new(NestedDozerConnector::new(dozer_config)))
+        }
     }
 }
 
@@ -279,4 +284,13 @@ pub struct ListOrFilterColumns {
     pub schema: Option<String>,
     pub name: String,
     pub columns: Option<Vec<String>>,
+}
+
+pub(crate) fn warn_dropped_primary_index(table_name: &str) {
+    dozer_types::log::warn!(
+        "One or more primary index columns from the source table are \
+                    not part of the defined schema for table: '{0}'. \
+                    The primary index will therefore not be present in the Dozer table",
+        table_name
+    );
 }

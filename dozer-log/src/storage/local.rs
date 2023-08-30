@@ -19,7 +19,7 @@ use tokio::{
 };
 use tokio_util::io::ReaderStream;
 
-use super::{Error, ListObjectsOutput, Object, Storage};
+use super::{Error, ListObjectsOutput, ListedObject, Storage};
 
 #[derive(Debug, Clone)]
 pub struct LocalStorage {
@@ -189,7 +189,7 @@ fn list_objects_recursive(
     root: &str,
     current: String,
     prefix: &str,
-    objects: &mut Vec<Object>,
+    objects: &mut Vec<ListedObject>,
 ) -> Result<(), Error> {
     for entry in AsRef::<Utf8Path>::as_ref(&current)
         .read_dir_utf8()
@@ -209,7 +209,7 @@ fn list_objects_recursive(
                 let last_modified = metadata
                     .modified()
                     .map_err(|e| Error::FileSystem(path.to_string(), e))?;
-                objects.push(Object { key, last_modified })
+                objects.push(ListedObject { key, last_modified })
             }
         } else if metadata.is_dir() {
             list_objects_recursive(root, path.to_string(), prefix, objects)?;

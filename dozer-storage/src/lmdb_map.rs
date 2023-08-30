@@ -18,11 +18,7 @@ pub struct LmdbMap<K, V> {
 
 impl<K, V> Clone for LmdbMap<K, V> {
     fn clone(&self) -> Self {
-        Self {
-            db: self.db,
-            _key: std::marker::PhantomData,
-            _value: std::marker::PhantomData,
-        }
+        *self
     }
 }
 

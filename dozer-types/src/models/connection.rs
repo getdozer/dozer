@@ -1,6 +1,6 @@
 use crate::ingestion_types::{
     DeltaLakeConfig, EthConfig, GrpcConfig, KafkaConfig, LocalStorage, MongodbConfig, MySQLConfig,
-    S3Storage, SnowflakeConfig,
+    NestedDozerConfig, S3Storage, SnowflakeConfig,
 };
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -173,8 +173,8 @@ pub enum ConnectionConfig {
     #[prost(message, tag = "2")]
     /// In yaml, present as tag: `!Ethereum`
     Ethereum(EthConfig),
-    /// In yaml, present as tag: `!Grpc`
     #[prost(message, tag = "3")]
+    /// In yaml, present as tag: `!Grpc`
     Grpc(GrpcConfig),
     #[prost(message, tag = "4")]
     /// In yaml, present as tag: `!Snowflake`
@@ -197,4 +197,7 @@ pub enum ConnectionConfig {
     #[prost(message, tag = "10")]
     /// In yaml, present as tag" `!MySQL`
     MySQL(MySQLConfig),
+    #[prost(message, tag = "11")]
+    /// In yaml, present as tag" `!Dozer`
+    Dozer(NestedDozerConfig),
 }

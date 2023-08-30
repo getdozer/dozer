@@ -13,8 +13,6 @@ dozer-core = {path = "../dozer-core"}
 dozer-tracing = {path = "../dozer-tracing"}
 
 ahash = "0.8.3"
-bloom = "0.3.2"
-dyn-clone = "1.0.10"
 enum_dispatch = "0.3.11"
 hashbrown = "0.13"
 jsonpath-rust = "0.3.0"
@@ -33,6 +31,7 @@ bigdecimal = { version = "0.3", features = ["serde"], optional = true }
 [dev-dependencies]
 tempdir = "0.3.7"
 proptest = "1.1.0"
+tokio = { version = "1.31.0", features = ["rt", "macros"] }
 
 [features]
 python = ["dozer-types/python-auto-initialize"]

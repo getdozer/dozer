@@ -1,4 +1,5 @@
 app_name: dozer-ingest-users
+version: 1
 connections:
   - config: !Grpc
       schemas: !Inline |

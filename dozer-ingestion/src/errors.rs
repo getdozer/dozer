@@ -1,5 +1,6 @@
 #![allow(clippy::enum_variant_names)]
 
+use dozer_log::errors::{ReaderBuilderError, ReaderError};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::{DeserializationError, SerializationError, TypeError};
 use dozer_types::ingestion_types::IngestorError;
@@ -12,6 +13,7 @@ use base64::DecodeError;
 
 use deltalake::datafusion::error::DataFusionError;
 use deltalake::DeltaTableError;
+use geozero::error::GeozeroError;
 #[cfg(feature = "snowflake")]
 use std::num::TryFromIntError;
 #[cfg(feature = "kafka")]
@@ -86,6 +88,9 @@ pub enum ConnectorError {
     ObjectStoreConnectorError(#[from] ObjectStoreConnectorError),
 
     #[error(transparent)]
+    NestedDozerConnectorError(#[from] NestedDozerConnectorError),
+
+    #[error(transparent)]
     TypeError(#[from] TypeError),
 
     #[error(transparent)]
@@ -141,6 +146,23 @@ pub enum ConfigurationError {
 
     #[error("Failed to map configuration")]
     WrongConnectionConfiguration,
+}
+#[derive(Error, Debug)]
+pub enum NestedDozerConnectorError {
+    #[error("Failed to connect to upstream dozer app. {0}")]
+    ConnectionError(#[source] tonic::transport::Error),
+
+    #[error("Failed to query endpoints from upstream dozer app. {0}")]
+    DescribeEndpointsError(#[source] tonic::Status),
+
+    #[error(transparent)]
+    ReaderError(#[from] ReaderError),
+
+    #[error(transparent)]
+    ReaderBuilderError(#[from] ReaderBuilderError),
+
+    #[error("Column {0} not found")]
+    ColumnNotFound(String),
 }
 
 #[derive(Error, Debug)]
@@ -530,6 +552,9 @@ pub enum MySQLConnectorError {
 
     #[error("Invalid json value. {0}")]
     JsonDeserializationError(#[from] DeserializationError),
+
+    #[error("Invalid geometric value. {0}")]
+    InvalidGeometricValue(#[from] GeozeroError),
 
     #[error("Failed to open binlog. {0}")]
     BinlogOpenError(#[source] mysql_async::Error),

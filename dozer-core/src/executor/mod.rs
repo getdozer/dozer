@@ -1,10 +1,12 @@
 use crate::builder_dag::{BuilderDag, NodeKind};
+use crate::checkpoint::CheckpointFactory;
 use crate::dag_schemas::DagSchemas;
 use crate::errors::ExecutionError;
 use crate::Dag;
 
 use daggy::petgraph::visit::IntoNodeIdentifiers;
 
+use dozer_tracing::LabelsAndProgress;
 use dozer_types::serde::{self, Deserialize, Serialize};
 use std::fmt::Debug;
 use std::panic::panic_any;
@@ -14,7 +16,7 @@ use std::thread::JoinHandle;
 use std::thread::{self, Builder};
 use std::time::Duration;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ExecutorOptions {
     pub commit_sz: u32,
     pub channel_buffer_sz: usize,
@@ -65,12 +67,14 @@ pub struct DagExecutorJoinHandle {
 }
 
 impl DagExecutor {
-    pub fn new<T: Clone + Debug>(
-        dag: Dag<T>,
+    pub fn new(
+        dag: Dag,
+        checkpoint_factory: Arc<CheckpointFactory>,
         options: ExecutorOptions,
     ) -> Result<Self, ExecutionError> {
         let dag_schemas = DagSchemas::new(dag)?;
-        let builder_dag = BuilderDag::new(dag_schemas)?;
+
+        let builder_dag = BuilderDag::new(checkpoint_factory, dag_schemas)?;
 
         Ok(Self {
             builder_dag,
@@ -78,15 +82,20 @@ impl DagExecutor {
         })
     }
 
-    pub fn validate<T: Clone + Debug>(dag: Dag<T>) -> Result<(), ExecutionError> {
+    pub fn validate<T: Clone + Debug>(dag: Dag) -> Result<(), ExecutionError> {
         DagSchemas::new(dag)?;
         Ok(())
     }
 
-    pub fn start(self, running: Arc<AtomicBool>) -> Result<DagExecutorJoinHandle, ExecutionError> {
+    pub fn start(
+        self,
+        running: Arc<AtomicBool>,
+        labels: LabelsAndProgress,
+    ) -> Result<DagExecutorJoinHandle, ExecutionError> {
         // Construct execution dag.
         let mut execution_dag = ExecutionDag::new(
             self.builder_dag,
+            labels,
             self.options.channel_buffer_sz,
             self.options.error_threshold,
         )?;

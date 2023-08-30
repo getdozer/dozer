@@ -31,10 +31,8 @@ service Films {
 
   /**
    * Subscribes to the Dozer event stream, optionally applies a filter. See [Query](../query) for the filter format.
-   *
-   * This API is unstable and may change in the future.
    */
-  rpc on_event(FilmEventRequest) returns (stream FilmEvent);
+  rpc on_event(dozer.types.EventFilter) returns (stream FilmEvent);
 
   // Gets the authentication token.
   rpc token(TokenRequest) returns (TokenResponse);
@@ -56,14 +54,6 @@ message CountFilmsResponse {
 message QueryFilmsResponse {
   // The list of records.
   repeated FilmWithId records = 1;
-}
-
-// Request for `on_event`.
-message FilmEventRequest {
-  // The event type to subscribe to.
-  dozer.types.EventType type = 1;
-  // JSON filter string.
-  optional string filter = 2;
 }
 
 // Response for `on_event`.

@@ -52,10 +52,38 @@ service DozerCloud {
 
   rpc OnLogMessage(LogMessageRequest) returns (stream LogMessage);
   rpc OnStatusUpdate(StatusUpdateRequest) returns (stream StatusUpdate);
+
+  rpc latest_deployment_status(DeploymentHealthCheckRequest) returns (DeploymentHealthCheckResponse);
+  rpc app_health(AppHealthRequest) returns (AppHealthResponse);
 }
 
 service DozerPublic {
   rpc company_metadata(CompanyRequest) returns (CompanyResponse);
+}
+
+message AppHealthRequest {
+  string app_id = 1;
+}
+message AppHealthResponse {
+  bool healthy = 1;
+}
+message DeploymentHealthCheckRequest {
+  string app_id = 1;
+}
+message DeploymentHealthCheckResponse {
+  bool all_healthy = 1;
+  repeated DeploymentHealth k8_deployments = 2;
+  uint32 latest_deployment = 3;
+  repeated string errors = 4;
+}
+
+message DeploymentHealth {
+  bool healthy = 1;
+  string name = 2;
+  string status = 3;
+  string created_at = 4;
+  int32 desired = 5;
+  int32 available = 6;
 }
 
 message AppConnectionRequest {

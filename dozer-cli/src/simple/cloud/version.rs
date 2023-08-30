@@ -2,7 +2,10 @@ use std::collections::HashMap;
 
 use dozer_api::rest::DOZER_SERVER_NAME_HEADER;
 use dozer_cache::Phase;
-use dozer_types::prettytable::{row, table};
+use dozer_types::{
+    prettytable::{row, table},
+    serde_json,
+};
 
 use crate::errors::CloudError;
 

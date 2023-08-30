@@ -12,7 +12,7 @@ pub struct LmdbOption<V>(LmdbMap<u8, V>);
 
 impl<V> Clone for LmdbOption<V> {
     fn clone(&self) -> Self {
-        Self(self.0)
+        *self
     }
 }
 

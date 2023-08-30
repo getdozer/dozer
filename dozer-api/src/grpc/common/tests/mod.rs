@@ -7,7 +7,9 @@ use dozer_types::grpc_types::{
         common_grpc_service_server::CommonGrpcService, GetEndpointsRequest, GetFieldsRequest,
         OnEventRequest, QueryRequest,
     },
-    types::{value, EventType, FieldDefinition, OperationType, RecordWithId, Type, Value},
+    types::{
+        value, EventFilter, EventType, FieldDefinition, OperationType, RecordWithId, Type, Value,
+    },
 };
 use tonic::Request;
 
@@ -136,9 +138,15 @@ async fn test_grpc_common_on_event() {
     let service = setup_common_service().await;
     let mut rx = service
         .on_event(Request::new(OnEventRequest {
-            endpoint: "films".to_string(),
-            r#type: EventType::All as i32,
-            filter: Some(r#"{ "film_id": 32 }"#.to_string()),
+            endpoints: [(
+                "films".to_string(),
+                EventFilter {
+                    r#type: EventType::All as i32,
+                    filter: Some(r#"{ "film_id": 32 }"#.to_string()),
+                },
+            )]
+            .into_iter()
+            .collect(),
         }))
         .await
         .unwrap()

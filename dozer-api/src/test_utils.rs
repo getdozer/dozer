@@ -1,4 +1,4 @@
-use dozer_types::labels::Labels;
+use dozer_tracing::Labels;
 use dozer_types::serde_json::{json, Value};
 use dozer_types::types::{Field, Record, SchemaWithIndex, SourceDefinition};
 use dozer_types::{

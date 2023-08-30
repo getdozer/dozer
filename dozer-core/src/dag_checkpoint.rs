@@ -10,31 +10,31 @@ use crate::{
 
 #[derive(Debug)]
 /// Node in the checkpoint DAG.
-pub struct NodeType<T> {
+pub struct NodeType {
     /// The node handle.
     pub handle: NodeHandle,
     /// The node kind.
-    pub kind: NodeKind<T>,
+    pub kind: NodeKind,
 }
 
 #[derive(Debug)]
 /// Node kind, source, processor or sink. Source has a checkpoint to start from.
-pub enum NodeKind<T> {
+pub enum NodeKind {
     Source((Box<dyn Source>, Option<OpIdentifier>)),
-    Processor(Box<dyn ProcessorFactory<T>>),
-    Sink(Box<dyn SinkFactory<T>>),
+    Processor(Box<dyn ProcessorFactory>),
+    Sink(Box<dyn SinkFactory>),
 }
 
 /// Checkpoint DAG determines the checkpoint to start the pipeline from.
 ///
 /// This DAG is always consistent.
 #[derive(Debug)]
-pub struct DagCheckpoint<T> {
-    graph: daggy::Dag<NodeType<T>, EdgeType>,
+pub struct DagCheckpoint {
+    graph: daggy::Dag<NodeType, EdgeType>,
 }
 
-impl<T> DagCheckpoint<T> {
-    pub fn new(dag_schemas: DagSchemas<T>) -> Result<Self, ExecutionError> {
+impl DagCheckpoint {
+    pub fn new(dag_schemas: DagSchemas) -> Result<Self, ExecutionError> {
         // Create node storages and sources.
         let mut sources = vec![];
         let node_indexes = dag_schemas.graph().node_identifiers().collect::<Vec<_>>();
@@ -79,13 +79,13 @@ impl<T> DagCheckpoint<T> {
         Ok(Self { graph })
     }
 
-    pub fn into_graph(self) -> daggy::Dag<NodeType<T>, EdgeType> {
+    pub fn into_graph(self) -> daggy::Dag<NodeType, EdgeType> {
         self.graph
     }
 }
 
-impl<T> DagHaveSchemas for DagCheckpoint<T> {
-    type NodeType = NodeType<T>;
+impl DagHaveSchemas for DagCheckpoint {
+    type NodeType = NodeType;
     type EdgeType = EdgeType;
 
     fn graph(&self) -> &daggy::Dag<Self::NodeType, Self::EdgeType> {

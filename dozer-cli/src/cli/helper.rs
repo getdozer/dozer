@@ -5,8 +5,10 @@ use crate::errors::ConfigCombineError::CannotReadConfig;
 use crate::errors::OrchestrationError;
 use crate::simple::SimpleOrchestrator as Dozer;
 use atty::Stream;
+use dozer_tracing::LabelsAndProgress;
 use dozer_types::models::config::default_cache_max_map_size;
 use dozer_types::prettytable::{row, Table};
+use dozer_types::serde_json;
 use dozer_types::{models::config::Config, serde_yaml};
 use handlebars::Handlebars;
 use std::collections::BTreeMap;
@@ -21,7 +23,7 @@ pub async fn init_dozer(
     config_token: Option<String>,
     config_overrides: Vec<(String, serde_json::Value)>,
     ignore_pipe: bool,
-    enable_progress: bool,
+    labels: LabelsAndProgress,
 ) -> Result<Dozer, CliError> {
     let mut config = load_config(config_paths, config_token, ignore_pipe).await?;
 
@@ -33,7 +35,7 @@ pub async fn init_dozer(
     let page_size = page_size::get() as u64;
     config.cache_max_map_size = Some(cache_max_map_size / page_size * page_size);
 
-    Ok(Dozer::new(config, runtime, enable_progress))
+    Ok(Dozer::new(config, runtime, labels))
 }
 
 pub async fn list_sources(
@@ -50,7 +52,7 @@ pub async fn list_sources(
         config_token,
         config_overrides,
         ignore_pipe,
-        false,
+        Default::default(),
     )
     .await?;
     let connection_map = dozer.list_connectors()?;

@@ -1,6 +1,8 @@
 use dozer_core::app::{App, AppPipeline};
 use dozer_core::appsource::{AppSourceManager, AppSourceMappings};
 use dozer_core::channels::SourceChannelForwarder;
+use dozer_core::checkpoint::create_checkpoint_factory_for_test;
+use dozer_core::dozer_log::storage::Queue;
 use dozer_core::epoch::Epoch;
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::executor_operation::ProcessorOperation;
@@ -22,7 +24,7 @@ use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-use crate::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
+use crate::pipeline::builder::statement_to_pipeline;
 
 /// Test Source
 #[derive(Debug)]
@@ -36,7 +38,7 @@ impl TestSourceFactory {
     }
 }
 
-impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
+impl SourceFactory for TestSourceFactory {
     fn get_output_ports(&self) -> Vec<OutputPortDef> {
         self.output_ports
             .iter()
@@ -44,42 +46,36 @@ impl SourceFactory<SchemaSQLContext> for TestSourceFactory {
             .collect()
     }
 
-    fn get_output_schema(
-        &self,
-        _port: &PortHandle,
-    ) -> Result<(Schema, SchemaSQLContext), BoxedError> {
-        Ok((
-            Schema::default()
-                .field(
-                    FieldDefinition::new(
-                        String::from("CustomerID"),
-                        FieldType::Int,
-                        false,
-                        SourceDefinition::Dynamic,
-                    ),
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, BoxedError> {
+        Ok(Schema::default()
+            .field(
+                FieldDefinition::new(
+                    String::from("CustomerID"),
+                    FieldType::Int,
                     false,
-                )
-                .field(
-                    FieldDefinition::new(
-                        String::from("Country"),
-                        FieldType::String,
-                        false,
-                        SourceDefinition::Dynamic,
-                    ),
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .field(
+                FieldDefinition::new(
+                    String::from("Country"),
+                    FieldType::String,
                     false,
-                )
-                .field(
-                    FieldDefinition::new(
-                        String::from("Spending"),
-                        FieldType::Float,
-                        false,
-                        SourceDefinition::Dynamic,
-                    ),
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .field(
+                FieldDefinition::new(
+                    String::from("Spending"),
+                    FieldType::Float,
                     false,
-                )
-                .clone(),
-            SchemaSQLContext::default(),
-        ))
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone())
     }
 
     fn get_output_port_name(&self, port: &PortHandle) -> String {
@@ -140,7 +136,7 @@ impl TestSinkFactory {
     }
 }
 
-impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
+impl SinkFactory for TestSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
@@ -152,10 +148,7 @@ impl SinkFactory<SchemaSQLContext> for TestSinkFactory {
         Ok(Box::new(TestSink {}))
     }
 
-    fn prepare(
-        &self,
-        _input_schemas: HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(), BoxedError> {
+    fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), BoxedError> {
         Ok(())
     }
 }
@@ -177,14 +170,18 @@ impl Sink for TestSink {
         Ok(())
     }
 
+    fn persist(&mut self, _queue: &Queue) -> Result<(), BoxedError> {
+        Ok(())
+    }
+
     fn on_source_snapshotting_done(&mut self, _connection_name: String) -> Result<(), BoxedError> {
         Ok(())
     }
 }
 
-#[test]
-fn test_pipeline_builder() {
-    let mut pipeline = AppPipeline::new();
+#[tokio::test]
+async fn test_pipeline_builder() {
+    let mut pipeline = AppPipeline::new_with_default_flags();
     let context = statement_to_pipeline(
         "SELECT COUNT(Spending), users.Country \
         FROM users \
@@ -227,9 +224,10 @@ fn test_pipeline_builder() {
 
     let now = std::time::Instant::now();
 
-    DagExecutor::new(dag, ExecutorOptions::default())
+    let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
+    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
         .unwrap()
-        .start(Arc::new(AtomicBool::new(true)))
+        .start(Arc::new(AtomicBool::new(true)), Default::default())
         .unwrap()
         .join()
         .unwrap();

@@ -8,8 +8,8 @@ use dozer_cache::{
     cache::{CacheRecord, CacheWriteOptions, RwCache, RwCacheManager, UpsertResult},
     errors::CacheError,
 };
-use dozer_types::indicatif::MultiProgress;
-use dozer_types::labels::Labels;
+use dozer_tracing::{Labels, LabelsAndProgress};
+use dozer_types::indicatif::ProgressBar;
 use dozer_types::log::debug;
 use dozer_types::types::SchemaWithIndex;
 use dozer_types::{
@@ -32,7 +32,7 @@ pub async fn build_cache(
     cancel: impl Future<Output = ()> + Unpin + Send + 'static,
     log_reader_builder: LogReaderBuilder,
     operations_sender: Option<(String, Sender<GrpcOperation>)>,
-    multi_pb: Option<MultiProgress>,
+    labels: LabelsAndProgress,
 ) -> Result<(), CacheError> {
     // Create log reader.
     let pos = cache.get_metadata()?.unwrap_or(0);
@@ -40,7 +40,9 @@ pub async fn build_cache(
         "Starting log reader {} from position {pos}",
         log_reader_builder.options.endpoint
     );
-    let log_reader = log_reader_builder.build(pos, multi_pb);
+    let pb = labels.create_progress_bar(format!("cache: {}", log_reader_builder.options.endpoint));
+    pb.set_position(pos);
+    let log_reader = log_reader_builder.build(pos);
 
     // Spawn tasks
     let mut futures = FuturesUnordered::new();
@@ -50,7 +52,7 @@ pub async fn build_cache(
         Ok(())
     }));
     futures.push({
-        tokio::task::spawn_blocking(|| build_cache_task(cache, receiver, operations_sender))
+        tokio::task::spawn_blocking(|| build_cache_task(cache, receiver, operations_sender, pb))
     });
 
     while let Some(result) = futures.next().await {
@@ -127,6 +129,7 @@ fn build_cache_task(
     mut cache: Box<dyn RwCache>,
     mut receiver: mpsc::Receiver<(LogOperation, u64)>,
     operations_sender: Option<(String, Sender<GrpcOperation>)>,
+    progress_bar: ProgressBar,
 ) -> Result<(), CacheError> {
     let schema = cache.get_schema().0.clone();
 
@@ -148,6 +151,7 @@ fn build_cache_task(
     let mut snapshotting = !cache.is_snapshotting_done()?;
 
     while let Some((op, pos)) = receiver.blocking_recv() {
+        progress_bar.set_position(pos);
         match op {
             LogOperation::Op { op } => match op {
                 Operation::Delete { old } => {
@@ -219,9 +223,6 @@ fn build_cache_task(
                 cache.set_connection_snapshotting_done(&connection_name)?;
                 cache.commit()?;
                 snapshotting = !cache.is_snapshotting_done()?;
-            }
-            LogOperation::Terminate => {
-                break;
             }
         }
     }

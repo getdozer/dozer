@@ -13,6 +13,14 @@ enum EventType {
   DELETE_ONLY = 3; // Only DELETE events.
 }
 
+// Event filter.
+message EventFilter {
+  // The event type to subscribe to.
+  dozer.types.EventType type = 1;
+  // JSON filter string.
+  optional string filter = 3;
+}
+
 // The event types.
 enum OperationType {
   INSERT = 0; // INSERT operation.

@@ -1,6 +1,6 @@
 use crate::error::DozerSqlLogicTestError;
 use rusqlite::types::Type;
-use sqllogictest::{AsyncDB, DBOutput};
+use sqllogictest::{AsyncDB, DBOutput, DefaultColumnType};
 
 // Used in `complete` mode, to generate results
 pub struct Validator {
@@ -8,18 +8,19 @@ pub struct Validator {
 }
 
 impl Validator {
-    pub fn create() -> Self {
-        Self {
+    pub async fn create() -> Result<Self, DozerSqlLogicTestError> {
+        Ok(Self {
             conn: rusqlite::Connection::open_in_memory().unwrap(),
-        }
+        })
     }
 }
 
 #[async_trait::async_trait]
 impl AsyncDB for Validator {
     type Error = DozerSqlLogicTestError;
+    type ColumnType = DefaultColumnType;
 
-    async fn run(&mut self, sql: &str) -> Result<DBOutput, Self::Error> {
+    async fn run(&mut self, sql: &str) -> Result<DBOutput<Self::ColumnType>, Self::Error> {
         let sql = sql.trim_start();
         if sql.to_lowercase().starts_with("select") || sql.to_lowercase().starts_with("with") {
             let mut stmt = self.conn.prepare(sql)?;

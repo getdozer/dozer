@@ -14,7 +14,7 @@ use sqlparser::ast::{
     JoinOperator as SqlJoinOperator,
 };
 
-use crate::pipeline::{builder::SchemaSQLContext, expression::builder::extend_schema_source_def};
+use crate::pipeline::expression::builder::extend_schema_source_def;
 use crate::pipeline::{errors::JoinError, expression::builder::NameOrAlias};
 use crate::pipeline::{errors::PipelineError, expression::builder::ExpressionBuilder};
 
@@ -32,6 +32,7 @@ pub struct JoinProcessorFactory {
     left: Option<NameOrAlias>,
     right: Option<NameOrAlias>,
     join_operator: SqlJoinOperator,
+    enable_probabilistic_optimizations: bool,
 }
 
 impl JoinProcessorFactory {
@@ -40,17 +41,19 @@ impl JoinProcessorFactory {
         left: Option<NameOrAlias>,
         right: Option<NameOrAlias>,
         join_operator: SqlJoinOperator,
+        enable_probabilistic_optimizations: bool,
     ) -> Self {
         Self {
             id,
             left,
             right,
             join_operator,
+            enable_probabilistic_optimizations,
         }
     }
 }
 
-impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
+impl ProcessorFactory for JoinProcessorFactory {
     fn id(&self) -> String {
         self.id.clone()
     }
@@ -72,9 +75,9 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(Schema, SchemaSQLContext), BoxedError> {
-        let (mut left_schema, _) = input_schemas
+        input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> Result<Schema, BoxedError> {
+        let mut left_schema = input_schemas
             .get(&LEFT_JOIN_PORT)
             .ok_or(PipelineError::InternalError(
                 "Invalid Product".to_string().into(),
@@ -85,7 +88,7 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
             left_schema = extend_schema_source_def(&left_schema, left_table_name);
         }
 
-        let (mut right_schema, _) = input_schemas
+        let mut right_schema = input_schemas
             .get(&RIGHT_JOIN_PORT)
             .ok_or(PipelineError::InternalError(
                 "Invalid Product".to_string().into(),
@@ -98,7 +101,7 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
 
         let output_schema = append_schema(&left_schema, &right_schema);
 
-        Ok((output_schema, SchemaSQLContext::default()))
+        Ok(output_schema)
     }
 
     fn build(
@@ -180,12 +183,10 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
 
         let join_operator = JoinOperator::new(
             join_type,
-            left_join_key_indexes,
-            right_join_key_indexes,
-            left_primary_key_indexes,
-            right_primary_key_indexes,
-            left_default_record,
-            right_default_record,
+            (left_join_key_indexes, right_join_key_indexes),
+            (left_primary_key_indexes, right_primary_key_indexes),
+            (left_default_record, right_default_record),
+            self.enable_probabilistic_optimizations,
         );
 
         Ok(Box::new(ProductProcessor::new(

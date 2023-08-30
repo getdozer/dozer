@@ -16,3 +16,4 @@ tokio = { version = "1", features = ["full"] }
 metrics-exporter-prometheus = "0.12.1"
 atty = "0.2.14"
 opentelemetry-otlp = "0.13.0"
+metrics = "0.21.1"

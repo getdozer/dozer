@@ -18,8 +18,8 @@ use dozer_cache::errors::CacheError;
 use dozer_core::errors::ExecutionError;
 use dozer_ingestion::errors::ConnectorError;
 use dozer_sql::pipeline::errors::PipelineError;
-use dozer_types::errors::internal::BoxedError;
 use dozer_types::thiserror::Error;
+use dozer_types::{errors::internal::BoxedError, serde_json};
 use dozer_types::{serde_yaml, thiserror};
 
 use crate::pipeline::connector_source::ConnectorSourceFactoryError;
@@ -80,8 +80,10 @@ pub enum OrchestrationError {
     PipelineError(#[from] PipelineError),
     #[error(transparent)]
     CliError(#[from] CliError),
-    #[error("Source validation failed")]
-    SourceValidationError,
+    #[error("table_name: {0:?} not found in any of the connections")]
+    SourceValidationError(String),
+    #[error("connection: {0:?} not found")]
+    ConnectionNotFound(String),
     #[error("Pipeline validation failed")]
     PipelineValidationError,
     #[error("Table name specified in endpoint not found: {0:?}")]
@@ -190,8 +192,10 @@ pub enum ConfigCombineError {
 
 #[derive(Debug, Error)]
 pub enum BuildError {
-    #[error("Endpoint {0} found in DAG but not in configuration file")]
+    #[error("Endpoint {0} not found in DAG")]
     MissingEndpoint(String),
+    #[error("Connection {0} found in DAG but not in config")]
+    MissingConnection(String),
     #[error("Got mismatching primary key for `{endpoint_name}`. Expected: `{expected:?}`, got: `{actual:?}`")]
     MismatchPrimaryKey {
         endpoint_name: String,
@@ -202,8 +206,12 @@ pub enum BuildError {
     FieldNotFound(String),
     #[error("File system error {0:?}: {1}")]
     FileSystem(PathBuf, std::io::Error),
+    #[error(
+        "Failed to load existing contract: {0}. You have to run a force build: `dozer build --force`."
+    )]
+    FailedToLoadExistingContract(#[source] serde_json::Error),
     #[error("Serde json error: {0}")]
-    SerdeJson(#[from] serde_json::Error),
+    SerdeJson(#[source] serde_json::Error),
     #[error("Failed to generate proto files: {0:?}")]
     FailedToGenerateProtoFiles(#[from] GenerationError),
     #[error("Storage error: {0}")]
