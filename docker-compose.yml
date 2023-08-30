@@ -1,0 +1,22 @@
+version: '3.9'
+services:
+  dozer:
+    container_name: snowflake-dozer
+    image: public.ecr.aws/getdozer/dozer-features:latest
+    environment:
+      SN_SERVER: ${SN_SERVER}
+      SN_USER: ${SN_USER}
+      SN_PASSWORD: ${SN_PASSWORD}
+      SN_DATABASE: ${SN_DATABASE}
+      SN_WAREHOUSE: ${SN_WAREHOUSE}
+      SN_ROLE: ${SN_ROLE}
+    ports:
+      # REST APIs are published on port 8080
+      - "8080:8080"
+      # gRPC are available over 50051
+      - "50051:50051"
+    volumes:
+      - ./dozer-config.yaml:/usr/dozer/dozer-config.yaml
+      - ./.dozer:/usr/dozer/.dozer
+    stdin_open: true
+    tty: true

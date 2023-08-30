@@ -1,0 +1,95 @@
+app_name: quick-start-app
+connections:
+  - db_type: Postgres
+    authentication: !Postgres
+      user: postgres
+      password: postgres
+      host: localhost
+      port: 5432
+      database: employees
+    name: employees
+sources:
+  - name: department
+    table_name: department
+    columns:
+      - id
+      - dept_name
+    connection: !Ref employees
+  - name: department_employee
+    table_name: department_employee
+    columns:
+      - employee_id
+      - department_id
+      - from_date
+      - to_date
+    connection: !Ref employees
+  - name: department_manager
+    table_name: department_manager
+    columns:
+      - employee_id
+      - department_id
+      - from_date
+      - to_date
+    connection: !Ref employees
+  - name: employee
+    table_name: employee
+    columns:
+      - id
+      - birth_date
+      - first_name
+      - last_name
+      #      - gender
+      - hire_date
+    connection: !Ref employees
+  - name: salary
+    table_name: salary
+    columns:
+      - employee_id
+      - amount
+      - from_date
+      - to_date
+    connection: !Ref employees
+  - name: title
+    table_name: title
+    columns:
+      - employee_id
+      - title
+      - from_date
+      - to_date
+    connection: !Ref employees
+endpoints:
+  - name: employees
+    path: /employees
+    sql: SELECT id, CONCAT(CONCAT(UCASE(first_name), ' '), UCASE(last_name)) AS name FROM employee WHERE last_name LIKE '%ski%';
+    index:
+      primary_key:
+  - name: managers
+    path: /managers
+    sql: SELECT employee.id, CONCAT(CONCAT(employee.first_name, ' '), employee.last_name) AS name FROM employee INNER JOIN department_manager ON department_manager.employee_id = employee.id;
+    index:
+      primary_key:
+  - name: dept_employee_distributions
+    path: /dept_employee_distributions
+    sql: SELECT department.id AS id, department.dept_name AS department, COUNT(employee_id) FROM department_employee INNER JOIN department ON department.id = department_employee.department_id GROUP BY department.id;
+    index:
+      primary_key:
+        - id
+        - department
+  - name: dept_manager_distributions
+    path: /dept_manager_distributions
+    sql: SELECT department.id AS id, department.dept_name AS department, COUNT(employee_id) FROM department_manager INNER JOIN department ON department.id = department_manager.department_id GROUP BY department.id;
+    index:
+      primary_key:
+        - id
+        - department
+  - name: salary_distributions
+    path: /salary_distributions
+    sql: SELECT CONCAT(CONCAT(employee.first_name, ' '), employee.last_name) AS name, SUM(salary.amount) as total_amount FROM employee INNER JOIN salary ON employee.id = salary.employee_id WHERE SUM(salary.amount) >= 230000;
+    index:
+      primary_key:
+        - name
+
+udfs:
+  name: "onnx"
+  config: !Onnx
+    path: "./"

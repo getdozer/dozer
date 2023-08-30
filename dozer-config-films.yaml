@@ -1,0 +1,165 @@
+app_name: quick-start-app
+connections:
+  - db_type: Postgres
+    authentication: !Postgres
+      user: postgres
+      password: postgres
+      host: localhost
+      port: 5432
+      database: film
+    name: film
+sources:
+  - name: film
+    table_name: film
+    columns:
+      - film_id
+      - title
+      - description
+      - release_year
+      - language_id
+      - original_language_id
+      - rental_duration
+      - rental_rate
+      - length
+      - replacement_cost
+#      - rating
+      - last_update
+#      - special_features
+#      - fulltext
+    connection: !Ref film
+  - name: film_category
+    table_name: film_category
+    columns:
+      - film_id
+      - category_id
+      - last_update
+    connection: !Ref film
+  - name: category
+    table_name: category
+    columns:
+      - category_id
+      - name
+      - last_update
+    connection: !Ref film
+  - name: rental
+    table_name: rental
+    columns:
+      - rental_id
+      - rental_date
+      - inventory_id
+      - customer_id
+      - return_date
+      - staff_id
+      - last_update
+    connection: !Ref film
+  - name: inventory
+    table_name: inventory
+    columns:
+      - inventory_id
+      - film_id
+      - store_id
+      - last_update
+    connection: !Ref film
+  - name: actor
+    table_name: actor
+    columns:
+      - actor_id
+      - first_name
+      - last_name
+      - last_update
+    connection: !Ref film
+  - name: country
+    table_name: country
+    columns:
+      - country_id
+      - country
+      - last_update
+    connection: !Ref film
+  - name: staff
+    table_name: staff
+    columns:
+      - staff_id
+      - first_name
+      - last_name
+      - address_id
+      - email
+      - store_id
+      - active
+      - username
+      - password
+      - last_update
+    connection: !Ref film
+  - name: address
+    table_name: address
+    columns:
+      - address_id
+      - address
+      - address2
+      - district
+      - city_id
+      - postal_code
+      - phone
+      - last_update
+    connection: !Ref film
+endpoints:
+  - name: actors
+    path: /actors
+    sql: SELECT actor_id, first_name, last_name FROM actor;
+    index:
+      primary_key:
+  - name: name_actors
+    path: /name_actors
+    sql: SELECT CONCAT(CONCAT(UCASE(first_name), ' '), UCASE(last_name)) as "Actor Name" FROM actor;
+    index:
+      primary_key:
+  - name: joe_actors
+    path: /joe_actors
+    sql: SELECT actor_id, first_name, last_name FROM actor WHERE first_name = 'JOE';
+    index:
+      primary_key:
+        - actor_id
+  - name: like_gen_actors
+    path: /like_gen_actors
+    sql: SELECT first_name, last_name FROM actor WHERE last_name like '%GEN%';
+    index:
+      primary_key:
+  - name: like_li_actors
+    path: /like_li_actors
+    sql: SELECT first_name, last_name FROM actor WHERE last_name like '%LI%' ORDER BY last_name, first_name;
+    index:
+      primary_key:
+  - name: countries
+    path: /countries
+    sql: SELECT country_id, country FROM country WHERE country = 'Afghanistan' OR country = 'Bangladesh' OR country = 'China';
+    index:
+      primary_key:
+        - country_id
+  - name: last_name_actors
+    path: /last_name_actors
+    sql: SELECT last_name, COUNT(last_name) AS actors_with_this_lastname FROM actor GROUP BY last_name ORDER BY COUNT(last_name) DESC;
+    index:
+      primary_key:
+        - last_name
+  - name: last_name_shared_actors
+    path: /last_name_shared_actors
+    sql: SELECT last_name, COUNT(last_name) AS actors_with_lastname FROM actor GROUP BY last_name HAVING COUNT(last_name) >= 2 ORDER BY COUNT(last_name) DESC;
+    index:
+      primary_key:
+        - last_name
+  - name: address_staffs
+    path: /address_staffs
+    sql: SELECT staff.first_name, staff.last_name, address.address FROM staff INNER JOIN address ON staff.address_id = address.address_id;
+    index:
+      primary_key:
+  - name: actors_with_lastname
+    path: /actors_with_lastname
+    sql: SELECT last_name, COUNT(last_name) AS actors_with_lastname FROM actor GROUP BY last_name HAVING COUNT(last_name) >= 2 ORDER BY COUNT(last_name) DESC;
+    index:
+      primary_key:
+        - last_name
+  - name: title_films
+    path: /title_films
+    sql: SELECT film.title as film_title, COUNT(inventory.film_id) AS stock FROM film INNER JOIN inventory ON film.film_id = inventory.film_id WHERE film.title = 'HUNCHBACK IMPOSSIBLE' GROUP BY film.title;
+    index:
+      primary_key:
+        - film_title

@@ -36,7 +36,6 @@ use ort::session::{Input, Output};
 use ort::tensor::TensorElementDataType;
 #[cfg(feature = "onnx")]
 use crate::pipeline::DozerSession;
-use dozer_types::types::FieldType;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct ExpressionBuilder {

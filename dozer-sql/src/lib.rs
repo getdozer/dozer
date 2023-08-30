@@ -1,4 +1,3 @@
-#![feature(build_hasher_simple_hash_one)]
 extern crate core;
 
 // Re-export sqlparser
