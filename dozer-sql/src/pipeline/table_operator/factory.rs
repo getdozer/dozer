@@ -128,7 +128,7 @@ impl ProcessorFactory for TableOperatorProcessorFactory {
 pub(crate) fn operator_from_descriptor(
     descriptor: &TableOperatorDescriptor,
     schema: &Schema,
-    udfs: &Vec<UdfConfig>,
+    udfs: &[UdfConfig],
 ) -> Result<Option<TableOperatorType>, PipelineError> {
     if &descriptor.name.to_uppercase() == "TTL" {
         let operator = lifetime_from_descriptor(descriptor, schema, udfs)?;
