@@ -1,10 +1,13 @@
-use super::conversion::get_field_type_for_mysql_column_type;
+use super::{
+    connection::{Conn, QueryResult},
+    conversion::get_field_type_for_mysql_column_type,
+};
 use crate::{
     connectors::{mysql::helpers::escape_identifier, TableIdentifier, TableInfo},
     errors::MySQLConnectorError,
 };
 use dozer_types::types::FieldType;
-use mysql_async::{from_row, prelude::Queryable, BinaryProtocol, Conn, Pool, QueryResult};
+use mysql_async::{from_row, Pool};
 use mysql_common::Value;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -41,17 +44,15 @@ impl SchemaHelper<'_, '_> {
     pub async fn list_tables(&self) -> Result<Vec<TableIdentifier>, MySQLConnectorError> {
         let mut conn = self.connect().await?;
 
-        let mut rows = conn
-            .exec_iter(
-                "
+        let mut rows = conn.exec_iter(
+            "
                     SELECT table_name, table_schema FROM information_schema.tables
                     WHERE table_schema = DATABASE()
                     AND table_type = 'BASE TABLE'
-                ",
-                (),
-            )
-            .await
-            .map_err(MySQLConnectorError::QueryExecutionError)?;
+                "
+            .into(),
+            vec![],
+        );
 
         let tables = rows
             .map(|row| {
@@ -143,11 +144,8 @@ impl SchemaHelper<'_, '_> {
 
         let mut table_definitions: Vec<TableDefinition> = Vec::new();
         {
-            while let Some(row) = rows
-                .next()
-                .await
-                .map_err(MySQLConnectorError::QueryResultError)?
-            {
+            while let Some(result) = rows.next().await {
+                let row = result.map_err(MySQLConnectorError::QueryResultError)?;
                 let (
                     table_name,
                     table_schema,
@@ -212,7 +210,7 @@ impl SchemaHelper<'_, '_> {
         table_infos: &'a [T],
         select_columns: &[&str],
         additional_select_expressions: &[&str],
-    ) -> Result<QueryResult<'b, 'static, BinaryProtocol>, MySQLConnectorError>
+    ) -> Result<QueryResult, MySQLConnectorError>
     where
         TableInfoRef<'a>: From<&'a T>,
     {
@@ -301,17 +299,13 @@ impl SchemaHelper<'_, '_> {
             }
         );
 
-        let rows = conn
-            .exec_iter(query, query_params)
-            .await
-            .map_err(MySQLConnectorError::QueryExecutionError)?;
+        let rows = conn.exec_iter(query, query_params);
 
         Ok(rows)
     }
 
     async fn connect(&self) -> Result<Conn, MySQLConnectorError> {
-        self.conn_pool
-            .get_conn()
+        Conn::new(self.conn_pool.clone())
             .await
             .map_err(|err| MySQLConnectorError::ConnectionFailure(self.conn_url.clone(), err))
     }
