@@ -55,6 +55,7 @@ async fn count_and_query<S, B, E>(
     path: &str,
     service: &S,
     query: Option<Value>,
+    content_type: Option<ContentType>,
 ) -> (u64, Vec<Value>)
 where
     S: Service<Request, Response = ServiceResponse<B>, Error = E>,
@@ -65,24 +66,37 @@ where
     if let Some(query) = query.clone() {
         req = req.set_json(query);
     }
+    if content_type.is_some() {
+        req = req.insert_header(content_type.clone().unwrap());
+    }
     let req = req.to_request();
     let res = actix_web::test::call_service(service, req).await;
-    assert!(res.status().is_success());
-
-    let body: Value = actix_web::test::read_body_json(res).await;
-    let count = body.as_u64().unwrap();
+    let mut count = 0;
+    let mut records: Vec<Value> = vec![];
+    if content_type.is_some() && content_type.clone().unwrap() != ContentType::json() {
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+    } else {
+        assert!(res.status().is_success());
+        let body: Value = actix_web::test::read_body_json(res).await;
+        count = body.as_u64().unwrap();
+    }
 
     let mut req = actix_web::test::TestRequest::post().uri(&format!("{path}/query"));
     if let Some(query) = query {
         req = req.set_json(query);
     }
+    if content_type.is_some() {
+        req = req.insert_header(content_type.clone().unwrap());
+    }
     let req = req.to_request();
     let res = actix_web::test::call_service(service, req).await;
-    assert!(res.status().is_success());
-
-    let body: Value = actix_web::test::read_body_json(res).await;
-    let records = body.as_array().unwrap().to_vec();
-
+    if content_type.is_some() && content_type.clone().unwrap() != ContentType::json() {
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+    } else {
+        assert!(res.status().is_success());
+        let body: Value = actix_web::test::read_body_json(res).await;
+        records = body.as_array().unwrap().to_vec();
+    }
     (count, records)
 }
 
@@ -101,10 +115,10 @@ async fn count_and_query_route() {
     let app = actix_web::test::init_service(api_server).await;
 
     // Empty query.
-    let (count, records) = count_and_query(&endpoint.path, &app, None).await;
+    let (count, records) = count_and_query(&endpoint.path, &app, None, None).await;
     assert_eq!(count, 52);
     assert_eq!(records.len(), 50);
-    let (count, records) = count_and_query(&endpoint.path, &app, Some(json!({}))).await;
+    let (count, records) = count_and_query(&endpoint.path, &app, Some(json!({})), None).await;
     assert_eq!(count, 52);
     assert_eq!(records.len(), 50);
 
@@ -113,6 +127,7 @@ async fn count_and_query_route() {
         &endpoint.path,
         &app,
         Some(json!({"$filter": {"film_id":  268}})),
+        None,
     )
     .await;
     assert_eq!(count, 1);
@@ -121,13 +136,15 @@ async fn count_and_query_route() {
         &endpoint.path,
         &app,
         Some(json!({"$filter": {"release_year": 2006}})),
+        None,
     )
     .await;
     assert_eq!(count, 52);
     assert_eq!(records.len(), 50);
 
     // Query with limit.
-    let (count, records) = count_and_query(&endpoint.path, &app, Some(json!({"$limit": 11}))).await;
+    let (count, records) =
+        count_and_query(&endpoint.path, &app, Some(json!({"$limit": 11})), None).await;
     assert_eq!(count, 11);
     assert_eq!(records.len(), 11);
 }
@@ -260,8 +277,10 @@ async fn path_collision_test() {
     assert_ne!(res.status(), 404);
 }
 
-#[actix_web::test]
-async fn test_invalid_content_type() {
+async fn setup_service() -> (
+    impl Service<Request, Response = ServiceResponse<impl MessageBody>, Error = actix_web::Error>,
+    ApiEndpoint,
+) {
     let endpoint = test_utils::get_endpoint();
     let cache_manager = test_utils::initialize_cache(&endpoint.name, None);
     let api_server = ApiServer::create_app_entry(
@@ -272,99 +291,31 @@ async fn test_invalid_content_type() {
         )],
         Default::default(),
     );
-    let app = actix_web::test::init_service(api_server).await;
-
-    let req = actix_web::test::TestRequest::post()
-        .insert_header(ContentType::plaintext())
-        .uri(&format!("{path}/query", path = endpoint.path))
-        .to_request();
-    let res = actix_web::test::call_service(&app, req).await;
-
-    // Assert bad request
-    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+    (actix_web::test::init_service(api_server).await, endpoint)
 }
 #[actix_web::test]
-async fn test_empty_content_type() {
-    let endpoint = test_utils::get_endpoint();
-    let cache_manager = test_utils::initialize_cache(&endpoint.name, None);
-    let api_server = ApiServer::create_app_entry(
-        None,
-        CorsOptions::Permissive,
-        vec![Arc::new(
-            CacheEndpoint::open(&*cache_manager, Default::default(), endpoint.clone()).unwrap(),
-        )],
-        Default::default(),
-    );
-    let app = actix_web::test::init_service(api_server).await;
-
-    let (count, records) = count_and_query(&endpoint.path, &app, None).await;
-    assert_eq!(count, 52);
-    assert_eq!(records.len(), 50);
+async fn test_invalid_content_type() {
+    let (app, endpoint) = setup_service().await;
+    let (_count, _records) =
+        count_and_query(&endpoint.path, &app, None, Some(ContentType::plaintext())).await;
 }
 
 #[actix_web::test]
 async fn test_correct_content_type() {
-    let endpoint = test_utils::get_endpoint();
-    let cache_manager = test_utils::initialize_cache(&endpoint.name, None);
-    let api_server = ApiServer::create_app_entry(
-        None,
-        CorsOptions::Permissive,
-        vec![Arc::new(
-            CacheEndpoint::open(&*cache_manager, Default::default(), endpoint.clone()).unwrap(),
-        )],
-        Default::default(),
-    );
-    let app = actix_web::test::init_service(api_server).await;
+    let (app, endpoint) = setup_service().await;
 
-    let req_query = actix_web::test::TestRequest::post()
-        .uri(&format!("{path}/query", path = endpoint.path))
-        .insert_header(ContentType::json())
-        .to_request();
-    let res_query = actix_web::test::call_service(&app, req_query).await;
-
-    // Assert success
-    assert!(res_query.status().is_success());
-    let body1: Value = actix_web::test::read_body_json(res_query).await;
-    let records = body1.as_array().unwrap().to_vec();
-    assert_eq!(records.len(), 50);
-
-    let req_count = actix_web::test::TestRequest::post()
-        .uri(&format!("{path}/count", path = endpoint.path))
-        .insert_header(ContentType::json())
-        .to_request();
-    let res_count = actix_web::test::call_service(&app, req_count).await;
-
-    // Assert success
-    assert!(res_count.status().is_success());
-    let body: Value = actix_web::test::read_body_json(res_count).await;
-    let count = body.as_u64().unwrap();
-    assert_eq!(count, 52);
+    let (_count, _records) =
+        count_and_query(&endpoint.path, &app, None, Some(ContentType::json())).await;
 }
 
 #[actix_web::test]
 async fn test_malformed_json() {
-    let endpoint = test_utils::get_endpoint();
-    let cache_manager = test_utils::initialize_cache(&endpoint.name, None);
-    let api_server = ApiServer::create_app_entry(
+    let (app, endpoint) = setup_service().await;
+    let (_count, _records) = count_and_query(
+        &endpoint.path,
+        &app,
+        Some(json!({"$filter": {"film_id":  268}})),
         None,
-        CorsOptions::Permissive,
-        vec![Arc::new(
-            CacheEndpoint::open(&*cache_manager, Default::default(), endpoint.clone()).unwrap(),
-        )],
-        Default::default(),
-    );
-    let app = actix_web::test::init_service(api_server).await;
-    let req_query = actix_web::test::TestRequest::post()
-        .uri(&format!("{path}/query", path = endpoint.path))
-        .set_json(json!(["$filter", {"film_id":  "268"}]))
-        .to_request();
-    let res_query = actix_web::test::call_service(&app, req_query).await;
-    assert_eq!(res_query.status(), StatusCode::BAD_REQUEST);
-
-    let req_count = actix_web::test::TestRequest::post()
-        .uri(&format!("{path}/count", path = endpoint.path))
-        .set_json(json!(["$filter", {"film_id":  "268"}]))
-        .to_request();
-    let res_count = actix_web::test::call_service(&app, req_count).await;
-    assert_eq!(res_count.status(), StatusCode::BAD_REQUEST);
+    )
+    .await;
 }

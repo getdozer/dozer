@@ -99,7 +99,7 @@ impl ApiServer {
             .iter()
             .map(|cache_endpoint| cache_endpoint.endpoint.path.clone())
             .collect();
-        let cfg = PayloadConfig::default().limit(4 * 1024);
+        let cfg = PayloadConfig::default();
         let mut app = App::new()
             .app_data(web::Data::new(endpoint_paths))
             .app_data(cfg)
