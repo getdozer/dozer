@@ -35,8 +35,12 @@ pub struct Executor<'a> {
 }
 
 impl<'a> Executor<'a> {
+    // TODO: Refactor this to not require both `contract` and all of
+    // connections, sources and sql
+    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         home_dir: &'a HomeDir,
+        contract: &Contract,
         connections: &'a [Connection],
         sources: &'a [Source],
         sql: Option<&'a str>,
@@ -63,7 +67,8 @@ impl<'a> Executor<'a> {
         let mut endpoint_and_logs = vec![];
         for endpoint in api_endpoints {
             let log_endpoint =
-                create_log_endpoint(&build_path, &endpoint.name, &checkpoint_factory).await?;
+                create_log_endpoint(contract, &build_path, &endpoint.name, &checkpoint_factory)
+                    .await?;
             endpoint_and_logs.push((endpoint.clone(), log_endpoint));
         }
 
@@ -119,13 +124,13 @@ pub fn run_dag_executor(
 }
 
 async fn create_log_endpoint(
+    contract: &Contract,
     build_path: &BuildPath,
     endpoint_name: &str,
     checkpoint_factory: &CheckpointFactory,
 ) -> Result<LogEndpoint, OrchestrationError> {
     let endpoint_path = build_path.get_endpoint_path(endpoint_name);
 
-    let contract = Contract::deserialize(build_path)?;
     let schema = contract
         .endpoints
         .get(endpoint_name)

@@ -12,7 +12,7 @@ use dozer_types::{
             ConnectResponse, Label, Labels, RunRequest,
         },
     },
-    log::{error, info},
+    log::info,
 };
 use futures::stream::BoxStream;
 use metrics::IntoLabels;
@@ -115,22 +115,11 @@ impl CodeService for LiveServer {
                 return {};
             }
             loop {
-                let res = receiver.recv().await;
-                match res {
-                    Ok(res) => {
-                        let res = tx.send(Ok(res)).await;
-                        match res {
-                            Ok(_) => {}
-                            Err(e) => {
-                                error!("Error sending to channel");
-                                error!("{:?}", e);
-                                break;
-                            }
-                        }
-                    }
-                    Err(_) => {
-                        break;
-                    }
+                let Ok(connect_response) = receiver.recv().await else {
+                    break;
+                };
+                if tx.send(Ok(connect_response)).await.is_err() {
+                    break;
                 }
             }
         });
