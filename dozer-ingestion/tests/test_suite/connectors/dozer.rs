@@ -8,7 +8,6 @@ use dozer_cli::shutdown::{self, ShutdownSender};
 use dozer_cli::simple::SimpleOrchestrator;
 use dozer_ingestion::connectors::dozer::NestedDozerConnector;
 use dozer_ingestion::connectors::{CdcType, SourceSchema};
-use dozer_types::constants::LOCK_FILE;
 use dozer_types::grpc_types::conversions::field_to_grpc;
 use dozer_types::grpc_types::ingest::ingest_service_client::IngestServiceClient;
 use dozer_types::grpc_types::ingest::{IngestRequest, OperationType};
@@ -235,7 +234,7 @@ async fn create_nested_dozer_server(
     let directory = temp_dir.path().to_owned().try_into().unwrap();
     let mut dozer = SimpleOrchestrator::new(directory, config, runtime.clone(), Default::default());
     let (shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
-    let dozer_thread = std::thread::spawn(move || dozer.run_all(shutdown_receiver).unwrap());
+    let dozer_thread = std::thread::spawn(move || dozer.run_all(shutdown_receiver, false).unwrap());
 
     let client = try_connect_ingest("http://localhost:8085".to_owned()).await;
 
