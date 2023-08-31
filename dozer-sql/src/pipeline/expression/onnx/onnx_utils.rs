@@ -2,7 +2,7 @@ use ort::session::{Input, Output};
 use ort::tensor::TensorElementDataType;
 use dozer_types::arrow::datatypes::ArrowNativeTypeOp;
 use dozer_types::types::{FieldType, Schema};
-use crate::pipeline::errors::OnnxError::{ColumnNotFoundError, NonColumnArgFoundError, OnnxInputDataTypeMismatchErr, OnnxInputShapeErr, OnnxInputSizeErr, OnnxNotSupportedDataTypeErr, OnnxOutputShapeErr};
+use crate::pipeline::udfs_errors::OnnxError::{ColumnNotFoundError, NonColumnArgFoundError, OnnxInputDataTypeMismatchErr, OnnxInputShapeErr, OnnxInputSizeErr, OnnxNotSupportedDataTypeErr, OnnxOutputShapeErr};
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::PipelineError::OnnxError;
 use crate::pipeline::expression::execution::Expression;

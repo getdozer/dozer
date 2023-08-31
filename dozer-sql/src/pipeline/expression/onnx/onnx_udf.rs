@@ -11,7 +11,7 @@ use std::borrow::Borrow;
 use std::ops::Deref;
 use half::f16;
 use ort::tensor::TensorElementDataType;
-use crate::pipeline::errors::OnnxError::{OnnxInputDataMismatchErr, OnnxInvalidInputShapeErr, OnnxNotSupportedDataTypeErr, OnnxOrtErr, OnnxShapeErr};
+use crate::pipeline::udfs_errors::OnnxError::{OnnxInputDataMismatchErr, OnnxInvalidInputShapeErr, OnnxNotSupportedDataTypeErr, OnnxOrtErr, OnnxShapeErr};
 
 pub fn evaluate_onnx_udf(
     schema: &Schema,

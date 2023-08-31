@@ -15,6 +15,8 @@ mod window;
 mod tests;
 
 #[cfg(feature = "onnx")]
+pub mod udfs_errors;
+
 #[derive(Clone, Debug)]
 pub struct DozerSession(pub std::sync::Arc<ort::Session>);
 

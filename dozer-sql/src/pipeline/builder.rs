@@ -65,7 +65,7 @@ impl QueryContext {
 
     pub fn new(udfs: Vec<UdfConfig>) -> Self {
         let mut context = QueryContext::default();
-        context.udfs = udfs.to_vec();
+        context.udfs = udfs;
         context
     }
 }
@@ -79,7 +79,7 @@ pub fn statement_to_pipeline(
     sql: &str,
     pipeline: &mut AppPipeline,
     override_name: Option<String>,
-    udfs: &[UdfConfig],
+    udfs: Vec<UdfConfig>,
 ) -> Result<QueryContext, PipelineError> {
     let dialect = DozerDialect {};
     let mut ctx = QueryContext::new(udfs.to_vec());

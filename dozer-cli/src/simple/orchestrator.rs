@@ -391,7 +391,7 @@ pub fn validate_sql(sql: String) -> Result<(), PipelineError> {
         &sql,
         &mut AppPipeline::new_with_default_flags(),
         None,
-        &vec![],
+        vec![],
     )
     .map_or_else(
         |e| {

@@ -65,7 +65,7 @@ pub use dozer_sql::pipeline::builder::QueryContext;
 pub use ui_helper::config_to_ui_dag;
 pub fn wrapped_statement_to_pipeline(sql: &str) -> Result<QueryContext, PipelineError> {
     let mut pipeline = AppPipeline::new_with_default_flags();
-    statement_to_pipeline(sql, &mut pipeline, None, &vec![])
+    statement_to_pipeline(sql, &mut pipeline, None, vec![])
 }
 
 #[cfg(feature = "cloud")]

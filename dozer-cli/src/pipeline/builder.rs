@@ -162,7 +162,7 @@ impl<'a> PipelineBuilder<'a> {
 
         if let Some(sql) = &self.sql {
             let query_context =
-                statement_to_pipeline(sql, &mut pipeline, None, &self.udfs.to_vec())
+                statement_to_pipeline(sql, &mut pipeline, None, self.udfs.to_vec())
                     .map_err(OrchestrationError::PipelineError)?;
 
             query_ctx = Some(query_context.clone());
@@ -233,7 +233,7 @@ impl<'a> PipelineBuilder<'a> {
 
         if let Some(sql) = &self.sql {
             let query_context =
-                statement_to_pipeline(sql, &mut pipeline, None, self.udfs)
+                statement_to_pipeline(sql, &mut pipeline, None, self.udfs.to_vec())
                     .map_err(OrchestrationError::PipelineError)?;
 
             for (name, table_info) in query_context.output_tables_map {

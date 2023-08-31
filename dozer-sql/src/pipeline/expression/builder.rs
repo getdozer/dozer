@@ -33,7 +33,7 @@ use dozer_types::models::udf_config::UdfType::Onnx;
 #[cfg(feature = "onnx")]
 use crate::pipeline::DozerSession;
 #[cfg(feature = "onnx")]
-use crate::pipeline::errors::OnnxError::OnnxOrtErr;
+use crate::pipeline::udfs_errors::OnnxError::OnnxOrtErr;
 #[cfg(feature = "onnx")]
 use crate::pipeline::errors::PipelineError::OnnxError;
 
@@ -474,7 +474,7 @@ impl ExpressionBuilder {
             parse_aggregations,
             sql_function,
             schema,
-            udfs,
+            udfs.clone(),
         );
         if aggr_check.is_ok() {
             return aggr_check;
@@ -485,7 +485,7 @@ impl ExpressionBuilder {
             parse_aggregations,
             sql_function,
             schema,
-            udfs,
+            udfs.clone(),
         );
         if scalar_check.is_ok() {
             return scalar_check;
@@ -496,7 +496,7 @@ impl ExpressionBuilder {
             parse_aggregations,
             sql_function,
             schema,
-            udfs,
+            udfs.clone(),
         );
         if geo_check.is_ok() {
             return geo_check;
@@ -507,7 +507,7 @@ impl ExpressionBuilder {
             parse_aggregations,
             sql_function,
             schema,
-            udfs,
+            udfs.clone(),
         );
         if conditional_check.is_ok() {
             return conditional_check;
@@ -519,11 +519,11 @@ impl ExpressionBuilder {
         }
 
         let json_check = self.json_func_check(
-            function_name,
+            function_name.clone(),
             parse_aggregations,
             sql_function,
             schema,
-            udfs,
+            udfs.clone(),
         );
         if json_check.is_ok() {
             return json_check;
@@ -540,7 +540,7 @@ impl ExpressionBuilder {
                 schema,
                 udfs,
             ),
-            None => Err(PipelineError::UdfConfigMissing(function_name)),
+            None => Err(PipelineError::UdfConfigMissing(function_name.clone())),
         }
     }
 

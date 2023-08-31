@@ -338,7 +338,7 @@ fn get_dozer_run_instance(
                 &req.sql,
                 &mut AppPipeline::new(dozer.config.flags.clone().unwrap_or_default().into()),
                 None,
-                &dozer.config.udfs,
+                dozer.config.udfs.clone(),
             )
             .map_err(LiveError::PipelineError)?;
 
