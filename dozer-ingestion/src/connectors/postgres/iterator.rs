@@ -103,7 +103,7 @@ impl<'a> PostgresIteratorHandler<'a> {
     pub async fn start(&mut self) -> Result<(), ConnectorError> {
         let details = Arc::clone(&self.details);
         let replication_conn_config = details.replication_conn_config.to_owned();
-        let client = helper::connect(replication_conn_config)
+        let mut client = helper::connect(replication_conn_config)
             .await
             .map_err(ConnectorError::PostgresConnectorError)?;
 
@@ -113,20 +113,20 @@ impl<'a> PostgresIteratorHandler<'a> {
         // - When publication tables changes
 
         // We clear inactive replication slots before starting replication
-        ReplicationSlotHelper::clear_inactive_slots(&client, REPLICATION_SLOT_PREFIX)
+        ReplicationSlotHelper::clear_inactive_slots(&mut client, REPLICATION_SLOT_PREFIX)
             .await
             .map_err(ConnectorError::PostgresConnectorError)?;
 
         if self.lsn.is_none() {
             debug!("\nCreating Slot....");
             let slot_exist =
-                ReplicationSlotHelper::replication_slot_exists(&client, &details.slot_name)
+                ReplicationSlotHelper::replication_slot_exists(&mut client, &details.slot_name)
                     .await
                     .map_err(ConnectorError::PostgresConnectorError)?;
 
             if slot_exist {
                 // We dont have lsn, so we need to drop replication slot and start from scratch
-                ReplicationSlotHelper::drop_replication_slot(&client, &details.slot_name)
+                ReplicationSlotHelper::drop_replication_slot(&mut client, &details.slot_name)
                     .await
                     .map_err(InvalidQueryError)?;
             }
@@ -140,7 +140,8 @@ impl<'a> PostgresIteratorHandler<'a> {
                 })?;
 
             let replication_slot_lsn =
-                ReplicationSlotHelper::create_replication_slot(&client, &details.slot_name).await?;
+                ReplicationSlotHelper::create_replication_slot(&mut client, &details.slot_name)
+                    .await?;
             if let Some(lsn) = replication_slot_lsn {
                 let parsed_lsn =
                     PgLsn::from_str(&lsn).map_err(|_| LsnParseError(lsn.to_string()))?;

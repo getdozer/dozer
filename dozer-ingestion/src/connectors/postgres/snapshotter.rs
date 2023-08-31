@@ -43,7 +43,7 @@ impl<'a> PostgresSnapshotter<'a> {
         conn_config: tokio_postgres::Config,
         sender: Sender<Result<(usize, Operation), ConnectorError>>,
     ) -> Result<(), ConnectorError> {
-        let client_plain = connection_helper::connect(conn_config)
+        let mut client_plain = connection_helper::connect(conn_config)
             .await
             .map_err(PostgresConnectorError)?;
 
@@ -63,7 +63,7 @@ impl<'a> PostgresSnapshotter<'a> {
 
         let empty_vec: Vec<String> = Vec::new();
         let row_stream = client_plain
-            .query_raw(&stmt, empty_vec)
+            .query_raw(query, empty_vec)
             .await
             .map_err(|e| PostgresConnectorError(InvalidQueryError(e)))?;
         tokio::pin!(row_stream);
@@ -176,7 +176,7 @@ mod tests {
                 .as_ref()
                 .unwrap();
 
-            let test_client = TestPostgresClient::new(config).await;
+            let mut test_client = TestPostgresClient::new(config).await;
 
             let mut rng = rand::thread_rng();
             let table_name = format!("test_table_{}", rng.gen::<u32>());
@@ -234,7 +234,7 @@ mod tests {
                 .as_ref()
                 .unwrap();
 
-            let test_client = TestPostgresClient::new(config).await;
+            let mut test_client = TestPostgresClient::new(config).await;
 
             let mut rng = rand::thread_rng();
             let table_name = format!("test_table_{}", rng.gen::<u32>());

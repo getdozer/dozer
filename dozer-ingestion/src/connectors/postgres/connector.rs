@@ -15,8 +15,9 @@ use crate::connectors::postgres::schema::helper::{SchemaHelper, DEFAULT_SCHEMA_N
 use crate::errors::ConnectorError::PostgresConnectorError;
 use crate::errors::PostgresConnectorError::{CreatePublicationError, DropPublicationError};
 use tokio_postgres::config::ReplicationMode;
-use tokio_postgres::{Client, Config};
+use tokio_postgres::Config;
 
+use super::connection::client::Client;
 use super::connection::helper;
 
 #[derive(Clone, Debug)]
@@ -220,7 +221,7 @@ impl PostgresConnector {
 
     pub async fn create_publication(
         &self,
-        client: Client,
+        mut client: Client,
         table_identifiers: Option<&[TableIdentifier]>,
     ) -> Result<(), ConnectorError> {
         let publication_name = self.get_publication_name();
