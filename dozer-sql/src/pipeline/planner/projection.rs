@@ -142,7 +142,7 @@ impl<'a> CommonPlanner<'_> {
             self.input_schema.fields.len(),
             self.aggregation_output.clone(),
         );
-        let having_expression = builder.build(true, &expr, &self.input_schema, &self.udfs.to_vec())?;
+        let having_expression = builder.build(true, &expr, &self.input_schema, self.udfs)?;
 
         let mut post_aggregation_schema = self.input_schema.clone();
         let mut aggregation_output = Vec::new();
