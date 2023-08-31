@@ -4,7 +4,7 @@ use std::{
     path::Path,
 };
 
-use dozer_cache::dozer_log::{home_dir::BuildPath, schemas::EndpointSchema};
+use dozer_cache::dozer_log::schemas::EndpointSchema;
 use dozer_core::{
     dag_schemas::DagSchemas,
     daggy::{self, NodeIndex},
@@ -162,13 +162,13 @@ impl Contract {
         })
     }
 
-    pub fn serialize(&self, build_path: &BuildPath) -> Result<(), BuildError> {
-        serde_json_to_path(&build_path.dag_path, &self)?;
+    pub fn serialize(&self, path: &Path) -> Result<(), BuildError> {
+        serde_json_to_path(path, &self)?;
         Ok(())
     }
 
-    pub fn deserialize(build_path: &BuildPath) -> Result<Self, BuildError> {
-        serde_json_from_path(&build_path.dag_path)
+    pub fn deserialize(path: &Path) -> Result<Self, BuildError> {
+        serde_json_from_path(path)
     }
 }
 
@@ -222,6 +222,7 @@ fn serde_json_to_path(path: impl AsRef<Path>, value: &impl Serialize) -> Result<
     let file = OpenOptions::new()
         .create(true)
         .write(true)
+        .truncate(true)
         .open(path.as_ref())
         .map_err(|e| BuildError::FileSystem(path.as_ref().into(), e))?;
     serde_json::to_writer_pretty(file, value).map_err(BuildError::SerdeJson)

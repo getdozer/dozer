@@ -128,6 +128,9 @@ pub enum CliError {
     MissingConfigOverride(String),
     #[error("Failed to deserialize config from json: {0}")]
     DeserializeConfigFromJson(#[source] serde_json::Error),
+    // Generic IO error
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
 }
 
 #[derive(Error, Debug)]
