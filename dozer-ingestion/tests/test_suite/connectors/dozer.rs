@@ -8,7 +8,6 @@ use dozer_cli::shutdown::{self, ShutdownSender};
 use dozer_cli::simple::SimpleOrchestrator;
 use dozer_ingestion::connectors::dozer::NestedDozerConnector;
 use dozer_ingestion::connectors::{CdcType, SourceSchema};
-use dozer_types::constants::LOCK_FILE;
 use dozer_types::grpc_types::conversions::field_to_grpc;
 use dozer_types::grpc_types::ingest::ingest_service_client::IngestServiceClient;
 use dozer_types::grpc_types::ingest::{IngestRequest, OperationType};
