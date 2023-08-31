@@ -132,7 +132,7 @@ impl ProcessorFactory for ProjectionProcessorFactory {
 pub(crate) fn parse_sql_select_item(
     sql: &SelectItem,
     schema: &Schema,
-    udfs: &Vec<UdfConfig>,
+    udfs: &[UdfConfig],
 ) -> Result<(String, Expression), PipelineError> {
     match sql {
         SelectItem::UnnamedExpr(sql_expr) => {

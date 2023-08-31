@@ -113,7 +113,7 @@ impl<'a> CommonPlanner<'_> {
                 self.input_schema.fields.len() + self.aggregation_output.len(),
             );
             let projection_expression =
-                builder.build(true, &expr, &self.input_schema, &self.udfs.to_vec())?;
+                builder.build(true, &expr, &self.input_schema, self.udfs)?;
 
             for new_aggr in builder.aggregations {
                 Self::append_to_schema(

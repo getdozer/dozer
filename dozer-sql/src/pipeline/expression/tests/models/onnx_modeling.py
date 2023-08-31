@@ -1,7 +1,6 @@
 import torch
 
 
-# network class 2-hidden layer model
 class NeuralNetwork(torch.nn.Module):
     def __init__(self):
         super().__init__()

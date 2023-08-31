@@ -207,7 +207,7 @@ fn get_expression(
     function_name: String,
     interval_arg: &FunctionArg,
     schema: &Schema,
-    udfs: &Vec<UdfConfig>,
+    udfs: &[UdfConfig],
 ) -> Result<Expression, TableOperatorError> {
     match interval_arg {
         FunctionArg::Named { name, arg: _ } => {

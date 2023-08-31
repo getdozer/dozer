@@ -531,11 +531,11 @@ impl ExpressionBuilder {
 
         // config check for udfs
         let udf_type = udfs.iter().find(|udf| udf.name == function_name).ok_or(PipelineError::UdfConfigMissing(function_name.clone()))?;
-        return match &udf_type.config {
+        match &udf_type.config {
             #[cfg(feature = "onnx")]
             Some(Onnx(config)) => self.parse_onnx_udf(
                 function_name.clone(),
-                &config,
+                config,
                 sql_function,
                 schema,
                 udfs,
@@ -834,7 +834,7 @@ impl ExpressionBuilder {
         name: &str,
         function: &Function,
         schema: &Schema,
-        udfs: &Vec<UdfConfig>,
+        udfs: &[UdfConfig],
     ) -> Result<Expression, PipelineError> {
         // First, get python function define by name.
         // Then, transfer python function to Expression::PythonUDF

@@ -26,7 +26,7 @@ pub fn onnx_input_validation(schema: &Schema, args: &Vec<Expression>, inputs: &V
         return Err(OnnxError(OnnxInputShapeErr(flattened as usize, args.len())))
     }
     // 2. input datatype check
-    for (input, arg) in inputs.into_iter().zip(args) {
+    for (input, arg) in inputs.iter().zip(args) {
         match arg {
             Expression::Column {index} => {
                 match schema.fields.get(*index) {

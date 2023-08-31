@@ -420,7 +420,7 @@ pub fn evaluate_onnx_udf(
             assert_eq!(outputs.len(), 1);
             onnx_output_to_dozer(return_type, output, output_shape)
         },
-        _ => return Err(OnnxError(OnnxNotSupportedDataTypeErr(input_type)))
+        _ => Err(OnnxError(OnnxNotSupportedDataTypeErr(input_type)))
     }
 }
 
@@ -440,7 +440,7 @@ fn onnx_output_to_dozer(return_type: TensorElementDataType, output: &Value, outp
         TensorElementDataType::Float64 => {
             let output_array_view = output.try_extract::<f64>().map_err(|e| OnnxError(OnnxOrtErr(e)))?;
             assert_eq!(output_array_view.view().shape(), output_shape);
-            Ok(Field::Float(OrderedFloat(output_array_view.view().deref()[0].into())))
+            Ok(Field::Float(OrderedFloat(output_array_view.view().deref()[0])))
         }
         _ => Err(OnnxError(OnnxNotSupportedDataTypeErr(return_type)))
     }

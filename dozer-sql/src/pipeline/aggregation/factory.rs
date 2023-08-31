@@ -44,7 +44,7 @@ impl AggregationProcessorFactory {
     }
 
     fn get_planner(&self, input_schema: Schema) -> Result<CommonPlanner, PipelineError> {
-        let mut projection_planner = CommonPlanner::new(input_schema, &self.udfs.as_slice());
+        let mut projection_planner = CommonPlanner::new(input_schema, self.udfs.as_slice());
         projection_planner.plan(self.projection.clone())?;
         Ok(projection_planner)
     }
