@@ -6,7 +6,6 @@ on:
     branches: [release, release-dev, release-test, main]
     tags:
       - "v*.*.*"
-  merge_group:
 
 env:
   CARGO_TERM_COLOR: always
