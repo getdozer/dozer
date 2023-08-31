@@ -12,7 +12,7 @@ pub use errors::LiveError;
 use futures::stream::{AbortHandle, Abortable};
 use tokio::runtime::Runtime;
 
-const WEB_PORT: u16 = 3000;
+const WEB_PORT: u16 = 62999;
 pub async fn start_live_server(
     runtime: &Arc<Runtime>,
     shutdown: ShutdownReceiver,

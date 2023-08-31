@@ -32,9 +32,7 @@ struct DozerE2eTest {
 impl DozerE2eTest {
     async fn new(config_str: &str) -> Self {
         let temp_dir = TempDir::new("tests").unwrap();
-        let mut config = serde_yaml::from_str::<Config>(config_str).unwrap();
-        config.home_dir = temp_dir.path().to_str().unwrap().to_string();
-        config.cache_dir = temp_dir.path().join("cache").to_str().unwrap().to_string();
+        let config = serde_yaml::from_str::<Config>(config_str).unwrap();
 
         let api_grpc = config
             .api
@@ -54,10 +52,15 @@ impl DozerE2eTest {
         }
 
         let runtime = Runtime::new().expect("Failed to create runtime");
-        let mut dozer = SimpleOrchestrator::new(config, Arc::new(runtime), Default::default());
+        let mut dozer = SimpleOrchestrator::new(
+            temp_dir.path().to_path_buf().try_into().unwrap(),
+            config,
+            Arc::new(runtime),
+            Default::default(),
+        );
         let (shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
         let dozer_thread = std::thread::spawn(move || {
-            dozer.run_all(shutdown_receiver).unwrap();
+            dozer.run_all(shutdown_receiver, false).unwrap();
         });
 
         let num_retries = 10;

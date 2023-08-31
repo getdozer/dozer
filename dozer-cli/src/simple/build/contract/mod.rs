@@ -4,12 +4,13 @@ use std::{
     path::Path,
 };
 
-use dozer_cache::dozer_log::{home_dir::BuildPath, schemas::EndpointSchema};
+use dozer_cache::dozer_log::schemas::EndpointSchema;
 use dozer_core::{
     dag_schemas::DagSchemas,
     daggy::{self, NodeIndex},
     node::PortHandle,
     petgraph::{
+        algo::is_isomorphic_matching,
         visit::{EdgeRef, IntoEdgesDirected, IntoNodeReferences},
         Direction,
     },
@@ -29,14 +30,14 @@ use dozer_types::{
 
 use crate::errors::BuildError;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(crate = "dozer_types::serde")]
 pub struct NodeType {
     pub handle: NodeHandle,
     pub kind: NodeKind,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(crate = "dozer_types::serde")]
 pub enum NodeKind {
     Source {
@@ -49,7 +50,7 @@ pub enum NodeKind {
     Sink,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(crate = "dozer_types::serde")]
 pub struct EdgeType {
     pub from_port: PortHandle,
@@ -57,9 +58,11 @@ pub struct EdgeType {
     pub schema: Schema,
 }
 
-pub type PipelineContract = daggy::Dag<NodeType, EdgeType>;
+#[derive(Deserialize, Serialize, Debug, Clone)]
+#[serde(crate = "dozer_types::serde")]
+pub struct PipelineContract(daggy::Dag<NodeType, EdgeType>);
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(crate = "dozer_types::serde")]
 pub struct Contract {
     pub version: usize,
@@ -157,18 +160,18 @@ impl Contract {
 
         Ok(Self {
             version,
-            pipeline,
+            pipeline: PipelineContract(pipeline),
             endpoints: endpoint_schemas,
         })
     }
 
-    pub fn serialize(&self, build_path: &BuildPath) -> Result<(), BuildError> {
-        serde_json_to_path(&build_path.dag_path, &self)?;
+    pub fn serialize(&self, path: &Path) -> Result<(), BuildError> {
+        serde_json_to_path(path, &self)?;
         Ok(())
     }
 
-    pub fn deserialize(build_path: &BuildPath) -> Result<Self, BuildError> {
-        serde_json_from_path(&build_path.dag_path)
+    pub fn deserialize(path: &Path) -> Result<Self, BuildError> {
+        serde_json_from_path(path)
     }
 }
 
@@ -222,6 +225,7 @@ fn serde_json_to_path(path: impl AsRef<Path>, value: &impl Serialize) -> Result<
     let file = OpenOptions::new()
         .create(true)
         .write(true)
+        .truncate(true)
         .open(path.as_ref())
         .map_err(|e| BuildError::FileSystem(path.as_ref().into(), e))?;
     serde_json::to_writer_pretty(file, value).map_err(BuildError::SerdeJson)
@@ -236,6 +240,17 @@ where
         .open(path.as_ref())
         .map_err(|e| BuildError::FileSystem(path.as_ref().into(), e))?;
     serde_json::from_reader(file).map_err(BuildError::FailedToLoadExistingContract)
+}
+
+impl PartialEq<PipelineContract> for PipelineContract {
+    fn eq(&self, other: &PipelineContract) -> bool {
+        is_isomorphic_matching(
+            self.0.graph(),
+            other.0.graph(),
+            PartialEq::eq,
+            PartialEq::eq,
+        )
+    }
 }
 
 mod modify_schema;

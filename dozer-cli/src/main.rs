@@ -169,7 +169,7 @@ fn run() -> Result<(), OrchestrationError> {
             }
             None => {
                 render_logo();
-                dozer.run_all(shutdown_receiver)
+                dozer.run_all(shutdown_receiver, run.locked)
             }
         },
         Commands::Security(security) => match security.command {
@@ -182,7 +182,7 @@ fn run() -> Result<(), OrchestrationError> {
         Commands::Build(build) => {
             let force = build.force.is_some();
 
-            dozer.build(force, shutdown_receiver)
+            dozer.build(force, shutdown_receiver, build.locked)
         }
         Commands::Connectors(ConnectorCommand { filter }) => dozer.runtime.block_on(list_sources(
             dozer.runtime.clone(),

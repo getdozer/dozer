@@ -1,4 +1,5 @@
 use super::executor::{run_dag_executor, Executor};
+use super::Contract;
 use crate::errors::OrchestrationError;
 use crate::pipeline::PipelineBuilder;
 use crate::shutdown::ShutdownReceiver;
@@ -15,10 +16,12 @@ use dozer_api::auth::{Access, Authorizer};
 use dozer_api::grpc::internal::internal_pipeline_server::start_internal_pipeline_server;
 use dozer_api::{grpc, rest, CacheEndpoint};
 use dozer_cache::cache::LmdbRwCacheManager;
+use dozer_cache::dozer_log::camino::Utf8PathBuf;
 use dozer_cache::dozer_log::home_dir::HomeDir;
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::DagSchemas;
 use dozer_tracing::LabelsAndProgress;
+use dozer_types::constants::LOCK_FILE;
 use dozer_types::models::flags::default_push_events;
 use tokio::select;
 
@@ -39,7 +42,6 @@ use futures::{FutureExt, StreamExt, TryFutureExt};
 use metrics::{describe_counter, describe_histogram};
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
 
 use std::sync::Arc;
 use std::thread;
@@ -48,14 +50,21 @@ use tokio::sync::broadcast;
 
 #[derive(Clone)]
 pub struct SimpleOrchestrator {
+    pub base_directory: Utf8PathBuf,
     pub config: Config,
     pub runtime: Arc<Runtime>,
     pub labels: LabelsAndProgress,
 }
 
 impl SimpleOrchestrator {
-    pub fn new(config: Config, runtime: Arc<Runtime>, labels: LabelsAndProgress) -> Self {
+    pub fn new(
+        base_directory: Utf8PathBuf,
+        config: Config,
+        runtime: Arc<Runtime>,
+        labels: LabelsAndProgress,
+    ) -> Self {
         Self {
+            base_directory,
             config,
             runtime,
             labels,
@@ -173,14 +182,28 @@ impl SimpleOrchestrator {
         Ok(())
     }
 
+    pub fn home_dir(&self) -> Utf8PathBuf {
+        self.base_directory.join(&self.config.home_dir)
+    }
+
+    pub fn cache_dir(&self) -> Utf8PathBuf {
+        self.base_directory.join(&self.config.cache_dir)
+    }
+
+    pub fn lockfile_path(&self) -> Utf8PathBuf {
+        self.base_directory.join(LOCK_FILE)
+    }
+
     pub fn run_apps(
         &mut self,
         shutdown: ShutdownReceiver,
         api_notifier: Option<Sender<bool>>,
     ) -> Result<(), OrchestrationError> {
-        let home_dir = HomeDir::new(self.config.home_dir.clone(), self.config.cache_dir.clone());
+        let home_dir = HomeDir::new(self.home_dir(), self.cache_dir());
+        let contract = Contract::deserialize(self.lockfile_path().as_std_path())?;
         let executor = self.runtime.block_on(Executor::new(
             &home_dir,
+            &contract,
             &self.config.connections,
             &self.config.sources,
             self.config.sql.as_deref(),
@@ -270,8 +293,11 @@ impl SimpleOrchestrator {
         &mut self,
         force: bool,
         shutdown: ShutdownReceiver,
+        locked: bool,
     ) -> Result<(), OrchestrationError> {
-        let home_dir = HomeDir::new(self.config.home_dir.clone(), self.config.cache_dir.clone());
+        let home_dir = self.home_dir();
+        let cache_dir = self.cache_dir();
+        let home_dir = HomeDir::new(home_dir, cache_dir);
 
         info!(
             "Initiating app: {}",
@@ -329,10 +355,28 @@ impl SimpleOrchestrator {
             enable_on_event,
         )?;
 
+        let contract_path = self.lockfile_path();
+        let existing_contract = Contract::deserialize(contract_path.as_std_path()).ok();
+        if locked {
+            let Some(existing_contract) = existing_contract.as_ref() else {
+                return Err(OrchestrationError::LockedNoLockFile);
+            };
+
+            if &contract != existing_contract {
+                return Err(OrchestrationError::LockedOutdatedLockfile);
+            }
+        }
+
         // Run build
         let storage_config = get_storage_config(&self.config);
-        self.runtime
-            .block_on(build::build(&home_dir, &contract, &storage_config))?;
+        self.runtime.block_on(build::build(
+            &home_dir,
+            &contract,
+            existing_contract.as_ref(),
+            &storage_config,
+        ))?;
+
+        contract.serialize(contract_path.as_std_path())?;
 
         Ok(())
     }
@@ -340,27 +384,31 @@ impl SimpleOrchestrator {
     // Cleaning the entire folder as there will be inconsistencies
     // between pipeline, cache and generated proto files.
     pub fn clean(&mut self) -> Result<(), OrchestrationError> {
-        let cache_dir = PathBuf::from(self.config.cache_dir.clone());
+        let cache_dir = self.cache_dir();
         if cache_dir.exists() {
             fs::remove_dir_all(&cache_dir)
-                .map_err(|e| ExecutionError::FileSystemError(cache_dir, e))?;
+                .map_err(|e| ExecutionError::FileSystemError(cache_dir.into_std_path_buf(), e))?;
         };
 
-        let home_dir = PathBuf::from(self.config.home_dir.clone());
+        let home_dir = self.home_dir();
         if home_dir.exists() {
             fs::remove_dir_all(&home_dir)
-                .map_err(|e| ExecutionError::FileSystemError(home_dir, e))?;
+                .map_err(|e| ExecutionError::FileSystemError(home_dir.into_std_path_buf(), e))?;
         };
 
         Ok(())
     }
 
-    pub fn run_all(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError> {
+    pub fn run_all(
+        &mut self,
+        shutdown: ShutdownReceiver,
+        locked: bool,
+    ) -> Result<(), OrchestrationError> {
         let mut dozer_api = self.clone();
 
         let (tx, rx) = channel::unbounded::<bool>();
 
-        self.build(false, shutdown.clone())?;
+        self.build(false, shutdown.clone(), locked)?;
 
         let mut dozer_pipeline = self.clone();
         let pipeline_shutdown = shutdown.clone();
