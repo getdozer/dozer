@@ -209,7 +209,7 @@ impl<'a> CommonPlanner<'_> {
         Ok(())
     }
 
-    pub fn new(input_schema: Schema, udfs: &'a[UdfConfig]) -> CommonPlanner<'a> {
+    pub fn new(input_schema: Schema, udfs: &'a [UdfConfig]) -> CommonPlanner<'a> {
         CommonPlanner {
             input_schema: input_schema.clone(),
             post_aggregation_schema: input_schema,

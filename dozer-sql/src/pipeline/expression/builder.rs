@@ -1,3 +1,11 @@
+use crate::pipeline::errors::PipelineError::{
+    InvalidArgument, InvalidExpression, InvalidFunction, InvalidNestedAggregationFunction,
+    InvalidOperator, InvalidValue,
+};
+use crate::pipeline::errors::{PipelineError, SqlError};
+use crate::pipeline::expression::aggregate::AggregateFunctionType;
+use crate::pipeline::expression::conditional::ConditionalExpressionType;
+use crate::pipeline::expression::datetime::DateTimeFunctionType;
 use dozer_types::models::udf_config::UdfConfig;
 use dozer_types::{
     ordered_float::OrderedFloat,
@@ -8,11 +16,6 @@ use sqlparser::ast::{
     FunctionArg, FunctionArgExpr, Ident, Interval, TrimWhereField,
     UnaryOperator as SqlUnaryOperator, Value as SqlValue,
 };
-use crate::pipeline::errors::PipelineError::{InvalidArgument, InvalidExpression, InvalidFunction, InvalidNestedAggregationFunction, InvalidOperator, InvalidValue};
-use crate::pipeline::errors::{PipelineError, SqlError};
-use crate::pipeline::expression::aggregate::AggregateFunctionType;
-use crate::pipeline::expression::conditional::ConditionalExpressionType;
-use crate::pipeline::expression::datetime::DateTimeFunctionType;
 
 use crate::pipeline::expression::execution::Expression;
 use crate::pipeline::expression::execution::Expression::{
@@ -27,15 +30,15 @@ use crate::pipeline::expression::scalar::string::TrimType;
 use super::cast::CastOperatorType;
 
 #[cfg(feature = "onnx")]
-use dozer_types::models::udf_config::OnnxConfig;
-#[cfg(feature = "onnx")]
-use dozer_types::models::udf_config::UdfType::Onnx;
+use crate::pipeline::errors::PipelineError::OnnxError;
 #[cfg(feature = "onnx")]
 use crate::pipeline::onnx::DozerSession;
 #[cfg(feature = "onnx")]
 use crate::pipeline::onnx::OnnxError::OnnxOrtErr;
 #[cfg(feature = "onnx")]
-use crate::pipeline::errors::PipelineError::OnnxError;
+use dozer_types::models::udf_config::OnnxConfig;
+#[cfg(feature = "onnx")]
+use dozer_types::models::udf_config::UdfType::Onnx;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct ExpressionBuilder {
@@ -530,16 +533,15 @@ impl ExpressionBuilder {
         }
 
         // config check for udfs
-        let udf_type = udfs.iter().find(|udf| udf.name == function_name).ok_or(PipelineError::UdfConfigMissing(function_name.clone()))?;
+        let udf_type = udfs
+            .iter()
+            .find(|udf| udf.name == function_name)
+            .ok_or(PipelineError::UdfConfigMissing(function_name.clone()))?;
         match &udf_type.config {
             #[cfg(feature = "onnx")]
-            Some(Onnx(config)) => self.parse_onnx_udf(
-                function_name.clone(),
-                config,
-                sql_function,
-                schema,
-                udfs,
-            ),
+            Some(Onnx(config)) => {
+                self.parse_onnx_udf(function_name.clone(), config, sql_function, schema, udfs)
+            }
             None => Err(PipelineError::UdfConfigMissing(function_name.clone())),
         }
     }
@@ -838,8 +840,8 @@ impl ExpressionBuilder {
     ) -> Result<Expression, PipelineError> {
         // First, get python function define by name.
         // Then, transfer python function to Expression::PythonUDF
-        use PipelineError::InvalidQuery;
         use dozer_types::types::FieldType;
+        use PipelineError::InvalidQuery;
 
         let args = function
             .args
@@ -875,9 +877,11 @@ impl ExpressionBuilder {
     ) -> Result<Expression, PipelineError> {
         // First, get onnx function define by name.
         // Then, transfer onnx function to Expression::OnnxUDF
+        use crate::pipeline::expression::onnx::onnx_utils::{
+            onnx_input_validation, onnx_output_validation,
+        };
         use ort::{Environment, GraphOptimizationLevel, LoggingLevel, SessionBuilder};
         use std::path::Path;
-        use crate::pipeline::expression::onnx::onnx_utils::{onnx_input_validation, onnx_output_validation};
 
         let args = function
             .args

@@ -36,12 +36,8 @@ pub(crate) fn insert_join_to_pipeline(
 
     let left_table = &from.relation;
     let mut left_name_or_alias = Some(get_name_or_alias(left_table)?);
-    let mut left_join_source = insert_join_source_to_pipeline(
-        left_table.clone(),
-        pipeline,
-        pipeline_idx,
-        query_context,
-    )?;
+    let mut left_join_source =
+        insert_join_source_to_pipeline(left_table.clone(), pipeline, pipeline_idx, query_context)?;
 
     for join in &from.joins {
         let right_table = &join.relation;

@@ -161,9 +161,8 @@ impl<'a> PipelineBuilder<'a> {
         let mut transformed_sources = vec![];
 
         if let Some(sql) = &self.sql {
-            let query_context =
-                statement_to_pipeline(sql, &mut pipeline, None, self.udfs.to_vec())
-                    .map_err(OrchestrationError::PipelineError)?;
+            let query_context = statement_to_pipeline(sql, &mut pipeline, None, self.udfs.to_vec())
+                .map_err(OrchestrationError::PipelineError)?;
 
             query_ctx = Some(query_context.clone());
 
@@ -232,9 +231,8 @@ impl<'a> PipelineBuilder<'a> {
         }
 
         if let Some(sql) = &self.sql {
-            let query_context =
-                statement_to_pipeline(sql, &mut pipeline, None, self.udfs.to_vec())
-                    .map_err(OrchestrationError::PipelineError)?;
+            let query_context = statement_to_pipeline(sql, &mut pipeline, None, self.udfs.to_vec())
+                .map_err(OrchestrationError::PipelineError)?;
 
             for (name, table_info) in query_context.output_tables_map {
                 if available_output_tables.contains_key(name.as_str()) {

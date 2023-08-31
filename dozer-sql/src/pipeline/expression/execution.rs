@@ -16,6 +16,10 @@ use crate::pipeline::expression::scalar::common::{get_scalar_function_type, Scal
 use crate::pipeline::expression::scalar::string::{evaluate_trim, validate_trim, TrimType};
 use std::iter::zip;
 
+use super::aggregate::AggregateFunctionType;
+use super::cast::CastOperatorType;
+use super::in_list::evaluate_in_list;
+use super::scalar::string::{evaluate_like, get_like_operator_type};
 use crate::pipeline::aggregation::max_value::validate_max_value;
 use crate::pipeline::aggregation::min_value::validate_min_value;
 #[cfg(feature = "onnx")]
@@ -25,10 +29,6 @@ use crate::pipeline::onnx::DozerSession;
 use dozer_types::types::Record;
 use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
 use uuid::Uuid;
-use super::aggregate::AggregateFunctionType;
-use super::cast::CastOperatorType;
-use super::in_list::evaluate_in_list;
-use super::scalar::string::{evaluate_like, get_like_operator_type};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Expression {

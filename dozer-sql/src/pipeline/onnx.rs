@@ -1,10 +1,10 @@
 use crate::pipeline::expression::execution::Expression;
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
-use ort::OrtError;
+use dozer_types::types::{Field, FieldType};
 use ndarray::ShapeError;
 use ort::tensor::TensorElementDataType;
-use dozer_types::types::{Field, FieldType};
+use ort::OrtError;
 
 #[derive(Clone, Debug)]
 pub struct DozerSession(pub std::sync::Arc<ort::Session>);

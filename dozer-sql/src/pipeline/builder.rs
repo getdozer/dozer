@@ -64,7 +64,10 @@ impl QueryContext {
     }
 
     pub fn new(udfs: Vec<UdfConfig>) -> Self {
-        QueryContext { udfs, ..Default::default() }
+        QueryContext {
+            udfs,
+            ..Default::default()
+        }
     }
 }
 
@@ -259,12 +262,8 @@ fn select_to_pipeline(
     //     pipeline_idx,
     // )?;
 
-    let connection_info = insert_from_to_pipeline(
-        &select.from[0],
-        pipeline,
-        pipeline_idx,
-        query_ctx,
-    )?;
+    let connection_info =
+        insert_from_to_pipeline(&select.from[0], pipeline, pipeline_idx, query_ctx)?;
 
     let input_nodes = connection_info.input_nodes;
     let output_node = connection_info.output_node;

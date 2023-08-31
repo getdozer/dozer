@@ -69,8 +69,7 @@ fn insert_table_processor_to_pipeline(
     query_context: &mut QueryContext,
 ) -> Result<ConnectionInfo, PipelineError> {
     // let relation_name_or_alias = get_name_or_alias(relation)?;
-    let relation_name_or_alias =
-        get_from_source(relation, pipeline, query_context, pipeline_idx)?;
+    let relation_name_or_alias = get_from_source(relation, pipeline, query_context, pipeline_idx)?;
 
     let product_processor_name = format!(
         "from:{}--{}",
