@@ -5,24 +5,14 @@ import torch
 class NeuralNetwork(torch.nn.Module):
     def __init__(self):
         super().__init__()
-        self.flatten = torch.nn.Flatten()
-        self.linear_relu_stack = torch.nn.Sequential(
-            torch.nn.Linear(4, 512),
-            torch.nn.ReLU(),
-            torch.nn.Linear(512, 512),
-            torch.nn.ReLU(),
-            torch.nn.Linear(512, 2),
-        )
 
     def forward(self, x):
-        x = self.flatten(x)
-        logits = self.linear_relu_stack(x)
-        return logits
+        return x.sum()
 
 
 model = NeuralNetwork()
 
-dummy_input = torch.randn(1, 4)
+dummy_input = torch.randn(4)
 
 # Exporting to ONNX format
-torch.onnx.export(model, dummy_input, "is_fraud.onnx")
+torch.onnx.export(model, dummy_input, "sum.onnx")

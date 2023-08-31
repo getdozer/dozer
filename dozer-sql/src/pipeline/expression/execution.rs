@@ -21,7 +21,7 @@ use crate::pipeline::aggregation::min_value::validate_min_value;
 #[cfg(feature = "onnx")]
 use crate::pipeline::expression::onnx::onnx_udf::evaluate_onnx_udf;
 #[cfg(feature = "onnx")]
-use crate::pipeline::DozerSession;
+use crate::pipeline::onnx::DozerSession;
 use dozer_types::types::Record;
 use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
 use uuid::Uuid;

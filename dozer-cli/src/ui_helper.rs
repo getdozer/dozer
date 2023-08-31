@@ -174,7 +174,7 @@ pub fn config_to_ui_dag(config: Config) -> Result<QueryGraph, OrchestrationError
         connection_sources,
         connection_source_ports,
         config.flags.unwrap_or_default(),
-        &config.udfs,
+        config.udfs,
     )?;
     Ok(transform_to_ui_graph(&sql_dag))
 }

@@ -82,7 +82,7 @@ pub fn statement_to_pipeline(
     udfs: Vec<UdfConfig>,
 ) -> Result<QueryContext, PipelineError> {
     let dialect = DozerDialect {};
-    let mut ctx = QueryContext::new(udfs.to_vec());
+    let mut ctx = QueryContext::new(udfs);
     let is_top_select = true;
     let ast = Parser::parse_sql(&dialect, sql)
         .map_err(|err| PipelineError::InternalError(Box::new(err)))?;

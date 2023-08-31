@@ -31,9 +31,9 @@ use dozer_types::models::udf_config::OnnxConfig;
 #[cfg(feature = "onnx")]
 use dozer_types::models::udf_config::UdfType::Onnx;
 #[cfg(feature = "onnx")]
-use crate::pipeline::DozerSession;
+use crate::pipeline::onnx::DozerSession;
 #[cfg(feature = "onnx")]
-use crate::pipeline::udfs_errors::OnnxError::OnnxOrtErr;
+use crate::pipeline::onnx::OnnxError::OnnxOrtErr;
 #[cfg(feature = "onnx")]
 use crate::pipeline::errors::PipelineError::OnnxError;
 

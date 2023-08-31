@@ -12,7 +12,7 @@ use dozer_types::types::{Field, FieldType};
 use std::fmt::{Display, Formatter};
 
 #[cfg(feature = "onnx")]
-use crate::pipeline::udfs_errors::OnnxError;
+use crate::pipeline::onnx::OnnxError;
 
 #[derive(Debug, Clone)]
 pub struct FieldTypes {

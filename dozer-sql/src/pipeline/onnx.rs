@@ -6,6 +6,16 @@ use ndarray::ShapeError;
 use ort::tensor::TensorElementDataType;
 use dozer_types::types::{Field, FieldType};
 
+#[derive(Clone, Debug)]
+pub struct DozerSession(pub std::sync::Arc<ort::Session>);
+
+#[cfg(feature = "onnx")]
+impl PartialEq for DozerSession {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(self as *const _, other as *const _)
+    }
+}
+
 #[derive(Error, Debug)]
 pub enum OnnxError {
     #[error("Onnx Ndarray Shape Error: {0}")]
