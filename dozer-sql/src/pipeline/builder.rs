@@ -64,7 +64,7 @@ impl QueryContext {
     }
 
     pub fn new(udfs: Vec<UdfConfig>) -> Self {
-        QueryContext { udfs: udfs, ..Default::default() }
+        QueryContext { udfs, ..Default::default() }
     }
 }
 

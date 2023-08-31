@@ -142,7 +142,7 @@ pub(crate) fn operator_from_descriptor(
 fn lifetime_from_descriptor(
     descriptor: &TableOperatorDescriptor,
     schema: &Schema,
-    udfs: &Vec<UdfConfig>,
+    udfs: &[UdfConfig],
 ) -> Result<LifetimeTableOperator, TableOperatorError> {
     let expression_arg = descriptor
         .args
