@@ -171,7 +171,7 @@ impl<'a> CommonPlanner<'_> {
             let mut builder = ExpressionBuilder::new(
                 self.input_schema.fields.len() + self.aggregation_output.len(),
             );
-            let groupby_expression = builder.build(false, &expr, &self.input_schema, &self.udfs.to_vec())?;
+            let groupby_expression = builder.build(false, &expr, &self.input_schema, self.udfs)?;
             self.groupby.push(groupby_expression.clone());
 
             if let Some(e) = self
