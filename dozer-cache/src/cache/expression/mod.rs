@@ -83,7 +83,7 @@ impl FromRequest for QueryExpression {
         let req = req.clone();
         let mut pl = _payload.take();
         let content_type = req.content_type();
-        if content_type != "application/json" && !content_type.is_empty() {
+        if !content_type.is_empty() && content_type != "application/json" {
             return Box::pin(err(actix_web::error::UrlencodedError::ContentType.into()));
         }
         //execute query

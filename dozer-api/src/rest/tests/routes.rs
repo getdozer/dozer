@@ -56,7 +56,7 @@ async fn count_and_query<S, B, E>(
     service: &S,
     query: Option<Value>,
     content_type: Option<ContentType>,
-) -> (u64, Vec<Value>)
+) -> Result<(u64, Vec<Value>), StatusCode>
 where
     S: Service<Request, Response = ServiceResponse<B>, Error = E>,
     B: MessageBody,
@@ -66,59 +66,50 @@ where
     if let Some(query) = query.clone() {
         req = req.set_json(query);
     }
-    if content_type.is_some() {
-        req = req.insert_header(content_type.clone().unwrap());
+    if let Some(content_type) = content_type.clone() {
+        req = req.insert_header(content_type);
     }
     let req = req.to_request();
     let res = actix_web::test::call_service(service, req).await;
-    let mut count = 0;
-    let mut records: Vec<Value> = vec![];
-    if content_type.is_some() && content_type.clone().unwrap() != ContentType::json() {
-        assert_eq!(res.status(), StatusCode::BAD_REQUEST);
-    } else {
-        assert!(res.status().is_success());
-        let body: Value = actix_web::test::read_body_json(res).await;
-        count = body.as_u64().unwrap();
+    if !res.status().is_success() {
+        return Err(res.status());
     }
+
+    let body: Value = actix_web::test::read_body_json(res).await;
+    let count = body.as_u64().unwrap();
 
     let mut req = actix_web::test::TestRequest::post().uri(&format!("{path}/query"));
     if let Some(query) = query {
         req = req.set_json(query);
     }
-    if content_type.is_some() {
-        req = req.insert_header(content_type.clone().unwrap());
+    if let Some(content_type) = content_type.clone() {
+        req = req.insert_header(content_type);
     }
     let req = req.to_request();
     let res = actix_web::test::call_service(service, req).await;
-    if content_type.is_some() && content_type.clone().unwrap() != ContentType::json() {
-        assert_eq!(res.status(), StatusCode::BAD_REQUEST);
-    } else {
-        assert!(res.status().is_success());
-        let body: Value = actix_web::test::read_body_json(res).await;
-        records = body.as_array().unwrap().to_vec();
+    if !res.status().is_success() {
+        return Err(res.status());
     }
-    (count, records)
+
+    let body: Value = actix_web::test::read_body_json(res).await;
+    let records = body.as_array().unwrap().clone();
+
+    Ok((count, records))
 }
 
 #[actix_web::test]
 async fn count_and_query_route() {
-    let endpoint = test_utils::get_endpoint();
-    let cache_manager = test_utils::initialize_cache(&endpoint.name, None);
-    let api_server = ApiServer::create_app_entry(
-        None,
-        CorsOptions::Permissive,
-        vec![Arc::new(
-            CacheEndpoint::open(&*cache_manager, Default::default(), endpoint.clone()).unwrap(),
-        )],
-        Default::default(),
-    );
-    let app = actix_web::test::init_service(api_server).await;
+    let (app, endpoint) = setup_service().await;
 
     // Empty query.
-    let (count, records) = count_and_query(&endpoint.path, &app, None, None).await;
+    let (count, records) = count_and_query(&endpoint.path, &app, None, None)
+        .await
+        .unwrap();
     assert_eq!(count, 52);
     assert_eq!(records.len(), 50);
-    let (count, records) = count_and_query(&endpoint.path, &app, Some(json!({})), None).await;
+    let (count, records) = count_and_query(&endpoint.path, &app, Some(json!({})), None)
+        .await
+        .unwrap();
     assert_eq!(count, 52);
     assert_eq!(records.len(), 50);
 
@@ -129,7 +120,8 @@ async fn count_and_query_route() {
         Some(json!({"$filter": {"film_id":  268}})),
         None,
     )
-    .await;
+    .await
+    .unwrap();
     assert_eq!(count, 1);
     assert_eq!(records.len(), 1);
     let (count, records) = count_and_query(
@@ -138,30 +130,22 @@ async fn count_and_query_route() {
         Some(json!({"$filter": {"release_year": 2006}})),
         None,
     )
-    .await;
+    .await
+    .unwrap();
     assert_eq!(count, 52);
     assert_eq!(records.len(), 50);
 
     // Query with limit.
-    let (count, records) =
-        count_and_query(&endpoint.path, &app, Some(json!({"$limit": 11})), None).await;
+    let (count, records) = count_and_query(&endpoint.path, &app, Some(json!({"$limit": 11})), None)
+        .await
+        .unwrap();
     assert_eq!(count, 11);
     assert_eq!(records.len(), 11);
 }
 
 #[actix_web::test]
 async fn get_route() {
-    let endpoint = test_utils::get_endpoint();
-    let cache_manager = test_utils::initialize_cache(&endpoint.name, None);
-    let api_server = ApiServer::create_app_entry(
-        None,
-        CorsOptions::Permissive,
-        vec![Arc::new(
-            CacheEndpoint::open(&*cache_manager, Default::default(), endpoint.clone()).unwrap(),
-        )],
-        Default::default(),
-    );
-    let app = actix_web::test::init_service(api_server).await;
+    let (app, endpoint) = setup_service().await;
     let req = actix_web::test::TestRequest::get()
         .uri(&format!("{}/{}", endpoint.path, 268))
         .to_request();
@@ -181,17 +165,7 @@ async fn get_route() {
 
 #[actix_web::test]
 async fn get_phase_test() {
-    let endpoint = test_utils::get_endpoint();
-    let cache_manager = test_utils::initialize_cache(&endpoint.name, None);
-    let api_server = ApiServer::create_app_entry(
-        None,
-        CorsOptions::Permissive,
-        vec![Arc::new(
-            CacheEndpoint::open(&*cache_manager, Default::default(), endpoint.clone()).unwrap(),
-        )],
-        Default::default(),
-    );
-    let app = actix_web::test::init_service(api_server).await;
+    let (app, endpoint) = setup_service().await;
 
     let req = actix_web::test::TestRequest::post()
         .uri(&format!("{}/{}", endpoint.path, "phase"))
@@ -206,17 +180,7 @@ async fn get_phase_test() {
 
 #[actix_web::test]
 async fn get_endpoint_paths_test() {
-    let endpoint = test_utils::get_endpoint();
-    let cache_manager = test_utils::initialize_cache(&endpoint.name, None);
-    let api_server = ApiServer::create_app_entry(
-        None,
-        CorsOptions::Permissive,
-        vec![Arc::new(
-            CacheEndpoint::open(&*cache_manager, Default::default(), endpoint.clone()).unwrap(),
-        )],
-        Default::default(),
-    );
-    let app = actix_web::test::init_service(api_server).await;
+    let (app, endpoint) = setup_service().await;
 
     let req = actix_web::test::TestRequest::get().uri("/").to_request();
     let res = actix_web::test::call_service(&app, req).await;
@@ -296,26 +260,44 @@ async fn setup_service() -> (
 #[actix_web::test]
 async fn test_invalid_content_type() {
     let (app, endpoint) = setup_service().await;
-    let (_count, _records) =
-        count_and_query(&endpoint.path, &app, None, Some(ContentType::plaintext())).await;
+    let status = count_and_query(&endpoint.path, &app, None, Some(ContentType::plaintext()))
+        .await
+        .unwrap_err();
+    assert_eq!(status, StatusCode::BAD_REQUEST);
 }
 
 #[actix_web::test]
 async fn test_correct_content_type() {
     let (app, endpoint) = setup_service().await;
 
-    let (_count, _records) =
-        count_and_query(&endpoint.path, &app, None, Some(ContentType::json())).await;
+    let (count, records) = count_and_query(&endpoint.path, &app, None, Some(ContentType::json()))
+        .await
+        .unwrap();
+    assert_eq!(count, 52);
+    assert_eq!(records.len(), 50);
+}
+
+#[actix_web::test]
+async fn test_empty_content_type() {
+    let (app, endpoint) = setup_service().await;
+
+    let (count, records) = count_and_query(&endpoint.path, &app, None, None)
+        .await
+        .unwrap();
+    assert_eq!(count, 52);
+    assert_eq!(records.len(), 50);
 }
 
 #[actix_web::test]
 async fn test_malformed_json() {
     let (app, endpoint) = setup_service().await;
-    let (_count, _records) = count_and_query(
+    let status = count_and_query(
         &endpoint.path,
         &app,
-        Some(json!({"$filter": {"film_id":  268}})),
+        Some(json!({"$limit":"invalid"})),
         None,
     )
-    .await;
+    .await
+    .unwrap_err();
+    assert_eq!(status, StatusCode::BAD_REQUEST);
 }
