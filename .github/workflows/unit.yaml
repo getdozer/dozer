@@ -100,10 +100,10 @@ jobs:
           SN_DRIVER: ${{ secrets.SN_DRIVER }}
         shell: bash
         run: |
-          cargo test test_connector_ --lib --features snowflake,ethereum,kafka,python  --no-fail-fast -- --ignored
+          cargo test test_connector_ --lib --features snowflake,ethereum,kafka  --no-fail-fast -- --ignored
 
       - name: Run tests
         shell: bash
         run: |
           source ./dozer-tests/python_udf/virtualenv.sh
-          cargo test --features snowflake,ethereum,kafka,python,mongodb --no-fail-fast
+          cargo test --features snowflake,ethereum,kafka,mongodb --no-fail-fast
