@@ -466,7 +466,7 @@ impl ExpressionBuilder {
         if function_name.starts_with("py_") {
             // The function is from python udf.
             let udf_name = function_name.strip_prefix("py_").unwrap();
-            return self.parse_python_udf(udf_name, sql_function, schema, udfs);
+            return self.parse_python_udf(udf_name, sql_function, schema, udfs.to_vec());
         }
 
         let aggr_check = self.aggr_function_check(
@@ -839,6 +839,7 @@ impl ExpressionBuilder {
         // First, get python function define by name.
         // Then, transfer python function to Expression::PythonUDF
         use PipelineError::InvalidQuery;
+        use dozer_types::types::FieldType;
 
         let args = function
             .args
