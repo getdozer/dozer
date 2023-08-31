@@ -315,7 +315,7 @@ fn run(
     validate_config(&dozer.config)?;
 
     let runtime = dozer.runtime.clone();
-    let run_thread = std::thread::spawn(move || dozer.run_all(shutdown_receiver));
+    let run_thread = std::thread::spawn(move || dozer.run_all(shutdown_receiver, false));
 
     let handle = std::thread::spawn(move || {
         runtime.block_on(async {

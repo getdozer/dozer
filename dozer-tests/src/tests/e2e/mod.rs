@@ -60,7 +60,7 @@ impl DozerE2eTest {
         );
         let (shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
         let dozer_thread = std::thread::spawn(move || {
-            dozer.run_all(shutdown_receiver).unwrap();
+            dozer.run_all(shutdown_receiver, false).unwrap();
         });
 
         let num_retries = 10;
