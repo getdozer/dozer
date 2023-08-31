@@ -154,6 +154,20 @@ impl CloudOrchestrator for SimpleOrchestrator {
             )
         };
 
+        let mut double_check = String::new();
+        println!("Are you sure to delete the application {}? (y/N)", app_id);
+        io::stdin()
+            .read_line(&mut double_check)
+            .map_err(FailedToReadOrganisationName)?;
+        let response = double_check.trim().to_string().to_uppercase();
+
+        if response == "Y" {
+            info!("Deleting application {}", app_id);
+        } else {
+            info!("The application {} was not deleted", app_id);
+            return Ok(());
+        }
+
         let cloud_config = self.config.cloud.as_ref();
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud, cloud_config).await?;
