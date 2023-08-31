@@ -139,8 +139,14 @@ impl CloudOrchestrator for SimpleOrchestrator {
         // Get app_id from command line argument if there, otherwise take it from the cloud config file
         // if the app_id is from the cloud config file then set `delete_cloud_file` to true and use it later
         // to delete the file after deleting the app
+
         let (app_id, delete_cloud_file) = if let Some(app_id) = cloud.app_id.clone() {
-            (app_id, false)
+            // if the app_id on command line is equal to the one in the cloud config file then file can be deleted
+            if app_id == CloudAppContext::get_app_id(self.config.cloud.as_ref())? {
+                (app_id, true)
+            } else {
+                (app_id, false)
+            }
         } else {
             (
                 CloudAppContext::get_app_id(self.config.cloud.as_ref())?,
