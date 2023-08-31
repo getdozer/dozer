@@ -86,6 +86,8 @@ pub enum OrchestrationError {
     ConnectionNotFound(String),
     #[error("Pipeline validation failed")]
     PipelineValidationError,
+    #[error("Output table {0} not used in any endpoint")]
+    OutputTableNotUsed(String),
     #[error("Table name specified in endpoint not found: {0:?}")]
     EndpointTableNotFound(String),
     #[error("Duplicate table name found: {0:?}")]

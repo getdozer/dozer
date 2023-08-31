@@ -239,6 +239,18 @@ impl<'a> PipelineBuilder<'a> {
             }
         }
 
+        // Check if all output tables are used.
+        for (table_name, table_info) in &available_output_tables {
+            if matches!(table_info, OutputTableInfo::Transformed(_))
+                && !self
+                    .endpoint_and_logs
+                    .iter()
+                    .any(|(endpoint, _)| &endpoint.table_name == table_name)
+            {
+                return Err(OrchestrationError::OutputTableNotUsed(table_name.clone()));
+            }
+        }
+
         for (api_endpoint, log) in self.endpoint_and_logs {
             let table_name = &api_endpoint.table_name;
 
