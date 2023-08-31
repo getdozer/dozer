@@ -477,7 +477,7 @@ impl ExpressionBuilder {
             parse_aggregations,
             sql_function,
             schema,
-            udfs.clone(),
+            udfs,
         );
         if aggr_check.is_ok() {
             return aggr_check;
@@ -488,7 +488,7 @@ impl ExpressionBuilder {
             parse_aggregations,
             sql_function,
             schema,
-            udfs.clone(),
+            udfs,
         );
         if scalar_check.is_ok() {
             return scalar_check;
@@ -510,7 +510,7 @@ impl ExpressionBuilder {
             parse_aggregations,
             sql_function,
             schema,
-            udfs.clone(),
+            udfs,
         );
         if conditional_check.is_ok() {
             return conditional_check;
@@ -526,7 +526,7 @@ impl ExpressionBuilder {
             parse_aggregations,
             sql_function,
             schema,
-            udfs.clone(),
+            udfs,
         );
         if json_check.is_ok() {
             return json_check;
