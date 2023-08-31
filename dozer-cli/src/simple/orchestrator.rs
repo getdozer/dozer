@@ -292,6 +292,7 @@ impl SimpleOrchestrator {
         &mut self,
         force: bool,
         shutdown: ShutdownReceiver,
+        locked: bool,
     ) -> Result<(), OrchestrationError> {
         let home_dir = self.home_dir();
         let cache_dir = self.cache_dir();
@@ -354,6 +355,15 @@ impl SimpleOrchestrator {
 
         let contract_path = self.lockfile_path();
         let existing_contract = Contract::deserialize(contract_path.as_std_path()).ok();
+        if locked {
+            let Some(existing_contract) = existing_contract.as_ref() else {
+                return Err(OrchestrationError::LockedNoLockFile);
+            };
+
+            if &contract != existing_contract {
+                return Err(OrchestrationError::LockedOutdatedLockfile);
+            }
+        }
 
         // Run build
         let storage_config = get_storage_config(&self.config);
@@ -387,12 +397,16 @@ impl SimpleOrchestrator {
         Ok(())
     }
 
-    pub fn run_all(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError> {
+    pub fn run_all(
+        &mut self,
+        shutdown: ShutdownReceiver,
+        locked: bool,
+    ) -> Result<(), OrchestrationError> {
         let mut dozer_api = self.clone();
 
         let (tx, rx) = channel::unbounded::<bool>();
 
-        self.build(false, shutdown.clone())?;
+        self.build(false, shutdown.clone(), locked)?;
 
         let mut dozer_pipeline = self.clone();
         let pipeline_shutdown = shutdown.clone();

@@ -46,10 +46,9 @@ async fn write_read() {
     }
 
     let range = 1..ops.len();
-    let ops_read = log_mut
-        .read(range.clone(), Duration::from_secs(1), log.clone())
-        .await
-        .unwrap();
+    let ops_read_future = log_mut.read(range.clone(), Duration::from_secs(1), log.clone());
+    drop(log_mut);
+    let ops_read = ops_read_future.await.unwrap();
     assert_eq!(ops_read, LogResponse::Operations(ops[range].to_vec()));
 }
 

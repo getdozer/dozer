@@ -15,12 +15,13 @@ use super::{Contract, NodeKind};
 impl Contract {
     pub fn get_source_schemas(&self, connection_name: &str) -> Option<HashMap<String, Schema>> {
         // Find the source node.
-        for (node_index, node) in self.pipeline.node_references() {
+        for (node_index, node) in self.pipeline.0.node_references() {
             if let NodeKind::Source { port_names, .. } = &node.kind {
                 if node.handle.id == connection_name {
                     let mut result = HashMap::new();
                     for edge in self
                         .pipeline
+                        .0
                         .edges_directed(node_index, Direction::Outgoing)
                     {
                         let edge = edge.weight();
@@ -68,7 +69,7 @@ impl Contract {
         let mut pipeline_source_to_ui_node_index = HashMap::new();
 
         // Create nodes.
-        for (node_index, node) in self.pipeline.node_references() {
+        for (node_index, node) in self.pipeline.0.node_references() {
             match &node.kind {
                 NodeKind::Source { typ, port_names } => {
                     // Create connection ui node.
@@ -84,6 +85,7 @@ impl Contract {
                     // Create source ui node. Schema comes from connection's outgoing edge.
                     for edge in self
                         .pipeline
+                        .0
                         .edges_directed(node_index, Direction::Outgoing)
                     {
                         if let std::collections::hash_map::Entry::Vacant(entry) =
@@ -106,6 +108,7 @@ impl Contract {
                     // Create processor ui node. Schema comes from the outgoing edge.
                     let mut edges = self
                         .pipeline
+                        .0
                         .edges_directed(node_index, Direction::Outgoing)
                         .collect::<Vec<_>>();
                     assert!(
@@ -138,13 +141,13 @@ impl Contract {
         }
 
         // Create edges.
-        for edge in self.pipeline.edge_references() {
+        for edge in self.pipeline.0.edge_references() {
             let from_node_index = edge.source();
             let to_node_index = edge.target();
             let from_ui_node_index = pipeline_node_index_to_ui_node_index[&from_node_index];
             let to_ui_node_index = pipeline_node_index_to_ui_node_index[&to_node_index];
 
-            let from_node = &self.pipeline[from_node_index];
+            let from_node = &self.pipeline.0[from_node_index];
             let kind = &from_node.kind;
             match &kind {
                 NodeKind::Source { .. } => {
