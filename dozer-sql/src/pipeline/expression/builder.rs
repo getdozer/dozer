@@ -499,7 +499,7 @@ impl ExpressionBuilder {
             parse_aggregations,
             sql_function,
             schema,
-            udfs.clone(),
+            udfs,
         );
         if geo_check.is_ok() {
             return geo_check;
