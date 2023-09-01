@@ -6,7 +6,7 @@ use crate::pipeline::errors::{PipelineError, SqlError};
 use crate::pipeline::expression::aggregate::AggregateFunctionType;
 use crate::pipeline::expression::conditional::ConditionalExpressionType;
 use crate::pipeline::expression::datetime::DateTimeFunctionType;
-use dozer_types::models::udf_config::UdfConfig;
+use dozer_types::models::udf_config::{UdfConfig, UdfType};
 use dozer_types::{
     ordered_float::OrderedFloat,
     types::{Field, FieldDefinition, Schema, SourceDefinition},
@@ -37,8 +37,6 @@ use crate::pipeline::onnx::DozerSession;
 use crate::pipeline::onnx::OnnxError::OnnxOrtErr;
 #[cfg(feature = "onnx")]
 use dozer_types::models::udf_config::OnnxConfig;
-#[cfg(feature = "onnx")]
-use dozer_types::models::udf_config::UdfType::Onnx;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct ExpressionBuilder {
@@ -534,12 +532,27 @@ impl ExpressionBuilder {
 
         // config check for udfs
         let udf_type = udfs.iter().find(|udf| udf.name == function_name);
-        if let Some(_udf_type) = udf_type {
-            #[cfg(feature = "onnx")]
-            return if let Some(Onnx(config)) = &_udf_type.config {
-                self.parse_onnx_udf(function_name.clone(), config, sql_function, schema, udfs)
-            } else {
-                Err(PipelineError::UdfConfigMissing(function_name.clone()))
+        if let Some(udf_type) = udf_type {
+            return match &udf_type.config {
+                Some(UdfType::Onnx(config)) => {
+                    #[cfg(feature = "onnx")]
+                    {
+                        self.parse_onnx_udf(
+                            function_name.clone(),
+                            config,
+                            sql_function,
+                            schema,
+                            udfs,
+                        )
+                    }
+
+                    #[cfg(not(feature = "onnx"))]
+                    {
+                        let _ = config;
+                        Err(PipelineError::OnnxNotEnabled)
+                    }
+                }
+                None => Err(PipelineError::UdfConfigMissing(function_name.clone())),
             };
         }
 

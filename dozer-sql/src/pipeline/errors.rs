@@ -96,6 +96,9 @@ pub enum PipelineError {
     #[cfg(feature = "onnx")]
     #[error("Onnx Error: {0}")]
     OnnxError(OnnxError),
+    #[cfg(not(feature = "onnx"))]
+    #[error("Onnx feature is not enabled")]
+    OnnxNotEnabled,
 
     #[error("Udf is defined but missing with config: {0}")]
     UdfConfigMissing(String),

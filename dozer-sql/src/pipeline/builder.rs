@@ -670,7 +670,12 @@ mod tests {
     #[test]
     fn test_duplicate_into_clause() {
         let sql = "select * into table1 from film1 ; select * into table1 from film2";
-        let result = statement_to_pipeline(sql, &mut AppPipeline::new_with_default_flags(), None);
+        let result = statement_to_pipeline(
+            sql,
+            &mut AppPipeline::new_with_default_flags(),
+            None,
+            vec![],
+        );
         assert!(matches!(
             result,
             Err(PipelineError::DuplicateIntoClause(dup_table)) if dup_table == "table1"

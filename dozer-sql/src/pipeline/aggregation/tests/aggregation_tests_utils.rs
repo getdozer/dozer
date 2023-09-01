@@ -23,8 +23,7 @@ pub(crate) fn init_processor(
         .get(&DEFAULT_PORT_HANDLE)
         .unwrap_or_else(|| panic!("Error getting Input Schema"));
 
-    let empty_vec = vec![];
-    let mut projection_planner = CommonPlanner::new(input_schema.clone(), empty_vec.as_slice());
+    let mut projection_planner = CommonPlanner::new(input_schema.clone(), &[]);
     let statement = get_select(sql).unwrap();
 
     projection_planner.plan(*statement).unwrap();
