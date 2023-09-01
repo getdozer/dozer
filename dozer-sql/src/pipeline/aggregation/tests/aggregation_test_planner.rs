@@ -71,7 +71,8 @@ fn test_planner_with_aggregator() {
         )
         .clone();
 
-    let mut projection_planner = CommonPlanner::new(schema.clone(), vec![].as_slice());
+    let empty_vec = vec![];
+    let mut projection_planner = CommonPlanner::new(schema.clone(), empty_vec.as_slice());
     let statement = get_select(sql).unwrap();
 
     projection_planner.plan(*statement).unwrap();

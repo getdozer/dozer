@@ -80,7 +80,7 @@ fn prepare_pipeline_dag(
             AppSourceMappings::new(connection.name.to_string(), ports_with_source_name),
         );
     });
-    statement_to_pipeline(&sql, &mut pipeline, None, udfs.to_vec())?;
+    statement_to_pipeline(&sql, &mut pipeline, None, udfs)?;
     let mut app = App::new(asm);
     app.add_pipeline(pipeline);
     let sql_dag = app.into_dag()?;
