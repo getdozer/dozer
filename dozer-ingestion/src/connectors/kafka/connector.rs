@@ -141,19 +141,14 @@ async fn run(
     ingestor: &Ingestor,
     schema_registry_url: &Option<String>,
 ) -> Result<(), ConnectorError> {
-    let con: BaseConsumer = ClientConfig::new()
+    let mut client_config = ClientConfig::new();
+    client_config
         .set("bootstrap.servers", broker)
         .set("group.id", "dozer")
-        .set("enable.auto.commit", "true")
-        .create()
-        .map_err(KafkaConnectionError)?;
-
-    let topics: Vec<&str> = tables.iter().map(|t| t.name.as_ref()).collect();
-    con.subscribe(topics.iter().as_slice())
-        .map_err(KafkaConnectionError)?;
+        .set("enable.auto.commit", "true");
 
     let consumer = StreamConsumerBasic::default();
     consumer
-        .run(con, ingestor, tables, schema_registry_url)
+        .run(client_config, ingestor, tables, schema_registry_url)
         .await
 }
