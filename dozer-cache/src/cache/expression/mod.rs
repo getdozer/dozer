@@ -1,8 +1,11 @@
 use dozer_types::serde::{Deserialize, Serialize};
+use dozer_types::serde_json;
 use dozer_types::serde_json::Value;
 mod query_helper;
 mod query_serde;
-
+use actix_web::{dev::Payload, Error, FromRequest, HttpMessage, HttpRequest};
+use futures::future::err;
+use futures::future::LocalBoxFuture;
 #[cfg(test)]
 mod tests;
 
@@ -69,6 +72,32 @@ impl QueryExpression {
             limit,
             skip,
         }
+    }
+}
+
+impl FromRequest for QueryExpression {
+    type Error = Error;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
+        let req = req.clone();
+        let mut pl = _payload.take();
+        let content_type = req.content_type();
+        if !content_type.is_empty() && content_type != "application/json" {
+            return Box::pin(err(actix_web::error::UrlencodedError::ContentType.into()));
+        }
+        //execute query
+        Box::pin(async move {
+            let req_body = String::from_request(&req, &mut pl).await?;
+            if req_body.is_empty() {
+                return Ok(QueryExpression::with_no_limit());
+            }
+            let deserialized = serde_json::from_str::<QueryExpression>(&req_body);
+            match deserialized {
+                Ok(x) => Ok(x),
+                Err(x) => Err(actix_web::error::JsonPayloadError::Deserialize(x).into()),
+            }
+        })
     }
 }
 

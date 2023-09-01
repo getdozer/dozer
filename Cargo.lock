@@ -2586,6 +2586,7 @@ dependencies = [
 name = "dozer-cache"
 version = "0.1.35"
 dependencies = [
+ "actix-web",
  "ahash 0.8.3",
  "clap 4.4.1",
  "criterion",
