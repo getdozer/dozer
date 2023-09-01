@@ -75,7 +75,9 @@ impl SchemaRegistry {
             {
                 Ok(schema_result) => break schema_result,
                 Err(err) if err.retriable => {
-                    error!("schema registry fetch error {err}. retrying...");
+                    const RETRY_INTERVAL: std::time::Duration = std::time::Duration::from_secs(5);
+                    error!("schema registry fetch error {err}. retrying in {RETRY_INTERVAL:?}...");
+                    tokio::time::sleep(RETRY_INTERVAL).await;
                     continue;
                 }
                 Err(err) => return Err(SchemaRegistryFetchError(err)),

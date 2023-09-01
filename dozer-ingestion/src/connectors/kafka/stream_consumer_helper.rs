@@ -43,7 +43,14 @@ impl StreamConsumerHelper {
         loop {
             match Self::try_resume(client_config, topics, offsets).await {
                 Ok(con) => return Ok(con),
-                Err(err) if is_network_failure(&err) => continue,
+                Err(err) if is_network_failure(&err) => {
+                    const RETRY_INTERVAL: std::time::Duration = std::time::Duration::from_secs(5);
+                    dozer_types::log::error!(
+                        "stream resume error {err}. retrying in {RETRY_INTERVAL:?}..."
+                    );
+                    tokio::time::sleep(RETRY_INTERVAL).await;
+                    continue;
+                }
                 Err(err) => Err(KafkaConnectionError(err))?,
             }
         }
@@ -83,7 +90,12 @@ pub fn is_network_failure(err: &rdkafka::error::KafkaError) -> bool {
         StoreOffset(error_code) => error_code,
         MockCluster(error_code) => error_code,
         Transaction(rdkafka_err) => return rdkafka_err.is_retriable(),
-        _ => todo!(),
+        other => {
+            dozer_types::log::warn!(
+                "unregonized kafka error error: {other}. treating as non-network error."
+            );
+            return false;
+        }
     };
     use rdkafka::types::RDKafkaErrorCode::*;
     matches!(
