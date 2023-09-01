@@ -634,15 +634,26 @@ pub fn get_from_source(
 
 #[cfg(test)]
 mod tests {
-    use dozer_core::app::AppPipeline;
-
     use super::statement_to_pipeline;
+    use crate::pipeline::errors::PipelineError;
+    use dozer_core::app::AppPipeline;
     #[test]
     #[should_panic]
     fn disallow_zero_outgoing_ndes() {
         let sql = "select * from film";
         statement_to_pipeline(sql, &mut AppPipeline::new_with_default_flags(), None).unwrap();
     }
+
+    #[test]
+    fn test_duplicate_into_clause() {
+        let sql = "select * into table1 from film1 ; select * into table1 from film2";
+        let result = statement_to_pipeline(sql, &mut AppPipeline::new_with_default_flags(), None);
+        assert!(matches!(
+            result,
+            Err(PipelineError::DuplicateIntoClause(dup_table)) if dup_table == "table1"
+        ));
+    }
+
     #[test]
     fn parse_sql_pipeline() {
         let sql = r#"
