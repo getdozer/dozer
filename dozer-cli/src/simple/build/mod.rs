@@ -94,8 +94,8 @@ fn build_endpoint_protos(
 
     let proto_folder_path = build_path.contracts_dir.as_ref();
     for (endpoint_name, schema) in &contract.endpoints {
-        ProtoGenerator::generate(proto_folder_path, endpoint_name, schema)?;
-        resources.push(endpoint_name.clone());
+        let resource_name = ProtoGenerator::generate(proto_folder_path, endpoint_name, schema)?;
+        resources.push(resource_name);
     }
 
     let common_resources = ProtoGenerator::copy_common(proto_folder_path)?;

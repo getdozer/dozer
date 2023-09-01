@@ -11,7 +11,7 @@ use dozer_types::types::{FieldType, Schema};
 use handlebars::Handlebars;
 use inflector::Inflector;
 use prost_reflect::{DescriptorPool, FieldDescriptor, Kind, MessageDescriptor};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use super::{CountResponseDesc, QueryResponseDesc, RecordDesc, ServiceDesc};
 
@@ -110,7 +110,7 @@ impl<'a> ProtoGeneratorImpl<'a> {
         let metadata = ProtoMetadata {
             package_name: self.names.package_name.clone(),
             import_libs,
-            lower_name: self.names.lower_name.clone(),
+            lower_name: self.names.proto_file_stem.clone(),
             plural_pascal_name: self.names.plural_pascal_name.clone(),
             pascal_name: self.names.pascal_name.clone(),
             props: self.props(),
@@ -121,7 +121,7 @@ impl<'a> ProtoGeneratorImpl<'a> {
         Ok(metadata)
     }
 
-    pub fn generate_proto(&self) -> Result<(String, PathBuf), GenerationError> {
+    pub fn generate_proto(&self) -> Result<String, GenerationError> {
         if !Path::new(&self.folder_path).exists() {
             return Err(GenerationError::DirPathNotExist(
                 self.folder_path.to_path_buf(),
@@ -140,10 +140,10 @@ impl<'a> ProtoGeneratorImpl<'a> {
             .map_err(|e| GenerationError::FailedToWriteToFile(types_path, e))?;
 
         let resource_path = self.folder_path.join(&self.names.proto_file_name);
-        std::fs::write(&resource_path, &resource_proto)
+        std::fs::write(&resource_path, resource_proto)
             .map_err(|e| GenerationError::FailedToWriteToFile(resource_path.clone(), e))?;
 
-        Ok((resource_proto, resource_path))
+        Ok(self.names.proto_file_stem.clone())
     }
 
     pub fn read(
@@ -329,7 +329,7 @@ impl<'a> ProtoGeneratorImpl<'a> {
 struct Names {
     proto_file_name: String,
     package_name: String,
-    lower_name: String,
+    proto_file_stem: String,
     plural_pascal_name: String,
     pascal_name: String,
     record_field_names: Vec<String>,
@@ -343,7 +343,7 @@ impl Names {
         let schema_name = schema_name.replace(|c: char| !c.is_ascii_alphanumeric(), "_");
 
         let package_name = format!("dozer.generated.{schema_name}");
-        let lower_name = schema_name.to_lowercase();
+        let proto_file_stem = schema_name.to_lowercase();
         let plural_pascal_name = schema_name.to_pascal_case().to_plural();
         let pascal_name = schema_name.to_pascal_case().to_singular();
         let record_field_names = schema
@@ -359,9 +359,9 @@ impl Names {
             })
             .collect::<Vec<_>>();
         Self {
-            proto_file_name: format!("{lower_name}.proto"),
+            proto_file_name: format!("{proto_file_stem}.proto"),
             package_name,
-            lower_name,
+            proto_file_stem,
             plural_pascal_name,
             pascal_name,
             record_field_names,
