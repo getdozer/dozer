@@ -1,6 +1,6 @@
 [package]
 name = "dozer-types"
-version = "0.1.35"
+version = "0.1.36"
 authors = ["getdozer/dozer-dev"]
 edition = "2021"
 
@@ -19,7 +19,7 @@ parking_lot = "0.12"
 bytes = "1.4.0"
 indexmap = "1.9.2"
 ordered-float = { version = "3.9.1", features = ["serde"] }
-tracing = "0.1.35"
+tracing = "0.1.36"
 log = "0.4.17"
 serde_yaml = "0.9.25"
 prettytable-rs = "0.10.0"
