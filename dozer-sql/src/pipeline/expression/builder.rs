@@ -543,7 +543,7 @@ impl ExpressionBuilder {
                 self.parse_onnx_udf(function_name.clone(), &config, sql_function, schema, udfs)
             }
             None => Err(PipelineError::UdfConfigMissing(function_name.clone())),
-        }
+        };
     }
 
     fn parse_sql_function_arg(
