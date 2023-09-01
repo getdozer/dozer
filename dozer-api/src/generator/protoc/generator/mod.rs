@@ -3,7 +3,10 @@ use dozer_cache::dozer_log::schemas::EndpointSchema;
 use prost_reflect::{
     DescriptorPool, FieldDescriptor, MessageDescriptor, MethodDescriptor, ServiceDescriptor,
 };
-use std::{io, path::Path};
+use std::{
+    io,
+    path::{Path, PathBuf},
+};
 
 #[derive(Debug, Clone)]
 pub struct ServiceDesc {
@@ -149,6 +152,16 @@ impl ProtoGenerator {
     ) -> Result<String, GenerationError> {
         let generator = ProtoGeneratorImpl::new(schema_name, schema, folder_path)?;
         generator.generate_proto()
+    }
+
+    pub fn render(
+        folder_path: &Path,
+        schema_name: &str,
+        schema: &EndpointSchema,
+    ) -> Result<Vec<(String, PathBuf)>, GenerationError> {
+        let generator = ProtoGeneratorImpl::new(schema_name, schema, folder_path)?;
+        let res = generator.render_protos()?;
+        Ok(res)
     }
 
     pub fn generate_descriptor<T: AsRef<str>>(

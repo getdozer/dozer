@@ -11,7 +11,7 @@ use dozer_types::types::{FieldType, Schema};
 use handlebars::Handlebars;
 use inflector::Inflector;
 use prost_reflect::{DescriptorPool, FieldDescriptor, Kind, MessageDescriptor};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use super::{CountResponseDesc, QueryResponseDesc, RecordDesc, ServiceDesc};
 
@@ -121,27 +121,32 @@ impl<'a> ProtoGeneratorImpl<'a> {
         Ok(metadata)
     }
 
+    pub fn render_protos(&self) -> Result<Vec<(String, PathBuf)>, GenerationError> {
+        let metadata = self.get_metadata()?;
+        let mut arr = vec![];
+
+        let types_proto = include_str!("../../../../../dozer-types/protos/types.proto");
+        let types_path = self.folder_path.join("types.proto");
+        let resource_proto = self.handlebars.render("main", &metadata)?;
+        let resource_path = self.folder_path.join(&self.names.proto_file_name);
+
+        arr.push((types_proto.to_string(), types_path));
+        arr.push((resource_proto, resource_path));
+
+        Ok(arr)
+    }
+
     pub fn generate_proto(&self) -> Result<String, GenerationError> {
         if !Path::new(&self.folder_path).exists() {
             return Err(GenerationError::DirPathNotExist(
                 self.folder_path.to_path_buf(),
             ));
         }
-
-        let metadata = self.get_metadata()?;
-
-        let types_proto = include_str!("../../../../../dozer-types/protos/types.proto");
-
-        let resource_proto = self.handlebars.render("main", &metadata)?;
-
-        // Copy types proto file
-        let types_path = self.folder_path.join("types.proto");
-        std::fs::write(&types_path, types_proto)
-            .map_err(|e| GenerationError::FailedToWriteToFile(types_path, e))?;
-
-        let resource_path = self.folder_path.join(&self.names.proto_file_name);
-        std::fs::write(&resource_path, resource_proto)
-            .map_err(|e| GenerationError::FailedToWriteToFile(resource_path.clone(), e))?;
+        let arr = self.render_protos()?;
+        for (proto, path) in arr {
+            std::fs::write(&path, proto)
+                .map_err(|e| GenerationError::FailedToWriteToFile(path, e))?;
+        }
 
         Ok(self.names.proto_file_stem.clone())
     }

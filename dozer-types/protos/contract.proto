@@ -9,6 +9,7 @@ service ContractService {
   rpc Endpoints(CommonRequest) returns (SchemasResponse);
   rpc GenerateDot(CommonRequest) returns (DotResponse);
   rpc GetGraphSchemas(CommonRequest) returns (SchemasResponse);
+  rpc GetProtos(CommonRequest) returns (ProtoResponse);
 }
 
 message CloudDeploymentId {
@@ -40,4 +41,8 @@ message Schema  {
 
 message DotResponse {
   string dot = 1;
+}
+
+message ProtoResponse {
+  repeated string protos = 1;
 }

@@ -1,13 +1,14 @@
-use std::{sync::Arc, thread::JoinHandle};
+use std::{collections::HashSet, sync::Arc, thread::JoinHandle};
 
 use clap::Parser;
+use dozer_api::generator::protoc::generator::ProtoGenerator;
 use dozer_cache::dozer_log::camino::Utf8Path;
 use dozer_core::{app::AppPipeline, dag_schemas::DagSchemas, Dag};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_tracing::{Labels, LabelsAndProgress};
 use dozer_types::{
     grpc_types::{
-        contract::{DotResponse, SchemasResponse},
+        contract::{DotResponse, ProtoResponse, SchemasResponse},
         live::{BuildResponse, BuildStatus, ConnectResponse, LiveApp, LiveResponse, RunRequest},
     },
     log::info,
@@ -21,7 +22,7 @@ use tokio::{runtime::Runtime, sync::RwLock};
 
 use crate::{
     cli::{init_dozer, types::Cli},
-    errors::OrchestrationError,
+    errors::{BuildError, OrchestrationError},
     pipeline::PipelineBuilder,
     shutdown::{self, ShutdownReceiver, ShutdownSender},
     simple::{helper::validate_config, Contract, SimpleOrchestrator},
@@ -220,6 +221,14 @@ impl LiveState {
         })
     }
 
+    pub async fn get_protos(&self) -> Result<ProtoResponse, LiveError> {
+        let dozer = self.dozer.read().await;
+        let contract = get_contract(&dozer)?;
+        let protos = get_protos(contract)?;
+
+        Ok(ProtoResponse { protos })
+    }
+
     pub async fn run(&self, request: RunRequest) -> Result<Labels, LiveError> {
         let dozer = self.dozer.read().await;
         let dozer = &dozer.as_ref().ok_or(LiveError::NotInitialized)?.dozer;
@@ -259,6 +268,23 @@ impl LiveState {
     }
 }
 
+fn get_protos(contract: &Contract) -> Result<Vec<String>, LiveError> {
+    let mut protos = vec![];
+    let mut set = HashSet::new();
+    let tmp = tempdir::TempDir::new("temp_contracts").unwrap();
+
+    for (endpoint_name, schema) in &contract.endpoints {
+        let rendered = ProtoGenerator::render(tmp.path(), endpoint_name, schema)
+            .map_err(BuildError::FailedToGenerateProtoFiles)?;
+        for (proto, path) in rendered {
+            if !set.contains(&path) {
+                protos.push(proto);
+                set.insert(path);
+            }
+        }
+    }
+    Ok(protos)
+}
 fn get_contract(dozer_and_contract: &Option<DozerAndContract>) -> Result<&Contract, LiveError> {
     dozer_and_contract
         .as_ref()
