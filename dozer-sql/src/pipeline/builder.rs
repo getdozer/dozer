@@ -658,7 +658,7 @@ mod tests {
             sql,
             &mut AppPipeline::new_with_default_flags(),
             None,
-            &vec![],
+            vec![],
         )
         .unwrap();
     }
@@ -723,7 +723,7 @@ mod tests {
             sql,
             &mut AppPipeline::new_with_default_flags(),
             None,
-            &vec![],
+            vec![],
         )
         .unwrap();
 
@@ -750,7 +750,7 @@ fn test_missing_into_in_simple_from_clause() {
         sql,
         &mut AppPipeline::new_with_default_flags(),
         None,
-        &vec![],
+        vec![],
     );
     //check if the result is an error
     assert!(matches!(result, Err(PipelineError::MissingIntoClause)))
@@ -763,7 +763,7 @@ fn test_correct_into_clause() {
         sql,
         &mut AppPipeline::new_with_default_flags(),
         None,
-        &vec![],
+        vec![],
     );
     //check if the result is ok
     assert!(result.is_ok());
@@ -776,7 +776,7 @@ fn test_missing_into_in_nested_from_clause() {
         sql,
         &mut AppPipeline::new_with_default_flags(),
         None,
-        &vec![],
+        vec![],
     );
     //check if the result is an error
     assert!(matches!(result, Err(PipelineError::MissingIntoClause)))
@@ -789,7 +789,7 @@ fn test_correct_into_in_nested_from() {
         sql,
         &mut AppPipeline::new_with_default_flags(),
         None,
-        &vec![],
+        vec![],
     );
     //check if the result is ok
     assert!(result.is_ok());
@@ -804,7 +804,7 @@ fn test_missing_into_in_with_clause() {
         sql,
         &mut AppPipeline::new_with_default_flags(),
         None,
-        &vec![],
+        vec![],
     );
     //check if the result is an error
     assert!(matches!(result, Err(PipelineError::MissingIntoClause)))
@@ -820,7 +820,7 @@ fn test_correct_into_in_with_clause() {
         sql,
         &mut AppPipeline::new_with_default_flags(),
         None,
-        &vec![],
+        vec![],
     );
     //check if the result is ok
     assert!(result.is_ok());

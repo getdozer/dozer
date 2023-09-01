@@ -537,10 +537,10 @@ impl ExpressionBuilder {
             .iter()
             .find(|udf| udf.name == function_name)
             .ok_or(PipelineError::UdfConfigMissing(function_name.clone()))?;
-        match &udf_type.config {
+        match udf_type.config.clone() {
             #[cfg(feature = "onnx")]
             Some(Onnx(config)) => {
-                self.parse_onnx_udf(function_name.clone(), config, sql_function, schema, udfs)
+                self.parse_onnx_udf(function_name.clone(), &config, sql_function, schema, udfs)
             }
             None => Err(PipelineError::UdfConfigMissing(function_name.clone())),
         }
