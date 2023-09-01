@@ -914,7 +914,7 @@ impl ExpressionBuilder {
         onnx_output_validation(&session.outputs)?;
 
         Ok(Expression::OnnxUDF {
-            name: name.to_string(),
+            name,
             session: DozerSession(session.into()),
             args,
         })
