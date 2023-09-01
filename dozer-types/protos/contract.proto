@@ -45,4 +45,5 @@ message DotResponse {
 
 message ProtoResponse {
   repeated string protos = 1;
+  repeated string libraries = 2;
 }

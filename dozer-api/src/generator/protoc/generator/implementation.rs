@@ -82,7 +82,7 @@ impl<'a> ProtoGeneratorImpl<'a> {
             .collect()
     }
 
-    fn libs_by_type(&self) -> Result<Vec<String>, GenerationError> {
+    pub fn libs_by_type(&self) -> Result<Vec<String>, GenerationError> {
         let type_need_import_libs = [TIMESTAMP_TYPE_CLASS, JSON_TYPE_CLASS];
         let mut libs_import: Vec<String> = self
             .schema

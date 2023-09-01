@@ -111,6 +111,10 @@ pub struct TokenResponseDesc {
     pub token_field: FieldDescriptor,
 }
 
+pub struct ProtoRenderResponse {
+    pub protos: Vec<(String, PathBuf)>,
+    pub libraries: Vec<String>,
+}
 pub struct ProtoGenerator;
 
 impl ProtoGenerator {
@@ -158,10 +162,10 @@ impl ProtoGenerator {
         folder_path: &Path,
         schema_name: &str,
         schema: &EndpointSchema,
-    ) -> Result<Vec<(String, PathBuf)>, GenerationError> {
+    ) -> Result<(Vec<(String, PathBuf)>, Vec<String>), GenerationError> {
         let generator = ProtoGeneratorImpl::new(schema_name, schema, folder_path)?;
         let res = generator.render_protos()?;
-        Ok(res)
+        Ok((res, generator.libs_by_type()?))
     }
 
     pub fn generate_descriptor<T: AsRef<str>>(
