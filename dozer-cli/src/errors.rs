@@ -165,6 +165,9 @@ pub enum CloudError {
 
     #[error("Application not found")]
     ApplicationNotFound,
+
+    #[error("{LOCK_FILE} not found. Run `dozer build` before deploying, or pass '--no-lock'.")]
+    LockfileNotFound,
 }
 
 #[derive(Debug, Error)]

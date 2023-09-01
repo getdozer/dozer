@@ -73,6 +73,9 @@ pub struct DeployCommandArgs {
     /// List of secrets which will be used in deployment
     #[arg(short, long, value_parser = parse_key_val)]
     pub secrets: Vec<Secret>,
+
+    #[arg(long = "no-lock", action = ArgAction::SetFalse)]
+    pub locked: bool,
 }
 
 pub fn default_num_api_instances() -> i32 {
