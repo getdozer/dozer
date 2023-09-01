@@ -535,15 +535,18 @@ impl ExpressionBuilder {
         // config check for udfs
         let udf_type = udfs
             .iter()
-            .find(|udf| udf.name == function_name)
-            .ok_or(PipelineError::UdfConfigMissing(function_name.clone()))?;
-        #[cfg(feature = "onnx")]
-        return match udf_type.config.clone() {
-            Some(Onnx(config)) => {
-                self.parse_onnx_udf(function_name.clone(), &config, sql_function, schema, udfs)
-            }
-            None => Err(PipelineError::UdfConfigMissing(function_name.clone())),
-        };
+            .find(|udf| udf.name == function_name);
+        if let Some(udf_type) = udf_type {
+            #[cfg(feature = "onnx")]
+            return match udf_type.config.clone() {
+                Some(Onnx(config)) => {
+                    self.parse_onnx_udf(function_name.clone(), &config, sql_function, schema, udfs)
+                }
+                None => Err(PipelineError::UdfConfigMissing(function_name.clone())),
+            };
+        } else {
+            Err(PipelineError::UnknownFunction(function_name.clone()))
+        }
     }
 
     fn parse_sql_function_arg(

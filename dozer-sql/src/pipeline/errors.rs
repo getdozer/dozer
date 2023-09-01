@@ -175,6 +175,9 @@ pub enum PipelineError {
     InvalidPortHandle(PortHandle),
     #[error("JOIN processor received a Record from a wrong input: {0}")]
     InvalidPort(u16),
+
+    #[error("Unknown function: {0}")]
+    UnknownFunction(String),
 }
 
 #[cfg(feature = "python")]
