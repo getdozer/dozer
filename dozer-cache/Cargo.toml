@@ -1,13 +1,13 @@
 [package]
 name = "dozer-cache"
-version = "0.1.35"
+version = "0.1.36"
 edition = "2021"
 authors = ["getdozer/dozer-dev"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-dozer-types = {path = "../dozer-types"}
+dozer-types = { path = "../dozer-types" }
 dozer-storage = { path = "../dozer-storage" }
 dozer-log = { path = "../dozer-log" }
 dozer-tracing = { path = "../dozer-tracing" }
