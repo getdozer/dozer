@@ -1,7 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
     fmt::Display,
-    path::Path,
 };
 
 use dozer_api::generator::protoc::generator::ProtoGenerator;
@@ -73,18 +72,17 @@ impl Contract {
     pub fn get_protos(&self) -> Result<(Vec<String>, Vec<String>), BuildError> {
         let mut protos = vec![];
         let mut set = HashSet::new();
-        let tmp = Path::new("/fake-path");
         let mut libs = vec![];
         for (endpoint_name, schema) in &self.endpoints {
-            let (rendered, mut libraries) = ProtoGenerator::render(tmp, endpoint_name, schema)
+            let rendered_proto = ProtoGenerator::render(endpoint_name, schema)
                 .map_err(BuildError::FailedToGenerateProtoFiles)?;
-            for (proto, path) in rendered {
-                if !set.contains(&path) {
-                    protos.push(proto);
-                    set.insert(path);
+            for proto in rendered_proto.protos {
+                if !set.contains(&proto.name) {
+                    protos.push(proto.content);
+                    set.insert(proto.name);
                 }
-                libs.append(&mut libraries);
             }
+            libs.extend(rendered_proto.libraries);
         }
         libs.dedup();
         Ok((protos, libs))

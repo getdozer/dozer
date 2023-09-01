@@ -117,6 +117,20 @@ pub struct ProtoRenderResponse {
 }
 pub struct ProtoGenerator;
 
+#[derive(Debug, Clone)]
+pub struct RenderedProto {
+    pub protos: Vec<NamedProto>,
+    /// String used to import the proto files
+    pub libraries: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct NamedProto {
+    /// Including the .proto extension
+    pub name: String,
+    pub content: String,
+}
+
 impl ProtoGenerator {
     pub fn copy_common(folder_path: &Path) -> Result<Vec<String>, GenerationError> {
         let mut resource_names = vec![];
@@ -154,18 +168,20 @@ impl ProtoGenerator {
         schema_name: &str,
         schema: &EndpointSchema,
     ) -> Result<String, GenerationError> {
-        let generator = ProtoGeneratorImpl::new(schema_name, schema, folder_path)?;
-        generator.generate_proto()
+        let generator = ProtoGeneratorImpl::new(schema_name, schema)?;
+        generator.generate_proto(folder_path)
     }
 
     pub fn render(
-        folder_path: &Path,
         schema_name: &str,
         schema: &EndpointSchema,
-    ) -> Result<(Vec<(String, PathBuf)>, Vec<String>), GenerationError> {
-        let generator = ProtoGeneratorImpl::new(schema_name, schema, folder_path)?;
-        let res = generator.render_protos()?;
-        Ok((res, generator.libs_by_type()?))
+    ) -> Result<RenderedProto, GenerationError> {
+        let generator = ProtoGeneratorImpl::new(schema_name, schema)?;
+        let protos = generator.render_protos()?;
+        Ok(RenderedProto {
+            protos,
+            libraries: generator.libs_by_type()?,
+        })
     }
 
     pub fn generate_descriptor<T: AsRef<str>>(

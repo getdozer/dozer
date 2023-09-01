@@ -11,9 +11,9 @@ use dozer_types::types::{FieldType, Schema};
 use handlebars::Handlebars;
 use inflector::Inflector;
 use prost_reflect::{DescriptorPool, FieldDescriptor, Kind, MessageDescriptor};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use super::{CountResponseDesc, QueryResponseDesc, RecordDesc, ServiceDesc};
+use super::{CountResponseDesc, NamedProto, QueryResponseDesc, RecordDesc, ServiceDesc};
 
 const POINT_TYPE_CLASS: &str = "dozer.types.PointType";
 const DURATION_TYPE_CLASS: &str = "dozer.types.DurationType";
@@ -39,21 +39,15 @@ pub struct ProtoGeneratorImpl<'a> {
     handlebars: Handlebars<'a>,
     schema: &'a EndpointSchema,
     names: Names,
-    folder_path: &'a Path,
 }
 
 impl<'a> ProtoGeneratorImpl<'a> {
-    pub fn new(
-        schema_name: &str,
-        schema: &'a EndpointSchema,
-        folder_path: &'a Path,
-    ) -> Result<Self, GenerationError> {
+    pub fn new(schema_name: &str, schema: &'a EndpointSchema) -> Result<Self, GenerationError> {
         let names = Names::new(schema_name, &schema.schema);
         let mut generator = Self {
             handlebars: Handlebars::new(),
             schema,
             names,
-            folder_path,
         };
         generator.register_template()?;
         Ok(generator)
@@ -121,31 +115,34 @@ impl<'a> ProtoGeneratorImpl<'a> {
         Ok(metadata)
     }
 
-    pub fn render_protos(&self) -> Result<Vec<(String, PathBuf)>, GenerationError> {
+    pub fn render_protos(&self) -> Result<Vec<NamedProto>, GenerationError> {
         let metadata = self.get_metadata()?;
-        let mut arr = vec![];
+        let mut protos = vec![];
 
         let types_proto = include_str!("../../../../../dozer-types/protos/types.proto");
-        let types_path = self.folder_path.join("types.proto");
         let resource_proto = self.handlebars.render("main", &metadata)?;
-        let resource_path = self.folder_path.join(&self.names.proto_file_name);
 
-        arr.push((types_proto.to_string(), types_path));
-        arr.push((resource_proto, resource_path));
+        protos.push(NamedProto {
+            name: "types.proto".to_string(),
+            content: types_proto.to_string(),
+        });
+        protos.push(NamedProto {
+            name: self.names.proto_file_name.clone(),
+            content: resource_proto,
+        });
 
-        Ok(arr)
+        Ok(protos)
     }
 
-    pub fn generate_proto(&self) -> Result<String, GenerationError> {
-        if !Path::new(&self.folder_path).exists() {
-            return Err(GenerationError::DirPathNotExist(
-                self.folder_path.to_path_buf(),
-            ));
+    pub fn generate_proto(&self, folder_path: &Path) -> Result<String, GenerationError> {
+        if !folder_path.exists() {
+            return Err(GenerationError::DirPathNotExist(folder_path.to_path_buf()));
         }
-        let arr = self.render_protos()?;
-        for (proto, path) in arr {
-            std::fs::write(&path, proto)
-                .map_err(|e| GenerationError::FailedToWriteToFile(path, e))?;
+        let protos = self.render_protos()?;
+        for NamedProto { name, content } in protos {
+            let proto_path = folder_path.join(&name);
+            std::fs::write(&proto_path, content)
+                .map_err(|e| GenerationError::FailedToWriteToFile(proto_path, e))?;
         }
 
         Ok(self.names.proto_file_stem.clone())
