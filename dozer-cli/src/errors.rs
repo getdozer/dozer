@@ -90,8 +90,6 @@ pub enum OrchestrationError {
     OutputTableNotUsed(String),
     #[error("Table name specified in endpoint not found: {0:?}")]
     EndpointTableNotFound(String),
-    #[error("Duplicate table name found: {0:?}")]
-    DuplicateTable(String),
     #[error("No endpoints initialized in the config provided")]
     EmptyEndpoints,
     #[error(transparent)]
