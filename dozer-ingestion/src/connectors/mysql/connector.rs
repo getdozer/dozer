@@ -1,5 +1,6 @@
 use super::{
     binlog::{get_binlog_format, get_master_binlog_position, BinlogIngestor, BinlogPosition},
+    connection::Conn,
     conversion::IntoFields,
     helpers::{escape_identifier, qualify_table_name},
     schema::{ColumnDefinition, SchemaHelper, TableDefinition},
@@ -15,7 +16,7 @@ use dozer_types::{
     ingestion_types::IngestionMessage,
     types::{FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition},
 };
-use mysql_async::{prelude::Queryable, Conn, Opts, Pool};
+use mysql_async::{Opts, Pool};
 use mysql_common::Row;
 use tonic::async_trait;
 
@@ -196,8 +197,7 @@ impl Connector for MySQLConnector {
 
 impl MySQLConnector {
     async fn connect(&self) -> Result<Conn, MySQLConnectorError> {
-        self.conn_pool
-            .get_conn()
+        Conn::new(self.conn_pool.clone())
             .await
             .map_err(|err| MySQLConnectorError::ConnectionFailure(self.conn_url.clone(), err))
     }
@@ -248,7 +248,7 @@ impl MySQLConnector {
         let mut conn = self.connect().await?;
 
         for (table_index, td) in table_definitions.iter().enumerate() {
-            conn.query_drop(format!(
+            conn.query_drop(&format!(
                 "LOCK TABLES {} READ",
                 qualify_table_name(Some(&td.database_name), &td.table_name)
             ))
@@ -258,7 +258,7 @@ impl MySQLConnector {
             let row_count = {
                 let mut row: Row = conn
                     .exec_first(
-                        format!(
+                        &format!(
                             "SELECT COUNT(*) from {}",
                             qualify_table_name(Some(&td.database_name), &td.table_name)
                         ),
@@ -284,21 +284,18 @@ impl MySQLConnector {
                 .handle_message(IngestionMessage::new_snapshotting_started(*txn, seq_no))
                 .map_err(ConnectorError::IngestorError)?;
 
-            let mut rows = conn
-                .exec_iter(
-                    format!(
-                        "SELECT {} from {}",
-                        td.columns
-                            .iter()
-                            .map(|ColumnDefinition { name, .. }| escape_identifier(name))
-                            .collect::<Vec<String>>()
-                            .join(", "),
-                        qualify_table_name(Some(&td.database_name), &td.table_name)
-                    ),
-                    (),
-                )
-                .await
-                .map_err(MySQLConnectorError::QueryExecutionError)?;
+            let mut rows = conn.exec_iter(
+                format!(
+                    "SELECT {} from {}",
+                    td.columns
+                        .iter()
+                        .map(|ColumnDefinition { name, .. }| escape_identifier(name))
+                        .collect::<Vec<String>>()
+                        .join(", "),
+                    qualify_table_name(Some(&td.database_name), &td.table_name)
+                ),
+                vec![],
+            );
 
             let field_types: Vec<FieldType> = td
                 .columns
@@ -306,11 +303,8 @@ impl MySQLConnector {
                 .map(|ColumnDefinition { typ, .. }| *typ)
                 .collect();
 
-            while let Some(row) = rows
-                .next()
-                .await
-                .map_err(MySQLConnectorError::QueryResultError)?
-            {
+            while let Some(result) = rows.next().await {
+                let row = result.map_err(MySQLConnectorError::QueryResultError)?;
                 let op: Operation = Operation::Insert {
                     new: Record::new(row.into_fields(&field_types)?),
                 };
@@ -406,9 +400,12 @@ mod tests {
     use super::MySQLConnector;
     use crate::{
         connectors::{
-            mysql::tests::{
-                create_test_table, mariadb_test_config, mysql_test_config, MockIngestionStream,
-                TestConfig,
+            mysql::{
+                connection::Conn,
+                tests::{
+                    create_test_table, mariadb_test_config, mysql_test_config, MockIngestionStream,
+                    TestConfig,
+                },
             },
             CdcType, Connector, SourceSchema, TableIdentifier,
         },
@@ -421,7 +418,6 @@ mod tests {
             Field, FieldDefinition, FieldType, Operation::*, Record, Schema, SourceDefinition,
         },
     };
-    use mysql_async::prelude::Queryable;
     use serial_test::serial;
     use std::{
         sync::{mpsc::Receiver, Arc},
@@ -506,7 +502,7 @@ mod tests {
             .await
             .unwrap();
 
-        let mut conn = connector.conn_pool.get_conn().await.unwrap();
+        let mut conn = Conn::new(connector.conn_pool.clone()).await.unwrap();
 
         // test
         conn.exec_drop(
@@ -598,7 +594,7 @@ mod tests {
         table_infos.push(create_test_table("test3", &config).await);
         table_infos.push(create_test_table("test2", &config).await);
 
-        let mut conn = connector.conn_pool.get_conn().await.unwrap();
+        let mut conn = Conn::new(connector.conn_pool.clone()).await.unwrap();
 
         conn.exec_drop("DELETE FROM test2", ()).await.unwrap();
         conn.exec_drop("DELETE FROM test3", ()).await.unwrap();

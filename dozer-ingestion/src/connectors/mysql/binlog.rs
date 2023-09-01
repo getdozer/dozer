@@ -1,8 +1,10 @@
 use super::{
+    connection::Conn,
     conversion::{IntoField, IntoFields, IntoJsonValue},
     schema::{ColumnDefinition, TableDefinition},
 };
 use crate::{
+    connectors::mysql::connection::is_network_failure,
     errors::{ConnectorError, MySQLConnectorError},
     ingestion::Ingestor,
 };
@@ -13,7 +15,7 @@ use dozer_types::{
 };
 use dozer_types::{json_types::JsonValue, types::Field};
 use futures::StreamExt;
-use mysql_async::{binlog::EventFlags, prelude::Queryable, BinlogStream, Conn, Pool};
+use mysql_async::{binlog::EventFlags, BinlogStream, Pool};
 use mysql_common::{
     binlog::{
         self,
@@ -99,8 +101,7 @@ impl<'a, 'b, 'c, 'd, 'e> BinlogIngestor<'a, 'b, 'c, 'd, 'e> {
 
 impl BinlogIngestor<'_, '_, '_, '_, '_> {
     async fn connect(&self) -> Result<Conn, MySQLConnectorError> {
-        self.conn_pool
-            .get_conn()
+        Conn::new(self.conn_pool.clone())
             .await
             .map_err(|err| MySQLConnectorError::ConnectionFailure(self.conn_url.clone(), err))
     }
@@ -138,7 +139,7 @@ impl BinlogIngestor<'_, '_, '_, '_, '_> {
         let mut seq_no = 0;
         let mut table_cache = BinlogTableCache::new(self.tables);
 
-        'binlog_read: while let Some(event) = self.binlog_stream.as_mut().unwrap().next().await {
+        'binlog_read: while let Some(result) = self.binlog_stream.as_mut().unwrap().next().await {
             match self.local_stop_position {
                 Some(stop_position) if self.next_position.position >= stop_position => {
                     break 'binlog_read;
@@ -146,7 +147,17 @@ impl BinlogIngestor<'_, '_, '_, '_, '_> {
                 _ => {}
             }
 
-            let binlog_event = event.map_err(MySQLConnectorError::BinlogReadError)?;
+            let binlog_event = match result {
+                Ok(event) => event,
+                Err(err) => {
+                    if is_network_failure(&err) {
+                        self.open_binlog().await?;
+                        continue 'binlog_read;
+                    } else {
+                        Err(MySQLConnectorError::BinlogReadError(err))?
+                    }
+                }
+            };
 
             let is_artificial = binlog_event
                 .header()

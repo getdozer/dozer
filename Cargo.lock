@@ -2667,6 +2667,7 @@ version = "0.1.36"
 dependencies = [
  "base64 0.21.0",
  "bson",
+ "bytes",
  "chrono",
  "criterion",
  "crossbeam",

@@ -49,17 +49,17 @@ mod tests {
             connector.create_publication(client, None).await.unwrap();
 
             // Creating slot
-            let client = helper::connect(replication_conn_config.clone())
+            let mut client = helper::connect(replication_conn_config.clone())
                 .await
                 .unwrap();
             let slot_name = connector.get_slot_name();
-            let _parsed_lsn = create_slot(&client, &slot_name).await;
+            let _parsed_lsn = create_slot(&mut client, &slot_name).await;
 
             // let result = connector
             //     .can_start_from((u64::from(parsed_lsn), 0))
             //     .unwrap();
 
-            ReplicationSlotHelper::drop_replication_slot(&client, &slot_name)
+            ReplicationSlotHelper::drop_replication_slot(&mut client, &slot_name)
                 .await
                 .unwrap();
             // assert!(
@@ -83,7 +83,7 @@ mod tests {
                 .as_ref()
                 .unwrap();
 
-            let test_client = TestPostgresClient::new(config).await;
+            let mut test_client = TestPostgresClient::new(config).await;
             let mut rng = rand::thread_rng();
             let table_name = format!("test_table_{}", rng.gen::<u32>());
             let connector_name = format!("pg_connector_{}", rng.gen::<u32>());
@@ -114,12 +114,12 @@ mod tests {
                 .unwrap();
 
             // Creating slot
-            let client = helper::connect(replication_conn_config.clone())
+            let mut client = helper::connect(replication_conn_config.clone())
                 .await
                 .unwrap();
 
             let slot_name = connector.get_slot_name();
-            let _parsed_lsn = create_slot(&client, &slot_name).await;
+            let _parsed_lsn = create_slot(&mut client, &slot_name).await;
 
             // let config = IngestionConfig::default();
             // let (ingestor, mut iterator) = Ingestor::initialize_channel(config);
@@ -166,9 +166,10 @@ mod tests {
             //     }
             // }
 
-            if let Err(e) = ReplicationSlotHelper::drop_replication_slot(&client, &slot_name).await
+            if let Err(e) =
+                ReplicationSlotHelper::drop_replication_slot(&mut client, &slot_name).await
             {
-                retry_drop_active_slot(e, &client, &slot_name)
+                retry_drop_active_slot(e, &mut client, &slot_name)
                     .await
                     .unwrap();
             }
