@@ -19,6 +19,8 @@ use dozer_types::grpc_types::health::health_check_response::ServingStatus;
 use dozer_types::json_types::field_to_json_value;
 use dozer_types::serde_json::{json, Value};
 
+use self::extractor::QueryExpressionExtractor;
+
 fn generate_oapi3(reader: &CacheReader, endpoint: ApiEndpoint) -> Result<OpenAPI, ApiError> {
     let (schema, secondary_indexes) = reader.get_schema();
 
@@ -95,8 +97,9 @@ pub async fn health_route() -> Result<HttpResponse, ApiError> {
 pub async fn count(
     access: Option<ReqData<Access>>,
     cache_endpoint: ReqData<Arc<CacheEndpoint>>,
-    mut query_expression: QueryExpression,
+    query_expression: QueryExpressionExtractor,
 ) -> Result<HttpResponse, ApiError> {
+    let mut query_expression = query_expression.0;
     get_records_count(
         &cache_endpoint.cache_reader(),
         &mut query_expression,
@@ -110,8 +113,9 @@ pub async fn count(
 pub async fn query(
     access: Option<ReqData<Access>>,
     cache_endpoint: ReqData<Arc<CacheEndpoint>>,
-    mut query_expression: QueryExpression,
+    query_expression: QueryExpressionExtractor,
 ) -> Result<HttpResponse, ApiError> {
+    let mut query_expression = query_expression.0;
     if query_expression.limit.is_none() {
         query_expression.limit = Some(default_limit_for_query());
     }
@@ -169,4 +173,80 @@ pub async fn get_phase(
     let cache_reader = cache_endpoint.cache_reader();
     let phase = cache_reader.get_phase().map_err(ApiError::GetPhaseFailed)?;
     Ok(web::Json(phase))
+}
+
+mod extractor {
+    use std::{
+        future::{ready, Ready},
+        task::Poll,
+    };
+
+    use actix_http::{HttpMessage, Payload};
+    use actix_web::{
+        error::{ErrorBadRequest, JsonPayloadError},
+        Error, FromRequest, HttpRequest,
+    };
+    use dozer_cache::cache::expression::QueryExpression;
+    use dozer_types::serde_json;
+    use futures_util::{future::Either, Future};
+    use pin_project::pin_project;
+
+    pub struct QueryExpressionExtractor(pub QueryExpression);
+
+    impl FromRequest for QueryExpressionExtractor {
+        type Error = Error;
+        type Future =
+            Either<Ready<Result<QueryExpressionExtractor, Error>>, QueryExpressionExtractFuture>;
+
+        fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+            if let Err(e) = check_content_type(req) {
+                Either::Left(ready(Err(e)))
+            } else {
+                Either::Right(QueryExpressionExtractFuture(String::from_request(
+                    req, payload,
+                )))
+            }
+        }
+    }
+
+    fn check_content_type(req: &HttpRequest) -> Result<(), Error> {
+        if let Some(mime_type) = req.mime_type()? {
+            if mime_type != "application/json" {
+                return Err(ErrorBadRequest("Content-Type is not application/json"));
+            }
+        }
+        Ok(())
+    }
+    type StringExtractFut = <String as FromRequest>::Future;
+
+    #[pin_project]
+    pub struct QueryExpressionExtractFuture(#[pin] StringExtractFut);
+
+    impl Future for QueryExpressionExtractFuture {
+        type Output = Result<QueryExpressionExtractor, Error>;
+
+        fn poll(
+            self: std::pin::Pin<&mut Self>,
+            cx: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<Self::Output> {
+            let this = self.project();
+            match this.0.poll(cx) {
+                Poll::Pending => Poll::Pending,
+                Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
+                Poll::Ready(Ok(body)) => {
+                    Poll::Ready(parse_query_expression(&body).map(QueryExpressionExtractor))
+                }
+            }
+        }
+    }
+
+    fn parse_query_expression(body: &str) -> Result<QueryExpression, Error> {
+        if body.is_empty() {
+            return Ok(QueryExpression::with_no_limit());
+        }
+
+        serde_json::from_str(body)
+            .map_err(JsonPayloadError::Deserialize)
+            .map_err(Into::into)
+    }
 }
