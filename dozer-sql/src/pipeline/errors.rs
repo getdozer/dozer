@@ -84,6 +84,8 @@ pub enum PipelineError {
     UnableToCast(String, String),
     #[error("Missing INTO clause for top-level SELECT statement")]
     MissingIntoClause,
+    #[error("Duplicate INTO table name found: {0:?}")]
+    DuplicateIntoClause(String),
     #[cfg(feature = "python")]
     #[error("Python Error: {0}")]
     PythonErr(dozer_types::pyo3::PyErr),

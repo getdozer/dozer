@@ -338,6 +338,10 @@ fn select_to_pipeline(
     }
 
     if let Some(table_name) = output_table_name {
+        if query_ctx.output_tables_map.contains_key(&table_name) {
+            return Err(PipelineError::DuplicateIntoClause(table_name));
+        }
+
         query_ctx.output_tables_map.insert(
             table_name,
             OutputNodeInfo {

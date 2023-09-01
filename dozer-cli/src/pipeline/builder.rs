@@ -162,12 +162,7 @@ impl<'a> PipelineBuilder<'a> {
 
             query_ctx = Some(query_context.clone());
 
-            for (name, _) in query_context.output_tables_map {
-                if transformed_sources.contains(&name) {
-                    return Err(OrchestrationError::DuplicateTable(name));
-                }
-                transformed_sources.push(name.clone());
-            }
+            transformed_sources = query_context.output_tables_map.keys().cloned().collect();
 
             for name in query_context.used_sources {
                 // Add all source tables to input tables
@@ -231,9 +226,6 @@ impl<'a> PipelineBuilder<'a> {
                 .map_err(OrchestrationError::PipelineError)?;
 
             for (name, table_info) in query_context.output_tables_map {
-                if available_output_tables.contains_key(name.as_str()) {
-                    return Err(OrchestrationError::DuplicateTable(name));
-                }
                 available_output_tables
                     .insert(name.clone(), OutputTableInfo::Transformed(table_info));
             }
