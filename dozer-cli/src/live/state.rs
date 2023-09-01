@@ -299,6 +299,7 @@ async fn create_dag(dozer: &SimpleOrchestrator) -> Result<Dag, OrchestrationErro
         endpoint_and_logs,
         Default::default(),
         Flags::default(),
+        &dozer.config.udfs,
     );
     let (_shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
     builder.build(&dozer.runtime, shutdown_receiver).await
@@ -337,6 +338,7 @@ fn get_dozer_run_instance(
                 &req.sql,
                 &mut AppPipeline::new(dozer.config.flags.clone().unwrap_or_default().into()),
                 None,
+                dozer.config.udfs.clone(),
             )
             .map_err(LiveError::PipelineError)?;
 

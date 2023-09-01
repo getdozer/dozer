@@ -13,3 +13,6 @@ mod window;
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(feature = "onnx")]
+pub mod onnx;

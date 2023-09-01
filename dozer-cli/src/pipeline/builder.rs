@@ -18,6 +18,7 @@ use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::connection::Connection;
 use dozer_types::models::flags::Flags;
 use dozer_types::models::source::Source;
+use dozer_types::models::udf_config::UdfConfig;
 use dozer_types::parking_lot::Mutex;
 use std::hash::Hash;
 use tokio::runtime::Runtime;
@@ -59,6 +60,7 @@ pub struct PipelineBuilder<'a> {
     endpoint_and_logs: Vec<(ApiEndpoint, OptionLog)>,
     labels: LabelsAndProgress,
     flags: Flags,
+    udfs: &'a [UdfConfig],
 }
 
 impl<'a> PipelineBuilder<'a> {
@@ -69,6 +71,7 @@ impl<'a> PipelineBuilder<'a> {
         endpoint_and_logs: Vec<(ApiEndpoint, OptionLog)>,
         labels: LabelsAndProgress,
         flags: Flags,
+        udfs: &'a [UdfConfig],
     ) -> Self {
         Self {
             connections,
@@ -77,6 +80,7 @@ impl<'a> PipelineBuilder<'a> {
             endpoint_and_logs,
             labels,
             flags,
+            udfs,
         }
     }
 
@@ -157,7 +161,7 @@ impl<'a> PipelineBuilder<'a> {
         let mut transformed_sources = vec![];
 
         if let Some(sql) = &self.sql {
-            let query_context = statement_to_pipeline(sql, &mut pipeline, None)
+            let query_context = statement_to_pipeline(sql, &mut pipeline, None, self.udfs.to_vec())
                 .map_err(OrchestrationError::PipelineError)?;
 
             query_ctx = Some(query_context.clone());
@@ -222,7 +226,7 @@ impl<'a> PipelineBuilder<'a> {
         }
 
         if let Some(sql) = &self.sql {
-            let query_context = statement_to_pipeline(sql, &mut pipeline, None)
+            let query_context = statement_to_pipeline(sql, &mut pipeline, None, self.udfs.to_vec())
                 .map_err(OrchestrationError::PipelineError)?;
 
             for (name, table_info) in query_context.output_tables_map {

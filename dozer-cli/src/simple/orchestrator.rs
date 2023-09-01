@@ -210,6 +210,7 @@ impl SimpleOrchestrator {
             &self.config.endpoints,
             get_checkpoint_factory_options(&self.config),
             self.labels.clone(),
+            &self.config.udfs,
         ))?;
         let dag_executor = self.runtime.block_on(executor.create_dag_executor(
             &self.runtime,
@@ -322,6 +323,7 @@ impl SimpleOrchestrator {
             endpoint_and_logs,
             self.labels.clone(),
             self.config.flags.clone().unwrap_or_default(),
+            &self.config.udfs,
         );
         let dag = self
             .runtime
@@ -433,7 +435,13 @@ impl SimpleOrchestrator {
 }
 
 pub fn validate_sql(sql: String) -> Result<(), PipelineError> {
-    statement_to_pipeline(&sql, &mut AppPipeline::new_with_default_flags(), None).map_or_else(
+    statement_to_pipeline(
+        &sql,
+        &mut AppPipeline::new_with_default_flags(),
+        None,
+        vec![],
+    )
+    .map_or_else(
         |e| {
             error!(
                 "[sql][{}] Transforms validation error: {}",

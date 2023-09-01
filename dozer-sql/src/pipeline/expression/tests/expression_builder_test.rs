@@ -34,7 +34,7 @@ fn test_simple_function() {
 
     let mut builder = ExpressionBuilder::new(schema.fields.len());
     let e = match &get_select(sql).unwrap().projection[0] {
-        SelectItem::UnnamedExpr(e) => builder.build(true, e, &schema).unwrap(),
+        SelectItem::UnnamedExpr(e) => builder.build(true, e, &schema, &vec![]).unwrap(),
         _ => panic!("Invalid expr"),
     };
 
@@ -74,7 +74,7 @@ fn test_simple_aggr_function() {
 
     let mut builder = ExpressionBuilder::new(schema.fields.len());
     let e = match &get_select(sql).unwrap().projection[0] {
-        SelectItem::UnnamedExpr(e) => builder.build(true, e, &schema).unwrap(),
+        SelectItem::UnnamedExpr(e) => builder.build(true, e, &schema, &vec![]).unwrap(),
         _ => panic!("Invalid expr"),
     };
 
@@ -117,7 +117,7 @@ fn test_2_nested_aggr_function() {
 
     let mut builder = ExpressionBuilder::new(schema.fields.len());
     let e = match &get_select(sql).unwrap().projection[0] {
-        SelectItem::UnnamedExpr(e) => builder.build(true, e, &schema).unwrap(),
+        SelectItem::UnnamedExpr(e) => builder.build(true, e, &schema, &vec![]).unwrap(),
         _ => panic!("Invalid expr"),
     };
 
@@ -166,7 +166,7 @@ fn test_3_nested_aggr_function() {
 
     let mut builder = ExpressionBuilder::new(schema.fields.len());
     let e = match &get_select(sql).unwrap().projection[0] {
-        SelectItem::UnnamedExpr(e) => builder.build(true, e, &schema).unwrap(),
+        SelectItem::UnnamedExpr(e) => builder.build(true, e, &schema, &vec![]).unwrap(),
         _ => panic!("Invalid expr"),
     };
 
@@ -221,7 +221,7 @@ fn test_3_nested_aggr_function_dup() {
 
     let mut builder = ExpressionBuilder::new(schema.fields.len());
     let e = match &get_select(sql).unwrap().projection[0] {
-        SelectItem::UnnamedExpr(e) => builder.build(true, e, &schema).unwrap(),
+        SelectItem::UnnamedExpr(e) => builder.build(true, e, &schema, &vec![]).unwrap(),
         _ => panic!("Invalid expr"),
     };
 
@@ -279,7 +279,7 @@ fn test_3_nested_aggr_function_and_sum() {
 
     let mut builder = ExpressionBuilder::new(schema.fields.len());
     let e = match &get_select(sql).unwrap().projection[0] {
-        SelectItem::UnnamedExpr(e) => builder.build(true, e, &schema).unwrap(),
+        SelectItem::UnnamedExpr(e) => builder.build(true, e, &schema, &vec![]).unwrap(),
         _ => panic!("Invalid expr"),
     };
 
@@ -344,7 +344,7 @@ fn test_3_nested_aggr_function_and_sum_3() {
 
     let mut builder = ExpressionBuilder::new(schema.fields.len());
     let e = match &get_select(sql).unwrap().projection[0] {
-        SelectItem::UnnamedExpr(e) => builder.build(true, e, &schema).unwrap(),
+        SelectItem::UnnamedExpr(e) => builder.build(true, e, &schema, &vec![]).unwrap(),
         _ => panic!("Invalid expr"),
     };
 
@@ -406,7 +406,7 @@ fn test_wrong_nested_aggregations() {
 
     let mut builder = ExpressionBuilder::new(schema.fields.len());
     let _e = match &get_select(sql).unwrap().projection[0] {
-        SelectItem::UnnamedExpr(e) => builder.build(true, e, &schema).unwrap(),
+        SelectItem::UnnamedExpr(e) => builder.build(true, e, &schema, &vec![]).unwrap(),
         _ => panic!("Invalid expr"),
     };
 }
@@ -443,7 +443,7 @@ fn test_name_resolution() {
 
     let mut builder = ExpressionBuilder::new(schema.fields.len());
     let e = match &get_select(sql).unwrap().projection[0] {
-        SelectItem::UnnamedExpr(e) => builder.build(true, e, &schema).unwrap(),
+        SelectItem::UnnamedExpr(e) => builder.build(true, e, &schema, &vec![]).unwrap(),
         _ => panic!("Invalid expr"),
     };
 
@@ -486,7 +486,7 @@ fn test_alias_resolution() {
 
     let mut builder = ExpressionBuilder::new(schema.fields.len());
     let e = match &get_select(sql).unwrap().projection[0] {
-        SelectItem::UnnamedExpr(e) => builder.build(true, e, &schema).unwrap(),
+        SelectItem::UnnamedExpr(e) => builder.build(true, e, &schema, &vec![]).unwrap(),
         _ => panic!("Invalid expr"),
     };
 

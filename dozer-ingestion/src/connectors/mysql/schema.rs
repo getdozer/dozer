@@ -194,7 +194,7 @@ impl SchemaHelper<'_, '_> {
         Ok(table_definitions)
     }
 
-    const MARIADB_JSON_CHECK: &str = "(column_type = 'longtext'
+    const MARIADB_JSON_CHECK: &'static str = "(column_type = 'longtext'
         AND (
             SELECT COUNT(*) > 0
             FROM information_schema.check_constraints

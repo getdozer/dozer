@@ -68,6 +68,7 @@ fn load_multi_sources() {
             .collect(),
         Default::default(),
         Flags::default(),
+        &config.udfs,
     );
 
     let runtime = tokio::runtime::Builder::new_current_thread()

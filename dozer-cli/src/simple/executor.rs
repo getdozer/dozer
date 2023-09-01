@@ -13,6 +13,7 @@ use tokio::runtime::Runtime;
 use std::sync::{atomic::AtomicBool, Arc};
 
 use dozer_types::models::source::Source;
+use dozer_types::models::udf_config::UdfConfig;
 
 use crate::pipeline::PipelineBuilder;
 use crate::shutdown::ShutdownReceiver;
@@ -32,6 +33,7 @@ pub struct Executor<'a> {
     /// `ApiEndpoint` and its log.
     endpoint_and_logs: Vec<(ApiEndpoint, LogEndpoint)>,
     labels: LabelsAndProgress,
+    udfs: &'a [UdfConfig],
 }
 
 impl<'a> Executor<'a> {
@@ -47,6 +49,7 @@ impl<'a> Executor<'a> {
         api_endpoints: &'a [ApiEndpoint],
         checkpoint_factory_options: CheckpointFactoryOptions,
         labels: LabelsAndProgress,
+        udfs: &'a [UdfConfig],
     ) -> Result<Executor<'a>, OrchestrationError> {
         // Find the build path.
         let build_path = home_dir
@@ -79,6 +82,7 @@ impl<'a> Executor<'a> {
             checkpoint_factory: Arc::new(checkpoint_factory),
             endpoint_and_logs,
             labels,
+            udfs,
         })
     }
 
@@ -103,6 +107,7 @@ impl<'a> Executor<'a> {
                 .collect(),
             self.labels.clone(),
             flags,
+            self.udfs,
         );
 
         let dag = builder.build(runtime, shutdown).await?;

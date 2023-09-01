@@ -7,6 +7,7 @@ use dozer_core::app::AppPipeline;
 use dozer_core::app::PipelineEntryPoint;
 use dozer_core::node::PortHandle;
 use dozer_core::DEFAULT_PORT_HANDLE;
+use dozer_types::models::udf_config::UdfConfig;
 use sqlparser::ast::{Join, SetOperator, SetQuantifier, TableFactor, TableWithJoins};
 
 use sqlparser::{
@@ -51,12 +52,22 @@ pub struct QueryContext {
 
     // Processors counter
     pub processor_counter: usize,
+
+    // Udf related configs
+    pub udfs: Vec<UdfConfig>,
 }
 
 impl QueryContext {
     pub fn get_next_processor_id(&mut self) -> usize {
         self.processor_counter += 1;
         self.processor_counter
+    }
+
+    pub fn new(udfs: Vec<UdfConfig>) -> Self {
+        QueryContext {
+            udfs,
+            ..Default::default()
+        }
     }
 }
 
@@ -69,9 +80,10 @@ pub fn statement_to_pipeline(
     sql: &str,
     pipeline: &mut AppPipeline,
     override_name: Option<String>,
+    udfs: Vec<UdfConfig>,
 ) -> Result<QueryContext, PipelineError> {
     let dialect = DozerDialect {};
-    let mut ctx = QueryContext::default();
+    let mut ctx = QueryContext::new(udfs);
     let is_top_select = true;
     let ast = Parser::parse_sql(&dialect, sql)
         .map_err(|err| PipelineError::InternalError(Box::new(err)))?;
@@ -180,7 +192,7 @@ fn query_to_pipeline(
         }
         SetExpr::Query(query) => {
             let query_name = format!("subquery_{}", query_ctx.get_next_processor_id());
-            let mut ctx = QueryContext::default();
+            let mut ctx = QueryContext::new(query_ctx.udfs.clone());
             query_to_pipeline(
                 &TableInfo {
                     name: NameOrAlias(query_name, None),
@@ -286,13 +298,18 @@ fn select_to_pipeline(
             .flags()
             .enable_probabilistic_optimizations
             .in_aggregations,
+        query_ctx.udfs.clone(),
     );
 
     pipeline.add_processor(Box::new(aggregation), &gen_agg_name, vec![]);
 
     // Where clause
     if let Some(selection) = select.selection {
-        let selection = SelectionProcessorFactory::new(gen_selection_name.to_owned(), selection);
+        let selection = SelectionProcessorFactory::new(
+            gen_selection_name.to_owned(),
+            selection,
+            query_ctx.udfs.clone(),
+        );
 
         pipeline.add_processor(Box::new(selection), &gen_selection_name, vec![]);
 
@@ -641,13 +658,24 @@ mod tests {
     #[should_panic]
     fn disallow_zero_outgoing_ndes() {
         let sql = "select * from film";
-        statement_to_pipeline(sql, &mut AppPipeline::new_with_default_flags(), None).unwrap();
+        statement_to_pipeline(
+            sql,
+            &mut AppPipeline::new_with_default_flags(),
+            None,
+            vec![],
+        )
+        .unwrap();
     }
 
     #[test]
     fn test_duplicate_into_clause() {
         let sql = "select * into table1 from film1 ; select * into table1 from film2";
-        let result = statement_to_pipeline(sql, &mut AppPipeline::new_with_default_flags(), None);
+        let result = statement_to_pipeline(
+            sql,
+            &mut AppPipeline::new_with_default_flags(),
+            None,
+            vec![],
+        );
         assert!(matches!(
             result,
             Err(PipelineError::DuplicateIntoClause(dup_table)) if dup_table == "table1"
@@ -711,8 +739,13 @@ mod tests {
                 from  stocks join tbl on tbl.id = stocks.id;
             "#;
 
-        let context =
-            statement_to_pipeline(sql, &mut AppPipeline::new_with_default_flags(), None).unwrap();
+        let context = statement_to_pipeline(
+            sql,
+            &mut AppPipeline::new_with_default_flags(),
+            None,
+            vec![],
+        )
+        .unwrap();
 
         // Should create as many output tables as into statements
         let mut output_keys = context.output_tables_map.keys().collect::<Vec<_>>();
@@ -733,7 +766,12 @@ mod tests {
 #[test]
 fn test_missing_into_in_simple_from_clause() {
     let sql = r#"SELECT a FROM B "#;
-    let result = statement_to_pipeline(sql, &mut AppPipeline::new_with_default_flags(), None);
+    let result = statement_to_pipeline(
+        sql,
+        &mut AppPipeline::new_with_default_flags(),
+        None,
+        vec![],
+    );
     //check if the result is an error
     assert!(matches!(result, Err(PipelineError::MissingIntoClause)))
 }
@@ -741,7 +779,12 @@ fn test_missing_into_in_simple_from_clause() {
 #[test]
 fn test_correct_into_clause() {
     let sql = r#"SELECT a INTO C FROM B"#;
-    let result = statement_to_pipeline(sql, &mut AppPipeline::new_with_default_flags(), None);
+    let result = statement_to_pipeline(
+        sql,
+        &mut AppPipeline::new_with_default_flags(),
+        None,
+        vec![],
+    );
     //check if the result is ok
     assert!(result.is_ok());
 }
@@ -749,7 +792,12 @@ fn test_correct_into_clause() {
 #[test]
 fn test_missing_into_in_nested_from_clause() {
     let sql = r#"SELECT a FROM (SELECT a from b)"#;
-    let result = statement_to_pipeline(sql, &mut AppPipeline::new_with_default_flags(), None);
+    let result = statement_to_pipeline(
+        sql,
+        &mut AppPipeline::new_with_default_flags(),
+        None,
+        vec![],
+    );
     //check if the result is an error
     assert!(matches!(result, Err(PipelineError::MissingIntoClause)))
 }
@@ -757,7 +805,12 @@ fn test_missing_into_in_nested_from_clause() {
 #[test]
 fn test_correct_into_in_nested_from() {
     let sql = r#"SELECT a INTO c FROM (SELECT a from b)"#;
-    let result = statement_to_pipeline(sql, &mut AppPipeline::new_with_default_flags(), None);
+    let result = statement_to_pipeline(
+        sql,
+        &mut AppPipeline::new_with_default_flags(),
+        None,
+        vec![],
+    );
     //check if the result is ok
     assert!(result.is_ok());
 }
@@ -767,7 +820,12 @@ fn test_missing_into_in_with_clause() {
     let sql = r#"WITH tbl as (select a from B)
     select B
     from tbl;"#;
-    let result = statement_to_pipeline(sql, &mut AppPipeline::new_with_default_flags(), None);
+    let result = statement_to_pipeline(
+        sql,
+        &mut AppPipeline::new_with_default_flags(),
+        None,
+        vec![],
+    );
     //check if the result is an error
     assert!(matches!(result, Err(PipelineError::MissingIntoClause)))
 }
@@ -778,7 +836,12 @@ fn test_correct_into_in_with_clause() {
     select B
     into C
     from tbl;"#;
-    let result = statement_to_pipeline(sql, &mut AppPipeline::new_with_default_flags(), None);
+    let result = statement_to_pipeline(
+        sql,
+        &mut AppPipeline::new_with_default_flags(),
+        None,
+        vec![],
+    );
     //check if the result is ok
     assert!(result.is_ok());
 }

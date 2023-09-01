@@ -186,8 +186,11 @@ fn insert_table_operator_to_pipeline(
             table_operator.name,
             query_context.get_next_processor_id()
         );
-        let processor =
-            TableOperatorProcessorFactory::new(processor_name.clone(), table_operator.clone());
+        let processor = TableOperatorProcessorFactory::new(
+            processor_name.clone(),
+            table_operator.clone(),
+            query_context.udfs.to_owned(),
+        );
 
         let source_name = processor
             .get_source_name()

@@ -7,6 +7,7 @@ use dozer_core::{
     DEFAULT_PORT_HANDLE,
 };
 use dozer_types::errors::internal::BoxedError;
+use dozer_types::models::udf_config::UdfConfig;
 use dozer_types::parking_lot::Mutex;
 use dozer_types::types::Schema;
 use sqlparser::ast::Select;
@@ -18,6 +19,7 @@ pub struct AggregationProcessorFactory {
     projection: Select,
     _stateful: bool,
     enable_probabilistic_optimizations: bool,
+    udfs: Vec<UdfConfig>,
 
     /// Type name can only be determined after schema propagation.
     type_name: Mutex<Option<String>>,
@@ -29,18 +31,20 @@ impl AggregationProcessorFactory {
         projection: Select,
         stateful: bool,
         enable_probabilistic_optimizations: bool,
+        udfs: Vec<UdfConfig>,
     ) -> Self {
         Self {
             id,
             projection,
             _stateful: stateful,
             enable_probabilistic_optimizations,
+            udfs,
             type_name: Mutex::new(None),
         }
     }
 
     fn get_planner(&self, input_schema: Schema) -> Result<CommonPlanner, PipelineError> {
-        let mut projection_planner = CommonPlanner::new(input_schema);
+        let mut projection_planner = CommonPlanner::new(input_schema, self.udfs.as_slice());
         projection_planner.plan(self.projection.clone())?;
         Ok(projection_planner)
     }
