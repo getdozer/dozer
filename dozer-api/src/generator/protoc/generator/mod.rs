@@ -146,10 +146,9 @@ impl ProtoGenerator {
         folder_path: &Path,
         schema_name: &str,
         schema: &EndpointSchema,
-    ) -> Result<(), GenerationError> {
+    ) -> Result<String, GenerationError> {
         let generator = ProtoGeneratorImpl::new(schema_name, schema, folder_path)?;
-        generator.generate_proto()?;
-        Ok(())
+        generator.generate_proto()
     }
 
     pub fn generate_descriptor<T: AsRef<str>>(
