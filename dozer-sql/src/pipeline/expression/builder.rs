@@ -541,7 +541,7 @@ impl ExpressionBuilder {
         match udf_type.config.clone() {
             Some(Onnx(config)) => {
                 self.parse_onnx_udf(function_name.clone(), &config, sql_function, schema, udfs)
-            },
+            }
             None => Err(PipelineError::UdfConfigMissing(function_name.clone())),
         }
     }
