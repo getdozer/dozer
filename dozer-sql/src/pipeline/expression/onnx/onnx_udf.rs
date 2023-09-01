@@ -492,7 +492,8 @@ fn onnx_output_to_dozer(
                 .try_extract::<f32>()
                 .map_err(|e| OnnxError(OnnxOrtErr(e)))?;
             assert_eq!(output_array_view.view().shape(), output_shape);
-            let result = output_array_view.view().deref()[0].into();
+            let view = output_array_view.view();
+            let result = view.deref()[0].into();
             Ok(Field::Float(OrderedFloat(result)))
         }
         TensorElementDataType::Float64 => {
