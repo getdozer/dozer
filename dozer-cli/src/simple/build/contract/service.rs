@@ -1,5 +1,9 @@
-use std::{collections::HashMap, fmt::Display};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Display,
+};
 
+use dozer_api::generator::protoc::generator::ProtoGenerator;
 use dozer_core::{
     daggy,
     petgraph::{
@@ -9,6 +13,8 @@ use dozer_core::{
     },
 };
 use dozer_types::grpc_types::{contract::Schema, conversions::field_definition_to_grpc};
+
+use crate::errors::BuildError;
 
 use super::{Contract, NodeKind};
 
@@ -61,6 +67,25 @@ impl Contract {
 
     pub fn generate_dot(&self) -> String {
         dot::Dot::new(&self.create_ui_graph()).to_string()
+    }
+
+    pub fn get_protos(&self) -> Result<(Vec<String>, Vec<String>), BuildError> {
+        let mut protos = vec![];
+        let mut set = HashSet::new();
+        let mut libs = vec![];
+        for (endpoint_name, schema) in &self.endpoints {
+            let rendered_proto = ProtoGenerator::render(endpoint_name, schema)
+                .map_err(BuildError::FailedToGenerateProtoFiles)?;
+            for proto in rendered_proto.protos {
+                if !set.contains(&proto.name) {
+                    protos.push(proto.content);
+                    set.insert(proto.name);
+                }
+            }
+            libs.extend(rendered_proto.libraries);
+        }
+        libs.dedup();
+        Ok((protos, libs))
     }
 
     fn create_ui_graph(&self) -> UiGraph {

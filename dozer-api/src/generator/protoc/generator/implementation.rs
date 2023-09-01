@@ -13,7 +13,7 @@ use inflector::Inflector;
 use prost_reflect::{DescriptorPool, FieldDescriptor, Kind, MessageDescriptor};
 use std::path::Path;
 
-use super::{CountResponseDesc, QueryResponseDesc, RecordDesc, ServiceDesc};
+use super::{CountResponseDesc, NamedProto, QueryResponseDesc, RecordDesc, ServiceDesc};
 
 const POINT_TYPE_CLASS: &str = "dozer.types.PointType";
 const DURATION_TYPE_CLASS: &str = "dozer.types.DurationType";
@@ -39,21 +39,15 @@ pub struct ProtoGeneratorImpl<'a> {
     handlebars: Handlebars<'a>,
     schema: &'a EndpointSchema,
     names: Names,
-    folder_path: &'a Path,
 }
 
 impl<'a> ProtoGeneratorImpl<'a> {
-    pub fn new(
-        schema_name: &str,
-        schema: &'a EndpointSchema,
-        folder_path: &'a Path,
-    ) -> Result<Self, GenerationError> {
+    pub fn new(schema_name: &str, schema: &'a EndpointSchema) -> Result<Self, GenerationError> {
         let names = Names::new(schema_name, &schema.schema);
         let mut generator = Self {
             handlebars: Handlebars::new(),
             schema,
             names,
-            folder_path,
         };
         generator.register_template()?;
         Ok(generator)
@@ -82,7 +76,7 @@ impl<'a> ProtoGeneratorImpl<'a> {
             .collect()
     }
 
-    fn libs_by_type(&self) -> Result<Vec<String>, GenerationError> {
+    pub fn libs_by_type(&self) -> Result<Vec<String>, GenerationError> {
         let type_need_import_libs = [TIMESTAMP_TYPE_CLASS, JSON_TYPE_CLASS];
         let mut libs_import: Vec<String> = self
             .schema
@@ -121,27 +115,35 @@ impl<'a> ProtoGeneratorImpl<'a> {
         Ok(metadata)
     }
 
-    pub fn generate_proto(&self) -> Result<String, GenerationError> {
-        if !Path::new(&self.folder_path).exists() {
-            return Err(GenerationError::DirPathNotExist(
-                self.folder_path.to_path_buf(),
-            ));
-        }
-
+    pub fn render_protos(&self) -> Result<Vec<NamedProto>, GenerationError> {
         let metadata = self.get_metadata()?;
+        let mut protos = vec![];
 
         let types_proto = include_str!("../../../../../dozer-types/protos/types.proto");
-
         let resource_proto = self.handlebars.render("main", &metadata)?;
 
-        // Copy types proto file
-        let types_path = self.folder_path.join("types.proto");
-        std::fs::write(&types_path, types_proto)
-            .map_err(|e| GenerationError::FailedToWriteToFile(types_path, e))?;
+        protos.push(NamedProto {
+            name: "types.proto".to_string(),
+            content: types_proto.to_string(),
+        });
+        protos.push(NamedProto {
+            name: self.names.proto_file_name.clone(),
+            content: resource_proto,
+        });
 
-        let resource_path = self.folder_path.join(&self.names.proto_file_name);
-        std::fs::write(&resource_path, resource_proto)
-            .map_err(|e| GenerationError::FailedToWriteToFile(resource_path.clone(), e))?;
+        Ok(protos)
+    }
+
+    pub fn generate_proto(&self, folder_path: &Path) -> Result<String, GenerationError> {
+        if !folder_path.exists() {
+            return Err(GenerationError::DirPathNotExist(folder_path.to_path_buf()));
+        }
+        let protos = self.render_protos()?;
+        for NamedProto { name, content } in protos {
+            let proto_path = folder_path.join(&name);
+            std::fs::write(&proto_path, content)
+                .map_err(|e| GenerationError::FailedToWriteToFile(proto_path, e))?;
+        }
 
         Ok(self.names.proto_file_stem.clone())
     }

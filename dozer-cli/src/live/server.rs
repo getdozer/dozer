@@ -5,7 +5,7 @@ use dozer_types::{
     grpc_types::{
         contract::{
             contract_service_server::{ContractService, ContractServiceServer},
-            CommonRequest, DotResponse, SchemasResponse, SourcesRequest,
+            CommonRequest, DotResponse, ProtoResponse, SchemasResponse, SourcesRequest,
         },
         live::{
             code_service_server::{CodeService, CodeServiceServer},
@@ -75,6 +75,19 @@ impl ContractService for ContractServer {
     ) -> Result<Response<SchemasResponse>, Status> {
         let state = self.state.clone();
         let res = state.get_graph_schemas().await;
+
+        match res {
+            Ok(res) => Ok(Response::new(res)),
+            Err(e) => Err(Status::internal(e.to_string())),
+        }
+    }
+
+    async fn get_protos(
+        &self,
+        _request: Request<CommonRequest>,
+    ) -> Result<Response<ProtoResponse>, Status> {
+        let state = self.state.clone();
+        let res = state.get_protos().await;
 
         match res {
             Ok(res) => Ok(Response::new(res)),

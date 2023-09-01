@@ -1,13 +1,14 @@
 use std::{sync::Arc, thread::JoinHandle};
 
 use clap::Parser;
+
 use dozer_cache::dozer_log::camino::Utf8Path;
 use dozer_core::{app::AppPipeline, dag_schemas::DagSchemas, Dag};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_tracing::{Labels, LabelsAndProgress};
 use dozer_types::{
     grpc_types::{
-        contract::{DotResponse, SchemasResponse},
+        contract::{DotResponse, ProtoResponse, SchemasResponse},
         live::{BuildResponse, BuildStatus, ConnectResponse, LiveApp, LiveResponse, RunRequest},
     },
     log::info,
@@ -218,6 +219,14 @@ impl LiveState {
         Ok(DotResponse {
             dot: contract.generate_dot(),
         })
+    }
+
+    pub async fn get_protos(&self) -> Result<ProtoResponse, LiveError> {
+        let dozer = self.dozer.read().await;
+        let contract = get_contract(&dozer)?;
+        let (protos, libraries) = contract.get_protos()?;
+
+        Ok(ProtoResponse { protos, libraries })
     }
 
     pub async fn run(&self, request: RunRequest) -> Result<Labels, LiveError> {
