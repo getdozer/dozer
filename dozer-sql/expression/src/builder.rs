@@ -981,6 +981,7 @@ impl ExpressionBuilder {
         name: &str,
         function: &Function,
         schema: &Schema,
+        udfs: &[UdfConfig],
     ) -> Result<Expression, PipelineError> {
         // First, get the wasm function defined by name.
         // Then, transfer the wasm function to Expression::WasmUDF
@@ -991,7 +992,7 @@ impl ExpressionBuilder {
         let args = function
             .args
             .iter()
-            .map(|argument| self.parse_sql_function_arg(false, argument, schema))
+            .map(|argument| self.parse_sql_function_arg(false, argument, schema, udfs))
             .collect::<Result<Vec<_>, PipelineError>>()?;
 
         let last_arg = args
