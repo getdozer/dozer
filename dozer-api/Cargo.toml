@@ -26,7 +26,7 @@ prost = "0.11.8"
 prost-reflect = { version = "0.10.2", features = ["serde", "text-format"] } 
 tonic-reflection = "0.6.0"
 Inflector = "0.11.4"
-futures-util = "0.3.27"
+futures-util = "0.3.28"
 prost-build = "0.11.6"
 tonic-web = "0.4.0"
 jsonwebtoken = "8.3.0"
