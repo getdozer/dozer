@@ -100,7 +100,7 @@ impl JoinTable {
         record_decoded: &Record,
     ) -> Result<JoinKey, JoinError> {
         let join_key = self.get_join_key(record_decoded);
-        let primary_key = self.get_primary_key(record_decoded);
+        let primary_key = get_record_key_hash(record_decoded, &self.primary_key_indexes);
 
         if let Some(lifetime) = record.get_lifetime() {
             let Some(eviction_instant) =
@@ -131,8 +131,8 @@ impl JoinTable {
 
     pub fn remove(&mut self, record: &Record) -> JoinKey {
         let join_key = self.get_join_key(record);
-        let primary_key = self.get_primary_key(record);
         if let Some(record_map) = self.map.get_mut(&join_key) {
+            let primary_key = get_record_key_hash(record, &self.primary_key_indexes);
             remove_record_using_primary_key(record_map, primary_key);
         }
         join_key
@@ -164,10 +164,6 @@ impl JoinTable {
         } else {
             JoinKey::Hash(get_record_key_hash(record, &self.join_key_indexes))
         }
-    }
-
-    fn get_primary_key(&self, record: &Record) -> u64 {
-        get_record_key_hash(record, &self.primary_key_indexes)
     }
 }
 
