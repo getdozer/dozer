@@ -29,10 +29,35 @@ use std::{env, process};
 fn main() {
     set_panic_hook();
 
-    if let Err(e) = run() {
+    #[cfg(feature = "cloud")]
+    let result = run_with_sentry();
+    #[cfg(not(feature = "cloud"))]
+    let result = run();
+
+    if let Err(e) = result {
         display_error(&e);
         process::exit(1);
     }
+}
+
+#[cfg(feature = "cloud")]
+fn run_with_sentry() -> Result<(), OrchestrationError> {
+    // Initialize sentry here
+    let _guard = std::env::var("SENTRY_DSN").map(|dsn| {
+        sentry::init((
+            dsn,
+            sentry::ClientOptions {
+                release: sentry::release_name!(),
+                debug: true,
+                ..Default::default()
+            },
+        ))
+    });
+
+    run().map_err(|e| {
+        sentry::capture_error(&e);
+        e
+    })
 }
 
 fn render_logo() {

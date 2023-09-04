@@ -47,6 +47,7 @@ webbrowser = "0.8.10"
 tempfile = "3.2"
 actix-files = "0.6.2"
 prometheus-parse = "0.2.4"
+sentry = { version = "0.31.5", optional = true }
 
 [[bin]]
 edition = "2021"
@@ -57,4 +58,4 @@ path = "src/main.rs"
 snowflake = ["dozer-types/snowflake", "dozer-ingestion/snowflake"]
 mongodb = [ "dozer-ingestion/mongodb" ]
 onnx = ["dozer-sql/onnx"]
-cloud = []
+cloud = ["sentry"]
