@@ -1,6 +1,6 @@
 [package]
 name = "dozer-tracing"
-version = "0.1.36"
+version = "0.1.37"
 edition = "2021"
 authors = ["getdozer/dozer-dev"]
 
