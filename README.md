@@ -23,9 +23,17 @@
 
 ## Overview
 
-Dozer makes it easy to build low-latency data APIs (gRPC and REST) from any data source. Data is transformed on the fly using Dozer's reactive SQL engine  and stored in a high-performance cache to offer the best possible experience. Dozer is useful for quickly building data products.
+Dozer is a data infrastructure tool enabling easy real-time data products development, deployment and maintenance.
 
-![Architecture](./images/dozer.png)
+It pulls data from various sources like databases, data lakes, and warehouses using Change Data Capture (CDC) and periodic polling mechanisms. This ensures up-to-date data ingestion in real-time or near-real-time.
+
+Dozer features an internal streaming SQL engine for real-time data transformation and aggregation. Upcoming versions will support custom transformations through WebAssembly (WASM) and TypeScript, as well as model inferencing via Open Neural Network Exchange (ONNX).
+
+After transformation, data is stored in a low-latency datastore, optimized for quick retrieval, making it suitable for high-performance use-cases. The distributed architecture of Dozer ensures scalability and high availability.
+
+In summary, Dozer provides a straightforward way for developers to build and deploy real-time scalable data products.
+
+![Architecture](./images/dozer_live_screen.png)
 
 ## Quick Start
 
