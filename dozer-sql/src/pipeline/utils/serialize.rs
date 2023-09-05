@@ -82,8 +82,7 @@ pub fn serialize_bincode(
 pub fn deserialize_bincode<T: DeserializeOwned>(
     cursor: &mut Cursor,
 ) -> Result<T, DeserializationError> {
-    let len = deserialize_u64(cursor)? as usize;
-    let data = cursor.consume(len)?;
+    let data = deserialize_vec_u8(cursor)?;
     Ok(bincode::deserialize(data)?)
 }
 

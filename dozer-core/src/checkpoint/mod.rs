@@ -53,7 +53,7 @@ pub enum ReadCheckpointError {
 }
 
 #[derive(Debug, Clone)]
-pub struct Checkpoint {
+struct Checkpoint {
     /// The number of slices that the record store is split into.
     num_slices: NonZeroUsize,
     processor_prefix: String,
@@ -311,6 +311,9 @@ async fn read_record_store_slices(
                 .as_str()
                 .parse()
                 .map_err(|_| ExecutionError::UnrecognizedCheckpoint(object.key.clone()))?;
+            info!("Downloading {}", object.key);
+            let data = storage.download_object(object.key.clone()).await?;
+            let (source_states, _) = CheckpointFactory::read_record_store_slice_data(&data)?;
             let processor_prefix = processor_prefix(factory_prefix, object_name.as_str());
 
             if let Some(last_checkpoint) = last_checkpoint.as_mut() {
@@ -319,11 +322,9 @@ async fn read_record_store_slices(
                     .checked_add(objects.objects.len())
                     .expect("shouldn't overflow");
                 last_checkpoint.epoch_id = epoch_id;
+                last_checkpoint.source_states = source_states;
                 last_checkpoint.processor_prefix = processor_prefix;
             } else {
-                info!("Downloading {}", object.key);
-                let data = storage.download_object(object.key.clone()).await?;
-                let (source_states, _) = CheckpointFactory::read_record_store_slice_data(&data)?;
                 info!("Current source states are {source_states:?}");
                 last_checkpoint = Some(Checkpoint {
                     num_slices: NonZeroUsize::new(objects.objects.len())

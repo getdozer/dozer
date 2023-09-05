@@ -80,17 +80,17 @@ impl ProcessorRecordStore {
         Ok(record_ref.0.to_vec())
     }
 
-    pub fn serialize_ref(&self, record_ref: &RecordRef) -> usize {
+    pub fn serialize_ref(&self, record_ref: &RecordRef) -> u64 {
         *self
             .inner
             .read()
             .record_pointer_to_index
             .get(&(record_ref.0.as_ptr() as usize))
-            .expect("RecordRef not found in ProcessorRecordStore")
+            .expect("RecordRef not found in ProcessorRecordStore") as u64
     }
 
-    pub fn deserialize_ref(&self, index: usize) -> RecordRef {
-        self.inner.read().records[index].clone()
+    pub fn deserialize_ref(&self, index: u64) -> RecordRef {
+        self.inner.read().records[index as usize].clone()
     }
 
     pub fn create_record(&self, record: &Record) -> Result<ProcessorRecord, StorageError> {
@@ -188,7 +188,7 @@ fn insert_record_pointer_to_index(
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(crate = "dozer_types::serde")]
 struct ProcessorRecordForSerialization {
-    values: Vec<usize>,
+    values: Vec<u64>,
     lifetime: Option<Box<Lifetime>>,
 }
 

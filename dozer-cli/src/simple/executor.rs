@@ -114,7 +114,7 @@ impl<'a> Executor<'a> {
         let dag = builder.build(runtime, shutdown).await?;
         let exec = DagExecutor::new(
             dag,
-            self.checkpoint_factory.clone(),
+            self.checkpoint_factory,
             self.checkpoint,
             executor_options,
         )
