@@ -59,7 +59,9 @@ This is where Dozer steps in, aiming to dramatically simplify this process. Doze
 
 ## Getting Started
 
-Follow the links below to install Dozer and get started:
+Follow the links below to get started with Dozer::
 
 - [Installation](https://getdozer.io/docs/installation)
-- [Get Started](https://getdozer.io/docs/getting_started) using NY Taxi Dataset 
+- [Build a sample application using NY Taxi dataset](https://getdozer.io/docs/getting_started)
+
+For a more comprehensive list of samples check out our [GitHub Samples repo](https://github.com/getdozer/dozer-samples)
