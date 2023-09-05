@@ -17,15 +17,16 @@ fn read_service_desc(proto_folder_path: &Path, endpoint_name: &str) -> ServiceDe
 fn test_generate_proto_and_descriptor() {
     let schema_name = "films";
     let (schema, secondary_indexes) = test_utils::get_schema();
+    let endpoint = test_utils::get_endpoint();
+
     let schema = EndpointSchema {
+        path: endpoint.path,
         schema,
         secondary_indexes,
         enable_token: false,
         enable_on_event: false,
         connections: Default::default(),
     };
-
-    let endpoint = test_utils::get_endpoint();
 
     let tmp_dir = TempDir::new("proto_generated").unwrap();
     let tmp_dir_path = tmp_dir.path();
@@ -51,15 +52,16 @@ fn test_generate_proto_and_descriptor() {
 fn test_generate_proto_and_descriptor_with_security() {
     let schema_name = "films";
     let (schema, secondary_indexes) = test_utils::get_schema();
+    let endpoint = test_utils::get_endpoint();
+
     let schema = EndpointSchema {
+        path: endpoint.path,
         schema,
         secondary_indexes,
         enable_token: true,
         enable_on_event: true,
         connections: Default::default(),
     };
-
-    let endpoint = test_utils::get_endpoint();
 
     let tmp_dir = TempDir::new("proto_generated").unwrap();
     let tmp_dir_path = tmp_dir.path();
@@ -93,15 +95,16 @@ fn test_generate_proto_and_descriptor_with_security() {
 fn test_generate_proto_and_descriptor_with_push_event_off() {
     let schema_name = "films";
     let (schema, secondary_indexes) = test_utils::get_schema();
+    let endpoint = test_utils::get_endpoint();
+
     let schema = EndpointSchema {
+        path: endpoint.path,
         schema,
         secondary_indexes,
         enable_token: true,
         enable_on_event: false,
         connections: Default::default(),
     };
-
-    let endpoint = test_utils::get_endpoint();
 
     let tmp_dir = TempDir::new("proto_generated").unwrap();
     let tmp_dir_path = tmp_dir.path();

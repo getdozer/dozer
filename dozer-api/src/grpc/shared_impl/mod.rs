@@ -97,6 +97,10 @@ pub fn on_event<T: Send + 'static>(
         ));
     }
 
+    if endpoints.is_empty() {
+        return Err(Status::invalid_argument("empty endpoints array"));
+    }
+
     let (tx, rx) = tokio::sync::mpsc::channel(1);
 
     tokio::spawn(async move {
