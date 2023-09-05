@@ -57,7 +57,7 @@ pub async fn load_database(
         let record = record.unwrap();
 
         cache
-            .insert(&mut string_record_to_record(&record, &schema))
+            .insert(&string_record_to_record(&record, &schema))
             .unwrap();
 
         mongo_collection
