@@ -8,6 +8,7 @@ use dozer_types::{
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(crate = "dozer_types::serde")]
 pub struct EndpointSchema {
+    pub path: String,
     pub schema: Schema,
     pub secondary_indexes: Vec<IndexDefinition>,
     pub enable_token: bool,
