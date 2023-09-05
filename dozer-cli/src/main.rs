@@ -12,7 +12,7 @@ use dozer_cli::{live, set_ctrl_handler, set_panic_hook, shutdown};
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::models::telemetry::{TelemetryConfig, TelemetryMetricsConfig};
 use dozer_types::serde::Deserialize;
-use dozer_types::tracing::{error, info};
+use dozer_types::tracing::{error, error_span, info};
 use tokio::runtime::Runtime;
 use tokio::time;
 
@@ -155,7 +155,7 @@ fn run() -> Result<(), OrchestrationError> {
         .block_on(async { Telemetry::new(app_id.as_deref(), telemetry_config) });
 
     // run individual servers
-    match cli.cmd {
+    (match cli.cmd {
         Commands::Run(run) => match run.command {
             Some(RunCommands::Api) => {
                 render_logo();
@@ -238,7 +238,12 @@ fn run() -> Result<(), OrchestrationError> {
             ))?;
             Ok(())
         }
-    }
+    })
+    .map_err(|e| {
+        let _span = error_span!("OrchestrationError", error = %e);
+
+        e
+    })
 }
 
 // Some commands dont need to initialize the orchestrator
