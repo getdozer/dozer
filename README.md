@@ -33,7 +33,7 @@ Dozer currently supports multiple databases, data warehouses and object store as
 
 Dozer transformations can be executed using Dozer's highly cutomizable streaming SQL engine, which provides UDF supports in WASM (coming soon), TypeScript (coming soon) and ONNX.
 
-![Screenshot](./images/supported_sources.svg)
+![Screenshot](./images/supported_sources.png)
 
 
 ## Why Dozer ?
@@ -51,7 +51,7 @@ As teams embark on the journey of implementing real-time data products, they inv
 
 To address all the above issues, teams often find themselves stitching together multiple technologies and a significant amount of custom code. This could involve integrating diverse systems like Kafka for real-time data streaming, Redis for low-latency data access and caching, and Spark or Flink for processing and analyzing streaming data.
 
-![Complex Tools Setup](./images/tools.svg)
+![Complex Tools Setup](./images/tools.png)
 
 The complexity of such a setup can become overwhelming. Ensuring that these different technologies communicate effectively, maintaining them, and handling potential failure points requires extensive effort and expertise.
 
