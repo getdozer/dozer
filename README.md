@@ -64,7 +64,7 @@ Dozer's goal is to empower a single engineer or a small team of engineers to ful
 
 ## Getting Started
 
-Follow the links below to get started with Dozer::
+Follow the links below to get started with Dozer:
 
 - [Installation](https://getdozer.io/docs/installation)
 - [Build a sample application using NY Taxi dataset](https://getdozer.io/docs/getting_started)
