@@ -3,7 +3,7 @@
         <br><img src="https://dozer-assets.s3.ap-southeast-1.amazonaws.com/logo-blue.svg" width=40%><br>
     </a>
 </div>
-<p align="center" style="font-size: 24px;">
+<p align="center">
     <br />
     <b>
     The real-time platform to build, deploy and mantain all your data products!
@@ -32,9 +32,14 @@ After transformation, data is stored in a low-latency datastore, optimized for q
 
 In summary, Dozer provides a straightforward way for developers to build and deploy real-time scalable data products.
 
-![Architecture](./images/dozer_live_screen.png)
+![Screenshot](./images/dozer_live_screen.png)
 
-## Quick Start
+## Key Features
+
+Dozer supports a variety of source types and data transformation engines:
+
+![Supported sources and engines](./images/supported.svg)
+
 
 Follow the instruction below to install Dozer on your machine and run a quick sample using the [NY Taxi Dataset](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page)
 
