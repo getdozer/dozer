@@ -90,6 +90,7 @@ impl Contract {
             let connections = collect_ancestor_sources(dag_schemas, node_index);
 
             let schema = EndpointSchema {
+                path: endpoint.path.clone(),
                 schema,
                 secondary_indexes,
                 enable_token,
