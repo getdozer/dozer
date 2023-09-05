@@ -5,6 +5,7 @@ use crate::processor_record::ProcessorRecordStore;
 
 use dozer_log::storage::{Object, Queue};
 use dozer_types::errors::internal::BoxedError;
+use dozer_types::node::OpIdentifier;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::Schema;
 use std::collections::HashMap;
@@ -55,11 +56,11 @@ pub trait SourceFactory: Send + Sync + Debug {
 pub trait Source: Send + Sync + Debug {
     /// Checks if the source can start from the given checkpoint.
     /// If this function returns false, the executor will start the source from the beginning.
-    fn can_start_from(&self, last_checkpoint: (u64, u64)) -> Result<bool, BoxedError>;
+    fn can_start_from(&self, last_checkpoint: OpIdentifier) -> Result<bool, BoxedError>;
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        last_checkpoint: Option<(u64, u64)>,
+        last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError>;
 }
 

@@ -232,6 +232,7 @@ impl EpochManager {
                         Arc::new(CheckpointWriter::new(
                             self.checkpoint_factory.clone(),
                             *epoch_id,
+                            source_states.clone(),
                         ))
                     });
                     EpochCommonInfo {

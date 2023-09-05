@@ -44,8 +44,8 @@ impl BuilderDag {
         checkpoint: OptionCheckpoint,
         dag_schemas: DagSchemas,
     ) -> Result<Self, ExecutionError> {
-        // Decide the checkpoint to start from.
-        let dag_checkpoint = DagCheckpoint::new(dag_schemas)?;
+        // Check the checkpoint to start from.
+        let dag_checkpoint = DagCheckpoint::new(dag_schemas, &checkpoint)?;
 
         // Create processors and sinks.
         let mut nodes = vec![];

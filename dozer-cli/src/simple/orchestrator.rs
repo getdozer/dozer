@@ -8,7 +8,6 @@ use crate::simple::helper::validate_config;
 use crate::utils::{
     get_api_security_config, get_app_grpc_config, get_cache_manager_options,
     get_checkpoint_factory_options, get_executor_options, get_grpc_config, get_rest_config,
-    get_storage_config,
 };
 
 use crate::{flatten_join_handle, join_handle_map_err};
@@ -369,12 +368,10 @@ impl SimpleOrchestrator {
         }
 
         // Run build
-        let storage_config = get_storage_config(&self.config);
         self.runtime.block_on(build::build(
             &home_dir,
             &contract,
             existing_contract.as_ref(),
-            &storage_config,
         ))?;
 
         contract.serialize(contract_path.as_std_path())?;

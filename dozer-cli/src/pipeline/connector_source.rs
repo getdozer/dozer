@@ -10,6 +10,7 @@ use dozer_types::indicatif::ProgressBar;
 use dozer_types::ingestion_types::{IngestionMessage, IngestionMessageKind, IngestorError};
 use dozer_types::log::info;
 use dozer_types::models::connection::Connection;
+use dozer_types::node::OpIdentifier;
 use dozer_types::parking_lot::Mutex;
 use dozer_types::thiserror::{self, Error};
 use dozer_types::tracing::{span, Level};
@@ -213,14 +214,14 @@ pub struct ConnectorSource {
 const SOURCE_OPERATION_COUNTER_NAME: &str = "source_operation";
 
 impl Source for ConnectorSource {
-    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, BoxedError> {
+    fn can_start_from(&self, _last_checkpoint: OpIdentifier) -> Result<bool, BoxedError> {
         Ok(false)
     }
 
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        _last_checkpoint: Option<(u64, u64)>,
+        _last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
         thread::scope(|scope| {
             describe_counter!(

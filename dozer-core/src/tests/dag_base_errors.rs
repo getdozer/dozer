@@ -16,7 +16,7 @@ use dozer_log::storage::{Object, Queue};
 use dozer_log::tokio;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::ingestion_types::IngestionMessage;
-use dozer_types::node::NodeHandle;
+use dozer_types::node::{NodeHandle, OpIdentifier};
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
 };
@@ -372,14 +372,14 @@ pub(crate) struct ErrGeneratorSource {
 }
 
 impl Source for ErrGeneratorSource {
-    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, BoxedError> {
+    fn can_start_from(&self, _last_checkpoint: OpIdentifier) -> Result<bool, BoxedError> {
         Ok(false)
     }
 
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        _checkpoint: Option<(u64, u64)>,
+        _checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
         for n in 1..(self.count + 1) {
             if n == self.err_at {

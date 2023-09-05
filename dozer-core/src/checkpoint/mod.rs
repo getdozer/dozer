@@ -5,13 +5,15 @@ use dozer_log::{
     dyn_clone,
     replication::create_data_storage,
     storage::{self, Object, Queue, Storage},
-    tokio::task::JoinHandle,
+    tokio::{sync::mpsc::error::SendError, task::JoinHandle},
 };
 use dozer_types::{
+    bincode,
     log::{error, info},
     models::app_config::DataStorage,
-    node::NodeHandle,
+    node::{NodeHandle, OpIdentifier, SourceStates},
     parking_lot::Mutex,
+    thiserror::{self, Error},
     types::Field,
 };
 use tempdir::TempDir;
@@ -42,12 +44,21 @@ impl Default for CheckpointFactoryOptions {
     }
 }
 
+#[derive(Debug, Error)]
+pub enum ReadCheckpointError {
+    #[error("not enough data, expected {expected}, remaining {remaining}")]
+    NotEnoughData { expected: usize, remaining: usize },
+    #[error("bincode error: {0}")]
+    Bincode(#[from] bincode::Error),
+}
+
 #[derive(Debug, Clone)]
 pub struct Checkpoint {
     /// The number of slices that the record store is split into.
     num_slices: NonZeroUsize,
     processor_prefix: String,
     epoch_id: u64,
+    source_states: SourceStates,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -66,6 +77,13 @@ impl OptionCheckpoint {
         self.checkpoint
             .as_ref()
             .map_or(0, |checkpoint| checkpoint.epoch_id + 1)
+    }
+
+    pub fn get_source_state(&self, node_handle: &NodeHandle) -> Option<OpIdentifier> {
+        self.checkpoint
+            .as_ref()
+            .and_then(|checkpoint| checkpoint.source_states.get(node_handle))
+            .copied()
     }
 
     pub async fn load_processor_data(
@@ -133,18 +151,63 @@ impl CheckpointFactory {
         &self.record_store
     }
 
-    fn write_record_store_slice(&self, key: String) -> Result<(), ExecutionError> {
+    fn write_record_store_slice(
+        &self,
+        key: String,
+        source_states: &SourceStates,
+    ) -> Result<(), ExecutionError> {
         let mut state = self.state.lock();
         let (data, num_records_serialized) =
             self.record_store.serialize_slice(state.next_record_index)?;
         state.next_record_index += num_records_serialized;
         drop(state);
 
-        self.queue
-            .upload_object(key, data)
-            .map_err(|_| ExecutionError::CheckpointWriterThreadPanicked)?;
+        self.write_record_store_slice_data(key, source_states, data)
+            .map_err(|_| ExecutionError::CheckpointWriterThreadPanicked)
+    }
 
+    fn write_record_store_slice_data(
+        &self,
+        key: String,
+        source_states: &SourceStates,
+        data: Vec<u8>,
+    ) -> Result<(), SendError<String>> {
+        let source_states =
+            bincode::serialize(source_states).expect("Source states should be serializable");
+
+        self.queue.create_upload(key.clone())?;
+        self.queue.upload_chunk(
+            key.clone(),
+            (source_states.len() as u64).to_le_bytes().to_vec(),
+        )?;
+        self.queue.upload_chunk(key.clone(), source_states)?;
+        self.queue.upload_chunk(key.clone(), data)?;
+        self.queue.complete_upload(key)?;
         Ok(())
+    }
+
+    fn read_record_store_slice_data(
+        mut data: &[u8],
+    ) -> Result<(SourceStates, &[u8]), ReadCheckpointError> {
+        if data.len() < 8 {
+            return Err(ReadCheckpointError::NotEnoughData {
+                expected: 8,
+                remaining: data.len(),
+            });
+        }
+        let source_states_len = u64::from_le_bytes(data[..8].try_into().unwrap()) as usize;
+        data = &data[8..];
+
+        if data.len() < source_states_len {
+            return Err(ReadCheckpointError::NotEnoughData {
+                expected: source_states_len,
+                remaining: data.len(),
+            });
+        }
+        let source_states = bincode::deserialize(&data[..source_states_len])?;
+        data = &data[source_states_len..];
+
+        Ok((source_states, data))
     }
 }
 
@@ -157,6 +220,7 @@ struct CheckpointWriterFactoryState {
 pub struct CheckpointWriter {
     factory: Arc<CheckpointFactory>,
     record_store_key: String,
+    source_states: Arc<SourceStates>,
     processor_prefix: String,
 }
 
@@ -177,7 +241,11 @@ fn processor_key(processor_prefix: &str, node_handle: &NodeHandle) -> String {
 }
 
 impl CheckpointWriter {
-    pub fn new(factory: Arc<CheckpointFactory>, epoch_id: u64) -> Self {
+    pub fn new(
+        factory: Arc<CheckpointFactory>,
+        epoch_id: u64,
+        source_states: Arc<SourceStates>,
+    ) -> Self {
         // Format with `u64` max number of digits.
         let epoch_id = format!("{:020}", epoch_id);
         let record_store_key = record_store_prefix(&factory.prefix)
@@ -187,6 +255,7 @@ impl CheckpointWriter {
         Self {
             factory,
             record_store_key,
+            source_states,
             processor_prefix,
         }
     }
@@ -205,8 +274,10 @@ impl CheckpointWriter {
     }
 
     fn drop(&mut self) -> Result<(), ExecutionError> {
-        self.factory
-            .write_record_store_slice(std::mem::take(&mut self.record_store_key))
+        self.factory.write_record_store_slice(
+            std::mem::take(&mut self.record_store_key),
+            &self.source_states,
+        )
     }
 }
 
@@ -250,10 +321,15 @@ async fn read_record_store_slices(
                 last_checkpoint.epoch_id = epoch_id;
                 last_checkpoint.processor_prefix = processor_prefix;
             } else {
+                info!("Downloading {}", object.key);
+                let data = storage.download_object(object.key.clone()).await?;
+                let (source_states, _) = CheckpointFactory::read_record_store_slice_data(&data)?;
+                info!("Current source states are {source_states:?}");
                 last_checkpoint = Some(Checkpoint {
                     num_slices: NonZeroUsize::new(objects.objects.len())
                         .expect("have at least one element"),
                     epoch_id,
+                    source_states,
                     processor_prefix,
                 });
             }
@@ -262,7 +338,8 @@ async fn read_record_store_slices(
         for object in objects.objects {
             info!("Downloading {}", object.key);
             let data = storage.download_object(object.key).await?;
-            record_store.deserialize_and_extend(&data)?;
+            let (_, data) = CheckpointFactory::read_record_store_slice_data(&data)?;
+            record_store.deserialize_and_extend(data)?;
         }
 
         continuation_token = objects.continuation_token;
@@ -298,9 +375,22 @@ pub async fn create_checkpoint_factory_for_test(
     }
     // Writer must be dropped outside tokio context.
     let epoch_id = 42;
-    std::thread::spawn(move || drop(CheckpointWriter::new(factory, epoch_id)))
-        .join()
-        .unwrap();
+    let source_states: SourceStates = [(
+        NodeHandle::new(Some(1), "id".to_string()),
+        OpIdentifier::new(1, 1),
+    )]
+    .into_iter()
+    .collect();
+    let source_states_clone = Arc::new(source_states.clone());
+    std::thread::spawn(move || {
+        drop(CheckpointWriter::new(
+            factory,
+            epoch_id,
+            source_states_clone,
+        ))
+    })
+    .join()
+    .unwrap();
     handle.await.unwrap();
 
     // Create a new factory that loads from the checkpoint.
@@ -311,6 +401,7 @@ pub async fn create_checkpoint_factory_for_test(
     let last_checkpoint = last_checkpoint.checkpoint.unwrap();
     assert_eq!(last_checkpoint.num_slices.get(), 1);
     assert_eq!(last_checkpoint.epoch_id, epoch_id);
+    assert_eq!(last_checkpoint.source_states, source_states);
     assert_eq!(factory.record_store().num_records(), records.len());
 
     (temp_dir, Arc::new(factory), handle)
