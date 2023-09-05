@@ -238,7 +238,8 @@ fn run() -> Result<(), OrchestrationError> {
             ))?;
             Ok(())
         }
-    }).map_err(|e| {
+    })
+    .map_err(|e| {
         let _span = error_span!("OrchestrationError", error = %e);
 
         e
