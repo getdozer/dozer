@@ -3,7 +3,7 @@ use dozer_types::types::{Record, Schema, Timestamp};
 
 use crate::pipeline::errors::JoinError;
 
-use self::table::{join_records, JoinKey, JoinTable};
+use self::table::{JoinKey, JoinTable};
 
 use super::JoinResult;
 
@@ -90,38 +90,62 @@ impl JoinOperator {
             JoinBranch::Left => &self.right,
             JoinBranch::Right => &self.left,
         };
+        let join_records = create_join_records_fn(record, record_branch);
 
         table
-            .get_join_records(join_key, record, record_branch, default_if_no_match)
-            .map(|record| (action, record))
+            .get_matching_records(join_key, default_if_no_match)
+            .map(|matching_record| (action, join_records(matching_record)))
             .collect()
     }
 
-    fn left_join_from_right(
+    fn outer_join(
         &self,
         action: JoinAction,
         join_key: &JoinKey,
-        right_record: &ProcessorRecord,
+        record: &ProcessorRecord,
+        record_branch: JoinBranch,
     ) -> Vec<(JoinAction, ProcessorRecord)> {
-        let left_records = self.left.get_matching_records(join_key, false);
+        let (table_to_match, matching_record_branch, table_of_record) = match record_branch {
+            JoinBranch::Left => (&self.right, JoinBranch::Right, &self.left),
+            JoinBranch::Right => (&self.left, JoinBranch::Left, &self.right),
+        };
+        let join_records = create_join_records_fn(record, record_branch);
+
+        // We need to query from the table where this record is from:
+        // - For JoinAction::Insert, did this join key exist before this insert? If not, we need to remove the default record.
+        // - For JoinAction::Delete, does this join key exist after this delete? If not, we need to insert the default record.
+        let need_to_act_on_default_record = match action {
+            JoinAction::Insert => {
+                // Because this record is already inserted, the join key didn't exist before this insert iif the matching count is now 1.
+                table_of_record
+                    .get_matching_records(join_key, false)
+                    .take(2)
+                    .count()
+                    == 1
+            }
+            JoinAction::Delete => {
+                table_of_record
+                    .get_matching_records(join_key, false)
+                    .take(1)
+                    .count()
+                    == 0
+            }
+        };
 
         let mut output_records = vec![];
+        for matching_record in table_to_match.get_matching_records(join_key, false) {
+            let join_record = join_records(matching_record);
 
-        for left_record in left_records {
-            let right_matching_count = self.get_right_matching_count(action, join_key);
-            let join_record = join_records(left_record.clone(), right_record.clone());
-
-            if right_matching_count > 0 {
-                // if there are multiple matching records on the right branch, the left record will be just returned
-                output_records.push((action, join_record));
-            } else {
-                let default_join_record =
-                    join_records(left_record.clone(), self.right.default_record().clone());
+            if need_to_act_on_default_record {
+                let default_join_record = create_join_records_fn(
+                    matching_record,
+                    matching_record_branch,
+                )(table_of_record.default_record());
                 match action {
                     JoinAction::Insert => {
-                        // delete the "first left join" record
+                        // delete the default join record
                         output_records.push((JoinAction::Delete, default_join_record));
-                        // insert the new left join record
+                        // insert the new join record
                         output_records.push((JoinAction::Insert, join_record));
                     }
                     JoinAction::Delete => {
@@ -129,45 +153,11 @@ impl JoinOperator {
                         output_records.push((JoinAction::Insert, default_join_record));
                     }
                 }
-            }
-        }
-        output_records
-    }
-
-    fn right_join_from_left(
-        &self,
-        action: JoinAction,
-        join_key: &JoinKey,
-        left_record: &ProcessorRecord,
-    ) -> Vec<(JoinAction, ProcessorRecord)> {
-        let right_records = self.right.get_matching_records(join_key, false);
-
-        let mut output_records = vec![];
-
-        for right_record in right_records {
-            let left_matching_count = self.get_left_matching_count(action, join_key);
-            let join_record = join_records(left_record.clone(), right_record.clone());
-
-            if left_matching_count > 0 {
-                // if there are multiple matching records on the left branch, the right record will be just returned
-                output_records.push((action, join_record));
             } else {
-                let default_join_record =
-                    join_records(self.left.default_record().clone(), right_record.clone());
-                match action {
-                    JoinAction::Insert => {
-                        // delete the "first left join" record
-                        output_records.push((JoinAction::Delete, default_join_record));
-                        // insert the new left join record
-                        output_records.push((JoinAction::Insert, join_record));
-                    }
-                    JoinAction::Delete => {
-                        output_records.push((JoinAction::Delete, join_record));
-                        output_records.push((JoinAction::Insert, default_join_record));
-                    }
-                }
+                output_records.push((action, join_record));
             }
         }
+
         output_records
     }
 
@@ -184,31 +174,15 @@ impl JoinOperator {
                 self.inner_join(action, join_key, record, JoinBranch::Left, true)
             }
             (JoinType::LeftOuter, JoinBranch::Right) => {
-                self.left_join_from_right(action, join_key, record)
+                self.outer_join(action, join_key, record, JoinBranch::Right)
             }
             (JoinType::RightOuter, JoinBranch::Left) => {
-                self.right_join_from_left(action, join_key, record)
+                self.outer_join(action, join_key, record, JoinBranch::Left)
             }
             (JoinType::RightOuter, JoinBranch::Right) => {
                 self.inner_join(action, join_key, record, JoinBranch::Right, true)
             }
         }
-    }
-
-    fn get_left_matching_count(&self, action: JoinAction, join_key: &JoinKey) -> usize {
-        let mut matching_count = self.left.get_matching_records(join_key, false).count();
-        if action == JoinAction::Insert {
-            matching_count -= 1;
-        }
-        matching_count
-    }
-
-    fn get_right_matching_count(&self, action: JoinAction, join_key: &JoinKey) -> usize {
-        let mut matching_count = self.right.get_matching_records(join_key, false).count();
-        if action == JoinAction::Insert {
-            matching_count -= 1;
-        }
-        matching_count
     }
 
     pub fn delete(
@@ -242,5 +216,45 @@ impl JoinOperator {
     pub fn evict_index(&mut self, now: &Timestamp) {
         self.left.evict_index(now);
         self.right.evict_index(now);
+    }
+}
+
+fn create_join_records_fn(
+    record: &ProcessorRecord,
+    record_branch: JoinBranch,
+) -> impl Fn(&ProcessorRecord) -> ProcessorRecord + '_ {
+    let lifetime = record.get_lifetime();
+    move |matching_record| {
+        let record = record.clone();
+        let matching_lifetime = matching_record.get_lifetime();
+        let matching_record = matching_record.clone();
+
+        let mut output_record = ProcessorRecord::new();
+        match record_branch {
+            JoinBranch::Left => {
+                output_record.extend(record);
+                output_record.extend(matching_record);
+            }
+            JoinBranch::Right => {
+                output_record.extend(matching_record);
+                output_record.extend(record);
+            }
+        }
+
+        if let Some(lifetime) = &lifetime {
+            if let Some(matching_lifetime) = matching_lifetime {
+                if lifetime.reference > matching_lifetime.reference {
+                    output_record.set_lifetime(Some(lifetime.clone()));
+                } else {
+                    output_record.set_lifetime(Some(matching_lifetime));
+                }
+            } else {
+                output_record.set_lifetime(Some(lifetime.clone()));
+            }
+        } else if let Some(matching_lifetime) = matching_lifetime {
+            output_record.set_lifetime(Some(matching_lifetime));
+        }
+
+        output_record
     }
 }
