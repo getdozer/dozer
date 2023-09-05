@@ -38,7 +38,7 @@ In summary, Dozer provides a straightforward way for developers to build and dep
 
 Dozer supports a variety of source types and data transformation engines:
 
-![Supported sources and engines](./images/supported.svg)
+![Supported sources and engines](./images/supported_sources.svg)
 
 
 Follow the instruction below to install Dozer on your machine and run a quick sample using the [NY Taxi Dataset](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page)
