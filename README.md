@@ -25,11 +25,11 @@ After transformations, data is stored in a low-latency datastore (based on [LMDB
 
 In summary, Dozer's goal is empowers a single engineer to handle the entire data lifecycle, needed to produce scalable data products. 
 
-A Dozer application consists g a YAML file that can be run locally using the Dozer Live UI.
+A Dozer application consists of a YAML file that can be run locally using the Dozer Live UI or Dozer CLI.
 
 ![Screenshot](./images/dozer_live_screen.png)
 
-Following the local development and testing, Dozer Apps can be self-hosted or instantly deployed using Dozer Cloud (coming soon).
+Following the local development and testing, Dozer Apps can be self-hosted or instantly deployed to Dozer Cloud (coming soon).
 
 ## Supported Sources and Tranformation Engines
 Dozer currently supports multiple databases, data warehouses and object store as a source. Whenever possible, Dozer leverages real-time streaming to keep data always fresh. 
