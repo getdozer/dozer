@@ -43,7 +43,7 @@ multimap = "0.8.3"
 hashbrown = "0.13"
 ahash = "0.8.3"
 csv = "1.2"
-url = "2.4.0"
+url = "2.4.1"
 
 [dev-dependencies]
 dozer-core = { path = "../dozer-core" }
