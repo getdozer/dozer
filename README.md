@@ -57,7 +57,7 @@ The complexity of such a setup can become overwhelming. Ensuring that these diff
 
 This is where Dozer steps in, aiming to dramatically simplify this process. Dozer is designed as an all-in-one backend solution that integrates the capabilities of these disparate technologies into a single, streamlined tool. By doing so, Dozer offers the capacity to build an end-to-end real-time data product without the need to manage multiple technologies and extensive custom code.
 
-### Getting Started
+## Getting Started
 
 Follow the links below to install Dozer and get started:
 
