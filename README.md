@@ -3,11 +3,10 @@
         <br><img src="https://dozer-assets.s3.ap-southeast-1.amazonaws.com/logo-blue.svg" width=40%><br>
     </a>
 </div>
-<p align="center">
+<p align="center" style="font-size: 24px;">
     <br />
     <b>
-    Connect any data source, combine them in real-time and instantly get low-latency data APIs.<br>
-    ⚡ All with just a simple configuration! ⚡️
+    The real-time platform to build, deploy and mantain all your data products!
     </b>
 </p>
 
@@ -29,7 +28,7 @@ It pulls data from various sources like databases, data lakes, and warehouses us
 
 Dozer features an internal streaming SQL engine for real-time data transformation and aggregation. Upcoming versions will support custom transformations through WebAssembly (WASM) and TypeScript, as well as model inferencing via Open Neural Network Exchange (ONNX).
 
-After transformation, data is stored in a low-latency datastore, optimized for quick retrieval, making it suitable for high-performance use-cases. The distributed architecture of Dozer ensures scalability and high availability.
+After transformation, data is stored in a low-latency datastore, optimized for quick retrieval, making it suitable for high-performance use-cases. 
 
 In summary, Dozer provides a straightforward way for developers to build and deploy real-time scalable data products.
 
