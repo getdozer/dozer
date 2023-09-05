@@ -105,11 +105,13 @@ impl JoinOperator {
         record: &ProcessorRecord,
         record_branch: JoinBranch,
     ) -> Vec<(JoinAction, ProcessorRecord)> {
-        let (table_to_match, matching_record_branch, table_of_record) = match record_branch {
-            JoinBranch::Left => (&self.right, JoinBranch::Right, &self.left),
-            JoinBranch::Right => (&self.left, JoinBranch::Left, &self.right),
+        let (table_to_match, table_of_record) = match record_branch {
+            JoinBranch::Left => (&self.right, &self.left),
+            JoinBranch::Right => (&self.left, &self.right),
         };
         let join_records = create_join_records_fn(record, record_branch);
+        let default_join_records =
+            create_join_records_fn(table_of_record.default_record(), record_branch);
 
         // We need to query from the table where this record is from:
         // - For JoinAction::Insert, did this join key exist before this insert? If not, we need to remove the default record.
@@ -137,10 +139,7 @@ impl JoinOperator {
             let join_record = join_records(matching_record);
 
             if need_to_act_on_default_record {
-                let default_join_record = create_join_records_fn(
-                    matching_record,
-                    matching_record_branch,
-                )(table_of_record.default_record());
+                let default_join_record = default_join_records(matching_record);
                 match action {
                     JoinAction::Insert => {
                         // delete the default join record
