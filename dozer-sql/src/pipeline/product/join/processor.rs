@@ -63,13 +63,7 @@ impl ProductProcessor {
     }
 
     fn update_eviction_index(&mut self, lifetime: Lifetime) {
-        let now = &lifetime.reference;
-        let old_instants = self.join_operator.evict_index(&JoinBranch::Left, now);
-        self.join_operator
-            .clean_evict_index(&JoinBranch::Left, &old_instants);
-        let old_instants = self.join_operator.evict_index(&JoinBranch::Right, now);
-        self.join_operator
-            .clean_evict_index(&JoinBranch::Right, &old_instants);
+        self.join_operator.evict_index(&lifetime.reference);
     }
 }
 
@@ -86,8 +80,8 @@ impl Processor for ProductProcessor {
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         let from_branch = match from_port {
-            0 => &JoinBranch::Left,
-            1 => &JoinBranch::Right,
+            0 => JoinBranch::Left,
+            1 => JoinBranch::Right,
             _ => return Err(PipelineError::InvalidPort(from_port).into()),
         };
 
@@ -99,9 +93,7 @@ impl Processor for ProductProcessor {
                 }
 
                 let old_decoded = record_store.load_record(&old)?;
-                self.join_operator
-                    .delete(from_branch, record_store, old, old_decoded)
-                    .map_err(PipelineError::JoinError)?
+                self.join_operator.delete(from_branch, &old, &old_decoded)
             }
             ProcessorOperation::Insert { new } => {
                 if let Some(lifetime) = new.get_lifetime() {
@@ -110,7 +102,7 @@ impl Processor for ProductProcessor {
 
                 let new_decoded = record_store.load_record(&new)?;
                 self.join_operator
-                    .insert(from_branch, record_store, new, new_decoded)
+                    .insert(from_branch, &new, &new_decoded)
                     .map_err(PipelineError::JoinError)?
             }
             ProcessorOperation::Update { old, new } => {
@@ -121,17 +113,15 @@ impl Processor for ProductProcessor {
                 let old_decoded = record_store.load_record(&old)?;
                 let new_decoded = record_store.load_record(&new)?;
 
-                let old_records = self
-                    .join_operator
-                    .delete(from_branch, record_store, old, old_decoded)
-                    .map_err(PipelineError::JoinError)?;
+                let mut old_records = self.join_operator.delete(from_branch, &old, &old_decoded);
 
                 let new_records = self
                     .join_operator
-                    .insert(from_branch, record_store, new, new_decoded)
+                    .insert(from_branch, &new, &new_decoded)
                     .map_err(PipelineError::JoinError)?;
 
-                old_records.into_iter().chain(new_records).collect()
+                old_records.extend(new_records);
+                old_records
             }
         };
 

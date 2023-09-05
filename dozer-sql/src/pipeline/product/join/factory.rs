@@ -7,7 +7,7 @@ use dozer_core::{
 };
 use dozer_types::{
     errors::internal::BoxedError,
-    types::{FieldDefinition, Record, Schema},
+    types::{FieldDefinition, Schema},
 };
 use sqlparser::ast::{
     BinaryOperator, Expr as SqlExpr, Ident, JoinConstraint as SqlJoinConstraint,
@@ -141,17 +141,6 @@ impl ProcessorFactory for JoinProcessorFactory {
             left_schema = extend_schema_source_def(&left_schema, left_table_name);
         }
 
-        let left_primary_key_indexes = if left_schema.primary_index.is_empty() {
-            left_schema
-                .fields
-                .iter()
-                .enumerate()
-                .map(|(index, _)| index)
-                .collect::<Vec<usize>>()
-        } else {
-            left_schema.primary_index.clone()
-        };
-
         let mut right_schema = input_schemas
             .get(&RIGHT_JOIN_PORT)
             .ok_or(PipelineError::InternalError(
@@ -162,32 +151,16 @@ impl ProcessorFactory for JoinProcessorFactory {
             right_schema = extend_schema_source_def(&right_schema, right_table_name);
         }
 
-        let right_primary_key_indexes = if right_schema.primary_index.is_empty() {
-            right_schema
-                .fields
-                .iter()
-                .enumerate()
-                .map(|(index, _)| index)
-                .collect::<Vec<usize>>()
-        } else {
-            right_schema.primary_index.clone()
-        };
-
         let (left_join_key_indexes, right_join_key_indexes) =
             parse_join_constraint(expression, &left_schema, &right_schema)?;
-
-        let left_default_record = Record::nulls_from_schema(&left_schema);
-        let left_default_record = record_store.create_record(&left_default_record)?;
-        let right_default_record = Record::nulls_from_schema(&right_schema);
-        let right_default_record = record_store.create_record(&right_default_record)?;
 
         let join_operator = JoinOperator::new(
             join_type,
             (left_join_key_indexes, right_join_key_indexes),
-            (left_primary_key_indexes, right_primary_key_indexes),
-            (left_default_record, right_default_record),
+            (&left_schema, &right_schema),
+            record_store,
             self.enable_probabilistic_optimizations,
-        );
+        )?;
 
         Ok(Box::new(ProductProcessor::new(
             self.id.clone(),
