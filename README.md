@@ -3,14 +3,6 @@
         <br><img src="https://dozer-assets.s3.ap-southeast-1.amazonaws.com/logo-blue.svg" width=40%><br>
     </a>
 </div>
-<p align="center">
-    <br />
-    <b>
-    The real-time platform to build, deploy and mantain all your data products!
-    </b>
-</p>
-
-<br />
 
 <p align="center">
   <a href="https://github.com/getdozer/dozer/actions/workflows/dozer.yaml" target="_blank"><img src="https://github.com/getdozer/dozer/actions/workflows/dozer.yaml/badge.svg" alt="CI"></a>
@@ -22,204 +14,52 @@
 
 ## Overview
 
-Dozer is a data infrastructure tool enabling easy real-time data products development, deployment and maintenance.
+Dozer is a data **real-time platform to build, deploy and mantain data products.**
 
-It pulls data from various sources like databases, data lakes, and warehouses using Change Data Capture (CDC) and periodic polling mechanisms. This ensures up-to-date data ingestion in real-time or near-real-time.
+It pulls data in real-time from various sources like databases, data lakes, and warehouses using Change Data Capture (CDC) and periodic polling mechanisms. This ensures up-to-date data ingestion in real-time or near-real-time.
 
-Dozer features an internal streaming SQL engine for real-time data transformation and aggregation. Upcoming versions will support custom transformations through WebAssembly (WASM) and TypeScript, as well as model inferencing via Open Neural Network Exchange (ONNX).
+Dozer features an internal streaming engine capable of executing transformations and aggregations in real-time. It supports Streaming SQL, WebAssembly (coming soon) and TypeScript (coming soon), as well as ONNX for performing predictions in real-time. 
 
-After transformation, data is stored in a low-latency datastore, optimized for quick retrieval, making it suitable for high-performance use-cases. 
+After ingestion and transformation, data is stored in a low-latency datastore (based on [LMDB](https://github.com/LMDB/lmdb)), queryable using REST and gRPC.
 
-In summary, Dozer provides a straightforward way for developers to build and deploy real-time scalable data products.
+A Dozer application is entirely configured using a YAML file and can be tested locally using the Dozer Live UI.
 
 ![Screenshot](./images/dozer_live_screen.png)
 
-## Key Features
+Following the local development and testing, Dozer Applications can be deployed in a self-hosted way or using Dozer Cloud (coming soon).
 
-Dozer supports a variety of source types and data transformation engines:
+## Supported Sources and Tranformation Engines
+Dozer currently supports multiple databases, data warehouses and object store as a source. Whenever possible, Dozer leverages real-time streaming to keep data fresh. 
 
-![Supported sources and engines](./images/supported_sources.svg)
+Dozer transformations can be executed using Dozer's highly cutomizable streaming SQL engine, which provides UDF supports in WASM (coming soon), TypeScript (coming soon) and ONNX.
+
+![Screenshot](./images/supported_sources.svg)
 
 
-Follow the instruction below to install Dozer on your machine and run a quick sample using the [NY Taxi Dataset](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page)
+## Why Dozer ?
+As teams embark on the journey of implementing real-time data products, they invariably come across a host of challenges that can make the task seem daunting:
 
-### Installation
+1. **Integration with Various Systems**: Integrating with various data sources can present numerous technical hurdles and interoperability issues.
 
-**MacOS Monterey (12) and above**
+2. **Managing Latency**: Ensuring low-latency data access, especially for customer-facing applications, can be a significant challenge.
 
-```bash
-brew tap getdozer/dozer && brew install dozer
-```
+3. **Real-Time Data Transformation**: Managing real-time data transformations, especially when dealing with complex queries or large volumes of data, can be difficult and resource-intensive. 
 
-**Ubuntu 20.04 and above**
+4. **Maintaining Data Freshness**: Keeping the data up-to-date in real-time, particularly when it's sourced from multiple locations like databases, data lakes, or warehouses, can be a daunting task.
 
-```bash
-# amd64
-curl -sLO https://github.com/getdozer/dozer/releases/latest/download/dozer-linux-amd64.deb && sudo dpkg -i dozer-linux-amd64.deb
+4. **Scalability and High Availability**: Building a data application that can efficiently handle high-volume operations and remain reliable under heavy loads requires advanced architecture design and robust infrastructure.
 
-# aarch64
-curl -sLO https://github.com/getdozer/dozer/releases/latest/download/dozer-linux-aarch64.deb && sudo dpkg -i dozer-linux-aarch64.deb
-```
+To address all the above issues, teams often find themselves stitching together multiple technologies and a significant amount of custom code. This could involve integrating diverse systems like Kafka for real-time data streaming, Redis for low-latency data access and caching, and Spark or Flink for processing and analyzing streaming data.
 
-Dozer requires `protobuf-compiler`, installation instructions can be found in [additional steps](https://getdozer.io/docs/installation/#additional-steps-for-protobuf-compiler-dependency)
+![Complex Tools Setup](./images/tools.svg)
 
-**Build from source**
+The complexity of such a setup can become overwhelming. Ensuring that these different technologies communicate effectively, maintaining them, and handling potential failure points requires extensive effort and expertise.
 
-```bash
-cargo install --path dozer-cli --locked
-```
+This is where Dozer steps in, aiming to dramatically simplify this process. Dozer is designed as an all-in-one backend solution that integrates the capabilities of these disparate technologies into a single, streamlined tool. By doing so, Dozer offers the capacity to build an end-to-end real-time data product without the need to manage multiple technologies and extensive custom code.
 
-### Run it
+### Getting Started
 
-**Download sample configuration and data**
+Follow the links below to install Dozer and get started:
 
-Create a new empty directory and run the commands below. This will download a [sample configuration file](https://github.com/getdozer/dozer-samples/blob/main/connectors/local-storage/dozer-config.yaml) and a sample [NY Taxi Dataset file](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page).
-
-```bash
-curl -o dozer-config.yaml https://raw.githubusercontent.com/getdozer/dozer-samples/main/connectors/local-storage/dozer-config.yaml
-curl --create-dirs -o data/trips/fhvhv_tripdata_2022-01.parquet https://d37ci6vzurychx.cloudfront.net/trip-data/fhvhv_tripdata_2022-01.parquet
-```
-
-**Run Dozer binary**
-
-```bash
-dozer -c dozer-config.yaml
-```
-
-Dozer will start processing the data and populating the cache. You can see a progress of the execution from the console.
-
-**Query the APIs**
-
-When some data is loaded, you can query the cache using gRPC or REST
-
-```bash
-# gRPC
-grpcurl -d '{"query": "{\"$limit\": 1}"}' -plaintext localhost:50051 dozer.generated.trips_cache.TripsCaches/query
-
-# REST
-curl -X POST  http://localhost:8080/trips/query --header 'Content-Type: application/json' --data-raw '{"$limit":3}'
-```
-
-Alternatively, you can use [Postman](https://www.postman.com/) to discover gRPC endpoints through gRPC reflection
-
-![postman query](images/postman.png)
-
-Read more about Dozer [here](https://getdozer.io/docs/dozer). And remember to star 🌟 our repo to support us!
-
-## Client Libraries
-
-| Library                                                  | Language                                              | License |
-| -------------------------------------------------------- | ----------------------------------------------------- | ------- |
-| [dozer-python](https://github.com/getdozer/dozer-python) | Dozer Client library for Python                       | Apache-2.0     |
-| [dozer-js](https://github.com/getdozer/dozer-js)         | Dozer Client library for JavaScript                   | Apache-2.0     |
-| [dozer-react](https://github.com/getdozer/dozer-react)   | Dozer Client library for React with easy to use hooks | Apache-2.0     |
-
-<br>
-
-[**Python**](https://github.com/getdozer/dozer-python)
-
-```python
-from pydozer.api import ApiClient
-api_client = ApiClient('trips')
-api_client.query()
-```
-
-[**JavaScript**](https://github.com/getdozer/dozer-js)
-
-```js
-import { ApiClient } from "@dozerjs/dozer";
-
-const flightsClient = new ApiClient('flights');
-flightsClient.count().then(count => {
-    console.log(count);
-});
-```
-
-[**React**](https://github.com/getdozer/dozer-react)
-
-```js
-import { useCount } from "@dozerjs/dozer-react";
-const AirportComponent = () => {
-    const [count] = useCount('trips');
-    <div> Trips: {count} </div>
-}
-```
-
-## Samples
-
-Check out Dozer's [samples repository](https://github.com/getdozer/dozer-samples) for more comprehensive examples and use case scenarios.
-
-| Type             | Sample                                                                                                                     | Notes                                                                        |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Connectors       | [Postgres](https://github.com/getdozer/dozer-samples/tree/main/connectors/postgres)                                        | Load data using Postgres CDC                                                 |
-|                  | [Local Storage](https://github.com/getdozer/dozer-samples/tree/main/connectors/local-storage)                              | Load data from local files                                                   |
-|                  | [AWS S3](https://github.com/getdozer/dozer-samples/tree/main/connectors/aws-s3)                                            | Load data from AWS S3 bucket                                                 |
-|                  | [Ethereum](https://github.com/getdozer/dozer-samples/tree/main/connectors/ethereum)                              | Load data from Ethereum                                                   |
-|                  | [Kafka](https://github.com/getdozer/dozer-samples/tree/main/connectors/kafka)                              | Load data from kafka stream                                                   |
-|                  | [MySQL](https://github.com/getdozer/dozer-samples/tree/main/connectors/mysql)                                              | Load data using MySQL CDC                                                 |
-|                  | Snowflake (Coming soon)                                                                                                    | Load data using Snowflake table streams                                      |
-| SQL              | [Using JOINs](https://github.com/getdozer/dozer-samples/tree/main/sql/join)                                                | Dozer APIs over multiple sources using JOIN                                  |
-|                  | [Using Aggregations](https://github.com/getdozer/dozer-samples/tree/main/sql/aggregations)                                 | How to aggregate using Dozer                                                 |
-|                  | [Using Window Functions](https://github.com/getdozer/dozer-samples/tree/main/sql/window-functions)                         | Use `Hop` and `Tumble` Windows                                               |
-| Use Cases        | [Flight Microservices](https://github.com/getdozer/dozer-samples/tree/main/usecases/pg-flights)                            | Build APIs over multiple microservices.                                      |
-|                  | [Scaling Ecommerce](https://github.com/getdozer/dozer-samples/tree/main/usecases/scaling-ecommerce)                                                                                      | Profile and benchmark Dozer using an ecommerce data set                                   |
-|                  | Use Dozer to Instrument (Coming soon)                                                                                      | Combine Log data to get real time insights                                   |
-|                  | Real Time Model Scoring (Coming soon)                                                                                      | Deploy trained models to get real time insights as APIs                      |
-| Client Libraries | [Dozer React Starter](https://github.com/getdozer/dozer-samples/tree/main/usecases/react)                                                                                          | Instantly start building real time views using Dozer and React               |
-|                  | [Ingest Polars/Pandas Dataframes](https://github.com/getdozer/dozer-samples/tree/main/client-samples/ingest-python-sample) | Instantly ingest Polars/Pandas dataframes using Arrow format and deploy APIs |
-| Authorization    | [Dozer Authorziation](https://github.com/getdozer/dozer-samples/tree/main/usecases/api-auth)                                                                                          | How to apply JWT Auth on Dozer                                               |
-
-## Connectors
-
-Refer to the full list of connectors and example configurations [here](https://getdozer.io/docs/configuration/connectors).
-
-| Connector                                                   |   Status    | Type           |  Schema Mapping   | Frequency | Implemented Via |
-| :---------------------------------------------------------- | :---------: | :------------- | :---------------: | :-------- | :-------------- |
-| Postgres                                       | Available ✅ | Relational     |      Source       | Real Time | Direct          |
-| Snowflake                                     | Available ✅ | Data Warehouse |      Source       | Polling   | Direct          |
-| Local Files (CSV, Parquet)                  | Available ✅ | Object Storage |      Source       | Polling   | Data Fusion     |
-| Delta Lake                                    |    Alpha    | Data Warehouse |      Source       | Polling   | Direct          |
-| AWS S3 (CSV, Parquet)                            |    Alpha    | Object Storage |      Source       | Polling   | Data Fusion     |
-| Google Cloud Storage(CSV, Parquet) |    Alpha    | Object Storage |      Source       | Polling   | Data Fusion     |
-| Ethereum                                       | Available ✅ | Blockchain     | Logs/Contract ABI | Real Time | Direct          |
-| Kafka Stream                                                      | Available ✅  |          |  Schema Registry  | Real Time | Debezium        |
-| MySQL                                          | Available ✅ | Relational     |      Source       | Real Time | Direct          |
-| Google Sheets                                               | In Roadmap  | Applications   |      Source       |           |                 |
-| Excel                                                       | In Roadmap  | Applications   |      Source       |           |                 |
-| Airtable                                                    | In Roadmap  | Applications   |      Source       |           |                 |
-
-## Pipeline Log Reader Bindings
-
-| Library                                                  | Language                                              | License |
-| -------------------------------------------------------- | ----------------------------------------------------- | ------- |
-| [dozer-log-python](./dozer-log-python) | Python binding for reading Dozer logs                       | Apache-2.0     |
-| [dozer-log-js](./dozer-log-js)         | Node.js binding for reading Dozer logs                   | Apache-2.0     |
-
-[**Python**](./dozer-log-python)
-> we support CPython >= 3.10 on Windows, MacOS and Linux, both amd and arm architectures.
-```python
-import pydozer_log
-
-reader = await pydozer_log.LogReader.new('.dozer', 'trips')
-print(await reader.next_op())
-```
-
-[**JavaScript**](./dozer-log-js)
-
-```javascript
-const dozer_log = require('@dozerjs/log');
-
-const runtime = dozer_log.Runtime();
-reader = await runtime.create_reader('.dozer', 'trips');
-console.log(await reader.next_op());
-```
-
-## Releases
-
-We release Dozer typically every 2 weeks and is available on our [releases page](https://github.com/getdozer/dozer/releases/latest). Currently, we publish binaries for Ubuntu 20.04, Apple(Intel) and Apple(Silicon).
-
-Please visit our [issues section](https://github.com/getdozer/dozer/issues) if you are having any trouble running the project.
-
-## Contributing
-
-Please refer to [Contributing](https://getdozer.io/docs/contributing/overview) for more details.
+- [Installation](https://getdozer.io/docs/installation)
+- [Get Started](https://getdozer.io/docs/getting_started) using NY Taxi Dataset 
