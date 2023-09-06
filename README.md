@@ -14,27 +14,43 @@
 
 ## Overview
 
-Dozer is a **real-time data platform for building, deploying and mantaining data products.**
+Dozer is a **data platform for building, deploying and maintaining real-time data products.**
 
+It is ideal for companies with multiple databases, data warehouses and data lakes that are in need of combining, aggregating and transforming data in real time, and create customer facing or internal data applications. 
+
+*Put it simply, Dozer empowers a single developer go from data sources to ready-made APIs in just a few minutes. All with just a with a simple configuration file.*
+
+## How it works
 Dozer pulls data from various sources like databases, data lakes, and data warehouses using Change Data Capture (CDC) and periodic polling mechanisms. This ensures up-to-date data ingestion in real-time or near-real-time.
 
-After capturing the data Dozer offers the possibility of combining and aggregating it 
+After capturing data, Dozer offers the possibility of combining, transforming and aggregating it 
 using its own internal real-time transformation engine. It supports Streaming SQL, WebAssembly (coming soon) and TypeScript (coming soon), as well as ONNX for performing AI predictions in real-time. 
 
-After transformations, data is stored in a low-latency datastore (based on [LMDB](https://github.com/LMDB/lmdb)), queryable using REST and gRPC.
+After processing, data is stored and indexed in a low-latency datastore (based on [LMDB](https://github.com/LMDB/lmdb)), queryable using REST and gRPC.
 
-In summary, Dozer's goal is empowers a single engineer to handle the entire data lifecycle, needed to produce scalable data products. 
+## How to use it
 
-A Dozer application consists of a YAML file that can be run locally using the Dozer Live UI or Dozer CLI.
+### ① Build
+A Dozer application consists of a YAML file that can be run locally using the Dozer Live UI or Dozer CLI. As YAML is edited,
+changes are immediately reflected on Dozer Live UI. 
 
-![Screenshot](./images/dozer_live_screen.png)
+![Screenshot](./images/dozer_live_screen1.png)
 
-Following the local development and testing, Dozer Apps can be self-hosted or instantly deployed to Dozer Cloud (coming soon).
+### ② Test
+Dozer can run the entire infrastructure locally. You can inspect data flowing in in real time or use the built-it API explorer to query data through REST and gRPC. Dozer Live explorer also provides ready-made samples to integrate results into your front-end applications.
+
+![Screenshot](./images/dozer_live_screen2.png)
+
+### ③ Deploy
+Dozer applications can be self-hosted or deployed in the cloud with a single command. Dozer Cloud (coming soon) provides self-healing and monitoring capabilities, making sure your APIs are always available.
+
 
 ## Supported Sources and Tranformation Engines
-Dozer currently supports multiple databases, data warehouses and object store as a source. Whenever possible, Dozer leverages real-time streaming to keep data always fresh. 
+Dozer currently supports a variety of source databases, data warehouses and object stores. Whenever possible, Dozer leverages Change Data Capture (CDC) to keep data always fresh. For sources that do not support CDC, periodic polling is used.
 
 Dozer transformations can be executed using Dozer's highly cutomizable streaming SQL engine, which provides UDF supports in WASM (coming soon), TypeScript (coming soon) and ONNX.
+
+Here is an overview of all supported source types and transformation engines:
 
 ![Screenshot](./images/supported_sources.png)
 
