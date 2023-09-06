@@ -56,13 +56,18 @@ impl ApiServer {
             builder = builder.register_encoded_file_descriptor_set(descriptor_bytes);
         }
         let inflection_service = builder.build().map_err(GrpcError::ServerReflectionError)?;
-
+        let dozer_master_secret = std::env::var("DOZER_MASTER_SECRET").ok();
+        let security = if self.security.is_none() && dozer_master_secret.is_some() {
+            Some(ApiSecurity::Jwt(dozer_master_secret.unwrap()))
+        } else {
+            self.security.clone()
+        };
         // Service handling dynamic gRPC requests.
         let typed_service = if self.flags.dynamic {
             Some(TypedService::new(
                 cache_endpoints,
                 operations_receiver,
-                self.security.clone(),
+                security,
             )?)
         } else {
             None
@@ -134,7 +139,13 @@ impl ApiServer {
         let health_service = auth_middleware.layer(health_service);
 
         let mut auth_service = None;
-        if self.security.is_some() {
+        let dozer_master_secret = std::env::var("DOZER_MASTER_SECRET").ok();
+        let security = if self.security.is_none() && dozer_master_secret.is_some() {
+            Some(ApiSecurity::Jwt(dozer_master_secret.unwrap()))
+        } else {
+            self.security.clone()
+        };
+        if security.is_some() {
             let service = web_config.enable(AuthGrpcServiceServer::new(AuthService::new(
                 self.security.clone(),
             )));

@@ -176,7 +176,11 @@ impl ApiServer {
                 })
         );
         let cors = self.cors;
-        let security = self.security;
+        let dozer_master_secret = std::env::var("DOZER_MASTER_SECRET").ok();
+        let security = match (dozer_master_secret, self.security) {
+            (Some(master_secret), None) => Some(ApiSecurity::Jwt(master_secret)),
+            (_, security) => security,
+        };
         let address = format!("{}:{}", self.host, self.port);
         let server = HttpServer::new(move || {
             ApiServer::create_app_entry(
