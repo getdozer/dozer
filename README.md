@@ -14,7 +14,7 @@
 
 ## Overview
 
-Dozer is a **data platform for building, deploying and mantaining real-time data products.**
+Dozer is a **data platform for building, deploying and maintaining real-time data products.**
 
 It is ideal for companies with multiple databases, data warehouses and data lakes that are in need of combining, aggregating and transforming data in real time, and create customer facing or internal data applications. 
 
@@ -46,7 +46,7 @@ Dozer applications can be self-hosted or deployed in the cloud with a single com
 
 
 ## Supported Sources and Tranformation Engines
-Dozer currently supports a variety of source databases, data warehouses and object store. Whenever possible, Dozer leverages Change Data Capture (CDC) to keep data always fresh. Alternatively, periodic polling is used.
+Dozer currently supports a variety of source databases, data warehouses and object stores. Whenever possible, Dozer leverages Change Data Capture (CDC) to keep data always fresh. For sources that do not support CDC, periodic polling is used.
 
 Dozer transformations can be executed using Dozer's highly cutomizable streaming SQL engine, which provides UDF supports in WASM (coming soon), TypeScript (coming soon) and ONNX.
 
