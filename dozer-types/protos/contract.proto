@@ -10,8 +10,16 @@ service ContractService {
   rpc GenerateDot(CommonRequest) returns (DotResponse);
   rpc GetGraphSchemas(CommonRequest) returns (SchemasResponse);
   rpc GetProtos(CommonRequest) returns (ProtoResponse);
+  rpc GetApiToken(GetApiTokenRequest) returns (GetApiTokenResponse);
 }
 
+message GetApiTokenRequest {
+  // required if in cloud context.
+  optional string app_id = 1;
+}
+message GetApiTokenResponse {
+  optional string token = 1;
+}
 message CloudDeploymentId {
   string app_id = 1;
   uint32 deployment = 2;

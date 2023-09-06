@@ -183,7 +183,6 @@ impl LiveState {
         self.create_contract_if_missing().await?;
         let dozer = self.dozer.read().await;
         let contract = get_contract(&dozer)?;
-
         Ok(SchemasResponse {
             schemas: contract.get_endpoints_schemas(),
         })
@@ -267,6 +266,12 @@ impl LiveState {
         *lock = None;
         Ok(())
     }
+    pub async fn get_api_token(&self) -> Result<Option<String>, LiveError> {
+        let dozer = self.dozer.read().await;
+        let dozer = &dozer.as_ref().ok_or(LiveError::NotInitialized)?.dozer;
+        let generated_token = dozer.generate_token().ok();
+        Ok(generated_token)
+    }
 }
 
 fn get_contract(dozer_and_contract: &Option<DozerAndContract>) -> Result<&Contract, LiveError> {
@@ -324,7 +329,6 @@ fn run(
     let mut dozer = get_dozer_run_instance(dozer, labels, request)?;
 
     validate_config(&dozer.config)?;
-
     let runtime = dozer.runtime.clone();
     let run_thread = std::thread::spawn(move || dozer.run_all(shutdown_receiver, false));
 

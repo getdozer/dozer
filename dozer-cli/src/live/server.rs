@@ -5,7 +5,8 @@ use dozer_types::{
     grpc_types::{
         contract::{
             contract_service_server::{ContractService, ContractServiceServer},
-            CommonRequest, DotResponse, ProtoResponse, SchemasResponse, SourcesRequest,
+            CommonRequest, DotResponse, GetApiTokenRequest, GetApiTokenResponse, ProtoResponse,
+            SchemasResponse, SourcesRequest,
         },
         live::{
             code_service_server::{CodeService, CodeServiceServer},
@@ -91,6 +92,20 @@ impl ContractService for ContractServer {
 
         match res {
             Ok(res) => Ok(Response::new(res)),
+            Err(e) => Err(Status::internal(e.to_string())),
+        }
+    }
+
+    async fn get_api_token(
+        &self,
+        _request: Request<GetApiTokenRequest>,
+    ) -> Result<Response<GetApiTokenResponse>, Status> {
+        let state = self.state.clone();
+        let res = state.get_api_token().await;
+        match res {
+            Ok(res) => Ok(Response::new(GetApiTokenResponse {
+                token: res
+            })),
             Err(e) => Err(Status::internal(e.to_string())),
         }
     }
