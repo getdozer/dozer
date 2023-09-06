@@ -157,3 +157,16 @@ pub fn default_log_reader_timeout_in_millis() -> u32 {
 pub fn default_log_reader_buffer_size() -> u32 {
     1000
 }
+
+impl std::fmt::Display for SecondaryIndex {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SecondaryIndex::SortedInverted(SortedInverted { fields }) => {
+                write!(f, "type: SortedInverted, fields: {}", fields.join(", "))
+            }
+            SecondaryIndex::FullText(FullText { field }) => {
+                write!(f, "type: FullText, field: {}", field)
+            }
+        }
+    }
+}
