@@ -61,7 +61,7 @@ impl Storage for LocalStorage {
     async fn put_object(&self, key: String, data: Vec<u8>) -> Result<(), Error> {
         let path = self.get_path(&key).await?;
         debug!("putting object to {}", path);
-        write(path, &data)
+        write(path, &data).await
     }
 
     async fn create_multipart_upload(&self, key: String) -> Result<String, Error> {
@@ -101,7 +101,7 @@ impl Storage for LocalStorage {
                 upload_id: upload_id.clone(),
             })?;
         let part_path = get_path_path(&upload_id, part_number);
-        write(part_path.clone(), &data)?;
+        write(part_path.clone(), &data).await?;
         Ok(part_path)
     }
 
@@ -169,14 +169,18 @@ impl Storage for LocalStorage {
     async fn delete_objects(&self, keys: Vec<String>) -> Result<(), Error> {
         for key in keys {
             let path = self.get_path(&key).await?;
-            std::fs::remove_file(&path).map_err(|e| Error::FileSystem(path, e))?;
+            tokio::fs::remove_file(&path)
+                .await
+                .map_err(|e| Error::FileSystem(path, e))?;
         }
         Ok(())
     }
 }
 
-fn write(path: String, contents: &[u8]) -> Result<(), Error> {
-    std::fs::write(&path, contents).map_err(|e| Error::FileSystem(path, e))
+async fn write(path: String, contents: &[u8]) -> Result<(), Error> {
+    tokio::fs::write(&path, contents)
+        .await
+        .map_err(|e| Error::FileSystem(path, e))
 }
 
 async fn read(path: String) -> Result<Vec<u8>, Error> {
