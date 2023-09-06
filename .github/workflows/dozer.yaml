@@ -51,7 +51,7 @@ jobs:
 
       - name: Clippy
         run: |
-          cargo clippy --all-features -- -D warnings
+          cargo clippy --workspace --all-features --all-targets -- -D warnings
 
       - name: Lint
         run: |
