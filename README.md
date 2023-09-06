@@ -42,7 +42,7 @@ Dozer can run the entire infrastructure locally. You can inspect data flowing in
 ![Screenshot](./images/dozer_live_screen2.png)
 
 ### ③ Deploy
-Dozer applications can be self-hosted or deployed in the cloud with a single command. Dozer Cloud (coming soon) provides self-healing and monitoring capabilities, making sure your APIs are always avaialble.
+Dozer applications can be self-hosted or deployed in the cloud with a single command. Dozer Cloud (coming soon) provides self-healing and monitoring capabilities, making sure your APIs are always available.
 
 
 ## Supported Sources and Tranformation Engines
