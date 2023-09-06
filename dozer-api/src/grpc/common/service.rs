@@ -3,12 +3,13 @@ use std::sync::Arc;
 
 use crate::auth::Access;
 
-use crate::grpc::shared_impl::{self, EndpointFilter};
+use crate::grpc::shared_impl::{self, from_error, prost_value_to_value, EndpointFilter};
 use crate::grpc::types_helper::map_record;
 use crate::CacheEndpoint;
 use dozer_types::grpc_types::common::common_grpc_service_server::CommonGrpcService;
 use dozer_types::grpc_types::conversions::field_definition_to_grpc;
 use dozer_types::indexmap::IndexMap;
+use dozer_types::serde_json::Value;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 
@@ -46,17 +47,25 @@ impl CommonService {
     fn parse_request(
         &self,
         request: Request<QueryRequest>,
-    ) -> Result<(&CacheEndpoint, QueryRequest, Option<Access>), Status> {
+    ) -> Result<(&CacheEndpoint, Option<Value>, Option<Access>), Status> {
         let parts = request.into_parts();
         let mut extensions = parts.1;
         let query_request = parts.2;
+        let query = match query_request.query {
+            Some(q) => prost_value_to_value(q).map_err(from_error)?,
+            None => None,
+        };
+        println!(
+            "query: {}",
+            dozer_types::serde_json::to_string(&query).unwrap()
+        );
         let access = extensions.remove::<Access>();
         let endpoint = &query_request.endpoint;
         let cache_endpoint = self
             .endpoint_map
             .get(endpoint)
             .map_or(Err(Status::invalid_argument(endpoint)), Ok)?;
-        Ok((cache_endpoint, query_request, access))
+        Ok((cache_endpoint, query, access))
     }
 }
 
@@ -66,11 +75,11 @@ impl CommonGrpcService for CommonService {
         &self,
         request: Request<QueryRequest>,
     ) -> Result<Response<CountResponse>, Status> {
-        let (cache_endpoint, query_request, access) = self.parse_request(request)?;
+        let (cache_endpoint, query, access) = self.parse_request(request)?;
 
         let count = shared_impl::count(
             &cache_endpoint.cache_reader(),
-            query_request.query.as_deref(),
+            query,
             &cache_endpoint.endpoint.name,
             access,
         )?;
@@ -85,15 +94,11 @@ impl CommonGrpcService for CommonService {
         &self,
         request: Request<QueryRequest>,
     ) -> Result<Response<QueryResponse>, Status> {
-        let (cache_endpoint, query_request, access) = self.parse_request(request)?;
+        let (cache_endpoint, query, access) = self.parse_request(request)?;
 
         let cache_reader = cache_endpoint.cache_reader();
-        let records = shared_impl::query(
-            &cache_reader,
-            query_request.query.as_deref(),
-            &cache_endpoint.endpoint.name,
-            access,
-        )?;
+        let records =
+            shared_impl::query(&cache_reader, query, &cache_endpoint.endpoint.name, access)?;
         let schema = &cache_reader.get_schema().0;
 
         let fields = field_definition_to_grpc(schema.fields.clone());

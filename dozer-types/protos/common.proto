@@ -4,6 +4,7 @@
 syntax = "proto3";
 
 package dozer.common;
+import "google/protobuf/struct.proto";
 import "types.proto";
 
 /**
@@ -42,8 +43,8 @@ service CommonGrpcService {
 message QueryRequest {
   // The name of the endpoint to query.
   string endpoint = 1;
-  // JSON query string.
-  optional string query = 2;
+  // JSON query.
+  optional google.protobuf.Value query = 2;
 }
 
 // Response for `count`.

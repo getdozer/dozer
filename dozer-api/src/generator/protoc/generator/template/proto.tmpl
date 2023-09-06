@@ -19,13 +19,13 @@ service {{plural_pascal_name}} {
    *
    * If no query is specified, total number of records will be returned.
    */
-  rpc count(Query{{plural_pascal_name}}Request) returns (Count{{plural_pascal_name}}Response);
+  rpc count(QueryRequest) returns (CountResponse);
   /**
    * Performs query. See [Query](../query) for the query format.
    *
    * If no query is specified, the first 50 records will be returned.
    */
-  rpc query(Query{{plural_pascal_name}}Request) returns (Query{{plural_pascal_name}}Response);
+  rpc query(QueryRequest) returns (QueryResponse);
 
   {{#if enable_on_event}}
   /**
@@ -40,19 +40,19 @@ service {{plural_pascal_name}} {
 }
 
 // Request for `count` and `query`.
-message Query{{plural_pascal_name}}Request {
-  // JSON query string.
-  optional string query = 1;
+message QueryRequest {
+  // query using Value datatype.
+  optional google.protobuf.Value query = 1;
 }
 
 // Response for `count`.
-message Count{{plural_pascal_name}}Response {
+message CountResponse {
   // The number of records.
   uint64 count = 1;
 }
 
 // Response for `query`.
-message Query{{plural_pascal_name}}Response {
+message QueryResponse {
   // The list of records.
   repeated {{pascal_name}}WithId records = 1;
 }

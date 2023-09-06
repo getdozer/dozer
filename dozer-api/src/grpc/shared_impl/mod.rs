@@ -1,19 +1,20 @@
 use std::collections::HashMap;
 
+use crate::api_helper::{get_records, get_records_count};
+use crate::auth::Access;
 use dozer_cache::cache::expression::{default_limit_for_query, FilterExpression, QueryExpression};
 use dozer_cache::cache::CacheRecord;
 use dozer_cache::CacheReader;
+use dozer_types::errors::types::TypeError;
 use dozer_types::grpc_types::types::Operation;
 use dozer_types::log::warn;
-use dozer_types::serde_json;
+use dozer_types::serde_json::{self, from_str, from_value, Map, Value};
 use dozer_types::types::Schema;
+use prost_reflect::prost_types;
 use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::broadcast::Receiver;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Code, Response, Status};
-
-use crate::api_helper::{get_records, get_records_count};
-use crate::auth::Access;
 
 mod filter;
 
@@ -22,24 +23,70 @@ pub fn from_error(error: impl std::error::Error) -> Status {
 }
 
 fn parse_query(
-    query: Option<&str>,
+    query: Option<serde_json::Value>,
     default: impl FnOnce() -> QueryExpression,
 ) -> Result<QueryExpression, Status> {
     match query {
-        Some(query) => {
-            if query.is_empty() {
-                Ok(default())
-            } else {
-                serde_json::from_str(query).map_err(from_error)
-            }
-        }
+        Some(query) => from_value(query.to_owned()).map_err(from_error),
         None => Ok(default()),
+    }
+}
+pub fn prost_value_to_value(pvalue: prost_types::Value) -> Result<Option<Value>, TypeError> {
+    println!("pvalue: {:?}", pvalue);
+    match pvalue.kind {
+        Some(k) => match k {
+            prost_types::value::Kind::NullValue(_) => Ok(None),
+            prost_types::value::Kind::NumberValue(n) => {
+                if n.fract() == 0.0 {
+                    Ok(Some(Value::from(n as i64)))
+                } else {
+                    Ok(Some(Value::from(n)))
+                }
+            }
+            prost_types::value::Kind::StringValue(s) => Ok(Some(Value::String(s))),
+            prost_types::value::Kind::BoolValue(b) => Ok(Some(Value::Bool(b))),
+            prost_types::value::Kind::StructValue(s) => {
+                let mut m = Map::new();
+                for (name, value) in s.fields {
+                    match prost_value_to_value(value)? {
+                        Some(v) => {
+                            m.insert(name, v);
+                        }
+                        None => {
+                            return Err(TypeError::QueryParsingError(format!(
+                                "Invalid inner value for field {}",
+                                name
+                            )));
+                        }
+                    }
+                }
+                Ok(Some(Value::Object(m)))
+            }
+            prost_types::value::Kind::ListValue(l) => {
+                let mut vec = Vec::new();
+                for (idx, value) in l.values.iter().enumerate() {
+                    match prost_value_to_value(value.clone())? {
+                        Some(v) => {
+                            vec.push(v);
+                        }
+                        None => {
+                            return Err(TypeError::QueryParsingError(format!(
+                                "Invalid inner value at index :{}",
+                                idx
+                            )));
+                        }
+                    }
+                }
+                Ok(Some(Value::Array(vec)))
+            }
+        },
+        None => Ok(None),
     }
 }
 
 pub fn count(
     reader: &CacheReader,
-    query: Option<&str>,
+    query: Option<serde_json::Value>,
     endpoint: &str,
     access: Option<Access>,
 ) -> Result<usize, Status> {
@@ -49,7 +96,7 @@ pub fn count(
 
 pub fn query(
     reader: &CacheReader,
-    query: Option<&str>,
+    query: Option<serde_json::Value>,
     endpoint: &str,
     access: Option<Access>,
 ) -> Result<Vec<CacheRecord>, Status> {
@@ -74,7 +121,7 @@ impl EndpointFilter {
                 if filter.is_empty() {
                     None
                 } else {
-                    Some(serde_json::from_str(filter))
+                    Some(from_str(filter))
                 }
             })
             .transpose()

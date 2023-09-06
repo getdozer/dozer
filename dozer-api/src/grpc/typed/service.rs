@@ -13,14 +13,14 @@ use crate::{
         CountResponseDesc, EventDesc, ProtoGenerator, QueryResponseDesc, ServiceDesc,
         TokenResponseDesc,
     },
-    grpc::shared_impl::{self, EndpointFilter},
+    grpc::shared_impl::{self, from_error, prost_value_to_value, EndpointFilter},
     CacheEndpoint,
 };
 use dozer_cache::CacheReader;
 use dozer_types::{grpc_types::types::Operation, models::api_security::ApiSecurity};
 use dozer_types::{log::error, types::Schema};
 use futures_util::future;
-use prost_reflect::{MethodDescriptor, Value};
+use prost_reflect::{prost_types, MethodDescriptor, Value};
 use std::{borrow::Cow, collections::HashMap, convert::Infallible};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{
@@ -281,26 +281,27 @@ impl tonic::server::NamedService for TypedService {
 
 fn parse_request(
     (_, extensions, query_request): &mut (MetadataMap, Extensions, DynamicMessage),
-) -> Result<(Option<Cow<str>>, Option<Access>), Status> {
+) -> Result<(Option<dozer_types::serde_json::Value>, Option<Access>), Status> {
     let access = extensions.remove::<Access>();
 
     let query = query_request.get_field_by_name("query");
-    let query = query
-        .map(|query| match query {
-            Cow::Owned(query) => {
-                if let Value::String(query) = query {
-                    Ok(Cow::Owned(query))
-                } else {
-                    Err(Status::new(Code::InvalidArgument, "query must be a string"))
-                }
-            }
-            Cow::Borrowed(query) => query
-                .as_str()
-                .map(Cow::Borrowed)
-                .ok_or_else(|| Status::new(Code::InvalidArgument, "query must be a string")),
-        })
-        .transpose()?;
-    Ok((query, access))
+
+    if let Some(query) = query {
+        let query = match query {
+            Cow::Borrowed(a) => a.clone(),
+            Cow::Owned(a) => a,
+        };
+
+        if let Value::Message(query) = query {
+            let query: prost_types::Value = query.transcode_to().map_err(from_error)?;
+            let query = prost_value_to_value(query).map_err(from_error)?;
+            Ok((query, access))
+        } else {
+            Err(Status::invalid_argument("query must be a message"))
+        }
+    } else {
+        Ok((None, access))
+    }
 }
 
 fn count(
@@ -312,7 +313,7 @@ fn count(
     let mut parts = request.into_parts();
     let (query, access) = parse_request(&mut parts)?;
 
-    let count = shared_impl::count(reader, query.as_deref(), endpoint, access)?;
+    let count = shared_impl::count(reader, query, endpoint, access)?;
     let res = count_response_to_typed_response(count, response_desc).map_err(|e| {
         error!("Count API error: {:?}", e);
         Status::internal("Count API error")
@@ -329,7 +330,7 @@ fn query(
     let mut parts = request.into_parts();
     let (query, access) = parse_request(&mut parts)?;
 
-    let records = shared_impl::query(reader, query.as_deref(), endpoint, access)?;
+    let records = shared_impl::query(reader, query, endpoint, access)?;
     let res = query_response_to_typed_response(records, response_desc).map_err(|e| {
         error!("Query API error: {:?}", e);
         Status::internal("Query API error")

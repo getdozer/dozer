@@ -89,10 +89,10 @@ impl<'a> ProtoGeneratorImpl<'a> {
             })
             .map(|proto_type| match proto_type.as_str() {
                 TIMESTAMP_TYPE_CLASS => "google/protobuf/timestamp.proto".to_owned(),
-                JSON_TYPE_CLASS => "google/protobuf/struct.proto".to_owned(),
                 _ => "".to_owned(),
             })
             .collect();
+        libs_import.push("google/protobuf/struct.proto".to_owned());
         libs_import.push("types.proto".to_owned());
         libs_import.sort();
         libs_import.dedup();

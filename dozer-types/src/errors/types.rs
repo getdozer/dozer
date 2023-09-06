@@ -30,6 +30,8 @@ pub enum TypeError {
     DeserializationError(#[source] DeserializationError),
     #[error("Failed to calculate distance: {0}")]
     DistanceCalculationError(#[source] FailedToConvergeError),
+    #[error("Failed parsing query :{0}")]
+    QueryParsingError(String),
 }
 
 #[derive(Error, Debug)]
