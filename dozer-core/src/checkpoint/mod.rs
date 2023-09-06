@@ -317,7 +317,7 @@ async fn read_record_store_slices(
             let processor_prefix = processor_prefix(factory_prefix, object_name.as_str());
 
             if let Some(last_checkpoint) = last_checkpoint.as_mut() {
-                last_checkpoint
+                last_checkpoint.num_slices = last_checkpoint
                     .num_slices
                     .checked_add(objects.objects.len())
                     .expect("shouldn't overflow");
