@@ -2696,7 +2696,7 @@ dependencies = [
  "rand 0.8.5",
  "rdkafka",
  "regex",
- "rustls 0.21.6",
+ "rustls 0.21.7",
  "rustls-native-certs 0.6.2",
  "schema_registry_converter",
  "serial_test",
@@ -4860,7 +4860,7 @@ dependencies = [
  "percent-encoding",
  "pin-project",
  "priority-queue",
- "rustls 0.21.6",
+ "rustls 0.21.7",
  "rustls-pemfile",
  "serde",
  "serde_json",
@@ -6853,9 +6853,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.21.6"
+version = "0.21.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d1feddffcfcc0b33f5c6ce9a29e341e4cd59c3f78e7ee45f4a40c038b1d6cbb"
+checksum = "cd8d6c9f025a446bc4d18ad9632e69aec8f287aa84499ee335599fabd20c3fd8"
 dependencies = [
  "log",
  "ring",
@@ -7937,7 +7937,7 @@ checksum = "dd5831152cb0d3f79ef5523b357319ba154795d64c7078b2daa95a803b54057f"
 dependencies = [
  "futures",
  "ring",
- "rustls 0.21.6",
+ "rustls 0.21.7",
  "tokio",
  "tokio-postgres",
  "tokio-rustls 0.24.0",
@@ -7971,7 +7971,7 @@ version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e0d409377ff5b1e3ca6437aa86c1eb7d40c134bfec254e44c830defa92669db5"
 dependencies = [
- "rustls 0.21.6",
+ "rustls 0.21.7",
  "tokio",
 ]
 
@@ -8483,7 +8483,7 @@ dependencies = [
  "base64 0.21.0",
  "log",
  "once_cell",
- "rustls 0.21.6",
+ "rustls 0.21.7",
  "rustls-webpki 0.100.2",
  "url",
  "webpki-roots 0.23.1",
