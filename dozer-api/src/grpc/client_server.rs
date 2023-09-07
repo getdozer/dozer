@@ -57,11 +57,11 @@ impl ApiServer {
         }
         let inflection_service = builder.build().map_err(GrpcError::ServerReflectionError)?;
         let dozer_master_secret = std::env::var("DOZER_MASTER_SECRET").ok();
-        let security = if self.security.is_none() && dozer_master_secret.is_some() {
-            Some(ApiSecurity::Jwt(dozer_master_secret.unwrap()))
-        } else {
-            self.security.clone()
-        };
+        let security = self
+            .security
+            .clone()
+            .or_else(|| dozer_master_secret.map(ApiSecurity::Jwt));
+
         // Service handling dynamic gRPC requests.
         let typed_service = if self.flags.dynamic {
             Some(TypedService::new(
