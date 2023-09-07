@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package dozer.api_explorer;
+service ApiExplorerService {
+    rpc GetApiToken(GetApiTokenRequest) returns (GetApiTokenResponse);
+}
+
+message GetApiTokenRequest {
+  // required if in cloud context.
+  optional string app_id = 1;
+  // ttl in seconds - default 15 minutes (900 seconds)
+  optional int32 ttl = 2;
+}
+message GetApiTokenResponse {
+  optional string token = 1;
+}

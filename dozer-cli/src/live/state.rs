@@ -266,10 +266,10 @@ impl LiveState {
         *lock = None;
         Ok(())
     }
-    pub async fn get_api_token(&self) -> Result<Option<String>, LiveError> {
-        let dozer = self.dozer.read().await;
+    pub async fn get_api_token(&self, ttl: Option<i32>) -> Result<Option<String>, LiveError> {
+        let dozer: tokio::sync::RwLockReadGuard<'_, Option<DozerAndContract>> = self.dozer.read().await;
         let dozer = &dozer.as_ref().ok_or(LiveError::NotInitialized)?.dozer;
-        let generated_token = dozer.generate_token().ok();
+        let generated_token = dozer.generate_token(ttl).ok();
         Ok(generated_token)
     }
 }

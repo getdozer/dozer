@@ -272,14 +272,15 @@ impl SimpleOrchestrator {
         })
     }
 
-    pub fn generate_token(&self) -> Result<String, OrchestrationError> {
+    pub fn generate_token(&self, ttl_in_secs: Option<i32>) -> Result<String, OrchestrationError> {
         if let Some(api_config) = &self.config.api {
             if let Some(api_security) = &api_config.api_security {
                 match api_security {
                     dozer_types::models::api_security::ApiSecurity::Jwt(secret) => {
                         let auth = Authorizer::new(secret, None, None);
+                        let duration = ttl_in_secs.map(|f| std::time::Duration::from_secs(f as u64));
                         let token = auth
-                            .generate_token(Access::All, None)
+                            .generate_token(Access::All, duration)
                             .map_err(OrchestrationError::GenerateTokenFailed)?;
                         return Ok(token);
                     }

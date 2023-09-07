@@ -3,10 +3,13 @@ use std::sync::Arc;
 use dozer_api::{tonic_reflection, tonic_web, tower_http};
 use dozer_types::{
     grpc_types::{
+        api_explorer::{
+            api_explorer_service_server::ApiExplorerService, GetApiTokenRequest,
+            GetApiTokenResponse,
+        },
         contract::{
             contract_service_server::{ContractService, ContractServiceServer},
-            CommonRequest, DotResponse, GetApiTokenRequest, GetApiTokenResponse, ProtoResponse,
-            SchemasResponse, SourcesRequest,
+            CommonRequest, DotResponse, ProtoResponse, SchemasResponse, SourcesRequest,
         },
         live::{
             code_service_server::{CodeService, CodeServiceServer},
@@ -95,20 +98,6 @@ impl ContractService for ContractServer {
             Err(e) => Err(Status::internal(e.to_string())),
         }
     }
-
-    async fn get_api_token(
-        &self,
-        _request: Request<GetApiTokenRequest>,
-    ) -> Result<Response<GetApiTokenResponse>, Status> {
-        let state = self.state.clone();
-        let res = state.get_api_token().await;
-        match res {
-            Ok(res) => Ok(Response::new(GetApiTokenResponse {
-                token: res
-            })),
-            Err(e) => Err(Status::internal(e.to_string())),
-        }
-    }
 }
 
 struct LiveServer {
@@ -186,6 +175,24 @@ impl CodeService for LiveServer {
     }
 }
 
+struct ApiExplorerServer {
+    state: Arc<LiveState>,
+}
+#[tonic::async_trait]
+impl ApiExplorerService for ApiExplorerServer {
+    async fn get_api_token(
+        &self,
+        request: Request<GetApiTokenRequest>,
+    ) -> Result<Response<GetApiTokenResponse>, Status> {
+        let state = self.state.clone();
+        let input = request.into_inner();
+        let res = state.get_api_token(input.ttl).await;
+        match res {
+            Ok(res) => Ok(Response::new(GetApiTokenResponse { token: res })),
+            Err(e) => Err(Status::internal(e.to_string())),
+        }
+    }
+}
 pub async fn serve(
     receiver: Receiver<ConnectResponse>,
     state: Arc<LiveState>,
