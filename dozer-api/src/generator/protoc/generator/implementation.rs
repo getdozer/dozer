@@ -263,7 +263,7 @@ impl<'a> ProtoGeneratorImpl<'a> {
                         },
                     });
                 }
-                "on_event" => {
+                "OnEvent" => {
                     let message = method.output();
                     let typ_field = get_field(&message, "typ")?;
                     let old_field = get_field(&message, "old")?;
