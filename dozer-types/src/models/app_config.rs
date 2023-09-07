@@ -30,6 +30,16 @@ pub struct AppConfig {
     /// How many errors we can tolerate before bringing down the app.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error_threshold: Option<u32>,
+
+    #[prost(uint64, optional)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// The maximum unpersisted number of records in the processor record store. A checkpoint will be created when this number is reached.
+    pub max_num_records_before_persist: Option<u64>,
+
+    #[prost(uint64, optional)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// The maximum time in seconds before a new checkpoint is created. If there're no new records, no checkpoint will be created.
+    pub max_interval_before_persist_in_seconds: Option<u64>,
 }
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, prost::Oneof)]
@@ -72,4 +82,12 @@ pub fn default_commit_timeout() -> u64 {
 
 pub fn default_error_threshold() -> u32 {
     0
+}
+
+pub fn default_max_num_records_before_persist() -> u64 {
+    100_000
+}
+
+pub fn default_max_interval_before_persist_in_seconds() -> u64 {
+    60
 }

@@ -1,6 +1,7 @@
 use crate::builder_dag::{BuilderDag, NodeKind};
 use crate::checkpoint::{CheckpointFactory, OptionCheckpoint};
 use crate::dag_schemas::DagSchemas;
+use crate::epoch::EpochManagerOptions;
 use crate::errors::ExecutionError;
 use crate::Dag;
 
@@ -22,6 +23,7 @@ pub struct ExecutorOptions {
     pub channel_buffer_sz: usize,
     pub commit_time_threshold: Duration,
     pub error_threshold: Option<u32>,
+    pub epoch_manager_options: EpochManagerOptions,
 }
 
 impl Default for ExecutorOptions {
@@ -31,6 +33,7 @@ impl Default for ExecutorOptions {
             channel_buffer_sz: 20_000,
             commit_time_threshold: Duration::from_millis(50),
             error_threshold: Some(0),
+            epoch_manager_options: Default::default(),
         }
     }
 }
@@ -100,6 +103,7 @@ impl DagExecutor {
             labels,
             self.options.channel_buffer_sz,
             self.options.error_threshold,
+            self.options.epoch_manager_options.clone(),
         )?;
         let node_indexes = execution_dag.graph().node_identifiers().collect::<Vec<_>>();
 

@@ -9,7 +9,7 @@ use std::{
 
 use crate::{
     builder_dag::{BuilderDag, NodeKind, NodeType},
-    epoch::EpochManager,
+    epoch::{EpochManager, EpochManagerOptions},
     error_manager::ErrorManager,
     errors::ExecutionError,
     executor_operation::ExecutorOperation,
@@ -56,6 +56,7 @@ impl ExecutionDag {
         labels: LabelsAndProgress,
         channel_buffer_sz: usize,
         error_threshold: Option<u32>,
+        epoch_manager_options: EpochManagerOptions,
     ) -> Result<Self, ExecutionError> {
         // Count number of sources.
         let num_sources = builder_dag
@@ -122,7 +123,7 @@ impl ExecutionDag {
             num_sources,
             builder_dag.initial_epoch_id(),
             checkpoint_factory.clone(),
-            Default::default(),
+            epoch_manager_options,
         ));
         let graph = builder_dag.into_graph().map_owned(
             |_, node| Some(node),

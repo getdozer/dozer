@@ -78,7 +78,7 @@ impl EpochManagerStateKind {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct EpochManagerOptions {
     pub max_num_records_before_persist: usize,
     pub max_interval_before_persist_in_seconds: u64,
