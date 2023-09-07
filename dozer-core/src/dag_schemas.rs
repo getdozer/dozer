@@ -15,36 +15,6 @@ use std::fmt::Debug;
 use super::node::OutputPortDef;
 use super::{EdgeType as DagEdgeType, NodeType};
 
-#[derive(Debug, Clone)]
-pub struct NodeSchemas {
-    pub input_schemas: HashMap<PortHandle, Schema>,
-    pub output_schemas: HashMap<PortHandle, Schema>,
-}
-
-impl Default for NodeSchemas {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl NodeSchemas {
-    pub fn new() -> Self {
-        Self {
-            input_schemas: HashMap::new(),
-            output_schemas: HashMap::new(),
-        }
-    }
-    pub fn from(
-        input_schemas: HashMap<PortHandle, Schema>,
-        output_schemas: HashMap<PortHandle, Schema>,
-    ) -> Self {
-        Self {
-            input_schemas,
-            output_schemas,
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(crate = "dozer_types::serde")]
 pub struct EdgeType {
