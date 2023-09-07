@@ -8,7 +8,7 @@ env:
   CARGO_TERM_COLOR: always
   BUCKET_NAME: "dozer-releases"
   ECR_REGISTRY: public.ecr.aws/k7k6x1d4
-  ECR_REPOSITORY: dozer
+  ECR_REPOSITORY: dozer-features
   DOCKERHUB_REGISTRY: getdozer
   DOCKERHUB_REPOSITORY: dozer
 
@@ -302,20 +302,14 @@ jobs:
       matrix:
         os: [ubuntu-20-16-cores]
         include:
-#          - os: ubuntu-20-16-cores
-#            file_name: dozer
-#            target: armv7-unknown-linux-gnu
-#            asset_name: dozer-linux-amd64
+          - os: ubuntu-20-16-cores
+            file_name: dozer
+            target: x86_64-unknown-linux-gnu
+            asset_name: dozer-linux-amd64
           - os: macos-12
             file_name: dozer
             target: x86_64-apple-darwin
             asset_name: dozer-macos-amd64
-          - os: ubuntu-20-16-cores
-            target: aarch64-unknown-linux-gnu
-            linker: gcc-aarch64-linux-gnu
-            use-cross: true
-            file_name: dozer
-            asset_name: dozer-linux-aarch64
     steps:
       - uses: actions/checkout@v3
       - name: Install minimal stable with clippy and rustfmt
@@ -325,26 +319,6 @@ jobs:
           toolchain: stable
           target: ${{ matrix.target }}
           components: rustfmt, clippy
-
-      - name: Install target specific tools
-        if: matrix.use-cross
-        run: |
-          sudo apt-get install -y ${{ matrix.linker }} odbcinst unixodbc unixodbc-dev
-
-
-      - name: Configure target aarch64 GNU
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          echo '[target.aarch64-unknown-linux-gnu]' >> ~/.cargo/config
-          echo 'linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config
-          echo 'JEMALLOC_SYS_WITH_LG_PAGE=16' >> $GITHUB_ENV
-
-      - name: Set up Docker Buildx
-        if: matrix.os == 'ubuntu-20-16-cores'
-        uses: crazy-max/ghaction-docker-buildx@v1
-        with:
-          version: latest
-
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
         with:
@@ -371,28 +345,21 @@ jobs:
 
       - name: Compile deb file
         if: matrix.os == 'ubuntu-20-16-cores'
-        run: cargo-deb --target ${{ matrix.target }} -p dozer-cli  --output ./deb/${{matrix.asset_name}}.deb
+        run: cargo-deb -p dozer-cli  --output ./deb/${{matrix.asset_name}}.deb
 
       - name: Build package
         if: matrix.os != 'ubuntu-20-16-cores'
         run: cargo build --release --bin ${{ matrix.file_name }}
 
-#      - name: Install snowflake
-#        shell: bash
-#        run: |
-#          curl https://sfc-repo.snowflakecomputing.com/odbc/linux/2.25.7/snowflake-odbc-2.25.7.x86_64.deb -o snowflake_driver.deb && sudo dpkg -i snowflake_driver.deb
-
-      - name: Build package for ubuntu (with kafka & snowflake)
+      - name: Build package for ubuntu (with kafka & snowflake & onnx)
         if: matrix.os == 'ubuntu-20-16-cores'
-        run: cargo build --target ${{ matrix.target }} --release --bin  ${{ matrix.file_name }}
-#        run: cargo build --target aarch64-unknown-linux-gnu --release --bin  dozer-linux-aarch64 --features snowflake
+        run: cargo build --release --bin  ${{ matrix.file_name }} --features "kafka snowflake onnx"
 
       - name: Prepare release assets
         shell: bash
         run: |
           mkdir -p release
           cp {LICENSE,README.md,CHANGELOG.md} release/ 2> /dev/null || echo "Copy Failed...Ignoring.."
-          cp target/aarch64-unknown-linux-gnu/release/${{matrix.file_name}} target/release/${{matrix.file_name}}
           cp target/release/${{matrix.file_name}} release/
 
           mv release/ ${{matrix.asset_name}}/
@@ -453,8 +420,8 @@ jobs:
           IMAGE_TAG: ${{ needs.prepare.outputs.version }}
         run: |
           aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin $ECR_REGISTRY
-          docker buildx build --push --platform linux/arm/v7 -f ci/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:arm_test .
-#          docker push $ECR_REGISTRY/$ECR_REPOSITORY --all-tags
+          docker build -f ci/Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:$GITHUB_SHA .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY --all-tags
 
       - name: Update latest image if releasing
         if: (needs.prepare.outputs.prerelease == 'false') && (matrix.os == 'ubuntu-20-16-cores')
