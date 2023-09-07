@@ -1,5 +1,6 @@
 use std::{path::Path, process::Command};
 
+use dozer_types::constants::LOCK_FILE;
 use dozer_utils::{
     process::{run_command, run_docker_compose},
     Cleanup,
@@ -49,6 +50,7 @@ impl Runner {
 
                     // Start dozer.
                     cleanups.push(Cleanup::RemoveDirectory(case.dozer_config.home_dir.clone()));
+                    cleanups.push(Cleanup::RemoveFile(LOCK_FILE.to_owned()));
                     cleanups.extend(spawn_dozer(&self.dozer_bin, &case.dozer_config_path));
 
                     // Run test case.
@@ -69,6 +71,7 @@ impl Runner {
                             ));
                         }
                         cleanups.push(Cleanup::RemoveDirectory(case.dozer_config.home_dir.clone()));
+                        cleanups.push(Cleanup::RemoveFile(LOCK_FILE.to_owned()));
 
                         (Command::new(&self.dozer_bin), cleanups)
                     },
@@ -84,7 +87,7 @@ impl Runner {
 fn spawn_dozer_same_process(dozer_bin: &str, dozer_config_path: &str) -> Vec<Cleanup> {
     let child = spawn_command(
         dozer_bin,
-        &["--config-path", dozer_config_path, "--ignore-pipe"],
+        &["--config-path", dozer_config_path, "--ignore-pipe", "run"],
     );
     vec![Cleanup::KillProcess(child)]
 }

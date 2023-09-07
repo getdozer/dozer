@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use crate::pipeline::builder::SchemaSQLContext;
 use crate::pipeline::errors::PipelineError;
 use crate::pipeline::errors::SetError;
 
@@ -20,16 +19,25 @@ use super::set_processor::SetProcessor;
 pub struct SetProcessorFactory {
     id: String,
     set_quantifier: SetQuantifier,
+    enable_probabilistic_optimizations: bool,
 }
 
 impl SetProcessorFactory {
     /// Creates a new [`FromProcessorFactory`].
-    pub fn new(id: String, set_quantifier: SetQuantifier) -> Self {
-        Self { id, set_quantifier }
+    pub fn new(
+        id: String,
+        set_quantifier: SetQuantifier,
+        enable_probabilistic_optimizations: bool,
+    ) -> Self {
+        Self {
+            id,
+            set_quantifier,
+            enable_probabilistic_optimizations,
+        }
     }
 }
 
-impl ProcessorFactory<SchemaSQLContext> for SetProcessorFactory {
+impl ProcessorFactory for SetProcessorFactory {
     fn id(&self) -> String {
         self.id.clone()
     }
@@ -51,8 +59,8 @@ impl ProcessorFactory<SchemaSQLContext> for SetProcessorFactory {
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(Schema, SchemaSQLContext), BoxedError> {
+        input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> Result<Schema, BoxedError> {
         let output_columns = validate_set_operation_input_schemas(input_schemas)?;
 
         let output_schema = Schema {
@@ -62,11 +70,10 @@ impl ProcessorFactory<SchemaSQLContext> for SetProcessorFactory {
                 .map_or(Err(SetError::InvalidInputSchemas), Ok)
                 .unwrap()
                 .to_owned()
-                .0
                 .primary_index,
         };
 
-        Ok((output_schema, SchemaSQLContext::default()))
+        Ok(output_schema)
     }
 
     fn build(
@@ -81,26 +88,25 @@ impl ProcessorFactory<SchemaSQLContext> for SetProcessorFactory {
                 op: SetOperator::Union,
                 quantifier: self.set_quantifier,
             },
+            self.enable_probabilistic_optimizations,
         )?))
     }
 }
 
 fn validate_set_operation_input_schemas(
-    input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
+    input_schemas: &HashMap<PortHandle, Schema>,
 ) -> Result<Vec<FieldDefinition>, PipelineError> {
     let mut left_columns = input_schemas
         .get(&0)
         .map_or(Err(SetError::InvalidInputSchemas), Ok)
         .unwrap()
         .to_owned()
-        .0
         .fields;
     let mut right_columns = input_schemas
         .get(&1)
         .map_or(Err(SetError::InvalidInputSchemas), Ok)
         .unwrap()
         .to_owned()
-        .0
         .fields;
 
     left_columns.sort();

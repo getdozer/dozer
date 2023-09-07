@@ -11,12 +11,14 @@ use dozer_core::Dag;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_ingestion::connectors::{get_connector, get_connector_info_table};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
-use dozer_sql::pipeline::builder::{OutputNodeInfo, QueryContext, SchemaSQLContext};
-use dozer_types::indicatif::MultiProgress;
+use dozer_sql::pipeline::builder::{OutputNodeInfo, QueryContext};
+use dozer_tracing::LabelsAndProgress;
 use dozer_types::log::debug;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::connection::Connection;
+use dozer_types::models::flags::Flags;
 use dozer_types::models::source::Source;
+use dozer_types::models::udf_config::UdfConfig;
 use dozer_types::parking_lot::Mutex;
 use std::hash::Hash;
 use tokio::runtime::Runtime;
@@ -56,7 +58,9 @@ pub struct PipelineBuilder<'a> {
     sql: Option<&'a str>,
     /// `ApiEndpoint` and its log.
     endpoint_and_logs: Vec<(ApiEndpoint, OptionLog)>,
-    progress: MultiProgress,
+    labels: LabelsAndProgress,
+    flags: Flags,
+    udfs: &'a [UdfConfig],
 }
 
 impl<'a> PipelineBuilder<'a> {
@@ -65,14 +69,18 @@ impl<'a> PipelineBuilder<'a> {
         sources: &'a [Source],
         sql: Option<&'a str>,
         endpoint_and_logs: Vec<(ApiEndpoint, OptionLog)>,
-        progress: MultiProgress,
+        labels: LabelsAndProgress,
+        flags: Flags,
+        udfs: &'a [UdfConfig],
     ) -> Self {
         Self {
             connections,
             sources,
             sql,
             endpoint_and_logs,
-            progress,
+            labels,
+            flags,
+            udfs,
         }
     }
 
@@ -148,22 +156,17 @@ impl<'a> PipelineBuilder<'a> {
         let mut original_sources = vec![];
 
         let mut query_ctx = None;
-        let mut pipeline = AppPipeline::new();
+        let mut pipeline = AppPipeline::new((&self.flags).into());
 
         let mut transformed_sources = vec![];
 
         if let Some(sql) = &self.sql {
-            let query_context = statement_to_pipeline(sql, &mut pipeline, None)
+            let query_context = statement_to_pipeline(sql, &mut pipeline, None, self.udfs.to_vec())
                 .map_err(OrchestrationError::PipelineError)?;
 
             query_ctx = Some(query_context.clone());
 
-            for (name, _) in query_context.output_tables_map {
-                if transformed_sources.contains(&name) {
-                    return Err(OrchestrationError::DuplicateTable(name));
-                }
-                transformed_sources.push(name.clone());
-            }
+            transformed_sources = query_context.output_tables_map.keys().cloned().collect();
 
             for name in query_context.used_sources {
                 // Add all source tables to input tables
@@ -195,7 +198,7 @@ impl<'a> PipelineBuilder<'a> {
         self,
         runtime: &Arc<Runtime>,
         shutdown: ShutdownReceiver,
-    ) -> Result<dozer_core::Dag<SchemaSQLContext>, OrchestrationError> {
+    ) -> Result<dozer_core::Dag, OrchestrationError> {
         let calculated_sources = self.calculate_sources()?;
 
         debug!("Used Sources: {:?}", calculated_sources.original_sources);
@@ -203,9 +206,9 @@ impl<'a> PipelineBuilder<'a> {
             .get_grouped_tables(&calculated_sources.original_sources)
             .await?;
 
-        let mut pipelines: Vec<AppPipeline<SchemaSQLContext>> = vec![];
+        let mut pipelines: Vec<AppPipeline> = vec![];
 
-        let mut pipeline = AppPipeline::new();
+        let mut pipeline = AppPipeline::new(self.flags.into());
 
         let mut available_output_tables: HashMap<String, OutputTableInfo> = HashMap::new();
 
@@ -223,15 +226,24 @@ impl<'a> PipelineBuilder<'a> {
         }
 
         if let Some(sql) = &self.sql {
-            let query_context = statement_to_pipeline(sql, &mut pipeline, None)
+            let query_context = statement_to_pipeline(sql, &mut pipeline, None, self.udfs.to_vec())
                 .map_err(OrchestrationError::PipelineError)?;
 
             for (name, table_info) in query_context.output_tables_map {
-                if available_output_tables.contains_key(name.as_str()) {
-                    return Err(OrchestrationError::DuplicateTable(name));
-                }
                 available_output_tables
                     .insert(name.clone(), OutputTableInfo::Transformed(table_info));
+            }
+        }
+
+        // Check if all output tables are used.
+        for (table_name, table_info) in &available_output_tables {
+            if matches!(table_info, OutputTableInfo::Transformed(_))
+                && !self
+                    .endpoint_and_logs
+                    .iter()
+                    .any(|(endpoint, _)| &endpoint.table_name == table_name)
+            {
+                return Err(OrchestrationError::OutputTableNotUsed(table_name.clone()));
             }
         }
 
@@ -242,12 +254,12 @@ impl<'a> PipelineBuilder<'a> {
                 .get(table_name)
                 .ok_or_else(|| OrchestrationError::EndpointTableNotFound(table_name.clone()))?;
 
-            let snk_factory: Box<dyn SinkFactory<SchemaSQLContext>> = if let Some(log) = log {
+            let snk_factory: Box<dyn SinkFactory> = if let Some(log) = log {
                 Box::new(LogSinkFactory::new(
                     runtime.clone(),
                     log,
                     api_endpoint.name.clone(),
-                    self.progress.clone(),
+                    self.labels.clone(),
                 ))
             } else {
                 Box::new(DummySinkFactory)
@@ -279,7 +291,7 @@ impl<'a> PipelineBuilder<'a> {
 
         pipelines.push(pipeline);
 
-        let source_builder = SourceBuilder::new(grouped_connections, Some(&self.progress));
+        let source_builder = SourceBuilder::new(grouped_connections, self.labels);
         let asm = source_builder
             .build_source_manager(runtime, shutdown)
             .await?;
@@ -303,7 +315,7 @@ fn dedup<T: Eq + Hash + Clone>(v: &mut Vec<T>) {
     v.retain(|e| uniques.insert(e.clone()));
 }
 
-pub fn emit_dag_metrics(input_dag: &Dag<SchemaSQLContext>) {
+pub fn emit_dag_metrics(input_dag: &Dag) {
     const GRAPH_NODES: &str = "pipeline_nodes";
     const GRAPH_EDGES: &str = "pipeline_edges";
 

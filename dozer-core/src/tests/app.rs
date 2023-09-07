@@ -22,13 +22,10 @@ use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-#[derive(Debug, Clone)]
-pub(crate) struct NoneContext {}
-
 #[derive(Debug)]
 struct NoneSourceFactory {}
-impl SourceFactory<NoneContext> for NoneSourceFactory {
-    fn get_output_schema(&self, _port: &PortHandle) -> Result<(Schema, NoneContext), BoxedError> {
+impl SourceFactory for NoneSourceFactory {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, BoxedError> {
         todo!()
     }
 
@@ -174,7 +171,7 @@ async fn test_app_dag() {
 
     let mut app = App::new(asm);
 
-    let mut p1 = AppPipeline::new();
+    let mut p1 = AppPipeline::new_with_default_flags();
     p1.add_processor(
         Box::new(NoopJoinProcessorFactory {}),
         "join",
@@ -197,7 +194,7 @@ async fn test_app_dag() {
 
     app.add_pipeline(p1);
 
-    let mut p2 = AppPipeline::new();
+    let mut p2 = AppPipeline::new_with_default_flags();
     p2.add_processor(
         Box::new(NoopJoinProcessorFactory {}),
         "join",
@@ -300,7 +297,7 @@ async fn test_app_dag() {
     let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
     DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
         .unwrap()
-        .start(Arc::new(AtomicBool::new(true)))
+        .start(Arc::new(AtomicBool::new(true)), Default::default())
         .unwrap()
         .join()
         .unwrap();

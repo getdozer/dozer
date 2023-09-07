@@ -2,7 +2,6 @@ use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::serde_json::Value;
 mod query_helper;
 mod query_serde;
-
 #[cfg(test)]
 mod tests;
 

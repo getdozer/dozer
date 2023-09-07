@@ -153,7 +153,7 @@ impl SchemaHelper {
         tables: Option<&[ListOrFilterColumns]>,
     ) -> Result<RowsWithColumnsMap, PostgresConnectorError> {
         let mut tables_columns_map: HashMap<SchemaTableIdentifier, Vec<String>> = HashMap::new();
-        let client = helper::connect(self.conn_config.clone()).await?;
+        let mut client = helper::connect(self.conn_config.clone()).await?;
         let query = if let Some(tables) = tables {
             tables.iter().for_each(|t| {
                 if let Some(columns) = t.columns.clone() {

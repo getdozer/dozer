@@ -3,10 +3,10 @@ use dozer_core::node::{OutputPortDef, OutputPortType, PortHandle, Source, Source
 use dozer_ingestion::connectors::{get_connector, CdcType, Connector, TableInfo};
 use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
-use dozer_sql::pipeline::builder::SchemaSQLContext;
 
+use dozer_tracing::LabelsAndProgress;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use dozer_types::indicatif::ProgressBar;
 use dozer_types::ingestion_types::{IngestionMessage, IngestionMessageKind, IngestorError};
 use dozer_types::log::info;
 use dozer_types::models::connection::Connection;
@@ -22,27 +22,6 @@ use std::thread;
 use tokio::runtime::Runtime;
 
 use crate::shutdown::ShutdownReceiver;
-
-fn attach_progress(multi_pb: Option<MultiProgress>) -> ProgressBar {
-    let pb = ProgressBar::new_spinner();
-    multi_pb.as_ref().map(|m| m.add(pb.clone()));
-    pb.set_style(
-        ProgressStyle::with_template("{spinner:.red} {msg}: {pos}: {per_sec}")
-            .unwrap()
-            // For more spinners check out the cli-spinners project:
-            // https://github.com/sindresorhus/cli-spinners/blob/master/spinners.json
-            .tick_strings(&[
-                "▹▹▹▹▹",
-                "▸▹▹▹▹",
-                "▹▸▹▹▹",
-                "▹▹▸▹▹",
-                "▹▹▹▸▹",
-                "▹▹▹▹▸",
-                "▪▪▪▪▪",
-            ]),
-    );
-    pb
-}
 
 #[derive(Debug)]
 struct Table {
@@ -71,7 +50,7 @@ pub struct ConnectorSourceFactory {
     /// Will be moved to `ConnectorSource` in `build`.
     connector: Mutex<Option<Box<dyn Connector>>>,
     runtime: Arc<Runtime>,
-    progress: Option<MultiProgress>,
+    labels: LabelsAndProgress,
     shutdown: ShutdownReceiver,
 }
 
@@ -88,7 +67,7 @@ impl ConnectorSourceFactory {
         table_and_ports: Vec<(TableInfo, PortHandle)>,
         connection: Connection,
         runtime: Arc<Runtime>,
-        progress: Option<MultiProgress>,
+        labels: LabelsAndProgress,
         shutdown: ShutdownReceiver,
     ) -> Result<Self, ConnectorSourceFactoryError> {
         let connection_name = connection.name.clone();
@@ -125,17 +104,14 @@ impl ConnectorSourceFactory {
             tables,
             connector: Mutex::new(Some(connector)),
             runtime,
-            progress,
+            labels,
             shutdown,
         })
     }
 }
 
-impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
-    fn get_output_schema(
-        &self,
-        port: &PortHandle,
-    ) -> Result<(Schema, SchemaSQLContext), BoxedError> {
+impl SourceFactory for ConnectorSourceFactory {
+    fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, BoxedError> {
         let table = self
             .tables
             .iter()
@@ -158,7 +134,7 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
             schema.print()
         );
 
-        Ok((schema, SchemaSQLContext::default()))
+        Ok(schema)
     }
 
     fn get_output_port_name(&self, port: &PortHandle) -> String {
@@ -203,8 +179,7 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
 
         let mut bars = vec![];
         for table in &self.tables {
-            let pb = attach_progress(self.progress.clone());
-            pb.set_message(table.name.clone());
+            let pb = self.labels.create_progress_bar(table.name.clone());
             bars.push(pb);
         }
 
@@ -214,6 +189,7 @@ impl SourceFactory<SchemaSQLContext> for ConnectorSourceFactory {
             connector,
             runtime: self.runtime.clone(),
             connection_name: self.connection_name.clone(),
+            labels: self.labels.clone(),
             bars,
             shutdown: self.shutdown.clone(),
             ingestion_config: IngestionConfig::default(),
@@ -228,6 +204,7 @@ pub struct ConnectorSource {
     connector: Box<dyn Connector>,
     runtime: Arc<Runtime>,
     connection_name: String,
+    labels: LabelsAndProgress,
     bars: Vec<ProgressBar>,
     shutdown: ShutdownReceiver,
     ingestion_config: IngestionConfig,
@@ -300,23 +277,22 @@ impl Source for ConnectorSource {
                         let table_name = &self.tables[table_index].name;
 
                         // Update metrics
-                        let mut labels = vec![
-                            ("connection", self.connection_name.clone()),
-                            ("table", table_name.clone()),
-                        ];
+                        let mut labels = self.labels.labels().clone();
+                        labels.push("connection", self.connection_name.clone());
+                        labels.push("table", table_name.clone());
                         const OPERATION_TYPE_LABEL: &str = "operation_type";
                         match &op {
                             Operation::Delete { .. } => {
-                                labels.push((OPERATION_TYPE_LABEL, "delete".to_string()));
+                                labels.push(OPERATION_TYPE_LABEL, "delete");
                             }
                             Operation::Insert { .. } => {
-                                labels.push((OPERATION_TYPE_LABEL, "insert".to_string()));
+                                labels.push(OPERATION_TYPE_LABEL, "insert");
                             }
                             Operation::Update { .. } => {
-                                labels.push((OPERATION_TYPE_LABEL, "update".to_string()));
+                                labels.push(OPERATION_TYPE_LABEL, "update");
                             }
                         }
-                        increment_counter!(SOURCE_OPERATION_COUNTER_NAME, &labels);
+                        increment_counter!(SOURCE_OPERATION_COUNTER_NAME, labels);
 
                         // Send message to the pipeline
                         fw.send(

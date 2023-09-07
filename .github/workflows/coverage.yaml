@@ -2,9 +2,10 @@ name: Dozer Coverage
 
 on:
   workflow_dispatch:
-  pull_request_target:
-    branches: [main]
-  merge_group:
+  push:
+    branches: [release, release-dev, release-test]
+    tags:
+      - "v*.*.*"
 
 env:
   CARGO_TERM_COLOR: always
@@ -37,19 +38,6 @@ jobs:
         #        command: postgres -c hba_file=/var/lib/stock-sample/pg_hba.conf
         options: >-
           --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      mysql:
-        image: mysql:8
-        ports:
-          - 3306:3306
-        env:
-          MYSQL_ROOT_PASSWORD: mysql
-          MYSQL_ROOT_HOST: '%'
-          MYSQL_DATABASE: test
-        options: >-
-          --health-cmd "mysqladmin ping -uroot --password=mysql"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -107,6 +95,8 @@ jobs:
         uses: supercharge/mongodb-github-action@1.8.0
 
       - uses: ./.github/workflows/setup-snowflake-and-kafka
+
+      - uses: ./.github/workflows/setup-mysql-and-mariadb
 
       - name: Run connectors tests
         env:

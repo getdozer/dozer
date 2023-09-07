@@ -5,10 +5,14 @@ use dozer_storage::errors::StorageError;
 use dozer_types::chrono::RoundingError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::TypeError;
+
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
 use dozer_types::types::{Field, FieldType};
 use std::fmt::{Display, Formatter};
+
+#[cfg(feature = "onnx")]
+use crate::pipeline::onnx::OnnxError;
 
 #[derive(Debug, Clone)]
 pub struct FieldTypes {
@@ -84,9 +88,20 @@ pub enum PipelineError {
     UnableToCast(String, String),
     #[error("Missing INTO clause for top-level SELECT statement")]
     MissingIntoClause,
+    #[error("Duplicate INTO table name found: {0:?}")]
+    DuplicateIntoClause(String),
     #[cfg(feature = "python")]
     #[error("Python Error: {0}")]
     PythonErr(dozer_types::pyo3::PyErr),
+    #[cfg(feature = "onnx")]
+    #[error("Onnx Error: {0}")]
+    OnnxError(OnnxError),
+    #[cfg(not(feature = "onnx"))]
+    #[error("Onnx feature is not enabled")]
+    OnnxNotEnabled,
+
+    #[error("Udf is defined but missing with config: {0}")]
+    UdfConfigMissing(String),
 
     // Error forwarding
     #[error("Internal type error: {0}")]
@@ -165,6 +180,9 @@ pub enum PipelineError {
     InvalidPortHandle(PortHandle),
     #[error("JOIN processor received a Record from a wrong input: {0}")]
     InvalidPort(u16),
+
+    #[error("Unknown function: {0}")]
+    UnknownFunction(String),
 }
 
 #[cfg(feature = "python")]

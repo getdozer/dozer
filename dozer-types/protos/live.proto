@@ -5,11 +5,17 @@ import "google/protobuf/empty.proto";
 
 service CodeService {  
   rpc LiveConnect(google.protobuf.Empty) returns (stream ConnectResponse);
-  rpc Run(RunRequest) returns (CommonResponse);
-  rpc Stop(google.protobuf.Empty) returns (CommonResponse);
+  rpc Run(RunRequest) returns (Labels);
+  rpc Stop(google.protobuf.Empty) returns (google.protobuf.Empty);
 }
 
-message CommonResponse {
+message Labels {
+  repeated Label labels = 1;
+}
+
+message Label {
+  string key = 1;
+  string value = 2;
 }
 
 message LiveApp {
@@ -17,6 +23,7 @@ message LiveApp {
   repeated string connections = 2;  
   repeated string endpoints = 3;  
 }
+
 message LiveResponse {
   bool initialized = 1;
   bool running = 2;

@@ -3,7 +3,10 @@ use dozer_cache::dozer_log::schemas::EndpointSchema;
 use prost_reflect::{
     DescriptorPool, FieldDescriptor, MessageDescriptor, MethodDescriptor, ServiceDescriptor,
 };
-use std::{io, path::Path};
+use std::{
+    io,
+    path::{Path, PathBuf},
+};
 
 #[derive(Debug, Clone)]
 pub struct ServiceDesc {
@@ -108,7 +111,25 @@ pub struct TokenResponseDesc {
     pub token_field: FieldDescriptor,
 }
 
+pub struct ProtoRenderResponse {
+    pub protos: Vec<(String, PathBuf)>,
+    pub libraries: Vec<String>,
+}
 pub struct ProtoGenerator;
+
+#[derive(Debug, Clone)]
+pub struct RenderedProto {
+    pub protos: Vec<NamedProto>,
+    /// String used to import the proto files
+    pub libraries: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct NamedProto {
+    /// Including the .proto extension
+    pub name: String,
+    pub content: String,
+}
 
 impl ProtoGenerator {
     pub fn copy_common(folder_path: &Path) -> Result<Vec<String>, GenerationError> {
@@ -146,10 +167,21 @@ impl ProtoGenerator {
         folder_path: &Path,
         schema_name: &str,
         schema: &EndpointSchema,
-    ) -> Result<(), GenerationError> {
-        let generator = ProtoGeneratorImpl::new(schema_name, schema, folder_path)?;
-        generator.generate_proto()?;
-        Ok(())
+    ) -> Result<String, GenerationError> {
+        let generator = ProtoGeneratorImpl::new(schema_name, schema)?;
+        generator.generate_proto(folder_path)
+    }
+
+    pub fn render(
+        schema_name: &str,
+        schema: &EndpointSchema,
+    ) -> Result<RenderedProto, GenerationError> {
+        let generator = ProtoGeneratorImpl::new(schema_name, schema)?;
+        let protos = generator.render_protos()?;
+        Ok(RenderedProto {
+            protos,
+            libraries: generator.libs_by_type()?,
+        })
     }
 
     pub fn generate_descriptor<T: AsRef<str>>(

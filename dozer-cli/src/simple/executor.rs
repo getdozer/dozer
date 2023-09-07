@@ -4,23 +4,26 @@ use dozer_cache::dozer_log::home_dir::{BuildPath, HomeDir};
 use dozer_cache::dozer_log::replication::Log;
 use dozer_core::checkpoint::{CheckpointFactory, CheckpointFactoryOptions};
 use dozer_core::processor_record::ProcessorRecordStore;
+use dozer_tracing::LabelsAndProgress;
 use dozer_types::models::api_endpoint::ApiEndpoint;
+use dozer_types::models::flags::Flags;
 use dozer_types::parking_lot::Mutex;
 use tokio::runtime::Runtime;
 
 use std::sync::{atomic::AtomicBool, Arc};
 
 use dozer_types::models::source::Source;
+use dozer_types::models::udf_config::UdfConfig;
 
 use crate::pipeline::PipelineBuilder;
 use crate::shutdown::ShutdownReceiver;
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 
-use dozer_types::indicatif::MultiProgress;
-
 use dozer_types::models::connection::Connection;
 
-use crate::errors::OrchestrationError;
+use crate::errors::{BuildError, OrchestrationError};
+
+use super::Contract;
 
 pub struct Executor<'a> {
     connections: &'a [Connection],
@@ -29,18 +32,24 @@ pub struct Executor<'a> {
     checkpoint_factory: Arc<CheckpointFactory>,
     /// `ApiEndpoint` and its log.
     endpoint_and_logs: Vec<(ApiEndpoint, LogEndpoint)>,
-    multi_pb: MultiProgress,
+    labels: LabelsAndProgress,
+    udfs: &'a [UdfConfig],
 }
 
 impl<'a> Executor<'a> {
+    // TODO: Refactor this to not require both `contract` and all of
+    // connections, sources and sql
+    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         home_dir: &'a HomeDir,
+        contract: &Contract,
         connections: &'a [Connection],
         sources: &'a [Source],
         sql: Option<&'a str>,
         api_endpoints: &'a [ApiEndpoint],
         checkpoint_factory_options: CheckpointFactoryOptions,
-        multi_pb: MultiProgress,
+        labels: LabelsAndProgress,
+        udfs: &'a [UdfConfig],
     ) -> Result<Executor<'a>, OrchestrationError> {
         // Find the build path.
         let build_path = home_dir
@@ -61,7 +70,8 @@ impl<'a> Executor<'a> {
         let mut endpoint_and_logs = vec![];
         for endpoint in api_endpoints {
             let log_endpoint =
-                create_log_endpoint(&build_path, &endpoint.name, &checkpoint_factory).await?;
+                create_log_endpoint(contract, &build_path, &endpoint.name, &checkpoint_factory)
+                    .await?;
             endpoint_and_logs.push((endpoint.clone(), log_endpoint));
         }
 
@@ -71,7 +81,8 @@ impl<'a> Executor<'a> {
             sql,
             checkpoint_factory: Arc::new(checkpoint_factory),
             endpoint_and_logs,
-            multi_pb,
+            labels,
+            udfs,
         })
     }
 
@@ -84,6 +95,7 @@ impl<'a> Executor<'a> {
         runtime: &Arc<Runtime>,
         executor_options: ExecutorOptions,
         shutdown: ShutdownReceiver,
+        flags: Flags,
     ) -> Result<DagExecutor, OrchestrationError> {
         let builder = PipelineBuilder::new(
             self.connections,
@@ -93,7 +105,9 @@ impl<'a> Executor<'a> {
                 .iter()
                 .map(|(endpoint, log)| (endpoint.clone(), Some(log.log.clone())))
                 .collect(),
-            self.multi_pb.clone(),
+            self.labels.clone(),
+            flags,
+            self.udfs,
         );
 
         let dag = builder.build(runtime, shutdown).await?;
@@ -106,23 +120,28 @@ impl<'a> Executor<'a> {
 pub fn run_dag_executor(
     dag_executor: DagExecutor,
     running: Arc<AtomicBool>,
+    labels: LabelsAndProgress,
 ) -> Result<(), OrchestrationError> {
-    let join_handle = dag_executor.start(running)?;
+    let join_handle = dag_executor.start(running, labels)?;
     join_handle
         .join()
         .map_err(OrchestrationError::ExecutionError)
 }
 
 async fn create_log_endpoint(
+    contract: &Contract,
     build_path: &BuildPath,
     endpoint_name: &str,
     checkpoint_factory: &CheckpointFactory,
 ) -> Result<LogEndpoint, OrchestrationError> {
     let endpoint_path = build_path.get_endpoint_path(endpoint_name);
 
-    let schema_string = tokio::fs::read_to_string(&endpoint_path.schema_path)
-        .await
-        .map_err(|e| OrchestrationError::FileSystem(endpoint_path.schema_path.into(), e))?;
+    let schema = contract
+        .endpoints
+        .get(endpoint_name)
+        .ok_or_else(|| BuildError::MissingEndpoint(endpoint_name.to_owned()))?;
+    let schema_string =
+        dozer_types::serde_json::to_string(schema).map_err(BuildError::SerdeJson)?;
 
     let descriptor_bytes = tokio::fs::read(&build_path.descriptor_path)
         .await

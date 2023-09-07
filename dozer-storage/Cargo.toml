@@ -1,6 +1,6 @@
 [package]
 name = "dozer-storage"
-version = "0.1.35"
+version = "0.1.37"
 edition = "2021"
 authors = ["getdozer/dozer-dev"]
 

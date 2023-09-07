@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 
+use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::builder::ExpressionBuilder;
-use crate::pipeline::{builder::SchemaSQLContext, errors::PipelineError};
 use dozer_core::processor_record::ProcessorRecordStore;
 use dozer_core::{
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
+use dozer_types::models::udf_config::UdfConfig;
 use dozer_types::{errors::internal::BoxedError, types::Schema};
 use sqlparser::ast::Expr as SqlExpr;
 
@@ -16,16 +17,21 @@ use super::processor::SelectionProcessor;
 pub struct SelectionProcessorFactory {
     statement: SqlExpr,
     id: String,
+    udfs: Vec<UdfConfig>,
 }
 
 impl SelectionProcessorFactory {
     /// Creates a new [`SelectionProcessorFactory`].
-    pub fn new(id: String, statement: SqlExpr) -> Self {
-        Self { statement, id }
+    pub fn new(id: String, statement: SqlExpr, udf_config: Vec<UdfConfig>) -> Self {
+        Self {
+            statement,
+            id,
+            udfs: udf_config,
+        }
     }
 }
 
-impl ProcessorFactory<SchemaSQLContext> for SelectionProcessorFactory {
+impl ProcessorFactory for SelectionProcessorFactory {
     fn id(&self) -> String {
         self.id.clone()
     }
@@ -46,8 +52,8 @@ impl ProcessorFactory<SchemaSQLContext> for SelectionProcessorFactory {
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(Schema, SchemaSQLContext), BoxedError> {
+        input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> Result<Schema, BoxedError> {
         let schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
             .ok_or(PipelineError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
@@ -64,7 +70,12 @@ impl ProcessorFactory<SchemaSQLContext> for SelectionProcessorFactory {
             .get(&DEFAULT_PORT_HANDLE)
             .ok_or(PipelineError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
 
-        match ExpressionBuilder::new(schema.fields.len()).build(false, &self.statement, schema) {
+        match ExpressionBuilder::new(schema.fields.len()).build(
+            false,
+            &self.statement,
+            schema,
+            &self.udfs,
+        ) {
             Ok(expression) => Ok(Box::new(SelectionProcessor::new(
                 schema.clone(),
                 expression,

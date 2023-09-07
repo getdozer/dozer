@@ -24,6 +24,7 @@ fn create_runtime() -> Arc<Runtime> {
         .into()
 }
 
+#[allow(clippy::await_holding_lock)]
 #[tokio::test]
 async fn write_read() {
     let (_temp_dir, log, _) = create_test_log().await;
@@ -46,13 +47,13 @@ async fn write_read() {
     }
 
     let range = 1..ops.len();
-    let ops_read = log_mut
-        .read(range.clone(), Duration::from_secs(1), log.clone())
-        .await
-        .unwrap();
+    let ops_read_future = log_mut.read(range.clone(), Duration::from_secs(1), log.clone());
+    drop(log_mut);
+    let ops_read = ops_read_future.await.unwrap();
     assert_eq!(ops_read, LogResponse::Operations(ops[range].to_vec()));
 }
 
+#[allow(clippy::await_holding_lock)]
 #[tokio::test]
 async fn watch_write() {
     let (_temp_dir, log, _) = create_test_log().await;
@@ -81,6 +82,7 @@ async fn watch_write() {
     assert_eq!(ops_read, LogResponse::Operations(ops[range].to_vec()));
 }
 
+#[allow(clippy::async_yields_async)]
 #[test]
 fn watch_partial() {
     let runtime = create_runtime();
@@ -118,6 +120,7 @@ fn watch_partial() {
     assert_eq!(ops_read, LogResponse::Operations(ops[1..].to_vec()));
 }
 
+#[allow(clippy::async_yields_async)]
 #[test]
 fn watch_out_of_range() {
     let runtime = create_runtime();
@@ -206,6 +209,7 @@ fn in_memory_log_should_shrink_after_persist() {
     ));
 }
 
+#[allow(clippy::await_holding_lock)]
 #[tokio::test]
 async fn watch_partial_timeout() {
     let (_temp_dir, log, _) = create_test_log().await;
@@ -223,6 +227,7 @@ async fn watch_partial_timeout() {
     assert_eq!(ops_read, LogResponse::Operations(vec![op]));
 }
 
+#[allow(clippy::await_holding_lock)]
 #[tokio::test]
 async fn write_watch_partial_timeout() {
     let (_temp_dir, log, _) = create_test_log().await;

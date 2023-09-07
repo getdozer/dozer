@@ -5,7 +5,7 @@ use dozer_core::{
 use sqlparser::ast::TableWithJoins;
 
 use crate::pipeline::{
-    builder::{get_from_source, QueryContext, SchemaSQLContext},
+    builder::{get_from_source, QueryContext},
     errors::PipelineError,
     product::{
         join::factory::{JoinProcessorFactory, LEFT_JOIN_PORT, RIGHT_JOIN_PORT},
@@ -28,7 +28,7 @@ enum JoinSource {
 
 pub(crate) fn insert_join_to_pipeline(
     from: &TableWithJoins,
-    pipeline: &mut AppPipeline<SchemaSQLContext>,
+    pipeline: &mut AppPipeline,
     pipeline_idx: usize,
     query_context: &mut QueryContext,
 ) -> Result<ConnectionInfo, PipelineError> {
@@ -55,6 +55,7 @@ pub(crate) fn insert_join_to_pipeline(
             left_name_or_alias.clone(),
             right_name_or_alias,
             join.join_operator.clone(),
+            pipeline.flags().enable_probabilistic_optimizations.in_joins,
         );
 
         let mut pipeline_entry_points = vec![];
@@ -148,7 +149,7 @@ pub(crate) fn insert_join_to_pipeline(
 // TODO: refactor this
 fn insert_join_source_to_pipeline(
     source: sqlparser::ast::TableFactor,
-    pipeline: &mut AppPipeline<SchemaSQLContext>,
+    pipeline: &mut AppPipeline,
     pipeline_idx: usize,
     query_context: &mut QueryContext,
 ) -> Result<JoinSource, PipelineError> {
@@ -173,7 +174,7 @@ fn insert_join_source_to_pipeline(
 
 fn insert_table_operator_to_pipeline(
     table_operator: &TableOperatorDescriptor,
-    pipeline: &mut AppPipeline<SchemaSQLContext>,
+    pipeline: &mut AppPipeline,
     pipeline_idx: usize,
     query_context: &mut QueryContext,
 ) -> Result<ConnectionInfo, PipelineError> {
@@ -185,8 +186,11 @@ fn insert_table_operator_to_pipeline(
             table_operator.name,
             query_context.get_next_processor_id()
         );
-        let processor =
-            TableOperatorProcessorFactory::new(processor_name.clone(), table_operator.clone());
+        let processor = TableOperatorProcessorFactory::new(
+            processor_name.clone(),
+            table_operator.clone(),
+            query_context.udfs.to_owned(),
+        );
 
         let source_name = processor
             .get_source_name()

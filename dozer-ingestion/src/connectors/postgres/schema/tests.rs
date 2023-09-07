@@ -24,7 +24,7 @@ where
 #[serial]
 async fn test_connector_get_tables() {
     run_connector_test("postgres", |app_config| async move {
-        let client = get_client(app_config).await;
+        let mut client = get_client(app_config).await;
 
         let mut rng = rand::thread_rng();
 
@@ -59,7 +59,7 @@ async fn test_connector_get_tables() {
 #[serial]
 async fn test_connector_get_schema_with_selected_columns() {
     run_connector_test("postgres", |app_config| async move {
-        let client = get_client(app_config).await;
+        let mut client = get_client(app_config).await;
 
         let mut rng = rand::thread_rng();
 
@@ -94,7 +94,7 @@ async fn test_connector_get_schema_with_selected_columns() {
 #[serial]
 async fn test_connector_get_schema_without_selected_columns() {
     run_connector_test("postgres", |app_config| async move {
-        let client = get_client(app_config).await;
+        let mut client = get_client(app_config).await;
 
         let mut rng = rand::thread_rng();
 
@@ -134,7 +134,7 @@ async fn test_connector_get_schema_without_selected_columns() {
 #[serial]
 async fn test_connector_view_cannot_be_used() {
     run_connector_test("postgres", |app_config| async move {
-        let client = get_client(app_config).await;
+        let mut client = get_client(app_config).await;
 
         let mut rng = rand::thread_rng();
 

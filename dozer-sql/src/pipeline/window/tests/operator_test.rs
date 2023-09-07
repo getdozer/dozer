@@ -46,7 +46,7 @@ fn test_hop() {
 
     let window_record = result.get(1).unwrap();
 
-    let mut expected_record = record.clone();
+    let mut expected_record = record;
     expected_record.push(
         record_store
             .create_ref(&[
@@ -84,7 +84,7 @@ fn test_tumble() {
     assert_eq!(result.len(), 1);
     let window_record = result.get(0).unwrap();
 
-    let mut expected_record = record.clone();
+    let mut expected_record = record;
     expected_record.push(
         record_store
             .create_ref(&[

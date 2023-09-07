@@ -16,11 +16,14 @@ pub use contract::{Contract, PipelineContract};
 pub async fn build(
     home_dir: &HomeDir,
     contract: &Contract,
+    existing_contract: Option<&Contract>,
     storage_config: &DataStorage,
 ) -> Result<(), BuildError> {
-    if let Some(build_id) = needs_build(home_dir, contract, storage_config).await? {
+    if let Some(build_id) =
+        new_build_id(home_dir, contract, existing_contract, storage_config).await?
+    {
         let build_name = build_id.name().to_string();
-        create_build(home_dir, build_id, contract)?;
+        build_endpoint_protos(home_dir, build_id, contract)?;
         info!("Created new build {build_name}");
     } else {
         info!("Building not needed");
@@ -28,9 +31,10 @@ pub async fn build(
     Ok(())
 }
 
-async fn needs_build(
+async fn new_build_id(
     home_dir: &HomeDir,
     contract: &Contract,
+    existing_contract: Option<&Contract>,
     storage_config: &DataStorage,
 ) -> Result<Option<BuildId>, BuildError> {
     let build_path = home_dir
@@ -38,6 +42,10 @@ async fn needs_build(
         .map_err(|(path, error)| BuildError::FileSystem(path.into(), error))?;
     let Some(build_path) = build_path else {
         return Ok(Some(BuildId::first()));
+    };
+
+    let Some(existing_contract) = existing_contract else {
+        return Ok(Some(build_path.id.next()));
     };
 
     let mut futures = vec![];
@@ -52,20 +60,18 @@ async fn needs_build(
     if !try_join_all(futures)
         .await?
         .into_iter()
-        .all(|is_empty| is_empty)
+        .all(std::convert::identity)
     {
         return Ok(Some(build_path.id.next()));
     }
 
-    let existing_contract = Contract::deserialize(&build_path)?;
     for (endpoint, schema) in &contract.endpoints {
         if let Some(existing_schema) = existing_contract.endpoints.get(endpoint) {
             if schema == existing_schema {
                 continue;
             }
-        } else {
-            return Ok(Some(build_path.id.next()));
         }
+        return Ok(Some(build_path.id.next()));
     }
     Ok(None)
 }
@@ -75,7 +81,7 @@ async fn is_empty(storage: Box<dyn Storage>, prefix: String) -> Result<bool, Bui
     Ok(objects.objects.is_empty())
 }
 
-fn create_build(
+fn build_endpoint_protos(
     home_dir: &HomeDir,
     build_id: BuildId,
     contract: &Contract,
@@ -88,8 +94,8 @@ fn create_build(
 
     let proto_folder_path = build_path.contracts_dir.as_ref();
     for (endpoint_name, schema) in &contract.endpoints {
-        ProtoGenerator::generate(proto_folder_path, endpoint_name, schema)?;
-        resources.push(endpoint_name.clone());
+        let resource_name = ProtoGenerator::generate(proto_folder_path, endpoint_name, schema)?;
+        resources.push(resource_name);
     }
 
     let common_resources = ProtoGenerator::copy_common(proto_folder_path)?;
@@ -103,8 +109,6 @@ fn create_build(
         build_path.descriptor_path.as_ref(),
         &resources,
     )?;
-
-    contract.serialize(&build_path)?;
 
     Ok(())
 }

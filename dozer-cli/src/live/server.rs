@@ -5,16 +5,17 @@ use dozer_types::{
     grpc_types::{
         contract::{
             contract_service_server::{ContractService, ContractServiceServer},
-            CommonRequest, DotResponse, SchemasResponse, SourcesRequest,
+            CommonRequest, DotResponse, ProtoResponse, SchemasResponse, SourcesRequest,
         },
         live::{
             code_service_server::{CodeService, CodeServiceServer},
-            CommonResponse, ConnectResponse, RunRequest,
+            ConnectResponse, Label, Labels, RunRequest,
         },
     },
-    log::{error, info},
+    log::info,
 };
 use futures::stream::BoxStream;
+use metrics::IntoLabels;
 use tokio::sync::broadcast::Receiver;
 
 use super::state::LiveState;
@@ -80,6 +81,19 @@ impl ContractService for ContractServer {
             Err(e) => Err(Status::internal(e.to_string())),
         }
     }
+
+    async fn get_protos(
+        &self,
+        _request: Request<CommonRequest>,
+    ) -> Result<Response<ProtoResponse>, Status> {
+        let state = self.state.clone();
+        let res = state.get_protos().await;
+
+        match res {
+            Ok(res) => Ok(Response::new(res)),
+            Err(e) => Err(Status::internal(e.to_string())),
+        }
+    }
 }
 
 struct LiveServer {
@@ -114,22 +128,11 @@ impl CodeService for LiveServer {
                 return {};
             }
             loop {
-                let res = receiver.recv().await;
-                match res {
-                    Ok(res) => {
-                        let res = tx.send(Ok(res)).await;
-                        match res {
-                            Ok(_) => {}
-                            Err(e) => {
-                                error!("Error sending to channel");
-                                error!("{:?}", e);
-                                break;
-                            }
-                        }
-                    }
-                    Err(_) => {
-                        break;
-                    }
+                let Ok(connect_response) = receiver.recv().await else {
+                    break;
+                };
+                if tx.send(Ok(connect_response)).await.is_err() {
+                    break;
                 }
             }
         });
@@ -138,21 +141,31 @@ impl CodeService for LiveServer {
         Ok(Response::new(Box::pin(stream) as Self::LiveConnectStream))
     }
 
-    async fn run(&self, request: Request<RunRequest>) -> Result<Response<CommonResponse>, Status> {
+    async fn run(&self, request: Request<RunRequest>) -> Result<Response<Labels>, Status> {
         let req = request.into_inner();
         let state = self.state.clone();
         info!("Starting dozer");
         match state.run(req).await {
-            Ok(_) => Ok(Response::new(CommonResponse {})),
+            Ok(labels) => {
+                let labels = labels
+                    .into_labels()
+                    .into_iter()
+                    .map(|label| Label {
+                        key: label.key().to_string(),
+                        value: label.value().to_string(),
+                    })
+                    .collect();
+                Ok(Response::new(Labels { labels }))
+            }
             Err(e) => Err(Status::internal(e.to_string())),
         }
     }
 
-    async fn stop(&self, _request: Request<()>) -> Result<Response<CommonResponse>, Status> {
+    async fn stop(&self, _request: Request<()>) -> Result<Response<()>, Status> {
         let state = self.state.clone();
         info!("Stopping dozer");
         match state.stop().await {
-            Ok(_) => Ok(Response::new(CommonResponse {})),
+            Ok(()) => Ok(Response::new(())),
             Err(e) => Err(Status::internal(e.to_string())),
         }
     }

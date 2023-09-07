@@ -40,7 +40,7 @@ pub enum DataStorage {
     S3(S3Storage),
 }
 
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, prost::Message)]
+#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize, prost::Message)]
 pub struct S3Storage {
     #[prost(string, tag = "1")]
     pub region: String,

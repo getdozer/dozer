@@ -3,7 +3,7 @@ use crate::errors::{ConnectorError, ObjectStoreConnectorError};
 use dozer_types::ingestion_types::{LocalStorage, S3Storage, Table};
 use object_store::aws::{AmazonS3, AmazonS3Builder};
 use object_store::local::LocalFileSystem;
-use object_store::ObjectStore;
+use object_store::{BackoffConfig, ObjectStore, RetryConfig};
 use std::fmt::Debug;
 use url::Url;
 
@@ -56,11 +56,18 @@ impl DozerObjectStore for S3Storage {
     ) -> Result<DozerObjectStoreParams<Self::ObjectStore>, ConnectorError> {
         let details = get_details(&self.details)?;
 
+        let retry_config = RetryConfig {
+            backoff: BackoffConfig::default(),
+            max_retries: usize::max_value(),
+            retry_timeout: std::time::Duration::from_secs(u64::MAX),
+        };
+
         let object_store = AmazonS3Builder::new()
             .with_bucket_name(&details.bucket_name)
             .with_region(&details.region)
             .with_access_key_id(&details.access_key_id)
             .with_secret_access_key(&details.secret_access_key)
+            .with_retry(retry_config)
             .build()
             .map_err(|e| ConnectorError::InitializationError(e.to_string()))?;
 

@@ -10,6 +10,7 @@ use crate::{
 use actix_cors::Cors;
 use actix_web::dev::Server;
 use actix_web::middleware::DefaultHeaders;
+use actix_web::web::PayloadConfig;
 use actix_web::{
     body::MessageBody,
     dev::{Service, ServiceFactory, ServiceRequest, ServiceResponse},
@@ -17,6 +18,7 @@ use actix_web::{
     web, App, HttpMessage, HttpServer,
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
+use dozer_tracing::LabelsAndProgress;
 use dozer_types::{log::info, models::api_config::RestApiOptions};
 use dozer_types::{
     models::api_security::ApiSecurity,
@@ -83,6 +85,7 @@ impl ApiServer {
         security: Option<ApiSecurity>,
         cors: CorsOptions,
         mut cache_endpoints: Vec<Arc<CacheEndpoint>>,
+        labels: LabelsAndProgress,
     ) -> App<
         impl ServiceFactory<
             ServiceRequest,
@@ -96,9 +99,10 @@ impl ApiServer {
             .iter()
             .map(|cache_endpoint| cache_endpoint.endpoint.path.clone())
             .collect();
-
+        let cfg = PayloadConfig::default();
         let mut app = App::new()
             .app_data(web::Data::new(endpoint_paths))
+            .app_data(cfg)
             .wrap(Logger::default())
             .wrap(TracingLogger::default())
             .wrap(DefaultHeaders::new().add((
@@ -128,7 +132,7 @@ impl ApiServer {
                 let scope = &endpoint.path;
                 app.service(
                     web::scope(scope)
-                        .wrap(rest_metric_middleware::RestMetric)
+                        .wrap(rest_metric_middleware::RestMetric::new(labels.clone()))
                         // Inject cache_endpoint for generated functions
                         .wrap_fn(move |req, srv| {
                             req.extensions_mut().insert(cache_endpoint.clone());
@@ -159,6 +163,7 @@ impl ApiServer {
         self,
         cache_endpoints: Vec<Arc<CacheEndpoint>>,
         shutdown: impl Future<Output = ()> + Send + 'static,
+        labels: LabelsAndProgress,
     ) -> Result<Server, ApiInitError> {
         info!(
             "Starting Rest Api Server on http://{}:{} with security: {}",
@@ -174,7 +179,12 @@ impl ApiServer {
         let security = self.security;
         let address = format!("{}:{}", self.host, self.port);
         let server = HttpServer::new(move || {
-            ApiServer::create_app_entry(security.clone(), cors.clone(), cache_endpoints.clone())
+            ApiServer::create_app_entry(
+                security.clone(),
+                cors.clone(),
+                cache_endpoints.clone(),
+                labels.clone(),
+            )
         })
         .bind(&address)
         .map_err(|e| ApiInitError::FailedToBindToAddress(address, e))?

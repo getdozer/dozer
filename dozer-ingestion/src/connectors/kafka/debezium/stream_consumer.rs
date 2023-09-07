@@ -1,6 +1,9 @@
 use crate::connectors::kafka::debezium::mapper::convert_value_to_schema;
 use crate::connectors::kafka::debezium::schema::map_schema;
 use crate::connectors::kafka::stream_consumer::StreamConsumer;
+use crate::connectors::kafka::stream_consumer_helper::{
+    is_network_failure, OffsetsMap, StreamConsumerHelper,
+};
 use crate::errors::KafkaError::{BytesConvertError, JsonDecodeError};
 use crate::errors::{ConnectorError, KafkaError, KafkaStreamError};
 use crate::ingestion::Ingestor;
@@ -10,10 +13,9 @@ use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::serde_json;
 use dozer_types::serde_json::Value;
 use dozer_types::types::{Operation, Record};
-use rdkafka::consumer::BaseConsumer;
 
 use crate::connectors::TableInfo;
-use rdkafka::Message;
+use rdkafka::{ClientConfig, Message};
 use tonic::async_trait;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -85,16 +87,26 @@ impl DebeziumStreamConsumer {}
 impl StreamConsumer for DebeziumStreamConsumer {
     async fn run(
         &self,
-        con: BaseConsumer,
+        client_config: ClientConfig,
         ingestor: &Ingestor,
-        _tables: Vec<TableInfo>,
+        tables: Vec<TableInfo>,
         _schema_registry_url: &Option<String>,
     ) -> Result<(), ConnectorError> {
+        let topics: Vec<&str> = tables.iter().map(|t| t.name.as_str()).collect();
+        let mut con = StreamConsumerHelper::start(&client_config, &topics).await?;
+        let mut offsets = OffsetsMap::new();
         loop {
-            let m = con
-                .poll(None)
-                .unwrap()
-                .map_err(|e| KafkaError::KafkaStreamError(KafkaStreamError::PollingError(e)))?;
+            let m = match con.poll(None).unwrap() {
+                Ok(m) => m,
+                Err(err) if is_network_failure(&err) => {
+                    con = StreamConsumerHelper::resume(&client_config, &topics, &offsets).await?;
+                    continue;
+                }
+                Err(err) => Err(KafkaError::KafkaStreamError(
+                    KafkaStreamError::PollingError(err),
+                ))?,
+            };
+            StreamConsumerHelper::update_offsets(&mut offsets, &m);
 
             if let (Some(message), Some(key)) = (m.payload(), m.key()) {
                 let mut value_struct: DebeziumMessage =

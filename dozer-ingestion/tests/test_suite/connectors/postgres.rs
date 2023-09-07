@@ -1,5 +1,5 @@
 use dozer_ingestion::connectors::postgres::{
-    connection::helper::connect,
+    connection::{client::Client, helper::connect},
     connector::{PostgresConfig, PostgresConnector},
 };
 use dozer_types::types::Field;
@@ -31,7 +31,7 @@ impl DataReadyConnectorTest for PostgresConnectorTest {
     type Connector = PostgresConnector;
 
     async fn new() -> (Self, Self::Connector) {
-        let (client, connector_test, connector) = create_postgres_server().await;
+        let (mut client, connector_test, connector) = create_postgres_server().await;
         client
             .batch_execute(&create_table_with_all_supported_data_types("test_table"))
             .await
@@ -51,7 +51,7 @@ impl InsertOnlyConnectorTest for PostgresConnectorTest {
         schema: FieldsAndPk,
         records: Vec<Vec<Field>>,
     ) -> Option<(Self, Self::Connector, FieldsAndPk)> {
-        let (client, mut connector_test, connector) = create_postgres_server().await;
+        let (mut client, mut connector_test, connector) = create_postgres_server().await;
 
         let (actual_schema, _) = schema_to_sql(schema.clone());
 
@@ -87,7 +87,7 @@ impl InsertOnlyConnectorTest for PostgresConnectorTest {
 #[async_trait]
 impl CudConnectorTest for PostgresConnectorTest {
     async fn start_cud(&self, operations: Vec<Operation>) {
-        let client = connect(self.config.clone()).await.unwrap();
+        let mut client = connect(self.config.clone()).await.unwrap();
         let schema_name = self.schema_name.clone();
         let table_name = self.table_name.clone();
         let schema = self.schema.clone();
@@ -107,11 +107,7 @@ impl CudConnectorTest for PostgresConnectorTest {
     }
 }
 
-async fn create_postgres_server() -> (
-    tokio_postgres::Client,
-    PostgresConnectorTest,
-    PostgresConnector,
-) {
+async fn create_postgres_server() -> (Client, PostgresConnectorTest, PostgresConnector) {
     let host = "localhost";
     let port = 5432;
     let user = "postgres";

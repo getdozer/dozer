@@ -1,4 +1,5 @@
 app_name: flight-microservices
+version: 1
 cache_max_map_size: 2147483648
 connections:
   - config: !Postgres

@@ -26,4 +26,5 @@ COPY target/release/dozer /usr/local/bin/
 ENV PATH="$PATH:/usr/local/protoc/bin"
 
 WORKDIR /usr/dozer
-CMD ["dozer"]
+ENTRYPOINT ["dozer"]
+CMD ["run"]

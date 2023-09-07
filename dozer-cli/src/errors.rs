@@ -18,7 +18,7 @@ use dozer_cache::errors::CacheError;
 use dozer_core::errors::ExecutionError;
 use dozer_ingestion::errors::ConnectorError;
 use dozer_sql::pipeline::errors::PipelineError;
-use dozer_types::thiserror::Error;
+use dozer_types::{constants::LOCK_FILE, thiserror::Error};
 use dozer_types::{errors::internal::BoxedError, serde_json};
 use dozer_types::{serde_yaml, thiserror};
 
@@ -86,10 +86,10 @@ pub enum OrchestrationError {
     ConnectionNotFound(String),
     #[error("Pipeline validation failed")]
     PipelineValidationError,
+    #[error("Output table {0} not used in any endpoint")]
+    OutputTableNotUsed(String),
     #[error("Table name specified in endpoint not found: {0:?}")]
     EndpointTableNotFound(String),
-    #[error("Duplicate table name found: {0:?}")]
-    DuplicateTable(String),
     #[error("No endpoints initialized in the config provided")]
     EmptyEndpoints,
     #[error(transparent)]
@@ -98,6 +98,10 @@ pub enum OrchestrationError {
     FailedToReadOrganisationName(#[source] io::Error),
     #[error(transparent)]
     LiveError(#[from] LiveError),
+    #[error("{LOCK_FILE} is out of date")]
+    LockedOutdatedLockfile,
+    #[error("{LOCK_FILE} does not exist. `--locked` requires a lock file.")]
+    LockedNoLockFile,
 }
 
 #[derive(Error, Debug)]
@@ -128,6 +132,9 @@ pub enum CliError {
     MissingConfigOverride(String),
     #[error("Failed to deserialize config from json: {0}")]
     DeserializeConfigFromJson(#[source] serde_json::Error),
+    // Generic IO error
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
 }
 
 #[derive(Error, Debug)]
@@ -158,6 +165,9 @@ pub enum CloudError {
 
     #[error("Application not found")]
     ApplicationNotFound,
+
+    #[error("{LOCK_FILE} not found. Run `dozer build` before deploying, or pass '--no-lock'.")]
+    LockfileNotFound,
 }
 
 #[derive(Debug, Error)]
@@ -194,6 +204,8 @@ pub enum ConfigCombineError {
 pub enum BuildError {
     #[error("Endpoint {0} not found in DAG")]
     MissingEndpoint(String),
+    #[error("Connection {0} found in DAG but not in config")]
+    MissingConnection(String),
     #[error("Got mismatching primary key for `{endpoint_name}`. Expected: `{expected:?}`, got: `{actual:?}`")]
     MismatchPrimaryKey {
         endpoint_name: String,

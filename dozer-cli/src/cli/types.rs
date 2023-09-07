@@ -4,7 +4,10 @@ use super::helper::{DESCRIPTION, LOGO};
 
 #[cfg(feature = "cloud")]
 use crate::cli::cloud::Cloud;
-use dozer_types::{constants::DEFAULT_CONFIG_PATH_PATTERNS, serde_json};
+use dozer_types::{
+    constants::{DEFAULT_CONFIG_PATH_PATTERNS, LOCK_FILE},
+    serde_json,
+};
 
 #[derive(Parser, Debug)]
 #[command(author, version, name = "dozer")]
@@ -30,7 +33,7 @@ pub struct Cli {
     #[arg(global = true, long = "ignore-pipe")]
     pub ignore_pipe: bool,
     #[clap(subcommand)]
-    pub cmd: Option<Commands>,
+    pub cmd: Commands,
 }
 
 fn parse_config_override(
@@ -87,14 +90,18 @@ pub struct Live {
 #[derive(Debug, Args)]
 #[command(args_conflicts_with_subcommands = true)]
 pub struct Build {
+    #[arg(help = format!("Require that {LOCK_FILE} is up-to-date"), long = "locked")]
+    pub locked: bool,
     #[arg(short = 'f')]
     pub force: Option<Option<String>>,
 }
 
 #[derive(Debug, Args)]
 pub struct Run {
+    #[arg(help = format!("Require that {LOCK_FILE} is up-to-date"), long = "locked")]
+    pub locked: bool,
     #[command(subcommand)]
-    pub command: RunCommands,
+    pub command: Option<RunCommands>,
 }
 
 #[derive(Debug, Subcommand)]

@@ -13,12 +13,12 @@ use dozer_types::{errors::internal::BoxedError, types::Schema};
 #[derive(Debug)]
 pub struct DummySinkFactory;
 
-impl<T> SinkFactory<T> for DummySinkFactory {
+impl SinkFactory for DummySinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn prepare(&self, _input_schemas: HashMap<PortHandle, (Schema, T)>) -> Result<(), BoxedError> {
+    fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), BoxedError> {
         Ok(())
     }
 

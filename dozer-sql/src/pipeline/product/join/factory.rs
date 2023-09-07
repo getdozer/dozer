@@ -7,14 +7,14 @@ use dozer_core::{
 };
 use dozer_types::{
     errors::internal::BoxedError,
-    types::{FieldDefinition, Record, Schema},
+    types::{FieldDefinition, Schema},
 };
 use sqlparser::ast::{
     BinaryOperator, Expr as SqlExpr, Ident, JoinConstraint as SqlJoinConstraint,
     JoinOperator as SqlJoinOperator,
 };
 
-use crate::pipeline::{builder::SchemaSQLContext, expression::builder::extend_schema_source_def};
+use crate::pipeline::expression::builder::extend_schema_source_def;
 use crate::pipeline::{errors::JoinError, expression::builder::NameOrAlias};
 use crate::pipeline::{errors::PipelineError, expression::builder::ExpressionBuilder};
 
@@ -32,6 +32,7 @@ pub struct JoinProcessorFactory {
     left: Option<NameOrAlias>,
     right: Option<NameOrAlias>,
     join_operator: SqlJoinOperator,
+    enable_probabilistic_optimizations: bool,
 }
 
 impl JoinProcessorFactory {
@@ -40,17 +41,19 @@ impl JoinProcessorFactory {
         left: Option<NameOrAlias>,
         right: Option<NameOrAlias>,
         join_operator: SqlJoinOperator,
+        enable_probabilistic_optimizations: bool,
     ) -> Self {
         Self {
             id,
             left,
             right,
             join_operator,
+            enable_probabilistic_optimizations,
         }
     }
 }
 
-impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
+impl ProcessorFactory for JoinProcessorFactory {
     fn id(&self) -> String {
         self.id.clone()
     }
@@ -72,9 +75,9 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(Schema, SchemaSQLContext), BoxedError> {
-        let (mut left_schema, _) = input_schemas
+        input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> Result<Schema, BoxedError> {
+        let mut left_schema = input_schemas
             .get(&LEFT_JOIN_PORT)
             .ok_or(PipelineError::InternalError(
                 "Invalid Product".to_string().into(),
@@ -85,7 +88,7 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
             left_schema = extend_schema_source_def(&left_schema, left_table_name);
         }
 
-        let (mut right_schema, _) = input_schemas
+        let mut right_schema = input_schemas
             .get(&RIGHT_JOIN_PORT)
             .ok_or(PipelineError::InternalError(
                 "Invalid Product".to_string().into(),
@@ -98,7 +101,7 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
 
         let output_schema = append_schema(&left_schema, &right_schema);
 
-        Ok((output_schema, SchemaSQLContext::default()))
+        Ok(output_schema)
     }
 
     fn build(
@@ -138,17 +141,6 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
             left_schema = extend_schema_source_def(&left_schema, left_table_name);
         }
 
-        let left_primary_key_indexes = if left_schema.primary_index.is_empty() {
-            left_schema
-                .fields
-                .iter()
-                .enumerate()
-                .map(|(index, _)| index)
-                .collect::<Vec<usize>>()
-        } else {
-            left_schema.primary_index.clone()
-        };
-
         let mut right_schema = input_schemas
             .get(&RIGHT_JOIN_PORT)
             .ok_or(PipelineError::InternalError(
@@ -159,34 +151,16 @@ impl ProcessorFactory<SchemaSQLContext> for JoinProcessorFactory {
             right_schema = extend_schema_source_def(&right_schema, right_table_name);
         }
 
-        let right_primary_key_indexes = if right_schema.primary_index.is_empty() {
-            right_schema
-                .fields
-                .iter()
-                .enumerate()
-                .map(|(index, _)| index)
-                .collect::<Vec<usize>>()
-        } else {
-            right_schema.primary_index.clone()
-        };
-
         let (left_join_key_indexes, right_join_key_indexes) =
             parse_join_constraint(expression, &left_schema, &right_schema)?;
 
-        let left_default_record = Record::nulls_from_schema(&left_schema);
-        let left_default_record = record_store.create_record(&left_default_record)?;
-        let right_default_record = Record::nulls_from_schema(&right_schema);
-        let right_default_record = record_store.create_record(&right_default_record)?;
-
         let join_operator = JoinOperator::new(
             join_type,
-            left_join_key_indexes,
-            right_join_key_indexes,
-            left_primary_key_indexes,
-            right_primary_key_indexes,
-            left_default_record,
-            right_default_record,
-        );
+            (left_join_key_indexes, right_join_key_indexes),
+            (&left_schema, &right_schema),
+            record_store,
+            self.enable_probabilistic_optimizations,
+        )?;
 
         Ok(Box::new(ProductProcessor::new(
             self.id.clone(),

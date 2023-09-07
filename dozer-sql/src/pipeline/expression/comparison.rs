@@ -1698,7 +1698,23 @@ pub fn evaluate_gt(
     }
 }
 
-define_comparison!(evaluate_eq, "=", |l, r| { l == r });
-define_comparison!(evaluate_ne, "!=", |l, r| { l != r });
-define_comparison!(evaluate_lte, "<=", |l, r| { l <= r });
-define_comparison!(evaluate_gte, ">=", |l, r| { l >= r });
+fn eq<T: PartialEq>(left: T, right: T) -> bool {
+    left == right
+}
+
+fn ne<T: PartialEq>(left: T, right: T) -> bool {
+    left != right
+}
+
+fn le<T: PartialOrd>(left: T, right: T) -> bool {
+    left <= right
+}
+
+fn ge<T: PartialOrd>(left: T, right: T) -> bool {
+    left >= right
+}
+
+define_comparison!(evaluate_eq, "=", eq);
+define_comparison!(evaluate_ne, "!=", ne);
+define_comparison!(evaluate_lte, "<=", le);
+define_comparison!(evaluate_gte, ">=", ge);

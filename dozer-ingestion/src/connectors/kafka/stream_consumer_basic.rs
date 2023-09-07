@@ -13,7 +13,6 @@ use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::serde_json;
 use dozer_types::serde_json::Value;
 use dozer_types::types::{Field, Operation, Record};
-use rdkafka::consumer::BaseConsumer;
 
 use crate::connectors::kafka::no_schema_registry_basic::NoSchemaRegistryBasic;
 use crate::connectors::kafka::schema_registry_basic::SchemaRegistryBasic;
@@ -21,7 +20,9 @@ use tonic::async_trait;
 
 use crate::connectors::TableInfo;
 use crate::errors::KafkaStreamError::PollingError;
-use rdkafka::Message;
+use rdkafka::{ClientConfig, Message};
+
+use super::stream_consumer_helper::{is_network_failure, OffsetsMap, StreamConsumerHelper};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(crate = "dozer_types::serde")]
@@ -79,17 +80,17 @@ pub struct Payload {
 #[derive(Default)]
 pub struct StreamConsumerBasic {}
 
-impl StreamConsumerBasic {}
-
 #[async_trait]
 impl StreamConsumer for StreamConsumerBasic {
     async fn run(
         &self,
-        con: BaseConsumer,
+        client_config: ClientConfig,
         ingestor: &Ingestor,
         tables: Vec<TableInfo>,
         schema_registry_url: &Option<String>,
     ) -> Result<(), ConnectorError> {
+        let topics: Vec<String> = tables.iter().map(|t| t.name.clone()).collect();
+
         let mut schemas = HashMap::new();
         for (table_index, table) in tables.into_iter().enumerate() {
             let schema = if let Some(url) = schema_registry_url {
@@ -101,10 +102,19 @@ impl StreamConsumer for StreamConsumerBasic {
             schemas.insert(table.name.clone(), (table_index, schema));
         }
 
+        let topics: Vec<&str> = topics.iter().map(|t| t.as_str()).collect();
+        let mut con = StreamConsumerHelper::start(&client_config, &topics).await?;
+
+        let mut offsets = OffsetsMap::new();
         let mut counter = 0;
         loop {
             if let Some(result) = con.poll(None) {
+                if matches!(result.as_ref(), Err(err) if is_network_failure(err)) {
+                    con = StreamConsumerHelper::resume(&client_config, &topics, &offsets).await?;
+                    continue;
+                }
                 let m = result.map_err(|e| KafkaStreamError(PollingError(e)))?;
+                StreamConsumerHelper::update_offsets(&mut offsets, &m);
                 match schemas.get(m.topic()) {
                     None => return Err(ConnectorError::KafkaError(TopicNotDefined)),
                     Some((table_index, (schema, fields_map))) => {

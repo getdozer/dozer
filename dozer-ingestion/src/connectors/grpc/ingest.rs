@@ -78,10 +78,11 @@ where
                 if let Ok(req) = result {
                     let Some(table_index) = table_names
                         .iter()
-                        .position(|table| table.name == req.schema_name) else {
-                            error!("schema name not found: {}", req.schema_name);
-                            break;
-                        };
+                        .position(|table| table.name == req.schema_name)
+                    else {
+                        error!("schema name not found: {}", req.schema_name);
+                        break;
+                    };
 
                     seq_no = req.seq_no;
                     let res = adapter.handle_message(
@@ -142,10 +143,11 @@ where
                 if let Ok(req) = result {
                     let Some(table_index) = table_names
                         .iter()
-                        .position(|table| table.name == req.schema_name) else {
-                            error!("schema name not found: {}", req.schema_name);
-                            break;
-                        };
+                        .position(|table| table.name == req.schema_name)
+                    else {
+                        error!("schema name not found: {}", req.schema_name);
+                        break;
+                    };
 
                     seq_no = req.seq_no;
                     let res = adapter.handle_message(
