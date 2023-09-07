@@ -113,17 +113,19 @@ pub struct ClosedEpoch {
 impl EpochManager {
     pub fn new(
         num_sources: usize,
+        epoch_id: u64,
         checkpoint_factory: Arc<CheckpointFactory>,
         options: EpochManagerOptions,
     ) -> Self {
         debug_assert!(num_sources > 0);
+        let next_record_index_to_persist = checkpoint_factory.record_store().num_records();
         Self {
             num_sources,
             checkpoint_factory,
             options,
             state: Mutex::new(EpochManagerState {
-                kind: EpochManagerStateKind::new_closing(0, num_sources),
-                next_record_index_to_persist: 0,
+                kind: EpochManagerStateKind::new_closing(epoch_id, num_sources),
+                next_record_index_to_persist,
                 last_persisted_epoch_decision_instant: SystemTime::now(),
             }),
         }
@@ -230,6 +232,7 @@ impl EpochManager {
                         Arc::new(CheckpointWriter::new(
                             self.checkpoint_factory.clone(),
                             *epoch_id,
+                            source_states.clone(),
                         ))
                     });
                     EpochCommonInfo {
@@ -286,7 +289,7 @@ mod tests {
     ) -> (TempDir, EpochManager) {
         let (temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
 
-        let epoch_manager = EpochManager::new(num_sources, checkpoint_factory, options);
+        let epoch_manager = EpochManager::new(num_sources, 0, checkpoint_factory, options);
 
         (temp_dir, epoch_manager)
     }

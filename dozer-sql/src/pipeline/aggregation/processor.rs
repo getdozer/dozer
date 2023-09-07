@@ -4,11 +4,14 @@ use crate::pipeline::errors::PipelineError;
 use crate::pipeline::utils::record_hashtable_key::{get_record_hash, RecordKey};
 use crate::pipeline::{aggregation::aggregator::Aggregator, expression::execution::Expression};
 use dozer_core::channels::ProcessorChannelForwarder;
+use dozer_core::dozer_log::storage::Object;
 use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::processor_record::ProcessorRecordStore;
 use dozer_core::DEFAULT_PORT_HANDLE;
+use dozer_types::bincode;
 use dozer_types::errors::internal::BoxedError;
+use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::{Field, FieldType, Operation, Record, Schema};
 use std::collections::HashMap;
 
@@ -20,7 +23,8 @@ use dozer_core::epoch::Epoch;
 
 const DEFAULT_SEGMENT_KEY: &str = "DOZER_DEFAULT_SEGMENT_KEY";
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(crate = "dozer_types::serde")]
 struct AggregationState {
     count: usize,
     states: Vec<AggregatorEnum>,
@@ -77,7 +81,8 @@ impl AggregationProcessor {
         input_schema: Schema,
         aggregation_schema: Schema,
         enable_probabilistic_optimizations: bool,
-    ) -> Result<Self, PipelineError> {
+        checkpoint_data: Option<Vec<u8>>,
+    ) -> Result<Self, BoxedError> {
         let mut aggr_types = Vec::new();
         let mut aggr_measures = Vec::new();
         let mut aggr_measures_ret_types = Vec::new();
@@ -95,13 +100,19 @@ impl AggregationProcessor {
 
         let accurate_keys = !enable_probabilistic_optimizations;
 
+        let states = if let Some(data) = checkpoint_data {
+            bincode::deserialize(&data)?
+        } else {
+            HashMap::new()
+        };
+
         Ok(Self {
             _id: id,
             dimensions,
             projections,
             input_schema,
             aggregation_schema,
-            states: HashMap::new(),
+            states,
             measures: aggr_measures,
             having,
             measures_types: aggr_types,
@@ -580,5 +591,13 @@ impl Processor for AggregationProcessor {
             fw.send(output_op, DEFAULT_PORT_HANDLE);
         }
         Ok(())
+    }
+
+    fn serialize(
+        &mut self,
+        _record_store: &ProcessorRecordStore,
+        mut object: Object,
+    ) -> Result<(), BoxedError> {
+        Ok(object.write(&bincode::serialize(&self.states)?)?)
     }
 }

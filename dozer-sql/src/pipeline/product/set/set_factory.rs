@@ -80,7 +80,8 @@ impl ProcessorFactory for SetProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _record_store: &ProcessorRecordStore,
+        record_store: &ProcessorRecordStore,
+        checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         Ok(Box::new(SetProcessor::new(
             self.id.clone(),
@@ -89,6 +90,8 @@ impl ProcessorFactory for SetProcessorFactory {
                 quantifier: self.set_quantifier,
             },
             self.enable_probabilistic_optimizations,
+            record_store,
+            checkpoint_data,
         )?))
     }
 }

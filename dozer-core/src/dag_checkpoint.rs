@@ -2,6 +2,7 @@ use daggy::petgraph::visit::IntoNodeIdentifiers;
 use dozer_types::node::{NodeHandle, OpIdentifier};
 
 use crate::{
+    checkpoint::OptionCheckpoint,
     dag_schemas::{DagHaveSchemas, DagSchemas, EdgeType},
     errors::ExecutionError,
     node::{ProcessorFactory, SinkFactory, Source},
@@ -25,16 +26,17 @@ pub enum NodeKind {
     Sink(Box<dyn SinkFactory>),
 }
 
-/// Checkpoint DAG determines the checkpoint to start the pipeline from.
-///
-/// This DAG is always consistent.
+/// Checkpoint DAG checks if the sources can start from the specified checkpoint.
 #[derive(Debug)]
 pub struct DagCheckpoint {
     graph: daggy::Dag<NodeType, EdgeType>,
 }
 
 impl DagCheckpoint {
-    pub fn new(dag_schemas: DagSchemas) -> Result<Self, ExecutionError> {
+    pub fn new(
+        dag_schemas: DagSchemas,
+        checkpoint: &OptionCheckpoint,
+    ) -> Result<Self, ExecutionError> {
         // Create node storages and sources.
         let mut sources = vec![];
         let node_indexes = dag_schemas.graph().node_identifiers().collect::<Vec<_>>();
@@ -47,6 +49,14 @@ impl DagCheckpoint {
                     let source = source
                         .build(output_schemas)
                         .map_err(ExecutionError::Factory)?;
+                    if let Some(op) = checkpoint.get_source_state(&node.handle) {
+                        if !source.can_start_from(op).map_err(ExecutionError::Source)? {
+                            return Err(ExecutionError::SourceCannotStartFromCheckpoint {
+                                source_name: node.handle.clone(),
+                                checkpoint: op,
+                            });
+                        }
+                    }
                     sources.push(Some(source));
                 }
                 DagNodeKind::Processor(_) | DagNodeKind::Sink(_) => {

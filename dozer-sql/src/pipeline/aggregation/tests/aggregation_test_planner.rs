@@ -85,6 +85,7 @@ fn test_planner_with_aggregator() {
         schema,
         projection_planner.post_aggregation_schema,
         false,
+        None,
     )
     .unwrap();
 

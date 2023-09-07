@@ -82,6 +82,7 @@ impl ProcessorFactory for WindowProcessorFactory {
         input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _record_store: &ProcessorRecordStore,
+        checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         let input_schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
@@ -93,7 +94,11 @@ impl ProcessorFactory for WindowProcessorFactory {
         match window_from_table_operator(&self.table, &input_schema)
             .map_err(PipelineError::WindowError)?
         {
-            Some(window) => Ok(Box::new(WindowProcessor::new(self.id.clone(), window))),
+            Some(window) => Ok(Box::new(WindowProcessor::new(
+                self.id.clone(),
+                window,
+                checkpoint_data,
+            ))),
             None => Err(PipelineError::WindowError(WindowError::InvalidWindow()).into()),
         }
     }

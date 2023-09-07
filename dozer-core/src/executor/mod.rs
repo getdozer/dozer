@@ -1,5 +1,5 @@
 use crate::builder_dag::{BuilderDag, NodeKind};
-use crate::checkpoint::CheckpointFactory;
+use crate::checkpoint::{CheckpointFactory, OptionCheckpoint};
 use crate::dag_schemas::DagSchemas;
 use crate::errors::ExecutionError;
 use crate::Dag;
@@ -67,14 +67,15 @@ pub struct DagExecutorJoinHandle {
 }
 
 impl DagExecutor {
-    pub fn new(
+    pub async fn new(
         dag: Dag,
         checkpoint_factory: Arc<CheckpointFactory>,
+        checkpoint: OptionCheckpoint,
         options: ExecutorOptions,
     ) -> Result<Self, ExecutionError> {
         let dag_schemas = DagSchemas::new(dag)?;
 
-        let builder_dag = BuilderDag::new(checkpoint_factory, dag_schemas)?;
+        let builder_dag = BuilderDag::new(checkpoint_factory, checkpoint, dag_schemas).await?;
 
         Ok(Self {
             builder_dag,
@@ -93,6 +94,7 @@ impl DagExecutor {
         labels: LabelsAndProgress,
     ) -> Result<DagExecutorJoinHandle, ExecutionError> {
         // Construct execution dag.
+        let initial_epoch_id = self.builder_dag.initial_epoch_id();
         let mut execution_dag = ExecutionDag::new(
             self.builder_dag,
             labels,
@@ -120,11 +122,12 @@ impl DagExecutor {
                     join_handles.extend([sender, receiver]);
                 }
                 NodeKind::Processor(_) => {
-                    let processor_node = ProcessorNode::new(&mut execution_dag, node_index);
+                    let processor_node =
+                        ProcessorNode::new(&mut execution_dag, node_index, initial_epoch_id);
                     join_handles.push(start_processor(processor_node)?);
                 }
                 NodeKind::Sink(_) => {
-                    let sink_node = SinkNode::new(&mut execution_dag, node_index);
+                    let sink_node = SinkNode::new(&mut execution_dag, node_index, initial_epoch_id);
                     join_handles.push(start_sink(sink_node)?);
                 }
             }

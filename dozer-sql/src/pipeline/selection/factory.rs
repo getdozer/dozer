@@ -65,6 +65,7 @@ impl ProcessorFactory for SelectionProcessorFactory {
         input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
         _record_store: &ProcessorRecordStore,
+        checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         let schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
@@ -79,6 +80,7 @@ impl ProcessorFactory for SelectionProcessorFactory {
             Ok(expression) => Ok(Box::new(SelectionProcessor::new(
                 schema.clone(),
                 expression,
+                checkpoint_data,
             ))),
             Err(e) => Err(e.into()),
         }

@@ -161,9 +161,19 @@ impl Storage for LocalStorage {
         let path = self.get_path(&key).await?;
         let file = tokio::fs::File::open(&path)
             .await
-            .map_err(|e| Error::FileSystem(path.clone(), e))?;
+            .map_err(|e| Error::FileSystem(path, e))?;
         let file = BufReader::new(file);
         Ok(ReaderStream::new(file).boxed())
+    }
+
+    async fn delete_objects(&self, keys: Vec<String>) -> Result<(), Error> {
+        for key in keys {
+            let path = self.get_path(&key).await?;
+            tokio::fs::remove_file(&path)
+                .await
+                .map_err(|e| Error::FileSystem(path, e))?;
+        }
+        Ok(())
     }
 }
 

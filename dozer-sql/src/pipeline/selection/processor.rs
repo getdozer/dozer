@@ -1,5 +1,6 @@
 use crate::pipeline::expression::execution::Expression;
 use dozer_core::channels::ProcessorChannelForwarder;
+use dozer_core::dozer_log::storage::Object;
 use dozer_core::epoch::Epoch;
 use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{PortHandle, Processor};
@@ -15,7 +16,11 @@ pub struct SelectionProcessor {
 }
 
 impl SelectionProcessor {
-    pub fn new(input_schema: Schema, expression: Expression) -> Self {
+    pub fn new(
+        input_schema: Schema,
+        expression: Expression,
+        _checkpoint_data: Option<Vec<u8>>,
+    ) -> Self {
         Self {
             input_schema,
             expression,
@@ -74,6 +79,14 @@ impl Processor for SelectionProcessor {
                 }
             }
         }
+        Ok(())
+    }
+
+    fn serialize(
+        &mut self,
+        _record_store: &ProcessorRecordStore,
+        _object: Object,
+    ) -> Result<(), BoxedError> {
         Ok(())
     }
 }

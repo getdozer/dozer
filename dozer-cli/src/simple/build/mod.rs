@@ -1,11 +1,6 @@
 use dozer_api::generator::protoc::generator::ProtoGenerator;
-use dozer_cache::dozer_log::{
-    home_dir::{BuildId, HomeDir},
-    replication::create_data_storage,
-    storage::Storage,
-};
-use dozer_types::{log::info, models::app_config::DataStorage};
-use futures::future::try_join_all;
+use dozer_cache::dozer_log::home_dir::{BuildId, HomeDir};
+use dozer_types::log::info;
 
 use crate::errors::BuildError;
 
@@ -17,11 +12,8 @@ pub async fn build(
     home_dir: &HomeDir,
     contract: &Contract,
     existing_contract: Option<&Contract>,
-    storage_config: &DataStorage,
 ) -> Result<(), BuildError> {
-    if let Some(build_id) =
-        new_build_id(home_dir, contract, existing_contract, storage_config).await?
-    {
+    if let Some(build_id) = new_build_id(home_dir, contract, existing_contract).await? {
         let build_name = build_id.name().to_string();
         build_endpoint_protos(home_dir, build_id, contract)?;
         info!("Created new build {build_name}");
@@ -35,7 +27,6 @@ async fn new_build_id(
     home_dir: &HomeDir,
     contract: &Contract,
     existing_contract: Option<&Contract>,
-    storage_config: &DataStorage,
 ) -> Result<Option<BuildId>, BuildError> {
     let build_path = home_dir
         .find_latest_build_path()
@@ -48,23 +39,6 @@ async fn new_build_id(
         return Ok(Some(build_path.id.next()));
     };
 
-    let mut futures = vec![];
-    for endpoint in contract.endpoints.keys() {
-        let endpoint_path = build_path.get_endpoint_path(endpoint);
-        let log_dir = build_path
-            .data_dir
-            .join(endpoint_path.log_dir_relative_to_data_dir);
-        let (storage, prefix) = create_data_storage(storage_config.clone(), log_dir.into()).await?;
-        futures.push(is_empty(storage, prefix));
-    }
-    if !try_join_all(futures)
-        .await?
-        .into_iter()
-        .all(std::convert::identity)
-    {
-        return Ok(Some(build_path.id.next()));
-    }
-
     for (endpoint, schema) in &contract.endpoints {
         if let Some(existing_schema) = existing_contract.endpoints.get(endpoint) {
             if schema == existing_schema {
@@ -74,11 +48,6 @@ async fn new_build_id(
         return Ok(Some(build_path.id.next()));
     }
     Ok(None)
-}
-
-async fn is_empty(storage: Box<dyn Storage>, prefix: String) -> Result<bool, BuildError> {
-    let objects = storage.list_objects(prefix, None).await?;
-    Ok(objects.objects.is_empty())
 }
 
 fn build_endpoint_protos(

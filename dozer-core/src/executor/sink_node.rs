@@ -23,6 +23,8 @@ use super::{name::Name, receiver_loop::ReceiverLoop};
 pub struct SinkNode {
     /// Node handle in description DAG.
     node_handle: NodeHandle,
+    /// The epoch id the sink was constructed for.
+    initial_epoch_id: u64,
     /// Input port handles.
     port_handles: Vec<PortHandle>,
     /// Input data channels.
@@ -41,7 +43,7 @@ const SINK_OPERATION_COUNTER_NAME: &str = "sink_operation";
 const PIPELINE_LATENCY_HISTOGRAM_NAME: &str = "pipeline_latency";
 
 impl SinkNode {
-    pub fn new(dag: &mut ExecutionDag, node_index: NodeIndex) -> Self {
+    pub fn new(dag: &mut ExecutionDag, node_index: NodeIndex, initial_epoch_id: u64) -> Self {
         let Some(node) = dag.node_weight_mut(node_index).take() else {
             panic!("Must pass in a node")
         };
@@ -63,6 +65,7 @@ impl SinkNode {
 
         Self {
             node_handle,
+            initial_epoch_id,
             port_handles,
             receivers,
             sink,
@@ -84,6 +87,10 @@ impl Name for SinkNode {
 }
 
 impl ReceiverLoop for SinkNode {
+    fn initial_epoch_id(&self) -> u64 {
+        self.initial_epoch_id
+    }
+
     fn receivers(&mut self) -> Vec<Receiver<ExecutorOperation>> {
         let mut result = vec![];
         swap(&mut self.receivers, &mut result);

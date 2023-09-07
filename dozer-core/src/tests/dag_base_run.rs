@@ -12,6 +12,7 @@ use crate::tests::sources::{
     GENERATOR_SOURCE_OUTPUT_PORT,
 };
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
+use dozer_log::storage::Object;
 use dozer_log::tokio;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
@@ -55,6 +56,7 @@ impl ProcessorFactory for NoopProcessorFactory {
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
         _record_store: &ProcessorRecordStore,
+        _checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         Ok(Box::new(NoopProcessor {}))
     }
@@ -80,6 +82,14 @@ impl Processor for NoopProcessor {
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         fw.send(op, DEFAULT_PORT_HANDLE);
+        Ok(())
+    }
+
+    fn serialize(
+        &mut self,
+        _record_store: &ProcessorRecordStore,
+        _object: Object,
+    ) -> Result<(), BoxedError> {
         Ok(())
     }
 }
@@ -118,12 +128,18 @@ async fn test_run_dag() {
     .unwrap();
 
     let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
-    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
-        .unwrap()
-        .start(Arc::new(AtomicBool::new(true)), Default::default())
-        .unwrap()
-        .join()
-        .unwrap();
+    DagExecutor::new(
+        dag,
+        checkpoint_factory,
+        Default::default(),
+        ExecutorOptions::default(),
+    )
+    .await
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)), Default::default())
+    .unwrap()
+    .join()
+    .unwrap();
 }
 
 #[tokio::test]
@@ -161,10 +177,16 @@ async fn test_run_dag_and_stop() {
 
     let running = Arc::new(AtomicBool::new(true));
     let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
-    let join_handle = DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
-        .unwrap()
-        .start(running.clone(), Default::default())
-        .unwrap();
+    let join_handle = DagExecutor::new(
+        dag,
+        checkpoint_factory,
+        Default::default(),
+        ExecutorOptions::default(),
+    )
+    .await
+    .unwrap()
+    .start(running.clone(), Default::default())
+    .unwrap();
 
     thread::sleep(Duration::from_millis(1000));
     running.store(false, Ordering::SeqCst);
@@ -206,6 +228,7 @@ impl ProcessorFactory for NoopJoinProcessorFactory {
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
         _record_store: &ProcessorRecordStore,
+        _checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         Ok(Box::new(NoopJoinProcessor {}))
     }
@@ -231,6 +254,14 @@ impl Processor for NoopJoinProcessor {
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         fw.send(op, DEFAULT_PORT_HANDLE);
+        Ok(())
+    }
+
+    fn serialize(
+        &mut self,
+        _record_store: &ProcessorRecordStore,
+        _object: Object,
+    ) -> Result<(), BoxedError> {
         Ok(())
     }
 }
@@ -281,12 +312,18 @@ async fn test_run_dag_2_sources_stateless() {
     .unwrap();
 
     let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
-    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
-        .unwrap()
-        .start(Arc::new(AtomicBool::new(true)), Default::default())
-        .unwrap()
-        .join()
-        .unwrap();
+    DagExecutor::new(
+        dag,
+        checkpoint_factory,
+        Default::default(),
+        ExecutorOptions::default(),
+    )
+    .await
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)), Default::default())
+    .unwrap()
+    .join()
+    .unwrap();
 }
 
 #[tokio::test]
@@ -335,12 +372,18 @@ async fn test_run_dag_2_sources_stateful() {
     .unwrap();
 
     let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
-    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
-        .unwrap()
-        .start(Arc::new(AtomicBool::new(true)), Default::default())
-        .unwrap()
-        .join()
-        .unwrap();
+    DagExecutor::new(
+        dag,
+        checkpoint_factory,
+        Default::default(),
+        ExecutorOptions::default(),
+    )
+    .await
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)), Default::default())
+    .unwrap()
+    .join()
+    .unwrap();
 }
 
 #[tokio::test]
@@ -390,10 +433,16 @@ async fn test_run_dag_1_source_2_ports_stateless() {
     .unwrap();
 
     let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
-    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
-        .unwrap()
-        .start(Arc::new(AtomicBool::new(true)), Default::default())
-        .unwrap()
-        .join()
-        .unwrap();
+    DagExecutor::new(
+        dag,
+        checkpoint_factory,
+        Default::default(),
+        ExecutorOptions::default(),
+    )
+    .await
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)), Default::default())
+    .unwrap()
+    .join()
+    .unwrap();
 }

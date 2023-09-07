@@ -6,6 +6,8 @@ use crate::pipeline::aggregation::max::MaxAggregator;
 use crate::pipeline::aggregation::min::MinAggregator;
 use crate::pipeline::aggregation::sum::SumAggregator;
 use crate::pipeline::errors::PipelineError;
+use dozer_types::serde::de::DeserializeOwned;
+use dozer_types::serde::{Deserialize, Serialize};
 use enum_dispatch::enum_dispatch;
 use std::collections::BTreeMap;
 
@@ -20,7 +22,7 @@ use dozer_types::types::{Field, FieldType, Schema};
 use std::fmt::{Debug, Display, Formatter};
 
 #[enum_dispatch]
-pub trait Aggregator: Send + Sync {
+pub trait Aggregator: Send + Sync + Serialize + DeserializeOwned {
     fn init(&mut self, return_type: FieldType);
     fn update(&mut self, old: &[Field], new: &[Field]) -> Result<Field, PipelineError>;
     fn delete(&mut self, old: &[Field]) -> Result<Field, PipelineError>;
@@ -28,7 +30,8 @@ pub trait Aggregator: Send + Sync {
 }
 
 #[enum_dispatch(Aggregator)]
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(crate = "dozer_types::serde")]
 pub enum AggregatorEnum {
     AvgAggregator,
     MinAggregator,
@@ -37,12 +40,6 @@ pub enum AggregatorEnum {
     MaxValueAggregator,
     SumAggregator,
     CountAggregator,
-}
-
-impl Debug for dyn Aggregator {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str("Aggregator")
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Hash)]

@@ -1,8 +1,12 @@
 use ahash::AHasher;
-use dozer_types::types::Field;
+use dozer_types::{
+    serde::{Deserialize, Serialize},
+    types::Field,
+};
 use std::hash::{Hash, Hasher};
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(crate = "dozer_types::serde")]
 pub enum RecordKey {
     Accurate(Vec<Field>),
     Hash(u64),

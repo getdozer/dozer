@@ -14,6 +14,8 @@ use std::fmt::{Display, Formatter};
 #[cfg(feature = "onnx")]
 use crate::pipeline::onnx::OnnxError;
 
+use super::utils::serialize::DeserializationError;
+
 #[derive(Debug, Clone)]
 pub struct FieldTypes {
     types: Vec<FieldType>,
@@ -248,6 +250,8 @@ pub enum SetError {
     DatabaseUnavailable,
     #[error("History unavailable for SET source [{0}]")]
     HistoryUnavailable(u16),
+    #[error("Deserialization error: {0}")]
+    Deserialization(#[from] DeserializationError),
 }
 
 #[derive(Error, Debug)]
@@ -281,6 +285,9 @@ pub enum JoinError {
 
     #[error("Storage error: {0}")]
     Storage(#[from] StorageError),
+
+    #[error("Deserialization error: {0}")]
+    Deserialization(#[from] DeserializationError),
 }
 
 #[derive(Error, Debug)]

@@ -8,7 +8,6 @@ use crate::simple::helper::validate_config;
 use crate::utils::{
     get_api_security_config, get_app_grpc_config, get_cache_manager_options,
     get_checkpoint_factory_options, get_executor_options, get_grpc_config, get_rest_config,
-    get_storage_config,
 };
 
 use crate::{flatten_join_handle, join_handle_map_err};
@@ -212,6 +211,7 @@ impl SimpleOrchestrator {
             self.labels.clone(),
             &self.config.udfs,
         ))?;
+        let endpoint_and_logs = executor.endpoint_and_logs().to_vec();
         let dag_executor = self.runtime.block_on(executor.create_dag_executor(
             &self.runtime,
             get_executor_options(&self.config),
@@ -223,7 +223,7 @@ impl SimpleOrchestrator {
         let internal_server_future = self
             .runtime
             .block_on(start_internal_pipeline_server(
-                executor.endpoint_and_logs().to_vec(),
+                endpoint_and_logs,
                 &app_grpc_config,
                 shutdown.create_shutdown_future(),
             ))
@@ -368,12 +368,10 @@ impl SimpleOrchestrator {
         }
 
         // Run build
-        let storage_config = get_storage_config(&self.config);
         self.runtime.block_on(build::build(
             &home_dir,
             &contract,
             existing_contract.as_ref(),
-            &storage_config,
         ))?;
 
         contract.serialize(contract_path.as_std_path())?;

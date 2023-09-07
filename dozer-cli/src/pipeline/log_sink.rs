@@ -80,11 +80,12 @@ impl LogSink {
         labels: LabelsAndProgress,
     ) -> Self {
         let pb = labels.create_progress_bar(endpoint_name);
+        let counter = log.lock().end() as u64;
         Self {
             runtime,
             log,
             pb,
-            counter: 0,
+            counter,
         }
     }
 

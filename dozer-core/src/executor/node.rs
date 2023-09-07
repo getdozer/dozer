@@ -12,6 +12,6 @@ pub trait Node: Debug {
 
 impl<T: ReceiverLoop + Debug> Node for T {
     fn run(mut self) -> Result<(), ExecutionError> {
-        self.receiver_loop()
+        self.receiver_loop(self.initial_epoch_id())
     }
 }

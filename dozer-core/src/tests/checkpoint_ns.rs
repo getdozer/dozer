@@ -72,10 +72,16 @@ async fn test_checkpoint_consistency_ns() {
     }
 
     let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
-    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
-        .unwrap()
-        .start(Arc::new(AtomicBool::new(true)), Default::default())
-        .unwrap()
-        .join()
-        .unwrap();
+    DagExecutor::new(
+        dag,
+        checkpoint_factory,
+        Default::default(),
+        ExecutorOptions::default(),
+    )
+    .await
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)), Default::default())
+    .unwrap()
+    .join()
+    .unwrap();
 }

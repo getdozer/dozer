@@ -97,6 +97,7 @@ impl ProcessorFactory for AggregationProcessorFactory {
         input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
         _record_store: &ProcessorRecordStore,
+        checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         let input_schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
@@ -108,6 +109,7 @@ impl ProcessorFactory for AggregationProcessorFactory {
             Box::new(ProjectionProcessor::new(
                 input_schema.clone(),
                 planner.projection_output,
+                checkpoint_data,
             ))
         } else {
             Box::new(AggregationProcessor::new(
@@ -119,6 +121,7 @@ impl ProcessorFactory for AggregationProcessorFactory {
                 input_schema.clone(),
                 planner.post_aggregation_schema,
                 self.enable_probabilistic_optimizations,
+                checkpoint_data,
             )?)
         };
         Ok(processor)

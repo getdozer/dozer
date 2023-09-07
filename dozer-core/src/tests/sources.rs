@@ -3,6 +3,7 @@ use crate::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFacto
 use crate::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::ingestion_types::IngestionMessage;
+use dozer_types::node::OpIdentifier;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
 };
@@ -90,16 +91,16 @@ pub(crate) struct GeneratorSource {
 }
 
 impl Source for GeneratorSource {
-    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, BoxedError> {
+    fn can_start_from(&self, _last_checkpoint: OpIdentifier) -> Result<bool, BoxedError> {
         Ok(true)
     }
 
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        last_checkpoint: Option<(u64, u64)>,
+        last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
-        let start = last_checkpoint.unwrap_or((0, 0)).0;
+        let start = last_checkpoint.unwrap_or(OpIdentifier::new(0, 0)).txid;
 
         for n in start + 1..(start + self.count + 1) {
             fw.send(
@@ -220,14 +221,14 @@ pub(crate) struct DualPortGeneratorSource {
 }
 
 impl Source for DualPortGeneratorSource {
-    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, BoxedError> {
+    fn can_start_from(&self, _last_checkpoint: OpIdentifier) -> Result<bool, BoxedError> {
         Ok(false)
     }
 
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        _last_checkpoint: Option<(u64, u64)>,
+        _last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
         for n in 1..(self.count + 1) {
             fw.send(

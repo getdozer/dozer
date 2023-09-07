@@ -6,6 +6,7 @@ use crate::pipeline::expression::execution::{Expression, ExpressionType};
 use crate::{argv, calculate_err_field};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
+use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::{DozerDuration, Field, FieldType, Schema, SourceDefinition, TimeUnit};
 use num_traits::FromPrimitive;
 
@@ -52,13 +53,15 @@ pub fn validate_sum(args: &[Expression], schema: &Schema) -> Result<ExpressionTy
     ))
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(crate = "dozer_types::serde")]
 pub struct SumAggregator {
     current_state: SumState,
     return_type: Option<FieldType>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(crate = "dozer_types::serde")]
 pub struct SumState {
     pub(crate) int_state: i64,
     pub(crate) i128_state: i128,

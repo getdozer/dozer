@@ -5,6 +5,7 @@ use crate::pipeline::expression::aggregate::AggregateFunctionType::Count;
 use crate::pipeline::expression::execution::{Expression, ExpressionType};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
+use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
 use num_traits::FromPrimitive;
 
@@ -20,7 +21,8 @@ pub fn validate_count(
     ))
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(crate = "dozer_types::serde")]
 pub struct CountAggregator {
     current_state: u64,
     return_type: Option<FieldType>,

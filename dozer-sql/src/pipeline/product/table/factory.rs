@@ -69,8 +69,12 @@ impl ProcessorFactory for TableProcessorFactory {
         _input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _record_store: &ProcessorRecordStore,
+        checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Box<dyn Processor>, BoxedError> {
-        Ok(Box::new(TableProcessor::new(self.id.clone())))
+        Ok(Box::new(TableProcessor::new(
+            self.id.clone(),
+            checkpoint_data,
+        )))
     }
 }
 

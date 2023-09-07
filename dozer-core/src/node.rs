@@ -3,8 +3,9 @@ use crate::epoch::Epoch;
 use crate::executor_operation::ProcessorOperation;
 use crate::processor_record::ProcessorRecordStore;
 
-use dozer_log::storage::Queue;
+use dozer_log::storage::{Object, Queue};
 use dozer_types::errors::internal::BoxedError;
+use dozer_types::node::OpIdentifier;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::Schema;
 use std::collections::HashMap;
@@ -55,11 +56,11 @@ pub trait SourceFactory: Send + Sync + Debug {
 pub trait Source: Send + Sync + Debug {
     /// Checks if the source can start from the given checkpoint.
     /// If this function returns false, the executor will start the source from the beginning.
-    fn can_start_from(&self, last_checkpoint: (u64, u64)) -> Result<bool, BoxedError>;
+    fn can_start_from(&self, last_checkpoint: OpIdentifier) -> Result<bool, BoxedError>;
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        last_checkpoint: Option<(u64, u64)>,
+        last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError>;
 }
 
@@ -76,6 +77,7 @@ pub trait ProcessorFactory: Send + Sync + Debug {
         input_schemas: HashMap<PortHandle, Schema>,
         output_schemas: HashMap<PortHandle, Schema>,
         record_store: &ProcessorRecordStore,
+        checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Box<dyn Processor>, BoxedError>;
     fn type_name(&self) -> String;
     fn id(&self) -> String;
@@ -89,6 +91,11 @@ pub trait Processor: Send + Sync + Debug {
         record_store: &ProcessorRecordStore,
         op: ProcessorOperation,
         fw: &mut dyn ProcessorChannelForwarder,
+    ) -> Result<(), BoxedError>;
+    fn serialize(
+        &mut self,
+        record_store: &ProcessorRecordStore,
+        object: Object,
     ) -> Result<(), BoxedError>;
 }
 

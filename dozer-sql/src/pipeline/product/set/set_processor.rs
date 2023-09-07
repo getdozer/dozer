@@ -1,16 +1,18 @@
 use super::operator::{SetAction, SetOperation};
 use super::record_map::{
-    AccurateCountingRecordMap, CountingRecordMapEnum, ProbabilisticCountingRecordMap,
+    AccurateCountingRecordMap, CountingRecordMap, CountingRecordMapEnum,
+    ProbabilisticCountingRecordMap,
 };
-use crate::pipeline::errors::{PipelineError, ProductError};
+use crate::pipeline::errors::{PipelineError, ProductError, SetError};
+use crate::pipeline::utils::serialize::Cursor;
 use dozer_core::channels::ProcessorChannelForwarder;
+use dozer_core::dozer_log::storage::Object;
 use dozer_core::epoch::Epoch;
 use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordStore};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
-use std::collections::hash_map::RandomState;
 use std::fmt::{Debug, Formatter};
 
 pub struct SetProcessor {
@@ -27,15 +29,20 @@ impl SetProcessor {
         id: String,
         operator: SetOperation,
         enable_probabilistic_optimizations: bool,
-    ) -> Result<Self, PipelineError> {
-        let _s = RandomState::new();
+        record_store: &ProcessorRecordStore,
+        checkpoint_data: Option<Vec<u8>>,
+    ) -> Result<Self, SetError> {
+        let mut cursor = checkpoint_data.as_deref().map(Cursor::new);
         Ok(Self {
             _id: id,
             operator,
             record_map: if enable_probabilistic_optimizations {
-                ProbabilisticCountingRecordMap::new().into()
+                ProbabilisticCountingRecordMap::new(cursor.as_mut())?.into()
             } else {
-                AccurateCountingRecordMap::new().into()
+                AccurateCountingRecordMap::new(
+                    cursor.as_mut().map(|cursor| (cursor, record_store)),
+                )?
+                .into()
             },
         })
     }
@@ -179,5 +186,15 @@ impl Processor for SetProcessor {
             }
         }
         Ok(())
+    }
+
+    fn serialize(
+        &mut self,
+        record_store: &ProcessorRecordStore,
+        mut object: Object,
+    ) -> Result<(), BoxedError> {
+        self.record_map
+            .serialize(record_store, &mut object)
+            .map_err(Into::into)
     }
 }
