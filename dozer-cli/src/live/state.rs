@@ -15,6 +15,7 @@ use dozer_types::{
     models::{
         api_config::{ApiConfig, AppGrpcOptions},
         api_endpoint::ApiEndpoint,
+        app_config::AppConfig,
         flags::Flags,
     },
 };
@@ -379,6 +380,17 @@ fn get_dozer_run_instance(
         }
         None => {}
     };
+
+    if let Some(app) = dozer.config.app.as_mut() {
+        app.max_num_records_before_persist = Some(usize::MAX as u64);
+        app.max_interval_before_persist_in_seconds = Some(u64::MAX);
+    } else {
+        dozer.config.app = Some(AppConfig {
+            max_num_records_before_persist: Some(usize::MAX as u64),
+            max_interval_before_persist_in_seconds: Some(u64::MAX),
+            ..Default::default()
+        })
+    }
 
     dozer.config.api = Some(ApiConfig {
         app_grpc: Some(AppGrpcOptions {
