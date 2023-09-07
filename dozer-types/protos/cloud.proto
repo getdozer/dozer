@@ -20,7 +20,6 @@ service DozerCloud {
   rpc parse_sql(ParseRequest) returns (ParseResponse);
   rpc parse_yaml(ParseYamlRequest) returns (ParseYamlResponse);
   rpc generate_yaml(GenerateYamlRequest) returns (GenerateYamlResponse);
-  rpc generate_graph(GenerateGraphRequest) returns (GenerateGraphResponse);
   rpc get_application(GetAppRequest) returns (AppResponse);
   rpc validate_connection(ConnectionRequest)
       returns (ValidateConnectionResponse);
@@ -218,9 +217,6 @@ message ParseResponse {
   repeated string used_sources = 1;
   repeated string output_tables = 3;
 }
-
-message GenerateGraphRequest { string config = 1; }
-message GenerateGraphResponse { QueryGraph graph = 3; }
 
 message ParseYamlRequest { string config = 1; }
 message ParseYamlResponse { AppConfig app = 1; }
