@@ -168,6 +168,7 @@ impl LiveState {
                 app_name: dozer.dozer.config.app_name.clone(),
                 connections,
                 endpoints,
+                enable_api_security: dozer.dozer.config.api.clone().map(|f| f.api_security).flatten().is_some(),
             }
         });
 
