@@ -17,12 +17,14 @@ pub async fn deploy_app(
     num_api_instances: i32,
     steps: &mut ProgressPrinter,
     secrets: Vec<Secret>,
+    allow_incompatible: bool,
 ) -> Result<(), CloudError> {
     let mut response = client
         .start_dozer(StartRequest {
             app_id: app_id.to_string(),
             num_api_instances,
             secrets,
+            allow_incompatible,
         })
         .await?
         .into_inner();

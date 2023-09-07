@@ -147,6 +147,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
                     .unwrap_or_else(default_num_api_instances),
                 &mut steps,
                 deploy.secrets,
+                deploy.allow_incompatible,
             )
             .await?;
             Ok::<(), OrchestrationError>(())

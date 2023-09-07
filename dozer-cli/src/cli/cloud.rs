@@ -76,6 +76,9 @@ pub struct DeployCommandArgs {
 
     #[arg(long = "no-lock", action = ArgAction::SetFalse)]
     pub locked: bool,
+
+    #[arg(long = "allow-incompatible")]
+    pub allow_incompatible: bool,
 }
 
 pub fn default_num_api_instances() -> i32 {
