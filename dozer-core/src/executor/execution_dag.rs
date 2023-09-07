@@ -120,6 +120,7 @@ impl ExecutionDag {
         // Create new graph.
         let epoch_manager = Arc::new(EpochManager::new(
             num_sources,
+            builder_dag.initial_epoch_id(),
             checkpoint_factory.clone(),
             Default::default(),
         ));

@@ -103,12 +103,18 @@ async fn test_create_src_err() {
     .unwrap();
 
     let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
-    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
-        .unwrap()
-        .start(Arc::new(AtomicBool::new(true)), Default::default())
-        .unwrap()
-        .join()
-        .unwrap();
+    DagExecutor::new(
+        dag,
+        checkpoint_factory,
+        Default::default(),
+        ExecutorOptions::default(),
+    )
+    .await
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)), Default::default())
+    .unwrap()
+    .join()
+    .unwrap();
 }
 
 #[tokio::test]
@@ -146,12 +152,18 @@ async fn test_create_src_panic() {
     .unwrap();
 
     let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
-    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
-        .unwrap()
-        .start(Arc::new(AtomicBool::new(true)), Default::default())
-        .unwrap()
-        .join()
-        .unwrap();
+    DagExecutor::new(
+        dag,
+        checkpoint_factory,
+        Default::default(),
+        ExecutorOptions::default(),
+    )
+    .await
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)), Default::default())
+    .unwrap()
+    .join()
+    .unwrap();
 }
 
 #[derive(Debug)]
@@ -204,6 +216,7 @@ impl ProcessorFactory for CreateErrProcessorFactory {
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
         _record_store: &ProcessorRecordStore,
+        _checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         if self.panic {
             panic!("Generated error");
@@ -255,12 +268,18 @@ async fn test_create_proc_err() {
     .unwrap();
 
     let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
-    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
-        .unwrap()
-        .start(Arc::new(AtomicBool::new(true)), Default::default())
-        .unwrap()
-        .join()
-        .unwrap();
+    DagExecutor::new(
+        dag,
+        checkpoint_factory,
+        Default::default(),
+        ExecutorOptions::default(),
+    )
+    .await
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)), Default::default())
+    .unwrap()
+    .join()
+    .unwrap();
 }
 
 #[tokio::test]
@@ -301,10 +320,16 @@ async fn test_create_proc_panic() {
     .unwrap();
 
     let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
-    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
-        .unwrap()
-        .start(Arc::new(AtomicBool::new(true)), Default::default())
-        .unwrap()
-        .join()
-        .unwrap();
+    DagExecutor::new(
+        dag,
+        checkpoint_factory,
+        Default::default(),
+        ExecutorOptions::default(),
+    )
+    .await
+    .unwrap()
+    .start(Arc::new(AtomicBool::new(true)), Default::default())
+    .unwrap()
+    .join()
+    .unwrap();
 }

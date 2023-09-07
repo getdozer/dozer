@@ -4,7 +4,7 @@ use daggy::petgraph::visit::IntoNodeIdentifiers;
 use dozer_types::node::{NodeHandle, OpIdentifier};
 
 use crate::{
-    checkpoint::CheckpointFactory,
+    checkpoint::{CheckpointFactory, OptionCheckpoint},
     dag_checkpoint::{DagCheckpoint, NodeKind as CheckpointNodeKind},
     dag_schemas::{DagHaveSchemas, DagSchemas, EdgeType},
     errors::ExecutionError,
@@ -35,15 +35,17 @@ pub enum NodeKind {
 pub struct BuilderDag {
     graph: daggy::Dag<NodeType, EdgeType>,
     checkpoint_factory: Arc<CheckpointFactory>,
+    initial_epoch_id: u64,
 }
 
 impl BuilderDag {
-    pub fn new(
+    pub async fn new(
         checkpoint_factory: Arc<CheckpointFactory>,
+        checkpoint: OptionCheckpoint,
         dag_schemas: DagSchemas,
     ) -> Result<Self, ExecutionError> {
-        // Decide the checkpoint to start from.
-        let dag_checkpoint = DagCheckpoint::new(dag_schemas)?;
+        // Check the checkpoint to start from.
+        let dag_checkpoint = DagCheckpoint::new(dag_schemas, &checkpoint)?;
 
         // Create processors and sinks.
         let mut nodes = vec![];
@@ -60,11 +62,15 @@ impl BuilderDag {
             let kind = match &node.kind {
                 CheckpointNodeKind::Source(_) => None,
                 CheckpointNodeKind::Processor(processor) => {
+                    let checkpoint_data = checkpoint
+                        .load_processor_data(&checkpoint_factory, &node.handle)
+                        .await?;
                     let processor = processor
                         .build(
                             input_schemas,
                             output_schemas,
                             checkpoint_factory.record_store(),
+                            checkpoint_data,
                         )
                         .map_err(ExecutionError::Factory)?;
                     Some(NodeKind::Processor(processor))
@@ -104,6 +110,7 @@ impl BuilderDag {
         );
         Ok(BuilderDag {
             graph,
+            initial_epoch_id: checkpoint.next_epoch_id(),
             checkpoint_factory,
         })
     }
@@ -114,6 +121,10 @@ impl BuilderDag {
 
     pub fn checkpoint_factory(&self) -> &Arc<CheckpointFactory> {
         &self.checkpoint_factory
+    }
+
+    pub fn initial_epoch_id(&self) -> u64 {
+        self.initial_epoch_id
     }
 
     pub fn into_graph(self) -> daggy::Dag<NodeType, EdgeType> {

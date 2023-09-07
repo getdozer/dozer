@@ -101,6 +101,7 @@ impl ProcessorFactory for TableOperatorProcessorFactory {
         input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _record_store: &ProcessorRecordStore,
+        checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         let input_schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
@@ -114,6 +115,7 @@ impl ProcessorFactory for TableOperatorProcessorFactory {
                 self.id.clone(),
                 operator,
                 input_schema,
+                checkpoint_data,
             ))),
             None => Err(
                 PipelineError::TableOperatorError(TableOperatorError::InternalError(

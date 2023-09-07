@@ -1,6 +1,15 @@
-use dozer_core::processor_record::ProcessorRecord;
+use dozer_core::{
+    dozer_log::storage::Object,
+    processor_record::{ProcessorRecord, ProcessorRecordStore},
+};
+use dozer_types::serde::{Deserialize, Serialize};
 use enum_dispatch::enum_dispatch;
 use std::collections::HashMap;
+
+use crate::pipeline::utils::serialize::{
+    deserialize_bincode, deserialize_record, deserialize_u64, serialize_bincode, serialize_record,
+    serialize_u64, Cursor, DeserializationError, SerializationError,
+};
 
 #[enum_dispatch(CountingRecordMap)]
 pub enum CountingRecordMapEnum {
@@ -22,6 +31,13 @@ pub trait CountingRecordMap {
 
     /// Clears the map, removing all records.
     fn clear(&mut self);
+
+    /// Serializes the map to a `Object`. `ProcessorRecord`s should be serialized as an `u64`.
+    fn serialize(
+        &self,
+        record_store: &ProcessorRecordStore,
+        object: &mut Object,
+    ) -> Result<(), SerializationError>;
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -30,10 +46,25 @@ pub struct AccurateCountingRecordMap {
 }
 
 impl AccurateCountingRecordMap {
-    pub fn new() -> Self {
-        Self {
-            map: HashMap::new(),
-        }
+    pub fn new(
+        cursor_and_record_store: Option<(&mut Cursor, &ProcessorRecordStore)>,
+    ) -> Result<Self, DeserializationError> {
+        Ok(
+            if let Some((cursor, record_store)) = cursor_and_record_store {
+                let len = deserialize_u64(cursor)? as usize;
+                let mut map = HashMap::with_capacity(len);
+                for _ in 0..len {
+                    let record = deserialize_record(cursor, record_store)?;
+                    let count = deserialize_u64(cursor)?;
+                    map.insert(record, count);
+                }
+                Self { map }
+            } else {
+                Self {
+                    map: HashMap::new(),
+                }
+            },
+        )
     }
 }
 
@@ -61,8 +92,23 @@ impl CountingRecordMap for AccurateCountingRecordMap {
     fn clear(&mut self) {
         self.map.clear();
     }
+
+    fn serialize(
+        &self,
+        record_store: &ProcessorRecordStore,
+        object: &mut Object,
+    ) -> Result<(), SerializationError> {
+        serialize_u64(self.map.len() as u64, object)?;
+        for (key, value) in &self.map {
+            serialize_record(key, record_store, object)?;
+            serialize_u64(*value, object)?;
+        }
+        Ok(())
+    }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(crate = "dozer_types::serde")]
 pub struct ProbabilisticCountingRecordMap {
     map: bloom::CountingBloomFilter,
 }
@@ -71,13 +117,19 @@ impl ProbabilisticCountingRecordMap {
     const FALSE_POSITIVE_RATE: f32 = 0.01;
     const EXPECTED_NUM_ITEMS: u32 = 10000000;
 
-    pub fn new() -> Self {
-        Self {
-            map: bloom::CountingBloomFilter::with_rate(
-                Self::FALSE_POSITIVE_RATE,
-                Self::EXPECTED_NUM_ITEMS,
-            ),
-        }
+    pub fn new(cursor: Option<&mut Cursor>) -> Result<Self, DeserializationError> {
+        Ok(if let Some(cursor) = cursor {
+            Self {
+                map: deserialize_bincode(cursor)?,
+            }
+        } else {
+            Self {
+                map: bloom::CountingBloomFilter::with_rate(
+                    Self::FALSE_POSITIVE_RATE,
+                    Self::EXPECTED_NUM_ITEMS,
+                ),
+            }
+        })
     }
 }
 
@@ -96,6 +148,14 @@ impl CountingRecordMap for ProbabilisticCountingRecordMap {
 
     fn clear(&mut self) {
         self.map.clear();
+    }
+
+    fn serialize(
+        &self,
+        _record_store: &ProcessorRecordStore,
+        object: &mut Object,
+    ) -> Result<(), SerializationError> {
+        serialize_bincode(&self.map, object)
     }
 }
 
@@ -148,10 +208,10 @@ mod tests {
 
     #[test]
     fn test_maps() {
-        let accurate_map = AccurateCountingRecordMap::new().into();
+        let accurate_map = AccurateCountingRecordMap::new(None).unwrap().into();
         test_map(accurate_map);
 
-        let probabilistic_map = ProbabilisticCountingRecordMap::new().into();
+        let probabilistic_map = ProbabilisticCountingRecordMap::new(None).unwrap().into();
         test_map(probabilistic_map);
     }
 }

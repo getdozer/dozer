@@ -90,6 +90,13 @@ impl OpIdentifier {
     }
 }
 
+/// Map from a `Source` node's handle to an `OpIdentifier`.
+///
+/// This uniquely identifies the state of the Dozer pipeline.
+/// We generate this map on every commit, and it's:
+///
+/// - Written to `Log` so consumers of log know where the pipeline is when pipeline restarts, and can rollback if some events were not persisted to checkpoints.
+/// - Written to checkpoints so when pipeline is restarted, we know where to tell the source to start from.
 pub type SourceStates = HashMap<NodeHandle, OpIdentifier>;
 
 #[test]

@@ -109,6 +109,7 @@ impl ProcessorFactory for JoinProcessorFactory {
         input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         record_store: &ProcessorRecordStore,
+        checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         let (join_type, join_constraint) = match &self.join_operator {
             SqlJoinOperator::Inner(constraint) => (JoinType::Inner, constraint),
@@ -160,6 +161,7 @@ impl ProcessorFactory for JoinProcessorFactory {
             (&left_schema, &right_schema),
             record_store,
             self.enable_probabilistic_optimizations,
+            checkpoint_data,
         )?;
 
         Ok(Box::new(ProductProcessor::new(

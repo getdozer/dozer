@@ -4,6 +4,7 @@ use crate::pipeline::errors::{FieldTypes, PipelineError};
 use crate::pipeline::expression::aggregate::AggregateFunctionType::MinValue;
 use crate::pipeline::expression::execution::{Expression, ExpressionType};
 use crate::{argv, calculate_err};
+use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
 use std::collections::BTreeMap;
 
@@ -57,7 +58,8 @@ pub fn validate_min_value(
     ))
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(crate = "dozer_types::serde")]
 pub struct MinValueAggregator {
     current_state: BTreeMap<Field, u64>,
     return_state: BTreeMap<Field, Vec<Field>>,

@@ -21,6 +21,7 @@ use dozer_types::crossbeam::channel::{Receiver, Sender};
 
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::ingestion_types::IngestionMessage;
+use dozer_types::node::OpIdentifier;
 use dozer_types::types::{Operation, Record, Schema, SourceDefinition};
 use std::collections::HashMap;
 use tempdir::TempDir;
@@ -120,14 +121,14 @@ pub struct TestSource {
 }
 
 impl Source for TestSource {
-    fn can_start_from(&self, _last_checkpoint: (u64, u64)) -> Result<bool, BoxedError> {
+    fn can_start_from(&self, _last_checkpoint: OpIdentifier) -> Result<bool, BoxedError> {
         Ok(false)
     }
 
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        _last_checkpoint: Option<(u64, u64)>,
+        _last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
         let mut idx = 0;
 
@@ -346,7 +347,6 @@ impl TestPipeline {
     }
 
     pub async fn run(self) -> Result<Vec<Vec<String>>, ExecutionError> {
-        let record_store = Arc::new(ProcessorRecordStore::new()?);
         let temp_dir = TempDir::new("test")
             .map_err(|e| ExecutionError::FileSystemError("tempdir".into(), e))?;
         let checkpoint_dir = temp_dir
@@ -354,18 +354,17 @@ impl TestPipeline {
             .to_str()
             .expect("Path should always be utf8")
             .to_string();
-        let checkpoint_factory = CheckpointFactory::new(
-            record_store,
-            checkpoint_dir,
-            CheckpointFactoryOptions::default(),
-        )
-        .await?
-        .0;
+        let checkpoint_factory =
+            CheckpointFactory::new(checkpoint_dir, CheckpointFactoryOptions::default())
+                .await?
+                .0;
         let executor = DagExecutor::new(
             self.dag,
             Arc::new(checkpoint_factory),
+            Default::default(),
             ExecutorOptions::default(),
-        )?;
+        )
+        .await?;
         let join_handle = executor.start(Arc::new(AtomicBool::new(true)), Default::default())?;
 
         for (schema_name, op) in &self.ops {

@@ -152,6 +152,7 @@ impl ProcessorFactory for TestJoinProcessorFactory {
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
         _record_store: &ProcessorRecordStore,
+        _checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         todo!()
     }

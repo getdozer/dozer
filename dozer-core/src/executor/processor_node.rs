@@ -23,6 +23,8 @@ use super::{execution_dag::ExecutionDag, name::Name, receiver_loop::ReceiverLoop
 pub struct ProcessorNode {
     /// Node handle in description DAG.
     node_handle: NodeHandle,
+    /// The epoch id the processor was constructed for.
+    initial_epoch_id: u64,
     /// Input port handles.
     port_handles: Vec<PortHandle>,
     /// Input data channels.
@@ -38,7 +40,7 @@ pub struct ProcessorNode {
 }
 
 impl ProcessorNode {
-    pub fn new(dag: &mut ExecutionDag, node_index: NodeIndex) -> Self {
+    pub fn new(dag: &mut ExecutionDag, node_index: NodeIndex, initial_epoch_id: u64) -> Self {
         let Some(node) = dag.node_weight_mut(node_index).take() else {
             panic!("Must pass in a node")
         };
@@ -60,6 +62,7 @@ impl ProcessorNode {
 
         Self {
             node_handle,
+            initial_epoch_id,
             port_handles,
             receivers,
             processor,
@@ -81,6 +84,10 @@ impl Name for ProcessorNode {
 }
 
 impl ReceiverLoop for ProcessorNode {
+    fn initial_epoch_id(&self) -> u64 {
+        self.initial_epoch_id
+    }
+
     fn receivers(&mut self) -> Vec<Receiver<ExecutorOperation>> {
         let mut result = vec![];
         swap(&mut self.receivers, &mut result);
@@ -107,6 +114,14 @@ impl ReceiverLoop for ProcessorNode {
         if let Err(e) = self.processor.commit(epoch) {
             self.error_manager.report(e);
         }
+
+        if let Some(checkpoint_writer) = &epoch.common_info.checkpoint_writer {
+            let object = checkpoint_writer.create_processor_object(&self.node_handle)?;
+            self.processor
+                .serialize(&self.record_store, object)
+                .map_err(ExecutionError::FailedToCreateCheckpoint)?;
+        }
+
         self.channel_manager.store_and_send_commit(epoch)
     }
 

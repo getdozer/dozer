@@ -5,6 +5,7 @@ use crate::pipeline::expression::aggregate::AggregateFunctionType::Min;
 use crate::pipeline::expression::execution::{Expression, ExpressionType};
 use crate::{argv, calculate_err, calculate_err_field};
 use dozer_types::ordered_float::OrderedFloat;
+use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
 use std::collections::BTreeMap;
 
@@ -53,7 +54,8 @@ pub fn validate_min(args: &[Expression], schema: &Schema) -> Result<ExpressionTy
     ))
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(crate = "dozer_types::serde")]
 pub struct MinAggregator {
     current_state: BTreeMap<Field, u64>,
     return_type: Option<FieldType>,

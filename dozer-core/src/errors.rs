@@ -1,9 +1,10 @@
 use std::path::PathBuf;
 
+use crate::checkpoint::ReadCheckpointError;
 use crate::node::PortHandle;
 use dozer_storage::errors::StorageError;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::node::NodeHandle;
+use dozer_types::node::{NodeHandle, OpIdentifier};
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
 
@@ -41,6 +42,17 @@ pub enum ExecutionError {
     ObjectStorage(#[from] dozer_log::storage::Error),
     #[error("Checkpoint writer thread panicked")]
     CheckpointWriterThreadPanicked,
+    #[error("Unrecognized checkpoint: {0}")]
+    UnrecognizedCheckpoint(String),
+    #[error("Read checkpoint error: {0}")]
+    CorruptedCheckpoint(#[from] ReadCheckpointError),
+    #[error("Source {source_name} cannot start from checkpoint {checkpoint:?}. You have to clean data from previous runs by running `dozer clean`")]
+    SourceCannotStartFromCheckpoint {
+        source_name: NodeHandle,
+        checkpoint: OpIdentifier,
+    },
+    #[error("Failed to create checkpoint: {0}")]
+    FailedToCreateCheckpoint(BoxedError),
 }
 
 impl<T> From<crossbeam::channel::SendError<T>> for ExecutionError {

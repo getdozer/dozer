@@ -26,9 +26,11 @@ pub async fn create_data_storage(
 pub async fn load_persisted_log_entries(
     storage: &dyn Storage,
     prefix: String,
+    num_entries_to_keep: usize,
 ) -> Result<Vec<PersistedLogEntry>, Error> {
-    // Load all objects.
+    // Load first `num_entries_to_keep` objects.
     let mut result = vec![];
+    let mut to_remove = vec![];
     let mut continuation_token = None;
     loop {
         let list_output = storage
@@ -36,15 +38,19 @@ pub async fn load_persisted_log_entries(
             .await?;
 
         for output in list_output.objects {
-            let name = AsRef::<Utf8Path>::as_ref(&output.key)
-                .strip_prefix(&prefix)
-                .map_err(|_| Error::UnrecognizedLogEntry(output.key.clone()))?;
-            let range = parse_log_entry_name(name.as_str())
-                .ok_or(Error::UnrecognizedLogEntry(output.key.clone()))?;
-            result.push(PersistedLogEntry {
-                key: output.key,
-                range,
-            })
+            if result.len() < num_entries_to_keep {
+                let name = AsRef::<Utf8Path>::as_ref(&output.key)
+                    .strip_prefix(&prefix)
+                    .map_err(|_| Error::UnrecognizedLogEntry(output.key.clone()))?;
+                let range = parse_log_entry_name(name.as_str())
+                    .ok_or(Error::UnrecognizedLogEntry(output.key.clone()))?;
+                result.push(PersistedLogEntry {
+                    key: output.key,
+                    range,
+                });
+            } else {
+                to_remove.push(output.key);
+            }
         }
 
         continuation_token = list_output.continuation_token;
@@ -52,6 +58,17 @@ pub async fn load_persisted_log_entries(
             break;
         }
     }
+
+    // Check if we have expected number of entries.
+    if result.len() != num_entries_to_keep {
+        return Err(Error::NotEnoughLogEntries {
+            expected: num_entries_to_keep,
+            actual: result.len(),
+        });
+    }
+
+    // Remove extra entries. These are persisted in the middle of a checkpointing, but the checkpointing didn't finish.
+    storage.delete_objects(to_remove).await?;
 
     // Check invariants.
     if let Some(first) = result.first() {

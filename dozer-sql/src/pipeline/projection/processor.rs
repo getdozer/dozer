@@ -2,6 +2,7 @@ use crate::pipeline::errors::PipelineError;
 use crate::pipeline::expression::execution::Expression;
 
 use dozer_core::channels::ProcessorChannelForwarder;
+use dozer_core::dozer_log::storage::Object;
 use dozer_core::epoch::Epoch;
 use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{PortHandle, Processor};
@@ -17,7 +18,11 @@ pub struct ProjectionProcessor {
 }
 
 impl ProjectionProcessor {
-    pub fn new(input_schema: Schema, expressions: Vec<Expression>) -> Self {
+    pub fn new(
+        input_schema: Schema,
+        expressions: Vec<Expression>,
+        _checkpoint_data: Option<Vec<u8>>,
+    ) -> Self {
         Self {
             input_schema,
             expressions,
@@ -89,6 +94,14 @@ impl Processor for ProjectionProcessor {
     }
 
     fn commit(&self, _epoch: &Epoch) -> Result<(), BoxedError> {
+        Ok(())
+    }
+
+    fn serialize(
+        &mut self,
+        _record_store: &ProcessorRecordStore,
+        _object: Object,
+    ) -> Result<(), BoxedError> {
         Ok(())
     }
 }
