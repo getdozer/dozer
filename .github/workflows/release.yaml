@@ -129,7 +129,7 @@ jobs:
         with:
           command: build
           use-cross: false
-          args: --release --target ${{ matrix.target }} --bin ${{ matrix.file_name }} --features "kafka snowflake onnx"
+          args: --release --target ${{ matrix.target }} --bin ${{ matrix.file_name }}
       - name: List target output files
         run: ls -lR ./target
 
@@ -243,7 +243,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --release --target ${{ matrix.target }} --bin ${{ matrix.file_name }} --features "kafka snowflake onnx"
+          args: --release --target ${{ matrix.target }} --bin ${{ matrix.file_name }}
 
       - name: List target output files
         run: ls -lR ./target
