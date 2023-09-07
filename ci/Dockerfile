@@ -22,7 +22,7 @@ RUN rm snowflake-odbc-2.25.7.x86_64.deb
 RUN curl -LO https://github.com/microsoft/onnxruntime/releases/download/v1.15.1/onnxruntime-linux-x64-1.15.1.tgz
 RUN tar -xf onnxruntime-linux-x64-1.15.1.tgz -C /usr/local
 RUN rm onnxruntime-linux-x64-1.15.1.tgz
-RUN cp /usr/local/onnxruntime-linux-x64-1.15.1/lib/libonnxruntime.so.1.15.1 /usr/local/bin/
+RUN cp /usr/local/onnxruntime-linux-x64-1.15.1/lib/libonnxruntime.so.1.15.1 /usr/local/lib/
 
 # INSTALL DOZER 
 RUN echo "Installing dozer binary"
