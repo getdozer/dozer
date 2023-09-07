@@ -4,8 +4,8 @@ use dozer_api::{tonic_reflection, tonic_web, tower_http};
 use dozer_types::{
     grpc_types::{
         api_explorer::{
-            api_explorer_service_server::ApiExplorerService, GetApiTokenRequest,
-            GetApiTokenResponse,
+            api_explorer_service_server::{ApiExplorerService, ApiExplorerServiceServer},
+            GetApiTokenRequest, GetApiTokenResponse,
         },
         contract::{
             contract_service_server::{ContractService, ContractServiceServer},
@@ -201,21 +201,30 @@ pub async fn serve(
     let contract_server = ContractServer {
         state: state.clone(),
     };
+    let api_explorer_server = ApiExplorerServer {
+        state: state.clone(),
+    };
     let live_server = LiveServer { receiver, state };
     let contract_service = ContractServiceServer::new(contract_server);
     let code_service = CodeServiceServer::new(live_server);
-
+    let api_explorer_service = ApiExplorerServiceServer::new(api_explorer_server);
     // Enable CORS for local development
     let contract_service = tonic_web::config()
         .allow_all_origins()
         .enable(contract_service);
     let code_service = tonic_web::config().allow_all_origins().enable(code_service);
+    let api_explorer_service = tonic_web::config()
+        .allow_all_origins()
+        .enable(api_explorer_service);
 
     let reflection_service = tonic_reflection::server::Builder::configure()
         .register_encoded_file_descriptor_set(
             dozer_types::grpc_types::contract::FILE_DESCRIPTOR_SET,
         )
         .register_encoded_file_descriptor_set(dozer_types::grpc_types::live::FILE_DESCRIPTOR_SET)
+        .register_encoded_file_descriptor_set(
+            dozer_types::grpc_types::api_explorer::FILE_DESCRIPTOR_SET,
+        )
         .build()
         .unwrap();
 
@@ -230,6 +239,7 @@ pub async fn serve(
         .concurrency_limit_per_connection(32)
         .add_service(contract_service)
         .add_service(code_service)
+        .add_service(api_explorer_service)
         .add_service(reflection_service)
         .serve(addr)
         .await
