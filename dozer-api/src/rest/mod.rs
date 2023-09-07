@@ -165,22 +165,21 @@ impl ApiServer {
         shutdown: impl Future<Output = ()> + Send + 'static,
         labels: LabelsAndProgress,
     ) -> Result<Server, ApiInitError> {
-        info!(
-            "Starting Rest Api Server on http://{}:{} with security: {}",
-            self.host,
-            self.port,
-            self.security
-                .as_ref()
-                .map_or("None".to_string(), |s| match s {
-                    ApiSecurity::Jwt(_) => "JWT".to_string(),
-                })
-        );
-        let cors = self.cors;
         let dozer_master_secret = std::env::var("DOZER_MASTER_SECRET").ok();
         let security = match (dozer_master_secret, self.security) {
             (Some(master_secret), None) => Some(ApiSecurity::Jwt(master_secret)),
             (_, security) => security,
         };
+        info!(
+            "Starting Rest Api Server on http://{}:{} with security: {}",
+            self.host,
+            self.port,
+            security.as_ref().map_or("None".to_string(), |s| match s {
+                ApiSecurity::Jwt(_) => "JWT".to_string(),
+            })
+        );
+        let cors = self.cors;
+
         let address = format!("{}:{}", self.host, self.port);
         let server = HttpServer::new(move || {
             ApiServer::create_app_entry(
