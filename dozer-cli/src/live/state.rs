@@ -267,7 +267,8 @@ impl LiveState {
         Ok(())
     }
     pub async fn get_api_token(&self, ttl: Option<i32>) -> Result<Option<String>, LiveError> {
-        let dozer: tokio::sync::RwLockReadGuard<'_, Option<DozerAndContract>> = self.dozer.read().await;
+        let dozer: tokio::sync::RwLockReadGuard<'_, Option<DozerAndContract>> =
+            self.dozer.read().await;
         let dozer = &dozer.as_ref().ok_or(LiveError::NotInitialized)?.dozer;
         let generated_token = dozer.generate_token(ttl).ok();
         Ok(generated_token)
@@ -414,7 +415,7 @@ fn get_dozer_run_instance(
             cors: true,
             enabled: true,
         }),
-        ..Default::default()
+        ..dozer.config.api.unwrap_or_default()
     });
 
     let temp_dir = tempdir::TempDir::new("live").unwrap();
