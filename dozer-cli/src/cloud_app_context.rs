@@ -1,12 +1,13 @@
 use crate::errors::CloudContextError;
 use crate::errors::CloudContextError::{AppIdNotFound, FailedToGetDirectoryPath};
 use dozer_types::models::cloud::Cloud;
+use dozer_types::serde::Serialize;
 use dozer_types::serde_yaml;
-use serde::Serialize;
 use std::io::Write;
 use std::{env, fs};
 
 #[derive(Serialize)]
+#[serde(crate = "dozer_types::serde")]
 pub struct CloudConfig {
     pub cloud: Cloud,
 }

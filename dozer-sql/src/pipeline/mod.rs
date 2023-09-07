@@ -8,7 +8,11 @@ mod product;
 mod projection;
 mod selection;
 mod table_operator;
+mod utils;
 mod window;
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(feature = "onnx")]
+pub mod onnx;

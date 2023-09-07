@@ -4,7 +4,10 @@ use super::helper::{DESCRIPTION, LOGO};
 
 #[cfg(feature = "cloud")]
 use crate::cli::cloud::Cloud;
-use dozer_types::constants::DEFAULT_CONFIG_PATH_PATTERNS;
+use dozer_types::{
+    constants::{DEFAULT_CONFIG_PATH_PATTERNS, LOCK_FILE},
+    serde_json,
+};
 
 #[derive(Parser, Debug)]
 #[command(author, version, name = "dozer")]
@@ -22,11 +25,15 @@ pub struct Cli {
     pub config_paths: Vec<String>,
     #[arg(global = true, long, hide = true)]
     pub config_token: Option<String>,
+    #[arg(global = true, long = "enable-progress")]
+    pub enable_progress: bool,
     #[arg(global = true, long, value_parser(parse_config_override))]
     pub config_overrides: Vec<(String, serde_json::Value)>,
 
+    #[arg(global = true, long = "ignore-pipe")]
+    pub ignore_pipe: bool,
     #[clap(subcommand)]
-    pub cmd: Option<Commands>,
+    pub cmd: Commands,
 }
 
 fn parse_config_override(
@@ -47,7 +54,7 @@ pub enum Commands {
     )]
     Init,
     #[command(about = "Edit code interactively")]
-    Live,
+    Live(Live),
     #[command(
         about = "Clean home directory",
         long_about = "Clean home directory. It removes all data, schemas and other files in app \
@@ -75,15 +82,26 @@ pub enum Commands {
 
 #[derive(Debug, Args)]
 #[command(args_conflicts_with_subcommands = true)]
+pub struct Live {
+    #[arg(long, hide = true)]
+    pub disable_live_ui: bool,
+}
+
+#[derive(Debug, Args)]
+#[command(args_conflicts_with_subcommands = true)]
 pub struct Build {
+    #[arg(help = format!("Require that {LOCK_FILE} is up-to-date"), long = "locked")]
+    pub locked: bool,
     #[arg(short = 'f')]
     pub force: Option<Option<String>>,
 }
 
 #[derive(Debug, Args)]
 pub struct Run {
+    #[arg(help = format!("Require that {LOCK_FILE} is up-to-date"), long = "locked")]
+    pub locked: bool,
     #[command(subcommand)]
-    pub command: RunCommands,
+    pub command: Option<RunCommands>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -138,6 +156,8 @@ pub struct ConnectorCommand {
 
 #[cfg(test)]
 mod tests {
+    use dozer_types::serde_json;
+
     #[test]
     fn test_parse_config_override_string() {
         let arg = "/app=\"abc\"";

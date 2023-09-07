@@ -6,7 +6,7 @@ use crate::cloud_app_context::CloudAppContext;
 use crate::cloud_helper::list_files;
 
 use crate::errors::OrchestrationError::FailedToReadOrganisationName;
-use crate::errors::{map_tonic_error, CloudError, CloudLoginError, OrchestrationError};
+use crate::errors::{map_tonic_error, CliError, CloudError, CloudLoginError, OrchestrationError};
 use crate::progress_printer::{
     get_delete_steps, get_deploy_steps, get_update_steps, ProgressPrinter,
 };
@@ -16,14 +16,15 @@ use crate::simple::cloud::monitor::monitor_app;
 use crate::simple::token_layer::TokenLayer;
 use crate::simple::SimpleOrchestrator;
 use crate::CloudOrchestrator;
-use dozer_types::constants::DEFAULT_CLOUD_TARGET_URL;
+use dozer_types::constants::{DEFAULT_CLOUD_TARGET_URL, LOCK_FILE};
 use dozer_types::grpc_types::cloud::{
     dozer_cloud_client::DozerCloudClient, CreateAppRequest, CreateSecretRequest, DeleteAppRequest,
     DeleteSecretRequest, GetSecretRequest, GetStatusRequest, ListAppRequest, ListSecretsRequest,
     LogMessageRequest, UpdateAppRequest, UpdateSecretRequest,
 };
 use dozer_types::grpc_types::cloud::{
-    DeploymentStatus, SetCurrentVersionRequest, SetNumApiInstancesRequest, UpsertVersionRequest,
+    DeploymentStatus, File, SetCurrentVersionRequest, SetNumApiInstancesRequest,
+    UpsertVersionRequest,
 };
 use dozer_types::log::info;
 use dozer_types::prettytable::{row, table};
@@ -78,9 +79,26 @@ impl CloudOrchestrator for SimpleOrchestrator {
         };
 
         let cloud_config = self.config.cloud.as_ref();
+        let lockfile_path = self.lockfile_path();
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud, cloud_config).await?;
-            let files = list_files(config_paths)?;
+            let mut files = list_files(config_paths)?;
+            if deploy.locked {
+                let lockfile_contents = tokio::fs::read_to_string(lockfile_path)
+                    .await
+                    .map_err::<OrchestrationError, _>(|e| {
+                    if e.kind() == std::io::ErrorKind::NotFound {
+                        CloudError::LockfileNotFound.into()
+                    } else {
+                        CliError::Io(e).into()
+                    }
+                })?;
+                let lockfile = File {
+                    name: LOCK_FILE.to_owned(),
+                    content: lockfile_contents,
+                };
+                files.push(lockfile);
+            }
             let (app_id_to_start, mut steps) = match app_id {
                 None => {
                     let mut steps = ProgressPrinter::new(get_deploy_steps());
@@ -130,16 +148,44 @@ impl CloudOrchestrator for SimpleOrchestrator {
                 &mut steps,
                 deploy.secrets,
             )
-            .await
+            .await?;
+            Ok::<(), OrchestrationError>(())
         })?;
         Ok(())
     }
 
     fn delete(&mut self, cloud: Cloud) -> Result<(), OrchestrationError> {
-        let app_id = cloud
-            .app_id
-            .clone()
-            .unwrap_or(CloudAppContext::get_app_id(self.config.cloud.as_ref())?);
+        // Get app_id from command line argument if there, otherwise take it from the cloud config file
+        // if the app_id is from the cloud config file then set `delete_cloud_file` to true and use it later
+        // to delete the file after deleting the app
+
+        let (app_id, delete_cloud_file) = if let Some(app_id) = cloud.app_id.clone() {
+            // if the app_id on command line is equal to the one in the cloud config file then file can be deleted
+            if app_id == CloudAppContext::get_app_id(self.config.cloud.as_ref())? {
+                (app_id, true)
+            } else {
+                (app_id, false)
+            }
+        } else {
+            (
+                CloudAppContext::get_app_id(self.config.cloud.as_ref())?,
+                true,
+            )
+        };
+
+        let mut double_check = String::new();
+        println!("Are you sure to delete the application {}? (y/N)", app_id);
+        io::stdin()
+            .read_line(&mut double_check)
+            .map_err(FailedToReadOrganisationName)?;
+        let response = double_check.trim().to_string().to_uppercase();
+
+        if response == "Y" {
+            info!("Deleting application {}", app_id);
+        } else {
+            info!("The application {} was not deleted", app_id);
+            return Ok(());
+        }
 
         let cloud_config = self.config.cloud.as_ref();
         self.runtime.block_on(async move {
@@ -163,7 +209,9 @@ impl CloudOrchestrator for SimpleOrchestrator {
             if delete_result.success {
                 steps.complete_step(Some(&format!("Deleted {}", &app_id)));
 
-                let _ = CloudAppContext::delete_config_file();
+                if delete_cloud_file {
+                    let _ = CloudAppContext::delete_config_file();
+                }
             }
 
             Ok::<(), CloudError>(())

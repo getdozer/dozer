@@ -5,6 +5,7 @@ use dozer_types::log::error;
 #[must_use]
 pub enum Cleanup {
     RemoveDirectory(String),
+    RemoveFile(String),
     KillProcess(Child),
     DockerCompose(String),
 }
@@ -15,6 +16,11 @@ impl Drop for Cleanup {
             Cleanup::RemoveDirectory(dir) => {
                 if let Err(e) = std::fs::remove_dir_all(&dir) {
                     error!("Failed to remove directory {}: {}", dir, e);
+                }
+            }
+            Cleanup::RemoveFile(file) => {
+                if let Err(e) = std::fs::remove_file(&file) {
+                    error!("Failed to remove file {}: {}", file, e);
                 }
             }
             Cleanup::KillProcess(child) => {

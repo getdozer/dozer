@@ -3,9 +3,9 @@ use dozer_storage::{
     lmdb::{RoCursor, RwTransaction, Transaction},
     KeyIterator, LmdbCounter, LmdbEnvironment, LmdbMap, LmdbSet, RwLmdbEnvironment,
 };
+use dozer_tracing::Labels;
 use dozer_types::{
     borrow::{Borrow, Cow, IntoOwned},
-    labels::Labels,
     log::info,
     serde::{Deserialize, Serialize},
     types::Record,

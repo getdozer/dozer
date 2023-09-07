@@ -3,7 +3,8 @@ use dozer_storage::{
     lmdb_storage::{RoLmdbEnvironment, RwLmdbEnvironment},
     LmdbCounter, LmdbEnvironment, LmdbMultimap, LmdbOption,
 };
-use dozer_types::{borrow::IntoOwned, labels::Labels, log::debug, types::IndexDefinition};
+use dozer_tracing::Labels;
+use dozer_types::{borrow::IntoOwned, log::debug, types::IndexDefinition};
 use metrics::increment_counter;
 
 use crate::{

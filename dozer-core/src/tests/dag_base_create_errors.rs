@@ -1,3 +1,4 @@
+use crate::checkpoint::create_checkpoint_factory_for_test;
 use crate::executor::{DagExecutor, ExecutorOptions};
 use crate::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Source, SourceFactory,
@@ -9,6 +10,7 @@ use crate::tests::dag_base_run::NoopProcessorFactory;
 use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 
+use dozer_log::tokio;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
 use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
@@ -16,8 +18,6 @@ use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-
-use crate::tests::app::NoneContext;
 
 #[derive(Debug)]
 struct CreateErrSourceFactory {
@@ -30,22 +30,19 @@ impl CreateErrSourceFactory {
     }
 }
 
-impl SourceFactory<NoneContext> for CreateErrSourceFactory {
-    fn get_output_schema(&self, _port: &PortHandle) -> Result<(Schema, NoneContext), BoxedError> {
-        Ok((
-            Schema::default()
-                .field(
-                    FieldDefinition::new(
-                        "id".to_string(),
-                        FieldType::Int,
-                        false,
-                        SourceDefinition::Dynamic,
-                    ),
-                    true,
-                )
-                .clone(),
-            NoneContext {},
-        ))
+impl SourceFactory for CreateErrSourceFactory {
+    fn get_output_schema(&self, _port: &PortHandle) -> Result<Schema, BoxedError> {
+        Ok(Schema::default()
+            .field(
+                FieldDefinition::new(
+                    "id".to_string(),
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                true,
+            )
+            .clone())
     }
 
     fn get_output_port_name(&self, _port: &PortHandle) -> String {
@@ -71,9 +68,9 @@ impl SourceFactory<NoneContext> for CreateErrSourceFactory {
     }
 }
 
-#[test]
+#[tokio::test]
 #[should_panic]
-fn test_create_src_err() {
+async fn test_create_src_err() {
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
@@ -105,17 +102,18 @@ fn test_create_src_err() {
     )
     .unwrap();
 
-    DagExecutor::new(dag, ExecutorOptions::default())
+    let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
+    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
         .unwrap()
-        .start(Arc::new(AtomicBool::new(true)))
+        .start(Arc::new(AtomicBool::new(true)), Default::default())
         .unwrap()
         .join()
         .unwrap();
 }
 
-#[test]
+#[tokio::test]
 #[should_panic]
-fn test_create_src_panic() {
+async fn test_create_src_panic() {
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
@@ -147,9 +145,10 @@ fn test_create_src_panic() {
     )
     .unwrap();
 
-    DagExecutor::new(dag, ExecutorOptions::default())
+    let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
+    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
         .unwrap()
-        .start(Arc::new(AtomicBool::new(true)))
+        .start(Arc::new(AtomicBool::new(true)), Default::default())
         .unwrap()
         .join()
         .unwrap();
@@ -166,7 +165,7 @@ impl CreateErrProcessorFactory {
     }
 }
 
-impl ProcessorFactory<NoneContext> for CreateErrProcessorFactory {
+impl ProcessorFactory for CreateErrProcessorFactory {
     fn type_name(&self) -> String {
         "CreateErr".to_owned()
     }
@@ -174,22 +173,19 @@ impl ProcessorFactory<NoneContext> for CreateErrProcessorFactory {
     fn get_output_schema(
         &self,
         _port: &PortHandle,
-        _input_schemas: &HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(Schema, NoneContext), BoxedError> {
-        Ok((
-            Schema::default()
-                .field(
-                    FieldDefinition::new(
-                        "id".to_string(),
-                        FieldType::Int,
-                        false,
-                        SourceDefinition::Dynamic,
-                    ),
-                    true,
-                )
-                .clone(),
-            NoneContext {},
-        ))
+        _input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> Result<Schema, BoxedError> {
+        Ok(Schema::default()
+            .field(
+                FieldDefinition::new(
+                    "id".to_string(),
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                true,
+            )
+            .clone())
     }
 
     fn get_input_ports(&self) -> Vec<PortHandle> {
@@ -221,9 +217,9 @@ impl ProcessorFactory<NoneContext> for CreateErrProcessorFactory {
     }
 }
 
-#[test]
+#[tokio::test]
 #[should_panic]
-fn test_create_proc_err() {
+async fn test_create_proc_err() {
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
@@ -258,17 +254,18 @@ fn test_create_proc_err() {
     )
     .unwrap();
 
-    DagExecutor::new(dag, ExecutorOptions::default())
+    let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
+    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
         .unwrap()
-        .start(Arc::new(AtomicBool::new(true)))
+        .start(Arc::new(AtomicBool::new(true)), Default::default())
         .unwrap()
         .join()
         .unwrap();
 }
 
-#[test]
+#[tokio::test]
 #[should_panic]
-fn test_create_proc_panic() {
+async fn test_create_proc_panic() {
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
@@ -303,9 +300,10 @@ fn test_create_proc_panic() {
     )
     .unwrap();
 
-    DagExecutor::new(dag, ExecutorOptions::default())
+    let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
+    DagExecutor::new(dag, checkpoint_factory, ExecutorOptions::default())
         .unwrap()
-        .start(Arc::new(AtomicBool::new(true)))
+        .start(Arc::new(AtomicBool::new(true)), Default::default())
         .unwrap()
         .join()
         .unwrap();

@@ -19,7 +19,12 @@ use helper::mapper::SqlMapper;
 use helper::pipeline::TestPipeline;
 use helper::schema::get_table_name;
 
-use sqllogictest::{default_validator, parse_file, update_test_file, AsyncDB, DBOutput, Runner};
+use libtest_mimic::Trial;
+use sqllogictest::default_column_validator;
+use sqllogictest::harness;
+use sqllogictest::DefaultColumnType;
+use sqllogictest::{default_validator, AsyncDB, DBOutput, Runner};
+use tokio::runtime::Runtime;
 use validator::Validator;
 use walkdir::WalkDir;
 
@@ -40,23 +45,22 @@ impl Dozer {
     }
 
     // Only in dozer and sink results to **results** table
-    pub fn run_pipeline(&mut self, sql: &str) -> Result<Vec<Vec<String>>> {
+    pub async fn run_pipeline(&mut self, sql: &str) -> Result<Vec<Vec<String>>> {
         let pipeline = TestPipeline::new(
             sql.to_string(),
             self.source_db.schema_map.clone(),
             self.ops.clone(),
         );
-        pipeline.run().map_err(DozerSqlLogicTestError::from)
+        pipeline.run().await.map_err(DozerSqlLogicTestError::from)
     }
 }
 
 #[async_trait::async_trait]
 impl AsyncDB for Dozer {
     type Error = DozerSqlLogicTestError;
+    type ColumnType = DefaultColumnType;
 
-    async fn run(&mut self, sql: &str) -> Result<DBOutput> {
-        println!("SQL [{}] is running", sql);
-
+    async fn run(&mut self, sql: &str) -> Result<DBOutput<Self::ColumnType>> {
         let ast = SqlParser::parse_sql(&DozerDialect {}, sql)?;
         let statement: &Statement = &ast[0];
         match statement {
@@ -81,7 +85,7 @@ impl AsyncDB for Dozer {
                     self.ops.push((source, operation));
                 }
 
-                let output = self.run_pipeline(sql)?;
+                let output = self.run_pipeline(sql).await?;
 
                 Ok(DBOutput::Rows {
                     types: vec![],
@@ -103,45 +107,14 @@ impl AsyncDB for Dozer {
     }
 }
 
-fn create_dozer() -> Result<Dozer> {
+async fn create_dozer() -> Result<Dozer> {
     // create dozer
     let source_db = SqlMapper::default();
     let dozer = Dozer::create(source_db);
     Ok(dozer)
 }
 
-const BASE_PATH: &str = "dozer-tests/src/sql_tests";
-
-#[tokio::test]
-async fn logic_test() -> Result<()> {
-    env_logger::init();
-
-    let suits = std::fs::read_dir("src/sql_tests/full").unwrap();
-    let mut files = vec![];
-    for suit in suits {
-        let suit = suit.unwrap().path();
-        for entry in WalkDir::new(suit)
-            .min_depth(0)
-            .max_depth(100)
-            .sort_by(|a, b| a.file_name().cmp(b.file_name()))
-            .into_iter()
-            .filter(|e| !e.as_ref().unwrap().file_type().is_dir())
-        {
-            files.push(entry)
-        }
-    }
-    for file in files.into_iter() {
-        let file_path = file.as_ref().unwrap().path();
-
-        let mut runner = Runner::new(create_dozer()?);
-        let records = parse_file(file_path).unwrap();
-        // Run dozer to check if dozer's outputs satisfy expected results
-        for record in records.iter() {
-            runner.run_async(record.clone()).await.unwrap();
-        }
-    }
-    Ok(())
-}
+const BASE_PATH: &str = "src/sql_tests";
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -175,27 +148,38 @@ async fn main() -> Result<()> {
             files.push(entry)
         }
     }
+
+    let mut tests = vec![];
     for file in files.into_iter() {
-        let file_path = file.as_ref().unwrap().path();
+        let file_path = file.unwrap().path().to_owned();
 
         if complete {
             // Use validator db to generate expected results
-            let mut validator_runner = Runner::new(Validator::create());
+            let mut validator_runner = Runner::new(Validator::create);
             let col_separator = " ";
             let validator = default_validator;
-            update_test_file(file_path, &mut validator_runner, col_separator, validator)
+            validator_runner
+                .update_test_file(
+                    &file_path,
+                    col_separator,
+                    validator,
+                    default_column_validator,
+                )
                 .await
                 .unwrap();
         }
 
-        let mut runner = Runner::new(create_dozer()?);
-        let records = parse_file(file_path).unwrap();
-        // Run dozer to check if dozer's outputs satisfy expected results
-        for record in records.iter() {
-            runner.run_async(record.clone()).await.unwrap();
-        }
+        tests.push(Trial::test(
+            file_path.to_str().unwrap().to_owned(),
+            move || {
+                let mut tester = Runner::new(create_dozer);
+                let runtime = Runtime::new().unwrap();
+                runtime.block_on(tester.run_file_async(file_path))?;
+                Ok(())
+            },
+        ));
     }
-    Ok(())
+    harness::run(&args.harness_args, tests).exit();
 }
 
 fn delete_dir_contents(dir: std::fs::ReadDir) {

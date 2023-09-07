@@ -20,7 +20,7 @@ async fn warm_up(app_config: &Config) {
             .port(replenished_config.port as u16)
             .ssl_mode(replenished_config.sslmode);
 
-        let client = TestPostgresClient::new_with_postgres_config(config).await;
+        let mut client = TestPostgresClient::new_with_postgres_config(config).await;
         client
             .execute_query(&format!(
                 "DROP DATABASE IF EXISTS {}",

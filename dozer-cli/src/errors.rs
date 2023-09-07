@@ -13,13 +13,13 @@ use dozer_api::{
     errors::{ApiInitError, AuthError, GenerationError, GrpcError},
     rest::DOZER_SERVER_NAME_HEADER,
 };
-use dozer_cache::dozer_log::{errors::SchemaError, storage};
+use dozer_cache::dozer_log::storage;
 use dozer_cache::errors::CacheError;
 use dozer_core::errors::ExecutionError;
 use dozer_ingestion::errors::ConnectorError;
 use dozer_sql::pipeline::errors::PipelineError;
-use dozer_types::errors::internal::BoxedError;
-use dozer_types::thiserror::Error;
+use dozer_types::{constants::LOCK_FILE, thiserror::Error};
+use dozer_types::{errors::internal::BoxedError, serde_json};
 use dozer_types::{serde_yaml, thiserror};
 
 use crate::pipeline::connector_source::ConnectorSourceFactoryError;
@@ -38,8 +38,8 @@ pub enum OrchestrationError {
     FailedToWriteConfigYaml(#[source] serde_yaml::Error),
     #[error("File system error {0:?}: {1}")]
     FileSystem(PathBuf, std::io::Error),
-    #[error("Failed to find build for endpoint {0}")]
-    NoBuildFound(String),
+    #[error("Failed to find any build")]
+    NoBuildFound,
     #[error("Failed to create log: {0}")]
     CreateLog(#[from] dozer_cache::dozer_log::replication::Error),
     #[error("Failed to login: {0}")]
@@ -56,8 +56,10 @@ pub enum OrchestrationError {
     CloudError(#[from] CloudError),
     #[error("Failed to initialize api server: {0}")]
     ApiInitFailed(#[from] ApiInitError),
-    #[error("Failed to server API: {0}")]
-    ApiServeFailed(#[source] std::io::Error),
+    #[error("Failed to server REST API: {0}")]
+    RestServeFailed(#[source] std::io::Error),
+    #[error("Failed to server gRPC API: {0:?}")]
+    GrpcServeFailed(#[source] tonic::transport::Error),
     #[error("Failed to initialize internal server: {0}")]
     InternalServerFailed(#[source] GrpcError),
     #[error("{0}: Failed to initialize cache. Have you run `dozer build`?")]
@@ -78,14 +80,16 @@ pub enum OrchestrationError {
     PipelineError(#[from] PipelineError),
     #[error(transparent)]
     CliError(#[from] CliError),
-    #[error("Source validation failed")]
-    SourceValidationError,
+    #[error("table_name: {0:?} not found in any of the connections")]
+    SourceValidationError(String),
+    #[error("connection: {0:?} not found")]
+    ConnectionNotFound(String),
     #[error("Pipeline validation failed")]
     PipelineValidationError,
+    #[error("Output table {0} not used in any endpoint")]
+    OutputTableNotUsed(String),
     #[error("Table name specified in endpoint not found: {0:?}")]
     EndpointTableNotFound(String),
-    #[error("Duplicate table name found: {0:?}")]
-    DuplicateTable(String),
     #[error("No endpoints initialized in the config provided")]
     EmptyEndpoints,
     #[error(transparent)]
@@ -94,6 +98,10 @@ pub enum OrchestrationError {
     FailedToReadOrganisationName(#[source] io::Error),
     #[error(transparent)]
     LiveError(#[from] LiveError),
+    #[error("{LOCK_FILE} is out of date")]
+    LockedOutdatedLockfile,
+    #[error("{LOCK_FILE} does not exist. `--locked` requires a lock file.")]
+    LockedNoLockFile,
 }
 
 #[derive(Error, Debug)]
@@ -124,6 +132,9 @@ pub enum CliError {
     MissingConfigOverride(String),
     #[error("Failed to deserialize config from json: {0}")]
     DeserializeConfigFromJson(#[source] serde_json::Error),
+    // Generic IO error
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
 }
 
 #[derive(Error, Debug)]
@@ -154,6 +165,9 @@ pub enum CloudError {
 
     #[error("Application not found")]
     ApplicationNotFound,
+
+    #[error("{LOCK_FILE} not found. Run `dozer build` before deploying, or pass '--no-lock'.")]
+    LockfileNotFound,
 }
 
 #[derive(Debug, Error)]
@@ -188,6 +202,10 @@ pub enum ConfigCombineError {
 
 #[derive(Debug, Error)]
 pub enum BuildError {
+    #[error("Endpoint {0} not found in DAG")]
+    MissingEndpoint(String),
+    #[error("Connection {0} found in DAG but not in config")]
+    MissingConnection(String),
     #[error("Got mismatching primary key for `{endpoint_name}`. Expected: `{expected:?}`, got: `{actual:?}`")]
     MismatchPrimaryKey {
         endpoint_name: String,
@@ -198,10 +216,12 @@ pub enum BuildError {
     FieldNotFound(String),
     #[error("File system error {0:?}: {1}")]
     FileSystem(PathBuf, std::io::Error),
-    #[error("Cannot load existing schema: {0}")]
-    CannotLoadExistingSchema(#[source] SchemaError),
-    #[error("Cannot write schema: {0}")]
-    CannotWriteSchema(#[source] SchemaError),
+    #[error(
+        "Failed to load existing contract: {0}. You have to run a force build: `dozer build --force`."
+    )]
+    FailedToLoadExistingContract(#[source] serde_json::Error),
+    #[error("Serde json error: {0}")]
+    SerdeJson(#[source] serde_json::Error),
     #[error("Failed to generate proto files: {0:?}")]
     FailedToGenerateProtoFiles(#[from] GenerationError),
     #[error("Storage error: {0}")]

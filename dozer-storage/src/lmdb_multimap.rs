@@ -20,11 +20,7 @@ pub struct LmdbMultimap<K, V> {
 
 impl<K, V> Clone for LmdbMultimap<K, V> {
     fn clone(&self) -> Self {
-        Self {
-            db: self.db,
-            _key: std::marker::PhantomData,
-            _value: std::marker::PhantomData,
-        }
+        *self
     }
 }
 

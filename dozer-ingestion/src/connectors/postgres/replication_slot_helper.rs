@@ -1,14 +1,15 @@
+use super::connection::client::Client;
 use crate::errors::ConnectorError::UnexpectedQueryMessageError;
 use crate::errors::PostgresConnectorError::{FetchReplicationSlotError, InvalidQueryError};
 use crate::errors::{ConnectorError, PostgresConnectorError};
 use dozer_types::log::debug;
-use tokio_postgres::{Client, Error, SimpleQueryMessage};
+use tokio_postgres::{Error, SimpleQueryMessage};
 
 pub struct ReplicationSlotHelper {}
 
 impl ReplicationSlotHelper {
     pub async fn drop_replication_slot(
-        client: &Client,
+        client: &mut Client,
         slot_name: &str,
     ) -> Result<Vec<SimpleQueryMessage>, Error> {
         let res = client
@@ -23,7 +24,7 @@ impl ReplicationSlotHelper {
     }
 
     pub async fn create_replication_slot(
-        client: &Client,
+        client: &mut Client,
         slot_name: &str,
     ) -> Result<Option<String>, ConnectorError> {
         let create_replication_slot_query =
@@ -48,7 +49,7 @@ impl ReplicationSlotHelper {
     }
 
     pub async fn replication_slot_exists(
-        client: &Client,
+        client: &mut Client,
         slot_name: &str,
     ) -> Result<bool, PostgresConnectorError> {
         let replication_slot_info_query =
@@ -66,7 +67,7 @@ impl ReplicationSlotHelper {
     }
 
     pub async fn clear_inactive_slots(
-        client: &Client,
+        client: &mut Client,
         slot_name_prefix: &str,
     ) -> Result<(), PostgresConnectorError> {
         let inactive_slots_query = format!(
@@ -121,14 +122,14 @@ mod tests {
             let mut config = get_config(app_config);
             config.replication_mode(ReplicationMode::Logical);
 
-            let client = connect(config).await.unwrap();
+            let mut client = connect(config).await.unwrap();
 
             client
                 .simple_query("BEGIN READ ONLY ISOLATION LEVEL REPEATABLE READ;")
                 .await
                 .unwrap();
 
-            let actual = ReplicationSlotHelper::create_replication_slot(&client, "test").await;
+            let actual = ReplicationSlotHelper::create_replication_slot(&mut client, "test").await;
 
             assert!(actual.is_ok());
 
@@ -155,7 +156,7 @@ mod tests {
             let mut config = get_config(app_config);
             config.replication_mode(ReplicationMode::Logical);
 
-            let client = connect(config).await.unwrap();
+            let mut client = connect(config).await.unwrap();
 
             client
                 .simple_query("BEGIN READ ONLY ISOLATION LEVEL REPEATABLE READ;")
@@ -170,7 +171,8 @@ mod tests {
                 .await
                 .expect("failed");
 
-            let actual = ReplicationSlotHelper::create_replication_slot(&client, slot_name).await;
+            let actual =
+                ReplicationSlotHelper::create_replication_slot(&mut client, slot_name).await;
 
             assert!(actual.is_err());
 
@@ -205,7 +207,7 @@ mod tests {
             let mut config = get_config(app_config);
             config.replication_mode(ReplicationMode::Logical);
 
-            let client = connect(config).await.unwrap();
+            let mut client = connect(config).await.unwrap();
 
             client
                 .simple_query("BEGIN READ ONLY ISOLATION LEVEL REPEATABLE READ;")
@@ -220,7 +222,7 @@ mod tests {
                 .await
                 .expect("failed");
 
-            let actual = ReplicationSlotHelper::drop_replication_slot(&client, slot_name).await;
+            let actual = ReplicationSlotHelper::drop_replication_slot(&mut client, slot_name).await;
 
             assert!(actual.is_ok());
         })
@@ -236,14 +238,14 @@ mod tests {
             let mut config = get_config(app_config);
             config.replication_mode(ReplicationMode::Logical);
 
-            let client = connect(config).await.unwrap();
+            let mut client = connect(config).await.unwrap();
 
             client
                 .simple_query("BEGIN READ ONLY ISOLATION LEVEL REPEATABLE READ;")
                 .await
                 .unwrap();
 
-            let actual = ReplicationSlotHelper::drop_replication_slot(&client, slot_name).await;
+            let actual = ReplicationSlotHelper::drop_replication_slot(&mut client, slot_name).await;
 
             assert!(actual.is_err());
 

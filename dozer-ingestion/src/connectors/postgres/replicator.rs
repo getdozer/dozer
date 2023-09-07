@@ -1,4 +1,5 @@
-use crate::connectors::postgres::connection::helper;
+use crate::connectors::postgres::connection::client::Client;
+use crate::connectors::postgres::connection::helper::{self, is_network_failure};
 use crate::connectors::postgres::xlog_mapper::XlogMapper;
 use crate::errors::ConnectorError;
 use crate::errors::ConnectorError::PostgresConnectorError;
@@ -15,8 +16,8 @@ use postgres_protocol::message::backend::ReplicationMessage::*;
 use postgres_protocol::message::backend::{LogicalReplicationMessage, ReplicationMessage};
 use postgres_types::PgLsn;
 
+use std::pin::Pin;
 use std::time::SystemTime;
-use tokio_postgres::replication::LogicalReplicationStream;
 use tokio_postgres::Error;
 
 use super::schema::helper::PostgresTableInfo;
@@ -42,7 +43,7 @@ pub struct CDCHandler<'a> {
 impl<'a> CDCHandler<'a> {
     pub async fn start(&mut self, tables: Vec<PostgresTableInfo>) -> Result<(), ConnectorError> {
         let replication_conn_config = self.replication_conn_config.clone();
-        let client: tokio_postgres::Client = helper::connect(replication_conn_config).await?;
+        let client: Client = helper::connect(replication_conn_config).await?;
 
         info!(
             "[{}] Starting Replication: {:?}, {:?}",
@@ -56,20 +57,15 @@ impl<'a> CDCHandler<'a> {
             r#"("proto_version" '1', "publication_names" '{publication_name}')"#,
             publication_name = self.publication_name
         );
-        let query = format!(
-            r#"START_REPLICATION SLOT {:?} LOGICAL {} {}"#,
-            self.slot_name, lsn, options
-        );
 
         self.offset_lsn = u64::from(lsn);
         self.last_commit_lsn = u64::from(lsn);
 
-        let copy_stream = client
-            .copy_both_simple::<bytes::Bytes>(&query)
-            .await
-            .map_err(|e| ConnectorError::InternalError(Box::new(e)))?;
+        let mut stream =
+            LogicalReplicationStream::new(client, self.slot_name.clone(), lsn, options)
+                .await
+                .map_err(|e| ConnectorError::InternalError(Box::new(e)))?;
 
-        let stream = LogicalReplicationStream::new(copy_stream);
         let tables_columns = tables
             .into_iter()
             .enumerate()
@@ -79,7 +75,6 @@ impl<'a> CDCHandler<'a> {
             .collect();
         let mut mapper = XlogMapper::new(tables_columns);
 
-        tokio::pin!(stream);
         loop {
             let message = stream.next().await;
             if let Some(Ok(PrimaryKeepAlive(ref k))) = message {
@@ -92,7 +87,6 @@ impl<'a> CDCHandler<'a> {
                         .unwrap()
                         .as_millis();
                     stream
-                        .as_mut()
                         .standby_status_update(
                             PgLsn::from(self.last_commit_lsn),
                             PgLsn::from(self.last_commit_lsn),
@@ -157,5 +151,110 @@ impl<'a> CDCHandler<'a> {
             ))),
             None => Err(PostgresConnectorError(ReplicationStreamEndError)),
         }
+    }
+}
+
+pub struct LogicalReplicationStream {
+    client: Client,
+    slot_name: String,
+    resume_lsn: PgLsn,
+    options: String,
+    inner: Pin<Box<tokio_postgres::replication::LogicalReplicationStream>>,
+}
+
+impl LogicalReplicationStream {
+    pub async fn new(
+        mut client: Client,
+        slot_name: String,
+        lsn: PgLsn,
+        options: String,
+    ) -> Result<Self, tokio_postgres::Error> {
+        let inner =
+            Box::pin(Self::open_replication_stream(&mut client, &slot_name, lsn, &options).await?);
+        Ok(Self {
+            client,
+            slot_name,
+            resume_lsn: lsn,
+            options,
+            inner,
+        })
+    }
+
+    pub async fn next(
+        &mut self,
+    ) -> Option<Result<ReplicationMessage<LogicalReplicationMessage>, tokio_postgres::Error>> {
+        loop {
+            let result = self.inner.next().await;
+            match result.as_ref() {
+                Some(Err(err)) if is_network_failure(err) => {
+                    if let Err(err) = self.resume().await {
+                        return Some(Err(err));
+                    }
+                    continue;
+                }
+                Some(Ok(XLogData(body))) => self.resume_lsn = body.wal_end().into(),
+                _ => {}
+            }
+            return result;
+        }
+    }
+
+    pub async fn standby_status_update(
+        &mut self,
+        write_lsn: PgLsn,
+        flush_lsn: PgLsn,
+        apply_lsn: PgLsn,
+        ts: i64,
+        reply: u8,
+    ) -> Result<(), Error> {
+        loop {
+            match self
+                .inner
+                .as_mut()
+                .standby_status_update(write_lsn, flush_lsn, apply_lsn, ts, reply)
+                .await
+            {
+                Err(err) if is_network_failure(&err) => {
+                    self.resume().await?;
+                    continue;
+                }
+                _ => {}
+            }
+            break Ok(());
+        }
+    }
+
+    async fn resume(&mut self) -> Result<(), tokio_postgres::Error> {
+        self.client.reconnect().await?;
+
+        let stream = Self::open_replication_stream(
+            &mut self.client,
+            &self.slot_name,
+            self.resume_lsn,
+            &self.options,
+        )
+        .await?;
+
+        self.inner = Box::pin(stream);
+
+        Ok(())
+    }
+
+    async fn open_replication_stream(
+        client: &mut Client,
+        slot_name: &str,
+        lsn: PgLsn,
+        options: &str,
+    ) -> Result<tokio_postgres::replication::LogicalReplicationStream, tokio_postgres::Error> {
+        let query = format!(
+            r#"START_REPLICATION SLOT {:?} LOGICAL {} {}"#,
+            slot_name, lsn, options
+        );
+
+        let copy_stream = client.copy_both_simple::<bytes::Bytes>(&query).await?;
+
+        Ok(tokio_postgres::replication::LogicalReplicationStream::new(
+            copy_stream,
+        ))
     }
 }

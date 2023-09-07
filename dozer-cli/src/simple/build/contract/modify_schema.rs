@@ -1,99 +1,13 @@
 use std::borrow::Cow;
 
-use dozer_api::generator::protoc::generator::ProtoGenerator;
-use dozer_cache::dozer_log::{
-    home_dir::{BuildId, HomeDir},
-    replication::create_log_storage,
-    schemas::{load_schema, write_schema, BuildSchema},
-};
 use dozer_types::{
-    log::info,
-    models::{
-        api_endpoint::{
-            ApiEndpoint, FullText, SecondaryIndex, SecondaryIndexConfig, SortedInverted,
-        },
-        app_config::LogStorage,
+    models::api_endpoint::{
+        ApiEndpoint, FullText, SecondaryIndex, SecondaryIndexConfig, SortedInverted,
     },
     types::{FieldDefinition, FieldType, IndexDefinition, Schema, SchemaWithIndex},
 };
 
 use crate::errors::BuildError;
-
-pub async fn build(
-    home_dir: &HomeDir,
-    endpoint_name: String,
-    schema: BuildSchema,
-    storage_config: LogStorage,
-) -> Result<(), BuildError> {
-    if let Some(build_id) = needs_build(home_dir, &endpoint_name, &schema, storage_config).await? {
-        let build_name = build_id.name().to_string();
-        create_build(home_dir, &endpoint_name, build_id, &schema)?;
-        info!("Created new build {build_name} for endpoint: {endpoint_name}");
-    } else {
-        info!("Building not needed for endpoint: {endpoint_name}");
-    }
-    Ok(())
-}
-
-async fn needs_build(
-    home_dir: &HomeDir,
-    endpoint_name: &str,
-    schema: &BuildSchema,
-    storage_config: LogStorage,
-) -> Result<Option<BuildId>, BuildError> {
-    let build_path = home_dir
-        .find_latest_build_path(endpoint_name)
-        .map_err(|(path, error)| BuildError::FileSystem(path.into(), error))?;
-    let Some(build_path) = build_path else {
-        return Ok(Some(BuildId::first()));
-    };
-
-    let (storage, prefix) = create_log_storage(storage_config, &build_path).await?;
-    if !storage.list_objects(prefix, None).await?.objects.is_empty() {
-        return Ok(Some(build_path.id.next()));
-    }
-
-    let existing_schema =
-        load_schema(&build_path.schema_path).map_err(BuildError::CannotLoadExistingSchema)?;
-    if existing_schema == *schema {
-        Ok(None)
-    } else {
-        Ok(Some(build_path.id.next()))
-    }
-}
-
-fn create_build(
-    home_dir: &HomeDir,
-    endpoint_name: &str,
-    build_id: BuildId,
-    schema: &BuildSchema,
-) -> Result<(), BuildError> {
-    let build_path = home_dir
-        .create_build_dir_all(endpoint_name, build_id)
-        .map_err(|(path, error)| BuildError::FileSystem(path.into(), error))?;
-
-    write_schema(schema, build_path.schema_path.as_ref()).map_err(BuildError::CannotWriteSchema)?;
-
-    let proto_folder_path = build_path.api_dir.as_ref();
-    ProtoGenerator::generate(proto_folder_path, endpoint_name, schema)?;
-
-    let mut resources = Vec::new();
-    resources.push(endpoint_name);
-
-    let common_resources = ProtoGenerator::copy_common(proto_folder_path)?;
-
-    // Copy common service to be included in descriptor.
-    resources.extend(common_resources.iter().map(|str| str.as_str()));
-
-    // Generate a descriptor based on all proto files generated within sink.
-    ProtoGenerator::generate_descriptor(
-        proto_folder_path,
-        build_path.descriptor_path.as_ref(),
-        &resources,
-    )?;
-
-    Ok(())
-}
 
 pub fn modify_schema(
     schema: &Schema,

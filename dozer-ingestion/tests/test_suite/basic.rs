@@ -9,6 +9,7 @@ use dozer_types::{
     log::{error, warn},
     types::{Field, FieldDefinition, FieldType, Operation, Record, Schema},
 };
+use futures::stream::{AbortHandle, Abortable};
 
 use super::{
     data,
@@ -35,8 +36,11 @@ pub async fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>() {
 
     // Run connector.
     let (ingestor, mut iterator) = Ingestor::initialize_channel(Default::default());
+    let (abort_handle, abort_registration) = AbortHandle::new_pair();
     tokio::spawn(async move {
-        if let Err(e) = connector.start(&ingestor, tables).await {
+        if let Ok(Err(e)) =
+            Abortable::new(connector.start(&ingestor, tables), abort_registration).await
+        {
             error!("Connector `start` returned error: {e}");
         }
     });
@@ -71,6 +75,7 @@ pub async fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>() {
 
     // There should be at least one message.
     assert!(num_operations > 0);
+    abort_handle.abort()
 }
 
 pub async fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
@@ -140,8 +145,11 @@ pub async fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
 
         // Run the connector and check data is ingested.
         let (ingestor, mut iterator) = Ingestor::initialize_channel(Default::default());
+        let (abort_handle, abort_registration) = AbortHandle::new_pair();
         tokio::spawn(async move {
-            if let Err(e) = connector.start(&ingestor, tables).await {
+            if let Ok(Err(e)) =
+                Abortable::new(connector.start(&ingestor, tables), abort_registration).await
+            {
                 error!("Connector `start` returned error: {e}")
             }
         });
@@ -157,7 +165,7 @@ pub async fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
             }
 
             // Filter out non-operation events.
-            let IngestionMessageKind::OperationEvent{ op: operation, .. } = message.kind else {
+            let IngestionMessageKind::OperationEvent { op: operation, .. } = message.kind else {
                 continue;
             };
 
@@ -186,6 +194,7 @@ pub async fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
             record_iter.next().is_none(),
             "Connector sent less records than expected."
         );
+        abort_handle.abort();
     }
 }
 
@@ -235,7 +244,7 @@ pub async fn run_test_suite_basic_cud<T: CudConnectorTest>() {
         }
 
         // Filter out non-operation events.
-        let IngestionMessageKind::OperationEvent{ op: operation, .. } = message.kind else {
+        let IngestionMessageKind::OperationEvent { op: operation, .. } = message.kind else {
             continue;
         };
 

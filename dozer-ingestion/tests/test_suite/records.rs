@@ -30,9 +30,10 @@ impl Records {
                 assert!(self.data.insert(primary_key, new).is_none());
             }
             Operation::Update { old, new } => {
-                let primary_key = get_primary_key(&old, &self.primary_index);
-                assert_eq!(get_primary_key(&new, &self.primary_index), primary_key);
-                assert!(self.data.insert(primary_key, new).is_some());
+                let old_primary_key = get_primary_key(&old, &self.primary_index);
+                assert!(self.data.remove(&old_primary_key).is_some());
+                let new_primary_key = get_primary_key(&new, &self.primary_index);
+                assert!(self.data.insert(new_primary_key, new).is_none());
             }
             Operation::Delete { old } => {
                 let primary_key = get_primary_key(&old, &self.primary_index);

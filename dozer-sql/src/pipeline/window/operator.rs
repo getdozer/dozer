@@ -138,7 +138,7 @@ fn execute_tumble_window(
     let (start, end) = tumble(field, interval)?;
     let record_ref = record_store.create_ref(&[start, end])?;
 
-    let mut window_record = record.clone();
+    let mut window_record = record;
     window_record.push(record_ref);
     Ok(vec![window_record])
 }

@@ -7,10 +7,12 @@ use dozer_core::{
     petgraph::visit::{EdgeRef, IntoEdgeReferences, IntoNodeReferences},
     Dag,
 };
-use dozer_sql::pipeline::builder::{statement_to_pipeline, SchemaSQLContext};
+use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_types::{
     grpc_types::cloud::{QueryEdge, QueryGraph, QueryNode, QueryNodeType},
-    models::{config::Config, connection::Connection, source::Source},
+    models::{
+        config::Config, connection::Connection, flags::Flags, source::Source, udf_config::UdfConfig,
+    },
 };
 
 use crate::{errors::OrchestrationError, pipeline::source_builder::SourceBuilder};
@@ -19,14 +21,11 @@ use crate::{errors::OrchestrationError, pipeline::source_builder::SourceBuilder}
 struct UISourceFactory {
     output_ports: HashMap<PortHandle, String>,
 }
-impl SourceFactory<SchemaSQLContext> for UISourceFactory {
+impl SourceFactory for UISourceFactory {
     fn get_output_schema(
         &self,
         _port: &PortHandle,
-    ) -> Result<
-        (dozer_types::types::Schema, SchemaSQLContext),
-        dozer_types::errors::internal::BoxedError,
-    > {
+    ) -> Result<dozer_types::types::Schema, dozer_types::errors::internal::BoxedError> {
         todo!()
     }
 
@@ -53,10 +52,11 @@ fn prepare_pipeline_dag(
     sql: String,
     connection_sources: HashMap<Connection, Vec<Source>>,
     connection_source_ports: HashMap<(&str, &str), u16>,
-) -> Result<Dag<SchemaSQLContext>, OrchestrationError> {
-    let mut pipeline = AppPipeline::new();
-    let mut asm: AppSourceManager<dozer_sql::pipeline::builder::SchemaSQLContext> =
-        AppSourceManager::new();
+    flags: Flags,
+    udfs: Vec<UdfConfig>,
+) -> Result<Dag, OrchestrationError> {
+    let mut pipeline = AppPipeline::new(flags.into());
+    let mut asm = AppSourceManager::new();
     connection_sources.iter().for_each(|cs| {
         let (connection, sources) = cs;
         let ports = sources
@@ -80,14 +80,14 @@ fn prepare_pipeline_dag(
             AppSourceMappings::new(connection.name.to_string(), ports_with_source_name),
         );
     });
-    statement_to_pipeline(&sql, &mut pipeline, None)?;
+    statement_to_pipeline(&sql, &mut pipeline, None, udfs)?;
     let mut app = App::new(asm);
     app.add_pipeline(pipeline);
     let sql_dag = app.into_dag()?;
     Ok(sql_dag)
 }
 
-pub fn transform_to_ui_graph(input_dag: &Dag<SchemaSQLContext>) -> QueryGraph {
+pub fn transform_to_ui_graph(input_dag: &Dag) -> QueryGraph {
     let input_graph = input_dag.graph();
     let mut nodes = vec![];
     let mut edges: Vec<QueryEdge> = vec![];
@@ -161,12 +161,20 @@ pub fn config_to_ui_dag(config: Config) -> Result<QueryGraph, OrchestrationError
             .iter()
             .find(|connection| connection.name == source.connection)
             .cloned()
-            .ok_or(OrchestrationError::SourceValidationError)?;
+            .ok_or(OrchestrationError::ConnectionNotFound(
+                source.connection.clone(),
+            ))?;
         let sources_same_connection = connection_sources.entry(connection).or_insert(vec![]);
         sources_same_connection.push(source);
     }
-    let source_builder = SourceBuilder::new(connection_sources.clone(), None);
+    let source_builder = SourceBuilder::new(connection_sources.clone(), Default::default());
     let connection_source_ports = source_builder.get_ports();
-    let sql_dag = prepare_pipeline_dag(sql, connection_sources, connection_source_ports)?;
+    let sql_dag = prepare_pipeline_dag(
+        sql,
+        connection_sources,
+        connection_source_ports,
+        config.flags.unwrap_or_default(),
+        config.udfs,
+    )?;
     Ok(transform_to_ui_graph(&sql_dag))
 }

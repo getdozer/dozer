@@ -1,6 +1,4 @@
-use dozer_types::epoch::Epoch;
-
-use crate::processor_record::ProcessorRecord;
+use crate::{epoch::Epoch, processor_record::ProcessorRecord};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 /// A CDC event.
@@ -17,7 +15,7 @@ pub enum ProcessorOperation {
     },
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub enum ExecutorOperation {
     Op { op: ProcessorOperation },
     Commit { epoch: Epoch },

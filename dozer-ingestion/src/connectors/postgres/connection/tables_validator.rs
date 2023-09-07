@@ -1,5 +1,3 @@
-use tokio_postgres::Client;
-
 use crate::connectors::postgres::schema::helper::DEFAULT_SCHEMA_NAME;
 use crate::connectors::ListOrFilterColumns;
 use crate::errors::PostgresConnectorError::{ColumnsNotFound, InvalidQueryError, TablesNotFound};
@@ -9,6 +7,8 @@ use std::collections::HashMap;
 
 use crate::errors::PostgresConnectorError;
 use crate::errors::PostgresSchemaError::TableTypeNotFound;
+
+use super::client::Client;
 
 pub struct TablesValidator<'a> {
     tables: HashMap<(String, String), &'a ListOrFilterColumns>,
@@ -40,7 +40,7 @@ impl<'a> TablesValidator<'a> {
 
     async fn fetch_tables(
         &self,
-        client: &Client,
+        client: &mut Client,
     ) -> Result<HashMap<PostgresTableIdentifier, Option<String>>, PostgresConnectorError> {
         let result = client
             .query(
@@ -66,7 +66,7 @@ impl<'a> TablesValidator<'a> {
 
     async fn fetch_columns(
         &self,
-        client: &Client,
+        client: &mut Client,
     ) -> Result<PostgresTablesColumns, PostgresConnectorError> {
         let tables_columns = client
             .query(
@@ -100,7 +100,7 @@ impl<'a> TablesValidator<'a> {
 
     async fn fetch_data(
         &self,
-        client: &Client,
+        client: &mut Client,
     ) -> Result<(PostgresTablesWithTypes, PostgresTablesColumns), PostgresConnectorError> {
         let tables = self.fetch_tables(client).await?;
         let columns = self.fetch_columns(client).await?;
@@ -108,7 +108,7 @@ impl<'a> TablesValidator<'a> {
         Ok((tables, columns))
     }
 
-    pub async fn validate(&self, client: &Client) -> Result<(), PostgresConnectorError> {
+    pub async fn validate(&self, client: &mut Client) -> Result<(), PostgresConnectorError> {
         let (tables, tables_columns) = self.fetch_data(client).await?;
 
         let missing_columns = self.find_missing_columns(tables_columns)?;

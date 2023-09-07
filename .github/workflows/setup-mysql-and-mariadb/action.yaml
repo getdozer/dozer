@@ -1,0 +1,20 @@
+name: Setup MySQL and MariaDB
+
+runs:
+  using: "composite"
+  steps:
+    - name: Run MySQL
+      shell: bash
+      run: |
+        docker run -d --name mysql \
+            -e MYSQL_ROOT_PASSWORD=mysql -e MYSQL_ROOT_HOST=% -e MYSQL_DATABASE=test \
+            -p 3306:3306 \
+            mysql:8 --log-bin --binlog-format=row
+
+    - name: Run MariaDB
+      shell: bash
+      run: |
+        docker run -d --name mariadb \
+            -e MARIADB_ROOT_PASSWORD=mariadb -e MARIADB_ROOT_HOST=% -e MARIADB_DATABASE=test \
+            -p 3307:3306 \
+            mariadb:11 --log-bin --binlog-format=row

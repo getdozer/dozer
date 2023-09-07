@@ -6,6 +6,7 @@ use crate::connectors::{CdcType, SourceSchema};
 use crate::errors::KafkaError::{JsonDecodeError, SchemaRegistryFetchError};
 use crate::errors::KafkaSchemaError::TypeNotSupported;
 use crate::errors::{ConnectorError, KafkaError, KafkaSchemaError};
+use dozer_types::log::error;
 use dozer_types::serde_json;
 use dozer_types::serde_json::Value;
 use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
@@ -65,13 +66,23 @@ impl SchemaRegistry {
         table_name: &str,
         is_key: bool,
     ) -> Result<DebeziumSchemaStruct, KafkaError> {
-        let schema_result =
-            schema_registry_converter::async_impl::schema_registry::get_schema_by_subject(
+        let schema_result = loop {
+            match schema_registry_converter::async_impl::schema_registry::get_schema_by_subject(
                 sr_settings,
                 &SubjectNameStrategy::TopicNameStrategy(table_name.to_string(), is_key),
             )
             .await
-            .map_err(SchemaRegistryFetchError)?;
+            {
+                Ok(schema_result) => break schema_result,
+                Err(err) if err.retriable => {
+                    const RETRY_INTERVAL: std::time::Duration = std::time::Duration::from_secs(5);
+                    error!("schema registry fetch error {err}. retrying in {RETRY_INTERVAL:?}...");
+                    tokio::time::sleep(RETRY_INTERVAL).await;
+                    continue;
+                }
+                Err(err) => return Err(SchemaRegistryFetchError(err)),
+            }
+        };
 
         serde_json::from_str::<DebeziumSchemaStruct>(&schema_result.schema).map_err(JsonDecodeError)
     }

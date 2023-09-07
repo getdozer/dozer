@@ -1,4 +1,3 @@
-use daggy::petgraph::dot;
 use daggy::petgraph::visit::{Bfs, EdgeRef, IntoEdges};
 use daggy::Walker;
 use dozer_types::node::NodeHandle;
@@ -36,24 +35,24 @@ impl Edge {
 
 #[derive(Debug)]
 /// A `SourceFactory`, `ProcessorFactory` or `SinkFactory`.
-pub enum NodeKind<T> {
-    Source(Box<dyn SourceFactory<T>>),
-    Processor(Box<dyn ProcessorFactory<T>>),
-    Sink(Box<dyn SinkFactory<T>>),
+pub enum NodeKind {
+    Source(Box<dyn SourceFactory>),
+    Processor(Box<dyn ProcessorFactory>),
+    Sink(Box<dyn SinkFactory>),
 }
 
 #[derive(Debug)]
 /// The node type of the description DAG.
-pub struct NodeType<T> {
+pub struct NodeType {
     /// The node handle, unique across the DAG.
     pub handle: NodeHandle,
     /// The node kind.
-    pub kind: NodeKind<T>,
+    pub kind: NodeKind,
 }
 
-impl<T> Display for NodeType<T> {
+impl Display for NodeType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.handle)
+        write!(f, "{}", self.handle.id)
     }
 }
 
@@ -69,35 +68,39 @@ impl EdgeType {
         Self { from, to }
     }
 }
-impl Display for EdgeType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?} -> {:?}", self.from, self.to)
+
+pub trait EdgeHavePorts {
+    fn output_port(&self) -> PortHandle;
+    fn input_port(&self) -> PortHandle;
+}
+
+impl EdgeHavePorts for EdgeType {
+    fn output_port(&self) -> PortHandle {
+        self.from
+    }
+
+    fn input_port(&self) -> PortHandle {
+        self.to
     }
 }
 
 #[derive(Debug)]
-pub struct Dag<T> {
+pub struct Dag {
     /// The underlying graph.
-    graph: daggy::Dag<NodeType<T>, EdgeType>,
+    graph: daggy::Dag<NodeType, EdgeType>,
     /// Map from node handle to node index.
     node_lookup_table: HashMap<NodeHandle, daggy::NodeIndex>,
     /// All edge indexes.
     edge_indexes: HashSet<EdgeIndex>,
 }
 
-impl<T> Default for Dag<T> {
+impl Default for Dag {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T> Display for Dag<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", dot::Dot::new(&self.graph))
-    }
-}
-
-impl<T> Dag<T> {
+impl Dag {
     /// Creates an empty DAG.
     pub fn new() -> Self {
         Self {
@@ -108,25 +111,20 @@ impl<T> Dag<T> {
     }
 
     /// Returns the underlying daggy graph.
-    pub fn graph(&self) -> &daggy::Dag<NodeType<T>, EdgeType> {
+    pub fn graph(&self) -> &daggy::Dag<NodeType, EdgeType> {
         &self.graph
     }
 
     /// Returns the underlying daggy graph.
-    pub fn into_graph(self) -> daggy::Dag<NodeType<T>, EdgeType> {
+    pub fn into_graph(self) -> daggy::Dag<NodeType, EdgeType> {
         self.graph
-    }
-
-    /// Print the DAG in DOT format.
-    pub fn print_dot(&self) {
-        println!("{}", dot::Dot::new(&self.graph));
     }
 
     /// Adds a source. Panics if the `handle` exists in the `Dag`.
     pub fn add_source(
         &mut self,
         handle: NodeHandle,
-        source: Box<dyn SourceFactory<T>>,
+        source: Box<dyn SourceFactory>,
     ) -> daggy::NodeIndex {
         self.add_node(handle, NodeKind::Source(source))
     }
@@ -135,17 +133,13 @@ impl<T> Dag<T> {
     pub fn add_processor(
         &mut self,
         handle: NodeHandle,
-        processor: Box<dyn ProcessorFactory<T>>,
+        processor: Box<dyn ProcessorFactory>,
     ) -> daggy::NodeIndex {
         self.add_node(handle, NodeKind::Processor(processor))
     }
 
     /// Adds a sink. Panics if the `handle` exists in the `Dag`.
-    pub fn add_sink(
-        &mut self,
-        handle: NodeHandle,
-        sink: Box<dyn SinkFactory<T>>,
-    ) -> daggy::NodeIndex {
+    pub fn add_sink(&mut self, handle: NodeHandle, sink: Box<dyn SinkFactory>) -> daggy::NodeIndex {
         self.add_node(handle, NodeKind::Sink(sink))
     }
 
@@ -189,7 +183,7 @@ impl<T> Dag<T> {
     }
 
     /// Adds another whole `Dag` to `self`. Optionally under a namespace `ns`.
-    pub fn merge(&mut self, ns: Option<u16>, other: Dag<T>) {
+    pub fn merge(&mut self, ns: Option<u16>, other: Dag) {
         let (other_nodes, _) = other.graph.into_graph().into_nodes_edges();
 
         // Insert nodes.
@@ -224,12 +218,12 @@ impl<T> Dag<T> {
     }
 
     /// Returns an iterator over all nodes.
-    pub fn nodes(&self) -> impl Iterator<Item = &NodeType<T>> {
+    pub fn nodes(&self) -> impl Iterator<Item = &NodeType> {
         self.graph.raw_nodes().iter().map(|node| &node.weight)
     }
 
     /// Returns an iterator over source handles and sources.
-    pub fn sources(&self) -> impl Iterator<Item = (&NodeHandle, &dyn SourceFactory<T>)> {
+    pub fn sources(&self) -> impl Iterator<Item = (&NodeHandle, &dyn SourceFactory)> {
         self.nodes().flat_map(|node| {
             if let NodeKind::Source(source) = &node.kind {
                 Some((&node.handle, &**source))
@@ -240,7 +234,7 @@ impl<T> Dag<T> {
     }
 
     /// Returns an iterator over processor handles and processors.
-    pub fn processors(&self) -> impl Iterator<Item = (&NodeHandle, &dyn ProcessorFactory<T>)> {
+    pub fn processors(&self) -> impl Iterator<Item = (&NodeHandle, &dyn ProcessorFactory)> {
         self.nodes().flat_map(|node| {
             if let NodeKind::Processor(processor) = &node.kind {
                 Some((&node.handle, &**processor))
@@ -251,7 +245,7 @@ impl<T> Dag<T> {
     }
 
     /// Returns an iterator over sink handles and sinks.
-    pub fn sinks(&self) -> impl Iterator<Item = (&NodeHandle, &dyn SinkFactory<T>)> {
+    pub fn sinks(&self) -> impl Iterator<Item = (&NodeHandle, &dyn SinkFactory)> {
         self.nodes().flat_map(|node| {
             if let NodeKind::Sink(sink) = &node.kind {
                 Some((&node.handle, &**sink))
@@ -283,7 +277,7 @@ impl<T> Dag<T> {
     }
 
     /// Finds the node by its handle.
-    pub fn node_kind_from_handle(&self, handle: &NodeHandle) -> &NodeKind<T> {
+    pub fn node_kind_from_handle(&self, handle: &NodeHandle) -> &NodeKind {
         &self.graph[self.node_index(handle)].kind
     }
 
@@ -325,8 +319,8 @@ struct EdgeIndex {
     input_port: PortHandle,
 }
 
-impl<T> Dag<T> {
-    fn add_node(&mut self, handle: NodeHandle, kind: NodeKind<T>) -> daggy::NodeIndex {
+impl Dag {
+    fn add_node(&mut self, handle: NodeHandle, kind: NodeKind) -> daggy::NodeIndex {
         let node_index = self.graph.add_node(NodeType {
             handle: handle.clone(),
             kind,
@@ -351,8 +345,8 @@ enum PortDirection {
     Output,
 }
 
-fn validate_endpoint<T>(
-    dag: &Dag<T>,
+fn validate_endpoint(
+    dag: &Dag,
     endpoint: &Endpoint,
     direction: PortDirection,
 ) -> Result<daggy::NodeIndex, ExecutionError> {
@@ -361,8 +355,8 @@ fn validate_endpoint<T>(
     Ok(node_index)
 }
 
-fn validate_port_with_index<T>(
-    dag: &Dag<T>,
+fn validate_port_with_index(
+    dag: &Dag,
     node_index: daggy::NodeIndex,
     port: PortHandle,
     direction: PortDirection,
@@ -374,8 +368,8 @@ fn validate_port_with_index<T>(
     Ok(())
 }
 
-fn contains_port<T>(
-    node: &NodeKind<T>,
+fn contains_port(
+    node: &NodeKind,
     direction: PortDirection,
     port: PortHandle,
 ) -> Result<bool, ExecutionError> {

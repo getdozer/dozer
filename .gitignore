@@ -24,6 +24,7 @@ dozer-config.test.*
 log4rs.yaml
 .DS_Store
 queries
+dozer.lock
 
 .dozer/
 logs/

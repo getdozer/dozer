@@ -1,6 +1,6 @@
 [package]
 name = "dozer-ingestion"
-version = "0.1.33"
+version = "0.1.37"
 edition = "2021"
 authors = ["getdozer/dozer-dev"]
 
@@ -9,6 +9,7 @@ authors = ["getdozer/dozer-dev"]
 [dependencies]
 dozer-utils = { path = "../dozer-utils" }
 dozer-types = { path = "../dozer-types" }
+dozer-log = { path = "../dozer-log" }
 
 tokio = { version = "1", features = ["full"] }
 futures = "0.3.26"
@@ -25,6 +26,8 @@ web3 = { version = "0.18.0", optional = true }
 rdkafka = {version = "0.32.2", optional = true }
 # odbc connector
 odbc = { version = "0.17.0", optional = true }
+# Mongodb connector
+mongodb = { version = "2.6.1", optional = true }
 base64 = "0.21.0"
 include_dir = {version = "0.7.3", optional = true }
 schema_registry_converter = { version = "3.1.0", features = ["avro"], optional = true }
@@ -38,11 +41,16 @@ prost-reflect = { version = "0.10.2", features = ["serde", "text-format"] }
 deltalake = { version = "0.13.0", default-features = false, features = ["s3", "datafusion"] }
 bson = "2.5.0"
 uuid = { version = "1.3.1", features = ["serde", "v4"] }
-rustls = { version = "0.21.0", features = ["dangerous_configuration"] }
+rustls = { version = "0.21.7", features = ["dangerous_configuration"] }
 tokio-postgres-rustls = "0.10.0"
 rustls-native-certs = "0.6.2"
 rand = "0.8.5"
-url = "2.4.0"
+url = "2.4.1"
+mysql_async = { version = "0.32.2", default-features = false, features = ["default-rustls"] }
+mysql_common = { version = "0.30", default-features = false, features = ["chrono", "rust_decimal"] }
+chrono = "0.4.26"
+geozero = { version = "0.10.0", default-features = false, features = ["with-wkb"] }
+bytes = "1.4.0"
 
 [dev-dependencies]
 criterion = { version = "0.4.0", features = ["html_reports"] }
@@ -54,12 +62,14 @@ tempdir = "0.3.7"
 parquet = "42.0.0"
 env_logger = "0.10.0"
 hex = "0.4.3"
+dozer-cli = { path = "../dozer-cli" }
 
 [features]
 # Defines a feature named `odbc` that does not enable any other features.
 snowflake = ["dep:odbc", "dep:include_dir"]
 ethereum = ["dep:web3"]
 kafka = ["dep:rdkafka", "dep:schema_registry_converter"]
+mongodb = ["dep:mongodb"]
 
 [[bench]]
 name = "connectors"

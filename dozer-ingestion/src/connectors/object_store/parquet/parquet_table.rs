@@ -79,131 +79,126 @@ impl<T: DozerObjectStore + Send> ParquetTable<T> {
             false => String::new(),
         };
 
-        tokio::spawn(async move {
-            loop {
-                // List objects in the S3 bucket with the specified prefix
-                let mut stream = store
-                    .list(Some(&DeltaPath::from(source_folder.to_owned())))
-                    .await
-                    .unwrap();
+        loop {
+            // List objects in the S3 bucket with the specified prefix
+            let mut stream = store
+                .list(Some(&DeltaPath::from(source_folder.to_owned())))
+                .await
+                .unwrap();
 
-                let mut new_files = vec![];
-                let mut new_marker_files = vec![];
+            let mut new_files = vec![];
+            let mut new_marker_files = vec![];
 
-                while let Some(item) = stream.next().await {
-                    // Check if any objects have been added or modified
-                    let object = item.unwrap();
+            while let Some(item) = stream.next().await {
+                // Check if any objects have been added or modified
+                let object = item.unwrap();
 
-                    if let Some(last_modified) = update_state.get_mut(&object.location) {
-                        // Scenario 1: Update on existing file
-                        if *last_modified < object.last_modified {
-                            info!(
-                                "Source Object has been modified: {:?}, {:?}",
-                                object.location, object.last_modified
-                            );
-                        }
-                    } else {
+                if let Some(last_modified) = update_state.get_mut(&object.location) {
+                    // Scenario 1: Update on existing file
+                    if *last_modified < object.last_modified {
+                        info!(
+                            "Source Object has been modified: {:?}, {:?}",
+                            object.location, object.last_modified
+                        );
+                    }
+                } else {
+                    // Scenario 2: New file added
+                    info!(
+                        "Source Object has been added: {:?}, {:?}",
+                        object.location, object.last_modified
+                    );
+
+                    let file_path = object.location.to_string();
+                    // Skip the source folder
+                    if file_path == source_folder {
+                        continue;
+                    }
+
+                    if file_path.ends_with(extension.as_str()) {
                         // Scenario 2: New file added
                         info!(
                             "Source Object has been added: {:?}, {:?}",
                             object.location, object.last_modified
                         );
 
-                        let file_path = object.location.to_string();
-                        // Skip the source folder
-                        if file_path == source_folder {
-                            continue;
-                        }
-
-                        if file_path.ends_with(extension.as_str()) {
-                            // Scenario 2: New file added
-                            info!(
-                                "Source Object has been added: {:?}, {:?}",
-                                object.location, object.last_modified
-                            );
-
-                            // Remove base folder from relative path
-                            let path = Path::new(&file_path);
-                            let new_path = path
-                                .strip_prefix(path.components().next().unwrap())
-                                .unwrap();
-                            let new_path_str = new_path.to_str().unwrap();
-
-                            new_files.push(FileInfo {
-                                name: base_path.clone() + new_path_str,
-                                last_modified: object.last_modified.timestamp(),
-                            });
-                            if marker_extension.is_empty() {
-                                update_state.insert(object.location, object.last_modified);
-                            }
-                        } else if file_path.ends_with(marker_extension.as_str())
-                            && !marker_extension.is_empty()
-                        {
-                            // Scenario 3: New marker file added
-                            info!(
-                                "Source Object Marker has been added: {:?}, {:?}",
-                                object.location, object.last_modified
-                            );
-
-                            // Remove base folder from relative path
-                            let path = Path::new(&file_path);
-                            let new_path = path
-                                .strip_prefix(path.components().next().unwrap())
-                                .unwrap();
-                            let new_path_str = new_path.to_str().unwrap();
-
-                            new_marker_files.push(FileInfo {
-                                name: base_path.clone() + new_path_str,
-                                last_modified: object.last_modified.timestamp(),
-                            });
-                            update_state.insert(object.location, object.last_modified);
-                        } else {
-                            // Skip files that do not match the extension nor marker extension
-                            continue;
-                        }
-                    }
-                }
-
-                new_files.sort();
-                for file in &new_files {
-                    let marker_file_exist = is_marker_file_exist(new_marker_files.clone(), file);
-                    let use_marker_file = marker_extension.is_empty();
-                    if !marker_file_exist && !use_marker_file {
-                        continue;
-                    } else {
-                        let file_path = ListingTableUrl::parse(&file.name)
-                            .map_err(|e| {
-                                ObjectStoreConnectorError::DataFusionStorageObjectError(
-                                    ObjectStoreObjectError::ListingPathParsingError(
-                                        file.name.clone(),
-                                        e,
-                                    ),
-                                )
-                            })
+                        // Remove base folder from relative path
+                        let path = Path::new(&file_path);
+                        let new_path = path
+                            .strip_prefix(path.components().next().unwrap())
                             .unwrap();
+                        let new_path_str = new_path.to_str().unwrap();
 
-                        let result =
-                            connectors::object_store::table_reader::TableReader::<T>::read(
-                                table_index,
-                                ctx.clone(),
-                                file_path,
-                                listing_options.clone(),
-                                &t,
-                                sender.clone(),
-                            )
-                            .await;
-                        if let Err(e) = result {
-                            sender.send(Err(e)).await.unwrap();
+                        new_files.push(FileInfo {
+                            name: base_path.clone() + new_path_str,
+                            last_modified: object.last_modified.timestamp(),
+                        });
+                        if marker_extension.is_empty() {
+                            update_state.insert(object.location, object.last_modified);
                         }
+                    } else if file_path.ends_with(marker_extension.as_str())
+                        && !marker_extension.is_empty()
+                    {
+                        // Scenario 3: New marker file added
+                        info!(
+                            "Source Object Marker has been added: {:?}, {:?}",
+                            object.location, object.last_modified
+                        );
+
+                        // Remove base folder from relative path
+                        let path = Path::new(&file_path);
+                        let new_path = path
+                            .strip_prefix(path.components().next().unwrap())
+                            .unwrap();
+                        let new_path_str = new_path.to_str().unwrap();
+
+                        new_marker_files.push(FileInfo {
+                            name: base_path.clone() + new_path_str,
+                            last_modified: object.last_modified.timestamp(),
+                        });
+                        update_state.insert(object.location, object.last_modified);
+                    } else {
+                        // Skip files that do not match the extension nor marker extension
+                        continue;
                     }
                 }
-
-                // Wait for 10 seconds before checking again
-                tokio::time::sleep(_WATCHER_INTERVAL).await;
             }
-        });
 
-        Ok(())
+            new_files.sort();
+            for file in &new_files {
+                let marker_file_exist = is_marker_file_exist(new_marker_files.clone(), file);
+                let use_marker_file = marker_extension.is_empty();
+                if !marker_file_exist && !use_marker_file {
+                    continue;
+                } else {
+                    let file_path = ListingTableUrl::parse(&file.name)
+                        .map_err(|e| {
+                            ObjectStoreConnectorError::DataFusionStorageObjectError(
+                                ObjectStoreObjectError::ListingPathParsingError(
+                                    file.name.clone(),
+                                    e,
+                                ),
+                            )
+                        })
+                        .unwrap();
+
+                    let result = connectors::object_store::table_reader::TableReader::<T>::read(
+                        table_index,
+                        ctx.clone(),
+                        file_path,
+                        listing_options.clone(),
+                        &t,
+                        sender.clone(),
+                    )
+                    .await;
+                    if let Err(e) = result {
+                        sender.send(Err(e)).await.unwrap();
+                    }
+                }
+            }
+
+            // Wait for 10 seconds before checking again
+            tokio::time::sleep(_WATCHER_INTERVAL).await;
+        }
     }
 }
 

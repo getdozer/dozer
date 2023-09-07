@@ -13,12 +13,12 @@ use crate::{
         CountResponseDesc, EventDesc, ProtoGenerator, QueryResponseDesc, ServiceDesc,
         TokenResponseDesc,
     },
-    grpc::shared_impl,
+    grpc::shared_impl::{self, EndpointFilter},
     CacheEndpoint,
 };
 use dozer_cache::CacheReader;
-use dozer_types::log::error;
 use dozer_types::{grpc_types::types::Operation, models::api_security::ApiSecurity};
+use dozer_types::{log::error, types::Schema};
 use futures_util::future;
 use prost_reflect::{MethodDescriptor, Value};
 use std::{borrow::Cow, collections::HashMap, convert::Infallible};
@@ -188,8 +188,8 @@ impl TypedService {
                     fn call(&mut self, request: tonic::Request<DynamicMessage>) -> Self::Future {
                         future::ready(on_event(
                             request,
-                            &self.cache_endpoint.cache_reader(),
-                            &self.cache_endpoint.endpoint.name,
+                            self.cache_endpoint.cache_reader().get_schema().0.clone(),
+                            self.cache_endpoint.endpoint.name.clone(),
                             self.event_desc
                                 .take()
                                 .expect("This future shouldn't be polled twice"),
@@ -339,8 +339,8 @@ fn query(
 
 fn on_event(
     request: Request<DynamicMessage>,
-    reader: &CacheReader,
-    endpoint_name: &str,
+    schema: Schema,
+    endpoint_name: String,
     event_desc: EventDesc,
     event_notifier: Option<tokio::sync::broadcast::Receiver<Operation>>,
 ) -> Result<Response<ReceiverStream<Result<TypedResponse, tonic::Status>>>, Status> {
@@ -357,21 +357,17 @@ fn on_event(
                 .ok_or_else(|| Status::new(Code::InvalidArgument, "filter must be a string"))
         })
         .transpose()?;
+    let filter = EndpointFilter::new(schema, filter)?;
 
-    let endpoint_to_be_streamed = endpoint_name.to_string();
-    shared_impl::on_event(reader, filter, event_notifier, access.cloned(), move |op| {
-        if endpoint_to_be_streamed == op.endpoint_name {
-            match on_event_to_typed_response(op, event_desc.clone()) {
-                Ok(event) => Some(Ok(event)),
-                Err(e) => {
-                    error!("On event error: {:?}", e);
-                    None
-                }
-            }
-        } else {
-            None
-        }
-    })
+    shared_impl::on_event(
+        [(endpoint_name, filter)].into_iter().collect(),
+        event_notifier,
+        access.cloned(),
+        move |op| {
+            on_event_to_typed_response(op, event_desc.clone())
+                .map_err(|e| tonic::Status::internal(e.to_string()))
+        },
+    )
 }
 
 fn token(

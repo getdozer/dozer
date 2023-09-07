@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use self::expression::QueryExpression;
 use crate::errors::CacheError;
-use dozer_types::labels::Labels;
+use dozer_tracing::Labels;
 use dozer_types::models::api_endpoint::{
     OnDeleteResolutionTypes, OnInsertResolutionTypes, OnUpdateResolutionTypes,
 };

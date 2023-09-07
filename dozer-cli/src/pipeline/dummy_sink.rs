@@ -1,22 +1,24 @@
 use std::collections::HashMap;
 
+use dozer_cache::dozer_log::storage::Queue;
 use dozer_core::{
+    epoch::Epoch,
     executor_operation::ProcessorOperation,
     node::{PortHandle, Sink, SinkFactory},
     processor_record::ProcessorRecordStore,
     DEFAULT_PORT_HANDLE,
 };
-use dozer_types::{epoch::Epoch, errors::internal::BoxedError, types::Schema};
+use dozer_types::{errors::internal::BoxedError, types::Schema};
 
 #[derive(Debug)]
 pub struct DummySinkFactory;
 
-impl<T> SinkFactory<T> for DummySinkFactory {
+impl SinkFactory for DummySinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn prepare(&self, _input_schemas: HashMap<PortHandle, (Schema, T)>) -> Result<(), BoxedError> {
+    fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), BoxedError> {
         Ok(())
     }
 
@@ -42,6 +44,10 @@ impl Sink for DummySink {
     }
 
     fn commit(&mut self, _epoch_details: &Epoch) -> Result<(), BoxedError> {
+        Ok(())
+    }
+
+    fn persist(&mut self, _queue: &Queue) -> Result<(), BoxedError> {
         Ok(())
     }
 

@@ -6,6 +6,7 @@ use dozer_types::thiserror::{self, Error};
 use dozer_types::types::Schema;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
+use std::sync::Arc;
 
 use super::node::PortHandle;
 
@@ -31,7 +32,7 @@ pub fn create_record_writer(
     _output_port: PortHandle,
     output_port_type: OutputPortType,
     schema: Schema,
-    record_store: ProcessorRecordStore,
+    record_store: Arc<ProcessorRecordStore>,
 ) -> Option<Box<dyn RecordWriter>> {
     match output_port_type {
         OutputPortType::Stateless => None,
@@ -46,12 +47,12 @@ pub fn create_record_writer(
 #[derive(Debug)]
 pub(crate) struct PrimaryKeyLookupRecordWriter {
     schema: Schema,
-    record_store: ProcessorRecordStore,
+    record_store: Arc<ProcessorRecordStore>,
     index: HashMap<Vec<u8>, ProcessorRecord>,
 }
 
 impl PrimaryKeyLookupRecordWriter {
-    pub(crate) fn new(schema: Schema, record_store: ProcessorRecordStore) -> Self {
+    pub(crate) fn new(schema: Schema, record_store: Arc<ProcessorRecordStore>) -> Self {
         debug_assert!(
             !schema.primary_index.is_empty(),
             "PrimaryKeyLookupRecordWriter can only be used with a schema that has a primary key."

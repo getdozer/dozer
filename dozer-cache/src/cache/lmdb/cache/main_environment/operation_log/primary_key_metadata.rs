@@ -29,7 +29,7 @@ impl PrimaryKeyMetadata {
             .map(|metadata| metadata.map(|metadata| metadata.into_owned()))
     }
 
-    pub const DATABASE_NAME: &str = "primary_key_metadata";
+    pub const DATABASE_NAME: &'static str = "primary_key_metadata";
 
     pub fn database(&self) -> Database {
         self.0.database()

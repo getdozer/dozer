@@ -1,5 +1,6 @@
 #![allow(clippy::enum_variant_names)]
 
+use dozer_log::errors::{ReaderBuilderError, ReaderError};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::{DeserializationError, SerializationError, TypeError};
 use dozer_types::ingestion_types::IngestorError;
@@ -12,6 +13,7 @@ use base64::DecodeError;
 
 use deltalake::datafusion::error::DataFusionError;
 use deltalake::DeltaTableError;
+use geozero::error::GeozeroError;
 #[cfg(feature = "snowflake")]
 use std::num::TryFromIntError;
 #[cfg(feature = "kafka")]
@@ -31,6 +33,9 @@ use tokio_postgres::Error;
 
 #[cfg(any(feature = "kafka", feature = "snowflake"))]
 use dozer_types::rust_decimal::Error as RustDecimalError;
+
+#[cfg(feature = "mongodb")]
+use crate::connectors::mongodb::MongodbConnectorError;
 
 #[derive(Error, Debug)]
 pub enum ConnectorError {
@@ -75,8 +80,15 @@ pub enum ConnectorError {
     #[error(transparent)]
     KafkaError(#[from] KafkaError),
 
+    #[cfg(feature = "mongodb")]
+    #[error(transparent)]
+    MongodbError(#[from] MongodbConnectorError),
+
     #[error(transparent)]
     ObjectStoreConnectorError(#[from] ObjectStoreConnectorError),
+
+    #[error(transparent)]
+    NestedDozerConnectorError(#[from] NestedDozerConnectorError),
 
     #[error(transparent)]
     TypeError(#[from] TypeError),
@@ -108,7 +120,14 @@ pub enum ConnectorError {
 
     #[error("ethereum feature is not enabled")]
     EthereumFeatureNotEnabled,
+
+    #[error("mongodb feature is not enabled")]
+    MongodbFeatureNotEnabled,
+
+    #[error(transparent)]
+    MySQLConnectorError(#[from] MySQLConnectorError),
 }
+
 impl ConnectorError {
     pub fn map_serialization_error(e: serde_json::Error) -> ConnectorError {
         ConnectorError::TypeError(TypeError::SerializationError(SerializationError::Json(e)))
@@ -127,6 +146,23 @@ pub enum ConfigurationError {
 
     #[error("Failed to map configuration")]
     WrongConnectionConfiguration,
+}
+#[derive(Error, Debug)]
+pub enum NestedDozerConnectorError {
+    #[error("Failed to connect to upstream dozer app. {0}")]
+    ConnectionError(#[source] tonic::transport::Error),
+
+    #[error("Failed to query endpoints from upstream dozer app. {0}")]
+    DescribeEndpointsError(#[source] tonic::Status),
+
+    #[error(transparent)]
+    ReaderError(#[from] ReaderError),
+
+    #[error(transparent)]
+    ReaderBuilderError(#[from] ReaderBuilderError),
+
+    #[error("Column {0} not found")]
+    ColumnNotFound(String),
 }
 
 #[derive(Error, Debug)]
@@ -498,4 +534,40 @@ pub enum ObjectStoreTableReaderError {
 
     #[error("Stream execution failed: {0}")]
     StreamExecutionError(DataFusionError),
+}
+
+#[derive(Error, Debug)]
+pub enum MySQLConnectorError {
+    #[error("Invalid connection URL: {0:?}")]
+    InvalidConnectionURLError(#[source] mysql_async::UrlError),
+
+    #[error("Failed to connect to mysql with the specified url {0}. {1}")]
+    ConnectionFailure(String, #[source] mysql_async::Error),
+
+    #[error("Unsupported field type: {0}")]
+    UnsupportedFieldType(String),
+
+    #[error("Invalid field value. {0}")]
+    InvalidFieldValue(#[from] mysql_common::FromValueError),
+
+    #[error("Invalid json value. {0}")]
+    JsonDeserializationError(#[from] DeserializationError),
+
+    #[error("Invalid geometric value. {0}")]
+    InvalidGeometricValue(#[from] GeozeroError),
+
+    #[error("Failed to open binlog. {0}")]
+    BinlogOpenError(#[source] mysql_async::Error),
+
+    #[error("Failed to read binlog. {0}")]
+    BinlogReadError(#[source] mysql_async::Error),
+
+    #[error("Binlog error: {0}")]
+    BinlogError(String),
+
+    #[error("Query failed. {0}")]
+    QueryExecutionError(#[source] mysql_async::Error),
+
+    #[error("Failed to fetch query result. {0}")]
+    QueryResultError(#[source] mysql_async::Error),
 }

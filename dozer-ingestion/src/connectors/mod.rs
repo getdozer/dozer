@@ -1,18 +1,26 @@
+pub mod dozer;
 #[cfg(feature = "ethereum")]
 pub mod ethereum;
 pub mod grpc;
 #[cfg(feature = "kafka")]
 pub mod kafka;
+pub mod mysql;
 pub mod object_store;
 pub mod postgres;
+
+#[cfg(feature = "mongodb")]
+pub mod mongodb;
 
 use crate::connectors::postgres::connection::helper::map_connection_config;
 
 use std::fmt::Debug;
 
+#[cfg(feature = "mongodb")]
+use self::mongodb::MongodbConnector;
 #[cfg(feature = "kafka")]
 use crate::connectors::kafka::connector::KafkaConnector;
 use crate::connectors::postgres::connector::{PostgresConfig, PostgresConnector};
+
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
 
@@ -32,11 +40,13 @@ use dozer_types::types::{FieldType, Schema};
 pub mod delta_lake;
 pub mod snowflake;
 
+use self::dozer::NestedDozerConnector;
 #[cfg(feature = "ethereum")]
 use self::ethereum::{EthLogConnector, EthTraceConnector};
 
 use self::grpc::connector::GrpcConnector;
 use self::grpc::{ArrowAdapter, DefaultAdapter};
+use self::mysql::connector::{mysql_connection_opts_from_url, MySQLConnector};
 use crate::connectors::snowflake::connector::SnowflakeConnector;
 use crate::errors::ConnectorError::{MissingConfiguration, WrongConnectionConfiguration};
 
@@ -225,6 +235,24 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
         ConnectionConfig::DeltaLake(delta_lake_config) => {
             Ok(Box::new(DeltaLakeConnector::new(delta_lake_config)))
         }
+        #[cfg(feature = "mongodb")]
+        ConnectionConfig::MongoDB(mongodb_config) => {
+            let connection_string = mongodb_config.connection_string;
+            Ok(Box::new(MongodbConnector::new(connection_string)?))
+        }
+        #[cfg(not(feature = "mongodb"))]
+        ConnectionConfig::MongoDB(_) => Err(ConnectorError::MongodbFeatureNotEnabled),
+        ConnectionConfig::MySQL(mysql_config) => {
+            let opts = mysql_connection_opts_from_url(&mysql_config.url)?;
+            Ok(Box::new(MySQLConnector::new(
+                mysql_config.url,
+                opts,
+                mysql_config.server_id,
+            )))
+        }
+        ConnectionConfig::Dozer(dozer_config) => {
+            Ok(Box::new(NestedDozerConnector::new(dozer_config)))
+        }
     }
 }
 
@@ -256,4 +284,13 @@ pub struct ListOrFilterColumns {
     pub schema: Option<String>,
     pub name: String,
     pub columns: Option<Vec<String>>,
+}
+
+pub(crate) fn warn_dropped_primary_index(table_name: &str) {
+    dozer_types::log::warn!(
+        "One or more primary index columns from the source table are \
+                    not part of the defined schema for table: '{0}'. \
+                    The primary index will therefore not be present in the Dozer table",
+        table_name
+    );
 }

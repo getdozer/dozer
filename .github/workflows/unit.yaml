@@ -1,0 +1,92 @@
+name: Unit Tests
+
+on:
+  workflow_dispatch:
+  pull_request_target:
+    branches: [main]
+  merge_group:
+
+env:
+  CARGO_TERM_COLOR: always
+
+concurrency:
+  group: unit/${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  id-token: write # This is required for requesting the JWT
+  contents: write # This is required for actions/checkout
+
+jobs:
+  # Run unit tests
+  unit:
+    timeout-minutes: 60
+    runs-on:
+      group: Org Larger Runners
+      labels: ubuntu-latest-16-cores
+    services:
+      postgres:
+        image: debezium/postgres:13
+        ports:
+          - 5434:5432
+        env:
+          POSTGRES_DB: dozer_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          ALLOW_IP_RANGE: 0.0.0.0/0
+        #        command: postgres -c hba_file=/var/lib/stock-sample/pg_hba.conf
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          role-session-name: dozer-coverage
+          aws-region: us-east-2
+
+      - if: github.event_name == 'pull_request_target'
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - if: github.event_name != 'pull_request_target'
+        uses: actions/checkout@v3
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        
+      - name: MongoDB in GitHub Actions
+        uses: supercharge/mongodb-github-action@1.8.0
+
+      - uses: ./.github/workflows/setup-snowflake-and-kafka
+
+      - uses: ./.github/workflows/setup-mysql-and-mariadb
+
+      - name: Run connectors tests
+        env:
+          SN_SERVER: ${{ secrets.SN_SERVER }}
+          SN_USER: ${{ secrets.SN_USER }}
+          SN_PASSWORD: ${{ secrets.SN_PASSWORD }}
+          SN_DATABASE: ${{ secrets.SN_DATABASE }}
+          SN_WAREHOUSE: ${{ secrets.SN_WAREHOUSE }}
+          SN_DRIVER: ${{ secrets.SN_DRIVER }}
+        shell: bash
+        run: |
+          cargo test test_connector_ --lib --features snowflake,ethereum,kafka,python  --no-fail-fast -- --ignored
+
+      - name: Run tests
+        shell: bash
+        run: |
+          source ./dozer-tests/python_udf/virtualenv.sh
+          cargo test --features snowflake,ethereum,kafka,python,mongodb --no-fail-fast
+

@@ -1,4 +1,4 @@
-use std::{fmt::Debug, path::PathBuf, time::SystemTime};
+use std::{fmt::Debug, num::NonZeroU16, path::PathBuf, time::SystemTime};
 
 use aws_sdk_s3::{
     error::SdkError,
@@ -15,15 +15,17 @@ use dozer_types::{
     bytes::Bytes, grpc_types::internal::storage_response, thiserror, tonic::async_trait,
 };
 
+pub use nonzero_ext::nonzero;
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Object {
+pub struct ListedObject {
     pub key: String,
     pub last_modified: SystemTime,
 }
 
 #[derive(Debug, Clone)]
 pub struct ListObjectsOutput {
-    pub objects: Vec<Object>,
+    pub objects: Vec<ListedObject>,
     pub continuation_token: Option<String>,
 }
 
@@ -40,7 +42,7 @@ pub trait Storage: Debug + DynClone + Send + Sync + 'static {
         &self,
         key: String,
         upload_id: String,
-        part_number: i32,
+        part_number: NonZeroU16,
         data: Vec<u8>,
     ) -> Result<String, Error>;
     /// Parts are (part_number, entity_tag) pairs.
@@ -48,7 +50,7 @@ pub trait Storage: Debug + DynClone + Send + Sync + 'static {
         &self,
         key: String,
         upload_id: String,
-        parts: Vec<(i32, String)>,
+        parts: Vec<(NonZeroU16, String)>,
     ) -> Result<(), Error>;
 
     async fn list_objects(
@@ -117,5 +119,22 @@ mod local;
 
 pub use local::LocalStorage;
 
+mod queue;
+pub use queue::Queue;
+
+mod object;
+pub use object::Object;
+
 #[cfg(test)]
 mod tests;
+
+use tempdir::TempDir;
+
+/// This only meant for use in tests.
+pub async fn create_temp_dir_local_storage() -> (TempDir, Box<dyn Storage>) {
+    let temp_dir = TempDir::new("create_temp_dir_local_storage").unwrap();
+    let storage = LocalStorage::new(temp_dir.path().to_str().unwrap().to_string())
+        .await
+        .unwrap();
+    (temp_dir, Box::new(storage))
+}

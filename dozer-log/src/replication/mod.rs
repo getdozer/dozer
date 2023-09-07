@@ -1,25 +1,25 @@
 use std::future::Future;
 use std::ops::{DerefMut, Range};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
-use dozer_types::epoch::Epoch;
+use camino::Utf8Path;
 use dozer_types::grpc_types::internal::storage_response;
 use dozer_types::log::{debug, error};
-use dozer_types::models::app_config::LogStorage;
+use dozer_types::parking_lot::Mutex;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::Operation;
 use dozer_types::{bincode, thiserror};
 use pin_project::pin_project;
+use tokio::runtime::Runtime;
 use tokio::sync::oneshot::error::RecvError;
-use tokio::sync::Mutex;
-use tokio::task::{JoinError, JoinHandle};
+use tokio::task::JoinHandle;
 
-use crate::home_dir::BuildPath;
+use crate::storage::{Queue, Storage};
 
-use self::persist::{load_persisted_log_entries, persisted_log_entries_end, PersistingQueue};
+use self::persist::{load_persisted_log_entries, persisted_log_entries_end};
 
-pub use self::persist::create_log_storage;
+pub use self::persist::create_data_storage;
 
 mod persist;
 
@@ -44,15 +44,8 @@ pub enum Error {
     LogEntryNotConsecutive(PersistedLogEntry, PersistedLogEntry),
     #[error("Serialization error: {0}")]
     Serialization(#[from] bincode::Error),
-    #[error("Persisting thread has quit: {0:?}")]
-    PersistingThreadQuit(#[source] Option<JoinError>),
-}
-
-#[derive(Debug, Clone)]
-pub struct LogOptions {
-    pub storage_config: LogStorage,
-    pub entry_max_size: usize,
-    pub max_num_immutable_entries: usize,
+    #[error("Persisting thread has quit")]
+    PersistingThreadQuit,
 }
 
 /// Invariant:
@@ -67,9 +60,8 @@ pub struct Log {
     next_watcher_id: WatcherId,
     /// There'll only be a few watchers so we don't use HashMap.
     watchers: Vec<Watcher>,
-    queue: PersistingQueue,
     storage: storage_response::Storage,
-    entry_max_size: usize,
+    prefix: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -86,8 +78,11 @@ struct Watcher {
 
 #[derive(Debug, Clone)]
 struct InMemoryLog {
+    /// Index of the first element in `ops` in the whole log.
     start: usize,
     ops: Vec<LogOperation>,
+    /// Index in `ops` where the next persisting should start.
+    next_persist_start: usize,
 }
 
 impl Log {
@@ -96,41 +91,47 @@ impl Log {
     }
 
     pub async fn new(
-        options: LogOptions,
-        build_path: &BuildPath,
+        storage: &dyn Storage,
+        mut prefix: String,
         readonly: bool,
     ) -> Result<Self, Error> {
-        let (storage, prefix) = create_log_storage(options.storage_config, build_path).await?;
-        let persisted = load_persisted_log_entries(&*storage, prefix.clone()).await?;
-        let end = persisted_log_entries_end(&persisted);
-        if !readonly && end.is_some() {
-            return Err(Error::NonEmptyWritableLog);
+        if !readonly {
+            // Right now we don't support appending to an existing log, because the pipeline doesn't support restart yet.
+            // So we write a marker file to every log to mark it as "dirty" and should not be reused.
+            let marker_file = AsRef::<Utf8Path>::as_ref(&prefix).join("marker");
+            if !storage
+                .list_objects(marker_file.clone().into(), None)
+                .await?
+                .objects
+                .is_empty()
+            {
+                return Err(Error::NonEmptyWritableLog);
+            }
+            storage.put_object(marker_file.into(), vec![]).await?;
         }
+
+        prefix = AsRef::<Utf8Path>::as_ref(&prefix).join("data").into();
+        let persisted = load_persisted_log_entries(storage, prefix.clone()).await?;
+        let end = persisted_log_entries_end(&persisted);
 
         let in_memory = InMemoryLog {
             start: end.unwrap_or(0),
             ops: vec![],
+            next_persist_start: 0,
         };
         let watchers = vec![];
         let storage_description = storage.describe();
-        let queue =
-            PersistingQueue::new(storage, prefix, options.max_num_immutable_entries).await?;
         Ok(Self {
             persisted,
             in_memory,
             next_watcher_id: WatcherId(0),
             watchers,
-            queue,
             storage: storage_description,
-            entry_max_size: options.entry_max_size,
+            prefix,
         })
     }
 
-    pub async fn write(
-        &mut self,
-        op: LogOperation,
-        this: Arc<Mutex<Log>>,
-    ) -> Result<Option<JoinHandle<()>>, Error> {
+    pub fn write(&mut self, op: LogOperation) {
         // Record operation.
         self.in_memory.ops.push(op);
 
@@ -148,59 +149,63 @@ impl Log {
                 true
             }
         });
+    }
 
-        if self.in_memory.ops.len() % self.entry_max_size == 0 {
-            debug!(
-                "A new log entry should be persisted, in memory start={}, end={}",
-                self.in_memory.start,
-                self.in_memory.end()
-            );
+    pub fn persist(
+        &mut self,
+        queue: &Queue,
+        this: Arc<Mutex<Log>>,
+        runtime: &Runtime,
+    ) -> Result<JoinHandle<Result<(), Error>>, Error> {
+        debug!(
+            "A new log entry should be persisted, in memory start={}, end={}",
+            self.in_memory.start,
+            self.in_memory.end()
+        );
 
-            // Persist this entry.
-            let ops = self.in_memory.ops[self.in_memory.ops.len() - self.entry_max_size..].to_vec();
-            let end = self.in_memory.end();
-            let start = end - self.entry_max_size;
-            let range = start..end;
-            let persist_future = self.queue.persist(range.clone(), ops).await?;
+        // Persist this entry.
+        let ops = &self.in_memory.ops[self.in_memory.next_persist_start..];
+        let start = self.in_memory.start + self.in_memory.next_persist_start;
+        let end = self.in_memory.end();
+        let range = start..end;
+        let persist_future = persist::persist(queue, &self.prefix, range.clone(), ops)?;
+        self.in_memory.next_persist_start = self.in_memory.ops.len();
 
-            // Spawn a future that awaits for persisting completion and removes in memory ops.
-            Ok(Some(tokio::spawn(async move {
-                let key = match persist_future.await {
-                    Ok(key) => key,
-                    Err(_) => {
-                        error!("{}", Error::PersistingThreadQuit(None));
-                        return;
-                    }
-                };
+        // Spawn a future that awaits for persisting completion and removes in memory ops.
+        Ok(runtime.spawn(async move {
+            let key = match persist_future.await {
+                Ok(key) => key,
+                Err(_) => {
+                    return Err(Error::PersistingThreadQuit);
+                }
+            };
 
-                let mut this = this.lock().await;
-                let this = this.deref_mut();
-                debug_assert!(
-                    persisted_log_entries_end(&this.persisted).unwrap_or(0) == range.start
-                );
-                debug_assert!(this.in_memory.start == range.start);
+            let mut this = this.lock();
+            let this = this.deref_mut();
+            debug_assert!(persisted_log_entries_end(&this.persisted).unwrap_or(0) == range.start);
+            debug_assert!(this.in_memory.start == range.start);
 
-                // Remove all watchers that want part of this entry so it can be removed from in memory log.
-                this.watchers.retain_mut(|watcher| {
-                    if this.in_memory.contains(watcher.request.start) {
-                        trigger_watcher(watcher, &this.in_memory);
-                        false
-                    } else {
-                        true
-                    }
-                });
+            // Remove all watchers that want part of this entry so it can be removed from in memory log.
+            this.watchers.retain_mut(|watcher| {
+                if this.in_memory.contains(watcher.request.start) {
+                    trigger_watcher(watcher, &this.in_memory);
+                    false
+                } else {
+                    true
+                }
+            });
 
-                // Add persisted entry and remove in memory ops.
-                this.persisted.push(PersistedLogEntry {
-                    key,
-                    range: range.clone(),
-                });
-                this.in_memory.start = range.end;
-                this.in_memory.ops.drain(0..range.len());
-            })))
-        } else {
-            Ok(None)
-        }
+            // Add persisted entry and remove in memory ops.
+            this.persisted.push(PersistedLogEntry {
+                key,
+                range: range.clone(),
+            });
+            this.in_memory.start = range.end;
+            this.in_memory.ops.drain(0..range.len());
+            this.in_memory.next_persist_start -= range.len();
+
+            Ok(())
+        }))
     }
 
     /// Returned `LogResponse` is guaranteed to contain `request.start`, but may actually contain less then `request.end`.
@@ -236,7 +241,7 @@ impl Log {
         tokio::spawn(async move {
             // Try to trigger watcher when timeout.
             tokio::time::sleep(timeout).await;
-            let mut this = this.lock().await;
+            let mut this = this.lock();
             let this = this.deref_mut();
             // Find the watcher. It may have been triggered by slice fulfillment or persisting.
             if let Some((index, watcher)) = this
@@ -282,9 +287,8 @@ impl Log {
 #[serde(crate = "dozer_types::serde")]
 pub enum LogOperation {
     Op { op: Operation },
-    Commit { epoch: Epoch },
+    Commit { decision_instant: SystemTime },
     SnapshottingDone { connection_name: String },
-    Terminate,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
