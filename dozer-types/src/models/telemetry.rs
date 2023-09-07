@@ -29,7 +29,12 @@ pub struct DozerTelemetryConfig {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Clone, prost::Message)]
-pub struct XRayConfig {}
+pub struct XRayConfig {
+    #[prost(string, tag = "1")]
+    pub endpoint: String,
+    #[prost(uint64, tag = "2")]
+    pub timeout_in_seconds: u64,
+}
 
 fn default_grpc_adapter() -> String {
     "arrow".to_owned()
