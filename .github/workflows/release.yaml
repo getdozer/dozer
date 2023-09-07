@@ -8,7 +8,7 @@ env:
   CARGO_TERM_COLOR: always
   BUCKET_NAME: "dozer-releases"
   ECR_REGISTRY: public.ecr.aws/k7k6x1d4
-  ECR_REPOSITORY: dozer-features
+  ECR_REPOSITORY: dozer
   DOCKERHUB_REGISTRY: getdozer
   DOCKERHUB_REPOSITORY: dozer
 
