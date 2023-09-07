@@ -31,7 +31,7 @@ service {{plural_pascal_name}} {
   /**
    * Subscribes to the Dozer event stream, optionally applies a filter. See [Query](../query) for the filter format.
    */
-  rpc on_event(dozer.types.EventFilter) returns (stream {{pascal_name}}Event);
+  rpc OnEvent(dozer.types.EventFilter) returns (stream {{pascal_name}}Event);
   {{/if}}
   {{#if enable_token}}
   // Gets the authentication token.
@@ -58,7 +58,7 @@ message Query{{plural_pascal_name}}Response {
 }
 
 {{#if enable_on_event}}
-// Response for `on_event`.
+// Response for `OnEvent`.
 message {{pascal_name}}Event {
   // The operation type.
   dozer.types.OperationType typ = 1;

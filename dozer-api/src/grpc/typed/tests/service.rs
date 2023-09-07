@@ -31,7 +31,7 @@ use tonic::{
 };
 
 pub async fn setup_pipeline() -> (Vec<Arc<CacheEndpoint>>, Receiver<Operation>) {
-    // Copy this file from dozer-tests output directory if it changes
+    // Copy this file from dozer-types compilation output directory if it changes
     let res = env::current_dir().unwrap();
     let descriptor_path = res.join("src/grpc/typed/tests/generated_films.bin");
     let descriptor_bytes = tokio::fs::read(&descriptor_path).await.unwrap();
