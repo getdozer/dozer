@@ -23,6 +23,7 @@ RUN curl -LO https://github.com/microsoft/onnxruntime/releases/download/v1.15.1/
 RUN tar -xf onnxruntime-linux-x64-1.15.1.tgz -C /usr/local
 RUN rm onnxruntime-linux-x64-1.15.1.tgz
 RUN cp /usr/local/onnxruntime-linux-x64-1.15.1/lib/libonnxruntime.so.1.15.1 /usr/local/lib/
+RUN ldconfig
 
 # INSTALL DOZER 
 RUN echo "Installing dozer binary"
