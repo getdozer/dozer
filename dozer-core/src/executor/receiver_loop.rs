@@ -1,11 +1,10 @@
 use std::borrow::Cow;
-use std::time::SystemTime;
 
 use crossbeam::channel::{Receiver, Select};
-use dozer_types::epoch::Epoch;
 use dozer_types::log::debug;
 
 use crate::{
+    epoch::Epoch,
     errors::ExecutionError,
     executor_operation::{ExecutorOperation, ProcessorOperation},
 };
@@ -39,7 +38,7 @@ pub trait ReceiverLoop: Name {
         let mut port_states = vec![InputPortState::Open; receivers.len()];
 
         let mut commits_received: usize = 0;
-        let mut common_epoch = Epoch::new(0, Default::default(), SystemTime::now());
+        let mut epoch_id = 0;
 
         let mut sel = init_select(&receivers);
         loop {
@@ -53,20 +52,13 @@ pub trait ReceiverLoop: Name {
                     self.on_op(index, op)?;
                 }
                 ExecutorOperation::Commit { epoch } => {
-                    assert_eq!(epoch.id, common_epoch.id);
+                    assert_eq!(epoch.common_info.id, epoch_id);
                     commits_received += 1;
                     sel.remove(index);
-                    // Commits from all inputs ports must have the same decision instant.
-                    if commits_received > 1 {
-                        assert_eq!(common_epoch.decision_instant, epoch.decision_instant);
-                    }
-                    common_epoch.decision_instant = epoch.decision_instant;
-                    common_epoch.details.extend(epoch.details);
 
                     if commits_received == receivers.len() {
-                        self.on_commit(&common_epoch)?;
-                        common_epoch =
-                            Epoch::new(common_epoch.id + 1, Default::default(), SystemTime::now());
+                        self.on_commit(&epoch)?;
+                        epoch_id += 1;
                         commits_received = 0;
                         sel = init_select(&receivers);
                     }
@@ -103,7 +95,7 @@ fn init_select(receivers: &Vec<Receiver<ExecutorOperation>>) -> Select {
 
 #[cfg(test)]
 mod tests {
-    use std::mem::swap;
+    use std::{mem::swap, sync::Arc, time::SystemTime};
 
     use crossbeam::channel::{unbounded, Sender};
     use dozer_types::{
@@ -225,21 +217,21 @@ mod tests {
     }
 
     #[test]
-    fn receiver_loop_merges_commit_epoch_and_increases_epoch_id() {
+    fn receiver_loop_increases_epoch_id() {
         let (mut test_loop, senders) = TestReceiverLoop::new(2);
-        let mut details = SourceStates::default();
-        details.insert(
+        let mut source_states = SourceStates::default();
+        source_states.insert(
             NodeHandle::new(None, "0".to_string()),
             OpIdentifier::new(0, 0),
         );
-        let decision_instant = SystemTime::now();
-        let mut epoch0 = Epoch::new(0, details, decision_instant);
-        let mut details = SourceStates::default();
-        details.insert(
+        source_states.insert(
             NodeHandle::new(None, "1".to_string()),
             OpIdentifier::new(0, 0),
         );
-        let mut epoch1 = Epoch::new(0, details, decision_instant);
+        let source_states = Arc::new(source_states);
+        let decision_instant = SystemTime::now();
+        let mut epoch0 = Epoch::new(0, source_states.clone(), None, decision_instant);
+        let mut epoch1 = Epoch::new(0, source_states, None, decision_instant);
         senders[0]
             .send(ExecutorOperation::Commit {
                 epoch: epoch0.clone(),
@@ -250,8 +242,8 @@ mod tests {
                 epoch: epoch1.clone(),
             })
             .unwrap();
-        epoch0.id = 1;
-        epoch1.id = 1;
+        epoch0.common_info.id = 1;
+        epoch1.common_info.id = 1;
         senders[0]
             .send(ExecutorOperation::Commit {
                 epoch: epoch0.clone(),
@@ -266,35 +258,29 @@ mod tests {
         senders[1].send(ExecutorOperation::Terminate).unwrap();
         test_loop.receiver_loop().unwrap();
 
-        let mut details = SourceStates::new();
-        details.extend(epoch0.details);
-        details.extend(epoch1.details);
-        assert_eq!(
-            test_loop.commits,
-            vec![
-                Epoch::new(0, details.clone(), decision_instant),
-                Epoch::new(1, details, decision_instant)
-            ]
-        );
+        assert_eq!(test_loop.commits[0].common_info.id, 0);
+        assert_eq!(test_loop.commits[0].decision_instant, decision_instant);
+        assert_eq!(test_loop.commits[1].common_info.id, 1);
+        assert_eq!(test_loop.commits[1].decision_instant, decision_instant);
     }
 
     #[test]
     #[should_panic]
     fn receiver_loop_panics_on_inconsistent_commit_epoch() {
         let (mut test_loop, senders) = TestReceiverLoop::new(2);
-        let mut details = SourceStates::new();
-        details.insert(
+        let mut source_states = SourceStates::new();
+        source_states.insert(
             NodeHandle::new(None, "0".to_string()),
             OpIdentifier::new(0, 0),
         );
-        let decision_instant = SystemTime::now();
-        let epoch0 = Epoch::new(0, details, decision_instant);
-        let mut details = SourceStates::new();
-        details.insert(
+        source_states.insert(
             NodeHandle::new(None, "1".to_string()),
             OpIdentifier::new(0, 0),
         );
-        let epoch1 = Epoch::new(1, details, decision_instant);
+        let source_states = Arc::new(source_states);
+        let decision_instant = SystemTime::now();
+        let epoch0 = Epoch::new(0, source_states.clone(), None, decision_instant);
+        let epoch1 = Epoch::new(1, source_states, None, decision_instant);
         senders[0]
             .send(ExecutorOperation::Commit { epoch: epoch0 })
             .unwrap();

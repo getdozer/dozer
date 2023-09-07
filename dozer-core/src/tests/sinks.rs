@@ -1,15 +1,15 @@
+use crate::epoch::Epoch;
 use crate::executor_operation::ProcessorOperation;
 use crate::node::{PortHandle, Sink, SinkFactory};
 use crate::processor_record::ProcessorRecordStore;
 use crate::DEFAULT_PORT_HANDLE;
-use dozer_types::epoch::Epoch;
+use dozer_log::storage::Queue;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::Schema;
 
 use dozer_types::log::debug;
 use std::collections::HashMap;
 
-use crate::tests::app::NoneContext;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
@@ -30,15 +30,12 @@ impl CountingSinkFactory {
     }
 }
 
-impl SinkFactory<NoneContext> for CountingSinkFactory {
+impl SinkFactory for CountingSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![COUNTING_SINK_INPUT_PORT]
     }
 
-    fn prepare(
-        &self,
-        _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), BoxedError> {
+    fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), BoxedError> {
         Ok(())
     }
 
@@ -89,6 +86,10 @@ impl Sink for CountingSink {
         Ok(())
     }
 
+    fn persist(&mut self, _queue: &Queue) -> Result<(), BoxedError> {
+        Ok(())
+    }
+
     fn on_source_snapshotting_done(&mut self, _connection_name: String) -> Result<(), BoxedError> {
         Ok(())
     }
@@ -97,15 +98,12 @@ impl Sink for CountingSink {
 #[derive(Debug)]
 pub struct ConnectivityTestSinkFactory;
 
-impl SinkFactory<NoneContext> for ConnectivityTestSinkFactory {
+impl SinkFactory for ConnectivityTestSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn prepare(
-        &self,
-        _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), BoxedError> {
+    fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), BoxedError> {
         unimplemented!("This struct is for connectivity test, only input ports are defined")
     }
 
@@ -120,15 +118,12 @@ impl SinkFactory<NoneContext> for ConnectivityTestSinkFactory {
 #[derive(Debug)]
 pub struct NoInputPortSinkFactory;
 
-impl SinkFactory<NoneContext> for NoInputPortSinkFactory {
+impl SinkFactory for NoInputPortSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![]
     }
 
-    fn prepare(
-        &self,
-        _input_schemas: HashMap<PortHandle, (Schema, NoneContext)>,
-    ) -> Result<(), BoxedError> {
+    fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), BoxedError> {
         unimplemented!("This struct is for connectivity test, only input ports are defined")
     }
 

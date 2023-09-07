@@ -3,8 +3,9 @@ use super::{auth_middleware::AuthMiddlewareLayer, common::CommonService, typed::
 use crate::errors::ApiInitError;
 use crate::grpc::auth::AuthService;
 use crate::grpc::health::HealthService;
-use crate::grpc::{common, typed};
+use crate::grpc::{common, run_server, typed};
 use crate::{errors::GrpcError, CacheEndpoint};
+use dozer_tracing::LabelsAndProgress;
 use dozer_types::grpc_types::health::health_check_response::ServingStatus;
 use dozer_types::grpc_types::types::Operation;
 use dozer_types::grpc_types::{
@@ -17,10 +18,10 @@ use dozer_types::{
     log::info,
     models::{api_config::GrpcApiOptions, api_security::ApiSecurity, flags::Flags},
 };
-use futures_util::stream::{AbortHandle, Abortable, Aborted};
 use futures_util::Future;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::broadcast::{self, Receiver};
+use tonic::transport::server::TcpIncoming;
 use tonic::transport::Server;
 use tonic_reflection::server::{ServerReflection, ServerReflectionServer};
 use tower::Layer;
@@ -79,12 +80,14 @@ impl ApiServer {
         }
     }
 
+    /// TcpIncoming::new requires a tokio runtime, so we mark this function as async.
     pub async fn run(
         &self,
         cache_endpoints: Vec<Arc<CacheEndpoint>>,
         shutdown: impl Future<Output = ()> + Send + 'static,
         operations_receiver: Option<Receiver<Operation>>,
-    ) -> Result<(), ApiInitError> {
+        labels: LabelsAndProgress,
+    ) -> Result<impl Future<Output = Result<(), tonic::transport::Error>>, ApiInitError> {
         // Create our services.
         let mut web_config = tonic_web::config();
         if self.flags.grpc_web {
@@ -137,7 +140,7 @@ impl ApiServer {
             )));
             auth_service = Some(auth_middleware.layer(service));
         }
-        let metric_middleware = MetricMiddlewareLayer::new();
+        let metric_middleware = MetricMiddlewareLayer::new(labels);
         // Add services to server.
         let mut grpc_router = Server::builder()
             .layer(
@@ -162,15 +165,7 @@ impl ApiServer {
         grpc_router = grpc_router.add_service(health_service);
         grpc_router = grpc_router.add_optional_service(auth_service);
 
-        // Tonic graceful shutdown doesn't allow us to set a timeout, resulting in hanging if a client doesn't close the connection.
-        // So we just abort the server when the shutdown signal is received.
-        let (abort_handle, abort_registration) = AbortHandle::new_pair();
-        tokio::spawn(async move {
-            shutdown.await;
-            abort_handle.abort();
-        });
-
-        // Run server.
+        // Start listening.
         let addr = format!("{}:{}", self.host, self.port);
         info!(
             "Starting gRPC server on {addr} with security: {}",
@@ -180,13 +175,13 @@ impl ApiServer {
                     ApiSecurity::Jwt(_) => "JWT".to_string(),
                 })
         );
-
         let addr = addr
             .parse()
             .map_err(|e| GrpcError::AddrParse(addr.clone(), e))?;
-        match Abortable::new(grpc_router.serve(addr), abort_registration).await {
-            Ok(result) => result.map_err(|e| ApiInitError::Grpc(GrpcError::Transport(e))),
-            Err(Aborted) => Ok(()),
-        }
+        let incoming =
+            TcpIncoming::new(addr, true, None).map_err(|e| GrpcError::Listen(addr, e))?;
+
+        // Run server.
+        Ok(run_server(grpc_router, incoming, shutdown))
     }
 }

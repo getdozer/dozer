@@ -1,3 +1,5 @@
+use std::num::NonZeroU16;
+
 use aws_sdk_s3::{
     operation::create_bucket::CreateBucketError,
     types::{
@@ -13,8 +15,9 @@ use dozer_types::{
     tonic::async_trait,
 };
 use futures_util::{stream::BoxStream, StreamExt, TryStreamExt};
+use nonzero_ext::nonzero;
 
-use super::{Error, ListObjectsOutput, Object, Storage};
+use super::{Error, ListObjectsOutput, ListedObject, Storage};
 
 #[derive(Debug, Clone)]
 pub struct S3Storage {
@@ -114,7 +117,7 @@ impl Storage for S3Storage {
         &self,
         key: String,
         upload_id: String,
-        part_number: i32,
+        part_number: NonZeroU16,
         data: Vec<u8>,
     ) -> Result<String, Error> {
         self.client
@@ -122,7 +125,7 @@ impl Storage for S3Storage {
             .bucket(&self.bucket_name)
             .key(key)
             .upload_id(upload_id)
-            .part_number(part_number)
+            .part_number(part_number.get() as i32)
             .body(data.into())
             .send()
             .await
@@ -134,16 +137,30 @@ impl Storage for S3Storage {
         &self,
         key: String,
         upload_id: String,
-        parts: Vec<(i32, String)>,
+        parts: Vec<(NonZeroU16, String)>,
     ) -> Result<(), Error> {
         let mut completed_multipart_upload = CompletedMultipartUpload::builder();
-        for (part_number, e_tag) in parts.into_iter() {
+        if parts.is_empty() {
+            // S3 wants at least one part. Let's create an empty one.
+            let part_number = nonzero!(1u16);
+            let e_tag = self
+                .upload_part(key.clone(), upload_id.clone(), part_number, vec![])
+                .await?;
             completed_multipart_upload = completed_multipart_upload.parts(
                 CompletedPart::builder()
-                    .part_number(part_number)
+                    .part_number(part_number.get() as i32)
                     .e_tag(e_tag)
                     .build(),
             );
+        } else {
+            for (part_number, e_tag) in parts.into_iter() {
+                completed_multipart_upload = completed_multipart_upload.parts(
+                    CompletedPart::builder()
+                        .part_number(part_number.get() as i32)
+                        .e_tag(e_tag)
+                        .build(),
+                );
+            }
         }
         self.client
             .complete_multipart_upload()
@@ -178,7 +195,7 @@ impl Storage for S3Storage {
             .map(|object| {
                 (*object.last_modified().expect("must have last modified"))
                     .try_into()
-                    .map(|last_modified| Object {
+                    .map(|last_modified| ListedObject {
                         key: object.key.expect("must have key"),
                         last_modified,
                     })
@@ -215,6 +232,8 @@ fn is_bucket_already_owned_by_you(error: &SdkError<CreateBucketError>) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use crate::storage::tests::test_storage_empty_multipart;
+
     use super::super::tests::{test_storage_basic, test_storage_multipart, test_storage_prefix};
 
     use super::*;
@@ -252,6 +271,18 @@ mod tests {
         .await
         .unwrap();
         test_storage_prefix(&storage).await;
+        storage.delete().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_s3_empty_multipart() {
+        let storage = S3Storage::new(
+            BucketLocationConstraint::UsEast2,
+            "test-s3-empty-multipart-us-east-2".to_string(),
+        )
+        .await
+        .unwrap();
+        test_storage_empty_multipart(&storage).await;
         storage.delete().await.unwrap();
     }
 }

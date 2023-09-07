@@ -4,6 +4,7 @@ use crate::pipeline::aggregation::max::validate_max;
 use crate::pipeline::aggregation::min::validate_min;
 use crate::pipeline::aggregation::sum::validate_sum;
 use crate::pipeline::errors::PipelineError;
+use crate::pipeline::expression::case::evaluate_case;
 use crate::pipeline::expression::conditional::{
     get_conditional_expr_type, ConditionalExpressionType,
 };
@@ -15,18 +16,19 @@ use crate::pipeline::expression::scalar::common::{get_scalar_function_type, Scal
 use crate::pipeline::expression::scalar::string::{evaluate_trim, validate_trim, TrimType};
 use std::iter::zip;
 
-use crate::pipeline::expression::case::evaluate_case;
-
-use crate::pipeline::aggregation::max_value::validate_max_value;
-use crate::pipeline::aggregation::min_value::validate_min_value;
-use dozer_types::types::Record;
-use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
-use uuid::Uuid;
-
 use super::aggregate::AggregateFunctionType;
 use super::cast::CastOperatorType;
 use super::in_list::evaluate_in_list;
 use super::scalar::string::{evaluate_like, get_like_operator_type};
+use crate::pipeline::aggregation::max_value::validate_max_value;
+use crate::pipeline::aggregation::min_value::validate_min_value;
+#[cfg(feature = "onnx")]
+use crate::pipeline::expression::onnx::onnx_udf::evaluate_onnx_udf;
+#[cfg(feature = "onnx")]
+use crate::pipeline::onnx::DozerSession;
+use dozer_types::types::Record;
+use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
+use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Expression {
@@ -101,6 +103,12 @@ pub enum Expression {
         args: Vec<Expression>,
         return_type: FieldType,
     },
+    #[cfg(feature = "onnx")]
+    OnnxUDF {
+        name: String,
+        session: DozerSession,
+        args: Vec<Expression>,
+    },
 }
 
 impl Expression {
@@ -167,6 +175,18 @@ impl Expression {
                         .as_str()
                     + ")"
             }
+            #[cfg(feature = "onnx")]
+            Expression::OnnxUDF { name, args, .. } => {
+                name.to_string()
+                    + "("
+                    + args
+                        .iter()
+                        .map(|expr| expr.to_string(schema))
+                        .collect::<Vec<String>>()
+                        .join(",")
+                        .as_str()
+                    + ")"
+            }
             Expression::Cast { arg, typ } => {
                 "CAST(".to_string()
                     + arg.to_string(schema).as_str()
@@ -222,7 +242,6 @@ impl Expression {
                     + arg.to_string(schema).as_str()
                     + ")"
             }
-
             Expression::Like {
                 arg,
                 pattern,
@@ -319,6 +338,17 @@ impl Expression {
                 use crate::pipeline::expression::python_udf::evaluate_py_udf;
                 evaluate_py_udf(schema, name, args, return_type, record)
             }
+            #[cfg(feature = "onnx")]
+            Expression::OnnxUDF {
+                name: _name,
+                session,
+                args,
+                ..
+            } => {
+                use std::borrow::Borrow;
+                evaluate_onnx_udf(schema, session.0.borrow(), args, record)
+            }
+
             Expression::UnaryOperator { operator, arg } => operator.evaluate(schema, arg, record),
             Expression::AggregateFunction { fun, args: _ } => {
                 Err(PipelineError::InvalidExpression(format!(
@@ -446,6 +476,13 @@ impl Expression {
             #[cfg(feature = "python")]
             Expression::PythonUDF { return_type, .. } => Ok(ExpressionType::new(
                 *return_type,
+                false,
+                SourceDefinition::Dynamic,
+                false,
+            )),
+            #[cfg(feature = "onnx")]
+            Expression::OnnxUDF { .. } => Ok(ExpressionType::new(
+                FieldType::Float,
                 false,
                 SourceDefinition::Dynamic,
                 false,

@@ -1,4 +1,4 @@
-use dozer_types::labels::Labels;
+use dozer_tracing::Labels;
 use dozer_types::parking_lot::Mutex;
 use std::collections::HashSet;
 use std::path::PathBuf;

@@ -68,7 +68,7 @@ fn runtime_create_reader(mut cx: FunctionContext) -> JsResult<JsPromise> {
         match reader_builder {
             Ok(reader) => {
                 // Create the reader and resolve the promise.
-                let reader = reader.build(0, None);
+                let reader = reader.build(0);
                 deferred.settle_with(&channel, move |mut cx| {
                     new_reader(&mut cx, runtime_for_reader, reader)
                 })

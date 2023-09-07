@@ -1,45 +1,36 @@
-use camino::{ReadDirUtf8, Utf8Path, Utf8PathBuf};
+use camino::{ReadDirUtf8, Utf8PathBuf};
 
 #[derive(Debug, Clone)]
 pub struct HomeDir {
-    api_dir: Utf8PathBuf,
+    home_dir: Utf8PathBuf,
     cache_dir: Utf8PathBuf,
-    log_dir: Utf8PathBuf,
 }
 
 pub type Error = (Utf8PathBuf, std::io::Error);
 
 impl HomeDir {
-    pub fn new(home_dir: &str, cache_dir: String) -> Self {
-        let home_dir = AsRef::<Utf8Path>::as_ref(home_dir);
-        let api_dir = home_dir.join("api");
-        let log_dir = home_dir.join("pipeline").join("logs");
+    pub fn new(home_dir: Utf8PathBuf, cache_dir: Utf8PathBuf) -> Self {
         Self {
-            api_dir,
-            cache_dir: cache_dir.into(),
-            log_dir,
+            home_dir,
+            cache_dir,
         }
     }
 
-    pub fn create_build_dir_all(
-        &self,
-        endpoint_name: &str,
-        build_id: BuildId,
-    ) -> Result<BuildPath, Error> {
+    pub fn create_build_dir_all(&self, build_id: BuildId) -> Result<BuildPath, Error> {
         std::fs::create_dir_all(&self.cache_dir).map_err(|e| (self.cache_dir.clone(), e))?;
 
-        let build_path = self.get_build_path(endpoint_name, build_id);
+        let build_path = self.get_build_path(build_id);
 
-        std::fs::create_dir_all(&build_path.api_dir)
-            .map_err(|e| (build_path.api_dir.clone(), e))?;
-        std::fs::create_dir_all(&build_path.log_dir)
-            .map_err(|e: std::io::Error| (build_path.log_dir.clone(), e))?;
+        std::fs::create_dir_all(&build_path.contracts_dir)
+            .map_err(|e| (build_path.contracts_dir.clone(), e))?;
+        std::fs::create_dir_all(&build_path.data_dir)
+            .map_err(|e: std::io::Error| (build_path.data_dir.clone(), e))?;
 
         Ok(build_path)
     }
 
-    pub fn find_build_path(&self, endpoint_name: &str, build_id: u32) -> Option<BuildPath> {
-        let build_path = self.get_build_path(endpoint_name, BuildId::from_id(build_id));
+    pub fn find_build_path(&self, build_id: u32) -> Option<BuildPath> {
+        let build_path = self.get_build_path(BuildId::from_id(build_id));
         if build_path.exists() {
             Some(build_path)
         } else {
@@ -47,75 +38,29 @@ impl HomeDir {
         }
     }
 
-    pub fn find_latest_build_path(&self, endpoint_name: &str) -> Result<Option<BuildPath>, Error> {
-        Ok(self
-            .find_latest_build_id(endpoint_name)?
-            .map(|build_id| self.get_build_path(endpoint_name, build_id)))
+    pub fn find_latest_build_path(&self) -> Result<Option<BuildPath>, Error> {
+        Ok(find_latest_build_id(self.home_dir.clone())?
+            .map(|build_id| self.get_build_path(build_id)))
     }
 
-    pub fn find_latest_build_id(&self, endpoint_name: &str) -> Result<Option<BuildId>, Error> {
-        let api_dir = self.get_endpoint_api_dir(endpoint_name);
-        let build1 = find_latest_build_id(api_dir)?;
-        let log_dir = self.get_endpoint_log_dir(endpoint_name);
-        let build2 = find_latest_build_id(log_dir)?;
+    fn get_build_path(&self, build_id: BuildId) -> BuildPath {
+        let build_dir = self.home_dir.join(&build_id.name);
 
-        match (build1, build2) {
-            (Some(build1), Some(build2)) => {
-                if build1.id > build2.id {
-                    Ok(Some(build1))
-                } else {
-                    Ok(Some(build2))
-                }
-            }
-            (Some(build1), None) => Ok(Some(build1)),
-            (None, Some(build2)) => Ok(Some(build2)),
-            (None, None) => Ok(None),
-        }
-    }
+        let contracts_dir = build_dir.join("contracts");
+        let dag_path = contracts_dir.join("__dozer_pipeline.json");
+        let descriptor_path = contracts_dir.join("file_descriptor_set.bin");
 
-    fn get_build_path(&self, endpoint_name: &str, build_id: BuildId) -> BuildPath {
-        let api_dir = self
-            .get_endpoint_api_dir(endpoint_name)
-            .join(&build_id.name);
-        let descriptor_path = api_dir.join("file_descriptor_set.bin");
-        let log_dir = self
-            .get_endpoint_log_dir(endpoint_name)
-            .join(&build_id.name);
-        let schema_path = log_dir.join("schema.json");
-        let log_path = log_dir.join("log");
+        let data_dir = build_dir.join("data");
+        let log_dir_relative_to_data_dir = "log".into();
+
         BuildPath {
             id: build_id,
-            api_dir,
+            contracts_dir,
+            dag_path,
             descriptor_path,
-            log_dir,
-            schema_path,
-            log_path,
+            data_dir,
+            log_dir_relative_to_data_dir,
         }
-    }
-
-    fn get_endpoint_api_dir(&self, endpoint_name: &str) -> Utf8PathBuf {
-        self.api_dir.join(endpoint_name)
-    }
-
-    fn get_endpoint_log_dir(&self, endpoint_name: &str) -> Utf8PathBuf {
-        self.log_dir.join(endpoint_name)
-    }
-
-    pub fn list_endpoints(&self) -> Result<Vec<String>, Error> {
-        if !self.api_dir.exists() || !self.log_dir.exists() {
-            return Ok(vec![]);
-        }
-
-        let mut result = vec![];
-        for sub_dir in list_sub_dir(self.api_dir.clone())? {
-            let sub_dir = sub_dir?;
-            let log_dir = self.get_endpoint_log_dir(&sub_dir.name);
-            if !log_dir.is_dir() {
-                continue;
-            }
-            result.push(sub_dir.name);
-        }
-        Ok(result)
     }
 }
 
@@ -222,15 +167,29 @@ fn find_latest_build_id(dir: Utf8PathBuf) -> Result<Option<BuildId>, Error> {
 #[derive(Debug, Clone)]
 pub struct BuildPath {
     pub id: BuildId,
-    pub api_dir: Utf8PathBuf,
+    pub contracts_dir: Utf8PathBuf,
+    pub dag_path: Utf8PathBuf,
     pub descriptor_path: Utf8PathBuf,
-    log_dir: Utf8PathBuf,
-    pub schema_path: Utf8PathBuf,
-    pub log_path: Utf8PathBuf,
+    pub data_dir: Utf8PathBuf,
+    log_dir_relative_to_data_dir: Utf8PathBuf,
 }
 
 impl BuildPath {
-    pub fn exists(&self) -> bool {
-        self.api_dir.exists() && self.log_dir.exists()
+    pub fn get_endpoint_path(&self, endpoint_name: &str) -> EndpointPath {
+        let log_dir_relative_to_data_dir = self.log_dir_relative_to_data_dir.join(endpoint_name);
+        EndpointPath {
+            build_id: self.id.clone(),
+            log_dir_relative_to_data_dir,
+        }
     }
+
+    fn exists(&self) -> bool {
+        self.contracts_dir.exists() && self.data_dir.exists()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct EndpointPath {
+    pub build_id: BuildId,
+    pub log_dir_relative_to_data_dir: Utf8PathBuf,
 }

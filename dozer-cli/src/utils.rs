@@ -1,5 +1,5 @@
-use dozer_cache::{cache::CacheManagerOptions, dozer_log::replication::LogOptions};
-use dozer_core::executor::ExecutorOptions;
+use dozer_cache::cache::CacheManagerOptions;
+use dozer_core::{checkpoint::CheckpointFactoryOptions, executor::ExecutorOptions};
 use dozer_types::models::{
     api_config::{
         default_api_grpc, default_api_rest, default_app_grpc, AppGrpcOptions, GrpcApiOptions,
@@ -8,7 +8,7 @@ use dozer_types::models::{
     api_security::ApiSecurity,
     app_config::{
         default_app_buffer_size, default_commit_size, default_commit_timeout,
-        default_log_entry_max_size, default_log_max_num_immutable_entries,
+        default_error_threshold, default_persist_queue_capacity, DataStorage,
     },
     config::{default_cache_max_map_size, Config},
 };
@@ -46,22 +46,18 @@ fn get_commit_size(config: &Config) -> u32 {
         .unwrap_or_else(default_commit_size)
 }
 
-pub fn get_log_options(config: &Config) -> LogOptions {
+fn get_error_threshold(config: &Config) -> u32 {
+    config
+        .app
+        .as_ref()
+        .and_then(|app| app.error_threshold)
+        .unwrap_or_else(default_error_threshold)
+}
+
+pub fn get_storage_config(config: &Config) -> DataStorage {
     let app = config.app.as_ref();
-    let storage_config = app
-        .and_then(|app| app.log_storage.clone())
-        .unwrap_or_default();
-    let entry_max_size = app
-        .and_then(|app| app.log_entry_max_size)
-        .unwrap_or_else(default_log_entry_max_size) as usize;
-    let max_num_immutable_entries =
-        app.and_then(|app| app.log_max_num_immutable_entries)
-            .unwrap_or_else(default_log_max_num_immutable_entries) as usize;
-    LogOptions {
-        storage_config,
-        entry_max_size,
-        max_num_immutable_entries,
-    }
+    app.and_then(|app| app.data_storage.clone())
+        .unwrap_or_default()
 }
 
 pub fn get_grpc_config(config: &Config) -> GrpcApiOptions {
@@ -95,12 +91,24 @@ pub fn get_api_security_config(config: &Config) -> Option<&ApiSecurity> {
         .and_then(|api| api.api_security.as_ref())
 }
 
-pub fn get_executor_options(config: &Config, err_threshold: Option<u32>) -> ExecutorOptions {
+pub fn get_checkpoint_factory_options(config: &Config) -> CheckpointFactoryOptions {
+    CheckpointFactoryOptions {
+        persist_queue_capacity: config
+            .app
+            .as_ref()
+            .and_then(|app| app.persist_queue_capacity)
+            .unwrap_or_else(default_persist_queue_capacity)
+            as usize,
+        storage_config: get_storage_config(config),
+    }
+}
+
+pub fn get_executor_options(config: &Config) -> ExecutorOptions {
     ExecutorOptions {
         commit_sz: get_commit_size(config),
         channel_buffer_sz: get_buffer_size(config) as usize,
         commit_time_threshold: get_commit_time_threshold(config),
-        error_threshold: Some(err_threshold.unwrap_or(0_u32)),
+        error_threshold: Some(get_error_threshold(config)),
     }
 }
 

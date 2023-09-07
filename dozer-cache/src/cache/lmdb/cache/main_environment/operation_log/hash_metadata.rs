@@ -19,7 +19,7 @@ impl HashMetadata {
         LmdbMultimap::open(env, Some(Self::DATABASE_NAME)).map(Self)
     }
 
-    pub const DATABASE_NAME: &str = "hash_metadata";
+    pub const DATABASE_NAME: &'static str = "hash_metadata";
 
     pub fn database(&self) -> Database {
         self.0.database()

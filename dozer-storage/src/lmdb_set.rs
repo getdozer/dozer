@@ -11,7 +11,7 @@ pub struct LmdbSet<K>(LmdbMap<K, Vec<u8>>);
 
 impl<K> Clone for LmdbSet<K> {
     fn clone(&self) -> Self {
-        Self(self.0)
+        *self
     }
 }
 

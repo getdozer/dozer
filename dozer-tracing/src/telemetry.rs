@@ -1,17 +1,20 @@
+use std::time::Duration;
+
 use dozer_types::log::{debug, error};
-use dozer_types::models::telemetry::{
-    DozerTelemetryConfig, JaegerTelemetryConfig, TelemetryConfig, TelemetryTraceConfig,
-};
-use dozer_types::tracing::Subscriber;
+use dozer_types::models::telemetry::{DozerTelemetryConfig, TelemetryConfig, TelemetryTraceConfig};
+use dozer_types::tracing::{self, Metadata, Subscriber};
 use metrics_exporter_prometheus::PrometheusBuilder;
-use opentelemetry::sdk;
+use opentelemetry::global;
+use opentelemetry::sdk::trace::{config, XrayIdGenerator};
 use opentelemetry::sdk::trace::{BatchConfig, BatchSpanProcessor, Sampler};
+use opentelemetry::sdk::{self, Resource};
 use opentelemetry::trace::TracerProvider;
-use opentelemetry::{global, sdk::propagation::TraceContextPropagator};
+use opentelemetry::KeyValue;
+use opentelemetry_otlp::WithExportConfig;
 use tracing_opentelemetry::OpenTelemetryLayer;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::{fmt, EnvFilter, Layer};
+use tracing_subscriber::{filter, fmt, EnvFilter, Layer};
 
 use crate::exporter::DozerExporter;
 // Init telemetry by setting a global handler
@@ -72,9 +75,11 @@ fn create_subscriber(
                 Some(get_dozer_tracer(config).with_filter(trace_filter)),
                 None,
             ),
-            Some(TelemetryTraceConfig::Jaeger(config)) => (
+            Some(TelemetryTraceConfig::XRay(_)) => (
                 None,
-                Some(get_jaeger_tracer(app_name, config).with_filter(trace_filter)),
+                Some(get_xray_tracer(app_name).with_filter(filter::filter_fn(
+                    |metadata: &Metadata| metadata.level() == &tracing::Level::ERROR,
+                ))),
             ),
         }
     });
@@ -92,21 +97,28 @@ fn create_subscriber(
         .with(layers.1)
 }
 
-fn get_jaeger_tracer<S>(
-    app_name: &str,
-    _config: &JaegerTelemetryConfig,
-) -> OpenTelemetryLayer<S, opentelemetry::sdk::trace::Tracer>
+fn get_xray_tracer<S>(app_name: &str) -> OpenTelemetryLayer<S, opentelemetry::sdk::trace::Tracer>
 where
     S: for<'span> tracing_subscriber::registry::LookupSpan<'span>
         + dozer_types::tracing::Subscriber,
 {
-    global::set_text_map_propagator(TraceContextPropagator::new());
+    let otlp_exporter = opentelemetry_otlp::new_exporter()
+        .tonic()
+        .with_timeout(Duration::from_secs(3));
 
-    let tracer = opentelemetry_jaeger::new_agent_pipeline()
-        .with_service_name(app_name)
+    let tracer = opentelemetry_otlp::new_pipeline()
+        .tracing()
+        .with_exporter(otlp_exporter)
+        .with_trace_config(
+            config()
+                .with_id_generator(XrayIdGenerator::default())
+                .with_resource(Resource::new(vec![KeyValue::new(
+                    "service.name",
+                    app_name.to_string(),
+                )])),
+        )
         .install_simple()
         .expect("Failed to install OpenTelemetry tracer.");
-
     tracing_opentelemetry::layer().with_tracer(tracer)
 }
 
@@ -140,6 +152,7 @@ where
     let tracer = tracer_provider.versioned_tracer(
         "opentelemetry-dozer",
         Some(env!("CARGO_PKG_VERSION")),
+        None::<String>,
         None,
     );
     let _ = global::set_tracer_provider(tracer_provider);

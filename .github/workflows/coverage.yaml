@@ -2,9 +2,10 @@ name: Dozer Coverage
 
 on:
   workflow_dispatch:
-  pull_request_target:
-    branches: [main]
-  merge_group:
+  push:
+    branches: [release, release-dev, release-test]
+    tags:
+      - "v*.*.*"
 
 env:
   CARGO_TERM_COLOR: always
@@ -94,6 +95,8 @@ jobs:
         uses: supercharge/mongodb-github-action@1.8.0
 
       - uses: ./.github/workflows/setup-snowflake-and-kafka
+
+      - uses: ./.github/workflows/setup-mysql-and-mariadb
 
       - name: Run connectors tests
         env:

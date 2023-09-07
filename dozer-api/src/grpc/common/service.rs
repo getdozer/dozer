@@ -3,10 +3,12 @@ use std::sync::Arc;
 
 use crate::auth::Access;
 
-use crate::grpc::shared_impl;
-use crate::grpc::types_helper::{map_field_definitions, map_record};
+use crate::grpc::shared_impl::{self, EndpointFilter};
+use crate::grpc::types_helper::map_record;
 use crate::CacheEndpoint;
 use dozer_types::grpc_types::common::common_grpc_service_server::CommonGrpcService;
+use dozer_types::grpc_types::conversions::field_definition_to_grpc;
+use dozer_types::indexmap::IndexMap;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 
@@ -21,8 +23,8 @@ type ResponseStream = ReceiverStream<Result<Operation, tonic::Status>>;
 
 // #[derive(Clone)]
 pub struct CommonService {
-    /// For look up endpoint from its name. `key == value.endpoint.name`.
-    pub endpoint_map: HashMap<String, Arc<CacheEndpoint>>,
+    /// For look up endpoint from its name. `key == value.endpoint.name`. Using index map to keep endpoint order.
+    pub endpoint_map: IndexMap<String, Arc<CacheEndpoint>>,
     pub event_notifier: Option<tokio::sync::broadcast::Receiver<Operation>>,
 }
 
@@ -94,7 +96,7 @@ impl CommonGrpcService for CommonService {
         )?;
         let schema = &cache_reader.get_schema().0;
 
-        let fields = map_field_definitions(schema.fields.clone());
+        let fields = field_definition_to_grpc(schema.fields.clone());
         let records = records.into_iter().map(map_record).collect();
         let reply = QueryResponse { fields, records };
 
@@ -108,24 +110,25 @@ impl CommonGrpcService for CommonService {
         let extensions = parts.1;
         let query_request = parts.2;
         let access = extensions.get::<Access>();
-        let endpoint = &query_request.endpoint;
-        let cache_endpoint = self
-            .endpoint_map
-            .get(endpoint)
-            .ok_or_else(|| Status::invalid_argument(endpoint))?;
+
+        let mut endpoints = HashMap::new();
+        for (endpoint, filter) in query_request.endpoints {
+            let cache_endpoint = self
+                .endpoint_map
+                .get(&endpoint)
+                .ok_or_else(|| Status::invalid_argument(&endpoint))?;
+            let schema = cache_endpoint.cache_reader().get_schema().0.clone();
+            endpoints.insert(
+                endpoint,
+                EndpointFilter::new(schema, filter.filter.as_deref())?,
+            );
+        }
 
         shared_impl::on_event(
-            &cache_endpoint.cache_reader(),
-            query_request.filter.as_deref(),
+            endpoints,
             self.event_notifier.as_ref().map(|r| r.resubscribe()),
             access.cloned(),
-            move |op| {
-                if op.endpoint_name == query_request.endpoint {
-                    Some(Ok(op))
-                } else {
-                    None
-                }
-            },
+            Ok,
         )
     }
 
@@ -151,7 +154,7 @@ impl CommonGrpcService for CommonService {
         let cache_reader = cache_endpoint.cache_reader();
         let schema = &cache_reader.get_schema().0;
 
-        let fields = map_field_definitions(schema.fields.clone());
+        let fields = field_definition_to_grpc(schema.fields.clone());
 
         let primary_index = schema.primary_index.iter().map(|f| *f as i32).collect();
         Ok(Response::new(GetFieldsResponse {

@@ -353,6 +353,23 @@ fn write_dozer_config_for_running_in_docker_compose(
             ConnectionConfig::S3Storage(_) => {}
             ConnectionConfig::LocalStorage(_) => {}
             ConnectionConfig::DeltaLake(_) => {}
+            ConnectionConfig::MongoDB(mongo) => {
+                let mut url = url::Url::parse(&mongo.connection_string).expect("Invalid url");
+                let _ = url.set_host(Some(&connection.name));
+                let _ = url.set_port(Some(map_port(url.port().unwrap_or(27017))));
+                mongo.connection_string = url.to_string();
+            }
+            ConnectionConfig::MySQL(mysql) => {
+                let mut url = url::Url::parse(&mysql.url).unwrap();
+                url.set_host(Some(&connection.name)).unwrap();
+                const MYSQL_DEFAULT_PORT: u16 = 3306;
+                url.set_port(Some(map_port(url.port().unwrap_or(MYSQL_DEFAULT_PORT))))
+                    .unwrap();
+                mysql.url = url.into();
+            }
+            ConnectionConfig::Dozer(_) => {
+                todo!("Map dozer host and port")
+            }
         }
     }
 

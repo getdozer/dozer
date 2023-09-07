@@ -9,7 +9,6 @@ use dozer_types::{errors::internal::BoxedError, types::Schema};
 use sqlparser::ast::TableFactor;
 
 use crate::pipeline::{
-    builder::SchemaSQLContext,
     errors::{PipelineError, ProductError},
     expression::builder::extend_schema_source_def,
 };
@@ -31,7 +30,7 @@ impl TableProcessorFactory {
     }
 }
 
-impl ProcessorFactory<SchemaSQLContext> for TableProcessorFactory {
+impl ProcessorFactory for TableProcessorFactory {
     fn id(&self) -> String {
         self.id.clone()
     }
@@ -54,12 +53,12 @@ impl ProcessorFactory<SchemaSQLContext> for TableProcessorFactory {
     fn get_output_schema(
         &self,
         _output_port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, (Schema, SchemaSQLContext)>,
-    ) -> Result<(Schema, SchemaSQLContext), BoxedError> {
-        if let Some((input_schema, query_context)) = input_schemas.get(&DEFAULT_PORT_HANDLE) {
+        input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> Result<Schema, BoxedError> {
+        if let Some(input_schema) = input_schemas.get(&DEFAULT_PORT_HANDLE) {
             let table = get_name_or_alias(&self.relation)?;
             let extended_input_schema = extend_schema_source_def(input_schema, &table);
-            Ok((extended_input_schema, query_context.clone()))
+            Ok(extended_input_schema)
         } else {
             Err(PipelineError::InvalidPortHandle(DEFAULT_PORT_HANDLE).into())
         }

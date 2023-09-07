@@ -26,9 +26,6 @@ pub fn map_executor_operation(
             result.set_item("type", "snapshotting_done")?;
             result.set_item("connection_name", connection_name)?;
         }
-        LogOperation::Terminate => {
-            result.set_item("type", "terminate")?;
-        }
     }
 
     Ok(result.into())

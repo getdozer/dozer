@@ -1,18 +1,18 @@
-use std::{borrow::Cow, collections::HashMap, mem::swap, sync::Arc};
+use std::{borrow::Cow, mem::swap, sync::Arc};
 
 use crossbeam::channel::Receiver;
 use daggy::NodeIndex;
-use dozer_types::{epoch::Epoch, log::debug, node::NodeHandle};
-use metrics::{describe_histogram, histogram};
+use dozer_tracing::LabelsAndProgress;
+use dozer_types::node::NodeHandle;
+use metrics::{describe_counter, describe_histogram, histogram, increment_counter};
 
 use crate::{
     builder_dag::NodeKind,
+    epoch::{Epoch, EpochManager},
     error_manager::ErrorManager,
     errors::ExecutionError,
     executor_operation::{ExecutorOperation, ProcessorOperation},
-    forwarder::StateWriter,
     node::{PortHandle, Sink},
-    processor_record::ProcessorRecordStore,
 };
 
 use super::execution_dag::ExecutionDag;
@@ -29,14 +29,15 @@ pub struct SinkNode {
     receivers: Vec<Receiver<ExecutorOperation>>,
     /// The sink.
     sink: Box<dyn Sink>,
-    /// This node's state writer, for writing metadata and port state.
-    state_writer: StateWriter,
     /// Where all the records from ingested data are stored.
-    record_store: ProcessorRecordStore,
+    epoch_manager: Arc<EpochManager>,
     /// The error manager, for reporting non-fatal errors.
     error_manager: Arc<ErrorManager>,
+    /// The metrics labels.
+    labels: LabelsAndProgress,
 }
 
+const SINK_OPERATION_COUNTER_NAME: &str = "sink_operation";
 const PIPELINE_LATENCY_HISTOGRAM_NAME: &str = "pipeline_latency";
 
 impl SinkNode {
@@ -51,8 +52,10 @@ impl SinkNode {
 
         let (port_handles, receivers) = dag.collect_receivers(node_index);
 
-        let state_writer = StateWriter::new(HashMap::new());
-
+        describe_counter!(
+            SINK_OPERATION_COUNTER_NAME,
+            "Number of operation processed by the sink"
+        );
         describe_histogram!(
             PIPELINE_LATENCY_HISTOGRAM_NAME,
             "The pipeline processing latency in seconds"
@@ -63,9 +66,9 @@ impl SinkNode {
             port_handles,
             receivers,
             sink,
-            state_writer,
-            record_store: dag.record_store().clone(),
+            epoch_manager: dag.epoch_manager().clone(),
             error_manager: dag.error_manager().clone(),
+            labels: dag.labels().clone(),
         }
     }
 
@@ -92,24 +95,50 @@ impl ReceiverLoop for SinkNode {
     }
 
     fn on_op(&mut self, index: usize, op: ProcessorOperation) -> Result<(), ExecutionError> {
-        if let Err(e) = self
-            .sink
-            .process(self.port_handles[index], &self.record_store, op)
-        {
+        let mut labels = self.labels.labels().clone();
+        labels.push("table", self.node_handle.id.clone());
+        const OPERATION_TYPE_LABEL: &str = "operation_type";
+        match &op {
+            ProcessorOperation::Insert { .. } => {
+                labels.push(OPERATION_TYPE_LABEL, "insert");
+            }
+            ProcessorOperation::Delete { .. } => {
+                labels.push(OPERATION_TYPE_LABEL, "delete");
+            }
+            ProcessorOperation::Update { .. } => {
+                labels.push(OPERATION_TYPE_LABEL, "update");
+            }
+        }
+
+        if let Err(e) = self.sink.process(
+            self.port_handles[index],
+            self.epoch_manager.record_store(),
+            op,
+        ) {
             self.error_manager.report(e);
         }
+
+        increment_counter!(SINK_OPERATION_COUNTER_NAME, labels);
+
         Ok(())
     }
 
     fn on_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError> {
-        debug!("[{}] Checkpointing - {}", self.node_handle, epoch);
+        // debug!("[{}] Checkpointing - {}", self.node_handle, epoch);
         if let Err(e) = self.sink.commit(epoch) {
             self.error_manager.report(e);
         }
-        self.state_writer.store_commit_info(epoch)?;
 
         if let Ok(duration) = epoch.decision_instant.elapsed() {
-            histogram!(PIPELINE_LATENCY_HISTOGRAM_NAME, duration, "endpoint" => self.node_handle.id.clone());
+            let mut labels = self.labels.labels().clone();
+            labels.push("endpoint", self.node_handle.id.clone());
+            histogram!(PIPELINE_LATENCY_HISTOGRAM_NAME, duration, labels);
+        }
+
+        if let Some(checkpoint_writer) = epoch.common_info.checkpoint_writer.as_ref() {
+            if let Err(e) = self.sink.persist(checkpoint_writer.queue()) {
+                self.error_manager.report(e);
+            }
         }
 
         Ok(())

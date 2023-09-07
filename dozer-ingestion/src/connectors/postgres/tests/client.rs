@@ -1,8 +1,8 @@
+use crate::connectors::postgres::connection::client::Client;
 use crate::connectors::postgres::connection::helper::{connect, map_connection_config};
 use dozer_types::models::connection::ConnectionConfig;
 use dozer_types::rust_decimal::Decimal;
 use std::fmt::Write;
-use tokio_postgres::Client;
 
 pub struct TestPostgresClient {
     client: Client,
@@ -30,11 +30,11 @@ impl TestPostgresClient {
         }
     }
 
-    pub async fn execute_query(&self, query: &str) {
+    pub async fn execute_query(&mut self, query: &str) {
         self.client.query(query, &[]).await.unwrap();
     }
 
-    pub async fn create_simple_table(&self, schema: &str, table_name: &str) {
+    pub async fn create_simple_table(&mut self, schema: &str, table_name: &str) {
         self.execute_query(&format!(
             "CREATE TABLE {schema}.{table_name}
             (   
@@ -47,7 +47,7 @@ impl TestPostgresClient {
         .await;
     }
 
-    pub async fn create_view(&self, schema: &str, table_name: &str, view_name: &str) {
+    pub async fn create_view(&mut self, schema: &str, table_name: &str, view_name: &str) {
         self.execute_query(&format!(
             "CREATE VIEW {schema}.{view_name} AS
             SELECT id, name
@@ -56,22 +56,22 @@ impl TestPostgresClient {
         .await;
     }
 
-    pub async fn drop_schema(&self, schema: &str) {
+    pub async fn drop_schema(&mut self, schema: &str) {
         self.execute_query(&format!("DROP SCHEMA IF EXISTS {schema} CASCADE"))
             .await;
     }
 
-    pub async fn drop_table(&self, schema: &str, table_name: &str) {
+    pub async fn drop_table(&mut self, schema: &str, table_name: &str) {
         self.execute_query(&format!("DROP TABLE IF EXISTS {schema}.{table_name}"))
             .await;
     }
 
-    pub async fn create_schema(&self, schema: &str) {
+    pub async fn create_schema(&mut self, schema: &str) {
         self.drop_schema(schema).await;
         self.execute_query(&format!("CREATE SCHEMA {schema}")).await;
     }
 
-    pub async fn insert_rows(&self, table_name: &str, count: u64, offset: Option<u64>) {
+    pub async fn insert_rows(&mut self, table_name: &str, count: u64, offset: Option<u64>) {
         let offset = offset.map_or(0, |o| o);
         let mut buf = String::new();
         for i in 0..count {

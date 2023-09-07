@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::{path::PathBuf, sync::Arc};
 
 use dozer_storage::{lmdb_storage::LmdbEnvironmentManager, LmdbMap, RwLmdbEnvironment};
-use dozer_types::labels::Labels;
+use dozer_tracing::Labels;
 use dozer_types::parking_lot::RwLock;
 use dozer_types::{
     parking_lot::Mutex,

@@ -1,13 +1,14 @@
 #![allow(clippy::enum_variant_names)]
-use std::net::AddrParseError;
+use std::net::{AddrParseError, SocketAddr};
 use std::path::PathBuf;
 
 use actix_web::http::header::ContentType;
 use actix_web::http::StatusCode;
 use actix_web::HttpResponse;
 use dozer_cache::dozer_log::errors::ReaderBuilderError;
+use dozer_tracing::Labels;
+use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::{CannotConvertF64ToJson, TypeError};
-use dozer_types::labels::Labels;
 use dozer_types::thiserror::Error;
 use dozer_types::{serde_json, thiserror};
 
@@ -61,8 +62,8 @@ pub enum GrpcError {
     ServerReflectionError(#[from] tonic_reflection::server::Error),
     #[error("Addr parse error: {0}: {1}")]
     AddrParse(String, #[source] AddrParseError),
-    #[error("Transport error: {0:?}")]
-    Transport(#[from] tonic::transport::Error),
+    #[error("Failed to listen to address {0}: {1:?}")]
+    Listen(SocketAddr, #[source] BoxedError),
 }
 
 impl From<ApiError> for tonic::Status {

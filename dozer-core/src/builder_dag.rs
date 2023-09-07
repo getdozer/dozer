@@ -1,14 +1,14 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::Arc};
 
 use daggy::petgraph::visit::IntoNodeIdentifiers;
 use dozer_types::node::{NodeHandle, OpIdentifier};
 
 use crate::{
+    checkpoint::CheckpointFactory,
     dag_checkpoint::{DagCheckpoint, NodeKind as CheckpointNodeKind},
     dag_schemas::{DagHaveSchemas, DagSchemas, EdgeType},
     errors::ExecutionError,
     node::{Processor, Sink, Source},
-    processor_record::ProcessorRecordStore,
 };
 
 #[derive(Debug)]
@@ -34,16 +34,18 @@ pub enum NodeKind {
 #[derive(Debug)]
 pub struct BuilderDag {
     graph: daggy::Dag<NodeType, EdgeType>,
-    record_store: ProcessorRecordStore,
+    checkpoint_factory: Arc<CheckpointFactory>,
 }
 
 impl BuilderDag {
-    pub fn new<T>(dag_schemas: DagSchemas<T>) -> Result<Self, ExecutionError> {
+    pub fn new(
+        checkpoint_factory: Arc<CheckpointFactory>,
+        dag_schemas: DagSchemas,
+    ) -> Result<Self, ExecutionError> {
         // Decide the checkpoint to start from.
         let dag_checkpoint = DagCheckpoint::new(dag_schemas)?;
 
         // Create processors and sinks.
-        let record_store = ProcessorRecordStore::new()?;
         let mut nodes = vec![];
         let node_indexes = dag_checkpoint
             .graph()
@@ -59,7 +61,11 @@ impl BuilderDag {
                 CheckpointNodeKind::Source(_) => None,
                 CheckpointNodeKind::Processor(processor) => {
                     let processor = processor
-                        .build(input_schemas, output_schemas, &record_store)
+                        .build(
+                            input_schemas,
+                            output_schemas,
+                            checkpoint_factory.record_store(),
+                        )
                         .map_err(ExecutionError::Factory)?;
                     Some(NodeKind::Processor(processor))
                 }
@@ -98,7 +104,7 @@ impl BuilderDag {
         );
         Ok(BuilderDag {
             graph,
-            record_store,
+            checkpoint_factory,
         })
     }
 
@@ -106,8 +112,8 @@ impl BuilderDag {
         &self.graph
     }
 
-    pub fn record_store(&self) -> &ProcessorRecordStore {
-        &self.record_store
+    pub fn checkpoint_factory(&self) -> &Arc<CheckpointFactory> {
+        &self.checkpoint_factory
     }
 
     pub fn into_graph(self) -> daggy::Dag<NodeType, EdgeType> {

@@ -18,6 +18,13 @@ message Flags {
   bool grpc_web = 2;
   bool push_events = 3;
   bool authenticate_server_reflection = 4;
+  EnableProbabilisticOptimizations enable_probabilistic_optimizations = 5;
+}
+
+message EnableProbabilisticOptimizations {
+  bool in_sets = 1;
+  bool in_joins = 2;
+  bool in_aggregations = 3;
 }
 
 message Connection {

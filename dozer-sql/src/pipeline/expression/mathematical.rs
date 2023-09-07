@@ -1777,11 +1777,11 @@ macro_rules! define_math_operator {
     };
 }
 
-define_math_operator!(evaluate_add, "+", |a, b| { a + b }, 0);
-define_math_operator!(evaluate_sub, "-", |a, b| { a - b }, 0);
-define_math_operator!(evaluate_mul, "*", |a, b| { a * b }, 0);
-define_math_operator!(evaluate_div, "/", |a, b| { a / b }, 1);
-define_math_operator!(evaluate_mod, "%", |a, b| { a % b }, 0);
+define_math_operator!(evaluate_add, "+", std::ops::Add::add, 0);
+define_math_operator!(evaluate_sub, "-", std::ops::Sub::sub, 0);
+define_math_operator!(evaluate_mul, "*", std::ops::Mul::mul, 0);
+define_math_operator!(evaluate_div, "/", std::ops::Div::div, 1);
+define_math_operator!(evaluate_mod, "%", std::ops::Rem::rem, 0);
 
 pub fn evaluate_plus(
     schema: &Schema,

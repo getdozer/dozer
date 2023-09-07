@@ -4,13 +4,14 @@ use crate::shutdown::ShutdownReceiver;
 
 use super::{state::LiveState, LiveError};
 
-use dozer_types::{grpc_types::live::LiveResponse, log::info};
+use crate::live::state::BroadcastType;
+use dozer_types::log::info;
 use notify::{RecursiveMode, Watcher};
 use notify_debouncer_full::new_debouncer;
-use tokio::sync::broadcast::Sender;
+use tokio::{runtime::Runtime, select};
 
-pub fn watch(
-    sender: Sender<LiveResponse>,
+pub async fn watch(
+    runtime: &Arc<Runtime>,
     state: Arc<LiveState>,
     shutdown: ShutdownReceiver,
 ) -> Result<(), LiveError> {
@@ -18,50 +19,61 @@ pub fn watch(
     let (tx, rx) = std::sync::mpsc::channel();
 
     let dir: std::path::PathBuf = std::env::current_dir()?;
-    // no specific tickrate, max debounce time 2 seconds
-    let mut debouncer = new_debouncer(Duration::from_secs(2), None, tx)?;
-
-    debouncer
-        .watcher()
-        .watch(dir.as_path(), RecursiveMode::Recursive)?;
-
+    let mut debouncer = new_debouncer(Duration::from_millis(500), None, tx)?;
     debouncer
         .cache()
         .add_root(dir.as_path(), RecursiveMode::Recursive);
+    let watcher = debouncer.watcher();
 
-    let running = shutdown.get_running_flag().clone();
+    watcher.watch(dir.as_path(), RecursiveMode::NonRecursive)?;
+
+    let additional_paths = vec![dir.join("sql")];
+
+    for path in additional_paths {
+        let _ = watcher.watch(path.as_path(), RecursiveMode::NonRecursive);
+    }
+
+    let (async_sender, mut async_receiver) = tokio::sync::mpsc::channel(10);
+
+    // Thread that adapts the sync watcher channel to an async channel
+    let adapter = runtime.spawn_blocking(move || loop {
+        let res = rx.recv();
+        let Ok(msg) = res else {
+            break;
+        };
+        let _ = async_sender.blocking_send(msg);
+    });
+
     loop {
-        let event = rx.recv_timeout(Duration::from_millis(100));
-        match event {
-            Ok(result) => match result {
+        select! {
+            Some(msg) = async_receiver.recv() => match msg {
                 Ok(_events) => {
-                    build(sender.clone(), state.clone())?;
+                    build(runtime.clone(), state.clone()).await;
                 }
                 Err(errors) => errors.iter().for_each(|error| info!("{error:?}")),
             },
-            Err(e) => {
-                if !running.load(std::sync::atomic::Ordering::Relaxed) {
-                    break;
-                }
-                if e == std::sync::mpsc::RecvTimeoutError::Disconnected {
-                    break;
-                }
-            }
+            // We are shutting down
+            _ = shutdown.create_shutdown_future() => break,
+            // The watcher quit
+            else => break
         }
     }
+
+    // Drop the channels that may keep the adapter thread alive
+    drop(async_receiver);
+    drop(debouncer);
+
+    let _ = adapter.await;
 
     Ok(())
 }
 
-pub fn build(sender: Sender<LiveResponse>, state: Arc<LiveState>) -> Result<(), LiveError> {
-    let res = state.build();
-
-    match res {
-        Ok(_) => {
-            let res = state.get_current()?;
-            sender.send(res).unwrap();
-            Ok(())
-        }
-        Err(e) => Err(e),
+async fn build(runtime: Arc<Runtime>, state: Arc<LiveState>) {
+    state.broadcast(BroadcastType::Start).await;
+    if let Err(res) = state.build(runtime).await {
+        let message = res.to_string();
+        state.broadcast(BroadcastType::Failed(message)).await;
+    } else {
+        state.broadcast(BroadcastType::Success).await;
     }
 }

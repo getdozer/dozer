@@ -1,16 +1,19 @@
 use crate::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
+use crate::epoch::Epoch;
 use crate::executor_operation::ProcessorOperation;
 use crate::processor_record::ProcessorRecordStore;
 
-use dozer_types::epoch::Epoch;
+use dozer_log::storage::Queue;
 use dozer_types::errors::internal::BoxedError;
+use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::Schema;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 
 pub type PortHandle = u16;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(crate = "dozer_types::serde")]
 pub enum OutputPortType {
     Stateless,
     StatefulWithPrimaryKeyLookup,
@@ -39,8 +42,8 @@ impl OutputPortDef {
     }
 }
 
-pub trait SourceFactory<T>: Send + Sync + Debug {
-    fn get_output_schema(&self, port: &PortHandle) -> Result<(Schema, T), BoxedError>;
+pub trait SourceFactory: Send + Sync + Debug {
+    fn get_output_schema(&self, port: &PortHandle) -> Result<Schema, BoxedError>;
     fn get_output_port_name(&self, port: &PortHandle) -> String;
     fn get_output_ports(&self) -> Vec<OutputPortDef>;
     fn build(
@@ -60,12 +63,12 @@ pub trait Source: Send + Sync + Debug {
     ) -> Result<(), BoxedError>;
 }
 
-pub trait ProcessorFactory<T>: Send + Sync + Debug {
+pub trait ProcessorFactory: Send + Sync + Debug {
     fn get_output_schema(
         &self,
         output_port: &PortHandle,
-        input_schemas: &HashMap<PortHandle, (Schema, T)>,
-    ) -> Result<(Schema, T), BoxedError>;
+        input_schemas: &HashMap<PortHandle, Schema>,
+    ) -> Result<Schema, BoxedError>;
     fn get_input_ports(&self) -> Vec<PortHandle>;
     fn get_output_ports(&self) -> Vec<OutputPortDef>;
     fn build(
@@ -89,9 +92,9 @@ pub trait Processor: Send + Sync + Debug {
     ) -> Result<(), BoxedError>;
 }
 
-pub trait SinkFactory<T>: Send + Sync + Debug {
+pub trait SinkFactory: Send + Sync + Debug {
     fn get_input_ports(&self) -> Vec<PortHandle>;
-    fn prepare(&self, input_schemas: HashMap<PortHandle, (Schema, T)>) -> Result<(), BoxedError>;
+    fn prepare(&self, input_schemas: HashMap<PortHandle, Schema>) -> Result<(), BoxedError>;
     fn build(
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
@@ -106,6 +109,7 @@ pub trait Sink: Send + Sync + Debug {
         record_store: &ProcessorRecordStore,
         op: ProcessorOperation,
     ) -> Result<(), BoxedError>;
+    fn persist(&mut self, queue: &Queue) -> Result<(), BoxedError>;
 
     fn on_source_snapshotting_done(&mut self, connection_name: String) -> Result<(), BoxedError>;
 }

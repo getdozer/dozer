@@ -10,7 +10,7 @@ use dozer_storage::{
         LmdbEnvironmentManager, LmdbEnvironmentOptions, RoLmdbEnvironment, RwLmdbEnvironment,
     },
 };
-use dozer_types::labels::Labels;
+use dozer_tracing::Labels;
 use tempdir::TempDir;
 
 use super::cache::CacheOptions;

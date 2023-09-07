@@ -1,5 +1,5 @@
+use super::record_map::{CountingRecordMap, CountingRecordMapEnum};
 use crate::pipeline::errors::PipelineError;
-use bloom::{CountingBloomFilter, ASMS};
 use dozer_core::processor_record::ProcessorRecord;
 use sqlparser::ast::{SetOperator, SetQuantifier};
 
@@ -28,7 +28,7 @@ impl SetOperation {
         &self,
         action: SetAction,
         record: ProcessorRecord,
-        record_map: &mut CountingBloomFilter,
+        record_map: &mut CountingRecordMapEnum,
     ) -> Result<Vec<(SetAction, ProcessorRecord)>, PipelineError> {
         match (self.op, self.quantifier) {
             (SetOperator::Union, SetQuantifier::All) => Ok(vec![(action, record)]),
@@ -43,7 +43,7 @@ impl SetOperation {
         &self,
         action: SetAction,
         record: ProcessorRecord,
-        record_map: &mut CountingBloomFilter,
+        record_map: &mut CountingRecordMapEnum,
     ) -> Result<Vec<(SetAction, ProcessorRecord)>, PipelineError> {
         match action {
             SetAction::Insert => self.union_insert(action, record, record_map),
@@ -55,7 +55,7 @@ impl SetOperation {
         &self,
         action: SetAction,
         record: ProcessorRecord,
-        record_map: &mut CountingBloomFilter,
+        record_map: &mut CountingRecordMapEnum,
     ) -> Result<Vec<(SetAction, ProcessorRecord)>, PipelineError> {
         let _count = self.update_map(record.clone(), false, record_map);
         if _count == 1 {
@@ -69,7 +69,7 @@ impl SetOperation {
         &self,
         action: SetAction,
         record: ProcessorRecord,
-        record_map: &mut CountingBloomFilter,
+        record_map: &mut CountingRecordMapEnum,
     ) -> Result<Vec<(SetAction, ProcessorRecord)>, PipelineError> {
         let _count = self.update_map(record.clone(), true, record_map);
         if _count == 0 {
@@ -83,8 +83,8 @@ impl SetOperation {
         &self,
         record: ProcessorRecord,
         decr: bool,
-        record_map: &mut CountingBloomFilter,
-    ) -> u32 {
+        record_map: &mut CountingRecordMapEnum,
+    ) -> u64 {
         if decr {
             record_map.remove(&record);
         } else {

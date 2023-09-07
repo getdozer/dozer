@@ -1,4 +1,5 @@
 use clap::Parser;
+use sqllogictest::harness;
 
 #[derive(Parser, Debug, Clone)]
 pub struct SqlLogicTestArgs {
@@ -19,4 +20,7 @@ pub struct SqlLogicTestArgs {
         help = "The arg is used to enable auto complete mode"
     )]
     pub complete: bool,
+
+    #[command(flatten)]
+    pub harness_args: harness::Arguments,
 }

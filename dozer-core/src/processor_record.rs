@@ -2,23 +2,49 @@ use std::hash::Hash;
 use std::sync::Arc;
 
 use dozer_storage::errors::StorageError;
-use dozer_types::types::{Field, Lifetime, Operation, Record};
+use dozer_types::{
+    bincode,
+    parking_lot::RwLock,
+    serde::{Deserialize, Serialize},
+    types::{Field, Lifetime, Operation, Record},
+};
 
 use crate::{errors::ExecutionError, executor_operation::ProcessorOperation};
 
-#[derive(Debug, Clone)]
-pub struct ProcessorRecordStore;
+#[derive(Debug)]
+pub struct ProcessorRecordStore {
+    records: RwLock<Vec<RecordRef>>,
+}
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(crate = "dozer_types::serde")]
 pub struct RecordRef(Arc<[Field]>);
 
 impl ProcessorRecordStore {
     pub fn new() -> Result<Self, ExecutionError> {
-        Ok(Self)
+        Ok(Self {
+            records: RwLock::new(vec![]),
+        })
+    }
+
+    pub fn num_records(&self) -> usize {
+        self.records.read().len()
+    }
+
+    pub fn serialize_slice(&self, start: usize) -> Result<(Vec<u8>, usize), StorageError> {
+        let records = self.records.read();
+        let slice = &records[start..];
+        let data = bincode::serialize(slice).map_err(|e| StorageError::SerializationError {
+            typ: "[RecordRef]",
+            reason: Box::new(e),
+        })?;
+        Ok((data, slice.len()))
     }
 
     pub fn create_ref(&self, values: &[Field]) -> Result<RecordRef, StorageError> {
-        Ok(RecordRef(values.to_vec().into()))
+        let record = RecordRef(values.to_vec().into());
+        self.records.write().push(record.clone());
+        Ok(record)
     }
 
     pub fn load_ref(&self, record_ref: &RecordRef) -> Result<Vec<Field>, StorageError> {

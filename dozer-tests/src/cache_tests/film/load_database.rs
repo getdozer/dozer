@@ -1,7 +1,8 @@
 use bson::doc;
 use csv::StringRecord;
 use dozer_cache::cache::{LmdbRwCacheManager, RoCache, RoCacheManager, RwCacheManager};
-use dozer_types::{chrono::DateTime, labels::Labels, types::IndexDefinition};
+use dozer_tracing::Labels;
+use dozer_types::{chrono::DateTime, types::IndexDefinition};
 use mongodb::{options::ClientOptions, Client, Collection, IndexModel};
 
 use crate::{cache_tests::string_record_to_record, init::init, read_csv::read_csv};
@@ -56,7 +57,7 @@ pub async fn load_database(
         let record = record.unwrap();
 
         cache
-            .insert(&mut string_record_to_record(&record, &schema))
+            .insert(&string_record_to_record(&record, &schema))
             .unwrap();
 
         mongo_collection

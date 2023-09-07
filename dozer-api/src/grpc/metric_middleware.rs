@@ -1,3 +1,4 @@
+use dozer_tracing::LabelsAndProgress;
 use futures_util::future::BoxFuture;
 use hyper::Body;
 use metrics::{histogram, increment_counter};
@@ -11,10 +12,13 @@ use tower::{Layer, Service};
 use crate::api_helper::{API_LATENCY_HISTOGRAM_NAME, API_REQUEST_COUNTER_NAME};
 
 #[derive(Debug, Clone, Default)]
-pub struct MetricMiddlewareLayer {}
+pub struct MetricMiddlewareLayer {
+    labels: LabelsAndProgress,
+}
+
 impl MetricMiddlewareLayer {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(labels: LabelsAndProgress) -> Self {
+        Self { labels }
     }
 }
 
@@ -22,12 +26,16 @@ impl<S> Layer<S> for MetricMiddlewareLayer {
     type Service = MetricMiddleware<S>;
 
     fn layer(&self, service: S) -> Self::Service {
-        MetricMiddleware { inner: service }
+        MetricMiddleware {
+            labels: self.labels.clone(),
+            inner: service,
+        }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct MetricMiddleware<S> {
+    labels: LabelsAndProgress,
     inner: S,
 }
 
@@ -45,6 +53,7 @@ where
     }
 
     fn call(&mut self, req: hyper::Request<Body>) -> Self::Future {
+        let mut labels = self.labels.labels().clone();
         let clone = self.inner.clone();
         let mut inner = std::mem::replace(&mut self.inner, clone);
         Box::pin(async move {
@@ -62,12 +71,14 @@ where
                     .split('.')
                     .nth(2)
                     .unwrap_or_default();
-                let labels: [(&str, String); 2] = [
-                    ("endpoint", cache_path.to_owned()),
-                    ("api_type", "grpc".to_owned()),
-                ];
-                histogram!(API_LATENCY_HISTOGRAM_NAME, start_time.elapsed(), &labels);
-                increment_counter!(API_REQUEST_COUNTER_NAME, &labels);
+                labels.push("endpoint", cache_path.to_string());
+                labels.push("api_type", "grpc");
+                histogram!(
+                    API_LATENCY_HISTOGRAM_NAME,
+                    start_time.elapsed(),
+                    labels.clone()
+                );
+                increment_counter!(API_REQUEST_COUNTER_NAME, labels);
             }
 
             response
