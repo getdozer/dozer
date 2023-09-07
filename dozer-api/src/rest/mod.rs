@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crate::api_helper::get_api_security;
 // Exports
 use crate::errors::ApiInitError;
 use crate::rest::api_generator::health_route;
@@ -165,11 +166,7 @@ impl ApiServer {
         shutdown: impl Future<Output = ()> + Send + 'static,
         labels: LabelsAndProgress,
     ) -> Result<Server, ApiInitError> {
-        let dozer_master_secret = std::env::var("DOZER_MASTER_SECRET").ok();
-        let security = match (dozer_master_secret, self.security) {
-            (Some(master_secret), None) => Some(ApiSecurity::Jwt(master_secret)),
-            (_, security) => security,
-        };
+        let security = get_api_security(self.security.to_owned());
         info!(
             "Starting Rest Api Server on http://{}:{} with security: {}",
             self.host,
