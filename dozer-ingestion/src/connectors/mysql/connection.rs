@@ -101,7 +101,7 @@ fn add_query_offset(query: &str, offset: u64) -> String {
     if offset == 0 {
         query.into()
     } else {
-        format!("{query} OFFSET {offset}")
+        format!("{query} LIMIT {offset},18446744073709551615")
     }
 }
 
