@@ -349,7 +349,7 @@ jobs:
 
       - name: Build package
         if: matrix.os != 'ubuntu-20-16-cores'
-        run: cargo build --release --bin ${{ matrix.file_name }}
+        run: cargo build --release --bin ${{ matrix.file_name }} --features "kafka snowflake onnx"
 
       - name: Build package for ubuntu (with kafka & snowflake & onnx)
         if: matrix.os == 'ubuntu-20-16-cores'
