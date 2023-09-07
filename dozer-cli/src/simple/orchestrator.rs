@@ -278,7 +278,8 @@ impl SimpleOrchestrator {
                 match api_security {
                     dozer_types::models::api_security::ApiSecurity::Jwt(secret) => {
                         let auth = Authorizer::new(secret, None, None);
-                        let duration = ttl_in_secs.map(|f| std::time::Duration::from_secs(f as u64));
+                        let duration =
+                            ttl_in_secs.map(|f| std::time::Duration::from_secs(f as u64));
                         let token = auth
                             .generate_token(Access::All, duration)
                             .map_err(OrchestrationError::GenerateTokenFailed)?;
