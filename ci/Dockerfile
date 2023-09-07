@@ -9,7 +9,7 @@ RUN apt-get update \
       unzip
 
 # INSTALL PROTOBUF
-RUN curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v3.18.1/protoc-3.18.1-linux-x86_64.zip 
+RUN curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v3.18.1/protoc-3.18.1-linux-x86_64.zip
 RUN unzip protoc-3.18.1-linux-x86_64.zip -d /usr/local/protoc
 RUN rm protoc-3.18.1-linux-x86_64.zip
 
