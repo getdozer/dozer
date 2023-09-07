@@ -1,5 +1,8 @@
 use std::{
-    collections::{hash_map::Values, HashMap},
+    collections::{
+        hash_map::{self, Values},
+        HashMap,
+    },
     iter::{once, Flatten, Once},
 };
 
@@ -133,7 +136,7 @@ impl JoinTable {
 
     pub fn remove(&mut self, record: &Record) -> JoinKey {
         let join_key = self.get_join_key(record);
-        if let Some(record_map) = self.map.get_mut(&join_key) {
+        if let hash_map::Entry::Occupied(record_map) = self.map.entry(join_key.clone()) {
             let primary_key = get_record_key_hash(record, &self.primary_key_indexes);
             remove_record_using_primary_key(record_map, primary_key);
         }
@@ -146,7 +149,8 @@ impl JoinTable {
             if eviction_instant <= now {
                 keys_to_remove.push(*eviction_instant);
                 for (join_key, primary_key) in join_index_keys {
-                    if let Some(record_map) = self.map.get_mut(join_key) {
+                    if let hash_map::Entry::Occupied(record_map) = self.map.entry(join_key.clone())
+                    {
                         remove_record_using_primary_key(record_map, *primary_key);
                     }
                 }
@@ -212,11 +216,18 @@ fn get_record_key_fields(record: &Record, key_indexes: &[usize]) -> Vec<Field> {
 }
 
 fn remove_record_using_primary_key(
-    record_map: &mut HashMap<u64, Vec<ProcessorRecord>>,
+    mut record_map: hash_map::OccupiedEntry<JoinKey, HashMap<u64, Vec<ProcessorRecord>>>,
     primary_key: u64,
 ) {
-    if let Some(record_vec) = record_map.get_mut(&primary_key) {
-        record_vec.pop();
+    if let hash_map::Entry::Occupied(mut record_vec) = record_map.get_mut().entry(primary_key) {
+        record_vec.get_mut().pop();
+        if record_vec.get().is_empty() {
+            record_vec.remove();
+        }
+    }
+
+    if record_map.get().is_empty() {
+        record_map.remove();
     }
 }
 
@@ -296,4 +307,41 @@ fn deserialize_vec(
         vec.push(deserialize_record(cursor, record_store)?);
     }
     Ok(vec)
+}
+
+#[cfg(test)]
+mod tests {
+    use dozer_types::types::{FieldDefinition, FieldType};
+
+    use super::*;
+
+    #[test]
+    fn test_match_insert_remove() {
+        let schema = Schema {
+            fields: vec![FieldDefinition {
+                name: "a".to_string(),
+                typ: FieldType::Int,
+                nullable: false,
+                source: Default::default(),
+            }],
+            primary_index: vec![0],
+        };
+        let record_store = ProcessorRecordStore::new().unwrap();
+        let mut table = JoinTable::new(&schema, vec![0], &record_store, true, None).unwrap();
+
+        let record = Record::new(vec![Field::Int(1)]);
+        let join_key = table.get_join_key(&record);
+        assert_eq!(table.get_matching_records(&join_key, true).count(), 1);
+        assert_eq!(table.get_matching_records(&join_key, false).count(), 0);
+
+        let join_key = table
+            .insert(record_store.create_record(&record).unwrap(), &record)
+            .unwrap();
+        assert_eq!(table.get_matching_records(&join_key, true).count(), 1);
+        assert_eq!(table.get_matching_records(&join_key, false).count(), 1);
+
+        let join_key = table.remove(&record);
+        assert_eq!(table.get_matching_records(&join_key, true).count(), 1);
+        assert_eq!(table.get_matching_records(&join_key, false).count(), 0);
+    }
 }
