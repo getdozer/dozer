@@ -32,7 +32,7 @@ service Films {
   /**
    * Subscribes to the Dozer event stream, optionally applies a filter. See [Query](../query) for the filter format.
    */
-  rpc on_event(dozer.types.EventFilter) returns (stream FilmEvent);
+  rpc OnEvent(dozer.types.EventFilter) returns (stream FilmEvent);
 
   // Gets the authentication token.
   rpc token(TokenRequest) returns (TokenResponse);
@@ -56,7 +56,7 @@ message QueryFilmsResponse {
   repeated FilmWithId records = 1;
 }
 
-// Response for `on_event`.
+// Response for `OnEvent`.
 message FilmEvent {
   // The operation type.
   dozer.types.OperationType typ = 1;
