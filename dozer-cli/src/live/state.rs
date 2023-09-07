@@ -173,8 +173,7 @@ impl LiveState {
                     .config
                     .api
                     .clone()
-                    .map(|f| f.api_security)
-                    .flatten()
+                    .and_then(|f| f.api_security)
                     .is_some(),
             }
         });
