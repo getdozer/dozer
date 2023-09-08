@@ -172,8 +172,8 @@ impl LiveState {
                     .dozer
                     .config
                     .api
-                    .clone()
-                    .and_then(|f| f.api_security)
+                    .as_ref()
+                    .and_then(|f| f.api_security.as_ref())
                     .is_some(),
             }
         });
