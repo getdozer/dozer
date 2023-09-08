@@ -106,7 +106,6 @@ impl StreamConsumer for StreamConsumerBasic {
         let mut con = StreamConsumerHelper::start(&client_config, &topics).await?;
 
         let mut offsets = OffsetsMap::new();
-        let mut counter = 0;
         loop {
             if let Some(result) = con.poll(None) {
                 if matches!(result.as_ref(), Err(err) if is_network_failure(err)) {
@@ -153,20 +152,17 @@ impl StreamConsumer for StreamConsumerBasic {
                             };
 
                             ingestor
-                                .handle_message(IngestionMessage::new_op(
-                                    0,
-                                    counter,
-                                    *table_index,
-                                    Operation::Insert {
+                                .handle_message(IngestionMessage::OperationEvent {
+                                    table_index: *table_index,
+                                    op: Operation::Insert {
                                         new: Record {
                                             values: new,
                                             lifetime: None,
                                         },
                                     },
-                                ))
+                                    id: None,
+                                })
                                 .map_err(ConnectorError::IngestorError)?;
-
-                            counter += 1;
                         }
                     }
                 }

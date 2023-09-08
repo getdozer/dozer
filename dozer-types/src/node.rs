@@ -90,14 +90,25 @@ impl OpIdentifier {
     }
 }
 
-/// Map from a `Source` node's handle to an `OpIdentifier`.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// A table's ingestion state.
+pub enum TableState {
+    /// This table hasn't been ingested.
+    NotStarted,
+    /// This table has some data ingested, and it can't be restarted.
+    NonRestartable,
+    /// This table has some data ingested, and it can be restarted using the given identifier.
+    Restartable(OpIdentifier),
+}
+
+/// Map from a `Source` node's handle to its tables' states.
 ///
 /// This uniquely identifies the state of the Dozer pipeline.
 /// We generate this map on every commit, and it's:
 ///
 /// - Written to `Log` so consumers of log know where the pipeline is when pipeline restarts, and can rollback if some events were not persisted to checkpoints.
 /// - Written to checkpoints so when pipeline is restarted, we know where to tell the source to start from.
-pub type SourceStates = HashMap<NodeHandle, OpIdentifier>;
+pub type SourceStates = HashMap<NodeHandle, HashMap<String, TableState>>;
 
 #[test]
 fn test_handle_to_from_bytes() {

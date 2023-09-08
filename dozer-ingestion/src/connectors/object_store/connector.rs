@@ -1,4 +1,4 @@
-use dozer_types::ingestion_types::{IngestionMessage, IngestionMessageKind};
+use dozer_types::ingestion_types::IngestionMessage;
 use futures::future::join_all;
 use std::collections::HashMap;
 use tokio::sync::mpsc::channel;
@@ -101,12 +101,11 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
 
     async fn start(&self, ingestor: &Ingestor, tables: Vec<TableInfo>) -> ConnectorResult<()> {
         let (sender, mut receiver) =
-            channel::<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>(100); // todo: increase buffer siz
+            channel::<Result<Option<IngestionMessage>, ObjectStoreConnectorError>>(100); // todo: increase buffer siz
         let ingestor_clone = ingestor.clone();
 
         // Ingestor loop - generating operation message out
         tokio::spawn(async move {
-            let mut seq_no = 0;
             loop {
                 let message = receiver
                     .recv()
@@ -117,27 +116,9 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                         break;
                     }
                     Some(evt) => {
-                        match evt {
-                            IngestionMessageKind::SnapshottingStarted => ingestor_clone
-                                .handle_message(IngestionMessage::new_snapshotting_started(
-                                    0, seq_no,
-                                ))
-                                .map_err(ConnectorError::IngestorError)?,
-                            IngestionMessageKind::SnapshottingDone => ingestor_clone
-                                .handle_message(IngestionMessage::new_snapshotting_done(0, seq_no))
-                                .map_err(ConnectorError::IngestorError)?,
-                            IngestionMessageKind::OperationEvent { table_index, op } => {
-                                ingestor_clone
-                                    .handle_message(IngestionMessage::new_op(
-                                        0,
-                                        seq_no,
-                                        table_index,
-                                        op,
-                                    ))
-                                    .map_err(ConnectorError::IngestorError)?
-                            }
-                        }
-                        seq_no += 1;
+                        ingestor_clone
+                            .handle_message(evt)
+                            .map_err(ConnectorError::IngestorError)?;
                     }
                 }
             }
@@ -146,7 +127,7 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
 
         // sender sending out message for pipeline
         sender
-            .send(Ok(Some(IngestionMessageKind::SnapshottingStarted)))
+            .send(Ok(Some(IngestionMessage::SnapshottingStarted)))
             .await
             .unwrap();
 
@@ -196,7 +177,7 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
         }
 
         sender
-            .send(Ok(Some(IngestionMessageKind::SnapshottingDone)))
+            .send(Ok(Some(IngestionMessage::SnapshottingDone)))
             .await
             .unwrap();
 

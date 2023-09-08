@@ -488,26 +488,27 @@ impl Connector for MongodbConnector {
         let snapshot_ingestor = ingestor.clone();
         let snapshot_task = tokio::spawn(async move {
             snapshot_ingestor
-                .handle_message(IngestionMessage::new_snapshotting_started(0, 0))
+                .handle_message(IngestionMessage::SnapshottingStarted)
                 .map_err(ConnectorError::IngestorError)?;
-            let mut seq = 1;
             while let Some(result) = rx.recv().await {
-                let (table_idx, op) = result?;
+                let (table_index, op) = result?;
                 snapshot_ingestor
-                    .handle_message(IngestionMessage::new_op(0, seq, table_idx, op))
+                    .handle_message(IngestionMessage::OperationEvent {
+                        table_index,
+                        op,
+                        id: None,
+                    })
                     .map_err(ConnectorError::IngestorError)?;
-                seq += 1;
             }
             snapshot_ingestor
-                .handle_message(IngestionMessage::new_snapshotting_done(0, seq))
+                .handle_message(IngestionMessage::SnapshottingDone)
                 .map_err(ConnectorError::IngestorError)?;
-            seq += 1;
-            Ok::<_, ConnectorError>(seq)
+            Ok::<_, ConnectorError>(())
         });
 
         let timestamps: Vec<(usize, Timestamp)> = snapshots.try_collect().await?;
 
-        let mut seq = snapshot_task.await.unwrap()?;
+        snapshot_task.await.unwrap()?;
 
         let (tx, mut rx) = channel::<Result<(usize, Operation), ConnectorError>>(100);
 
@@ -527,11 +528,14 @@ impl Connector for MongodbConnector {
         let ingestor = ingestor.clone();
         let replication_task = tokio::spawn(async move {
             while let Some(result) = rx.recv().await {
-                let (table_idx, op) = result?;
+                let (table_index, op) = result?;
                 ingestor
-                    .handle_message(IngestionMessage::new_op(0, seq, table_idx, op))
+                    .handle_message(IngestionMessage::OperationEvent {
+                        table_index,
+                        op,
+                        id: None,
+                    })
                     .map_err(ConnectorError::IngestorError)?;
-                seq += 1;
             }
             Ok::<_, ConnectorError>(())
         });

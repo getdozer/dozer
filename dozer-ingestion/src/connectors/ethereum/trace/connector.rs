@@ -147,10 +147,11 @@ pub async fn run(
 
                         for op in ops {
                             ingestor
-                                .handle_message(IngestionMessage::new_op(
-                                    batch.0, 0, // We have only one table
-                                    0, op,
-                                ))
+                                .handle_message(IngestionMessage::OperationEvent {
+                                    table_index: 0, // We have only one table
+                                    op,
+                                    id: None,
+                                })
                                 .map_err(ConnectorError::IngestorError)?;
                         }
                     }

@@ -1,5 +1,6 @@
-use dozer_types::node::{NodeHandle, OpIdentifier, SourceStates};
+use dozer_types::node::{NodeHandle, SourceStates, TableState};
 use dozer_types::parking_lot::Mutex;
+use std::collections::HashMap;
 use std::ops::DerefMut;
 use std::sync::{Arc, Barrier};
 use std::thread::sleep;
@@ -145,7 +146,7 @@ impl EpochManager {
     /// - `request_commit`: Whether the source wants to commit. The `EpochManager` checks if any source wants to commit and returns `Some` if so.
     pub fn wait_for_epoch_close(
         &self,
-        source_state: (NodeHandle, OpIdentifier),
+        source_state: (NodeHandle, HashMap<String, TableState>),
         request_termination: bool,
         request_commit: bool,
     ) -> ClosedEpoch {
@@ -298,7 +299,7 @@ mod tests {
         epoch_manager: &EpochManager,
         termination_gen: &(impl Fn(u16) -> bool + Sync),
         commit_gen: &(impl Fn(u16) -> bool + Sync),
-        source_state_gen: &(impl Fn(u16) -> (NodeHandle, OpIdentifier) + Sync),
+        source_state_gen: &(impl Fn(u16) -> (NodeHandle, HashMap<String, TableState>) + Sync),
     ) -> ClosedEpoch {
         scope(|scope| {
             let handles = (0..NUM_THREADS)
@@ -330,10 +331,10 @@ mod tests {
         })
     }
 
-    fn generate_source_state(index: u16) -> (NodeHandle, OpIdentifier) {
+    fn generate_source_state(index: u16) -> (NodeHandle, HashMap<String, TableState>) {
         (
             NodeHandle::new(Some(index), index.to_string()),
-            OpIdentifier::new(index as _, index as _),
+            Default::default(),
         )
     }
 

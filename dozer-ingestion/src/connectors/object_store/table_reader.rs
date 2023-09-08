@@ -12,7 +12,7 @@ use deltalake::datafusion::datasource::listing::{
 
 use deltalake::datafusion::prelude::SessionContext;
 use dozer_types::arrow_types::from_arrow::{map_schema_to_dozer, map_value_to_dozer_field};
-use dozer_types::ingestion_types::IngestionMessageKind;
+use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::error;
 use dozer_types::types::{Operation, Record};
 use futures::StreamExt;
@@ -35,7 +35,7 @@ impl<T: Clone + Send + Sync> TableReader<T> {
         table_path: ListingTableUrl,
         listing_options: ListingOptions,
         table: &TableInfo,
-        sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
+        sender: Sender<Result<Option<IngestionMessage>, ObjectStoreConnectorError>>,
     ) -> Result<(), ObjectStoreConnectorError> {
         let resolved_schema = listing_options
             .infer_schema(&ctx.state(), &table_path)
@@ -104,9 +104,10 @@ impl<T: Clone + Send + Sync> TableReader<T> {
                 };
 
                 if sender
-                    .send(Ok(Some(IngestionMessageKind::OperationEvent {
+                    .send(Ok(Some(IngestionMessage::OperationEvent {
                         table_index,
                         op: evt,
+                        id: None,
                     })))
                     .await
                     .is_err()

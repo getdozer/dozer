@@ -1,6 +1,6 @@
 use dozer_types::{
     chrono::{DateTime, Utc},
-    ingestion_types::CsvConfig,
+    ingestion_types::{CsvConfig, IngestionMessage},
     tracing::info,
 };
 use std::{collections::HashMap, path::Path, sync::Arc, time::Duration};
@@ -25,7 +25,6 @@ use deltalake::{
     datafusion::{datasource::listing::ListingTableUrl, prelude::SessionContext},
     Path as DeltaPath,
 };
-use dozer_types::ingestion_types::IngestionMessageKind;
 use tokio::task::JoinHandle;
 
 use crate::connectors::object_store::helper::is_marker_file_exist;
@@ -55,7 +54,7 @@ impl<T: DozerObjectStore + Send> CsvTable<T> {
         &self,
         table_index: usize,
         table: &TableInfo,
-        sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
+        sender: Sender<Result<Option<IngestionMessage>, ObjectStoreConnectorError>>,
     ) -> Result<(), ConnectorError> {
         let params = self.store_config.table_params(&table.name)?;
         let store = Arc::new(params.object_store);
@@ -204,7 +203,7 @@ impl<T: DozerObjectStore + Send> TableWatcher for CsvTable<T> {
         &self,
         table_index: usize,
         table: &TableInfo,
-        sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
+        sender: Sender<Result<Option<IngestionMessage>, ObjectStoreConnectorError>>,
     ) -> Result<JoinHandle<(usize, HashMap<object_store::path::Path, DateTime<Utc>>)>, ConnectorError>
     {
         let params = self.store_config.table_params(&table.name)?;
@@ -352,7 +351,7 @@ impl<T: DozerObjectStore + Send> TableWatcher for CsvTable<T> {
         &self,
         table_index: usize,
         table: &TableInfo,
-        sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
+        sender: Sender<Result<Option<IngestionMessage>, ObjectStoreConnectorError>>,
     ) -> Result<(), ConnectorError> {
         self.read(table_index, table, sender).await?;
         Ok(())

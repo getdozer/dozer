@@ -19,10 +19,8 @@ impl DeltaLakeReader {
     }
 
     pub async fn read(&self, table: &[TableInfo], ingestor: &Ingestor) -> ConnectorResult<()> {
-        let mut seq_no = 0;
         for (table_index, table) in table.iter().enumerate() {
-            self.read_impl(table_index, &mut seq_no, table, ingestor)
-                .await?;
+            self.read_impl(table_index, table, ingestor).await?;
         }
         Ok(())
     }
@@ -30,7 +28,6 @@ impl DeltaLakeReader {
     async fn read_impl(
         &self,
         table_index: usize,
-        seq_no: &mut u64,
         table: &TableInfo,
         ingestor: &Ingestor,
     ) -> ConnectorResult<()> {
@@ -60,20 +57,17 @@ impl DeltaLakeReader {
                     .collect::<Vec<_>>();
 
                 ingestor
-                    .handle_message(IngestionMessage::new_op(
-                        0_u64,
-                        *seq_no,
+                    .handle_message(IngestionMessage::OperationEvent {
                         table_index,
-                        Operation::Insert {
+                        op: Operation::Insert {
                             new: Record {
                                 values: fields,
                                 lifetime: None,
                             },
                         },
-                    ))
+                        id: None,
+                    })
                     .unwrap();
-
-                *seq_no += 1;
             }
         }
         Ok(())

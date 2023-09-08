@@ -114,7 +114,7 @@ impl DagExecutor {
                 .as_ref()
                 .expect("We created all nodes");
             match &node.kind {
-                NodeKind::Source(_, _) => {
+                NodeKind::Source { .. } => {
                     let (source_sender_node, source_listener_node) = create_source_nodes(
                         &mut execution_dag,
                         node_index,

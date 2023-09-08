@@ -119,22 +119,23 @@ impl<'a> PostgresSnapshotter<'a> {
         // deadlock
         drop(tx);
 
-        let mut idx = 0;
         self.ingestor
-            .handle_message(IngestionMessage::new_snapshotting_started(idx, 0))
+            .handle_message(IngestionMessage::SnapshottingStarted)
             .map_err(ConnectorError::IngestorError)?;
-        idx += 1;
 
         while let Some(message) = rx.recv().await {
             let (table_index, evt) = message?;
             self.ingestor
-                .handle_message(IngestionMessage::new_op(0, idx, table_index, evt))
+                .handle_message(IngestionMessage::OperationEvent {
+                    table_index,
+                    op: evt,
+                    id: None,
+                })
                 .map_err(ConnectorError::IngestorError)?;
-            idx += 1;
         }
 
         self.ingestor
-            .handle_message(IngestionMessage::new_snapshotting_done(0_u64, idx))
+            .handle_message(IngestionMessage::SnapshottingDone)
             .map_err(ConnectorError::IngestorError)?;
 
         // All tasks in the joinset should have finished (because they have dropped their senders)
@@ -145,7 +146,6 @@ impl<'a> PostgresSnapshotter<'a> {
 
 #[cfg(test)]
 mod tests {
-    use dozer_types::{ingestion_types::IngestionMessage, node::OpIdentifier};
     use rand::Rng;
     use serial_test::serial;
 
@@ -206,15 +206,7 @@ mod tests {
 
             let mut i = 0;
             while i < 2 {
-                if let Some(IngestionMessage {
-                    identifier: OpIdentifier { seq_in_tx, .. },
-                    ..
-                }) = iterator.next()
-                {
-                    assert_eq!(i, seq_in_tx);
-                } else {
-                    panic!("Unexpected operation");
-                }
+                iterator.next();
                 i += 1;
             }
         })

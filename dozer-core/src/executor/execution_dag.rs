@@ -65,7 +65,7 @@ impl ExecutionDag {
             .filter(|node_index| {
                 matches!(
                     builder_dag.graph()[*node_index].kind,
-                    NodeKind::Source(_, _)
+                    NodeKind::Source { .. }
                 )
             })
             .count();

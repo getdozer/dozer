@@ -1,7 +1,7 @@
 use std::{env, time::Duration};
 
 use dozer_types::{
-    ingestion_types::{EthTraceConfig, IngestionMessage, IngestionMessageKind},
+    ingestion_types::{EthTraceConfig, IngestionMessage},
     log::info,
     types::{Field, Operation},
 };
@@ -71,10 +71,8 @@ async fn test_trace_iterator() {
         connector.start(&ingestor, tables).await.unwrap();
     });
 
-    if let Some(IngestionMessage {
-        kind: IngestionMessageKind::OperationEvent { op, .. },
-        ..
-    }) = iterator.next_timeout(Duration::from_millis(1000))
+    if let Some(IngestionMessage::OperationEvent { op, .. }) =
+        iterator.next_timeout(Duration::from_millis(1000))
     {
         assert!(matches!(op, Operation::Insert { .. }));
         if let Operation::Insert { new } = op {

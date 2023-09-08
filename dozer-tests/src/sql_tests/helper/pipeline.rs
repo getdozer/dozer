@@ -9,6 +9,7 @@ use dozer_core::errors::ExecutionError;
 use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
+    SourceState,
 };
 
 use dozer_core::processor_record::ProcessorRecordStore;
@@ -128,15 +129,19 @@ impl Source for TestSource {
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        _last_checkpoint: Option<OpIdentifier>,
+        _last_checkpoint: SourceState,
     ) -> Result<(), BoxedError> {
-        let mut idx = 0;
-
         while let Ok(Some((schema_name, op))) = self.receiver.recv() {
-            idx += 1;
             let port = self.name_to_port.get(&schema_name).expect("port not found");
-            fw.send(IngestionMessage::new_op(idx, 0, 0, op), *port)
-                .unwrap();
+            fw.send(
+                IngestionMessage::OperationEvent {
+                    table_index: 0,
+                    op,
+                    id: None,
+                },
+                *port,
+            )
+            .unwrap();
         }
         thread::sleep(Duration::from_millis(200));
 

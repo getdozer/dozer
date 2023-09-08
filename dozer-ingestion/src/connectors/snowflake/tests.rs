@@ -6,7 +6,6 @@ use dozer_types::types::FieldType::{
     Binary, Boolean, Date, Decimal, Float, Int, String, Timestamp,
 };
 
-use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::models::connection::ConnectionConfig;
 use odbc::create_environment_v3;
 use rand::Rng;
@@ -62,14 +61,7 @@ async fn test_disabled_connector_and_read_from_stream() {
 
         let mut i = 0;
         while i < 100 {
-            let op = iterator.next();
-            match op {
-                None => {}
-                Some(IngestionMessage { identifier, .. }) => {
-                    assert_eq!(identifier.txid, 0);
-                    assert_eq!(identifier.seq_in_tx, i);
-                }
-            }
+            iterator.next();
             i += 1;
         }
 
@@ -79,14 +71,7 @@ async fn test_disabled_connector_and_read_from_stream() {
 
         let mut i = 0;
         while i < 100 {
-            let op = iterator.next();
-            match op {
-                None => {}
-                Some(IngestionMessage { identifier, .. }) => {
-                    assert_eq!(identifier.txid, 1);
-                    assert_eq!(identifier.seq_in_tx, i);
-                }
-            }
+            iterator.next();
             i += 1;
         }
 

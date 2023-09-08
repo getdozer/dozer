@@ -5,7 +5,7 @@ use crate::executor::{DagExecutor, ExecutorOptions};
 use crate::executor_operation::ProcessorOperation;
 use crate::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Sink, SinkFactory,
-    Source, SourceFactory,
+    Source, SourceFactory, SourceState,
 };
 use crate::processor_record::ProcessorRecordStore;
 use crate::tests::dag_base_run::NoopProcessorFactory;
@@ -379,7 +379,7 @@ impl Source for ErrGeneratorSource {
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        _checkpoint: Option<OpIdentifier>,
+        _checkpoint: SourceState,
     ) -> Result<(), BoxedError> {
         for n in 1..(self.count + 1) {
             if n == self.err_at {
@@ -387,17 +387,16 @@ impl Source for ErrGeneratorSource {
             }
 
             fw.send(
-                IngestionMessage::new_op(
-                    n,
-                    0,
-                    0,
-                    Operation::Insert {
+                IngestionMessage::OperationEvent {
+                    table_index: 0,
+                    op: Operation::Insert {
                         new: Record::new(vec![
                             Field::String(format!("key_{n}")),
                             Field::String(format!("value_{n}")),
                         ]),
                     },
-                ),
+                    id: Some(OpIdentifier::new(n, 0)),
+                },
                 GENERATOR_SOURCE_OUTPUT_PORT,
             )?;
         }

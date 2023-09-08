@@ -138,12 +138,14 @@ impl Connector for NestedDozerConnector {
 
         let ingestor = ingestor.clone();
         joinset.spawn(async move {
-            let mut seq_no = 0;
-            while let Some((table_idx, op)) = receiver.recv().await {
+            while let Some((table_index, op)) = receiver.recv().await {
                 ingestor
-                    .handle_message(IngestionMessage::new_op(0, seq_no, table_idx, op))
+                    .handle_message(IngestionMessage::OperationEvent {
+                        table_index,
+                        op,
+                        id: None,
+                    })
                     .map_err(ConnectorError::IngestorError)?;
-                seq_no += 1;
             }
             Ok(())
         });

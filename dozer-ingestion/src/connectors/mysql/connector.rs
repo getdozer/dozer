@@ -211,28 +211,16 @@ impl MySQLConnector {
         ingestor: &Ingestor,
         table_infos: Vec<TableInfo>,
     ) -> Result<(), ConnectorError> {
-        let mut txn = 0;
-
         let table_definitions = self
             .schema_helper()
             .get_table_definitions(&table_infos)
             .await?;
-        let binlog_positions = self
-            .replicate_tables(ingestor, &table_definitions, &mut txn)
-            .await?;
+        let binlog_positions = self.replicate_tables(ingestor, &table_definitions).await?;
 
-        let binlog_position = self
-            .sync_with_binlog(ingestor, binlog_positions, &mut txn)
-            .await?;
+        let binlog_position = self.sync_with_binlog(ingestor, binlog_positions).await?;
 
-        self.ingest_binlog(
-            ingestor,
-            &table_definitions,
-            binlog_position,
-            None,
-            &mut txn,
-        )
-        .await?;
+        self.ingest_binlog(ingestor, &table_definitions, binlog_position, None)
+            .await?;
 
         Ok(())
     }
@@ -241,7 +229,6 @@ impl MySQLConnector {
         &self,
         ingestor: &Ingestor,
         table_definitions: &[TableDefinition],
-        txn: &mut u64,
     ) -> Result<Vec<(TableDefinition, BinlogPosition)>, ConnectorError> {
         let mut binlog_position_per_table = Vec::new();
 
@@ -278,10 +265,8 @@ impl MySQLConnector {
                 continue;
             }
 
-            let mut seq_no = 0u64;
-
             ingestor
-                .handle_message(IngestionMessage::new_snapshotting_started(*txn, seq_no))
+                .handle_message(IngestionMessage::SnapshottingStarted)
                 .map_err(ConnectorError::IngestorError)?;
 
             let mut rows = conn.exec_iter(
@@ -309,9 +294,12 @@ impl MySQLConnector {
                     new: Record::new(row.into_fields(&field_types)?),
                 };
 
-                seq_no += 1;
                 ingestor
-                    .handle_message(IngestionMessage::new_op(*txn, seq_no, table_index, op))
+                    .handle_message(IngestionMessage::OperationEvent {
+                        table_index,
+                        op,
+                        id: None,
+                    })
                     .map_err(ConnectorError::IngestorError)?;
             }
 
@@ -321,14 +309,11 @@ impl MySQLConnector {
                 .await
                 .map_err(MySQLConnectorError::QueryExecutionError)?;
 
-            seq_no += 1;
             ingestor
-                .handle_message(IngestionMessage::new_snapshotting_done(*txn, seq_no))
+                .handle_message(IngestionMessage::SnapshottingDone)
                 .map_err(ConnectorError::IngestorError)?;
 
             binlog_position_per_table.push((td.clone(), binlog_position));
-
-            *txn += 1;
         }
 
         Ok(binlog_position_per_table)
@@ -338,7 +323,6 @@ impl MySQLConnector {
         &self,
         ingestor: &Ingestor,
         binlog_positions: Vec<(TableDefinition, BinlogPosition)>,
-        txn: &mut u64,
     ) -> Result<BinlogPosition, ConnectorError> {
         assert!(!binlog_positions.is_empty());
 
@@ -357,7 +341,6 @@ impl MySQLConnector {
                         &synced_tables,
                         start_position,
                         Some(end_position),
-                        txn,
                     )
                     .await?;
                 }
@@ -377,7 +360,6 @@ impl MySQLConnector {
         tables: &[TableDefinition],
         start_position: BinlogPosition,
         stop_position: Option<BinlogPosition>,
-        txn: &mut u64,
     ) -> Result<(), ConnectorError> {
         let server_id = self.server_id.unwrap_or(0xd07e5);
 
@@ -387,7 +369,6 @@ impl MySQLConnector {
             start_position,
             stop_position,
             server_id,
-            txn,
             (&self.conn_pool, &self.conn_url),
         );
 
@@ -519,49 +500,46 @@ mod tests {
         .unwrap();
 
         let result = connector
-            .replicate_tables(&ingestor, &table_definitions, &mut 0)
+            .replicate_tables(&ingestor, &table_definitions)
             .await;
         assert!(result.is_ok(), "unexpected error: {result:?}");
 
         let expected_ingestion_messages = vec![
-            IngestionMessage::new_snapshotting_started(0, 0),
-            IngestionMessage::new_op(
-                0,
-                1,
-                0,
-                Insert {
+            IngestionMessage::SnapshottingStarted,
+            IngestionMessage::OperationEvent {
+                table_index: 0,
+                op: Insert {
                     new: Record::new(vec![
                         Field::Int(1),
                         Field::Text("a".into()),
                         Field::Float(1.0.into()),
                     ]),
                 },
-            ),
-            IngestionMessage::new_op(
-                0,
-                2,
-                0,
-                Insert {
+                id: None,
+            },
+            IngestionMessage::OperationEvent {
+                table_index: 0,
+                op: Insert {
                     new: Record::new(vec![
                         Field::Int(2),
                         Field::Text("b".into()),
                         Field::Float(2.0.into()),
                     ]),
                 },
-            ),
-            IngestionMessage::new_op(
-                0,
-                3,
-                0,
-                Insert {
+                id: None,
+            },
+            IngestionMessage::OperationEvent {
+                table_index: 0,
+                op: Insert {
                     new: Record::new(vec![
                         Field::Int(3),
                         Field::Text("c".into()),
                         Field::Float(3.0.into()),
                     ]),
                 },
-            ),
-            IngestionMessage::new_snapshotting_done(0, 4),
+                id: None,
+            },
+            IngestionMessage::SnapshottingDone,
         ];
 
         check_ingestion_messages(&message_channel, expected_ingestion_messages);
@@ -619,26 +597,24 @@ mod tests {
             .unwrap();
 
         let expected_ingestion_messages = vec![
-            IngestionMessage::new_snapshotting_started(0, 0),
-            IngestionMessage::new_op(
-                0,
-                1,
-                0,
-                Insert {
+            IngestionMessage::SnapshottingStarted,
+            IngestionMessage::OperationEvent {
+                table_index: 0,
+                op: Insert {
                     new: Record::new(vec![Field::Int(4), Field::Float(4.0.into())]),
                 },
-            ),
-            IngestionMessage::new_snapshotting_done(0, 2),
-            IngestionMessage::new_snapshotting_started(1, 0),
-            IngestionMessage::new_op(
-                1,
-                1,
-                1,
-                Insert {
+                id: None,
+            },
+            IngestionMessage::SnapshottingDone,
+            IngestionMessage::SnapshottingStarted,
+            IngestionMessage::OperationEvent {
+                table_index: 1,
+                op: Insert {
                     new: Record::new(vec![Field::Int(1), Field::Json(JsonValue::Bool(true))]),
                 },
-            ),
-            IngestionMessage::new_snapshotting_done(1, 2),
+                id: None,
+            },
+            IngestionMessage::SnapshottingDone,
         ];
 
         check_ingestion_messages(&message_channel, expected_ingestion_messages);
@@ -649,17 +625,16 @@ mod tests {
             .unwrap();
 
         let expected_ingestion_messages = vec![
-            IngestionMessage::new_snapshotting_started(2, 0),
-            IngestionMessage::new_op(
-                2,
-                1,
-                0,
-                Update {
+            IngestionMessage::SnapshottingStarted,
+            IngestionMessage::OperationEvent {
+                table_index: 0,
+                op: Update {
                     old: Record::new(vec![Field::Int(4), Field::Float(4.0.into())]),
                     new: Record::new(vec![Field::Int(4), Field::Float(5.0.into())]),
                 },
-            ),
-            IngestionMessage::new_snapshotting_done(2, 2),
+                id: None,
+            },
+            IngestionMessage::SnapshottingDone,
         ];
 
         check_ingestion_messages(&message_channel, expected_ingestion_messages);
@@ -670,16 +645,15 @@ mod tests {
             .unwrap();
 
         let expected_ingestion_messages = vec![
-            IngestionMessage::new_snapshotting_started(3, 0),
-            IngestionMessage::new_op(
-                3,
-                1,
-                0,
-                Delete {
+            IngestionMessage::SnapshottingStarted,
+            IngestionMessage::OperationEvent {
+                table_index: 0,
+                op: Delete {
                     old: Record::new(vec![Field::Int(4), Field::Float(5.0.into())]),
                 },
-            ),
-            IngestionMessage::new_snapshotting_done(3, 2),
+                id: None,
+            },
+            IngestionMessage::SnapshottingDone,
         ];
 
         check_ingestion_messages(&message_channel, expected_ingestion_messages);

@@ -2132,9 +2132,9 @@ dependencies = [
 [[package]]
 name = "daggy"
 version = "0.8.0"
-source = "git+https://github.com/getdozer/daggy?branch=feat/map_owned#a8d8d9111c524b33b639698728c579b04c8452fe"
+source = "git+https://github.com/getdozer/daggy?branch=feat/try_map#4ff8ebbdba979ecd7f638b6636c33ec9c0d27ccc"
 dependencies = [
- "petgraph 0.6.3 (git+https://github.com/getdozer/petgraph?branch=feat/map_owned)",
+ "petgraph 0.6.3 (git+https://github.com/getdozer/petgraph?branch=feat/try_map)",
  "serde",
 ]
 
@@ -5703,7 +5703,7 @@ dependencies = [
 [[package]]
 name = "petgraph"
 version = "0.6.3"
-source = "git+https://github.com/getdozer/petgraph?branch=feat/map_owned#a8697441c698e72f535129bb299c364411e41836"
+source = "git+https://github.com/getdozer/petgraph?branch=feat/try_map#2422a3a21d92e7a6446f0d0f172c8aa24258846e"
 dependencies = [
  "fixedbitset",
  "indexmap 1.9.2",
