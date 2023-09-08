@@ -15,6 +15,7 @@ use dozer_types::{
     models::{
         api_config::{ApiConfig, AppGrpcOptions, GrpcApiOptions, RestApiOptions},
         api_endpoint::ApiEndpoint,
+        api_security::ApiSecurity,
         app_config::AppConfig,
         flags::Flags,
     },
@@ -164,17 +165,23 @@ impl LiveState {
                 .iter()
                 .map(|c| c.name.clone())
                 .collect();
-            LiveApp {
-                app_name: dozer.dozer.config.app_name.clone(),
-                connections,
-                endpoints,
-                enable_api_security: dozer
+
+            let enable_api_security = std::env::var("DOZER_MASTER_SECRET")
+                .ok()
+                .map(ApiSecurity::Jwt)
+                .as_ref()
+                .or(dozer
                     .dozer
                     .config
                     .api
                     .as_ref()
-                    .and_then(|f| f.api_security.as_ref())
-                    .is_some(),
+                    .and_then(|f| f.api_security.as_ref()))
+                .is_some();
+            LiveApp {
+                app_name: dozer.dozer.config.app_name.clone(),
+                connections,
+                endpoints,
+                enable_api_security,
             }
         });
 
