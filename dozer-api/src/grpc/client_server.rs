@@ -121,7 +121,8 @@ impl ApiServer {
         let health_service = web_config.enable(health_service);
 
         // Auth middleware.
-        let auth_middleware = AuthMiddlewareLayer::new(self.security.clone());
+        let security = get_api_security(self.security.to_owned());
+        let auth_middleware = AuthMiddlewareLayer::new(security.clone());
 
         // Authenticated services.
         let common_service = auth_middleware.layer(common_service);
