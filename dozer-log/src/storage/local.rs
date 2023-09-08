@@ -167,6 +167,10 @@ impl Storage for LocalStorage {
     }
 
     async fn delete_objects(&self, keys: Vec<String>) -> Result<(), Error> {
+        if keys.is_empty() {
+            return Err(Error::EmptyDeleteObjectsRequest);
+        }
+
         for key in keys {
             let path = self.get_path(&key).await?;
             tokio::fs::remove_file(&path)

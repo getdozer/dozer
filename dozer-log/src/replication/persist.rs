@@ -68,7 +68,9 @@ pub async fn load_persisted_log_entries(
     }
 
     // Remove extra entries. These are persisted in the middle of a checkpointing, but the checkpointing didn't finish.
-    storage.delete_objects(to_remove).await?;
+    if !to_remove.is_empty() {
+        storage.delete_objects(to_remove).await?;
+    }
 
     // Check invariants.
     if let Some(first) = result.first() {

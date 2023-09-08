@@ -111,6 +111,8 @@ pub enum Error {
     NonUtf8Path(PathBuf),
     #[error("upload not found: key {key}, upload id {upload_id}")]
     UploadNotFound { key: String, upload_id: String },
+    #[error("empty delete objects request")]
+    EmptyDeleteObjectsRequest,
 }
 
 use dyn_clone::DynClone;
