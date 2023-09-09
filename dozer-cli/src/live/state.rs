@@ -13,7 +13,7 @@ use dozer_types::{
     },
     log::info,
     models::{
-        api_config::{ApiConfig, AppGrpcOptions},
+        api_config::{ApiConfig, AppGrpcOptions, GrpcApiOptions, RestApiOptions},
         api_endpoint::ApiEndpoint,
         app_config::AppConfig,
         flags::Flags,
@@ -394,10 +394,22 @@ fn get_dozer_run_instance(
 
     dozer.config.api = Some(ApiConfig {
         app_grpc: Some(AppGrpcOptions {
-            port: 5678,
+            port: 62997,
             host: "0.0.0.0".to_string(),
         }),
-
+        grpc: Some(GrpcApiOptions {
+            port: 62998,
+            host: "0.0.0.0".to_string(),
+            cors: true,
+            web: true,
+            enabled: true,
+        }),
+        rest: Some(RestApiOptions {
+            port: 62996,
+            host: "0.0.0.0".to_string(),
+            cors: true,
+            enabled: true,
+        }),
         ..Default::default()
     });
 
