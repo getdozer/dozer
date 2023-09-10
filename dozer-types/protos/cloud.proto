@@ -5,21 +5,12 @@ import "google/protobuf/timestamp.proto";
 
 service DozerCloud {
   rpc create_application(CreateAppRequest) returns (AppResponse);
+  rpc deploy_application(DeployAppRequest) returns (stream DeployAppResponse);
   rpc update_application(UpdateAppRequest) returns (AppResponse);
   rpc delete_application(DeleteAppRequest) returns (DeleteAppResponse);
-  rpc clone_application(CloneAppRequest) returns (AppResponse);
   rpc list_applications(ListAppRequest) returns (ListAppResponse);
-  rpc list_app_connections(ListAppConnectionRequest) returns (GetAllConnectionResponse);
-  rpc list_app_sources(ListSourceRequest) returns (ListSourceResponse);
-  rpc list_app_endpoints(ListEndpointRequest) returns (ListEndpointResponse);
-
   rpc get_connection(GetConnectionRequest) returns (ConnectionResponse);
-  rpc create_app_connection(AppConnectionRequest) returns (ConnectionResponse);
-  rpc create_source(CreateSourceRequest) returns (SourceResponse);
 
-  rpc parse_sql(ParseRequest) returns (ParseResponse);
-  rpc parse_yaml(ParseYamlRequest) returns (ParseYamlResponse);
-  rpc generate_yaml(GenerateYamlRequest) returns (GenerateYamlResponse);
   rpc get_application(GetAppRequest) returns (AppResponse);
   rpc validate_connection(ConnectionRequest)
       returns (ValidateConnectionResponse);
@@ -39,9 +30,6 @@ service DozerCloud {
   rpc list_deployments(ListDeploymentRequest) returns (ListDeploymentResponse);
 
   rpc list_files(ListFilesRequest) returns (ListFilesResponse);
-  rpc update_files(UpdateFileRequest) returns (UpdateFileResponse);
-  rpc save_files(SaveFilesRequest) returns (SaveFilesResponse);
-  rpc delete_files(DeleteFileRequest) returns (DeleteFileResponse);
 
   rpc create_secret(CreateSecretRequest) returns (CreateSecretResponse);
   rpc update_secret(UpdateSecretRequest) returns (UpdateSecretResponse);
@@ -58,6 +46,70 @@ service DozerCloud {
 service DozerPublic {
   rpc company_metadata(CompanyRequest) returns (CompanyResponse);
 }
+message CreateAppRequest {
+  repeated File files = 3;
+}
+message DeployAppRequest {
+  optional string app_id = 1;
+  repeated File files = 2;
+  repeated Secret secrets = 3;
+  bool allow_incompatible = 4;
+  InfraRequest infra = 5;
+}
+
+message InfraRequest {
+  int32 num_api_instances = 2;
+}
+
+message DeployStep {
+  bool is_completed = 1;
+  string text = 2;
+  uint32 current_step = 3;
+  optional string error = 4;
+}
+
+message DeployAppResponse {
+  oneof result {
+    AppResponse app_created = 1;
+    DeployStep step = 2;
+  }
+  bool completed = 3;
+  optional string error = 4;
+}
+
+message AppResponse {
+  string app_id = 1;
+  AppConfig app = 2;
+  optional string repository_url = 3;
+  repeated DeploymentInfo deployments = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
+}
+
+message ListAppRequest {
+  optional uint32 limit = 1;
+  optional uint32 offset = 2;
+  optional string name = 3;
+  optional string uuid = 4;
+  optional string order_by = 5;
+  optional bool desc = 6;
+}
+message ListAppResponse {
+  repeated AppResponse apps = 1;
+  Pagination pagination = 2;
+}
+
+message UpdateAppRequest {
+  string app_id = 1;
+  repeated File files = 2;
+}
+
+message DeleteAppRequest {
+  string app_id = 1;
+}
+message DeleteAppResponse { bool success = 1; }
+
+message GetAppRequest { optional string app_id = 1; }
 
 message AppHealthRequest {
   string app_id = 1;
@@ -85,59 +137,6 @@ message DeploymentHealth {
   int32 available = 5;
 }
 
-message AppConnectionRequest {
-  string app_id = 1;
-  oneof input {
-    Connection connection = 2;
-    string connection_yaml = 3;
-  }
-}
-
-message CreateSourceRequest {
-  string app_id = 1;
-  Source source = 2;
-  Connection connection = 3;
-}
-
-message ListEndpointRequest {
-  string app_id = 1;
-  optional uint32 limit = 2;
-  optional uint32 offset = 3;
-}
-
-message ListEndpointResponse {
-    repeated EndpointResponse endpoints = 1;
-    Pagination pagination = 2;
-}
-
-message EndpointResponse {
-  string id = 1;
-  Endpoint endpoint = 2;
-  string yaml_content = 3; 
-}
-
-message ListSourceRequest {
-  string app_id = 1;
-  optional uint32 limit = 2;
-  optional uint32 offset = 3;
-}
-
-message ListSourceResponse {
-    repeated SourceResponse sources = 1;
-    Pagination pagination = 2;
-}
-
-message SourceResponse {
-  string id = 1;
-  Source source = 2;
-  string yaml_content = 3;
-}
-
-message ListAppConnectionRequest {
-  string app_id = 1;
-  optional uint32 limit = 2;
-  optional uint32 offset = 3;
-}
 
 message StartRequest {
   string app_id = 1;
@@ -210,67 +209,15 @@ message SetNumApiInstancesRequest {
 
 message SetNumApiInstancesResponse {}
 
-message CreateAppRequest {
-  repeated File files = 3;
-}
-message ParseRequest { string sql = 1; }
-message ParseResponse {
-  repeated string used_sources = 1;
-  repeated string output_tables = 3;
-}
 
-message ParseYamlRequest { string config = 1; }
-message ParseYamlResponse { AppConfig app = 1; }
 
-message GenerateYamlRequest { AppConfig app = 1; }
-message GenerateYamlResponse {
-  repeated string connections = 1;
-
-  repeated string sources = 2;
-
-  repeated string endpoints = 3;
-}
 message DeploymentInfo {
   uint32 deployment = 1;
   string phase = 2;
   optional string last_error = 3;
 }
-message AppResponse {
-  string app_id = 1;
-  AppConfig app = 2;
-  optional string repository_url = 3;
-  repeated DeploymentInfo deployments = 4;
-  google.protobuf.Timestamp created_at = 5;
-  google.protobuf.Timestamp updated_at = 6;
-}
 
-message ListAppRequest {
-  optional uint32 limit = 1;
-  optional uint32 offset = 2;
-  optional string name = 3;
-  optional string uuid = 4;
-  optional string order_by = 5;
-  optional bool desc = 6;
-}
-message ListAppResponse {
-  repeated AppResponse apps = 1;
-  Pagination pagination = 2;
-}
 
-message UpdateAppRequest {
-  string app_id = 1;
-  repeated File files = 2;
-}
-
-message DeleteAppRequest {
-  string app_id = 1;
-}
-message CloneAppRequest {
-  string app_id = 1;
-}
-message DeleteAppResponse { bool success = 1; }
-
-message GetAppRequest { optional string app_id = 1; }
 message ConnectionRequest { Connection connection = 1; }
 message GetConnectionRequest {
   string connection_id = 1;
@@ -311,26 +258,7 @@ message FileInfo {
   string id = 1;
   File file = 2;
 }
-message DeleteFileRequest {
-  string app_id = 1;
-  repeated string file_ids = 2;
-}
-message DeleteFileResponse {
-}
-message UpdateFileRequest {
-  string app_id = 1;
-  repeated FileInfo files = 2;
-}
-message UpdateFileResponse {
-  repeated FileInfo files = 1; 
-}
-message SaveFilesRequest {
-  string app_id = 1;
-  repeated File files = 2;
-}
-message SaveFilesResponse {
-  repeated FileInfo files = 1;
-}
+
 message LogMessageRequest {
   string app_id = 1;
   uint32 deployment = 2;
@@ -350,30 +278,7 @@ message Pagination {
 
 message ErrorResponse { string message = 1; }
 
-enum QueryNodeType {
-  CONNECTION = 0;
-  SOURCE = 1;
-  TRANSFORMER = 2;
-  TABLE = 3;
-  API = 4;
-}
-message QueryNode {
-  string name = 1;
-  QueryNodeType node_type = 2;
-  uint32 idx = 3;
-  uint32 id = 4;
-  string data = 5;
-}
 
-message QueryEdge {
-  uint32 from = 1;
-  uint32 to = 2;
-}
-
-message QueryGraph {
-  repeated QueryNode nodes = 1;
-  repeated QueryEdge edges = 2;
-}
 message CompanyRequest {
   oneof criteria {
     string iss = 1;
