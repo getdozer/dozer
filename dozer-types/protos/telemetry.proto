@@ -1,0 +1,18 @@
+syntax = "proto3";
+package dozer.telemetry;
+
+service TelemetryService {
+  rpc get_metrics(MetricsRequest) returns (MetricsResponse);
+  rpc get_traces(TracesRequest) returns (TracesResponse);
+}
+
+message MetricsRequest {
+  string app_id = 1;
+  string query = 2;
+}
+
+message MetricsResponse { string content = 1; }
+
+message TracesRequest { string app_id = 1; }
+
+message TracesResponse { string content = 1; }
