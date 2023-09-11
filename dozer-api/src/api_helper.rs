@@ -3,6 +3,7 @@ use crate::errors::{ApiError, AuthError};
 use dozer_cache::cache::expression::QueryExpression;
 use dozer_cache::cache::CacheRecord;
 use dozer_cache::{AccessFilter, CacheReader};
+use dozer_types::models::api_security::ApiSecurity;
 
 pub const API_LATENCY_HISTOGRAM_NAME: &str = "api_latency";
 pub const API_REQUEST_COUNTER_NAME: &str = "api_requests";
@@ -17,6 +18,13 @@ pub fn get_record(
         .get(key, &access_filter)
         .map_err(ApiError::NotFound)?;
     Ok(record)
+}
+
+pub fn get_api_security(current_api_security: Option<ApiSecurity>) -> Option<ApiSecurity> {
+    let dozer_master_secret = std::env::var("DOZER_MASTER_SECRET").ok();
+    dozer_master_secret
+        .map(ApiSecurity::Jwt)
+        .or(current_api_security)
 }
 
 pub fn get_records_count(

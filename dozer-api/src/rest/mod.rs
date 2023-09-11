@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crate::api_helper::get_api_security;
 // Exports
 use crate::errors::ApiInitError;
 use crate::rest::api_generator::health_route;
@@ -165,18 +166,17 @@ impl ApiServer {
         shutdown: impl Future<Output = ()> + Send + 'static,
         labels: LabelsAndProgress,
     ) -> Result<Server, ApiInitError> {
+        let security = get_api_security(self.security.to_owned());
         info!(
             "Starting Rest Api Server on http://{}:{} with security: {}",
             self.host,
             self.port,
-            self.security
-                .as_ref()
-                .map_or("None".to_string(), |s| match s {
-                    ApiSecurity::Jwt(_) => "JWT".to_string(),
-                })
+            security.as_ref().map_or("None".to_string(), |s| match s {
+                ApiSecurity::Jwt(_) => "JWT".to_string(),
+            })
         );
         let cors = self.cors;
-        let security = self.security;
+
         let address = format!("{}:{}", self.host, self.port);
         let server = HttpServer::new(move || {
             ApiServer::create_app_entry(

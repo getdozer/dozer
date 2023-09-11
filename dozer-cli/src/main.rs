@@ -174,7 +174,7 @@ fn run() -> Result<(), OrchestrationError> {
         },
         Commands::Security(security) => match security.command {
             SecurityCommands::GenerateToken => {
-                let token = dozer.generate_token()?;
+                let token = dozer.generate_token(None)?;
                 info!("token: {:?} ", token);
                 Ok(())
             }

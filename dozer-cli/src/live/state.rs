@@ -15,6 +15,7 @@ use dozer_types::{
     models::{
         api_config::{ApiConfig, AppGrpcOptions, GrpcApiOptions, RestApiOptions},
         api_endpoint::ApiEndpoint,
+        api_security::ApiSecurity,
         app_config::AppConfig,
         flags::Flags,
     },
@@ -164,10 +165,23 @@ impl LiveState {
                 .iter()
                 .map(|c| c.name.clone())
                 .collect();
+
+            let enable_api_security = std::env::var("DOZER_MASTER_SECRET")
+                .ok()
+                .map(ApiSecurity::Jwt)
+                .as_ref()
+                .or(dozer
+                    .dozer
+                    .config
+                    .api
+                    .as_ref()
+                    .and_then(|f| f.api_security.as_ref()))
+                .is_some();
             LiveApp {
                 app_name: dozer.dozer.config.app_name.clone(),
                 connections,
                 endpoints,
+                enable_api_security,
             }
         });
 
@@ -183,7 +197,6 @@ impl LiveState {
         self.create_contract_if_missing().await?;
         let dozer = self.dozer.read().await;
         let contract = get_contract(&dozer)?;
-
         Ok(SchemasResponse {
             schemas: contract.get_endpoints_schemas(),
         })
@@ -267,6 +280,13 @@ impl LiveState {
         *lock = None;
         Ok(())
     }
+    pub async fn get_api_token(&self, ttl: Option<i32>) -> Result<Option<String>, LiveError> {
+        let dozer: tokio::sync::RwLockReadGuard<'_, Option<DozerAndContract>> =
+            self.dozer.read().await;
+        let dozer = &dozer.as_ref().ok_or(LiveError::NotInitialized)?.dozer;
+        let generated_token = dozer.generate_token(ttl).ok();
+        Ok(generated_token)
+    }
 }
 
 fn get_contract(dozer_and_contract: &Option<DozerAndContract>) -> Result<&Contract, LiveError> {
@@ -324,7 +344,6 @@ fn run(
     let mut dozer = get_dozer_run_instance(dozer, labels, request)?;
 
     validate_config(&dozer.config)?;
-
     let runtime = dozer.runtime.clone();
     let run_thread = std::thread::spawn(move || dozer.run_all(shutdown_receiver, false));
 
@@ -410,7 +429,7 @@ fn get_dozer_run_instance(
             cors: true,
             enabled: true,
         }),
-        ..Default::default()
+        ..dozer.config.api.unwrap_or_default()
     });
 
     let temp_dir = tempdir::TempDir::new("live").unwrap();
