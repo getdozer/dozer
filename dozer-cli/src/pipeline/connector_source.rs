@@ -1,6 +1,6 @@
 use dozer_core::channels::SourceChannelForwarder;
 use dozer_core::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory};
-use dozer_ingestion::connectors::{get_connector, CdcType, Connector, TableInfo};
+use dozer_ingestion::connectors::{get_connector, CdcType, Connector, TableIdentifier, TableInfo};
 use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
 
@@ -65,7 +65,7 @@ fn map_replication_type_to_output_port_type(typ: &CdcType) -> OutputPortType {
 
 impl ConnectorSourceFactory {
     pub async fn new(
-        table_and_ports: Vec<(TableInfo, PortHandle)>,
+        mut table_and_ports: Vec<(TableInfo, PortHandle)>,
         connection: Connection,
         runtime: Arc<Runtime>,
         labels: LabelsAndProgress,
@@ -74,6 +74,19 @@ impl ConnectorSourceFactory {
         let connection_name = connection.name.clone();
 
         let connector = get_connector(connection)?;
+
+        // Fill column names if not provided.
+        let table_identifiers = table_and_ports
+            .iter()
+            .map(|(table, _)| TableIdentifier::new(table.schema.clone(), table.name.clone()))
+            .collect();
+        let all_columns = connector.list_columns(table_identifiers).await?;
+        for ((table, _), columns) in table_and_ports.iter_mut().zip(all_columns) {
+            if table.column_names.is_empty() {
+                table.column_names = columns.column_names;
+            }
+        }
+
         let tables: Vec<TableInfo> = table_and_ports
             .iter()
             .map(|(table, _)| table.clone())
