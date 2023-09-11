@@ -8,6 +8,7 @@ use super::{
 use crate::{
     connectors::{
         CdcType, Connector, SourceSchema, SourceSchemaResult, TableIdentifier, TableInfo,
+        TableToIngest,
     },
     errors::MySQLConnectorError,
 };
@@ -189,9 +190,22 @@ impl Connector for MySQLConnector {
     async fn start(
         &self,
         ingestor: &Ingestor,
-        tables: Vec<TableInfo>,
+        tables: Vec<TableToIngest>,
     ) -> Result<(), ConnectorError> {
-        self.replicate(ingestor, tables).await.map_err(Into::into)
+        let table_infos = tables
+            .into_iter()
+            .map(|table| {
+                assert!(table.checkpoint.is_none());
+                TableInfo {
+                    schema: table.schema,
+                    name: table.name,
+                    column_names: table.column_names,
+                }
+            })
+            .collect();
+        self.replicate(ingestor, table_infos)
+            .await
+            .map_err(Into::into)
     }
 }
 

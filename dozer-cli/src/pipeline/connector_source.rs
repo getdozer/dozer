@@ -2,7 +2,9 @@ use dozer_core::channels::SourceChannelForwarder;
 use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory, SourceState,
 };
-use dozer_ingestion::connectors::{get_connector, CdcType, Connector, TableIdentifier, TableInfo};
+use dozer_ingestion::connectors::{
+    get_connector, CdcType, Connector, TableIdentifier, TableInfo, TableToIngest,
+};
 use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
 
@@ -12,7 +14,6 @@ use dozer_types::indicatif::ProgressBar;
 use dozer_types::ingestion_types::{IngestionMessage, IngestorError};
 use dozer_types::log::info;
 use dozer_types::models::connection::Connection;
-use dozer_types::node::OpIdentifier;
 use dozer_types::parking_lot::Mutex;
 use dozer_types::thiserror::{self, Error};
 use dozer_types::tracing::{span, Level};
@@ -229,14 +230,10 @@ pub struct ConnectorSource {
 const SOURCE_OPERATION_COUNTER_NAME: &str = "source_operation";
 
 impl Source for ConnectorSource {
-    fn can_start_from(&self, _last_checkpoint: OpIdentifier) -> Result<bool, BoxedError> {
-        Ok(false)
-    }
-
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        _last_checkpoint: SourceState,
+        last_checkpoint: SourceState,
     ) -> Result<(), BoxedError> {
         thread::scope(|scope| {
             describe_counter!(
@@ -252,8 +249,23 @@ impl Source for ConnectorSource {
                 self.runtime.block_on(async move {
                     let ingestor = ingestor;
                     let shutdown_future = self.shutdown.create_shutdown_future();
-                    let tables = self.tables.clone();
                     let (abort_handle, abort_registration) = AbortHandle::new_pair();
+
+                    // Construct the tables to ingest.
+                    let tables = self
+                        .tables
+                        .iter()
+                        .zip(&self.ports)
+                        .map(|(table, port)| {
+                            let checkpoint = last_checkpoint.get(port).copied().flatten();
+                            TableToIngest {
+                                schema: table.schema.clone(),
+                                name: table.name.clone(),
+                                column_names: table.column_names.clone(),
+                                checkpoint,
+                            }
+                        })
+                        .collect::<Vec<_>>();
 
                     // Abort the connector when we shut down
                     // TODO: pass a `CancellationToken` to the connector to allow

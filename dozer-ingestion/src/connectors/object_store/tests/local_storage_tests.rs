@@ -1,5 +1,5 @@
 use crate::connectors::object_store::connector::ObjectStoreConnector;
-use crate::connectors::Connector;
+use crate::connectors::{Connector, TableToIngest};
 use crate::ingestion::{IngestionConfig, Ingestor};
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::ingestion_types::LocalDetails;
@@ -73,6 +73,10 @@ async fn test_read_parquet_file() {
         .list_columns(connector.list_tables().await.unwrap())
         .await
         .unwrap();
+    let tables = tables
+        .into_iter()
+        .map(TableToIngest::from_scratch)
+        .collect();
     tokio::spawn(async move {
         connector.start(&ingestor, tables).await.unwrap();
     });
@@ -131,6 +135,10 @@ async fn test_read_parquet_file_marker() {
         .list_columns(connector.list_tables().await.unwrap())
         .await
         .unwrap();
+    let tables = tables
+        .into_iter()
+        .map(TableToIngest::from_scratch)
+        .collect();
     tokio::spawn(async move {
         connector.start(&ingestor, tables).await.unwrap();
     });
@@ -189,6 +197,10 @@ async fn test_read_parquet_file_no_marker() {
         .list_columns(connector.list_tables().await.unwrap())
         .await
         .unwrap();
+    let tables = tables
+        .into_iter()
+        .map(TableToIngest::from_scratch)
+        .collect();
     tokio::spawn(async move {
         connector.start(&ingestor, tables).await.unwrap();
     });
@@ -219,6 +231,10 @@ async fn test_csv_read() {
         .list_columns(connector.list_tables().await.unwrap())
         .await
         .unwrap();
+    let tables = tables
+        .into_iter()
+        .map(TableToIngest::from_scratch)
+        .collect();
 
     tokio::spawn(async move {
         connector.start(&ingestor, tables).await.unwrap();
@@ -285,6 +301,10 @@ async fn test_csv_read_marker() {
         .list_columns(connector.list_tables().await.unwrap())
         .await
         .unwrap();
+    let tables = tables
+        .into_iter()
+        .map(TableToIngest::from_scratch)
+        .collect();
 
     tokio::spawn(async move {
         connector.start(&ingestor, tables).await.unwrap();
@@ -351,6 +371,10 @@ async fn test_csv_read_only_one_marker() {
         .list_columns(connector.list_tables().await.unwrap())
         .await
         .unwrap();
+    let tables = tables
+        .into_iter()
+        .map(TableToIngest::from_scratch)
+        .collect();
 
     tokio::spawn(async move {
         connector.start(&ingestor, tables).await.unwrap();
@@ -419,6 +443,10 @@ async fn test_csv_read_no_marker() {
         .list_columns(connector.list_tables().await.unwrap())
         .await
         .unwrap();
+    let tables = tables
+        .into_iter()
+        .map(TableToIngest::from_scratch)
+        .collect();
 
     tokio::spawn(async move {
         connector.start(&ingestor, tables).await.unwrap();

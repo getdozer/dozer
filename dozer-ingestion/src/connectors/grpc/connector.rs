@@ -3,7 +3,9 @@ use std::path::Path;
 
 use super::adapter::{GrpcIngestor, IngestAdapter};
 use super::ingest::IngestorServiceImpl;
-use crate::connectors::{table_name, SourceSchema, SourceSchemaResult, TableIdentifier};
+use crate::connectors::{
+    table_name, SourceSchema, SourceSchemaResult, TableIdentifier, TableToIngest,
+};
 use crate::{
     connectors::{Connector, TableInfo},
     errors::ConnectorError,
@@ -68,7 +70,7 @@ where
     pub async fn serve(
         &self,
         ingestor: &Ingestor,
-        tables: Vec<TableInfo>,
+        tables: Vec<TableToIngest>,
     ) -> Result<(), ConnectorError> {
         let host = &self.config.host;
         let port = self.config.port;
@@ -222,7 +224,7 @@ where
     async fn start(
         &self,
         ingestor: &Ingestor,
-        tables: Vec<TableInfo>,
+        tables: Vec<TableToIngest>,
     ) -> Result<(), ConnectorError> {
         self.serve(ingestor, tables).await
     }

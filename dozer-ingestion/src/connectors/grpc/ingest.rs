@@ -8,7 +8,7 @@ use dozer_types::grpc_types::ingest::{
     ingest_service_server::IngestService, IngestRequest, IngestResponse,
 };
 
-use crate::{connectors::TableInfo, ingestion::Ingestor};
+use crate::{connectors::TableToIngest, ingestion::Ingestor};
 
 use super::adapter::{GrpcIngestMessage, GrpcIngestor, IngestAdapter};
 
@@ -18,7 +18,7 @@ where
 {
     adapter: Arc<GrpcIngestor<T>>,
     ingestor: &'static Ingestor,
-    tables: Vec<TableInfo>,
+    tables: Vec<TableToIngest>,
 }
 impl<T> IngestorServiceImpl<T>
 where
@@ -27,7 +27,7 @@ where
     pub fn new(
         adapter: GrpcIngestor<T>,
         ingestor: &'static Ingestor,
-        tables: Vec<TableInfo>,
+        tables: Vec<TableToIngest>,
     ) -> Self {
         Self {
             adapter: Arc::new(adapter),

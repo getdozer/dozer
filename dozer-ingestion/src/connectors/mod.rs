@@ -27,6 +27,7 @@ use crate::ingestion::Ingestor;
 use dozer_types::log::debug;
 use dozer_types::models::connection::Connection;
 use dozer_types::models::connection::ConnectionConfig;
+use dozer_types::node::OpIdentifier;
 use tonic::async_trait;
 
 use crate::connectors::object_store::connector::ObjectStoreConnector;
@@ -135,7 +136,7 @@ pub trait Connector: Send + Sync + Debug {
     async fn start(
         &self,
         ingestor: &Ingestor,
-        tables: Vec<TableInfo>,
+        tables: Vec<TableToIngest>,
     ) -> Result<(), ConnectorError>;
 }
 
@@ -170,6 +171,30 @@ pub struct TableInfo {
     pub name: String,
     /// The column names to be mapped.
     pub column_names: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+/// `TableInfo` with an optional checkpoint info.
+pub struct TableToIngest {
+    /// The `schema` scope of the table.
+    pub schema: Option<String>,
+    /// The table name, must be unique under the `schema` scope, or global scope if `schema` is `None`.
+    pub name: String,
+    /// The column names to be mapped.
+    pub column_names: Vec<String>,
+    /// The checkpoint to start after.
+    pub checkpoint: Option<OpIdentifier>,
+}
+
+impl TableToIngest {
+    pub fn from_scratch(table_info: TableInfo) -> Self {
+        Self {
+            schema: table_info.schema,
+            name: table_info.name,
+            column_names: table_info.column_names,
+            checkpoint: None,
+        }
+    }
 }
 
 pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, ConnectorError> {

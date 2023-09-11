@@ -25,7 +25,7 @@ use tonic::{async_trait, transport::Channel};
 use crate::{
     connectors::{
         warn_dropped_primary_index, CdcType, Connector, SourceSchema, SourceSchemaResult,
-        TableIdentifier, TableInfo,
+        TableIdentifier, TableInfo, TableToIngest,
     },
     errors::{ConnectorError, NestedDozerConnectorError},
     ingestion::Ingestor,
@@ -126,7 +126,7 @@ impl Connector for NestedDozerConnector {
     async fn start(
         &self,
         ingestor: &Ingestor,
-        tables: Vec<TableInfo>,
+        tables: Vec<TableToIngest>,
     ) -> Result<(), ConnectorError> {
         let mut joinset = JoinSet::new();
         let (sender, mut receiver) = channel(100);
@@ -229,10 +229,12 @@ impl NestedDozerConnector {
 
 async fn read_table(
     table_idx: usize,
-    table_info: TableInfo,
+    table_info: TableToIngest,
     reader_builder: LogReaderBuilder,
     sender: Sender<(usize, Operation)>,
 ) -> Result<(), ConnectorError> {
+    assert!(table_info.checkpoint.is_none());
+
     let mut reader = reader_builder.build(0);
     let schema = reader.schema.schema.clone();
     let map = SchemaMapper::new(schema, &table_info.column_names)?;

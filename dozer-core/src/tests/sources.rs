@@ -91,10 +91,6 @@ pub(crate) struct GeneratorSource {
 }
 
 impl Source for GeneratorSource {
-    fn can_start_from(&self, _last_checkpoint: OpIdentifier) -> Result<bool, BoxedError> {
-        Ok(true)
-    }
-
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
@@ -226,10 +222,6 @@ pub(crate) struct DualPortGeneratorSource {
 }
 
 impl Source for DualPortGeneratorSource {
-    fn can_start_from(&self, _last_checkpoint: OpIdentifier) -> Result<bool, BoxedError> {
-        Ok(false)
-    }
-
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,

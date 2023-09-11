@@ -8,7 +8,7 @@ use std::sync::Arc;
 use web3::ethabi::RawLog;
 use web3::types::Log;
 
-use crate::connectors::{CdcType, SourceSchema, TableInfo};
+use crate::connectors::{CdcType, SourceSchema, TableToIngest};
 
 use super::connector::{ContractTuple, ETH_LOGS_TABLE};
 use super::sender::EthDetails;
@@ -61,7 +61,7 @@ pub fn get_contract_event_schemas(
 pub fn decode_event(
     log: Log,
     contracts: HashMap<String, ContractTuple>,
-    tables: Vec<TableInfo>,
+    tables: Vec<TableToIngest>,
 ) -> Option<(usize, Operation)> {
     let address = format!("{:?}", log.address);
 

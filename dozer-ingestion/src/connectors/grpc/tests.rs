@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::{sync::Arc, thread};
 
+use crate::connectors::TableToIngest;
 use crate::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
 use dozer_types::arrow_types::to_arrow::DOZER_SCHEMA_KEY;
 use dozer_types::ingestion_types::IngestionMessage;
@@ -52,6 +53,10 @@ async fn ingest_grpc(
             .list_columns(grpc_connector.list_tables().await.unwrap())
             .await
             .unwrap();
+        let tables = tables
+            .into_iter()
+            .map(TableToIngest::from_scratch)
+            .collect();
         grpc_connector.start(&ingestor, tables).await.unwrap();
     });
 

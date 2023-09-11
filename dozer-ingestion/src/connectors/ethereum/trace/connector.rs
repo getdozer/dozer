@@ -1,6 +1,8 @@
 use super::super::helper as conn_helper;
 use super::helper::{self, get_block_traces, map_trace_to_ops};
-use crate::connectors::{table_name, CdcType, SourceSchema, SourceSchemaResult, TableIdentifier};
+use crate::connectors::{
+    table_name, CdcType, SourceSchema, SourceSchemaResult, TableIdentifier, TableToIngest,
+};
 use crate::{
     connectors::{Connector, TableInfo},
     errors::ConnectorError,
@@ -96,7 +98,7 @@ impl Connector for EthTraceConnector {
     async fn start(
         &self,
         ingestor: &Ingestor,
-        _tables: Vec<TableInfo>,
+        _tables: Vec<TableToIngest>,
     ) -> Result<(), ConnectorError> {
         let config = self.config.clone();
         let conn_name = self.conn_name.clone();

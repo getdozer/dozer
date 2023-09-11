@@ -8,7 +8,7 @@ use tonic::async_trait;
 use crate::connectors::object_store::adapters::DozerObjectStore;
 use crate::connectors::object_store::schema_mapper;
 use crate::connectors::{
-    Connector, ListOrFilterColumns, SourceSchemaResult, TableIdentifier, TableInfo,
+    Connector, ListOrFilterColumns, SourceSchemaResult, TableIdentifier, TableInfo, TableToIngest,
 };
 use crate::errors::{ConnectorError, ObjectStoreConnectorError};
 use crate::ingestion::Ingestor;
@@ -99,7 +99,7 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
         schema_mapper::get_schema(&self.config, &list_or_filter_columns).await
     }
 
-    async fn start(&self, ingestor: &Ingestor, tables: Vec<TableInfo>) -> ConnectorResult<()> {
+    async fn start(&self, ingestor: &Ingestor, tables: Vec<TableToIngest>) -> ConnectorResult<()> {
         let (sender, mut receiver) =
             channel::<Result<Option<IngestionMessage>, ObjectStoreConnectorError>>(100); // todo: increase buffer siz
         let ingestor_clone = ingestor.clone();
@@ -135,6 +135,13 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
         // let mut csv_tables: HashMap<usize, HashMap<Path, DateTime<Utc>>> = vec![];
 
         for (table_index, table_info) in tables.iter().enumerate() {
+            assert!(table_info.checkpoint.is_none());
+            let table_info = TableInfo {
+                schema: table_info.schema.clone(),
+                name: table_info.name.clone(),
+                column_names: table_info.column_names.clone(),
+            };
+
             for table_config in self.config.tables() {
                 if table_info.name == table_config.name {
                     if let Some(config) = &table_config.config {
@@ -143,7 +150,7 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                                 let table = CsvTable::new(config.clone(), self.config.clone());
                                 handles.push(
                                     table
-                                        .snapshot(table_index, table_info, sender.clone())
+                                        .snapshot(table_index, &table_info, sender.clone())
                                         .await
                                         .unwrap(),
                                 );
@@ -152,7 +159,7 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                                 let table = DeltaTable::new(config.clone(), self.config.clone());
                                 handles.push(
                                     table
-                                        .snapshot(table_index, table_info, sender.clone())
+                                        .snapshot(table_index, &table_info, sender.clone())
                                         .await?,
                                 );
                             }
@@ -160,7 +167,7 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                                 let table = ParquetTable::new(config.clone(), self.config.clone());
                                 handles.push(
                                     table
-                                        .snapshot(table_index, table_info, sender.clone())
+                                        .snapshot(table_index, &table_info, sender.clone())
                                         .await?,
                                 );
                             }
@@ -183,6 +190,12 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
 
         let mut joinset = JoinSet::new();
         for (table_index, table_info) in tables.into_iter().enumerate() {
+            let table_info = TableInfo {
+                schema: table_info.schema,
+                name: table_info.name,
+                column_names: table_info.column_names,
+            };
+
             for table in self.config.tables() {
                 if table_info.name == table.name {
                     if let Some(table_config) = table.config.clone() {

@@ -9,7 +9,7 @@ use dozer_types::{
 use crate::{
     connectors::{
         ethereum::{helper, trace::helper::get_block_traces, EthTraceConnector},
-        Connector,
+        Connector, TableToIngest,
     },
     ingestion::{IngestionConfig, Ingestor},
 };
@@ -68,6 +68,10 @@ async fn test_trace_iterator() {
         for s in schemas {
             info!("\n{}", s.schema.print());
         }
+        let tables = tables
+            .into_iter()
+            .map(TableToIngest::from_scratch)
+            .collect();
         connector.start(&ingestor, tables).await.unwrap();
     });
 

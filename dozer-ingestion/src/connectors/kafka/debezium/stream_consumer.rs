@@ -14,7 +14,7 @@ use dozer_types::serde_json;
 use dozer_types::serde_json::Value;
 use dozer_types::types::{Operation, Record};
 
-use crate::connectors::TableInfo;
+use crate::connectors::TableToIngest;
 use rdkafka::{ClientConfig, Message};
 use tonic::async_trait;
 
@@ -89,10 +89,16 @@ impl StreamConsumer for DebeziumStreamConsumer {
         &self,
         client_config: ClientConfig,
         ingestor: &Ingestor,
-        tables: Vec<TableInfo>,
+        tables: Vec<TableToIngest>,
         _schema_registry_url: &Option<String>,
     ) -> Result<(), ConnectorError> {
-        let topics: Vec<&str> = tables.iter().map(|t| t.name.as_str()).collect();
+        let topics: Vec<&str> = tables
+            .iter()
+            .map(|t| {
+                assert!(t.checkpoint.is_none());
+                t.name.as_str()
+            })
+            .collect();
         let mut con = StreamConsumerHelper::start(&client_config, &topics).await?;
         let mut offsets = OffsetsMap::new();
         loop {

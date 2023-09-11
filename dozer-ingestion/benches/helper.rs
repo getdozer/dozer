@@ -1,4 +1,4 @@
-use dozer_ingestion::connectors::TableIdentifier;
+use dozer_ingestion::connectors::{TableIdentifier, TableToIngest};
 use dozer_ingestion::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
 use dozer_types::indicatif::{ProgressBar, ProgressStyle};
 use dozer_types::log::error;
@@ -53,6 +53,10 @@ pub async fn get_connection_iterator(config: TestConfig) -> IngestionIterator {
             None => grpc_connector.list_tables().await.unwrap(),
         };
         let tables = grpc_connector.list_columns(tables).await.unwrap();
+        let tables = tables
+            .into_iter()
+            .map(TableToIngest::from_scratch)
+            .collect();
 
         let res = grpc_connector.start(&ingestor, tables).await;
         if let Err(e) = res {

@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use dozer_ingestion::{
-    connectors::{CdcType, Connector, SourceSchema, TableIdentifier},
+    connectors::{CdcType, Connector, SourceSchema, TableIdentifier, TableToIngest},
     ingestion::Ingestor,
 };
 use dozer_types::{
@@ -35,6 +35,10 @@ pub async fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>() {
         .collect::<Vec<_>>();
 
     // Run connector.
+    let tables = tables
+        .into_iter()
+        .map(TableToIngest::from_scratch)
+        .collect();
     let (ingestor, mut iterator) = Ingestor::initialize_channel(Default::default());
     let (abort_handle, abort_registration) = AbortHandle::new_pair();
     tokio::spawn(async move {
@@ -151,6 +155,10 @@ pub async fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
         assert_eq!(actual_schema.primary_index, actual_primary_index);
 
         // Run the connector and check data is ingested.
+        let tables = tables
+            .into_iter()
+            .map(TableToIngest::from_scratch)
+            .collect();
         let (ingestor, mut iterator) = Ingestor::initialize_channel(Default::default());
         let (abort_handle, abort_registration) = AbortHandle::new_pair();
         tokio::spawn(async move {

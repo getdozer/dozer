@@ -116,7 +116,7 @@ impl OptionCheckpoint {
     ) -> Result<Option<Vec<u8>>, storage::Error> {
         if let Some(checkpoint) = &self.checkpoint {
             let key = processor_key(&checkpoint.processor_prefix, node_handle);
-            info!("Restoring processor {node_handle} from {key}");
+            info!("Downloading processor {node_handle} checkpoint from {key}");
             factory.storage.download_object(key).await.map(Some)
         } else {
             Ok(None)

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use crate::connectors::ethereum::log::connector::EthLogConnector;
 use crate::ingestion::Ingestor;
 use crate::{
-    connectors::{ethereum::helper as conn_helper, TableInfo},
+    connectors::{ethereum::helper as conn_helper, TableToIngest},
     errors::ConnectorError,
 };
 use dozer_types::ingestion_types::{EthFilter, IngestionMessage};
@@ -29,7 +29,7 @@ pub struct EthDetails<'a> {
     filter: EthFilter,
     ingestor: &'a Ingestor,
     contracts: HashMap<String, ContractTuple>,
-    pub tables: Vec<TableInfo>,
+    pub tables: Vec<TableToIngest>,
     pub schema_map: HashMap<H256, usize>,
     pub conn_name: String,
 }
@@ -41,7 +41,7 @@ impl<'a> EthDetails<'a> {
         filter: EthFilter,
         ingestor: &'a Ingestor,
         contracts: HashMap<String, ContractTuple>,
-        tables: Vec<TableInfo>,
+        tables: Vec<TableToIngest>,
         schema_map: HashMap<H256, usize>,
         conn_name: String,
     ) -> Self {

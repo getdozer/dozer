@@ -1,5 +1,5 @@
 use crate::connectors::snowflake::test_utils::{get_client, remove_streams};
-use crate::connectors::{get_connector, TableIdentifier};
+use crate::connectors::{get_connector, TableIdentifier, TableToIngest};
 use crate::ingestion::{IngestionConfig, Ingestor};
 
 use dozer_types::types::FieldType::{
@@ -56,6 +56,7 @@ async fn test_disabled_connector_and_read_from_stream() {
             .list_columns(vec![TableIdentifier::from_table_name(table_name.clone())])
             .await
             .unwrap();
+        let tables = tables.into_iter().map(TableToIngest::from_scratch).collect();
 
         tokio::spawn(async move { connector.start(&ingestor, tables).await });
 

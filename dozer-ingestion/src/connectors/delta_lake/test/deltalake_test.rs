@@ -1,5 +1,5 @@
 use crate::connectors::delta_lake::DeltaLakeConnector;
-use crate::connectors::Connector;
+use crate::connectors::{Connector, TableToIngest};
 use crate::ingestion::{IngestionConfig, Ingestor};
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::ingestion_types::{DeltaLakeConfig, DeltaTable};
@@ -47,6 +47,10 @@ async fn read_deltalake() {
         .list_columns(connector.list_tables().await.unwrap())
         .await
         .unwrap();
+    let tables = tables
+        .into_iter()
+        .map(TableToIngest::from_scratch)
+        .collect();
     tokio::spawn(async move { connector.start(&ingestor, tables).await.unwrap() });
 
     let fields = vec![Field::Int(0), Field::Int(1), Field::Int(2), Field::Int(4)];

@@ -3,7 +3,7 @@ use std::time::Duration;
 use crate::{
     connectors::{
         ethereum::{helper, EthLogConnector},
-        Connector,
+        Connector, TableToIngest,
     },
     errors::ConnectorError,
     ingestion::{IngestionConfig, Ingestor},
@@ -74,8 +74,12 @@ pub async fn get_eth_producer(
     for table_info in table_infos.iter() {
         info!("Schema: {}", table_info.name);
     }
+    let tables = table_infos
+        .into_iter()
+        .map(TableToIngest::from_scratch)
+        .collect();
 
-    eth_connector.start(&ingestor, table_infos).await
+    eth_connector.start(&ingestor, tables).await
 }
 
 pub async fn run_eth_sample(

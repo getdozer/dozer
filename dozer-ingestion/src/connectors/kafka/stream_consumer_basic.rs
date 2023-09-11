@@ -18,7 +18,7 @@ use crate::connectors::kafka::no_schema_registry_basic::NoSchemaRegistryBasic;
 use crate::connectors::kafka::schema_registry_basic::SchemaRegistryBasic;
 use tonic::async_trait;
 
-use crate::connectors::TableInfo;
+use crate::connectors::TableToIngest;
 use crate::errors::KafkaStreamError::PollingError;
 use rdkafka::{ClientConfig, Message};
 
@@ -86,13 +86,15 @@ impl StreamConsumer for StreamConsumerBasic {
         &self,
         client_config: ClientConfig,
         ingestor: &Ingestor,
-        tables: Vec<TableInfo>,
+        tables: Vec<TableToIngest>,
         schema_registry_url: &Option<String>,
     ) -> Result<(), ConnectorError> {
         let topics: Vec<String> = tables.iter().map(|t| t.name.clone()).collect();
 
         let mut schemas = HashMap::new();
         for (table_index, table) in tables.into_iter().enumerate() {
+            assert!(table.checkpoint.is_none());
+
             let schema = if let Some(url) = schema_registry_url {
                 SchemaRegistryBasic::get_single_schema(&table.name, url).await?
             } else {

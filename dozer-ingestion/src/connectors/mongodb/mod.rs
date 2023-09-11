@@ -19,7 +19,9 @@ use dozer_types::{
     types::{Field, FieldDefinition, FieldType, Operation, Record, SourceDefinition},
 };
 
-use super::{Connector, SourceSchema, SourceSchemaResult, TableIdentifier, TableInfo};
+use super::{
+    Connector, SourceSchema, SourceSchemaResult, TableIdentifier, TableInfo, TableToIngest,
+};
 
 #[derive(Error, Debug)]
 pub enum MongodbConnectorError {
@@ -467,7 +469,7 @@ impl Connector for MongodbConnector {
     async fn start(
         &self,
         ingestor: &Ingestor,
-        tables: Vec<TableInfo>,
+        tables: Vec<TableToIngest>,
     ) -> Result<(), ConnectorError> {
         // Snapshot: find
         //
