@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::time::Duration;
 
 use crate::grpc::types_helper;
-use dozer_cache::dozer_log::reader::{LogReader, LogReaderBuilder};
+use dozer_cache::dozer_log::reader::{LogReader, LogReaderBuilder, OpAndPos};
 use dozer_cache::dozer_log::replication::LogOperation;
 use dozer_cache::{
     cache::{CacheRecord, CacheWriteOptions, RwCache, RwCacheManager, UpsertResult},
@@ -35,14 +35,14 @@ pub async fn build_cache(
     labels: LabelsAndProgress,
 ) -> Result<(), CacheError> {
     // Create log reader.
-    let pos = cache.get_metadata()?.unwrap_or(0);
+    let starting_pos = cache.get_metadata()?.map(|pos| pos + 1).unwrap_or(0);
     debug!(
-        "Starting log reader {} from position {pos}",
+        "Starting log reader {} from position {starting_pos}",
         log_reader_builder.options.endpoint
     );
     let pb = labels.create_progress_bar(format!("cache: {}", log_reader_builder.options.endpoint));
-    pb.set_position(pos);
-    let log_reader = log_reader_builder.build(pos);
+    pb.set_position(starting_pos);
+    let log_reader = log_reader_builder.build(starting_pos);
 
     // Spawn tasks
     let mut futures = FuturesUnordered::new();
@@ -96,10 +96,10 @@ const READ_LOG_RETRY_INTERVAL: Duration = Duration::from_secs(1);
 async fn read_log_task(
     mut cancel: impl Future<Output = ()> + Unpin + Send + 'static,
     mut log_reader: LogReader,
-    sender: mpsc::Sender<(LogOperation, u64)>,
+    sender: mpsc::Sender<OpAndPos>,
 ) {
     loop {
-        let next_op = std::pin::pin!(log_reader.next_op());
+        let next_op = std::pin::pin!(log_reader.read_one());
         match select(cancel, next_op).await {
             Either::Left(_) => break,
             Either::Right((op, c)) => {
@@ -127,7 +127,7 @@ async fn read_log_task(
 
 fn build_cache_task(
     mut cache: Box<dyn RwCache>,
-    mut receiver: mpsc::Receiver<(LogOperation, u64)>,
+    mut receiver: mpsc::Receiver<OpAndPos>,
     operations_sender: Option<(String, Sender<GrpcOperation>)>,
     progress_bar: ProgressBar,
 ) -> Result<(), CacheError> {
@@ -150,9 +150,9 @@ fn build_cache_task(
 
     let mut snapshotting = !cache.is_snapshotting_done()?;
 
-    while let Some((op, pos)) = receiver.blocking_recv() {
-        progress_bar.set_position(pos);
-        match op {
+    while let Some(op_and_pos) = receiver.blocking_recv() {
+        progress_bar.set_position(op_and_pos.pos + 1);
+        match op_and_pos.op {
             LogOperation::Op { op } => match op {
                 Operation::Delete { old } => {
                     if let Some(meta) = cache.delete(&old)? {
@@ -208,7 +208,7 @@ fn build_cache_task(
                 }
             },
             LogOperation::Commit { decision_instant } => {
-                cache.set_metadata(pos)?;
+                cache.set_metadata(op_and_pos.pos)?;
                 cache.commit()?;
                 if let Ok(duration) = decision_instant.elapsed() {
                     histogram!(
@@ -219,7 +219,7 @@ fn build_cache_task(
                 }
             }
             LogOperation::SnapshottingDone { connection_name } => {
-                cache.set_metadata(pos)?;
+                cache.set_metadata(op_and_pos.pos)?;
                 cache.set_connection_snapshotting_done(&connection_name)?;
                 cache.commit()?;
                 snapshotting = !cache.is_snapshotting_done()?;

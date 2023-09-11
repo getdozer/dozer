@@ -151,10 +151,13 @@ pub enum ConfigurationError {
 }
 #[derive(Error, Debug)]
 pub enum NestedDozerConnectorError {
-    #[error("Failed to connect to upstream dozer app. {0}")]
-    ConnectionError(#[source] tonic::transport::Error),
+    #[error("Missing `grpc` field in `config`")]
+    MissingGrpcConfig,
 
-    #[error("Failed to query endpoints from upstream dozer app. {0}")]
+    #[error("Failed to connect to upstream dozer at {0}: {1:?}")]
+    ConnectionError(String, #[source] tonic::transport::Error),
+
+    #[error("Failed to query endpoints from upstream dozer app: {0}")]
     DescribeEndpointsError(#[source] tonic::Status),
 
     #[error(transparent)]
