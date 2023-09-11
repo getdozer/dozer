@@ -5,7 +5,7 @@ import "google/protobuf/timestamp.proto";
 
 service DozerCloud {
   rpc create_application(CreateAppRequest) returns (AppResponse);
-  rpc deploy_application(DeployAppRequest) returns (stream DeployAppResponse);
+  rpc DeployApplication(DeployAppRequest) returns (stream DeployAppResponse);
   rpc update_application(UpdateAppRequest) returns (AppResponse);
   rpc delete_application(DeleteAppRequest) returns (DeleteAppResponse);
   rpc list_applications(ListAppRequest) returns (ListAppResponse);
