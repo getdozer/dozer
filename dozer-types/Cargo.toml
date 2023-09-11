@@ -13,7 +13,7 @@ serde_json = { version = "1.0.93", features = ["std"] }
 rust_decimal =  {version = "1.28", features = ["serde-str", "db-postgres"]}
 bincode= "1.3.3"
 ahash = "0.8.3"
-thiserror = "1.0.47"
+thiserror = "1.0.48"
 crossbeam = "0.8.2"
 parking_lot = "0.12"
 bytes = "1.4.0"
