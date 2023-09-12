@@ -72,9 +72,10 @@ message DeployAppResponse {
   oneof result {
     AppResponse app_created = 1;
     DeployStep step = 2;
+    string log_message = 4;
   }
-  bool completed = 3;
-  optional string error = 4;
+  bool completed = 5;
+  optional string error = 6;
 }
 
 message AppResponse {
@@ -286,11 +287,11 @@ message CompanyRequest {
   }
 }
 message CompanyResponse {
-    string name = 1;
-    string auth_url = 2;
-    string iss = 3;
-    string jwks_url = 4;
-    string slug = 5;
+  string name = 1;
+  string auth_url = 2;
+  string iss = 3;
+  string jwks_url = 4;
+  string slug = 5;
 }
 
 message Secret {
