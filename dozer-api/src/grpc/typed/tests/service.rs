@@ -78,7 +78,7 @@ pub async fn setup_pipeline() -> (Vec<Arc<CacheEndpoint>>, Receiver<Operation>) 
 async fn setup_typed_service(security: Option<ApiSecurity>) -> TypedService {
     let (endpoints, rx1) = setup_pipeline().await;
 
-    TypedService::new(endpoints, Some(rx1), security).unwrap()
+    TypedService::new(endpoints, Some(rx1), security, 50).unwrap()
 }
 
 async fn test_grpc_count_and_query_common(

@@ -144,3 +144,7 @@ pub fn get_cache_manager_options(config: &Config) -> CacheManagerOptions {
         ..CacheManagerOptions::default()
     }
 }
+
+pub fn get_max_return_records_num(config: &Config) -> usize {
+    config.default_max_num_records as usize
+}

@@ -27,7 +27,6 @@ use dozer_types::{
 };
 use futures_util::Future;
 use tracing_actix_web::TracingLogger;
-
 mod api_generator;
 mod rest_metric_middleware;
 
@@ -48,6 +47,7 @@ pub struct ApiServer {
     cors: CorsOptions,
     security: Option<ApiSecurity>,
     host: String,
+    default_limit: usize,
 }
 
 impl Default for ApiServer {
@@ -58,18 +58,20 @@ impl Default for ApiServer {
             cors: CorsOptions::Permissive,
             security: None,
             host: "0.0.0.0".to_owned(),
+            default_limit: 50,
         }
     }
 }
 
 impl ApiServer {
-    pub fn new(rest_config: RestApiOptions, security: Option<ApiSecurity>) -> Self {
+    pub fn new(rest_config: RestApiOptions, security: Option<ApiSecurity>, limit: usize) -> Self {
         Self {
             shutdown_timeout: 0,
             port: rest_config.port as u16,
             cors: CorsOptions::Permissive,
             security,
             host: rest_config.host,
+            default_limit: limit,
         }
     }
     fn get_cors(cors: CorsOptions) -> Cors {
@@ -87,6 +89,7 @@ impl ApiServer {
         cors: CorsOptions,
         mut cache_endpoints: Vec<Arc<CacheEndpoint>>,
         labels: LabelsAndProgress,
+        limit: usize,
     ) -> App<
         impl ServiceFactory<
             ServiceRequest,
@@ -103,6 +106,7 @@ impl ApiServer {
         let cfg = PayloadConfig::default();
         let mut app = App::new()
             .app_data(web::Data::new(endpoint_paths))
+            .app_data(web::Data::new(limit))
             .app_data(cfg)
             .wrap(Logger::default())
             .wrap(TracingLogger::default())
@@ -178,12 +182,14 @@ impl ApiServer {
         let cors = self.cors;
 
         let address = format!("{}:{}", self.host, self.port);
+        let limit = self.default_limit;
         let server = HttpServer::new(move || {
             ApiServer::create_app_entry(
                 security.clone(),
                 cors.clone(),
                 cache_endpoints.clone(),
                 labels.clone(),
+                limit,
             )
         })
         .bind(&address)
