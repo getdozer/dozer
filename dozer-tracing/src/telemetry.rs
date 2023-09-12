@@ -29,7 +29,7 @@ pub fn init_telemetry(app_name: Option<&str>, telemetry_config: Option<Telemetry
 
     debug!("Initializing telemetry for {:?}", telemetry_config);
 
-    let subscriber = create_subscriber(app_name, telemetry_config.as_ref());
+    let subscriber = create_subscriber(app_name, telemetry_config.as_ref(), true);
     subscriber.init();
 
     if let Some(telemetry_config) = telemetry_config {
@@ -52,7 +52,7 @@ pub fn init_telemetry_closure<T>(
     telemetry_config: Option<TelemetryConfig>,
     closure: impl FnOnce() -> T,
 ) -> T {
-    let subscriber = create_subscriber(app_name, telemetry_config.as_ref());
+    let subscriber = create_subscriber(app_name, telemetry_config.as_ref(), false);
 
     dozer_types::tracing::subscriber::with_default(subscriber, closure)
 }
@@ -60,12 +60,23 @@ pub fn init_telemetry_closure<T>(
 fn create_subscriber(
     app_name: Option<&str>,
     telemetry_config: Option<&TelemetryConfig>,
+    init_console_subscriber: bool,
 ) -> impl Subscriber {
     let app_name = app_name.unwrap_or("dozer");
 
     let fmt_filter = EnvFilter::try_from_default_env()
         .or_else(|_| EnvFilter::try_new("info"))
         .unwrap();
+
+    // `console_subscriber` can only be added once.
+    #[cfg(feature = "tokio-console")]
+    let console_layer = if init_console_subscriber {
+        Some(console_subscriber::spawn())
+    } else {
+        None
+    };
+    #[cfg(not(feature = "tokio-console"))]
+    let _ = init_console_subscriber;
 
     let layers = telemetry_config.map_or((None, None), |c| {
         let trace_filter = EnvFilter::try_from_env("DOZER_TRACE_FILTER")
@@ -89,7 +100,10 @@ fn create_subscriber(
     });
 
     let stdout_is_tty = atty::is(atty::Stream::Stdout);
-    tracing_subscriber::registry()
+    let subscriber = tracing_subscriber::registry();
+    #[cfg(feature = "tokio-console")]
+    let subscriber = subscriber.with(console_layer);
+    subscriber
         .with(
             fmt::Layer::default()
                 .without_time()

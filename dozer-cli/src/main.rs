@@ -27,8 +27,6 @@ use std::time::Duration;
 use std::{env, process};
 
 fn main() {
-    set_panic_hook();
-
     if let Err(e) = run() {
         display_error(&e);
         process::exit(1);
@@ -153,6 +151,8 @@ fn run() -> Result<(), OrchestrationError> {
     let _telemetry = dozer
         .runtime
         .block_on(async { Telemetry::new(app_id.as_deref(), telemetry_config) });
+
+    set_panic_hook();
 
     // run individual servers
     (match cli.cmd {
