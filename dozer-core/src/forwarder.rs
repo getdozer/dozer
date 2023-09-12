@@ -12,6 +12,7 @@ use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::debug;
 use dozer_types::node::{NodeHandle, TableState};
 use std::collections::HashMap;
+use std::ops::Deref;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
@@ -103,7 +104,12 @@ impl ChannelManager {
     }
 
     fn send_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError> {
-        debug!("[{}] Checkpointing - {:?}", self.owner, &epoch);
+        debug!(
+            "[{}] Checkpointing - {}: {:?}",
+            self.owner,
+            epoch.common_info.id,
+            epoch.common_info.source_states.deref()
+        );
 
         for senders in &self.senders {
             for sender in senders.1 {
