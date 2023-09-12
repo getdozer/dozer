@@ -52,7 +52,7 @@ service DozerCloud {
   rpc OnLogMessage(LogMessageRequest) returns (stream LogMessage);
   rpc OnStatusUpdate(StatusUpdateRequest) returns (stream StatusUpdate);
 
-  rpc deployment_status(DeploymentHealthCheckRequest) returns (DeploymentHealthCheckResponse);
+  rpc deployment_status(DeploymentStatusRequest) returns (DeploymentStatusResponse);
 }
 
 service DozerPublic {
@@ -65,12 +65,12 @@ message AppHealthRequest {
 message AppHealthResponse {
   bool healthy = 1;
 }
-message DeploymentHealthCheckRequest {
+message DeploymentStatusRequest {
   string app_id = 1;
   // if not specified, will get latest version
   optional uint32 version = 2;
 }
-message DeploymentHealthCheckResponse {
+message DeploymentStatusResponse {
   repeated DeploymentHealth k8_deployments = 1;
   repeated string errors = 2;
   map<uint32, uint32> versions = 3;
