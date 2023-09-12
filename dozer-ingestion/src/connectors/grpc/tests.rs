@@ -1,15 +1,16 @@
 use std::collections::HashMap;
 use std::{sync::Arc, thread};
 
+use crate::connectors::TableToIngest;
 use crate::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
 use dozer_types::arrow_types::to_arrow::DOZER_SCHEMA_KEY;
+use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::{
     arrow::array::{Int32Array, StringArray},
     grpc_types::{
         ingest::{ingest_service_client::IngestServiceClient, IngestArrowRequest, IngestRequest},
         types,
     },
-    ingestion_types::IngestionMessageKind,
     models::connection::{Connection, ConnectionConfig},
     serde_json,
     serde_json::Value,
@@ -52,6 +53,10 @@ async fn ingest_grpc(
             .list_columns(grpc_connector.list_tables().await.unwrap())
             .await
             .unwrap();
+        let tables = tables
+            .into_iter()
+            .map(TableToIngest::from_scratch)
+            .collect();
         grpc_connector.start(&ingestor, tables).await.unwrap();
     });
 
@@ -118,9 +123,8 @@ async fn ingest_grpc_default() {
         .unwrap();
 
     let msg = iterator.next().unwrap();
-    assert_eq!(msg.identifier.seq_in_tx, 1, "seq_no should be 1");
 
-    if let IngestionMessageKind::OperationEvent { op, .. } = msg.kind {
+    if let IngestionMessage::OperationEvent { op, .. } = msg {
         if let Operation::Insert { new: record } = op {
             assert_eq!(record.values[0].as_int(), Some(1675));
             assert_eq!(record.values[1].as_string(), Some("dario"));
@@ -252,9 +256,8 @@ async fn ingest_grpc_arrow() {
         .unwrap();
 
     let msg = iterator.next().unwrap();
-    assert_eq!(msg.identifier.seq_in_tx, 1, "seq_no should be 1");
 
-    if let IngestionMessageKind::OperationEvent { op, .. } = msg.kind {
+    if let IngestionMessage::OperationEvent { op, .. } = msg {
         if let Operation::Insert { new: record } = op {
             assert_eq!(record.values[0].as_int(), Some(1675));
             assert_eq!(record.values[1].as_string(), Some("dario"));

@@ -86,12 +86,11 @@ pub fn handle_message(
         },
     };
     ingestor
-        .handle_message(IngestionMessage::new_op(
-            0,
-            req.seq_no as u64,
+        .handle_message(IngestionMessage::OperationEvent {
             table_index,
             op,
-        ))
+            id: None,
+        })
         .map_err(ConnectorError::IngestorError)
 }
 

@@ -53,14 +53,13 @@ pub trait SourceFactory: Send + Sync + Debug {
     ) -> Result<Box<dyn Source>, BoxedError>;
 }
 
+pub type SourceState = HashMap<PortHandle, Option<OpIdentifier>>;
+
 pub trait Source: Send + Sync + Debug {
-    /// Checks if the source can start from the given checkpoint.
-    /// If this function returns false, the executor will start the source from the beginning.
-    fn can_start_from(&self, last_checkpoint: OpIdentifier) -> Result<bool, BoxedError>;
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        last_checkpoint: Option<OpIdentifier>,
+        last_checkpoint: SourceState,
     ) -> Result<(), BoxedError>;
 }
 

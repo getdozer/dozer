@@ -1,16 +1,19 @@
 use dozer_core::channels::SourceChannelForwarder;
-use dozer_core::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory};
-use dozer_ingestion::connectors::{get_connector, CdcType, Connector, TableIdentifier, TableInfo};
+use dozer_core::node::{
+    OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory, SourceState,
+};
+use dozer_ingestion::connectors::{
+    get_connector, CdcType, Connector, TableIdentifier, TableInfo, TableToIngest,
+};
 use dozer_ingestion::errors::ConnectorError;
 use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
 
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::indicatif::ProgressBar;
-use dozer_types::ingestion_types::{IngestionMessage, IngestionMessageKind, IngestorError};
+use dozer_types::ingestion_types::{IngestionMessage, IngestorError};
 use dozer_types::log::info;
 use dozer_types::models::connection::Connection;
-use dozer_types::node::OpIdentifier;
 use dozer_types::parking_lot::Mutex;
 use dozer_types::thiserror::{self, Error};
 use dozer_types::tracing::{span, Level};
@@ -227,14 +230,10 @@ pub struct ConnectorSource {
 const SOURCE_OPERATION_COUNTER_NAME: &str = "source_operation";
 
 impl Source for ConnectorSource {
-    fn can_start_from(&self, _last_checkpoint: OpIdentifier) -> Result<bool, BoxedError> {
-        Ok(false)
-    }
-
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        _last_checkpoint: Option<OpIdentifier>,
+        last_checkpoint: SourceState,
     ) -> Result<(), BoxedError> {
         thread::scope(|scope| {
             describe_counter!(
@@ -250,8 +249,23 @@ impl Source for ConnectorSource {
                 self.runtime.block_on(async move {
                     let ingestor = ingestor;
                     let shutdown_future = self.shutdown.create_shutdown_future();
-                    let tables = self.tables.clone();
                     let (abort_handle, abort_registration) = AbortHandle::new_pair();
+
+                    // Construct the tables to ingest.
+                    let tables = self
+                        .tables
+                        .iter()
+                        .zip(&self.ports)
+                        .map(|(table, port)| {
+                            let checkpoint = last_checkpoint.get(port).copied().flatten();
+                            TableToIngest {
+                                schema: table.schema.clone(),
+                                name: table.name.clone(),
+                                column_names: table.column_names.clone(),
+                                checkpoint,
+                            }
+                        })
+                        .collect::<Vec<_>>();
 
                     // Abort the connector when we shut down
                     // TODO: pass a `CancellationToken` to the connector to allow
@@ -275,27 +289,23 @@ impl Source for ConnectorSource {
                 })
             });
 
-            for IngestionMessage { identifier, kind } in iterator.by_ref() {
-                let span = span!(
-                    Level::TRACE,
-                    "pipeline_source_start",
-                    self.connection_name,
-                    identifier.txid,
-                    identifier.seq_in_tx
-                );
+            for message in iterator.by_ref() {
+                let span = span!(Level::TRACE, "pipeline_source_start", self.connection_name,);
                 let _enter = span.enter();
 
-                match kind {
-                    IngestionMessageKind::OperationEvent { table_index, op } => {
-                        let port = self.ports[table_index];
-                        let table_name = &self.tables[table_index].name;
+                match &message {
+                    IngestionMessage::OperationEvent {
+                        table_index, op, ..
+                    } => {
+                        let port = self.ports[*table_index];
+                        let table_name = &self.tables[*table_index].name;
 
                         // Update metrics
                         let mut labels = self.labels.labels().clone();
                         labels.push("connection", self.connection_name.clone());
                         labels.push("table", table_name.clone());
                         const OPERATION_TYPE_LABEL: &str = "operation_type";
-                        match &op {
+                        match op {
                             Operation::Delete { .. } => {
                                 labels.push(OPERATION_TYPE_LABEL, "delete");
                             }
@@ -308,32 +318,19 @@ impl Source for ConnectorSource {
                         }
                         increment_counter!(SOURCE_OPERATION_COUNTER_NAME, labels);
 
-                        // Send message to the pipeline
-                        fw.send(
-                            IngestionMessage {
-                                identifier,
-                                kind: IngestionMessageKind::OperationEvent { table_index, op },
-                            },
-                            port,
-                        )?;
-
                         // Update counter
-                        let counter = &mut counter[table_index];
+                        let counter = &mut counter[*table_index];
                         *counter += 1;
                         if *counter % 1000 == 0 {
-                            self.bars[table_index].set_position(*counter);
+                            self.bars[*table_index].set_position(*counter);
                         }
+
+                        // Send message to the pipeline
+                        fw.send(message, port)?;
                     }
-                    IngestionMessageKind::SnapshottingDone
-                    | IngestionMessageKind::SnapshottingStarted => {
+                    IngestionMessage::SnapshottingDone | IngestionMessage::SnapshottingStarted => {
                         for port in &self.ports {
-                            fw.send(
-                                IngestionMessage {
-                                    identifier,
-                                    kind: kind.clone(),
-                                },
-                                *port,
-                            )?;
+                            fw.send(message.clone(), *port)?;
                         }
                     }
                 }

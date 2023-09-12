@@ -1,7 +1,7 @@
 use std::{env, time::Duration};
 
 use dozer_types::{
-    ingestion_types::{EthTraceConfig, IngestionMessage, IngestionMessageKind},
+    ingestion_types::{EthTraceConfig, IngestionMessage},
     log::info,
     types::{Field, Operation},
 };
@@ -9,7 +9,7 @@ use dozer_types::{
 use crate::{
     connectors::{
         ethereum::{helper, trace::helper::get_block_traces, EthTraceConnector},
-        Connector,
+        Connector, TableToIngest,
     },
     ingestion::{IngestionConfig, Ingestor},
 };
@@ -68,13 +68,15 @@ async fn test_trace_iterator() {
         for s in schemas {
             info!("\n{}", s.schema.print());
         }
+        let tables = tables
+            .into_iter()
+            .map(TableToIngest::from_scratch)
+            .collect();
         connector.start(&ingestor, tables).await.unwrap();
     });
 
-    if let Some(IngestionMessage {
-        kind: IngestionMessageKind::OperationEvent { op, .. },
-        ..
-    }) = iterator.next_timeout(Duration::from_millis(1000))
+    if let Some(IngestionMessage::OperationEvent { op, .. }) =
+        iterator.next_timeout(Duration::from_millis(1000))
     {
         assert!(matches!(op, Operation::Insert { .. }));
         if let Operation::Insert { new } = op {

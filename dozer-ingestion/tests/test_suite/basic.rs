@@ -1,11 +1,11 @@
 use std::time::Duration;
 
 use dozer_ingestion::{
-    connectors::{CdcType, Connector, SourceSchema, TableIdentifier},
+    connectors::{CdcType, Connector, SourceSchema, TableIdentifier, TableToIngest},
     ingestion::Ingestor,
 };
 use dozer_types::{
-    ingestion_types::IngestionMessageKind,
+    ingestion_types::IngestionMessage,
     log::{error, warn},
     types::{Field, FieldDefinition, FieldType, Operation, Record, Schema},
 };
@@ -35,6 +35,10 @@ pub async fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>() {
         .collect::<Vec<_>>();
 
     // Run connector.
+    let tables = tables
+        .into_iter()
+        .map(TableToIngest::from_scratch)
+        .collect();
     let (ingestor, mut iterator) = Ingestor::initialize_channel(Default::default());
     let (abort_handle, abort_registration) = AbortHandle::new_pair();
     tokio::spawn(async move {
@@ -50,11 +54,16 @@ pub async fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>() {
     let mut num_operations = 0;
     while let Some(message) = iterator.next_timeout(Duration::from_secs(1)) {
         // Check message identifier.
-        if let IngestionMessageKind::OperationEvent { table_index, op } = &message.kind {
-            if let Some(last_identifier) = last_identifier {
-                assert!(message.identifier > last_identifier);
+        if let IngestionMessage::OperationEvent {
+            table_index,
+            op,
+            id,
+        } = &message
+        {
+            if let Some((last_id, id)) = last_identifier.zip(*id) {
+                assert!(id > last_id);
             }
-            last_identifier = Some(message.identifier);
+            last_identifier = *id;
 
             num_operations += 1;
             // Check record schema consistency.
@@ -144,6 +153,10 @@ pub async fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
         assert_eq!(actual_schema.primary_index, actual_primary_index);
 
         // Run the connector and check data is ingested.
+        let tables = tables
+            .into_iter()
+            .map(TableToIngest::from_scratch)
+            .collect();
         let (ingestor, mut iterator) = Ingestor::initialize_channel(Default::default());
         let (abort_handle, abort_registration) = AbortHandle::new_pair();
         tokio::spawn(async move {
@@ -158,16 +171,19 @@ pub async fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
 
         let mut last_identifier = None;
         while let Some(message) = iterator.next_timeout(Duration::from_secs(1)) {
-            // Identifier must be increasing.
-            if let Some(identifier) = last_identifier {
-                assert!(message.identifier > identifier);
-                last_identifier = Some(message.identifier);
-            }
-
             // Filter out non-operation events.
-            let IngestionMessageKind::OperationEvent { op: operation, .. } = message.kind else {
+            let IngestionMessage::OperationEvent {
+                op: operation, id, ..
+            } = message
+            else {
                 continue;
             };
+
+            // Identifier must be increasing.
+            if let Some((last_id, id)) = last_identifier.zip(id) {
+                assert!(id > last_id);
+            }
+            last_identifier = id;
 
             // Operation must be insert.
             let Operation::Insert { new: actual_record } = operation else {
@@ -237,16 +253,19 @@ pub async fn run_test_suite_basic_cud<T: CudConnectorTest>() {
     let mut last_identifier = None;
     let mut records = Records::new(actual_primary_index.clone());
     while let Some(message) = iterator.next_timeout(Duration::from_secs(1)) {
-        // Identifier must be increasing.
-        if let Some(identifier) = last_identifier {
-            assert!(message.identifier > identifier);
-            last_identifier = Some(message.identifier);
-        }
-
         // Filter out non-operation events.
-        let IngestionMessageKind::OperationEvent { op: operation, .. } = message.kind else {
+        let IngestionMessage::OperationEvent {
+            op: operation, id, ..
+        } = message
+        else {
             continue;
         };
+
+        // Identifier must be increasing.
+        if let Some((last_id, id)) = last_identifier.zip(id) {
+            assert!(id > last_id);
+        }
+        last_identifier = id;
 
         // Record must match schema.
         match operation {

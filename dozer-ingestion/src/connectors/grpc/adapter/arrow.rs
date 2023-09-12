@@ -111,21 +111,18 @@ pub fn handle_message(
         })?
         .schema;
 
-    let mut seq_no = req.seq_no;
     let records = map_record_batch(req, schema)?;
 
     for r in records {
         let op = Operation::Insert { new: r };
 
         ingestor
-            .handle_message(IngestionMessage::new_op(
-                0,
-                seq_no as u64,
+            .handle_message(IngestionMessage::OperationEvent {
                 table_index,
-                op.clone(),
-            ))
+                op,
+                id: None,
+            })
             .map_err(|e| ConnectorError::InternalError(Box::new(e)))?;
-        seq_no += 1;
     }
 
     Ok(())

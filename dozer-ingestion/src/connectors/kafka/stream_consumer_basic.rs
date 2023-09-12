@@ -18,7 +18,7 @@ use crate::connectors::kafka::no_schema_registry_basic::NoSchemaRegistryBasic;
 use crate::connectors::kafka::schema_registry_basic::SchemaRegistryBasic;
 use tonic::async_trait;
 
-use crate::connectors::TableInfo;
+use crate::connectors::TableToIngest;
 use crate::errors::KafkaStreamError::PollingError;
 use rdkafka::{ClientConfig, Message};
 
@@ -86,13 +86,15 @@ impl StreamConsumer for StreamConsumerBasic {
         &self,
         client_config: ClientConfig,
         ingestor: &Ingestor,
-        tables: Vec<TableInfo>,
+        tables: Vec<TableToIngest>,
         schema_registry_url: &Option<String>,
     ) -> Result<(), ConnectorError> {
         let topics: Vec<String> = tables.iter().map(|t| t.name.clone()).collect();
 
         let mut schemas = HashMap::new();
         for (table_index, table) in tables.into_iter().enumerate() {
+            assert!(table.checkpoint.is_none());
+
             let schema = if let Some(url) = schema_registry_url {
                 SchemaRegistryBasic::get_single_schema(&table.name, url).await?
             } else {
@@ -106,7 +108,6 @@ impl StreamConsumer for StreamConsumerBasic {
         let mut con = StreamConsumerHelper::start(&client_config, &topics).await?;
 
         let mut offsets = OffsetsMap::new();
-        let mut counter = 0;
         loop {
             if let Some(result) = con.poll(None) {
                 if matches!(result.as_ref(), Err(err) if is_network_failure(err)) {
@@ -153,20 +154,17 @@ impl StreamConsumer for StreamConsumerBasic {
                             };
 
                             ingestor
-                                .handle_message(IngestionMessage::new_op(
-                                    0,
-                                    counter,
-                                    *table_index,
-                                    Operation::Insert {
+                                .handle_message(IngestionMessage::OperationEvent {
+                                    table_index: *table_index,
+                                    op: Operation::Insert {
                                         new: Record {
                                             values: new,
                                             lifetime: None,
                                         },
                                     },
-                                ))
+                                    id: None,
+                                })
                                 .map_err(ConnectorError::IngestorError)?;
-
-                            counter += 1;
                         }
                     }
                 }

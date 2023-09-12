@@ -2,7 +2,7 @@ use dozer_types::ingestion_types::SnowflakeConfig;
 use tonic::async_trait;
 
 use crate::{
-    connectors::{Connector, SourceSchemaResult, TableIdentifier, TableInfo},
+    connectors::{Connector, SourceSchemaResult, TableIdentifier, TableInfo, TableToIngest},
     errors::ConnectorError,
 };
 
@@ -53,7 +53,7 @@ impl Connector for PlaceHolderSnowflakeConnector {
     async fn start(
         &self,
         _ingestor: &crate::ingestion::Ingestor,
-        _tables: Vec<TableInfo>,
+        _tables: Vec<TableToIngest>,
     ) -> Result<(), ConnectorError> {
         todo!()
     }

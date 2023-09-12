@@ -8,6 +8,7 @@ use dozer_core::executor::{DagExecutor, ExecutorOptions};
 use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
+    SourceState,
 };
 use dozer_core::processor_record::ProcessorRecordStore;
 use dozer_core::DEFAULT_PORT_HANDLE;
@@ -95,29 +96,24 @@ impl SourceFactory for TestSourceFactory {
 pub struct TestSource {}
 
 impl Source for TestSource {
-    fn can_start_from(&self, _last_checkpoint: OpIdentifier) -> Result<bool, BoxedError> {
-        Ok(false)
-    }
-
     fn start(
         &self,
         fw: &mut dyn SourceChannelForwarder,
-        _last_checkpoint: Option<OpIdentifier>,
+        _last_checkpoint: SourceState,
     ) -> Result<(), BoxedError> {
         for n in 0..10000 {
             fw.send(
-                IngestionMessage::new_op(
-                    n,
-                    0,
-                    0,
-                    Operation::Insert {
+                IngestionMessage::OperationEvent {
+                    table_index: 0,
+                    op: Operation::Insert {
                         new: Record::new(vec![
                             Field::Int(0),
                             Field::String("Italy".to_string()),
                             Field::Float(OrderedFloat(5.5)),
                         ]),
                     },
-                ),
+                    id: Some(OpIdentifier::new(n, 0)),
+                },
                 DEFAULT_PORT_HANDLE,
             )
             .unwrap();

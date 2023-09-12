@@ -3,6 +3,7 @@ use crate::connectors::delta_lake::schema_helper::SchemaHelper;
 use crate::connectors::delta_lake::ConnectorResult;
 use crate::connectors::{
     table_name, Connector, ListOrFilterColumns, SourceSchemaResult, TableIdentifier, TableInfo,
+    TableToIngest,
 };
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
@@ -107,7 +108,7 @@ impl Connector for DeltaLakeConnector {
         schema_helper.get_schemas(&table_infos).await
     }
 
-    async fn start(&self, ingestor: &Ingestor, tables: Vec<TableInfo>) -> ConnectorResult<()> {
+    async fn start(&self, ingestor: &Ingestor, tables: Vec<TableToIngest>) -> ConnectorResult<()> {
         let reader = DeltaLakeReader::new(self.config.clone());
         reader.read(&tables, ingestor).await
     }

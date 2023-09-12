@@ -1,18 +1,16 @@
-use std::{collections::HashSet, time::Duration};
+use std::time::Duration;
 
 use crate::{
     connectors::{
         ethereum::{helper, EthLogConnector},
-        Connector,
+        Connector, TableToIngest,
     },
     errors::ConnectorError,
     ingestion::{IngestionConfig, Ingestor},
 };
 
 use dozer_types::{
-    ingestion_types::{
-        EthContract, EthFilter, EthLogConfig, IngestionMessage, IngestionMessageKind,
-    },
+    ingestion_types::{EthContract, EthFilter, EthLogConfig, IngestionMessage},
     log::info,
     types::Operation,
 };
@@ -76,8 +74,12 @@ pub async fn get_eth_producer(
     for table_info in table_infos.iter() {
         info!("Schema: {}", table_info.name);
     }
+    let tables = table_infos
+        .into_iter()
+        .map(TableToIngest::from_scratch)
+        .collect();
 
-    eth_connector.start(&ingestor, table_infos).await
+    eth_connector.start(&ingestor, tables).await
 }
 
 pub async fn run_eth_sample(
@@ -104,16 +106,11 @@ pub async fn run_eth_sample(
     });
 
     let mut msgs = vec![];
-    let mut op_index = HashSet::new();
-    while let Some(IngestionMessage {
-        identifier,
-        kind: IngestionMessageKind::OperationEvent { table_index: 0, op },
+    while let Some(IngestionMessage::OperationEvent {
+        table_index: 0, op, ..
     }) = iterator.next_timeout(Duration::from_millis(400))
     {
-        // Duplicates are to be expected in ethereum connector
-        if op_index.insert(identifier.seq_in_tx) {
-            msgs.push(op);
-        }
+        msgs.push(op);
     }
     (contract, msgs)
 }

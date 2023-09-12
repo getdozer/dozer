@@ -1,7 +1,9 @@
 use rdkafka::consumer::BaseConsumer;
 use rdkafka::ClientConfig;
 
-use crate::connectors::{Connector, SourceSchema, SourceSchemaResult, TableIdentifier};
+use crate::connectors::{
+    Connector, SourceSchema, SourceSchemaResult, TableIdentifier, TableToIngest,
+};
 use crate::ingestion::Ingestor;
 use crate::{connectors::TableInfo, errors::ConnectorError};
 use dozer_types::ingestion_types::KafkaConfig;
@@ -128,7 +130,7 @@ impl Connector for KafkaConnector {
     async fn start(
         &self,
         ingestor: &Ingestor,
-        tables: Vec<TableInfo>,
+        tables: Vec<TableToIngest>,
     ) -> Result<(), ConnectorError> {
         let broker = self.config.broker.to_owned();
         run(broker, tables, ingestor, &self.config.schema_registry_url).await
@@ -137,7 +139,7 @@ impl Connector for KafkaConnector {
 
 async fn run(
     broker: String,
-    tables: Vec<TableInfo>,
+    tables: Vec<TableToIngest>,
     ingestor: &Ingestor,
     schema_registry_url: &Option<String>,
 ) -> Result<(), ConnectorError> {

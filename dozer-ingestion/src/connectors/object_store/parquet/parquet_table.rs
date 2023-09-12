@@ -10,7 +10,7 @@ use deltalake::{
     Path as DeltaPath,
 };
 
-use dozer_types::ingestion_types::IngestionMessageKind;
+use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::{
     chrono::{DateTime, Utc},
     ingestion_types::ParquetConfig,
@@ -53,7 +53,7 @@ impl<T: DozerObjectStore + Send> ParquetTable<T> {
         &self,
         table_index: usize,
         table: &TableInfo,
-        sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
+        sender: Sender<Result<Option<IngestionMessage>, ObjectStoreConnectorError>>,
     ) -> Result<(), ConnectorError> {
         let params = self.store_config.table_params(&table.name)?;
         let store = Arc::new(params.object_store);
@@ -208,7 +208,7 @@ impl<T: DozerObjectStore + Send> TableWatcher for ParquetTable<T> {
         &self,
         table_index: usize,
         table: &TableInfo,
-        sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
+        sender: Sender<Result<Option<IngestionMessage>, ObjectStoreConnectorError>>,
     ) -> Result<JoinHandle<(usize, HashMap<object_store::path::Path, DateTime<Utc>>)>, ConnectorError>
     {
         let params = self.store_config.table_params(&table.name)?;
@@ -362,7 +362,7 @@ impl<T: DozerObjectStore + Send> TableWatcher for ParquetTable<T> {
         &self,
         table_index: usize,
         table: &TableInfo,
-        sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
+        sender: Sender<Result<Option<IngestionMessage>, ObjectStoreConnectorError>>,
     ) -> Result<(), ConnectorError> {
         self.read(table_index, table, sender).await?;
         Ok(())

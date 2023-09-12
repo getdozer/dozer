@@ -1,14 +1,14 @@
-use std::{fmt::Debug, sync::Arc};
+use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
-use daggy::petgraph::visit::IntoNodeIdentifiers;
-use dozer_types::node::{NodeHandle, OpIdentifier};
+use daggy::petgraph::visit::{IntoNodeIdentifiers, IntoNodeReferences};
+use dozer_types::node::NodeHandle;
 
 use crate::{
     checkpoint::{CheckpointFactory, OptionCheckpoint},
-    dag_checkpoint::{DagCheckpoint, NodeKind as CheckpointNodeKind},
     dag_schemas::{DagHaveSchemas, DagSchemas, EdgeType},
     errors::ExecutionError,
-    node::{Processor, Sink, Source},
+    node::{PortHandle, Processor, Sink, Source, SourceState},
+    NodeKind as DagNodeKind,
 };
 
 #[derive(Debug)]
@@ -23,7 +23,11 @@ pub struct NodeType {
 #[derive(Debug)]
 /// Node kind, source, processor or sink. Source has a checkpoint to start from.
 pub enum NodeKind {
-    Source(Box<dyn Source>, Option<OpIdentifier>),
+    Source {
+        source: Box<dyn Source>,
+        port_names: HashMap<PortHandle, String>,
+        last_checkpoint: SourceState,
+    },
     Processor(Box<dyn Processor>),
     Sink(Box<dyn Sink>),
 }
@@ -44,70 +48,102 @@ impl BuilderDag {
         checkpoint: OptionCheckpoint,
         dag_schemas: DagSchemas,
     ) -> Result<Self, ExecutionError> {
-        // Check the checkpoint to start from.
-        let dag_checkpoint = DagCheckpoint::new(dag_schemas, &checkpoint)?;
-
-        // Create processors and sinks.
-        let mut nodes = vec![];
-        let node_indexes = dag_checkpoint
-            .graph()
-            .node_identifiers()
-            .collect::<Vec<_>>();
-        for node_index in node_indexes.iter().copied() {
-            // Create and initialize source, processor or sink.
-            let input_schemas = dag_checkpoint.get_node_input_schemas(node_index);
-            let output_schemas = dag_checkpoint.get_node_output_schemas(node_index);
-
-            let node = &dag_checkpoint.graph()[node_index];
-            let kind = match &node.kind {
-                CheckpointNodeKind::Source(_) => None,
-                CheckpointNodeKind::Processor(processor) => {
-                    let checkpoint_data = checkpoint
-                        .load_processor_data(&checkpoint_factory, &node.handle)
-                        .await?;
-                    let processor = processor
-                        .build(
-                            input_schemas,
-                            output_schemas,
-                            checkpoint_factory.record_store(),
-                            checkpoint_data,
-                        )
-                        .map_err(ExecutionError::Factory)?;
-                    Some(NodeKind::Processor(processor))
-                }
-                CheckpointNodeKind::Sink(sink) => {
-                    let sink = sink.build(input_schemas).map_err(ExecutionError::Factory)?;
-                    Some(NodeKind::Sink(sink))
-                }
-            };
-
-            nodes.push(kind);
+        // Collect input output schemas.
+        let mut input_schemas = HashMap::new();
+        let mut output_schemas = HashMap::new();
+        for node_index in dag_schemas.graph().node_identifiers() {
+            input_schemas.insert(node_index, dag_schemas.get_node_input_schemas(node_index));
+            output_schemas.insert(node_index, dag_schemas.get_node_output_schemas(node_index));
         }
 
-        // Create new graph.
-        let graph = dag_checkpoint.into_graph().map_owned(
-            |node_index, node| {
-                if let Some(kind) = nodes[node_index.index()].take() {
-                    NodeType {
-                        handle: node.handle,
-                        kind,
+        // Load processor checkpoint data.
+        let mut checkpoint_data = HashMap::new();
+        for (node_index, node) in dag_schemas.graph().node_references() {
+            if let DagNodeKind::Processor(_) = &node.kind {
+                let processor_data = checkpoint
+                    .load_processor_data(&checkpoint_factory, &node.handle)
+                    .await?;
+                checkpoint_data.insert(node_index, processor_data);
+            }
+        }
+
+        // Build the nodes.
+        let graph = dag_schemas.into_graph().try_map(
+            |node_index, node| match node.kind {
+                DagNodeKind::Source(source) => {
+                    let mut port_names = HashMap::default();
+                    for port in source.get_output_ports() {
+                        let port_name = source.get_output_port_name(&port.handle);
+                        port_names.insert(port.handle, port_name);
                     }
-                } else {
-                    NodeType {
+
+                    let mut last_checkpoint_by_name = checkpoint.get_source_state(&node.handle)?;
+                    let mut last_checkpoint = HashMap::new();
+                    for (port_handle, port_name) in port_names.iter() {
+                        last_checkpoint.insert(
+                            *port_handle,
+                            last_checkpoint_by_name
+                                .as_mut()
+                                .and_then(|last_checkpoint| {
+                                    last_checkpoint.remove(port_name).flatten()
+                                }),
+                        );
+                    }
+
+                    let source = source
+                        .build(
+                            output_schemas
+                                .remove(&node_index)
+                                .expect("we collected all output schemas"),
+                        )
+                        .map_err(ExecutionError::Factory)?;
+
+                    Ok::<_, ExecutionError>(NodeType {
                         handle: node.handle,
-                        kind: match node.kind {
-                            CheckpointNodeKind::Source((source, checkpoint)) => {
-                                NodeKind::Source(source, checkpoint)
-                            }
-                            CheckpointNodeKind::Processor(_) | CheckpointNodeKind::Sink(_) => {
-                                unreachable!("We created all processors and sinks")
-                            }
+                        kind: NodeKind::Source {
+                            source,
+                            port_names,
+                            last_checkpoint,
                         },
-                    }
+                    })
+                }
+                DagNodeKind::Processor(processor) => {
+                    let processor = processor
+                        .build(
+                            input_schemas
+                                .remove(&node_index)
+                                .expect("we collected all input schemas"),
+                            output_schemas
+                                .remove(&node_index)
+                                .expect("we collected all output schemas"),
+                            checkpoint_factory.record_store(),
+                            checkpoint_data
+                                .remove(&node_index)
+                                .expect("we collected all processor checkpoint data"),
+                        )
+                        .map_err(ExecutionError::Factory)?;
+                    Ok(NodeType {
+                        handle: node.handle,
+                        kind: NodeKind::Processor(processor),
+                    })
+                }
+                DagNodeKind::Sink(sink) => {
+                    let sink = sink
+                        .build(
+                            input_schemas
+                                .remove(&node_index)
+                                .expect("we collected all input schemas"),
+                        )
+                        .map_err(ExecutionError::Factory)?;
+                    Ok(NodeType {
+                        handle: node.handle,
+                        kind: NodeKind::Sink(sink),
+                    })
                 }
             },
-            |_, edge| edge,
-        );
+            |_, edge| Ok(edge),
+        )?;
+
         Ok(BuilderDag {
             graph,
             initial_epoch_id: checkpoint.next_epoch_id(),

@@ -1,10 +1,11 @@
 use std::time::Duration;
 
 use crate::connectors::snowflake::connection::client::Client;
-use crate::connectors::{Connector, SourceSchemaResult, TableIdentifier, TableInfo};
+use crate::connectors::{Connector, SourceSchemaResult, TableIdentifier, TableInfo, TableToIngest};
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
 use dozer_types::ingestion_types::SnowflakeConfig;
+use dozer_types::node::OpIdentifier;
 use tonic::async_trait;
 
 use crate::connectors::snowflake::stream_consumer::StreamConsumer;
@@ -108,25 +109,17 @@ impl Connector for SnowflakeConnector {
     async fn start(
         &self,
         ingestor: &Ingestor,
-        tables: Vec<TableInfo>,
+        tables: Vec<TableToIngest>,
     ) -> Result<(), ConnectorError> {
-        run(
-            self.name.clone(),
-            self.config.clone(),
-            tables,
-            ingestor,
-            None,
-        )
-        .await
+        run(self.name.clone(), self.config.clone(), tables, ingestor).await
     }
 }
 
 async fn run(
     name: String,
     config: SnowflakeConfig,
-    tables: Vec<TableInfo>,
+    tables: Vec<TableToIngest>,
     ingestor: &Ingestor,
-    from_seq: Option<(u64, u64)>,
 ) -> Result<(), ConnectorError> {
     // SNAPSHOT part - run it when stream table doesn't exist
     let stream_client = Client::new(&config);
@@ -138,16 +131,16 @@ async fn run(
         for (idx, table) in tables.iter().enumerate() {
             // We only check stream status on first iteration
             if iteration == 0 {
-                match from_seq {
-                    None | Some((0, _)) => {
+                match table.checkpoint {
+                    None | Some(OpIdentifier { txid: 0, .. }) => {
                         info!("[{}][{}] Creating new stream", name, table.name);
                         StreamConsumer::drop_stream(&stream_client, &table.name)?;
                         StreamConsumer::create_stream(&stream_client, &table.name)?;
                     }
-                    Some((lsn, seq)) => {
+                    Some(OpIdentifier { txid, seq_in_tx }) => {
                         info!(
                             "[{}][{}] Continuing ingestion from {}/{}",
-                            name, table.name, lsn, seq
+                            name, table.name, txid, seq_in_tx
                         );
                         if let Ok(false) =
                             StreamConsumer::is_stream_created(&stream_client, &table.name)

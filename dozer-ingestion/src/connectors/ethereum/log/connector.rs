@@ -3,6 +3,7 @@ use std::{str::FromStr, sync::Arc};
 
 use crate::connectors::{
     table_name, CdcType, Connector, SourceSchema, SourceSchemaResult, TableIdentifier,
+    TableToIngest,
 };
 use crate::ingestion::Ingestor;
 use crate::{connectors::TableInfo, errors::ConnectorError};
@@ -235,7 +236,7 @@ impl Connector for EthLogConnector {
     async fn start(
         &self,
         ingestor: &Ingestor,
-        tables: Vec<TableInfo>,
+        tables: Vec<TableToIngest>,
     ) -> Result<(), ConnectorError> {
         // Start a new thread that interfaces with ETH node
         let wss_url = self.config.wss_url.to_owned();
