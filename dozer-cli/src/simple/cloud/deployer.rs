@@ -14,6 +14,7 @@ use dozer_types::grpc_types::cloud::DeployAppResponse;
 use dozer_types::grpc_types::cloud::DeployStep;
 use dozer_types::grpc_types::cloud::File;
 use dozer_types::grpc_types::cloud::InfraRequest;
+use crate::cloud_app_context::CloudAppContext;
 
 pub async fn deploy_app(
     client: &mut DozerCloudClient<TokenLayer>,
@@ -54,6 +55,7 @@ pub async fn deploy_app(
                         info!("Updating {app_id} application");
                     } else {
                         info!("Deploying new application {new_app_id}");
+                        CloudAppContext::save_app_id(new_app_id)?;
                     }
                 }
                 Some(dozer_types::grpc_types::cloud::deploy_app_response::Result::Step(
