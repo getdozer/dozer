@@ -1,8 +1,8 @@
 use std::{sync::Arc, thread::JoinHandle};
 
 use clap::Parser;
-
-use dozer_cache::dozer_log::camino::Utf8Path;
+use std::path::PathBuf;
+use std::fs;
 use dozer_core::{app::AppPipeline, dag_schemas::DagSchemas, Dag};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_tracing::{Labels, LabelsAndProgress};
@@ -431,11 +431,14 @@ fn get_dozer_run_instance(
         }),
         ..dozer.config.api.unwrap_or_default()
     });
-
-    let temp_dir = tempdir::TempDir::new("live").unwrap();
-    let temp_dir = temp_dir.path().to_str().unwrap();
-    dozer.config.home_dir = temp_dir.to_string();
-    dozer.config.cache_dir = AsRef::<Utf8Path>::as_ref(temp_dir).join("cache").into();
+    
+    let home_dir_path = dozer.config.home_dir.clone();
+    let temp_dir_path = PathBuf::from(home_dir_path);
+    if temp_dir_path.exists() {
+        if let Err(e) = fs::remove_dir_all(&temp_dir_path) {
+            eprintln!("Error deleting directory: {}", e);
+        }
+    }
 
     dozer.labels = LabelsAndProgress::new(labels, false);
 
