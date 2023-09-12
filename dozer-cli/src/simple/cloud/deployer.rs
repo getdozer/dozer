@@ -7,6 +7,7 @@ use crate::errors::CloudError::GRPCCallError;
 use dozer_types::grpc_types::cloud::{Secret, StopRequest, StopResponse};
 use dozer_types::log::{error, info};
 
+use crate::cloud_app_context::CloudAppContext;
 use crate::progress_printer::ProgressPrinter;
 use dozer_types::grpc_types::cloud::AppResponse;
 use dozer_types::grpc_types::cloud::DeployAppRequest;
@@ -14,7 +15,6 @@ use dozer_types::grpc_types::cloud::DeployAppResponse;
 use dozer_types::grpc_types::cloud::DeployStep;
 use dozer_types::grpc_types::cloud::File;
 use dozer_types::grpc_types::cloud::InfraRequest;
-use crate::cloud_app_context::CloudAppContext;
 
 pub async fn deploy_app(
     client: &mut DozerCloudClient<TokenLayer>,
