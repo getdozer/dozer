@@ -52,8 +52,7 @@ service DozerCloud {
   rpc OnLogMessage(LogMessageRequest) returns (stream LogMessage);
   rpc OnStatusUpdate(StatusUpdateRequest) returns (stream StatusUpdate);
 
-  rpc latest_deployment_status(DeploymentHealthCheckRequest) returns (DeploymentHealthCheckResponse);
-  rpc app_health(AppHealthRequest) returns (AppHealthResponse);
+  rpc deployment_status(DeploymentStatusRequest) returns (DeploymentStatusResponse);
 }
 
 service DozerPublic {
@@ -66,23 +65,24 @@ message AppHealthRequest {
 message AppHealthResponse {
   bool healthy = 1;
 }
-message DeploymentHealthCheckRequest {
+message DeploymentStatusRequest {
   string app_id = 1;
+  // if not specified, will get latest version
+  optional uint32 version = 2;
 }
-message DeploymentHealthCheckResponse {
-  bool all_healthy = 1;
-  repeated DeploymentHealth k8_deployments = 2;
-  uint32 latest_deployment = 3;
-  repeated string errors = 4;
+message DeploymentStatusResponse {
+  repeated DeploymentHealth k8_deployments = 1;
+  repeated string errors = 2;
+  map<uint32, uint32> versions = 3;
+  uint32 current_version = 4;
 }
 
 message DeploymentHealth {
-  bool healthy = 1;
-  string name = 2;
-  string status = 3;
-  string created_at = 4;
-  int32 desired = 5;
-  int32 available = 6;
+  string name = 1;
+  string status = 2;
+  string created_at = 3;
+  int32 desired = 4;
+  int32 available = 5;
 }
 
 message AppConnectionRequest {
