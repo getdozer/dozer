@@ -32,7 +32,6 @@ use dozer_core::errors::ExecutionError;
 use dozer_ingestion::connectors::{get_connector, SourceSchema, TableInfo};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
-use dozer_types::crossbeam::channel::{self, Sender};
 use dozer_types::log::info;
 use dozer_types::models::config::Config;
 use dozer_types::tracing::error;
@@ -42,7 +41,8 @@ use metrics::{describe_counter, describe_histogram};
 use std::collections::HashMap;
 use std::fs;
 
-use std::sync::Arc;
+use std::sync::mpsc::Sender;
+use std::sync::{mpsc, Arc};
 use std::thread;
 use tokio::runtime::Runtime;
 use tokio::sync::broadcast;
@@ -196,7 +196,7 @@ impl SimpleOrchestrator {
     pub fn run_apps(
         &mut self,
         shutdown: ShutdownReceiver,
-        api_notifier: Option<Sender<bool>>,
+        api_notifier: Option<Sender<()>>,
     ) -> Result<(), OrchestrationError> {
         let home_dir = HomeDir::new(self.home_dir(), self.cache_dir());
         let contract = Contract::deserialize(self.lockfile_path().as_std_path())?;
@@ -230,9 +230,7 @@ impl SimpleOrchestrator {
             .map_err(OrchestrationError::InternalServerFailed)?;
 
         if let Some(api_notifier) = api_notifier {
-            api_notifier
-                .send(true)
-                .expect("Failed to notify API server");
+            api_notifier.send(()).expect("Failed to notify API server");
         }
 
         let labels = self.labels.clone();
@@ -406,7 +404,7 @@ impl SimpleOrchestrator {
     ) -> Result<(), OrchestrationError> {
         let mut dozer_api = self.clone();
 
-        let (tx, rx) = channel::unbounded::<bool>();
+        let (tx, rx) = mpsc::channel::<()>();
 
         self.build(false, shutdown.clone(), locked)?;
 

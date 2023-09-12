@@ -121,7 +121,8 @@ impl<'a> PostgresSnapshotter<'a> {
 
         self.ingestor
             .handle_message(IngestionMessage::SnapshottingStarted)
-            .map_err(ConnectorError::IngestorError)?;
+            .await
+            .map_err(|_| ConnectorError::IngestorError)?;
 
         while let Some(message) = rx.recv().await {
             let (table_index, evt) = message?;
@@ -131,12 +132,14 @@ impl<'a> PostgresSnapshotter<'a> {
                     op: evt,
                     id: None,
                 })
-                .map_err(ConnectorError::IngestorError)?;
+                .await
+                .map_err(|_| ConnectorError::IngestorError)?;
         }
 
         self.ingestor
             .handle_message(IngestionMessage::SnapshottingDone)
-            .map_err(ConnectorError::IngestorError)?;
+            .await
+            .map_err(|_| ConnectorError::IngestorError)?;
 
         // All tasks in the joinset should have finished (because they have dropped their senders)
         // Otherwise, they will be aborted when the joinset is dropped
@@ -146,6 +149,8 @@ impl<'a> PostgresSnapshotter<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use rand::Rng;
     use serial_test::serial;
 
@@ -206,7 +211,13 @@ mod tests {
 
             let mut i = 0;
             while i < 2 {
-                iterator.next();
+                if iterator
+                    .next_timeout(Duration::from_secs(1))
+                    .await
+                    .is_none()
+                {
+                    panic!("Unexpected operation");
+                }
                 i += 1;
             }
         })

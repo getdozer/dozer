@@ -11,10 +11,11 @@ use dozer_types::{
     serde_json,
     types::{Operation, Record, Schema},
 };
+use tonic::async_trait;
 
 use crate::{
     connectors::{CdcType, SourceSchema},
-    errors::ConnectorError,
+    errors::{ConnectorError, ObjectStoreConnectorError},
     ingestion::Ingestor,
 };
 
@@ -64,6 +65,7 @@ impl ArrowAdapter {
     }
 }
 
+#[async_trait]
 impl IngestAdapter for ArrowAdapter {
     fn new(schemas_str: String) -> Result<Self, ConnectorError> {
         let (schemas, arrow_schemas) = Self::parse_schemas(&schemas_str)?;
@@ -81,7 +83,7 @@ impl IngestAdapter for ArrowAdapter {
             .collect()
     }
 
-    fn handle_message(
+    async fn handle_message(
         &self,
         table_index: usize,
         msg: GrpcIngestMessage,
@@ -92,13 +94,13 @@ impl IngestAdapter for ArrowAdapter {
                 "Wrong message format!".to_string(),
             )),
             GrpcIngestMessage::Arrow(msg) => {
-                handle_message(table_index, msg, &self.schema_map, ingestor)
+                handle_message(table_index, msg, &self.schema_map, ingestor).await
             }
         }
     }
 }
 
-pub fn handle_message(
+pub async fn handle_message(
     table_index: usize,
     req: IngestArrowRequest,
     schema_map: &HashMap<String, SourceSchema>,
@@ -122,7 +124,8 @@ pub fn handle_message(
                 op,
                 id: None,
             })
-            .map_err(|e| ConnectorError::InternalError(Box::new(e)))?;
+            .await
+            .map_err(|_| ConnectorError::IngestorError)?;
     }
 
     Ok(())
@@ -138,7 +141,7 @@ fn map_record_batch(
     let mut records = Vec::new();
     while let Some(Ok(batch)) = reader.next() {
         let b_recs = map_record_batch_to_dozer_records(batch, schema)
-            .map_err(|e| ConnectorError::InternalError(Box::new(e)))?;
+            .map_err(ObjectStoreConnectorError::FromArrowError)?;
         records.extend(b_recs);
     }
 

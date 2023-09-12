@@ -259,10 +259,10 @@ mod tests {
 
     use crate::connectors::postgres::connection::helper::connect;
     use crate::connectors::postgres::connector::ReplicationSlotInfo;
-    use crate::connectors::postgres::test_utils::get_client;
+    use crate::connectors::postgres::test_utils::{get_client, get_config};
     use crate::errors::PostgresConnectorError;
     use crate::errors::PostgresSchemaError::UnsupportedTableType;
-    use crate::test_util::{get_config, run_connector_test};
+    use crate::test_util::run_connector_test;
     use postgres_types::PgLsn;
     use rand::Rng;
     use serial_test::serial;

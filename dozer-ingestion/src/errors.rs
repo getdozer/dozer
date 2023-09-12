@@ -3,7 +3,6 @@
 use dozer_log::errors::{ReaderBuilderError, ReaderError};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::{DeserializationError, SerializationError, TypeError};
-use dozer_types::ingestion_types::IngestorError;
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
 use dozer_types::{bincode, serde_json};
@@ -97,7 +96,7 @@ pub enum ConnectorError {
     InternalError(#[from] BoxedError),
 
     #[error("Failed to send message on channel")]
-    IngestorError(#[source] IngestorError),
+    IngestorError,
 
     #[cfg(feature = "ethereum")]
     #[error("Error in Eth Connection: {0}")]
@@ -114,6 +113,9 @@ pub enum ConnectorError {
 
     #[error("Datafusion error: {0}")]
     DataFusionError(#[from] DataFusionError),
+
+    #[error("snowflake feature is not enabled")]
+    SnowflakeFeatureNotEnabled,
 
     #[error("kafka feature is not enabled")]
     KafkaFeatureNotEnabled,
@@ -474,9 +476,6 @@ pub enum ObjectStoreConnectorError {
 
     #[error(transparent)]
     TableReaderError(#[from] ObjectStoreTableReaderError),
-
-    #[error(transparent)]
-    IngestorError(#[from] IngestorError),
 
     #[error(transparent)]
     FromArrowError(#[from] FromArrowError),

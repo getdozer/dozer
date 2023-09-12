@@ -48,6 +48,7 @@ use self::ethereum::{EthLogConnector, EthTraceConnector};
 use self::grpc::connector::GrpcConnector;
 use self::grpc::{ArrowAdapter, DefaultAdapter};
 use self::mysql::connector::{mysql_connection_opts_from_url, MySQLConnector};
+#[cfg(feature = "snowflake")]
 use crate::connectors::snowflake::connector::SnowflakeConnector;
 use crate::errors::ConnectorError::{MissingConfiguration, WrongConnectionConfiguration};
 
@@ -85,7 +86,7 @@ impl SourceSchema {
 pub type SourceSchemaResult = Result<SourceSchema, ConnectorError>;
 
 #[async_trait]
-pub trait Connector: Send + Sync + Debug {
+pub trait ConnectorMeta {
     /// Returns all the external types and their corresponding Dozer types.
     /// If the external type is not supported, None should be returned.
     fn types_mapping() -> Vec<(String, Option<FieldType>)>
@@ -131,7 +132,12 @@ pub trait Connector: Send + Sync + Debug {
             .collect::<Result<Vec<_>, _>>()?;
         Ok((table_infos, schemas))
     }
+}
 
+/// We split `Connector` trait into two because snowflake's (using odbc) `start` future is `!Send`.
+/// Once we switch to a better client, we should merge them.
+#[async_trait(?Send)]
+pub trait ConnectorStart {
     /// Starts outputting data from `tables` to `ingestor`. This method should never return unless there is an unrecoverable error.
     async fn start(
         &self,
@@ -139,6 +145,10 @@ pub trait Connector: Send + Sync + Debug {
         tables: Vec<TableToIngest>,
     ) -> Result<(), ConnectorError>;
 }
+
+pub trait Connector: ConnectorMeta + ConnectorStart + Send + Sync + Debug {}
+
+impl<T: ConnectorMeta + ConnectorStart + Send + Sync + Debug> Connector for T {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// Unique identifier of a source table. A source table must have a `name`, optionally under a `schema` scope.
@@ -239,6 +249,7 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
                 grpc_config.adapter,
             )),
         },
+        #[cfg(feature = "snowflake")]
         ConnectionConfig::Snowflake(snowflake) => {
             let snowflake_config = snowflake;
 
@@ -247,6 +258,8 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
                 snowflake_config,
             )))
         }
+        #[cfg(not(feature = "snowflake"))]
+        ConnectionConfig::Snowflake(_) => Err(ConnectorError::SnowflakeFeatureNotEnabled),
         #[cfg(feature = "kafka")]
         ConnectionConfig::Kafka(kafka_config) => Ok(Box::new(KafkaConnector::new(kafka_config))),
         #[cfg(not(feature = "kafka"))]

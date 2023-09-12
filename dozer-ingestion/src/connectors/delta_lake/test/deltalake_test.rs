@@ -1,6 +1,6 @@
 use crate::connectors::delta_lake::DeltaLakeConnector;
-use crate::connectors::{Connector, TableToIngest};
-use crate::ingestion::{IngestionConfig, Ingestor};
+use crate::connectors::ConnectorMeta;
+use crate::test_util::create_runtime_and_spawn_connector_all_tables;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::ingestion_types::{DeltaLakeConfig, DeltaTable};
 use dozer_types::types::SourceDefinition::Dynamic;
@@ -27,8 +27,8 @@ async fn get_schema_from_deltalake() {
     assert_eq!(field.source, Dynamic);
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn read_deltalake() {
+#[test]
+fn read_deltalake() {
     let path = "src/connectors/delta_lake/test/data/delta-0.8.0";
     let table_name = "test_table";
     let delta_table = DeltaTable {
@@ -41,17 +41,7 @@ async fn read_deltalake() {
 
     let connector = DeltaLakeConnector::new(config);
 
-    let config = IngestionConfig::default();
-    let (ingestor, iterator) = Ingestor::initialize_channel(config);
-    let tables = connector
-        .list_columns(connector.list_tables().await.unwrap())
-        .await
-        .unwrap();
-    let tables = tables
-        .into_iter()
-        .map(TableToIngest::from_scratch)
-        .collect();
-    tokio::spawn(async move { connector.start(&ingestor, tables).await.unwrap() });
+    let (iterator, _) = create_runtime_and_spawn_connector_all_tables(connector);
 
     let fields = vec![Field::Int(0), Field::Int(1), Field::Int(2), Field::Int(4)];
     let mut values = vec![];

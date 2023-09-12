@@ -1,11 +1,14 @@
 use dozer_types::types::{Field, Operation};
 use hex_literal::hex;
 
+use crate::test_util::create_test_runtime;
+
 use super::helper::run_eth_sample;
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[test]
 #[ignore]
-async fn test_eth_iterator() {
+fn test_eth_iterator() {
+    let runtime = create_test_runtime();
     let wss_url = "ws://localhost:8545".to_string();
     let my_account = hex!("b49B3BEE604eF76410E84C7C98bC20335FdA0f75").into();
 
@@ -17,7 +20,10 @@ async fn test_eth_iterator() {
         }
     };
 
-    let (contract, msgs) = run_eth_sample(wss_url, my_account).await;
+    let (contract, msgs) =
+        runtime
+            .clone()
+            .block_on(run_eth_sample(runtime.clone(), wss_url, my_account));
 
     let address = format!("{:?}", contract.address());
     validate(&msgs[0], 1, Some(Field::String(address)));

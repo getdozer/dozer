@@ -1,12 +1,12 @@
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use crate::{
     connectors::{
         ethereum::{helper, EthLogConnector},
-        Connector, TableToIngest,
+        ConnectorMeta, TableInfo,
     },
     errors::ConnectorError,
-    ingestion::{IngestionConfig, Ingestor},
+    test_util::spawn_connector,
 };
 
 use dozer_types::{
@@ -15,6 +15,7 @@ use dozer_types::{
     types::Operation,
 };
 
+use tokio::runtime::Runtime;
 use web3::{
     contract::{Contract, Options},
     transports::WebSocket,
@@ -44,11 +45,10 @@ pub async fn deploy_contract(wss_url: String, my_account: H160) -> Contract<WebS
     contract
 }
 
-pub async fn get_eth_producer(
+pub async fn get_eth_tables(
     wss_url: String,
-    ingestor: Ingestor,
     contract: Contract<WebSocket>,
-) -> Result<(), ConnectorError> {
+) -> Result<(EthLogConnector, Vec<TableInfo>), ConnectorError> {
     let address = format!("{:?}", contract.address());
     let eth_connector = EthLogConnector::new(
         EthLogConfig {
@@ -74,15 +74,11 @@ pub async fn get_eth_producer(
     for table_info in table_infos.iter() {
         info!("Schema: {}", table_info.name);
     }
-    let tables = table_infos
-        .into_iter()
-        .map(TableToIngest::from_scratch)
-        .collect();
-
-    eth_connector.start(&ingestor, tables).await
+    Ok((eth_connector, table_infos))
 }
 
 pub async fn run_eth_sample(
+    runtime: Arc<Runtime>,
     wss_url: String,
     my_account: H160,
 ) -> (Contract<WebSocket>, Vec<Operation>) {
@@ -95,20 +91,13 @@ pub async fn run_eth_sample(
 
     let contract = deploy_contract(wss_url.clone(), my_account).await;
 
-    let (ingestor, mut iterator) = Ingestor::initialize_channel(IngestionConfig::default());
-
-    let cloned_contract = contract.clone();
-    let _t = tokio::spawn(async move {
-        info!("Initializing with WSS: {}", wss_url);
-        get_eth_producer(wss_url, ingestor, cloned_contract)
-            .await
-            .unwrap();
-    });
+    let (connector, tables) = get_eth_tables(wss_url, contract.clone()).await.unwrap();
+    let (mut iterator, _) = spawn_connector(runtime, connector, tables);
 
     let mut msgs = vec![];
     while let Some(IngestionMessage::OperationEvent {
         table_index: 0, op, ..
-    }) = iterator.next_timeout(Duration::from_millis(400))
+    }) = iterator.next_timeout(Duration::from_millis(400)).await
     {
         msgs.push(op);
     }

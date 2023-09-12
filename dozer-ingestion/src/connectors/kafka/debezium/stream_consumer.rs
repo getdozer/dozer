@@ -159,7 +159,8 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                 },
                                 id: None,
                             })
-                            .map_err(ConnectorError::IngestorError)?;
+                            .await
+                            .map_err(|_| ConnectorError::IngestorError)?;
                     }
                     (None, Some(old_payload)) => {
                         let old = convert_value_to_schema(old_payload, &schema, &fields_map)
@@ -178,7 +179,8 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                 },
                                 id: None,
                             })
-                            .map_err(ConnectorError::IngestorError)?;
+                            .await
+                            .map_err(|_| ConnectorError::IngestorError)?;
                     }
                     (Some(new_payload), None) => {
                         let new = convert_value_to_schema(new_payload, &schema, &fields_map)
@@ -197,7 +199,8 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                 },
                                 id: None,
                             })
-                            .map_err(ConnectorError::IngestorError)?;
+                            .await
+                            .map_err(|_| ConnectorError::IngestorError)?;
                     }
                     (None, None) => {}
                 }

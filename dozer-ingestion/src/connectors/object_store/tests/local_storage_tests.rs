@@ -1,6 +1,6 @@
 use crate::connectors::object_store::connector::ObjectStoreConnector;
-use crate::connectors::{Connector, TableToIngest};
-use crate::ingestion::{IngestionConfig, Ingestor};
+use crate::connectors::ConnectorMeta;
+use crate::test_util::create_runtime_and_spawn_connector_all_tables;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::ingestion_types::LocalDetails;
 
@@ -60,26 +60,13 @@ async fn test_get_schema_of_csv() {
     assert_eq!(fields.get(8).unwrap().typ, FieldType::String);
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn test_read_parquet_file() {
+#[test]
+fn test_read_parquet_file() {
     let local_storage = get_local_storage_config("parquet", "");
 
     let connector = ObjectStoreConnector::new(local_storage);
 
-    let config = IngestionConfig::default();
-    let (ingestor, mut iterator) = Ingestor::initialize_channel(config);
-
-    let tables = connector
-        .list_columns(connector.list_tables().await.unwrap())
-        .await
-        .unwrap();
-    let tables = tables
-        .into_iter()
-        .map(TableToIngest::from_scratch)
-        .collect();
-    tokio::spawn(async move {
-        connector.start(&ingestor, tables).await.unwrap();
-    });
+    let (mut iterator, _) = create_runtime_and_spawn_connector_all_tables(connector);
 
     let row = iterator.next();
     if let Some(IngestionMessage::SnapshottingStarted) = row {
@@ -122,26 +109,13 @@ async fn test_read_parquet_file() {
     }
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn test_read_parquet_file_marker() {
+#[test]
+fn test_read_parquet_file_marker() {
     let local_storage = get_local_storage_config("parquet", "marker");
 
     let connector = ObjectStoreConnector::new(local_storage);
 
-    let config = IngestionConfig::default();
-    let (ingestor, mut iterator) = Ingestor::initialize_channel(config);
-
-    let tables = connector
-        .list_columns(connector.list_tables().await.unwrap())
-        .await
-        .unwrap();
-    let tables = tables
-        .into_iter()
-        .map(TableToIngest::from_scratch)
-        .collect();
-    tokio::spawn(async move {
-        connector.start(&ingestor, tables).await.unwrap();
-    });
+    let (mut iterator, _) = create_runtime_and_spawn_connector_all_tables(connector);
 
     let row = iterator.next();
     if let Some(IngestionMessage::SnapshottingStarted) = row {
@@ -184,26 +158,13 @@ async fn test_read_parquet_file_marker() {
     }
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn test_read_parquet_file_no_marker() {
+#[test]
+fn test_read_parquet_file_no_marker() {
     let local_storage = get_local_storage_config("parquet", "no_marker");
 
     let connector = ObjectStoreConnector::new(local_storage);
 
-    let config = IngestionConfig::default();
-    let (ingestor, mut iterator) = Ingestor::initialize_channel(config);
-
-    let tables = connector
-        .list_columns(connector.list_tables().await.unwrap())
-        .await
-        .unwrap();
-    let tables = tables
-        .into_iter()
-        .map(TableToIngest::from_scratch)
-        .collect();
-    tokio::spawn(async move {
-        connector.start(&ingestor, tables).await.unwrap();
-    });
+    let (mut iterator, _) = create_runtime_and_spawn_connector_all_tables(connector);
 
     let row = iterator.next();
     if let Some(IngestionMessage::SnapshottingStarted) = row {
@@ -218,27 +179,13 @@ async fn test_read_parquet_file_no_marker() {
     }
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn test_csv_read() {
+#[test]
+fn test_csv_read() {
     let local_storage = get_local_storage_config("csv", "");
 
     let connector = ObjectStoreConnector::new(local_storage);
 
-    let config = IngestionConfig::default();
-    let (ingestor, mut iterator) = Ingestor::initialize_channel(config);
-
-    let tables = connector
-        .list_columns(connector.list_tables().await.unwrap())
-        .await
-        .unwrap();
-    let tables = tables
-        .into_iter()
-        .map(TableToIngest::from_scratch)
-        .collect();
-
-    tokio::spawn(async move {
-        connector.start(&ingestor, tables).await.unwrap();
-    });
+    let (mut iterator, _) = create_runtime_and_spawn_connector_all_tables(connector);
 
     let row = iterator.next();
     if let Some(IngestionMessage::SnapshottingStarted) = row {
@@ -288,27 +235,13 @@ async fn test_csv_read() {
     }
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn test_csv_read_marker() {
+#[test]
+fn test_csv_read_marker() {
     let local_storage = get_local_storage_config("csv", "marker");
 
     let connector = ObjectStoreConnector::new(local_storage);
 
-    let config = IngestionConfig::default();
-    let (ingestor, mut iterator) = Ingestor::initialize_channel(config);
-
-    let tables = connector
-        .list_columns(connector.list_tables().await.unwrap())
-        .await
-        .unwrap();
-    let tables = tables
-        .into_iter()
-        .map(TableToIngest::from_scratch)
-        .collect();
-
-    tokio::spawn(async move {
-        connector.start(&ingestor, tables).await.unwrap();
-    });
+    let (mut iterator, _) = create_runtime_and_spawn_connector_all_tables(connector);
 
     let row = iterator.next();
     if let Some(IngestionMessage::SnapshottingStarted) = row {
@@ -358,27 +291,13 @@ async fn test_csv_read_marker() {
     }
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn test_csv_read_only_one_marker() {
+#[test]
+fn test_csv_read_only_one_marker() {
     let local_storage = get_local_storage_config("csv", "marker_only_one");
 
     let connector = ObjectStoreConnector::new(local_storage);
 
-    let config = IngestionConfig::default();
-    let (ingestor, mut iterator) = Ingestor::initialize_channel(config);
-
-    let tables = connector
-        .list_columns(connector.list_tables().await.unwrap())
-        .await
-        .unwrap();
-    let tables = tables
-        .into_iter()
-        .map(TableToIngest::from_scratch)
-        .collect();
-
-    tokio::spawn(async move {
-        connector.start(&ingestor, tables).await.unwrap();
-    });
+    let (mut iterator, _) = create_runtime_and_spawn_connector_all_tables(connector);
 
     let row = iterator.next();
     if let Some(IngestionMessage::SnapshottingStarted) = row {
@@ -430,27 +349,13 @@ async fn test_csv_read_only_one_marker() {
     }
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn test_csv_read_no_marker() {
+#[test]
+fn test_csv_read_no_marker() {
     let local_storage = get_local_storage_config("csv", "no_marker");
 
     let connector = ObjectStoreConnector::new(local_storage);
 
-    let config = IngestionConfig::default();
-    let (ingestor, mut iterator) = Ingestor::initialize_channel(config);
-
-    let tables = connector
-        .list_columns(connector.list_tables().await.unwrap())
-        .await
-        .unwrap();
-    let tables = tables
-        .into_iter()
-        .map(TableToIngest::from_scratch)
-        .collect();
-
-    tokio::spawn(async move {
-        connector.start(&ingestor, tables).await.unwrap();
-    });
+    let (mut iterator, _) = create_runtime_and_spawn_connector_all_tables(connector);
 
     let row = iterator.next();
     if let Some(IngestionMessage::SnapshottingStarted) = row {

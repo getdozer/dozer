@@ -1,7 +1,9 @@
 use std::time::Duration;
 
 use crate::connectors::snowflake::connection::client::Client;
-use crate::connectors::{Connector, SourceSchemaResult, TableIdentifier, TableInfo, TableToIngest};
+use crate::connectors::{
+    ConnectorMeta, ConnectorStart, SourceSchemaResult, TableIdentifier, TableInfo, TableToIngest,
+};
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
 use dozer_types::ingestion_types::SnowflakeConfig;
@@ -31,7 +33,7 @@ impl SnowflakeConnector {
 }
 
 #[async_trait]
-impl Connector for SnowflakeConnector {
+impl ConnectorMeta for SnowflakeConnector {
     fn types_mapping() -> Vec<(String, Option<dozer_types::types::FieldType>)>
     where
         Self: Sized,
@@ -105,7 +107,10 @@ impl Connector for SnowflakeConnector {
             .map(|schema_result| schema_result.map(|(_, schema)| schema))
             .collect())
     }
+}
 
+#[async_trait(?Send)]
+impl ConnectorStart for SnowflakeConnector {
     async fn start(
         &self,
         ingestor: &Ingestor,
@@ -157,7 +162,9 @@ async fn run(
 
             info!("[{}][{}] Reading from changes stream", name, table.name);
 
-            consumer.consume_stream(&stream_client, &table.name, ingestor, idx, iteration)?;
+            consumer
+                .consume_stream(&stream_client, &table.name, ingestor, idx, iteration)
+                .await?;
 
             interval.tick().await;
         }

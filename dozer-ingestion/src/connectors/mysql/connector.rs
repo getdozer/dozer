@@ -7,8 +7,8 @@ use super::{
 };
 use crate::{
     connectors::{
-        CdcType, Connector, SourceSchema, SourceSchemaResult, TableIdentifier, TableInfo,
-        TableToIngest,
+        CdcType, ConnectorMeta, ConnectorStart, SourceSchema, SourceSchemaResult, TableIdentifier,
+        TableInfo, TableToIngest,
     },
     errors::MySQLConnectorError,
 };
@@ -43,7 +43,7 @@ impl MySQLConnector {
 }
 
 #[async_trait]
-impl Connector for MySQLConnector {
+impl ConnectorMeta for MySQLConnector {
     fn types_mapping() -> Vec<(String, Option<dozer_types::types::FieldType>)>
     where
         Self: Sized,
@@ -186,7 +186,10 @@ impl Connector for MySQLConnector {
 
         Ok(schemas)
     }
+}
 
+#[async_trait(?Send)]
+impl ConnectorStart for MySQLConnector {
     async fn start(
         &self,
         ingestor: &Ingestor,
@@ -281,7 +284,8 @@ impl MySQLConnector {
 
             ingestor
                 .handle_message(IngestionMessage::SnapshottingStarted)
-                .map_err(ConnectorError::IngestorError)?;
+                .await
+                .map_err(|_| ConnectorError::IngestorError)?;
 
             let mut rows = conn.exec_iter(
                 format!(
@@ -314,7 +318,8 @@ impl MySQLConnector {
                         op,
                         id: None,
                     })
-                    .map_err(ConnectorError::IngestorError)?;
+                    .await
+                    .map_err(|_| ConnectorError::IngestorError)?;
             }
 
             let binlog_position = get_master_binlog_position(&mut conn).await?;
@@ -325,7 +330,8 @@ impl MySQLConnector {
 
             ingestor
                 .handle_message(IngestionMessage::SnapshottingDone)
-                .map_err(ConnectorError::IngestorError)?;
+                .await
+                .map_err(|_| ConnectorError::IngestorError)?;
 
             binlog_position_per_table.push((td.clone(), binlog_position));
         }
@@ -397,14 +403,11 @@ mod tests {
         connectors::{
             mysql::{
                 connection::Conn,
-                tests::{
-                    create_test_table, mariadb_test_config, mysql_test_config, MockIngestionStream,
-                    TestConfig,
-                },
+                tests::{create_test_table, mariadb_test_config, mysql_test_config, TestConfig},
             },
-            CdcType, Connector, SourceSchema, TableIdentifier,
+            CdcType, ConnectorMeta, SourceSchema, TableIdentifier,
         },
-        ingestion::Ingestor,
+        ingestion::{IngestionIterator, Ingestor},
     };
     use dozer_types::{
         ingestion_types::IngestionMessage,
@@ -414,15 +417,12 @@ mod tests {
         },
     };
     use serial_test::serial;
-    use std::{
-        sync::{mpsc::Receiver, Arc},
-        time::Duration,
-    };
+    use std::time::Duration;
 
     struct TestCtx {
         pub connector: MySQLConnector,
         pub ingestor: Ingestor,
-        pub message_channel: Receiver<IngestionMessage>,
+        pub iterator: IngestionIterator,
     }
 
     impl TestCtx {
@@ -430,28 +430,27 @@ mod tests {
             let url = config.url.clone();
             let opts = config.opts.clone();
 
-            let (sender, receiver) = std::sync::mpsc::channel();
-
-            let ingestion_stream = MockIngestionStream::new(sender);
-            let ingestor = Ingestor {
-                sender: Arc::new(Box::new(ingestion_stream)),
-            };
+            let (ingestor, iterator) = Ingestor::initialize_channel(Default::default());
             let connector = MySQLConnector::new(url, opts, Some(10));
 
             Self {
                 connector,
                 ingestor,
-                message_channel: receiver,
+                iterator,
             }
         }
     }
 
-    fn check_ingestion_messages(
-        message_channel: &Receiver<IngestionMessage>,
+    async fn check_ingestion_messages(
+        iterator: &mut IngestionIterator,
         expected_ingestion_messages: Vec<IngestionMessage>,
     ) {
-        let actual_ingestion_messages =
-            message_channel.take_timeout(expected_ingestion_messages.len(), Duration::from_secs(5));
+        let actual_ingestion_messages = take_timeout(
+            iterator,
+            expected_ingestion_messages.len(),
+            Duration::from_secs(5),
+        )
+        .await;
 
         for (i, (actual, expected)) in std::iter::zip(
             actual_ingestion_messages.iter(),
@@ -466,19 +465,17 @@ mod tests {
         }
     }
 
-    trait TakeTimeout {
-        fn take_timeout(&self, n: usize, timeout: Duration) -> Vec<IngestionMessage>;
-    }
-
-    impl TakeTimeout for Receiver<IngestionMessage> {
-        fn take_timeout(&self, n: usize, timeout: Duration) -> Vec<IngestionMessage> {
-            let mut vec = Vec::new();
-            for _ in 0..n {
-                let msg = self.recv_timeout(timeout).unwrap();
-                vec.push(msg);
-            }
-            vec
+    async fn take_timeout(
+        iterator: &mut IngestionIterator,
+        n: usize,
+        timeout: Duration,
+    ) -> Vec<IngestionMessage> {
+        let mut vec = Vec::new();
+        for _ in 0..n {
+            let msg = iterator.next_timeout(timeout).await.unwrap();
+            vec.push(msg);
         }
+        vec
     }
 
     async fn test_connector_simple_table_replication(config: TestConfig) {
@@ -486,7 +483,7 @@ mod tests {
         let TestCtx {
             connector,
             ingestor,
-            message_channel,
+            mut iterator,
             ..
         } = TestCtx::setup(&config).await;
 
@@ -556,7 +553,7 @@ mod tests {
             IngestionMessage::SnapshottingDone,
         ];
 
-        check_ingestion_messages(&message_channel, expected_ingestion_messages);
+        check_ingestion_messages(&mut iterator, expected_ingestion_messages).await;
     }
 
     #[tokio::test]
@@ -578,7 +575,7 @@ mod tests {
         let TestCtx {
             connector,
             ingestor,
-            message_channel,
+            mut iterator,
             ..
         } = TestCtx::setup(&config).await;
 
@@ -631,7 +628,7 @@ mod tests {
             IngestionMessage::SnapshottingDone,
         ];
 
-        check_ingestion_messages(&message_channel, expected_ingestion_messages);
+        check_ingestion_messages(&mut iterator, expected_ingestion_messages).await;
 
         // test update
         conn.exec_drop("UPDATE test3 SET b = 5.0 WHERE a = 4", ())
@@ -651,7 +648,7 @@ mod tests {
             IngestionMessage::SnapshottingDone,
         ];
 
-        check_ingestion_messages(&message_channel, expected_ingestion_messages);
+        check_ingestion_messages(&mut iterator, expected_ingestion_messages).await;
 
         // test delete
         conn.exec_drop("DELETE FROM test3 WHERE a = 4", ())
@@ -670,7 +667,7 @@ mod tests {
             IngestionMessage::SnapshottingDone,
         ];
 
-        check_ingestion_messages(&message_channel, expected_ingestion_messages);
+        check_ingestion_messages(&mut iterator, expected_ingestion_messages).await;
     }
 
     #[tokio::test]

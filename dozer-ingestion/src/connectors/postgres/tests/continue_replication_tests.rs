@@ -7,9 +7,9 @@ mod tests {
     use crate::connectors::postgres::test_utils::{create_slot, retry_drop_active_slot};
     use crate::connectors::postgres::tests::client::TestPostgresClient;
     use crate::connectors::TableIdentifier;
+    use crate::test_util::run_connector_test;
     // use crate::connectors::Connector;
     // use crate::ingestion::IngestionConfig;
-    use crate::test_util::run_connector_test;
     // use dozer_types::ingestion_types::IngestionMessage;
     // use dozer_types::node::OpIdentifier;
     use rand::Rng;

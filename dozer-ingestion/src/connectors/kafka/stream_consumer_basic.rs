@@ -164,7 +164,8 @@ impl StreamConsumer for StreamConsumerBasic {
                                     },
                                     id: None,
                                 })
-                                .map_err(ConnectorError::IngestorError)?;
+                                .await
+                                .map_err(|_| ConnectorError::IngestorError)?;
                         }
                     }
                 }

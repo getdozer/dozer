@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::{str::FromStr, sync::Arc};
 
 use crate::connectors::{
-    table_name, CdcType, Connector, SourceSchema, SourceSchemaResult, TableIdentifier,
-    TableToIngest,
+    table_name, CdcType, ConnectorMeta, ConnectorStart, SourceSchema, SourceSchemaResult,
+    TableIdentifier, TableToIngest,
 };
 use crate::ingestion::Ingestor;
 use crate::{connectors::TableInfo, errors::ConnectorError};
@@ -123,7 +123,7 @@ impl EthLogConnector {
 }
 
 #[async_trait]
-impl Connector for EthLogConnector {
+impl ConnectorMeta for EthLogConnector {
     fn types_mapping() -> Vec<(String, Option<dozer_types::types::FieldType>)>
     where
         Self: Sized,
@@ -232,7 +232,10 @@ impl Connector for EthLogConnector {
 
         Ok(result)
     }
+}
 
+#[async_trait(?Send)]
+impl ConnectorStart for EthLogConnector {
     async fn start(
         &self,
         ingestor: &Ingestor,

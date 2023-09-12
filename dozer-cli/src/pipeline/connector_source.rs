@@ -11,7 +11,7 @@ use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::indicatif::ProgressBar;
-use dozer_types::ingestion_types::{IngestionMessage, IngestorError};
+use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::info;
 use dozer_types::models::connection::Connection;
 use dozer_types::parking_lot::Mutex;
@@ -281,7 +281,7 @@ impl Source for ConnectorSource {
                         Ok(Ok(_)) => {}
                         // If we get a channel error, it means the source sender thread has quit.
                         // Any error handling is done in that thread.
-                        Ok(Err(ConnectorError::IngestorError(IngestorError::ChannelError(_)))) => {}
+                        Ok(Err(ConnectorError::IngestorError)) => {}
                         Ok(Err(e)) => std::panic::panic_any(e),
                         // Aborted means we are shutting down
                         Err(Aborted) => (),
