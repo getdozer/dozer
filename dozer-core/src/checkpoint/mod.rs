@@ -116,7 +116,7 @@ impl OptionCheckpoint {
     ) -> Result<Option<Vec<u8>>, storage::Error> {
         if let Some(checkpoint) = &self.checkpoint {
             let key = processor_key(&checkpoint.processor_prefix, node_handle);
-            info!("Downloading processor {node_handle} checkpoint from {key}");
+            info!("Loading processor {node_handle} checkpoint from {key}");
             factory.storage.download_object(key).await.map(Some)
         } else {
             Ok(None)
@@ -334,7 +334,7 @@ async fn read_record_store_slices(
                 .as_str()
                 .parse()
                 .map_err(|_| ExecutionError::UnrecognizedCheckpoint(object.key.clone()))?;
-            info!("Downloading {}", object.key);
+            info!("Loading {}", object.key);
             let data = storage.download_object(object.key.clone()).await?;
             let (source_states, _) = CheckpointFactory::read_record_store_slice_data(&data)?;
             let processor_prefix = processor_prefix(factory_prefix, object_name.as_str());
@@ -360,7 +360,7 @@ async fn read_record_store_slices(
         }
 
         for object in objects.objects {
-            info!("Downloading {}", object.key);
+            info!("Loading {}", object.key);
             let data = storage.download_object(object.key).await?;
             let (_, data) = CheckpointFactory::read_record_store_slice_data(&data)?;
             record_store.deserialize_and_extend(data)?;

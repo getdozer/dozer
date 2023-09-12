@@ -60,10 +60,8 @@ pub async fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>() {
             id,
         } = &message
         {
-            if let Some(id) = id {
-                if let Some(last_id) = &last_identifier {
-                    assert!(id > last_id);
-                }
+            if let Some((last_id, id)) = last_identifier.zip(*id) {
+                assert!(id > last_id);
             }
             last_identifier = *id;
 
@@ -182,12 +180,10 @@ pub async fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
             };
 
             // Identifier must be increasing.
-            if let Some(identifier) = last_identifier {
-                if let Some(id) = &id {
-                    assert!(id > &identifier);
-                }
-                last_identifier = id;
+            if let Some((last_id, id)) = last_identifier.zip(id) {
+                assert!(id > last_id);
             }
+            last_identifier = id;
 
             // Operation must be insert.
             let Operation::Insert { new: actual_record } = operation else {
@@ -266,12 +262,10 @@ pub async fn run_test_suite_basic_cud<T: CudConnectorTest>() {
         };
 
         // Identifier must be increasing.
-        if let Some(identifier) = last_identifier {
-            if let Some(id) = &id {
-                assert!(id > &identifier);
-            }
-            last_identifier = id;
+        if let Some((last_id, id)) = last_identifier.zip(id) {
+            assert!(id > last_id);
         }
+        last_identifier = id;
 
         // Record must match schema.
         match operation {
