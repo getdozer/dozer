@@ -131,9 +131,15 @@ message ResourcesResponse {
 
 message DeploymentResource {
   string name = 1;
+  // api, app
+  string typ = 2;
   string created_at = 3;
-  int32 desired = 4;
-  int32 available = 5;
+  
+  optional int32 desired = 4;
+
+  optional int32 available = 5;
+  //  Running but not ready
+  optional int32 unavailable = 6;
 }
 
 
