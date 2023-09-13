@@ -8,7 +8,11 @@ service TelemetryService {
 
 message MetricsRequest {
   string app_id = 1;
-  string query = 2;
+  uint32 query_type = 2;
+  string query = 3;
+  uint64 start = 4;
+  uint64 end = 5;
+  uint32 step = 6;
 }
 
 message MetricsResponse { string content = 1; }
