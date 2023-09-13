@@ -38,6 +38,11 @@ struct DozerAndContract {
     contract: Option<Contract>,
 }
 
+pub struct ShutdownAndTempDir{
+    shutdown: ShutdownSender,
+    temp_dir: TempDir,
+}
+
 #[derive(Debug)]
 pub enum BroadcastType {
     Start,
@@ -47,10 +52,9 @@ pub enum BroadcastType {
 
 pub struct LiveState {
     dozer: RwLock<Option<DozerAndContract>>,
-    run_thread: RwLock<Option<ShutdownSender>>,
+    run_thread: RwLock<Option<ShutdownAndTempDir>>,
     error_message: RwLock<Option<String>>,
     sender: RwLock<Option<tokio::sync::broadcast::Sender<ConnectResponse>>>,
-    temp_dir: RwLock<Option<TempDir>>,
 }
 
 impl LiveState {
@@ -60,7 +64,6 @@ impl LiveState {
             run_thread: RwLock::new(None),
             sender: RwLock::new(None),
             error_message: RwLock::new(None),
-            temp_dir: RwLock::new(None),
         }
     }
 
@@ -251,10 +254,9 @@ impl LiveState {
         let dozer = &dozer.as_ref().ok_or(LiveError::NotInitialized)?.dozer;
         // kill if a handle already exists
         self.stop().await?;
-
-        let mut temp_dir = self.temp_dir.write().await;
-        *temp_dir = Some(TempDir::new("live")?);
-        let temp_dir = temp_dir.as_ref().unwrap().path().to_str().unwrap();
+        
+        let temp_dir_created = TempDir::new("live")?;
+        let temp_dir_path = temp_dir_created.path().to_str().unwrap();
 
         let labels: Labels = [("live_run_id", uuid::Uuid::new_v4().to_string())]
             .into_iter()
@@ -266,7 +268,7 @@ impl LiveState {
             labels.clone(),
             request,
             shutdown_receiver,
-            temp_dir,
+            temp_dir_path,
         )?;
 
         // Initialize progress
@@ -277,20 +279,23 @@ impl LiveState {
                 .await
                 .unwrap()
         });
-
         let mut lock = self.run_thread.write().await;
-        *lock = Some(shutdown_sender);
-
+        if let Some(shutdown_and_tempdir) = lock.take() {
+            shutdown_and_tempdir.shutdown.shutdown();
+        }
+        let shutdown_and_tempdir = ShutdownAndTempDir {
+            shutdown: shutdown_sender,
+            temp_dir: temp_dir_created,
+        };
+        *lock = Some(shutdown_and_tempdir);
         Ok(labels)
     }
 
     pub async fn stop(&self) -> Result<(), LiveError> {
         let mut lock = self.run_thread.write().await;
-        if let Some(shutdown) = lock.take() {
-            shutdown.shutdown()
+        if let Some(shutdown_and_tempdir) = lock.take() {
+            shutdown_and_tempdir.shutdown.shutdown();
         }
-        let mut temp_dir = self.temp_dir.write().await;
-        *temp_dir = None;
         *lock = None;
         Ok(())
     }
