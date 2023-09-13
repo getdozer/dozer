@@ -181,12 +181,11 @@ async fn handle_request(
             upload.parts.push((part_number, part_id));
         }
         RequestKind::CompleteUpload => {
-            let (key, upload) = multipart_uploads
-                .remove_entry(key)
-                .ok_or(Error::UploadNotFound)?;
+            let upload = multipart_uploads.get(key).ok_or(Error::UploadNotFound)?;
             storage
-                .complete_multipart_upload(key, upload.id, upload.parts)
+                .complete_multipart_upload(key.to_string(), upload.id.clone(), upload.parts.clone())
                 .await?;
+            multipart_uploads.remove(key);
         }
         RequestKind::UploadObject(data) => {
             storage.put_object(key.to_string(), data).await?;
