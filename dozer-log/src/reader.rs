@@ -59,7 +59,7 @@ pub struct LogReader {
     pub schema: EndpointSchema,
     /// Protobuf descriptor of this endpoint's API.
     pub descriptor: Vec<u8>,
-    op_receiver: Receiver<(LogOperation, u64)>,
+    op_receiver: Receiver<OpAndPos>,
     worker: Option<JoinHandle<Result<(), ReaderError>>>,
 }
 
@@ -96,7 +96,7 @@ impl LogReaderBuilder {
         Ok(client)
     }
 
-    pub fn build(self, pos: u64) -> LogReader {
+    pub fn build(self, start: u64) -> LogReader {
         let LogReaderBuilder {
             build_name,
             schema,
@@ -105,9 +105,8 @@ impl LogReaderBuilder {
             options,
         } = self;
 
-        let (op_sender, op_receiver) =
-            tokio::sync::mpsc::channel::<(LogOperation, u64)>(options.buffer_size as usize);
-        let worker = tokio::spawn(log_reader_worker(client, pos, options, op_sender));
+        let (op_sender, op_receiver) = tokio::sync::mpsc::channel(options.buffer_size as usize);
+        let worker = tokio::spawn(log_reader_worker(client, start, options, op_sender));
         LogReader {
             build_name,
             schema,
@@ -118,9 +117,14 @@ impl LogReaderBuilder {
     }
 }
 
+/// An `LogOperation` and its position in the log.
+pub struct OpAndPos {
+    pub op: LogOperation,
+    pub pos: u64,
+}
+
 impl LogReader {
-    /// Returns an op and the position of next op.
-    pub async fn next_op(&mut self) -> Result<(LogOperation, u64), ReaderError> {
+    pub async fn read_one(&mut self) -> Result<OpAndPos, ReaderError> {
         if let Some(result) = self.op_receiver.recv().await {
             Ok(result)
         } else if let Some(worker) = self.worker.take() {
@@ -264,7 +268,7 @@ async fn log_reader_worker(
     mut log_client: LogClient,
     mut pos: u64,
     options: LogReaderOptions,
-    op_sender: Sender<(LogOperation, u64)>,
+    op_sender: Sender<OpAndPos>,
 ) -> Result<(), ReaderError> {
     loop {
         // Request ops.
@@ -277,11 +281,11 @@ async fn log_reader_worker(
         let ops = log_client.get_log(request).await?;
 
         for op in ops {
-            pos += 1;
-            if op_sender.send((op, pos)).await.is_err() {
+            if op_sender.send(OpAndPos { op, pos }).await.is_err() {
                 debug!("Log reader thread quit because LogReader was dropped");
                 return Ok(());
             }
+            pos += 1;
         }
     }
 }

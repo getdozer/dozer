@@ -35,9 +35,9 @@ impl LogReader {
         pyo3_asyncio::tokio::future_into_py(py, async move {
             let mut reader = reader.lock().await;
             let schema = reader.schema.schema.clone();
-            let op = reader.next_op().await;
+            let op = reader.read_one().await;
             Python::with_gil(|py| {
-                let op = op.map_err(|e| PyException::new_err(e.to_string()))?.0;
+                let op = op.map_err(|e| PyException::new_err(e.to_string()))?.op;
                 mapper::map_executor_operation(op, &schema, py)
             })
         })
