@@ -198,6 +198,7 @@ struct CheckpointWriterFactoryState {
 #[serde(crate = "dozer_types::serde")]
 struct RecordStoreSlice {
     source_states: SourceStates,
+    #[serde(with = "dozer_types::serde_bytes")]
     data: Vec<u8>,
 }
 

@@ -41,6 +41,7 @@ pub extern crate prettytable;
 pub use pyo3;
 pub use rust_decimal;
 pub use serde;
+pub use serde_bytes;
 pub use serde_json;
 pub use serde_yaml;
 pub use thiserror;
