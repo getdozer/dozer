@@ -143,10 +143,9 @@ message DeploymentResource {
   optional int32 unavailable = 6;
 }
 
-
 message StartRequest {
   string app_id = 1;
-  int32 num_api_instances = 2;
+  InfraRequest infra = 2;
   repeated Secret secrets = 3;
   bool allow_incompatible = 4;
 }

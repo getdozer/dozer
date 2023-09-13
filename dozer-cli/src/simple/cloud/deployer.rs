@@ -31,7 +31,10 @@ pub async fn deploy_app(
             secrets,
             allow_incompatible,
             files,
-            infra: Some(InfraRequest { instance_type, num_api_instances }),
+            infra: Some(InfraRequest {
+                instance_type,
+                num_api_instances,
+            }),
         })
         .await?
         .into_inner();
