@@ -58,6 +58,7 @@ message DeployAppRequest {
 }
 
 message InfraRequest {
+  optional string instance_type = 1;
   int32 num_api_instances = 2;
 }
 

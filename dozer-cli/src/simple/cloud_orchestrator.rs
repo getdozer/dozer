@@ -104,6 +104,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
                 deploy
                     .num_api_instances
                     .unwrap_or_else(default_num_api_instances),
+                deploy.instance_type,
                 deploy.secrets,
                 deploy.allow_incompatible,
                 files,

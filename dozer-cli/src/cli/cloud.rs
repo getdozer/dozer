@@ -70,6 +70,10 @@ pub struct DeployCommandArgs {
     #[arg(short, long)]
     pub num_api_instances: Option<i32>,
 
+    /// Number of replicas to serve Dozer APIs
+    #[arg(short, long)]
+    pub instance_type: Option<String>,
+
     /// List of secrets which will be used in deployment
     #[arg(short, long, value_parser = parse_key_val)]
     pub secrets: Vec<Secret>,
