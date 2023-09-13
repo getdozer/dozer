@@ -261,7 +261,13 @@ impl LiveState {
             .collect();
         let (shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
         let metrics_shutdown = shutdown_receiver.clone();
-        let _handle = run(dozer.clone(), labels.clone(), request, shutdown_receiver,temp_dir)?;
+        let _handle = run(
+            dozer.clone(),
+            labels.clone(),
+            request,
+            shutdown_receiver,
+            temp_dir,
+        )?;
 
         // Initialize progress
         let metrics_sender = self.sender.read().await.as_ref().unwrap().clone();
@@ -350,7 +356,7 @@ fn run(
     shutdown_receiver: ShutdownReceiver,
     temp_dir: &str,
 ) -> Result<JoinHandle<()>, OrchestrationError> {
-    let mut dozer = get_dozer_run_instance(dozer, labels, request,temp_dir)?;
+    let mut dozer = get_dozer_run_instance(dozer, labels, request, temp_dir)?;
 
     validate_config(&dozer.config)?;
     let runtime = dozer.runtime.clone();
