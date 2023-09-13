@@ -40,7 +40,7 @@ impl ApiServer {
         &self,
         cache_endpoints: Vec<Arc<CacheEndpoint>>,
         operations_receiver: Option<broadcast::Receiver<Operation>>,
-        limit: usize,
+        default_max_num_records: usize,
     ) -> Result<
         (
             Option<TypedService>,
@@ -66,7 +66,7 @@ impl ApiServer {
                 cache_endpoints,
                 operations_receiver,
                 security,
-                limit,
+                default_max_num_records,
             )?)
         } else {
             None
@@ -91,7 +91,7 @@ impl ApiServer {
         shutdown: impl Future<Output = ()> + Send + 'static,
         operations_receiver: Option<Receiver<Operation>>,
         labels: LabelsAndProgress,
-        limit: usize,
+        default_max_num_records: usize,
     ) -> Result<impl Future<Output = Result<(), tonic::transport::Error>>, ApiInitError> {
         // Create our services.
         let mut web_config = tonic_web::config();
@@ -102,12 +102,15 @@ impl ApiServer {
         let common_service = CommonGrpcServiceServer::new(CommonService::new(
             cache_endpoints.clone(),
             operations_receiver.as_ref().map(|r| r.resubscribe()),
-            limit,
+            default_max_num_records,
         ));
         let common_service = web_config.enable(common_service);
 
-        let (typed_service, reflection_service) =
-            self.get_dynamic_service(cache_endpoints, operations_receiver, limit)?;
+        let (typed_service, reflection_service) = self.get_dynamic_service(
+            cache_endpoints,
+            operations_receiver,
+            default_max_num_records,
+        )?;
         let typed_service = typed_service.map(|typed_service| web_config.enable(typed_service));
         let reflection_service = web_config.enable(reflection_service);
 

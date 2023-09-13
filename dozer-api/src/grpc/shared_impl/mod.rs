@@ -52,11 +52,13 @@ pub fn query(
     query: Option<&str>,
     endpoint: &str,
     access: Option<Access>,
-    limit: usize,
+    default_max_num_records: usize,
 ) -> Result<Vec<CacheRecord>, Status> {
-    let mut query = parse_query(query, || QueryExpression::with_limit(limit))?;
+    let mut query = parse_query(query, || {
+        QueryExpression::with_limit(default_max_num_records)
+    })?;
     if query.limit.is_none() {
-        query.limit = Some(limit);
+        query.limit = Some(default_max_num_records);
     }
     let records = get_records(reader, &mut query, endpoint, access)?;
     Ok(records)

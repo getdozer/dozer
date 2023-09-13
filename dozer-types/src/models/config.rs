@@ -4,7 +4,7 @@ use super::{
     api_config::ApiConfig, api_endpoint::ApiEndpoint, app_config::AppConfig, cloud::Cloud,
     connection::Connection, flags::Flags, source::Source, telemetry::TelemetryConfig,
 };
-use crate::constants::{DEFAULT_HOME_DIR, DEFAULT_LIMIT};
+use crate::constants::DEFAULT_HOME_DIR;
 use crate::models::udf_config::UdfConfig;
 use prettytable::Table as PrettyTable;
 use serde::{Deserialize, Serialize};
@@ -84,14 +84,6 @@ pub struct Config {
     /// UDF specific configuration (eg. !Onnx)
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub udfs: Vec<UdfConfig>,
-
-    #[prost(uint32, tag = "16")]
-    #[serde(default = "default_limit_for_query")]
-    // max records to be returned from the endpoints
-    pub default_max_num_records: u32,
-}
-pub fn default_limit_for_query() -> u32 {
-    DEFAULT_LIMIT
 }
 
 pub fn default_home_dir() -> String {

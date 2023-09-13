@@ -2,18 +2,21 @@ use dozer_cache::cache::CacheManagerOptions;
 use dozer_core::{
     checkpoint::CheckpointFactoryOptions, epoch::EpochManagerOptions, executor::ExecutorOptions,
 };
-use dozer_types::models::{
-    api_config::{
-        default_api_grpc, default_api_rest, default_app_grpc, AppGrpcOptions, GrpcApiOptions,
-        RestApiOptions,
+use dozer_types::{
+    constants::DEFAULT_DEFAULT_MAX_NUM_RECORDS,
+    models::{
+        api_config::{
+            default_api_grpc, default_api_rest, default_app_grpc, AppGrpcOptions, GrpcApiOptions,
+            RestApiOptions,
+        },
+        api_security::ApiSecurity,
+        app_config::{
+            default_app_buffer_size, default_commit_size, default_commit_timeout,
+            default_error_threshold, default_max_interval_before_persist_in_seconds,
+            default_max_num_records_before_persist, default_persist_queue_capacity, DataStorage,
+        },
+        config::{default_cache_max_map_size, Config},
     },
-    api_security::ApiSecurity,
-    app_config::{
-        default_app_buffer_size, default_commit_size, default_commit_timeout,
-        default_error_threshold, default_max_interval_before_persist_in_seconds,
-        default_max_num_records_before_persist, default_persist_queue_capacity, DataStorage,
-    },
-    config::{default_cache_max_map_size, Config},
 };
 use std::time::Duration;
 
@@ -145,6 +148,10 @@ pub fn get_cache_manager_options(config: &Config) -> CacheManagerOptions {
     }
 }
 
-pub fn get_max_return_records_num(config: &Config) -> usize {
-    config.default_max_num_records as usize
+pub fn get_default_max_num_records(config: &Config) -> usize {
+    config
+        .api
+        .as_ref()
+        .map(|api| api.default_max_num_records as usize)
+        .unwrap_or_else(|| DEFAULT_DEFAULT_MAX_NUM_RECORDS)
 }

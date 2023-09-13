@@ -2,7 +2,7 @@ use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::serde_json::Value;
 mod query_helper;
 mod query_serde;
-use dozer_types::constants::DEFAULT_LIMIT;
+use dozer_types::constants::DEFAULT_DEFAULT_MAX_NUM_RECORDS;
 #[cfg(test)]
 mod tests;
 
@@ -48,7 +48,7 @@ impl QueryExpression {
 
 impl Default for QueryExpression {
     fn default() -> Self {
-        Self::with_limit(DEFAULT_LIMIT.try_into().unwrap())
+        Self::with_limit(DEFAULT_DEFAULT_MAX_NUM_RECORDS)
     }
 }
 

@@ -47,7 +47,7 @@ pub struct ApiServer {
     cors: CorsOptions,
     security: Option<ApiSecurity>,
     host: String,
-    default_limit: usize,
+    default_max_num_records: usize,
 }
 
 impl Default for ApiServer {
@@ -58,20 +58,24 @@ impl Default for ApiServer {
             cors: CorsOptions::Permissive,
             security: None,
             host: "0.0.0.0".to_owned(),
-            default_limit: 50,
+            default_max_num_records: 50,
         }
     }
 }
 
 impl ApiServer {
-    pub fn new(rest_config: RestApiOptions, security: Option<ApiSecurity>, limit: usize) -> Self {
+    pub fn new(
+        rest_config: RestApiOptions,
+        security: Option<ApiSecurity>,
+        default_max_num_records: usize,
+    ) -> Self {
         Self {
             shutdown_timeout: 0,
             port: rest_config.port as u16,
             cors: CorsOptions::Permissive,
             security,
             host: rest_config.host,
-            default_limit: limit,
+            default_max_num_records,
         }
     }
     fn get_cors(cors: CorsOptions) -> Cors {
@@ -89,7 +93,7 @@ impl ApiServer {
         cors: CorsOptions,
         mut cache_endpoints: Vec<Arc<CacheEndpoint>>,
         labels: LabelsAndProgress,
-        limit: usize,
+        default_max_num_records: usize,
     ) -> App<
         impl ServiceFactory<
             ServiceRequest,
@@ -106,7 +110,7 @@ impl ApiServer {
         let cfg = PayloadConfig::default();
         let mut app = App::new()
             .app_data(web::Data::new(endpoint_paths))
-            .app_data(web::Data::new(limit))
+            .app_data(web::Data::new(default_max_num_records))
             .app_data(cfg)
             .wrap(Logger::default())
             .wrap(TracingLogger::default())
@@ -182,14 +186,14 @@ impl ApiServer {
         let cors = self.cors;
 
         let address = format!("{}:{}", self.host, self.port);
-        let limit = self.default_limit;
+        let default_max_num_records = self.default_max_num_records;
         let server = HttpServer::new(move || {
             ApiServer::create_app_entry(
                 security.clone(),
                 cors.clone(),
                 cache_endpoints.clone(),
                 labels.clone(),
-                limit,
+                default_max_num_records,
             )
         })
         .bind(&address)

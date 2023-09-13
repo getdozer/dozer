@@ -26,14 +26,14 @@ pub struct CommonService {
     /// For look up endpoint from its name. `key == value.endpoint.name`. Using index map to keep endpoint order.
     pub endpoint_map: IndexMap<String, Arc<CacheEndpoint>>,
     pub event_notifier: Option<tokio::sync::broadcast::Receiver<Operation>>,
-    pub limit: usize,
+    pub default_max_num_records: usize,
 }
 
 impl CommonService {
     pub fn new(
         endpoints: Vec<Arc<CacheEndpoint>>,
         event_notifier: Option<tokio::sync::broadcast::Receiver<Operation>>,
-        limit: usize,
+        default_max_num_records: usize,
     ) -> Self {
         let endpoint_map = endpoints
             .into_iter()
@@ -42,7 +42,7 @@ impl CommonService {
         Self {
             endpoint_map,
             event_notifier,
-            limit,
+            default_max_num_records,
         }
     }
 
@@ -96,7 +96,7 @@ impl CommonGrpcService for CommonService {
             query_request.query.as_deref(),
             &cache_endpoint.endpoint.name,
             access,
-            self.limit,
+            self.default_max_num_records,
         )?;
         let schema = &cache_reader.get_schema().0;
 

@@ -7,8 +7,8 @@ use crate::simple::build;
 use crate::simple::helper::validate_config;
 use crate::utils::{
     get_api_security_config, get_app_grpc_config, get_cache_manager_options,
-    get_checkpoint_factory_options, get_executor_options, get_grpc_config,
-    get_max_return_records_num, get_rest_config,
+    get_checkpoint_factory_options, get_default_max_num_records, get_executor_options,
+    get_grpc_config, get_rest_config,
 };
 
 use crate::{flatten_join_handle, join_handle_map_err};
@@ -101,7 +101,7 @@ impl SimpleOrchestrator {
                 LmdbRwCacheManager::new(get_cache_manager_options(&self.config))
                     .map_err(OrchestrationError::CacheInitFailed)?,
             );
-            let limit = get_max_return_records_num(&self.config);
+            let default_max_num_records = get_default_max_num_records(&self.config);
             let mut cache_endpoints = vec![];
             for endpoint in &self.config.endpoints {
                 let (cache_endpoint, handle) = select! {
@@ -134,7 +134,8 @@ impl SimpleOrchestrator {
                 let security = get_api_security_config(&self.config).cloned();
                 let cache_endpoints_for_rest = cache_endpoints.clone();
                 let shutdown_for_rest = shutdown.create_shutdown_future();
-                let api_server = rest::ApiServer::new(rest_config, security, limit);
+                let api_server =
+                    rest::ApiServer::new(rest_config, security, default_max_num_records);
                 let api_server = api_server
                     .run(
                         cache_endpoints_for_rest,
@@ -159,7 +160,7 @@ impl SimpleOrchestrator {
                         shutdown,
                         operations_receiver,
                         self.labels.clone(),
-                        limit,
+                        default_max_num_records,
                     )
                     .await
                     .map_err(OrchestrationError::ApiInitFailed)?;

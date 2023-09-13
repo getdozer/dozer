@@ -114,11 +114,11 @@ pub async fn query(
     access: Option<ReqData<Access>>,
     cache_endpoint: ReqData<Arc<CacheEndpoint>>,
     query_expression: QueryExpressionExtractor,
-    limit: web::Data<usize>,
+    default_max_num_records: web::Data<usize>,
 ) -> Result<HttpResponse, ApiError> {
     let mut query_expression = query_expression.0;
     if query_expression.limit.is_none() {
-        query_expression.limit = Some(**limit);
+        query_expression.limit = Some(**default_max_num_records);
     }
 
     get_records_map(access, cache_endpoint, &mut query_expression)
