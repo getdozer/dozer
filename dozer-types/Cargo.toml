@@ -35,6 +35,7 @@ tokio-postgres = { version = "0.7.7", features = [
     "with-geo-types-0_7",
     "with-uuid-1",
 ] }
+serde_bytes = "0.11.12"
 
 [build-dependencies]
 tonic-build = "0.8.2"
