@@ -70,7 +70,7 @@ pub struct DeployCommandArgs {
     #[arg(short, long)]
     pub num_api_instances: Option<i32>,
 
-    /// Number of replicas to serve Dozer APIs
+    /// Instance type. Available options: small, medium, large
     #[arg(short, long)]
     pub instance_type: Option<String>,
 
