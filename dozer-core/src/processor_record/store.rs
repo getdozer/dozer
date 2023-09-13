@@ -95,8 +95,7 @@ impl ProcessorRecordStore {
 
     pub fn create_record(&self, record: &Record) -> Result<ProcessorRecord, StorageError> {
         let record_ref = self.create_ref(&record.values)?;
-        let mut processor_record = ProcessorRecord::new();
-        processor_record.push(record_ref);
+        let mut processor_record = ProcessorRecord::new(Box::new([record_ref]));
         processor_record.set_lifetime(record.lifetime.clone());
         Ok(processor_record)
     }
