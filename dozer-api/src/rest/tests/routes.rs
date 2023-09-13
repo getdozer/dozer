@@ -37,6 +37,7 @@ async fn list_route() {
             CacheEndpoint::open(&*cache_manager, Default::default(), endpoint.clone()).unwrap(),
         )],
         Default::default(),
+        50,
     );
     let app = actix_web::test::init_service(api_server).await;
 
@@ -228,6 +229,7 @@ async fn path_collision_test() {
             ),
         ],
         Default::default(),
+        50,
     );
     let app = actix_web::test::init_service(api_server).await;
 
@@ -254,6 +256,7 @@ async fn setup_service() -> (
             CacheEndpoint::open(&*cache_manager, Default::default(), endpoint.clone()).unwrap(),
         )],
         Default::default(),
+        50,
     );
     (actix_web::test::init_service(api_server).await, endpoint)
 }

@@ -1,3 +1,5 @@
+use crate::constants::DEFAULT_DEFAULT_MAX_NUM_RECORDS;
+
 use super::api_security::ApiSecurity;
 use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, prost::Message)]
@@ -16,6 +18,11 @@ pub struct ApiConfig {
     #[prost(message, tag = "4")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub app_grpc: Option<AppGrpcOptions>,
+
+    #[prost(uint32, tag = "5")]
+    #[serde(default = "default_default_max_num_records")]
+    // max records to be returned from the endpoints
+    pub default_max_num_records: u32,
 }
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, prost::Message)]
 pub struct RestApiOptions {
@@ -66,6 +73,9 @@ fn default_app_grpc_port() -> u32 {
 }
 fn default_app_grpc_host() -> String {
     "0.0.0.0".to_owned()
+}
+pub fn default_default_max_num_records() -> u32 {
+    DEFAULT_DEFAULT_MAX_NUM_RECORDS as u32
 }
 
 pub fn default_app_grpc() -> AppGrpcOptions {
