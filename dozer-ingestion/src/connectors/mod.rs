@@ -86,7 +86,7 @@ impl SourceSchema {
 pub type SourceSchemaResult = Result<SourceSchema, ConnectorError>;
 
 #[async_trait]
-pub trait ConnectorMeta {
+pub trait Connector: Send + Sync + Debug {
     /// Returns all the external types and their corresponding Dozer types.
     /// If the external type is not supported, None should be returned.
     fn types_mapping() -> Vec<(String, Option<FieldType>)>
@@ -132,12 +132,7 @@ pub trait ConnectorMeta {
             .collect::<Result<Vec<_>, _>>()?;
         Ok((table_infos, schemas))
     }
-}
 
-/// We split `Connector` trait into two because snowflake's (using odbc) `start` future is `!Send`.
-/// Once we switch to a better client, we should merge them.
-#[async_trait(?Send)]
-pub trait ConnectorStart {
     /// Starts outputting data from `tables` to `ingestor`. This method should never return unless there is an unrecoverable error.
     async fn start(
         &self,
@@ -145,10 +140,6 @@ pub trait ConnectorStart {
         tables: Vec<TableToIngest>,
     ) -> Result<(), ConnectorError>;
 }
-
-pub trait Connector: ConnectorMeta + ConnectorStart + Send + Sync + Debug {}
-
-impl<T: ConnectorMeta + ConnectorStart + Send + Sync + Debug> Connector for T {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// Unique identifier of a source table. A source table must have a `name`, optionally under a `schema` scope.

@@ -7,8 +7,8 @@ use super::{
 };
 use crate::{
     connectors::{
-        CdcType, ConnectorMeta, ConnectorStart, SourceSchema, SourceSchemaResult, TableIdentifier,
-        TableInfo, TableToIngest,
+        CdcType, Connector, SourceSchema, SourceSchemaResult, TableIdentifier, TableInfo,
+        TableToIngest,
     },
     errors::MySQLConnectorError,
 };
@@ -43,7 +43,7 @@ impl MySQLConnector {
 }
 
 #[async_trait]
-impl ConnectorMeta for MySQLConnector {
+impl Connector for MySQLConnector {
     fn types_mapping() -> Vec<(String, Option<dozer_types::types::FieldType>)>
     where
         Self: Sized,
@@ -186,10 +186,7 @@ impl ConnectorMeta for MySQLConnector {
 
         Ok(schemas)
     }
-}
 
-#[async_trait(?Send)]
-impl ConnectorStart for MySQLConnector {
     async fn start(
         &self,
         ingestor: &Ingestor,
@@ -405,7 +402,7 @@ mod tests {
                 connection::Conn,
                 tests::{create_test_table, mariadb_test_config, mysql_test_config, TestConfig},
             },
-            CdcType, ConnectorMeta, SourceSchema, TableIdentifier,
+            CdcType, Connector, SourceSchema, TableIdentifier,
         },
         ingestion::{IngestionIterator, Ingestor},
     };

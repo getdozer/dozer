@@ -2,8 +2,8 @@ use crate::connectors::delta_lake::reader::DeltaLakeReader;
 use crate::connectors::delta_lake::schema_helper::SchemaHelper;
 use crate::connectors::delta_lake::ConnectorResult;
 use crate::connectors::{
-    table_name, ConnectorMeta, ConnectorStart, ListOrFilterColumns, SourceSchemaResult,
-    TableIdentifier, TableInfo, TableToIngest,
+    table_name, Connector, ListOrFilterColumns, SourceSchemaResult, TableIdentifier, TableInfo,
+    TableToIngest,
 };
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
@@ -22,7 +22,7 @@ impl DeltaLakeConnector {
 }
 
 #[async_trait]
-impl ConnectorMeta for DeltaLakeConnector {
+impl Connector for DeltaLakeConnector {
     fn types_mapping() -> Vec<(String, Option<dozer_types::types::FieldType>)>
     where
         Self: Sized,
@@ -107,10 +107,7 @@ impl ConnectorMeta for DeltaLakeConnector {
         let schema_helper = SchemaHelper::new(self.config.clone());
         schema_helper.get_schemas(&table_infos).await
     }
-}
 
-#[async_trait(?Send)]
-impl ConnectorStart for DeltaLakeConnector {
     async fn start(&self, ingestor: &Ingestor, tables: Vec<TableToIngest>) -> ConnectorResult<()> {
         let reader = DeltaLakeReader::new(self.config.clone());
         reader.read(&tables, ingestor).await

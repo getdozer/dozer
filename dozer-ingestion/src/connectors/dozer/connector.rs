@@ -25,8 +25,8 @@ use tonic::{async_trait, transport::Channel};
 
 use crate::{
     connectors::{
-        warn_dropped_primary_index, CdcType, ConnectorMeta, ConnectorStart, SourceSchema,
-        SourceSchemaResult, TableIdentifier, TableInfo, TableToIngest,
+        warn_dropped_primary_index, CdcType, Connector, SourceSchema, SourceSchemaResult,
+        TableIdentifier, TableInfo, TableToIngest,
     },
     errors::{ConnectorError, NestedDozerConnectorError},
     ingestion::Ingestor,
@@ -38,7 +38,7 @@ pub struct NestedDozerConnector {
 }
 
 #[async_trait]
-impl ConnectorMeta for NestedDozerConnector {
+impl Connector for NestedDozerConnector {
     fn types_mapping() -> Vec<(String, Option<dozer_types::types::FieldType>)>
     where
         Self: Sized,
@@ -123,10 +123,7 @@ impl ConnectorMeta for NestedDozerConnector {
 
         Ok(schemas)
     }
-}
 
-#[async_trait(?Send)]
-impl ConnectorStart for NestedDozerConnector {
     async fn start(
         &self,
         ingestor: &Ingestor,

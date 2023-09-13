@@ -2,8 +2,7 @@ use std::time::Duration;
 
 use crate::connectors::snowflake::connection::client::Client;
 use crate::connectors::{
-    ConnectorMeta, ConnectorStart, SourceSchema, SourceSchemaResult, TableIdentifier, TableInfo,
-    TableToIngest,
+    Connector, SourceSchema, SourceSchemaResult, TableIdentifier, TableInfo, TableToIngest,
 };
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
@@ -40,7 +39,7 @@ impl SnowflakeConnector {
 }
 
 #[async_trait]
-impl ConnectorMeta for SnowflakeConnector {
+impl Connector for SnowflakeConnector {
     fn types_mapping() -> Vec<(String, Option<dozer_types::types::FieldType>)>
     where
         Self: Sized,
@@ -116,10 +115,7 @@ impl ConnectorMeta for SnowflakeConnector {
             .map(|schema_result| schema_result.map(|(_, schema)| schema))
             .collect())
     }
-}
 
-#[async_trait(?Send)]
-impl ConnectorStart for SnowflakeConnector {
     async fn start(
         &self,
         ingestor: &Ingestor,
