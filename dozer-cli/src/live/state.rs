@@ -20,6 +20,7 @@ use dozer_types::{
         flags::Flags,
     },
 };
+use tempdir::TempDir;
 use tokio::{runtime::Runtime, sync::RwLock};
 
 use crate::{
@@ -49,6 +50,7 @@ pub struct LiveState {
     run_thread: RwLock<Option<ShutdownSender>>,
     error_message: RwLock<Option<String>>,
     sender: RwLock<Option<tokio::sync::broadcast::Sender<ConnectResponse>>>,
+    temp_dir: RwLock<Option<TempDir>>,
 }
 
 impl LiveState {
@@ -58,6 +60,7 @@ impl LiveState {
             run_thread: RwLock::new(None),
             sender: RwLock::new(None),
             error_message: RwLock::new(None),
+            temp_dir: RwLock::new(None),
         }
     }
 
@@ -246,16 +249,19 @@ impl LiveState {
     pub async fn run(&self, request: RunRequest) -> Result<Labels, LiveError> {
         let dozer = self.dozer.read().await;
         let dozer = &dozer.as_ref().ok_or(LiveError::NotInitialized)?.dozer;
-
         // kill if a handle already exists
         self.stop().await?;
+
+        let mut temp_dir = self.temp_dir.write().await;
+        *temp_dir = Some(TempDir::new("live")?);
+        let temp_dir = temp_dir.as_ref().unwrap().path().to_str().unwrap();
 
         let labels: Labels = [("live_run_id", uuid::Uuid::new_v4().to_string())]
             .into_iter()
             .collect();
         let (shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
         let metrics_shutdown = shutdown_receiver.clone();
-        let _handle = run(dozer.clone(), labels.clone(), request, shutdown_receiver)?;
+        let _handle = run(dozer.clone(), labels.clone(), request, shutdown_receiver,temp_dir)?;
 
         // Initialize progress
         let metrics_sender = self.sender.read().await.as_ref().unwrap().clone();
@@ -277,6 +283,8 @@ impl LiveState {
         if let Some(shutdown) = lock.take() {
             shutdown.shutdown()
         }
+        let mut temp_dir = self.temp_dir.write().await;
+        *temp_dir = None;
         *lock = None;
         Ok(())
     }
@@ -340,8 +348,9 @@ fn run(
     labels: Labels,
     request: RunRequest,
     shutdown_receiver: ShutdownReceiver,
+    temp_dir: &str,
 ) -> Result<JoinHandle<()>, OrchestrationError> {
-    let mut dozer = get_dozer_run_instance(dozer, labels, request)?;
+    let mut dozer = get_dozer_run_instance(dozer, labels, request,temp_dir)?;
 
     validate_config(&dozer.config)?;
     let runtime = dozer.runtime.clone();
@@ -360,6 +369,7 @@ fn get_dozer_run_instance(
     mut dozer: SimpleOrchestrator,
     labels: Labels,
     req: RunRequest,
+    temp_dir: &str,
 ) -> Result<SimpleOrchestrator, LiveError> {
     match req.request {
         Some(dozer_types::grpc_types::live::run_request::Request::Sql(req)) => {
@@ -431,9 +441,6 @@ fn get_dozer_run_instance(
         }),
         ..dozer.config.api.unwrap_or_default()
     });
-
-    let temp_dir = tempdir::TempDir::new("live").unwrap();
-    let temp_dir = temp_dir.path().to_str().unwrap();
     dozer.config.home_dir = temp_dir.to_string();
     dozer.config.cache_dir = AsRef::<Utf8Path>::as_ref(temp_dir).join("cache").into();
 
