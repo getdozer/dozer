@@ -3,7 +3,7 @@ use std::{sync::Arc, time::Duration};
 use crate::{
     connectors::{
         ethereum::{helper, EthLogConnector},
-        ConnectorMeta, TableInfo,
+        Connector, TableInfo,
     },
     errors::ConnectorError,
     test_util::spawn_connector,

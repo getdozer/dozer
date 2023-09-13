@@ -111,7 +111,7 @@ impl StreamConsumer {
         }
     }
 
-    pub async fn consume_stream(
+    pub fn consume_stream(
         &mut self,
         client: &Client,
         table_name: &str,
@@ -149,12 +149,11 @@ impl StreamConsumer {
             for (idx, row) in iterator.enumerate() {
                 let op = Self::get_operation(row, action_idx, used_columns_for_schema)?;
                 ingestor
-                    .handle_message(IngestionMessage::OperationEvent {
+                    .blocking_handle_message(IngestionMessage::OperationEvent {
                         table_index,
                         op,
                         id: Some(OpIdentifier::new(iteration, idx as u64)),
                     })
-                    .await
                     .map_err(|_| ConnectorError::IngestorError)?;
             }
         }

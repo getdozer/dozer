@@ -2,7 +2,8 @@ use std::time::Duration;
 
 use crate::connectors::snowflake::connection::client::Client;
 use crate::connectors::{
-    ConnectorMeta, ConnectorStart, SourceSchemaResult, TableIdentifier, TableInfo, TableToIngest,
+    ConnectorMeta, ConnectorStart, SourceSchema, SourceSchemaResult, TableIdentifier, TableInfo,
+    TableToIngest,
 };
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
@@ -16,8 +17,6 @@ use dozer_types::log::{info, warn};
 
 use crate::connectors::snowflake::schema_helper::SchemaHelper;
 
-use tokio::time;
-
 use crate::errors::{SnowflakeError, SnowflakeStreamError};
 
 #[derive(Debug)]
@@ -29,6 +28,14 @@ pub struct SnowflakeConnector {
 impl SnowflakeConnector {
     pub fn new(name: String, config: SnowflakeConfig) -> Self {
         Self { name, config }
+    }
+
+    async fn get_schemas_async(
+        &self,
+        table_names: Option<Vec<String>>,
+    ) -> Result<Vec<Result<(String, SourceSchema), ConnectorError>>, ConnectorError> {
+        let config = self.config.clone();
+        spawn_blocking(move || SchemaHelper::get_schema(&config, table_names.as_deref())).await
     }
 }
 
@@ -42,11 +49,11 @@ impl ConnectorMeta for SnowflakeConnector {
     }
 
     async fn validate_connection(&self) -> Result<(), ConnectorError> {
-        SchemaHelper::get_schema(&self.config, None).map(|_| ())
+        self.get_schemas_async(None).await.map(|_| ())
     }
 
     async fn list_tables(&self) -> Result<Vec<TableIdentifier>, ConnectorError> {
-        let schemas = SchemaHelper::get_schema(&self.config, None)?;
+        let schemas = self.get_schemas_async(None).await?;
         let mut tables = vec![];
         for schema in schemas {
             tables.push(TableIdentifier::from_table_name(schema?.0));
@@ -59,7 +66,7 @@ impl ConnectorMeta for SnowflakeConnector {
             .iter()
             .map(|table| table.name.clone())
             .collect::<Vec<_>>();
-        let schemas = SchemaHelper::get_schema(&self.config, Some(&table_names))?;
+        let schemas = self.get_schemas_async(Some(table_names)).await?;
         for schema in schemas {
             schema?;
         }
@@ -74,7 +81,7 @@ impl ConnectorMeta for SnowflakeConnector {
             .iter()
             .map(|table| table.name.clone())
             .collect::<Vec<_>>();
-        let schemas = SchemaHelper::get_schema(&self.config, Some(&table_names))?;
+        let schemas = self.get_schemas_async(Some(table_names)).await?;
         let mut result = vec![];
         for schema in schemas {
             let (name, schema) = schema?;
@@ -102,7 +109,9 @@ impl ConnectorMeta for SnowflakeConnector {
             .iter()
             .map(|table_info| table_info.name.clone())
             .collect::<Vec<_>>();
-        Ok(SchemaHelper::get_schema(&self.config, Some(&table_names))?
+        Ok(self
+            .get_schemas_async(Some(table_names))
+            .await?
             .into_iter()
             .map(|schema_result| schema_result.map(|(_, schema)| schema))
             .collect())
@@ -116,19 +125,25 @@ impl ConnectorStart for SnowflakeConnector {
         ingestor: &Ingestor,
         tables: Vec<TableToIngest>,
     ) -> Result<(), ConnectorError> {
-        run(self.name.clone(), self.config.clone(), tables, ingestor).await
+        spawn_blocking({
+            let name = self.name.clone();
+            let config = self.config.clone();
+            let ingestor = ingestor.clone();
+            move || run(name, config, tables, ingestor)
+        })
+        .await
     }
 }
 
-async fn run(
+fn run(
     name: String,
     config: SnowflakeConfig,
     tables: Vec<TableToIngest>,
-    ingestor: &Ingestor,
+    ingestor: Ingestor,
 ) -> Result<(), ConnectorError> {
     // SNAPSHOT part - run it when stream table doesn't exist
     let stream_client = Client::new(&config);
-    let mut interval = time::interval(Duration::from_secs(5));
+    let interval = Duration::from_secs(5);
 
     let mut consumer = StreamConsumer::new();
     let mut iteration = 0;
@@ -162,13 +177,28 @@ async fn run(
 
             info!("[{}][{}] Reading from changes stream", name, table.name);
 
-            consumer
-                .consume_stream(&stream_client, &table.name, ingestor, idx, iteration)
-                .await?;
+            consumer.consume_stream(&stream_client, &table.name, &ingestor, idx, iteration)?;
 
-            interval.tick().await;
+            std::thread::sleep(interval);
         }
 
         iteration += 1;
     }
+}
+
+async fn spawn_blocking<F, T>(f: F) -> T
+where
+    F: FnOnce() -> T + Send + 'static,
+    T: Send + 'static,
+{
+    tokio::task::spawn_blocking(f)
+        .await
+        .unwrap_or_else(|join_err| {
+            let msg = format!("{join_err}");
+            if join_err.is_panic() {
+                panic!("{msg}; panic: {:?}", join_err.into_panic())
+            } else {
+                panic!("{msg}")
+            }
+        })
 }

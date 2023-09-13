@@ -9,7 +9,7 @@ use dozer_types::{
 use crate::{
     connectors::{
         ethereum::{helper, trace::helper::get_block_traces, EthTraceConnector},
-        ConnectorMeta,
+        Connector,
     },
     test_util::{create_test_runtime, spawn_connector},
 };

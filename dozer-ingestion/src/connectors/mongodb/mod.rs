@@ -20,8 +20,7 @@ use dozer_types::{
 };
 
 use super::{
-    ConnectorMeta, ConnectorStart, SourceSchema, SourceSchemaResult, TableIdentifier, TableInfo,
-    TableToIngest,
+    Connector, SourceSchema, SourceSchemaResult, TableIdentifier, TableInfo, TableToIngest,
 };
 
 #[derive(Error, Debug)]
@@ -454,7 +453,7 @@ impl MongodbConnector {
 }
 
 #[async_trait]
-impl ConnectorMeta for MongodbConnector {
+impl Connector for MongodbConnector {
     async fn validate_connection(&self) -> Result<(), ConnectorError> {
         let client = self.client().await?;
         let server_info = self.identify_server(&client).await?;
@@ -588,10 +587,7 @@ impl ConnectorMeta for MongodbConnector {
         }
         Ok(())
     }
-}
 
-#[async_trait(?Send)]
-impl ConnectorStart for MongodbConnector {
     async fn start(
         &self,
         ingestor: &Ingestor,
