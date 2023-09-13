@@ -1,7 +1,8 @@
 use crate::connectors::postgres::connection::validator::validate_connection;
 use crate::connectors::postgres::iterator::PostgresIterator;
 use crate::connectors::{
-    Connector, ListOrFilterColumns, SourceSchemaResult, TableIdentifier, TableInfo, TableToIngest,
+    ConnectorMeta, ConnectorStart, ListOrFilterColumns, SourceSchemaResult, TableIdentifier,
+    TableInfo, TableToIngest,
 };
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
@@ -81,7 +82,7 @@ impl PostgresConnector {
 }
 
 #[async_trait]
-impl Connector for PostgresConnector {
+impl ConnectorMeta for PostgresConnector {
     fn types_mapping() -> Vec<(String, Option<dozer_types::types::FieldType>)>
     where
         Self: Sized,
@@ -161,7 +162,10 @@ impl Connector for PostgresConnector {
             .await
             .map_err(Into::into)
     }
+}
 
+#[async_trait(?Send)]
+impl ConnectorStart for PostgresConnector {
     async fn start(
         &self,
         ingestor: &Ingestor,

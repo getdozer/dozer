@@ -8,7 +8,8 @@ use tonic::async_trait;
 use crate::connectors::object_store::adapters::DozerObjectStore;
 use crate::connectors::object_store::schema_mapper;
 use crate::connectors::{
-    Connector, ListOrFilterColumns, SourceSchemaResult, TableIdentifier, TableInfo, TableToIngest,
+    ConnectorMeta, ConnectorStart, ListOrFilterColumns, SourceSchemaResult, TableIdentifier,
+    TableInfo, TableToIngest,
 };
 use crate::errors::{ConnectorError, ObjectStoreConnectorError};
 use crate::ingestion::Ingestor;
@@ -35,7 +36,7 @@ impl<T: DozerObjectStore + 'static> ObjectStoreConnector<T> {
 }
 
 #[async_trait]
-impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
+impl<T: DozerObjectStore> ConnectorMeta for ObjectStoreConnector<T> {
     fn types_mapping() -> Vec<(String, Option<dozer_types::types::FieldType>)>
     where
         Self: Sized,
@@ -98,7 +99,10 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
             .collect::<Vec<_>>();
         schema_mapper::get_schema(&self.config, &list_or_filter_columns).await
     }
+}
 
+#[async_trait(?Send)]
+impl<T: DozerObjectStore> ConnectorStart for ObjectStoreConnector<T> {
     async fn start(&self, ingestor: &Ingestor, tables: Vec<TableToIngest>) -> ConnectorResult<()> {
         let (sender, mut receiver) =
             channel::<Result<Option<IngestionMessage>, ObjectStoreConnectorError>>(100); // todo: increase buffer siz
@@ -118,7 +122,8 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                     Some(evt) => {
                         ingestor_clone
                             .handle_message(evt)
-                            .map_err(ConnectorError::IngestorError)?;
+                            .await
+                            .map_err(|_| ConnectorError::IngestorError)?;
                     }
                 }
             }

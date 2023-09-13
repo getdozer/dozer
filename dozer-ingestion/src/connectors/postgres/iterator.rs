@@ -174,7 +174,8 @@ impl<'a> PostgresIteratorHandler<'a> {
 
             self.ingestor
                 .handle_message(IngestionMessage::SnapshottingDone)
-                .map_err(ConnectorError::IngestorError)?;
+                .await
+                .map_err(|_| ConnectorError::IngestorError)?;
 
             debug!("\nInitialized with tables: {:?}", details.tables);
 

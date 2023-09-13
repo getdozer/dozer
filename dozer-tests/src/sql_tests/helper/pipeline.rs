@@ -17,8 +17,8 @@ use dozer_core::{Dag, DEFAULT_PORT_HANDLE};
 
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 
+use crossbeam::channel::{Receiver, Sender};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
-use dozer_types::crossbeam::channel::{Receiver, Sender};
 
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::ingestion_types::IngestionMessage;
@@ -293,8 +293,7 @@ impl TestPipeline {
                 .unwrap();
 
         let output_table = transform_response.output_tables_map.get("results").unwrap();
-        let (sender, receiver) =
-            dozer_types::crossbeam::channel::bounded::<Option<(String, Operation)>>(1000);
+        let (sender, receiver) = crossbeam::channel::bounded::<Option<(String, Operation)>>(1000);
 
         let mut port_to_schemas = HashMap::new();
         let mut mappings = HashMap::new();

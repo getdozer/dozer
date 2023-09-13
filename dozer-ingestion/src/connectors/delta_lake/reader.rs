@@ -69,6 +69,7 @@ impl DeltaLakeReader {
                         },
                         id: None,
                     })
+                    .await
                     .unwrap();
             }
         }

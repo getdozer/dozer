@@ -43,6 +43,7 @@ multimap = "0.8.3"
 ahash = "0.8.3"
 csv = "1.2"
 url = "2.4.1"
+crossbeam = "0.8.2"
 
 [dev-dependencies]
 dozer-core = { path = "../dozer-core" }

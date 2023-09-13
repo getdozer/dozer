@@ -134,7 +134,8 @@ impl<'a> CDCHandler<'a> {
                                     op,
                                     id: Some(OpIdentifier::new(self.begin_lsn, self.seq_no)),
                                 })
-                                .map_err(ConnectorError::IngestorError)?;
+                                .await
+                                .map_err(|_| ConnectorError::IngestorError)?;
                         }
                     }
                     None => {}

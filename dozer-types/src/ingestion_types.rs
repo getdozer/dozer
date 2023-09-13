@@ -2,12 +2,8 @@ use prettytable::Table as PrettyTable;
 use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 
-use crate::{
-    errors::internal::BoxedError, models::api_config::AppGrpcOptions, node::OpIdentifier,
-    types::Operation,
-};
+use crate::{models::api_config::AppGrpcOptions, node::OpIdentifier, types::Operation};
 
 #[derive(Clone, Debug, PartialEq)]
 /// All possible kinds of `IngestionMessage`.
@@ -26,16 +22,6 @@ pub enum IngestionMessage {
     /// A connector uses this message kind to notify Dozer that a initial snapshot of the source tables is done,
     /// and the data is up-to-date until next CDC event.
     SnapshottingDone,
-}
-
-#[derive(Error, Debug)]
-pub enum IngestorError {
-    #[error("Failed to send message on channel")]
-    ChannelError(#[from] BoxedError),
-}
-
-pub trait IngestorForwarder: Send + Sync + Debug {
-    fn forward(&self, msg: IngestionMessage) -> Result<(), IngestorError>;
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]

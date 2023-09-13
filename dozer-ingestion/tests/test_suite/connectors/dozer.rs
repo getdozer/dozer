@@ -274,7 +274,7 @@ impl Drop for DozerConnectorTest {
         if let Some((join_handle, shutdown)) = self.shutdown.take() {
             shutdown.shutdown();
             info!("Sent shutdown signal");
-            let _ = join_handle.join();
+            join_handle.join().unwrap();
             info!("Joined dozer thread");
         }
     }

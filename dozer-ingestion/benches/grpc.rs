@@ -1,13 +1,13 @@
 use std::{sync::Arc, thread};
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use dozer_ingestion::test_util::create_test_runtime;
 use dozer_types::{
     arrow::array::{Int32Array, StringArray},
     grpc_types::ingest::{ingest_service_client::IngestServiceClient, IngestArrowRequest},
     indicatif::{MultiProgress, ProgressBar},
     serde_yaml,
 };
-use tokio::runtime::Runtime;
 use tonic::transport::Channel;
 mod helper;
 use crate::helper::TestConfig;
@@ -20,12 +20,12 @@ const ARROW_PORT: u32 = 60056;
 const BATCH_SIZE: usize = 100;
 
 fn grpc(criter: &mut Criterion) {
-    let runtime = Runtime::new().unwrap();
+    let runtime = create_test_runtime();
     let configs = load_test_config();
 
     let multi_pb = MultiProgress::new();
     for config in configs {
-        let mut iterator = runtime.block_on(helper::get_connection_iterator(config.clone()));
+        let mut iterator = helper::get_connection_iterator(runtime.clone(), config.clone());
         let pb = helper::get_progress();
         pb.set_message("consumer");
 

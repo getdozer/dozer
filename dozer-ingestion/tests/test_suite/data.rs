@@ -30,7 +30,7 @@ pub fn records_with_primary_key() -> (FieldsAndPk, Vec<Vec<Field>>) {
 
 pub fn cud_operations() -> (FieldsAndPk, Vec<Operation>) {
     let (schema, records) = records_with_primary_key();
-    let updated_record = vec![Field::UInt(1), Field::Int(1)];
+    let updated_record = vec![Field::Int(1), Field::UInt(1)];
     let operations = vec![
         Operation::Insert {
             new: records[0].clone(),

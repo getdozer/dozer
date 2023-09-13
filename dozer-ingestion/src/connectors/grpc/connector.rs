@@ -4,13 +4,10 @@ use std::path::Path;
 use super::adapter::{GrpcIngestor, IngestAdapter};
 use super::ingest::IngestorServiceImpl;
 use crate::connectors::{
-    table_name, SourceSchema, SourceSchemaResult, TableIdentifier, TableToIngest,
+    table_name, ConnectorMeta, ConnectorStart, SourceSchema, SourceSchemaResult, TableIdentifier,
+    TableToIngest,
 };
-use crate::{
-    connectors::{Connector, TableInfo},
-    errors::ConnectorError,
-    ingestion::Ingestor,
-};
+use crate::{connectors::TableInfo, errors::ConnectorError, ingestion::Ingestor};
 use dozer_types::grpc_types::ingest::ingest_service_server::IngestServiceServer;
 use dozer_types::ingestion_types::GrpcConfig;
 use dozer_types::log::{info, warn};
@@ -122,7 +119,7 @@ impl<T: IngestAdapter> GrpcConnector<T> {
 }
 
 #[async_trait]
-impl<T> Connector for GrpcConnector<T>
+impl<T> ConnectorMeta for GrpcConnector<T>
 where
     T: IngestAdapter,
 {
@@ -220,7 +217,10 @@ where
 
         Ok(result)
     }
+}
 
+#[async_trait(?Send)]
+impl<T: IngestAdapter> ConnectorStart for GrpcConnector<T> {
     async fn start(
         &self,
         ingestor: &Ingestor,

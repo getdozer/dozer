@@ -134,7 +134,7 @@ pub async fn run(details: Arc<EthDetails<'_>>) -> Result<(), ConnectorError> {
                 .map_or(Err(ConnectorError::EmptyMessage), Ok)?
                 .map_err(ConnectorError::EthError)?;
 
-            process_log(details.clone(), msg)?;
+            process_log(details.clone(), msg).await?;
         }
     } else {
         info!("[{}] Reading reached block_to limit", details.conn_name);
@@ -168,7 +168,7 @@ pub fn fetch_logs(
                     process_log(
                         details.clone(),
                         msg,
-                    )?;
+                    ).await?;
                 }
                 Ok(())
             },
@@ -224,7 +224,7 @@ pub fn fetch_logs(
     .boxed()
 }
 
-fn process_log(details: Arc<EthDetails>, msg: Log) -> Result<(), ConnectorError> {
+async fn process_log(details: Arc<EthDetails<'_>>, msg: Log) -> Result<(), ConnectorError> {
     // Filter pending logs. log.log_index is None for pending State
     if msg.log_index.is_none() {
         Ok(())
@@ -239,7 +239,8 @@ fn process_log(details: Arc<EthDetails>, msg: Log) -> Result<(), ConnectorError>
                     op,
                     id: None,
                 })
-                .map_err(ConnectorError::IngestorError)?;
+                .await
+                .map_err(|_| ConnectorError::IngestorError)?;
         } else {
             trace!("Ignoring log : {:?}", msg);
         }
@@ -256,7 +257,8 @@ fn process_log(details: Arc<EthDetails>, msg: Log) -> Result<(), ConnectorError>
                     op,
                     id: None,
                 })
-                .map_err(ConnectorError::IngestorError)?;
+                .await
+                .map_err(|_| ConnectorError::IngestorError)?;
         } else {
             trace!("Writing event : {:?}", op);
         }

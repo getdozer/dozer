@@ -1,9 +1,12 @@
-use dozer_ingestion::connectors::{TableIdentifier, TableToIngest};
-use dozer_ingestion::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
+use std::sync::Arc;
+
+use dozer_ingestion::connectors::{Connector, TableToIngest};
+use dozer_ingestion::ingestion::{IngestionIterator, Ingestor};
 use dozer_types::indicatif::{ProgressBar, ProgressStyle};
 use dozer_types::log::error;
 use dozer_types::models::connection::Connection;
 use dozer_types::serde::{self, Deserialize, Serialize};
+use tokio::runtime::Runtime;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(crate = "self::serde")]
@@ -38,30 +41,23 @@ pub fn get_progress() -> ProgressBar {
     pb
 }
 
-pub async fn get_connection_iterator(config: TestConfig) -> IngestionIterator {
-    let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
-    tokio::spawn(async move {
-        let grpc_connector = dozer_ingestion::connectors::get_connector(config.connection).unwrap();
-
-        let tables = match config.tables_filter.map(|table_names| {
-            table_names
-                .into_iter()
-                .map(TableIdentifier::from_table_name)
-                .collect()
-        }) {
-            Some(tables) => tables,
-            None => grpc_connector.list_tables().await.unwrap(),
-        };
-        let tables = grpc_connector.list_columns(tables).await.unwrap();
-        let tables = tables
-            .into_iter()
-            .map(TableToIngest::from_scratch)
-            .collect();
-
-        let res = grpc_connector.start(&ingestor, tables).await;
-        if let Err(e) = res {
-            error!("Error: {:?}", e);
+pub fn get_connection_iterator(runtime: Arc<Runtime>, config: TestConfig) -> IngestionIterator {
+    let connector = dozer_ingestion::connectors::get_connector(config.connection).unwrap();
+    let tables = runtime.block_on(list_tables(&*connector));
+    let (ingestor, iterator) = Ingestor::initialize_channel(Default::default());
+    runtime.clone().spawn_blocking(move || async move {
+        if let Err(e) = runtime.block_on(connector.start(&ingestor, tables)) {
+            error!("Error starting connector: {:?}", e);
         }
     });
     iterator
+}
+
+async fn list_tables(connector: &dyn Connector) -> Vec<TableToIngest> {
+    let tables = connector.list_tables().await.unwrap();
+    let tables = connector.list_columns(tables).await.unwrap();
+    tables
+        .into_iter()
+        .map(TableToIngest::from_scratch)
+        .collect()
 }

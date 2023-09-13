@@ -111,7 +111,7 @@ impl StreamConsumer {
         }
     }
 
-    pub fn consume_stream(
+    pub async fn consume_stream(
         &mut self,
         client: &Client,
         table_name: &str,
@@ -154,7 +154,8 @@ impl StreamConsumer {
                         op,
                         id: Some(OpIdentifier::new(iteration, idx as u64)),
                     })
-                    .map_err(ConnectorError::IngestorError)?;
+                    .await
+                    .map_err(|_| ConnectorError::IngestorError)?;
             }
         }
 

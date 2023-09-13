@@ -109,8 +109,9 @@ mod tests {
     use tokio_postgres::config::ReplicationMode;
 
     use crate::connectors::postgres::connection::helper::connect;
+    use crate::connectors::postgres::test_utils::get_config;
     use crate::errors::{ConnectorError, PostgresConnectorError};
-    use crate::test_util::{get_config, run_connector_test};
+    use crate::test_util::run_connector_test;
 
     use super::ReplicationSlotHelper;
 
