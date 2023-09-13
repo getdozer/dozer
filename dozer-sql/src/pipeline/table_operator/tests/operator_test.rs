@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordStore};
+use dozer_core::processor_record::ProcessorRecordStore;
 use dozer_types::{
     chrono::DateTime,
     types::{Field, FieldDefinition, FieldType, Lifetime, Record, Schema, SourceDefinition},
@@ -70,8 +70,7 @@ fn test_lifetime() {
     assert_eq!(result.len(), 1);
     let lifetime_record = result.get(0).unwrap();
 
-    let mut expected_record = ProcessorRecord::new();
-    expected_record.extend(record);
+    let mut expected_record = record.clone();
 
     expected_record.set_lifetime(Some(Lifetime {
         reference: DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap(),

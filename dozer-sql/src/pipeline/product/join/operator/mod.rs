@@ -244,21 +244,24 @@ fn create_join_records_fn(
 ) -> impl Fn(&ProcessorRecord) -> ProcessorRecord + '_ {
     let lifetime = record.get_lifetime();
     move |matching_record| {
-        let record = record.clone();
         let matching_lifetime = matching_record.get_lifetime();
-        let matching_record = matching_record.clone();
 
-        let mut output_record = ProcessorRecord::new();
-        match record_branch {
+        let mut output_record = match record_branch {
             JoinBranch::Left => {
-                output_record.extend(record);
-                output_record.extend(matching_record);
+                let len = record.values().len() + matching_record.values().len();
+                let mut data = Vec::with_capacity(len);
+                data.extend_from_slice(record.values());
+                data.extend_from_slice(matching_record.values());
+                ProcessorRecord::new(data.into_boxed_slice())
             }
             JoinBranch::Right => {
-                output_record.extend(matching_record);
-                output_record.extend(record);
+                let len = record.values().len() + matching_record.values().len();
+                let mut data = Vec::with_capacity(len);
+                data.extend_from_slice(matching_record.values());
+                data.extend_from_slice(record.values());
+                ProcessorRecord::new(data.into_boxed_slice())
             }
-        }
+        };
 
         if let Some(lifetime) = &lifetime {
             if let Some(matching_lifetime) = matching_lifetime {

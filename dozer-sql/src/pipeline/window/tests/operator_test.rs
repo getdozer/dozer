@@ -1,4 +1,4 @@
-use dozer_core::processor_record::ProcessorRecordStore;
+use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordStore};
 use dozer_types::types::Record;
 use dozer_types::{
     chrono::{DateTime, Duration},
@@ -32,8 +32,8 @@ fn test_hop() {
     assert_eq!(result.len(), 5);
     let window_record = result.get(0).unwrap();
 
-    let mut expected_record = record.clone();
-    expected_record.push(
+    let expected_record = ProcessorRecord::appended(
+        &record,
         record_store
             .create_ref(&[
                 Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:09:00Z").unwrap()),
@@ -46,8 +46,8 @@ fn test_hop() {
 
     let window_record = result.get(1).unwrap();
 
-    let mut expected_record = record;
-    expected_record.push(
+    let expected_record = ProcessorRecord::appended(
+        &record,
         record_store
             .create_ref(&[
                 Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:10:00Z").unwrap()),
@@ -84,8 +84,8 @@ fn test_tumble() {
     assert_eq!(result.len(), 1);
     let window_record = result.get(0).unwrap();
 
-    let mut expected_record = record;
-    expected_record.push(
+    let expected_record = ProcessorRecord::appended(
+        &record,
         record_store
             .create_ref(&[
                 Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:10:00Z").unwrap()),
