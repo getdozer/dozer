@@ -7,9 +7,6 @@ use crate::cloud_helper::list_files;
 
 use crate::errors::OrchestrationError::FailedToReadOrganisationName;
 use crate::errors::{map_tonic_error, CliError, CloudError, CloudLoginError, OrchestrationError};
-use crate::progress_printer::{
-    get_delete_steps, get_deploy_steps, get_update_steps, ProgressPrinter,
-};
 use crate::simple::cloud::deployer::{deploy_app, stop_app};
 use crate::simple::cloud::login::CredentialInfo;
 use crate::simple::cloud::monitor::monitor_app;
@@ -18,9 +15,9 @@ use crate::simple::SimpleOrchestrator;
 use crate::CloudOrchestrator;
 use dozer_types::constants::{DEFAULT_CLOUD_TARGET_URL, LOCK_FILE};
 use dozer_types::grpc_types::cloud::{
-    dozer_cloud_client::DozerCloudClient, CreateAppRequest, CreateSecretRequest, DeleteAppRequest,
+    dozer_cloud_client::DozerCloudClient, CreateSecretRequest, DeleteAppRequest,
     DeleteSecretRequest, GetSecretRequest, GetStatusRequest, ListAppRequest, ListSecretsRequest,
-    LogMessageRequest, UpdateAppRequest, UpdateSecretRequest,
+    LogMessageRequest, UpdateSecretRequest,
 };
 use dozer_types::grpc_types::cloud::{
     DeploymentStatus, File, SetCurrentVersionRequest, SetNumApiInstancesRequest,
@@ -99,55 +96,17 @@ impl CloudOrchestrator for SimpleOrchestrator {
                 };
                 files.push(lockfile);
             }
-            let (app_id_to_start, mut steps) = match app_id {
-                None => {
-                    let mut steps = ProgressPrinter::new(get_deploy_steps());
-                    // 1. CREATE application
-                    steps.start_next_step();
-                    let response = client
-                        .create_application(CreateAppRequest { files })
-                        .await
-                        .map_err(map_tonic_error)?
-                        .into_inner();
-
-                    steps.complete_step(Some(&format!(
-                        "Application created with id: {:?}",
-                        &response.app_id
-                    )));
-
-                    CloudAppContext::save_app_id(response.app_id.clone())?;
-
-                    (response.app_id, steps)
-                }
-                Some(app_id) => {
-                    let mut steps = ProgressPrinter::new(get_update_steps());
-                    // 1. update application
-                    steps.start_next_step();
-                    client
-                        .update_application(UpdateAppRequest {
-                            app_id: app_id.clone(),
-                            files,
-                        })
-                        .await
-                        .map_err(map_tonic_error)?
-                        .into_inner();
-
-                    steps.complete_step(Some(&format!("Updated {}", &app_id)));
-
-                    (app_id, steps)
-                }
-            };
 
             // 2. START application
             deploy_app(
                 &mut client,
-                &app_id_to_start,
+                &app_id,
                 deploy
                     .num_api_instances
                     .unwrap_or_else(default_num_api_instances),
-                &mut steps,
                 deploy.secrets,
                 deploy.allow_incompatible,
+                files,
             )
             .await?;
             Ok::<(), OrchestrationError>(())
@@ -192,13 +151,9 @@ impl CloudOrchestrator for SimpleOrchestrator {
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud, cloud_config).await?;
 
-            let mut steps = ProgressPrinter::new(get_delete_steps());
-
-            steps.start_next_step();
-
             stop_app(&mut client, &app_id).await?;
 
-            steps.start_next_step();
+            // steps.start_next_step();
             let delete_result = client
                 .delete_application(DeleteAppRequest {
                     app_id: app_id.clone(),
@@ -208,7 +163,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
                 .into_inner();
 
             if delete_result.success {
-                steps.complete_step(Some(&format!("Deleted {}", &app_id)));
+                info!("Deleted {}", &app_id);
 
                 if delete_cloud_file {
                     let _ = CloudAppContext::delete_config_file();
