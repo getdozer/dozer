@@ -5,7 +5,7 @@ use crate::errors::{ConnectorError, SnowflakeError, SnowflakeSchemaError};
 
 use crate::connectors::snowflake::schema_helper::SchemaHelper;
 use crate::connectors::{CdcType, SourceSchema};
-use crate::errors::SnowflakeError::{QueryError, SnowflakeStreamError};
+use crate::errors::SnowflakeError::{NonResumableQuery, QueryError, SnowflakeStreamError};
 use crate::errors::SnowflakeSchemaError::SchemaConversionError;
 use crate::errors::SnowflakeSchemaError::{
     DecimalConvertError, InvalidDateError, InvalidTimeError,
@@ -386,25 +386,29 @@ impl<'env> Client<'env> {
     }
 
     pub fn fetch_keys(&self) -> Result<HashMap<String, Vec<String>>, SnowflakeError> {
-        let query = "SHOW PRIMARY KEYS IN SCHEMA".to_string();
-        let results = exec_iter(self.pool.clone(), query);
-        let mut keys: HashMap<String, Vec<String>> = HashMap::new();
-        for result in results {
-            let row_data = result?;
-            let empty = "".to_string();
-            let table_name = row_data.get(3).map_or(empty.clone(), |v| match v {
-                Field::String(v) => v.clone(),
-                _ => empty.clone(),
-            });
-            let column_name = row_data.get(4).map_or(empty.clone(), |v| match v {
-                Field::String(v) => v.clone(),
-                _ => empty.clone(),
-            });
+        'retry: loop {
+            let query = "SHOW PRIMARY KEYS IN SCHEMA".to_string();
+            let results = exec_iter(self.pool.clone(), query);
+            let mut keys: HashMap<String, Vec<String>> = HashMap::new();
+            for result in results {
+                let row_data = match result {
+                    Err(NonResumableQuery(_)) => continue 'retry,
+                    result => result?,
+                };
+                let empty = "".to_string();
+                let table_name = row_data.get(3).map_or(empty.clone(), |v| match v {
+                    Field::String(v) => v.clone(),
+                    _ => empty.clone(),
+                });
+                let column_name = row_data.get(4).map_or(empty.clone(), |v| match v {
+                    Field::String(v) => v.clone(),
+                    _ => empty.clone(),
+                });
 
-            keys.entry(table_name).or_default().push(column_name);
+                keys.entry(table_name).or_default().push(column_name);
+            }
+            break Ok(keys);
         }
-
-        Ok(keys)
     }
 }
 
@@ -417,17 +421,23 @@ macro_rules! retry {
     };
 }
 
-fn add_query_offset(query: &str, offset: u64) -> String {
-    assert!(query
-        .trim_start()
-        .get(0..7)
-        .map(|s| s.to_uppercase() == "SELECT ")
-        .unwrap_or(false));
-
+fn add_query_offset(query: &str, offset: u64) -> Result<String, SnowflakeError> {
     if offset == 0 {
-        query.into()
+        Ok(query.into())
     } else {
-        format!("{query} LIMIT 18446744073709551615 OFFSET {offset}")
+        let resumable = query
+            .trim_start()
+            .get(0..7)
+            .map(|s| s.to_uppercase() == "SELECT ")
+            .unwrap_or(false);
+
+        if resumable {
+            Ok(format!(
+                "{query} LIMIT 18446744073709551615 OFFSET {offset}"
+            ))
+        } else {
+            Err(NonResumableQuery(query.to_string()))
+        }
     }
 }
 
@@ -476,7 +486,7 @@ fn exec_iter(pool: Pool, query: String) -> ExecIter {
         let cursor_position = 0u64;
         'retry: loop {
             let conn = pool.get_conn().map_err(QueryError)?;
-            let mut data = match exec_helper(&conn, &add_query_offset(&query, cursor_position))
+            let mut data = match exec_helper(&conn, &add_query_offset(&query, cursor_position)?)
                 .map_err(QueryError)?
             {
                 Some(data) => data,

@@ -354,6 +354,9 @@ pub enum SnowflakeError {
 
     #[error(transparent)]
     SnowflakeStreamError(#[from] SnowflakeStreamError),
+
+    #[error("A network error occurred, but this query is not resumable. query: {0}")]
+    NonResumableQuery(String),
 }
 
 #[cfg(feature = "snowflake")]
