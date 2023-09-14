@@ -220,6 +220,8 @@ message DeploymentInfo {
   uint32 deployment = 1;
   string phase = 2;
   optional string last_error = 3;
+  optional google.protobuf.Timestamp created_at = 4;
+  optional google.protobuf.Timestamp updated_at = 5;
 }
 
 
