@@ -54,11 +54,6 @@ message DeployAppRequest {
   repeated File files = 2;
   repeated Secret secrets = 3;
   bool allow_incompatible = 4;
-  InfraRequest infra = 5;
-}
-
-message InfraRequest {
-  int32 num_api_instances = 2;
 }
 
 message DeployStep {
@@ -142,10 +137,8 @@ message DeploymentResource {
   optional int32 unavailable = 6;
 }
 
-
 message StartRequest {
   string app_id = 1;
-  int32 num_api_instances = 2;
   repeated Secret secrets = 3;
   bool allow_incompatible = 4;
 }
