@@ -1,7 +1,9 @@
 syntax = "proto3";
 package dozer.cloud;
 import "cloud_types.proto";
+import "cloud_notification.proto";
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
 
 service DozerCloud {
   rpc create_application(CreateAppRequest) returns (AppResponse);
@@ -41,6 +43,8 @@ service DozerCloud {
   rpc OnStatusUpdate(StatusUpdateRequest) returns (stream StatusUpdate);
 
   rpc get_resources(GetResourcesRequest) returns (ResourcesResponse);
+
+  rpc Subscribe(google.protobuf.Empty) returns (stream Notification);
 }
 
 service DozerPublic {
