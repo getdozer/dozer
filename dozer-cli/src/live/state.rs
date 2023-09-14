@@ -7,13 +7,17 @@ use dozer_core::{app::AppPipeline, dag_schemas::DagSchemas, Dag};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_tracing::{Labels, LabelsAndProgress};
 use dozer_types::{
+    constants::DEFAULT_DEFAULT_MAX_NUM_RECORDS,
     grpc_types::{
         contract::{DotResponse, ProtoResponse, SchemasResponse},
         live::{BuildResponse, BuildStatus, ConnectResponse, LiveApp, LiveResponse, RunRequest},
     },
     log::info,
     models::{
-        api_config::{ApiConfig, AppGrpcOptions, GrpcApiOptions, RestApiOptions},
+        api_config::{
+            default_api_grpc, default_api_rest, default_app_grpc, ApiConfig, AppGrpcOptions,
+            GrpcApiOptions, RestApiOptions,
+        },
         api_endpoint::ApiEndpoint,
         api_security::ApiSecurity,
         app_config::AppConfig,
@@ -432,30 +436,80 @@ fn get_dozer_run_instance(
         })
     }
 
-    dozer.config.api = Some(ApiConfig {
-        app_grpc: Some(AppGrpcOptions {
-            port: 62997,
-            host: "0.0.0.0".to_string(),
-        }),
-        grpc: Some(GrpcApiOptions {
-            port: 62998,
-            host: "0.0.0.0".to_string(),
-            cors: true,
-            web: true,
-            enabled: true,
-        }),
-        rest: Some(RestApiOptions {
-            port: 62996,
-            host: "0.0.0.0".to_string(),
-            cors: true,
-            enabled: true,
-        }),
-        ..dozer.config.api.unwrap_or_default()
-    });
+    if let Some(api) = dozer.config.api.as_mut() {
+        override_api_config(api);
+    } else {
+        dozer.config.api = Some(ApiConfig {
+            api_security: None,
+            rest: Some(default_rest_config_for_live()),
+            grpc: Some(default_grpc_config_for_live()),
+            app_grpc: Some(default_app_grpc_config_for_live()),
+            default_max_num_records: DEFAULT_DEFAULT_MAX_NUM_RECORDS as u32,
+        })
+    }
+
     dozer.config.home_dir = temp_dir.to_string();
     dozer.config.cache_dir = AsRef::<Utf8Path>::as_ref(temp_dir).join("cache").into();
 
     dozer.labels = LabelsAndProgress::new(labels, false);
 
     Ok(dozer)
+}
+
+fn override_api_config(api: &mut ApiConfig) {
+    if let Some(rest) = api.rest.as_mut() {
+        override_rest_config(rest);
+    } else {
+        api.rest = Some(default_rest_config_for_live());
+    }
+
+    if let Some(grpc) = api.grpc.as_mut() {
+        override_grpc_config(grpc);
+    } else {
+        api.grpc = Some(default_grpc_config_for_live());
+    }
+
+    if let Some(app_grpc) = api.app_grpc.as_mut() {
+        override_app_grpc_config(app_grpc);
+    } else {
+        api.app_grpc = Some(default_app_grpc_config_for_live());
+    }
+}
+
+fn override_rest_config(rest: &mut RestApiOptions) {
+    rest.host = "0.0.0.0".to_string();
+    rest.port = 62996;
+    rest.cors = true;
+    rest.enabled = true;
+}
+
+fn default_rest_config_for_live() -> RestApiOptions {
+    let mut rest = default_api_rest();
+    override_rest_config(&mut rest);
+    rest
+}
+
+fn override_grpc_config(grpc: &mut GrpcApiOptions) {
+    grpc.host = "0.0.0.0".to_string();
+    grpc.port = 62998;
+    grpc.cors = true;
+    grpc.web = true;
+    grpc.enabled = true;
+}
+
+fn default_grpc_config_for_live() -> GrpcApiOptions {
+    let mut grpc = default_api_grpc();
+    override_grpc_config(&mut grpc);
+    grpc
+}
+
+fn override_app_grpc_config(app_grpc: &mut AppGrpcOptions) {
+    app_grpc.port = 62997;
+    app_grpc.host = "0.0.0.0".to_string();
+}
+
+fn default_app_grpc_config_for_live() -> AppGrpcOptions {
+    let mut app_grpc = default_app_grpc();
+    override_app_grpc_config(&mut app_grpc);
+    app_grpc
 }
