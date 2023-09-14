@@ -1,7 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use dozer_ingestion::{
-    connectors::{CdcType, ConnectorMeta, SourceSchema, TableIdentifier},
+    connectors::{CdcType, Connector, SourceSchema, TableIdentifier},
     test_util::spawn_connector,
 };
 use dozer_types::{

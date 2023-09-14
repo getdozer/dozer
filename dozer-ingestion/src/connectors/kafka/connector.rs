@@ -2,7 +2,7 @@ use rdkafka::consumer::BaseConsumer;
 use rdkafka::ClientConfig;
 
 use crate::connectors::{
-    ConnectorMeta, ConnectorStart, SourceSchema, SourceSchemaResult, TableIdentifier, TableToIngest,
+    Connector, SourceSchema, SourceSchemaResult, TableIdentifier, TableToIngest,
 };
 use crate::ingestion::Ingestor;
 use crate::{connectors::TableInfo, errors::ConnectorError};
@@ -42,7 +42,7 @@ impl KafkaConnector {
 }
 
 #[async_trait]
-impl ConnectorMeta for KafkaConnector {
+impl Connector for KafkaConnector {
     fn types_mapping() -> Vec<(String, Option<dozer_types::types::FieldType>)>
     where
         Self: Sized,
@@ -126,10 +126,7 @@ impl ConnectorMeta for KafkaConnector {
             .map(Ok)
             .collect())
     }
-}
 
-#[async_trait(?Send)]
-impl ConnectorStart for KafkaConnector {
     async fn start(
         &self,
         ingestor: &Ingestor,

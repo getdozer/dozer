@@ -1,8 +1,8 @@
 use super::super::helper as conn_helper;
 use super::helper::{self, get_block_traces, map_trace_to_ops};
 use crate::connectors::{
-    table_name, CdcType, ConnectorMeta, ConnectorStart, SourceSchema, SourceSchemaResult,
-    TableIdentifier, TableToIngest,
+    table_name, CdcType, Connector, SourceSchema, SourceSchemaResult, TableIdentifier,
+    TableToIngest,
 };
 use crate::{connectors::TableInfo, errors::ConnectorError, ingestion::Ingestor};
 use dozer_types::ingestion_types::{EthTraceConfig, IngestionMessage};
@@ -25,7 +25,7 @@ impl EthTraceConnector {
 }
 
 #[async_trait]
-impl ConnectorMeta for EthTraceConnector {
+impl Connector for EthTraceConnector {
     fn types_mapping() -> Vec<(String, Option<dozer_types::types::FieldType>)>
     where
         Self: Sized,
@@ -91,10 +91,7 @@ impl ConnectorMeta for EthTraceConnector {
             CdcType::Nothing,
         ))])
     }
-}
 
-#[async_trait(?Send)]
-impl ConnectorStart for EthTraceConnector {
     async fn start(
         &self,
         ingestor: &Ingestor,

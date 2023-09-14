@@ -49,6 +49,13 @@ impl Ingestor {
     ) -> Result<(), SendError<IngestionMessage>> {
         self.sender.send(message).await
     }
+
+    pub fn blocking_handle_message(
+        &self,
+        message: IngestionMessage,
+    ) -> Result<(), SendError<IngestionMessage>> {
+        self.sender.blocking_send(message)
+    }
 }
 
 #[cfg(test)]

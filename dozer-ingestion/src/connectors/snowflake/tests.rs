@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::connectors::snowflake::connector::SnowflakeConnector;
 use crate::connectors::snowflake::test_utils::remove_streams;
-use crate::connectors::{get_connector, ConnectorMeta, TableIdentifier};
+use crate::connectors::{get_connector, Connector, TableIdentifier};
 
 use dozer_types::types::FieldType::{
     Binary, Boolean, Date, Decimal, Float, Int, String, Timestamp,

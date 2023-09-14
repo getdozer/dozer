@@ -1,5 +1,5 @@
 use crate::connectors::object_store::connector::ObjectStoreConnector;
-use crate::connectors::ConnectorMeta;
+use crate::connectors::Connector;
 use crate::test_util::create_runtime_and_spawn_connector_all_tables;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::ingestion_types::LocalDetails;
