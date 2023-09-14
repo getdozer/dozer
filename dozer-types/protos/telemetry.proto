@@ -4,7 +4,7 @@ package dozer.telemetry;
 service TelemetryService {
   rpc get_metrics(MetricsRequest) returns (MetricsResponse);
   rpc get_traces(TracesRequest) returns (TracesResponse);
-  rpc get_trace(TraceRequest) returns (TraceResponse);
+  rpc get_full_traces(FullTracesRequest) returns (FullTracesResponse);
 }
 
 enum QueryType {
@@ -27,6 +27,6 @@ message TracesRequest { string app_id = 1; }
 
 message TracesResponse { string content = 1; }
 
-message TraceRequest { string trace_id = 1; }
+message FullTracesRequest { repeated string trace_ids = 1; }
 
-message TraceResponse { string content = 1; }
+message FullTracesResponse { string content = 1; }
