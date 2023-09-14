@@ -138,4 +138,6 @@ pub fn is_network_failure(err: &tokio_postgres::Error) -> bool {
         || err_str.starts_with("connection closed")
         || err_str.starts_with("error connecting to server")
         || err_str.starts_with("timeout waiting for server")
+        || (err_str.starts_with("db error")
+            && err_str.contains("canceling statement due to statement timeout"))
 }
