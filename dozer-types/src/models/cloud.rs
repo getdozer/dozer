@@ -7,19 +7,22 @@ pub struct Cloud {
     pub update_current_version_strategy: Option<UpdateCurrentVersionStrategy>,
     #[prost(optional, string, tag = "3")]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub instance_type: Option<String>,
+    pub app_id: Option<String>,
     #[prost(optional, string, tag = "4")]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub app_id: Option<String>,
-    #[prost(optional, string, tag = "5")]
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub profile: Option<String>,
-    #[prost(optional, uint32, tag = "6")]
+    #[prost(optional, uint32, tag = "5")]
     #[serde(
         default = "default_num_api_instances",
         skip_serializing_if = "Option::is_none"
     )]
     pub num_api_instances: Option<u32>,
+    #[prost(optional, string, tag = "6")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub app_instance_type: Option<String>,
+    #[prost(optional, string, tag = "7")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_instance_type: Option<String>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize, prost::Oneof)]

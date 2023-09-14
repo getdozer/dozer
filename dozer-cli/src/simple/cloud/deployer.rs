@@ -14,13 +14,10 @@ use dozer_types::grpc_types::cloud::DeployAppRequest;
 use dozer_types::grpc_types::cloud::DeployAppResponse;
 use dozer_types::grpc_types::cloud::DeployStep;
 use dozer_types::grpc_types::cloud::File;
-use dozer_types::grpc_types::cloud::InfraRequest;
 
 pub async fn deploy_app(
     client: &mut DozerCloudClient<TokenLayer>,
     app_id: &Option<String>,
-    num_api_instances: i32,
-    instance_type: Option<String>,
     secrets: Vec<Secret>,
     allow_incompatible: bool,
     files: Vec<File>,
@@ -31,10 +28,6 @@ pub async fn deploy_app(
             secrets,
             allow_incompatible,
             files,
-            infra: Some(InfraRequest {
-                instance_type,
-                num_api_instances,
-            }),
         })
         .await?
         .into_inner();

@@ -1,6 +1,6 @@
 use crate::cli::cloud::{
-    default_num_api_instances, ApiCommand, Cloud, DeployCommandArgs, ListCommandArgs,
-    LogCommandArgs, SecretsCommand, VersionCommand,
+    ApiCommand, Cloud, DeployCommandArgs, ListCommandArgs, LogCommandArgs, SecretsCommand,
+    VersionCommand,
 };
 use crate::cloud_app_context::CloudAppContext;
 use crate::cloud_helper::list_files;
@@ -101,10 +101,6 @@ impl CloudOrchestrator for SimpleOrchestrator {
             deploy_app(
                 &mut client,
                 &app_id,
-                deploy
-                    .num_api_instances
-                    .unwrap_or_else(default_num_api_instances),
-                deploy.instance_type,
                 deploy.secrets,
                 deploy.allow_incompatible,
                 files,
