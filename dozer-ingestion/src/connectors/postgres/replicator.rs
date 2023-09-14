@@ -11,6 +11,7 @@ use dozer_types::bytes;
 use dozer_types::chrono::{TimeZone, Utc};
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::{error, info};
+use dozer_types::node::OpIdentifier;
 use futures::StreamExt;
 use postgres_protocol::message::backend::ReplicationMessage::*;
 use postgres_protocol::message::backend::{LogicalReplicationMessage, ReplicationMessage};
@@ -128,13 +129,13 @@ impl<'a> CDCHandler<'a> {
                         self.seq_no += 1;
                         if self.begin_lsn != self.offset_lsn || self.offset < self.seq_no {
                             self.ingestor
-                                .handle_message(IngestionMessage::new_op(
-                                    self.begin_lsn,
-                                    self.seq_no,
+                                .handle_message(IngestionMessage::OperationEvent {
                                     table_index,
                                     op,
-                                ))
-                                .map_err(ConnectorError::IngestorError)?;
+                                    id: Some(OpIdentifier::new(self.begin_lsn, self.seq_no)),
+                                })
+                                .await
+                                .map_err(|_| ConnectorError::IngestorError)?;
                         }
                     }
                     None => {}

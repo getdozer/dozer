@@ -27,6 +27,7 @@ use crate::ingestion::Ingestor;
 use dozer_types::log::debug;
 use dozer_types::models::connection::Connection;
 use dozer_types::models::connection::ConnectionConfig;
+use dozer_types::node::OpIdentifier;
 use tonic::async_trait;
 
 use crate::connectors::object_store::connector::ObjectStoreConnector;
@@ -47,6 +48,7 @@ use self::ethereum::{EthLogConnector, EthTraceConnector};
 use self::grpc::connector::GrpcConnector;
 use self::grpc::{ArrowAdapter, DefaultAdapter};
 use self::mysql::connector::{mysql_connection_opts_from_url, MySQLConnector};
+#[cfg(feature = "snowflake")]
 use crate::connectors::snowflake::connector::SnowflakeConnector;
 use crate::errors::ConnectorError::{MissingConfiguration, WrongConnectionConfiguration};
 
@@ -135,7 +137,7 @@ pub trait Connector: Send + Sync + Debug {
     async fn start(
         &self,
         ingestor: &Ingestor,
-        tables: Vec<TableInfo>,
+        tables: Vec<TableToIngest>,
     ) -> Result<(), ConnectorError>;
 }
 
@@ -170,6 +172,30 @@ pub struct TableInfo {
     pub name: String,
     /// The column names to be mapped.
     pub column_names: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+/// `TableInfo` with an optional checkpoint info.
+pub struct TableToIngest {
+    /// The `schema` scope of the table.
+    pub schema: Option<String>,
+    /// The table name, must be unique under the `schema` scope, or global scope if `schema` is `None`.
+    pub name: String,
+    /// The column names to be mapped.
+    pub column_names: Vec<String>,
+    /// The checkpoint to start after.
+    pub checkpoint: Option<OpIdentifier>,
+}
+
+impl TableToIngest {
+    pub fn from_scratch(table_info: TableInfo) -> Self {
+        Self {
+            schema: table_info.schema,
+            name: table_info.name,
+            column_names: table_info.column_names,
+            checkpoint: None,
+        }
+    }
 }
 
 pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, ConnectorError> {
@@ -214,6 +240,7 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
                 grpc_config.adapter,
             )),
         },
+        #[cfg(feature = "snowflake")]
         ConnectionConfig::Snowflake(snowflake) => {
             let snowflake_config = snowflake;
 
@@ -222,6 +249,8 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
                 snowflake_config,
             )))
         }
+        #[cfg(not(feature = "snowflake"))]
+        ConnectionConfig::Snowflake(_) => Err(ConnectorError::SnowflakeFeatureNotEnabled),
         #[cfg(feature = "kafka")]
         ConnectionConfig::Kafka(kafka_config) => Ok(Box::new(KafkaConnector::new(kafka_config))),
         #[cfg(not(feature = "kafka"))]

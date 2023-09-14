@@ -59,7 +59,7 @@ pub async fn get_binlog_format(conn: &mut Conn) -> Result<String, MySQLConnector
     Ok(binlog_logging_format)
 }
 
-pub struct BinlogIngestor<'a, 'b, 'c, 'd, 'e> {
+pub struct BinlogIngestor<'a, 'b, 'd, 'e> {
     ingestor: &'a Ingestor,
     binlog_stream: Option<BinlogStream>,
     tables: &'b [TableDefinition],
@@ -67,20 +67,18 @@ pub struct BinlogIngestor<'a, 'b, 'c, 'd, 'e> {
     stop_position: Option<BinlogPosition>,
     local_stop_position: Option<u64>,
     server_id: u32,
-    txn: &'c mut u64,
     conn_pool: &'d Pool,
     conn_url: &'e String,
     column_definitions_cache: ColumnDefinitionsCache<'b>,
 }
 
-impl<'a, 'b, 'c, 'd, 'e> BinlogIngestor<'a, 'b, 'c, 'd, 'e> {
+impl<'a, 'b, 'd, 'e> BinlogIngestor<'a, 'b, 'd, 'e> {
     pub fn new(
         ingestor: &'a Ingestor,
         tables: &'b [TableDefinition],
         start_position: BinlogPosition,
         stop_position: Option<BinlogPosition>,
         server_id: u32,
-        txn: &'c mut u64,
         (conn_pool, conn_url): (&'d Pool, &'e String),
     ) -> Self {
         Self {
@@ -91,7 +89,6 @@ impl<'a, 'b, 'c, 'd, 'e> BinlogIngestor<'a, 'b, 'c, 'd, 'e> {
             stop_position,
             local_stop_position: None,
             server_id,
-            txn,
             conn_pool,
             conn_url,
             column_definitions_cache: ColumnDefinitionsCache::new(tables),
@@ -99,7 +96,7 @@ impl<'a, 'b, 'c, 'd, 'e> BinlogIngestor<'a, 'b, 'c, 'd, 'e> {
     }
 }
 
-impl BinlogIngestor<'_, '_, '_, '_, '_> {
+impl BinlogIngestor<'_, '_, '_, '_> {
     async fn connect(&self) -> Result<Conn, MySQLConnectorError> {
         Conn::new(self.conn_pool.clone())
             .await
@@ -136,7 +133,6 @@ impl BinlogIngestor<'_, '_, '_, '_, '_> {
             self.open_binlog().await?;
         }
 
-        let mut seq_no = 0;
         let mut table_cache = BinlogTableCache::new(self.tables);
 
         'binlog_read: while let Some(result) = self.binlog_stream.as_mut().unwrap().next().await {
@@ -207,21 +203,17 @@ impl BinlogIngestor<'_, '_, '_, '_, '_> {
 
                     if query_event.query_raw() == b"BEGIN" {
                         self.ingestor
-                            .handle_message(IngestionMessage::new_snapshotting_started(
-                                *self.txn, seq_no,
-                            ))
-                            .map_err(ConnectorError::IngestorError)?;
-                        seq_no += 1;
+                            .handle_message(IngestionMessage::SnapshottingStarted)
+                            .await
+                            .map_err(|_| ConnectorError::IngestorError)?;
                     }
                 }
 
                 XID_EVENT => {
                     self.ingestor
-                        .handle_message(IngestionMessage::new_snapshotting_done(*self.txn, seq_no))
-                        .map_err(ConnectorError::IngestorError)?;
-
-                    *self.txn += 1;
-                    seq_no = 0;
+                        .handle_message(IngestionMessage::SnapshottingDone)
+                        .await
+                        .map_err(|_| ConnectorError::IngestorError)?;
                 }
 
                 WRITE_ROWS_EVENT | UPDATE_ROWS_EVENT | DELETE_ROWS_EVENT | WRITE_ROWS_EVENT_V1
@@ -239,7 +231,7 @@ impl BinlogIngestor<'_, '_, '_, '_, '_> {
                     let tme = self.get_tme(binlog_table_id)?;
 
                     if let Some(table) = table_cache.get_corresponding_table(tme) {
-                        self.handle_rows_event(&rows_event, table, tme, &mut seq_no)?;
+                        self.handle_rows_event(&rows_event, table, tme).await?;
                     }
                 }
 
@@ -252,24 +244,22 @@ impl BinlogIngestor<'_, '_, '_, '_, '_> {
         Ok(())
     }
 
-    fn handle_rows_event(
+    async fn handle_rows_event<'a>(
         &self,
         rows_event: &BinlogRowsEvent<'_>,
         table: &TableDefinition,
-        tme: &TableMapEvent,
-        seq_no: &mut u64,
+        tme: &TableMapEvent<'a>,
     ) -> Result<(), ConnectorError> {
         for op in self.make_rows_operations(rows_event, table, tme) {
             self.ingestor
-                .handle_message(IngestionMessage::new_op(
-                    *self.txn,
-                    *seq_no,
-                    table.table_index,
-                    op?,
-                ))
-                .map_err(ConnectorError::IngestorError)?;
+                .handle_message(IngestionMessage::OperationEvent {
+                    table_index: table.table_index,
+                    op: op?,
+                    id: None,
+                })
+                .await
+                .map_err(|_| ConnectorError::IngestorError)?;
         }
-        *seq_no += 1;
 
         Ok(())
     }
@@ -357,13 +347,13 @@ impl BinlogIngestor<'_, '_, '_, '_, '_> {
         rows_event: &'b BinlogRowsEvent<'_>,
         table: &'c TableDefinition,
         tme: &'d TableMapEvent,
-    ) -> Box<dyn Iterator<Item = Result<Operation, MySQLConnectorError>> + 'r> {
+    ) -> impl Iterator<Item = Result<Operation, MySQLConnectorError>> + 'r {
         if rows_event.is_write() {
-            Box::new(self.make_insert_operations(rows_event, table, tme))
+            OperationsIter::Iter1(self.make_insert_operations(rows_event, table, tme))
         } else if rows_event.is_update() {
-            Box::new(self.make_update_operations(rows_event, table, tme))
+            OperationsIter::Iter2(self.make_update_operations(rows_event, table, tme))
         } else if rows_event.is_delete() {
-            Box::new(self.make_delete_operations(rows_event, table, tme))
+            OperationsIter::Iter3(self.make_delete_operations(rows_event, table, tme))
         } else {
             unreachable!()
         }
@@ -422,6 +412,29 @@ impl BinlogIngestor<'_, '_, '_, '_, '_> {
 
             Ok(op)
         })
+    }
+}
+
+enum OperationsIter<I1, I2, I3> {
+    Iter1(I1),
+    Iter2(I2),
+    Iter3(I3),
+}
+
+impl<I1, I2, I3> Iterator for OperationsIter<I1, I2, I3>
+where
+    I1: Iterator,
+    I2: Iterator<Item = I1::Item>,
+    I3: Iterator<Item = I2::Item>,
+{
+    type Item = I3::Item;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            OperationsIter::Iter1(iter) => iter.next(),
+            OperationsIter::Iter2(iter) => iter.next(),
+            OperationsIter::Iter3(iter) => iter.next(),
+        }
     }
 }
 

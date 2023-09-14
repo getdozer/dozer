@@ -281,20 +281,19 @@ fn update_record(
             continue;
         }
 
+        set.push(format!(
+            "{} = {}",
+            field_definition.name,
+            field_to_sql(new_field)
+        ));
+
         let is_primary_key = primary_key.iter().any(|i| *i == index);
 
         if is_primary_key {
-            assert_eq!(old_field, new_field);
             where_.push(format!(
                 "{} = {}",
                 field_definition.name,
                 field_to_sql(old_field)
-            ));
-        } else {
-            set.push(format!(
-                "{} = {}",
-                field_definition.name,
-                field_to_sql(new_field)
             ));
         }
     }

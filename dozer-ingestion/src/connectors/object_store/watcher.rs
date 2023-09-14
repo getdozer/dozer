@@ -15,7 +15,7 @@ use crate::{
     errors::{ConnectorError, ObjectStoreConnectorError, ObjectStoreObjectError},
 };
 
-use dozer_types::ingestion_types::IngestionMessageKind;
+use dozer_types::ingestion_types::IngestionMessage;
 use std::path::Path;
 
 use super::{adapters::DozerObjectStore, table_reader::TableReader};
@@ -52,7 +52,7 @@ pub trait Watcher<T> {
         &self,
         table_index: usize,
         table: &TableInfo,
-        sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
+        sender: Sender<Result<Option<IngestionMessage>, ObjectStoreConnectorError>>,
     ) -> Result<(), ConnectorError>;
 }
 
@@ -62,7 +62,7 @@ impl<T: DozerObjectStore> Watcher<T> for TableReader<T> {
         &self,
         table_index: usize,
         table: &TableInfo,
-        sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
+        sender: Sender<Result<Option<IngestionMessage>, ObjectStoreConnectorError>>,
     ) -> Result<(), ConnectorError> {
         let params = self.config.table_params(&table.name)?;
         let store = Arc::new(params.object_store);

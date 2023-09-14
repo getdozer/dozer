@@ -73,6 +73,7 @@ async fn check_status(
             CacheEndpoint::open(&*cache_manager, Default::default(), endpoint.clone()).unwrap(),
         )],
         Default::default(),
+        50,
     );
     let app = actix_web::test::init_service(api_server).await;
 
@@ -102,6 +103,7 @@ async fn _call_auth_token_api(
             CacheEndpoint::open(&*cache_manager, Default::default(), endpoint).unwrap(),
         )],
         Default::default(),
+        50,
     );
     let app = actix_web::test::init_service(api_server).await;
 

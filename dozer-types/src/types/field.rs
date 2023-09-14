@@ -25,7 +25,7 @@ pub enum Field {
     Boolean(bool),
     String(String),
     Text(String),
-    Binary(Vec<u8>),
+    Binary(#[serde(with = "serde_bytes")] Vec<u8>),
     Decimal(Decimal),
     Timestamp(DateTime<FixedOffset>),
     Date(NaiveDate),

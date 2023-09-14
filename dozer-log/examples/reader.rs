@@ -19,7 +19,7 @@ async fn main() {
 
     let mut counter = 0;
     loop {
-        log_reader.next_op().await.unwrap();
+        log_reader.read_one().await.unwrap();
         counter += 1;
 
         if counter > 100000 {

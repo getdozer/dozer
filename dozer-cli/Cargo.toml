@@ -1,6 +1,6 @@
 [package]
 name = "dozer-cli"
-version = "0.1.37"
+version = "0.1.38"
 edition = "2021"
 default-run = "dozer"
 authors = ["getdozer/dozer-dev"]
@@ -32,7 +32,7 @@ rustyline = "11.0.0"
 rustyline-derive = "0.9.0"
 futures = "0.3.26"
 page_size = "0.5.0"
-reqwest = { version = "0.11.16", features = [
+reqwest = { version = "0.11.20", features = [
   "rustls-tls",
   "cookies",
 ], default-features = false }
@@ -44,7 +44,7 @@ zip = "0.5.11"
 notify = "6.0.1"
 notify-debouncer-full = "0.2.0"
 webbrowser = "0.8.10"
-tempfile = "3.2"
+tempfile = "3.8"
 actix-files = "0.6.2"
 prometheus-parse = "0.2.4"
 
@@ -54,7 +54,8 @@ name = "dozer"
 path = "src/main.rs"
 
 [features]
-snowflake = ["dozer-types/snowflake", "dozer-ingestion/snowflake"]
-mongodb = [ "dozer-ingestion/mongodb" ]
+snowflake = ["dozer-ingestion/snowflake"]
+mongodb = ["dozer-ingestion/mongodb"]
 onnx = ["dozer-sql/onnx"]
 cloud = []
+tokio-console = ["dozer-tracing/tokio-console"]

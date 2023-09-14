@@ -8,7 +8,7 @@ use dozer_types::grpc_types::ingest::{
     ingest_service_server::IngestService, IngestRequest, IngestResponse,
 };
 
-use crate::{connectors::TableInfo, ingestion::Ingestor};
+use crate::{connectors::TableToIngest, ingestion::Ingestor};
 
 use super::adapter::{GrpcIngestMessage, GrpcIngestor, IngestAdapter};
 
@@ -18,7 +18,7 @@ where
 {
     adapter: Arc<GrpcIngestor<T>>,
     ingestor: &'static Ingestor,
-    tables: Vec<TableInfo>,
+    tables: Vec<TableToIngest>,
 }
 impl<T> IngestorServiceImpl<T>
 where
@@ -27,7 +27,7 @@ where
     pub fn new(
         adapter: GrpcIngestor<T>,
         ingestor: &'static Ingestor,
-        tables: Vec<TableInfo>,
+        tables: Vec<TableToIngest>,
     ) -> Self {
         Self {
             adapter: Arc::new(adapter),
@@ -58,6 +58,7 @@ where
         let seq_no = req.seq_no;
         self.adapter
             .handle_message(table_index, GrpcIngestMessage::Default(req), self.ingestor)
+            .await
             .map_err(|e| tonic::Status::internal(format!("ingestion stream error: {e}")))?;
 
         Ok(tonic::Response::new(IngestResponse { seq_no }))
@@ -85,11 +86,9 @@ where
                     };
 
                     seq_no = req.seq_no;
-                    let res = adapter.handle_message(
-                        table_index,
-                        GrpcIngestMessage::Default(req),
-                        ingestor,
-                    );
+                    let res = adapter
+                        .handle_message(table_index, GrpcIngestMessage::Default(req), ingestor)
+                        .await;
                     if let Err(e) = res {
                         error!("ingestion stream insertion errored: {:#?}", e);
                         break;
@@ -123,6 +122,7 @@ where
         let seq_no = req.seq_no;
         self.adapter
             .handle_message(table_index, GrpcIngestMessage::Arrow(req), self.ingestor)
+            .await
             .map_err(|e| tonic::Status::internal(format!("ingestion stream error: {e}")))?;
 
         Ok(tonic::Response::new(IngestResponse { seq_no }))
@@ -150,11 +150,9 @@ where
                     };
 
                     seq_no = req.seq_no;
-                    let res = adapter.handle_message(
-                        table_index,
-                        GrpcIngestMessage::Arrow(req),
-                        ingestor,
-                    );
+                    let res = adapter
+                        .handle_message(table_index, GrpcIngestMessage::Arrow(req), ingestor)
+                        .await;
                     if let Err(e) = res {
                         error!("ingestion stream insertion errored: {:#?}", e);
                         break;

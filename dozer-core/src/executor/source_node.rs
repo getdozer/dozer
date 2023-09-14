@@ -8,17 +8,14 @@ use std::{
 
 use crossbeam::channel::{bounded, Receiver, RecvTimeoutError, Sender};
 use dozer_types::ingestion_types::IngestionMessage;
-use dozer_types::{
-    log::debug,
-    node::{NodeHandle, OpIdentifier},
-};
+use dozer_types::{log::debug, node::NodeHandle};
 
 use crate::{
     builder_dag::NodeKind,
     channels::SourceChannelForwarder,
     errors::ExecutionError,
     forwarder::{SourceChannelManager, StateWriter},
-    node::{PortHandle, Source},
+    node::{PortHandle, Source, SourceState},
 };
 
 use super::{execution_dag::ExecutionDag, node::Node, ExecutorOptions};
@@ -36,8 +33,8 @@ pub struct SourceSenderNode {
     node_handle: NodeHandle,
     /// The source.
     source: Box<dyn Source>,
-    /// Last checkpointed output data sequence number.
-    last_checkpoint: Option<OpIdentifier>,
+    /// Last checkpointed output data sequence numbers.
+    last_checkpoint: SourceState,
     /// The forwarder that will be passed to the source for outputting data.
     forwarder: InternalChannelSourceForwarder,
 }
@@ -145,7 +142,12 @@ pub fn create_source_nodes(
         panic!("Must pass in a node")
     };
     let node_handle = node.handle;
-    let NodeKind::Source(source, last_checkpoint) = node.kind else {
+    let NodeKind::Source {
+        source,
+        port_names,
+        last_checkpoint,
+    } = node.kind
+    else {
         panic!("Must pass in a source node");
     };
 
@@ -167,6 +169,7 @@ pub fn create_source_nodes(
     let state_writer = StateWriter::new(record_writers);
     let channel_manager = SourceChannelManager::new(
         node_handle.clone(),
+        port_names,
         senders,
         Some(state_writer),
         options.commit_sz,

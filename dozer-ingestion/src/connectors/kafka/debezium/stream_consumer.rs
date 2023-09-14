@@ -14,7 +14,7 @@ use dozer_types::serde_json;
 use dozer_types::serde_json::Value;
 use dozer_types::types::{Operation, Record};
 
-use crate::connectors::TableInfo;
+use crate::connectors::TableToIngest;
 use rdkafka::{ClientConfig, Message};
 use tonic::async_trait;
 
@@ -89,10 +89,16 @@ impl StreamConsumer for DebeziumStreamConsumer {
         &self,
         client_config: ClientConfig,
         ingestor: &Ingestor,
-        tables: Vec<TableInfo>,
+        tables: Vec<TableToIngest>,
         _schema_registry_url: &Option<String>,
     ) -> Result<(), ConnectorError> {
-        let topics: Vec<&str> = tables.iter().map(|t| t.name.as_str()).collect();
+        let topics: Vec<&str> = tables
+            .iter()
+            .map(|t| {
+                assert!(t.checkpoint.is_none());
+                t.name.as_str()
+            })
+            .collect();
         let mut con = StreamConsumerHelper::start(&client_config, &topics).await?;
         let mut offsets = OffsetsMap::new();
         loop {
@@ -139,11 +145,9 @@ impl StreamConsumer for DebeziumStreamConsumer {
                             })?;
 
                         ingestor
-                            .handle_message(IngestionMessage::new_op(
-                                0,
-                                0,
-                                0,
-                                Operation::Update {
+                            .handle_message(IngestionMessage::OperationEvent {
+                                table_index: 0,
+                                op: Operation::Update {
                                     old: Record {
                                         values: old,
                                         lifetime: None,
@@ -153,8 +157,10 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                         lifetime: None,
                                     },
                                 },
-                            ))
-                            .map_err(ConnectorError::IngestorError)?;
+                                id: None,
+                            })
+                            .await
+                            .map_err(|_| ConnectorError::IngestorError)?;
                     }
                     (None, Some(old_payload)) => {
                         let old = convert_value_to_schema(old_payload, &schema, &fields_map)
@@ -163,18 +169,18 @@ impl StreamConsumer for DebeziumStreamConsumer {
                             })?;
 
                         ingestor
-                            .handle_message(IngestionMessage::new_op(
-                                0,
-                                0,
-                                0,
-                                Operation::Delete {
+                            .handle_message(IngestionMessage::OperationEvent {
+                                table_index: 0,
+                                op: Operation::Delete {
                                     old: Record {
                                         values: old,
                                         lifetime: None,
                                     },
                                 },
-                            ))
-                            .map_err(ConnectorError::IngestorError)?;
+                                id: None,
+                            })
+                            .await
+                            .map_err(|_| ConnectorError::IngestorError)?;
                     }
                     (Some(new_payload), None) => {
                         let new = convert_value_to_schema(new_payload, &schema, &fields_map)
@@ -183,18 +189,18 @@ impl StreamConsumer for DebeziumStreamConsumer {
                             })?;
 
                         ingestor
-                            .handle_message(IngestionMessage::new_op(
-                                0,
-                                0,
-                                0,
-                                Operation::Insert {
+                            .handle_message(IngestionMessage::OperationEvent {
+                                table_index: 0,
+                                op: Operation::Insert {
                                     new: Record {
                                         values: new,
                                         lifetime: None,
                                     },
                                 },
-                            ))
-                            .map_err(ConnectorError::IngestorError)?;
+                                id: None,
+                            })
+                            .await
+                            .map_err(|_| ConnectorError::IngestorError)?;
                     }
                     (None, None) => {}
                 }

@@ -1,16 +1,17 @@
 use std::collections::HashMap;
 use std::{sync::Arc, thread};
 
-use crate::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
+use crate::connectors::grpc::{ArrowAdapter, DefaultAdapter};
+use crate::ingestion::IngestionIterator;
+use crate::test_util::{create_test_runtime, spawn_connector_all_tables};
 use dozer_types::arrow_types::to_arrow::DOZER_SCHEMA_KEY;
+use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::{
     arrow::array::{Int32Array, StringArray},
     grpc_types::{
         ingest::{ingest_service_client::IngestServiceClient, IngestArrowRequest, IngestRequest},
         types,
     },
-    ingestion_types::IngestionMessageKind,
-    models::connection::{Connection, ConnectionConfig},
     serde_json,
     serde_json::Value,
     types::Operation,
@@ -27,37 +28,34 @@ use dozer_types::{
     ingestion_types::{GrpcConfig, GrpcConfigSchemas},
     serde_json::json,
 };
+use tokio::runtime::Runtime;
 use tonic::transport::Channel;
 
-async fn ingest_grpc(
+use super::connector::GrpcConnector;
+use super::IngestAdapter;
+
+fn ingest_grpc<T: IngestAdapter>(
+    runtime: Arc<Runtime>,
     schemas: Value,
     adapter: String,
     port: u32,
 ) -> (IngestServiceClient<Channel>, IngestionIterator) {
-    let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
+    let grpc_connector = GrpcConnector::<T>::new(
+        "grpc".to_string(),
+        GrpcConfig {
+            schemas: Some(GrpcConfigSchemas::Inline(schemas.to_string())),
+            adapter,
+            port,
+            ..Default::default()
+        },
+    )
+    .unwrap();
 
-    tokio::spawn(async move {
-        let grpc_connector = crate::connectors::get_connector(Connection {
-            config: Some(ConnectionConfig::Grpc(GrpcConfig {
-                schemas: Some(GrpcConfigSchemas::Inline(schemas.to_string())),
-                adapter,
-                port,
-                ..Default::default()
-            })),
-            name: "grpc".to_string(),
-        })
-        .unwrap();
-
-        let tables = grpc_connector
-            .list_columns(grpc_connector.list_tables().await.unwrap())
-            .await
-            .unwrap();
-        grpc_connector.start(&ingestor, tables).await.unwrap();
-    });
+    let (iterator, _) = spawn_connector_all_tables(runtime.clone(), grpc_connector);
 
     let retries = 10;
     let url = format!("http://0.0.0.0:{port}");
-    let mut res = IngestServiceClient::connect(url.clone()).await;
+    let mut res = runtime.block_on(IngestServiceClient::connect(url.clone()));
     for r in 0..retries {
         if res.is_ok() {
             break;
@@ -66,14 +64,15 @@ async fn ingest_grpc(
             panic!("failed to connect after {r} times");
         }
         thread::sleep(std::time::Duration::from_millis(300));
-        res = IngestServiceClient::connect(url.clone()).await;
+        res = runtime.block_on(IngestServiceClient::connect(url.clone()));
     }
 
     (res.unwrap(), iterator)
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn ingest_grpc_default() {
+#[test]
+fn ingest_grpc_default() {
+    let runtime = create_test_runtime();
     let schemas = json!({
       "users": {
         "schema": {
@@ -94,11 +93,11 @@ async fn ingest_grpc_default() {
     });
 
     let (mut ingest_client, mut iterator) =
-        ingest_grpc(schemas, "default".to_string(), 45678).await;
+        ingest_grpc::<DefaultAdapter>(runtime.clone(), schemas, "default".to_string(), 45678);
 
     // Ingest a record
-    ingest_client
-        .ingest(IngestRequest {
+    runtime
+        .block_on(ingest_client.ingest(IngestRequest {
             schema_name: "users".to_string(),
             new: Some(types::Record {
                 values: vec![
@@ -113,14 +112,12 @@ async fn ingest_grpc_default() {
             }),
             seq_no: 1,
             ..Default::default()
-        })
-        .await
+        }))
         .unwrap();
 
     let msg = iterator.next().unwrap();
-    assert_eq!(msg.identifier.seq_in_tx, 1, "seq_no should be 1");
 
-    if let IngestionMessageKind::OperationEvent { op, .. } = msg.kind {
+    if let IngestionMessage::OperationEvent { op, .. } = msg {
         if let Operation::Insert { new: record } = op {
             assert_eq!(record.values[0].as_int(), Some(1675));
             assert_eq!(record.values[1].as_string(), Some("dario"));
@@ -151,8 +148,9 @@ async fn test_serialize_arrow_schema() {
     println!("{str}");
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn ingest_grpc_arrow() {
+#[test]
+fn ingest_grpc_arrow() {
+    let runtime = create_test_runtime();
     let schema_str = serde_json::to_string(
         &DozerSchema::default()
             .field(
@@ -219,7 +217,8 @@ async fn ingest_grpc_arrow() {
       }
     }]);
 
-    let (mut ingest_client, mut iterator) = ingest_grpc(schemas, "arrow".to_string(), 45679).await;
+    let (mut ingest_client, mut iterator) =
+        ingest_grpc::<ArrowAdapter>(runtime.clone(), schemas, "arrow".to_string(), 45679);
 
     // Ingest a record
     let schema = arrow_types::Schema::new_with_metadata(
@@ -241,20 +240,18 @@ async fn ingest_grpc_arrow() {
     )
     .unwrap();
 
-    ingest_client
-        .ingest_arrow(IngestArrowRequest {
+    runtime
+        .block_on(ingest_client.ingest_arrow(IngestArrowRequest {
             schema_name: "users".to_string(),
             records: serialize_record_batch(&record_batch),
             seq_no: 1,
             ..Default::default()
-        })
-        .await
+        }))
         .unwrap();
 
     let msg = iterator.next().unwrap();
-    assert_eq!(msg.identifier.seq_in_tx, 1, "seq_no should be 1");
 
-    if let IngestionMessageKind::OperationEvent { op, .. } = msg.kind {
+    if let IngestionMessage::OperationEvent { op, .. } = msg {
         if let Operation::Insert { new: record } = op {
             assert_eq!(record.values[0].as_int(), Some(1675));
             assert_eq!(record.values[1].as_string(), Some("dario"));

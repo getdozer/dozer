@@ -172,10 +172,10 @@ impl<'a> PostgresIteratorHandler<'a> {
                 .collect::<Vec<_>>();
             snapshotter.sync_tables(&tables).await?;
 
-            let lsn = self.lsn.map_or(0, |(lsn, _)| u64::from(lsn));
             self.ingestor
-                .handle_message(IngestionMessage::new_snapshotting_done(lsn, 0))
-                .map_err(ConnectorError::IngestorError)?;
+                .handle_message(IngestionMessage::SnapshottingDone)
+                .await
+                .map_err(|_| ConnectorError::IngestorError)?;
 
             debug!("\nInitialized with tables: {:?}", details.tables);
 

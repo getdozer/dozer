@@ -1,14 +1,14 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use dozer_ingestion::test_util::create_test_runtime;
 use dozer_types::serde_yaml;
 use helper::TestConfig;
-use tokio::runtime::Runtime;
 mod helper;
 fn connectors(criter: &mut Criterion) {
-    let runtime = Runtime::new().unwrap();
+    let runtime = create_test_runtime();
     let configs = load_test_config();
 
     for config in configs {
-        let mut iterator = runtime.block_on(helper::get_connection_iterator(config.clone()));
+        let mut iterator = helper::get_connection_iterator(runtime.clone(), config.clone());
         let pb = helper::get_progress();
         let mut count = 0;
         criter.bench_with_input(

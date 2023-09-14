@@ -7,7 +7,8 @@ use crate::simple::build;
 use crate::simple::helper::validate_config;
 use crate::utils::{
     get_api_security_config, get_app_grpc_config, get_cache_manager_options,
-    get_checkpoint_factory_options, get_executor_options, get_grpc_config, get_rest_config,
+    get_checkpoint_factory_options, get_default_max_num_records, get_executor_options,
+    get_grpc_config, get_rest_config,
 };
 
 use crate::{flatten_join_handle, join_handle_map_err};
@@ -32,7 +33,6 @@ use dozer_core::errors::ExecutionError;
 use dozer_ingestion::connectors::{get_connector, SourceSchema, TableInfo};
 use dozer_sql::pipeline::builder::statement_to_pipeline;
 use dozer_sql::pipeline::errors::PipelineError;
-use dozer_types::crossbeam::channel::{self, Sender};
 use dozer_types::log::info;
 use dozer_types::models::config::Config;
 use dozer_types::tracing::error;
@@ -42,7 +42,8 @@ use metrics::{describe_counter, describe_histogram};
 use std::collections::HashMap;
 use std::fs;
 
-use std::sync::Arc;
+use std::sync::mpsc::Sender;
+use std::sync::{mpsc, Arc};
 use std::thread;
 use tokio::runtime::Runtime;
 use tokio::sync::broadcast;
@@ -100,6 +101,7 @@ impl SimpleOrchestrator {
                 LmdbRwCacheManager::new(get_cache_manager_options(&self.config))
                     .map_err(OrchestrationError::CacheInitFailed)?,
             );
+            let default_max_num_records = get_default_max_num_records(&self.config);
             let mut cache_endpoints = vec![];
             for endpoint in &self.config.endpoints {
                 let (cache_endpoint, handle) = select! {
@@ -112,6 +114,7 @@ impl SimpleOrchestrator {
                         Box::pin(shutdown.create_shutdown_future()),
                         operations_sender.clone(),
                         self.labels.clone(),
+
                     ) => result?
                 };
                 let cache_name = endpoint.name.clone();
@@ -131,7 +134,8 @@ impl SimpleOrchestrator {
                 let security = get_api_security_config(&self.config).cloned();
                 let cache_endpoints_for_rest = cache_endpoints.clone();
                 let shutdown_for_rest = shutdown.create_shutdown_future();
-                let api_server = rest::ApiServer::new(rest_config, security);
+                let api_server =
+                    rest::ApiServer::new(rest_config, security, default_max_num_records);
                 let api_server = api_server
                     .run(
                         cache_endpoints_for_rest,
@@ -156,6 +160,7 @@ impl SimpleOrchestrator {
                         shutdown,
                         operations_receiver,
                         self.labels.clone(),
+                        default_max_num_records,
                     )
                     .await
                     .map_err(OrchestrationError::ApiInitFailed)?;
@@ -196,7 +201,7 @@ impl SimpleOrchestrator {
     pub fn run_apps(
         &mut self,
         shutdown: ShutdownReceiver,
-        api_notifier: Option<Sender<bool>>,
+        api_notifier: Option<Sender<()>>,
     ) -> Result<(), OrchestrationError> {
         let home_dir = HomeDir::new(self.home_dir(), self.cache_dir());
         let contract = Contract::deserialize(self.lockfile_path().as_std_path())?;
@@ -230,9 +235,7 @@ impl SimpleOrchestrator {
             .map_err(OrchestrationError::InternalServerFailed)?;
 
         if let Some(api_notifier) = api_notifier {
-            api_notifier
-                .send(true)
-                .expect("Failed to notify API server");
+            api_notifier.send(()).expect("Failed to notify API server");
         }
 
         let labels = self.labels.clone();
@@ -272,14 +275,16 @@ impl SimpleOrchestrator {
         })
     }
 
-    pub fn generate_token(&self) -> Result<String, OrchestrationError> {
+    pub fn generate_token(&self, ttl_in_secs: Option<i32>) -> Result<String, OrchestrationError> {
         if let Some(api_config) = &self.config.api {
             if let Some(api_security) = &api_config.api_security {
                 match api_security {
                     dozer_types::models::api_security::ApiSecurity::Jwt(secret) => {
                         let auth = Authorizer::new(secret, None, None);
+                        let duration =
+                            ttl_in_secs.map(|f| std::time::Duration::from_secs(f as u64));
                         let token = auth
-                            .generate_token(Access::All, None)
+                            .generate_token(Access::All, duration)
                             .map_err(OrchestrationError::GenerateTokenFailed)?;
                         return Ok(token);
                     }
@@ -404,7 +409,7 @@ impl SimpleOrchestrator {
     ) -> Result<(), OrchestrationError> {
         let mut dozer_api = self.clone();
 
-        let (tx, rx) = channel::unbounded::<bool>();
+        let (tx, rx) = mpsc::channel::<()>();
 
         self.build(false, shutdown.clone(), locked)?;
 

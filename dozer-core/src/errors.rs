@@ -1,12 +1,11 @@
 use std::path::PathBuf;
 
-use crate::checkpoint::ReadCheckpointError;
 use crate::node::PortHandle;
 use dozer_storage::errors::StorageError;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::node::{NodeHandle, OpIdentifier};
-use dozer_types::thiserror;
+use dozer_types::node::NodeHandle;
 use dozer_types::thiserror::Error;
+use dozer_types::{bincode, thiserror};
 
 #[derive(Error, Debug)]
 pub enum ExecutionError {
@@ -44,12 +43,12 @@ pub enum ExecutionError {
     CheckpointWriterThreadPanicked,
     #[error("Unrecognized checkpoint: {0}")]
     UnrecognizedCheckpoint(String),
-    #[error("Read checkpoint error: {0}")]
-    CorruptedCheckpoint(#[from] ReadCheckpointError),
-    #[error("Source {source_name} cannot start from checkpoint {checkpoint:?}. You have to clean data from previous runs by running `dozer clean`")]
-    SourceCannotStartFromCheckpoint {
+    #[error("Cannot deserialize checkpoint: {0}")]
+    CorruptedCheckpoint(#[source] bincode::Error),
+    #[error("Table {table_name} of source {source_name} cannot restart. You have to clean data from previous runs by running `dozer clean`")]
+    SourceCannotRestart {
         source_name: NodeHandle,
-        checkpoint: OpIdentifier,
+        table_name: String,
     },
     #[error("Failed to create checkpoint: {0}")]
     FailedToCreateCheckpoint(BoxedError),

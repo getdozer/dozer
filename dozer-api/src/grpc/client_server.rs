@@ -1,5 +1,6 @@
 use super::metric_middleware::MetricMiddlewareLayer;
 use super::{auth_middleware::AuthMiddlewareLayer, common::CommonService, typed::TypedService};
+use crate::api_helper::get_api_security;
 use crate::errors::ApiInitError;
 use crate::grpc::auth::AuthService;
 use crate::grpc::health::HealthService;
@@ -39,6 +40,7 @@ impl ApiServer {
         &self,
         cache_endpoints: Vec<Arc<CacheEndpoint>>,
         operations_receiver: Option<broadcast::Receiver<Operation>>,
+        default_max_num_records: usize,
     ) -> Result<
         (
             Option<TypedService>,
@@ -56,13 +58,15 @@ impl ApiServer {
             builder = builder.register_encoded_file_descriptor_set(descriptor_bytes);
         }
         let inflection_service = builder.build().map_err(GrpcError::ServerReflectionError)?;
+        let security = get_api_security(self.security.to_owned());
 
         // Service handling dynamic gRPC requests.
         let typed_service = if self.flags.dynamic {
             Some(TypedService::new(
                 cache_endpoints,
                 operations_receiver,
-                self.security.clone(),
+                security,
+                default_max_num_records,
             )?)
         } else {
             None
@@ -87,6 +91,7 @@ impl ApiServer {
         shutdown: impl Future<Output = ()> + Send + 'static,
         operations_receiver: Option<Receiver<Operation>>,
         labels: LabelsAndProgress,
+        default_max_num_records: usize,
     ) -> Result<impl Future<Output = Result<(), tonic::transport::Error>>, ApiInitError> {
         // Create our services.
         let mut web_config = tonic_web::config();
@@ -97,11 +102,15 @@ impl ApiServer {
         let common_service = CommonGrpcServiceServer::new(CommonService::new(
             cache_endpoints.clone(),
             operations_receiver.as_ref().map(|r| r.resubscribe()),
+            default_max_num_records,
         ));
         let common_service = web_config.enable(common_service);
 
-        let (typed_service, reflection_service) =
-            self.get_dynamic_service(cache_endpoints, operations_receiver)?;
+        let (typed_service, reflection_service) = self.get_dynamic_service(
+            cache_endpoints,
+            operations_receiver,
+            default_max_num_records,
+        )?;
         let typed_service = typed_service.map(|typed_service| web_config.enable(typed_service));
         let reflection_service = web_config.enable(reflection_service);
 
@@ -119,7 +128,8 @@ impl ApiServer {
         let health_service = web_config.enable(health_service);
 
         // Auth middleware.
-        let auth_middleware = AuthMiddlewareLayer::new(self.security.clone());
+        let security = get_api_security(self.security.to_owned());
+        let auth_middleware = AuthMiddlewareLayer::new(security.clone());
 
         // Authenticated services.
         let common_service = auth_middleware.layer(common_service);
@@ -134,9 +144,10 @@ impl ApiServer {
         let health_service = auth_middleware.layer(health_service);
 
         let mut auth_service = None;
-        if self.security.is_some() {
+        let security = get_api_security(self.security.to_owned());
+        if security.is_some() {
             let service = web_config.enable(AuthGrpcServiceServer::new(AuthService::new(
-                self.security.clone(),
+                security.to_owned(),
             )));
             auth_service = Some(auth_middleware.layer(service));
         }
@@ -169,11 +180,9 @@ impl ApiServer {
         let addr = format!("{}:{}", self.host, self.port);
         info!(
             "Starting gRPC server on {addr} with security: {}",
-            self.security
-                .as_ref()
-                .map_or("None".to_string(), |s| match s {
-                    ApiSecurity::Jwt(_) => "JWT".to_string(),
-                })
+            security.as_ref().map_or("None".to_string(), |s| match s {
+                ApiSecurity::Jwt(_) => "JWT".to_string(),
+            })
         );
         let addr = addr
             .parse()

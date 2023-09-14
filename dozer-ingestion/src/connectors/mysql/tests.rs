@@ -1,10 +1,5 @@
 use crate::connectors::TableInfo;
-use dozer_types::{
-    errors::internal::BoxedError,
-    ingestion_types::{IngestionMessage, IngestorError, IngestorForwarder},
-};
 use mysql_async::{prelude::Queryable, Opts, Pool};
-use std::sync::{mpsc::Sender, Mutex};
 
 pub struct TestConfig {
     pub url: String,
@@ -83,28 +78,4 @@ pub struct TestTable {
     pub name: &'static str,
     pub create_table_sql: &'static str,
     pub table_info: TableInfo,
-}
-
-#[derive(Debug)]
-pub struct MockIngestionStream {
-    pub sender: Mutex<Sender<IngestionMessage>>,
-}
-
-impl MockIngestionStream {
-    pub fn new(sender: Sender<IngestionMessage>) -> Self {
-        Self {
-            sender: Mutex::new(sender),
-        }
-    }
-}
-
-impl IngestorForwarder for MockIngestionStream {
-    fn forward(&self, msg: IngestionMessage) -> Result<(), IngestorError> {
-        self.sender
-            .lock()
-            .unwrap()
-            .send(msg)
-            .map_err(BoxedError::from)?;
-        Ok(())
-    }
 }

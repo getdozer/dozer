@@ -3,12 +3,10 @@ use std::path::Path;
 
 use super::adapter::{GrpcIngestor, IngestAdapter};
 use super::ingest::IngestorServiceImpl;
-use crate::connectors::{table_name, SourceSchema, SourceSchemaResult, TableIdentifier};
-use crate::{
-    connectors::{Connector, TableInfo},
-    errors::ConnectorError,
-    ingestion::Ingestor,
+use crate::connectors::{
+    table_name, Connector, SourceSchema, SourceSchemaResult, TableIdentifier, TableToIngest,
 };
+use crate::{connectors::TableInfo, errors::ConnectorError, ingestion::Ingestor};
 use dozer_types::grpc_types::ingest::ingest_service_server::IngestServiceServer;
 use dozer_types::ingestion_types::GrpcConfig;
 use dozer_types::log::{info, warn};
@@ -68,7 +66,7 @@ where
     pub async fn serve(
         &self,
         ingestor: &Ingestor,
-        tables: Vec<TableInfo>,
+        tables: Vec<TableToIngest>,
     ) -> Result<(), ConnectorError> {
         let host = &self.config.host;
         let port = self.config.port;
@@ -222,7 +220,7 @@ where
     async fn start(
         &self,
         ingestor: &Ingestor,
-        tables: Vec<TableInfo>,
+        tables: Vec<TableToIngest>,
     ) -> Result<(), ConnectorError> {
         self.serve(ingestor, tables).await
     }

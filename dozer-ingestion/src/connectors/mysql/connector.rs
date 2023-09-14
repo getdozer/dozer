@@ -8,6 +8,7 @@ use super::{
 use crate::{
     connectors::{
         CdcType, Connector, SourceSchema, SourceSchemaResult, TableIdentifier, TableInfo,
+        TableToIngest,
     },
     errors::MySQLConnectorError,
 };
@@ -189,9 +190,22 @@ impl Connector for MySQLConnector {
     async fn start(
         &self,
         ingestor: &Ingestor,
-        tables: Vec<TableInfo>,
+        tables: Vec<TableToIngest>,
     ) -> Result<(), ConnectorError> {
-        self.replicate(ingestor, tables).await.map_err(Into::into)
+        let table_infos = tables
+            .into_iter()
+            .map(|table| {
+                assert!(table.checkpoint.is_none());
+                TableInfo {
+                    schema: table.schema,
+                    name: table.name,
+                    column_names: table.column_names,
+                }
+            })
+            .collect();
+        self.replicate(ingestor, table_infos)
+            .await
+            .map_err(Into::into)
     }
 }
 
@@ -211,28 +225,16 @@ impl MySQLConnector {
         ingestor: &Ingestor,
         table_infos: Vec<TableInfo>,
     ) -> Result<(), ConnectorError> {
-        let mut txn = 0;
-
         let table_definitions = self
             .schema_helper()
             .get_table_definitions(&table_infos)
             .await?;
-        let binlog_positions = self
-            .replicate_tables(ingestor, &table_definitions, &mut txn)
-            .await?;
+        let binlog_positions = self.replicate_tables(ingestor, &table_definitions).await?;
 
-        let binlog_position = self
-            .sync_with_binlog(ingestor, binlog_positions, &mut txn)
-            .await?;
+        let binlog_position = self.sync_with_binlog(ingestor, binlog_positions).await?;
 
-        self.ingest_binlog(
-            ingestor,
-            &table_definitions,
-            binlog_position,
-            None,
-            &mut txn,
-        )
-        .await?;
+        self.ingest_binlog(ingestor, &table_definitions, binlog_position, None)
+            .await?;
 
         Ok(())
     }
@@ -241,7 +243,6 @@ impl MySQLConnector {
         &self,
         ingestor: &Ingestor,
         table_definitions: &[TableDefinition],
-        txn: &mut u64,
     ) -> Result<Vec<(TableDefinition, BinlogPosition)>, ConnectorError> {
         let mut binlog_position_per_table = Vec::new();
 
@@ -278,11 +279,10 @@ impl MySQLConnector {
                 continue;
             }
 
-            let mut seq_no = 0u64;
-
             ingestor
-                .handle_message(IngestionMessage::new_snapshotting_started(*txn, seq_no))
-                .map_err(ConnectorError::IngestorError)?;
+                .handle_message(IngestionMessage::SnapshottingStarted)
+                .await
+                .map_err(|_| ConnectorError::IngestorError)?;
 
             let mut rows = conn.exec_iter(
                 format!(
@@ -309,10 +309,14 @@ impl MySQLConnector {
                     new: Record::new(row.into_fields(&field_types)?),
                 };
 
-                seq_no += 1;
                 ingestor
-                    .handle_message(IngestionMessage::new_op(*txn, seq_no, table_index, op))
-                    .map_err(ConnectorError::IngestorError)?;
+                    .handle_message(IngestionMessage::OperationEvent {
+                        table_index,
+                        op,
+                        id: None,
+                    })
+                    .await
+                    .map_err(|_| ConnectorError::IngestorError)?;
             }
 
             let binlog_position = get_master_binlog_position(&mut conn).await?;
@@ -321,14 +325,12 @@ impl MySQLConnector {
                 .await
                 .map_err(MySQLConnectorError::QueryExecutionError)?;
 
-            seq_no += 1;
             ingestor
-                .handle_message(IngestionMessage::new_snapshotting_done(*txn, seq_no))
-                .map_err(ConnectorError::IngestorError)?;
+                .handle_message(IngestionMessage::SnapshottingDone)
+                .await
+                .map_err(|_| ConnectorError::IngestorError)?;
 
             binlog_position_per_table.push((td.clone(), binlog_position));
-
-            *txn += 1;
         }
 
         Ok(binlog_position_per_table)
@@ -338,7 +340,6 @@ impl MySQLConnector {
         &self,
         ingestor: &Ingestor,
         binlog_positions: Vec<(TableDefinition, BinlogPosition)>,
-        txn: &mut u64,
     ) -> Result<BinlogPosition, ConnectorError> {
         assert!(!binlog_positions.is_empty());
 
@@ -357,7 +358,6 @@ impl MySQLConnector {
                         &synced_tables,
                         start_position,
                         Some(end_position),
-                        txn,
                     )
                     .await?;
                 }
@@ -377,7 +377,6 @@ impl MySQLConnector {
         tables: &[TableDefinition],
         start_position: BinlogPosition,
         stop_position: Option<BinlogPosition>,
-        txn: &mut u64,
     ) -> Result<(), ConnectorError> {
         let server_id = self.server_id.unwrap_or(0xd07e5);
 
@@ -387,7 +386,6 @@ impl MySQLConnector {
             start_position,
             stop_position,
             server_id,
-            txn,
             (&self.conn_pool, &self.conn_url),
         );
 
@@ -402,14 +400,11 @@ mod tests {
         connectors::{
             mysql::{
                 connection::Conn,
-                tests::{
-                    create_test_table, mariadb_test_config, mysql_test_config, MockIngestionStream,
-                    TestConfig,
-                },
+                tests::{create_test_table, mariadb_test_config, mysql_test_config, TestConfig},
             },
             CdcType, Connector, SourceSchema, TableIdentifier,
         },
-        ingestion::Ingestor,
+        ingestion::{IngestionIterator, Ingestor},
     };
     use dozer_types::{
         ingestion_types::IngestionMessage,
@@ -419,15 +414,12 @@ mod tests {
         },
     };
     use serial_test::serial;
-    use std::{
-        sync::{mpsc::Receiver, Arc},
-        time::Duration,
-    };
+    use std::time::Duration;
 
     struct TestCtx {
         pub connector: MySQLConnector,
         pub ingestor: Ingestor,
-        pub message_channel: Receiver<IngestionMessage>,
+        pub iterator: IngestionIterator,
     }
 
     impl TestCtx {
@@ -435,28 +427,27 @@ mod tests {
             let url = config.url.clone();
             let opts = config.opts.clone();
 
-            let (sender, receiver) = std::sync::mpsc::channel();
-
-            let ingestion_stream = MockIngestionStream::new(sender);
-            let ingestor = Ingestor {
-                sender: Arc::new(Box::new(ingestion_stream)),
-            };
+            let (ingestor, iterator) = Ingestor::initialize_channel(Default::default());
             let connector = MySQLConnector::new(url, opts, Some(10));
 
             Self {
                 connector,
                 ingestor,
-                message_channel: receiver,
+                iterator,
             }
         }
     }
 
-    fn check_ingestion_messages(
-        message_channel: &Receiver<IngestionMessage>,
+    async fn check_ingestion_messages(
+        iterator: &mut IngestionIterator,
         expected_ingestion_messages: Vec<IngestionMessage>,
     ) {
-        let actual_ingestion_messages =
-            message_channel.take_timeout(expected_ingestion_messages.len(), Duration::from_secs(5));
+        let actual_ingestion_messages = take_timeout(
+            iterator,
+            expected_ingestion_messages.len(),
+            Duration::from_secs(5),
+        )
+        .await;
 
         for (i, (actual, expected)) in std::iter::zip(
             actual_ingestion_messages.iter(),
@@ -471,19 +462,17 @@ mod tests {
         }
     }
 
-    trait TakeTimeout {
-        fn take_timeout(&self, n: usize, timeout: Duration) -> Vec<IngestionMessage>;
-    }
-
-    impl TakeTimeout for Receiver<IngestionMessage> {
-        fn take_timeout(&self, n: usize, timeout: Duration) -> Vec<IngestionMessage> {
-            let mut vec = Vec::new();
-            for _ in 0..n {
-                let msg = self.recv_timeout(timeout).unwrap();
-                vec.push(msg);
-            }
-            vec
+    async fn take_timeout(
+        iterator: &mut IngestionIterator,
+        n: usize,
+        timeout: Duration,
+    ) -> Vec<IngestionMessage> {
+        let mut vec = Vec::new();
+        for _ in 0..n {
+            let msg = iterator.next_timeout(timeout).await.unwrap();
+            vec.push(msg);
         }
+        vec
     }
 
     async fn test_connector_simple_table_replication(config: TestConfig) {
@@ -491,7 +480,7 @@ mod tests {
         let TestCtx {
             connector,
             ingestor,
-            message_channel,
+            mut iterator,
             ..
         } = TestCtx::setup(&config).await;
 
@@ -519,52 +508,49 @@ mod tests {
         .unwrap();
 
         let result = connector
-            .replicate_tables(&ingestor, &table_definitions, &mut 0)
+            .replicate_tables(&ingestor, &table_definitions)
             .await;
         assert!(result.is_ok(), "unexpected error: {result:?}");
 
         let expected_ingestion_messages = vec![
-            IngestionMessage::new_snapshotting_started(0, 0),
-            IngestionMessage::new_op(
-                0,
-                1,
-                0,
-                Insert {
+            IngestionMessage::SnapshottingStarted,
+            IngestionMessage::OperationEvent {
+                table_index: 0,
+                op: Insert {
                     new: Record::new(vec![
                         Field::Int(1),
                         Field::Text("a".into()),
                         Field::Float(1.0.into()),
                     ]),
                 },
-            ),
-            IngestionMessage::new_op(
-                0,
-                2,
-                0,
-                Insert {
+                id: None,
+            },
+            IngestionMessage::OperationEvent {
+                table_index: 0,
+                op: Insert {
                     new: Record::new(vec![
                         Field::Int(2),
                         Field::Text("b".into()),
                         Field::Float(2.0.into()),
                     ]),
                 },
-            ),
-            IngestionMessage::new_op(
-                0,
-                3,
-                0,
-                Insert {
+                id: None,
+            },
+            IngestionMessage::OperationEvent {
+                table_index: 0,
+                op: Insert {
                     new: Record::new(vec![
                         Field::Int(3),
                         Field::Text("c".into()),
                         Field::Float(3.0.into()),
                     ]),
                 },
-            ),
-            IngestionMessage::new_snapshotting_done(0, 4),
+                id: None,
+            },
+            IngestionMessage::SnapshottingDone,
         ];
 
-        check_ingestion_messages(&message_channel, expected_ingestion_messages);
+        check_ingestion_messages(&mut iterator, expected_ingestion_messages).await;
     }
 
     #[tokio::test]
@@ -586,7 +572,7 @@ mod tests {
         let TestCtx {
             connector,
             ingestor,
-            message_channel,
+            mut iterator,
             ..
         } = TestCtx::setup(&config).await;
 
@@ -619,29 +605,27 @@ mod tests {
             .unwrap();
 
         let expected_ingestion_messages = vec![
-            IngestionMessage::new_snapshotting_started(0, 0),
-            IngestionMessage::new_op(
-                0,
-                1,
-                0,
-                Insert {
+            IngestionMessage::SnapshottingStarted,
+            IngestionMessage::OperationEvent {
+                table_index: 0,
+                op: Insert {
                     new: Record::new(vec![Field::Int(4), Field::Float(4.0.into())]),
                 },
-            ),
-            IngestionMessage::new_snapshotting_done(0, 2),
-            IngestionMessage::new_snapshotting_started(1, 0),
-            IngestionMessage::new_op(
-                1,
-                1,
-                1,
-                Insert {
+                id: None,
+            },
+            IngestionMessage::SnapshottingDone,
+            IngestionMessage::SnapshottingStarted,
+            IngestionMessage::OperationEvent {
+                table_index: 1,
+                op: Insert {
                     new: Record::new(vec![Field::Int(1), Field::Json(JsonValue::Bool(true))]),
                 },
-            ),
-            IngestionMessage::new_snapshotting_done(1, 2),
+                id: None,
+            },
+            IngestionMessage::SnapshottingDone,
         ];
 
-        check_ingestion_messages(&message_channel, expected_ingestion_messages);
+        check_ingestion_messages(&mut iterator, expected_ingestion_messages).await;
 
         // test update
         conn.exec_drop("UPDATE test3 SET b = 5.0 WHERE a = 4", ())
@@ -649,20 +633,19 @@ mod tests {
             .unwrap();
 
         let expected_ingestion_messages = vec![
-            IngestionMessage::new_snapshotting_started(2, 0),
-            IngestionMessage::new_op(
-                2,
-                1,
-                0,
-                Update {
+            IngestionMessage::SnapshottingStarted,
+            IngestionMessage::OperationEvent {
+                table_index: 0,
+                op: Update {
                     old: Record::new(vec![Field::Int(4), Field::Float(4.0.into())]),
                     new: Record::new(vec![Field::Int(4), Field::Float(5.0.into())]),
                 },
-            ),
-            IngestionMessage::new_snapshotting_done(2, 2),
+                id: None,
+            },
+            IngestionMessage::SnapshottingDone,
         ];
 
-        check_ingestion_messages(&message_channel, expected_ingestion_messages);
+        check_ingestion_messages(&mut iterator, expected_ingestion_messages).await;
 
         // test delete
         conn.exec_drop("DELETE FROM test3 WHERE a = 4", ())
@@ -670,19 +653,18 @@ mod tests {
             .unwrap();
 
         let expected_ingestion_messages = vec![
-            IngestionMessage::new_snapshotting_started(3, 0),
-            IngestionMessage::new_op(
-                3,
-                1,
-                0,
-                Delete {
+            IngestionMessage::SnapshottingStarted,
+            IngestionMessage::OperationEvent {
+                table_index: 0,
+                op: Delete {
                     old: Record::new(vec![Field::Int(4), Field::Float(5.0.into())]),
                 },
-            ),
-            IngestionMessage::new_snapshotting_done(3, 2),
+                id: None,
+            },
+            IngestionMessage::SnapshottingDone,
         ];
 
-        check_ingestion_messages(&message_channel, expected_ingestion_messages);
+        check_ingestion_messages(&mut iterator, expected_ingestion_messages).await;
     }
 
     #[tokio::test]

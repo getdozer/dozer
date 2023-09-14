@@ -2,6 +2,7 @@ use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::serde_json::Value;
 mod query_helper;
 mod query_serde;
+use dozer_types::constants::DEFAULT_DEFAULT_MAX_NUM_RECORDS;
 #[cfg(test)]
 mod tests;
 
@@ -25,16 +26,12 @@ pub struct QueryExpression {
     pub skip: Skip,
 }
 
-pub fn default_limit_for_query() -> usize {
-    50
-}
-
 impl QueryExpression {
-    pub fn with_default_limit() -> Self {
+    pub fn with_limit(limit: usize) -> Self {
         Self {
             filter: None,
             order_by: Default::default(),
-            limit: Some(default_limit_for_query()),
+            limit: Some(limit),
             skip: Default::default(),
         }
     }
@@ -51,7 +48,7 @@ impl QueryExpression {
 
 impl Default for QueryExpression {
     fn default() -> Self {
-        Self::with_default_limit()
+        Self::with_limit(DEFAULT_DEFAULT_MAX_NUM_RECORDS)
     }
 }
 

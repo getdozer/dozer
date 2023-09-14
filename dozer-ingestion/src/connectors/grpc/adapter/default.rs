@@ -1,4 +1,5 @@
 use dozer_types::serde_json;
+use tonic::async_trait;
 
 use crate::{connectors::SourceSchema, errors::ConnectorError};
 
@@ -32,6 +33,8 @@ impl DefaultAdapter {
         Ok(schemas)
     }
 }
+
+#[async_trait]
 impl IngestAdapter for DefaultAdapter {
     fn new(schemas_str: String) -> Result<Self, ConnectorError> {
         let schema_map = Self::parse_schemas(&schemas_str)?;
@@ -43,7 +46,8 @@ impl IngestAdapter for DefaultAdapter {
             .map(|(key, value)| (key.clone(), value.clone()))
             .collect()
     }
-    fn handle_message(
+
+    async fn handle_message(
         &self,
         table_index: usize,
         msg: GrpcIngestMessage,
@@ -51,7 +55,7 @@ impl IngestAdapter for DefaultAdapter {
     ) -> Result<(), ConnectorError> {
         match msg {
             GrpcIngestMessage::Default(msg) => {
-                handle_message(table_index, msg, &self.schema_map, ingestor)
+                handle_message(table_index, msg, &self.schema_map, ingestor).await
             }
             GrpcIngestMessage::Arrow(_) => Err(ConnectorError::InitializationError(
                 "Wrong message format!".to_string(),
@@ -60,7 +64,7 @@ impl IngestAdapter for DefaultAdapter {
     }
 }
 
-pub fn handle_message(
+pub async fn handle_message(
     table_index: usize,
     req: IngestRequest,
     schema_map: &HashMap<String, SourceSchema>,
@@ -86,13 +90,13 @@ pub fn handle_message(
         },
     };
     ingestor
-        .handle_message(IngestionMessage::new_op(
-            0,
-            req.seq_no as u64,
+        .handle_message(IngestionMessage::OperationEvent {
             table_index,
             op,
-        ))
-        .map_err(ConnectorError::IngestorError)
+            id: None,
+        })
+        .await
+        .map_err(|_| ConnectorError::IngestorError)
 }
 
 fn map_record(rec: grpc_types::types::Record, schema: &Schema) -> Result<Record, ConnectorError> {

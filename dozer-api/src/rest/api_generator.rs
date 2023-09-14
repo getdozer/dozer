@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use actix_web::web::ReqData;
 use actix_web::{web, HttpResponse};
-use dozer_cache::cache::expression::{default_limit_for_query, QueryExpression, Skip};
+use dozer_cache::cache::expression::{QueryExpression, Skip};
 use dozer_cache::cache::CacheRecord;
 use dozer_cache::{CacheReader, Phase};
 use dozer_types::errors::types::CannotConvertF64ToJson;
@@ -114,10 +114,11 @@ pub async fn query(
     access: Option<ReqData<Access>>,
     cache_endpoint: ReqData<Arc<CacheEndpoint>>,
     query_expression: QueryExpressionExtractor,
+    default_max_num_records: web::Data<usize>,
 ) -> Result<HttpResponse, ApiError> {
     let mut query_expression = query_expression.0;
     if query_expression.limit.is_none() {
-        query_expression.limit = Some(default_limit_for_query());
+        query_expression.limit = Some(**default_max_num_records);
     }
 
     get_records_map(access, cache_endpoint, &mut query_expression)

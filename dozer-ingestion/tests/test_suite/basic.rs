@@ -1,15 +1,15 @@
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use dozer_ingestion::{
     connectors::{CdcType, Connector, SourceSchema, TableIdentifier},
-    ingestion::Ingestor,
+    test_util::spawn_connector,
 };
 use dozer_types::{
-    ingestion_types::IngestionMessageKind,
-    log::{error, warn},
+    ingestion_types::IngestionMessage,
+    log::warn,
     types::{Field, FieldDefinition, FieldType, Operation, Record, Schema},
 };
-use futures::stream::{AbortHandle, Abortable};
+use tokio::runtime::Runtime;
 
 use super::{
     data,
@@ -17,7 +17,7 @@ use super::{
     CudConnectorTest, DataReadyConnectorTest, InsertOnlyConnectorTest,
 };
 
-pub async fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>() {
+pub async fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>(runtime: Arc<Runtime>) {
     let (_connector_test, connector) = T::new().await;
 
     // List tables.
@@ -35,26 +35,23 @@ pub async fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>() {
         .collect::<Vec<_>>();
 
     // Run connector.
-    let (ingestor, mut iterator) = Ingestor::initialize_channel(Default::default());
-    let (abort_handle, abort_registration) = AbortHandle::new_pair();
-    tokio::spawn(async move {
-        if let Ok(Err(e)) =
-            Abortable::new(connector.start(&ingestor, tables), abort_registration).await
-        {
-            error!("Connector `start` returned error: {e}");
-        }
-    });
+    let (mut iterator, abort_handle) = spawn_connector(runtime, connector, tables);
 
     // Loop over messages until timeout.
     let mut last_identifier = None;
     let mut num_operations = 0;
-    while let Some(message) = iterator.next_timeout(Duration::from_secs(1)) {
+    while let Some(message) = iterator.next_timeout(Duration::from_secs(1)).await {
         // Check message identifier.
-        if let IngestionMessageKind::OperationEvent { table_index, op } = &message.kind {
-            if let Some(last_identifier) = last_identifier {
-                assert!(message.identifier > last_identifier);
+        if let IngestionMessage::OperationEvent {
+            table_index,
+            op,
+            id,
+        } = &message
+        {
+            if let Some((last_id, id)) = last_identifier.zip(*id) {
+                assert!(id > last_id);
             }
-            last_identifier = Some(message.identifier);
+            last_identifier = *id;
 
             num_operations += 1;
             // Check record schema consistency.
@@ -78,7 +75,7 @@ pub async fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>() {
     abort_handle.abort()
 }
 
-pub async fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
+pub async fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>(runtime: Arc<Runtime>) {
     let table_name = "test_table".to_string();
     for data_fn in [
         data::records_with_primary_key,
@@ -144,30 +141,25 @@ pub async fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
         assert_eq!(actual_schema.primary_index, actual_primary_index);
 
         // Run the connector and check data is ingested.
-        let (ingestor, mut iterator) = Ingestor::initialize_channel(Default::default());
-        let (abort_handle, abort_registration) = AbortHandle::new_pair();
-        tokio::spawn(async move {
-            if let Ok(Err(e)) =
-                Abortable::new(connector.start(&ingestor, tables), abort_registration).await
-            {
-                error!("Connector `start` returned error: {e}")
-            }
-        });
+        let (mut iterator, abort_handle) = spawn_connector(runtime.clone(), connector, tables);
 
         let mut record_iter = records.iter();
 
         let mut last_identifier = None;
-        while let Some(message) = iterator.next_timeout(Duration::from_secs(1)) {
-            // Identifier must be increasing.
-            if let Some(identifier) = last_identifier {
-                assert!(message.identifier > identifier);
-                last_identifier = Some(message.identifier);
-            }
-
+        while let Some(message) = iterator.next_timeout(Duration::from_secs(1)).await {
             // Filter out non-operation events.
-            let IngestionMessageKind::OperationEvent { op: operation, .. } = message.kind else {
+            let IngestionMessage::OperationEvent {
+                op: operation, id, ..
+            } = message
+            else {
                 continue;
             };
+
+            // Identifier must be increasing.
+            if let Some((last_id, id)) = last_identifier.zip(id) {
+                assert!(id > last_id);
+            }
+            last_identifier = id;
 
             // Operation must be insert.
             let Operation::Insert { new: actual_record } = operation else {
@@ -198,7 +190,7 @@ pub async fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>() {
     }
 }
 
-pub async fn run_test_suite_basic_cud<T: CudConnectorTest>() {
+pub async fn run_test_suite_basic_cud<T: CudConnectorTest>(runtime: Arc<Runtime>) {
     // Load test data.
     let ((fields, primary_index), operations) = data::cud_operations();
 
@@ -226,27 +218,25 @@ pub async fn run_test_suite_basic_cud<T: CudConnectorTest>() {
     connector_test.start_cud(operations.clone()).await;
 
     // Run the connector.
-    let (ingestor, mut iterator) = Ingestor::initialize_channel(Default::default());
-    tokio::spawn(async move {
-        if let Err(e) = connector.start(&ingestor, vec![]).await {
-            error!("Connector `start` returned error: {e}")
-        }
-    });
+    let (mut iterator, abort_handle) = spawn_connector(runtime, connector, tables);
 
     // Check data schema consistency.
     let mut last_identifier = None;
     let mut records = Records::new(actual_primary_index.clone());
-    while let Some(message) = iterator.next_timeout(Duration::from_secs(1)) {
-        // Identifier must be increasing.
-        if let Some(identifier) = last_identifier {
-            assert!(message.identifier > identifier);
-            last_identifier = Some(message.identifier);
-        }
-
+    while let Some(message) = iterator.next_timeout(Duration::from_secs(1)).await {
         // Filter out non-operation events.
-        let IngestionMessageKind::OperationEvent { op: operation, .. } = message.kind else {
+        let IngestionMessage::OperationEvent {
+            op: operation, id, ..
+        } = message
+        else {
             continue;
         };
+
+        // Identifier must be increasing.
+        if let Some((last_id, id)) = last_identifier.zip(id) {
+            assert!(id > last_id);
+        }
+        last_identifier = id;
 
         // Record must match schema.
         match operation {
@@ -276,6 +266,8 @@ pub async fn run_test_suite_basic_cud<T: CudConnectorTest>() {
         expected_records.append_operation(operation);
     }
     assert_eq!(records, expected_records);
+
+    abort_handle.abort();
 }
 
 fn assert_record_matches_schema(record: &Record, schema: &Schema, only_match_pk: bool) {

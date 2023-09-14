@@ -119,7 +119,7 @@ fn reader_next_op(mut cx: FunctionContext) -> JsResult<JsPromise> {
         // Read the next operation.
         let mut reader = reader.lock().await;
         let schema = reader.schema.schema.clone();
-        let op = reader.next_op().await;
+        let op = reader.read_one().await;
 
         // Resolve the promise.
         deferred.settle_with(&channel, move |mut cx| {
@@ -127,7 +127,7 @@ fn reader_next_op(mut cx: FunctionContext) -> JsResult<JsPromise> {
                 Ok(op) => op,
                 Err(error) => return cx.throw_error(error.to_string()),
             }
-            .0;
+            .op;
             mapper::map_executor_operation(op, &schema, &mut cx)
         });
     });

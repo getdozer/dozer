@@ -61,6 +61,12 @@ pub mod telemetry {
     pub const FILE_DESCRIPTOR_SET: &[u8] = tonic::include_file_descriptor_set!("telemetry");
 }
 
+pub mod api_explorer {
+    #![allow(clippy::derive_partial_eq_without_eq)]
+    tonic::include_proto!("dozer.api_explorer");
+    pub const FILE_DESCRIPTOR_SET: &[u8] = tonic::include_file_descriptor_set!("api_explorer");
+}
+
 // To be used in tests
 pub mod generated {
     pub mod films {

@@ -1,7 +1,7 @@
 use crate::connectors::postgres::connection::validator::validate_connection;
 use crate::connectors::postgres::iterator::PostgresIterator;
 use crate::connectors::{
-    Connector, ListOrFilterColumns, SourceSchemaResult, TableIdentifier, TableInfo,
+    Connector, ListOrFilterColumns, SourceSchemaResult, TableIdentifier, TableInfo, TableToIngest,
 };
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
@@ -165,7 +165,7 @@ impl Connector for PostgresConnector {
     async fn start(
         &self,
         ingestor: &Ingestor,
-        tables: Vec<TableInfo>,
+        tables: Vec<TableToIngest>,
     ) -> Result<(), ConnectorError> {
         let client = helper::connect(self.replication_conn_config.clone())
             .await
@@ -181,10 +181,13 @@ impl Connector for PostgresConnector {
 
         let tables = tables
             .into_iter()
-            .map(|table| ListOrFilterColumns {
-                schema: table.schema,
-                name: table.name,
-                columns: Some(table.column_names),
+            .map(|table| {
+                assert!(table.checkpoint.is_none());
+                ListOrFilterColumns {
+                    schema: table.schema,
+                    name: table.name,
+                    columns: Some(table.column_names),
+                }
             })
             .collect::<Vec<_>>();
         let iterator = PostgresIterator::new(

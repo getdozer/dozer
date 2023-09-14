@@ -5,7 +5,7 @@ use std::sync::Arc;
 use crate::connectors::ethereum::log::connector::EthLogConnector;
 use crate::ingestion::Ingestor;
 use crate::{
-    connectors::{ethereum::helper as conn_helper, TableInfo},
+    connectors::{ethereum::helper as conn_helper, TableToIngest},
     errors::ConnectorError,
 };
 use dozer_types::ingestion_types::{EthFilter, IngestionMessage};
@@ -29,7 +29,7 @@ pub struct EthDetails<'a> {
     filter: EthFilter,
     ingestor: &'a Ingestor,
     contracts: HashMap<String, ContractTuple>,
-    pub tables: Vec<TableInfo>,
+    pub tables: Vec<TableToIngest>,
     pub schema_map: HashMap<H256, usize>,
     pub conn_name: String,
 }
@@ -41,7 +41,7 @@ impl<'a> EthDetails<'a> {
         filter: EthFilter,
         ingestor: &'a Ingestor,
         contracts: HashMap<String, ContractTuple>,
-        tables: Vec<TableInfo>,
+        tables: Vec<TableToIngest>,
         schema_map: HashMap<H256, usize>,
         conn_name: String,
     ) -> Self {
@@ -134,7 +134,7 @@ pub async fn run(details: Arc<EthDetails<'_>>) -> Result<(), ConnectorError> {
                 .map_or(Err(ConnectorError::EmptyMessage), Ok)?
                 .map_err(ConnectorError::EthError)?;
 
-            process_log(details.clone(), msg)?;
+            process_log(details.clone(), msg).await?;
         }
     } else {
         info!("[{}] Reading reached block_to limit", details.conn_name);
@@ -168,7 +168,7 @@ pub fn fetch_logs(
                     process_log(
                         details.clone(),
                         msg,
-                    )?;
+                    ).await?;
                 }
                 Ok(())
             },
@@ -224,7 +224,7 @@ pub fn fetch_logs(
     .boxed()
 }
 
-fn process_log(details: Arc<EthDetails>, msg: Log) -> Result<(), ConnectorError> {
+async fn process_log(details: Arc<EthDetails<'_>>, msg: Log) -> Result<(), ConnectorError> {
     // Filter pending logs. log.log_index is None for pending State
     if msg.log_index.is_none() {
         Ok(())
@@ -234,13 +234,13 @@ fn process_log(details: Arc<EthDetails>, msg: Log) -> Result<(), ConnectorError>
             // Write eth_log record
             details
                 .ingestor
-                .handle_message(IngestionMessage::new_op(
-                    msg.block_number.expect("expected for non pending").as_u64(),
-                    0,
+                .handle_message(IngestionMessage::OperationEvent {
                     table_index,
                     op,
-                ))
-                .map_err(ConnectorError::IngestorError)?;
+                    id: None,
+                })
+                .await
+                .map_err(|_| ConnectorError::IngestorError)?;
         } else {
             trace!("Ignoring log : {:?}", msg);
         }
@@ -252,8 +252,13 @@ fn process_log(details: Arc<EthDetails>, msg: Log) -> Result<(), ConnectorError>
             trace!("Writing event : {:?}", op);
             details
                 .ingestor
-                .handle_message(IngestionMessage::new_op(0, 0, table_index, op))
-                .map_err(ConnectorError::IngestorError)?;
+                .handle_message(IngestionMessage::OperationEvent {
+                    table_index,
+                    op,
+                    id: None,
+                })
+                .await
+                .map_err(|_| ConnectorError::IngestorError)?;
         } else {
             trace!("Writing event : {:?}", op);
         }

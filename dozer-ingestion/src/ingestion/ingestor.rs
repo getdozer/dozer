@@ -1,52 +1,28 @@
-use crossbeam::channel::{bounded, Receiver};
-use dozer_types::ingestion_types::{IngestionMessage, IngestorError, IngestorForwarder};
-use dozer_types::log::warn;
-use std::sync::Arc;
+use dozer_types::ingestion_types::IngestionMessage;
 use std::time::Duration;
+use tokio::{
+    sync::mpsc::{channel, error::SendError, Receiver, Sender},
+    time::timeout,
+};
 
 use super::IngestionConfig;
 
 #[derive(Debug)]
-pub struct ChannelForwarder {
-    pub sender: crossbeam::channel::Sender<IngestionMessage>,
-}
-
-impl IngestorForwarder for ChannelForwarder {
-    fn forward(&self, msg: IngestionMessage) -> Result<(), IngestorError> {
-        self.sender
-            .send(msg)
-            .map_err(|e| IngestorError::ChannelError(Box::new(e)))
-    }
-}
-#[derive(Debug)]
 /// `IngestionIterator` is the receiver side of a spsc channel. The sender side is `Ingestor`.
 pub struct IngestionIterator {
-    pub rx: Receiver<IngestionMessage>,
+    pub receiver: Receiver<IngestionMessage>,
 }
 
 impl Iterator for IngestionIterator {
     type Item = IngestionMessage;
     fn next(&mut self) -> Option<Self::Item> {
-        let msg = self.rx.recv();
-        match msg {
-            Ok(msg) => Some(msg),
-            Err(e) => {
-                warn!("IngestionIterator: Error in receiving {:?}", e.to_string());
-                None
-            }
-        }
+        self.receiver.blocking_recv()
     }
 }
+
 impl IngestionIterator {
-    pub fn next_timeout(&mut self, timeout: Duration) -> Option<IngestionMessage> {
-        let msg = self.rx.recv_timeout(timeout);
-        match msg {
-            Ok(msg) => Some(msg),
-            Err(e) => {
-                warn!("IngestionIterator: Error in receiving {:?}", e.to_string());
-                None
-            }
-        }
+    pub async fn next_timeout(&mut self, duration: Duration) -> Option<IngestionMessage> {
+        timeout(duration, self.receiver.recv()).await.ok().flatten()
     }
 }
 
@@ -55,38 +31,42 @@ impl IngestionIterator {
 ///
 /// `IngestionMessage` is the message type that is sent over the channel.
 pub struct Ingestor {
-    pub sender: Arc<Box<dyn IngestorForwarder>>,
+    pub sender: Sender<IngestionMessage>,
 }
 
 impl Ingestor {
     pub fn initialize_channel(config: IngestionConfig) -> (Ingestor, IngestionIterator) {
-        let (tx, rx) = bounded(config.forwarder_channel_cap);
-        let sender: Arc<Box<dyn IngestorForwarder>> =
-            Arc::new(Box::new(ChannelForwarder { sender: tx }));
+        let (sender, receiver) = channel(config.forwarder_channel_cap);
         let ingestor = Self { sender };
 
-        let iterator = IngestionIterator { rx };
+        let iterator = IngestionIterator { receiver };
         (ingestor, iterator)
     }
 
-    pub fn handle_message(&self, message: IngestionMessage) -> Result<(), IngestorError> {
-        self.sender.forward(message)
+    pub async fn handle_message(
+        &self,
+        message: IngestionMessage,
+    ) -> Result<(), SendError<IngestionMessage>> {
+        self.sender.send(message).await
+    }
+
+    pub fn blocking_handle_message(
+        &self,
+        message: IngestionMessage,
+    ) -> Result<(), SendError<IngestionMessage>> {
+        self.sender.blocking_send(message)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{ChannelForwarder, Ingestor, IngestorForwarder};
-    use crossbeam::channel::unbounded;
-    use dozer_types::ingestion_types::{IngestionMessage, IngestionMessageKind};
+    use super::Ingestor;
+    use dozer_types::ingestion_types::IngestionMessage;
     use dozer_types::types::{Operation, Record};
-    use std::sync::Arc;
 
     #[tokio::test]
     async fn test_message_handle() {
-        let (tx, rx) = unbounded();
-        let sender: Arc<Box<dyn IngestorForwarder>> =
-            Arc::new(Box::new(ChannelForwarder { sender: tx }));
+        let (sender, mut rx) = tokio::sync::mpsc::channel(10);
         let ingestor = Ingestor { sender };
 
         // Expected seq no - 2
@@ -100,22 +80,37 @@ mod tests {
         };
 
         ingestor
-            .handle_message(IngestionMessage::new_op(1, 2, 0, operation.clone()))
+            .handle_message(IngestionMessage::OperationEvent {
+                table_index: 0,
+                op: operation.clone(),
+                id: None,
+            })
+            .await
             .unwrap();
         ingestor
-            .handle_message(IngestionMessage::new_op(1, 3, 0, operation2.clone()))
+            .handle_message(IngestionMessage::OperationEvent {
+                table_index: 0,
+                op: operation2.clone(),
+                id: None,
+            })
+            .await
             .unwrap();
         ingestor
-            .handle_message(IngestionMessage::new_snapshotting_done(1, 4))
+            .handle_message(IngestionMessage::SnapshottingDone)
+            .await
             .unwrap();
 
         let expected_op_event_message = vec![operation, operation2].into_iter();
 
         for op in expected_op_event_message {
-            let msg = rx.recv().unwrap();
+            let msg = rx.recv().await.unwrap();
             assert_eq!(
-                IngestionMessageKind::OperationEvent { table_index: 0, op },
-                msg.kind
+                IngestionMessage::OperationEvent {
+                    table_index: 0,
+                    op,
+                    id: None
+                },
+                msg
             );
         }
     }

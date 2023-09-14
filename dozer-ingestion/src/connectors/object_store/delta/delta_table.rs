@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use deltalake::{datafusion::prelude::SessionContext, s3_storage_options};
 use dozer_types::chrono::{DateTime, Utc};
-use dozer_types::ingestion_types::IngestionMessageKind;
+use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::{
     arrow_types::from_arrow::{map_schema_to_dozer, map_value_to_dozer_field},
     ingestion_types::DeltaConfig,
@@ -125,7 +125,7 @@ impl<T: DozerObjectStore + Send> TableWatcher for DeltaTable<T> {
         &self,
         table_index: usize,
         table: &TableInfo,
-        sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
+        sender: Sender<Result<Option<IngestionMessage>, ObjectStoreConnectorError>>,
     ) -> Result<JoinHandle<(usize, HashMap<object_store::path::Path, DateTime<Utc>>)>, ConnectorError>
     {
         let params = self.store_config.table_params(&table.name)?;
@@ -200,9 +200,10 @@ impl<T: DozerObjectStore + Send> TableWatcher for DeltaTable<T> {
                     };
 
                     if let Err(e) = sender
-                        .send(Ok(Some(IngestionMessageKind::OperationEvent {
+                        .send(Ok(Some(IngestionMessage::OperationEvent {
                             table_index,
                             op: evt,
+                            id: None,
                         })))
                         .await
                     {
@@ -241,7 +242,7 @@ impl<T: DozerObjectStore + Send> TableWatcher for DeltaTable<T> {
         &self,
         _table_index: usize,
         _table: &TableInfo,
-        _sender: Sender<Result<Option<IngestionMessageKind>, ObjectStoreConnectorError>>,
+        _sender: Sender<Result<Option<IngestionMessage>, ObjectStoreConnectorError>>,
     ) -> Result<(), ConnectorError> {
         Ok(())
     }

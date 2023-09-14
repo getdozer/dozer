@@ -7,6 +7,7 @@ use dozer_types::serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(crate = "dozer_types::serde")]
 pub struct CountingBloomFilter {
+    #[serde(with = "dozer_types::serde_bytes")]
     counters: Vec<u8>,
     num_hashes: u32,
     #[serde(skip)]

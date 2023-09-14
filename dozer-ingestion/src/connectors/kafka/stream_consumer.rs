@@ -1,7 +1,7 @@
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
 
-use crate::connectors::TableInfo;
+use crate::connectors::TableToIngest;
 use rdkafka::ClientConfig;
 use tonic::async_trait;
 
@@ -11,7 +11,7 @@ pub trait StreamConsumer {
         &self,
         client_config: ClientConfig,
         ingestor: &Ingestor,
-        tables: Vec<TableInfo>,
+        tables: Vec<TableToIngest>,
         schema_registry_url: &Option<String>,
     ) -> Result<(), ConnectorError>;
 }

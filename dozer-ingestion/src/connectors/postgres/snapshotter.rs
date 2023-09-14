@@ -119,23 +119,27 @@ impl<'a> PostgresSnapshotter<'a> {
         // deadlock
         drop(tx);
 
-        let mut idx = 0;
         self.ingestor
-            .handle_message(IngestionMessage::new_snapshotting_started(idx, 0))
-            .map_err(ConnectorError::IngestorError)?;
-        idx += 1;
+            .handle_message(IngestionMessage::SnapshottingStarted)
+            .await
+            .map_err(|_| ConnectorError::IngestorError)?;
 
         while let Some(message) = rx.recv().await {
             let (table_index, evt) = message?;
             self.ingestor
-                .handle_message(IngestionMessage::new_op(0, idx, table_index, evt))
-                .map_err(ConnectorError::IngestorError)?;
-            idx += 1;
+                .handle_message(IngestionMessage::OperationEvent {
+                    table_index,
+                    op: evt,
+                    id: None,
+                })
+                .await
+                .map_err(|_| ConnectorError::IngestorError)?;
         }
 
         self.ingestor
-            .handle_message(IngestionMessage::new_snapshotting_done(0_u64, idx))
-            .map_err(ConnectorError::IngestorError)?;
+            .handle_message(IngestionMessage::SnapshottingDone)
+            .await
+            .map_err(|_| ConnectorError::IngestorError)?;
 
         // All tasks in the joinset should have finished (because they have dropped their senders)
         // Otherwise, they will be aborted when the joinset is dropped
@@ -145,7 +149,8 @@ impl<'a> PostgresSnapshotter<'a> {
 
 #[cfg(test)]
 mod tests {
-    use dozer_types::{ingestion_types::IngestionMessage, node::OpIdentifier};
+    use std::time::Duration;
+
     use rand::Rng;
     use serial_test::serial;
 
@@ -206,13 +211,11 @@ mod tests {
 
             let mut i = 0;
             while i < 2 {
-                if let Some(IngestionMessage {
-                    identifier: OpIdentifier { seq_in_tx, .. },
-                    ..
-                }) = iterator.next()
+                if iterator
+                    .next_timeout(Duration::from_secs(1))
+                    .await
+                    .is_none()
                 {
-                    assert_eq!(i, seq_in_tx);
-                } else {
                     panic!("Unexpected operation");
                 }
                 i += 1;

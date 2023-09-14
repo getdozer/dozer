@@ -34,6 +34,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .protoc_arg("--experimental_allow_proto3_optional")
         .file_descriptor_set_path(out_dir.join("telemetry.bin"))
         .compile(&["protos/telemetry.proto"], &["protos"])?;
+    tonic_build::configure()
+        .protoc_arg("--experimental_allow_proto3_optional")
+        .file_descriptor_set_path(out_dir.join("api_explorer.bin"))
+        .compile(&["protos/api_explorer.proto"], &["protos"])?;
 
     // Sample service generated for tests and development
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());

@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
 use dozer_types::grpc_types::ingest::{IngestArrowRequest, IngestRequest};
+use tonic::async_trait;
 
 use crate::{connectors::SourceSchema, errors::ConnectorError, ingestion::Ingestor};
 
@@ -10,13 +11,15 @@ mod arrow;
 
 pub use arrow::ArrowAdapter;
 pub use default::DefaultAdapter;
+
+#[async_trait]
 pub trait IngestAdapter: Debug
 where
     Self: Send + Sync + 'static + Sized,
 {
     fn new(schemas_str: String) -> Result<Self, ConnectorError>;
     fn get_schemas(&self) -> Vec<(String, SourceSchema)>;
-    fn handle_message(
+    async fn handle_message(
         &self,
         table_index: usize,
         msg: GrpcIngestMessage,
@@ -52,12 +55,14 @@ where
         Ok(self.adapter.get_schemas())
     }
 
-    pub fn handle_message(
+    pub async fn handle_message(
         &self,
         table_index: usize,
         msg: GrpcIngestMessage,
         ingestor: &'static Ingestor,
     ) -> Result<(), ConnectorError> {
-        self.adapter.handle_message(table_index, msg, ingestor)
+        self.adapter
+            .handle_message(table_index, msg, ingestor)
+            .await
     }
 }

@@ -19,7 +19,9 @@ use dozer_types::{
     types::{Field, FieldDefinition, FieldType, Operation, Record, SourceDefinition},
 };
 
-use super::{Connector, SourceSchema, SourceSchemaResult, TableIdentifier, TableInfo};
+use super::{
+    Connector, SourceSchema, SourceSchemaResult, TableIdentifier, TableInfo, TableToIngest,
+};
 
 #[derive(Error, Debug)]
 pub enum MongodbConnectorError {
@@ -464,83 +466,6 @@ impl Connector for MongodbConnector {
         Ok(())
     }
 
-    async fn start(
-        &self,
-        ingestor: &Ingestor,
-        tables: Vec<TableInfo>,
-    ) -> Result<(), ConnectorError> {
-        // Snapshot: find
-        //
-        // Replicate: changeStream
-        let client = self.client().await?;
-        let database = self.database(&client);
-
-        let (tx, mut rx) = channel::<Result<(usize, Operation), ConnectorError>>(100);
-
-        let snapshots = FuturesUnordered::new();
-        for (idx, table) in tables.iter().enumerate() {
-            let fut = snapshot_collection(&client, &database, &table.name, idx, tx.clone())
-                .map_ok(move |timestamp| (idx, timestamp));
-            snapshots.push(fut);
-        }
-        drop(tx);
-
-        let snapshot_ingestor = ingestor.clone();
-        let snapshot_task = tokio::spawn(async move {
-            snapshot_ingestor
-                .handle_message(IngestionMessage::new_snapshotting_started(0, 0))
-                .map_err(ConnectorError::IngestorError)?;
-            let mut seq = 1;
-            while let Some(result) = rx.recv().await {
-                let (table_idx, op) = result?;
-                snapshot_ingestor
-                    .handle_message(IngestionMessage::new_op(0, seq, table_idx, op))
-                    .map_err(ConnectorError::IngestorError)?;
-                seq += 1;
-            }
-            snapshot_ingestor
-                .handle_message(IngestionMessage::new_snapshotting_done(0, seq))
-                .map_err(ConnectorError::IngestorError)?;
-            seq += 1;
-            Ok::<_, ConnectorError>(seq)
-        });
-
-        let timestamps: Vec<(usize, Timestamp)> = snapshots.try_collect().await?;
-
-        let mut seq = snapshot_task.await.unwrap()?;
-
-        let (tx, mut rx) = channel::<Result<(usize, Operation), ConnectorError>>(100);
-
-        let replicators = FuturesUnordered::new();
-        for (table_idx, timestamp) in timestamps {
-            let tx = tx.clone();
-            replicators.push(replicate_collection(
-                &database,
-                &tables[table_idx].name,
-                timestamp,
-                table_idx,
-                tx,
-            ));
-        }
-        drop(tx);
-
-        let ingestor = ingestor.clone();
-        let replication_task = tokio::spawn(async move {
-            while let Some(result) = rx.recv().await {
-                let (table_idx, op) = result?;
-                ingestor
-                    .handle_message(IngestionMessage::new_op(0, seq, table_idx, op))
-                    .map_err(ConnectorError::IngestorError)?;
-                seq += 1;
-            }
-            Ok::<_, ConnectorError>(())
-        });
-
-        let _: () = replicators.try_collect().await?;
-        let _ = replication_task.await.unwrap()?;
-        Ok(())
-    }
-
     fn types_mapping() -> Vec<(String, Option<FieldType>)> {
         todo!();
     }
@@ -660,6 +585,91 @@ impl Connector for MongodbConnector {
                 })
                 .await?;
         }
+        Ok(())
+    }
+
+    async fn start(
+        &self,
+        ingestor: &Ingestor,
+        tables: Vec<TableToIngest>,
+    ) -> Result<(), ConnectorError> {
+        // Snapshot: find
+        //
+        // Replicate: changeStream
+        let client = self.client().await?;
+        let database = self.database(&client);
+
+        let (tx, mut rx) = channel::<Result<(usize, Operation), ConnectorError>>(100);
+
+        let snapshots = FuturesUnordered::new();
+        for (idx, table) in tables.iter().enumerate() {
+            let fut = snapshot_collection(&client, &database, &table.name, idx, tx.clone())
+                .map_ok(move |timestamp| (idx, timestamp));
+            snapshots.push(fut);
+        }
+        drop(tx);
+
+        let snapshot_ingestor = ingestor.clone();
+        let snapshot_task = tokio::spawn(async move {
+            snapshot_ingestor
+                .handle_message(IngestionMessage::SnapshottingStarted)
+                .await
+                .map_err(|_| ConnectorError::IngestorError)?;
+            while let Some(result) = rx.recv().await {
+                let (table_index, op) = result?;
+                snapshot_ingestor
+                    .handle_message(IngestionMessage::OperationEvent {
+                        table_index,
+                        op,
+                        id: None,
+                    })
+                    .await
+                    .map_err(|_| ConnectorError::IngestorError)?;
+            }
+            snapshot_ingestor
+                .handle_message(IngestionMessage::SnapshottingDone)
+                .await
+                .map_err(|_| ConnectorError::IngestorError)?;
+            Ok::<_, ConnectorError>(())
+        });
+
+        let timestamps: Vec<(usize, Timestamp)> = snapshots.try_collect().await?;
+
+        snapshot_task.await.unwrap()?;
+
+        let (tx, mut rx) = channel::<Result<(usize, Operation), ConnectorError>>(100);
+
+        let replicators = FuturesUnordered::new();
+        for (table_idx, timestamp) in timestamps {
+            let tx = tx.clone();
+            replicators.push(replicate_collection(
+                &database,
+                &tables[table_idx].name,
+                timestamp,
+                table_idx,
+                tx,
+            ));
+        }
+        drop(tx);
+
+        let ingestor = ingestor.clone();
+        let replication_task = tokio::spawn(async move {
+            while let Some(result) = rx.recv().await {
+                let (table_index, op) = result?;
+                ingestor
+                    .handle_message(IngestionMessage::OperationEvent {
+                        table_index,
+                        op,
+                        id: None,
+                    })
+                    .await
+                    .map_err(|_| ConnectorError::IngestorError)?;
+            }
+            Ok::<_, ConnectorError>(())
+        });
+
+        let _: () = replicators.try_collect().await?;
+        let _ = replication_task.await.unwrap()?;
         Ok(())
     }
 }

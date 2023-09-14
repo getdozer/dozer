@@ -87,13 +87,11 @@ fn execute_hop_window(
 
     let windows = hop(field, hop_size, interval)?;
 
-    let mut records = vec![];
+    let mut records = Vec::with_capacity(windows.len());
     for (start, end) in windows.into_iter() {
         let record_ref = record_store.create_ref(&[start, end])?;
 
-        let mut window_record = record.clone();
-        window_record.push(record_ref);
-        records.push(window_record);
+        records.push(ProcessorRecord::appended(&record, record_ref));
     }
 
     Ok(records)
@@ -138,8 +136,7 @@ fn execute_tumble_window(
     let (start, end) = tumble(field, interval)?;
     let record_ref = record_store.create_ref(&[start, end])?;
 
-    let mut window_record = record;
-    window_record.push(record_ref);
+    let window_record = ProcessorRecord::appended(&record, record_ref);
     Ok(vec![window_record])
 }
 

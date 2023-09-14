@@ -16,15 +16,18 @@ use dozer_types::indexmap::IndexMap;
 use dozer_types::rust_decimal::Decimal;
 use dozer_types::types::*;
 use odbc::ffi::{SqlDataType, SQL_DATE_STRUCT, SQL_TIMESTAMP_STRUCT};
-use odbc::odbc_safe::AutocommitOn;
-use odbc::{
-    ColumnDescriptor, Connection, Cursor, Data, DiagnosticRecord, Executed, HasResult, NoData,
-    ResultSetState, Statement,
-};
+use odbc::odbc_safe::{AutocommitOn, Odbc3};
+use odbc::{ColumnDescriptor, Cursor, DiagnosticRecord, Environment, Executed, HasResult};
 use rand::distributions::Alphanumeric;
 use rand::Rng;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Write;
+use std::ops::Deref;
+use std::rc::Rc;
+
+use super::helpers::is_network_failure;
+use super::pool::{Conn, Pool};
 
 fn convert_decimal(bytes: &[u8], scale: u16) -> Result<Field, SnowflakeSchemaError> {
     let is_negative = bytes[bytes.len() - 4] == 255;
@@ -150,53 +153,13 @@ pub fn convert_data(
     }
 }
 
-pub struct ResultIterator<'a, 'b> {
-    stmt: Option<Statement<'a, 'b, Executed, HasResult, AutocommitOn>>,
-    cols: i16,
-    schema: Vec<ColumnDescriptor>,
-}
-
-impl<'a, 'b> ResultIterator<'a, 'b> {
-    pub fn close_cursor(&mut self) -> Result<(), SnowflakeError> {
-        self.stmt
-            .take()
-            .unwrap()
-            .close_cursor()
-            .map_or_else(|e| Err(QueryError(Box::new(e))), |_| Ok(()))
-    }
-}
-
-impl Iterator for ResultIterator<'_, '_> {
-    type Item = Vec<Field>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        return if let Some(ref mut stmt) = self.stmt {
-            match stmt.fetch().unwrap() {
-                None => None,
-                Some(mut cursor) => {
-                    let mut values = vec![];
-                    for i in 1..(self.cols + 1) {
-                        let descriptor = self.schema.get((i - 1) as usize)?;
-                        let value = convert_data(&mut cursor, i as u16, descriptor).unwrap();
-                        values.push(value);
-                    }
-
-                    Some(values)
-                }
-            }
-        } else {
-            None
-        };
-    }
-}
-
-pub struct Client {
-    conn_string: String,
+pub struct Client<'env> {
+    pool: Pool<'env>,
     name: String,
 }
 
-impl Client {
-    pub fn new(config: &SnowflakeConfig) -> Self {
+impl<'env> Client<'env> {
+    pub fn new(config: &SnowflakeConfig, env: &'env Environment<Odbc3>) -> Self {
         let mut conn_hashmap: HashMap<String, String> = HashMap::new();
         let driver = match &config.driver {
             None => "Snowflake".to_string(),
@@ -226,42 +189,20 @@ impl Client {
             .take(7)
             .map(char::from)
             .collect();
-        Self { conn_string, name }
-    }
-
-    pub fn get_conn_string(&self) -> String {
-        self.conn_string.clone()
+        let pool = Pool::new(env, conn_string);
+        Self { pool, name }
     }
 
     pub fn get_name(&self) -> String {
         self.name.clone()
     }
 
-    pub fn exec(
-        &self,
-        conn: &Connection<AutocommitOn>,
-        query: String,
-    ) -> Result<Option<bool>, SnowflakeError> {
-        let stmt = Statement::with_parent(conn).map_err(|e| QueryError(Box::new(e)))?;
-
-        let result = stmt
-            .exec_direct(&query)
-            .map_err(|e| QueryError(Box::new(e)))?;
-        match result {
-            Data(_) => Ok(Some(true)),
-            NoData(_) => Ok(None),
-        }
+    pub fn exec(&self, query: &str) -> Result<(), SnowflakeError> {
+        exec_drop(&self.pool, query).map_err(QueryError)
     }
 
-    pub fn exec_stream_creation(
-        &self,
-        conn: &Connection<AutocommitOn>,
-        query: String,
-    ) -> Result<bool, SnowflakeError> {
-        let stmt = Statement::with_parent(conn).map_err(|e| QueryError(Box::new(e)))?;
-
-        let result = stmt.exec_direct(&query);
-
+    pub fn exec_stream_creation(&self, query: String) -> Result<bool, SnowflakeError> {
+        let result = exec_drop(&self.pool, &query);
         result.map_or_else(
             |e| {
                 if e.get_native_error() == 2203 {
@@ -269,132 +210,50 @@ impl Client {
                 } else if e.get_native_error() == 707 {
                     Err(SnowflakeStreamError(TimeTravelNotAvailableError))
                 } else {
-                    Err(QueryError(Box::new(e)))
+                    Err(QueryError(e))
                 }
             },
             |_| Ok(true),
         )
     }
 
-    pub fn parse_stream_creation_error(e: DiagnosticRecord) -> Result<bool, SnowflakeError> {
+    pub fn parse_stream_creation_error(e: Box<DiagnosticRecord>) -> Result<bool, SnowflakeError> {
         if e.get_native_error() == 2203 {
             Ok(false)
         } else {
-            Err(QueryError(Box::new(e)))
+            Err(QueryError(e))
         }
     }
 
-    fn parse_not_exist_error(e: DiagnosticRecord) -> Result<bool, SnowflakeError> {
+    fn parse_not_exist_error(e: Box<DiagnosticRecord>) -> Result<bool, SnowflakeError> {
         if e.get_native_error() == 2003 {
             Ok(false)
         } else {
-            Err(QueryError(Box::new(e)))
+            Err(QueryError(e))
         }
     }
 
-    fn parse_exist(result: ResultSetState<Executed, AutocommitOn>) -> bool {
-        match result {
-            Data(mut x) => x.fetch().unwrap().is_some(),
-            NoData(_) => false,
-        }
-    }
-
-    pub fn stream_exist(
-        &self,
-        conn: &Connection<AutocommitOn>,
-        stream_name: &String,
-    ) -> Result<bool, SnowflakeError> {
+    pub fn stream_exist(&self, stream_name: &String) -> Result<bool, SnowflakeError> {
         let query = format!("SHOW STREAMS LIKE '{stream_name}';");
 
-        let stmt = Statement::with_parent(conn).map_err(|e| QueryError(Box::new(e)))?;
-        stmt.exec_direct(&query)
-            .map_or_else(Self::parse_not_exist_error, |result| {
-                Ok(Self::parse_exist(result))
-            })
+        exec_first_exists(&self.pool, &query).map_or_else(Self::parse_not_exist_error, Ok)
     }
 
-    pub fn table_exist(
-        &self,
-        conn: &Connection<AutocommitOn>,
-        table_name: &String,
-    ) -> Result<bool, SnowflakeError> {
+    pub fn table_exist(&self, table_name: &String) -> Result<bool, SnowflakeError> {
         let query =
             format!("SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = '{table_name}';");
 
-        let stmt = Statement::with_parent(conn).map_err(|e| QueryError(Box::new(e)))?;
-        stmt.exec_direct(&query)
-            .map_or_else(Self::parse_not_exist_error, |result| {
-                Ok(Self::parse_exist(result))
-            })
+        exec_first_exists(&self.pool, &query).map_or_else(Self::parse_not_exist_error, Ok)
     }
 
-    pub fn drop_stream(
-        &self,
-        conn: &Connection<AutocommitOn>,
-        stream_name: &String,
-    ) -> Result<bool, SnowflakeError> {
+    pub fn drop_stream(&self, stream_name: &String) -> Result<bool, SnowflakeError> {
         let query = format!("DROP STREAM IF EXISTS {stream_name}");
 
-        let stmt = Statement::with_parent(conn).map_err(|e| QueryError(Box::new(e)))?;
-        stmt.exec_direct(&query)
-            .map_or_else(Self::parse_not_exist_error, |result| {
-                Ok(Self::parse_exist(result))
-            })
+        exec_first_exists(&self.pool, &query).map_or_else(Self::parse_not_exist_error, Ok)
     }
 
-    pub fn fetch<'a, 'b>(
-        &self,
-        conn: &'a Connection<AutocommitOn>,
-        query: String,
-    ) -> Result<Option<(Vec<ColumnDescriptor>, ResultIterator<'a, 'b>)>, ConnectorError> {
-        let stmt = Statement::with_parent(conn).map_err(|e| QueryError(Box::new(e)))?;
-        // TODO: use stmt.close_cursor to improve efficiency
-
-        match stmt
-            .exec_direct(&query)
-            .map_err(|e| QueryError(Box::new(e)))?
-        {
-            Data(stmt) => {
-                let cols = stmt
-                    .num_result_cols()
-                    .map_err(|e| QueryError(Box::new(e)))?;
-                let schema_result: Result<Vec<ColumnDescriptor>, SnowflakeError> = (1..(cols + 1))
-                    .map(|i| {
-                        let value = i.try_into();
-                        match value {
-                            Ok(v) => {
-                                Ok(stmt.describe_col(v).map_err(|e| QueryError(Box::new(e)))?)
-                            }
-                            Err(e) => Err(SnowflakeError::SnowflakeSchemaError(
-                                SchemaConversionError(e),
-                            )),
-                        }
-                    })
-                    .collect();
-
-                let schema = schema_result?;
-                Ok(Some((
-                    schema.clone(),
-                    ResultIterator {
-                        cols,
-                        stmt: Some(stmt),
-                        schema,
-                    },
-                )))
-            }
-            NoData(_) => Ok(None),
-        }
-    }
-
-    pub fn execute_query(
-        &self,
-        conn: &Connection<AutocommitOn>,
-        query: &str,
-    ) -> Result<(), SnowflakeError> {
-        let stmt = Statement::with_parent(conn).map_err(|e| QueryError(Box::new(e)))?;
-        stmt.exec_direct(query)
-            .map_err(|e| QueryError(Box::new(e)))?;
-        Ok(())
+    pub fn fetch(&self, query: String) -> ExecIter<'env> {
+        exec_iter(self.pool.clone(), query)
     }
 
     #[allow(clippy::type_complexity)]
@@ -402,7 +261,6 @@ impl Client {
         &self,
         tables_indexes: Option<HashMap<String, usize>>,
         keys: HashMap<String, Vec<String>>,
-        conn: &Connection<AutocommitOn>,
         schema_name: String,
     ) -> Result<Vec<Result<(String, SourceSchema), ConnectorError>>, SnowflakeError> {
         let tables_condition = tables_indexes.as_ref().map_or("".to_string(), |tables| {
@@ -425,195 +283,275 @@ impl Client {
             ORDER BY TABLE_NAME, ORDINAL_POSITION"
         );
 
-        let stmt = Statement::with_parent(conn).map_err(|e| QueryError(Box::new(e)))?;
-        match stmt
-            .exec_direct(&query)
-            .map_err(|e| QueryError(Box::new(e)))?
-        {
-            Data(data) => {
-                let cols = data
-                    .num_result_cols()
-                    .map_err(|e| QueryError(Box::new(e)))?;
+        let results = exec_iter(self.pool.clone(), query);
+        let mut schemas: IndexMap<String, (usize, Result<Schema, SnowflakeSchemaError>)> =
+            IndexMap::new();
+        for (idx, result) in results.enumerate() {
+            let row_data = result?;
+            let empty = "".to_string();
+            let table_name = if let Field::String(table_name) = &row_data.get(1).unwrap() {
+                table_name
+            } else {
+                &empty
+            };
+            let field_name = if let Field::String(field_name) = &row_data.get(2).unwrap() {
+                field_name
+            } else {
+                &empty
+            };
+            let type_name = if let Field::String(type_name) = &row_data.get(3).unwrap() {
+                type_name
+            } else {
+                &empty
+            };
+            let nullable = if let Field::String(b) = &row_data.get(4).unwrap() {
+                let is_nullable = b == "NO";
+                if is_nullable {
+                    &true
+                } else {
+                    &false
+                }
+            } else {
+                &false
+            };
+            let scale = if let Field::Int(scale) = &row_data.get(5).unwrap() {
+                Some(*scale)
+            } else {
+                None
+            };
 
-                let schema_result: Result<Vec<ColumnDescriptor>, SnowflakeError> = (1..(cols + 1))
-                    .map(|i| {
-                        let value = i.try_into();
-                        match value {
-                            Ok(v) => {
-                                Ok(data.describe_col(v).map_err(|e| QueryError(Box::new(e)))?)
-                            }
-                            Err(e) => Err(SnowflakeError::SnowflakeSchemaError(
-                                SchemaConversionError(e),
-                            )),
-                        }
-                    })
-                    .collect();
+            let table_index = match &tables_indexes {
+                None => idx,
+                Some(indexes) => *indexes.get(table_name).unwrap_or(&idx),
+            };
 
-                let schema = schema_result?;
-
-                let mut schemas: IndexMap<String, (usize, Result<Schema, SnowflakeSchemaError>)> =
-                    IndexMap::new();
-                let iterator = ResultIterator {
-                    cols,
-                    stmt: Some(data),
-                    schema,
-                };
-
-                for (idx, row_data) in iterator.enumerate() {
-                    let empty = "".to_string();
-                    let table_name = if let Field::String(table_name) = &row_data.get(1).unwrap() {
-                        table_name
-                    } else {
-                        &empty
-                    };
-                    let field_name = if let Field::String(field_name) = &row_data.get(2).unwrap() {
-                        field_name
-                    } else {
-                        &empty
-                    };
-                    let type_name = if let Field::String(type_name) = &row_data.get(3).unwrap() {
-                        type_name
-                    } else {
-                        &empty
-                    };
-                    let nullable = if let Field::String(b) = &row_data.get(4).unwrap() {
-                        let is_nullable = b == "NO";
-                        if is_nullable {
-                            &true
-                        } else {
-                            &false
-                        }
-                    } else {
-                        &false
-                    };
-                    let scale = if let Field::Int(scale) = &row_data.get(5).unwrap() {
-                        Some(*scale)
-                    } else {
-                        None
-                    };
-
-                    let table_index = match &tables_indexes {
-                        None => idx,
-                        Some(indexes) => *indexes.get(table_name).unwrap_or(&idx),
-                    };
-
-                    match SchemaHelper::map_schema_type(type_name, scale) {
-                        Ok(typ) => {
-                            if let Ok(schema) = schemas
-                                .entry(table_name.clone())
-                                .or_insert((
-                                    table_index,
-                                    Ok(Schema {
-                                        fields: vec![],
-                                        primary_index: vec![],
-                                    }),
-                                ))
-                                .1
-                                .as_mut()
-                            {
-                                schema.fields.push(FieldDefinition {
-                                    name: field_name.clone(),
-                                    typ,
-                                    nullable: *nullable,
-                                    source: SourceDefinition::Dynamic,
-                                });
-                            }
-                        }
-                        Err(e) => {
-                            schemas.insert(table_name.clone(), (table_index, Err(e)));
-                        }
+            match SchemaHelper::map_schema_type(type_name, scale) {
+                Ok(typ) => {
+                    if let Ok(schema) = schemas
+                        .entry(table_name.clone())
+                        .or_insert((
+                            table_index,
+                            Ok(Schema {
+                                fields: vec![],
+                                primary_index: vec![],
+                            }),
+                        ))
+                        .1
+                        .as_mut()
+                    {
+                        schema.fields.push(FieldDefinition {
+                            name: field_name.clone(),
+                            typ,
+                            nullable: *nullable,
+                            source: SourceDefinition::Dynamic,
+                        });
                     }
                 }
-
-                schemas.sort_by(|_, a, _, b| a.0.cmp(&b.0));
-
-                Ok(schemas
-                    .into_iter()
-                    .map(|(name, (_, schema))| match schema {
-                        Ok(mut schema) => {
-                            let mut indexes = vec![];
-                            keys.get(&name).map_or((), |columns| {
-                                schema.fields.iter().enumerate().for_each(|(idx, f)| {
-                                    if columns.contains(&f.name) {
-                                        indexes.push(idx);
-                                    }
-                                });
-                            });
-
-                            let cdc_type = if indexes.is_empty() {
-                                CdcType::Nothing
-                            } else {
-                                CdcType::FullChanges
-                            };
-
-                            schema.primary_index = indexes;
-
-                            Ok((name, SourceSchema::new(schema, cdc_type)))
-                        }
-                        Err(e) => Err(ConnectorError::SnowflakeError(
-                            SnowflakeError::SnowflakeSchemaError(e),
-                        )),
-                    })
-                    .collect())
+                Err(e) => {
+                    schemas.insert(table_name.clone(), (table_index, Err(e)));
+                }
             }
-            NoData(_) => Ok(vec![]),
         }
+
+        schemas.sort_by(|_, a, _, b| a.0.cmp(&b.0));
+
+        Ok(schemas
+            .into_iter()
+            .map(|(name, (_, schema))| match schema {
+                Ok(mut schema) => {
+                    let mut indexes = vec![];
+                    keys.get(&name).map_or((), |columns| {
+                        schema.fields.iter().enumerate().for_each(|(idx, f)| {
+                            if columns.contains(&f.name) {
+                                indexes.push(idx);
+                            }
+                        });
+                    });
+
+                    let cdc_type = if indexes.is_empty() {
+                        CdcType::Nothing
+                    } else {
+                        CdcType::FullChanges
+                    };
+
+                    schema.primary_index = indexes;
+
+                    Ok((name, SourceSchema::new(schema, cdc_type)))
+                }
+                Err(e) => Err(ConnectorError::SnowflakeError(
+                    SnowflakeError::SnowflakeSchemaError(e),
+                )),
+            })
+            .collect())
     }
 
-    pub fn fetch_keys(
-        &self,
-        conn: &Connection<AutocommitOn>,
-    ) -> Result<HashMap<String, Vec<String>>, SnowflakeError> {
-        let stmt = Statement::with_parent(conn).map_err(|e| QueryError(Box::new(e)))?;
-        match stmt
-            .exec_direct("SHOW PRIMARY KEYS IN SCHEMA")
-            .map_err(|e| QueryError(Box::new(e)))?
-        {
-            Data(data) => {
-                let cols = data
-                    .num_result_cols()
-                    .map_err(|e| QueryError(Box::new(e)))?;
+    pub fn fetch_keys(&self) -> Result<HashMap<String, Vec<String>>, SnowflakeError> {
+        let query = "SHOW PRIMARY KEYS IN SCHEMA".to_string();
+        let results = exec_iter(self.pool.clone(), query);
+        let mut keys: HashMap<String, Vec<String>> = HashMap::new();
+        for result in results {
+            let row_data = result?;
+            let empty = "".to_string();
+            let table_name = row_data.get(3).map_or(empty.clone(), |v| match v {
+                Field::String(v) => v.clone(),
+                _ => empty.clone(),
+            });
+            let column_name = row_data.get(4).map_or(empty.clone(), |v| match v {
+                Field::String(v) => v.clone(),
+                _ => empty.clone(),
+            });
 
-                let schema_result: Result<Vec<ColumnDescriptor>, SnowflakeError> = (1..(cols + 1))
-                    .map(|i| {
-                        let value = i.try_into();
-                        match value {
-                            Ok(v) => {
-                                Ok(data.describe_col(v).map_err(|e| QueryError(Box::new(e)))?)
-                            }
-                            Err(e) => Err(SnowflakeError::SnowflakeSchemaError(
-                                SchemaConversionError(e),
-                            )),
-                        }
-                    })
-                    .collect();
-
-                let schema = schema_result?;
-
-                let mut keys: HashMap<String, Vec<String>> = HashMap::new();
-                let iterator = ResultIterator {
-                    cols,
-                    stmt: Some(data),
-                    schema,
-                };
-
-                for row_data in iterator {
-                    let empty = "".to_string();
-                    let table_name = row_data.get(3).map_or(empty.clone(), |v| match v {
-                        Field::String(v) => v.clone(),
-                        _ => empty.clone(),
-                    });
-                    let column_name = row_data.get(4).map_or(empty.clone(), |v| match v {
-                        Field::String(v) => v.clone(),
-                        _ => empty.clone(),
-                    });
-
-                    keys.entry(table_name).or_default().push(column_name);
-                }
-
-                Ok(keys)
-            }
-            NoData(_) => Ok(HashMap::new()),
+            keys.entry(table_name).or_default().push(column_name);
         }
+
+        Ok(keys)
+    }
+}
+
+macro_rules! retry {
+    ($operation:expr $(, $label:tt)? $(,)?) => {
+        match $operation {
+            Err(err) if is_network_failure(&err) => continue $($label)?,
+            result => result,
+        }
+    };
+}
+
+fn add_query_offset(query: &str, offset: u64) -> String {
+    assert!(query
+        .trim_start()
+        .get(0..7)
+        .map(|s| s.to_uppercase() == "SELECT ")
+        .unwrap_or(false));
+
+    if offset == 0 {
+        query.into()
+    } else {
+        format!("{query} LIMIT 18446744073709551615 OFFSET {offset}")
+    }
+}
+
+fn get_fields_from_cursor(
+    mut cursor: Cursor<Executed, AutocommitOn>,
+    cols: i16,
+    schema: &[ColumnDescriptor],
+) -> Result<Vec<Field>, SnowflakeError> {
+    let mut values = vec![];
+    for i in 1..(cols + 1) {
+        let descriptor = schema.get((i - 1) as usize).unwrap();
+        let value = convert_data(&mut cursor, i as u16, descriptor)?;
+        values.push(value);
+    }
+
+    Ok(values)
+}
+
+fn exec_drop(pool: &Pool, query: &str) -> Result<(), Box<DiagnosticRecord>> {
+    let conn = pool.get_conn()?;
+    let _result = exec_helper(&conn, query)?;
+    Ok(())
+}
+
+fn exec_first_exists(pool: &Pool, query: &str) -> Result<bool, Box<DiagnosticRecord>> {
+    loop {
+        let conn = pool.get_conn()?;
+        let result = match exec_helper(&conn, query)? {
+            Some(mut data) => retry!(data.fetch())?.is_some(),
+            None => false,
+        };
+        break Ok(result);
+    }
+}
+
+fn exec_iter(pool: Pool, query: String) -> ExecIter {
+    use genawaiter::{
+        rc::{gen, Gen},
+        yield_,
+    };
+
+    let schema = Rc::new(RefCell::new(None::<Vec<ColumnDescriptor>>));
+    let schema_ref = schema.clone();
+
+    let mut generator: Gen<Vec<Field>, (), _> = gen!({
+        let cursor_position = 0u64;
+        'retry: loop {
+            let conn = pool.get_conn().map_err(QueryError)?;
+            let mut data = match exec_helper(&conn, &add_query_offset(&query, cursor_position))
+                .map_err(QueryError)?
+            {
+                Some(data) => data,
+                None => break,
+            };
+            let cols = data.num_result_cols().map_err(|e| QueryError(e.into()))?;
+            let mut vec = Vec::new();
+            for i in 1..(cols + 1) {
+                let value = i.try_into();
+                let column_descriptor = match value {
+                    Ok(v) => data.describe_col(v).map_err(|e| QueryError(e.into()))?,
+                    Err(e) => Err(SchemaConversionError(e))?,
+                };
+                vec.push(column_descriptor)
+            }
+            schema.borrow_mut().replace(vec);
+
+            while let Some(cursor) =
+                retry!(data.fetch(),'retry).map_err(|e| QueryError(e.into()))?
+            {
+                let fields =
+                    get_fields_from_cursor(cursor, cols, schema.borrow().as_deref().unwrap())?;
+                yield_!(fields);
+            }
+        }
+        Ok::<(), SnowflakeError>(())
+    });
+
+    let iterator = std::iter::from_fn(move || {
+        use genawaiter::GeneratorState::*;
+        match generator.resume() {
+            Yielded(fields) => Some(Ok(fields)),
+            Complete(Err(err)) => Some(Err(err)),
+            Complete(Ok(())) => None,
+        }
+    });
+
+    ExecIter {
+        iterator: Box::new(iterator),
+        schema: schema_ref,
+    }
+}
+
+pub struct ExecIter<'env> {
+    iterator: Box<dyn Iterator<Item = Result<Vec<Field>, SnowflakeError>> + 'env>,
+    schema: Rc<RefCell<Option<Vec<ColumnDescriptor>>>>,
+}
+
+impl<'env> ExecIter<'env> {
+    pub fn schema(&self) -> Option<Vec<ColumnDescriptor>> {
+        self.schema.borrow().deref().clone()
+    }
+}
+
+impl<'env> Iterator for ExecIter<'env> {
+    type Item = Result<Vec<Field>, SnowflakeError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iterator.next()
+    }
+}
+
+fn exec_helper<'a>(
+    conn: &'a Conn<'_>,
+    query: &str,
+) -> Result<
+    Option<odbc::Statement<'a, 'static, Executed, HasResult, AutocommitOn>>,
+    Box<DiagnosticRecord>,
+> {
+    loop {
+        let statement = retry!(odbc::Statement::with_parent(conn.deref()))?;
+        let result = retry!(statement.exec_direct(query))?;
+        break match result {
+            odbc::ResultSetState::Data(data) => Ok(Some(data)),
+            odbc::ResultSetState::NoData(_) => Ok(None),
+        };
     }
 }
