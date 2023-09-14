@@ -8,6 +8,7 @@ use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
 use dozer_types::ingestion_types::SnowflakeConfig;
 use dozer_types::node::OpIdentifier;
+use odbc::create_environment_v3;
 use tonic::async_trait;
 
 use crate::connectors::snowflake::stream_consumer::StreamConsumer;
@@ -138,7 +139,8 @@ fn run(
     ingestor: Ingestor,
 ) -> Result<(), ConnectorError> {
     // SNAPSHOT part - run it when stream table doesn't exist
-    let stream_client = Client::new(&config);
+    let env = create_environment_v3().unwrap();
+    let stream_client = Client::new(&config, &env);
     let interval = Duration::from_secs(5);
 
     let mut consumer = StreamConsumer::new();

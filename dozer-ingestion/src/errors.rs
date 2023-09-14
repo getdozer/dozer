@@ -346,7 +346,7 @@ pub enum SnowflakeError {
     QueryError(#[source] Box<DiagnosticRecord>),
 
     #[error("Snowflake connection error")]
-    ConnectionError(#[from] Box<DiagnosticRecord>),
+    ConnectionError(#[source] Box<DiagnosticRecord>),
 
     #[cfg(feature = "snowflake")]
     #[error(transparent)]

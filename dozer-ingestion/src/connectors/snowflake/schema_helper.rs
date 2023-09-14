@@ -5,7 +5,6 @@ use std::collections::HashMap;
 
 use crate::connectors::snowflake::connection::client::Client;
 use crate::connectors::SourceSchema;
-use crate::errors::SnowflakeError::ConnectionError;
 use dozer_types::types::FieldType;
 
 pub struct SchemaHelper {}
@@ -16,14 +15,11 @@ impl SchemaHelper {
         config: &SnowflakeConfig,
         table_names: Option<&[String]>,
     ) -> Result<Vec<Result<(String, SourceSchema), ConnectorError>>, ConnectorError> {
-        let client = Client::new(config);
         let env = create_environment_v3().map_err(|e| e.unwrap()).unwrap();
-        let conn = env
-            .connect_with_connection_string(&client.get_conn_string())
-            .map_err(|e| ConnectionError(Box::new(e)))?;
+        let client = Client::new(config, &env);
 
         let keys = client
-            .fetch_keys(&conn)
+            .fetch_keys()
             .map_err(ConnectorError::SnowflakeError)?;
 
         let tables_indexes = table_names.map(|table_names| {
@@ -36,7 +32,7 @@ impl SchemaHelper {
         });
 
         client
-            .fetch_tables(tables_indexes, keys, &conn, config.schema.to_string())
+            .fetch_tables(tables_indexes, keys, config.schema.to_string())
             .map_err(ConnectorError::SnowflakeError)
     }
 

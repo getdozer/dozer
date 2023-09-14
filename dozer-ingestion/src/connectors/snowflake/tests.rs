@@ -28,26 +28,21 @@ async fn test_disabled_connector_and_read_from_stream() {
         };
         let source = config.sources.get(0).unwrap().clone();
 
-        let client = Client::new(connection);
-
         let env = create_environment_v3().map_err(|e| e.unwrap()).unwrap();
-        let conn = env
-            .connect_with_connection_string(&client.get_conn_string())
-            .unwrap();
+        let client = Client::new(connection, &env);
 
         let mut rng = rand::thread_rng();
         let table_name = format!("CUSTOMER_TEST_{}", rng.gen::<u32>());
 
         client
-            .execute_query(
-                &conn,
+            .exec(
                 &format!(
                     "CREATE TABLE {table_name} LIKE SNOWFLAKE_SAMPLE_DATA.TPCH_SF1000.CUSTOMER;"
                 ),
             )
             .unwrap();
-        client.execute_query(&conn, &format!("ALTER TABLE PUBLIC.{table_name} ADD CONSTRAINT {table_name}_PK PRIMARY KEY (C_CUSTKEY);")).unwrap();
-        client.execute_query(&conn, &format!("INSERT INTO {table_name} SELECT * FROM SNOWFLAKE_SAMPLE_DATA.TPCH_SF1000.CUSTOMER LIMIT 100")).unwrap();
+        client.exec(&format!("ALTER TABLE PUBLIC.{table_name} ADD CONSTRAINT {table_name}_PK PRIMARY KEY (C_CUSTKEY);")).unwrap();
+        client.exec(&format!("INSERT INTO {table_name} SELECT * FROM SNOWFLAKE_SAMPLE_DATA.TPCH_SF1000.CUSTOMER LIMIT 100")).unwrap();
 
         remove_streams(connection, &source.table_name).unwrap();
 
@@ -65,7 +60,7 @@ async fn test_disabled_connector_and_read_from_stream() {
 
         assert_eq!(100, i);
 
-        client.execute_query(&conn, &format!("INSERT INTO {table_name} SELECT * FROM SNOWFLAKE_SAMPLE_DATA.TPCH_SF1000.CUSTOMER LIMIT 100 OFFSET 100")).unwrap();
+        client.exec(&format!("INSERT INTO {table_name} SELECT * FROM SNOWFLAKE_SAMPLE_DATA.TPCH_SF1000.CUSTOMER LIMIT 100 OFFSET 100")).unwrap();
 
         let mut i = 0;
         while i < 100 {
@@ -86,21 +81,15 @@ async fn test_disabled_connector_get_schemas_test() {
             panic!("Snowflake config expected");
         };
         let connector = SnowflakeConnector::new("snowflake".to_string(), connection.clone());
-        let client = Client::new(connection);
-
         let env = create_environment_v3().map_err(|e| e.unwrap()).unwrap();
-        let conn = env
-            .connect_with_connection_string(&client.get_conn_string())
-            .unwrap();
+        let client = Client::new(connection, &env);
 
         let mut rng = rand::thread_rng();
         let table_name = format!("SCHEMA_MAPPING_TEST_{}", rng.gen::<u32>());
 
         client
-            .execute_query(
-                &conn,
-                &format!(
-                    "create table {table_name}
+            .exec(&format!(
+                "create table {table_name}
         (
             integer_column  integer,
             float_column    float,
@@ -114,8 +103,7 @@ async fn test_disabled_connector_get_schemas_test() {
             data_retention_time_in_days = 0;
 
         "
-                ),
-            )
+            ))
             .unwrap();
 
         let table_infos = connector
@@ -144,9 +132,7 @@ async fn test_disabled_connector_get_schemas_test() {
             assert_eq!(expected_type, field.typ);
         }
 
-        client
-            .execute_query(&conn, &format!("DROP TABLE {table_name};"))
-            .unwrap();
+        client.exec(&format!("DROP TABLE {table_name};")).unwrap();
     })
     .await
 }
@@ -191,23 +177,17 @@ async fn test_disabled_connector_is_stream_created() {
             }
         };
 
-        let client = Client::new(&snowflake_config);
         let env = create_environment_v3().map_err(|e| e.unwrap()).unwrap();
-        let conn = env
-            .connect_with_connection_string(&client.get_conn_string())
-            .unwrap();
+        let client = Client::new(&snowflake_config, &env);
 
         let mut rng = rand::thread_rng();
         let table_name = format!("STREAM_EXIST_TEST_{}", rng.gen::<u32>());
 
         client
-            .execute_query(
-                &conn,
-                &format!(
-                    "CREATE TABLE {table_name} (id  INTEGER)
+            .exec(&format!(
+                "CREATE TABLE {table_name} (id  INTEGER)
                         data_retention_time_in_days = 0; "
-                ),
-            )
+            ))
             .unwrap();
 
         let result = StreamConsumer::is_stream_created(&client, &table_name).unwrap();
