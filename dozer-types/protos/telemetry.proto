@@ -16,17 +16,17 @@ message MetricsRequest {
   string app_id = 1;
   QueryType query_type = 2;
   string query = 3;
-  uint64 start = 4;
-  uint64 end = 5;
-  uint32 step = 6;
+  optional uint64 start = 4;
+  optional uint64 end = 5;
+  optional uint32 step = 6;
 }
 
 message MetricsResponse { string content = 1; }
 
 message TracesRequest {
   string app_id = 1;
-  uint64 start = 4;
-  uint64 end = 5;
+  optional uint64 start = 4;
+  optional uint64 end = 5;
 }
 
 message TracesResponse { string content = 1; }
