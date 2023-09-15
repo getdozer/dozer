@@ -12,15 +12,15 @@ use dozer_types::log::info;
 use dozer_types::models::api_config::AppGrpcOptions;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::parking_lot::Mutex;
+use dozer_types::tonic::transport::server::TcpIncoming;
+use dozer_types::tonic::transport::Server;
+use dozer_types::tonic::{self, Request, Response, Status, Streaming};
 use futures_util::future::Either;
 use futures_util::stream::BoxStream;
 use futures_util::{Future, StreamExt, TryStreamExt};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use tonic::transport::server::TcpIncoming;
-use tonic::transport::Server;
-use tonic::{Request, Response, Status, Streaming};
 
 use crate::errors::GrpcError;
 use crate::grpc::run_server;

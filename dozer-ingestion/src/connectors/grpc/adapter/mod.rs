@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use dozer_types::grpc_types::ingest::{IngestArrowRequest, IngestRequest};
-use tonic::async_trait;
+use dozer_types::tonic::async_trait;
 
 use crate::{connectors::SourceSchema, errors::ConnectorError, ingestion::Ingestor};
 

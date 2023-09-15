@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use dozer_types::tonic::async_trait;
 use dozer_types::{
     arrow::datatypes::Schema as ArrowSchema,
     arrow::{self, ipc::reader::StreamReader},
@@ -11,7 +12,6 @@ use dozer_types::{
     serde_json,
     types::{Operation, Record, Schema},
 };
-use tonic::async_trait;
 
 use crate::{
     connectors::{CdcType, SourceSchema},

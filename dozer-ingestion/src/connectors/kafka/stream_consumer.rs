@@ -2,8 +2,8 @@ use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
 
 use crate::connectors::TableToIngest;
+use dozer_types::tonic::async_trait;
 use rdkafka::ClientConfig;
-use tonic::async_trait;
 
 #[async_trait]
 pub trait StreamConsumer {

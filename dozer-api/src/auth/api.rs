@@ -4,8 +4,8 @@ use actix_web::{
     Error, HttpMessage, HttpRequest, HttpResponse,
 };
 use actix_web_httpauth::extractors::bearer::BearerAuth;
+use dozer_types::tonic::{Response, Status};
 use dozer_types::{models::api_security::ApiSecurity, serde_json::json};
-use tonic::{Response, Status};
 
 use crate::errors::{ApiError, AuthError};
 

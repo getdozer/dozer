@@ -2,13 +2,13 @@ use std::{sync::Arc, thread};
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use dozer_ingestion::test_util::create_test_runtime;
+use dozer_types::tonic::transport::Channel;
 use dozer_types::{
     arrow::array::{Int32Array, StringArray},
     grpc_types::ingest::{ingest_service_client::IngestServiceClient, IngestArrowRequest},
     indicatif::{MultiProgress, ProgressBar},
     serde_yaml,
 };
-use tonic::transport::Channel;
 mod helper;
 use crate::helper::TestConfig;
 use dozer_types::{

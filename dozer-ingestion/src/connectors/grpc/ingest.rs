@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
+use dozer_types::tonic::{self, Streaming};
 use dozer_types::{grpc_types::ingest::IngestArrowRequest, log::error};
 use futures::StreamExt;
-use tonic::Streaming;
 
 use dozer_types::grpc_types::ingest::{
     ingest_service_server::IngestService, IngestRequest, IngestResponse,

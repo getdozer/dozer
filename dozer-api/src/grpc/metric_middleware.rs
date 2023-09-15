@@ -1,4 +1,5 @@
 use dozer_tracing::LabelsAndProgress;
+use dozer_types::tonic::{body::BoxBody, transport::NamedService};
 use futures_util::future::BoxFuture;
 use hyper::Body;
 use metrics::{histogram, increment_counter};
@@ -6,7 +7,6 @@ use std::{
     task::{Context, Poll},
     time::Instant,
 };
-use tonic::{body::BoxBody, transport::NamedService};
 use tower::{Layer, Service};
 
 use crate::api_helper::{API_LATENCY_HISTOGRAM_NAME, API_REQUEST_COUNTER_NAME};

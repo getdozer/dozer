@@ -5,11 +5,11 @@ use crate::connectors::{
 };
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
+use dozer_types::tonic::async_trait;
 use dozer_types::tracing::info;
 use postgres_types::PgLsn;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
-use tonic::async_trait;
 
 use crate::connectors::postgres::schema::helper::{SchemaHelper, DEFAULT_SCHEMA_NAME};
 use crate::errors::ConnectorError::PostgresConnectorError;

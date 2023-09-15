@@ -28,7 +28,7 @@ use dozer_types::log::debug;
 use dozer_types::models::connection::Connection;
 use dozer_types::models::connection::ConnectionConfig;
 use dozer_types::node::OpIdentifier;
-use tonic::async_trait;
+use dozer_types::tonic::async_trait;
 
 use crate::connectors::object_store::connector::ObjectStoreConnector;
 

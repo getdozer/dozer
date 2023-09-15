@@ -1,9 +1,9 @@
 use bson::doc;
 use dozer_ingestion::connectors::mongodb::MongodbConnector;
+use dozer_types::tonic::async_trait;
 use dozer_utils::{process::run_docker_compose, Cleanup};
 use mongodb::options::{ClientOptions, InsertOneOptions, WriteConcern};
 use tempdir::TempDir;
-use tonic::async_trait;
 
 use crate::test_suite::DataReadyConnectorTest;
 
