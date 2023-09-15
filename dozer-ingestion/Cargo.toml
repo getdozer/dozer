@@ -40,11 +40,10 @@ schema_registry_converter = { version = "3.1.0", features = [
     "avro",
 ], optional = true }
 regex = "1"
-tonic-web = "0.9.2"
-tonic-reflection = "0.9.2"
+tonic-web = "0.10.0"
+tonic-reflection = "0.10.0"
 tower-http = { version = "0.4", features = ["full"] }
-prost = "0.11.8"
-prost-reflect = { version = "0.10.2", features = ["serde", "text-format"] }
+prost-reflect = { version = "0.12.0", features = ["serde", "text-format"] }
 deltalake = { version = "0.13.0", default-features = false, features = [
     "s3",
     "datafusion",

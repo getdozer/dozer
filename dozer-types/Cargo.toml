@@ -25,9 +25,9 @@ prettytable-rs = "0.10.0"
 indicatif = "0.17.3"
 geo = { version = "0.26.0", features = ["use-serde"] }
 pyo3 = { version = "0.18.1", optional = true }
-tonic = { version = "0.9.2" }
-prost-types = "0.11.1"
-prost = "0.11.8"
+tonic = { version = "0.10.0" }
+prost-types = "0.12.0"
+prost = "0.12.0"
 arrow = { version = "42.0.0" }
 arrow-schema = { version = "42.0.0", features = ["serde"] }
 tokio-postgres = { version = "0.7.7", features = [
@@ -38,7 +38,7 @@ tokio-postgres = { version = "0.7.7", features = [
 serde_bytes = "0.11.12"
 
 [build-dependencies]
-tonic-build = "0.9.2"
+tonic-build = "0.10.0"
 
 [features]
 python-extension-module = ["dep:pyo3", "pyo3?/extension-module"]
