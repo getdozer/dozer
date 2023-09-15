@@ -487,7 +487,7 @@ fn exec_iter(pool: Pool, query: String) -> ExecIter {
     let schema_ref = schema.clone();
 
     let mut generator: Gen<Vec<Field>, (), _> = gen!({
-        let cursor_position = 0u64;
+        let mut cursor_position = 0u64;
         'retry: loop {
             let conn = pool.get_conn().map_err(QueryError)?;
             {
@@ -515,6 +515,7 @@ fn exec_iter(pool: Pool, query: String) -> ExecIter {
                     let fields =
                         get_fields_from_cursor(cursor, cols, schema.borrow().as_deref().unwrap())?;
                     yield_!(fields);
+                    cursor_position += 1;
                 }
             }
             conn.return_();
