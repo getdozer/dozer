@@ -3,6 +3,7 @@ use super::{auth_middleware::AuthMiddlewareLayer, common::CommonService, typed::
 use crate::api_helper::get_api_security;
 use crate::errors::ApiInitError;
 use crate::grpc::auth::AuthService;
+use crate::grpc::grpc_web_middleware::enable_grpc_web;
 use crate::grpc::health::HealthService;
 use crate::grpc::{common, run_server, typed};
 use crate::{errors::GrpcError, CacheEndpoint};
@@ -95,25 +96,21 @@ impl ApiServer {
     ) -> Result<impl Future<Output = Result<(), dozer_types::tonic::transport::Error>>, ApiInitError>
     {
         // Create our services.
-        let mut web_config = tonic_web::config();
-        if self.flags.grpc_web {
-            web_config = web_config.allow_all_origins();
-        }
-
         let common_service = CommonGrpcServiceServer::new(CommonService::new(
             cache_endpoints.clone(),
             operations_receiver.as_ref().map(|r| r.resubscribe()),
             default_max_num_records,
         ));
-        let common_service = web_config.enable(common_service);
+        let common_service = enable_grpc_web(common_service, self.flags.grpc_web);
 
         let (typed_service, reflection_service) = self.get_dynamic_service(
             cache_endpoints,
             operations_receiver,
             default_max_num_records,
         )?;
-        let typed_service = typed_service.map(|typed_service| web_config.enable(typed_service));
-        let reflection_service = web_config.enable(reflection_service);
+        let typed_service =
+            typed_service.map(|typed_service| enable_grpc_web(typed_service, self.flags.grpc_web));
+        let reflection_service = enable_grpc_web(reflection_service, self.flags.grpc_web);
 
         let mut service_map: HashMap<String, ServingStatus> = HashMap::new();
         service_map.insert("".to_string(), ServingStatus::Serving);
@@ -126,7 +123,7 @@ impl ApiServer {
         let health_service = HealthGrpcServiceServer::new(HealthService {
             serving_status: service_map,
         });
-        let health_service = web_config.enable(health_service);
+        let health_service = enable_grpc_web(health_service, self.flags.grpc_web);
 
         // Auth middleware.
         let security = get_api_security(self.security.to_owned());
@@ -147,9 +144,10 @@ impl ApiServer {
         let mut auth_service = None;
         let security = get_api_security(self.security.to_owned());
         if security.is_some() {
-            let service = web_config.enable(AuthGrpcServiceServer::new(AuthService::new(
-                security.to_owned(),
-            )));
+            let service = enable_grpc_web(
+                AuthGrpcServiceServer::new(AuthService::new(security.to_owned())),
+                self.flags.grpc_web,
+            );
             auth_service = Some(auth_middleware.layer(service));
         }
         let metric_middleware = MetricMiddlewareLayer::new(labels);

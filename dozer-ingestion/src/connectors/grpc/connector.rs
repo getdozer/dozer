@@ -83,9 +83,7 @@ where
         let ingestor = unsafe { std::mem::transmute::<&'_ Ingestor, &'static Ingestor>(ingestor) };
 
         let ingest_service = IngestorServiceImpl::new(adapter, ingestor, tables);
-        let ingest_service = tonic_web::config()
-            .allow_all_origins()
-            .enable(IngestServiceServer::new(ingest_service));
+        let ingest_service = tonic_web::enable(IngestServiceServer::new(ingest_service));
 
         let reflection_service = tonic_reflection::server::Builder::configure()
             .register_encoded_file_descriptor_set(

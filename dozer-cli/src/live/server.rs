@@ -209,13 +209,9 @@ pub async fn serve(
     let code_service = CodeServiceServer::new(live_server);
     let api_explorer_service = ApiExplorerServiceServer::new(api_explorer_server);
     // Enable CORS for local development
-    let contract_service = tonic_web::config()
-        .allow_all_origins()
-        .enable(contract_service);
-    let code_service = tonic_web::config().allow_all_origins().enable(code_service);
-    let api_explorer_service = tonic_web::config()
-        .allow_all_origins()
-        .enable(api_explorer_service);
+    let contract_service = tonic_web::enable(contract_service);
+    let code_service = tonic_web::enable(code_service);
+    let api_explorer_service = tonic_web::enable(api_explorer_service);
 
     let reflection_service = tonic_reflection::server::Builder::configure()
         .register_encoded_file_descriptor_set(

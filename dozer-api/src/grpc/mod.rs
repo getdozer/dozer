@@ -5,6 +5,7 @@ pub mod health;
 pub mod internal;
 // pub mod dynamic;
 mod auth_middleware;
+mod grpc_web_middleware;
 mod metric_middleware;
 mod shared_impl;
 pub mod typed;
