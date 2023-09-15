@@ -31,8 +31,6 @@ service DozerCloud {
 
   rpc list_deployments(ListDeploymentRequest) returns (ListDeploymentResponse);
 
-  rpc list_files(ListFilesRequest) returns (ListFilesResponse);
-
   rpc create_secret(CreateSecretRequest) returns (CreateSecretResponse);
   rpc update_secret(UpdateSecretRequest) returns (UpdateSecretResponse);
   rpc delete_secret(DeleteSecretRequest) returns (DeleteSecretResponse);
@@ -251,16 +249,6 @@ message GetAllConnectionResponse {
 message UpdateConnectionRequest {
   Connection connection = 1;
   string connection_id = 3;
-}
-message ListFilesRequest {
-  string app_id = 1;
-}
-message ListFilesResponse {
-  repeated FileInfo files = 1;
-}
-message FileInfo {
-  string id = 1;
-  File file = 2;
 }
 
 message LogMessageRequest {
