@@ -14,7 +14,7 @@ dozer-tracing = { path = "../dozer-tracing" }
 dozer-core = { path = "../dozer-core" }
 
 actix-cors = "0.6.3"
-actix-http = { version = "3.3.0", default-features = false, features = [
+actix-http = { version = "3.4.0", default-features = false, features = [
     "rustls",
 ] }
 actix-web = { version = "4.2.1", default-features = false, features = [
@@ -43,7 +43,7 @@ async-trait = "0.1.73"
 tracing-actix-web = "0.7.2"
 tower = "0.4.13"
 hyper = "0.14.24"
-tower-http = { version = "0.3.5", features = ["full"] }
+tower-http = { version = "0.4", features = ["full"] }
 arc-swap = "1.6.0"
 metrics = "0.21.0"
 gethostname = "0.4.3"
