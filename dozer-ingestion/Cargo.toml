@@ -68,6 +68,7 @@ geozero = { version = "0.10.0", default-features = false, features = [
 ] }
 bytes = "1.4.0"
 genawaiter = { version = "0.99.1", optional = true }
+memchr = { version = "2.6.3", optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.4.0", features = ["html_reports"] }
@@ -83,7 +84,7 @@ dozer-cli = { path = "../dozer-cli" }
 
 [features]
 # Defines a feature named `odbc` that does not enable any other features.
-snowflake = ["dep:odbc", "dep:include_dir", "dep:genawaiter"]
+snowflake = ["dep:odbc", "dep:include_dir", "dep:genawaiter", "dep:memchr"]
 ethereum = ["dep:web3"]
 kafka = ["dep:rdkafka", "dep:schema_registry_converter"]
 mongodb = ["dep:mongodb"]

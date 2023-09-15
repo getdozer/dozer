@@ -7,6 +7,8 @@ pub fn is_network_failure(err: &odbc::DiagnosticRecord) -> bool {
         b"01002" /* Disconnect error */ |
         b"08001" /* Client unable to establish connection */ |
         b"08007" /* Connection failure during transaction */ |
-        b"08S01" /* Communication link failure */
+        b"08S01" /* Communication link failure */ |
+        b"HY000" /* General error */
+            if memchr::memmem::find(err.get_raw_message(), b"Timeout was reached").is_some()
     )
 }
