@@ -2706,6 +2706,7 @@ dependencies = [
  "hex",
  "hex-literal",
  "include_dir",
+ "memchr",
  "mongodb",
  "mysql_async",
  "mysql_common",
@@ -4755,9 +4756,9 @@ dependencies = [
 
 [[package]]
 name = "memchr"
-version = "2.5.0"
+version = "2.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2dffe52ecf27772e601905b7522cb4ef790d2cc203488bbd0e2fe85fcb74566d"
+checksum = "8f232d6ef707e1956a43342693d2a31e72989554d58299d7a88738cc95b0d35c"
 
 [[package]]
 name = "memoffset"

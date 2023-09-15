@@ -458,7 +458,10 @@ fn get_fields_from_cursor(
 
 fn exec_drop(pool: &Pool, query: &str) -> Result<(), Box<DiagnosticRecord>> {
     let conn = pool.get_conn()?;
-    let _result = exec_helper(&conn, query)?;
+    {
+        let _result = exec_helper(&conn, query)?;
+    }
+    conn.return_();
     Ok(())
 }
 
@@ -469,6 +472,7 @@ fn exec_first_exists(pool: &Pool, query: &str) -> Result<bool, Box<DiagnosticRec
             Some(mut data) => retry!(data.fetch())?.is_some(),
             None => false,
         };
+        conn.return_();
         break Ok(result);
     }
 }
@@ -483,34 +487,39 @@ fn exec_iter(pool: Pool, query: String) -> ExecIter {
     let schema_ref = schema.clone();
 
     let mut generator: Gen<Vec<Field>, (), _> = gen!({
-        let cursor_position = 0u64;
+        let mut cursor_position = 0u64;
         'retry: loop {
             let conn = pool.get_conn().map_err(QueryError)?;
-            let mut data = match exec_helper(&conn, &add_query_offset(&query, cursor_position)?)
-                .map_err(QueryError)?
             {
-                Some(data) => data,
-                None => break,
-            };
-            let cols = data.num_result_cols().map_err(|e| QueryError(e.into()))?;
-            let mut vec = Vec::new();
-            for i in 1..(cols + 1) {
-                let value = i.try_into();
-                let column_descriptor = match value {
-                    Ok(v) => data.describe_col(v).map_err(|e| QueryError(e.into()))?,
-                    Err(e) => Err(SchemaConversionError(e))?,
+                let mut data = match exec_helper(&conn, &add_query_offset(&query, cursor_position)?)
+                    .map_err(QueryError)?
+                {
+                    Some(data) => data,
+                    None => break,
                 };
-                vec.push(column_descriptor)
-            }
-            schema.borrow_mut().replace(vec);
+                let cols = data.num_result_cols().map_err(|e| QueryError(e.into()))?;
+                let mut vec = Vec::new();
+                for i in 1..(cols + 1) {
+                    let value = i.try_into();
+                    let column_descriptor = match value {
+                        Ok(v) => data.describe_col(v).map_err(|e| QueryError(e.into()))?,
+                        Err(e) => Err(SchemaConversionError(e))?,
+                    };
+                    vec.push(column_descriptor)
+                }
+                schema.borrow_mut().replace(vec);
 
-            while let Some(cursor) =
-                retry!(data.fetch(),'retry).map_err(|e| QueryError(e.into()))?
-            {
-                let fields =
-                    get_fields_from_cursor(cursor, cols, schema.borrow().as_deref().unwrap())?;
-                yield_!(fields);
+                while let Some(cursor) =
+                    retry!(data.fetch(),'retry).map_err(|e| QueryError(e.into()))?
+                {
+                    let fields =
+                        get_fields_from_cursor(cursor, cols, schema.borrow().as_deref().unwrap())?;
+                    yield_!(fields);
+                    cursor_position += 1;
+                }
             }
+            conn.return_();
+            break;
         }
         Ok::<(), SnowflakeError>(())
     });
