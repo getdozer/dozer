@@ -24,9 +24,9 @@ type ResponseStream = ReceiverStream<Result<Operation, tonic::Status>>;
 // #[derive(Clone)]
 pub struct CommonService {
     /// For look up endpoint from its name. `key == value.endpoint.name`. Using index map to keep endpoint order.
-    pub endpoint_map: IndexMap<String, Arc<CacheEndpoint>>,
-    pub event_notifier: Option<tokio::sync::broadcast::Receiver<Operation>>,
-    pub default_max_num_records: usize,
+    endpoint_map: IndexMap<String, Arc<CacheEndpoint>>,
+    event_notifier: Option<tokio::sync::broadcast::Receiver<Operation>>,
+    default_max_num_records: usize,
 }
 
 impl CommonService {
