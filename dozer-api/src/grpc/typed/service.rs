@@ -17,17 +17,20 @@ use crate::{
     CacheEndpoint,
 };
 use dozer_cache::CacheReader;
+use dozer_types::tonic::{
+    self,
+    codegen::{
+        self, empty_body, Body, BoxFuture, Context, EnabledCompressionEncodings, Poll, StdError,
+    },
+    metadata::MetadataMap,
+    Code, Extensions, Request, Response, Status,
+};
 use dozer_types::{grpc_types::types::Operation, models::api_security::ApiSecurity};
 use dozer_types::{log::error, types::Schema};
 use futures_util::future;
 use prost_reflect::{MethodDescriptor, Value};
-use std::{borrow::Cow, collections::HashMap, convert::Infallible};
+use std::{borrow::Cow, collections::HashMap, convert::Infallible, sync::Arc};
 use tokio_stream::wrappers::ReceiverStream;
-use tonic::{
-    codegen::{self, *},
-    metadata::MetadataMap,
-    Code, Extensions, Request, Response, Status,
-};
 
 #[derive(Debug, Clone)]
 struct TypedEndpoint {

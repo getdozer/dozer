@@ -8,8 +8,8 @@ use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
 use dozer_types::ingestion_types::SnowflakeConfig;
 use dozer_types::node::OpIdentifier;
+use dozer_types::tonic::async_trait;
 use odbc::create_environment_v3;
-use tonic::async_trait;
 
 use crate::connectors::snowflake::stream_consumer::StreamConsumer;
 

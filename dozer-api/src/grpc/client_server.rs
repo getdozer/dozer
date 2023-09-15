@@ -14,6 +14,8 @@ use dozer_types::grpc_types::{
     common::common_grpc_service_server::CommonGrpcServiceServer,
     health::health_grpc_service_server::HealthGrpcServiceServer,
 };
+use dozer_types::tonic::transport::server::TcpIncoming;
+use dozer_types::tonic::transport::Server;
 use dozer_types::tracing::Level;
 use dozer_types::{
     log::info,
@@ -22,8 +24,6 @@ use dozer_types::{
 use futures_util::Future;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::broadcast::{self, Receiver};
-use tonic::transport::server::TcpIncoming;
-use tonic::transport::Server;
 use tonic_reflection::server::{ServerReflection, ServerReflectionServer};
 use tower::Layer;
 use tower_http::trace::{self, TraceLayer};
@@ -92,7 +92,8 @@ impl ApiServer {
         operations_receiver: Option<Receiver<Operation>>,
         labels: LabelsAndProgress,
         default_max_num_records: usize,
-    ) -> Result<impl Future<Output = Result<(), tonic::transport::Error>>, ApiInitError> {
+    ) -> Result<impl Future<Output = Result<(), dozer_types::tonic::transport::Error>>, ApiInitError>
+    {
         // Create our services.
         let mut web_config = tonic_web::config();
         if self.flags.grpc_web {

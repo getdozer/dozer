@@ -11,6 +11,7 @@ use deltalake::{
 };
 
 use dozer_types::ingestion_types::IngestionMessage;
+use dozer_types::tonic::async_trait;
 use dozer_types::{
     chrono::{DateTime, Utc},
     ingestion_types::ParquetConfig,
@@ -21,7 +22,6 @@ use object_store::ObjectStore;
 use std::{collections::HashMap, path::Path, sync::Arc, time::Duration};
 use tokio::sync::mpsc::Sender;
 use tokio::task::JoinHandle;
-use tonic::async_trait;
 
 use crate::connectors::object_store::helper::is_marker_file_exist;
 use crate::{

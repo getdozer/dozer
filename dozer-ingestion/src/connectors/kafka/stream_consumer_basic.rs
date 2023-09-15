@@ -16,7 +16,7 @@ use dozer_types::types::{Field, Operation, Record};
 
 use crate::connectors::kafka::no_schema_registry_basic::NoSchemaRegistryBasic;
 use crate::connectors::kafka::schema_registry_basic::SchemaRegistryBasic;
-use tonic::async_trait;
+use dozer_types::tonic::async_trait;
 
 use crate::connectors::TableToIngest;
 use crate::errors::KafkaStreamError::PollingError;

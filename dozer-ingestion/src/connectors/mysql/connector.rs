@@ -13,13 +13,13 @@ use crate::{
     errors::MySQLConnectorError,
 };
 use crate::{errors::ConnectorError, ingestion::Ingestor};
+use dozer_types::tonic::async_trait;
 use dozer_types::{
     ingestion_types::IngestionMessage,
     types::{FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition},
 };
 use mysql_async::{Opts, Pool};
 use mysql_common::Row;
-use tonic::async_trait;
 
 #[derive(Debug)]
 pub struct MySQLConnector {

@@ -1,12 +1,12 @@
 use dozer_types::models::api_security::ApiSecurity;
-use futures_util::future::BoxFuture;
-use hyper::{Body, Method};
-use std::task::{Context, Poll};
-use tonic::{
+use dozer_types::tonic::{
     body::{empty_body, BoxBody},
     codegen::http,
     transport::NamedService,
 };
+use futures_util::future::BoxFuture;
+use hyper::{Body, Method};
+use std::task::{Context, Poll};
 use tower::{Layer, Service};
 
 use crate::auth::Authorizer;

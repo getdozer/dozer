@@ -10,7 +10,7 @@ use dozer_types::ingestion_types::KafkaConfig;
 use rdkafka::consumer::Consumer;
 use rdkafka::util::Timeout;
 
-use tonic::async_trait;
+use dozer_types::tonic::async_trait;
 
 use crate::connectors::kafka::no_schema_registry_basic::NoSchemaRegistryBasic;
 

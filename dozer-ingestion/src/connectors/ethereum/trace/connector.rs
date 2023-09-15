@@ -8,7 +8,7 @@ use crate::{connectors::TableInfo, errors::ConnectorError, ingestion::Ingestor};
 use dozer_types::ingestion_types::{EthTraceConfig, IngestionMessage};
 use dozer_types::log::{error, info, warn};
 
-use tonic::async_trait;
+use dozer_types::tonic::async_trait;
 
 #[derive(Debug)]
 pub struct EthTraceConnector {

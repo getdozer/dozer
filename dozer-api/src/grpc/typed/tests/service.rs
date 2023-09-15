@@ -16,6 +16,12 @@ use futures_util::FutureExt;
 use std::{env, str::FromStr, sync::Arc, time::Duration};
 
 use crate::test_utils;
+use dozer_types::tonic::{
+    self,
+    metadata::MetadataValue,
+    transport::{Endpoint, Server},
+    Code, Request,
+};
 use tokio::{
     sync::{
         broadcast::{self, Receiver},
@@ -24,11 +30,6 @@ use tokio::{
     time::timeout,
 };
 use tokio_stream::StreamExt;
-use tonic::{
-    metadata::MetadataValue,
-    transport::{Endpoint, Server},
-    Code, Request,
-};
 
 pub async fn setup_pipeline() -> (Vec<Arc<CacheEndpoint>>, Receiver<Operation>) {
     // Copy this file from dozer-types compilation output directory if it changes

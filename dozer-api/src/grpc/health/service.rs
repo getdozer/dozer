@@ -1,9 +1,9 @@
 use dozer_types::grpc_types::health::health_check_response::ServingStatus;
 use dozer_types::grpc_types::health::health_grpc_service_server::HealthGrpcService;
 use dozer_types::grpc_types::health::{HealthCheckRequest, HealthCheckResponse};
+use dozer_types::tonic::{self, Request, Response, Status};
 use std::collections::HashMap;
 use tokio_stream::wrappers::ReceiverStream;
-use tonic::{Request, Response, Status};
 
 type ResponseStream = ReceiverStream<Result<HealthCheckResponse, Status>>;
 

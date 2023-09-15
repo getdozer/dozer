@@ -11,7 +11,7 @@ use dozer_types::grpc_types::{
         value, EventFilter, EventType, FieldDefinition, OperationType, RecordWithId, Type, Value,
     },
 };
-use tonic::Request;
+use dozer_types::tonic::Request;
 
 use super::CommonService;
 

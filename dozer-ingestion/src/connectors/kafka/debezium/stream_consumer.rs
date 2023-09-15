@@ -15,8 +15,8 @@ use dozer_types::serde_json::Value;
 use dozer_types::types::{Operation, Record};
 
 use crate::connectors::TableToIngest;
+use dozer_types::tonic::async_trait;
 use rdkafka::{ClientConfig, Message};
-use tonic::async_trait;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(crate = "dozer_types::serde")]

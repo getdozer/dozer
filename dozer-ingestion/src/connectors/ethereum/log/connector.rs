@@ -11,7 +11,7 @@ use dozer_types::ingestion_types::{EthFilter, EthLogConfig};
 
 use dozer_types::log::warn;
 use dozer_types::serde_json;
-use tonic::async_trait;
+use dozer_types::tonic::async_trait;
 
 use super::helper;
 use super::sender::{run, EthDetails};

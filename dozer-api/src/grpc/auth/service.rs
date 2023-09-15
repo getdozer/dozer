@@ -1,6 +1,6 @@
 use crate::auth::Access;
 
-use tonic::{Request, Response, Status};
+use dozer_types::tonic::{self, Request, Response, Status};
 
 use crate::auth::api::auth_grpc;
 use dozer_types::grpc_types::auth::auth_grpc_service_server::AuthGrpcService;

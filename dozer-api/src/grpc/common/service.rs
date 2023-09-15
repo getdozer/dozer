@@ -9,8 +9,8 @@ use crate::CacheEndpoint;
 use dozer_types::grpc_types::common::common_grpc_service_server::CommonGrpcService;
 use dozer_types::grpc_types::conversions::field_definition_to_grpc;
 use dozer_types::indexmap::IndexMap;
+use dozer_types::tonic::{self, Request, Response, Status};
 use tokio_stream::wrappers::ReceiverStream;
-use tonic::{Request, Response, Status};
 
 use dozer_types::grpc_types::common::{
     CountResponse, GetEndpointsRequest, GetEndpointsResponse, GetFieldsRequest, GetFieldsResponse,

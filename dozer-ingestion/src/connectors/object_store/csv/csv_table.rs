@@ -5,10 +5,10 @@ use dozer_types::{
 };
 use std::{collections::HashMap, path::Path, sync::Arc, time::Duration};
 
+use dozer_types::tonic::async_trait;
 use futures::StreamExt;
 use object_store::ObjectStore;
 use tokio::sync::mpsc::Sender;
-use tonic::async_trait;
 
 use crate::{
     connectors::{

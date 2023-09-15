@@ -8,7 +8,7 @@ use crate::connectors::{
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
 use dozer_types::ingestion_types::DeltaLakeConfig;
-use tonic::async_trait;
+use dozer_types::tonic::async_trait;
 
 #[derive(Debug)]
 pub struct DeltaLakeConnector {

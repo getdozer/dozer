@@ -4,11 +4,11 @@ use deltalake::{
     datafusion::{datasource::listing::ListingTableUrl, prelude::SessionContext},
     Path as DeltaPath,
 };
+use dozer_types::tonic::async_trait;
 use dozer_types::tracing::info;
 use futures::StreamExt;
 use object_store::ObjectStore;
 use tokio::sync::mpsc::Sender;
-use tonic::async_trait;
 
 use crate::{
     connectors::{object_store::helper::map_listing_options, TableInfo},

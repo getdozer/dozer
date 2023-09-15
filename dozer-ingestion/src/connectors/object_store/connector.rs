@@ -1,9 +1,9 @@
 use dozer_types::ingestion_types::IngestionMessage;
+use dozer_types::tonic::async_trait;
 use futures::future::join_all;
 use std::collections::HashMap;
 use tokio::sync::mpsc::channel;
 use tokio::task::JoinSet;
-use tonic::async_trait;
 
 use crate::connectors::object_store::adapters::DozerObjectStore;
 use crate::connectors::object_store::schema_mapper;

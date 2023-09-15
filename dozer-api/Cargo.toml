@@ -30,7 +30,6 @@ handlebars = "4.3.7"
 openapiv3 = "1.0.2"
 tonic-build = "0.8.2"
 tokio = { version = "1", features = ["full"] }
-tonic = { version = "0.8.3" }
 prost = "0.11.8"
 prost-reflect = { version = "0.10.2", features = ["serde", "text-format"] }
 tonic-reflection = "0.6.0"

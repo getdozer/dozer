@@ -2,10 +2,10 @@ use dozer_ingestion::connectors::postgres::{
     connection::{client::Client, helper::connect},
     connector::{PostgresConfig, PostgresConnector},
 };
+use dozer_types::tonic::async_trait;
 use dozer_types::types::Field;
 use dozer_utils::{process::run_docker_compose, Cleanup};
 use tempdir::TempDir;
-use tonic::async_trait;
 
 use crate::test_suite::{
     records::Operation, CudConnectorTest, DataReadyConnectorTest, FieldsAndPk,

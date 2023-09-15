@@ -66,9 +66,9 @@ pub enum GrpcError {
     Listen(SocketAddr, #[source] BoxedError),
 }
 
-impl From<ApiError> for tonic::Status {
+impl From<ApiError> for dozer_types::tonic::Status {
     fn from(input: ApiError) -> Self {
-        tonic::Status::new(tonic::Code::Unknown, input.to_string())
+        dozer_types::tonic::Status::new(dozer_types::tonic::Code::Unknown, input.to_string())
     }
 }
 

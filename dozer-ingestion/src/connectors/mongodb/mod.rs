@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use bson::{doc, Bson, Document, Timestamp};
+use dozer_types::tonic::async_trait;
 use futures::{stream::FuturesUnordered, StreamExt, TryFutureExt, TryStreamExt};
 use mongodb::{
     change_stream::event::ChangeStreamEvent,
@@ -8,7 +9,6 @@ use mongodb::{
     options::{ChangeStreamOptions, ClientOptions, ConnectionString},
 };
 use tokio::sync::mpsc::{channel, Sender};
-use tonic::async_trait;
 
 use crate::{errors::ConnectorError, ingestion::Ingestor};
 use dozer_types::{
