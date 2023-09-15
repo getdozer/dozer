@@ -20,6 +20,7 @@ use dozer_types::{
 };
 use mysql_async::{Opts, Pool};
 use mysql_common::Row;
+use rand::Rng;
 
 #[derive(Debug)]
 pub struct MySQLConnector {
@@ -378,7 +379,7 @@ impl MySQLConnector {
         start_position: BinlogPosition,
         stop_position: Option<BinlogPosition>,
     ) -> Result<(), ConnectorError> {
-        let server_id = self.server_id.unwrap_or(0xd07e5);
+        let server_id = self.server_id.unwrap_or_else(|| rand::thread_rng().gen());
 
         let mut binlog_ingestor = BinlogIngestor::new(
             ingestor,
