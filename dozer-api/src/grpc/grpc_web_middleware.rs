@@ -1,12 +1,13 @@
 use dozer_types::tonic::{body::BoxBody, transport::NamedService};
 use futures_util::Future;
 use pin_project::pin_project;
-use tonic_web::CorsGrpcWeb;
-use tower::{BoxError, Service};
+use tonic_web::{CorsGrpcWeb, GrpcWebLayer, GrpcWebService};
+use tower::{BoxError, Layer, Service};
+use tower_http::cors::{Cors, CorsLayer};
 
 #[derive(Debug, Clone)]
 pub enum MaybeGrpcWebService<S> {
-    GrpcWeb(CorsGrpcWeb<S>),
+    GrpcWeb(Cors<GrpcWebService<S>>),
     NoGrpcWeb(S),
 }
 
@@ -91,7 +92,9 @@ where
     S::Error: Into<BoxError> + Send,
 {
     if enabled {
-        MaybeGrpcWebService::GrpcWeb(tonic_web::enable(service))
+        let service = GrpcWebLayer::new().layer(service);
+        let service = CorsLayer::very_permissive().layer(service);
+        MaybeGrpcWebService::GrpcWeb(service)
     } else {
         MaybeGrpcWebService::NoGrpcWeb(service)
     }
