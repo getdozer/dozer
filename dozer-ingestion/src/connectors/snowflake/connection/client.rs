@@ -519,6 +519,7 @@ fn exec_iter(pool: Pool, query: String) -> ExecIter {
                 }
             }
             conn.return_();
+            break;
         }
         Ok::<(), SnowflakeError>(())
     });
