@@ -1,0 +1,51 @@
+syntax = "proto3";
+package dozer.cloud;
+
+message Notification {
+    string namespace = 1;
+    Level level = 2;
+    oneof kind {
+        PodNotification pod = 3;
+    }
+}
+
+enum Level {
+    TRACE = 0;
+    DEBUG = 1;
+    INFO = 2;
+    WARN = 3;
+    ERROR = 4;
+}
+
+message PodNotification {
+    uint32 deployment = 1;
+    oneof kind {
+        ContainerTerminated containerTerminated = 2;
+    }
+}
+
+message ContainerTerminated {
+    ContainerTerminationKind kind = 1;
+    ContainerTerminationReason reason = 2;
+    ContainerTerminationDetail detail = 3;
+}
+
+enum ContainerTerminationKind {
+    APP_FAILED = 0;
+    APP_RESTARTED = 1;
+    API_RESTARTED = 2;
+    CACHE_BACKUP_RESTARTED = 3;
+}
+
+enum ContainerTerminationReason {
+    OUT_OF_MEMORY = 0;
+    OUT_OF_STORAGE = 1;
+    UNKNOWN = 2;
+}
+
+message ContainerTerminationDetail {
+    int32 exitCode = 1;
+    optional string message = 2;
+    optional string reason = 3;
+    optional int32 signal = 4;
+}
