@@ -6,31 +6,32 @@ import "google/protobuf/timestamp.proto";
 import "google/protobuf/empty.proto";
 
 service DozerCloud {
-  rpc create_application(CreateAppRequest) returns (AppResponse);
-  rpc DeployApplication(DeployAppRequest) returns (stream DeployAppResponse);
-  rpc update_application(UpdateAppRequest) returns (AppResponse);
-  rpc delete_application(DeleteAppRequest) returns (DeleteAppResponse);
-  rpc list_applications(ListAppRequest) returns (ListAppResponse);
-  rpc get_connection(GetConnectionRequest) returns (ConnectionResponse);
-
-  rpc get_application(GetAppRequest) returns (AppResponse);
+  
   rpc validate_connection(ConnectionRequest)
       returns (ValidateConnectionResponse);
   rpc create_connection(ConnectionRequest) returns (ConnectionResponse);
+  rpc get_connection(GetConnectionRequest) returns (ConnectionResponse);
   rpc list_connections(GetAllConnectionRequest)
       returns (GetAllConnectionResponse);
   rpc get_tables(GetTablesRequest) returns (GetTablesResponse);
   rpc update_connection(UpdateConnectionRequest) returns (ConnectionResponse);
 
-  rpc StartDozer(StartRequest) returns (stream StartUpdate);
+  rpc list_applications(ListAppRequest) returns (ListAppResponse);
+
+  // Application
+  rpc create_application(CreateAppRequest) returns (AppResponse);
+  rpc DeployApplication(DeployAppRequest) returns (stream DeployAppResponse);
+  // rpc get_deployment_status(GetDeploymentStatusRequest) returns (GetDeploymentStatusResponse);
+  rpc update_application(UpdateAppRequest) returns (AppResponse);
+  rpc delete_application(DeleteAppRequest) returns (DeleteAppResponse);
+  rpc get_application(GetAppRequest) returns (AppResponse);  
   rpc stop_dozer(StopRequest) returns (StopResponse);
   rpc get_status(GetStatusRequest) returns (GetStatusResponse);
+  rpc list_deployments(ListDeploymentRequest) returns (ListDeploymentResponse);
+  rpc list_versions(ListVersionsRequest) returns (ListVersionsResponse);  
   rpc upsert_version(UpsertVersionRequest) returns (UpsertVersionResponse);
   rpc set_current_version(SetCurrentVersionRequest) returns (SetCurrentVersionResponse);
   rpc set_num_api_instances(SetNumApiInstancesRequest) returns (SetNumApiInstancesResponse);
-
-  rpc list_deployments(ListDeploymentRequest) returns (ListDeploymentResponse);
-
   rpc list_files(ListFilesRequest) returns (ListFilesResponse);
 
   rpc create_secret(CreateSecretRequest) returns (CreateSecretResponse);
@@ -80,7 +81,6 @@ message DeployAppResponse {
 message AppResponse {
   string app_id = 1;
   AppConfig app = 2;
-  optional string repository_url = 3;
   repeated DeploymentInfo deployments = 4;
   google.protobuf.Timestamp created_at = 5;
   google.protobuf.Timestamp updated_at = 6;
@@ -111,12 +111,20 @@ message DeleteAppResponse { bool success = 1; }
 
 message GetAppRequest { optional string app_id = 1; }
 
-message AppHealthRequest {
+message GetStatusRequest{
   string app_id = 1;
 }
-message AppHealthResponse {
-  bool healthy = 1;
+message GetStatusResponse {
+  string data_endpoint = 1;
+  repeated DeploymentStatusWithHealth deployments = 2;
+  map<uint32, uint32> versions = 4;
+  optional uint32 current_version = 5;
 }
+message DeploymentStatusWithHealth {
+  DeploymentInfo deployment = 1;
+  repeated DeploymentResource resources = 2;
+}
+
 message GetResourcesRequest {
   string app_id = 1;
   // if not specified, will get latest version
@@ -124,8 +132,6 @@ message GetResourcesRequest {
 }
 message ResourcesResponse {
   repeated DeploymentResource resources = 1;
-  map<uint32, uint32> versions = 3;
-  uint32 current_version = 4;
 }
 
 message DeploymentResource {
@@ -141,42 +147,47 @@ message DeploymentResource {
   optional int32 unavailable = 6;
 }
 
-message StartRequest {
-  string app_id = 1;
-  repeated Secret secrets = 3;
-  bool allow_incompatible = 4;
-}
-
-message StartResponse {
-  bool success = 1;
-  string app_id = 2;
-  string api_endpoint = 3;
-  optional string error = 4;
-}
-message StartUpdate {
-  optional StartResponse result = 1;
-  optional uint32 current_step = 2;
-  optional uint32 total_steps = 3;
-  optional LogMessage last_message = 4;
-}
 message StopRequest { string app_id = 1; }
 message StopResponse { bool success = 1; }
 
-message GetStatusRequest { string app_id = 1; }
-message GetStatusResponse {
-  string api_endpoint = 1;
-  repeated DeploymentStatus deployments = 2;
-  map<uint32, uint32> versions = 3;
-  optional uint32 current_version = 4;
+enum DeploymentStatus {
+  PENDING = 0;
+  RUNNING = 1;
+  SUCCESS = 2;
+  FAILED = 3;
 }
 
-message DeploymentStatus {
+message ListVersionsRequest { string app_id = 1; }
+message ListVersionsResponse {
+  optional uint32 current_version = 4;
+  map<uint32, uint32> versions = 3;
+}
+
+message DeploymentInfo {
   uint32 deployment = 1;
-  bool app_running = 2;
-  optional int32 api_desired = 3;
-  optional int32 api_available = 4;
-  string phase = 5;
-  optional string last_error = 6;
+  DeploymentStatus status = 2;
+  optional google.protobuf.Timestamp created_at = 3;
+  optional google.protobuf.Timestamp updated_at = 4;
+}
+
+message GetDeploymentStatusRequest {
+  string deployment_id = 1;
+}
+message GetDeploymentStatusResponse {
+  string deployment_id = 1;
+  string app_id = 2;
+  DeploymentStatus status = 3;
+  repeated DeploymentStep steps =4;
+  optional google.protobuf.Timestamp created_at = 5;
+  optional google.protobuf.Timestamp updated_at = 6;
+}
+
+message DeploymentStep {
+  uint32 step_index = 1;
+  string step_text = 2;
+  DeploymentStatus status = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp updated_at = 5;
 }
 
 message ListDeploymentRequest {
@@ -184,8 +195,7 @@ message ListDeploymentRequest {
 }
 
 message ListDeploymentResponse {
-  string app_id = 1;
-  repeated int32 deployment = 2;
+  repeated DeploymentInfo deployments = 2;
 }
 
 message UpsertVersionRequest {
@@ -210,17 +220,6 @@ message SetNumApiInstancesRequest {
 }
 
 message SetNumApiInstancesResponse {}
-
-
-
-message DeploymentInfo {
-  uint32 deployment = 1;
-  string phase = 2;
-  optional string last_error = 3;
-  optional google.protobuf.Timestamp created_at = 4;
-  optional google.protobuf.Timestamp updated_at = 5;
-}
-
 
 message ConnectionRequest { Connection connection = 1; }
 message GetConnectionRequest {

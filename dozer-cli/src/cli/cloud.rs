@@ -56,9 +56,6 @@ pub enum CloudCommands {
     },
     /// List all dozer application in Dozer Cloud
     List(ListCommandArgs),
-    /// Dozer API server management
-    #[command(subcommand)]
-    Api(ApiCommand),
     /// Dozer app secrets management
     #[command(subcommand)]
     Secrets(SecretsCommand),
