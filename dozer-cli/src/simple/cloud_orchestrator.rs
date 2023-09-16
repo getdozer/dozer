@@ -1,6 +1,5 @@
 use crate::cli::cloud::{
-    ApiCommand, Cloud, DeployCommandArgs, ListCommandArgs, LogCommandArgs, SecretsCommand,
-    VersionCommand,
+    Cloud, DeployCommandArgs, ListCommandArgs, LogCommandArgs, SecretsCommand, VersionCommand,
 };
 use crate::cloud_app_context::CloudAppContext;
 use crate::cloud_helper::list_files;
@@ -20,8 +19,8 @@ use dozer_types::grpc_types::cloud::{
     LogMessageRequest, UpdateSecretRequest,
 };
 use dozer_types::grpc_types::cloud::{
-    DeploymentInfo, DeploymentStatus, DeploymentStatusWithHealth, File, ListDeploymentRequest,
-    SetCurrentVersionRequest, SetNumApiInstancesRequest, UpsertVersionRequest,
+    DeploymentInfo, DeploymentStatusWithHealth, File, ListDeploymentRequest,
+    SetCurrentVersionRequest, UpsertVersionRequest,
 };
 use dozer_types::log::info;
 use dozer_types::prettytable::{row, table};

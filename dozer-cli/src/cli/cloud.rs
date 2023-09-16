@@ -142,15 +142,6 @@ pub enum VersionCommand {
 }
 
 #[derive(Debug, Clone, Subcommand)]
-pub enum ApiCommand {
-    /// Sets the number of replicas to serve Dozer APIs
-    SetNumApiInstances {
-        /// The number of replicas to set
-        num_api_instances: i32,
-    },
-}
-
-#[derive(Debug, Clone, Subcommand)]
 pub enum SecretsCommand {
     /// Creates new secret
     Create {
