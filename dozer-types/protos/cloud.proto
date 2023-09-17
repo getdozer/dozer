@@ -20,8 +20,7 @@ service DozerCloud {
 
   // Application
   rpc create_application(CreateAppRequest) returns (AppResponse);
-  rpc DeployApplication(DeployAppRequest) returns (stream DeployAppResponse);
-  // rpc get_deployment_status(GetDeploymentStatusRequest) returns (GetDeploymentStatusResponse);
+  rpc deploy_application(DeployAppRequest) returns (DeployAppResponse);
   rpc update_application(UpdateAppRequest) returns (AppResponse);
   rpc delete_application(DeleteAppRequest) returns (DeleteAppResponse);
   rpc get_application(GetAppRequest) returns (AppResponse);  
@@ -31,8 +30,10 @@ service DozerCloud {
   rpc list_versions(ListVersionsRequest) returns (ListVersionsResponse);  
   rpc upsert_version(UpsertVersionRequest) returns (UpsertVersionResponse);
   rpc set_current_version(SetCurrentVersionRequest) returns (SetCurrentVersionResponse);
-  rpc set_num_api_instances(SetNumApiInstancesRequest) returns (SetNumApiInstancesResponse);
   rpc list_files(ListFilesRequest) returns (ListFilesResponse);
+
+  // returns a list of all the steps for a deployment
+  rpc get_deployment_status(GetDeploymentStatusRequest) returns (GetDeploymentStatusResponse);
 
   rpc create_secret(CreateSecretRequest) returns (CreateSecretResponse);
   rpc update_secret(UpdateSecretRequest) returns (UpdateSecretResponse);
@@ -61,21 +62,10 @@ message DeployAppRequest {
   bool allow_incompatible = 4;
 }
 
-message DeployStep {
-  bool is_completed = 1;
-  string text = 2;
-  uint32 current_step = 3;
-  optional string error = 4;
-}
-
 message DeployAppResponse {
-  oneof result {
-    AppResponse app_created = 1;
-    DeployStep step = 2;
-    string log_message = 4;
-  }
-  bool completed = 5;
-  optional string error = 6;
+  string app_id = 1;
+  string deployment_id = 2;
+  string deployment_url = 3;
 }
 
 message AppResponse {
@@ -164,20 +154,20 @@ message ListVersionsResponse {
 }
 
 message DeploymentInfo {
-  uint32 deployment = 1;
-  DeploymentStatus status = 2;
-  optional google.protobuf.Timestamp created_at = 3;
-  optional google.protobuf.Timestamp updated_at = 4;
+  string deployment_id = 1;
+  uint32 deployment = 2;
+  DeploymentStatus status = 3;
+  optional google.protobuf.Timestamp created_at = 4;
+  optional google.protobuf.Timestamp updated_at = 5;
 }
 
 message GetDeploymentStatusRequest {
-  string deployment_id = 1;
+  string app_id = 1;
+  string deployment_id = 2;
 }
 message GetDeploymentStatusResponse {
-  string deployment_id = 1;
-  string app_id = 2;
-  DeploymentStatus status = 3;
-  repeated DeploymentStep steps =4;
+  DeploymentStatus status = 1;
+  repeated DeploymentStep steps = 2;
   optional google.protobuf.Timestamp created_at = 5;
   optional google.protobuf.Timestamp updated_at = 6;
 }
@@ -186,8 +176,7 @@ message DeploymentStep {
   uint32 step_index = 1;
   string step_text = 2;
   DeploymentStatus status = 3;
-  google.protobuf.Timestamp created_at = 4;
-  google.protobuf.Timestamp updated_at = 5;
+  string logs = 4;
 }
 
 message ListDeploymentRequest {
@@ -212,14 +201,6 @@ message SetCurrentVersionRequest {
 }
 
 message SetCurrentVersionResponse {}
-
-message SetNumApiInstancesRequest {
-  string app_id = 1;
-  uint32 deployment = 2;
-  int32 num_api_instances = 3;
-}
-
-message SetNumApiInstancesResponse {}
 
 message ConnectionRequest { Connection connection = 1; }
 message GetConnectionRequest {

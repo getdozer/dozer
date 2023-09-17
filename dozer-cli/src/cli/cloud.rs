@@ -72,6 +72,9 @@ pub struct DeployCommandArgs {
 
     #[arg(long = "allow-incompatible")]
     pub allow_incompatible: bool,
+
+    #[arg(long = "follow")]
+    pub follow: bool,
 }
 
 pub fn default_num_api_instances() -> i32 {

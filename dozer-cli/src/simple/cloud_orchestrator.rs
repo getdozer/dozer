@@ -103,6 +103,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
                 deploy.secrets,
                 deploy.allow_incompatible,
                 files,
+                deploy.follow,
             )
             .await?;
             Ok::<(), OrchestrationError>(())

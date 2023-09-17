@@ -1,19 +1,15 @@
 use crate::errors::CloudError;
 
+use crate::simple::cloud::progress_printer::ProgressPrinter;
 use crate::simple::token_layer::TokenLayer;
 use dozer_types::grpc_types::cloud::dozer_cloud_client::DozerCloudClient;
+use dozer_types::grpc_types::cloud::DeploymentStatus;
+use dozer_types::grpc_types::cloud::GetDeploymentStatusRequest;
 
-use crate::errors::CloudError::GRPCCallError;
-use dozer_types::grpc_types::cloud::{Secret, StopRequest, StopResponse};
-use dozer_types::log::{error, info};
-
-use crate::cloud_app_context::CloudAppContext;
-use crate::progress_printer::ProgressPrinter;
-use dozer_types::grpc_types::cloud::AppResponse;
 use dozer_types::grpc_types::cloud::DeployAppRequest;
-use dozer_types::grpc_types::cloud::DeployAppResponse;
-use dozer_types::grpc_types::cloud::DeployStep;
 use dozer_types::grpc_types::cloud::File;
+use dozer_types::grpc_types::cloud::{Secret, StopRequest, StopResponse};
+use dozer_types::log::info;
 
 pub async fn deploy_app(
     client: &mut DozerCloudClient<TokenLayer>,
@@ -21,8 +17,9 @@ pub async fn deploy_app(
     secrets: Vec<Secret>,
     allow_incompatible: bool,
     files: Vec<File>,
+    follow: bool,
 ) -> Result<(), CloudError> {
-    let mut response = client
+    let response = client
         .deploy_application(DeployAppRequest {
             app_id: app_id.clone(),
             secrets,
@@ -32,55 +29,65 @@ pub async fn deploy_app(
         .await?
         .into_inner();
 
-    let mut printer = ProgressPrinter::new();
-    while let Some(DeployAppResponse {
-        result,
-        completed: _,
-        error: error_message,
-    }) = response.message().await.map_err(GRPCCallError)?
-    {
-        if let Some(message) = error_message {
-            error!("{}", message);
-        } else {
-            match result {
-                Some(dozer_types::grpc_types::cloud::deploy_app_response::Result::AppCreated(
-                    AppResponse {
-                        app_id: new_app_id, ..
-                    },
-                )) => {
-                    if let Some(app_id) = app_id {
-                        info!("Updating {app_id} application");
-                    } else {
-                        info!("Deploying new application {new_app_id}");
-                        CloudAppContext::save_app_id(new_app_id)?;
-                    }
-                }
-                Some(dozer_types::grpc_types::cloud::deploy_app_response::Result::Step(
-                    DeployStep {
-                        text,
-                        is_completed,
-                        current_step,
-                        ..
-                    },
-                )) => {
-                    if is_completed {
-                        printer.complete_step(current_step, &text);
-                    } else {
-                        printer.start_step(current_step, &text);
-                    }
-                }
-                Some(dozer_types::grpc_types::cloud::deploy_app_response::Result::LogMessage(
-                    message,
-                )) => {
-                    message.split('\n').for_each(|line| {
-                        info!("{}", line);
-                    });
-                }
-                None => {}
-            }
-        }
+    let app_id = response.app_id;
+    let deployment_id = response.deployment_id;
+    let url = response.deployment_url;
+    info!("Deploying new application with App Id: {app_id}, Deployment Id: {deployment_id}");
+    info!("Follow the deployment progress at {url}");
+
+    if follow {
+        print_progress(client, app_id, deployment_id).await?;
     }
 
+    Ok::<(), CloudError>(())
+}
+
+async fn print_progress(
+    client: &mut DozerCloudClient<TokenLayer>,
+    app_id: String,
+    deployment_id: String,
+) -> Result<(), CloudError> {
+    let mut current_step = 0;
+    let mut printer = ProgressPrinter::new();
+    let request = GetDeploymentStatusRequest {
+        app_id,
+        deployment_id,
+    };
+    loop {
+        let response = client
+            .get_deployment_status(request.clone())
+            .await?
+            .into_inner();
+
+        if response.status == DeploymentStatus::Success as i32 {
+            info!("Deployment completed successfully");
+            break;
+        } else if response.status == DeploymentStatus::Failed as i32 {
+            info!("Deployment failed!");
+            break;
+        } else {
+            let steps = response.steps.clone();
+            let completed_steps = response
+                .steps
+                .into_iter()
+                .filter(|s| {
+                    s.status == DeploymentStatus::Success as i32 && s.step_index >= current_step
+                })
+                .map(|s| (s.step_index, s.step_text))
+                .collect::<Vec<(u32, String)>>();
+
+            for (step_no, text) in completed_steps.iter() {
+                printer.complete_step(*step_no, text)
+            }
+
+            if completed_steps.len() > 0 {
+                current_step = completed_steps.last().unwrap().0 + 1;
+                let text = steps[current_step as usize].step_text.clone();
+                printer.start_step(current_step, &text);
+            }
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    }
     Ok::<(), CloudError>(())
 }
 
