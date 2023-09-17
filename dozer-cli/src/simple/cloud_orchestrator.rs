@@ -251,14 +251,6 @@ impl CloudOrchestrator for SimpleOrchestrator {
                     }
                 }
 
-                fn number(number: Option<i32>) -> String {
-                    if let Some(n) = number {
-                        n.to_string()
-                    } else {
-                        "-".to_string()
-                    }
-                }
-
                 let mut version = "".to_string();
                 for (loop_version, loop_deployment) in response.versions.iter() {
                     if loop_deployment == &deployment.deployment {

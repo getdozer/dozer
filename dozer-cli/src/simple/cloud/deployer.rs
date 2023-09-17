@@ -80,7 +80,7 @@ async fn print_progress(
                 printer.complete_step(*step_no, text)
             }
 
-            if completed_steps.len() > 0 {
+            if !completed_steps.is_empty() {
                 current_step = completed_steps.last().unwrap().0 + 1;
                 let text = steps[current_step as usize].step_text.clone();
                 printer.start_step(current_step, &text);
