@@ -19,6 +19,7 @@ use futures_util::{
     stream::{AbortHandle, Abortable, Aborted},
     Future,
 };
+pub use grpc_web_middleware::enable_grpc_web;
 use http::{Request, Response};
 use hyper::Body;
 use tower::{Layer, Service};
