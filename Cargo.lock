@@ -3518,9 +3518,9 @@ dependencies = [
 
 [[package]]
 name = "geozero"
-version = "0.10.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "937818b9c084b253f929b5f5dbe050e744331d94ceb0a908b08873bcb2da3066"
+checksum = "4b1b9a1eeae9ad09e12ec50243956105184b26440f81f978cd3aae009b214d4d"
 dependencies = [
  "log",
  "scroll",
@@ -4585,12 +4585,9 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.4.17"
+version = "0.4.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "abb12e687cfb44aa40f41fc3978ef76448f9b6038cad6aef4259d3c095a2382e"
-dependencies = [
- "cfg-if",
-]
+checksum = "b5e6163cb8c49088c2c36f57875e58ccd8c87c7427f7fbd50ea6710b2f3f2e8f"
 
 [[package]]
 name = "logos"
@@ -7358,11 +7355,11 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.94"
+version = "1.0.107"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c533a59c9d8a93a09c6ab31f0fd5e5f4dd1b8fc9434804029839884765d04ea"
+checksum = "6b420ce6e3d8bd882e9b243c6eed35dbc9a6110c9769e74b584e0d68d1f20c65"
 dependencies = [
- "indexmap 1.9.2",
+ "indexmap 2.0.0",
  "itoa",
  "ryu",
  "serde",
