@@ -23,13 +23,13 @@ use dozer_types::{
 
 use dozer_types::json_types::JsonValue as dozer_JsonValue;
 use dozer_types::ordered_float::OrderedFloat;
+use dozer_types::tonic::transport::Channel;
 use dozer_types::types::{FieldDefinition, FieldType, Schema as DozerSchema, SourceDefinition};
 use dozer_types::{
     ingestion_types::{GrpcConfig, GrpcConfigSchemas},
     serde_json::json,
 };
 use tokio::runtime::Runtime;
-use tonic::transport::Channel;
 
 use super::connector::GrpcConnector;
 use super::IngestAdapter;

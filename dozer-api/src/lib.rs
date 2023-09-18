@@ -183,11 +183,11 @@ pub use actix_web_httpauth;
 pub use api_helper::API_LATENCY_HISTOGRAM_NAME;
 pub use api_helper::API_REQUEST_COUNTER_NAME;
 pub use async_trait;
+pub use dozer_types::tonic;
 use errors::ApiInitError;
 pub use openapiv3;
 pub use tokio;
 use tokio::{sync::broadcast::Sender, task::JoinHandle};
-pub use tonic;
 pub use tracing_actix_web;
 #[cfg(test)]
 mod test_utils;

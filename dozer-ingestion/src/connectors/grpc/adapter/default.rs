@@ -1,5 +1,5 @@
 use dozer_types::serde_json;
-use tonic::async_trait;
+use dozer_types::tonic::async_trait;
 
 use crate::{connectors::SourceSchema, errors::ConnectorError};
 

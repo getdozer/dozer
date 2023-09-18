@@ -4,6 +4,7 @@ use dozer_log::{
     reader::{LogReaderBuilder, LogReaderOptions},
     replication::LogOperation,
 };
+use dozer_types::tonic::{async_trait, transport::Channel};
 use dozer_types::{
     errors::types::DeserializationError,
     grpc_types::internal::{
@@ -21,7 +22,6 @@ use tokio::{
     sync::mpsc::{channel, Sender},
     task::JoinSet,
 };
-use tonic::{async_trait, transport::Channel};
 
 use crate::{
     connectors::{

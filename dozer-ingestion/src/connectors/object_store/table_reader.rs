@@ -14,11 +14,11 @@ use deltalake::datafusion::prelude::SessionContext;
 use dozer_types::arrow_types::from_arrow::{map_schema_to_dozer, map_value_to_dozer_field};
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::error;
+use dozer_types::tonic::async_trait;
 use dozer_types::types::{Operation, Record};
 use futures::StreamExt;
 use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
-use tonic::async_trait;
 
 pub struct TableReader<T: Clone + Send + Sync> {
     pub(crate) config: T,

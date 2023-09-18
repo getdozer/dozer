@@ -1,6 +1,6 @@
 [package]
 name = "dozer-ingestion"
-version = "0.1.38"
+version = "0.1.39"
 edition = "2021"
 authors = ["getdozer/dozer-dev"]
 
@@ -40,12 +40,10 @@ schema_registry_converter = { version = "3.1.0", features = [
     "avro",
 ], optional = true }
 regex = "1"
-tonic = { version = "0.8.3" }
-tonic-web = "0.4.0"
-tonic-reflection = "0.6.0"
-tower-http = { version = "0.3.5", features = ["full"] }
-prost = "0.11.8"
-prost-reflect = { version = "0.10.2", features = ["serde", "text-format"] }
+tonic-web = "0.10.0"
+tonic-reflection = "0.10.0"
+tower-http = { version = "0.4", features = ["full"] }
+prost-reflect = { version = "0.12.0", features = ["serde", "text-format"] }
 deltalake = { version = "0.13.0", default-features = false, features = [
     "s3",
     "datafusion",
@@ -70,12 +68,13 @@ geozero = { version = "0.10.0", default-features = false, features = [
 ] }
 bytes = "1.4.0"
 genawaiter = { version = "0.99.1", optional = true }
+memchr = { version = "2.6.3", optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.4.0", features = ["html_reports"] }
 serial_test = "1.0.0"
 rand = "0.8.5"
-hex-literal = "0.3.4"
+hex-literal = "0.4.1"
 dozer-tracing = { path = "../dozer-tracing" }
 tempdir = "0.3.7"
 parquet = "42.0.0"
@@ -85,7 +84,7 @@ dozer-cli = { path = "../dozer-cli" }
 
 [features]
 # Defines a feature named `odbc` that does not enable any other features.
-snowflake = ["dep:odbc", "dep:include_dir", "dep:genawaiter"]
+snowflake = ["dep:odbc", "dep:include_dir", "dep:genawaiter", "dep:memchr"]
 ethereum = ["dep:web3"]
 kafka = ["dep:rdkafka", "dep:schema_registry_converter"]
 mongodb = ["dep:mongodb"]

@@ -56,9 +56,6 @@ pub enum CloudCommands {
     },
     /// List all dozer application in Dozer Cloud
     List(ListCommandArgs),
-    /// Dozer API server management
-    #[command(subcommand)]
-    Api(ApiCommand),
     /// Dozer app secrets management
     #[command(subcommand)]
     Secrets(SecretsCommand),
@@ -75,6 +72,9 @@ pub struct DeployCommandArgs {
 
     #[arg(long = "allow-incompatible")]
     pub allow_incompatible: bool,
+
+    #[arg(long = "follow")]
+    pub follow: bool,
 }
 
 pub fn default_num_api_instances() -> i32 {
@@ -141,15 +141,6 @@ pub enum VersionCommand {
     SetCurrent {
         /// The version to set as current
         version: u32,
-    },
-}
-
-#[derive(Debug, Clone, Subcommand)]
-pub enum ApiCommand {
-    /// Sets the number of replicas to serve Dozer APIs
-    SetNumApiInstances {
-        /// The number of replicas to set
-        num_api_instances: i32,
     },
 }
 

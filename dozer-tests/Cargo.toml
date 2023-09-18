@@ -1,6 +1,6 @@
 [package]
 name = "dozer-tests"
-version = "0.1.38"
+version = "0.1.39"
 edition = "2021"
 authors = ["getdozer/dozer-dev"]
 
@@ -54,7 +54,7 @@ sqlparser = {git = "https://github.com/getdozer/sqlparser-rs.git" }
 rusqlite = { version = "0.28.0", features = ["bundled", "column_decltype"] }
 csv = "1.2"
 tempdir = "0.3.7"
-sqllogictest = "0.15.3"
+sqllogictest = "0.16.0"
 libtest-mimic = "0.6.1"
 
 [features]

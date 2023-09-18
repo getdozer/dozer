@@ -38,10 +38,8 @@ impl SpanExporter for DozerExporter {
     fn export(
         &mut self,
         batch: Vec<SpanData>,
-    ) -> dozer_types::tonic::codegen::futures_core::future::BoxFuture<
-        'static,
-        opentelemetry::sdk::export::trace::ExportResult,
-    > {
+    ) -> futures_util::future::BoxFuture<'static, opentelemetry::sdk::export::trace::ExportResult>
+    {
         let endpoint = self.config.endpoint.clone();
         let seq_no = self.seq_no.clone();
         Box::pin(async move {

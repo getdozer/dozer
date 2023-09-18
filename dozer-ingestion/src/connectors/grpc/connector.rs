@@ -10,9 +10,9 @@ use crate::{connectors::TableInfo, errors::ConnectorError, ingestion::Ingestor};
 use dozer_types::grpc_types::ingest::ingest_service_server::IngestServiceServer;
 use dozer_types::ingestion_types::GrpcConfig;
 use dozer_types::log::{info, warn};
+use dozer_types::tonic::async_trait;
+use dozer_types::tonic::transport::Server;
 use dozer_types::tracing::Level;
-use tonic::async_trait;
-use tonic::transport::Server;
 use tower_http::trace::{self, TraceLayer};
 
 #[derive(Debug)]
@@ -83,9 +83,7 @@ where
         let ingestor = unsafe { std::mem::transmute::<&'_ Ingestor, &'static Ingestor>(ingestor) };
 
         let ingest_service = IngestorServiceImpl::new(adapter, ingestor, tables);
-        let ingest_service = tonic_web::config()
-            .allow_all_origins()
-            .enable(IngestServiceServer::new(ingest_service));
+        let ingest_service = tonic_web::enable(IngestServiceServer::new(ingest_service));
 
         let reflection_service = tonic_reflection::server::Builder::configure()
             .register_encoded_file_descriptor_set(

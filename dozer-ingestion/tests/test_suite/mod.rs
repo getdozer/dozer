@@ -51,4 +51,4 @@ pub use connectors::MongodbConnectorTest;
 pub use connectors::{
     DozerConnectorTest, LocalStorageObjectStoreConnectorTest, PostgresConnectorTest,
 };
-use tonic::async_trait;
+use dozer_types::tonic::async_trait;

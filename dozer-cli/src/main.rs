@@ -199,7 +199,6 @@ fn run() -> Result<(), OrchestrationError> {
 
             match cloud.command.clone() {
                 CloudCommands::Deploy(deploy) => dozer.deploy(cloud, deploy, cli.config_paths),
-                CloudCommands::Api(api) => dozer.api(cloud, api),
                 CloudCommands::Login {
                     organisation_slug,
                     profile_name,

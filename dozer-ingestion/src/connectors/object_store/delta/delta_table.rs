@@ -3,6 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use deltalake::{datafusion::prelude::SessionContext, s3_storage_options};
 use dozer_types::chrono::{DateTime, Utc};
 use dozer_types::ingestion_types::IngestionMessage;
+use dozer_types::tonic::async_trait;
 use dozer_types::{
     arrow_types::from_arrow::{map_schema_to_dozer, map_value_to_dozer_field},
     ingestion_types::DeltaConfig,
@@ -12,7 +13,6 @@ use dozer_types::{
 use futures::StreamExt;
 use tokio::sync::mpsc::Sender;
 use tokio::task::JoinHandle;
-use tonic::async_trait;
 
 use crate::{
     connectors::{

@@ -1,12 +1,12 @@
 use dozer_ingestion::connectors::object_store::connector::ObjectStoreConnector;
 
+use dozer_types::tonic::async_trait;
 use dozer_types::{
     arrow,
     ingestion_types::{LocalDetails, LocalStorage, ParquetConfig, Table, TableConfig},
     types::Field,
 };
 use tempdir::TempDir;
-use tonic::async_trait;
 
 use crate::test_suite::{DataReadyConnectorTest, FieldsAndPk, InsertOnlyConnectorTest};
 

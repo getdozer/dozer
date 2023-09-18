@@ -5,6 +5,7 @@ pub mod health;
 pub mod internal;
 // pub mod dynamic;
 mod auth_middleware;
+mod grpc_web_middleware;
 mod metric_middleware;
 mod shared_impl;
 pub mod typed;
@@ -13,20 +14,20 @@ pub mod types_helper;
 use bytes::Bytes;
 pub use client_server::ApiServer;
 use dozer_types::errors::internal::BoxedError;
+use dozer_types::tonic::transport::server::{Router, Routes, TcpIncoming};
 use futures_util::{
     stream::{AbortHandle, Abortable, Aborted},
     Future,
 };
 use http::{Request, Response};
 use hyper::Body;
-use tonic::transport::server::{Router, Routes, TcpIncoming};
 use tower::{Layer, Service};
 
 async fn run_server<L, ResBody>(
     server: Router<L>,
     incoming: TcpIncoming,
     shutdown: impl Future<Output = ()> + Send + 'static,
-) -> Result<(), tonic::transport::Error>
+) -> Result<(), dozer_types::tonic::transport::Error>
 where
     L: Layer<Routes>,
     L::Service: Service<Request<Body>, Response = Response<ResBody>> + Clone + Send + 'static,

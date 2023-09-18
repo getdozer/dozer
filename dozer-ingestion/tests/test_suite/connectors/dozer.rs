@@ -24,11 +24,11 @@ use dozer_types::{
     serde_json,
 };
 
+use dozer_types::tonic::async_trait;
+use dozer_types::tonic::transport::Channel;
 use futures::lock::Mutex;
 use tempdir::TempDir;
 use tokio::runtime::Runtime;
-use tonic::async_trait;
-use tonic::transport::Channel;
 
 use crate::test_suite::records::Operation;
 use crate::test_suite::{

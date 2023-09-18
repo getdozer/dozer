@@ -9,8 +9,8 @@ use crate::CacheEndpoint;
 use dozer_types::grpc_types::common::common_grpc_service_server::CommonGrpcService;
 use dozer_types::grpc_types::conversions::field_definition_to_grpc;
 use dozer_types::indexmap::IndexMap;
+use dozer_types::tonic::{self, Request, Response, Status};
 use tokio_stream::wrappers::ReceiverStream;
-use tonic::{Request, Response, Status};
 
 use dozer_types::grpc_types::common::{
     CountResponse, GetEndpointsRequest, GetEndpointsResponse, GetFieldsRequest, GetFieldsResponse,
@@ -24,9 +24,9 @@ type ResponseStream = ReceiverStream<Result<Operation, tonic::Status>>;
 // #[derive(Clone)]
 pub struct CommonService {
     /// For look up endpoint from its name. `key == value.endpoint.name`. Using index map to keep endpoint order.
-    pub endpoint_map: IndexMap<String, Arc<CacheEndpoint>>,
-    pub event_notifier: Option<tokio::sync::broadcast::Receiver<Operation>>,
-    pub default_max_num_records: usize,
+    endpoint_map: IndexMap<String, Arc<CacheEndpoint>>,
+    event_notifier: Option<tokio::sync::broadcast::Receiver<Operation>>,
+    default_max_num_records: usize,
 }
 
 impl CommonService {

@@ -13,13 +13,14 @@ use crate::{
     errors::MySQLConnectorError,
 };
 use crate::{errors::ConnectorError, ingestion::Ingestor};
+use dozer_types::tonic::async_trait;
 use dozer_types::{
     ingestion_types::IngestionMessage,
     types::{FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition},
 };
 use mysql_async::{Opts, Pool};
 use mysql_common::Row;
-use tonic::async_trait;
+use rand::Rng;
 
 #[derive(Debug)]
 pub struct MySQLConnector {
@@ -378,7 +379,7 @@ impl MySQLConnector {
         start_position: BinlogPosition,
         stop_position: Option<BinlogPosition>,
     ) -> Result<(), ConnectorError> {
-        let server_id = self.server_id.unwrap_or(0xd07e5);
+        let server_id = self.server_id.unwrap_or_else(|| rand::thread_rng().gen());
 
         let mut binlog_ingestor = BinlogIngestor::new(
             ingestor,

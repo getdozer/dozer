@@ -1,6 +1,5 @@
 use crate::cli::cloud::{
-    ApiCommand, Cloud, DeployCommandArgs, ListCommandArgs, LogCommandArgs, SecretsCommand,
-    VersionCommand,
+    Cloud, DeployCommandArgs, ListCommandArgs, LogCommandArgs, SecretsCommand, VersionCommand,
 };
 use crate::cloud_app_context::CloudAppContext;
 use crate::cloud_helper::list_files;
@@ -20,8 +19,8 @@ use dozer_types::grpc_types::cloud::{
     LogMessageRequest, UpdateSecretRequest,
 };
 use dozer_types::grpc_types::cloud::{
-    DeploymentStatus, File, SetCurrentVersionRequest, SetNumApiInstancesRequest,
-    UpsertVersionRequest,
+    DeploymentInfo, DeploymentStatusWithHealth, File, ListDeploymentRequest,
+    SetCurrentVersionRequest, UpsertVersionRequest,
 };
 use dozer_types::log::info;
 use dozer_types::prettytable::{row, table};
@@ -104,6 +103,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
                 deploy.secrets,
                 deploy.allow_incompatible,
                 files,
+                deploy.follow,
             )
             .await?;
             Ok::<(), OrchestrationError>(())
@@ -229,7 +229,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
 
             let mut table = table!();
 
-            table.add_row(row!["Api endpoint", response.api_endpoint,]);
+            table.add_row(row!["Api endpoint", response.data_endpoint,]);
 
             let mut deployment_table = table!();
             deployment_table.set_titles(row![
@@ -242,8 +242,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
             ]);
 
             for status in response.deployments.iter() {
-                let deployment = status.deployment;
-
+                let deployment = status.deployment.as_ref().expect("deployment is expected");
                 fn mark(status: bool) -> &'static str {
                     if status {
                         "🟢"
@@ -252,17 +251,9 @@ impl CloudOrchestrator for SimpleOrchestrator {
                     }
                 }
 
-                fn number(number: Option<i32>) -> String {
-                    if let Some(n) = number {
-                        n.to_string()
-                    } else {
-                        "-".to_string()
-                    }
-                }
-
                 let mut version = "".to_string();
                 for (loop_version, loop_deployment) in response.versions.iter() {
-                    if loop_deployment == &deployment {
+                    if loop_deployment == &deployment.deployment {
                         if Some(*loop_version) == response.current_version {
                             version = format!("v{loop_version} (current)");
                         } else {
@@ -273,17 +264,17 @@ impl CloudOrchestrator for SimpleOrchestrator {
                 }
 
                 deployment_table.add_row(row![
-                    deployment,
-                    mark(status.app_running),
-                    format!(
-                        "{}/{}",
-                        number(status.api_available),
-                        number(status.api_desired)
-                    ),
-                    version,
-                    status.phase,
-                    status.last_error.as_deref().unwrap_or("None")
+                    deployment.deployment,
+                    format!("Deployment Status: {:?}", deployment.status),
+                    format!("Version: {}", version),
                 ]);
+                for r in status.resources.iter() {
+                    deployment_table.add_row(row![
+                        "",
+                        format!("{}: {}", r.typ, mark(r.available == r.desired)),
+                        format!("{}/{}", r.available.unwrap_or(0), r.desired.unwrap_or(0)),
+                    ]);
+                }
             }
 
             table.add_row(row!["Deployments", deployment_table]);
@@ -309,8 +300,8 @@ impl CloudOrchestrator for SimpleOrchestrator {
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud, cloud_config).await?;
 
-            let status = client
-                .get_status(GetStatusRequest {
+            let res = client
+                .list_deployments(ListDeploymentRequest {
                     app_id: app_id.clone(),
                 })
                 .await
@@ -320,7 +311,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
             // Show log of the latest deployment for now.
             let Some(deployment) = logs
                 .deployment
-                .or_else(|| latest_deployment(&status.deployments))
+                .or_else(|| latest_deployment(&res.deployments))
             else {
                 info!("No deployments found");
                 return Ok(());
@@ -532,7 +523,7 @@ impl SimpleOrchestrator {
                     let api_available = get_api_available(&status.deployments, *deployment);
 
                     let version_status =
-                        get_version_status(&status.api_endpoint, version, api_available).await;
+                        get_version_status(&status.data_endpoint, version, api_available).await;
                     let mut table = table!();
 
                     if let Some(current_version) = status.current_version {
@@ -548,7 +539,7 @@ impl SimpleOrchestrator {
                             ]);
 
                             let current_version_status = get_version_status(
-                                &status.api_endpoint,
+                                &status.data_endpoint,
                                 current_version,
                                 current_api_available,
                             )
@@ -587,50 +578,29 @@ impl SimpleOrchestrator {
         })?;
         Ok(())
     }
-
-    pub fn api(&self, cloud: Cloud, api: ApiCommand) -> Result<(), OrchestrationError> {
-        self.runtime.block_on(async move {
-            let app_id = CloudAppContext::get_app_id(self.config.cloud.as_ref())?;
-
-            let mut client = get_cloud_client(&cloud, self.config.cloud.as_ref()).await?;
-
-            match api {
-                ApiCommand::SetNumApiInstances { num_api_instances } => {
-                    let status = client
-                        .get_status(GetStatusRequest {
-                            app_id: app_id.clone(),
-                        })
-                        .await?
-                        .into_inner();
-                    // Update the latest deployment for now.
-                    let Some(deployment) = latest_deployment(&status.deployments) else {
-                        info!("No deployments found");
-                        return Ok(());
-                    };
-                    client
-                        .set_num_api_instances(SetNumApiInstancesRequest {
-                            app_id,
-                            deployment,
-                            num_api_instances,
-                        })
-                        .await?;
-                }
-            }
-            Ok::<_, CloudError>(())
-        })?;
-        Ok(())
-    }
 }
 
-fn latest_deployment(deployments: &[DeploymentStatus]) -> Option<u32> {
+fn latest_deployment(deployments: &[DeploymentInfo]) -> Option<u32> {
     deployments.iter().map(|status| status.deployment).max()
 }
 
-fn get_api_available(deployments: &[DeploymentStatus], deployment: u32) -> i32 {
-    deployments
+fn get_api_available(deployments: &[DeploymentStatusWithHealth], deployment: u32) -> i32 {
+    let info = deployments
         .iter()
-        .find(|status| status.deployment == deployment)
-        .expect("Deployment should be found in deployments")
-        .api_available
+        .find(|status| {
+            status
+                .deployment
+                .as_ref()
+                .expect("deployment is expected")
+                .deployment
+                == deployment
+        })
+        .expect("Deployment should be found in deployments");
+
+    info.resources
+        .clone()
+        .into_iter()
+        .find(|r| r.typ == "api")
+        .and_then(|r| r.available)
         .unwrap_or(1)
 }

@@ -1,6 +1,6 @@
 [package]
 name = "dozer-tracing"
-version = "0.1.38"
+version = "0.1.39"
 edition = "2021"
 authors = ["getdozer/dozer-dev"]
 
@@ -24,6 +24,7 @@ atty = "0.2.14"
 opentelemetry-otlp = "0.13.0"
 metrics = "0.21.1"
 console-subscriber = { version = "0.1.10", optional = true }
+futures-util = "0.3.28"
 
 [features]
 tokio-console = ["tokio/tracing", "console-subscriber"]

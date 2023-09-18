@@ -1,5 +1,5 @@
+use dozer_types::tonic::Request;
 use std::collections::HashMap;
-use tonic::Request;
 
 use dozer_types::grpc_types::health::health_check_response::ServingStatus;
 use dozer_types::grpc_types::health::health_grpc_service_server::HealthGrpcService;
@@ -29,5 +29,8 @@ async fn test_grpc_health_check() {
             service: "non-existent".to_string(),
         }))
         .await;
-    assert_eq!(response.unwrap_err().code(), tonic::Code::NotFound);
+    assert_eq!(
+        response.unwrap_err().code(),
+        dozer_types::tonic::Code::NotFound
+    );
 }

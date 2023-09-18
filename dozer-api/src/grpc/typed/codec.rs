@@ -1,9 +1,9 @@
-use prost_reflect::prost::Message;
-use prost_reflect::{DynamicMessage, MethodDescriptor};
-use tonic::{
+use dozer_types::tonic::{
     codec::{Codec, DecodeBuf, Decoder, EncodeBuf, Encoder},
     Status,
 };
+use prost_reflect::prost::Message;
+use prost_reflect::{DynamicMessage, MethodDescriptor};
 
 use super::TypedResponse;
 
