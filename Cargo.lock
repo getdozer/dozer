@@ -2787,7 +2787,6 @@ dependencies = [
  "dozer-types",
  "enum_dispatch",
  "half 2.3.1",
- "jsonpath-rust",
  "like",
  "linked-hash-map",
  "metrics",
@@ -4247,18 +4246,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c5f195fe497f702db0f318b07fdd68edb16955aed830df8363d837542f8f935a"
 dependencies = [
  "wasm-bindgen",
-]
-
-[[package]]
-name = "jsonpath-rust"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b55563e28c54b1cc0d7eb92475cf9e210cd58e2fce9fabbc0cb5bb1136b4ab3"
-dependencies = [
- "pest",
- "pest_derive",
- "regex",
- "serde_json",
 ]
 
 [[package]]
