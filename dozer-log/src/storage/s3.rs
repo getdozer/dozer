@@ -228,7 +228,7 @@ impl Storage for S3Storage {
     }
 }
 
-fn is_bucket_already_owned_by_you(error: &SdkError<CreateBucketError>) -> bool {
+fn is_bucket_already_owned_by_you<R>(error: &SdkError<CreateBucketError, R>) -> bool {
     if let SdkError::ServiceError(error) = error {
         error.err().is_bucket_already_owned_by_you()
     } else {
