@@ -63,7 +63,7 @@ mysql_common = { version = "0.30", default-features = false, features = [
     "rust_decimal",
 ] }
 chrono = "0.4.26"
-geozero = { version = "0.10.0", default-features = false, features = [
+geozero = { version = "0.11.0", default-features = false, features = [
     "with-wkb",
 ] }
 bytes = "1.4.0"
