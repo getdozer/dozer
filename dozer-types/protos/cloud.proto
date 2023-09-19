@@ -47,10 +47,22 @@ service DozerCloud {
   rpc get_resources(GetResourcesRequest) returns (ResourcesResponse);
 
   rpc Subscribe(google.protobuf.Empty) returns (stream Notification);
+
+  rpc list_notifications(ListNotificationsRequest) returns (ListNotificationsResponse);
 }
 
 service DozerPublic {
   rpc company_metadata(CompanyRequest) returns (CompanyResponse);
+}
+message ListNotificationsRequest {
+  string app_id = 1;
+  optional uint32 limit = 2;
+  optional uint32 offset = 3;
+}
+
+message ListNotificationsResponse {
+  repeated Notification notifications = 1;
+  Pagination pagination = 2;
 }
 message CreateAppRequest {
   repeated File files = 3;
