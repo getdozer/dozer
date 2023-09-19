@@ -1,8 +1,8 @@
 use crate::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Source, SourceFactory,
 };
-use crate::processor_record::ProcessorRecordStore;
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
+use dozer_recordstore::ProcessorRecordStore;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::{node::NodeHandle, types::Schema};
 use std::collections::HashMap;

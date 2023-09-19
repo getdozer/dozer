@@ -1,16 +1,30 @@
 use std::collections::HashMap;
 
-use dozer_storage::errors::StorageError;
 use dozer_types::{
     bincode,
+    errors::internal::BoxedError,
     parking_lot::RwLock,
     serde::{Deserialize, Serialize},
-    types::{Field, Lifetime, Operation, Record},
+    thiserror::Error,
+    types::{Field, Lifetime, Record},
 };
 
-use crate::{errors::ExecutionError, executor_operation::ProcessorOperation};
+use super::{FieldRef, ProcessorRecord, RecordRef};
 
-use super::{ProcessorRecord, RecordRef};
+#[derive(Error, Debug)]
+pub enum RecordStoreError {
+    #[error("Unable to deserialize type: {} - Reason: {}", typ, reason.to_string())]
+    DeserializationError {
+        typ: &'static str,
+        reason: BoxedError,
+    },
+
+    #[error("Unable to serialize type: {} - Reason: {}", typ, reason.to_string())]
+    SerializationError {
+        typ: &'static str,
+        reason: BoxedError,
+    },
+}
 
 #[derive(Debug)]
 pub struct ProcessorRecordStore {
@@ -24,7 +38,7 @@ struct ProcessorRecordStoreInner {
 }
 
 impl ProcessorRecordStore {
-    pub fn new() -> Result<Self, ExecutionError> {
+    pub fn new() -> Result<Self, RecordStoreError> {
         Ok(Self {
             inner: RwLock::new(Default::default()),
         })
@@ -34,19 +48,19 @@ impl ProcessorRecordStore {
         self.inner.read().records.len()
     }
 
-    pub fn serialize_slice(&self, start: usize) -> Result<(Vec<u8>, usize), StorageError> {
+    pub fn serialize_slice(&self, start: usize) -> Result<(Vec<u8>, usize), RecordStoreError> {
         let records = &self.inner.read().records;
         let slice = &records[start..];
-        let data = bincode::serialize(slice).map_err(|e| StorageError::SerializationError {
+        let data = bincode::serialize(slice).map_err(|e| RecordStoreError::SerializationError {
             typ: "[RecordRef]",
             reason: Box::new(e),
         })?;
         Ok((data, slice.len()))
     }
 
-    pub fn deserialize_and_extend(&self, data: &[u8]) -> Result<(), StorageError> {
+    pub fn deserialize_and_extend(&self, data: &[u8]) -> Result<(), RecordStoreError> {
         let slice: Vec<RecordRef> =
-            bincode::deserialize(data).map_err(|e| StorageError::DeserializationError {
+            bincode::deserialize(data).map_err(|e| RecordStoreError::DeserializationError {
                 typ: "[RecordRef]",
                 reason: Box::new(e),
             })?;
@@ -64,8 +78,8 @@ impl ProcessorRecordStore {
         Ok(())
     }
 
-    pub fn create_ref(&self, values: &[Field]) -> Result<RecordRef, StorageError> {
-        let record = RecordRef(values.to_vec().into());
+    pub fn create_ref(&self, values: &[Field]) -> Result<RecordRef, RecordStoreError> {
+        let record = RecordRef::new(values.to_vec());
 
         let mut inner = self.inner.write();
 
@@ -76,8 +90,11 @@ impl ProcessorRecordStore {
         Ok(record)
     }
 
-    pub fn load_ref(&self, record_ref: &RecordRef) -> Result<Vec<Field>, StorageError> {
-        Ok(record_ref.0.to_vec())
+    pub fn load_ref<'a>(
+        &self,
+        record_ref: &'a RecordRef,
+    ) -> Result<Vec<FieldRef<'a>>, RecordStoreError> {
+        Ok(record_ref.load())
     }
 
     pub fn serialize_ref(&self, record_ref: &RecordRef) -> u64 {
@@ -85,7 +102,7 @@ impl ProcessorRecordStore {
             .inner
             .read()
             .record_pointer_to_index
-            .get(&(record_ref.0.as_ptr() as usize))
+            .get(&record_ref.id())
             .expect("RecordRef not found in ProcessorRecordStore") as u64
     }
 
@@ -93,18 +110,23 @@ impl ProcessorRecordStore {
         self.inner.read().records[index as usize].clone()
     }
 
-    pub fn create_record(&self, record: &Record) -> Result<ProcessorRecord, StorageError> {
+    pub fn create_record(&self, record: &Record) -> Result<ProcessorRecord, RecordStoreError> {
         let record_ref = self.create_ref(&record.values)?;
         let mut processor_record = ProcessorRecord::new(Box::new([record_ref]));
         processor_record.set_lifetime(record.lifetime.clone());
         Ok(processor_record)
     }
 
-    pub fn load_record(&self, processor_record: &ProcessorRecord) -> Result<Record, StorageError> {
+    pub fn load_record(
+        &self,
+        processor_record: &ProcessorRecord,
+    ) -> Result<Record, RecordStoreError> {
         let mut record = Record::default();
         for record_ref in processor_record.values.iter() {
             let fields = self.load_ref(record_ref)?;
-            record.values.extend(fields.iter().cloned());
+            record
+                .values
+                .extend(fields.iter().map(|field| field.cloned()));
         }
         record.set_lifetime(processor_record.get_lifetime());
         Ok(record)
@@ -131,48 +153,6 @@ impl ProcessorRecordStore {
             .collect();
         Ok(ProcessorRecord { values, lifetime })
     }
-
-    pub fn create_operation(
-        &self,
-        operation: &Operation,
-    ) -> Result<ProcessorOperation, StorageError> {
-        match operation {
-            Operation::Delete { old } => {
-                let old = self.create_record(old)?;
-                Ok(ProcessorOperation::Delete { old })
-            }
-            Operation::Insert { new } => {
-                let new = self.create_record(new)?;
-                Ok(ProcessorOperation::Insert { new })
-            }
-            Operation::Update { old, new } => {
-                let old = self.create_record(old)?;
-                let new = self.create_record(new)?;
-                Ok(ProcessorOperation::Update { old, new })
-            }
-        }
-    }
-
-    pub fn load_operation(
-        &self,
-        operation: &ProcessorOperation,
-    ) -> Result<Operation, StorageError> {
-        match operation {
-            ProcessorOperation::Delete { old } => {
-                let old = self.load_record(old)?;
-                Ok(Operation::Delete { old })
-            }
-            ProcessorOperation::Insert { new } => {
-                let new = self.load_record(new)?;
-                Ok(Operation::Insert { new })
-            }
-            ProcessorOperation::Update { old, new } => {
-                let old = self.load_record(old)?;
-                let new = self.load_record(new)?;
-                Ok(Operation::Update { old, new })
-            }
-        }
-    }
 }
 
 fn insert_record_pointer_to_index(
@@ -180,7 +160,7 @@ fn insert_record_pointer_to_index(
     record: &RecordRef,
     index: usize,
 ) {
-    let previous_index = record_pointer_to_index.insert(record.0.as_ptr() as usize, index);
+    let previous_index = record_pointer_to_index.insert(record.id(), index);
     debug_assert!(previous_index.is_none());
 }
 

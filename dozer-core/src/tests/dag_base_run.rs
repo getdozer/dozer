@@ -4,7 +4,6 @@ use crate::epoch::Epoch;
 use crate::executor::{DagExecutor, ExecutorOptions};
 use crate::executor_operation::ProcessorOperation;
 use crate::node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory};
-use crate::processor_record::ProcessorRecordStore;
 use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::tests::sources::{
     DualPortGeneratorSourceFactory, GeneratorSourceFactory,
@@ -14,6 +13,7 @@ use crate::tests::sources::{
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use dozer_log::storage::Object;
 use dozer_log::tokio;
+use dozer_recordstore::ProcessorRecordStore;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
 use dozer_types::types::Schema;

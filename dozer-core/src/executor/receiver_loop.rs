@@ -105,7 +105,7 @@ mod tests {
         types::{Field, Record},
     };
 
-    use crate::processor_record::{ProcessorRecord, ProcessorRecordStore};
+    use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore};
 
     use super::*;
 

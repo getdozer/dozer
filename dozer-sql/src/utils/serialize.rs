@@ -1,7 +1,5 @@
-use dozer_core::{
-    dozer_log::{storage::Object, tokio::sync::mpsc::error::SendError},
-    processor_record::{ProcessorRecord, ProcessorRecordStore},
-};
+use dozer_core::dozer_log::{storage::Object, tokio::sync::mpsc::error::SendError};
+use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore};
 use dozer_types::{
     bincode,
     serde::{de::DeserializeOwned, Serialize},

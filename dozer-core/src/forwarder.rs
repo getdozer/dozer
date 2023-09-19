@@ -234,7 +234,7 @@ impl SourceChannelManager {
                 );
 
                 self.manager.send_op(
-                    self.epoch_manager.record_store().create_operation(&op)?,
+                    ProcessorOperation::new(&op, self.epoch_manager.record_store())?,
                     port,
                 )?;
                 self.num_uncommitted_ops += 1;

@@ -1,7 +1,5 @@
-use dozer_core::{
-    dozer_log::storage::Object,
-    processor_record::{ProcessorRecord, ProcessorRecordStore},
-};
+use dozer_core::dozer_log::storage::Object;
+use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore};
 use dozer_types::serde::{Deserialize, Serialize};
 use enum_dispatch::enum_dispatch;
 use std::collections::HashMap;
@@ -163,7 +161,7 @@ mod bloom;
 
 #[cfg(test)]
 mod tests {
-    use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordStore};
+    use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore};
     use dozer_types::types::{Field, Record};
 
     use super::{

@@ -1,3 +1,4 @@
+use dozer_recordstore::ProcessorRecordStore;
 use dozer_types::node::{NodeHandle, SourceStates, TableState};
 use dozer_types::parking_lot::Mutex;
 use std::collections::HashMap;
@@ -7,7 +8,6 @@ use std::thread::sleep;
 use std::time::{Duration, SystemTime};
 
 use crate::checkpoint::{CheckpointFactory, CheckpointWriter};
-use crate::processor_record::ProcessorRecordStore;
 
 use super::EpochCommonInfo;
 

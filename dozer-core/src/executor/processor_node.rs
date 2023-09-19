@@ -8,13 +8,13 @@ use dozer_types::node::NodeHandle;
 use crate::epoch::Epoch;
 use crate::error_manager::ErrorManager;
 use crate::executor_operation::{ExecutorOperation, ProcessorOperation};
-use crate::processor_record::ProcessorRecordStore;
 use crate::{
     builder_dag::NodeKind,
     errors::ExecutionError,
     forwarder::ProcessorChannelManager,
     node::{PortHandle, Processor},
 };
+use dozer_recordstore::ProcessorRecordStore;
 
 use super::{execution_dag::ExecutionDag, name::Name, receiver_loop::ReceiverLoop};
 

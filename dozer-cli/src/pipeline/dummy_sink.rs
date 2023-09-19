@@ -5,9 +5,9 @@ use dozer_core::{
     epoch::Epoch,
     executor_operation::ProcessorOperation,
     node::{PortHandle, Sink, SinkFactory},
-    processor_record::ProcessorRecordStore,
     DEFAULT_PORT_HANDLE,
 };
+use dozer_recordstore::ProcessorRecordStore;
 use dozer_types::{errors::internal::BoxedError, types::Schema};
 
 #[derive(Debug)]

@@ -12,8 +12,8 @@ use dozer_core::node::{
     SourceState,
 };
 
-use dozer_core::processor_record::ProcessorRecordStore;
 use dozer_core::{Dag, DEFAULT_PORT_HANDLE};
+use dozer_recordstore::ProcessorRecordStore;
 
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 
