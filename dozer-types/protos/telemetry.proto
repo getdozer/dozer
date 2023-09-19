@@ -1,0 +1,22 @@
+syntax = "proto3";
+package dozer.telemetry;
+
+service TelemetryService {
+  rpc get_metrics(MetricsRequest) returns (MetricsResponse);
+}
+
+enum QueryType {
+  QUERY = 0;
+  RANGE = 1;
+}
+
+message MetricsRequest {
+  string app_id = 1;
+  QueryType query_type = 2;
+  string query = 3;
+  optional uint64 start = 4;
+  optional uint64 end = 5;
+  optional uint32 step = 6;
+}
+
+message MetricsResponse { string content = 1; }

@@ -1,11 +1,14 @@
 syntax = "proto3";
 package dozer.cloud;
+import "google/protobuf/timestamp.proto";
 
 message Notification {
-    string namespace = 1;
-    Level level = 2;
+    string id = 1;
+    google.protobuf.Timestamp created_at = 2;
+    string namespace = 3;
+    Level level = 4;
     oneof kind {
-        PodNotification pod = 3;
+        PodNotification pod = 5;
     }
 }
 
