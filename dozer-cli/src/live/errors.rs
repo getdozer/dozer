@@ -1,6 +1,6 @@
 use crate::errors::{BuildError, CliError, OrchestrationError};
 use dozer_core::errors::ExecutionError;
-use dozer_sql::pipeline::errors::PipelineError;
+use dozer_sql::errors::PipelineError;
 
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;

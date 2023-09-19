@@ -1,0 +1,24 @@
+[package]
+name = "dozer-sql-expression"
+version = "0.1.39"
+edition = "2021"
+authors = ["getdozer/dozer-dev"]
+
+[dependencies]
+dozer-types = { path = "../../dozer-types" }
+num-traits = "0.2.16"
+sqlparser = { git = "https://github.com/getdozer/sqlparser-rs.git" }
+bigdecimal = { version = "0.3", features = ["serde"], optional = true }
+ort = { version = "1.15.2", optional = true }
+ndarray = { version = "0.15", optional = true }
+half = { version = "2.3.1", optional = true }
+like = "0.3.1"
+jsonpath = { path = "../jsonpath" }
+
+[dev-dependencies]
+proptest = "1.2.0"
+
+[features]
+bigdecimal = ["dep:bigdecimal", "sqlparser/bigdecimal"]
+python = ["dozer-types/python-auto-initialize"]
+onnx = ["dep:ort", "dep:ndarray", "dep:half"]

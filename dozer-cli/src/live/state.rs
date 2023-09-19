@@ -4,7 +4,7 @@ use clap::Parser;
 
 use dozer_cache::dozer_log::camino::Utf8Path;
 use dozer_core::{app::AppPipeline, dag_schemas::DagSchemas, Dag};
-use dozer_sql::pipeline::builder::statement_to_pipeline;
+use dozer_sql::builder::statement_to_pipeline;
 use dozer_tracing::{Labels, LabelsAndProgress};
 use dozer_types::{
     constants::DEFAULT_DEFAULT_MAX_NUM_RECORDS,

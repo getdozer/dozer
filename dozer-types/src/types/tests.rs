@@ -315,15 +315,13 @@ fn test_to_conversion() {
     assert!(field.to_i128().is_some());
     assert!(field.to_float().is_some());
     assert!(field.to_boolean().is_some());
-    assert!(field.to_string().is_some());
-    assert!(field.to_text().is_some());
     assert!(field.to_binary().is_none());
     assert!(field.to_decimal().is_some());
-    assert!(field.to_timestamp().unwrap().is_none());
-    assert!(field.to_date().unwrap().is_none());
+    assert!(field.to_timestamp().is_none());
+    assert!(field.to_date().is_none());
     assert!(field.to_json().is_some());
     assert!(field.to_point().is_none());
-    assert!(field.to_duration().is_ok());
+    assert!(field.to_duration().is_some());
     assert!(field.to_null().is_none());
 
     let field = Field::Int(1);
@@ -333,15 +331,13 @@ fn test_to_conversion() {
     assert!(field.to_i128().is_some());
     assert!(field.to_float().is_some());
     assert!(field.to_boolean().is_some());
-    assert!(field.to_string().is_some());
-    assert!(field.to_text().is_some());
     assert!(field.to_binary().is_none());
     assert!(field.to_decimal().is_some());
-    assert!(field.to_timestamp().unwrap().is_none());
-    assert!(field.to_date().unwrap().is_none());
+    assert!(field.to_timestamp().is_none());
+    assert!(field.to_date().is_none());
     assert!(field.to_json().is_some());
     assert!(field.to_point().is_none());
-    assert!(field.to_duration().is_ok());
+    assert!(field.to_duration().is_some());
     assert!(field.to_null().is_none());
 
     let field = Field::U128(1);
@@ -351,15 +347,13 @@ fn test_to_conversion() {
     assert!(field.to_i128().is_some());
     assert!(field.to_float().is_some());
     assert!(field.to_boolean().is_some());
-    assert!(field.to_string().is_some());
-    assert!(field.to_text().is_some());
     assert!(field.to_binary().is_none());
     assert!(field.to_decimal().is_some());
-    assert!(field.to_timestamp().unwrap().is_none());
-    assert!(field.to_date().unwrap().is_none());
+    assert!(field.to_timestamp().is_none());
+    assert!(field.to_date().is_none());
     assert!(field.to_json().is_some());
     assert!(field.to_point().is_none());
-    assert!(field.to_duration().is_ok());
+    assert!(field.to_duration().is_some());
     assert!(field.to_null().is_none());
 
     let field = Field::I128(1);
@@ -369,15 +363,13 @@ fn test_to_conversion() {
     assert!(field.to_i128().is_some());
     assert!(field.to_float().is_some());
     assert!(field.to_boolean().is_some());
-    assert!(field.to_string().is_some());
-    assert!(field.to_text().is_some());
     assert!(field.to_binary().is_none());
     assert!(field.to_decimal().is_some());
-    assert!(field.to_timestamp().unwrap().is_none());
-    assert!(field.to_date().unwrap().is_none());
+    assert!(field.to_timestamp().is_none());
+    assert!(field.to_date().is_none());
     assert!(field.to_json().is_some());
     assert!(field.to_point().is_none());
-    assert!(field.to_duration().is_ok());
+    assert!(field.to_duration().is_some());
     assert!(field.to_null().is_none());
 
     let field = Field::Float(OrderedFloat::from(1.0));
@@ -387,15 +379,13 @@ fn test_to_conversion() {
     assert!(field.to_i128().is_some());
     assert!(field.to_float().is_some());
     assert!(field.to_boolean().is_some());
-    assert!(field.to_string().is_some());
-    assert!(field.to_text().is_some());
     assert!(field.to_binary().is_none());
     assert!(field.to_decimal().is_some());
-    assert!(field.to_timestamp().unwrap().is_none());
-    assert!(field.to_date().unwrap().is_none());
+    assert!(field.to_timestamp().is_none());
+    assert!(field.to_date().is_none());
     assert!(field.to_json().is_some());
     assert!(field.to_point().is_none());
-    assert!(field.to_duration().is_err());
+    assert!(field.to_duration().is_none());
     assert!(field.to_null().is_none());
 
     let field = Field::Boolean(true);
@@ -405,15 +395,13 @@ fn test_to_conversion() {
     assert!(field.to_i128().is_none());
     assert!(field.to_float().is_none());
     assert!(field.to_boolean().is_some());
-    assert!(field.to_string().is_some());
-    assert!(field.to_text().is_some());
     assert!(field.to_binary().is_none());
     assert!(field.to_decimal().is_none());
-    assert!(field.to_timestamp().unwrap().is_none());
-    assert!(field.to_date().unwrap().is_none());
+    assert!(field.to_timestamp().is_none());
+    assert!(field.to_date().is_none());
     assert!(field.to_json().is_some());
     assert!(field.to_point().is_none());
-    assert!(field.to_duration().is_err());
+    assert!(field.to_duration().is_none());
     assert!(field.to_null().is_none());
 
     let field = Field::String("".to_string());
@@ -423,15 +411,13 @@ fn test_to_conversion() {
     assert!(field.to_i128().is_none());
     assert!(field.to_float().is_none());
     assert!(field.to_boolean().is_none());
-    assert!(field.to_string().is_some());
-    assert!(field.to_text().is_some());
     assert!(field.to_binary().is_none());
     assert!(field.to_decimal().is_none());
-    assert!(field.to_timestamp().unwrap().is_none());
-    assert!(field.to_date().unwrap().is_none());
+    assert!(field.to_timestamp().is_none());
+    assert!(field.to_date().is_none());
     assert!(field.to_json().is_some());
     assert!(field.to_point().is_none());
-    assert!(field.to_duration().is_err());
+    assert!(field.to_duration().is_none());
     assert!(field.to_null().is_none());
 
     let field = Field::Text("".to_string());
@@ -441,15 +427,13 @@ fn test_to_conversion() {
     assert!(field.to_i128().is_none());
     assert!(field.to_float().is_none());
     assert!(field.to_boolean().is_none());
-    assert!(field.to_string().is_some());
-    assert!(field.to_text().is_some());
     assert!(field.to_binary().is_none());
     assert!(field.to_decimal().is_none());
-    assert!(field.to_timestamp().unwrap().is_none());
-    assert!(field.to_date().unwrap().is_none());
+    assert!(field.to_timestamp().is_none());
+    assert!(field.to_date().is_none());
     assert!(field.to_json().is_some());
     assert!(field.to_point().is_none());
-    assert!(field.to_duration().is_err());
+    assert!(field.to_duration().is_none());
     assert!(field.to_null().is_none());
 
     let field = Field::Binary(vec![]);
@@ -459,15 +443,13 @@ fn test_to_conversion() {
     assert!(field.to_i128().is_none());
     assert!(field.to_float().is_none());
     assert!(field.to_boolean().is_none());
-    assert!(field.to_string().is_some());
-    assert!(field.to_text().is_some());
     assert!(field.to_binary().is_some());
     assert!(field.to_decimal().is_none());
-    assert!(field.to_timestamp().unwrap().is_none());
-    assert!(field.to_date().unwrap().is_none());
+    assert!(field.to_timestamp().is_none());
+    assert!(field.to_date().is_none());
     assert!(field.to_json().is_none());
     assert!(field.to_point().is_none());
-    assert!(field.to_duration().is_err());
+    assert!(field.to_duration().is_none());
     assert!(field.to_null().is_none());
 
     let field = Field::Decimal(Decimal::from(1));
@@ -477,15 +459,13 @@ fn test_to_conversion() {
     assert!(field.to_i128().is_some());
     assert!(field.to_float().is_some());
     assert!(field.to_boolean().is_some());
-    assert!(field.to_string().is_some());
-    assert!(field.to_text().is_some());
     assert!(field.to_binary().is_none());
     assert!(field.to_decimal().is_some());
-    assert!(field.to_timestamp().unwrap().is_none());
-    assert!(field.to_date().unwrap().is_none());
+    assert!(field.to_timestamp().is_none());
+    assert!(field.to_date().is_none());
     assert!(field.to_json().is_none());
     assert!(field.to_point().is_none());
-    assert!(field.to_duration().is_err());
+    assert!(field.to_duration().is_none());
     assert!(field.to_null().is_none());
 
     let field = Field::Timestamp(DateTime::from(Utc.timestamp_millis_opt(0).unwrap()));
@@ -495,15 +475,13 @@ fn test_to_conversion() {
     assert!(field.to_i128().is_none());
     assert!(field.to_float().is_none());
     assert!(field.to_boolean().is_none());
-    assert!(field.to_string().is_some());
-    assert!(field.to_text().is_some());
     assert!(field.to_binary().is_none());
     assert!(field.to_decimal().is_none());
-    assert!(field.to_timestamp().unwrap().is_some());
-    assert!(field.to_date().unwrap().is_none());
+    assert!(field.to_timestamp().is_some());
+    assert!(field.to_date().is_none());
     assert!(field.to_json().is_none());
     assert!(field.to_point().is_none());
-    assert!(field.to_duration().is_err());
+    assert!(field.to_duration().is_none());
     assert!(field.to_null().is_none());
 
     let field = Field::Date(NaiveDate::from_ymd_opt(1970, 1, 1).unwrap());
@@ -513,15 +491,13 @@ fn test_to_conversion() {
     assert!(field.to_i128().is_none());
     assert!(field.to_float().is_none());
     assert!(field.to_boolean().is_none());
-    assert!(field.to_string().is_some());
-    assert!(field.to_text().is_some());
     assert!(field.to_binary().is_none());
     assert!(field.to_decimal().is_none());
-    assert!(field.to_timestamp().unwrap().is_none());
-    assert!(field.to_date().unwrap().is_some());
+    assert!(field.to_timestamp().is_some());
+    assert!(field.to_date().is_some());
     assert!(field.to_json().is_none());
     assert!(field.to_point().is_none());
-    assert!(field.to_duration().is_err());
+    assert!(field.to_duration().is_none());
     assert!(field.to_null().is_none());
 
     let field = Field::Json(JsonValue::Array(vec![]));
@@ -531,15 +507,13 @@ fn test_to_conversion() {
     assert!(field.to_i128().is_none());
     assert!(field.to_float().is_none());
     assert!(field.to_boolean().is_none());
-    assert!(field.to_string().is_some());
-    assert!(field.to_text().is_some());
     assert!(field.to_binary().is_none());
     assert!(field.to_decimal().is_none());
-    assert!(field.to_timestamp().unwrap().is_none());
-    assert!(field.to_date().unwrap().is_none());
+    assert!(field.to_timestamp().is_none());
+    assert!(field.to_date().is_none());
     assert!(field.to_json().is_some());
     assert!(field.to_point().is_none());
-    assert!(field.to_duration().is_err());
+    assert!(field.to_duration().is_none());
     assert!(field.to_null().is_none());
 
     let field = Field::Point(DozerPoint::from((0.0, 0.0)));
@@ -549,15 +523,13 @@ fn test_to_conversion() {
     assert!(field.to_i128().is_none());
     assert!(field.to_float().is_none());
     assert!(field.to_boolean().is_none());
-    assert!(field.to_string().is_none());
-    assert!(field.to_text().is_none());
     assert!(field.to_binary().is_none());
     assert!(field.to_decimal().is_none());
-    assert!(field.to_timestamp().unwrap().is_none());
-    assert!(field.to_date().unwrap().is_none());
+    assert!(field.to_timestamp().is_none());
+    assert!(field.to_date().is_none());
     assert!(field.to_json().is_none());
     assert!(field.to_point().is_some());
-    assert!(field.to_duration().is_err());
+    assert!(field.to_duration().is_none());
     assert!(field.to_null().is_none());
 
     let field = Field::Duration(DozerDuration(
@@ -570,15 +542,13 @@ fn test_to_conversion() {
     assert!(field.to_i128().is_none());
     assert!(field.to_float().is_none());
     assert!(field.to_boolean().is_none());
-    assert!(field.to_string().is_none());
-    assert!(field.to_text().is_none());
     assert!(field.to_binary().is_none());
     assert!(field.to_decimal().is_none());
-    assert!(field.to_timestamp().unwrap().is_none());
-    assert!(field.to_date().unwrap().is_none());
+    assert!(field.to_timestamp().is_none());
+    assert!(field.to_date().is_none());
     assert!(field.to_json().is_none());
     assert!(field.to_point().is_none());
-    assert!(field.to_duration().is_ok());
+    assert!(field.to_duration().is_some());
     assert!(field.to_null().is_none());
 
     let field = Field::Null;
@@ -588,14 +558,12 @@ fn test_to_conversion() {
     assert!(field.to_i128().is_some());
     assert!(field.to_float().is_some());
     assert!(field.to_boolean().is_some());
-    assert!(field.to_string().is_some());
-    assert!(field.to_text().is_some());
     assert!(field.to_binary().is_none());
     assert!(field.to_decimal().is_some());
-    assert!(field.to_timestamp().unwrap().is_some());
-    assert!(field.to_date().unwrap().is_some());
+    assert!(field.to_timestamp().is_none());
+    assert!(field.to_date().is_none());
     assert!(field.to_json().is_some());
     assert!(field.to_point().is_none());
-    assert!(field.to_duration().is_ok());
+    assert!(field.to_duration().is_some());
     assert!(field.to_null().is_some());
 }

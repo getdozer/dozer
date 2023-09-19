@@ -79,7 +79,7 @@ fn map_value(value: Field, py: Python) -> PyResult<Py<PyAny>> {
         Field::Date(v) => Ok(v.to_string().to_object(py)),
         Field::Json(v) => map_json_py(v, py),
         Field::Point(v) => map_point(v, py),
-        Field::Duration(v) => Ok(v.to_string().to_object(py)),
+        Field::Duration(_) => Ok(value.to_string().to_object(py)),
         Field::Null => Ok(py.None()),
     }
 }

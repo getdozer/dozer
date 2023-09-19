@@ -1,4 +1,4 @@
-use crate::errors::types::{DeserializationError, TypeError};
+use crate::errors::types::DeserializationError;
 use crate::json_types::JsonValue;
 use crate::types::{
     DozerDuration, DozerPoint, FieldDefinition, Schema, SourceDefinition, TimeUnit,
@@ -136,12 +136,12 @@ impl Field {
 
                 match timestamp {
                     LocalResult::Single(v) => Ok(Field::Timestamp(DateTime::from(v))),
-                    LocalResult::Ambiguous(_, _) => Err(DeserializationError::Custom(Box::new(
-                        TypeError::AmbiguousTimestamp,
-                    ))),
-                    LocalResult::None => Err(DeserializationError::Custom(Box::new(
-                        TypeError::InvalidTimestamp,
-                    ))),
+                    LocalResult::Ambiguous(_, _) => Err(DeserializationError::Custom(
+                        "Ambiguous timestamp".to_string().into(),
+                    )),
+                    LocalResult::None => Err(DeserializationError::Custom(
+                        "Invalid timestamp".to_string().into(),
+                    )),
                 }
             }
             11 => Ok(Field::Date(NaiveDate::parse_from_str(
@@ -458,52 +458,8 @@ impl Field {
         }
     }
 
-    pub fn to_string(&self) -> Option<String> {
-        match self {
-            Field::UInt(u) => Some(format!("{u}")),
-            Field::U128(u) => Some(format!("{u}")),
-            Field::Int(i) => Some(format!("{i}")),
-            Field::I128(i) => Some(format!("{i}")),
-            Field::Float(f) => Some(format!("{f}")),
-            Field::Decimal(d) => Some(format!("{d}")),
-            Field::Boolean(i) => Some(if *i {
-                "TRUE".to_string()
-            } else {
-                "FALSE".to_string()
-            }),
-            Field::String(s) => Some(s.to_owned()),
-            Field::Text(t) => Some(t.to_owned()),
-            Field::Date(d) => Some(d.format("%Y-%m-%d").to_string()),
-            Field::Timestamp(t) => Some(t.to_rfc3339()),
-            Field::Binary(b) => Some(format!("{b:X?}")),
-            Field::Json(j) => Some(j.to_string()),
-            Field::Null => Some("".to_string()),
-            _ => None,
-        }
-    }
-
-    pub fn to_text(&self) -> Option<String> {
-        match self {
-            Field::UInt(u) => Some(format!("{u}")),
-            Field::U128(u) => Some(format!("{u}")),
-            Field::Int(i) => Some(format!("{i}")),
-            Field::I128(i) => Some(format!("{i}")),
-            Field::Float(f) => Some(format!("{f}")),
-            Field::Decimal(d) => Some(format!("{d}")),
-            Field::Boolean(i) => Some(if *i {
-                "TRUE".to_string()
-            } else {
-                "FALSE".to_string()
-            }),
-            Field::String(s) => Some(s.to_owned()),
-            Field::Text(t) => Some(t.to_owned()),
-            Field::Date(d) => Some(d.format("%Y-%m-%d").to_string()),
-            Field::Timestamp(t) => Some(t.to_rfc3339()),
-            Field::Binary(b) => Some(format!("{b:X?}")),
-            Field::Json(j) => Some(j.to_string()),
-            Field::Null => Some("".to_string()),
-            _ => None,
-        }
+    pub fn to_text(&self) -> String {
+        self.to_string()
     }
 
     pub fn to_binary(&self) -> Option<&[u8]> {
@@ -527,29 +483,24 @@ impl Field {
         }
     }
 
-    pub fn to_timestamp(&self) -> Result<Option<DateTime<FixedOffset>>, TypeError> {
+    pub fn to_timestamp(&self) -> Option<DateTime<FixedOffset>> {
         match self {
-            Field::String(s) => Ok(DateTime::parse_from_rfc3339(s.as_str()).ok()),
-            Field::Timestamp(t) => Ok(Some(*t)),
-            Field::Null => match Utc.timestamp_millis_opt(0) {
-                LocalResult::None => Err(TypeError::InvalidTimestamp),
-                LocalResult::Single(v) => Ok(Some(DateTime::from(v))),
-                LocalResult::Ambiguous(_, _) => Err(TypeError::AmbiguousTimestamp),
+            Field::String(s) => DateTime::parse_from_rfc3339(s.as_str()).ok(),
+            Field::Text(s) => DateTime::parse_from_rfc3339(s.as_str()).ok(),
+            Field::Timestamp(t) => Some(*t),
+            Field::Date(d) => match Utc.with_ymd_and_hms(d.year(), d.month(), d.day(), 0, 0, 0) {
+                LocalResult::Single(v) => Some(v.into()),
+                _ => unreachable!(),
             },
-            _ => Ok(None),
+            _ => None,
         }
     }
 
-    pub fn to_date(&self) -> Result<Option<NaiveDate>, TypeError> {
+    pub fn to_date(&self) -> Option<NaiveDate> {
         match self {
-            Field::String(s) => Ok(NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()),
-            Field::Date(d) => Ok(Some(*d)),
-            Field::Null => match Utc.timestamp_millis_opt(0) {
-                LocalResult::None => Err(TypeError::InvalidTimestamp),
-                LocalResult::Single(v) => Ok(Some(v.naive_utc().date())),
-                LocalResult::Ambiguous(_, _) => Err(TypeError::AmbiguousTimestamp),
-            },
-            _ => Ok(None),
+            Field::String(s) => NaiveDate::parse_from_str(s, DATE_FORMAT).ok(),
+            Field::Date(d) => Some(*d),
+            _ => None,
         }
     }
 
@@ -572,45 +523,38 @@ impl Field {
         }
     }
 
-    pub fn to_point(&self) -> Option<&DozerPoint> {
+    pub fn to_point(&self) -> Option<DozerPoint> {
         match self {
-            Field::Point(p) => Some(p),
+            Field::Point(p) => Some(*p),
             _ => None,
         }
     }
 
-    pub fn to_duration(&self) -> Result<Option<DozerDuration>, TypeError> {
+    pub fn to_duration(&self) -> Option<DozerDuration> {
         match self {
-            Field::UInt(d) => Ok(Some(
-                DozerDuration::from_str(d.to_string().as_str()).unwrap(),
+            Field::UInt(d) => Some(DozerDuration(
+                Duration::from_nanos(*d),
+                TimeUnit::Nanoseconds,
             )),
-            Field::U128(d) => Ok(Some(
-                DozerDuration::from_str(d.to_string().as_str()).unwrap(),
+            Field::U128(d) => Some(DozerDuration(
+                Duration::from_nanos(u64::try_from(*d).ok()?),
+                TimeUnit::Nanoseconds,
             )),
-            Field::Int(d) => Ok(Some(
-                DozerDuration::from_str(d.to_string().as_str()).unwrap(),
+            Field::Int(d) => Some(DozerDuration(
+                Duration::from_nanos(u64::try_from(*d).ok()?),
+                TimeUnit::Nanoseconds,
             )),
-            Field::I128(d) => Ok(Some(
-                DozerDuration::from_str(d.to_string().as_str()).unwrap(),
+            Field::I128(d) => Some(DozerDuration(
+                Duration::from_nanos(u64::try_from(*d).ok()?),
+                TimeUnit::Nanoseconds,
             )),
-            Field::Duration(d) => Ok(Some(*d)),
-            Field::String(d) | Field::Text(d) => {
-                if let Ok(dur) = DozerDuration::from_str(d.as_str()) {
-                    Ok(Some(dur))
-                } else {
-                    Err(TypeError::InvalidFieldValue {
-                        field_type: FieldType::Duration,
-                        nullable: false,
-                        value: format!("{:?}", self),
-                    })
-                }
-            }
-            Field::Null => Ok(Some(DozerDuration::from_str("0").unwrap())),
-            _ => Err(TypeError::InvalidFieldValue {
-                field_type: FieldType::Duration,
-                nullable: false,
-                value: format!("{:?}", self),
-            }),
+            Field::Duration(d) => Some(*d),
+            Field::String(d) | Field::Text(d) => DozerDuration::from_str(d.as_str()).ok(),
+            Field::Null => Some(DozerDuration(
+                Duration::from_nanos(0),
+                TimeUnit::Nanoseconds,
+            )),
+            _ => None,
         }
     }
 
@@ -624,28 +568,38 @@ impl Field {
 
 impl Display for Field {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Field::UInt(v) => f.write_str(&format!("{v} (64-bit unsigned int)")),
-            Field::U128(v) => f.write_str(&format!("{v} (128-bit unsigned int)")),
-            Field::Int(v) => f.write_str(&format!("{v} (64-bit signed int)")),
-            Field::I128(v) => f.write_str(&format!("{v} (128-bit signed int)")),
-            Field::Float(v) => f.write_str(&format!("{v} (Float)")),
-            Field::Decimal(v) => f.write_str(&format!("{v} (Decimal)")),
-            Field::Boolean(v) => f.write_str(&format!("{v}")),
-            Field::String(v) => f.write_str(&v.to_string()),
-            Field::Text(v) => f.write_str(&v.to_string()),
-            Field::Binary(v) => f.write_str(&format!("{v:x?}")),
-            Field::Timestamp(v) => f.write_str(&format!("{v}")),
-            Field::Date(v) => f.write_str(&format!("{v}")),
-            Field::Json(v) => f.write_str(&format!("{v}")),
-            Field::Point(v) => f.write_str(&format!("{v} (Point)")),
-            Field::Duration(d) => f.write_str(&format!("{:?} {:?} (Duration)", d.0, d.1)),
-            Field::Null => f.write_str("NULL"),
-        }
+        let string = match self {
+            Field::UInt(u) => format!("{u}"),
+            Field::U128(u) => format!("{u}"),
+            Field::Int(i) => format!("{i}"),
+            Field::I128(i) => format!("{i}"),
+            Field::Float(f) => format!("{f}"),
+            Field::Decimal(d) => format!("{d}"),
+            Field::Boolean(i) => {
+                if *i {
+                    "TRUE".to_string()
+                } else {
+                    "FALSE".to_string()
+                }
+            }
+            Field::String(s) => s.to_owned(),
+            Field::Text(t) => t.to_owned(),
+            Field::Date(d) => d.format(DATE_FORMAT).to_string(),
+            Field::Timestamp(t) => t.to_rfc3339(),
+            Field::Binary(b) => format!("{b:X?}"),
+            Field::Json(j) => j.to_string(),
+            Field::Point(p) => {
+                let (x, y) = p.0.x_y();
+                format!("POINT({}, {})", x.0, y.0)
+            }
+            Field::Duration(d) => format!("{:?}", d.0),
+            Field::Null => "".to_string(),
+        };
+        f.write_str(&string)
     }
 }
 
-#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// All field types supported in Dozer.
 pub enum FieldType {
     /// Unsigned 64-bit integer.

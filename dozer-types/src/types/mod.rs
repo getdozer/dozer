@@ -240,7 +240,7 @@ impl Display for Record {
         let v = self
             .values
             .iter()
-            .map(|f| Cell::new(&f.to_string().unwrap_or_default()))
+            .map(|f| Cell::new(&f.to_string()))
             .collect::<Vec<Cell>>();
 
         let mut table = Table::new();
@@ -348,12 +348,6 @@ impl FromStr for DozerDuration {
             std::time::Duration::from_nanos(val),
             TimeUnit::Nanoseconds,
         ))
-    }
-}
-
-impl Display for DozerDuration {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&format!("{:?} {:?}", self.0, self.1))
     }
 }
 

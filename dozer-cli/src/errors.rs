@@ -17,7 +17,7 @@ use dozer_cache::dozer_log::storage;
 use dozer_cache::errors::CacheError;
 use dozer_core::errors::ExecutionError;
 use dozer_ingestion::errors::ConnectorError;
-use dozer_sql::pipeline::errors::PipelineError;
+use dozer_sql::errors::PipelineError;
 use dozer_types::{constants::LOCK_FILE, thiserror::Error};
 use dozer_types::{errors::internal::BoxedError, serde_json};
 use dozer_types::{serde_yaml, thiserror};

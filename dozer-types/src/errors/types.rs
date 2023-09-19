@@ -1,6 +1,5 @@
 use super::internal::BoxedError;
 use crate::types::FieldType;
-use geo::vincenty_distance::FailedToConvergeError;
 use serde_json::Number;
 use std::num::ParseIntError;
 use thiserror::Error;
@@ -20,16 +19,10 @@ pub enum TypeError {
         nullable: bool,
         value: String,
     },
-    #[error("Invalid timestamp")]
-    InvalidTimestamp,
-    #[error("Ambiguous timestamp")]
-    AmbiguousTimestamp,
     #[error("Serialization failed: {0}")]
     SerializationError(#[source] SerializationError),
     #[error("Failed to parse the field: {0}")]
     DeserializationError(#[source] DeserializationError),
-    #[error("Failed to calculate distance: {0}")]
-    DistanceCalculationError(#[source] FailedToConvergeError),
 }
 
 #[derive(Error, Debug)]

@@ -18,7 +18,7 @@ use dozer_core::{Dag, DEFAULT_PORT_HANDLE};
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 
 use crossbeam::channel::{Receiver, Sender};
-use dozer_sql::pipeline::builder::statement_to_pipeline;
+use dozer_sql::builder::statement_to_pipeline;
 
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::ingestion_types::IngestionMessage;
@@ -385,10 +385,7 @@ impl TestPipeline {
             for value in values {
                 let mut row = vec![];
                 for field in &value.values {
-                    let value = match field {
-                        dozer_types::types::Field::Null => "NULL".to_string(),
-                        _ => field.to_string().unwrap(),
-                    };
+                    let value = field.to_string();
                     row.push(value);
                 }
                 output.push(row);

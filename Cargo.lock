@@ -2780,28 +2780,35 @@ name = "dozer-sql"
 version = "0.1.39"
 dependencies = [
  "ahash 0.8.3",
- "bigdecimal",
  "dozer-core",
+ "dozer-sql-expression",
  "dozer-storage",
  "dozer-tracing",
  "dozer-types",
  "enum_dispatch",
- "half 2.3.1",
- "like",
  "linked-hash-map",
  "metrics",
  "multimap",
+ "proptest",
+ "regex",
+ "tempdir",
+ "tokio",
+]
+
+[[package]]
+name = "dozer-sql-expression"
+version = "0.1.39"
+dependencies = [
+ "bigdecimal",
+ "dozer-types",
+ "half 2.3.1",
+ "jsonpath",
+ "like",
  "ndarray",
  "num-traits",
  "ort",
- "pest",
- "pest_derive",
  "proptest",
- "regex",
  "sqlparser 0.35.0 (git+https://github.com/getdozer/sqlparser-rs.git)",
- "tempdir",
- "tokio",
- "uuid",
 ]
 
 [[package]]
@@ -4249,6 +4256,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "jsonpath"
+version = "0.2.6"
+dependencies = [
+ "dozer-types",
+ "lazy_static",
+ "pest",
+ "pest_derive",
+ "regex",
+]
+
+[[package]]
 name = "jsonrpc-core"
 version = "18.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5234,9 +5252,9 @@ dependencies = [
 
 [[package]]
 name = "num-traits"
-version = "0.2.15"
+version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "578ede34cf02f8924ab9447f50c28075b4d3e5b269972345e7e0372b38c6cdcd"
+checksum = "f30b0abd723be7e2ffca1272140fac1a2f084c77ec3e123c192b66af1ee9e6c2"
 dependencies = [
  "autocfg",
  "libm",
