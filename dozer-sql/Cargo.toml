@@ -19,7 +19,7 @@ like = "0.3.1"
 linked-hash-map = { version = "0.5.6", features = ["serde_impl"] }
 metrics = "0.21.0"
 multimap = "0.8.3"
-num-traits = "0.2.15"
+num-traits = "0.2.16"
 pest = "2.6.0"
 pest_derive = "2.5.6"
 regex = "1.8.1"
