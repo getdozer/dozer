@@ -1,9 +1,9 @@
-use crate::jsonpath::parser::model::{FilterExpression, FilterSign, JsonPath};
-use crate::jsonpath::path::json::{any_of, eq, inside, less, regex, size, sub_set_of};
-use crate::jsonpath::path::top::ObjectField;
-use crate::jsonpath::path::{json_path_instance, process_operand, Path, PathInstance};
-use crate::jsonpath::JsonPathValue;
-use crate::jsonpath::JsonPathValue::{NoValue, Slice};
+use crate::parser::model::{FilterExpression, FilterSign, JsonPath};
+use crate::path::json::{any_of, eq, inside, less, regex, size, sub_set_of};
+use crate::path::top::ObjectField;
+use crate::path::{json_path_instance, process_operand, Path, PathInstance};
+use crate::JsonPathValue;
+use crate::JsonPathValue::{NoValue, Slice};
 use dozer_types::json_types::JsonValue;
 use dozer_types::json_types::JsonValue::Array;
 

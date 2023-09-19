@@ -1,4 +1,4 @@
-use crate::jsonpath::parser::parser::parse_json_path;
+use crate::parser::parser::parse_json_path;
 use dozer_types::json_types::JsonValue;
 use std::convert::TryFrom;
 

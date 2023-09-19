@@ -1,9 +1,9 @@
-use crate::jsonpath::parser::model::{Function, JsonPath, JsonPathIndex, Operand};
-use crate::jsonpath::path::index::{ArrayIndex, ArraySlice, Current, FilterPath, UnionIndex};
-use crate::jsonpath::path::top::{
+use crate::parser::model::{Function, JsonPath, JsonPathIndex, Operand};
+use crate::path::index::{ArrayIndex, ArraySlice, Current, FilterPath, UnionIndex};
+use crate::path::top::{
     Chain, DescentObject, DescentWildcard, FnPath, IdentityPath, ObjectField, RootPointer, Wildcard,
 };
-use crate::jsonpath::JsonPathValue;
+use crate::JsonPathValue;
 use dozer_types::json_types::JsonValue;
 
 /// The module is in charge of processing [[JsonPathIndex]] elements

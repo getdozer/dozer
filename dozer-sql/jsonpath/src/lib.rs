@@ -1,8 +1,6 @@
-#![allow(clippy::vec_init_then_push)]
-
-use crate::jsonpath::parser::model::JsonPath;
-use crate::jsonpath::path::{json_path_instance, PathInstance};
-use crate::jsonpath::JsonPathValue::{NewValue, NoValue, Slice};
+use crate::parser::model::JsonPath;
+use crate::path::{json_path_instance, PathInstance};
+use crate::JsonPathValue::{NewValue, NoValue, Slice};
 use dozer_types::json_types::JsonValue;
 use std::convert::TryInto;
 use std::fmt::Debug;

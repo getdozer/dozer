@@ -13,7 +13,7 @@ members = [
   "dozer-log",
   "dozer-log-js",
   "dozer-log-python",
-  "dozer-utils"
+  "dozer-utils",
 ]
 resolver = "2"
 

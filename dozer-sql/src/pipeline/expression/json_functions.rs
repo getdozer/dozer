@@ -4,10 +4,10 @@ use crate::pipeline::errors::PipelineError::{
 };
 use crate::pipeline::expression::execution::Expression;
 
-use crate::jsonpath::{JsonPathFinder, JsonPathInst};
 use dozer_types::json_types::JsonValue;
 use dozer_types::types::Record;
 use dozer_types::types::{Field, Schema};
+use jsonpath::{JsonPathFinder, JsonPathInst};
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 

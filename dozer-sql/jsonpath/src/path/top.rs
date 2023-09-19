@@ -1,6 +1,6 @@
-use crate::jsonpath::parser::model::*;
-use crate::jsonpath::path::JsonPathValue::{NewValue, NoValue, Slice};
-use crate::jsonpath::path::{json_path_instance, JsonPathValue, Path, PathInstance};
+use crate::parser::model::*;
+use crate::path::JsonPathValue::{NewValue, NoValue, Slice};
+use crate::path::{json_path_instance, JsonPathValue, Path, PathInstance};
 use dozer_types::json_types::JsonValue::{Array, Object};
 use dozer_types::json_types::{serde_json_to_json_value, JsonValue};
 use dozer_types::serde_json::json;

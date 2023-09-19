@@ -1,14 +1,15 @@
-use crate::jsonpath::parser::model::FilterExpression::{And, Or};
-use crate::jsonpath::parser::model::{
+use crate::parser::model::FilterExpression::{And, Or};
+use crate::parser::model::{
     FilterExpression, FilterSign, Function, JsonPath, JsonPathIndex, Operand,
 };
 use dozer_types::json_types::JsonValue;
 use pest::error::Error;
 use pest::iterators::{Pair, Pairs};
 use pest::Parser;
+use pest_derive::Parser;
 
 #[derive(Parser)]
-#[grammar = "jsonpath/parser/grammar/json_path.pest"]
+#[grammar = "parser/grammar/json_path.pest"]
 pub struct JsonPathParser;
 
 /// the parsing function.
