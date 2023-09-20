@@ -16,13 +16,13 @@
                             {
                                 "name": "title",
                                 "typ": "String",
-                                "nullable": false,
+                                "nullable": true,
                                 "source": "Dynamic"
                             },
                             {
                                 "name": "genres",
                                 "typ": "Json",
-                                "nullable": false,
+                                "nullable": true,
                                 "source": "Dynamic"
                             }
                         ]
