@@ -15,14 +15,8 @@
                             },
                             {
                                 "name": "title",
-                                "typ": "String",
-                                "nullable": true,
-                                "source": "Dynamic"
-                            },
-                            {
-                                "name": "genres",
                                 "typ": "Json",
-                                "nullable": true,
+                                "nullable": false,
                                 "source": "Dynamic"
                             }
                         ]
