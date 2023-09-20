@@ -57,12 +57,12 @@ impl JsonFunctionType {
 
         if let Ok(json_value) = self.evaluate_json(json_input, path) {
             match json_value {
-                JsonValue::Object(_) => Ok(Field::Null),
-                JsonValue::Array(_) => Ok(Field::Null),
+                JsonValue::Object(_) => Ok(Field::Json(JsonValue::Null)),
+                JsonValue::Array(_) => Ok(Field::Json(JsonValue::Null)),
                 JsonValue::String(val) => Ok(Field::Json(JsonValue::String(val))),
                 JsonValue::Bool(val) => Ok(Field::Json(JsonValue::Bool(val))),
                 JsonValue::Number(val) => Ok(Field::Json(JsonValue::Number(val))),
-                JsonValue::Null => Ok(Field::Null),
+                JsonValue::Null => Ok(Field::Json(JsonValue::Null)),
             }
         } else {
             Ok(Field::Null)
@@ -89,10 +89,10 @@ impl JsonFunctionType {
                 match json_value {
                     JsonValue::Object(val) => Ok(Field::Json(JsonValue::Object(val))),
                     JsonValue::Array(val) => Ok(Field::Json(JsonValue::Array(val))),
-                    JsonValue::String(_) => Ok(Field::Null),
-                    JsonValue::Bool(_) => Ok(Field::Null),
-                    JsonValue::Number(_) => Ok(Field::Null),
-                    JsonValue::Null => Ok(Field::Null),
+                    JsonValue::String(_) => Ok(Field::Json(JsonValue::Null)),
+                    JsonValue::Bool(_) => Ok(Field::Json(JsonValue::Null)),
+                    JsonValue::Number(_) => Ok(Field::Json(JsonValue::Null)),
+                    JsonValue::Null => Ok(Field::Json(JsonValue::Null)),
                 }
             } else {
                 Ok(Field::Null)

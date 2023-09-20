@@ -76,7 +76,7 @@ fn test_json_value_null() {
         vec![Field::Json(json_val)],
     );
 
-    assert_eq!(f, Field::Null);
+    assert_eq!(f, Field::Json(JsonValue::Null));
 }
 
 #[test]
@@ -165,7 +165,7 @@ fn test_json_query_null() {
             .clone(),
         vec![Field::Json(json_val)],
     );
-    assert_eq!(f, Field::Null);
+    assert_eq!(f, Field::Json(JsonValue::Null));
 }
 
 #[test]
@@ -687,7 +687,7 @@ fn test_json_value_diff_1() {
         vec![Field::Json(json_val)],
     );
 
-    assert_eq!(f, Field::Null);
+    assert_eq!(f, Field::Json(JsonValue::Null));
 }
 
 #[test]
@@ -737,7 +737,7 @@ fn test_json_value_diff_2() {
         vec![Field::Json(json_val)],
     );
 
-    assert_eq!(f, Field::Null);
+    assert_eq!(f, Field::Json(JsonValue::Null));
 }
 
 #[test]
@@ -763,7 +763,7 @@ fn test_json_value_diff_3() {
         vec![Field::Json(json_val.clone())],
     );
 
-    assert_eq!(f, Field::Null);
+    assert_eq!(f, Field::Json(JsonValue::Null));
 
     f = run_fct(
         "SELECT JSON_VALUE(jsonInfo,'$.y') FROM users",
@@ -807,7 +807,7 @@ fn test_json_value_diff_4() {
         vec![Field::Json(json_val.clone())],
     );
 
-    assert_eq!(f, Field::Null);
+    assert_eq!(f, Field::Json(JsonValue::Null));
 
     f = run_fct(
         "SELECT JSON_VALUE(jsonInfo,'$.z') FROM users",
@@ -851,7 +851,7 @@ fn test_json_value_diff_5() {
         vec![Field::Json(json_val.clone())],
     );
 
-    assert_eq!(f, Field::Null);
+    assert_eq!(f, Field::Json(JsonValue::Null));
 
     f = run_fct(
         "SELECT JSON_VALUE(jsonInfo,'$.x[0]') FROM users",
