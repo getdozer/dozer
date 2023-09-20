@@ -14,7 +14,7 @@ use crate::utils::{
 use crate::{flatten_join_handle, join_handle_map_err};
 use dozer_api::auth::{Access, Authorizer};
 use dozer_api::grpc::internal::internal_pipeline_server::start_internal_pipeline_server;
-use dozer_api::{grpc, rest, CacheEndpoint};
+use dozer_api::{get_api_security, grpc, rest, CacheEndpoint};
 use dozer_cache::cache::LmdbRwCacheManager;
 use dozer_cache::dozer_log::camino::Utf8PathBuf;
 use dozer_cache::dozer_log::home_dir::HomeDir;
@@ -276,18 +276,16 @@ impl SimpleOrchestrator {
     }
 
     pub fn generate_token(&self, ttl_in_secs: Option<i32>) -> Result<String, OrchestrationError> {
-        if let Some(api_config) = &self.config.api {
-            if let Some(api_security) = &api_config.api_security {
-                match api_security {
-                    dozer_types::models::api_security::ApiSecurity::Jwt(secret) => {
-                        let auth = Authorizer::new(secret, None, None);
-                        let duration =
-                            ttl_in_secs.map(|f| std::time::Duration::from_secs(f as u64));
-                        let token = auth
-                            .generate_token(Access::All, duration)
-                            .map_err(OrchestrationError::GenerateTokenFailed)?;
-                        return Ok(token);
-                    }
+        if let Some(api_security) = get_api_security(get_api_security_config(&self.config).cloned())
+        {
+            match api_security {
+                dozer_types::models::api_security::ApiSecurity::Jwt(secret) => {
+                    let auth = Authorizer::new(&secret, None, None);
+                    let duration = ttl_in_secs.map(|f| std::time::Duration::from_secs(f as u64));
+                    let token = auth
+                        .generate_token(Access::All, duration)
+                        .map_err(OrchestrationError::GenerateTokenFailed)?;
+                    return Ok(token);
                 }
             }
         }

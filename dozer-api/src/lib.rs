@@ -21,6 +21,7 @@ pub use tonic_reflection;
 pub use tonic_web;
 pub use tower_http;
 mod api_helper;
+pub use api_helper::get_api_security;
 
 #[derive(Debug)]
 pub struct CacheEndpoint {
