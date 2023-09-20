@@ -14,7 +14,7 @@
                                 "source": "Dynamic"
                             },
                             {
-                                "name": "title",
+                                "name": "data",
                                 "typ": "Json",
                                 "nullable": false,
                                 "source": "Dynamic"
