@@ -1,4 +1,3 @@
-use ::dozer_cloud_client::run_cloud;
 use clap::Parser;
 use dozer_cli::cli::generate_config_repl;
 use dozer_cli::cli::types::{Cli, Commands, ConnectorCommand, RunCommands, SecurityCommands};
@@ -6,7 +5,6 @@ use dozer_cli::cli::{init_dozer, list_sources, LOGO};
 use dozer_cli::errors::{CliError, OrchestrationError};
 use dozer_cli::simple::SimpleOrchestrator;
 use dozer_cli::{live, set_ctrl_handler, set_panic_hook, shutdown};
-use dozer_cloud_client::errors::display_cloud_error;
 
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::models::telemetry::{TelemetryConfig, TelemetryMetricsConfig};
@@ -277,13 +275,16 @@ fn init_orchestrator(cli: &Cli) -> Result<SimpleOrchestrator, CliError> {
         }
     })
 }
-
+#[cfg(feature = "cloud")]
 fn display_error(e: &OrchestrationError) {
     if let OrchestrationError::CloudError(e) = &e {
         display_cloud_error(e);
     } else {
         error!("{}", e);
     }
+}
+fn display_error(e: &OrchestrationError) {
+    error!("{}", e);
 }
 
 struct Telemetry();

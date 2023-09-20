@@ -4,7 +4,6 @@ use crate::live::LiveError;
 use dozer_api::errors::{ApiInitError, AuthError, GenerationError, GrpcError};
 use dozer_cache::dozer_log::storage;
 use dozer_cache::errors::CacheError;
-use dozer_cloud_client::errors::CloudError;
 use dozer_core::errors::ExecutionError;
 use dozer_ingestion::errors::ConnectorError;
 use dozer_sql::errors::PipelineError;
@@ -58,8 +57,6 @@ pub enum OrchestrationError {
     PipelineError(#[from] PipelineError),
     #[error(transparent)]
     CliError(#[from] CliError),
-    #[error(transparent)]
-    CloudError(#[from] CloudError),
     #[error("table_name: {0:?} not found in any of the connections")]
     SourceValidationError(String),
     #[error("connection: {0:?} not found")]
@@ -78,6 +75,9 @@ pub enum OrchestrationError {
     LockedOutdatedLockfile,
     #[error("{LOCK_FILE} does not exist. `--locked` requires a lock file.")]
     LockedNoLockFile,
+    #[cfg(feature = "cloud")]
+    #[error(transparent)]
+    CloudError(#[from] dozer_cloud_client::errors::CloudError),
 }
 
 #[derive(Error, Debug)]

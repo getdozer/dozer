@@ -2582,7 +2582,7 @@ dependencies = [
  "dozer-cache",
  "dozer-core",
  "dozer-tracing",
- "dozer-types",
+ "dozer-types 0.1.39",
  "futures-util",
  "gethostname",
  "handlebars",
@@ -2616,7 +2616,7 @@ dependencies = [
  "dozer-log",
  "dozer-storage",
  "dozer-tracing",
- "dozer-types",
+ "dozer-types 0.1.39",
  "env_logger",
  "futures",
  "itertools 0.10.5",
@@ -2646,7 +2646,7 @@ dependencies = [
  "dozer-sql",
  "dozer-storage",
  "dozer-tracing",
- "dozer-types",
+ "dozer-types 0.1.39",
  "futures",
  "glob",
  "handlebars",
@@ -2673,11 +2673,12 @@ dependencies = [
 [[package]]
 name = "dozer-cloud-client"
 version = "0.1.0"
+source = "git+ssh://git@github.com/getdozer/dozer-cloud.git?rev=refs/pull/628/head#378abd949f4f62b42fd94ad795637a45a6f19349"
 dependencies = [
  "camino",
  "chrono",
  "clap 4.4.1",
- "dozer-types",
+ "dozer-types 0.1.39 (git+ssh://git@github.com/getdozer/dozer-cloud.git?rev=refs/pull/628/head)",
  "futures",
  "futures-util",
  "glob",
@@ -2700,7 +2701,7 @@ dependencies = [
  "dozer-log",
  "dozer-storage",
  "dozer-tracing",
- "dozer-types",
+ "dozer-types 0.1.39",
  "metrics",
  "tempdir",
  "uuid",
@@ -2719,7 +2720,7 @@ dependencies = [
  "dozer-cli",
  "dozer-log",
  "dozer-tracing",
- "dozer-types",
+ "dozer-types 0.1.39",
  "dozer-utils",
  "env_logger",
  "futures",
@@ -2767,7 +2768,7 @@ dependencies = [
  "aws-smithy-types",
  "camino",
  "clap 4.4.1",
- "dozer-types",
+ "dozer-types 0.1.39",
  "dyn-clone",
  "env_logger",
  "futures-util",
@@ -2784,7 +2785,7 @@ name = "dozer-log-js"
 version = "0.1.39"
 dependencies = [
  "dozer-log",
- "dozer-types",
+ "dozer-types 0.1.39",
  "neon",
 ]
 
@@ -2793,7 +2794,7 @@ name = "dozer-log-python"
 version = "0.1.39"
 dependencies = [
  "dozer-log",
- "dozer-types",
+ "dozer-types 0.1.39",
  "pyo3-asyncio",
 ]
 
@@ -2806,7 +2807,7 @@ dependencies = [
  "dozer-sql-expression",
  "dozer-storage",
  "dozer-tracing",
- "dozer-types",
+ "dozer-types 0.1.39",
  "enum_dispatch",
  "linked-hash-map",
  "metrics",
@@ -2822,7 +2823,7 @@ name = "dozer-sql-expression"
 version = "0.1.39"
 dependencies = [
  "bigdecimal",
- "dozer-types",
+ "dozer-types 0.1.39",
  "half 2.3.1",
  "jsonpath",
  "like",
@@ -2837,7 +2838,7 @@ dependencies = [
 name = "dozer-storage"
 version = "0.1.39"
 dependencies = [
- "dozer-types",
+ "dozer-types 0.1.39",
  "lmdb-rkv",
  "lmdb-rkv-sys",
  "page_size",
@@ -2862,7 +2863,7 @@ dependencies = [
  "dozer-core",
  "dozer-sql",
  "dozer-tracing",
- "dozer-types",
+ "dozer-types 0.1.39",
  "dozer-utils",
  "env_logger",
  "futures",
@@ -2885,7 +2886,7 @@ version = "0.1.39"
 dependencies = [
  "atty",
  "console-subscriber",
- "dozer-types",
+ "dozer-types 0.1.39",
  "futures-util",
  "metrics",
  "metrics-exporter-prometheus",
@@ -2929,10 +2930,42 @@ dependencies = [
 ]
 
 [[package]]
+name = "dozer-types"
+version = "0.1.39"
+source = "git+ssh://git@github.com/getdozer/dozer-cloud.git?rev=refs/pull/628/head#378abd949f4f62b42fd94ad795637a45a6f19349"
+dependencies = [
+ "ahash 0.8.3",
+ "arrow",
+ "arrow-schema",
+ "bincode",
+ "bytes",
+ "chrono",
+ "geo",
+ "indexmap 1.9.2",
+ "indicatif",
+ "log",
+ "ordered-float 3.9.1",
+ "parking_lot",
+ "prettytable-rs",
+ "prost 0.12.0",
+ "prost-types 0.12.0",
+ "rust_decimal",
+ "serde",
+ "serde_bytes",
+ "serde_json",
+ "serde_yaml",
+ "thiserror",
+ "tokio-postgres",
+ "tonic 0.10.0",
+ "tonic-build",
+ "tracing",
+]
+
+[[package]]
 name = "dozer-utils"
 version = "0.1.39"
 dependencies = [
- "dozer-types",
+ "dozer-types 0.1.39",
 ]
 
 [[package]]
@@ -4281,7 +4314,7 @@ dependencies = [
 name = "jsonpath"
 version = "0.2.6"
 dependencies = [
- "dozer-types",
+ "dozer-types 0.1.39",
  "lazy_static",
  "pest",
  "pest_derive",
