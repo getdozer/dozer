@@ -237,7 +237,7 @@ fn field_to_sql(field: &Field) -> String {
         Field::Date(d) => format!("'{}'", d),
         Field::Json(b) => format!("'{b}'::jsonb"),
         Field::Point(p) => format!("'({},{})'", p.0.x(), p.0.y()),
-        Field::Duration(d) => d.to_string(),
+        Field::Duration(_) => field.to_string(),
         Field::Null => "NULL".to_string(),
     }
 }

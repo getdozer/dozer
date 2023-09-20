@@ -1,0 +1,21 @@
+[package]
+name = "jsonpath"
+description = "The library provides the basic functionality to find the set of the data according to the filtering query."
+version = "0.2.6"
+authors = ["BorisZhguchev <zhguchev@gmail.com>"]
+edition = "2018"
+license-file = "LICENSE"
+homepage = "https://github.com/besok/jsonpath-rust"
+repository = "https://github.com/besok/jsonpath-rust"
+readme = "README.md"
+keywords = ["json", "json-path", "jsonpath", "jsonpath-rust", "xpath"]
+categories = ["development-tools", "parsing", "text-processing"]
+
+[dependencies]
+dozer-types = { path = "../../dozer-types" }
+regex = "1"
+pest = "2.0"
+pest_derive = "2.0"
+
+[dev-dependencies]
+lazy_static = "1.0"

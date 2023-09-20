@@ -1,11 +1,17 @@
-extern crate core;
+mod aggregation;
+pub mod builder;
+pub mod errors;
+mod expression;
+mod pipeline_builder;
+mod planner;
+mod product;
+mod projection;
+mod selection;
+mod table_operator;
+mod utils;
+mod window;
 
-// Re-export sqlparser
-pub use sqlparser;
+pub use dozer_sql_expression::sqlparser;
 
-pub mod jsonpath;
-pub mod pipeline;
-
-#[macro_use]
-extern crate pest_derive;
-extern crate pest;
+#[cfg(test)]
+mod tests;
