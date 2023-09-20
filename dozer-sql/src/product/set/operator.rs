@@ -1,6 +1,6 @@
 use super::record_map::{CountingRecordMap, CountingRecordMapEnum};
 use crate::errors::PipelineError;
-use dozer_core::processor_record::ProcessorRecord;
+use dozer_recordstore::ProcessorRecord;
 use dozer_sql_expression::sqlparser::ast::{SetOperator, SetQuantifier};
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]

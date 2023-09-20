@@ -13,10 +13,14 @@ use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub enum JsonValue {
     Null,
     Bool(bool),
-    Number(OrderedFloat<f64>),
+    Number(
+        #[cfg_attr(feature="arbitrary", arbitrary(with = crate::types::field::arbitrary_float))]
+        OrderedFloat<f64>,
+    ),
     String(String),
     Array(Vec<JsonValue>),
     Object(BTreeMap<String, JsonValue>),

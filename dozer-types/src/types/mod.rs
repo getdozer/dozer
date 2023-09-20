@@ -260,6 +260,7 @@ pub enum Operation {
 // Helpful in interacting with external systems during ingestion and querying
 // For example, nanoseconds can overflow.
 #[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub enum TimeUnit {
     Seconds,
     Milliseconds,
@@ -320,6 +321,7 @@ impl TimeUnit {
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct DozerDuration(pub std::time::Duration, pub TimeUnit);
 
 impl Ord for DozerDuration {
@@ -370,6 +372,16 @@ impl DozerDuration {
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
 pub struct DozerPoint(pub Point<OrderedFloat<f64>>);
+
+#[cfg(feature = "arbitrary")]
+impl<'a> arbitrary::Arbitrary<'a> for DozerPoint {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        let x = self::field::arbitrary_float(u)?;
+        let y = self::field::arbitrary_float(u)?;
+
+        Ok(Self(geo::Point::new(x, y)))
+    }
+}
 
 impl GeodesicDistance<OrderedFloat<f64>> for DozerPoint {
     fn geodesic_distance(&self, rhs: &Self) -> OrderedFloat<f64> {

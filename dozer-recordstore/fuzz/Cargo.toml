@@ -1,0 +1,37 @@
+[package]
+name = "dozer-recordstore-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+# Prevent this from interfering with workspaces
+[workspace]
+members = ["."]
+
+[dependencies.dozer-recordstore]
+path = ".."
+
+[dependencies.dozer-types]
+path = "../../dozer-types"
+features = ["arbitrary"]
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "fuzz_recordref"
+path = "fuzz_targets/fuzz_recordref.rs"
+test = false
+doc = false
+
+[patch.crates-io]
+postgres = { git = "https://github.com/getdozer/rust-postgres" }
+postgres-protocol = { git = "https://github.com/getdozer/rust-postgres" }
+postgres-types = { git = "https://github.com/getdozer/rust-postgres" }
+tokio-postgres = { git = "https://github.com/getdozer/rust-postgres" }

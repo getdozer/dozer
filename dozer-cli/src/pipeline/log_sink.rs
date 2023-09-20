@@ -8,9 +8,9 @@ use dozer_core::{
     epoch::Epoch,
     executor_operation::ProcessorOperation,
     node::{PortHandle, Sink, SinkFactory},
-    processor_record::ProcessorRecordStore,
     DEFAULT_PORT_HANDLE,
 };
+use dozer_recordstore::ProcessorRecordStore;
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::indicatif::ProgressBar;
 use dozer_types::types::Schema;
@@ -105,9 +105,7 @@ impl Sink for LogSink {
         self.log
             .lock()
             .write(dozer_cache::dozer_log::replication::LogOperation::Op {
-                op: record_store
-                    .load_operation(&op)
-                    .map_err(Into::<BoxedError>::into)?,
+                op: op.load(record_store)?,
             });
         self.update_counter();
         Ok(())
