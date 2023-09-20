@@ -1548,9 +1548,9 @@ dependencies = [
 
 [[package]]
 name = "camino"
-version = "1.1.4"
+version = "1.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c530edf18f37068ac2d977409ed5cd50d53d73bc653c7647b48eb78976ac9ae2"
+checksum = "c59e92b5a388f549b863a7bea62612c09f24c8393560709a54558a9abdfb3b9c"
 
 [[package]]
 name = "cast"
@@ -2640,6 +2640,7 @@ dependencies = [
  "ctrlc",
  "dozer-api",
  "dozer-cache",
+ "dozer-cloud-client",
  "dozer-core",
  "dozer-ingestion",
  "dozer-sql",
@@ -2667,6 +2668,27 @@ dependencies = [
  "uuid",
  "webbrowser",
  "zip 0.5.13",
+]
+
+[[package]]
+name = "dozer-cloud-client"
+version = "0.1.0"
+dependencies = [
+ "camino",
+ "chrono",
+ "clap 4.4.1",
+ "dozer-types",
+ "futures",
+ "futures-util",
+ "glob",
+ "prost 0.12.0",
+ "prost-types 0.12.0",
+ "reqwest",
+ "rustyline",
+ "tokio",
+ "tonic 0.10.0",
+ "tonic-build",
+ "tower",
 ]
 
 [[package]]
@@ -3351,9 +3373,9 @@ checksum = "e6d5a32815ae3f33302d95fdcb2ce17862f8c65363dcfd29360480ba1001fc9c"
 
 [[package]]
 name = "futures"
-version = "0.3.26"
+version = "0.3.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13e2792b0ff0340399d58445b88fd9770e3489eff258a4cbc1523418f12abf84"
+checksum = "23342abe12aba583913b2e62f22225ff9c950774065e4bfb61a19cd9770fec40"
 dependencies = [
  "futures-channel",
  "futures-core",
@@ -3382,9 +3404,9 @@ checksum = "4bca583b7e26f571124fe5b7561d49cb2868d79116cfa0eefce955557c6fee8c"
 
 [[package]]
 name = "futures-executor"
-version = "0.3.26"
+version = "0.3.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8de0a35a6ab97ec8869e32a2473f4b1324459e14c29275d14b10cb1fd19b50e"
+checksum = "ccecee823288125bd88b4d7f565c9e58e41858e47ab72e8ea2d64e93624386e0"
 dependencies = [
  "futures-core",
  "futures-task",

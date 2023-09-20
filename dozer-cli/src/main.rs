@@ -1,14 +1,13 @@
+use ::dozer_cloud_client::run_cloud;
 use clap::Parser;
-#[cfg(feature = "cloud")]
-use dozer_cli::cli::cloud::CloudCommands;
 use dozer_cli::cli::generate_config_repl;
 use dozer_cli::cli::types::{Cli, Commands, ConnectorCommand, RunCommands, SecurityCommands};
 use dozer_cli::cli::{init_dozer, list_sources, LOGO};
-use dozer_cli::errors::{CliError, CloudError, OrchestrationError};
+use dozer_cli::errors::{CliError, OrchestrationError};
 use dozer_cli::simple::SimpleOrchestrator;
-#[cfg(feature = "cloud")]
-use dozer_cli::CloudOrchestrator;
 use dozer_cli::{live, set_ctrl_handler, set_panic_hook, shutdown};
+use dozer_cloud_client::errors::display_cloud_error;
+
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::models::telemetry::{TelemetryConfig, TelemetryMetricsConfig};
 use dozer_types::serde::Deserialize;
@@ -17,8 +16,6 @@ use tokio::runtime::Runtime;
 use tokio::time;
 
 use clap::CommandFactory;
-#[cfg(feature = "cloud")]
-use dozer_cli::cloud_app_context::CloudAppContext;
 use std::cmp::Ordering;
 use std::sync::Arc;
 
@@ -196,34 +193,13 @@ fn run() -> Result<(), OrchestrationError> {
         #[cfg(feature = "cloud")]
         Commands::Cloud(cloud) => {
             render_logo();
-
-            match cloud.command.clone() {
-                CloudCommands::Deploy(deploy) => dozer.deploy(cloud, deploy, cli.config_paths),
-                CloudCommands::Login {
-                    organisation_slug,
-                    profile_name,
-                    client_id,
-                    client_secret,
-                } => dozer.login(
-                    cloud,
-                    organisation_slug,
-                    profile_name,
-                    client_id,
-                    client_secret,
-                ),
-                CloudCommands::Secrets(command) => dozer.execute_secrets_command(cloud, command),
-                CloudCommands::Delete => dozer.delete(cloud),
-                CloudCommands::Status => dozer.status(cloud),
-                CloudCommands::Monitor => dozer.monitor(cloud),
-                CloudCommands::Logs(logs) => dozer.trace_logs(cloud, logs),
-                CloudCommands::Version(version) => dozer.version(cloud, version),
-                CloudCommands::List(list) => dozer.list(cloud, list),
-                CloudCommands::SetApp { app_id } => {
-                    CloudAppContext::save_app_id(app_id.clone())?;
-                    info!("Using \"{app_id}\" app");
-                    Ok(())
-                }
-            }
+            run_cloud(
+                dozer.runtime.clone(),
+                dozer.config.clone(),
+                cloud,
+                cli.config_paths,
+            )
+            .map_err(OrchestrationError::CloudError)
         }
         Commands::Init => {
             panic!("This should not happen as it is handled in parse_and_generate");
@@ -303,12 +279,8 @@ fn init_orchestrator(cli: &Cli) -> Result<SimpleOrchestrator, CliError> {
 }
 
 fn display_error(e: &OrchestrationError) {
-    if let OrchestrationError::CloudError(CloudError::ApplicationNotFound) = &e {
-        let description = "Dozer cloud service was not able to find application. \n\n\
-        Please check your application id in `dozer-config.cloud.yaml` file.\n\
-        To change it, you can manually update file or use \"dozer cloud set-app {app_id}\".";
-
-        error!("{}", description);
+    if let OrchestrationError::CloudError(e) = &e {
+        display_cloud_error(e);
     } else {
         error!("{}", e);
     }

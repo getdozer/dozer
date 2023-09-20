@@ -1,36 +1,20 @@
 #![allow(clippy::enum_variant_names)]
 
-use glob::{GlobError, PatternError};
-use std::io;
-use std::path::PathBuf;
-use tonic::Code::NotFound;
-
-use crate::{
-    errors::CloudError::{ApplicationNotFound, CloudServiceError},
-    live::LiveError,
-};
-use dozer_api::{
-    errors::{ApiInitError, AuthError, GenerationError, GrpcError},
-    rest::DOZER_SERVER_NAME_HEADER,
-};
+use crate::live::LiveError;
+use dozer_api::errors::{ApiInitError, AuthError, GenerationError, GrpcError};
 use dozer_cache::dozer_log::storage;
 use dozer_cache::errors::CacheError;
+use dozer_cloud_client::errors::CloudError;
 use dozer_core::errors::ExecutionError;
 use dozer_ingestion::errors::ConnectorError;
 use dozer_sql::errors::PipelineError;
 use dozer_types::{constants::LOCK_FILE, thiserror::Error};
 use dozer_types::{errors::internal::BoxedError, serde_json};
 use dozer_types::{serde_yaml, thiserror};
+use glob::{GlobError, PatternError};
+use std::path::PathBuf;
 
 use crate::pipeline::connector_source::ConnectorSourceFactoryError;
-
-pub fn map_tonic_error(e: tonic::Status) -> CloudError {
-    if e.code() == NotFound && e.message() == "Failed to find app" {
-        ApplicationNotFound
-    } else {
-        CloudServiceError(e)
-    }
-}
 
 #[derive(Error, Debug)]
 pub enum OrchestrationError {
@@ -42,18 +26,12 @@ pub enum OrchestrationError {
     NoBuildFound,
     #[error("Failed to create log: {0}")]
     CreateLog(#[from] dozer_cache::dozer_log::replication::Error),
-    #[error("Failed to login: {0}")]
-    CloudLoginFailed(#[from] CloudLoginError),
-    #[error("Credential Error: {0}")]
-    CredentialError(#[from] CloudCredentialError),
     #[error("Failed to build: {0}")]
     BuildFailed(#[from] BuildError),
     #[error("Failed to generate token: {0}")]
     GenerateTokenFailed(#[source] AuthError),
     #[error("Missing api config or security input")]
     MissingSecurityConfig,
-    #[error("Cloud service error: {0}")]
-    CloudError(#[from] CloudError),
     #[error("Failed to initialize api server: {0}")]
     ApiInitFailed(#[from] ApiInitError),
     #[error("Failed to server REST API: {0}")]
@@ -80,6 +58,8 @@ pub enum OrchestrationError {
     PipelineError(#[from] PipelineError),
     #[error(transparent)]
     CliError(#[from] CliError),
+    #[error(transparent)]
+    CloudError(#[from] CloudError),
     #[error("table_name: {0:?} not found in any of the connections")]
     SourceValidationError(String),
     #[error("connection: {0:?} not found")]
@@ -92,10 +72,6 @@ pub enum OrchestrationError {
     EndpointTableNotFound(String),
     #[error("No endpoints initialized in the config provided")]
     EmptyEndpoints,
-    #[error(transparent)]
-    CloudContextError(#[from] CloudContextError),
-    #[error("Failed to read organisation name. Error: {0}")]
-    FailedToReadOrganisationName(#[source] io::Error),
     #[error(transparent)]
     LiveError(#[from] LiveError),
     #[error("{LOCK_FILE} is out of date")]
@@ -135,39 +111,6 @@ pub enum CliError {
     // Generic IO error
     #[error(transparent)]
     Io(#[from] std::io::Error),
-}
-
-#[derive(Error, Debug)]
-pub enum CloudError {
-    #[error("Connection failed. Error: {0:?}")]
-    ConnectionToCloudServiceError(#[from] tonic::transport::Error),
-
-    #[error("Cloud service returned error: {0:?}")]
-    CloudServiceError(#[from] tonic::Status),
-
-    #[error("GRPC request failed, error: {} (GRPC status {})", .0.message(), .0.code())]
-    GRPCCallError(#[source] tonic::Status),
-
-    #[error(transparent)]
-    CloudCredentialError(#[from] CloudCredentialError),
-
-    #[error("Reqwest error: {0}")]
-    Reqwest(#[from] reqwest::Error),
-
-    #[error("Response header {DOZER_SERVER_NAME_HEADER} is missing")]
-    MissingResponseHeader,
-
-    #[error(transparent)]
-    CloudContextError(#[from] CloudContextError),
-
-    #[error(transparent)]
-    ConfigCombineError(#[from] ConfigCombineError),
-
-    #[error("Application not found")]
-    ApplicationNotFound,
-
-    #[error("{LOCK_FILE} not found. Run `dozer build` before deploying, or pass '--no-lock'.")]
-    LockfileNotFound,
 }
 
 #[derive(Debug, Error)]
@@ -226,59 +169,4 @@ pub enum BuildError {
     FailedToGenerateProtoFiles(#[from] GenerationError),
     #[error("Storage error: {0}")]
     Storage(#[from] storage::Error),
-}
-
-#[derive(Debug, Error)]
-pub enum CloudLoginError {
-    #[error("Tonic error: {0}")]
-    TonicError(#[from] tonic::Status),
-
-    #[error("Transport error: {0}")]
-    Transport(#[from] tonic::transport::Error),
-
-    #[error("HttpRequest error: {0}")]
-    HttpRequestError(#[from] reqwest::Error),
-
-    #[error(transparent)]
-    SerializationError(#[from] dozer_types::serde_json::Error),
-
-    #[error("Failed to read input: {0}")]
-    InputError(#[from] std::io::Error),
-
-    #[error(transparent)]
-    CloudCredentialError(#[from] CloudCredentialError),
-
-    #[error("Organisation not found")]
-    OrganisationNotFound,
-}
-
-#[derive(Debug, Error)]
-pub enum CloudCredentialError {
-    #[error(transparent)]
-    SerializationError(#[from] dozer_types::serde_yaml::Error),
-
-    #[error(transparent)]
-    JsonSerializationError(#[from] dozer_types::serde_json::Error),
-    #[error("Failed to create home directory: {0}")]
-    FailedToCreateDirectory(#[from] std::io::Error),
-
-    #[error("HttpRequest error: {0}")]
-    HttpRequestError(#[from] reqwest::Error),
-
-    #[error("Missing credentials.yaml file - Please try to login again")]
-    MissingCredentialFile,
-    #[error("There's no profile with given name - Please try to login again")]
-    MissingProfile,
-}
-
-#[derive(Debug, Error)]
-pub enum CloudContextError {
-    #[error("Failed to create access directory: {0}")]
-    FailedToAccessDirectory(#[from] std::io::Error),
-
-    #[error("Failed to get current directory path")]
-    FailedToGetDirectoryPath,
-
-    #[error("App id not found in configuration. You need to run \"deploy\" or \"set-app\" first")]
-    AppIdNotFound,
 }

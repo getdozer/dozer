@@ -15,43 +15,11 @@ use std::{
     thread::current,
 };
 use tokio::task::JoinHandle;
-#[cfg(feature = "cloud")]
-pub mod cloud_app_context;
-#[cfg(feature = "cloud")]
-mod cloud_helper;
 pub mod config_helper;
 pub mod console_helper;
 #[cfg(test)]
 mod tests;
 mod utils;
-
-#[cfg(feature = "cloud")]
-pub trait CloudOrchestrator {
-    fn deploy(
-        &mut self,
-        cloud: Cloud,
-        deploy: DeployCommandArgs,
-        config_paths: Vec<String>,
-    ) -> Result<(), OrchestrationError>;
-    fn delete(&mut self, cloud: Cloud) -> Result<(), OrchestrationError>;
-    fn list(&mut self, cloud: Cloud, list: ListCommandArgs) -> Result<(), OrchestrationError>;
-    fn status(&mut self, cloud: Cloud) -> Result<(), OrchestrationError>;
-    fn monitor(&mut self, cloud: Cloud) -> Result<(), OrchestrationError>;
-    fn trace_logs(&mut self, cloud: Cloud, logs: LogCommandArgs) -> Result<(), OrchestrationError>;
-    fn login(
-        &mut self,
-        cloud: Cloud,
-        organisation_slug: Option<String>,
-        profile: Option<String>,
-        client_id: Option<String>,
-        client_secret: Option<String>,
-    ) -> Result<(), OrchestrationError>;
-    fn execute_secrets_command(
-        &mut self,
-        cloud: Cloud,
-        command: SecretsCommand,
-    ) -> Result<(), OrchestrationError>;
-}
 
 // Re-exports
 pub use dozer_ingestion::{
@@ -64,12 +32,19 @@ pub fn wrapped_statement_to_pipeline(sql: &str) -> Result<QueryContext, Pipeline
     statement_to_pipeline(sql, &mut pipeline, None, vec![])
 }
 
-#[cfg(feature = "cloud")]
-use crate::cli::cloud::{
-    Cloud, DeployCommandArgs, ListCommandArgs, LogCommandArgs, SecretsCommand,
-};
 pub use dozer_types::models::connection::Connection;
 use dozer_types::tracing::error;
+
+pub mod cache {
+    use dozer_types::serde::{Deserialize, Serialize};
+
+    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+    #[serde(crate = "dozer_types::serde")]
+    pub enum Phase {
+        Snapshotting,
+        Streaming,
+    }
+}
 
 async fn flatten_join_handle(
     handle: JoinHandle<Result<(), OrchestrationError>>,

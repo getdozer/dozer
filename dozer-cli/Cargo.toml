@@ -10,6 +10,7 @@ authors = ["getdozer/dozer-dev"]
 name = "dozer"
 
 [dependencies]
+dozer-cloud-client = { path = "../../dozer-cloud-client" }
 dozer-api = { path = "../dozer-api" }
 dozer-ingestion = { path = "../dozer-ingestion" }
 dozer-core = { path = "../dozer-core" }

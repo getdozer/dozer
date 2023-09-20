@@ -46,3 +46,16 @@ pub use serde_json;
 pub use serde_yaml;
 pub use thiserror;
 pub use tracing;
+
+// Types required by API and other clients
+pub mod api {
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+    pub enum Phase {
+        Snapshotting,
+        Streaming,
+    }
+
+    pub const DOZER_SERVER_NAME_HEADER: &str = "x-dozer-server-name";
+}

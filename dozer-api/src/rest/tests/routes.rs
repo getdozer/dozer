@@ -5,7 +5,7 @@ use crate::{generator::oapi::generator::OpenApiGenerator, test_utils, CacheEndpo
 use actix_http::{body::MessageBody, Request};
 use actix_web::dev::{Service, ServiceResponse};
 use actix_web::http::header::ContentType;
-use dozer_cache::Phase;
+use dozer_types::api::Phase;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::serde_json::{json, Value};
 use http::StatusCode;

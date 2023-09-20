@@ -3,6 +3,7 @@ use crate::cache::{expression::QueryExpression, CacheRecord, RoCache};
 use super::cache::expression::FilterExpression;
 use crate::errors::CacheError;
 use dozer_types::{
+    api::Phase,
     serde,
     types::{Record, SchemaWithIndex},
 };
@@ -19,13 +20,6 @@ pub struct AccessFilter {
     /// Fields to be restricted
     #[serde(default)]
     pub fields: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(crate = "dozer_types::serde")]
-pub enum Phase {
-    Snapshotting,
-    Streaming,
 }
 
 #[derive(Debug)]

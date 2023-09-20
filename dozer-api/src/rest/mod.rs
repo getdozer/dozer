@@ -20,6 +20,7 @@ use actix_web::{
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
 use dozer_tracing::LabelsAndProgress;
+use dozer_types::api::DOZER_SERVER_NAME_HEADER;
 use dozer_types::{log::info, models::api_config::RestApiOptions};
 use dozer_types::{
     models::api_security::ApiSecurity,
@@ -37,8 +38,6 @@ enum CorsOptions {
     // origins, max_age
     Custom(Vec<String>, usize),
 }
-
-pub const DOZER_SERVER_NAME_HEADER: &str = "x-dozer-server-name";
 
 #[derive(Clone)]
 pub struct ApiServer {

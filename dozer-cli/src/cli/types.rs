@@ -3,7 +3,7 @@ use clap::{Args, Parser, Subcommand};
 use super::helper::{DESCRIPTION, LOGO};
 
 #[cfg(feature = "cloud")]
-use crate::cli::cloud::Cloud;
+use dozer_cloud_client::cli::cloud::Cloud;
 use dozer_types::{
     constants::{DEFAULT_CONFIG_PATH_PATTERNS, LOCK_FILE},
     serde_json,
