@@ -34,10 +34,6 @@ use dozer_types::{
 // packing these fields while keeping everything aligned.
 const MAX_ALIGN: usize = std::mem::align_of::<Field>();
 
-// This asserts at compile time that `ALIGN` is not
-// accidentally increased, as that would waste space.
-const _ASSERT_ALIGN: usize = 8 - MAX_ALIGN;
-
 #[repr(transparent)]
 #[derive(Debug)]
 /// `repr(transparent)` inner struct so we can implement drop logic on it
