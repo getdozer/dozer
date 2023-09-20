@@ -165,7 +165,7 @@ fn test_json_query_null() {
             .clone(),
         vec![Field::Json(json_val)],
     );
-    assert_eq!(f, Field::Json(JsonValue::String("Basic".to_string())));
+    assert_eq!(f, Field::Json(JsonValue::Null));
 }
 
 #[test]
@@ -187,7 +187,7 @@ fn test_json_query_len_one_array() {
     .unwrap();
 
     let f = run_fct(
-        "SELECT JSON_VALUE(jsonInfo,'$.info.tags') FROM users",
+        "SELECT JSON_QUERY(jsonInfo,'$.info.tags') FROM users",
         Schema::default()
             .field(
                 FieldDefinition::new(
@@ -644,4 +644,230 @@ fn test_json_value_cast() {
     );
 
     assert_eq!(f, Field::Boolean(true));
+}
+
+#[test]
+fn test_json_value_diff_1() {
+    let json_val = serde_json_to_json_value(json!(
+        { "x": [0,1], "y": "[0,1]", "z": "Monty" }
+    ))
+    .unwrap();
+
+    let mut f = run_fct(
+        "SELECT JSON_QUERY(jsonInfo,'$') FROM users",
+        Schema::default()
+            .field(
+                FieldDefinition::new(
+                    String::from("jsonInfo"),
+                    FieldType::Json,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Json(json_val.clone())],
+    );
+
+    assert_eq!(f, Field::Json(json_val.clone()));
+
+    f = run_fct(
+        "SELECT JSON_VALUE(jsonInfo,'$') FROM users",
+        Schema::default()
+            .field(
+                FieldDefinition::new(
+                    String::from("jsonInfo"),
+                    FieldType::Json,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Json(json_val)],
+    );
+
+    assert_eq!(f, Field::Json(JsonValue::Null));
+}
+
+#[test]
+fn test_json_value_diff_2() {
+    let json_val = serde_json_to_json_value(json!(
+        { "x": [0,1], "y": "[0,1]", "z": "Monty" }
+    ))
+    .unwrap();
+
+    let mut f = run_fct(
+        "SELECT JSON_QUERY(jsonInfo,'$.x') FROM users",
+        Schema::default()
+            .field(
+                FieldDefinition::new(
+                    String::from("jsonInfo"),
+                    FieldType::Json,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Json(json_val.clone())],
+    );
+
+    assert_eq!(
+        f,
+        Field::Json(JsonValue::Array(vec![
+            JsonValue::Number(OrderedFloat(0_f64)),
+            JsonValue::Number(OrderedFloat(1_f64))
+        ]))
+    );
+
+    f = run_fct(
+        "SELECT JSON_VALUE(jsonInfo,'$.x') FROM users",
+        Schema::default()
+            .field(
+                FieldDefinition::new(
+                    String::from("jsonInfo"),
+                    FieldType::Json,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Json(json_val)],
+    );
+
+    assert_eq!(f, Field::Json(JsonValue::Null));
+}
+
+#[test]
+fn test_json_value_diff_3() {
+    let json_val = serde_json_to_json_value(json!(
+        { "x": [0,1], "y": "[0,1]", "z": "Monty" }
+    ))
+    .unwrap();
+
+    let mut f = run_fct(
+        "SELECT JSON_QUERY(jsonInfo,'$.y') FROM users",
+        Schema::default()
+            .field(
+                FieldDefinition::new(
+                    String::from("jsonInfo"),
+                    FieldType::Json,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Json(json_val.clone())],
+    );
+
+    assert_eq!(f, Field::Json(JsonValue::Null));
+
+    f = run_fct(
+        "SELECT JSON_VALUE(jsonInfo,'$.y') FROM users",
+        Schema::default()
+            .field(
+                FieldDefinition::new(
+                    String::from("jsonInfo"),
+                    FieldType::Json,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Json(json_val)],
+    );
+
+    assert_eq!(f, Field::Json(JsonValue::String("[0,1]".to_string())));
+}
+
+#[test]
+fn test_json_value_diff_4() {
+    let json_val = serde_json_to_json_value(json!(
+        { "x": [0,1], "y": "[0,1]", "z": "Monty" }
+    ))
+    .unwrap();
+
+    let mut f = run_fct(
+        "SELECT JSON_QUERY(jsonInfo,'$.z') FROM users",
+        Schema::default()
+            .field(
+                FieldDefinition::new(
+                    String::from("jsonInfo"),
+                    FieldType::Json,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Json(json_val.clone())],
+    );
+
+    assert_eq!(f, Field::Json(JsonValue::Null));
+
+    f = run_fct(
+        "SELECT JSON_VALUE(jsonInfo,'$.z') FROM users",
+        Schema::default()
+            .field(
+                FieldDefinition::new(
+                    String::from("jsonInfo"),
+                    FieldType::Json,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Json(json_val)],
+    );
+
+    assert_eq!(f, Field::Json(JsonValue::String("Monty".to_string())));
+}
+
+#[test]
+fn test_json_value_diff_5() {
+    let json_val = serde_json_to_json_value(json!(
+        { "x": [0,1], "y": "[0,1]", "z": "Monty" }
+    ))
+    .unwrap();
+
+    let mut f = run_fct(
+        "SELECT JSON_QUERY(jsonInfo,'$.x[0]') FROM users",
+        Schema::default()
+            .field(
+                FieldDefinition::new(
+                    String::from("jsonInfo"),
+                    FieldType::Json,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Json(json_val.clone())],
+    );
+
+    assert_eq!(f, Field::Json(JsonValue::Null));
+
+    f = run_fct(
+        "SELECT JSON_VALUE(jsonInfo,'$.x[0]') FROM users",
+        Schema::default()
+            .field(
+                FieldDefinition::new(
+                    String::from("jsonInfo"),
+                    FieldType::Json,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Json(json_val)],
+    );
+
+    assert_eq!(f, Field::Json(JsonValue::Number(OrderedFloat(0_f64))));
 }
