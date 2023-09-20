@@ -7,8 +7,9 @@ message Notification {
     google.protobuf.Timestamp created_at = 2;
     string namespace = 3;
     Level level = 4;
+    bool is_read = 5;
     oneof kind {
-        PodNotification pod = 5;
+        PodNotification pod = 6;
     }
 }
 
