@@ -49,13 +49,23 @@ service DozerCloud {
   rpc Subscribe(google.protobuf.Empty) returns (stream Notification);
 
   rpc list_notifications(ListNotificationsRequest) returns (ListNotificationsResponse);
+  rpc mark_notifications_as_read(MarkNotificationsRequest) returns (MarkNotificationsResponse);
 }
 
 service DozerPublic {
   rpc company_metadata(CompanyRequest) returns (CompanyResponse);
 }
+message MarkNotificationsRequest {
+  // if not specified, will mark all notifications as read - for a company or for application
+  repeated string notification_ids = 1;
+  optional string app_id = 2;
+}
+message MarkNotificationsResponse {
+  bool success = 1;
+}
 message ListNotificationsRequest {
-  string app_id = 1;
+  // if app_id not specified, will get all notifications of company
+  optional string app_id = 1;
   optional uint32 limit = 2;
   optional uint32 offset = 3;
 }
