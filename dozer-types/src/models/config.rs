@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use super::{
-    api_config::ApiConfig, api_endpoint::ApiEndpoint, app_config::AppConfig, cloud::Cloud,
+    api_config::ApiConfig, api_endpoint::ApiEndpoint, app_config::AppConfig,
     connection::Connection, flags::Flags, source::Source, telemetry::TelemetryConfig,
 };
 use crate::constants::DEFAULT_HOME_DIR;
@@ -75,10 +75,11 @@ pub struct Config {
     /// Instrument using Dozer
     #[serde(skip_serializing_if = "Option::is_none")]
     pub telemetry: Option<TelemetryConfig>,
-    #[prost(message, optional, tag = "14")]
+
     /// Dozer Cloud specific configuration
+    #[prost(message, optional, tag = "14")]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub cloud: Option<Cloud>,
+    pub cloud: Option<dozer_cloud_client::models::Cloud>,
 
     #[prost(message, repeated, tag = "15")]
     /// UDF specific configuration (eg. !Onnx)

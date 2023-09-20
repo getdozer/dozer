@@ -191,13 +191,8 @@ fn run() -> Result<(), OrchestrationError> {
         #[cfg(feature = "cloud")]
         Commands::Cloud(cloud) => {
             render_logo();
-            run_cloud(
-                dozer.runtime.clone(),
-                dozer.config.clone(),
-                cloud,
-                cli.config_paths,
-            )
-            .map_err(OrchestrationError::CloudError)
+            run_cloud(dozer.runtime.clone(), cloud, cli.config_paths)
+                .map_err(OrchestrationError::CloudError)
         }
         Commands::Init => {
             panic!("This should not happen as it is handled in parse_and_generate");
@@ -275,18 +270,14 @@ fn init_orchestrator(cli: &Cli) -> Result<SimpleOrchestrator, CliError> {
         }
     })
 }
-#[cfg(feature = "cloud")]
+
 fn display_error(e: &OrchestrationError) {
     if let OrchestrationError::CloudError(e) = &e {
-        display_cloud_error(e);
+        dozer_cloud_client::errors::display_cloud_error(e);
     } else {
         error!("{}", e);
     }
 }
-fn display_error(e: &OrchestrationError) {
-    error!("{}", e);
-}
-
 struct Telemetry();
 
 impl Telemetry {

@@ -2673,7 +2673,7 @@ dependencies = [
 [[package]]
 name = "dozer-cloud-client"
 version = "0.1.0"
-source = "git+ssh://git@github.com/getdozer/dozer-cloud.git?rev=refs/pull/628/head#378abd949f4f62b42fd94ad795637a45a6f19349"
+source = "git+ssh://git@github.com/getdozer/dozer-cloud.git?rev=refs/pull/628/head#6086abbb99526cf444f4542b17d12712b271cff5"
 dependencies = [
  "camino",
  "chrono",
@@ -2907,6 +2907,7 @@ dependencies = [
  "bincode",
  "bytes",
  "chrono",
+ "dozer-cloud-client",
  "geo",
  "indexmap 1.9.2",
  "indicatif",
@@ -2932,7 +2933,7 @@ dependencies = [
 [[package]]
 name = "dozer-types"
 version = "0.1.39"
-source = "git+ssh://git@github.com/getdozer/dozer-cloud.git?rev=refs/pull/628/head#378abd949f4f62b42fd94ad795637a45a6f19349"
+source = "git+ssh://git@github.com/getdozer/dozer-cloud.git?rev=refs/pull/628/head#6086abbb99526cf444f4542b17d12712b271cff5"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -8609,7 +8610,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
- "rand 0.8.5",
+ "rand 0.4.6",
  "static_assertions",
 ]
 

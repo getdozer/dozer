@@ -47,6 +47,8 @@ pub use serde_yaml;
 pub use thiserror;
 pub use tracing;
 
+pub use dozer_cloud_client;
+
 // Types required by API and other clients
 pub mod api {
     use serde::{Deserialize, Serialize};
