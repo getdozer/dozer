@@ -367,7 +367,7 @@ impl Expression {
     pub fn get_type(&self, schema: &Schema) -> Result<ExpressionType, Error> {
         match self {
             Expression::Literal(field) => {
-                let field_type = get_field_type(field);
+                let field_type = field.ty();
                 match field_type {
                     Some(f) => Ok(ExpressionType::new(
                         f,
@@ -469,27 +469,6 @@ impl Expression {
                 false,
             )),
         }
-    }
-}
-
-pub fn get_field_type(field: &Field) -> Option<FieldType> {
-    match field {
-        Field::UInt(_) => Some(FieldType::UInt),
-        Field::U128(_) => Some(FieldType::U128),
-        Field::Int(_) => Some(FieldType::Int),
-        Field::I128(_) => Some(FieldType::I128),
-        Field::Float(_) => Some(FieldType::Float),
-        Field::Boolean(_) => Some(FieldType::Boolean),
-        Field::String(_) => Some(FieldType::String),
-        Field::Binary(_) => Some(FieldType::Binary),
-        Field::Decimal(_) => Some(FieldType::Decimal),
-        Field::Timestamp(_) => Some(FieldType::Timestamp),
-        Field::Json(_) => Some(FieldType::Json),
-        Field::Text(_) => Some(FieldType::Text),
-        Field::Date(_) => Some(FieldType::Date),
-        Field::Point(_) => Some(FieldType::Point),
-        Field::Duration(_) => Some(FieldType::Duration),
-        Field::Null => None,
     }
 }
 
