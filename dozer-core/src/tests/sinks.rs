@@ -1,9 +1,9 @@
 use crate::epoch::Epoch;
 use crate::executor_operation::ProcessorOperation;
 use crate::node::{PortHandle, Sink, SinkFactory};
-use crate::processor_record::ProcessorRecordStore;
 use crate::DEFAULT_PORT_HANDLE;
 use dozer_log::storage::Queue;
+use dozer_recordstore::ProcessorRecordStore;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::Schema;
 

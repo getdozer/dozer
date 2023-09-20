@@ -12,6 +12,7 @@ dozer-storage = { path = "../dozer-storage" }
 dozer-core = { path = "../dozer-core" }
 dozer-tracing = { path = "../dozer-tracing" }
 dozer-sql-expression = { path = "expression" }
+dozer-recordstore = {path = "../dozer-recordstore"}
 
 ahash = "0.8.3"
 enum_dispatch = "0.3.11"

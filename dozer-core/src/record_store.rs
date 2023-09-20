@@ -1,7 +1,6 @@
 use crate::executor_operation::ProcessorOperation;
 use crate::node::OutputPortType;
-use crate::processor_record::{ProcessorRecord, ProcessorRecordStore};
-use dozer_storage::errors::StorageError;
+use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore, RecordStoreError};
 use dozer_types::thiserror::{self, Error};
 use dozer_types::types::Schema;
 use std::collections::HashMap;
@@ -14,8 +13,8 @@ use super::node::PortHandle;
 pub enum RecordWriterError {
     #[error("Record not found")]
     RecordNotFound,
-    #[error("Storage error: {0}")]
-    Storage(#[from] StorageError),
+    #[error("Recordstore error: {0}")]
+    RecordStore(#[from] RecordStoreError),
 }
 
 pub trait RecordWriter: Send + Sync {

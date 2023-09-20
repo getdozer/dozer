@@ -1,5 +1,5 @@
 use crate::table_operator::lifetime::LifetimeTableOperator;
-use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordStore};
+use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore};
 use dozer_types::types::Schema;
 use enum_dispatch::enum_dispatch;
 

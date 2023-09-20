@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
 use crate::errors::PipelineError;
-use dozer_core::processor_record::ProcessorRecordStore;
 use dozer_core::{
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
+use dozer_recordstore::ProcessorRecordStore;
 use dozer_sql_expression::builder::ExpressionBuilder;
 use dozer_sql_expression::sqlparser::ast::Expr as SqlExpr;
 use dozer_types::models::udf_config::UdfConfig;

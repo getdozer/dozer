@@ -454,6 +454,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "arbitrary"
+version = "1.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e2d098ff73c1ca148721f37baad5ea6a465a13f9573aba8641fbbbae8164a54e"
+dependencies = [
+ "derive_arbitrary",
+]
+
+[[package]]
 name = "arc-swap"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1595,6 +1604,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec837a71355b28f6556dbd569b37b3f363091c0bd4b2e735674521b4c5fd9bc5"
 dependencies = [
  "android-tzdata",
+ "arbitrary",
  "iana-time-zone",
  "js-sys",
  "num-traits",
@@ -2508,6 +2518,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "derive_arbitrary"
+version = "1.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "53e0efad4403bfc52dc201159c4b842a246a14b98c64b55dfd0f2d89729dfeb8"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.29",
+]
+
+[[package]]
 name = "derive_more"
 version = "0.99.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2642,6 +2663,7 @@ dependencies = [
  "dozer-cache",
  "dozer-core",
  "dozer-ingestion",
+ "dozer-recordstore",
  "dozer-sql",
  "dozer-storage",
  "dozer-tracing",
@@ -2676,6 +2698,7 @@ dependencies = [
  "crossbeam",
  "daggy",
  "dozer-log",
+ "dozer-recordstore",
  "dozer-storage",
  "dozer-tracing",
  "dozer-types",
@@ -2776,11 +2799,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "dozer-recordstore"
+version = "0.1.0"
+dependencies = [
+ "dozer-types",
+ "triomphe",
+]
+
+[[package]]
 name = "dozer-sql"
 version = "0.1.39"
 dependencies = [
  "ahash 0.8.3",
  "dozer-core",
+ "dozer-recordstore",
  "dozer-sql-expression",
  "dozer-storage",
  "dozer-tracing",
@@ -2838,6 +2870,7 @@ dependencies = [
  "dozer-cache",
  "dozer-cli",
  "dozer-core",
+ "dozer-recordstore",
  "dozer-sql",
  "dozer-tracing",
  "dozer-types",
@@ -2879,6 +2912,7 @@ name = "dozer-types"
 version = "0.1.39"
 dependencies = [
  "ahash 0.8.3",
+ "arbitrary",
  "arrow",
  "arrow-schema",
  "bincode",
@@ -6929,6 +6963,7 @@ version = "1.32.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a4c4216490d5a413bc6d10fa4742bd7d4955941d062c0ef873141d6b0e7b30fd"
 dependencies = [
+ "arbitrary",
  "arrayvec",
  "borsh",
  "bytes",
@@ -8494,6 +8529,16 @@ dependencies = [
  "tracing",
  "tracing-core",
  "tracing-log",
+]
+
+[[package]]
+name = "triomphe"
+version = "0.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0eee8098afad3fb0c54a9007aab6804558410503ad676d4633f9c2559a00ac0f"
+dependencies = [
+ "serde",
+ "stable_deref_trait",
 ]
 
 [[package]]

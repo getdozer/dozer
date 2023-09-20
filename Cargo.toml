@@ -14,6 +14,7 @@ members = [
   "dozer-log-js",
   "dozer-log-python",
   "dozer-utils",
+  "dozer-recordstore",
 ]
 resolver = "2"
 

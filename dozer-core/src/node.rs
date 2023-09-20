@@ -1,7 +1,7 @@
 use crate::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::epoch::Epoch;
 use crate::executor_operation::ProcessorOperation;
-use crate::processor_record::ProcessorRecordStore;
+use dozer_recordstore::ProcessorRecordStore;
 
 use dozer_log::storage::{Object, Queue};
 use dozer_types::errors::internal::BoxedError;

@@ -1,7 +1,5 @@
-use dozer_core::{
-    dozer_log::storage::Object,
-    processor_record::{ProcessorRecord, ProcessorRecordStore},
-};
+use dozer_core::dozer_log::storage::Object;
+use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore};
 use dozer_types::types::{Record, Schema, Timestamp};
 
 use crate::{

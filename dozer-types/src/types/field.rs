@@ -16,12 +16,13 @@ use std::time::Duration;
 
 pub const DATE_FORMAT: &str = "%Y-%m-%d";
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub enum Field {
     UInt(u64),
     U128(u128),
     Int(i64),
     I128(i128),
-    Float(OrderedFloat<f64>),
+    Float(#[cfg_attr(feature= "arbitrary", arbitrary(with = arbitrary_float))] OrderedFloat<f64>),
     Boolean(bool),
     String(String),
     Text(String),
@@ -33,6 +34,13 @@ pub enum Field {
     Point(DozerPoint),
     Duration(DozerDuration),
     Null,
+}
+
+#[cfg(feature = "arbitrary")]
+pub(crate) fn arbitrary_float(
+    arbitrary: &mut arbitrary::Unstructured,
+) -> arbitrary::Result<OrderedFloat<f64>> {
+    Ok(OrderedFloat(arbitrary.arbitrary()?))
 }
 
 impl Field {
@@ -180,6 +188,27 @@ impl Field {
             Field::Point(_) => 13,
             Field::Duration(_) => 14,
             Field::Null => 15,
+        }
+    }
+
+    pub fn ty(&self) -> Option<FieldType> {
+        match self {
+            Field::UInt(_) => Some(FieldType::UInt),
+            Field::U128(_) => Some(FieldType::U128),
+            Field::Int(_) => Some(FieldType::Int),
+            Field::I128(_) => Some(FieldType::I128),
+            Field::Float(_) => Some(FieldType::Float),
+            Field::Boolean(_) => Some(FieldType::Boolean),
+            Field::String(_) => Some(FieldType::String),
+            Field::Text(_) => Some(FieldType::Text),
+            Field::Binary(_) => Some(FieldType::Binary),
+            Field::Decimal(_) => Some(FieldType::Decimal),
+            Field::Timestamp(_) => Some(FieldType::Timestamp),
+            Field::Date(_) => Some(FieldType::Date),
+            Field::Json(_) => Some(FieldType::Json),
+            Field::Point(_) => Some(FieldType::Point),
+            Field::Duration(_) => Some(FieldType::Duration),
+            Field::Null => None,
         }
     }
 

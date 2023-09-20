@@ -10,8 +10,8 @@ use dozer_core::dozer_log::storage::Object;
 use dozer_core::epoch::Epoch;
 use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{PortHandle, Processor};
-use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordStore};
 use dozer_core::DEFAULT_PORT_HANDLE;
+use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore};
 use dozer_types::errors::internal::BoxedError;
 use std::fmt::{Debug, Formatter};
 

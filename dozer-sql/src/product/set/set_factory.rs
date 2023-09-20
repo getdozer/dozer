@@ -3,11 +3,11 @@ use std::collections::HashMap;
 use crate::errors::PipelineError;
 use crate::errors::SetError;
 
-use dozer_core::processor_record::ProcessorRecordStore;
 use dozer_core::{
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
+use dozer_recordstore::ProcessorRecordStore;
 use dozer_sql_expression::sqlparser::ast::{SetOperator, SetQuantifier};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::{FieldDefinition, Schema, SourceDefinition};

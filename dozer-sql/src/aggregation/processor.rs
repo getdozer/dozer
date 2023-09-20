@@ -7,8 +7,8 @@ use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::dozer_log::storage::Object;
 use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{PortHandle, Processor};
-use dozer_core::processor_record::ProcessorRecordStore;
 use dozer_core::DEFAULT_PORT_HANDLE;
+use dozer_recordstore::ProcessorRecordStore;
 use dozer_sql_expression::execution::Expression;
 use dozer_types::bincode;
 use dozer_types::errors::internal::BoxedError;
@@ -585,10 +585,10 @@ impl Processor for AggregationProcessor {
         op: ProcessorOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
-        let op = record_store.load_operation(&op)?;
+        let op = op.load(record_store)?;
         let ops = self.aggregate(op)?;
         for output_op in ops {
-            let output_op = record_store.create_operation(&output_op)?;
+            let output_op = ProcessorOperation::new(&output_op, record_store)?;
             fw.send(output_op, DEFAULT_PORT_HANDLE);
         }
         Ok(())

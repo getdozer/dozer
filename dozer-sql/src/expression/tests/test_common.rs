@@ -2,8 +2,8 @@ use crate::{projection::factory::ProjectionProcessorFactory, tests::utils::get_s
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::ProcessorFactory;
-use dozer_core::processor_record::ProcessorRecordStore;
 use dozer_core::DEFAULT_PORT_HANDLE;
+use dozer_recordstore::ProcessorRecordStore;
 use dozer_types::types::Record;
 use dozer_types::types::{Field, Schema};
 use std::collections::HashMap;

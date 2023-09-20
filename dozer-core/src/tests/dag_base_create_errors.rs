@@ -3,8 +3,8 @@ use crate::executor::{DagExecutor, ExecutorOptions};
 use crate::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Source, SourceFactory,
 };
-use crate::processor_record::ProcessorRecordStore;
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
+use dozer_recordstore::ProcessorRecordStore;
 
 use crate::tests::dag_base_run::NoopProcessorFactory;
 use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};

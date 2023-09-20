@@ -15,7 +15,6 @@ use crate::{
     executor_operation::ExecutorOperation,
     hash_map_to_vec::insert_vec_element,
     node::PortHandle,
-    processor_record::ProcessorRecordStore,
     record_store::{create_record_writer, RecordWriter},
 };
 use crossbeam::channel::{bounded, Receiver, Sender};
@@ -23,6 +22,7 @@ use daggy::petgraph::{
     visit::{EdgeRef, IntoEdges, IntoEdgesDirected, IntoNodeIdentifiers},
     Direction,
 };
+use dozer_recordstore::ProcessorRecordStore;
 use dozer_tracing::LabelsAndProgress;
 
 pub type SharedRecordWriter = Rc<RefCell<Option<Box<dyn RecordWriter>>>>;

@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
+use dozer_recordstore::ProcessorRecordStore;
 use dozer_types::{errors::internal::BoxedError, types::Schema};
 
 use crate::{
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
-    processor_record::ProcessorRecordStore,
     DEFAULT_PORT_HANDLE,
 };
 

@@ -1,11 +1,11 @@
 use crate::planner::projection::CommonPlanner;
 use crate::projection::processor::ProjectionProcessor;
 use crate::{aggregation::processor::AggregationProcessor, errors::PipelineError};
-use dozer_core::processor_record::ProcessorRecordStore;
 use dozer_core::{
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
+use dozer_recordstore::ProcessorRecordStore;
 use dozer_sql_expression::sqlparser::ast::Select;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::models::udf_config::UdfConfig;

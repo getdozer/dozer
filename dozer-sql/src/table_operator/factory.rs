@@ -2,9 +2,9 @@ use std::{collections::HashMap, time::Duration};
 
 use dozer_core::{
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
-    processor_record::ProcessorRecordStore,
     DEFAULT_PORT_HANDLE,
 };
+use dozer_recordstore::ProcessorRecordStore;
 use dozer_sql_expression::{
     builder::ExpressionBuilder,
     execution::Expression,

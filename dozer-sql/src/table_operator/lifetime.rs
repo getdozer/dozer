@@ -1,4 +1,4 @@
-use dozer_core::processor_record::{ProcessorRecord, ProcessorRecordStore};
+use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore};
 use dozer_sql_expression::execution::Expression;
 use dozer_types::types::{Field, Lifetime, Schema};
 

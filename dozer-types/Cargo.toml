@@ -36,6 +36,7 @@ tokio-postgres = { version = "0.7.7", features = [
     "with-uuid-1",
 ] }
 serde_bytes = "0.11.12"
+arbitrary = { version = "1", features = ["derive"], optional = true }
 
 [build-dependencies]
 tonic-build = "0.10.0"
@@ -43,3 +44,4 @@ tonic-build = "0.10.0"
 [features]
 python-extension-module = ["dep:pyo3", "pyo3?/extension-module"]
 python-auto-initialize = ["dep:pyo3", "pyo3?/auto-initialize"]
+arbitrary = ["dep:arbitrary", "chrono/arbitrary", "rust_decimal/rust-fuzz"]

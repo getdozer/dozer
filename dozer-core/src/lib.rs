@@ -14,7 +14,6 @@ pub mod executor_operation;
 pub mod forwarder;
 mod hash_map_to_vec;
 pub mod node;
-pub mod processor_record;
 pub mod record_store;
 
 #[cfg(test)]

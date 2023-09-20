@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use dozer_core::processor_record::ProcessorRecordStore;
+use dozer_recordstore::ProcessorRecordStore;
 use dozer_sql_expression::execution::Expression;
 use dozer_types::{
     chrono::DateTime,

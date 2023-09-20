@@ -25,6 +25,7 @@ dozer-api = { path = "../dozer-api" }
 dozer-utils = { path = "../dozer-utils" }
 dozer-cli = { path = "../dozer-cli" }
 dozer-tracing = { path = "../dozer-tracing" }
+dozer-recordstore = { path = "../dozer-recordstore" }
 
 reqwest = { version = "0.11.20", features = ["json", "rustls-tls"], default-features = false }
 tokio = { version = "1.25.0", features = ["full", "rt"] }

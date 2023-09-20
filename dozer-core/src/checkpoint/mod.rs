@@ -7,6 +7,7 @@ use dozer_log::{
     storage::{self, Object, Queue, Storage},
     tokio::task::JoinHandle,
 };
+use dozer_recordstore::ProcessorRecordStore;
 use dozer_types::{
     bincode,
     log::{error, info},
@@ -18,7 +19,7 @@ use dozer_types::{
 };
 use tempdir::TempDir;
 
-use crate::{errors::ExecutionError, processor_record::ProcessorRecordStore};
+use crate::errors::ExecutionError;
 
 #[derive(Debug)]
 pub struct CheckpointFactory {

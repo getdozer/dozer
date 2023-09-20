@@ -113,10 +113,10 @@ impl StreamConsumer {
             client.exec(&query)?;
         }
 
-        let rows = client.fetch(format!("SELECT * FROM {temp_table_name};"));
+        let rows = client.fetch(format!("SELECT * FROM {temp_table_name};"))?;
         if let Some(schema) = rows.schema() {
             let schema_len = schema.len();
-            let mut truncated_schema = schema;
+            let mut truncated_schema = schema.clone();
             truncated_schema.truncate(schema_len - 3);
 
             let columns_length = schema_len;
