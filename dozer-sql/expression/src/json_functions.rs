@@ -55,7 +55,18 @@ impl JsonFunctionType {
         let json_input = args[0].evaluate(record, schema)?;
         let path = args[1].evaluate(record, schema)?.to_string();
 
-        Ok(Field::Json(self.evaluate_json(json_input, path)?))
+        if let Ok(json_value) = self.evaluate_json(json_input, path) {
+            match json_value {
+                JsonValue::Object(_) => Ok(Field::Null),
+                JsonValue::Array(_) => Ok(Field::Null),
+                JsonValue::String(val) => Ok(Field::Json(JsonValue::String(val))),
+                JsonValue::Bool(val) => Ok(Field::Json(JsonValue::Bool(val))),
+                JsonValue::Number(val) => Ok(Field::Json(JsonValue::Number(val))),
+                JsonValue::Null => Ok(Field::Null),
+            }
+        } else {
+            Ok(Field::Null)
+        }
     }
 
     pub(crate) fn evaluate_json_query(
@@ -74,7 +85,18 @@ impl JsonFunctionType {
             let json_input = args[0].evaluate(record, schema)?;
             let path = args[1].evaluate(record, schema)?.to_string();
 
-            Ok(Field::Json(self.evaluate_json(json_input, path)?))
+            if let Ok(json_value) = self.evaluate_json(json_input, path) {
+                match json_value {
+                    JsonValue::Object(val) => Ok(Field::Json(JsonValue::Object(val))),
+                    JsonValue::Array(val) => Ok(Field::Json(JsonValue::Array(val))),
+                    JsonValue::String(_) => Ok(Field::Null),
+                    JsonValue::Bool(_) => Ok(Field::Null),
+                    JsonValue::Number(_) => Ok(Field::Null),
+                    JsonValue::Null => Ok(Field::Null),
+                }
+            } else {
+                Ok(Field::Null)
+            }
         }
     }
 
