@@ -113,7 +113,7 @@ pub fn get_api_security_config(config: &Config) -> Option<&ApiSecurity> {
         .and_then(|api| api.api_security.as_ref())
 }
 
-pub fn get_checkpoint_factory_options(config: &Config) -> CheckpointFactoryOptions {
+fn get_checkpoint_factory_options(config: &Config) -> CheckpointFactoryOptions {
     CheckpointFactoryOptions {
         persist_queue_capacity: config
             .app
@@ -121,7 +121,6 @@ pub fn get_checkpoint_factory_options(config: &Config) -> CheckpointFactoryOptio
             .and_then(|app| app.persist_queue_capacity)
             .unwrap_or_else(default_persist_queue_capacity)
             as usize,
-        storage_config: get_storage_config(config),
     }
 }
 
@@ -137,6 +136,7 @@ pub fn get_executor_options(config: &Config) -> ExecutorOptions {
                 config,
             ),
         },
+        checkpoint_factory_options: get_checkpoint_factory_options(config),
     }
 }
 

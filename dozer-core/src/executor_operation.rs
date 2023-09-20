@@ -1,4 +1,4 @@
-use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore};
+use dozer_recordstore::{ProcessorRecord, StoreRecord};
 use dozer_types::types::Operation;
 
 use crate::{epoch::Epoch, errors::ExecutionError};
@@ -19,10 +19,7 @@ pub enum ProcessorOperation {
 }
 
 impl ProcessorOperation {
-    pub fn new(
-        op: &Operation,
-        record_store: &ProcessorRecordStore,
-    ) -> Result<Self, ExecutionError> {
+    pub fn new(op: &Operation, record_store: &impl StoreRecord) -> Result<Self, ExecutionError> {
         Ok(match op {
             Operation::Delete { old } => ProcessorOperation::Delete {
                 old: record_store.create_record(old)?,
@@ -37,7 +34,7 @@ impl ProcessorOperation {
         })
     }
 
-    pub fn load(&self, record_store: &ProcessorRecordStore) -> Result<Operation, ExecutionError> {
+    pub fn load(&self, record_store: &impl StoreRecord) -> Result<Operation, ExecutionError> {
         Ok(match self {
             ProcessorOperation::Delete { old } => Operation::Delete {
                 old: record_store.load_record(old)?,

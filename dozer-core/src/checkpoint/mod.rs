@@ -2,12 +2,11 @@ use std::{collections::HashMap, num::NonZeroUsize, ops::Deref, sync::Arc};
 
 use dozer_log::{
     camino::{Utf8Path, Utf8PathBuf},
-    dyn_clone,
     replication::create_data_storage,
     storage::{self, Object, Queue, Storage},
     tokio::task::JoinHandle,
 };
-use dozer_recordstore::ProcessorRecordStore;
+use dozer_recordstore::{ProcessorRecordStore, ProcessorRecordStoreDeserializer, StoreRecord};
 use dozer_types::{
     bincode,
     log::{error, info},
@@ -24,7 +23,6 @@ use crate::errors::ExecutionError;
 #[derive(Debug)]
 pub struct CheckpointFactory {
     queue: Queue,
-    storage: Box<dyn Storage>, // only used in test now
     prefix: String,
     record_store: Arc<ProcessorRecordStore>,
     state: Mutex<CheckpointWriterFactoryState>,
@@ -32,14 +30,12 @@ pub struct CheckpointFactory {
 
 #[derive(Debug, Clone)]
 pub struct CheckpointFactoryOptions {
-    pub storage_config: DataStorage,
     pub persist_queue_capacity: usize,
 }
 
 impl Default for CheckpointFactoryOptions {
     fn default() -> Self {
         Self {
-            storage_config: DataStorage::Local(()),
             persist_queue_capacity: 100,
         }
     }
@@ -54,12 +50,49 @@ struct Checkpoint {
     source_states: SourceStates,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug)]
 pub struct OptionCheckpoint {
+    storage: Box<dyn Storage>,
+    prefix: String,
+    record_store: ProcessorRecordStoreDeserializer,
     checkpoint: Option<Checkpoint>,
 }
 
 impl OptionCheckpoint {
+    pub async fn new(
+        checkpoint_dir: String,
+        storage_config: DataStorage,
+    ) -> Result<Self, ExecutionError> {
+        let (storage, prefix) =
+            create_data_storage(storage_config, checkpoint_dir.to_string()).await?;
+        let (record_store, checkpoint) = read_record_store_slices(&*storage, &prefix).await?;
+        if let Some(checkpoint) = &checkpoint {
+            info!(
+                "Restored record store from {}th checkpoint, last epoch id is {}, processor states are stored in {}",
+                checkpoint.num_slices, checkpoint.epoch_id, checkpoint.processor_prefix
+            );
+        }
+
+        Ok(Self {
+            storage,
+            prefix,
+            checkpoint,
+            record_store,
+        })
+    }
+
+    pub fn storage(&self) -> &dyn Storage {
+        &*self.storage
+    }
+
+    pub fn prefix(&self) -> &str {
+        &self.prefix
+    }
+
+    pub fn record_store(&self) -> &ProcessorRecordStoreDeserializer {
+        &self.record_store
+    }
+
     pub fn num_slices(&self) -> usize {
         self.checkpoint
             .as_ref()
@@ -104,13 +137,12 @@ impl OptionCheckpoint {
 
     pub async fn load_processor_data(
         &self,
-        factory: &CheckpointFactory,
         node_handle: &NodeHandle,
     ) -> Result<Option<Vec<u8>>, storage::Error> {
         if let Some(checkpoint) = &self.checkpoint {
             let key = processor_key(&checkpoint.processor_prefix, node_handle);
             info!("Loading processor {node_handle} checkpoint from {key}");
-            factory.storage.download_object(key).await.map(Some)
+            self.storage.download_object(key).await.map(Some)
         } else {
             Ok(None)
         }
@@ -120,24 +152,12 @@ impl OptionCheckpoint {
 impl CheckpointFactory {
     // We need tokio runtime so mark the function as async.
     pub async fn new(
-        checkpoint_dir: String,
+        checkpoint: OptionCheckpoint,
         options: CheckpointFactoryOptions,
-    ) -> Result<(Self, OptionCheckpoint, JoinHandle<()>), ExecutionError> {
-        let (storage, prefix) =
-            create_data_storage(options.storage_config, checkpoint_dir.to_string()).await?;
-        let (record_store, checkpoint) = read_record_store_slices(&*storage, &prefix).await?;
-        if let Some(checkpoint) = &checkpoint.checkpoint {
-            info!(
-                "Restored record store from {}th checkpoint, last epoch id is {}, processor states are stored in {}",
-                checkpoint.num_slices, checkpoint.epoch_id, checkpoint.processor_prefix
-            );
-        }
+    ) -> Result<(Self, JoinHandle<()>), ExecutionError> {
+        let (queue, worker) = Queue::new(checkpoint.storage, options.persist_queue_capacity);
 
-        let (queue, worker) = Queue::new(
-            dyn_clone::clone_box(&*storage),
-            options.persist_queue_capacity,
-        );
-
+        let record_store = checkpoint.record_store.into_record_store();
         let state = Mutex::new(CheckpointWriterFactoryState {
             next_record_index: record_store.num_records(),
         });
@@ -145,22 +165,12 @@ impl CheckpointFactory {
         Ok((
             Self {
                 queue,
-                storage,
-                prefix,
+                prefix: checkpoint.prefix,
                 record_store: Arc::new(record_store),
                 state,
             },
-            checkpoint,
             worker,
         ))
-    }
-
-    pub fn storage(&self) -> &dyn Storage {
-        &*self.storage
-    }
-
-    pub fn prefix(&self) -> &str {
-        &self.prefix
     }
 
     pub fn record_store(&self) -> &Arc<ProcessorRecordStore> {
@@ -279,8 +289,8 @@ impl Drop for CheckpointWriter {
 async fn read_record_store_slices(
     storage: &dyn Storage,
     factory_prefix: &str,
-) -> Result<(ProcessorRecordStore, OptionCheckpoint), ExecutionError> {
-    let record_store = ProcessorRecordStore::new()?;
+) -> Result<(ProcessorRecordStoreDeserializer, Option<Checkpoint>), ExecutionError> {
+    let record_store = ProcessorRecordStoreDeserializer::new()?;
     let record_store_prefix = record_store_prefix(factory_prefix);
 
     let mut last_checkpoint: Option<Checkpoint> = None;
@@ -341,12 +351,17 @@ async fn read_record_store_slices(
         }
     }
 
-    Ok((
-        record_store,
-        OptionCheckpoint {
-            checkpoint: last_checkpoint,
-        },
-    ))
+    Ok((record_store, last_checkpoint))
+}
+
+/// This is only meant to be used in tests.
+pub async fn create_checkpoint_for_test() -> (TempDir, OptionCheckpoint) {
+    let temp_dir = TempDir::new("create_checkpoint_for_test").unwrap();
+    let checkpoint_dir = temp_dir.path().to_str().unwrap().to_string();
+    let checkpoint = OptionCheckpoint::new(checkpoint_dir.clone(), DataStorage::Local(()))
+        .await
+        .unwrap();
+    (temp_dir, checkpoint)
 }
 
 /// This is only meant to be used in tests.
@@ -356,10 +371,12 @@ pub async fn create_checkpoint_factory_for_test(
     // Create empty checkpoint storage.
     let temp_dir = TempDir::new("create_checkpoint_factory_for_test").unwrap();
     let checkpoint_dir = temp_dir.path().to_str().unwrap().to_string();
-    let (checkpoint_factory, _, handle) =
-        CheckpointFactory::new(checkpoint_dir.clone(), Default::default())
-            .await
-            .unwrap();
+    let checkpoint = OptionCheckpoint::new(checkpoint_dir.clone(), DataStorage::Local(()))
+        .await
+        .unwrap();
+    let (checkpoint_factory, handle) = CheckpointFactory::new(checkpoint, Default::default())
+        .await
+        .unwrap();
     let factory = Arc::new(checkpoint_factory);
 
     // Write data to checkpoint.
@@ -387,17 +404,17 @@ pub async fn create_checkpoint_factory_for_test(
     handle.await.unwrap();
 
     // Create a new factory that loads from the checkpoint.
-    let (factory, last_checkpoint, handle) =
-        CheckpointFactory::new(checkpoint_dir, Default::default())
-            .await
-            .unwrap();
-    let last_checkpoint = last_checkpoint.checkpoint.unwrap();
+    let checkpoint = OptionCheckpoint::new(checkpoint_dir, DataStorage::Local(()))
+        .await
+        .unwrap();
+    let last_checkpoint = checkpoint.checkpoint.as_ref().unwrap();
     assert_eq!(last_checkpoint.num_slices.get(), 1);
     assert_eq!(last_checkpoint.epoch_id, epoch_id);
     assert_eq!(last_checkpoint.source_states, source_states);
-    assert_eq!(factory.record_store().num_records(), records.len());
-
-    (temp_dir, Arc::new(factory), handle)
+    let (checkpoint_factory, handle) = CheckpointFactory::new(checkpoint, Default::default())
+        .await
+        .unwrap();
+    (temp_dir, Arc::new(checkpoint_factory), handle)
 }
 
 #[cfg(test)]

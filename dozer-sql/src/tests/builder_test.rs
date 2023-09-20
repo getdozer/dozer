@@ -1,10 +1,10 @@
 use dozer_core::app::{App, AppPipeline};
 use dozer_core::appsource::{AppSourceManager, AppSourceMappings};
 use dozer_core::channels::SourceChannelForwarder;
-use dozer_core::checkpoint::create_checkpoint_factory_for_test;
+use dozer_core::checkpoint::create_checkpoint_for_test;
 use dozer_core::dozer_log::storage::Queue;
 use dozer_core::epoch::Epoch;
-use dozer_core::executor::{DagExecutor, ExecutorOptions};
+use dozer_core::executor::DagExecutor;
 use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
@@ -222,19 +222,14 @@ async fn test_pipeline_builder() {
 
     let now = std::time::Instant::now();
 
-    let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
-    DagExecutor::new(
-        dag,
-        checkpoint_factory,
-        Default::default(),
-        ExecutorOptions::default(),
-    )
-    .await
-    .unwrap()
-    .start(Arc::new(AtomicBool::new(true)), Default::default())
-    .unwrap()
-    .join()
-    .unwrap();
+    let (_temp_dir, checkpoint) = create_checkpoint_for_test().await;
+    DagExecutor::new(dag, checkpoint, Default::default())
+        .await
+        .unwrap()
+        .start(Arc::new(AtomicBool::new(true)), Default::default())
+        .unwrap()
+        .join()
+        .unwrap();
 
     let elapsed = now.elapsed();
     debug!("Elapsed: {:.2?}", elapsed);

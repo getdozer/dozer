@@ -7,8 +7,8 @@ use crate::simple::build;
 use crate::simple::helper::validate_config;
 use crate::utils::{
     get_api_security_config, get_app_grpc_config, get_cache_manager_options,
-    get_checkpoint_factory_options, get_default_max_num_records, get_executor_options,
-    get_grpc_config, get_rest_config,
+    get_default_max_num_records, get_executor_options, get_grpc_config, get_rest_config,
+    get_storage_config,
 };
 
 use crate::{flatten_join_handle, join_handle_map_err};
@@ -212,7 +212,7 @@ impl SimpleOrchestrator {
             &self.config.sources,
             self.config.sql.as_deref(),
             &self.config.endpoints,
-            get_checkpoint_factory_options(&self.config),
+            get_storage_config(&self.config),
             self.labels.clone(),
             &self.config.udfs,
         ))?;

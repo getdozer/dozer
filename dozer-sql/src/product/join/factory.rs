@@ -12,7 +12,7 @@ use dozer_sql_expression::{
     },
 };
 
-use dozer_recordstore::ProcessorRecordStore;
+use dozer_recordstore::ProcessorRecordStoreDeserializer;
 use dozer_types::{
     errors::internal::BoxedError,
     types::{FieldDefinition, Schema},
@@ -112,7 +112,7 @@ impl ProcessorFactory for JoinProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
-        record_store: &ProcessorRecordStore,
+        record_store: &ProcessorRecordStoreDeserializer,
         checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         let (join_type, join_constraint) = match &self.join_operator {

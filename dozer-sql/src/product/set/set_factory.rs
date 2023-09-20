@@ -7,7 +7,7 @@ use dozer_core::{
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
-use dozer_recordstore::ProcessorRecordStore;
+use dozer_recordstore::ProcessorRecordStoreDeserializer;
 use dozer_sql_expression::sqlparser::ast::{SetOperator, SetQuantifier};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::{FieldDefinition, Schema, SourceDefinition};
@@ -80,7 +80,7 @@ impl ProcessorFactory for SetProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-        record_store: &ProcessorRecordStore,
+        record_store: &ProcessorRecordStoreDeserializer,
         checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         Ok(Box::new(SetProcessor::new(

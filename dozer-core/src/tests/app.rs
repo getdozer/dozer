@@ -1,7 +1,7 @@
 use crate::app::{App, AppPipeline, PipelineEntryPoint};
 use crate::appsource::{AppSourceManager, AppSourceMappings};
-use crate::checkpoint::create_checkpoint_factory_for_test;
-use crate::executor::{DagExecutor, ExecutorOptions};
+use crate::checkpoint::create_checkpoint_for_test;
+use crate::executor::DagExecutor;
 use crate::node::{OutputPortDef, PortHandle, Source, SourceFactory};
 use crate::tests::dag_base_run::{
     NoopJoinProcessorFactory, NOOP_JOIN_LEFT_INPUT_PORT, NOOP_JOIN_RIGHT_INPUT_PORT,
@@ -294,17 +294,12 @@ async fn test_app_dag() {
 
     assert_eq!(edges.len(), 6);
 
-    let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
-    DagExecutor::new(
-        dag,
-        checkpoint_factory,
-        Default::default(),
-        ExecutorOptions::default(),
-    )
-    .await
-    .unwrap()
-    .start(Arc::new(AtomicBool::new(true)), Default::default())
-    .unwrap()
-    .join()
-    .unwrap();
+    let (_temp_dir, checkpoint) = create_checkpoint_for_test().await;
+    DagExecutor::new(dag, checkpoint, Default::default())
+        .await
+        .unwrap()
+        .start(Arc::new(AtomicBool::new(true)), Default::default())
+        .unwrap()
+        .join()
+        .unwrap();
 }
