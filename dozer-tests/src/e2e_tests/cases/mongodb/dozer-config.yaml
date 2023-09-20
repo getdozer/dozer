@@ -9,7 +9,7 @@ sources:
     table_name: movies
     connection: mflix
 sql: |
-  SELECT "_id", JSON_VALUE(data, '$.title') as title, JSON_VALUE(data, '$.genres') as genres
+  SELECT "_id", JSON_QUERY(data, '$.title') as title, JSON_QUERY(data, '$.genres') as genres
   INTO movie_data
   FROM movies
 endpoints:
