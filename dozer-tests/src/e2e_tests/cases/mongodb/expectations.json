@@ -14,7 +14,13 @@
                                 "source": "Dynamic"
                             },
                             {
-                                "name": "data",
+                                "name": "title",
+                                "typ": "String",
+                                "nullable": false,
+                                "source": "Dynamic"
+                            },
+                            {
+                                "name": "genres",
                                 "typ": "Json",
                                 "nullable": false,
                                 "source": "Dynamic"
