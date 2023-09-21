@@ -88,8 +88,7 @@ message DeployAppResponse {
   string app_id = 1;
   string deployment_id = 2;
   string deployment_url = 3;
-  string grpc_api_url = 4;
-  string rest_api_url = 5;
+  repeated string sample_commands = 4;
 }
 
 message AppResponse {
