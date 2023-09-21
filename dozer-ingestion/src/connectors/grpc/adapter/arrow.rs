@@ -137,7 +137,7 @@ fn map_record_batch(
 ) -> Result<Vec<Record>, ConnectorError> {
     let mut buf = Bytes::from(req.records).reader();
     // read stream back
-    let mut reader = StreamReader::try_new(&mut buf, None).unwrap();
+    let mut reader = StreamReader::try_new(&mut buf, None)?;
     let mut records = Vec::new();
     while let Some(Ok(batch)) = reader.next() {
         let b_recs = map_record_batch_to_dozer_records(batch, schema)

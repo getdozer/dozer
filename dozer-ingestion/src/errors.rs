@@ -1,5 +1,6 @@
 #![allow(clippy::enum_variant_names)]
 
+use deltalake::arrow::error::ArrowError;
 use dozer_log::errors::{ReaderBuilderError, ReaderError};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::{DeserializationError, SerializationError, TypeError};
@@ -52,6 +53,8 @@ pub enum ConnectorError {
 
     #[error("Unsupported grpc adapter: {0} {1}")]
     UnsupportedGrpcAdapter(String, String),
+    #[error("Arrow error: {0}")]
+    Arrow(#[from] ArrowError),
 
     #[error("Table not found: {0}")]
     TableNotFound(String),
