@@ -10,4 +10,4 @@ mod json_schema_helper;
 pub mod source;
 pub mod telemetry;
 pub mod udf_config;
-pub use json_schema_helper::get_connection_schemas;
+pub use json_schema_helper::{get_connection_schemas, get_dozer_schema};

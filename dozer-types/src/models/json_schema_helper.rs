@@ -3,13 +3,19 @@ use serde::{Deserialize, Serialize};
 
 use crate::ingestion_types;
 
-use super::connection::PostgresConfig;
+use super::{config::Config, connection::PostgresConfig};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Schema {
     pub name: String,
     pub schema: RootSchema,
 }
+pub fn get_dozer_schema() -> Result<String, serde_json::Error> {
+    let schema = schema_for!(Config);
+    let schema_json = serde_json::to_string_pretty(&schema)?;
+    Ok(schema_json)
+}
+
 pub fn get_connection_schemas() -> Result<String, serde_json::Error> {
     let mut schemas = vec![];
 
@@ -27,7 +33,6 @@ pub fn get_connection_schemas() -> Result<String, serde_json::Error> {
         ("dozer", schema_for!(ingestion_types::NestedDozerConfig)),
     ];
     for (name, schema) in configs.iter() {
-        let json = schema;
         schemas.push(Schema {
             name: name.to_string(),
             schema: schema.clone(),

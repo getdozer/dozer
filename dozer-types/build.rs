@@ -49,64 +49,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Cloud Service & Types
     tonic_build::configure()
         .protoc_arg("--experimental_allow_proto3_optional")
-        .extern_path(
-            ".dozer.cloud.Endpoint",
-            "crate::models::api_endpoint::ApiEndpoint",
-        )
-        .extern_path(".dozer.cloud.Source", "crate::models::source::Source")
-        .extern_path(".dozer.cloud.AppConfig", "crate::models::config::Config")
-        .extern_path(
-            ".dozer.cloud.ConnectionConfig",
-            "crate::models::connection::ConnectionConfig",
-        )
-        .extern_path(
-            ".dozer.cloud.Connection",
-            "crate::models::connection::Connection",
-        )
-        .extern_path(
-            ".dozer.cloud.EthContract",
-            "crate::ingestion_types::EthContract",
-        )
-        .extern_path(
-            ".dozer.cloud.EthereumFilter",
-            "crate::ingestion_types::EthereumFilter",
-        )
-        .extern_path(
-            ".dozer.cloud.DeltaLakeConfig",
-            "crate::ingestion_types::DeltaLakeConfig",
-        )
-        .extern_path(
-            ".dozer.cloud.LocalStorage",
-            "crate::ingestion_types::LocalStorage",
-        )
-        .extern_path(
-            ".dozer.cloud.S3Storage",
-            "crate::ingestion_types::S3Storage",
-        )
-        .extern_path(
-            ".dozer.cloud.KafkaConfig",
-            "crate::ingestion_types::KafkaConfig",
-        )
-        .extern_path(
-            ".dozer.cloud.SnowflakeConfig",
-            "crate::ingestion_types::SnowflakeConfig",
-        )
-        .extern_path(
-            ".dozer.cloud::grpc_config::Schemas",
-            "crate::ingestion_types::GrpcConfigSchemas",
-        )
-        .extern_path(
-            ".dozer.cloud.GrpcConfig",
-            "crate::ingestion_types::GrpcConfig",
-        )
-        .extern_path(
-            ".dozer.cloud.EthereumConfig",
-            "crate::ingestion_types::EthConfig",
-        )
-        .extern_path(
-            ".dozer.cloud.PostgresConfig",
-            "crate::models::connection::PostgresConfig",
-        )
         .file_descriptor_set_path(out_dir.join("cloud.bin"))
         .compile(&["protos/cloud.proto"], &["protos"])
         .unwrap();
