@@ -1,6 +1,7 @@
 use crate::constants::DEFAULT_DEFAULT_MAX_NUM_RECORDS;
 
 use super::api_security::ApiSecurity;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, prost::Message)]
 pub struct ApiConfig {
@@ -58,7 +59,7 @@ pub struct GrpcApiOptions {
     pub enabled: bool,
 }
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, prost::Message, Hash)]
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, prost::Message, Hash, JsonSchema)]
 pub struct AppGrpcOptions {
     #[prost(uint32)]
     #[serde(default = "default_app_grpc_port")]

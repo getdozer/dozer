@@ -2,6 +2,7 @@ use crate::ingestion_types::{
     DeltaLakeConfig, EthConfig, GrpcConfig, KafkaConfig, LocalStorage, MongodbConfig, MySQLConfig,
     NestedDozerConfig, S3Storage, SnowflakeConfig,
 };
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
@@ -14,6 +15,10 @@ use prettytable::Table;
 use tokio_postgres::config::SslMode;
 use tokio_postgres::Config;
 
+pub trait SchemaExample {
+    fn example() -> Self;
+}
+
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
 pub struct Connection {
     #[prost(oneof = "ConnectionConfig", tags = "1,2,3,4,5,6,7,8")]
@@ -23,22 +28,46 @@ pub struct Connection {
     pub name: String,
 }
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
+/// Configuration for a Postgres connection
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash, JsonSchema)]
+#[schemars(example = "Self::example")]
 pub struct PostgresConfig {
     #[prost(string, optional, tag = "1")]
+    /// The username to use for authentication
     pub user: Option<String>,
     #[prost(string, optional, tag = "2")]
+    /// The password to use for authentication
     pub password: Option<String>,
     #[prost(string, optional, tag = "3")]
+    /// The host to connect to (IP or DNS name)
     pub host: Option<String>,
     #[prost(uint32, optional, tag = "4")]
+    /// The port to connect to (default: 5432)
     pub port: Option<u32>,
     #[prost(string, optional, tag = "5")]
+    /// The database to connect to (default: postgres)
     pub database: Option<String>,
     #[prost(string, optional, tag = "6")]
+    /// The sslmode to use for the connection (disable, prefer, require)
     pub sslmode: Option<String>,
+
     #[prost(string, optional, tag = "7")]
+    /// The connection url to use
     pub connection_url: Option<String>,
+}
+
+impl SchemaExample for PostgresConfig {
+    fn example() -> Self {
+        Self {
+            user: Some("postgres".to_string()),
+            password: None,
+            host: Some("localhost".to_string()),
+            port: Some(5432),
+            database: Some("postgres".to_string()),
+            sslmode: None,
+            connection_url: None,
+        }
+    }
 }
 
 #[derive(Eq, PartialEq, Clone, Debug, Hash)]
@@ -165,7 +194,7 @@ fn get_sslmode(mode: String) -> Result<SslMode, DeserializationError> {
     }
 }
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Oneof, Hash)]
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Oneof, Hash, JsonSchema)]
 pub enum ConnectionConfig {
     #[prost(message, tag = "1")]
     /// In yaml, present as tag: `!Postgres`

@@ -1,0 +1,852 @@
+[
+  {
+    "name": "postgres",
+    "schema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "PostgresConfig",
+      "description": "Configuration for a Postgres connection",
+      "examples": [
+        {
+          "connection_url": null,
+          "database": "postgres",
+          "host": "localhost",
+          "password": null,
+          "port": 5432,
+          "sslmode": null,
+          "user": "postgres"
+        }
+      ],
+      "type": "object",
+      "properties": {
+        "connection_url": {
+          "description": "The connection url to use",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "database": {
+          "description": "The database to connect to (default: postgres)",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "host": {
+          "description": "The host to connect to (IP or DNS name)",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "password": {
+          "description": "The password to use for authentication",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "port": {
+          "description": "The port to connect to (default: 5432)",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "sslmode": {
+          "description": "The sslmode to use for the connection (disable, prefer, require)",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "user": {
+          "description": "The username to use for authentication",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "ethereum",
+    "schema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "EthConfig",
+      "type": "object",
+      "properties": {
+        "provider": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/EthProviderConfig"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "definitions": {
+        "EthContract": {
+          "type": "object",
+          "required": [
+            "abi",
+            "address",
+            "name"
+          ],
+          "properties": {
+            "abi": {
+              "type": "string"
+            },
+            "address": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          }
+        },
+        "EthFilter": {
+          "type": "object",
+          "properties": {
+            "addresses": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "from_block": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "to_block": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "topics": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "EthLogConfig": {
+          "type": "object",
+          "required": [
+            "wss_url"
+          ],
+          "properties": {
+            "contracts": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/EthContract"
+              }
+            },
+            "filter": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/EthFilter"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "wss_url": {
+              "type": "string"
+            }
+          }
+        },
+        "EthProviderConfig": {
+          "oneOf": [
+            {
+              "type": "object",
+              "required": [
+                "Log"
+              ],
+              "properties": {
+                "Log": {
+                  "$ref": "#/definitions/EthLogConfig"
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "required": [
+                "Trace"
+              ],
+              "properties": {
+                "Trace": {
+                  "$ref": "#/definitions/EthTraceConfig"
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "EthTraceConfig": {
+          "type": "object",
+          "required": [
+            "from_block",
+            "https_url"
+          ],
+          "properties": {
+            "batch_size": {
+              "default": 3,
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "from_block": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "https_url": {
+              "type": "string"
+            },
+            "to_block": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "grpc",
+    "schema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "GrpcConfig",
+      "type": "object",
+      "properties": {
+        "adapter": {
+          "default": "default",
+          "type": "string"
+        },
+        "host": {
+          "default": "0.0.0.0",
+          "type": "string"
+        },
+        "port": {
+          "default": 8085,
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "schemas": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/GrpcConfigSchemas"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "definitions": {
+        "GrpcConfigSchemas": {
+          "oneOf": [
+            {
+              "type": "object",
+              "required": [
+                "Inline"
+              ],
+              "properties": {
+                "Inline": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "required": [
+                "Path"
+              ],
+              "properties": {
+                "Path": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "snowflake",
+    "schema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SnowflakeConfig",
+      "type": "object",
+      "required": [
+        "database",
+        "password",
+        "port",
+        "role",
+        "schema",
+        "server",
+        "user",
+        "warehouse"
+      ],
+      "properties": {
+        "database": {
+          "type": "string"
+        },
+        "driver": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "password": {
+          "type": "string"
+        },
+        "port": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "string"
+        },
+        "server": {
+          "type": "string"
+        },
+        "user": {
+          "type": "string"
+        },
+        "warehouse": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  {
+    "name": "kafka",
+    "schema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "KafkaConfig",
+      "type": "object",
+      "required": [
+        "broker"
+      ],
+      "properties": {
+        "broker": {
+          "type": "string"
+        },
+        "schema_registry_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "s3",
+    "schema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "S3Storage",
+      "type": "object",
+      "required": [
+        "tables"
+      ],
+      "properties": {
+        "details": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/S3Details"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tables": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Table"
+          }
+        }
+      },
+      "definitions": {
+        "CsvConfig": {
+          "type": "object",
+          "required": [
+            "extension",
+            "path"
+          ],
+          "properties": {
+            "extension": {
+              "type": "string"
+            },
+            "marker_extension": {
+              "default": ".marker",
+              "type": "string"
+            },
+            "marker_file": {
+              "default": false,
+              "type": "boolean"
+            },
+            "path": {
+              "type": "string"
+            }
+          }
+        },
+        "DeltaConfig": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          }
+        },
+        "ParquetConfig": {
+          "type": "object",
+          "required": [
+            "extension",
+            "path"
+          ],
+          "properties": {
+            "extension": {
+              "type": "string"
+            },
+            "marker_extension": {
+              "default": ".marker",
+              "type": "string"
+            },
+            "marker_file": {
+              "default": false,
+              "type": "boolean"
+            },
+            "path": {
+              "type": "string"
+            }
+          }
+        },
+        "S3Details": {
+          "type": "object",
+          "required": [
+            "access_key_id",
+            "bucket_name",
+            "region",
+            "secret_access_key"
+          ],
+          "properties": {
+            "access_key_id": {
+              "type": "string"
+            },
+            "bucket_name": {
+              "type": "string"
+            },
+            "region": {
+              "type": "string"
+            },
+            "secret_access_key": {
+              "type": "string"
+            }
+          }
+        },
+        "Table": {
+          "type": "object",
+          "required": [
+            "name"
+          ],
+          "properties": {
+            "config": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/TableConfig"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "name": {
+              "type": "string"
+            }
+          }
+        },
+        "TableConfig": {
+          "oneOf": [
+            {
+              "type": "object",
+              "required": [
+                "CSV"
+              ],
+              "properties": {
+                "CSV": {
+                  "$ref": "#/definitions/CsvConfig"
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "required": [
+                "Delta"
+              ],
+              "properties": {
+                "Delta": {
+                  "$ref": "#/definitions/DeltaConfig"
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "required": [
+                "Parquet"
+              ],
+              "properties": {
+                "Parquet": {
+                  "$ref": "#/definitions/ParquetConfig"
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "local_storage",
+    "schema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "LocalStorage",
+      "type": "object",
+      "required": [
+        "tables"
+      ],
+      "properties": {
+        "details": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/LocalDetails"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tables": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Table"
+          }
+        }
+      },
+      "definitions": {
+        "CsvConfig": {
+          "type": "object",
+          "required": [
+            "extension",
+            "path"
+          ],
+          "properties": {
+            "extension": {
+              "type": "string"
+            },
+            "marker_extension": {
+              "default": ".marker",
+              "type": "string"
+            },
+            "marker_file": {
+              "default": false,
+              "type": "boolean"
+            },
+            "path": {
+              "type": "string"
+            }
+          }
+        },
+        "DeltaConfig": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          }
+        },
+        "LocalDetails": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          }
+        },
+        "ParquetConfig": {
+          "type": "object",
+          "required": [
+            "extension",
+            "path"
+          ],
+          "properties": {
+            "extension": {
+              "type": "string"
+            },
+            "marker_extension": {
+              "default": ".marker",
+              "type": "string"
+            },
+            "marker_file": {
+              "default": false,
+              "type": "boolean"
+            },
+            "path": {
+              "type": "string"
+            }
+          }
+        },
+        "Table": {
+          "type": "object",
+          "required": [
+            "name"
+          ],
+          "properties": {
+            "config": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/TableConfig"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "name": {
+              "type": "string"
+            }
+          }
+        },
+        "TableConfig": {
+          "oneOf": [
+            {
+              "type": "object",
+              "required": [
+                "CSV"
+              ],
+              "properties": {
+                "CSV": {
+                  "$ref": "#/definitions/CsvConfig"
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "required": [
+                "Delta"
+              ],
+              "properties": {
+                "Delta": {
+                  "$ref": "#/definitions/DeltaConfig"
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "required": [
+                "Parquet"
+              ],
+              "properties": {
+                "Parquet": {
+                  "$ref": "#/definitions/ParquetConfig"
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "deltalake",
+    "schema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "DeltaLakeConfig",
+      "type": "object",
+      "required": [
+        "tables"
+      ],
+      "properties": {
+        "tables": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/DeltaTable"
+          }
+        }
+      },
+      "definitions": {
+        "DeltaTable": {
+          "type": "object",
+          "required": [
+            "name",
+            "path"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "mongodb",
+    "schema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "MongodbConfig",
+      "type": "object",
+      "required": [
+        "connection_string"
+      ],
+      "properties": {
+        "connection_string": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  {
+    "name": "mysql",
+    "schema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "MySQLConfig",
+      "type": "object",
+      "required": [
+        "url"
+      ],
+      "properties": {
+        "server_id": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "url": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  {
+    "name": "dozer",
+    "schema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "NestedDozerConfig",
+      "type": "object",
+      "properties": {
+        "grpc": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/AppGrpcOptions"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "log_options": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/NestedDozerLogOptions"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "definitions": {
+        "AppGrpcOptions": {
+          "type": "object",
+          "properties": {
+            "host": {
+              "default": "0.0.0.0",
+              "type": "string"
+            },
+            "port": {
+              "default": 50053,
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          }
+        },
+        "NestedDozerLogOptions": {
+          "type": "object",
+          "properties": {
+            "batch_size": {
+              "default": 30,
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "buffer_size": {
+              "default": 1000,
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "timeout_in_millis": {
+              "default": 1000,
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          }
+        }
+      }
+    }
+  }
+]
