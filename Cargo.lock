@@ -2824,8 +2824,10 @@ dependencies = [
 name = "dozer-recordstore"
 version = "0.1.0"
 dependencies = [
+ "dozer-storage",
  "dozer-types",
  "slice-dst",
+ "tempdir",
 ]
 
 [[package]]

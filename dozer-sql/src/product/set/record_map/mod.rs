@@ -170,7 +170,7 @@ mod tests {
     };
 
     fn test_map(mut map: CountingRecordMapEnum) {
-        let record_store = ProcessorRecordStore::new().unwrap();
+        let record_store = ProcessorRecordStore::new(Default::default()).unwrap();
         let make_record = |fields: Vec<Field>| -> ProcessorRecord {
             record_store.create_record(&Record::new(fields)).unwrap()
         };

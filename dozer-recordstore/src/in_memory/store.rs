@@ -123,13 +123,16 @@ impl ProcessorRecordStoreDeserializer {
         Ok(())
     }
 
-    pub fn deserialize_ref(&self, index: u64) -> RecordRef {
-        self.inner.read().records[index as usize]
+    pub fn deserialize_ref(&self, index: u64) -> Result<RecordRef, RecordStoreError> {
+        Ok(self
+            .inner
+            .read()
+            .records
+            .get(index as usize)
+            .ok_or(RecordStoreError::InMemoryRecordNotFound(index))?
             .as_ref()
-            .unwrap_or_else(|| {
-                panic!("RecordRef {index} not found in ProcessorRecordStoreDeserializer")
-            })
-            .clone()
+            .ok_or(RecordStoreError::InMemoryRecordNotFound(index))?
+            .clone())
     }
 
     pub fn into_record_store(self) -> ProcessorRecordStore {
@@ -201,7 +204,8 @@ mod tests {
         record_store.deserialize_and_extend(&data).unwrap();
         let mut deserialized_record_refs = vec![];
         for serialized_record_ref in serialized_record_refs {
-            deserialized_record_refs.push(record_store.deserialize_ref(serialized_record_ref));
+            deserialized_record_refs
+                .push(record_store.deserialize_ref(serialized_record_ref).unwrap());
         }
         assert_eq!(deserialized_record_refs, record_refs);
     }
