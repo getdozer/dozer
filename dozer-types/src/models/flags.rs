@@ -1,56 +1,53 @@
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-#[derive(Serialize, Deserialize, PartialEq, Eq, Clone, prost::Message)]
+
+use super::equal_default;
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq, Clone, Default)]
+#[serde(deny_unknown_fields)]
 pub struct Flags {
     /// dynamic grpc enabled; Default: true
-    #[prost(bool, tag = "1", default = true)]
-    #[serde(default = "default_true")]
-    pub dynamic: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dynamic: Option<bool>,
+
     /// http1 + web support for grpc. This is required for browser clients.; Default: true
-    #[prost(bool, tag = "2", default = true)]
-    #[serde(default = "default_true")]
-    pub grpc_web: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub grpc_web: Option<bool>,
 
     /// push events enabled.; Default: true
-    #[prost(bool, tag = "3", default = true)]
-    #[serde(default = "default_push_events")]
-    pub push_events: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub push_events: Option<bool>,
 
     /// require authentication to access grpc server reflection service if true.; Default: false
-    #[prost(bool, tag = "4", default = false)]
-    #[serde(default = "default_false")]
-    pub authenticate_server_reflection: bool,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub authenticate_server_reflection: Option<bool>,
 
     /// probablistic optimizations reduce memory consumption at the expense of accuracy.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[prost(message, optional, tag = "5")]
-    pub enable_probabilistic_optimizations: Option<EnableProbabilisticOptimizations>,
+    #[serde(default, skip_serializing_if = "equal_default")]
+    pub enable_probabilistic_optimizations: EnableProbabilisticOptimizations,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Eq, Clone, prost::Message)]
+pub fn default_dynamic() -> bool {
+    true
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Default, PartialEq, Eq, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct EnableProbabilisticOptimizations {
     /// enable probabilistic optimizations in set operations (UNION, EXCEPT, INTERSECT); Default: false
-    #[prost(bool, tag = "1", default = false)]
-    #[serde(default = "default_false")]
-    pub in_sets: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub in_sets: Option<bool>,
 
     /// enable probabilistic optimizations in JOIN operations; Default: false
-    #[prost(bool, tag = "2", default = false)]
-    #[serde(default = "default_false")]
-    pub in_joins: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub in_joins: Option<bool>,
 
     /// enable probabilistic optimizations in aggregations (SUM, COUNT, MIN, etc.); Default: false
-    #[prost(bool, tag = "3", default = false)]
-    #[serde(default = "default_false")]
-    pub in_aggregations: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub in_aggregations: Option<bool>,
 }
 
 pub fn default_push_events() -> bool {
     true
-}
-
-fn default_true() -> bool {
-    true
-}
-fn default_false() -> bool {
-    false
 }

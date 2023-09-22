@@ -358,7 +358,7 @@ async fn read_record_store_slices(
 pub async fn create_checkpoint_for_test() -> (TempDir, OptionCheckpoint) {
     let temp_dir = TempDir::new("create_checkpoint_for_test").unwrap();
     let checkpoint_dir = temp_dir.path().to_str().unwrap().to_string();
-    let checkpoint = OptionCheckpoint::new(checkpoint_dir.clone(), DataStorage::Local(()))
+    let checkpoint = OptionCheckpoint::new(checkpoint_dir.clone(), DataStorage::Local)
         .await
         .unwrap();
     (temp_dir, checkpoint)
@@ -371,7 +371,7 @@ pub async fn create_checkpoint_factory_for_test(
     // Create empty checkpoint storage.
     let temp_dir = TempDir::new("create_checkpoint_factory_for_test").unwrap();
     let checkpoint_dir = temp_dir.path().to_str().unwrap().to_string();
-    let checkpoint = OptionCheckpoint::new(checkpoint_dir.clone(), DataStorage::Local(()))
+    let checkpoint = OptionCheckpoint::new(checkpoint_dir.clone(), DataStorage::Local)
         .await
         .unwrap();
     let (checkpoint_factory, handle) = CheckpointFactory::new(checkpoint, Default::default())
@@ -404,7 +404,7 @@ pub async fn create_checkpoint_factory_for_test(
     handle.await.unwrap();
 
     // Create a new factory that loads from the checkpoint.
-    let checkpoint = OptionCheckpoint::new(checkpoint_dir, DataStorage::Local(()))
+    let checkpoint = OptionCheckpoint::new(checkpoint_dir, DataStorage::Local)
         .await
         .unwrap();
     let last_checkpoint = checkpoint.checkpoint.as_ref().unwrap();

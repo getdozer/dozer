@@ -173,13 +173,7 @@ mod tests {
     #[serial]
     async fn test_connector_snapshotter_sync_tables_successfully_1_requested_table() {
         run_connector_test("postgres", |app_config| async move {
-            let config = app_config
-                .connections
-                .get(0)
-                .unwrap()
-                .config
-                .as_ref()
-                .unwrap();
+            let config = &app_config.connections[0].config;
 
             let mut test_client = TestPostgresClient::new(config).await;
 
@@ -229,13 +223,7 @@ mod tests {
     #[serial]
     async fn test_connector_snapshotter_sync_tables_successfully_not_match_table() {
         run_connector_test("postgres", |app_config| async move {
-            let config = app_config
-                .connections
-                .get(0)
-                .unwrap()
-                .config
-                .as_ref()
-                .unwrap();
+            let config = &app_config.connections[0].config;
 
             let mut test_client = TestPostgresClient::new(config).await;
 
@@ -281,13 +269,7 @@ mod tests {
     #[serial]
     async fn test_connector_snapshotter_sync_tables_successfully_table_not_exist() {
         run_connector_test("postgres", |app_config| async move {
-            let config = app_config
-                .connections
-                .get(0)
-                .unwrap()
-                .config
-                .as_ref()
-                .unwrap();
+            let config = &app_config.connections[0].config;
 
             let mut rng = rand::thread_rng();
             let table_name = format!("test_table_{}", rng.gen::<u32>());

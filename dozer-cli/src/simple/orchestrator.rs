@@ -5,11 +5,7 @@ use crate::pipeline::PipelineBuilder;
 use crate::shutdown::ShutdownReceiver;
 use crate::simple::build;
 use crate::simple::helper::validate_config;
-use crate::utils::{
-    get_api_security_config, get_app_grpc_config, get_cache_manager_options,
-    get_default_max_num_records, get_executor_options, get_grpc_config, get_rest_config,
-    get_storage_config,
-};
+use crate::utils::{get_cache_manager_options, get_default_max_num_records, get_executor_options};
 
 use crate::{flatten_join_handle, join_handle_map_err};
 use dozer_api::auth::{Access, Authorizer};
@@ -22,7 +18,8 @@ use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::DagSchemas;
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::constants::LOCK_FILE;
-use dozer_types::models::flags::default_push_events;
+use dozer_types::models::api_config::{default_app_grpc_host, default_app_grpc_port};
+use dozer_types::models::flags::{default_dynamic, default_push_events};
 use tokio::select;
 
 use crate::console_helper::get_colored_text;
@@ -34,7 +31,7 @@ use dozer_ingestion::connectors::{get_connector, SourceSchema, TableInfo};
 use dozer_sql::builder::statement_to_pipeline;
 use dozer_sql::errors::PipelineError;
 use dozer_types::log::info;
-use dozer_types::models::config::Config;
+use dozer_types::models::config::{default_cache_dir, default_home_dir, Config};
 use dozer_types::tracing::error;
 use futures::stream::FuturesUnordered;
 use futures::{FutureExt, StreamExt, TryFutureExt};
@@ -84,18 +81,25 @@ impl SimpleOrchestrator {
             let mut futures = FuturesUnordered::new();
 
             // Open `RoCacheEndpoint`s. Streaming operations if necessary.
-            let flags = self.config.flags.clone().unwrap_or_default();
-            let (operations_sender, operations_receiver) = if flags.dynamic {
-                let (sender, receiver) = broadcast::channel(16);
-                (Some(sender), Some(receiver))
-            } else {
-                (None, None)
-            };
+            let flags = self.config.flags.clone();
+            let (operations_sender, operations_receiver) =
+                if flags.dynamic.unwrap_or_else(default_dynamic) {
+                    let (sender, receiver) = broadcast::channel(16);
+                    (Some(sender), Some(receiver))
+                } else {
+                    (None, None)
+                };
 
-            let internal_grpc_config = get_app_grpc_config(&self.config);
+            let internal_grpc_config = &self.config.api.app_grpc;
             let app_server_addr = format!(
                 "http://{}:{}",
-                internal_grpc_config.host, internal_grpc_config.port
+                internal_grpc_config
+                    .host
+                    .clone()
+                    .unwrap_or_else(default_app_grpc_host),
+                internal_grpc_config
+                    .port
+                    .unwrap_or_else(default_app_grpc_port)
             );
             let cache_manager = Arc::new(
                 LmdbRwCacheManager::new(get_cache_manager_options(&self.config))
@@ -129,9 +133,9 @@ impl SimpleOrchestrator {
             }
 
             // Initialize API Server
-            let rest_config = get_rest_config(&self.config);
-            let rest_handle = if rest_config.enabled {
-                let security = get_api_security_config(&self.config).cloned();
+            let rest_config = self.config.api.rest.clone();
+            let rest_handle = if rest_config.enabled.unwrap_or(true) {
+                let security = self.config.api.api_security.clone();
                 let cache_endpoints_for_rest = cache_endpoints.clone();
                 let shutdown_for_rest = shutdown.create_shutdown_future();
                 let api_server =
@@ -149,9 +153,9 @@ impl SimpleOrchestrator {
             };
 
             // Initialize gRPC Server
-            let grpc_config = get_grpc_config(&self.config);
-            let grpc_handle = if grpc_config.enabled {
-                let api_security = get_api_security_config(&self.config).cloned();
+            let grpc_config = self.config.api.grpc.clone();
+            let grpc_handle = if grpc_config.enabled.unwrap_or(true) {
+                let api_security = self.config.api.api_security.clone();
                 let grpc_server = grpc::ApiServer::new(grpc_config, api_security, flags);
                 let shutdown = shutdown.create_shutdown_future();
                 let grpc_server = grpc_server
@@ -187,11 +191,21 @@ impl SimpleOrchestrator {
     }
 
     pub fn home_dir(&self) -> Utf8PathBuf {
-        self.base_directory.join(&self.config.home_dir)
+        self.base_directory.join(
+            self.config
+                .home_dir
+                .clone()
+                .unwrap_or_else(default_home_dir),
+        )
     }
 
     pub fn cache_dir(&self) -> Utf8PathBuf {
-        self.base_directory.join(&self.config.cache_dir)
+        self.base_directory.join(
+            self.config
+                .cache_dir
+                .clone()
+                .unwrap_or_else(default_cache_dir),
+        )
     }
 
     pub fn lockfile_path(&self) -> Utf8PathBuf {
@@ -212,7 +226,7 @@ impl SimpleOrchestrator {
             &self.config.sources,
             self.config.sql.as_deref(),
             &self.config.endpoints,
-            get_storage_config(&self.config),
+            self.config.app.data_storage.clone(),
             self.labels.clone(),
             &self.config.udfs,
         ))?;
@@ -221,15 +235,15 @@ impl SimpleOrchestrator {
             &self.runtime,
             get_executor_options(&self.config),
             shutdown.clone(),
-            self.config.flags.clone().unwrap_or_default(),
+            self.config.flags.clone(),
         ))?;
 
-        let app_grpc_config = get_app_grpc_config(&self.config);
+        let app_grpc_config = &self.config.api.app_grpc;
         let internal_server_future = self
             .runtime
             .block_on(start_internal_pipeline_server(
                 endpoint_and_logs,
-                &app_grpc_config,
+                app_grpc_config,
                 shutdown.create_shutdown_future(),
             ))
             .map_err(OrchestrationError::InternalServerFailed)?;
@@ -276,8 +290,7 @@ impl SimpleOrchestrator {
     }
 
     pub fn generate_token(&self, ttl_in_secs: Option<i32>) -> Result<String, OrchestrationError> {
-        if let Some(api_security) = get_api_security(get_api_security_config(&self.config).cloned())
-        {
+        if let Some(api_security) = get_api_security(self.config.api.api_security.clone()) {
             match api_security {
                 dozer_types::models::api_security::ApiSecurity::Jwt(secret) => {
                     let auth = Authorizer::new(&secret, None, None);
@@ -325,7 +338,7 @@ impl SimpleOrchestrator {
             self.config.sql.as_deref(),
             endpoint_and_logs,
             self.labels.clone(),
-            self.config.flags.clone().unwrap_or_default(),
+            self.config.flags.clone(),
             &self.config.udfs,
         );
         let dag = self
@@ -335,17 +348,11 @@ impl SimpleOrchestrator {
         let dag_schemas = DagSchemas::new(dag)?;
 
         // Get current contract.
-        let enable_token = self
-            .config
-            .api
-            .as_ref()
-            .map(|api| api.api_security.is_some())
-            .unwrap_or(false);
+        let enable_token = self.config.api.api_security.is_some();
         let enable_on_event = self
             .config
             .flags
-            .as_ref()
-            .map(|flags| flags.push_events)
+            .push_events
             .unwrap_or_else(default_push_events);
         let version = self.config.version as usize;
 

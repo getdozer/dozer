@@ -2,6 +2,7 @@ use crate::ingestion_types::{
     DeltaLakeConfig, EthConfig, GrpcConfig, KafkaConfig, LocalStorage, MongodbConfig, MySQLConfig,
     NestedDozerConfig, S3Storage, SnowflakeConfig,
 };
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
@@ -14,31 +15,56 @@ use prettytable::Table;
 use tokio_postgres::config::SslMode;
 use tokio_postgres::Config;
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
+pub trait SchemaExample {
+    fn example() -> Self;
+}
+
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct Connection {
-    #[prost(oneof = "ConnectionConfig", tags = "1,2,3,4,5,6,7,8")]
-    /// authentication config - depends on db_type
-    pub config: Option<ConnectionConfig>,
-    #[prost(string, tag = "9")]
+    pub config: ConnectionConfig,
     pub name: String,
 }
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message, Hash)]
+/// Configuration for a Postgres connection
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema, Default)]
+#[serde(deny_unknown_fields)]
+#[schemars(example = "Self::example")]
 pub struct PostgresConfig {
-    #[prost(string, optional, tag = "1")]
+    /// The username to use for authentication
     pub user: Option<String>,
-    #[prost(string, optional, tag = "2")]
+
+    /// The password to use for authentication
     pub password: Option<String>,
-    #[prost(string, optional, tag = "3")]
+
+    /// The host to connect to (IP or DNS name)
     pub host: Option<String>,
-    #[prost(uint32, optional, tag = "4")]
+
+    /// The port to connect to (default: 5432)
     pub port: Option<u32>,
-    #[prost(string, optional, tag = "5")]
+
+    /// The database to connect to (default: postgres)
     pub database: Option<String>,
-    #[prost(string, optional, tag = "6")]
+
+    /// The sslmode to use for the connection (disable, prefer, require)
     pub sslmode: Option<String>,
-    #[prost(string, optional, tag = "7")]
+
+    /// The connection url to use
     pub connection_url: Option<String>,
+}
+
+impl SchemaExample for PostgresConfig {
+    fn example() -> Self {
+        Self {
+            user: Some("postgres".to_string()),
+            password: None,
+            host: Some("localhost".to_string()),
+            port: Some(5432),
+            database: Some("postgres".to_string()),
+            sslmode: None,
+            connection_url: None,
+        }
+    }
 }
 
 #[derive(Eq, PartialEq, Clone, Debug, Hash)]
@@ -165,39 +191,39 @@ fn get_sslmode(mode: String) -> Result<SslMode, DeserializationError> {
     }
 }
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Oneof, Hash)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub enum ConnectionConfig {
-    #[prost(message, tag = "1")]
     /// In yaml, present as tag: `!Postgres`
     Postgres(PostgresConfig),
-    #[prost(message, tag = "2")]
+
     /// In yaml, present as tag: `!Ethereum`
     Ethereum(EthConfig),
-    #[prost(message, tag = "3")]
+
     /// In yaml, present as tag: `!Grpc`
     Grpc(GrpcConfig),
-    #[prost(message, tag = "4")]
+
     /// In yaml, present as tag: `!Snowflake`
     Snowflake(SnowflakeConfig),
-    #[prost(message, tag = "5")]
+
     /// In yaml, present as tag: `!Kafka`
     Kafka(KafkaConfig),
-    #[prost(message, tag = "6")]
+
     /// In yaml, present as tag: `!ObjectStore`
     S3Storage(S3Storage),
-    #[prost(message, tag = "7")]
+
     /// In yaml, present as tag: `!ObjectStore`
     LocalStorage(LocalStorage),
-    #[prost(message, tag = "8")]
+
     /// In yaml, present as tag" `!DeltaLake`
     DeltaLake(DeltaLakeConfig),
-    #[prost(message, tag = "9")]
+
     /// In yaml, present as tag: `!MongoDB`
     MongoDB(MongodbConfig),
-    #[prost(message, tag = "10")]
+
     /// In yaml, present as tag" `!MySQL`
     MySQL(MySQLConfig),
-    #[prost(message, tag = "11")]
+
     /// In yaml, present as tag" `!Dozer`
     Dozer(NestedDozerConfig),
 }

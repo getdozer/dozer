@@ -20,6 +20,7 @@ use actix_web::{
 };
 use actix_web_httpauth::middleware::HttpAuthentication;
 use dozer_tracing::LabelsAndProgress;
+use dozer_types::models::api_config::{default_host, default_rest_port};
 use dozer_types::{log::info, models::api_config::RestApiOptions};
 use dozer_types::{
     models::api_security::ApiSecurity,
@@ -71,10 +72,10 @@ impl ApiServer {
     ) -> Self {
         Self {
             shutdown_timeout: 0,
-            port: rest_config.port as u16,
+            port: rest_config.port.unwrap_or_else(default_rest_port),
             cors: CorsOptions::Permissive,
             security,
-            host: rest_config.host,
+            host: rest_config.host.unwrap_or_else(default_host),
             default_max_num_records,
         }
     }

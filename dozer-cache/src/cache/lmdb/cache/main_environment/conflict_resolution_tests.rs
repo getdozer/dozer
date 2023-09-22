@@ -12,9 +12,9 @@ use super::RwMainEnvironment;
 fn init_env(conflict_resolution: ConflictResolution) -> (RwMainEnvironment, Schema) {
     let schema = schema_multi_indices();
     let write_options = CacheWriteOptions {
-        insert_resolution: conflict_resolution.on_insert.unwrap_or_default(),
-        delete_resolution: conflict_resolution.on_delete.unwrap_or_default(),
-        update_resolution: conflict_resolution.on_update.unwrap_or_default(),
+        insert_resolution: conflict_resolution.on_insert,
+        delete_resolution: conflict_resolution.on_delete,
+        update_resolution: conflict_resolution.on_update,
         ..Default::default()
     };
     let main_env =
@@ -25,9 +25,9 @@ fn init_env(conflict_resolution: ConflictResolution) -> (RwMainEnvironment, Sche
 #[test]
 fn ignore_insert_error_when_type_nothing() {
     let (mut env, schema) = init_env(ConflictResolution {
-        on_insert: Some(OnInsertResolutionTypes::Nothing(())),
-        on_update: None,
-        on_delete: None,
+        on_insert: OnInsertResolutionTypes::Nothing,
+        on_update: Default::default(),
+        on_delete: Default::default(),
     });
 
     let initial_values = vec![Field::Int(1), Field::String("Film name old".to_string())];
@@ -56,9 +56,9 @@ fn ignore_insert_error_when_type_nothing() {
 #[test]
 fn update_after_insert_error_when_type_update() {
     let (mut env, schema) = init_env(ConflictResolution {
-        on_insert: Some(OnInsertResolutionTypes::Update(())),
-        on_update: None,
-        on_delete: None,
+        on_insert: OnInsertResolutionTypes::Update,
+        on_update: Default::default(),
+        on_delete: Default::default(),
     });
 
     let initial_values = vec![Field::Int(1), Field::String("Film name old".to_string())];
@@ -102,9 +102,9 @@ fn update_after_insert_error_when_type_update() {
 #[test]
 fn return_insert_error_when_type_panic() {
     let (mut env, schema) = init_env(ConflictResolution {
-        on_insert: Some(OnInsertResolutionTypes::Panic(())),
-        on_update: None,
-        on_delete: None,
+        on_insert: OnInsertResolutionTypes::Panic,
+        on_update: Default::default(),
+        on_delete: Default::default(),
     });
 
     let initial_values = vec![Field::Int(1), Field::String("Film name old".to_string())];
@@ -129,9 +129,9 @@ fn return_insert_error_when_type_panic() {
 #[test]
 fn ignore_update_error_when_type_nothing() {
     let (mut env, schema) = init_env(ConflictResolution {
-        on_insert: None,
-        on_update: Some(OnUpdateResolutionTypes::Nothing(())),
-        on_delete: None,
+        on_insert: Default::default(),
+        on_update: OnUpdateResolutionTypes::Nothing,
+        on_delete: Default::default(),
     });
 
     let initial_values = vec![Field::Int(1), Field::Null];
@@ -159,9 +159,9 @@ fn ignore_update_error_when_type_nothing() {
 #[test]
 fn update_after_update_error_when_type_upsert() {
     let (mut env, schema) = init_env(ConflictResolution {
-        on_insert: None,
-        on_update: Some(OnUpdateResolutionTypes::Upsert(())),
-        on_delete: None,
+        on_insert: Default::default(),
+        on_update: OnUpdateResolutionTypes::Upsert,
+        on_delete: Default::default(),
     });
 
     let initial_values = vec![Field::Int(1), Field::Null];
@@ -191,9 +191,9 @@ fn update_after_update_error_when_type_upsert() {
 #[test]
 fn return_update_error_when_type_panic() {
     let (mut env, _) = init_env(ConflictResolution {
-        on_insert: None,
-        on_update: Some(OnUpdateResolutionTypes::Panic(())),
-        on_delete: None,
+        on_insert: Default::default(),
+        on_update: OnUpdateResolutionTypes::Panic,
+        on_delete: Default::default(),
     });
 
     let initial_values = vec![Field::Int(1), Field::Null];
@@ -219,9 +219,9 @@ fn return_update_error_when_type_panic() {
 #[test]
 fn ignore_delete_error_when_type_nothing() {
     let (mut env, _) = init_env(ConflictResolution {
-        on_insert: None,
-        on_update: None,
-        on_delete: Some(OnDeleteResolutionTypes::Nothing(())),
+        on_insert: Default::default(),
+        on_update: Default::default(),
+        on_delete: OnDeleteResolutionTypes::Nothing,
     });
 
     let initial_values = vec![Field::Int(1), Field::Null];
@@ -242,9 +242,9 @@ fn ignore_delete_error_when_type_nothing() {
 #[test]
 fn return_delete_error_when_type_panic() {
     let (mut env, _) = init_env(ConflictResolution {
-        on_insert: None,
-        on_update: None,
-        on_delete: Some(OnDeleteResolutionTypes::Panic(())),
+        on_insert: Default::default(),
+        on_update: Default::default(),
+        on_delete: OnDeleteResolutionTypes::Panic,
     });
 
     let initial_values = vec![Field::Int(1), Field::Null];

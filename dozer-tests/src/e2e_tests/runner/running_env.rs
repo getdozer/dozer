@@ -331,10 +331,7 @@ fn write_dozer_config_for_running_in_docker_compose(
     };
 
     for connection in &mut config.connections {
-        let config = connection
-            .config
-            .as_mut()
-            .expect("Connection should always have config");
+        let config = &mut connection.config;
 
         match config {
             ConnectionConfig::Postgres(postgres) => {

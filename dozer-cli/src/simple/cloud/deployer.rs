@@ -6,10 +6,11 @@ use dozer_types::grpc_types::cloud::dozer_cloud_client::DozerCloudClient;
 use dozer_types::grpc_types::cloud::DeploymentStatus;
 use dozer_types::grpc_types::cloud::GetDeploymentStatusRequest;
 
+use crate::cloud_app_context::CloudAppContext;
 use dozer_types::grpc_types::cloud::DeployAppRequest;
 use dozer_types::grpc_types::cloud::File;
 use dozer_types::grpc_types::cloud::{Secret, StopRequest, StopResponse};
-use dozer_types::log::info;
+use dozer_types::log::{info, warn};
 
 pub async fn deploy_app(
     client: &mut DozerCloudClient<TokenLayer>,
@@ -50,7 +51,7 @@ async fn print_progress(
     let mut current_step = 0;
     let mut printer = ProgressPrinter::new();
     let request = GetDeploymentStatusRequest {
-        app_id,
+        app_id: app_id.clone(),
         deployment_id,
     };
     loop {
@@ -61,9 +62,13 @@ async fn print_progress(
 
         if response.status == DeploymentStatus::Success as i32 {
             info!("Deployment completed successfully");
+            info!("You can get API requests samples with `dozer cloud api-request-samples`");
+
+            CloudAppContext::save_app_id(app_id)?;
+
             break;
         } else if response.status == DeploymentStatus::Failed as i32 {
-            info!("Deployment failed!");
+            warn!("Deployment failed!");
             break;
         } else {
             let steps = response.steps.clone();
@@ -86,6 +91,7 @@ async fn print_progress(
                 printer.start_step(current_step, &text);
             }
         }
+
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
     }
     Ok::<(), CloudError>(())

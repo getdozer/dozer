@@ -192,12 +192,16 @@ impl EpochManager {
             let instant = SystemTime::now();
             let action = if *should_commit {
                 let num_records = self.record_store().num_records();
-                if num_records - state.next_record_index_to_persist
+                if source_states.values().all(|table_states| {
+                    table_states
+                        .values()
+                        .all(|&state| state != TableState::NonRestartable)
+                }) && (num_records - state.next_record_index_to_persist
                     >= self.options.max_num_records_before_persist
                     || instant
                         .duration_since(state.last_persisted_epoch_decision_instant)
                         .unwrap_or(Duration::from_secs(0))
-                        >= Duration::from_secs(self.options.max_interval_before_persist_in_seconds)
+                        >= Duration::from_secs(self.options.max_interval_before_persist_in_seconds))
                 {
                     state.next_record_index_to_persist = num_records;
                     state.last_persisted_epoch_decision_instant = instant;

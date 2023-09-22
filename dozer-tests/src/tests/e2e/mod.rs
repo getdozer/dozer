@@ -10,7 +10,12 @@ use dozer_types::{
         common::common_grpc_service_client::CommonGrpcServiceClient,
         ingest::ingest_service_client::IngestServiceClient,
     },
-    models::{api_config::default_api_grpc, config::Config, connection::ConnectionConfig},
+    ingestion_types::{default_ingest_host, default_ingest_port},
+    models::{
+        api_config::{default_grpc_port, default_host},
+        config::Config,
+        connection::ConnectionConfig,
+    },
     serde_yaml,
 };
 use tempdir::TempDir;
@@ -34,20 +39,24 @@ impl DozerE2eTest {
         let temp_dir = TempDir::new("tests").unwrap();
         let config = serde_yaml::from_str::<Config>(config_str).unwrap();
 
-        let api_grpc = config
-            .api
-            .as_ref()
-            .and_then(|api| api.grpc.clone())
-            .unwrap_or_else(default_api_grpc);
-        let common_service_url = format!("http://{}:{}", api_grpc.host, api_grpc.port);
+        let api_grpc = &config.api.grpc;
+        let common_service_url = format!(
+            "http://{}:{}",
+            api_grpc.host.clone().unwrap_or_else(default_host),
+            api_grpc.port.unwrap_or_else(default_grpc_port),
+        );
 
         let mut ingest_service_url = None;
         for connection in &config.connections {
-            if let Some(ConnectionConfig::Grpc(config)) = &connection.config {
+            if let ConnectionConfig::Grpc(config) = &connection.config {
                 if ingest_service_url.is_some() {
                     panic!("Found more than one ingest service");
                 }
-                ingest_service_url = Some(format!("http://{}:{}", config.host, config.port));
+                ingest_service_url = Some(format!(
+                    "http://{}:{}",
+                    config.host.clone().unwrap_or_else(default_ingest_host),
+                    config.port.unwrap_or_else(default_ingest_port),
+                ));
             }
         }
 

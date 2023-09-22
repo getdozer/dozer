@@ -1,122 +1,89 @@
-use crate::constants::DEFAULT_DEFAULT_MAX_NUM_RECORDS;
-
-use super::api_security::ApiSecurity;
+use super::{api_security::ApiSecurity, equal_default};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, prost::Message)]
+
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, JsonSchema, Default)]
+#[serde(deny_unknown_fields)]
 pub struct ApiConfig {
-    #[prost(oneof = "ApiSecurity", tags = "1")]
     #[serde(skip_serializing_if = "Option::is_none")]
     /// The security configuration for the API; Default: None
     pub api_security: Option<ApiSecurity>,
-    #[prost(message, tag = "2")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub rest: Option<RestApiOptions>,
-    #[prost(message, tag = "3")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub grpc: Option<GrpcApiOptions>,
 
-    #[prost(message, tag = "4")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub app_grpc: Option<AppGrpcOptions>,
+    #[serde(default, skip_serializing_if = "equal_default")]
+    pub rest: RestApiOptions,
 
-    #[prost(uint32, tag = "5")]
-    #[serde(default = "default_default_max_num_records")]
+    #[serde(default, skip_serializing_if = "equal_default")]
+    pub grpc: GrpcApiOptions,
+
+    #[serde(default, skip_serializing_if = "equal_default")]
+    pub app_grpc: AppGrpcOptions,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     // max records to be returned from the endpoints
-    pub default_max_num_records: u32,
+    pub default_max_num_records: Option<usize>,
 }
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, prost::Message)]
+
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, JsonSchema, Default)]
+#[serde(deny_unknown_fields)]
 pub struct RestApiOptions {
-    #[prost(uint32, tag = "1")]
-    #[serde(default = "default_rest_port")]
-    pub port: u32,
-    #[prost(string, tag = "2")]
-    #[serde(default = "default_host")]
-    pub host: String,
-    #[prost(bool, tag = "3")]
-    #[serde(default = "default_cors")]
-    pub cors: bool,
-    #[prost(bool, tag = "4")]
-    #[serde(default = "default_enabled")]
-    pub enabled: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub port: Option<u16>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cors: Option<bool>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
 }
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, prost::Message)]
+
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, JsonSchema, Default)]
+#[serde(deny_unknown_fields)]
 pub struct GrpcApiOptions {
-    #[prost(uint32, tag = "1")]
-    #[serde(default = "default_grpc_port")]
-    pub port: u32,
-    #[prost(string, tag = "2")]
-    #[serde(default = "default_host")]
-    pub host: String,
-    #[prost(bool, tag = "3")]
-    #[serde(default = "default_cors")]
-    pub cors: bool,
-    #[prost(bool, tag = "4")]
-    #[serde(default = "default_enable_web")]
-    pub web: bool,
-    #[prost(bool, tag = "5")]
-    #[serde(default = "default_enabled")]
-    pub enabled: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub port: Option<u16>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cors: Option<bool>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub web: Option<bool>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
 }
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, prost::Message, Hash)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema, Default)]
+#[serde(deny_unknown_fields)]
 pub struct AppGrpcOptions {
-    #[prost(uint32)]
-    #[serde(default = "default_app_grpc_port")]
-    pub port: u32,
-    #[prost(string)]
-    #[serde(default = "default_app_grpc_host")]
-    pub host: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub port: Option<u32>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host: Option<String>,
 }
 
-fn default_app_grpc_port() -> u32 {
+pub fn default_app_grpc_port() -> u32 {
     50053
 }
-fn default_app_grpc_host() -> String {
+
+pub fn default_app_grpc_host() -> String {
     "0.0.0.0".to_owned()
 }
-pub fn default_default_max_num_records() -> u32 {
-    DEFAULT_DEFAULT_MAX_NUM_RECORDS as u32
-}
 
-pub fn default_app_grpc() -> AppGrpcOptions {
-    AppGrpcOptions {
-        port: default_app_grpc_port(),
-        host: default_app_grpc_host(),
-    }
-}
-pub fn default_api_rest() -> RestApiOptions {
-    RestApiOptions {
-        port: default_rest_port(),
-        host: default_host(),
-        cors: default_cors(),
-        enabled: true,
-    }
-}
-pub fn default_api_grpc() -> GrpcApiOptions {
-    GrpcApiOptions {
-        port: default_grpc_port(),
-        host: default_host(),
-        cors: default_cors(),
-        web: default_enable_web(),
-        enabled: true,
-    }
-}
-fn default_grpc_port() -> u32 {
+pub fn default_grpc_port() -> u16 {
     50051
 }
-fn default_rest_port() -> u32 {
+
+pub fn default_rest_port() -> u16 {
     8080
 }
-fn default_enable_web() -> bool {
-    true
-}
-fn default_cors() -> bool {
-    true
-}
-fn default_enabled() -> bool {
-    true
-}
 
-fn default_host() -> String {
+pub fn default_host() -> String {
     "0.0.0.0".to_owned()
 }

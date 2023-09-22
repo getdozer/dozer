@@ -52,7 +52,7 @@ pub enum OrchestrationError {
     GenerateTokenFailed(#[source] AuthError),
     #[error("Missing api config or security input")]
     MissingSecurityConfig,
-    #[error("Cloud service error: {0}")]
+    #[error(transparent)]
     CloudError(#[from] CloudError),
     #[error("Failed to initialize api server: {0}")]
     ApiInitFailed(#[from] ApiInitError),
@@ -142,7 +142,7 @@ pub enum CloudError {
     #[error("Connection failed. Error: {0:?}")]
     ConnectionToCloudServiceError(#[from] tonic::transport::Error),
 
-    #[error("Cloud service returned error: {0:?}")]
+    #[error("Cloud service returned error: {}", .0.message())]
     CloudServiceError(#[from] tonic::Status),
 
     #[error("GRPC request failed, error: {} (GRPC status {})", .0.message(), .0.code())]

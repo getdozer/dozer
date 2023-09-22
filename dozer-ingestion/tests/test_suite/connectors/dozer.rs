@@ -15,12 +15,10 @@ use dozer_types::grpc_types::types::Record;
 use dozer_types::ingestion_types::GrpcConfig;
 use dozer_types::log::info;
 use dozer_types::models::api_endpoint::ApiEndpoint;
-use dozer_types::models::config::{default_cache_dir, default_home_dir};
 use dozer_types::models::source::Source;
 use dozer_types::types::{Field, FieldDefinition, FieldType};
 use dozer_types::{
     ingestion_types::{NestedDozerConfig, NestedDozerLogOptions},
-    models::api_config::AppGrpcOptions,
     serde_json,
 };
 
@@ -190,23 +188,19 @@ async fn create_nested_dozer_server(
     std::fs::write(&dozer_config_path, DOZER_CONFIG).expect("Failed to write dozer config");
 
     let grpc_config = GrpcConfig {
-        host: "0.0.0.0".to_owned(),
-        port: 8085,
-        schemas: Some(dozer_types::ingestion_types::GrpcConfigSchemas::Inline(
-            schema_string,
-        )),
-        adapter: "default".to_owned(),
+        host: Some("0.0.0.0".to_owned()),
+        port: Some(8085),
+        schemas: dozer_types::ingestion_types::GrpcConfigSchemas::Inline(schema_string),
+        adapter: Some("default".to_owned()),
     };
 
     let config = dozer_types::models::config::Config {
         version: 1,
         app_name: "nested-dozer-connector-test".to_owned(),
-        home_dir: default_home_dir(),
-        cache_dir: default_cache_dir(),
+        home_dir: None,
+        cache_dir: None,
         connections: vec![dozer_types::models::connection::Connection {
-            config: Some(dozer_types::models::connection::ConnectionConfig::Grpc(
-                grpc_config,
-            )),
+            config: dozer_types::models::connection::ConnectionConfig::Grpc(grpc_config),
             name: "ingest".to_owned(),
         }],
         sources: vec![Source {
@@ -215,16 +209,16 @@ async fn create_nested_dozer_server(
             columns: vec![],
             connection: "ingest".to_owned(),
             schema: None,
-            refresh_config: None,
+            refresh_config: Default::default(),
         }],
         endpoints: vec![ApiEndpoint {
             name: table_name.to_owned(),
             path: "/test".to_owned(),
             table_name: table_name.clone(),
-            index: None,
-            conflict_resolution: None,
+            index: Default::default(),
+            conflict_resolution: Default::default(),
             version: None,
-            log_reader_options: None,
+            log_reader_options: Default::default(),
         }],
         ..Default::default()
     };
@@ -239,15 +233,12 @@ async fn create_nested_dozer_server(
     let client = try_connect_ingest("http://localhost:8085".to_owned()).await;
 
     let connector = NestedDozerConnector::new(NestedDozerConfig {
-        grpc: Some(AppGrpcOptions {
-            port: 50053,
-            host: "localhost".to_owned(),
-        }),
-        log_options: Some(NestedDozerLogOptions {
-            batch_size: 1,
-            timeout_in_millis: 3000,
-            buffer_size: 1,
-        }),
+        url: "http://localhost:50053".to_owned(),
+        log_options: NestedDozerLogOptions {
+            batch_size: Some(1),
+            timeout_in_millis: Some(3000),
+            buffer_size: Some(1),
+        },
     });
 
     let test = DozerConnectorTest {

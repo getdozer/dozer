@@ -4,6 +4,7 @@ use crate::cli::cloud::{
 use crate::cloud_app_context::CloudAppContext;
 use crate::cloud_helper::list_files;
 
+use crate::console_helper::{get_colored_text, PURPLE};
 use crate::errors::OrchestrationError::FailedToReadOrganisationName;
 use crate::errors::{map_tonic_error, CliError, CloudError, CloudLoginError, OrchestrationError};
 use crate::simple::cloud::deployer::{deploy_app, stop_app};
@@ -13,10 +14,12 @@ use crate::simple::token_layer::TokenLayer;
 use crate::simple::SimpleOrchestrator;
 use crate::CloudOrchestrator;
 use dozer_types::constants::{DEFAULT_CLOUD_TARGET_URL, LOCK_FILE};
+use dozer_types::grpc_types::api_explorer::api_explorer_service_client::ApiExplorerServiceClient;
+use dozer_types::grpc_types::api_explorer::GetApiTokenRequest;
 use dozer_types::grpc_types::cloud::{
     dozer_cloud_client::DozerCloudClient, CreateSecretRequest, DeleteAppRequest,
-    DeleteSecretRequest, GetSecretRequest, GetStatusRequest, ListAppRequest, ListSecretsRequest,
-    LogMessageRequest, UpdateSecretRequest,
+    DeleteSecretRequest, GetEndpointCommandsSamplesRequest, GetSecretRequest, GetStatusRequest,
+    ListAppRequest, ListSecretsRequest, LogMessageRequest, UpdateSecretRequest,
 };
 use dozer_types::grpc_types::cloud::{
     DeploymentInfo, DeploymentStatusWithHealth, File, ListDeploymentRequest,
@@ -32,12 +35,12 @@ use tower::ServiceBuilder;
 use super::cloud::login::LoginSvc;
 use super::cloud::version::{get_version_status, version_is_up_to_date, version_status_table};
 
-pub async fn get_cloud_client(
+async fn establish_cloud_service_channel(
     cloud: &Cloud,
-    cloud_config: Option<&dozer_types::models::cloud::Cloud>,
-) -> Result<DozerCloudClient<TokenLayer>, CloudError> {
+    cloud_config: &dozer_types::models::cloud::Cloud,
+) -> Result<TokenLayer, CloudError> {
     let profile_name = match &cloud.profile {
-        None => cloud_config.as_ref().and_then(|c| c.profile.clone()),
+        None => cloud_config.profile.clone(),
         Some(_) => cloud.profile.clone(),
     };
     let credential = CredentialInfo::load(profile_name)?;
@@ -52,7 +55,23 @@ pub async fn get_cloud_client(
     let channel = ServiceBuilder::new()
         .layer_fn(|channel| TokenLayer::new(channel, credential.clone()))
         .service(channel);
-    let client = DozerCloudClient::new(channel);
+    Ok(channel)
+}
+
+pub async fn get_cloud_client(
+    cloud: &Cloud,
+    cloud_config: &dozer_types::models::cloud::Cloud,
+) -> Result<DozerCloudClient<TokenLayer>, CloudError> {
+    let client = DozerCloudClient::new(establish_cloud_service_channel(cloud, cloud_config).await?);
+    Ok(client)
+}
+
+pub async fn get_explorer_client(
+    cloud: &Cloud,
+    cloud_config: &dozer_types::models::cloud::Cloud,
+) -> Result<ApiExplorerServiceClient<TokenLayer>, CloudError> {
+    let client =
+        ApiExplorerServiceClient::new(establish_cloud_service_channel(cloud, cloud_config).await?);
     Ok(client)
 }
 
@@ -64,17 +83,12 @@ impl CloudOrchestrator for SimpleOrchestrator {
         deploy: DeployCommandArgs,
         config_paths: Vec<String>,
     ) -> Result<(), OrchestrationError> {
-        let app_id = if cloud.app_id.is_some() {
-            cloud.app_id.clone()
-        } else {
-            let app_id_from_context = CloudAppContext::get_app_id(self.config.cloud.as_ref());
-            match app_id_from_context {
-                Ok(id) => Some(id),
-                Err(_) => None,
-            }
-        };
+        let app_id = cloud
+            .app_id
+            .clone()
+            .or(CloudAppContext::get_app_id(&self.config.cloud).ok());
 
-        let cloud_config = self.config.cloud.as_ref();
+        let cloud_config = &self.config.cloud;
         let lockfile_path = self.lockfile_path();
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud, cloud_config).await?;
@@ -99,6 +113,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
             // 2. START application
             deploy_app(
                 &mut client,
+                // &mut explorer_client,
                 &app_id,
                 deploy.secrets,
                 deploy.allow_incompatible,
@@ -118,16 +133,13 @@ impl CloudOrchestrator for SimpleOrchestrator {
 
         let (app_id, delete_cloud_file) = if let Some(app_id) = cloud.app_id.clone() {
             // if the app_id on command line is equal to the one in the cloud config file then file can be deleted
-            if app_id == CloudAppContext::get_app_id(self.config.cloud.as_ref())? {
+            if app_id == CloudAppContext::get_app_id(&self.config.cloud)? {
                 (app_id, true)
             } else {
                 (app_id, false)
             }
         } else {
-            (
-                CloudAppContext::get_app_id(self.config.cloud.as_ref())?,
-                true,
-            )
+            (CloudAppContext::get_app_id(&self.config.cloud)?, true)
         };
 
         let mut double_check = String::new();
@@ -144,7 +156,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
             return Ok(());
         }
 
-        let cloud_config = self.config.cloud.as_ref();
+        let cloud_config = &self.config.cloud;
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud, cloud_config).await?;
 
@@ -174,7 +186,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
     }
 
     fn list(&mut self, cloud: Cloud, list: ListCommandArgs) -> Result<(), OrchestrationError> {
-        let cloud_config = self.config.cloud.as_ref();
+        let cloud_config = &self.config.cloud;
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud, cloud_config).await?;
             let response = client
@@ -193,9 +205,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
             let mut table = table!();
 
             for app in response.apps {
-                if let Some(app_data) = app.app {
-                    table.add_row(row![app.app_id, app_data.convert_to_table()]);
-                }
+                table.add_row(row![app.app_id, app.app_name]);
             }
 
             table.printstd();
@@ -217,8 +227,8 @@ impl CloudOrchestrator for SimpleOrchestrator {
         let app_id = cloud
             .app_id
             .clone()
-            .unwrap_or(CloudAppContext::get_app_id(self.config.cloud.as_ref())?);
-        let cloud_config = self.config.cloud.as_ref();
+            .unwrap_or(CloudAppContext::get_app_id(&self.config.cloud)?);
+        let cloud_config = &self.config.cloud;
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud, cloud_config).await?;
             let response = client
@@ -287,7 +297,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
     }
 
     fn monitor(&mut self, cloud: Cloud) -> Result<(), OrchestrationError> {
-        monitor_app(&cloud, self.config.cloud.as_ref(), self.runtime.clone())
+        monitor_app(&cloud, &self.config.cloud, self.runtime.clone())
             .map_err(crate::errors::OrchestrationError::CloudError)
     }
 
@@ -295,8 +305,8 @@ impl CloudOrchestrator for SimpleOrchestrator {
         let app_id = cloud
             .app_id
             .clone()
-            .unwrap_or(CloudAppContext::get_app_id(self.config.cloud.as_ref())?);
-        let cloud_config = self.config.cloud.as_ref();
+            .unwrap_or(CloudAppContext::get_app_id(&self.config.cloud)?);
+        let cloud_config = &self.config.cloud;
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud, cloud_config).await?;
 
@@ -398,8 +408,8 @@ impl CloudOrchestrator for SimpleOrchestrator {
         let app_id = cloud
             .app_id
             .clone()
-            .unwrap_or(CloudAppContext::get_app_id(self.config.cloud.as_ref())?);
-        let cloud_config = self.config.cloud.as_ref();
+            .unwrap_or(CloudAppContext::get_app_id(&self.config.cloud)?);
+        let cloud_config = &self.config.cloud;
 
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud, cloud_config).await?;
@@ -479,9 +489,9 @@ impl SimpleOrchestrator {
         let app_id = cloud
             .app_id
             .clone()
-            .unwrap_or(CloudAppContext::get_app_id(self.config.cloud.as_ref())?);
+            .unwrap_or(CloudAppContext::get_app_id(&self.config.cloud)?);
 
-        let cloud_config = self.config.cloud.as_ref();
+        let cloud_config = &self.config.cloud;
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud, cloud_config).await?;
 
@@ -576,6 +586,65 @@ impl SimpleOrchestrator {
 
             Ok::<_, CloudError>(())
         })?;
+        Ok(())
+    }
+
+    pub fn print_api_request_samples(
+        &self,
+        cloud: Cloud,
+        endpoint: Option<String>,
+    ) -> Result<(), OrchestrationError> {
+        let app_id = cloud
+            .app_id
+            .clone()
+            .unwrap_or(CloudAppContext::get_app_id(&self.config.cloud)?);
+        let cloud_config = &self.config.cloud;
+        self.runtime.block_on(async move {
+            let mut client = get_cloud_client(&cloud, cloud_config).await?;
+            let mut explorer_client = get_explorer_client(&cloud, cloud_config).await?;
+
+            let response = client
+                .get_endpoint_commands_samples(GetEndpointCommandsSamplesRequest {
+                    app_id: app_id.clone(),
+                    endpoint,
+                })
+                .await
+                .map_err(map_tonic_error)?
+                .into_inner();
+
+            let token_response = explorer_client
+                .get_api_token(GetApiTokenRequest {
+                    app_id: Some(app_id),
+                    ttl: Some(3600),
+                })
+                .await?
+                .into_inner();
+
+            let mut rows = vec![];
+            let token = match token_response.token {
+                Some(token) => token,
+                None => {
+                    info!("Replace $DOZER_TOKEN with your API authorization token");
+                    "$DOZER_TOKEN".to_string()
+                }
+            };
+
+            for sample in response.samples {
+                rows.push(get_colored_text(
+                    &format!(
+                        "\n##################### {} command ###########################\n",
+                        sample.r#type
+                    ),
+                    PURPLE,
+                ));
+                rows.push(sample.command.replace("{token}", &token).to_string());
+            }
+
+            info!("{}", rows.join("\n"));
+
+            Ok::<(), CloudError>(())
+        })?;
+
         Ok(())
     }
 }

@@ -1,5 +1,6 @@
 #![allow(clippy::enum_variant_names)]
 
+use deltalake::arrow::error::ArrowError;
 use dozer_log::errors::{ReaderBuilderError, ReaderError};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::{DeserializationError, SerializationError, TypeError};
@@ -38,9 +39,6 @@ use crate::connectors::mongodb::MongodbConnectorError;
 
 #[derive(Error, Debug)]
 pub enum ConnectorError {
-    #[error("Missing `config` for connector {0}")]
-    MissingConfiguration(String),
-
     #[error("Failed to map configuration: {0}")]
     WrongConnectionConfiguration(DeserializationError),
 
@@ -50,8 +48,10 @@ pub enum ConnectorError {
     #[error("Failed to map configuration: {0}")]
     UnableToInferSchema(DataFusionError),
 
-    #[error("Unsupported grpc adapter: {0} {1}")]
-    UnsupportedGrpcAdapter(String, String),
+    #[error("Unsupported grpc adapter: {0} {1:?}")]
+    UnsupportedGrpcAdapter(String, Option<String>),
+    #[error("Arrow error: {0}")]
+    Arrow(#[from] ArrowError),
 
     #[error("Table not found: {0}")]
     TableNotFound(String),
@@ -151,9 +151,6 @@ pub enum ConfigurationError {
 }
 #[derive(Error, Debug)]
 pub enum NestedDozerConnectorError {
-    #[error("Missing `grpc` field in `config`")]
-    MissingGrpcConfig,
-
     #[error("Failed to connect to upstream dozer at {0}: {1:?}")]
     ConnectionError(String, #[source] dozer_types::tonic::transport::Error),
 
