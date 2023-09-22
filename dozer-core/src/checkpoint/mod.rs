@@ -39,7 +39,7 @@ pub struct CheckpointFactoryOptions {
 impl Default for CheckpointFactoryOptions {
     fn default() -> Self {
         Self {
-            storage_config: DataStorage::Local(()),
+            storage_config: DataStorage::Local,
             persist_queue_capacity: 100,
         }
     }

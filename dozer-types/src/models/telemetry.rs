@@ -1,51 +1,48 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-#[derive(Debug, Serialize, JsonSchema, Default, Deserialize, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Default, PartialEq, Eq, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct TelemetryConfig {
     pub trace: Option<TelemetryTraceConfig>,
-
     pub metrics: Option<TelemetryMetricsConfig>,
 }
 
-#[derive(Debug, Serialize, JsonSchema, Deserialize, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq, Clone)]
 pub enum TelemetryTraceConfig {
     Dozer(DozerTelemetryConfig),
-
     XRay(XRayConfig),
 }
 
-#[derive(Debug, Serialize, JsonSchema, Default, Deserialize, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Default, PartialEq, Eq, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct DozerTelemetryConfig {
-    #[serde(default = "default_ingest_address")]
-    pub endpoint: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub endpoint: Option<String>,
 
-    #[serde(default = "default_grpc_adapter")]
-    pub adapter: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub adapter: Option<String>,
 
-    #[serde(default = "default_sample_ratio")]
-    pub sample_percent: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sample_percent: Option<u32>,
 }
 
-#[derive(Debug, Serialize, JsonSchema, Default, Deserialize, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct XRayConfig {
     pub endpoint: String,
-
     pub timeout_in_seconds: u64,
 }
 
-fn default_grpc_adapter() -> String {
-    "arrow".to_owned()
-}
-
-fn default_ingest_address() -> String {
+pub fn default_ingest_address() -> String {
     "0.0.0.0:7006".to_string()
 }
 
-fn default_sample_ratio() -> u32 {
+pub fn default_sample_ratio() -> u32 {
     10
 }
 
-#[derive(Debug, Serialize, JsonSchema, Deserialize, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq, Clone)]
+#[serde(deny_unknown_fields)]
 pub enum TelemetryMetricsConfig {
-    Prometheus(()),
+    Prometheus,
 }

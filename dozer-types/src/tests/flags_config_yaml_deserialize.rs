@@ -1,7 +1,4 @@
-use crate::models::{
-    config::Config,
-    flags::{EnableProbabilisticOptimizations, Flags},
-};
+use crate::models::{config::Config, flags::Flags};
 
 #[test]
 fn test_partial_flag_config_input() {
@@ -14,11 +11,10 @@ fn test_partial_flag_config_input() {
 "#;
     let deserializer_result = serde_yaml::from_str::<Config>(input_config_with_flag).unwrap();
     let default_flags = Flags::default();
-    assert!(deserializer_result.flags.is_some());
-    let flags_deserialize = deserializer_result.flags.unwrap();
-    assert!(flags_deserialize.dynamic);
-    assert!(!flags_deserialize.grpc_web);
-    assert!(!flags_deserialize.push_events);
+    let flags_deserialize = deserializer_result.flags;
+    assert_eq!(flags_deserialize.dynamic, None);
+    assert_eq!(flags_deserialize.grpc_web, Some(false));
+    assert_eq!(flags_deserialize.push_events, Some(false));
     assert_eq!(
         flags_deserialize.authenticate_server_reflection,
         default_flags.authenticate_server_reflection,
@@ -35,27 +31,4 @@ fn test_storage_params_config() {
 "#;
     let deserializer_result = serde_yaml::from_str::<Config>(input_config_without_flag).unwrap();
     assert_eq!(deserializer_result.cache_max_map_size, Some(1073741824));
-}
-
-#[test]
-fn test_flags_default() {
-    assert_eq!(
-        Flags::default(),
-        Flags {
-            dynamic: true,
-            grpc_web: true,
-            push_events: true,
-            authenticate_server_reflection: false,
-            enable_probabilistic_optimizations: None,
-        }
-    );
-
-    assert_eq!(
-        EnableProbabilisticOptimizations::default(),
-        EnableProbabilisticOptimizations {
-            in_sets: false,
-            in_joins: false,
-            in_aggregations: false
-        }
-    )
 }

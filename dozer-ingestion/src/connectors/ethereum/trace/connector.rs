@@ -5,7 +5,7 @@ use crate::connectors::{
     TableToIngest,
 };
 use crate::{connectors::TableInfo, errors::ConnectorError, ingestion::Ingestor};
-use dozer_types::ingestion_types::{EthTraceConfig, IngestionMessage};
+use dozer_types::ingestion_types::{default_batch_size, EthTraceConfig, IngestionMessage};
 use dozer_types::log::{error, info, warn};
 
 use dozer_types::tonic::async_trait;
@@ -128,7 +128,11 @@ pub async fn run(
         "Starting Eth Trace connector: {} from block {}",
         conn_name, config.from_block
     );
-    let batch_iter = BatchIterator::new(config.from_block, config.to_block, config.batch_size);
+    let batch_iter = BatchIterator::new(
+        config.from_block,
+        config.to_block,
+        config.batch_size.unwrap_or_else(default_batch_size),
+    );
 
     let mut errors: Vec<ConnectorError> = vec![];
     for batch in batch_iter {

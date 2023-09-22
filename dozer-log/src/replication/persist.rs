@@ -12,7 +12,7 @@ pub async fn create_data_storage(
     data_dir: String,
 ) -> Result<(Box<dyn Storage>, String), storage::Error> {
     match storage_config {
-        DataStorage::Local(()) => Ok((
+        DataStorage::Local => Ok((
             Box::new(LocalStorage::new(data_dir).await?),
             String::default(),
         )),

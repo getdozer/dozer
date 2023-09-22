@@ -1,7 +1,10 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, JsonSchema, Default, Deserialize, Eq, PartialEq, Clone)]
+use super::equal_default;
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Default, Eq, PartialEq, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct Source {
     /// name of the source - to distinguish between multiple sources; Type: String
     pub name: String,
@@ -15,59 +18,22 @@ pub struct Source {
 
     /// reference to pre-defined connection name; Type: String
     pub connection: String,
-    /// name of schema source database; Type: String
 
-    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// name of schema source database; Type: String
     pub schema: Option<String>,
 
-    #[serde(default = "default_refresh_config")]
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "equal_default")]
     /// setting for how to refresh the data; Default: RealTime
-    pub refresh_config: Option<RefreshConfig>,
+    pub refresh_config: RefreshConfig,
 }
 
-fn default_refresh_config() -> Option<RefreshConfig> {
-    Some(RefreshConfig::default())
-}
-
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub enum Value {
-    Ref(String),
-}
-
-#[derive(Debug, Serialize, JsonSchema, Deserialize, Eq, PartialEq, Clone)]
-pub enum HistoryType {
-    Master(MasterHistoryConfig),
-    Transactional(TransactionalHistoryConfig),
-}
-#[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
-pub enum MasterHistoryConfig {
-    AppendOnly {
-        unique_key_field: String,
-        open_date_field: String,
-        closed_date_field: String,
-    },
-    Overwrite,
-}
-
-#[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
-pub enum TransactionalHistoryConfig {
-    RetainPartial {
-        timestamp_field: String,
-        retention_period: u32,
-    },
-}
-#[derive(Debug, Serialize, JsonSchema, Deserialize, Eq, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone, Default)]
+#[serde(deny_unknown_fields)]
 pub enum RefreshConfig {
     // Hour { minute: u32 },
     // Day { time: String },
     // CronExpression { expression: String },
-    RealTime(RealTimeConfig),
+    #[default]
+    RealTime,
 }
-impl Default for RefreshConfig {
-    fn default() -> Self {
-        RefreshConfig::RealTime(RealTimeConfig {})
-    }
-}
-#[derive(Debug, Serialize, JsonSchema, Default, Deserialize, Eq, PartialEq, Clone)]
-pub struct RealTimeConfig {}

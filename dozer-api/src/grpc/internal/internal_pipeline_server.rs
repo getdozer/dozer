@@ -10,7 +10,9 @@ use dozer_types::grpc_types::internal::{
     EndpointResponse, EndpointsResponse, LogRequest, LogResponse, StorageRequest, StorageResponse,
 };
 use dozer_types::log::info;
-use dozer_types::models::api_config::AppGrpcOptions;
+use dozer_types::models::api_config::{
+    default_app_grpc_host, default_app_grpc_port, AppGrpcOptions,
+};
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::tonic::transport::server::TcpIncoming;
 use dozer_types::tonic::transport::Server;
@@ -180,7 +182,11 @@ pub async fn start_internal_pipeline_server(
     let server = InternalPipelineServer::new(endpoints);
 
     // Start listening.
-    let addr = format!("{}:{}", options.host, options.port);
+    let addr = format!(
+        "{}:{}",
+        options.host.clone().unwrap_or_else(default_app_grpc_host),
+        options.port.unwrap_or_else(default_app_grpc_port)
+    );
     info!("Starting Internal Server on {addr}");
     let addr = addr
         .parse()

@@ -31,7 +31,7 @@ pub async fn run_connector_test<
     let dozer_config = dozer_types::serde_yaml::from_str::<Config>(&dozer_config).unwrap();
 
     let connection = dozer_config.connections.get(0).unwrap();
-    if let Some(ConnectionConfig::Postgres(connection_config)) = connection.config.clone() {
+    if let ConnectionConfig::Postgres(connection_config) = connection.config.clone() {
         let mut config = tokio_postgres::Config::new();
         let replenished_config = connection_config.replenish().unwrap();
         config

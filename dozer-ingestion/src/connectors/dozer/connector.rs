@@ -4,7 +4,6 @@ use dozer_log::{
     reader::{LogReaderBuilder, LogReaderOptions},
     replication::LogOperation,
 };
-use dozer_types::tonic::{async_trait, transport::Channel};
 use dozer_types::{
     errors::types::DeserializationError,
     grpc_types::internal::{
@@ -12,10 +11,15 @@ use dozer_types::{
         DescribeApplicationRequest, DescribeApplicationResponse,
     },
     ingestion_types::{
-        default_log_options, IngestionMessage, NestedDozerConfig, NestedDozerLogOptions,
+        default_buffer_size, default_timeout, IngestionMessage, NestedDozerConfig,
+        NestedDozerLogOptions,
     },
     serde_json,
     types::{Operation, Record, Schema},
+};
+use dozer_types::{
+    ingestion_types::default_log_batch_size,
+    tonic::{async_trait, transport::Channel},
 };
 use tokio::{
     sync::mpsc::{channel, Sender},
@@ -162,12 +166,11 @@ impl NestedDozerConnector {
         Self { config }
     }
     async fn get_client(&self) -> Result<InternalPipelineServiceClient<Channel>, ConnectorError> {
-        let app_server_addr = self.get_server_addr()?;
-        let client = InternalPipelineServiceClient::connect(app_server_addr.clone())
+        let client = InternalPipelineServiceClient::connect(self.config.url.clone())
             .await
             .map_err(|e| {
                 ConnectorError::NestedDozerConnectorError(
-                    NestedDozerConnectorError::ConnectionError(app_server_addr, e),
+                    NestedDozerConnectorError::ConnectionError(self.config.url.clone(), e),
                 )
             })?;
         Ok(client)
@@ -188,21 +191,12 @@ impl NestedDozerConnector {
         Ok(response.into_inner())
     }
 
-    fn get_server_addr(&self) -> Result<String, ConnectorError> {
-        let config = self
-            .config
-            .grpc
-            .as_ref()
-            .ok_or(NestedDozerConnectorError::MissingGrpcConfig)?;
-        Ok(format!("http://{}:{}", &config.host, &config.port))
-    }
-
     fn get_log_options(endpoint: String, value: NestedDozerLogOptions) -> LogReaderOptions {
         LogReaderOptions {
             endpoint,
-            batch_size: value.batch_size,
-            timeout_in_millis: value.timeout_in_millis,
-            buffer_size: value.buffer_size,
+            batch_size: value.batch_size.unwrap_or_else(default_log_batch_size),
+            timeout_in_millis: value.timeout_in_millis.unwrap_or_else(default_timeout),
+            buffer_size: value.buffer_size.unwrap_or_else(default_buffer_size),
         }
     }
 
@@ -210,14 +204,8 @@ impl NestedDozerConnector {
         &self,
         endpoint: String,
     ) -> Result<LogReaderBuilder, ConnectorError> {
-        let app_server_addr = self.get_server_addr()?;
-
-        let log_options = match self.config.log_options.as_ref() {
-            Some(opts) => opts.clone(),
-            None => default_log_options(),
-        };
-        let log_options = Self::get_log_options(endpoint, log_options);
-        let log_reader_builder = LogReaderBuilder::new(app_server_addr, log_options)
+        let log_options = Self::get_log_options(endpoint, self.config.log_options.clone());
+        let log_reader_builder = LogReaderBuilder::new(self.config.url.clone(), log_options)
             .await
             .map_err(NestedDozerConnectorError::ReaderBuilderError)?;
         Ok(log_reader_builder)

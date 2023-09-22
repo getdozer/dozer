@@ -11,3 +11,7 @@ pub mod source;
 pub mod telemetry;
 pub mod udf_config;
 pub use json_schema_helper::{get_connection_schemas, get_dozer_schema};
+
+fn equal_default<T: PartialEq + Default>(t: &T) -> bool {
+    t == &T::default()
+}

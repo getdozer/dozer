@@ -1,30 +1,30 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use super::equal_default;
+
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, PartialEq, Eq, Default)]
+#[serde(deny_unknown_fields)]
 pub struct AppConfig {
     /// Pipeline buffer size
-
     #[serde(skip_serializing_if = "Option::is_none")]
     pub app_buffer_size: Option<u32>,
 
     /// Commit size
-
     #[serde(skip_serializing_if = "Option::is_none")]
     pub commit_size: Option<u32>,
 
     /// Commit timeout
-
     #[serde(skip_serializing_if = "Option::is_none")]
     pub commit_timeout: Option<u64>,
 
+    /// Maximum number of pending persisting requests.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub persist_queue_capacity: Option<u32>,
 
     /// The storage to use for the log.
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub data_storage: Option<DataStorage>,
+    #[serde(default, skip_serializing_if = "equal_default")]
+    pub data_storage: DataStorage,
 
     /// How many errors we can tolerate before bringing down the app.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -39,24 +39,19 @@ pub struct AppConfig {
     pub max_interval_before_persist_in_seconds: Option<u64>,
 }
 
-#[derive(Debug, JsonSchema, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, JsonSchema, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub enum DataStorage {
-    Local(()),
-
+    #[default]
+    Local,
     S3(S3Storage),
 }
 
 #[derive(Debug, JsonSchema, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct S3Storage {
     pub region: String,
-
     pub bucket_name: String,
-}
-
-impl Default for DataStorage {
-    fn default() -> Self {
-        Self::Local(())
-    }
 }
 
 pub fn default_persist_queue_capacity() -> u32 {
