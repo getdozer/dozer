@@ -96,6 +96,12 @@ message AppResponse {
   repeated DeploymentInfo deployments = 4;
   google.protobuf.Timestamp created_at = 5;
   google.protobuf.Timestamp updated_at = 6;
+  repeated ConnectionInfo connections = 7;
+}
+
+message ConnectionInfo {
+  string type = 1;
+  string name = 2;
 }
 
 message ListAppRequest {

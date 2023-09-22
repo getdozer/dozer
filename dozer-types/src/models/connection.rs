@@ -226,3 +226,21 @@ pub enum ConnectionConfig {
     /// In yaml, present as tag" `!Dozer`
     Dozer(NestedDozerConfig),
 }
+
+impl ConnectionConfig {
+    pub fn get_type_name(&self) -> String {
+        match self {
+            ConnectionConfig::Postgres(_) => "Postgres".to_string(),
+            ConnectionConfig::Ethereum(_) => "Ethereum".to_string(),
+            ConnectionConfig::Grpc(_) => "Grpc".to_string(),
+            ConnectionConfig::Snowflake(_) => "Snowflake".to_string(),
+            ConnectionConfig::Kafka(_) => "Kafka".to_string(),
+            ConnectionConfig::S3Storage(_) => "S3Storage".to_string(),
+            ConnectionConfig::LocalStorage(_) => "LocalStorage".to_string(),
+            ConnectionConfig::DeltaLake(_) => "DeltaLake".to_string(),
+            ConnectionConfig::MongoDB(_) => "MongoDB".to_string(),
+            ConnectionConfig::MySQL(_) => "MySQL".to_string(),
+            ConnectionConfig::Dozer(_) => "Dozer".to_string(),
+        }
+    }
+}
