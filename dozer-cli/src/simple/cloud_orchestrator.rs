@@ -654,7 +654,7 @@ impl SimpleOrchestrator {
                     ),
                     PURPLE,
                 ));
-                rows.push(format!("{}", sample.command.replace("{token}", &token)).to_string());
+                rows.push(sample.command.replace("{token}", &token).to_string());
             }
 
             info!("{}", rows.join("\n"));
