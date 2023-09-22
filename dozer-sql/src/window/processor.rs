@@ -5,7 +5,7 @@ use dozer_core::epoch::Epoch;
 use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_recordstore::ProcessorRecordStore;
+use dozer_recordstore::{ProcessorRecordStore, StoreRecord};
 use dozer_types::errors::internal::BoxedError;
 
 use super::operator::WindowType;

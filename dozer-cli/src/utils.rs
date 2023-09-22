@@ -62,14 +62,13 @@ fn get_max_interval_before_persist_in_seconds(config: &Config) -> u64 {
         .unwrap_or_else(default_max_interval_before_persist_in_seconds)
 }
 
-pub fn get_checkpoint_factory_options(config: &Config) -> CheckpointFactoryOptions {
+fn get_checkpoint_factory_options(config: &Config) -> CheckpointFactoryOptions {
     CheckpointFactoryOptions {
         persist_queue_capacity: config
             .app
             .persist_queue_capacity
             .unwrap_or_else(default_persist_queue_capacity)
             as usize,
-        storage_config: config.app.data_storage.clone(),
     }
 }
 
@@ -85,6 +84,7 @@ pub fn get_executor_options(config: &Config) -> ExecutorOptions {
                 config,
             ),
         },
+        checkpoint_factory_options: get_checkpoint_factory_options(config),
     }
 }
 

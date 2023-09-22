@@ -3,7 +3,7 @@ use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::ProcessorFactory;
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_recordstore::ProcessorRecordStore;
+use dozer_recordstore::{ProcessorRecordStoreDeserializer, StoreRecord};
 use dozer_types::types::Record;
 use dozer_types::types::{Field, Schema};
 use std::collections::HashMap;
@@ -19,7 +19,7 @@ impl ProcessorChannelForwarder for TestChannelForwarder {
 }
 
 pub(crate) fn run_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Field {
-    let record_store = ProcessorRecordStore::new().unwrap();
+    let record_store = ProcessorRecordStoreDeserializer::new().unwrap();
 
     let select = get_select(sql).unwrap();
     let processor_factory =
@@ -41,6 +41,8 @@ pub(crate) fn run_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Field {
             None,
         )
         .unwrap();
+
+    let record_store = record_store.into_record_store();
 
     let mut fw = TestChannelForwarder { operations: vec![] };
     let rec = Record::new(input);

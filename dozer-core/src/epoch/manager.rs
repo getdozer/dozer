@@ -280,6 +280,7 @@ mod tests {
     use std::{collections::HashMap, ops::Deref, thread::scope};
 
     use dozer_log::tokio;
+    use dozer_recordstore::StoreRecord;
     use tempdir::TempDir;
 
     use crate::checkpoint::create_checkpoint_factory_for_test;

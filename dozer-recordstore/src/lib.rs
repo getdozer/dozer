@@ -10,9 +10,10 @@
 //!     align_of::<Field>() sized slots. This way, a u64 takes only 8 bytes, whereas
 //!     a u128 can still use its 16 bytes.
 use std::alloc::{dealloc, handle_alloc_error, Layout};
+use std::sync::Arc;
 use std::{hash::Hash, ptr::NonNull};
 
-use triomphe::{Arc, HeaderSlice};
+use slice_dst::SliceWithHeader;
 
 use dozer_types::chrono::{DateTime, FixedOffset, NaiveDate};
 use dozer_types::json_types::JsonValue;
@@ -37,9 +38,12 @@ const MAX_ALIGN: usize = std::mem::align_of::<Field>();
 #[repr(transparent)]
 #[derive(Debug)]
 /// `repr(transparent)` inner struct so we can implement drop logic on it
-/// This is a `triomphe` HeaderSlice so we can make a fat Arc, saving a level
+/// This is a `slice_dst` `SliceWithHeader` so we can make a fat Arc, saving a level
 /// of indirection and a pointer which would otherwise be needed for the field types
-struct RecordRefInner(HeaderSlice<NonNull<u8>, [Option<FieldType>]>);
+struct RecordRefInner(SliceWithHeader<NonNull<u8>, Option<FieldType>>);
+
+unsafe impl Send for RecordRefInner {}
+unsafe impl Sync for RecordRefInner {}
 
 #[derive(Debug, Clone)]
 pub struct RecordRef(Arc<RecordRefInner>);
@@ -51,9 +55,6 @@ impl PartialEq for RecordRef {
 }
 
 impl Eq for RecordRef {}
-
-unsafe impl Send for RecordRef {}
-unsafe impl Sync for RecordRef {}
 
 impl Hash for RecordRef {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
@@ -384,7 +385,7 @@ impl RecordRef {
         }
         // SAFETY: This is valid, because inner is `repr(transparent)`
         let arc = unsafe {
-            let arc = Arc::from_header_and_slice(data, &field_types);
+            let arc = SliceWithHeader::from_slice::<Arc<_>>(data, &field_types);
             std::mem::transmute(arc)
         };
         Self(arc)
@@ -410,7 +411,7 @@ impl RecordRef {
 
     #[inline(always)]
     pub fn id(&self) -> usize {
-        self.0.as_ptr() as *const () as usize
+        Arc::as_ptr(&self.0) as *const () as usize
     }
 }
 
@@ -483,7 +484,9 @@ impl ProcessorRecord {
 }
 
 mod store;
-pub use store::{ProcessorRecordStore, RecordStoreError};
+pub use store::{
+    ProcessorRecordStore, ProcessorRecordStoreDeserializer, RecordStoreError, StoreRecord,
+};
 
 #[cfg(test)]
 mod tests {

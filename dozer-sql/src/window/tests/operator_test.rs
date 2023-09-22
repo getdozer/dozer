@@ -1,4 +1,4 @@
-use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore};
+use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore, StoreRecord};
 use dozer_types::types::Record;
 use dozer_types::{
     chrono::{DateTime, Duration},

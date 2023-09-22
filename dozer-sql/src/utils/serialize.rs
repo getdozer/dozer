@@ -1,5 +1,5 @@
 use dozer_core::dozer_log::{storage::Object, tokio::sync::mpsc::error::SendError};
-use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore};
+use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore, ProcessorRecordStoreDeserializer};
 use dozer_types::{
     bincode,
     serde::{de::DeserializeOwned, Serialize},
@@ -94,7 +94,7 @@ pub fn serialize_record(
 
 pub fn deserialize_record(
     cursor: &mut Cursor,
-    record_store: &ProcessorRecordStore,
+    record_store: &ProcessorRecordStoreDeserializer,
 ) -> Result<ProcessorRecord, DeserializationError> {
     record_store
         .deserialize_record(deserialize_vec_u8(cursor)?)

@@ -1,5 +1,5 @@
 use crate::builder_dag::{BuilderDag, NodeKind};
-use crate::checkpoint::{CheckpointFactory, OptionCheckpoint};
+use crate::checkpoint::{CheckpointFactoryOptions, OptionCheckpoint};
 use crate::dag_schemas::DagSchemas;
 use crate::epoch::EpochManagerOptions;
 use crate::errors::ExecutionError;
@@ -24,6 +24,7 @@ pub struct ExecutorOptions {
     pub commit_time_threshold: Duration,
     pub error_threshold: Option<u32>,
     pub epoch_manager_options: EpochManagerOptions,
+    pub checkpoint_factory_options: CheckpointFactoryOptions,
 }
 
 impl Default for ExecutorOptions {
@@ -34,6 +35,7 @@ impl Default for ExecutorOptions {
             commit_time_threshold: Duration::from_millis(50),
             error_threshold: Some(0),
             epoch_manager_options: Default::default(),
+            checkpoint_factory_options: Default::default(),
         }
     }
 }
@@ -72,13 +74,17 @@ pub struct DagExecutorJoinHandle {
 impl DagExecutor {
     pub async fn new(
         dag: Dag,
-        checkpoint_factory: Arc<CheckpointFactory>,
         checkpoint: OptionCheckpoint,
         options: ExecutorOptions,
     ) -> Result<Self, ExecutionError> {
         let dag_schemas = DagSchemas::new(dag)?;
 
-        let builder_dag = BuilderDag::new(checkpoint_factory, checkpoint, dag_schemas).await?;
+        let builder_dag = BuilderDag::new(
+            checkpoint,
+            options.checkpoint_factory_options.clone(),
+            dag_schemas,
+        )
+        .await?;
 
         Ok(Self {
             builder_dag,
