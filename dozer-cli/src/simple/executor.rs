@@ -6,8 +6,8 @@ use dozer_core::checkpoint::{CheckpointFactory, CheckpointFactoryOptions, Option
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::flags::Flags;
-use dozer_types::parking_lot::Mutex;
 use tokio::runtime::Runtime;
+use tokio::sync::Mutex;
 
 use std::sync::{atomic::AtomicBool, Arc};
 
