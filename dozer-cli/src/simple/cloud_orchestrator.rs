@@ -222,9 +222,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
             let mut table = table!();
 
             for app in response.apps {
-                if let Some(app_data) = app.app {
-                    table.add_row(row![app.app_id, app_data.convert_to_table()]);
-                }
+                table.add_row(row![app.app_id, app.app_name]);
             }
 
             table.printstd();
