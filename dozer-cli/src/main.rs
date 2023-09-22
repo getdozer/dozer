@@ -223,6 +223,9 @@ fn run() -> Result<(), OrchestrationError> {
                     info!("Using \"{app_id}\" app");
                     Ok(())
                 }
+                CloudCommands::ApiRequestSamples { endpoint } => {
+                    dozer.print_api_request_samples(cloud, endpoint)
+                }
             }
         }
         Commands::Init => {

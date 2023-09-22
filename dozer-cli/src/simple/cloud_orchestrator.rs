@@ -4,6 +4,7 @@ use crate::cli::cloud::{
 use crate::cloud_app_context::CloudAppContext;
 use crate::cloud_helper::list_files;
 
+use crate::console_helper::{get_colored_text, PURPLE};
 use crate::errors::OrchestrationError::FailedToReadOrganisationName;
 use crate::errors::{map_tonic_error, CliError, CloudError, CloudLoginError, OrchestrationError};
 use crate::simple::cloud::deployer::{deploy_app, stop_app};
@@ -13,10 +14,12 @@ use crate::simple::token_layer::TokenLayer;
 use crate::simple::SimpleOrchestrator;
 use crate::CloudOrchestrator;
 use dozer_types::constants::{DEFAULT_CLOUD_TARGET_URL, LOCK_FILE};
+use dozer_types::grpc_types::api_explorer::api_explorer_service_client::ApiExplorerServiceClient;
+use dozer_types::grpc_types::api_explorer::GetApiTokenRequest;
 use dozer_types::grpc_types::cloud::{
     dozer_cloud_client::DozerCloudClient, CreateSecretRequest, DeleteAppRequest,
-    DeleteSecretRequest, GetSecretRequest, GetStatusRequest, ListAppRequest, ListSecretsRequest,
-    LogMessageRequest, UpdateSecretRequest,
+    DeleteSecretRequest, GetEndpointCommandsSamplesRequest, GetSecretRequest, GetStatusRequest,
+    ListAppRequest, ListSecretsRequest, LogMessageRequest, UpdateSecretRequest,
 };
 use dozer_types::grpc_types::cloud::{
     DeploymentInfo, DeploymentStatusWithHealth, File, ListDeploymentRequest,
@@ -56,6 +59,30 @@ pub async fn get_cloud_client(
     Ok(client)
 }
 
+pub async fn get_explorer_client(
+    cloud: &Cloud,
+    cloud_config: Option<&dozer_types::models::cloud::Cloud>,
+) -> Result<ApiExplorerServiceClient<TokenLayer>, CloudError> {
+    let profile_name = match &cloud.profile {
+        None => cloud_config.as_ref().and_then(|c| c.profile.clone()),
+        Some(_) => cloud.profile.clone(),
+    };
+    let credential = CredentialInfo::load(profile_name)?;
+    let target_url = cloud
+        .target_url
+        .as_ref()
+        .unwrap_or(&credential.target_url)
+        .clone();
+
+    let endpoint = Endpoint::from_shared(target_url.to_owned())?;
+    let channel = Endpoint::connect(&endpoint).await?;
+    let channel = ServiceBuilder::new()
+        .layer_fn(|channel| TokenLayer::new(channel, credential.clone()))
+        .service(channel);
+    let client = ApiExplorerServiceClient::new(channel);
+    Ok(client)
+}
+
 impl CloudOrchestrator for SimpleOrchestrator {
     // TODO: Deploy Dozer application using local Dozer configuration
     fn deploy(
@@ -78,6 +105,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
         let lockfile_path = self.lockfile_path();
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud, cloud_config).await?;
+            // let mut explorer_client = get_explorer_client(&cloud, cloud_config).await?;
             let mut files = list_files(config_paths)?;
             if deploy.locked {
                 let lockfile_contents = tokio::fs::read_to_string(lockfile_path)
@@ -99,6 +127,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
             // 2. START application
             deploy_app(
                 &mut client,
+                // &mut explorer_client,
                 &app_id,
                 deploy.secrets,
                 deploy.allow_incompatible,
@@ -574,6 +603,65 @@ impl SimpleOrchestrator {
 
             Ok::<_, CloudError>(())
         })?;
+        Ok(())
+    }
+
+    pub fn print_api_request_samples(
+        &self,
+        cloud: Cloud,
+        endpoint: Option<String>,
+    ) -> Result<(), OrchestrationError> {
+        let app_id = cloud
+            .app_id
+            .clone()
+            .unwrap_or(CloudAppContext::get_app_id(self.config.cloud.as_ref())?);
+        let cloud_config = self.config.cloud.as_ref();
+        self.runtime.block_on(async move {
+            let mut client = get_cloud_client(&cloud, cloud_config).await?;
+            let mut explorer_client = get_explorer_client(&cloud, cloud_config).await?;
+
+            let response = client
+                .get_endpoint_commands_samples(GetEndpointCommandsSamplesRequest {
+                    app_id: app_id.clone(),
+                    endpoint,
+                })
+                .await
+                .map_err(map_tonic_error)?
+                .into_inner();
+
+            let token_response = explorer_client
+                .get_api_token(GetApiTokenRequest {
+                    app_id: Some(app_id),
+                    ttl: Some(3600),
+                })
+                .await?
+                .into_inner();
+
+            let mut rows = vec![];
+            let token = match token_response.token {
+                Some(token) => token,
+                None => {
+                    info!("Replace $DOZER_TOKEN with your API authorization token");
+                    "$DOZER_TOKEN".to_string()
+                }
+            };
+
+            for sample in response.samples {
+                rows.push(get_colored_text(
+                    &format!(
+                        "\n##################### {} command ###########################\n",
+                        sample.r#type
+                    ),
+                    PURPLE,
+                ));
+                rows.push(sample.command.replace("{token}", &token).to_string());
+            }
+
+            info!("{}", rows.join("\n"));
+
+            Ok::<(), CloudError>(())
+        })?;
+
         Ok(())
     }
 }

@@ -50,6 +50,8 @@ service DozerCloud {
 
   rpc list_notifications(ListNotificationsRequest) returns (ListNotificationsResponse);
   rpc mark_notifications_as_read(MarkNotificationsRequest) returns (MarkNotificationsResponse);
+
+  rpc get_endpoint_commands_samples(GetEndpointCommandsSamplesRequest) returns (GetEndpointCommandsSamplesResponse);
 }
 
 service DozerPublic {
@@ -351,4 +353,19 @@ message ListSecretsRequest {
 
 message ListSecretsResponse {
   repeated string secrets = 1;
+}
+
+message CommandSample {
+  string type = 1;
+  string command = 2;
+  optional string description = 3;
+}
+
+message GetEndpointCommandsSamplesRequest {
+  string app_id = 1;
+  optional string endpoint = 2;
+}
+
+message GetEndpointCommandsSamplesResponse {
+  repeated CommandSample samples = 1;
 }
