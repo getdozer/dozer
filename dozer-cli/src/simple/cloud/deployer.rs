@@ -64,7 +64,7 @@ async fn print_progress(
             info!("Deployment completed successfully");
             info!("You can get API requests samples with `dozer cloud api-request-samples`");
 
-            CloudAppContext::save_app_id(app_id.clone())?;
+            CloudAppContext::save_app_id(app_id)?;
 
             break;
         } else if response.status == DeploymentStatus::Failed as i32 {
