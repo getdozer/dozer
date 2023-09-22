@@ -4,6 +4,7 @@ use crate::cli::cloud::{
 use crate::cloud_app_context::CloudAppContext;
 use crate::cloud_helper::list_files;
 
+use crate::console_helper::{get_colored_text, PURPLE};
 use crate::errors::OrchestrationError::FailedToReadOrganisationName;
 use crate::errors::{map_tonic_error, CliError, CloudError, CloudLoginError, OrchestrationError};
 use crate::simple::cloud::deployer::{deploy_app, stop_app};
@@ -13,7 +14,13 @@ use crate::simple::token_layer::TokenLayer;
 use crate::simple::SimpleOrchestrator;
 use crate::CloudOrchestrator;
 use dozer_types::constants::{DEFAULT_CLOUD_TARGET_URL, LOCK_FILE};
-use dozer_types::grpc_types::cloud::{dozer_cloud_client::DozerCloudClient, CreateSecretRequest, DeleteAppRequest, DeleteSecretRequest, GetSecretRequest, GetStatusRequest, ListAppRequest, ListSecretsRequest, LogMessageRequest, UpdateSecretRequest, GetEndpointCommandsSamplesRequest};
+use dozer_types::grpc_types::api_explorer::api_explorer_service_client::ApiExplorerServiceClient;
+use dozer_types::grpc_types::api_explorer::GetApiTokenRequest;
+use dozer_types::grpc_types::cloud::{
+    dozer_cloud_client::DozerCloudClient, CreateSecretRequest, DeleteAppRequest,
+    DeleteSecretRequest, GetEndpointCommandsSamplesRequest, GetSecretRequest, GetStatusRequest,
+    ListAppRequest, ListSecretsRequest, LogMessageRequest, UpdateSecretRequest,
+};
 use dozer_types::grpc_types::cloud::{
     DeploymentInfo, DeploymentStatusWithHealth, File, ListDeploymentRequest,
     SetCurrentVersionRequest, UpsertVersionRequest,
@@ -24,9 +31,6 @@ use futures::{select, FutureExt, StreamExt};
 use std::io;
 use tonic::transport::Endpoint;
 use tower::ServiceBuilder;
-use dozer_types::grpc_types::api_explorer::api_explorer_service_client::ApiExplorerServiceClient;
-use dozer_types::grpc_types::api_explorer::GetApiTokenRequest;
-// use dozer_types::grpc_types::api_explorer::api_explorer_service_client::ApiExplorerServiceClient;
 
 use super::cloud::login::LoginSvc;
 use super::cloud::version::{get_version_status, version_is_up_to_date, version_status_table};
@@ -604,7 +608,11 @@ impl SimpleOrchestrator {
         Ok(())
     }
 
-    pub fn command_samples(&self, cloud: Cloud, endpoint: Option<String>) -> Result<(), OrchestrationError> {
+    pub fn print_api_request_samples(
+        &self,
+        cloud: Cloud,
+        endpoint: Option<String>,
+    ) -> Result<(), OrchestrationError> {
         let app_id = cloud
             .app_id
             .clone()
@@ -623,23 +631,35 @@ impl SimpleOrchestrator {
                 .map_err(map_tonic_error)?
                 .into_inner();
 
-            let token_response = explorer_client.get_api_token(GetApiTokenRequest {
-                app_id: Some(app_id),
-                ttl: Some(3600),
-            }).await?.into_inner();
-
-            let command_samples = response.samples;
+            let token_response = explorer_client
+                .get_api_token(GetApiTokenRequest {
+                    app_id: Some(app_id),
+                    ttl: Some(3600),
+                })
+                .await?
+                .into_inner();
 
             let mut rows = vec![];
-            if !command_samples.is_empty() {
-                rows.push("Sample commands:".to_string());
+            let token = match token_response.token {
+                Some(token) => token,
+                None => {
+                    info!("Replace $DOZER_TOKEN with your API authorization token");
+                    "$DOZER_TOKEN".to_string()
+                }
+            };
+
+            for sample in response.samples {
+                rows.push(get_colored_text(
+                    &format!(
+                        "\n##################### {} command ###########################\n",
+                        sample.r#type
+                    ),
+                    PURPLE,
+                ));
+                rows.push(format!("{}", sample.command.replace("{token}", &token)).to_string());
             }
 
-            for sample in command_samples {
-                rows.push(format!("{}", sample.command.replace("{token}", &token_response.token.clone().unwrap())).to_string());
-            }
-
-            info!("{}", rows.join("\n\n"));
+            info!("{}", rows.join("\n"));
 
             Ok::<(), CloudError>(())
         })?;

@@ -90,7 +90,6 @@ message DeployAppResponse {
   string app_id = 1;
   string deployment_id = 2;
   string deployment_url = 3;
-  repeated string sample_commands = 4;
 }
 
 message AppResponse {

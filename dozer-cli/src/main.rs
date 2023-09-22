@@ -222,9 +222,9 @@ fn run() -> Result<(), OrchestrationError> {
                     CloudAppContext::save_app_id(app_id.clone())?;
                     info!("Using \"{app_id}\" app");
                     Ok(())
-                },
-                CloudCommands::CommandSamples { endpoint } => {
-                    dozer.command_samples(cloud, endpoint)
+                }
+                CloudCommands::ApiRequestSamples { endpoint } => {
+                    dozer.print_api_request_samples(cloud, endpoint)
                 }
             }
         }

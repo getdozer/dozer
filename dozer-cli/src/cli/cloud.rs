@@ -59,10 +59,11 @@ pub enum CloudCommands {
     /// Dozer app secrets management
     #[command(subcommand)]
     Secrets(SecretsCommand),
-
-    /// List all dozer application in Dozer Cloud
-    CommandSamples {
-        endpoint: Option<String>
+    /// Get example of API call
+    #[command(name = "api-request-samples")]
+    ApiRequestSamples {
+        #[arg(long, short)]
+        endpoint: Option<String>,
     },
 }
 
