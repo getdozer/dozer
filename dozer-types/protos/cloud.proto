@@ -6,7 +6,7 @@ import "google/protobuf/timestamp.proto";
 import "google/protobuf/empty.proto";
 
 service DozerCloud {
-  
+
   rpc validate_connection(ConnectionRequest)
       returns (ValidateConnectionResponse);
   rpc create_connection(ConnectionRequest) returns (ConnectionResponse);
@@ -23,11 +23,11 @@ service DozerCloud {
   rpc deploy_application(DeployAppRequest) returns (DeployAppResponse);
   rpc update_application(UpdateAppRequest) returns (AppResponse);
   rpc delete_application(DeleteAppRequest) returns (DeleteAppResponse);
-  rpc get_application(GetAppRequest) returns (AppResponse);  
+  rpc get_application(GetAppRequest) returns (AppResponse);
   rpc stop_dozer(StopRequest) returns (StopResponse);
   rpc get_status(GetStatusRequest) returns (GetStatusResponse);
   rpc list_deployments(ListDeploymentRequest) returns (ListDeploymentResponse);
-  rpc list_versions(ListVersionsRequest) returns (ListVersionsResponse);  
+  rpc list_versions(ListVersionsRequest) returns (ListVersionsResponse);
   rpc upsert_version(UpsertVersionRequest) returns (UpsertVersionResponse);
   rpc set_current_version(SetCurrentVersionRequest) returns (SetCurrentVersionResponse);
   rpc list_files(ListFilesRequest) returns (ListFilesResponse);
@@ -92,7 +92,7 @@ message DeployAppResponse {
 
 message AppResponse {
   string app_id = 1;
-  AppConfig app = 2;
+  string app_name = 2;
   repeated DeploymentInfo deployments = 4;
   google.protobuf.Timestamp created_at = 5;
   google.protobuf.Timestamp updated_at = 6;
@@ -151,7 +151,7 @@ message DeploymentResource {
   // api, app
   string typ = 2;
   string created_at = 3;
-  
+
   optional int32 desired = 4;
 
   optional int32 available = 5;
@@ -224,17 +224,22 @@ message SetCurrentVersionRequest {
 
 message SetCurrentVersionResponse {}
 
-message ConnectionRequest { Connection connection = 1; }
+message ConnectionRequest {
+  string yaml_content = 2;
+}
 message GetConnectionRequest {
   string connection_id = 1;
 }
 message ValidateConnectionResponse { bool success = 1; }
 message ConnectionResponse {
   string id = 1;
-  Connection connection = 2;
+  string name = 2;
   string yaml_content = 3;
 }
-
+message Connection {
+  string name = 1;
+  string yaml_content = 3;
+}
 message GetTablesRequest { string connection_id = 2; }
 
 message GetTablesResponse {
@@ -251,8 +256,9 @@ message GetAllConnectionResponse {
   Pagination pagination = 2;
 }
 message UpdateConnectionRequest {
-  Connection connection = 1;
-  string connection_id = 3;
+  string id = 1;
+  string name = 2;
+  string yaml_content = 3;
 }
 message ListFilesRequest {
   string app_id = 1;
