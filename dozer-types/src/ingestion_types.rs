@@ -39,7 +39,7 @@ pub struct EthFilter {
     pub topics: Vec<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema, Default)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
 pub struct GrpcConfig {
     #[serde(default = "default_ingest_host")]
     pub host: String,
@@ -51,6 +51,16 @@ pub struct GrpcConfig {
 
     #[serde(default = "default_grpc_adapter")]
     pub adapter: String,
+}
+impl Default for GrpcConfig {
+    fn default() -> Self {
+        Self {
+            host: default_ingest_host(),
+            port: default_ingest_port(),
+            schemas: None,
+            adapter: default_grpc_adapter(),
+        }
+    }
 }
 
 fn default_grpc_adapter() -> String {

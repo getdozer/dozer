@@ -10,7 +10,7 @@ pub struct Flags {
     pub grpc_web: bool,
 
     /// push events enabled.; Default: true
-    #[serde(default = "default_true")]
+    #[serde(default = "default_push_events")]
     pub push_events: bool,
 
     /// require authentication to access grpc server reflection service if true.; Default: false
@@ -34,7 +34,7 @@ impl Default for Flags {
     }
 }
 
-#[derive(Debug, Serialize, JsonSchema, Deserialize, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, JsonSchema, Default, Deserialize, PartialEq, Eq, Clone)]
 pub struct EnableProbabilisticOptimizations {
     /// enable probabilistic optimizations in set operations (UNION, EXCEPT, INTERSECT); Default: false
     #[serde(default = "default_false")]
@@ -48,18 +48,14 @@ pub struct EnableProbabilisticOptimizations {
     #[serde(default = "default_false")]
     pub in_aggregations: bool,
 }
-impl Default for EnableProbabilisticOptimizations {
-    fn default() -> Self {
-        Self {
-            in_sets: false,
-            in_joins: false,
-            in_aggregations: false,
-        }
-    }
-}
+
 fn default_true() -> bool {
     true
 }
 fn default_false() -> bool {
     false
+}
+
+pub fn default_push_events() -> bool {
+    true
 }
