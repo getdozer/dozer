@@ -14,7 +14,6 @@ use dozer_types::{
     ingestion_types::{
         default_log_options, IngestionMessage, NestedDozerConfig, NestedDozerLogOptions,
     },
-    node::OpIdentifier,
     serde_json,
     types::{Operation, Record, Schema},
 };
@@ -265,7 +264,7 @@ async fn read_table(
             .send(IngestionMessage::OperationEvent {
                 table_index,
                 op,
-                id: Some(OpIdentifier::new(0, op_and_pos.pos)),
+                id: None,
             })
             .await;
     }
