@@ -1,3 +1,4 @@
+// use dozer_types::grpc_types::api_explorer::api_explorer_service_client::ApiExplorerServiceClient;
 use crate::errors::CloudError;
 
 use crate::simple::cloud::progress_printer::ProgressPrinter;
@@ -9,10 +10,12 @@ use dozer_types::grpc_types::cloud::GetDeploymentStatusRequest;
 use dozer_types::grpc_types::cloud::DeployAppRequest;
 use dozer_types::grpc_types::cloud::File;
 use dozer_types::grpc_types::cloud::{Secret, StopRequest, StopResponse};
-use dozer_types::log::info;
+use dozer_types::log::{info, warn};
+use crate::cloud_app_context::CloudAppContext;
 
 pub async fn deploy_app(
     client: &mut DozerCloudClient<TokenLayer>,
+    // explorer_client: &mut ApiExplorerServiceClient<TokenLayer>,
     app_id: &Option<String>,
     secrets: Vec<Secret>,
     allow_incompatible: bool,
@@ -44,13 +47,15 @@ pub async fn deploy_app(
 
 async fn print_progress(
     client: &mut DozerCloudClient<TokenLayer>,
+    // explorer_client: &mut ApiExplorerServiceClient<TokenLayer>,
     app_id: String,
     deployment_id: String,
+    // command_samples: Vec<String>
 ) -> Result<(), CloudError> {
     let mut current_step = 0;
     let mut printer = ProgressPrinter::new();
     let request = GetDeploymentStatusRequest {
-        app_id,
+        app_id: app_id.clone(),
         deployment_id,
     };
     loop {
@@ -61,9 +66,27 @@ async fn print_progress(
 
         if response.status == DeploymentStatus::Success as i32 {
             info!("Deployment completed successfully");
+            // let response = explorer_client.get_api_token(GetApiTokenRequest {
+            //     app_id: Some(app_id),
+            //     ttl: Some(3600),
+            // }).await?.into_inner();
+
+            CloudAppContext::save_app_id(app_id.clone())?;
+
+            // let mut rows = vec![];
+            // if !command_samples.is_empty() {
+            //     rows.push("Sample commands:".to_string());
+            // }
+            //
+            // for sample in command_samples {
+            //     rows.push(format!("{}", sample.replace("{token}", &response.token.clone().unwrap())).to_string());
+            // }
+            //
+            // info!("{}", rows.join("\n\n"));
+
             break;
         } else if response.status == DeploymentStatus::Failed as i32 {
-            info!("Deployment failed!");
+            warn!("Deployment failed!");
             break;
         } else {
             let steps = response.steps.clone();
@@ -86,6 +109,7 @@ async fn print_progress(
                 printer.start_step(current_step, &text);
             }
         }
+
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
     }
     Ok::<(), CloudError>(())

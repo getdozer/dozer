@@ -59,6 +59,11 @@ pub enum CloudCommands {
     /// Dozer app secrets management
     #[command(subcommand)]
     Secrets(SecretsCommand),
+
+    /// List all dozer application in Dozer Cloud
+    CommandSamples {
+        endpoint: Option<String>
+    },
 }
 
 #[derive(Debug, Args, Clone)]
