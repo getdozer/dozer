@@ -36,13 +36,10 @@ async fn main() {
 
     // Modify dozer config to route to the dozer API host.
     let mut dozer_config = case.dozer_config;
-    let mut api = dozer_config.api.unwrap_or_default();
-    let mut rest = api.rest.unwrap_or_default();
-    rest.host = args.dozer_api_host.clone();
-    api.rest = Some(rest);
-    let mut grpc = api.grpc.unwrap_or_default();
-    grpc.host = args.dozer_api_host;
-    api.grpc = Some(grpc);
-    dozer_config.api = Some(api);
+    let api = &mut dozer_config.api;
+    let rest = &mut api.rest;
+    rest.host = Some(args.dozer_api_host.clone());
+    let grpc = &mut api.grpc;
+    grpc.host = Some(args.dozer_api_host);
     run_test_client(dozer_config, &expectations).await;
 }

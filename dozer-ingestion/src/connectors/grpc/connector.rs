@@ -8,7 +8,7 @@ use crate::connectors::{
 };
 use crate::{connectors::TableInfo, errors::ConnectorError, ingestion::Ingestor};
 use dozer_types::grpc_types::ingest::ingest_service_server::IngestServiceServer;
-use dozer_types::ingestion_types::GrpcConfig;
+use dozer_types::ingestion_types::{default_ingest_host, default_ingest_port, GrpcConfig};
 use dozer_types::log::{info, warn};
 use dozer_types::tonic::async_trait;
 use dozer_types::tonic::transport::Server;
@@ -41,14 +41,7 @@ where
     where
         T: IngestAdapter,
     {
-        let schemas = config.schemas.as_ref().map_or_else(
-            || {
-                Err(ConnectorError::InitializationError(
-                    "schemas not found".to_string(),
-                ))
-            },
-            Ok,
-        )?;
+        let schemas = &config.schemas;
         let schemas_str = match schemas {
             dozer_types::ingestion_types::GrpcConfigSchemas::Inline(schemas_str) => {
                 schemas_str.clone()
@@ -68,10 +61,10 @@ where
         ingestor: &Ingestor,
         tables: Vec<TableToIngest>,
     ) -> Result<(), ConnectorError> {
-        let host = &self.config.host;
-        let port = self.config.port;
+        let host = self.config.host.clone().unwrap_or_else(default_ingest_host);
+        let port = self.config.port.unwrap_or_else(default_ingest_port);
 
-        let addr = format!("{host:}:{port:}").parse().map_err(|e| {
+        let addr = format!("{host}:{port}").parse().map_err(|e| {
             ConnectorError::InitializationError(format!("Failed to parse address: {e}"))
         })?;
 

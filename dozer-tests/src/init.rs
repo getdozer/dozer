@@ -20,7 +20,7 @@ fn download(folder_name: &str) {
 static INIT: Once = Once::new();
 pub fn init() {
     INIT.call_once(|| {
-        dozer_tracing::init_telemetry(None, None);
+        dozer_tracing::init_telemetry(None, &Default::default());
         download("actor");
 
         dozer_cli::set_panic_hook();

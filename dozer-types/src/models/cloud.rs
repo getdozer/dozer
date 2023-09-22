@@ -1,10 +1,13 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use super::equal_default;
+
 #[derive(Debug, JsonSchema, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct Cloud {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub update_current_version_strategy: Option<UpdateCurrentVersionStrategy>,
+    #[serde(default, skip_serializing_if = "equal_default")]
+    pub update_current_version_strategy: UpdateCurrentVersionStrategy,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub app_id: Option<String>,
@@ -12,25 +15,24 @@ pub struct Cloud {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile: Option<String>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub app: Option<AppInstance>,
+    #[serde(default, skip_serializing_if = "equal_default")]
+    pub app: AppInstance,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub api: Option<ApiInstance>,
+    #[serde(default, skip_serializing_if = "equal_default")]
+    pub api: ApiInstance,
 }
 
 #[derive(Debug, JsonSchema, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct AppInstance {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub instance_type: Option<String>,
 }
 
 #[derive(Debug, JsonSchema, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct ApiInstance {
-    #[serde(
-        default = "default_num_api_instances",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub instances_count: Option<u32>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -41,19 +43,10 @@ pub struct ApiInstance {
     pub volume_size: Option<u32>,
 }
 
-#[derive(Debug, JsonSchema, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, JsonSchema, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub enum UpdateCurrentVersionStrategy {
-    OnCreate(()),
-
-    Manual(()),
-}
-
-impl Default for UpdateCurrentVersionStrategy {
-    fn default() -> Self {
-        UpdateCurrentVersionStrategy::OnCreate(())
-    }
-}
-
-fn default_num_api_instances() -> Option<u32> {
-    Some(2)
+    #[default]
+    OnCreate,
+    Manual,
 }

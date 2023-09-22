@@ -1,6 +1,4 @@
-use crate::models::api_endpoint::{
-    CreateSecondaryIndex, FullText, SecondaryIndex, SecondaryIndexConfig, SortedInverted,
-};
+use crate::models::api_endpoint::{FullText, SecondaryIndex, SecondaryIndexConfig, SortedInverted};
 
 #[test]
 fn standard() {
@@ -8,11 +6,11 @@ fn standard() {
   - field1
   - field2
 create:
-    - index: !SortedInverted
+    - !SortedInverted
         fields:
             - field1
             - field2
-    - index: !FullText
+    - !FullText
         field: field3
 "#;
     let config: SecondaryIndexConfig = serde_yaml::from_str(secondary).unwrap();
@@ -20,16 +18,12 @@ create:
     assert_eq!(
         config.create,
         vec![
-            CreateSecondaryIndex {
-                index: Some(SecondaryIndex::SortedInverted(SortedInverted {
-                    fields: vec!["field1".to_string(), "field2".to_string()]
-                }))
-            },
-            CreateSecondaryIndex {
-                index: Some(SecondaryIndex::FullText(FullText {
-                    field: "field3".to_string()
-                }))
-            }
+            SecondaryIndex::SortedInverted(SortedInverted {
+                fields: vec!["field1".to_string(), "field2".to_string()]
+            }),
+            SecondaryIndex::FullText(FullText {
+                field: "field3".to_string()
+            }),
         ]
     );
 }

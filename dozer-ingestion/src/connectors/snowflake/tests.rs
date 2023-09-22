@@ -22,11 +22,10 @@ use crate::connectors::snowflake::stream_consumer::StreamConsumer;
 #[ignore]
 async fn test_disabled_connector_and_read_from_stream() {
     run_connector_test("snowflake", |config| async move {
-        let connection = config.connections.get(0).unwrap();
-        let ConnectionConfig::Snowflake(connection) = connection.config.as_ref().unwrap() else {
+        let ConnectionConfig::Snowflake(connection) = &config.connections[0].config else {
             panic!("Snowflake config expected");
         };
-        let source = config.sources.get(0).unwrap().clone();
+        let source = config.sources[0].clone();
 
         let env = create_environment_v3().map_err(|e| e.unwrap()).unwrap();
         let client = Client::new(connection, &env);
@@ -76,8 +75,7 @@ async fn test_disabled_connector_and_read_from_stream() {
 #[ignore]
 async fn test_disabled_connector_get_schemas_test() {
     run_connector_test("snowflake", |config| async move {
-        let connection = config.connections.get(0).unwrap();
-        let ConnectionConfig::Snowflake(connection) = connection.config.as_ref().unwrap() else {
+        let ConnectionConfig::Snowflake(connection) = &config.connections[0].config else {
             panic!("Snowflake config expected");
         };
         let connector = SnowflakeConnector::new("snowflake".to_string(), connection.clone());
@@ -112,7 +110,7 @@ async fn test_disabled_connector_get_schemas_test() {
             .unwrap();
         let schemas = connector.get_schemas(&table_infos).await.unwrap();
 
-        let source_schema = schemas.get(0).unwrap().as_ref().unwrap();
+        let source_schema = schemas[0].as_ref().unwrap();
 
         for field in &source_schema.schema.fields {
             let expected_type = match field.name.as_str() {
@@ -140,9 +138,8 @@ async fn test_disabled_connector_get_schemas_test() {
 #[tokio::test]
 #[ignore]
 async fn test_disabled_connector_missing_table_validator() {
-    run_connector_test("snowflake", |config| async move {
-        let connection = config.connections.get(0).unwrap();
-        let connector = get_connector(connection.clone()).unwrap();
+    run_connector_test("snowflake", |mut config| async move {
+        let connector = get_connector(config.connections.remove(0)).unwrap();
 
         let not_existing_table = "not_existing_table".to_string();
         let result = connector
@@ -151,7 +148,7 @@ async fn test_disabled_connector_missing_table_validator() {
 
         assert!(matches!(result.unwrap_err(), TableNotFound(_)));
 
-        let existing_table = &config.sources.get(0).unwrap().table_name;
+        let existing_table = &config.sources[0].table_name;
         let table_infos = connector
             .list_columns(vec![TableIdentifier::from_table_name(
                 existing_table.clone(),
@@ -160,7 +157,7 @@ async fn test_disabled_connector_missing_table_validator() {
             .unwrap();
         let result = connector.get_schemas(&table_infos).await.unwrap();
 
-        assert!(result.get(0).unwrap().is_ok());
+        assert!(result[0].is_ok());
     })
     .await
 }
@@ -168,10 +165,9 @@ async fn test_disabled_connector_missing_table_validator() {
 #[tokio::test]
 #[ignore]
 async fn test_disabled_connector_is_stream_created() {
-    run_connector_test("snowflake", |config| async move {
-        let connection = config.connections.get(0).unwrap();
-        let snowflake_config = match connection.config.as_ref().unwrap() {
-            ConnectionConfig::Snowflake(snowflake_config) => snowflake_config.clone(),
+    run_connector_test("snowflake", |mut config| async move {
+        let snowflake_config = match config.connections.remove(0).config {
+            ConnectionConfig::Snowflake(snowflake_config) => snowflake_config,
             _ => {
                 panic!("Snowflake config expected");
             }

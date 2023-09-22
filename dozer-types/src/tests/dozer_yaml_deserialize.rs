@@ -49,13 +49,12 @@ fn error_missing_field_general() {
     version: 1
     home_dir: './.dozer'
     connections:
-    - authentication: !Postgres
+    - config: !Postgres
         user: postgres
         password: postgres
         host: localhost
         port: 5432
         database: users
-      db_type: Postgres
       name: users
     sources:
     - table_name: users
@@ -86,13 +85,12 @@ fn error_missing_field_in_source() {
     version: 1
     home_dir: './.dozer'
     connections:
-    - authentication: !Postgres
+    - config: !Postgres
         user: postgres
         password: postgres
         host: localhost
         port: 5432
         database: users
-      db_type: Postgres
       name: users
     sources:
     - table_name: users
@@ -118,13 +116,12 @@ fn error_missing_field_connection_ref_in_source() {
     version: 1
     home_dir: './.dozer'
     connections:
-    - authentication: !Postgres
+    - config: !Postgres
         user: postgres
         password: postgres
         host: localhost
         port: 5432
         database: users
-      db_type: Postgres
       name: users
     sources:
     - name: users

@@ -18,8 +18,6 @@ pub enum Error {
     UnsupportedFunctionArg(FunctionArg),
     #[error("Invalid ident: {}", .0.iter().map(|ident| ident.value.as_str()).collect::<Vec<_>>().join("."))]
     InvalidIdent(Vec<Ident>),
-    #[error("Udf is defined but missing with config: {0}")]
-    UdfConfigMissing(String),
     #[error("Unknown function: {0}")]
     UnknownFunction(String),
     #[error("Missing leading field in interval")]

@@ -35,12 +35,12 @@ use tower::ServiceBuilder;
 use super::cloud::login::LoginSvc;
 use super::cloud::version::{get_version_status, version_is_up_to_date, version_status_table};
 
-pub async fn get_cloud_client(
+async fn establish_cloud_service_channel(
     cloud: &Cloud,
-    cloud_config: Option<&dozer_types::models::cloud::Cloud>,
-) -> Result<DozerCloudClient<TokenLayer>, CloudError> {
+    cloud_config: &dozer_types::models::cloud::Cloud,
+) -> Result<TokenLayer, CloudError> {
     let profile_name = match &cloud.profile {
-        None => cloud_config.as_ref().and_then(|c| c.profile.clone()),
+        None => cloud_config.profile.clone(),
         Some(_) => cloud.profile.clone(),
     };
     let credential = CredentialInfo::load(profile_name)?;
@@ -55,31 +55,23 @@ pub async fn get_cloud_client(
     let channel = ServiceBuilder::new()
         .layer_fn(|channel| TokenLayer::new(channel, credential.clone()))
         .service(channel);
-    let client = DozerCloudClient::new(channel);
+    Ok(channel)
+}
+
+pub async fn get_cloud_client(
+    cloud: &Cloud,
+    cloud_config: &dozer_types::models::cloud::Cloud,
+) -> Result<DozerCloudClient<TokenLayer>, CloudError> {
+    let client = DozerCloudClient::new(establish_cloud_service_channel(cloud, cloud_config).await?);
     Ok(client)
 }
 
 pub async fn get_explorer_client(
     cloud: &Cloud,
-    cloud_config: Option<&dozer_types::models::cloud::Cloud>,
+    cloud_config: &dozer_types::models::cloud::Cloud,
 ) -> Result<ApiExplorerServiceClient<TokenLayer>, CloudError> {
-    let profile_name = match &cloud.profile {
-        None => cloud_config.as_ref().and_then(|c| c.profile.clone()),
-        Some(_) => cloud.profile.clone(),
-    };
-    let credential = CredentialInfo::load(profile_name)?;
-    let target_url = cloud
-        .target_url
-        .as_ref()
-        .unwrap_or(&credential.target_url)
-        .clone();
-
-    let endpoint = Endpoint::from_shared(target_url.to_owned())?;
-    let channel = Endpoint::connect(&endpoint).await?;
-    let channel = ServiceBuilder::new()
-        .layer_fn(|channel| TokenLayer::new(channel, credential.clone()))
-        .service(channel);
-    let client = ApiExplorerServiceClient::new(channel);
+    let client =
+        ApiExplorerServiceClient::new(establish_cloud_service_channel(cloud, cloud_config).await?);
     Ok(client)
 }
 
@@ -91,21 +83,15 @@ impl CloudOrchestrator for SimpleOrchestrator {
         deploy: DeployCommandArgs,
         config_paths: Vec<String>,
     ) -> Result<(), OrchestrationError> {
-        let app_id = if cloud.app_id.is_some() {
-            cloud.app_id.clone()
-        } else {
-            let app_id_from_context = CloudAppContext::get_app_id(self.config.cloud.as_ref());
-            match app_id_from_context {
-                Ok(id) => Some(id),
-                Err(_) => None,
-            }
-        };
+        let app_id = cloud
+            .app_id
+            .clone()
+            .or(CloudAppContext::get_app_id(&self.config.cloud).ok());
 
-        let cloud_config = self.config.cloud.as_ref();
+        let cloud_config = &self.config.cloud;
         let lockfile_path = self.lockfile_path();
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud, cloud_config).await?;
-            // let mut explorer_client = get_explorer_client(&cloud, cloud_config).await?;
             let mut files = list_files(config_paths)?;
             if deploy.locked {
                 let lockfile_contents = tokio::fs::read_to_string(lockfile_path)
@@ -147,16 +133,13 @@ impl CloudOrchestrator for SimpleOrchestrator {
 
         let (app_id, delete_cloud_file) = if let Some(app_id) = cloud.app_id.clone() {
             // if the app_id on command line is equal to the one in the cloud config file then file can be deleted
-            if app_id == CloudAppContext::get_app_id(self.config.cloud.as_ref())? {
+            if app_id == CloudAppContext::get_app_id(&self.config.cloud)? {
                 (app_id, true)
             } else {
                 (app_id, false)
             }
         } else {
-            (
-                CloudAppContext::get_app_id(self.config.cloud.as_ref())?,
-                true,
-            )
+            (CloudAppContext::get_app_id(&self.config.cloud)?, true)
         };
 
         let mut double_check = String::new();
@@ -173,7 +156,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
             return Ok(());
         }
 
-        let cloud_config = self.config.cloud.as_ref();
+        let cloud_config = &self.config.cloud;
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud, cloud_config).await?;
 
@@ -203,7 +186,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
     }
 
     fn list(&mut self, cloud: Cloud, list: ListCommandArgs) -> Result<(), OrchestrationError> {
-        let cloud_config = self.config.cloud.as_ref();
+        let cloud_config = &self.config.cloud;
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud, cloud_config).await?;
             let response = client
@@ -244,8 +227,8 @@ impl CloudOrchestrator for SimpleOrchestrator {
         let app_id = cloud
             .app_id
             .clone()
-            .unwrap_or(CloudAppContext::get_app_id(self.config.cloud.as_ref())?);
-        let cloud_config = self.config.cloud.as_ref();
+            .unwrap_or(CloudAppContext::get_app_id(&self.config.cloud)?);
+        let cloud_config = &self.config.cloud;
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud, cloud_config).await?;
             let response = client
@@ -314,7 +297,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
     }
 
     fn monitor(&mut self, cloud: Cloud) -> Result<(), OrchestrationError> {
-        monitor_app(&cloud, self.config.cloud.as_ref(), self.runtime.clone())
+        monitor_app(&cloud, &self.config.cloud, self.runtime.clone())
             .map_err(crate::errors::OrchestrationError::CloudError)
     }
 
@@ -322,8 +305,8 @@ impl CloudOrchestrator for SimpleOrchestrator {
         let app_id = cloud
             .app_id
             .clone()
-            .unwrap_or(CloudAppContext::get_app_id(self.config.cloud.as_ref())?);
-        let cloud_config = self.config.cloud.as_ref();
+            .unwrap_or(CloudAppContext::get_app_id(&self.config.cloud)?);
+        let cloud_config = &self.config.cloud;
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud, cloud_config).await?;
 
@@ -425,8 +408,8 @@ impl CloudOrchestrator for SimpleOrchestrator {
         let app_id = cloud
             .app_id
             .clone()
-            .unwrap_or(CloudAppContext::get_app_id(self.config.cloud.as_ref())?);
-        let cloud_config = self.config.cloud.as_ref();
+            .unwrap_or(CloudAppContext::get_app_id(&self.config.cloud)?);
+        let cloud_config = &self.config.cloud;
 
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud, cloud_config).await?;
@@ -506,9 +489,9 @@ impl SimpleOrchestrator {
         let app_id = cloud
             .app_id
             .clone()
-            .unwrap_or(CloudAppContext::get_app_id(self.config.cloud.as_ref())?);
+            .unwrap_or(CloudAppContext::get_app_id(&self.config.cloud)?);
 
-        let cloud_config = self.config.cloud.as_ref();
+        let cloud_config = &self.config.cloud;
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud, cloud_config).await?;
 
@@ -614,8 +597,8 @@ impl SimpleOrchestrator {
         let app_id = cloud
             .app_id
             .clone()
-            .unwrap_or(CloudAppContext::get_app_id(self.config.cloud.as_ref())?);
-        let cloud_config = self.config.cloud.as_ref();
+            .unwrap_or(CloudAppContext::get_app_id(&self.config.cloud)?);
+        let cloud_config = &self.config.cloud;
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud, cloud_config).await?;
             let mut explorer_client = get_explorer_client(&cloud, cloud_config).await?;

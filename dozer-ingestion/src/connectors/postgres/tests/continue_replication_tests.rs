@@ -21,13 +21,7 @@ mod tests {
     #[serial]
     async fn test_connector_continue_replication() {
         run_connector_test("postgres", |app_config| async move {
-            let config = app_config
-                .connections
-                .get(0)
-                .unwrap()
-                .config
-                .as_ref()
-                .unwrap();
+            let config = &app_config.connections[0].config;
             let conn_config = map_connection_config(config).unwrap();
             let postgres_config = PostgresConfig {
                 name: "test".to_string(),
@@ -75,13 +69,7 @@ mod tests {
     #[serial]
     async fn test_connector_continue_replication_from_lsn() {
         run_connector_test("postgres", |app_config| async move {
-            let config = app_config
-                .connections
-                .get(0)
-                .unwrap()
-                .config
-                .as_ref()
-                .unwrap();
+            let config = &app_config.connections[0].config;
 
             let mut test_client = TestPostgresClient::new(config).await;
             let mut rng = rand::thread_rng();

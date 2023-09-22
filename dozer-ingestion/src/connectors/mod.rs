@@ -24,6 +24,7 @@ use crate::connectors::postgres::connector::{PostgresConfig, PostgresConnector};
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
 
+use dozer_types::ingestion_types::default_grpc_adapter;
 use dozer_types::log::debug;
 use dozer_types::models::connection::Connection;
 use dozer_types::models::connection::ConnectionConfig;
@@ -50,7 +51,6 @@ use self::grpc::{ArrowAdapter, DefaultAdapter};
 use self::mysql::connector::{mysql_connection_opts_from_url, MySQLConnector};
 #[cfg(feature = "snowflake")]
 use crate::connectors::snowflake::connector::SnowflakeConnector;
-use crate::errors::ConnectorError::{MissingConfiguration, WrongConnectionConfiguration};
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug, Eq, PartialEq, Default)]
 #[serde(crate = "dozer_types::serde")]
@@ -199,9 +199,7 @@ impl TableToIngest {
 }
 
 pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, ConnectorError> {
-    let config = connection
-        .config
-        .ok_or_else(|| ConnectorError::MissingConfiguration(connection.name.clone()))?;
+    let config = connection.config;
     match config {
         ConnectionConfig::Postgres(_) => {
             let config = map_connection_config(&config)?;
@@ -226,20 +224,27 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
         },
         #[cfg(not(feature = "ethereum"))]
         ConnectionConfig::Ethereum(_) => Err(ConnectorError::EthereumFeatureNotEnabled),
-        ConnectionConfig::Grpc(grpc_config) => match grpc_config.adapter.as_str() {
-            "arrow" => Ok(Box::new(GrpcConnector::<ArrowAdapter>::new(
-                connection.name,
-                grpc_config,
-            )?)),
-            "default" => Ok(Box::new(GrpcConnector::<DefaultAdapter>::new(
-                connection.name,
-                grpc_config,
-            )?)),
-            _ => Err(ConnectorError::UnsupportedGrpcAdapter(
-                connection.name,
-                grpc_config.adapter,
-            )),
-        },
+        ConnectionConfig::Grpc(grpc_config) => {
+            match grpc_config
+                .adapter
+                .clone()
+                .unwrap_or_else(default_grpc_adapter)
+                .as_str()
+            {
+                "arrow" => Ok(Box::new(GrpcConnector::<ArrowAdapter>::new(
+                    connection.name,
+                    grpc_config,
+                )?)),
+                "default" => Ok(Box::new(GrpcConnector::<DefaultAdapter>::new(
+                    connection.name,
+                    grpc_config,
+                )?)),
+                _ => Err(ConnectorError::UnsupportedGrpcAdapter(
+                    connection.name,
+                    grpc_config.adapter,
+                )),
+            }
+        }
         #[cfg(feature = "snowflake")]
         ConnectionConfig::Snowflake(snowflake) => {
             let snowflake_config = snowflake;
@@ -285,18 +290,18 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
     }
 }
 
-pub fn get_connector_info_table(connection: &Connection) -> Result<Table, ConnectorError> {
+pub fn get_connector_info_table(connection: &Connection) -> Option<Table> {
     match &connection.config {
-        Some(ConnectionConfig::Postgres(config)) => match config.replenish() {
-            Ok(conf) => Ok(conf.convert_to_table()),
-            Err(e) => Err(WrongConnectionConfiguration(e)),
+        ConnectionConfig::Postgres(config) => match config.replenish() {
+            Ok(conf) => Some(conf.convert_to_table()),
+            Err(_) => None,
         },
-        Some(ConnectionConfig::Ethereum(config)) => Ok(config.convert_to_table()),
-        Some(ConnectionConfig::Snowflake(config)) => Ok(config.convert_to_table()),
-        Some(ConnectionConfig::Kafka(config)) => Ok(config.convert_to_table()),
-        Some(ConnectionConfig::S3Storage(config)) => Ok(config.convert_to_table()),
-        Some(ConnectionConfig::LocalStorage(config)) => Ok(config.convert_to_table()),
-        _ => Err(MissingConfiguration(connection.name.clone())),
+        ConnectionConfig::Ethereum(config) => Some(config.convert_to_table()),
+        ConnectionConfig::Snowflake(config) => Some(config.convert_to_table()),
+        ConnectionConfig::Kafka(config) => Some(config.convert_to_table()),
+        ConnectionConfig::S3Storage(config) => Some(config.convert_to_table()),
+        ConnectionConfig::LocalStorage(config) => Some(config.convert_to_table()),
+        _ => None,
     }
 }
 

@@ -93,8 +93,7 @@ fn create_connector(
             config: Some(TableConfig::Parquet(ParquetConfig {
                 path: table_name.to_string(),
                 extension: ".parquet".to_string(),
-                marker_file: false,
-                marker_extension: String::new(),
+                marker_extension: None,
             })),
             name: table_name,
         }],

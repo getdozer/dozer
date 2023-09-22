@@ -1,99 +1,86 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, JsonSchema, Default, Deserialize, Eq, PartialEq, Clone)]
+use super::equal_default;
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Default, Eq, PartialEq, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct ApiIndex {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub primary_key: Vec<String>,
 
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub secondary: Option<SecondaryIndexConfig>,
+    #[serde(default, skip_serializing_if = "equal_default")]
+    pub secondary: SecondaryIndexConfig,
 }
 
-#[derive(Debug, Serialize, JsonSchema, Default, Deserialize, Eq, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Default, Eq, PartialEq, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct SecondaryIndexConfig {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub skip_default: Vec<String>,
 
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub create: Vec<CreateSecondaryIndex>,
+    pub create: Vec<SecondaryIndex>,
 }
 
-#[derive(Debug, Serialize, JsonSchema, Default, Deserialize, Eq, PartialEq, Clone)]
-pub struct CreateSecondaryIndex {
-    pub index: Option<SecondaryIndex>,
-}
-
-#[derive(Debug, Serialize, JsonSchema, Deserialize, Eq, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
+#[serde(deny_unknown_fields)]
 pub enum SecondaryIndex {
     SortedInverted(SortedInverted),
-
     FullText(FullText),
 }
 
-#[derive(Debug, Serialize, JsonSchema, Default, Deserialize, Eq, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct SortedInverted {
     pub fields: Vec<String>,
 }
 
-#[derive(Debug, Serialize, JsonSchema, Default, Deserialize, Eq, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct FullText {
     pub field: String,
 }
 
-#[derive(Debug, Serialize, JsonSchema, Deserialize, Eq, PartialEq, Clone, Copy)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone, Copy, Default)]
+#[serde(deny_unknown_fields)]
 pub enum OnInsertResolutionTypes {
-    Nothing(()),
-
-    Update(()),
-
-    Panic(()),
+    #[default]
+    Nothing,
+    Update,
+    Panic,
 }
 
-impl Default for OnInsertResolutionTypes {
-    fn default() -> Self {
-        OnInsertResolutionTypes::Nothing(())
-    }
-}
-
-#[derive(Debug, Serialize, JsonSchema, Deserialize, Eq, PartialEq, Clone, Copy)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone, Copy, Default)]
+#[serde(deny_unknown_fields)]
 pub enum OnUpdateResolutionTypes {
-    Nothing(()),
-
-    Upsert(()),
-
-    Panic(()),
+    #[default]
+    Nothing,
+    Upsert,
+    Panic,
 }
 
-impl Default for OnUpdateResolutionTypes {
-    fn default() -> Self {
-        OnUpdateResolutionTypes::Nothing(())
-    }
-}
-
-#[derive(Debug, Serialize, JsonSchema, Deserialize, Eq, PartialEq, Clone, Copy)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone, Copy, Default)]
+#[serde(deny_unknown_fields)]
 pub enum OnDeleteResolutionTypes {
-    Nothing(()),
-
-    Panic(()),
+    #[default]
+    Nothing,
+    Panic,
 }
 
-impl Default for OnDeleteResolutionTypes {
-    fn default() -> Self {
-        OnDeleteResolutionTypes::Nothing(())
-    }
-}
-
-#[derive(Debug, Serialize, JsonSchema, Default, Deserialize, Eq, PartialEq, Clone, Copy)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Default, Eq, PartialEq, Clone, Copy)]
+#[serde(deny_unknown_fields)]
 pub struct ConflictResolution {
-    pub on_insert: Option<OnInsertResolutionTypes>,
-
-    pub on_update: Option<OnUpdateResolutionTypes>,
-
-    pub on_delete: Option<OnDeleteResolutionTypes>,
+    #[serde(default, skip_serializing_if = "equal_default")]
+    pub on_insert: OnInsertResolutionTypes,
+    #[serde(default, skip_serializing_if = "equal_default")]
+    pub on_update: OnUpdateResolutionTypes,
+    #[serde(default, skip_serializing_if = "equal_default")]
+    pub on_delete: OnDeleteResolutionTypes,
 }
 
-#[derive(Debug, Serialize, JsonSchema, Default, Deserialize, Eq, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Default, Eq, PartialEq, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct LogReaderOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub batch_size: Option<u32>,
@@ -105,7 +92,8 @@ pub struct LogReaderOptions {
     pub buffer_size: Option<u32>,
 }
 
-#[derive(Debug, Serialize, JsonSchema, Default, Deserialize, Eq, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Default, Eq, PartialEq, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct ApiEndpoint {
     pub name: String,
 
@@ -115,16 +103,17 @@ pub struct ApiEndpoint {
     /// path of endpoint - e.g: /stocks
     pub path: String,
 
-    pub index: Option<ApiIndex>,
+    #[serde(default, skip_serializing_if = "equal_default")]
+    pub index: ApiIndex,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub conflict_resolution: Option<ConflictResolution>,
+    #[serde(default, skip_serializing_if = "equal_default")]
+    pub conflict_resolution: ConflictResolution,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<u32>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub log_reader_options: Option<LogReaderOptions>,
+    #[serde(default, skip_serializing_if = "equal_default")]
+    pub log_reader_options: LogReaderOptions,
 }
 
 pub fn default_log_reader_batch_size() -> u32 {

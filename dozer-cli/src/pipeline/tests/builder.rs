@@ -12,10 +12,12 @@ use dozer_types::models::source::Source;
 fn get_default_config() -> Config {
     let schema_str = include_str!("./schemas.json");
     let grpc_conn = Connection {
-        config: Some(ConnectionConfig::Grpc(GrpcConfig {
-            schemas: Some(GrpcConfigSchemas::Inline(schema_str.to_string())),
-            ..Default::default()
-        })),
+        config: ConnectionConfig::Grpc(GrpcConfig {
+            host: None,
+            port: None,
+            adapter: None,
+            schemas: GrpcConfigSchemas::Inline(schema_str.to_string()),
+        }),
         name: "grpc_conn".to_string(),
     };
 
@@ -32,7 +34,7 @@ fn get_default_config() -> Config {
                 columns: vec!["id".to_string(), "name".to_string()],
                 connection: grpc_conn.name.clone(),
                 schema: None,
-                refresh_config: None,
+                refresh_config: Default::default(),
             },
             Source {
                 name: "grpc_conn_customers".to_string(),
@@ -40,7 +42,7 @@ fn get_default_config() -> Config {
                 columns: vec!["id".to_string(), "name".to_string()],
                 connection: grpc_conn.name,
                 schema: None,
-                refresh_config: None,
+                refresh_config: Default::default(),
             },
         ],
         ..Default::default()

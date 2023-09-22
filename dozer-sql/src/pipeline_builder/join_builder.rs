@@ -55,7 +55,11 @@ pub(crate) fn insert_join_to_pipeline(
             left_name_or_alias.clone(),
             right_name_or_alias,
             join.join_operator.clone(),
-            pipeline.flags().enable_probabilistic_optimizations.in_joins,
+            pipeline
+                .flags()
+                .enable_probabilistic_optimizations
+                .in_joins
+                .unwrap_or(false),
         );
 
         let mut pipeline_entry_points = vec![];

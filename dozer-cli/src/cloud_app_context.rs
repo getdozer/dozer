@@ -32,11 +32,8 @@ impl CloudAppContext {
         Ok(())
     }
 
-    pub fn get_app_id(config: Option<&Cloud>) -> Result<String, CloudContextError> {
-        match &config {
-            None => Err(AppIdNotFound),
-            Some(cloud_config) => cloud_config.app_id.clone().ok_or(AppIdNotFound),
-        }
+    pub fn get_app_id(config: &Cloud) -> Result<String, CloudContextError> {
+        config.app_id.clone().ok_or(AppIdNotFound)
     }
 
     pub fn save_app_id(app_id: String) -> Result<(), CloudContextError> {

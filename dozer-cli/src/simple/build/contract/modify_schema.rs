@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use dozer_types::{
     models::api_endpoint::{
         ApiEndpoint, FullText, SecondaryIndex, SecondaryIndexConfig, SortedInverted,
@@ -15,13 +13,7 @@ pub fn modify_schema(
 ) -> Result<SchemaWithIndex, BuildError> {
     let mut schema = schema.clone();
     // Generated Cache index based on api_index
-    let configured_index = create_primary_indexes(
-        &schema.fields,
-        api_endpoint
-            .index
-            .as_ref()
-            .map(|index| index.primary_key.as_slice()),
-    )?;
+    let configured_index = create_primary_indexes(&schema.fields, &api_endpoint.index.primary_key)?;
     // Generated schema in SQL
     let upstream_index = schema.primary_index.clone();
 
@@ -43,8 +35,8 @@ pub fn modify_schema(
 
     schema.primary_index = index;
 
-    let secondary_index_config = get_secondary_index_config(api_endpoint);
-    let secondary_indexes = generate_secondary_indexes(&schema.fields, &secondary_index_config)?;
+    let secondary_indexes =
+        generate_secondary_indexes(&schema.fields, &api_endpoint.index.secondary)?;
 
     Ok((schema, secondary_indexes))
 }
@@ -56,29 +48,14 @@ fn get_field_names(schema: &Schema, indexes: &[usize]) -> Vec<String> {
         .collect()
 }
 
-fn get_secondary_index_config(api_endpoint: &ApiEndpoint) -> Cow<SecondaryIndexConfig> {
-    if let Some(config) = api_endpoint
-        .index
-        .as_ref()
-        .and_then(|index| index.secondary.as_ref())
-    {
-        Cow::Borrowed(config)
-    } else {
-        Cow::Owned(SecondaryIndexConfig::default())
-    }
-}
-
 fn create_primary_indexes(
     field_definitions: &[FieldDefinition],
-    primary_key: Option<&[String]>,
+    primary_key: &[String],
 ) -> Result<Vec<usize>, BuildError> {
-    let mut primary_index = Vec::new();
-    if let Some(primary_key) = primary_key {
-        for name in primary_key {
-            primary_index.push(field_index_from_field_name(field_definitions, name)?);
-        }
-    }
-    Ok(primary_index)
+    primary_key
+        .iter()
+        .map(|name| field_index_from_field_name(field_definitions, name))
+        .collect()
 }
 
 fn generate_secondary_indexes(
@@ -119,20 +96,18 @@ fn generate_secondary_indexes(
     }
 
     // Create requested indexes.
-    for create in &config.create {
-        if let Some(index) = &create.index {
-            match index {
-                SecondaryIndex::SortedInverted(SortedInverted { fields }) => {
-                    let fields = fields
-                        .iter()
-                        .map(|field| field_index_from_field_name(field_definitions, field))
-                        .collect::<Result<Vec<_>, _>>()?;
-                    result.push(IndexDefinition::SortedInverted(fields));
-                }
-                SecondaryIndex::FullText(FullText { field }) => {
-                    let field = field_index_from_field_name(field_definitions, field)?;
-                    result.push(IndexDefinition::FullText(field));
-                }
+    for index in &config.create {
+        match index {
+            SecondaryIndex::SortedInverted(SortedInverted { fields }) => {
+                let fields = fields
+                    .iter()
+                    .map(|field| field_index_from_field_name(field_definitions, field))
+                    .collect::<Result<Vec<_>, _>>()?;
+                result.push(IndexDefinition::SortedInverted(fields));
+            }
+            SecondaryIndex::FullText(FullText { field }) => {
+                let field = field_index_from_field_name(field_definitions, field)?;
+                result.push(IndexDefinition::FullText(field));
             }
         }
     }
