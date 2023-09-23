@@ -4,7 +4,7 @@ use daggy::petgraph::visit::{IntoNodeIdentifiers, IntoNodeReferences};
 use dozer_types::node::NodeHandle;
 
 use crate::{
-    checkpoint::{CheckpointFactory, OptionCheckpoint},
+    checkpoint::{CheckpointFactory, CheckpointFactoryOptions, OptionCheckpoint},
     dag_schemas::{DagHaveSchemas, DagSchemas, EdgeType},
     errors::ExecutionError,
     node::{PortHandle, Processor, Sink, Source, SourceState},
@@ -44,8 +44,8 @@ pub struct BuilderDag {
 
 impl BuilderDag {
     pub async fn new(
-        checkpoint_factory: Arc<CheckpointFactory>,
         checkpoint: OptionCheckpoint,
+        options: CheckpointFactoryOptions,
         dag_schemas: DagSchemas,
     ) -> Result<Self, ExecutionError> {
         // Collect input output schemas.
@@ -60,9 +60,7 @@ impl BuilderDag {
         let mut checkpoint_data = HashMap::new();
         for (node_index, node) in dag_schemas.graph().node_references() {
             if let DagNodeKind::Processor(_) = &node.kind {
-                let processor_data = checkpoint
-                    .load_processor_data(&checkpoint_factory, &node.handle)
-                    .await?;
+                let processor_data = checkpoint.load_processor_data(&node.handle).await?;
                 checkpoint_data.insert(node_index, processor_data);
             }
         }
@@ -116,7 +114,7 @@ impl BuilderDag {
                             output_schemas
                                 .remove(&node_index)
                                 .expect("we collected all output schemas"),
-                            checkpoint_factory.record_store(),
+                            checkpoint.record_store(),
                             checkpoint_data
                                 .remove(&node_index)
                                 .expect("we collected all processor checkpoint data"),
@@ -144,10 +142,13 @@ impl BuilderDag {
             |_, edge| Ok(edge),
         )?;
 
+        let initial_epoch_id = checkpoint.next_epoch_id();
+        let (checkpoint_factory, _) = CheckpointFactory::new(checkpoint, options).await?;
+
         Ok(BuilderDag {
             graph,
-            initial_epoch_id: checkpoint.next_epoch_id(),
-            checkpoint_factory,
+            initial_epoch_id,
+            checkpoint_factory: Arc::new(checkpoint_factory),
         })
     }
 

@@ -1,5 +1,5 @@
 use dozer_core::dozer_log::storage::Object;
-use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore};
+use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore, ProcessorRecordStoreDeserializer};
 use dozer_types::serde::{Deserialize, Serialize};
 use enum_dispatch::enum_dispatch;
 use std::collections::HashMap;
@@ -45,7 +45,7 @@ pub struct AccurateCountingRecordMap {
 
 impl AccurateCountingRecordMap {
     pub fn new(
-        cursor_and_record_store: Option<(&mut Cursor, &ProcessorRecordStore)>,
+        cursor_and_record_store: Option<(&mut Cursor, &ProcessorRecordStoreDeserializer)>,
     ) -> Result<Self, DeserializationError> {
         Ok(
             if let Some((cursor, record_store)) = cursor_and_record_store {
@@ -161,7 +161,7 @@ mod bloom;
 
 #[cfg(test)]
 mod tests {
-    use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore};
+    use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore, StoreRecord};
     use dozer_types::types::{Field, Record};
 
     use super::{
@@ -170,7 +170,7 @@ mod tests {
     };
 
     fn test_map(mut map: CountingRecordMapEnum) {
-        let record_store = ProcessorRecordStore::new().unwrap();
+        let record_store = ProcessorRecordStore::new(Default::default()).unwrap();
         let make_record = |fields: Vec<Field>| -> ProcessorRecord {
             record_store.create_record(&Record::new(fields)).unwrap()
         };

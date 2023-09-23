@@ -10,23 +10,17 @@
   "properties": {
     "api": {
       "description": "Api server config related: port, host, etc",
-      "anyOf": [
+      "allOf": [
         {
           "$ref": "#/definitions/ApiConfig"
-        },
-        {
-          "type": "null"
         }
       ]
     },
     "app": {
       "description": "App runtime config: behaviour of pipeline and log",
-      "anyOf": [
+      "allOf": [
         {
           "$ref": "#/definitions/AppConfig"
-        },
-        {
-          "type": "null"
         }
       ]
     },
@@ -36,8 +30,10 @@
     },
     "cache_dir": {
       "description": "directory for cache. Default: ./.dozer/cache",
-      "default": "./.dozer/cache",
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "cache_max_map_size": {
       "description": "Cache lmdb max map size",
@@ -50,12 +46,9 @@
     },
     "cloud": {
       "description": "Dozer Cloud specific configuration",
-      "anyOf": [
+      "allOf": [
         {
           "$ref": "#/definitions/Cloud"
-        },
-        {
-          "type": "null"
         }
       ]
     },
@@ -75,19 +68,18 @@
     },
     "flags": {
       "description": "flags to enable/disable features",
-      "anyOf": [
+      "allOf": [
         {
           "$ref": "#/definitions/Flags"
-        },
-        {
-          "type": "null"
         }
       ]
     },
     "home_dir": {
       "description": "directory for all process; Default: ./.dozer",
-      "default": "./.dozer",
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "sources": {
       "description": "sources to ingest data related to particular connection",
@@ -105,12 +97,9 @@
     },
     "telemetry": {
       "description": "Instrument using Dozer",
-      "anyOf": [
+      "allOf": [
         {
           "$ref": "#/definitions/TelemetryConfig"
-        },
-        {
-          "type": "null"
         }
       ]
     },
@@ -127,6 +116,7 @@
       "minimum": 0.0
     }
   },
+  "additionalProperties": false,
   "definitions": {
     "ApiConfig": {
       "type": "object",
@@ -143,42 +133,24 @@
           ]
         },
         "app_grpc": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/AppGrpcOptions"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/definitions/AppGrpcOptions"
         },
         "default_max_num_records": {
-          "default": 50,
-          "type": "integer",
-          "format": "uint32",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint",
           "minimum": 0.0
         },
         "grpc": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/GrpcApiOptions"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/definitions/GrpcApiOptions"
         },
         "rest": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/RestApiOptions"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/definitions/RestApiOptions"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ApiEndpoint": {
       "type": "object",
@@ -189,34 +161,13 @@
       ],
       "properties": {
         "conflict_resolution": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/ConflictResolution"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/definitions/ConflictResolution"
         },
         "index": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/ApiIndex"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/definitions/ApiIndex"
         },
         "log_reader_options": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/LogReaderOptions"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/definitions/LogReaderOptions"
         },
         "name": {
           "type": "string"
@@ -237,7 +188,8 @@
           "format": "uint32",
           "minimum": 0.0
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ApiIndex": {
       "type": "object",
@@ -249,16 +201,10 @@
           }
         },
         "secondary": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/SecondaryIndexConfig"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/definitions/SecondaryIndexConfig"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ApiInstance": {
       "type": "object",
@@ -270,7 +216,6 @@
           ]
         },
         "instances_count": {
-          "default": 2,
           "type": [
             "integer",
             "null"
@@ -287,7 +232,8 @@
           "format": "uint32",
           "minimum": 0.0
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ApiSecurity": {
       "description": "The security model option for the API",
@@ -339,12 +285,9 @@
         },
         "data_storage": {
           "description": "The storage to use for the log.",
-          "anyOf": [
+          "allOf": [
             {
               "$ref": "#/definitions/DataStorage"
-            },
-            {
-              "type": "null"
             }
           ]
         },
@@ -376,6 +319,35 @@
           "minimum": 0.0
         },
         "persist_queue_capacity": {
+          "description": "Maximum number of pending persisting requests.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "record_store": {
+          "description": "The record store to use for the processors.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/RecordStore"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "AppGrpcOptions": {
+      "type": "object",
+      "properties": {
+        "host": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "port": {
           "type": [
             "integer",
             "null"
@@ -383,22 +355,8 @@
           "format": "uint32",
           "minimum": 0.0
         }
-      }
-    },
-    "AppGrpcOptions": {
-      "type": "object",
-      "properties": {
-        "host": {
-          "default": "0.0.0.0",
-          "type": "string"
-        },
-        "port": {
-          "default": 50053,
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0.0
-        }
-      }
+      },
+      "additionalProperties": false
     },
     "AppInstance": {
       "type": "object",
@@ -409,30 +367,17 @@
             "null"
           ]
         }
-      }
+      },
+      "additionalProperties": false
     },
     "Cloud": {
       "type": "object",
       "properties": {
         "api": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/ApiInstance"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/definitions/ApiInstance"
         },
         "app": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/AppInstance"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/definitions/AppInstance"
         },
         "app_id": {
           "type": [
@@ -447,73 +392,41 @@
           ]
         },
         "update_current_version_strategy": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/UpdateCurrentVersionStrategy"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/definitions/UpdateCurrentVersionStrategy"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ConflictResolution": {
       "type": "object",
       "properties": {
         "on_delete": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/OnDeleteResolutionTypes"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/definitions/OnDeleteResolutionTypes"
         },
         "on_insert": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/OnInsertResolutionTypes"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/definitions/OnInsertResolutionTypes"
         },
         "on_update": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/OnUpdateResolutionTypes"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/definitions/OnUpdateResolutionTypes"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "Connection": {
       "type": "object",
       "required": [
+        "config",
         "name"
       ],
       "properties": {
         "config": {
-          "description": "authentication config - depends on db_type",
-          "anyOf": [
-            {
-              "$ref": "#/definitions/ConnectionConfig"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/definitions/ConnectionConfig"
         },
         "name": {
           "type": "string"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ConnectionConfig": {
       "oneOf": [
@@ -662,21 +575,6 @@
         }
       ]
     },
-    "CreateSecondaryIndex": {
-      "type": "object",
-      "properties": {
-        "index": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/SecondaryIndex"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      }
-    },
     "CsvConfig": {
       "type": "object",
       "required": [
@@ -688,12 +586,10 @@
           "type": "string"
         },
         "marker_extension": {
-          "default": ".marker",
-          "type": "string"
-        },
-        "marker_file": {
-          "default": false,
-          "type": "boolean"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "path": {
           "type": "string"
@@ -703,16 +599,10 @@
     "DataStorage": {
       "oneOf": [
         {
-          "type": "object",
-          "required": [
+          "type": "string",
+          "enum": [
             "Local"
-          ],
-          "properties": {
-            "Local": {
-              "type": "null"
-            }
-          },
-          "additionalProperties": false
+          ]
         },
         {
           "type": "object",
@@ -772,40 +662,54 @@
       "type": "object",
       "properties": {
         "adapter": {
-          "default": "arrow",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "endpoint": {
-          "default": "0.0.0.0:7006",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "sample_percent": {
-          "default": 10,
-          "type": "integer",
+          "type": [
+            "integer",
+            "null"
+          ],
           "format": "uint32",
           "minimum": 0.0
         }
-      }
+      },
+      "additionalProperties": false
     },
     "EnableProbabilisticOptimizations": {
       "type": "object",
       "properties": {
         "in_aggregations": {
           "description": "enable probabilistic optimizations in aggregations (SUM, COUNT, MIN, etc.); Default: false",
-          "default": false,
-          "type": "boolean"
+          "type": [
+            "boolean",
+            "null"
+          ]
         },
         "in_joins": {
           "description": "enable probabilistic optimizations in JOIN operations; Default: false",
-          "default": false,
-          "type": "boolean"
+          "type": [
+            "boolean",
+            "null"
+          ]
         },
         "in_sets": {
           "description": "enable probabilistic optimizations in set operations (UNION, EXCEPT, INTERSECT); Default: false",
-          "default": false,
-          "type": "boolean"
+          "type": [
+            "boolean",
+            "null"
+          ]
         }
-      }
+      },
+      "additionalProperties": false
     },
     "EthConfig": {
       "type": "object",
@@ -940,8 +844,10 @@
       ],
       "properties": {
         "batch_size": {
-          "default": 3,
-          "type": "integer",
+          "type": [
+            "integer",
+            "null"
+          ],
           "format": "uint64",
           "minimum": 0.0
         },
@@ -968,36 +874,42 @@
       "properties": {
         "authenticate_server_reflection": {
           "description": "require authentication to access grpc server reflection service if true.; Default: false",
-          "default": false,
-          "type": "boolean"
+          "type": [
+            "boolean",
+            "null"
+          ]
         },
         "dynamic": {
           "description": "dynamic grpc enabled; Default: true",
-          "default": true,
-          "type": "boolean"
+          "type": [
+            "boolean",
+            "null"
+          ]
         },
         "enable_probabilistic_optimizations": {
           "description": "probablistic optimizations reduce memory consumption at the expense of accuracy.",
-          "anyOf": [
+          "allOf": [
             {
               "$ref": "#/definitions/EnableProbabilisticOptimizations"
-            },
-            {
-              "type": "null"
             }
           ]
         },
         "grpc_web": {
           "description": "http1 + web support for grpc. This is required for browser clients.; Default: true",
-          "default": true,
-          "type": "boolean"
+          "type": [
+            "boolean",
+            "null"
+          ]
         },
         "push_events": {
           "description": "push events enabled.; Default: true",
-          "default": true,
-          "type": "boolean"
+          "type": [
+            "boolean",
+            "null"
+          ]
         }
-      }
+      },
+      "additionalProperties": false
     },
     "FullText": {
       "type": "object",
@@ -1008,61 +920,75 @@
         "field": {
           "type": "string"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "GrpcApiOptions": {
       "type": "object",
       "properties": {
         "cors": {
-          "default": true,
-          "type": "boolean"
+          "type": [
+            "boolean",
+            "null"
+          ]
         },
         "enabled": {
-          "default": true,
-          "type": "boolean"
+          "type": [
+            "boolean",
+            "null"
+          ]
         },
         "host": {
-          "default": "0.0.0.0",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "port": {
-          "default": 50051,
-          "type": "integer",
-          "format": "uint32",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint16",
           "minimum": 0.0
         },
         "web": {
-          "default": true,
-          "type": "boolean"
+          "type": [
+            "boolean",
+            "null"
+          ]
         }
-      }
+      },
+      "additionalProperties": false
     },
     "GrpcConfig": {
       "type": "object",
+      "required": [
+        "schemas"
+      ],
       "properties": {
         "adapter": {
-          "default": "default",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "host": {
-          "default": "0.0.0.0",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "port": {
-          "default": 8085,
-          "type": "integer",
+          "type": [
+            "integer",
+            "null"
+          ],
           "format": "uint32",
           "minimum": 0.0
         },
         "schemas": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/GrpcConfigSchemas"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/definitions/GrpcConfigSchemas"
         }
       }
     },
@@ -1173,7 +1099,8 @@
           "format": "uint32",
           "minimum": 0.0
         }
-      }
+      },
+      "additionalProperties": false
     },
     "MongodbConfig": {
       "type": "object",
@@ -1207,26 +1134,20 @@
     },
     "NestedDozerConfig": {
       "type": "object",
+      "required": [
+        "url"
+      ],
       "properties": {
-        "grpc": {
-          "anyOf": [
+        "log_options": {
+          "default": {},
+          "allOf": [
             {
-              "$ref": "#/definitions/AppGrpcOptions"
-            },
-            {
-              "type": "null"
+              "$ref": "#/definitions/NestedDozerLogOptions"
             }
           ]
         },
-        "log_options": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/NestedDozerLogOptions"
-            },
-            {
-              "type": "null"
-            }
-          ]
+        "url": {
+          "type": "string"
         }
       }
     },
@@ -1234,131 +1155,52 @@
       "type": "object",
       "properties": {
         "batch_size": {
-          "default": 30,
-          "type": "integer",
+          "type": [
+            "integer",
+            "null"
+          ],
           "format": "uint32",
           "minimum": 0.0
         },
         "buffer_size": {
-          "default": 1000,
-          "type": "integer",
+          "type": [
+            "integer",
+            "null"
+          ],
           "format": "uint32",
           "minimum": 0.0
         },
         "timeout_in_millis": {
-          "default": 1000,
-          "type": "integer",
+          "type": [
+            "integer",
+            "null"
+          ],
           "format": "uint32",
           "minimum": 0.0
         }
       }
     },
     "OnDeleteResolutionTypes": {
-      "oneOf": [
-        {
-          "type": "object",
-          "required": [
-            "Nothing"
-          ],
-          "properties": {
-            "Nothing": {
-              "type": "null"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "Panic"
-          ],
-          "properties": {
-            "Panic": {
-              "type": "null"
-            }
-          },
-          "additionalProperties": false
-        }
+      "type": "string",
+      "enum": [
+        "Nothing",
+        "Panic"
       ]
     },
     "OnInsertResolutionTypes": {
-      "oneOf": [
-        {
-          "type": "object",
-          "required": [
-            "Nothing"
-          ],
-          "properties": {
-            "Nothing": {
-              "type": "null"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "Update"
-          ],
-          "properties": {
-            "Update": {
-              "type": "null"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "Panic"
-          ],
-          "properties": {
-            "Panic": {
-              "type": "null"
-            }
-          },
-          "additionalProperties": false
-        }
+      "type": "string",
+      "enum": [
+        "Nothing",
+        "Update",
+        "Panic"
       ]
     },
     "OnUpdateResolutionTypes": {
-      "oneOf": [
-        {
-          "type": "object",
-          "required": [
-            "Nothing"
-          ],
-          "properties": {
-            "Nothing": {
-              "type": "null"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "Upsert"
-          ],
-          "properties": {
-            "Upsert": {
-              "type": "null"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "Panic"
-          ],
-          "properties": {
-            "Panic": {
-              "type": "null"
-            }
-          },
-          "additionalProperties": false
-        }
+      "type": "string",
+      "enum": [
+        "Nothing",
+        "Upsert",
+        "Panic"
       ]
     },
     "OnnxConfig": {
@@ -1371,7 +1213,8 @@
           "description": "path to the model file",
           "type": "string"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ParquetConfig": {
       "type": "object",
@@ -1384,12 +1227,10 @@
           "type": "string"
         },
         "marker_extension": {
-          "default": ".marker",
-          "type": "string"
-        },
-        "marker_file": {
-          "default": false,
-          "type": "boolean"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "path": {
           "type": "string"
@@ -1462,49 +1303,53 @@
             "null"
           ]
         }
-      }
+      },
+      "additionalProperties": false
     },
-    "RealTimeConfig": {
-      "type": "object"
+    "RecordStore": {
+      "type": "string",
+      "enum": [
+        "InMemory",
+        "Rocksdb"
+      ]
     },
     "RefreshConfig": {
-      "oneOf": [
-        {
-          "type": "object",
-          "required": [
-            "RealTime"
-          ],
-          "properties": {
-            "RealTime": {
-              "$ref": "#/definitions/RealTimeConfig"
-            }
-          },
-          "additionalProperties": false
-        }
+      "type": "string",
+      "enum": [
+        "RealTime"
       ]
     },
     "RestApiOptions": {
       "type": "object",
       "properties": {
         "cors": {
-          "default": true,
-          "type": "boolean"
+          "type": [
+            "boolean",
+            "null"
+          ]
         },
         "enabled": {
-          "default": true,
-          "type": "boolean"
+          "type": [
+            "boolean",
+            "null"
+          ]
         },
         "host": {
-          "default": "0.0.0.0",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "port": {
-          "default": 8080,
-          "type": "integer",
-          "format": "uint32",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint16",
           "minimum": 0.0
         }
-      }
+      },
+      "additionalProperties": false
     },
     "S3Details": {
       "type": "object",
@@ -1566,7 +1411,8 @@
         "region": {
           "type": "string"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "SecondaryIndex": {
       "oneOf": [
@@ -1602,7 +1448,7 @@
         "create": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/CreateSecondaryIndex"
+            "$ref": "#/definitions/SecondaryIndex"
           }
         },
         "skip_default": {
@@ -1611,7 +1457,8 @@
             "type": "string"
           }
         }
-      }
+      },
+      "additionalProperties": false
     },
     "SnowflakeConfig": {
       "type": "object",
@@ -1670,7 +1517,8 @@
             "type": "string"
           }
         }
-      }
+      },
+      "additionalProperties": false
     },
     "Source": {
       "type": "object",
@@ -1697,21 +1545,14 @@
         },
         "refresh_config": {
           "description": "setting for how to refresh the data; Default: RealTime",
-          "default": {
-            "RealTime": {}
-          },
-          "anyOf": [
+          "allOf": [
             {
               "$ref": "#/definitions/RefreshConfig"
-            },
-            {
-              "type": "null"
             }
           ]
         },
         "schema": {
           "description": "name of schema source database; Type: String",
-          "default": null,
           "type": [
             "string",
             "null"
@@ -1721,7 +1562,8 @@
           "description": "name of the table in source database; Type: String",
           "type": "string"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "Table": {
       "type": "object",
@@ -1807,22 +1649,13 @@
             }
           ]
         }
-      }
+      },
+      "additionalProperties": false
     },
     "TelemetryMetricsConfig": {
-      "oneOf": [
-        {
-          "type": "object",
-          "required": [
-            "Prometheus"
-          ],
-          "properties": {
-            "Prometheus": {
-              "type": "null"
-            }
-          },
-          "additionalProperties": false
-        }
+      "type": "string",
+      "enum": [
+        "Prometheus"
       ]
     },
     "TelemetryTraceConfig": {
@@ -1856,17 +1689,15 @@
     "UdfConfig": {
       "type": "object",
       "required": [
+        "config",
         "name"
       ],
       "properties": {
         "config": {
           "description": "setting for what type of udf to use; Default: Onnx",
-          "anyOf": [
+          "allOf": [
             {
               "$ref": "#/definitions/UdfType"
-            },
-            {
-              "type": "null"
             }
           ]
         },
@@ -1874,7 +1705,8 @@
           "description": "name of the model function",
           "type": "string"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "UdfType": {
       "oneOf": [
@@ -1893,31 +1725,10 @@
       ]
     },
     "UpdateCurrentVersionStrategy": {
-      "oneOf": [
-        {
-          "type": "object",
-          "required": [
-            "OnCreate"
-          ],
-          "properties": {
-            "OnCreate": {
-              "type": "null"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "Manual"
-          ],
-          "properties": {
-            "Manual": {
-              "type": "null"
-            }
-          },
-          "additionalProperties": false
-        }
+      "type": "string",
+      "enum": [
+        "OnCreate",
+        "Manual"
       ]
     },
     "XRayConfig": {
@@ -1935,7 +1746,8 @@
           "format": "uint64",
           "minimum": 0.0
         }
-      }
+      },
+      "additionalProperties": false
     }
   }
 }

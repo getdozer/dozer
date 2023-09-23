@@ -7,7 +7,9 @@ use std::{
 };
 
 use dozer_core::dozer_log::storage::Object;
-use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore};
+use dozer_recordstore::{
+    ProcessorRecord, ProcessorRecordStore, ProcessorRecordStoreDeserializer, StoreRecord,
+};
 use dozer_types::{
     chrono,
     types::{Field, Record, Schema, Timestamp},
@@ -42,7 +44,7 @@ impl JoinTable {
     pub fn new(
         schema: &Schema,
         join_key_indexes: Vec<usize>,
-        record_store: &ProcessorRecordStore,
+        record_store: &ProcessorRecordStoreDeserializer,
         accurate_keys: bool,
         cursor: Option<&mut Cursor>,
     ) -> Result<Self, JoinError> {
@@ -244,7 +246,7 @@ fn serialize_join_map(
 
 fn deserialize_join_map(
     cursor: &mut Cursor,
-    record_store: &ProcessorRecordStore,
+    record_store: &ProcessorRecordStoreDeserializer,
 ) -> Result<HashMap<RecordKey, HashMap<u64, Vec<ProcessorRecord>>>, DeserializationError> {
     let len = deserialize_u64(cursor)? as usize;
     let mut map = HashMap::with_capacity(len);
@@ -271,7 +273,7 @@ fn serialize_map(
 
 fn deserialize_map(
     cursor: &mut Cursor,
-    record_store: &ProcessorRecordStore,
+    record_store: &ProcessorRecordStoreDeserializer,
 ) -> Result<HashMap<u64, Vec<ProcessorRecord>>, DeserializationError> {
     let len = deserialize_u64(cursor)? as usize;
     let mut map = HashMap::with_capacity(len);
@@ -297,7 +299,7 @@ fn serialize_vec(
 
 fn deserialize_vec(
     cursor: &mut Cursor,
-    record_store: &ProcessorRecordStore,
+    record_store: &ProcessorRecordStoreDeserializer,
 ) -> Result<Vec<ProcessorRecord>, DeserializationError> {
     let len = deserialize_u64(cursor)? as usize;
     let mut vec = Vec::with_capacity(len);
@@ -324,7 +326,7 @@ mod tests {
             }],
             primary_index: vec![0],
         };
-        let record_store = ProcessorRecordStore::new().unwrap();
+        let record_store = ProcessorRecordStoreDeserializer::new(Default::default()).unwrap();
         let mut table = JoinTable::new(&schema, vec![0], &record_store, true, None).unwrap();
 
         let record = Record::new(vec![Field::Int(1)]);

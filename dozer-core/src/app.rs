@@ -109,10 +109,7 @@ pub struct PipelineFlags {
 impl From<&Flags> for PipelineFlags {
     fn from(flags: &Flags) -> Self {
         Self {
-            enable_probabilistic_optimizations: flags
-                .enable_probabilistic_optimizations
-                .clone()
-                .unwrap_or_default(),
+            enable_probabilistic_optimizations: flags.enable_probabilistic_optimizations.clone(),
         }
     }
 }

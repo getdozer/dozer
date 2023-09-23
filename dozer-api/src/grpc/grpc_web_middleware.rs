@@ -93,7 +93,7 @@ where
 {
     if enabled {
         let service = GrpcWebLayer::new().layer(service);
-        let service = CorsLayer::very_permissive().layer(service);
+        let service = CorsLayer::permissive().layer(service);
         MaybeGrpcWebService::GrpcWeb(service)
     } else {
         MaybeGrpcWebService::NoGrpcWeb(service)

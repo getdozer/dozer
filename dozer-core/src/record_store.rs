@@ -1,6 +1,6 @@
 use crate::executor_operation::ProcessorOperation;
 use crate::node::OutputPortType;
-use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore, RecordStoreError};
+use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore, RecordStoreError, StoreRecord};
 use dozer_types::thiserror::{self, Error};
 use dozer_types::types::Schema;
 use std::collections::HashMap;

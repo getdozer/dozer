@@ -5,7 +5,7 @@ use dozer_core::{
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
-use dozer_recordstore::ProcessorRecordStore;
+use dozer_recordstore::ProcessorRecordStoreDeserializer;
 use dozer_sql_expression::builder::ExpressionBuilder;
 use dozer_sql_expression::sqlparser::ast::Expr as SqlExpr;
 use dozer_types::models::udf_config::UdfConfig;
@@ -64,7 +64,7 @@ impl ProcessorFactory for SelectionProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _record_store: &ProcessorRecordStore,
+        _record_store: &ProcessorRecordStoreDeserializer,
         checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         let schema = input_schemas

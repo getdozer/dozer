@@ -299,7 +299,8 @@ fn select_to_pipeline(
         pipeline
             .flags()
             .enable_probabilistic_optimizations
-            .in_aggregations,
+            .in_aggregations
+            .unwrap_or(false),
         query_ctx.udfs.clone(),
     );
 
@@ -498,7 +499,11 @@ fn set_to_pipeline(
     let set_proc_fac = SetProcessorFactory::new(
         gen_set_name.clone(),
         set_quantifier,
-        pipeline.flags().enable_probabilistic_optimizations.in_sets,
+        pipeline
+            .flags()
+            .enable_probabilistic_optimizations
+            .in_sets
+            .unwrap_or(false),
     );
 
     pipeline.add_processor(Box::new(set_proc_fac), &gen_set_name, vec![]);

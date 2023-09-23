@@ -1,7 +1,7 @@
 use crate::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::epoch::Epoch;
 use crate::executor_operation::ProcessorOperation;
-use dozer_recordstore::ProcessorRecordStore;
+use dozer_recordstore::{ProcessorRecordStore, ProcessorRecordStoreDeserializer};
 
 use dozer_log::storage::{Object, Queue};
 use dozer_types::errors::internal::BoxedError;
@@ -75,7 +75,7 @@ pub trait ProcessorFactory: Send + Sync + Debug {
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
         output_schemas: HashMap<PortHandle, Schema>,
-        record_store: &ProcessorRecordStore,
+        record_store: &ProcessorRecordStoreDeserializer,
         checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Box<dyn Processor>, BoxedError>;
     fn type_name(&self) -> String;

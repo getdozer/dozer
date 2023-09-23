@@ -43,10 +43,10 @@ fn ingest_grpc<T: IngestAdapter>(
     let grpc_connector = GrpcConnector::<T>::new(
         "grpc".to_string(),
         GrpcConfig {
-            schemas: Some(GrpcConfigSchemas::Inline(schemas.to_string())),
-            adapter,
-            port,
-            ..Default::default()
+            schemas: GrpcConfigSchemas::Inline(schemas.to_string()),
+            adapter: Some(adapter),
+            port: Some(port),
+            host: None,
         },
     )
     .unwrap();

@@ -471,7 +471,7 @@ impl ExpressionBuilder {
         let udf_type = udfs.iter().find(|udf| udf.name == function_name);
         if let Some(udf_type) = udf_type {
             return match &udf_type.config {
-                Some(UdfType::Onnx(config)) => {
+                UdfType::Onnx(config) => {
                     #[cfg(feature = "onnx")]
                     {
                         self.parse_onnx_udf(
@@ -489,7 +489,6 @@ impl ExpressionBuilder {
                         Err(Error::OnnxNotEnabled)
                     }
                 }
-                None => Err(Error::UdfConfigMissing(function_name.clone())),
             };
         }
 

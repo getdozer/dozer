@@ -11,14 +11,7 @@ use tokio_postgres::{error::DbError, Error as PostgresError, SimpleQueryMessage}
 use super::connection::client::Client;
 
 pub async fn get_client(app_config: Config) -> TestPostgresClient {
-    let config = app_config
-        .connections
-        .get(0)
-        .unwrap()
-        .config
-        .as_ref()
-        .unwrap();
-
+    let config = &app_config.connections[0].config;
     TestPostgresClient::new(config).await
 }
 
@@ -62,9 +55,7 @@ pub async fn retry_drop_active_slot(
 }
 
 pub fn get_config(app_config: Config) -> tokio_postgres::Config {
-    if let Some(ConnectionConfig::Postgres(connection)) =
-        &app_config.connections.get(0).unwrap().config
-    {
+    if let ConnectionConfig::Postgres(connection) = &app_config.connections.get(0).unwrap().config {
         let config_replenished = connection.replenish().unwrap();
         let mut config = tokio_postgres::Config::new();
         config

@@ -19,16 +19,16 @@ pub trait SchemaExample {
     fn example() -> Self;
 }
 
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema, Default)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct Connection {
-    /// authentication config - depends on db_type
-    pub config: Option<ConnectionConfig>,
-
+    pub config: ConnectionConfig,
     pub name: String,
 }
 
 /// Configuration for a Postgres connection
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema, Default)]
+#[serde(deny_unknown_fields)]
 #[schemars(example = "Self::example")]
 pub struct PostgresConfig {
     /// The username to use for authentication
@@ -192,6 +192,7 @@ fn get_sslmode(mode: String) -> Result<SslMode, DeserializationError> {
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub enum ConnectionConfig {
     /// In yaml, present as tag: `!Postgres`
     Postgres(PostgresConfig),

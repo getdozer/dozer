@@ -5,13 +5,13 @@ use std::time::{Duration, SystemTime};
 
 use dozer_types::grpc_types::internal::storage_response;
 use dozer_types::log::{debug, error};
-use dozer_types::parking_lot::Mutex;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::Operation;
 use dozer_types::{bincode, thiserror};
 use pin_project::pin_project;
 use tokio::runtime::Runtime;
 use tokio::sync::oneshot::error::RecvError;
+use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
 use crate::storage::{Queue, Storage};
@@ -120,7 +120,8 @@ impl Log {
         self.in_memory.end()
     }
 
-    pub fn write(&mut self, op: LogOperation) {
+    /// Returns the log length after this write.
+    pub fn write(&mut self, op: LogOperation) -> usize {
         // Record operation.
         self.in_memory.ops.push(op);
 
@@ -138,6 +139,8 @@ impl Log {
                 true
             }
         });
+
+        self.end()
     }
 
     pub fn persist(
@@ -169,7 +172,7 @@ impl Log {
                 }
             };
 
-            let mut this = this.lock();
+            let mut this = this.lock().await;
             let this = this.deref_mut();
             debug_assert!(persisted_log_entries_end(&this.persisted).unwrap_or(0) == range.start);
             debug_assert!(this.in_memory.start == range.start);
@@ -198,7 +201,9 @@ impl Log {
     }
 
     /// Returned `LogResponse` is guaranteed to contain `request.start`, but may actually contain less then `request.end`.
-    pub fn read(
+    ///
+    /// Function is marked as `async` because it needs to run in a tokio runtime.
+    pub async fn read(
         &mut self,
         request: Range<usize>,
         timeout: Duration,
@@ -230,7 +235,7 @@ impl Log {
         tokio::spawn(async move {
             // Try to trigger watcher when timeout.
             tokio::time::sleep(timeout).await;
-            let mut this = this.lock();
+            let mut this = this.lock().await;
             let this = this.deref_mut();
             // Find the watcher. It may have been triggered by slice fulfillment or persisting.
             if let Some((index, watcher)) = this
