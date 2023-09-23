@@ -326,6 +326,14 @@
           ],
           "format": "uint32",
           "minimum": 0.0
+        },
+        "record_store": {
+          "description": "The record store to use for the processors.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/RecordStore"
+            }
+          ]
         }
       },
       "additionalProperties": false
@@ -1297,6 +1305,13 @@
         }
       },
       "additionalProperties": false
+    },
+    "RecordStore": {
+      "type": "string",
+      "enum": [
+        "InMemory",
+        "Rocksdb"
+      ]
     },
     "RefreshConfig": {
       "type": "string",
