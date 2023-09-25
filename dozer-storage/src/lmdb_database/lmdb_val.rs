@@ -1,6 +1,6 @@
 use dozer_types::{
     borrow::{Borrow, Cow},
-    types::{Field, IndexDefinition, Record, SchemaWithIndex},
+    types::{IndexDefinition, Record, SchemaWithIndex},
 };
 
 use crate::errors::{InvalidBool, StorageError};
@@ -222,34 +222,6 @@ unsafe impl LmdbVal for String {}
 unsafe impl LmdbKey for String {
     const TYPE: LmdbKeyType = LmdbKeyType::VariableSize;
 }
-
-impl<'a> Encode<'a> for &'a [Field] {
-    fn encode(self) -> Result<Encoded<'a>, StorageError> {
-        dozer_types::bincode::serialize(self)
-            .map(Encoded::Vec)
-            .map_err(|e| StorageError::SerializationError {
-                typ: "[Field]",
-                reason: Box::new(e),
-            })
-    }
-}
-
-impl BorrowEncode for Vec<Field> {
-    type Encode<'a> = &'a [Field];
-}
-
-impl Decode for Vec<Field> {
-    fn decode(bytes: &[u8]) -> Result<Cow<Self>, StorageError> {
-        dozer_types::bincode::deserialize(bytes)
-            .map(Cow::Owned)
-            .map_err(|e| StorageError::DeserializationError {
-                typ: "Vec<Field>",
-                reason: Box::new(e),
-            })
-    }
-}
-
-unsafe impl LmdbVal for Vec<Field> {}
 
 impl<'a> Encode<'a> for &'a Record {
     fn encode(self) -> Result<Encoded<'a>, StorageError> {

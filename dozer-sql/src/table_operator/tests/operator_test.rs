@@ -36,7 +36,7 @@ fn test_lifetime() {
         )
         .to_owned();
 
-    let record_store = ProcessorRecordStore::new(Default::default()).unwrap();
+    let record_store = ProcessorRecordStore::new().unwrap();
     let record = Record::new(vec![
         Field::Int(0),
         Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),

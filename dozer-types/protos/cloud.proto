@@ -31,6 +31,7 @@ service DozerCloud {
   rpc upsert_version(UpsertVersionRequest) returns (UpsertVersionResponse);
   rpc set_current_version(SetCurrentVersionRequest) returns (SetCurrentVersionResponse);
   rpc list_files(ListFilesRequest) returns (ListFilesResponse);
+  rpc get_configuration(GetConfigurationRequest) returns (GetConfigurationResponse);
 
   // returns a list of all the steps for a deployment
   rpc get_deployment_status(GetDeploymentStatusRequest) returns (GetDeploymentStatusResponse);
@@ -374,4 +375,13 @@ message GetEndpointCommandsSamplesRequest {
 
 message GetEndpointCommandsSamplesResponse {
   repeated CommandSample samples = 1;
+}
+
+message GetConfigurationRequest {
+  string app_id = 1;
+  optional uint32 version = 2;
+}
+
+message GetConfigurationResponse {
+  string config = 1;
 }

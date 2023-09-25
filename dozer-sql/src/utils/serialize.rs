@@ -47,8 +47,6 @@ pub enum DeserializationError {
     NotEnoughData { requested: usize, remaining: usize },
     #[error("bincode error: {0}")]
     Bincode(#[from] bincode::Error),
-    #[error("record store error: {0}")]
-    RecordStore(#[from] dozer_recordstore::RecordStoreError),
 }
 
 pub fn serialize_u64(value: u64, object: &mut Object) -> Result<(), SerializationError> {
