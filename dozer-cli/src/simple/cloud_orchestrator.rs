@@ -6,7 +6,7 @@ use crate::cloud_helper::list_files;
 
 use crate::console_helper::{get_colored_text, PURPLE};
 use crate::errors::OrchestrationError::FailedToReadOrganisationName;
-use crate::errors::{map_tonic_error, CliError, CloudError, CloudLoginError, OrchestrationError};
+use crate::errors::{map_tonic_error, CliError, CloudError, CloudLoginError, OrchestrationError, ConfigCombineError};
 use crate::simple::cloud::deployer::{deploy_app, stop_app};
 use crate::simple::cloud::login::CredentialInfo;
 use crate::simple::cloud::monitor::monitor_app;
@@ -22,7 +22,7 @@ use dozer_types::grpc_types::cloud::{
     ListAppRequest, ListSecretsRequest, LogMessageRequest, UpdateSecretRequest,
 };
 use dozer_types::grpc_types::cloud::{
-    DeploymentInfo, DeploymentStatusWithHealth, File, ListDeploymentRequest,
+    CreateAppRequest, DeploymentInfo, DeploymentStatusWithHealth, File, ListDeploymentRequest,
     SetCurrentVersionRequest, UpsertVersionRequest,
 };
 use dozer_types::log::info;
@@ -34,7 +34,6 @@ use tower::ServiceBuilder;
 
 use super::cloud::login::LoginSvc;
 use super::cloud::version::{get_version_status, version_is_up_to_date, version_status_table};
-
 async fn establish_cloud_service_channel(
     cloud: &Cloud,
     cloud_config: &dozer_types::models::cloud::Cloud,
@@ -405,14 +404,39 @@ impl CloudOrchestrator for SimpleOrchestrator {
         cloud: Cloud,
         command: SecretsCommand,
     ) -> Result<(), OrchestrationError> {
-        let app_id = cloud
+        let app_id_result = cloud
             .app_id
             .clone()
-            .unwrap_or(CloudAppContext::get_app_id(&self.config.cloud)?);
+            .map_or(CloudAppContext::get_app_id(&self.config.cloud), Ok);
+
+        let config = self.config.clone();
         let cloud_config = &self.config.cloud;
 
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud, cloud_config).await?;
+
+            let app_id = match app_id_result {
+                Ok(id) => Ok(id),
+                Err(_e) if matches!(command, SecretsCommand::Create { .. }) => {
+                    let config_content = dozer_types::serde_yaml::to_string(&config)
+                        .map_err(|e|CloudError::ConfigCombineError(ConfigCombineError::ParseConfig(e)))?;
+
+                    let response = client
+                        .create_application(CreateAppRequest {
+                            files: vec![File {
+                                name: "dozer.yaml".to_string(),
+                                content: config_content,
+                            }],
+                        })
+                        .await
+                        .map_err(map_tonic_error)?
+                        .into_inner();
+
+                    CloudAppContext::save_app_id(response.app_id.clone())?;
+                    Ok(response.app_id)
+                }
+                Err(e) => Err(e),
+            }?;
 
             match command {
                 SecretsCommand::Create { name, value } => {
