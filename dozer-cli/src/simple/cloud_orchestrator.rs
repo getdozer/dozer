@@ -9,7 +9,7 @@ use crate::errors::OrchestrationError::FailedToReadOrganisationName;
 use crate::errors::{
     map_tonic_error, CliError, CloudError, CloudLoginError, ConfigCombineError, OrchestrationError,
 };
-use crate::simple::cloud::deployer::{deploy_app, stop_app};
+use crate::simple::cloud::deployer::deploy_app;
 use crate::simple::cloud::login::CredentialInfo;
 use crate::simple::cloud::monitor::monitor_app;
 use crate::simple::token_layer::TokenLayer;

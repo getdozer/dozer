@@ -96,17 +96,3 @@ async fn print_progress(
     }
     Ok::<(), CloudError>(())
 }
-
-pub async fn stop_app(
-    client: &mut DozerCloudClient<TokenLayer>,
-    app_id: &str,
-) -> Result<StopResponse, CloudError> {
-    let result = client
-        .stop_dozer(StopRequest {
-            app_id: app_id.to_string(),
-        })
-        .await?
-        .into_inner();
-
-    Ok(result)
-}
