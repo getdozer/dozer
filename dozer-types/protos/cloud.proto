@@ -28,7 +28,6 @@ service DozerCloud {
   rpc get_status(GetStatusRequest) returns (GetStatusResponse);
   rpc list_deployments(ListDeploymentRequest) returns (ListDeploymentResponse);
   rpc list_versions(ListVersionsRequest) returns (ListVersionsResponse);
-  rpc upsert_version(UpsertVersionRequest) returns (UpsertVersionResponse);
   rpc set_current_version(SetCurrentVersionRequest) returns (SetCurrentVersionResponse);
   rpc list_files(ListFilesRequest) returns (ListFilesResponse);
   rpc get_configuration(GetConfigurationRequest) returns (GetConfigurationResponse);
@@ -217,14 +216,6 @@ message ListDeploymentRequest {
 message ListDeploymentResponse {
   repeated DeploymentInfo deployments = 2;
 }
-
-message UpsertVersionRequest {
-  string app_id = 1;
-  uint32 version = 2;
-  uint32 deployment = 3;
-}
-
-message UpsertVersionResponse {}
 
 message SetCurrentVersionRequest {
   string app_id = 1;
