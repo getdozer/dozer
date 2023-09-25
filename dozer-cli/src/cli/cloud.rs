@@ -136,11 +136,6 @@ pub enum VersionCommand {
         /// The version to inspect
         version: u32,
     },
-    /// Creates a new version of the application with the given deployment
-    Create {
-        /// The deployment of the application to create a new version from
-        deployment: u32,
-    },
     /// Sets a version as the "current" version of the application
     ///
     /// Current version of an application can be visited without the "/v<version>" prefix.

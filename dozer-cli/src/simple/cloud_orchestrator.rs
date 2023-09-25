@@ -25,7 +25,7 @@ use dozer_types::grpc_types::cloud::{
 };
 use dozer_types::grpc_types::cloud::{
     CreateAppRequest, DeploymentInfo, DeploymentStatusWithHealth, File, ListDeploymentRequest,
-    SetCurrentVersionRequest, UpsertVersionRequest,
+    SetCurrentVersionRequest,
 };
 use dozer_types::log::info;
 use dozer_types::prettytable::{row, table};
@@ -524,25 +524,6 @@ impl SimpleOrchestrator {
             let mut client = get_cloud_client(&cloud, cloud_config).await?;
 
             match version {
-                VersionCommand::Create { deployment } => {
-                    let status = client
-                        .get_status(GetStatusRequest {
-                            app_id: app_id.clone(),
-                        })
-                        .await
-                        .map_err(map_tonic_error)?
-                        .into_inner();
-                    let latest_version = status.versions.into_values().max().unwrap_or(0);
-
-                    client
-                        .upsert_version(UpsertVersionRequest {
-                            app_id,
-                            version: latest_version + 1,
-                            deployment,
-                        })
-                        .await
-                        .map_err(map_tonic_error)?;
-                }
                 VersionCommand::SetCurrent { version } => {
                     client
                         .set_current_version(SetCurrentVersionRequest { app_id, version })
