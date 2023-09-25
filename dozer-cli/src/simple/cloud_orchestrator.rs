@@ -6,7 +6,9 @@ use crate::cloud_helper::list_files;
 
 use crate::console_helper::{get_colored_text, PURPLE};
 use crate::errors::OrchestrationError::FailedToReadOrganisationName;
-use crate::errors::{map_tonic_error, CliError, CloudError, CloudLoginError, OrchestrationError, ConfigCombineError};
+use crate::errors::{
+    map_tonic_error, CliError, CloudError, CloudLoginError, ConfigCombineError, OrchestrationError,
+};
 use crate::simple::cloud::deployer::{deploy_app, stop_app};
 use crate::simple::cloud::login::CredentialInfo;
 use crate::simple::cloud::monitor::monitor_app;
@@ -418,8 +420,10 @@ impl CloudOrchestrator for SimpleOrchestrator {
             let app_id = match app_id_result {
                 Ok(id) => Ok(id),
                 Err(_e) if matches!(command, SecretsCommand::Create { .. }) => {
-                    let config_content = dozer_types::serde_yaml::to_string(&config)
-                        .map_err(|e|CloudError::ConfigCombineError(ConfigCombineError::ParseConfig(e)))?;
+                    let config_content =
+                        dozer_types::serde_yaml::to_string(&config).map_err(|e| {
+                            CloudError::ConfigCombineError(ConfigCombineError::ParseConfig(e))
+                        })?;
 
                     let response = client
                         .create_application(CreateAppRequest {
