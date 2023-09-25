@@ -9,7 +9,7 @@ use crate::window::operator::WindowType;
 
 #[test]
 fn test_hop() {
-    let record_store = ProcessorRecordStore::new(Default::default()).unwrap();
+    let record_store = ProcessorRecordStore::new().unwrap();
     let record = record_store
         .create_record(&Record::new(vec![
             Field::Int(0),
@@ -61,7 +61,7 @@ fn test_hop() {
 
 #[test]
 fn test_tumble() {
-    let record_store = ProcessorRecordStore::new(Default::default()).unwrap();
+    let record_store = ProcessorRecordStore::new().unwrap();
     let record = record_store
         .create_record(&Record::new(vec![
             Field::Int(0),

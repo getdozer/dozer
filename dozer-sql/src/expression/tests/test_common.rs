@@ -19,7 +19,7 @@ impl ProcessorChannelForwarder for TestChannelForwarder {
 }
 
 pub(crate) fn run_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Field {
-    let record_store = ProcessorRecordStoreDeserializer::new(Default::default()).unwrap();
+    let record_store = ProcessorRecordStoreDeserializer::new().unwrap();
 
     let select = get_select(sql).unwrap();
     let processor_factory =

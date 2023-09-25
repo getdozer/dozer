@@ -31,9 +31,6 @@ pub enum StorageError {
     // Error forwarding
     #[error("Lmdb error: {0}")]
     Lmdb(#[from] lmdb::Error),
-
-    #[error("Rocksdb error: {0}")]
-    Rocksdb(#[from] rocksdb::Error),
 }
 
 #[derive(Debug, Error)]

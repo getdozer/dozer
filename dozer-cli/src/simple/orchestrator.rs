@@ -5,10 +5,7 @@ use crate::pipeline::PipelineBuilder;
 use crate::shutdown::ShutdownReceiver;
 use crate::simple::build;
 use crate::simple::helper::validate_config;
-use crate::utils::{
-    get_cache_manager_options, get_checkpoint_options, get_default_max_num_records,
-    get_executor_options,
-};
+use crate::utils::{get_cache_manager_options, get_default_max_num_records, get_executor_options};
 
 use crate::{flatten_join_handle, join_handle_map_err};
 use dozer_api::auth::{Access, Authorizer};
@@ -229,7 +226,7 @@ impl SimpleOrchestrator {
             &self.config.sources,
             self.config.sql.as_deref(),
             &self.config.endpoints,
-            get_checkpoint_options(&self.config),
+            self.config.app.data_storage.clone(),
             self.labels.clone(),
             &self.config.udfs,
         ))?;
