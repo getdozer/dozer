@@ -9,7 +9,7 @@ use crate::errors::OrchestrationError::FailedToReadOrganisationName;
 use crate::errors::{
     map_tonic_error, CliError, CloudError, CloudLoginError, ConfigCombineError, OrchestrationError,
 };
-use crate::simple::cloud::deployer::{deploy_app, stop_app};
+use crate::simple::cloud::deployer::deploy_app;
 use crate::simple::cloud::login::CredentialInfo;
 use crate::simple::cloud::monitor::monitor_app;
 use crate::simple::token_layer::TokenLayer;
@@ -161,9 +161,6 @@ impl CloudOrchestrator for SimpleOrchestrator {
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud, cloud_config).await?;
 
-            stop_app(&mut client, &app_id).await?;
-
-            // steps.start_next_step();
             let delete_result = client
                 .delete_application(DeleteAppRequest {
                     app_id: app_id.clone(),

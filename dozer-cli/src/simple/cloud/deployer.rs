@@ -9,7 +9,7 @@ use dozer_types::grpc_types::cloud::GetDeploymentStatusRequest;
 use crate::cloud_app_context::CloudAppContext;
 use dozer_types::grpc_types::cloud::DeployAppRequest;
 use dozer_types::grpc_types::cloud::File;
-use dozer_types::grpc_types::cloud::{Secret, StopRequest, StopResponse};
+use dozer_types::grpc_types::cloud::Secret;
 use dozer_types::log::{info, warn};
 
 pub async fn deploy_app(
@@ -95,18 +95,4 @@ async fn print_progress(
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
     }
     Ok::<(), CloudError>(())
-}
-
-pub async fn stop_app(
-    client: &mut DozerCloudClient<TokenLayer>,
-    app_id: &str,
-) -> Result<StopResponse, CloudError> {
-    let result = client
-        .stop_dozer(StopRequest {
-            app_id: app_id.to_string(),
-        })
-        .await?
-        .into_inner();
-
-    Ok(result)
 }
