@@ -1,8 +1,6 @@
 use dozer_cache::cache::CacheManagerOptions;
 use dozer_core::{
-    checkpoint::{CheckpointFactoryOptions, CheckpointOptions},
-    epoch::EpochManagerOptions,
-    executor::ExecutorOptions,
+    checkpoint::CheckpointFactoryOptions, epoch::EpochManagerOptions, executor::ExecutorOptions,
 };
 use dozer_types::{
     constants::DEFAULT_DEFAULT_MAX_NUM_RECORDS,
@@ -62,14 +60,6 @@ fn get_max_interval_before_persist_in_seconds(config: &Config) -> u64 {
         .app
         .max_interval_before_persist_in_seconds
         .unwrap_or_else(default_max_interval_before_persist_in_seconds)
-}
-
-pub fn get_checkpoint_options(config: &Config) -> CheckpointOptions {
-    let app = &config.app;
-    CheckpointOptions {
-        data_storage: app.data_storage.clone(),
-        record_store: app.record_store,
-    }
 }
 
 fn get_checkpoint_factory_options(config: &Config) -> CheckpointFactoryOptions {
