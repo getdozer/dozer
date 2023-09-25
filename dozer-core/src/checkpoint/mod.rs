@@ -10,7 +10,7 @@ use dozer_recordstore::{ProcessorRecordStore, ProcessorRecordStoreDeserializer, 
 use dozer_types::{
     bincode,
     log::{error, info},
-    models::app_config::DataStorage,
+    models::app_config::{DataStorage, RecordStore},
     node::{NodeHandle, OpIdentifier, SourceStates, TableState},
     parking_lot::Mutex,
     serde::{Deserialize, Serialize},
@@ -58,14 +58,21 @@ pub struct OptionCheckpoint {
     checkpoint: Option<Checkpoint>,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct CheckpointOptions {
+    pub data_storage: DataStorage,
+    pub record_store: RecordStore,
+}
+
 impl OptionCheckpoint {
     pub async fn new(
         checkpoint_dir: String,
-        storage_config: DataStorage,
+        options: CheckpointOptions,
     ) -> Result<Self, ExecutionError> {
         let (storage, prefix) =
-            create_data_storage(storage_config, checkpoint_dir.to_string()).await?;
-        let (record_store, checkpoint) = read_record_store_slices(&*storage, &prefix).await?;
+            create_data_storage(options.data_storage, checkpoint_dir.to_string()).await?;
+        let (record_store, checkpoint) =
+            read_record_store_slices(&*storage, &prefix, options.record_store).await?;
         if let Some(checkpoint) = &checkpoint {
             info!(
                 "Restored record store from {}th checkpoint, last epoch id is {}, processor states are stored in {}",
@@ -289,8 +296,9 @@ impl Drop for CheckpointWriter {
 async fn read_record_store_slices(
     storage: &dyn Storage,
     factory_prefix: &str,
+    record_store: RecordStore,
 ) -> Result<(ProcessorRecordStoreDeserializer, Option<Checkpoint>), ExecutionError> {
-    let record_store = ProcessorRecordStoreDeserializer::new()?;
+    let record_store = ProcessorRecordStoreDeserializer::new(record_store)?;
     let record_store_prefix = record_store_prefix(factory_prefix);
 
     let mut last_checkpoint: Option<Checkpoint> = None;
@@ -358,7 +366,7 @@ async fn read_record_store_slices(
 pub async fn create_checkpoint_for_test() -> (TempDir, OptionCheckpoint) {
     let temp_dir = TempDir::new("create_checkpoint_for_test").unwrap();
     let checkpoint_dir = temp_dir.path().to_str().unwrap().to_string();
-    let checkpoint = OptionCheckpoint::new(checkpoint_dir.clone(), DataStorage::Local)
+    let checkpoint = OptionCheckpoint::new(checkpoint_dir.clone(), Default::default())
         .await
         .unwrap();
     (temp_dir, checkpoint)
@@ -371,7 +379,7 @@ pub async fn create_checkpoint_factory_for_test(
     // Create empty checkpoint storage.
     let temp_dir = TempDir::new("create_checkpoint_factory_for_test").unwrap();
     let checkpoint_dir = temp_dir.path().to_str().unwrap().to_string();
-    let checkpoint = OptionCheckpoint::new(checkpoint_dir.clone(), DataStorage::Local)
+    let checkpoint = OptionCheckpoint::new(checkpoint_dir.clone(), Default::default())
         .await
         .unwrap();
     let (checkpoint_factory, handle) = CheckpointFactory::new(checkpoint, Default::default())
@@ -404,7 +412,7 @@ pub async fn create_checkpoint_factory_for_test(
     handle.await.unwrap();
 
     // Create a new factory that loads from the checkpoint.
-    let checkpoint = OptionCheckpoint::new(checkpoint_dir, DataStorage::Local)
+    let checkpoint = OptionCheckpoint::new(checkpoint_dir, Default::default())
         .await
         .unwrap();
     let last_checkpoint = checkpoint.checkpoint.as_ref().unwrap();
