@@ -3,7 +3,6 @@ name: Dozer Coverage
 on:
   workflow_dispatch:
   push:
-    branches: [release, release-dev, release-test]
     tags:
       - "v*.*.*"
 
