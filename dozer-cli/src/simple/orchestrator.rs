@@ -2,7 +2,6 @@ use super::executor::{run_dag_executor, Executor};
 use super::Contract;
 use crate::errors::OrchestrationError;
 use crate::pipeline::PipelineBuilder;
-use crate::shutdown::ShutdownReceiver;
 use crate::simple::build;
 use crate::simple::helper::validate_config;
 use crate::utils::{
@@ -13,6 +12,7 @@ use crate::utils::{
 use crate::{flatten_join_handle, join_handle_map_err};
 use dozer_api::auth::{Access, Authorizer};
 use dozer_api::grpc::internal::internal_pipeline_server::start_internal_pipeline_server;
+use dozer_api::shutdown::ShutdownReceiver;
 use dozer_api::{get_api_security, grpc, rest, CacheEndpoint};
 use dozer_cache::cache::LmdbRwCacheManager;
 use dozer_cache::dozer_log::camino::Utf8PathBuf;

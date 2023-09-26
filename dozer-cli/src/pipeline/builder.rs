@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use dozer_api::shutdown::ShutdownReceiver;
 use dozer_cache::dozer_log::replication::Log;
 use dozer_core::app::App;
 use dozer_core::app::AppPipeline;
@@ -24,7 +25,6 @@ use tokio::sync::Mutex;
 
 use crate::pipeline::dummy_sink::DummySinkFactory;
 use crate::pipeline::LogSinkFactory;
-use crate::shutdown::ShutdownReceiver;
 
 use super::source_builder::SourceBuilder;
 use crate::errors::OrchestrationError;

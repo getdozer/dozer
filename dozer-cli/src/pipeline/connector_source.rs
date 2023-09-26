@@ -1,3 +1,4 @@
+use dozer_api::shutdown::ShutdownReceiver;
 use dozer_core::channels::SourceChannelForwarder;
 use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory, SourceState,
@@ -24,8 +25,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread;
 use tokio::runtime::Runtime;
-
-use crate::shutdown::ShutdownReceiver;
 
 #[derive(Debug)]
 struct Table {

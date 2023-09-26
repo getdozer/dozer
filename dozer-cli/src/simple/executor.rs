@@ -1,4 +1,5 @@
 use dozer_api::grpc::internal::internal_pipeline_server::LogEndpoint;
+use dozer_api::shutdown::ShutdownReceiver;
 use dozer_cache::dozer_log::camino::Utf8Path;
 use dozer_cache::dozer_log::home_dir::{BuildPath, HomeDir};
 use dozer_cache::dozer_log::replication::Log;
@@ -15,7 +16,6 @@ use dozer_types::models::source::Source;
 use dozer_types::models::udf_config::UdfConfig;
 
 use crate::pipeline::PipelineBuilder;
-use crate::shutdown::ShutdownReceiver;
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 
 use dozer_types::models::connection::Connection;
