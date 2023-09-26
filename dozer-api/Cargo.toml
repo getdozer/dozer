@@ -27,7 +27,7 @@ actix-web = { version = "4.2.1", default-features = false, features = [
 ] }
 actix-web-httpauth = "0.8.0"
 handlebars = "4.3.7"
-openapiv3 = "1.0.2"
+openapiv3 = "1.0.3"
 tonic-build = "0.10.0"
 tokio = { version = "1", features = ["full"] }
 prost-reflect = { version = "0.12.0", features = ["serde", "text-format"] }
