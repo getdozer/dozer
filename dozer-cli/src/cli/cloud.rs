@@ -143,6 +143,11 @@ pub enum VersionCommand {
         /// The version to set as current
         version: u32,
     },
+    /// Creates or updates an alias to point at the given version
+    Alias { alias: String, version: u32 },
+    /// Remove alias
+    #[command(name = "rm-alias", visible_alias = "rma")]
+    RmAlias { alias: String },
 }
 
 #[derive(Debug, Clone, Subcommand)]
