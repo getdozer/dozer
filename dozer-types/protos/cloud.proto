@@ -28,6 +28,8 @@ service DozerCloud {
   rpc get_status(GetStatusRequest) returns (GetStatusResponse);
   rpc list_deployments(ListDeploymentRequest) returns (ListDeploymentResponse);
   rpc list_versions(ListVersionsRequest) returns (ListVersionsResponse);
+  rpc set_alias(SetAliasRequest) returns (SetAliasResponse);
+  rpc rm_alias(RmAliasRequest) returns (RmAliasRequest);
   rpc set_current_version(SetCurrentVersionRequest) returns (SetCurrentVersionResponse);
   rpc list_files(ListFilesRequest) returns (ListFilesResponse);
   rpc get_configuration(GetConfigurationRequest) returns (GetConfigurationResponse);
@@ -139,6 +141,7 @@ message GetStatusResponse {
   repeated DeploymentStatusWithHealth deployments = 2;
   map<uint32, uint32> versions = 4;
   optional uint32 current_version = 5;
+  map<string, uint32> aliases = 6;
 }
 message DeploymentStatusWithHealth {
   DeploymentInfo deployment = 1;
@@ -223,6 +226,21 @@ message SetCurrentVersionRequest {
 }
 
 message SetCurrentVersionResponse {}
+
+message SetAliasRequest {
+  string app_id = 1;
+  uint32 version = 2;
+  string alias = 3;
+}
+
+message SetAliasResponse {}
+
+message RmAliasRequest {
+  string app_id = 1;
+  string alias = 2;
+}
+
+message RmAliasResponse {}
 
 message ConnectionRequest {
   string yaml_content = 2;

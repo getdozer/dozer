@@ -12,6 +12,7 @@ use crate::errors::{
 use crate::simple::cloud::deployer::deploy_app;
 use crate::simple::cloud::login::CredentialInfo;
 use crate::simple::cloud::monitor::monitor_app;
+use crate::simple::cloud::version::version_string;
 use crate::simple::token_layer::TokenLayer;
 use crate::simple::SimpleOrchestrator;
 use crate::CloudOrchestrator;
@@ -25,7 +26,7 @@ use dozer_types::grpc_types::cloud::{
 };
 use dozer_types::grpc_types::cloud::{
     CreateAppRequest, DeploymentInfo, DeploymentStatusWithHealth, File, ListDeploymentRequest,
-    SetCurrentVersionRequest,
+    RmAliasRequest, SetAliasRequest, SetCurrentVersionRequest,
 };
 use dozer_types::log::info;
 use dozer_types::prettytable::{row, table};
@@ -259,18 +260,22 @@ impl CloudOrchestrator for SimpleOrchestrator {
                     }
                 }
 
-                let mut version = "".to_string();
-                for (loop_version, loop_deployment) in response.versions.iter() {
-                    if loop_deployment == &deployment.deployment {
-                        if Some(*loop_version) == response.current_version {
-                            version = format!("v{loop_version} (current)");
-                        } else {
-                            version = format!("v{loop_version}");
-                        }
-                        break;
-                    }
-                }
+                let found = response
+                    .versions
+                    .iter()
+                    .find_map(|(version, version_deployment)| {
+                        (*version_deployment == deployment.deployment).then_some(*version)
+                    });
 
+                let version = found
+                    .map(|version| {
+                        version_string(
+                            version,
+                            Some(version) == response.current_version,
+                            &response.aliases,
+                        )
+                    })
+                    .unwrap_or_default();
                 deployment_table.add_row(row![
                     deployment.deployment,
                     format!("Deployment Status: {:?}", deployment.status),
@@ -550,7 +555,7 @@ impl SimpleOrchestrator {
                             );
 
                             table.add_row(row![
-                                format!("v{version}"),
+                                version_string(version, false, &status.aliases),
                                 version_status_table(&version_status)
                             ]);
 
@@ -561,7 +566,7 @@ impl SimpleOrchestrator {
                             )
                             .await;
                             table.add_row(row![
-                                format!("v{current_version} (current)"),
+                                version_string(current_version, true, &Default::default()),
                                 version_status_table(&current_version_status)
                             ]);
 
@@ -574,19 +579,31 @@ impl SimpleOrchestrator {
                             }
                         } else {
                             table.add_row(row![
-                                format!("v{version} (current)"),
+                                version_string(version, true, &status.aliases),
                                 version_status_table(&version_status)
                             ]);
                             table.printstd();
                         }
                     } else {
                         table.add_row(row![
-                            format!("v{version}"),
+                            version_string(version, false, &status.aliases),
                             version_status_table(&version_status)
                         ]);
                         table.printstd();
                         info!("No current version");
                     };
+                }
+                VersionCommand::Alias { alias, version } => {
+                    client
+                        .set_alias(SetAliasRequest {
+                            app_id,
+                            version,
+                            alias,
+                        })
+                        .await?;
+                }
+                VersionCommand::RmAlias { alias } => {
+                    client.rm_alias(RmAliasRequest { app_id, alias }).await?;
                 }
             }
 

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Write};
 
 use dozer_api::rest::DOZER_SERVER_NAME_HEADER;
 use dozer_cache::Phase;
@@ -113,6 +113,23 @@ pub fn version_status_table(status: &Result<VersionStatus, CloudError>) -> Strin
     }
 }
 
+pub fn version_string(version: u32, is_current: bool, aliases: &HashMap<String, u32>) -> String {
+    let aliases: Vec<&str> = aliases
+        .iter()
+        .filter_map(move |(alias, alias_version)| {
+            (*alias_version == version).then_some(alias.as_str())
+        })
+        .collect();
+    let mut s = format!("v{version}");
+    if is_current {
+        write!(s, " (current)").unwrap();
+    };
+    if !aliases.is_empty() {
+        write!(s, " [{}]", aliases.join(", ")).unwrap();
+    };
+    s
+}
+
 pub fn version_is_up_to_date(
     status: &Result<VersionStatus, CloudError>,
     current_status: &Result<VersionStatus, CloudError>,
@@ -156,5 +173,20 @@ fn path_is_up_to_date(status: &PathStatus, current_status: Option<&PathStatus>) 
             || (current_status.phase == Phase::Snapshotting && status.count >= current_status.count)
     } else {
         true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_version_string() {
+        let mut aliases = HashMap::new();
+        aliases.insert("alias1".to_owned(), 1);
+        assert_eq!(&version_string(2, false, &aliases), "v2");
+        assert_eq!(&version_string(2, true, &aliases), "v2 (current)");
+        assert_eq!(&version_string(1, false, &aliases), "v1 [alias1]");
+        assert_eq!(&version_string(1, true, &aliases), "v1 (current) [alias1]");
     }
 }
