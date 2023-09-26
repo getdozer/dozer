@@ -160,11 +160,10 @@ impl SimpleOrchestrator {
             let grpc_handle = if grpc_config.enabled.unwrap_or(true) {
                 let api_security = self.config.api.api_security.clone();
                 let grpc_server = grpc::ApiServer::new(grpc_config, api_security, flags);
-                let shutdown = shutdown.create_shutdown_future();
                 let grpc_server = grpc_server
                     .run(
                         cache_endpoints,
-                        shutdown,
+                        shutdown.clone(),
                         operations_receiver,
                         self.labels.clone(),
                         default_max_num_records,
@@ -247,7 +246,7 @@ impl SimpleOrchestrator {
             .block_on(start_internal_pipeline_server(
                 endpoint_and_logs,
                 app_grpc_config,
-                shutdown.create_shutdown_future(),
+                shutdown.clone(),
             ))
             .map_err(OrchestrationError::InternalServerFailed)?;
 
