@@ -29,7 +29,7 @@ service DozerCloud {
   rpc list_deployments(ListDeploymentRequest) returns (ListDeploymentResponse);
   rpc list_versions(ListVersionsRequest) returns (ListVersionsResponse);
   rpc set_alias(SetAliasRequest) returns (SetAliasResponse);
-  rpc rm_alias(RmAliasRequest) returns (RmAliasRequest);
+  rpc rm_alias(RmAliasRequest) returns (RmAliasResponse);
   rpc set_current_version(SetCurrentVersionRequest) returns (SetCurrentVersionResponse);
   rpc list_files(ListFilesRequest) returns (ListFilesResponse);
   rpc get_configuration(GetConfigurationRequest) returns (GetConfigurationResponse);
