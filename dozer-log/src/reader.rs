@@ -274,7 +274,7 @@ async fn log_reader_worker(
     select! {
         _ = op_sender.closed() => {
             debug!("Log reader thread quit because LogReader was dropped");
-            return Ok(());
+            Ok(())
         }
         result = log_reader_worker_loop(log_client, pos, options, &op_sender) => {
             result
