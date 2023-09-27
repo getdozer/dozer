@@ -93,9 +93,9 @@ pub struct LogCommandArgs {
     #[arg(short, long)]
     pub follow: bool,
 
-    /// The deployment to inspect
+    /// The version to inspect
     #[arg(short, long)]
-    pub deployment: Option<u32>,
+    pub version: Option<u32>,
 
     /// Ignore app logs
     #[arg(long, default_value = "false", action=ArgAction::SetTrue)]
@@ -131,11 +131,6 @@ pub struct ListCommandArgs {
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum VersionCommand {
-    /// Inspects the status of a version, compared to the current version if it's not current.
-    Status {
-        /// The version to inspect
-        version: u32,
-    },
     /// Sets a version as the "current" version of the application
     ///
     /// Current version of an application can be visited without the "/v<version>" prefix.
