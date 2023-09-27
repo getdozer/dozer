@@ -2,9 +2,9 @@ syntax = "proto3";
 package dozer.cloud;
 import "cloud_types.proto";
 import "cloud_notification.proto";
+import "cloud_infastructure.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/empty.proto";
-
 service DozerCloud {
 
   rpc validate_connection(ConnectionRequest)
@@ -54,6 +54,8 @@ service DozerCloud {
   rpc mark_notifications_as_read(MarkNotificationsRequest) returns (MarkNotificationsResponse);
 
   rpc get_endpoint_commands_samples(GetEndpointCommandsSamplesRequest) returns (GetEndpointCommandsSamplesResponse);
+
+  rpc get_infastructure_info(GetInfastructureRequest) returns (GetInfastructureResponse);
 }
 
 service DozerPublic {
