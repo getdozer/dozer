@@ -39,7 +39,7 @@ tonic-web = "0.10.0"
 jsonwebtoken = "8.3.0"
 tokio-stream = "0.1.12"
 async-trait = "0.1.73"
-tracing-actix-web = "0.7.2"
+tracing-actix-web = "0.7.6"
 tower = "0.4.13"
 hyper = "0.14.24"
 tower-http = { version = "0.4", features = ["full"] }
