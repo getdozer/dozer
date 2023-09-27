@@ -68,7 +68,7 @@ impl<F: Future<Output = ()> + Unpin> ShutdownAddrStream<F> {
         }
     }
 
-    fn pool_impl<T>(
+    fn poll_impl<T>(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         func: fn(Pin<&mut AddrStream>, &mut Context<'_>) -> Poll<io::Result<T>>,
@@ -112,11 +112,11 @@ impl<F: Future<Output = ()> + Unpin> AsyncWrite for ShutdownAddrStream<F> {
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
-        self.pool_impl(cx, AsyncWrite::poll_flush)
+        self.poll_impl(cx, AsyncWrite::poll_flush)
     }
 
     fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
-        self.pool_impl(cx, AsyncWrite::poll_shutdown)
+        self.poll_impl(cx, AsyncWrite::poll_shutdown)
     }
 }
 
