@@ -45,13 +45,14 @@ impl TableOperatorProcessorFactory {
     }
 
     pub(crate) fn get_source_name(&self) -> Result<String, TableOperatorError> {
-        let source_arg = self.table.args.get(SOURCE_TABLE_ARGUMENT).ok_or(
-            TableOperatorError::MissingSourceArgument(self.table.name.to_owned()),
-        )?;
+        todo!()
+        // let source_arg = self.table.args.get(SOURCE_TABLE_ARGUMENT).ok_or(
+        //     TableOperatorError::MissingSourceArgument(self.table.name.to_owned()),
+        // )?;
 
-        let source_name = get_source_name(self.table.name.to_owned(), source_arg)?;
+        // let source_name = get_source_name(self.table.name.to_owned(), source_arg)?;
 
-        Ok(source_name)
+        // Ok(source_name)
     }
 }
 
@@ -149,25 +150,26 @@ fn lifetime_from_descriptor(
     schema: &Schema,
     udfs: &[UdfConfig],
 ) -> Result<LifetimeTableOperator, TableOperatorError> {
-    let expression_arg = descriptor
-        .args
-        .get(1)
-        .ok_or(TableOperatorError::MissingArgument(
-            descriptor.name.to_owned(),
-        ))?;
-    let duration_arg = descriptor
-        .args
-        .get(2)
-        .ok_or(TableOperatorError::MissingArgument(
-            descriptor.name.to_owned(),
-        ))?;
+    todo!()
+    // let expression_arg = descriptor
+    //     .args
+    //     .get(1)
+    //     .ok_or(TableOperatorError::MissingArgument(
+    //         descriptor.name.to_owned(),
+    //     ))?;
+    // let duration_arg = descriptor
+    //     .args
+    //     .get(2)
+    //     .ok_or(TableOperatorError::MissingArgument(
+    //         descriptor.name.to_owned(),
+    //     ))?;
 
-    let expression = get_expression(descriptor.name.to_owned(), expression_arg, schema, udfs)?;
-    let duration = get_interval(descriptor.name.to_owned(), duration_arg)?;
+    // let expression = get_expression(descriptor.name.to_owned(), expression_arg, schema, udfs)?;
+    // let duration = get_interval(descriptor.name.to_owned(), duration_arg)?;
 
-    let operator = LifetimeTableOperator::new(None, expression, duration);
+    // let operator = LifetimeTableOperator::new(None, expression, duration);
 
-    Ok(operator)
+    // Ok(operator)
 }
 
 fn get_interval(

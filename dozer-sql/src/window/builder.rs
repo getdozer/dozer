@@ -26,59 +26,61 @@ pub(crate) fn window_from_table_operator(
     operator: &TableOperatorDescriptor,
     schema: &Schema,
 ) -> Result<Option<WindowType>, WindowError> {
-    if operator.name.to_uppercase() == "TUMBLE" {
-        let column_index = get_window_column_index(&operator.args, schema)?;
-        let interval_arg = operator
-            .args
-            .get(ARG_TUMBLE_INTERVAL)
-            .ok_or(WindowError::WindowMissingIntervalArgument)?;
-        let interval = get_window_interval(interval_arg)?;
+    todo!()
+    // if operator.name.to_uppercase() == "TUMBLE" {
+    //     let column_index = get_window_column_index(&operator.args, schema)?;
+    //     let interval_arg = operator
+    //         .args
+    //         .get(ARG_TUMBLE_INTERVAL)
+    //         .ok_or(WindowError::WindowMissingIntervalArgument)?;
+    //     let interval = get_window_interval(interval_arg)?;
 
-        Ok(Some(WindowType::Tumble {
-            column_index,
-            interval,
-        }))
-    } else if operator.name.to_uppercase() == "HOP" {
-        let column_index = get_window_column_index(&operator.args, schema)?;
-        let hop_arg = operator
-            .args
-            .get(ARG_HOP_SIZE)
-            .ok_or(WindowError::WindowMissingHopSizeArgument)?;
-        let hop_size = get_window_hop(hop_arg)?;
-        let interval_arg = operator
-            .args
-            .get(ARG_HOP_INTERVAL)
-            .ok_or(WindowError::WindowMissingIntervalArgument)?;
-        let interval = get_window_interval(interval_arg)?;
+    //     Ok(Some(WindowType::Tumble {
+    //         column_index,
+    //         interval,
+    //     }))
+    // } else if operator.name.to_uppercase() == "HOP" {
+    //     let column_index = get_window_column_index(&operator.args, schema)?;
+    //     let hop_arg = operator
+    //         .args
+    //         .get(ARG_HOP_SIZE)
+    //         .ok_or(WindowError::WindowMissingHopSizeArgument)?;
+    //     let hop_size = get_window_hop(hop_arg)?;
+    //     let interval_arg = operator
+    //         .args
+    //         .get(ARG_HOP_INTERVAL)
+    //         .ok_or(WindowError::WindowMissingIntervalArgument)?;
+    //     let interval = get_window_interval(interval_arg)?;
 
-        return Ok(Some(WindowType::Hop {
-            column_index,
-            hop_size,
-            interval,
-        }));
-    } else {
-        return Err(WindowError::UnsupportedRelationFunction(
-            operator.name.clone(),
-        ));
-    }
+    //     return Ok(Some(WindowType::Hop {
+    //         column_index,
+    //         hop_size,
+    //         interval,
+    //     }));
+    // } else {
+    //     return Err(WindowError::UnsupportedRelationFunction(
+    //         operator.name.clone(),
+    //     ));
+    // }
 }
 
 pub(crate) fn window_source_name(
     operator: &TableOperatorDescriptor,
 ) -> Result<String, WindowError> {
-    if operator.name.to_uppercase() == "TUMBLE" || operator.name.to_uppercase() == "HOP" {
-        let source_arg = operator
-            .args
-            .get(ARG_SOURCE)
-            .ok_or(WindowError::WindowMissingSourceArgument)?;
-        let source_name = get_window_source_name(source_arg)?;
+    todo!()
+    // if operator.name.to_uppercase() == "TUMBLE" || operator.name.to_uppercase() == "HOP" {
+    //     let source_arg = operator
+    //         .args
+    //         .get(ARG_SOURCE)
+    //         .ok_or(WindowError::WindowMissingSourceArgument)?;
+    //     let source_name = get_window_source_name(source_arg)?;
 
-        Ok(source_name)
-    } else {
-        Err(WindowError::UnsupportedRelationFunction(
-            operator.name.clone(),
-        ))
-    }
+    //     Ok(source_name)
+    // } else {
+    //     Err(WindowError::UnsupportedRelationFunction(
+    //         operator.name.clone(),
+    //     ))
+    // }
 }
 
 fn get_window_interval(interval_arg: &FunctionArg) -> Result<Duration, WindowError> {

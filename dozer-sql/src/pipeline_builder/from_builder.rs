@@ -7,7 +7,7 @@ use dozer_core::{
 };
 use dozer_sql_expression::{
     builder::ExpressionBuilder,
-    sqlparser::ast::{FunctionArg, ObjectName, TableFactor, TableWithJoins},
+    sqlparser::ast::{Expr, FunctionArg, FunctionArgExpr, ObjectName, TableFactor, TableWithJoins},
 };
 
 use crate::{
@@ -29,7 +29,13 @@ pub struct ConnectionInfo {
 #[derive(Clone, Debug)]
 pub struct TableOperatorDescriptor {
     pub name: String,
-    pub args: Vec<FunctionArg>,
+    pub args: Vec<TableOperatorArg>,
+}
+
+#[derive(Clone, Debug)]
+pub enum TableOperatorArg {
+    Argument(FunctionArg),
+    Descriptor(TableOperatorDescriptor),
 }
 
 pub fn insert_from_to_pipeline(
@@ -231,19 +237,57 @@ fn insert_table_operator_processor_to_pipeline(
     }
 }
 
+pub fn get_table_operator_arg(arg: &FunctionArg) -> Result<TableOperatorArg, PipelineError> {
+    match arg {
+        FunctionArg::Named { name, arg: _ } => {
+            Err(PipelineError::UnsupportedTableOperator(name.to_string()))
+        }
+        FunctionArg::Unnamed(arg_expr) => match arg_expr {
+            FunctionArgExpr::Expr(Expr::Function(function)) => {
+                let operator_descriptor = get_table_operator_descriptor(
+                    &function.clone().name,
+                    &Some(function.clone().args),
+                )?;
+                if let Some(descriptor) = operator_descriptor {
+                    Ok(TableOperatorArg::Descriptor(descriptor))
+                } else {
+                    Err(PipelineError::UnsupportedTableOperator(
+                        string_from_sql_object_name(&function.name),
+                    ))
+                }
+            }
+            _ => Ok(TableOperatorArg::Argument(arg.clone())),
+        },
+    }
+}
+
+pub fn get_table_operator_descriptor(
+    name: &ObjectName,
+    args: &Option<Vec<FunctionArg>>,
+) -> Result<Option<TableOperatorDescriptor>, PipelineError> {
+    let mut operator_args = vec![];
+
+    if let Some(args) = args {
+        for arg in args {
+            let operator_arg = get_table_operator_arg(arg)?;
+            operator_args.push(operator_arg);
+        }
+    }
+
+    Ok(Some(TableOperatorDescriptor {
+        name: string_from_sql_object_name(name),
+        args: operator_args,
+    }))
+}
+
 pub fn is_table_operator(
     relation: &TableFactor,
 ) -> Result<Option<TableOperatorDescriptor>, PipelineError> {
     match relation {
         TableFactor::Table { name, args, .. } => {
-            if args.is_some() {
-                Ok(Some(TableOperatorDescriptor {
-                    name: string_from_sql_object_name(name),
-                    args: args.clone().unwrap(),
-                }))
-            } else {
-                Ok(None)
-            }
+            let operator = get_table_operator_descriptor(name, args)?;
+
+            Ok(operator)
         }
         TableFactor::Derived { .. } => Ok(None),
         TableFactor::TableFunction { .. } => Err(PipelineError::UnsupportedTableFunction),

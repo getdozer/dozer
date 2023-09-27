@@ -181,7 +181,7 @@ async fn test_pipeline_builder() {
     let mut pipeline = AppPipeline::new_with_default_flags();
     let context = statement_to_pipeline(
         "SELECT COUNT(Spending), users.Country \
-        FROM users \
+        FROM TTL(TUMBLE(users, timestamp, '5 MINUTES'), '1 MINUTE') \
          WHERE Spending >= 1",
         &mut pipeline,
         Some("results".to_string()),
