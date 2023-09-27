@@ -1,12 +1,10 @@
-use std::time::Duration;
-
 use crate::connectors::snowflake::connection::client::Client;
 use crate::connectors::{
     Connector, SourceSchema, SourceSchemaResult, TableIdentifier, TableInfo, TableToIngest,
 };
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
-use dozer_types::ingestion_types::SnowflakeConfig;
+use dozer_types::ingestion_types::{default_snowflake_poll_interval, SnowflakeConfig};
 use dozer_types::node::OpIdentifier;
 use dozer_types::tonic::async_trait;
 use odbc::create_environment_v3;
@@ -141,7 +139,9 @@ fn run(
     // SNAPSHOT part - run it when stream table doesn't exist
     let env = create_environment_v3().unwrap();
     let stream_client = Client::new(&config, &env);
-    let interval = Duration::from_secs(5);
+    let interval = config
+        .poll_interval_seconds
+        .unwrap_or_else(default_snowflake_poll_interval);
 
     let mut consumer = StreamConsumer::new();
     let mut iteration = 0;

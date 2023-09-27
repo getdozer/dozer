@@ -1,10 +1,14 @@
 use prettytable::Table as PrettyTable;
 use schemars::JsonSchema;
-use std::fmt::Debug;
+use std::{fmt::Debug, time::Duration};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{node::OpIdentifier, types::Operation};
+use crate::{
+    helper::{deserialize_duration_secs_f64, f64_schema, serialize_duration_secs_f64},
+    node::OpIdentifier,
+    types::Operation,
+};
 
 #[derive(Clone, Debug, PartialEq)]
 /// All possible kinds of `IngestionMessage`.
@@ -184,6 +188,15 @@ pub struct SnowflakeConfig {
     pub driver: Option<String>,
 
     pub role: String,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_duration_secs_f64",
+        serialize_with = "serialize_duration_secs_f64"
+    )]
+    #[schemars(schema_with = "f64_schema")]
+    pub poll_interval_seconds: Option<Duration>,
 }
 
 impl SnowflakeConfig {
@@ -197,7 +210,16 @@ impl SnowflakeConfig {
             ["database", self.database],
             ["schema", self.schema],
             ["warehouse", self.warehouse],
-            ["driver", self.driver.as_ref().map_or("default", |d| d)]
+            ["driver", self.driver.as_ref().map_or("default", |d| d)],
+            [
+                "poll_interval_seconds",
+                format!(
+                    "{}s",
+                    self.poll_interval_seconds
+                        .unwrap_or_else(default_snowflake_poll_interval)
+                        .as_secs_f64()
+                )
+            ]
         )
     }
 }
@@ -390,4 +412,8 @@ pub fn default_timeout() -> u32 {
 
 pub fn default_buffer_size() -> u32 {
     1000
+}
+
+pub fn default_snowflake_poll_interval() -> Duration {
+    Duration::from_secs(5)
 }
