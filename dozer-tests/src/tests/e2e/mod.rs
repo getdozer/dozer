@@ -1,10 +1,10 @@
 use std::{future::Future, sync::Arc, thread::JoinHandle, time::Duration};
 
-use dozer_api::tonic::transport::Channel;
-use dozer_cli::{
+use dozer_api::{
     shutdown::{self, ShutdownSender},
-    simple::SimpleOrchestrator,
+    tonic::transport::Channel,
 };
+use dozer_cli::simple::SimpleOrchestrator;
 use dozer_types::{
     grpc_types::{
         common::common_grpc_service_client::CommonGrpcServiceClient,

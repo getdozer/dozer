@@ -16,6 +16,7 @@ use dozer_types::models::api_endpoint::{
 use dozer_types::tonic::transport::Channel;
 use dozer_types::tonic::Streaming;
 use dozer_types::{bincode, serde_json};
+use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::task::JoinHandle;
 use tokio_stream::wrappers::ReceiverStream;
@@ -265,10 +266,27 @@ async fn call_get_log_once(
 }
 
 async fn log_reader_worker(
+    log_client: LogClient,
+    pos: u64,
+    options: LogReaderOptions,
+    op_sender: Sender<OpAndPos>,
+) -> Result<(), ReaderError> {
+    select! {
+        _ = op_sender.closed() => {
+            debug!("Log reader thread quit because LogReader was dropped");
+            Ok(())
+        }
+        result = log_reader_worker_loop(log_client, pos, options, &op_sender) => {
+            result
+        }
+    }
+}
+
+async fn log_reader_worker_loop(
     mut log_client: LogClient,
     mut pos: u64,
     options: LogReaderOptions,
-    op_sender: Sender<OpAndPos>,
+    op_sender: &Sender<OpAndPos>,
 ) -> Result<(), ReaderError> {
     loop {
         // Request ops.

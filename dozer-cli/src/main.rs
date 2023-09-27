@@ -1,4 +1,5 @@
 use clap::Parser;
+use dozer_api::shutdown;
 #[cfg(feature = "cloud")]
 use dozer_cli::cli::cloud::CloudCommands;
 use dozer_cli::cli::generate_config_repl;
@@ -8,7 +9,7 @@ use dozer_cli::errors::{CliError, CloudError, OrchestrationError};
 use dozer_cli::simple::SimpleOrchestrator;
 #[cfg(feature = "cloud")]
 use dozer_cli::CloudOrchestrator;
-use dozer_cli::{live, set_ctrl_handler, set_panic_hook, shutdown};
+use dozer_cli::{live, set_ctrl_handler, set_panic_hook};
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::models::telemetry::{TelemetryConfig, TelemetryMetricsConfig};
 use dozer_types::serde::Deserialize;

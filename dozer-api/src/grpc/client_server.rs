@@ -6,6 +6,7 @@ use crate::grpc::auth::AuthService;
 use crate::grpc::grpc_web_middleware::enable_grpc_web;
 use crate::grpc::health::HealthService;
 use crate::grpc::{common, run_server, typed};
+use crate::shutdown::ShutdownReceiver;
 use crate::{errors::GrpcError, CacheEndpoint};
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::grpc_types::health::health_check_response::ServingStatus;
@@ -91,7 +92,7 @@ impl ApiServer {
     pub async fn run(
         &self,
         cache_endpoints: Vec<Arc<CacheEndpoint>>,
-        shutdown: impl Future<Output = ()> + Send + 'static,
+        shutdown: ShutdownReceiver,
         operations_receiver: Option<Receiver<Operation>>,
         labels: LabelsAndProgress,
         default_max_num_records: usize,

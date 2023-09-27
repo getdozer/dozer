@@ -2,6 +2,7 @@ use std::{sync::Arc, thread::JoinHandle};
 
 use clap::Parser;
 
+use dozer_api::shutdown::{self, ShutdownReceiver, ShutdownSender};
 use dozer_cache::dozer_log::camino::Utf8Path;
 use dozer_core::{app::AppPipeline, dag_schemas::DagSchemas, Dag};
 use dozer_sql::builder::statement_to_pipeline;
@@ -26,7 +27,6 @@ use crate::{
     cli::{init_dozer, types::Cli},
     errors::OrchestrationError,
     pipeline::PipelineBuilder,
-    shutdown::{self, ShutdownReceiver, ShutdownSender},
     simple::{helper::validate_config, Contract, SimpleOrchestrator},
 };
 
