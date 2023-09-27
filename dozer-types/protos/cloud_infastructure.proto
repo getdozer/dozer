@@ -1,0 +1,62 @@
+syntax = "proto3";
+package dozer.cloud;
+
+message GetInfastructureRequest {
+  string app_id = 1;
+  uint32 deployment = 2;
+}
+
+message GetInfastructureResponse {
+  repeated PodInfo pods = 1;
+}
+message PodInfo {
+  string name = 1;
+  string created_at = 3;
+  repeated string labels = 4;
+  repeated ContainerInfo containers = 5;
+  optional string phase = 6;
+  optional string reason = 7;
+}
+message ContainerInfo {
+  string name = 1;
+  repeated ResourceInfo resources = 2;
+  optional string image = 3;
+  repeated string command = 4;
+  ContainerStatus status = 5;
+}
+message ContainerStatus {
+  optional string container_id = 1;
+  bool ready = 2;
+  uint32 restart_count = 3;
+  optional bool started = 4;
+  // detail about current state
+  optional ContainerState state = 5;
+  // Details about the container's last termination condition.
+  optional ContainerState last_state = 6;
+}
+
+message ContainerState {
+  optional ContainerStateRunning running = 1;
+  optional ContainerStateWaiting waiting = 2;
+  optional ContainerStateTerminated terminated = 3;
+}
+message ContainerStateTerminated {
+  optional string reason = 1;
+  optional string message = 2;
+  optional string finished_at = 3;
+  optional uint32 signal = 4;
+  uint32 exit_code = 5;
+}
+message ContainerStateRunning {
+  optional string started_at = 1;
+}
+message ContainerStateWaiting {
+  optional string reason = 1;
+  optional string message = 2;
+}
+message ResourceInfo {
+  string name = 1;
+  string limit = 2;
+  string usage = 3;
+  string request = 4;
+}
