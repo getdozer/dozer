@@ -77,7 +77,7 @@ rand = "0.8.5"
 hex-literal = "0.4.1"
 dozer-tracing = { path = "../dozer-tracing" }
 tempdir = "0.3.7"
-parquet = "45.0.0"
+parquet = "47.0.0"
 env_logger = "0.10.0"
 hex = "0.4.3"
 dozer-cli = { path = "../dozer-cli" }
