@@ -37,13 +37,6 @@ pub enum TableOperatorArg {
     Descriptor(TableOperatorDescriptor),
 }
 
-#[derive(Clone, Debug)]
-pub enum SourceType {
-    Srouce,
-    Pipeline,
-    Processor,
-}
-
 pub fn insert_from_to_pipeline(
     from: &TableWithJoins,
     pipeline: &mut AppPipeline,
