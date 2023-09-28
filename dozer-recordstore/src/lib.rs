@@ -109,7 +109,9 @@ impl ProcessorRecordStore {
     pub fn new(record_store: RecordStore) -> Result<Self, RecordStoreError> {
         match record_store {
             RecordStore::InMemory => Ok(Self::InMemory(in_memory::ProcessorRecordStore::new()?)),
-            RecordStore::Rocksdb => Ok(Self::Rocksdb(rocksdb::ProcessorRecordStore::new()?)),
+            RecordStore::Rocksdb(config) => {
+                Ok(Self::Rocksdb(rocksdb::ProcessorRecordStore::new(config)?))
+            }
         }
     }
 
@@ -178,7 +180,9 @@ impl ProcessorRecordStoreDeserializer {
             RecordStore::InMemory => Ok(Self::InMemory(
                 in_memory::ProcessorRecordStoreDeserializer::new()?,
             )),
-            RecordStore::Rocksdb => Ok(Self::Rocksdb(rocksdb::ProcessorRecordStore::new()?)),
+            RecordStore::Rocksdb(config) => {
+                Ok(Self::Rocksdb(rocksdb::ProcessorRecordStore::new(config)?))
+            }
         }
     }
 
@@ -253,6 +257,7 @@ struct ProcessorRecordForSerialization {
 
 #[cfg(test)]
 mod tests {
+    use dozer_types::models::app_config::RocksdbConfig;
     use std::time::Duration;
 
     use dozer_types::types::Timestamp;
@@ -283,7 +288,7 @@ mod tests {
     #[test]
     fn test_record_roundtrip() {
         test_record_roundtrip_impl(RecordStore::InMemory);
-        test_record_roundtrip_impl(RecordStore::Rocksdb);
+        test_record_roundtrip_impl(RecordStore::Rocksdb(RocksdbConfig::default()));
     }
 
     fn test_record_serialization_roundtrip_impl(record_store_kind: RecordStore) {

@@ -1,6 +1,7 @@
 use std::sync::atomic::AtomicU64;
 
 use dozer_storage::RocksdbMap;
+use dozer_types::models::app_config::RocksdbConfig;
 use dozer_types::types::Field;
 use tempdir::TempDir;
 
@@ -14,10 +15,10 @@ pub struct ProcessorRecordStore {
 }
 
 impl ProcessorRecordStore {
-    pub fn new() -> Result<Self, RecordStoreError> {
+    pub fn new(config: RocksdbConfig) -> Result<Self, RecordStoreError> {
         let temp_dir = TempDir::new("rocksdb_processor_record_store")
             .map_err(RecordStoreError::FailedToCreateTempDir)?;
-        let records = RocksdbMap::<u64, Vec<Field>>::create(temp_dir.path())?;
+        let records = RocksdbMap::<u64, Vec<Field>>::create(temp_dir.path(), config)?;
 
         Ok(Self {
             _temp_dir: temp_dir,
