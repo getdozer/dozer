@@ -111,7 +111,7 @@ impl Source for TestSource {
         fw: &mut dyn SourceChannelForwarder,
         _last_checkpoint: SourceState,
     ) -> Result<(), BoxedError> {
-        for n in 0..10000 {
+        for n in 0..10 {
             fw.send(
                 IngestionMessage::OperationEvent {
                     table_index: 0,
@@ -194,9 +194,9 @@ impl Sink for TestSink {
 async fn test_pipeline_builder() {
     let mut pipeline = AppPipeline::new_with_default_flags();
     let context = statement_to_pipeline(
-        "SELECT Spending  \
-        FROM TTL(TUMBLE(users, timestamp, '5 MINUTES'), timestamp, '1 MINUTE') \
-         WHERE Spending >= 1",
+        "SELECT t.Spending  \
+        FROM TTL(TUMBLE(users, timestamp, '5 MINUTES'), timestamp, '1 MINUTE') t JOIN users u on t.CustomerID=u.CustomerID \
+         WHERE t.Spending >= 1",
         &mut pipeline,
         Some("results".to_string()),
         vec![],

@@ -361,6 +361,9 @@ pub fn is_table_operator(
 ) -> Result<Option<TableOperatorDescriptor>, PipelineError> {
     match relation {
         TableFactor::Table { name, args, .. } => {
+            if args.is_none() {
+                return Ok(None);
+            }
             let operator = get_table_operator_descriptor(name, args)?;
 
             Ok(operator)
