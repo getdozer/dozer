@@ -170,9 +170,10 @@ impl Sink for TestSink {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        _record_store: &ProcessorRecordStore,
-        _op: ProcessorOperation,
+        record_store: &ProcessorRecordStore,
+        op: ProcessorOperation,
     ) -> Result<(), BoxedError> {
+        println!("Sink: {:?}", op.load(record_store).unwrap());
         Ok(())
     }
 
@@ -193,7 +194,7 @@ impl Sink for TestSink {
 async fn test_pipeline_builder() {
     let mut pipeline = AppPipeline::new_with_default_flags();
     let context = statement_to_pipeline(
-        "SELECT Spending \
+        "SELECT Spending  \
         FROM TTL(TUMBLE(users, timestamp, '5 MINUTES'), timestamp, '1 MINUTE') \
          WHERE Spending >= 1",
         &mut pipeline,

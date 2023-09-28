@@ -24,7 +24,7 @@ use super::{
     processor::TableOperatorProcessor,
 };
 
-const SOURCE_TABLE_ARGUMENT: usize = 0;
+const _SOURCE_TABLE_ARGUMENT: usize = 0;
 
 #[derive(Debug)]
 pub struct TableOperatorProcessorFactory {
@@ -42,17 +42,6 @@ impl TableOperatorProcessorFactory {
             name: id,
             udfs,
         }
-    }
-
-    pub(crate) fn get_source_name(&self) -> Result<String, TableOperatorError> {
-        todo!()
-        // let source_arg = self.table.args.get(SOURCE_TABLE_ARGUMENT).ok_or(
-        //     TableOperatorError::MissingSourceArgument(self.table.name.to_owned()),
-        // )?;
-
-        // let source_name = get_source_name(self.table.name.to_owned(), source_arg)?;
-
-        // Ok(source_name)
     }
 }
 

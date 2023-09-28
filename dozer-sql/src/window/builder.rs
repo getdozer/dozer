@@ -14,7 +14,7 @@ use crate::{
 
 use super::operator::WindowType;
 
-const ARG_SOURCE: usize = 0;
+const _ARG_SOURCE: usize = 0;
 const ARG_COLUMN: usize = 1;
 
 const ARG_TUMBLE_INTERVAL: usize = 2;
@@ -78,30 +78,6 @@ pub(crate) fn window_from_table_operator(
     }
 }
 
-pub(crate) fn window_source_name(
-    operator: &TableOperatorDescriptor,
-) -> Result<String, WindowError> {
-    todo!()
-    // if operator.name.to_uppercase() == "TUMBLE" || operator.name.to_uppercase() == "HOP" {
-    //     let source_arg = operator
-    //         .args
-    //         .get(ARG_SOURCE)
-    //         .ok_or(WindowError::WindowMissingSourceArgument)?;
-    //     let argument = if let TableOperatorArg::Argument(arg) = source_arg {
-    //         arg
-    //     } else {
-    //         return Err(WindowError::WindowInvalidSource("".to_string()));
-    //     };
-    //     let source_name = get_window_source_name(argument)?;
-
-    //     Ok(source_name)
-    // } else {
-    //     Err(WindowError::UnsupportedRelationFunction(
-    //         operator.name.clone(),
-    //     ))
-    // }
-}
-
 fn get_window_interval(interval_arg: &FunctionArg) -> Result<Duration, WindowError> {
     match interval_arg {
         FunctionArg::Named { name, arg: _ } => {
@@ -144,32 +120,6 @@ fn get_window_hop(hop_arg: &FunctionArg) -> Result<Duration, WindowError> {
                 Err(WindowError::WindowInvalidHop("*".to_string()))
             }
             FunctionArgExpr::Wildcard => Err(WindowError::WindowInvalidHop("*".to_string())),
-        },
-    }
-}
-
-fn get_window_source_name(arg: &FunctionArg) -> Result<String, WindowError> {
-    match arg {
-        FunctionArg::Named { name, arg: _ } => {
-            let source_name = ExpressionBuilder::normalize_ident(name);
-            Err(WindowError::WindowInvalidSource(source_name))
-        }
-        FunctionArg::Unnamed(arg_expr) => match arg_expr {
-            FunctionArgExpr::Expr(expr) => match expr {
-                Expr::Identifier(ident) => {
-                    let source_name = ExpressionBuilder::normalize_ident(ident);
-                    Ok(source_name)
-                }
-                Expr::CompoundIdentifier(ident) => {
-                    let source_name = ExpressionBuilder::fullname_from_ident(ident);
-                    Ok(source_name)
-                }
-                _ => Err(WindowError::WindowInvalidColumn(expr.to_string())),
-            },
-            FunctionArgExpr::QualifiedWildcard(_) => {
-                Err(WindowError::WindowInvalidColumn("*".to_string()))
-            }
-            FunctionArgExpr::Wildcard => Err(WindowError::WindowInvalidColumn("*".to_string())),
         },
     }
 }
