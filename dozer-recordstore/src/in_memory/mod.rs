@@ -367,11 +367,8 @@ impl RecordRef {
 
 impl RecordRefInner {
     fn new(fields: Vec<Field>) -> Self {
-        let field_types = fields.iter().map(|field| field.ty());
-        let field_types_layout = Layout::array::<Option<FieldType>>(field_types.len()).unwrap();
-        let values_size = size(field_types);
-        let values_layout = Layout::from_size_align(values_size, MAX_ALIGN).unwrap();
-        let (layout, values_offset) = field_types_layout.extend(values_layout).unwrap();
+        let n_fields = fields.len();
+        let (layout, values_offset) = Self::layout(n_fields, fields.iter().map(|field| field.ty()));
 
         // SAFETY: Everything is `ALIGN` byte aligned
         let data = unsafe {
@@ -404,7 +401,6 @@ impl RecordRefInner {
         // - ptr is non-null (we got it from a NonNull)
         // - ptr is dereferencable (its memory range is large enough and not de-allocated)
         //
-        let n_fields = fields.len();
         unsafe {
             for field in fields {
                 match field {
@@ -445,12 +441,12 @@ impl RecordRefInner {
     }
 
     #[inline(always)]
-    fn layout<'a>(
+    fn layout(
         n_fields: usize,
-        field_types: impl Iterator<Item = &'a Option<FieldType>>,
+        field_types: impl Iterator<Item = Option<FieldType>>,
     ) -> (Layout, usize) {
         let field_types_layout = Layout::array::<Option<FieldType>>(n_fields).unwrap();
-        let values_size = size(field_types.copied());
+        let values_size = size(field_types);
         let values_layout = Layout::from_size_align(values_size, MAX_ALIGN).unwrap();
         field_types_layout.extend(values_layout).unwrap()
     }
@@ -469,7 +465,7 @@ impl Drop for RecordRefInner {
         unsafe {
             dealloc(
                 self.data.as_ptr(),
-                Self::layout(self.n_fields, self.field_types().iter()).0,
+                Self::layout(self.n_fields, self.field_types().iter().copied()).0,
             );
         }
     }
