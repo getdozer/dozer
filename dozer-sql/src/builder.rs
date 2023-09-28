@@ -18,6 +18,7 @@ use dozer_sql_expression::sqlparser::{
     parser::Parser,
 };
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 use super::errors::UnsupportedSqlError;
 use super::pipeline_builder::from_builder::insert_from_to_pipeline;
@@ -51,6 +52,9 @@ pub struct QueryContext {
 
     // Used Sources
     pub used_sources: Vec<String>,
+
+    // Internal tables map, used to store the tables that are created by the queries
+    pub processors_list: HashSet<String>,
 
     // Processors counter
     pub processor_counter: usize,

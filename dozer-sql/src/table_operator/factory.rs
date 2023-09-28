@@ -15,7 +15,7 @@ use dozer_types::{errors::internal::BoxedError, types::Schema};
 
 use crate::{
     errors::{PipelineError, TableOperatorError},
-    pipeline_builder::from_builder::TableOperatorDescriptor,
+    pipeline_builder::from_builder::{TableOperatorArg, TableOperatorDescriptor},
 };
 
 use super::{
@@ -150,26 +150,44 @@ fn lifetime_from_descriptor(
     schema: &Schema,
     udfs: &[UdfConfig],
 ) -> Result<LifetimeTableOperator, TableOperatorError> {
-    todo!()
-    // let expression_arg = descriptor
-    //     .args
-    //     .get(1)
-    //     .ok_or(TableOperatorError::MissingArgument(
-    //         descriptor.name.to_owned(),
-    //     ))?;
-    // let duration_arg = descriptor
-    //     .args
-    //     .get(2)
-    //     .ok_or(TableOperatorError::MissingArgument(
-    //         descriptor.name.to_owned(),
-    //     ))?;
+    let table_expression_arg =
+        descriptor
+            .args
+            .get(1)
+            .ok_or(TableOperatorError::MissingArgument(
+                descriptor.name.to_owned(),
+            ))?;
 
-    // let expression = get_expression(descriptor.name.to_owned(), expression_arg, schema, udfs)?;
-    // let duration = get_interval(descriptor.name.to_owned(), duration_arg)?;
+    let expression_arg = if let TableOperatorArg::Argument(argument) = table_expression_arg {
+        argument
+    } else {
+        return Err(TableOperatorError::InvalidReference(
+            descriptor.name.to_owned(),
+            format!("{:?}", table_expression_arg),
+        ));
+    };
 
-    // let operator = LifetimeTableOperator::new(None, expression, duration);
+    let table_duration_arg = descriptor
+        .args
+        .get(2)
+        .ok_or(TableOperatorError::MissingArgument(
+            descriptor.name.to_owned(),
+        ))?;
+    let duration_arg = if let TableOperatorArg::Argument(argument) = table_duration_arg {
+        argument
+    } else {
+        return Err(TableOperatorError::InvalidInterval(
+            descriptor.name.to_owned(),
+            format!("{:?}", table_duration_arg),
+        ));
+    };
 
-    // Ok(operator)
+    let expression = get_expression(descriptor.name.to_owned(), expression_arg, schema, udfs)?;
+    let duration = get_interval(descriptor.name.to_owned(), duration_arg)?;
+
+    let operator = LifetimeTableOperator::new(None, expression, duration);
+
+    Ok(operator)
 }
 
 fn get_interval(
@@ -281,13 +299,16 @@ fn parse_duration_string(
     }
 }
 
-fn get_source_name(function_name: String, arg: &FunctionArg) -> Result<String, TableOperatorError> {
+pub(crate) fn get_source_name(
+    function_name: &String,
+    arg: &FunctionArg,
+) -> Result<String, TableOperatorError> {
     match arg {
         FunctionArg::Named { name, arg: _ } => {
             let source_name = ExpressionBuilder::normalize_ident(name);
             Err(TableOperatorError::InvalidSourceArgument(
                 source_name,
-                function_name,
+                function_name.to_string(),
             ))
         }
         FunctionArg::Unnamed(arg_expr) => match arg_expr {
@@ -302,15 +323,18 @@ fn get_source_name(function_name: String, arg: &FunctionArg) -> Result<String, T
                 }
                 _ => Err(TableOperatorError::InvalidSourceArgument(
                     expr.to_string(),
-                    function_name,
+                    function_name.to_string(),
                 )),
             },
-            FunctionArgExpr::QualifiedWildcard(_) => Err(
-                TableOperatorError::InvalidSourceArgument("*".to_string(), function_name),
-            ),
+            FunctionArgExpr::QualifiedWildcard(_) => {
+                Err(TableOperatorError::InvalidSourceArgument(
+                    "*".to_string(),
+                    function_name.to_string(),
+                ))
+            }
             FunctionArgExpr::Wildcard => Err(TableOperatorError::InvalidSourceArgument(
                 "*".to_string(),
-                function_name,
+                function_name.to_string(),
             )),
         },
     }

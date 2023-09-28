@@ -126,6 +126,9 @@ pub enum PipelineError {
 
     #[error("Invalid port handle: {0}")]
     InvalidPortHandle(PortHandle),
+
+    #[error("Duplicated Processor name: {0}")]
+    ProcessorAlreadyExists(String),
 }
 
 #[derive(Error, Debug)]

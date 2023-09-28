@@ -50,6 +50,12 @@ pub(crate) fn insert_join_to_pipeline(
         )?;
 
         let join_processor_name = format!("join_{}", query_context.get_next_processor_id());
+        if !query_context
+            .processors_list
+            .insert(join_processor_name.clone())
+        {
+            return Err(PipelineError::ProcessorAlreadyExists(join_processor_name));
+        }
         let join_processor_factory = JoinProcessorFactory::new(
             join_processor_name.clone(),
             left_name_or_alias.clone(),
@@ -64,7 +70,7 @@ pub(crate) fn insert_join_to_pipeline(
 
         let mut pipeline_entry_points = vec![];
         if let JoinSource::Table(ref source_table) = left_join_source {
-            if is_an_entry_point(source_table, &mut query_context.pipeline_map, pipeline_idx) {
+            if is_an_entry_point(source_table, query_context, pipeline_idx) {
                 let entry_point = PipelineEntryPoint::new(source_table.clone(), LEFT_JOIN_PORT);
 
                 pipeline_entry_points.push(entry_point);
@@ -79,7 +85,7 @@ pub(crate) fn insert_join_to_pipeline(
         }
 
         if let JoinSource::Table(ref source_table) = right_join_source.clone() {
-            if is_an_entry_point(source_table, &mut query_context.pipeline_map, pipeline_idx) {
+            if is_an_entry_point(source_table, query_context, pipeline_idx) {
                 let entry_point = PipelineEntryPoint::new(source_table.clone(), RIGHT_JOIN_PORT);
 
                 pipeline_entry_points.push(entry_point);
@@ -134,6 +140,7 @@ pub(crate) fn insert_join_to_pipeline(
         // TODO: refactor join source name and aliasing logic
         left_name_or_alias = None;
         left_join_source = JoinSource::Join(ConnectionInfo {
+            processor_name: join_processor_name.clone(),
             input_nodes: input_nodes.clone(),
             output_node: (join_processor_name, DEFAULT_PORT_HANDLE),
         });
@@ -190,6 +197,9 @@ fn insert_table_operator_to_pipeline(
             table_operator.name,
             query_context.get_next_processor_id()
         );
+        if !query_context.processors_list.insert(processor_name.clone()) {
+            return Err(PipelineError::ProcessorAlreadyExists(processor_name));
+        }
         let processor = TableOperatorProcessorFactory::new(
             processor_name.clone(),
             table_operator.clone(),
@@ -202,7 +212,7 @@ fn insert_table_operator_to_pipeline(
 
         let mut entry_points = vec![];
 
-        if is_an_entry_point(&source_name, &mut query_context.pipeline_map, pipeline_idx) {
+        if is_an_entry_point(&source_name, query_context, pipeline_idx) {
             let entry_point = PipelineEntryPoint::new(source_name.clone(), DEFAULT_PORT_HANDLE);
 
             entry_points.push(entry_point);
@@ -214,6 +224,7 @@ fn insert_table_operator_to_pipeline(
         pipeline.add_processor(Box::new(processor), &processor_name, entry_points);
 
         Ok(ConnectionInfo {
+            processor_name: processor_name.clone(),
             input_nodes,
             output_node: (processor_name, DEFAULT_PORT_HANDLE),
         })
@@ -221,17 +232,16 @@ fn insert_table_operator_to_pipeline(
         || table_operator.name.to_uppercase() == "HOP"
     {
         // for now, we only support window operators
-        let window_processor_name = format!("window_{}", query_context.get_next_processor_id());
+        let processor_name = format!("window_{}", query_context.get_next_processor_id());
+        if !query_context.processors_list.insert(processor_name.clone()) {
+            return Err(PipelineError::ProcessorAlreadyExists(processor_name));
+        }
         let window_processor_factory =
-            WindowProcessorFactory::new(window_processor_name.clone(), table_operator.clone());
+            WindowProcessorFactory::new(processor_name.clone(), table_operator.clone());
         let window_source_name = window_processor_factory.get_source_name()?;
         let mut window_entry_points = vec![];
 
-        if is_an_entry_point(
-            &window_source_name,
-            &mut query_context.pipeline_map,
-            pipeline_idx,
-        ) {
+        if is_an_entry_point(&window_source_name, query_context, pipeline_idx) {
             let entry_point =
                 PipelineEntryPoint::new(window_source_name.clone(), DEFAULT_PORT_HANDLE);
 
@@ -240,20 +250,21 @@ fn insert_table_operator_to_pipeline(
         } else {
             input_nodes.push((
                 window_source_name,
-                window_processor_name.clone(),
+                processor_name.clone(),
                 DEFAULT_PORT_HANDLE,
             ));
         }
 
         pipeline.add_processor(
             Box::new(window_processor_factory),
-            &window_processor_name,
+            &processor_name,
             window_entry_points,
         );
 
         Ok(ConnectionInfo {
+            processor_name: processor_name.clone(),
             input_nodes,
-            output_node: (window_processor_name, DEFAULT_PORT_HANDLE),
+            output_node: (processor_name, DEFAULT_PORT_HANDLE),
         })
     } else {
         Err(PipelineError::UnsupportedTableOperator(
