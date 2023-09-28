@@ -13,8 +13,6 @@ use std::alloc::{dealloc, handle_alloc_error, Layout};
 use std::sync::Arc;
 use std::{hash::Hash, ptr::NonNull};
 
-use slice_dst::SliceWithHeader;
-
 use dozer_types::chrono::{DateTime, FixedOffset, NaiveDate};
 use dozer_types::json_types::JsonValue;
 use dozer_types::ordered_float::OrderedFloat;
@@ -35,12 +33,14 @@ use dozer_types::{
 // packing these fields while keeping everything aligned.
 const MAX_ALIGN: usize = std::mem::align_of::<Field>();
 
-#[repr(transparent)]
 #[derive(Debug)]
 /// `repr(transparent)` inner struct so we can implement drop logic on it
 /// This is a `slice_dst` `SliceWithHeader` so we can make a fat Arc, saving a level
 /// of indirection and a pointer which would otherwise be needed for the field types
-struct RecordRefInner(SliceWithHeader<NonNull<u8>, Option<FieldType>>);
+struct RecordRefInner {
+    n_fields: usize,
+    data: NonNull<u8>,
+}
 
 unsafe impl Send for RecordRefInner {}
 unsafe impl Sync for RecordRefInner {}
@@ -268,9 +268,9 @@ fn add_field_size<T>(size: &mut usize) {
     *size = (*size + (align - 1)) & !(align - 1);
     *size += std::mem::size_of::<T>();
 }
-fn size(fields: &[Option<FieldType>]) -> usize {
+fn size(fields: impl Iterator<Item = Option<FieldType>>) -> usize {
     let mut size = 0;
-    for field in fields.iter().flatten() {
+    for field in fields.flatten() {
         match field {
             FieldType::UInt => add_field_size::<u64>(&mut size),
             FieldType::U128 => add_field_size::<u128>(&mut size),
@@ -338,13 +338,38 @@ impl FieldRef<'_> {
 
 impl RecordRef {
     pub fn new(fields: Vec<Field>) -> Self {
-        let field_types = fields
-            .iter()
-            .map(|field| field.ty())
-            .collect::<Box<[Option<FieldType>]>>();
-        let size = size(&field_types);
+        Self(Arc::new(RecordRefInner::new(fields)))
+    }
 
-        let layout = Layout::from_size_align(size, MAX_ALIGN).unwrap();
+    pub fn load(&self) -> Vec<FieldRef<'_>> {
+        self.0
+            .field_types()
+            .iter()
+            .scan(self.0.field_ptr(), |ptr, field_type| {
+                let Some(field_type) = field_type else {
+                    return Some(FieldRef::Null);
+                };
+
+                unsafe {
+                    let (new_ptr, value) = read_field_ref(*ptr, *field_type);
+                    *ptr = new_ptr;
+                    Some(value)
+                }
+            })
+            .collect()
+    }
+
+    #[inline(always)]
+    pub fn id(&self) -> usize {
+        Arc::as_ptr(&self.0) as *const () as usize
+    }
+}
+
+impl RecordRefInner {
+    fn new(fields: Vec<Field>) -> Self {
+        let n_fields = fields.len();
+        let (layout, values_offset) = Self::layout(n_fields, fields.iter().map(|field| field.ty()));
+
         // SAFETY: Everything is `ALIGN` byte aligned
         let data = unsafe {
             let data = std::alloc::alloc(layout);
@@ -356,7 +381,22 @@ impl RecordRef {
         // SAFETY: We checked for null above
         let data = unsafe { NonNull::new_unchecked(data) };
         let mut ptr = data.as_ptr();
-
+        // SAFETY: field_types_layout ensures we have enough space to write all values
+        unsafe {
+            for field in fields.iter() {
+                // All elements are the same size, so no need for alignment arithmetic
+                let field_type = field.ty();
+                let typed_ptr = ptr as *mut Option<FieldType>;
+                typed_ptr.write(field_type);
+                ptr = typed_ptr.add(1).cast();
+            }
+            // Sanity check that we're still before the value region
+            debug_assert!(ptr.offset_from(data.as_ptr()) as usize <= values_offset);
+            // Make sure we're aligned for writing values
+            ptr = ptr.add(ptr.align_offset(MAX_ALIGN));
+            // Check that our pointer math was correct
+            debug_assert!(ptr.offset_from(data.as_ptr()) as usize == values_offset);
+        }
         // SAFETY:
         // - ptr is non-null (we got it from a NonNull)
         // - ptr is dereferencable (its memory range is large enough and not de-allocated)
@@ -383,53 +423,38 @@ impl RecordRef {
                 }
             }
         }
-        // SAFETY: This is valid, because inner is `repr(transparent)`
-        let arc = unsafe {
-            let arc = SliceWithHeader::from_slice::<Arc<_>>(data, &field_types);
-            std::mem::transmute(arc)
-        };
-        Self(arc)
+        RecordRefInner { n_fields, data }
     }
 
-    pub fn load(&self) -> Vec<FieldRef<'_>> {
-        self.0
-            .field_types()
-            .iter()
-            .scan(self.0.data().as_ptr(), |ptr, field_type| {
-                let Some(field_type) = field_type else {
-                    return Some(FieldRef::Null);
-                };
-
-                unsafe {
-                    let (new_ptr, value) = read_field_ref(*ptr, *field_type);
-                    *ptr = new_ptr;
-                    Some(value)
-                }
-            })
-            .collect()
-    }
-
-    #[inline(always)]
-    pub fn id(&self) -> usize {
-        Arc::as_ptr(&self.0) as *const () as usize
-    }
-}
-
-impl RecordRefInner {
     #[inline(always)]
     fn field_types(&self) -> &[Option<FieldType>] {
-        &self.0.slice
+        unsafe { std::slice::from_raw_parts(self.data.as_ptr().cast(), self.n_fields) }
     }
 
     #[inline(always)]
-    fn data(&self) -> NonNull<u8> {
-        self.0.header
+    fn field_ptr(&self) -> *mut u8 {
+        unsafe {
+            let ptr = self.data.as_ptr();
+            let ptr = ptr.add(self.n_fields * std::mem::size_of::<Option<FieldType>>());
+            ptr.add(ptr.align_offset(MAX_ALIGN))
+        }
+    }
+
+    #[inline(always)]
+    fn layout(
+        n_fields: usize,
+        field_types: impl Iterator<Item = Option<FieldType>>,
+    ) -> (Layout, usize) {
+        let field_types_layout = Layout::array::<Option<FieldType>>(n_fields).unwrap();
+        let values_size = size(field_types);
+        let values_layout = Layout::from_size_align(values_size, MAX_ALIGN).unwrap();
+        field_types_layout.extend(values_layout).unwrap()
     }
 }
 
 impl Drop for RecordRefInner {
     fn drop(&mut self) {
-        let mut ptr = self.data().as_ptr();
+        let mut ptr = self.field_ptr();
         for field in self.field_types().iter().flatten() {
             unsafe {
                 // Read owned so all field destructors run
@@ -439,8 +464,8 @@ impl Drop for RecordRefInner {
         // Then deallocate the field storage
         unsafe {
             dealloc(
-                self.data().as_ptr(),
-                Layout::from_size_align(size(self.field_types()), MAX_ALIGN).unwrap(),
+                self.data.as_ptr(),
+                Self::layout(self.n_fields, self.field_types().iter().copied()).0,
             );
         }
     }
@@ -470,7 +495,13 @@ mod tests {
             .into_iter()
             .map(|field| field.cloned())
             .collect();
+        let loaded_fields_2: Vec<_> = record
+            .load()
+            .into_iter()
+            .map(|field| field.cloned())
+            .collect();
         assert_eq!(&fields, &loaded_fields);
+        assert_eq!(&fields, &loaded_fields_2);
     }
 
     #[test]

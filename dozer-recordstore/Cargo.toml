@@ -11,5 +11,4 @@ fuzz = ["dozer-types/arbitrary"]
 [dependencies]
 dozer-types = { path = "../dozer-types" }
 dozer-storage = { path = "../dozer-storage" }
-slice-dst = { version = "1.5.1", default-features = false }
 tempdir = "0.3.7"
