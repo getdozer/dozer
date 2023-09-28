@@ -333,6 +333,10 @@
         "password": {
           "type": "string"
         },
+        "poll_interval_seconds": {
+          "type": "number",
+          "format": "double"
+        },
         "port": {
           "type": "string"
         },

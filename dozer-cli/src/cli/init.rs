@@ -83,6 +83,7 @@ pub fn generate_connection(connection_name: &str) -> Connection {
                 warehouse: "warehouse".to_owned(),
                 driver: Some("SnowflakeDSIIDriver".to_owned()),
                 role: "role".to_owned(),
+                poll_interval_seconds: None,
             };
             let connection: Connection = Connection {
                 name: "snowflake".to_owned(),
