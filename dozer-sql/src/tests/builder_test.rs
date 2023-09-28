@@ -12,6 +12,7 @@ use dozer_core::node::{
 };
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_recordstore::ProcessorRecordStore;
+use dozer_types::chrono::DateTime;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::debug;
@@ -77,6 +78,15 @@ impl SourceFactory for TestSourceFactory {
                 ),
                 false,
             )
+            .field(
+                FieldDefinition::new(
+                    String::from("timestamp"),
+                    FieldType::Timestamp,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
             .clone())
     }
 
@@ -101,7 +111,7 @@ impl Source for TestSource {
         fw: &mut dyn SourceChannelForwarder,
         _last_checkpoint: SourceState,
     ) -> Result<(), BoxedError> {
-        for n in 0..10000 {
+        for n in 0..10 {
             fw.send(
                 IngestionMessage::OperationEvent {
                     table_index: 0,
@@ -110,6 +120,9 @@ impl Source for TestSource {
                             Field::Int(0),
                             Field::String("Italy".to_string()),
                             Field::Float(OrderedFloat(5.5)),
+                            Field::Timestamp(
+                                DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap(),
+                            ),
                         ]),
                     },
                     id: Some(OpIdentifier::new(n, 0)),
@@ -157,9 +170,10 @@ impl Sink for TestSink {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        _record_store: &ProcessorRecordStore,
-        _op: ProcessorOperation,
+        record_store: &ProcessorRecordStore,
+        op: ProcessorOperation,
     ) -> Result<(), BoxedError> {
+        println!("Sink: {:?}", op.load(record_store).unwrap());
         Ok(())
     }
 
@@ -180,9 +194,9 @@ impl Sink for TestSink {
 async fn test_pipeline_builder() {
     let mut pipeline = AppPipeline::new_with_default_flags();
     let context = statement_to_pipeline(
-        "SELECT COUNT(Spending), users.Country \
-        FROM users \
-         WHERE Spending >= 1",
+        "SELECT t.Spending  \
+        FROM TTL(TUMBLE(users, timestamp, '5 MINUTES'), timestamp, '1 MINUTE') t JOIN users u on t.CustomerID=u.CustomerID \
+         WHERE t.Spending >= 1",
         &mut pipeline,
         Some("results".to_string()),
         vec![],

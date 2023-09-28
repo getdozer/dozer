@@ -12,10 +12,7 @@ use crate::{
     pipeline_builder::from_builder::TableOperatorDescriptor,
 };
 
-use super::{
-    builder::{window_from_table_operator, window_source_name},
-    processor::WindowProcessor,
-};
+use super::{builder::window_from_table_operator, processor::WindowProcessor};
 
 #[derive(Debug)]
 pub struct WindowProcessorFactory {
@@ -26,10 +23,6 @@ pub struct WindowProcessorFactory {
 impl WindowProcessorFactory {
     pub fn new(id: String, table: TableOperatorDescriptor) -> Self {
         Self { id, table }
-    }
-
-    pub(crate) fn get_source_name(&self) -> Result<String, PipelineError> {
-        window_source_name(&self.table).map_err(PipelineError::WindowError)
     }
 }
 
