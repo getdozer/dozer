@@ -23,7 +23,7 @@ enum Level {
 }
 
 message PodNotification {
-    uint32 deployment = 1;
+    uint32 version_instance = 1;
     oneof kind {
         ContainerTerminated containerTerminated = 2;
     }

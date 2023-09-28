@@ -12,20 +12,20 @@ service ContractService {
   rpc GetProtos(CommonRequest) returns (ProtoResponse);
 }
 
-message CloudDeploymentId {
+message CloudVersionId {
   string app_id = 1;
-  uint32 deployment = 2;
+  uint32 version = 2;
 }
 
 message SourcesRequest {
   // Only used in cloud context.
-  optional CloudDeploymentId cloud_id = 1;
+  optional CloudVersionId cloud_id = 1;
   string connection_name = 2;
 }
   
 message CommonRequest {
   // Only used in cloud context.
-  optional CloudDeploymentId cloud_id = 1;
+  optional CloudVersionId cloud_id = 1;
 }
 
 message SchemasResponse {
