@@ -63,7 +63,13 @@ pub struct S3Storage {
 pub enum RecordStore {
     #[default]
     InMemory,
-    Rocksdb,
+    Rocksdb(RocksdbConfig),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
+#[serde(deny_unknown_fields)]
+pub struct RocksdbConfig {
+    pub block_cache_size: Option<usize>,
 }
 
 pub fn default_persist_queue_capacity() -> u32 {

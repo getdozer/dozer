@@ -1307,10 +1307,25 @@
       "additionalProperties": false
     },
     "RecordStore": {
-      "type": "string",
-      "enum": [
-        "InMemory",
-        "Rocksdb"
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "InMemory"
+          ]
+        },
+        {
+          "type": "object",
+          "required": [
+            "Rocksdb"
+          ],
+          "properties": {
+            "Rocksdb": {
+              "$ref": "#/definitions/RocksdbConfig"
+            }
+          },
+          "additionalProperties": false
+        }
       ]
     },
     "RefreshConfig": {
@@ -1346,6 +1361,20 @@
             "null"
           ],
           "format": "uint16",
+          "minimum": 0.0
+        }
+      },
+      "additionalProperties": false
+    },
+    "RocksdbConfig": {
+      "type": "object",
+      "properties": {
+        "block_cache_size": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint",
           "minimum": 0.0
         }
       },

@@ -1,8 +1,9 @@
 use std::path::Path;
 
-use rocksdb::DB;
+use rocksdb::{BlockBasedOptions, Cache, Options, DB};
 
 use dozer_types::borrow::IntoOwned;
+use dozer_types::models::app_config::RocksdbConfig;
 
 use crate::{errors::StorageError, BorrowEncode, Encode, LmdbVal};
 
@@ -17,8 +18,19 @@ impl<K: BorrowEncode, V: LmdbVal> RocksdbMap<K, V>
 where
     for<'a> V::Borrowed<'a>: IntoOwned<V>,
 {
-    pub fn create(path: &Path) -> Result<Self, StorageError> {
-        let db = DB::open_default(path)?;
+    pub fn create(path: &Path, config: RocksdbConfig) -> Result<Self, StorageError> {
+        let mut options = Options::default();
+        options.create_if_missing(true);
+
+        if let Some(block_cache_size) = config.block_cache_size {
+            let mut block_options = BlockBasedOptions::default();
+            let cache = Cache::new_lru_cache(block_cache_size);
+            block_options.set_block_cache(&cache);
+
+            options.set_block_based_table_factory(&block_options);
+        }
+
+        let db = DB::open(&options, path)?;
         Ok(Self {
             db,
             _key: std::marker::PhantomData,
