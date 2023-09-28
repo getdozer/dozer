@@ -326,6 +326,14 @@
           ],
           "format": "uint32",
           "minimum": 0.0
+        },
+        "record_store": {
+          "description": "The record store to use for the processors.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/RecordStore"
+            }
+          ]
         }
       },
       "additionalProperties": false
@@ -1298,6 +1306,28 @@
       },
       "additionalProperties": false
     },
+    "RecordStore": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "InMemory"
+          ]
+        },
+        {
+          "type": "object",
+          "required": [
+            "Rocksdb"
+          ],
+          "properties": {
+            "Rocksdb": {
+              "$ref": "#/definitions/RocksdbConfig"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "RefreshConfig": {
       "type": "string",
       "enum": [
@@ -1331,6 +1361,20 @@
             "null"
           ],
           "format": "uint16",
+          "minimum": 0.0
+        }
+      },
+      "additionalProperties": false
+    },
+    "RocksdbConfig": {
+      "type": "object",
+      "properties": {
+        "block_cache_size": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint",
           "minimum": 0.0
         }
       },

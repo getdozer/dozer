@@ -3,7 +3,7 @@ use std::sync::{
     Arc,
 };
 
-use futures::Future;
+use futures_util::Future;
 use tokio::{
     runtime::Runtime,
     sync::watch::{channel, Receiver, Sender},

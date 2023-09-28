@@ -26,6 +26,7 @@ use tokio::sync::Mutex;
 
 use crate::errors::GrpcError;
 use crate::grpc::run_server;
+use crate::shutdown::ShutdownReceiver;
 
 #[derive(Debug, Clone)]
 pub struct LogEndpoint {
@@ -173,7 +174,7 @@ async fn serialize_log_response(response: LogResponseFuture) -> Result<LogRespon
 pub async fn start_internal_pipeline_server(
     endpoint_and_logs: Vec<(ApiEndpoint, LogEndpoint)>,
     options: &AppGrpcOptions,
-    shutdown: impl Future<Output = ()> + Send + 'static,
+    shutdown: ShutdownReceiver,
 ) -> Result<impl Future<Output = Result<(), tonic::transport::Error>>, GrpcError> {
     let endpoints = endpoint_and_logs
         .into_iter()

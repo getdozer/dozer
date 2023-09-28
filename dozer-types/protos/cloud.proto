@@ -2,9 +2,9 @@ syntax = "proto3";
 package dozer.cloud;
 import "cloud_types.proto";
 import "cloud_notification.proto";
+import "cloud_infastructure.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/empty.proto";
-
 service DozerCloud {
 
   rpc validate_connection(ConnectionRequest)
@@ -24,10 +24,10 @@ service DozerCloud {
   rpc update_application(UpdateAppRequest) returns (AppResponse);
   rpc delete_application(DeleteAppRequest) returns (DeleteAppResponse);
   rpc get_application(GetAppRequest) returns (AppResponse);
-  rpc stop_dozer(StopRequest) returns (StopResponse);
-  rpc get_status(GetStatusRequest) returns (GetStatusResponse);
   rpc list_deployments(ListDeploymentRequest) returns (ListDeploymentResponse);
   rpc list_versions(ListVersionsRequest) returns (ListVersionsResponse);
+  rpc set_alias(SetAliasRequest) returns (SetAliasResponse);
+  rpc rm_alias(RmAliasRequest) returns (RmAliasResponse);
   rpc set_current_version(SetCurrentVersionRequest) returns (SetCurrentVersionResponse);
   rpc list_files(ListFilesRequest) returns (ListFilesResponse);
   rpc get_configuration(GetConfigurationRequest) returns (GetConfigurationResponse);
@@ -52,6 +52,8 @@ service DozerCloud {
   rpc mark_notifications_as_read(MarkNotificationsRequest) returns (MarkNotificationsResponse);
 
   rpc get_endpoint_commands_samples(GetEndpointCommandsSamplesRequest) returns (GetEndpointCommandsSamplesResponse);
+
+  rpc get_infrastructure_info(GetInfastructureRequest) returns (GetInfastructureResponse);
 }
 
 service DozerPublic {
@@ -129,21 +131,7 @@ message DeleteAppRequest {
 }
 message DeleteAppResponse { bool success = 1; }
 
-message GetAppRequest { optional string app_id = 1; }
-
-message GetStatusRequest{
-  string app_id = 1;
-}
-message GetStatusResponse {
-  string data_endpoint = 1;
-  repeated DeploymentStatusWithHealth deployments = 2;
-  map<uint32, uint32> versions = 4;
-  optional uint32 current_version = 5;
-}
-message DeploymentStatusWithHealth {
-  DeploymentInfo deployment = 1;
-  repeated DeploymentResource resources = 2;
-}
+message GetAppRequest { string app_id = 1; }
 
 message GetResourcesRequest {
   string app_id = 1;
@@ -151,13 +139,14 @@ message GetResourcesRequest {
   optional uint32 version = 2;
 }
 message ResourcesResponse {
-  repeated DeploymentResource resources = 1;
+  uint32 version = 1;
+  optional DeploymentResource app = 2;
+  optional DeploymentResource api = 3;
 }
 
 message DeploymentResource {
   string name = 1;
-  // api, app
-  string typ = 2;
+
   string created_at = 3;
 
   optional int32 desired = 4;
@@ -166,9 +155,6 @@ message DeploymentResource {
   //  Running but not ready
   optional int32 unavailable = 6;
 }
-
-message StopRequest { string app_id = 1; }
-message StopResponse { bool success = 1; }
 
 enum DeploymentStatus {
   PENDING = 0;
@@ -180,12 +166,12 @@ enum DeploymentStatus {
 message ListVersionsRequest { string app_id = 1; }
 message ListVersionsResponse {
   optional uint32 current_version = 4;
-  map<uint32, uint32> versions = 3;
+  repeated uint32 versions = 3;
 }
 
 message DeploymentInfo {
   string deployment_id = 1;
-  uint32 deployment = 2;
+  uint32 version = 2;
   DeploymentStatus status = 3;
   optional google.protobuf.Timestamp created_at = 4;
   optional google.protobuf.Timestamp updated_at = 5;
@@ -223,6 +209,21 @@ message SetCurrentVersionRequest {
 }
 
 message SetCurrentVersionResponse {}
+
+message SetAliasRequest {
+  string app_id = 1;
+  uint32 version = 2;
+  string alias = 3;
+}
+
+message SetAliasResponse {}
+
+message RmAliasRequest {
+  string app_id = 1;
+  string alias = 2;
+}
+
+message RmAliasResponse {}
 
 message ConnectionRequest {
   string yaml_content = 2;
@@ -273,7 +274,7 @@ message FileInfo {
 
 message LogMessageRequest {
   string app_id = 1;
-  uint32 deployment = 2;
+  uint32 version = 2;
   bool follow = 3;
   bool include_build = 4;
   bool include_app = 5;

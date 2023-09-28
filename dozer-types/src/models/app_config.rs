@@ -37,6 +37,10 @@ pub struct AppConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     /// The maximum time in seconds before a new checkpoint is created. If there're no new records, no checkpoint will be created.
     pub max_interval_before_persist_in_seconds: Option<u64>,
+
+    #[serde(default, skip_serializing_if = "equal_default")]
+    /// The record store to use for the processors.
+    pub record_store: RecordStore,
 }
 
 #[derive(Debug, JsonSchema, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -52,6 +56,20 @@ pub enum DataStorage {
 pub struct S3Storage {
     pub region: String,
     pub bucket_name: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
+#[serde(deny_unknown_fields)]
+pub enum RecordStore {
+    #[default]
+    InMemory,
+    Rocksdb(RocksdbConfig),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
+#[serde(deny_unknown_fields)]
+pub struct RocksdbConfig {
+    pub block_cache_size: Option<usize>,
 }
 
 pub fn default_persist_queue_capacity() -> u32 {

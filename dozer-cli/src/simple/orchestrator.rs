@@ -2,14 +2,17 @@ use super::executor::{run_dag_executor, Executor};
 use super::Contract;
 use crate::errors::OrchestrationError;
 use crate::pipeline::PipelineBuilder;
-use crate::shutdown::ShutdownReceiver;
 use crate::simple::build;
 use crate::simple::helper::validate_config;
-use crate::utils::{get_cache_manager_options, get_default_max_num_records, get_executor_options};
+use crate::utils::{
+    get_cache_manager_options, get_checkpoint_options, get_default_max_num_records,
+    get_executor_options,
+};
 
 use crate::{flatten_join_handle, join_handle_map_err};
 use dozer_api::auth::{Access, Authorizer};
 use dozer_api::grpc::internal::internal_pipeline_server::start_internal_pipeline_server;
+use dozer_api::shutdown::ShutdownReceiver;
 use dozer_api::{get_api_security, grpc, rest, CacheEndpoint};
 use dozer_cache::cache::LmdbRwCacheManager;
 use dozer_cache::dozer_log::camino::Utf8PathBuf;
@@ -157,11 +160,10 @@ impl SimpleOrchestrator {
             let grpc_handle = if grpc_config.enabled.unwrap_or(true) {
                 let api_security = self.config.api.api_security.clone();
                 let grpc_server = grpc::ApiServer::new(grpc_config, api_security, flags);
-                let shutdown = shutdown.create_shutdown_future();
                 let grpc_server = grpc_server
                     .run(
                         cache_endpoints,
-                        shutdown,
+                        shutdown.clone(),
                         operations_receiver,
                         self.labels.clone(),
                         default_max_num_records,
@@ -226,7 +228,7 @@ impl SimpleOrchestrator {
             &self.config.sources,
             self.config.sql.as_deref(),
             &self.config.endpoints,
-            self.config.app.data_storage.clone(),
+            get_checkpoint_options(&self.config),
             self.labels.clone(),
             &self.config.udfs,
         ))?;
@@ -244,7 +246,7 @@ impl SimpleOrchestrator {
             .block_on(start_internal_pipeline_server(
                 endpoint_and_logs,
                 app_grpc_config,
-                shutdown.create_shutdown_future(),
+                shutdown.clone(),
             ))
             .map_err(OrchestrationError::InternalServerFailed)?;
 

@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use crate::pipeline::source_builder::SourceBuilder;
 use crate::pipeline::PipelineBuilder;
+use dozer_api::shutdown;
 use dozer_types::ingestion_types::{GrpcConfig, GrpcConfigSchemas};
 use dozer_types::models::config::Config;
 
@@ -83,7 +84,7 @@ fn load_multi_sources() {
         .unwrap();
 
     let source_builder = SourceBuilder::new(grouped_connections, Default::default());
-    let (_sender, shutdown_receiver) = crate::shutdown::new(&runtime);
+    let (_sender, shutdown_receiver) = shutdown::new(&runtime);
     let asm = runtime
         .block_on(source_builder.build_source_manager(&runtime, shutdown_receiver))
         .unwrap();

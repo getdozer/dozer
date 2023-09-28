@@ -1,11 +1,11 @@
 use dozer_api::grpc::internal::internal_pipeline_server::LogEndpoint;
+use dozer_api::shutdown::ShutdownReceiver;
 use dozer_cache::dozer_log::camino::Utf8Path;
 use dozer_cache::dozer_log::home_dir::{BuildPath, HomeDir};
 use dozer_cache::dozer_log::replication::Log;
-use dozer_core::checkpoint::OptionCheckpoint;
+use dozer_core::checkpoint::{CheckpointOptions, OptionCheckpoint};
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::models::api_endpoint::ApiEndpoint;
-use dozer_types::models::app_config::DataStorage;
 use dozer_types::models::flags::Flags;
 use tokio::runtime::Runtime;
 use tokio::sync::Mutex;
@@ -16,7 +16,6 @@ use dozer_types::models::source::Source;
 use dozer_types::models::udf_config::UdfConfig;
 
 use crate::pipeline::PipelineBuilder;
-use crate::shutdown::ShutdownReceiver;
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 
 use dozer_types::models::connection::Connection;
@@ -47,7 +46,7 @@ impl<'a> Executor<'a> {
         sources: &'a [Source],
         sql: Option<&'a str>,
         api_endpoints: &'a [ApiEndpoint],
-        storage_config: DataStorage,
+        checkpoint_options: CheckpointOptions,
         labels: LabelsAndProgress,
         udfs: &'a [UdfConfig],
     ) -> Result<Executor<'a>, OrchestrationError> {
@@ -59,7 +58,7 @@ impl<'a> Executor<'a> {
 
         // Load pipeline checkpoint.
         let checkpoint =
-            OptionCheckpoint::new(build_path.data_dir.to_string(), storage_config).await?;
+            OptionCheckpoint::new(build_path.data_dir.to_string(), checkpoint_options).await?;
 
         let mut endpoint_and_logs = vec![];
         for endpoint in api_endpoints {

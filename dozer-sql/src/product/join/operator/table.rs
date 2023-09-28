@@ -326,7 +326,7 @@ mod tests {
             }],
             primary_index: vec![0],
         };
-        let record_store = ProcessorRecordStoreDeserializer::new().unwrap();
+        let record_store = ProcessorRecordStoreDeserializer::new(Default::default()).unwrap();
         let mut table = JoinTable::new(&schema, vec![0], &record_store, true, None).unwrap();
 
         let record = Record::new(vec![Field::Int(1)]);

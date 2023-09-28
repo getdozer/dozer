@@ -1,6 +1,6 @@
 use crate::pipeline::connector_source::ConnectorSourceFactory;
-use crate::shutdown::ShutdownReceiver;
 use crate::OrchestrationError;
+use dozer_api::shutdown::ShutdownReceiver;
 use dozer_core::appsource::{AppSourceManager, AppSourceMappings};
 use dozer_ingestion::connectors::TableInfo;
 

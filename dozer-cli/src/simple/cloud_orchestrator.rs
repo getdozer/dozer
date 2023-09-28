@@ -20,12 +20,12 @@ use dozer_types::grpc_types::api_explorer::api_explorer_service_client::ApiExplo
 use dozer_types::grpc_types::api_explorer::GetApiTokenRequest;
 use dozer_types::grpc_types::cloud::{
     dozer_cloud_client::DozerCloudClient, CreateSecretRequest, DeleteAppRequest,
-    DeleteSecretRequest, GetEndpointCommandsSamplesRequest, GetSecretRequest, GetStatusRequest,
-    ListAppRequest, ListSecretsRequest, LogMessageRequest, UpdateSecretRequest,
+    DeleteSecretRequest, GetEndpointCommandsSamplesRequest, GetSecretRequest, ListAppRequest,
+    ListSecretsRequest, LogMessageRequest, UpdateSecretRequest,
 };
 use dozer_types::grpc_types::cloud::{
-    CreateAppRequest, DeploymentInfo, DeploymentStatusWithHealth, File, ListDeploymentRequest,
-    SetCurrentVersionRequest,
+    CreateAppRequest, DeploymentInfo, DeploymentStatus, File, GetAppRequest, ListDeploymentRequest,
+    RmAliasRequest, SetAliasRequest, SetCurrentVersionRequest,
 };
 use dozer_types::log::info;
 use dozer_types::prettytable::{row, table};
@@ -35,7 +35,6 @@ use tonic::transport::Endpoint;
 use tower::ServiceBuilder;
 
 use super::cloud::login::LoginSvc;
-use super::cloud::version::{get_version_status, version_is_up_to_date, version_status_table};
 async fn establish_cloud_service_channel(
     cloud: &Cloud,
     cloud_config: &dozer_types::models::cloud::Cloud,
@@ -230,62 +229,39 @@ impl CloudOrchestrator for SimpleOrchestrator {
         self.runtime.block_on(async move {
             let mut client = get_cloud_client(&cloud, cloud_config).await?;
             let response = client
-                .get_status(GetStatusRequest { app_id })
+                .get_application(GetAppRequest { app_id })
                 .await
                 .map_err(map_tonic_error)?
                 .into_inner();
 
             let mut table = table!();
+            table.set_titles(row!["Deployment", "Version", "Status"]);
 
-            table.add_row(row!["Api endpoint", response.data_endpoint,]);
-
-            let mut deployment_table = table!();
-            deployment_table.set_titles(row![
-                "Deployment",
-                "App",
-                "Api",
-                "Version",
-                "Phase",
-                "Error"
-            ]);
-
-            for status in response.deployments.iter() {
-                let deployment = status.deployment.as_ref().expect("deployment is expected");
-                fn mark(status: bool) -> &'static str {
-                    if status {
-                        "🟢"
-                    } else {
-                        "🟠"
-                    }
-                }
-
-                let mut version = "".to_string();
-                for (loop_version, loop_deployment) in response.versions.iter() {
-                    if loop_deployment == &deployment.deployment {
-                        if Some(*loop_version) == response.current_version {
-                            version = format!("v{loop_version} (current)");
-                        } else {
-                            version = format!("v{loop_version}");
+            for deployment in response.deployments.iter() {
+                fn deployment_status(status: i32) -> &'static str {
+                    match status {
+                        _ if status == DeploymentStatus::Pending as i32 => {
+                            DeploymentStatus::Pending.as_str_name()
                         }
-                        break;
+                        _ if status == DeploymentStatus::Running as i32 => {
+                            DeploymentStatus::Running.as_str_name()
+                        }
+                        _ if status == DeploymentStatus::Success as i32 => {
+                            DeploymentStatus::Success.as_str_name()
+                        }
+                        _ if status == DeploymentStatus::Failed as i32 => {
+                            DeploymentStatus::Failed.as_str_name()
+                        }
+                        _ => "UNRECOGNIZED",
                     }
                 }
 
-                deployment_table.add_row(row![
-                    deployment.deployment,
-                    format!("Deployment Status: {:?}", deployment.status),
-                    format!("Version: {}", version),
+                table.add_row(row![
+                    deployment.deployment_id,
+                    deployment.version,
+                    deployment_status(deployment.status),
                 ]);
-                for r in status.resources.iter() {
-                    deployment_table.add_row(row![
-                        "",
-                        format!("{}: {}", r.typ, mark(r.available == r.desired)),
-                        format!("{}/{}", r.available.unwrap_or(0), r.desired.unwrap_or(0)),
-                    ]);
-                }
             }
-
-            table.add_row(row!["Deployments", deployment_table]);
 
             table.printstd();
             Ok::<(), CloudError>(())
@@ -316,18 +292,15 @@ impl CloudOrchestrator for SimpleOrchestrator {
                 .map_err(map_tonic_error)?
                 .into_inner();
 
-            // Show log of the latest deployment for now.
-            let Some(deployment) = logs
-                .deployment
-                .or_else(|| latest_deployment(&res.deployments))
-            else {
-                info!("No deployments found");
+            // Show log of the latest version for now.
+            let Some(version) = logs.version.or_else(|| latest_version(&res.deployments)) else {
+                info!("No active version found");
                 return Ok(());
             };
             let mut response = client
                 .on_log_message(LogMessageRequest {
                     app_id,
-                    deployment,
+                    version,
                     follow: logs.follow,
                     include_build: !logs.ignore_build,
                     include_app: !logs.ignore_app,
@@ -526,67 +499,17 @@ impl SimpleOrchestrator {
                         .set_current_version(SetCurrentVersionRequest { app_id, version })
                         .await?;
                 }
-                VersionCommand::Status { version } => {
-                    let status = client
-                        .get_status(GetStatusRequest { app_id })
-                        .await
-                        .map_err(map_tonic_error)?
-                        .into_inner();
-                    let Some(deployment) = status.versions.get(&version) else {
-                        info!("Version {} does not exist", version);
-                        return Ok(());
-                    };
-                    let api_available = get_api_available(&status.deployments, *deployment);
-
-                    let version_status =
-                        get_version_status(&status.data_endpoint, version, api_available).await;
-                    let mut table = table!();
-
-                    if let Some(current_version) = status.current_version {
-                        if current_version != version {
-                            let current_api_available = get_api_available(
-                                &status.deployments,
-                                status.versions[&current_version],
-                            );
-
-                            table.add_row(row![
-                                format!("v{version}"),
-                                version_status_table(&version_status)
-                            ]);
-
-                            let current_version_status = get_version_status(
-                                &status.data_endpoint,
-                                current_version,
-                                current_api_available,
-                            )
-                            .await;
-                            table.add_row(row![
-                                format!("v{current_version} (current)"),
-                                version_status_table(&current_version_status)
-                            ]);
-
-                            table.printstd();
-
-                            if version_is_up_to_date(&version_status, &current_version_status) {
-                                info!("Version {} is up to date", version);
-                            } else {
-                                info!("Version {} is not up to date", version);
-                            }
-                        } else {
-                            table.add_row(row![
-                                format!("v{version} (current)"),
-                                version_status_table(&version_status)
-                            ]);
-                            table.printstd();
-                        }
-                    } else {
-                        table.add_row(row![
-                            format!("v{version}"),
-                            version_status_table(&version_status)
-                        ]);
-                        table.printstd();
-                        info!("No current version");
-                    };
+                VersionCommand::Alias { alias, version } => {
+                    client
+                        .set_alias(SetAliasRequest {
+                            app_id,
+                            version,
+                            alias,
+                        })
+                        .await?;
+                }
+                VersionCommand::RmAlias { alias } => {
+                    client.rm_alias(RmAliasRequest { app_id, alias }).await?;
                 }
             }
 
@@ -655,27 +578,6 @@ impl SimpleOrchestrator {
     }
 }
 
-fn latest_deployment(deployments: &[DeploymentInfo]) -> Option<u32> {
-    deployments.iter().map(|status| status.deployment).max()
-}
-
-fn get_api_available(deployments: &[DeploymentStatusWithHealth], deployment: u32) -> i32 {
-    let info = deployments
-        .iter()
-        .find(|status| {
-            status
-                .deployment
-                .as_ref()
-                .expect("deployment is expected")
-                .deployment
-                == deployment
-        })
-        .expect("Deployment should be found in deployments");
-
-    info.resources
-        .clone()
-        .into_iter()
-        .find(|r| r.typ == "api")
-        .and_then(|r| r.available)
-        .unwrap_or(1)
+fn latest_version(deployments: &[DeploymentInfo]) -> Option<u32> {
+    deployments.iter().map(|status| status.version).max()
 }
