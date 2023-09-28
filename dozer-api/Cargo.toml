@@ -26,7 +26,7 @@ actix-web = { version = "4.2.1", default-features = false, features = [
     "rustls",
 ] }
 actix-web-httpauth = "0.8.0"
-handlebars = "4.3.7"
+handlebars = "4.4.0"
 openapiv3 = "1.0.3"
 tonic-build = "0.10.0"
 tokio = { version = "1", features = ["full"] }
