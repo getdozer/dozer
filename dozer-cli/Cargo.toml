@@ -28,7 +28,7 @@ ctrlc = "3.2.5"
 tonic = { version = "0.10.0", features = ["tls", "tls-roots"] }
 tokio-stream = "0.1.12"
 include_dir = "0.7.3"
-handlebars = "4.3.7"
+handlebars = "4.4.0"
 rustyline = "12.0.0"
 rustyline-derive = "0.9.0"
 futures = "0.3.28"
