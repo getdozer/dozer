@@ -29,6 +29,7 @@ service DozerCloud {
   rpc set_alias(SetAliasRequest) returns (SetAliasResponse);
   rpc rm_alias(RmAliasRequest) returns (RmAliasResponse);
   rpc set_current_version(SetCurrentVersionRequest) returns (SetCurrentVersionResponse);
+  rpc delete_version(DeleteVersionRequest) returns (DeleteVersionResponse);
   rpc list_files(ListFilesRequest) returns (ListFilesResponse);
   rpc get_configuration(GetConfigurationRequest) returns (GetConfigurationResponse);
 
@@ -209,6 +210,13 @@ message SetCurrentVersionRequest {
 }
 
 message SetCurrentVersionResponse {}
+
+message DeleteVersionRequest {
+  string app_id = 1;
+  uint32 version = 2;
+}
+
+message DeleteVersionResponse {}
 
 message SetAliasRequest {
   string app_id = 1;

@@ -24,8 +24,8 @@ use dozer_types::grpc_types::cloud::{
     ListSecretsRequest, LogMessageRequest, UpdateSecretRequest,
 };
 use dozer_types::grpc_types::cloud::{
-    CreateAppRequest, DeploymentInfo, DeploymentStatus, File, GetAppRequest, ListDeploymentRequest,
-    RmAliasRequest, SetAliasRequest, SetCurrentVersionRequest,
+    CreateAppRequest, DeleteVersionRequest, DeploymentInfo, DeploymentStatus, File, GetAppRequest,
+    ListDeploymentRequest, RmAliasRequest, SetAliasRequest, SetCurrentVersionRequest,
 };
 use dozer_types::log::info;
 use dozer_types::prettytable::{row, table};
@@ -497,6 +497,11 @@ impl SimpleOrchestrator {
                 VersionCommand::SetCurrent { version } => {
                     client
                         .set_current_version(SetCurrentVersionRequest { app_id, version })
+                        .await?;
+                }
+                VersionCommand::Delete { version } => {
+                    client
+                        .delete_version(DeleteVersionRequest { app_id, version })
                         .await?;
                 }
                 VersionCommand::Alias { alias, version } => {
