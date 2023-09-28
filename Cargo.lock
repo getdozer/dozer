@@ -8452,9 +8452,9 @@ dependencies = [
 
 [[package]]
 name = "tonic-web"
-version = "0.10.0"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "605028b8adec50b03ee93c1cf6a9dd0d861f508d82fbda569f4a813b411862c1"
+checksum = "2953fe95664e86519e0d1c4bdd65007d93bc47a59c9af512280977aa9e46b871"
 dependencies = [
  "base64 0.21.0",
  "bytes",
