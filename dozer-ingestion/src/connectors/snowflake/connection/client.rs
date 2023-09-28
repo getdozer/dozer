@@ -237,13 +237,6 @@ impl<'env> Client<'env> {
         exec_first_exists(&self.pool, &query).map_or_else(Self::parse_not_exist_error, Ok)
     }
 
-    pub fn table_exist(&self, table_name: &String) -> Result<bool, SnowflakeError> {
-        let query =
-            format!("SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = '{table_name}';");
-
-        exec_first_exists(&self.pool, &query).map_or_else(Self::parse_not_exist_error, Ok)
-    }
-
     pub fn drop_stream(&self, stream_name: &String) -> Result<bool, SnowflakeError> {
         let query = format!("DROP STREAM IF EXISTS {stream_name}");
 

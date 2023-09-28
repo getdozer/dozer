@@ -102,16 +102,13 @@ impl StreamConsumer {
     ) -> Result<(), ConnectorError> {
         let temp_table_name = Self::get_stream_temp_table_name(table_name, &client.get_name());
         let stream_name = Self::get_stream_table_name(table_name, &client.get_name());
-        let temp_table_exist = client.table_exist(&temp_table_name)?;
 
-        if !temp_table_exist {
-            let query = format!(
-                "CREATE OR REPLACE TEMP TABLE {temp_table_name} AS
+        let query = format!(
+            "CREATE TEMP TABLE IF NOT EXISTS {temp_table_name} AS
                     SELECT * FROM {stream_name} ORDER BY METADATA$ACTION;"
-            );
+        );
 
-            client.exec(&query)?;
-        }
+        client.exec(&query)?;
 
         let rows = client.fetch(format!("SELECT * FROM {temp_table_name};"))?;
         if let Some(schema) = rows.schema() {
