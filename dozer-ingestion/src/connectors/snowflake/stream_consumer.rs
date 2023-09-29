@@ -127,7 +127,7 @@ impl StreamConsumer {
                     .blocking_handle_message(IngestionMessage::OperationEvent {
                         table_index,
                         op,
-                        id: Some(OpIdentifier::new(iteration, idx as u64)),
+                        id: None,
                     })
                     .map_err(|_| ConnectorError::IngestorError)?;
             }
