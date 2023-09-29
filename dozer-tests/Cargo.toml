@@ -34,7 +34,7 @@ mongodb = { version = "2.6.1", optional = true }
 futures = { version = "0.3.28", optional = true }
 env_logger = "0.10.0"
 clap = { version = "4.4.1", features = ["derive"] }
-rusqlite = { version = "0.28.0", features = ["bundled", "column_decltype", "hooks"] }
+rusqlite = { version = "0.29.0", features = ["bundled", "column_decltype", "hooks"] }
 async-trait = "0.1.53"
 dozer-core = { path = "../dozer-core" }
 dozer-sql = { path = "../dozer-sql" }
@@ -52,7 +52,7 @@ dozer-sql = { path = "../dozer-sql" }
 dozer-cache = { path = "../dozer-cache" }
 
 sqlparser = {git = "https://github.com/getdozer/sqlparser-rs.git" }
-rusqlite = { version = "0.28.0", features = ["bundled", "column_decltype"] }
+rusqlite = { version = "0.29.0", features = ["bundled", "column_decltype"] }
 csv = "1.2"
 tempdir = "0.3.7"
 sqllogictest = "0.17.1"
