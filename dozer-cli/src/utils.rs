@@ -68,7 +68,7 @@ pub fn get_checkpoint_options(config: &Config) -> CheckpointOptions {
     let app = &config.app;
     CheckpointOptions {
         data_storage: app.data_storage.clone(),
-        record_store: app.record_store,
+        record_store: app.record_store.clone(),
     }
 }
 

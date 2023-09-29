@@ -58,7 +58,7 @@ pub struct S3Storage {
     pub bucket_name: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
 #[serde(deny_unknown_fields)]
 pub enum RecordStore {
     #[default]
@@ -66,10 +66,11 @@ pub enum RecordStore {
     Rocksdb(RocksdbConfig),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
 #[serde(deny_unknown_fields)]
 pub struct RocksdbConfig {
     pub block_cache_size: Option<usize>,
+    pub store_path: Option<String>,
 }
 
 pub fn default_persist_queue_capacity() -> u32 {

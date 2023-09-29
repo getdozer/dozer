@@ -292,7 +292,7 @@ mod tests {
     }
 
     fn test_record_serialization_roundtrip_impl(record_store_kind: RecordStore) {
-        let record_store = ProcessorRecordStore::new(record_store_kind).unwrap();
+        let record_store = ProcessorRecordStore::new(record_store_kind.clone()).unwrap();
         let record = record_store.create_record(&test_record()).unwrap();
         let serialized_record = record_store.serialize_record(&record).unwrap();
         let data = record_store.serialize_slice(0).unwrap().0;

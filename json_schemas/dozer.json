@@ -1376,6 +1376,12 @@
           ],
           "format": "uint",
           "minimum": 0.0
+        },
+        "store_path": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "additionalProperties": false
