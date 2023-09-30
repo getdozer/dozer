@@ -22,13 +22,21 @@ where
         let mut options = Options::default();
         options.create_if_missing(true);
 
+        let mut block_options = BlockBasedOptions::default();
         if let Some(block_cache_size) = config.block_cache_size {
-            let mut block_options = BlockBasedOptions::default();
             let cache = Cache::new_lru_cache(block_cache_size);
             block_options.set_block_cache(&cache);
-
-            options.set_block_based_table_factory(&block_options);
         }
+
+        if let Some(max_write_buffer_number) = config.max_write_buffer_number {
+            options.set_max_write_buffer_number(max_write_buffer_number);
+        }
+
+        if let Some(write_buffer_size) = config.write_buffer_size {
+            options.set_write_buffer_size(write_buffer_size);
+        }
+
+        options.set_block_based_table_factory(&block_options);
 
         let db = DB::open(&options, path)?;
         Ok(Self {

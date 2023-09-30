@@ -1377,11 +1377,26 @@
           "format": "uint",
           "minimum": 0.0
         },
+        "max_write_buffer_number": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int32"
+        },
         "store_path": {
           "type": [
             "string",
             "null"
           ]
+        },
+        "write_buffer_size": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint",
+          "minimum": 0.0
         }
       },
       "additionalProperties": false

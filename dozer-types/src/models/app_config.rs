@@ -71,6 +71,8 @@ pub enum RecordStore {
 pub struct RocksdbConfig {
     pub block_cache_size: Option<usize>,
     pub store_path: Option<String>,
+    pub max_write_buffer_number: Option<i32>,
+    pub write_buffer_size: Option<usize>,
 }
 
 pub fn default_persist_queue_capacity() -> u32 {
