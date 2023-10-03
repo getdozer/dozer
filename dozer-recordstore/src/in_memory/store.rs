@@ -50,11 +50,11 @@ impl ProcessorRecordStore {
             .records
             .range(start..)
             // We just removed all the
-            .map(|(id, record)| (id, RecordRef(record.upgrade().unwrap())))
+            .filter_map(|(&id, weak)| weak.upgrade().map(|record| (id, RecordRef(record))))
             .collect::<Vec<_>>();
         let data =
             bincode::serialize(&slice).map_err(|e| RecordStoreError::SerializationError {
-                typ: "[RecordRef]",
+                typ: "[(usize, RecordRef)]",
                 reason: Box::new(e),
             })?;
         Ok((data, slice.len()))
@@ -128,7 +128,7 @@ impl ProcessorRecordStoreDeserializer {
     pub fn deserialize_and_extend(&self, data: &[u8]) -> Result<(), RecordStoreError> {
         let slice: Vec<(usize, RecordRef)> =
             bincode::deserialize(data).map_err(|e| RecordStoreError::DeserializationError {
-                typ: "[Option<RecordRef>]",
+                typ: "[(usize, RecordRef)]",
                 reason: Box::new(e),
             })?;
 
