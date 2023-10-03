@@ -39,7 +39,7 @@ impl ProcessorRecordStore {
     }
 
     pub fn num_records(&self) -> usize {
-        self.inner.read().records.len()
+        self.inner.read().idx
     }
 
     pub fn serialize_slice(&self, start: usize) -> Result<(Vec<u8>, usize), RecordStoreError> {
