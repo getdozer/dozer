@@ -24,7 +24,7 @@ use tempdir::TempDir;
 use tokio::{runtime::Runtime, sync::RwLock};
 
 use crate::{
-    cli::{init_dozer, types::Cli},
+    cli::{init_config, init_dozer, types::Cli},
     errors::OrchestrationError,
     pipeline::PipelineBuilder,
     simple::{helper::validate_config, Contract, SimpleOrchestrator},
@@ -125,15 +125,14 @@ impl LiveState {
 
         let cli = Cli::parse();
 
-        let dozer = init_dozer(
-            runtime,
+        let config = init_config(
             cli.config_paths.clone(),
             cli.config_token.clone(),
             cli.config_overrides.clone(),
             cli.ignore_pipe,
-            Default::default(),
         )
         .await?;
+        let dozer = init_dozer(runtime, config, Default::default())?;
 
         let contract = create_contract(dozer.clone()).await;
         *lock = Some(DozerAndContract {
