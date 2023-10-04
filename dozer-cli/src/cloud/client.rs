@@ -33,6 +33,7 @@ use dozer_types::prettytable::{row, table};
 use futures::{select, FutureExt, StreamExt};
 use std::io;
 use std::sync::Arc;
+use tokio::runtime::Runtime;
 use tonic::transport::Endpoint;
 use tower::ServiceBuilder;
 
@@ -354,7 +355,7 @@ impl DozerGrpcCloudClient for CloudClient {
     }
 
     fn login(
-        &mut self,
+        runtime: Arc<Runtime>,
         cloud: Cloud,
         organisation_slug: Option<String>,
         profile: Option<String>,
@@ -374,7 +375,7 @@ impl DozerGrpcCloudClient for CloudClient {
             Some(name) => name,
         };
 
-        self.runtime.block_on(async move {
+        runtime.block_on(async move {
             let login_svc = LoginSvc::new(
                 organisation_slug,
                 cloud
