@@ -269,6 +269,8 @@ pub enum CloudCredentialError {
     MissingCredentialFile,
     #[error("There's no profile with given name - Please try to login again")]
     MissingProfile,
+    #[error("{0}")]
+    LoginError(String),
 }
 
 #[derive(Debug, Error)]
