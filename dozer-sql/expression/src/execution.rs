@@ -850,7 +850,7 @@ fn validate_min(args: &[Expression], schema: &Schema) -> Result<ExpressionType, 
             return Err(Error::InvalidFunctionArgumentType {
                 function_name: AggregateFunctionType::Min.to_string(),
                 argument_index: 0,
-                actual: base_arg.return_type,
+                actual: arg.return_type,
                 expected: vec![
                     FieldType::Decimal,
                     FieldType::UInt,
@@ -867,7 +867,7 @@ fn validate_min(args: &[Expression], schema: &Schema) -> Result<ExpressionType, 
     };
 
     Ok(ExpressionType::new(
-        arg.return_type,
+        ret_type,
         true,
         SourceDefinition::Dynamic,
         false,
