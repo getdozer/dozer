@@ -1,0 +1,102 @@
+control sortmode rowsort
+
+statement ok
+CREATE TABLE Users (
+    id integer NOT NULL,
+    Name text NOT NULL,
+    City text,
+    Country text,
+    Salary numeric NOT NULL
+)
+
+statement ok
+INSERT INTO Users (id, Name, City, Country, Salary) VALUES (1, 'John Smith', 'New York', 'USA', 50000);
+
+statement ok
+INSERT INTO Users (id, Name, City, Country, Salary) VALUES (2, 'Jane Doe', 'Los Angeles', 'USA', 60000);
+
+statement ok
+INSERT INTO Users (id, Name, City, Country, Salary) VALUES (3, 'Mike Johnson', 'Chicago', 'USA', 55000);
+
+statement ok
+INSERT INTO Users (id, Name, City, Country, Salary) VALUES (4, 'Karen Davis', 'Dallas', 'USA', 45000);
+
+statement ok
+INSERT INTO Users (id, Name, City, Country, Salary) VALUES (5, 'David Lee', 'Houston', 'USA', 65000);
+
+statement ok
+INSERT INTO Users (id, Name, City, Country, Salary) VALUES (6, 'Sarah Johnson', 'Miami', 'USA', 75000);
+
+statement ok
+INSERT INTO Users (id, Name, City, Country, Salary) VALUES (7, 'Tom Smith', 'Toronto', 'Canada', 80000);
+
+statement ok
+INSERT INTO Users (id, Name, City, Country, Salary) VALUES (8, 'Emily Davis', 'Seattle', 'USA', 55000);
+
+statement ok
+INSERT INTO Users (id, Name, City, Country, Salary) VALUES (9, 'Kevin Kim', 'Vancouver', 'Canada', 60000);
+
+statement ok
+INSERT INTO Users (id, Name, City, Country, Salary) VALUES (10, 'Maria Rodriguez', 'Mexico City', 'Mexico', 70000);
+
+statement ok
+INSERT INTO Users (id, Name, City, Country, Salary) VALUES (11, 'Hiroshi Yamamoto', 'Tokyo', 'Japan', 75000);
+
+statement ok
+INSERT INTO Users (id, Name, City, Country, Salary) VALUES (12, 'Anna Nguyen', 'Sydney', 'Australia', 65000);
+
+statement ok
+INSERT INTO Users (id, Name, City, Country, Salary) VALUES (13, 'Lee Min Ho', 'Seoul', 'South Korea', 85000);
+
+statement ok
+INSERT INTO Users (id, Name, City, Country, Salary) VALUES (14, 'Isabella Martinez', 'Madrid', 'Spain', 60000);
+
+statement ok
+INSERT INTO Users (id, Name, City, Country, Salary) VALUES (15, 'Luca Rossi', 'Rome', 'Italy', 50000);
+
+statement ok
+INSERT INTO Users (id, Name, City, Country, Salary) VALUES (16, 'Sophie Dupont', 'Paris', 'France', 70000);
+
+statement ok
+INSERT INTO Users (id, Name, City, Country, Salary) VALUES (17, 'Miguel Hernandez', 'Barcelona', 'Spain', 75000);
+
+statement ok
+INSERT INTO Users (id, Name, City, Country, Salary) VALUES (18, 'Emma Smith', 'London', 'UK', 80000);
+
+statement ok
+INSERT INTO Users (id, Name, City, Country, Salary) VALUES (19, 'Sven Gustavsson', 'Stockholm', 'Sweden', 65000);
+
+statement ok
+INSERT INTO Users (id, Name, City, Country, Salary) VALUES (20, 'Leila Ahmed', 'Cairo', 'Egypt', 55000);
+
+statement ok
+INSERT INTO Users (id, Name, City, Country, Salary) VALUES (21, 'Javier Torres', 'Buenos Aires', 'Argentina', 60000);
+
+statement ok
+INSERT INTO Users (id, Name, City, Country, Salary) VALUES (22, 'Hans Muller', 'Berlin', 'Germany', 70000);
+
+
+query TR
+SELECT Country, MAX_APPEND_ONLY(Salary) FROM Users GROUP BY Country;
+----
+Canada 80000
+Egypt 55000
+France 70000
+Germany 70000
+South Korea 85000
+Spain 75000
+UK 80000
+USA 75000
+
+query TR
+SELECT Country, MIN_APPEND_ONLY(Salary) FROM Users WHERE Salary >= 1 GROUP BY Country;
+----
+Canada 60000
+Egypt 55000
+France 70000
+Germany 70000
+South Korea 85000
+Spain 60000
+UK 80000
+USA 45000
+
