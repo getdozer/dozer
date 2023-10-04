@@ -119,6 +119,18 @@ pub fn get_aggregator_type_from_aggregation_expression(
             AggregatorType::Min,
         )),
         Expression::AggregateFunction {
+            fun: AggregateFunctionType::MinAppendOnly,
+            args,
+        } => Ok((
+            vec![args
+                .get(0)
+                .ok_or_else(|| {
+                    PipelineError::NotEnoughArguments(AggregateFunctionType::MinAppendOnly.to_string())
+                })?
+                .clone()],
+            AggregatorType::MinAppendOnly,
+        )),
+        Expression::AggregateFunction {
             fun: AggregateFunctionType::Max,
             args,
         } => Ok((
@@ -129,6 +141,18 @@ pub fn get_aggregator_type_from_aggregation_expression(
                 })?
                 .clone()],
             AggregatorType::Max,
+        )),
+        Expression::AggregateFunction {
+            fun: AggregateFunctionType::MaxAppendOnly,
+            args,
+        } => Ok((
+            vec![args
+                .get(0)
+                .ok_or_else(|| {
+                    PipelineError::NotEnoughArguments(AggregateFunctionType::MaxAppendOnly.to_string())
+                })?
+                .clone()],
+            AggregatorType::MaxAppendOnly,
         )),
         Expression::AggregateFunction {
             fun: AggregateFunctionType::MaxValue,
