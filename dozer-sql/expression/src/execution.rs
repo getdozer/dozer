@@ -829,9 +829,9 @@ fn validate_max(args: &[Expression], schema: &Schema) -> Result<ExpressionType, 
 }
 
 fn validate_min(args: &[Expression], schema: &Schema) -> Result<ExpressionType, Error> {
-    let (base_arg, arg) = validate_two_arguments(args, schema, AggregateFunctionType::Min)?;
+    let arg = validate_one_argument(args, schema, AggregateFunctionType::Min)?;
 
-    match base_arg.return_type {
+    let ret_type = match arg.return_type {
         FieldType::UInt => FieldType::UInt,
         FieldType::U128 => FieldType::U128,
         FieldType::Int => FieldType::Int,
