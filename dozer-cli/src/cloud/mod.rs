@@ -12,6 +12,7 @@ pub mod monitor;
 pub mod progress_printer;
 mod token_layer;
 pub use client::CloudClient;
+use tokio::runtime::Runtime;
 
 pub trait DozerGrpcCloudClient {
     fn deploy(
@@ -26,7 +27,7 @@ pub trait DozerGrpcCloudClient {
     fn monitor(&mut self, cloud: Cloud) -> Result<(), OrchestrationError>;
     fn trace_logs(&mut self, cloud: Cloud, logs: LogCommandArgs) -> Result<(), OrchestrationError>;
     fn login(
-        &mut self,
+        runtime: std::sync::Arc<Runtime>,
         cloud: Cloud,
         organisation_slug: Option<String>,
         profile: Option<String>,

@@ -126,10 +126,74 @@ fn run() -> Result<(), OrchestrationError> {
 
     let runtime = Arc::new(Runtime::new().map_err(CliError::FailedToCreateTokioRuntime)?);
 
-    let config = init_configuration(&cli, runtime.clone())?;
     let (shutdown_sender, shutdown_receiver) = shutdown::new(&runtime);
     set_ctrl_handler(shutdown_sender);
 
+    set_panic_hook();
+
+    // Run Cloud
+    #[cfg(feature = "cloud")]
+    if let Commands::Cloud(cloud) = &cli.cmd {
+        render_logo();
+        let cloud = cloud.clone();
+        let res = if let CloudCommands::Login {
+            organisation_slug,
+            profile_name,
+            client_id,
+            client_secret,
+        } = cloud.command.clone()
+        {
+            CloudClient::login(
+                runtime.clone(),
+                cloud,
+                organisation_slug,
+                profile_name,
+                client_id,
+                client_secret,
+            )
+        } else {
+            let config = init_configuration(&cli, runtime.clone())?;
+            let mut cloud_client = CloudClient::new(config.clone(), runtime.clone());
+            match cloud.command.clone() {
+                CloudCommands::Deploy(deploy) => {
+                    cloud_client.deploy(cloud, deploy, cli.config_paths.clone())
+                }
+                CloudCommands::Login {
+                    organisation_slug: _,
+                    profile_name: _,
+                    client_id: _,
+                    client_secret: _,
+                } => unreachable!("This is handled earlier"),
+                CloudCommands::Secrets(command) => {
+                    cloud_client.execute_secrets_command(cloud, command)
+                }
+                CloudCommands::Delete => cloud_client.delete(cloud),
+                CloudCommands::Status => cloud_client.status(cloud),
+                CloudCommands::Monitor => cloud_client.monitor(cloud),
+                CloudCommands::Logs(logs) => cloud_client.trace_logs(cloud, logs),
+                CloudCommands::Version(version) => cloud_client.version(cloud, version),
+                CloudCommands::List(list) => cloud_client.list(cloud, list),
+                CloudCommands::SetApp { app_id } => {
+                    CloudAppContext::save_app_id(app_id.clone())?;
+                    info!("Using \"{app_id}\" app");
+                    Ok(())
+                }
+                CloudCommands::ApiRequestSamples { endpoint } => {
+                    cloud_client.print_api_request_samples(cloud, endpoint)
+                }
+            }
+        };
+
+        return match res {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                println!("{}", e);
+                Err(e)
+            }
+        };
+    }
+
+    let config = init_configuration(&cli, runtime.clone())?;
     // Now we have access to telemetry configuration. Telemetry must be initialized in tokio runtime.
     let app_id = config.cloud.app_id.as_deref().unwrap_or(&config.app_name);
 
@@ -145,47 +209,6 @@ fn run() -> Result<(), OrchestrationError> {
 
     let _telemetry = runtime.block_on(async { Telemetry::new(Some(app_id), &telemetry_config) });
 
-    set_panic_hook();
-
-    // Run Cloud
-    #[cfg(feature = "cloud")]
-    if let Commands::Cloud(cloud) = cli.cmd {
-        render_logo();
-        let mut cloud_client = CloudClient::new(config.clone(), runtime.clone());
-        let res = match cloud.command.clone() {
-            CloudCommands::Deploy(deploy) => {
-                cloud_client.deploy(cloud, deploy, cli.config_paths.clone())
-            }
-            CloudCommands::Login {
-                organisation_slug,
-                profile_name,
-                client_id,
-                client_secret,
-            } => cloud_client.login(
-                cloud,
-                organisation_slug,
-                profile_name,
-                client_id,
-                client_secret,
-            ),
-            CloudCommands::Secrets(command) => cloud_client.execute_secrets_command(cloud, command),
-            CloudCommands::Delete => cloud_client.delete(cloud),
-            CloudCommands::Status => cloud_client.status(cloud),
-            CloudCommands::Monitor => cloud_client.monitor(cloud),
-            CloudCommands::Logs(logs) => cloud_client.trace_logs(cloud, logs),
-            CloudCommands::Version(version) => cloud_client.version(cloud, version),
-            CloudCommands::List(list) => cloud_client.list(cloud, list),
-            CloudCommands::SetApp { app_id } => {
-                CloudAppContext::save_app_id(app_id.clone())?;
-                info!("Using \"{app_id}\" app");
-                Ok(())
-            }
-            CloudCommands::ApiRequestSamples { endpoint } => {
-                cloud_client.print_api_request_samples(cloud, endpoint)
-            }
-        };
-        return res;
-    }
     let mut dozer = init_dozer(
         runtime.clone(),
         config.clone(),
@@ -298,7 +321,10 @@ fn init_configuration(cli: &Cli, runtime: Arc<Runtime>) -> Result<Config, CliErr
                     runtime.spawn(check_update());
                     Ok(config)
                 }
-                Err(e) => Err(e),
+                Err(e) => {
+                    error!("{}", e);
+                    Err(e)
+                }
             }
         },
     )
