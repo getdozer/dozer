@@ -197,7 +197,7 @@ fn test_min_aggregation_int() {
         -------------
         MIN = 50.0
     */
-    inp = update_field(ITALY, ITALY, FIELD_100_INT, FIELD_50_INT);
+    inp = update_field(ITALY, ITALY, FIELD_100_INT, FIELD_200_INT);
     out = output!(processor, inp);
     exp = vec![update_exp(ITALY, ITALY, FIELD_50_INT, FIELD_50_INT)];
     assert_eq!(out, exp);
@@ -222,7 +222,7 @@ fn test_min_aggregation_int() {
     */
     inp = delete_field(ITALY, FIELD_50_INT);
     out = output!(processor, inp);
-    exp = vec![update_exp(ITALY, ITALY, FIELD_50_INT, FIELD_50_INT)];
+    exp = vec![update_exp(ITALY, ITALY, FIELD_50_INT, FIELD_100_INT)];
     assert_eq!(out, exp);
 
     // Delete last record
@@ -232,7 +232,7 @@ fn test_min_aggregation_int() {
     */
     inp = delete_field(ITALY, FIELD_100_INT);
     out = output!(processor, inp);
-    exp = vec![delete_exp(ITALY, FIELD_50_INT)];
+    exp = vec![delete_exp(ITALY, FIELD_100_INT)];
     assert_eq!(out, exp);
 }
 
@@ -310,7 +310,7 @@ fn test_min_aggregation_uint() {
         -------------
         MIN = 50.0
     */
-    inp = update_field(ITALY, ITALY, FIELD_100_UINT, FIELD_50_UINT);
+    inp = update_field(ITALY, ITALY, FIELD_100_UINT, FIELD_200_UINT);
     out = output!(processor, inp);
     exp = vec![update_exp(ITALY, ITALY, FIELD_50_UINT, FIELD_50_UINT)];
     assert_eq!(out, exp);
@@ -335,7 +335,7 @@ fn test_min_aggregation_uint() {
     */
     inp = delete_field(ITALY, FIELD_50_UINT);
     out = output!(processor, inp);
-    exp = vec![update_exp(ITALY, ITALY, FIELD_50_UINT, FIELD_50_UINT)];
+    exp = vec![update_exp(ITALY, ITALY, FIELD_50_UINT, FIELD_100_UINT)];
     assert_eq!(out, exp);
 
     // Delete last record
@@ -345,7 +345,7 @@ fn test_min_aggregation_uint() {
     */
     inp = delete_field(ITALY, FIELD_100_UINT);
     out = output!(processor, inp);
-    exp = vec![delete_exp(ITALY, FIELD_50_UINT)];
+    exp = vec![delete_exp(ITALY, FIELD_100_UINT)];
     assert_eq!(out, exp);
 }
 
