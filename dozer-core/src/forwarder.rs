@@ -182,7 +182,8 @@ impl SourceChannelManager {
 
     fn should_participate_in_commit(&self) -> bool {
         self.num_uncommitted_ops >= self.commit_sz
-            || self
+            || self.num_uncommitted_ops > 0
+                && self
                 .last_commit_instant
                 .elapsed()
                 .unwrap_or(self.max_duration_between_commits) // In case of system time drift, we just commit
