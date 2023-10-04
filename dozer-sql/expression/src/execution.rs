@@ -721,10 +721,10 @@ fn get_aggregate_function_type(
         AggregateFunctionType::Avg => validate_avg(args, schema),
         AggregateFunctionType::Count => validate_count(args, schema),
         AggregateFunctionType::Max => validate_max(args, schema),
-        AggregateFunctionType::MaxAppendOnly => validate_max(args, schema),
+        AggregateFunctionType::MaxAppendOnly => validate_max_append_only(args, schema),
         AggregateFunctionType::MaxValue => validate_max_value(args, schema),
         AggregateFunctionType::Min => validate_min(args, schema),
-        AggregateFunctionType::MinAppendOnly => validate_min(args, schema),
+        AggregateFunctionType::MinAppendOnly => validate_min_append_only(args, schema),
         AggregateFunctionType::MinValue => validate_min_value(args, schema),
         AggregateFunctionType::Sum => validate_sum(args, schema),
     }
@@ -829,7 +829,53 @@ fn validate_max(args: &[Expression], schema: &Schema) -> Result<ExpressionType, 
 }
 
 fn validate_min(args: &[Expression], schema: &Schema) -> Result<ExpressionType, Error> {
-    let arg = validate_one_argument(args, schema, AggregateFunctionType::Min)?;
+    let (base_arg, arg) = validate_two_arguments(args, schema, AggregateFunctionType::Min)?;
+
+    match base_arg.return_type {
+        FieldType::UInt => FieldType::UInt,
+        FieldType::U128 => FieldType::U128,
+        FieldType::Int => FieldType::Int,
+        FieldType::I128 => FieldType::I128,
+        FieldType::Float => FieldType::Float,
+        FieldType::Decimal => FieldType::Decimal,
+        FieldType::Timestamp => FieldType::Timestamp,
+        FieldType::Date => FieldType::Date,
+        FieldType::Duration => FieldType::Duration,
+        FieldType::Boolean
+        | FieldType::String
+        | FieldType::Text
+        | FieldType::Binary
+        | FieldType::Json
+        | FieldType::Point => {
+            return Err(Error::InvalidFunctionArgumentType {
+                function_name: AggregateFunctionType::Min.to_string(),
+                argument_index: 0,
+                actual: base_arg.return_type,
+                expected: vec![
+                    FieldType::Decimal,
+                    FieldType::UInt,
+                    FieldType::U128,
+                    FieldType::Int,
+                    FieldType::I128,
+                    FieldType::Float,
+                    FieldType::Timestamp,
+                    FieldType::Date,
+                    FieldType::Duration,
+                ],
+            });
+        }
+    };
+
+    Ok(ExpressionType::new(
+        arg.return_type,
+        true,
+        SourceDefinition::Dynamic,
+        false,
+    ))
+}
+
+fn validate_max_append_only(args: &[Expression], schema: &Schema) -> Result<ExpressionType, Error> {
+    let arg = validate_one_argument(args, schema, AggregateFunctionType::MaxAppendOnly)?;
 
     let ret_type = match arg.return_type {
         FieldType::UInt => FieldType::UInt,
@@ -848,7 +894,52 @@ fn validate_min(args: &[Expression], schema: &Schema) -> Result<ExpressionType, 
         | FieldType::Json
         | FieldType::Point => {
             return Err(Error::InvalidFunctionArgumentType {
-                function_name: AggregateFunctionType::Min.to_string(),
+                function_name: AggregateFunctionType::MaxAppendOnly.to_string(),
+                argument_index: 0,
+                actual: arg.return_type,
+                expected: vec![
+                    FieldType::Decimal,
+                    FieldType::UInt,
+                    FieldType::U128,
+                    FieldType::Int,
+                    FieldType::I128,
+                    FieldType::Float,
+                    FieldType::Timestamp,
+                    FieldType::Date,
+                    FieldType::Duration,
+                ],
+            });
+        }
+    };
+    Ok(ExpressionType::new(
+        ret_type,
+        true,
+        SourceDefinition::Dynamic,
+        false,
+    ))
+}
+
+fn validate_min_append_only(args: &[Expression], schema: &Schema) -> Result<ExpressionType, Error> {
+    let arg = validate_one_argument(args, schema, AggregateFunctionType::MinAppendOnly)?;
+
+    let ret_type = match arg.return_type {
+        FieldType::UInt => FieldType::UInt,
+        FieldType::U128 => FieldType::U128,
+        FieldType::Int => FieldType::Int,
+        FieldType::I128 => FieldType::I128,
+        FieldType::Float => FieldType::Float,
+        FieldType::Decimal => FieldType::Decimal,
+        FieldType::Timestamp => FieldType::Timestamp,
+        FieldType::Date => FieldType::Date,
+        FieldType::Duration => FieldType::Duration,
+        FieldType::Boolean
+        | FieldType::String
+        | FieldType::Text
+        | FieldType::Binary
+        | FieldType::Json
+        | FieldType::Point => {
+            return Err(Error::InvalidFunctionArgumentType {
+                function_name: AggregateFunctionType::MinAppendOnly.to_string(),
                 argument_index: 0,
                 actual: arg.return_type,
                 expected: vec![

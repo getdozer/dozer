@@ -51,6 +51,9 @@ impl Aggregator for MinAppendOnlyAggregator {
         let cur_min = self.current_state.clone();
 
         for val in new {
+            if val == &Field::Null {
+                continue;
+            }
             match self.return_type {
                 Some(typ) => match typ {
                     FieldType::UInt => {
