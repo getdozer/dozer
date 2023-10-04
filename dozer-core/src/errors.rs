@@ -50,6 +50,10 @@ pub enum ExecutionError {
         source_name: NodeHandle,
         table_name: String,
     },
+    #[error(
+        "Dozer cannot restart. You have to clean data from previous runs by running `dozer clean`"
+    )]
+    CannotRestart,
     #[error("Failed to create checkpoint: {0}")]
     FailedToCreateCheckpoint(BoxedError),
 }

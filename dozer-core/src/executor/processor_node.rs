@@ -115,6 +115,7 @@ impl ReceiverLoop for ProcessorNode {
             self.error_manager.report(e);
         }
 
+        #[cfg(FIXME_CHECKPOINTING)]
         if let Some(checkpoint_writer) = &epoch.common_info.checkpoint_writer {
             let object = checkpoint_writer.create_processor_object(&self.node_handle)?;
             self.processor

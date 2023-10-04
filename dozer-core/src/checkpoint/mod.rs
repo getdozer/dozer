@@ -301,13 +301,18 @@ async fn read_record_store_slices(
     let record_store = ProcessorRecordStoreDeserializer::new(record_store)?;
     let record_store_prefix = record_store_prefix(factory_prefix);
 
-    let mut last_checkpoint: Option<Checkpoint> = None;
+    let last_checkpoint: Option<Checkpoint> = None;
     let mut continuation_token = None;
     loop {
         let objects = storage
             .list_objects(record_store_prefix.to_string(), continuation_token)
             .await?;
 
+        if objects.objects.last().is_some() {
+            return Err(ExecutionError::CannotRestart);
+        }
+
+        #[cfg(FIXME_CHECKPOINTING)]
         if let Some(object) = objects.objects.last() {
             let object_name = AsRef::<Utf8Path>::as_ref(&object.key)
                 .strip_prefix(&record_store_prefix)
