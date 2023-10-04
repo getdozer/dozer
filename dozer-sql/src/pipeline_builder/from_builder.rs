@@ -76,7 +76,7 @@ fn insert_table_to_pipeline(
 
         Ok(ConnectionInfo {
             processor_name: product_processor_name.clone(),
-            input_nodes: vec![],
+            input_nodes: connection_info.input_nodes,
             output_node: (product_processor_name, DEFAULT_PORT_HANDLE),
         })
     } else {
