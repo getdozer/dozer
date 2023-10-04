@@ -79,24 +79,36 @@ INSERT INTO Users (id, Name, City, Country, Salary) VALUES (22, 'Hans Muller', '
 query TR
 SELECT Country, MAX_APPEND_ONLY(Salary) FROM Users GROUP BY Country;
 ----
+Argentina 60000
+Australia 65000
 Canada 80000
 Egypt 55000
 France 70000
 Germany 70000
+Italy 50000
+Japan 75000
+Mexico 70000
 South Korea 85000
 Spain 75000
+Sweden 65000
 UK 80000
 USA 75000
 
 query TR
 SELECT Country, MIN_APPEND_ONLY(Salary) FROM Users WHERE Salary >= 1 GROUP BY Country;
 ----
+Argentina 60000
+Australia 65000
 Canada 60000
 Egypt 55000
 France 70000
 Germany 70000
+Italy 50000
+Japan 75000
+Mexico 70000
 South Korea 85000
 Spain 60000
+Sweden 65000
 UK 80000
 USA 45000
 
