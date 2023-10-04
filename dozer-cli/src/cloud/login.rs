@@ -106,6 +106,11 @@ impl CredentialInfo {
             .json()
             .await
             .map_err(CloudCredentialError::HttpRequestError)?;
+        if json_response.get("error").is_some() {
+            return Err(CloudCredentialError::LoginError(
+                json_response.get("error").unwrap().to_string(),
+            ));
+        }
         serde_json::from_value::<TokenResponse>(json_response)
             .map_err(CloudCredentialError::JsonSerializationError)
     }

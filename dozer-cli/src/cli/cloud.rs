@@ -4,7 +4,7 @@ use clap::ArgAction;
 use dozer_types::grpc_types::cloud::Secret;
 use std::error::Error;
 
-#[derive(Debug, Args)]
+#[derive(Debug, Args, Clone)]
 #[command(args_conflicts_with_subcommands = true)]
 pub struct Cloud {
     #[arg(global = true, short = 't', long)]
