@@ -362,7 +362,9 @@ impl DozerGrpcCloudClient for CloudClient {
         client_id: Option<String>,
         client_secret: Option<String>,
     ) -> Result<(), OrchestrationError> {
-        info!("Organisation and client details can be created in https://dashboard.dev.getdozer.io/login \n");
+        info!(
+            "Organisation and client details can be created in https://cloud.getdozer.io/login \n"
+        );
         let organisation_slug = match organisation_slug {
             None => {
                 let mut organisation_slug = String::new();
