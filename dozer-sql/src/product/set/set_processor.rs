@@ -11,7 +11,7 @@ use dozer_core::epoch::Epoch;
 use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore};
+use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore, ProcessorRecordStoreDeserializer};
 use dozer_types::errors::internal::BoxedError;
 use std::fmt::{Debug, Formatter};
 
@@ -29,7 +29,7 @@ impl SetProcessor {
         id: String,
         operator: SetOperation,
         enable_probabilistic_optimizations: bool,
-        record_store: &ProcessorRecordStore,
+        record_store: &ProcessorRecordStoreDeserializer,
         checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Self, SetError> {
         let mut cursor = checkpoint_data.as_deref().map(Cursor::new);

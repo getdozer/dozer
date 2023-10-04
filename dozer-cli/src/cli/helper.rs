@@ -234,10 +234,10 @@ mod tests {
             app_name: "test_override_nested".to_string(),
             ..Default::default()
         };
-        config.api = Some(ApiConfig {
+        config.api = ApiConfig {
             api_security: Some(ApiSecurity::Jwt("secret1".to_string())),
             ..Default::default()
-        });
+        };
         let api_security = ApiSecurity::Jwt("secret2".to_string());
         let config = apply_overrides(
             &config,
@@ -247,6 +247,6 @@ mod tests {
             )],
         )
         .unwrap();
-        assert_eq!(config.api.unwrap().api_security.unwrap(), api_security);
+        assert_eq!(config.api.api_security.unwrap(), api_security);
     }
 }

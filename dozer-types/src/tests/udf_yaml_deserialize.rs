@@ -9,9 +9,9 @@ fn standard() {
   "#;
     let deserializer_result = serde_yaml::from_str::<UdfConfig>(udf_config).unwrap();
     let udf_conf = UdfConfig {
-        config: Some(UdfType::Onnx(OnnxConfig {
+        config: UdfType::Onnx(OnnxConfig {
             path: "./models/model_file".to_string(),
-        })),
+        }),
         name: "is_fraudulent".to_string(),
     };
     let expected = udf_conf;

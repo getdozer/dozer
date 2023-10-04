@@ -16,10 +16,7 @@ use dozer_core::{
     },
 };
 use dozer_types::{
-    models::{
-        api_endpoint::ApiEndpoint,
-        connection::{Connection, ConnectionConfig},
-    },
+    models::{api_endpoint::ApiEndpoint, connection::Connection},
     node::NodeHandle,
     types::Schema,
 };
@@ -107,20 +104,7 @@ impl Contract {
                     .iter()
                     .find(|connection| connection.name == node.handle.id)
                     .ok_or(BuildError::MissingConnection(node.handle.id.clone()))?;
-                let typ = match &connection.config {
-                    None => "None",
-                    Some(ConnectionConfig::Postgres(_)) => "Postgres",
-                    Some(ConnectionConfig::Ethereum(_)) => "Ethereum",
-                    Some(ConnectionConfig::Grpc(_)) => "Grpc",
-                    Some(ConnectionConfig::Snowflake(_)) => "Snowflake",
-                    Some(ConnectionConfig::Kafka(_)) => "Kafka",
-                    Some(ConnectionConfig::S3Storage(_)) => "S3Storage",
-                    Some(ConnectionConfig::LocalStorage(_)) => "LocalStorage",
-                    Some(ConnectionConfig::DeltaLake(_)) => "DeltaLake",
-                    Some(ConnectionConfig::MongoDB(_)) => "MongoDB",
-                    Some(ConnectionConfig::MySQL(_)) => "MySQL",
-                    Some(ConnectionConfig::Dozer(_)) => "Dozer",
-                };
+                let typ = connection.config.get_type_name();
                 source_types.insert(node_index, typ);
             }
         }

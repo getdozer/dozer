@@ -1,10 +1,9 @@
 use std::{collections::HashMap, ops::Deref, sync::atomic::Ordering, time::Duration};
 
+use dozer_api::shutdown::ShutdownReceiver;
 use dozer_types::grpc_types::live::{ConnectResponse, Metric, ProgressResponse};
 use prometheus_parse::Value;
 use tokio::time::interval;
-
-use crate::shutdown::ShutdownReceiver;
 
 use super::LiveError;
 

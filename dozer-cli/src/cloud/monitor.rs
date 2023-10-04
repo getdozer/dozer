@@ -13,7 +13,7 @@ use tokio::runtime::Runtime;
 
 pub fn monitor_app(
     cloud: &Cloud,
-    cloud_config: Option<&dozer_types::models::cloud::Cloud>,
+    cloud_config: &dozer_types::models::cloud::Cloud,
     runtime: Arc<Runtime>,
 ) -> Result<(), CloudError> {
     let app_id = cloud

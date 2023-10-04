@@ -1,5 +1,5 @@
 use dozer_core::dozer_log::storage::Object;
-use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore};
+use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore, ProcessorRecordStoreDeserializer};
 use dozer_types::types::{Record, Schema, Timestamp};
 
 use crate::{
@@ -51,7 +51,7 @@ impl JoinOperator {
         join_type: JoinType,
         (left_join_key_indexes, right_join_key_indexes): (Vec<usize>, Vec<usize>),
         (left_schema, right_schema): (&Schema, &Schema),
-        record_store: &ProcessorRecordStore,
+        record_store: &ProcessorRecordStoreDeserializer,
         enable_probabilistic_optimizations: bool,
         checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Self, JoinError> {

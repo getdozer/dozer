@@ -2,7 +2,8 @@ use std::path::Path;
 
 use super::{
     api_config::ApiConfig, api_endpoint::ApiEndpoint, app_config::AppConfig, cloud::Cloud,
-    connection::Connection, flags::Flags, source::Source, telemetry::TelemetryConfig,
+    connection::Connection, equal_default, flags::Flags, source::Source,
+    telemetry::TelemetryConfig,
 };
 use crate::constants::DEFAULT_HOME_DIR;
 use crate::models::udf_config::UdfConfig;
@@ -11,6 +12,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Default, JsonSchema)]
+#[serde(deny_unknown_fields)]
 /// The configuration for the app
 pub struct Config {
     pub version: u32,
@@ -18,60 +20,53 @@ pub struct Config {
     /// name of the app
     pub app_name: String,
 
-    #[serde(skip_serializing_if = "String::is_empty", default = "default_home_dir")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     ///directory for all process; Default: ./.dozer
-    pub home_dir: String,
+    pub home_dir: Option<String>,
 
-    #[serde(
-        skip_serializing_if = "String::is_empty",
-        default = "default_cache_dir"
-    )]
+    #[serde(skip_serializing_if = "Option::is_none")]
     ///directory for cache. Default: ./.dozer/cache
-    pub cache_dir: String,
+    pub cache_dir: Option<String>,
 
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-
     /// connections to databases: Eg: Postgres, Snowflake, etc
     pub connections: Vec<Connection>,
 
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-
     /// sources to ingest data related to particular connection
     pub sources: Vec<Source>,
 
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-
     /// api endpoints to expose
     pub endpoints: Vec<ApiEndpoint>,
 
+    #[serde(default, skip_serializing_if = "equal_default")]
     /// Api server config related: port, host, etc
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub api: Option<ApiConfig>,
+    pub api: ApiConfig,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     /// transformations to apply to source data in SQL format as multiple queries
     pub sql: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
 
+    #[serde(default, skip_serializing_if = "equal_default")]
     /// flags to enable/disable features
-    pub flags: Option<Flags>,
-
-    /// Cache lmdb max map size
+    pub flags: Flags,
 
     #[serde(skip_serializing_if = "Option::is_none")]
+    /// Cache lmdb max map size
     pub cache_max_map_size: Option<u64>,
 
+    #[serde(default, skip_serializing_if = "equal_default")]
     /// App runtime config: behaviour of pipeline and log
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub app: Option<AppConfig>,
+    pub app: AppConfig,
 
+    #[serde(default, skip_serializing_if = "equal_default")]
     /// Instrument using Dozer
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub telemetry: Option<TelemetryConfig>,
+    pub telemetry: TelemetryConfig,
 
+    #[serde(default, skip_serializing_if = "equal_default")]
     /// Dozer Cloud specific configuration
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cloud: Option<Cloud>,
+    pub cloud: Cloud,
 
     /// UDF specific configuration (eg. !Onnx)
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

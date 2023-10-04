@@ -2,25 +2,21 @@ use std::{sync::Arc, thread::JoinHandle};
 
 use clap::Parser;
 
+use dozer_api::shutdown::{self, ShutdownReceiver, ShutdownSender};
 use dozer_cache::dozer_log::camino::Utf8Path;
 use dozer_core::{app::AppPipeline, dag_schemas::DagSchemas, Dag};
 use dozer_sql::builder::statement_to_pipeline;
 use dozer_tracing::{Labels, LabelsAndProgress};
 use dozer_types::{
-    constants::DEFAULT_DEFAULT_MAX_NUM_RECORDS,
     grpc_types::{
         contract::{DotResponse, ProtoResponse, SchemasResponse},
         live::{BuildResponse, BuildStatus, ConnectResponse, LiveApp, LiveResponse, RunRequest},
     },
     log::info,
     models::{
-        api_config::{
-            default_api_grpc, default_api_rest, default_app_grpc, ApiConfig, AppGrpcOptions,
-            GrpcApiOptions, RestApiOptions,
-        },
+        api_config::{ApiConfig, AppGrpcOptions, GrpcApiOptions, RestApiOptions},
         api_endpoint::ApiEndpoint,
         api_security::ApiSecurity,
-        app_config::AppConfig,
         flags::Flags,
     },
 };
@@ -31,7 +27,6 @@ use crate::{
     cli::{init_config, init_dozer, types::Cli},
     errors::OrchestrationError,
     pipeline::PipelineBuilder,
-    shutdown::{self, ShutdownReceiver, ShutdownSender},
     simple::{helper::validate_config, Contract, SimpleOrchestrator},
 };
 
@@ -179,12 +174,7 @@ impl LiveState {
                 .ok()
                 .map(ApiSecurity::Jwt)
                 .as_ref()
-                .or(dozer
-                    .dozer
-                    .config
-                    .api
-                    .as_ref()
-                    .and_then(|f| f.api_security.as_ref()))
+                .or(dozer.dozer.config.api.api_security.as_ref())
                 .is_some();
             LiveApp {
                 app_name: dozer.dozer.config.app_name.clone(),
@@ -389,7 +379,7 @@ fn get_dozer_run_instance(
         Some(dozer_types::grpc_types::live::run_request::Request::Sql(req)) => {
             let context = statement_to_pipeline(
                 &req.sql,
-                &mut AppPipeline::new(dozer.config.flags.clone().unwrap_or_default().into()),
+                &mut AppPipeline::new(dozer.config.flags.clone().into()),
                 None,
                 dozer.config.udfs.clone(),
             )
@@ -424,31 +414,14 @@ fn get_dozer_run_instance(
         None => {}
     };
 
-    if let Some(app) = dozer.config.app.as_mut() {
-        app.max_num_records_before_persist = Some(usize::MAX as u64);
-        app.max_interval_before_persist_in_seconds = Some(u64::MAX);
-    } else {
-        dozer.config.app = Some(AppConfig {
-            max_num_records_before_persist: Some(usize::MAX as u64),
-            max_interval_before_persist_in_seconds: Some(u64::MAX),
-            ..Default::default()
-        })
-    }
+    let app = &mut dozer.config.app;
+    app.max_num_records_before_persist = Some(usize::MAX as u64);
+    app.max_interval_before_persist_in_seconds = Some(u64::MAX);
 
-    if let Some(api) = dozer.config.api.as_mut() {
-        override_api_config(api);
-    } else {
-        dozer.config.api = Some(ApiConfig {
-            api_security: None,
-            rest: Some(default_rest_config_for_live()),
-            grpc: Some(default_grpc_config_for_live()),
-            app_grpc: Some(default_app_grpc_config_for_live()),
-            default_max_num_records: DEFAULT_DEFAULT_MAX_NUM_RECORDS as u32,
-        })
-    }
+    override_api_config(&mut dozer.config.api);
 
-    dozer.config.home_dir = temp_dir.to_string();
-    dozer.config.cache_dir = AsRef::<Utf8Path>::as_ref(temp_dir).join("cache").into();
+    dozer.config.home_dir = Some(temp_dir.to_string());
+    dozer.config.cache_dir = Some(AsRef::<Utf8Path>::as_ref(temp_dir).join("cache").into());
 
     dozer.labels = LabelsAndProgress::new(labels, false);
 
@@ -456,59 +429,27 @@ fn get_dozer_run_instance(
 }
 
 fn override_api_config(api: &mut ApiConfig) {
-    if let Some(rest) = api.rest.as_mut() {
-        override_rest_config(rest);
-    } else {
-        api.rest = Some(default_rest_config_for_live());
-    }
-
-    if let Some(grpc) = api.grpc.as_mut() {
-        override_grpc_config(grpc);
-    } else {
-        api.grpc = Some(default_grpc_config_for_live());
-    }
-
-    if let Some(app_grpc) = api.app_grpc.as_mut() {
-        override_app_grpc_config(app_grpc);
-    } else {
-        api.app_grpc = Some(default_app_grpc_config_for_live());
-    }
+    override_rest_config(&mut api.rest);
+    override_grpc_config(&mut api.grpc);
+    override_app_grpc_config(&mut api.app_grpc);
 }
 
 fn override_rest_config(rest: &mut RestApiOptions) {
-    rest.host = "0.0.0.0".to_string();
-    rest.port = 62996;
-    rest.cors = true;
-    rest.enabled = true;
-}
-
-fn default_rest_config_for_live() -> RestApiOptions {
-    let mut rest = default_api_rest();
-    override_rest_config(&mut rest);
-    rest
+    rest.host = Some("0.0.0.0".to_string());
+    rest.port = Some(62996);
+    rest.cors = Some(true);
+    rest.enabled = Some(true);
 }
 
 fn override_grpc_config(grpc: &mut GrpcApiOptions) {
-    grpc.host = "0.0.0.0".to_string();
-    grpc.port = 62998;
-    grpc.cors = true;
-    grpc.web = true;
-    grpc.enabled = true;
-}
-
-fn default_grpc_config_for_live() -> GrpcApiOptions {
-    let mut grpc = default_api_grpc();
-    override_grpc_config(&mut grpc);
-    grpc
+    grpc.host = Some("0.0.0.0".to_string());
+    grpc.port = Some(62998);
+    grpc.cors = Some(true);
+    grpc.web = Some(true);
+    grpc.enabled = Some(true);
 }
 
 fn override_app_grpc_config(app_grpc: &mut AppGrpcOptions) {
-    app_grpc.port = 62997;
-    app_grpc.host = "0.0.0.0".to_string();
-}
-
-fn default_app_grpc_config_for_live() -> AppGrpcOptions {
-    let mut app_grpc = default_app_grpc();
-    override_app_grpc_config(&mut app_grpc);
-    app_grpc
+    app_grpc.port = Some(62997);
+    app_grpc.host = Some("0.0.0.0".to_string());
 }

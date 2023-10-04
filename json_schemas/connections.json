@@ -69,7 +69,8 @@
             "null"
           ]
         }
-      }
+      },
+      "additionalProperties": false
     }
   },
   {
@@ -209,8 +210,10 @@
           ],
           "properties": {
             "batch_size": {
-              "default": 3,
-              "type": "integer",
+              "type": [
+                "integer",
+                "null"
+              ],
               "format": "uint64",
               "minimum": 0.0
             },
@@ -241,30 +244,32 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "GrpcConfig",
       "type": "object",
+      "required": [
+        "schemas"
+      ],
       "properties": {
         "adapter": {
-          "default": "default",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "host": {
-          "default": "0.0.0.0",
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "port": {
-          "default": 8085,
-          "type": "integer",
+          "type": [
+            "integer",
+            "null"
+          ],
           "format": "uint32",
           "minimum": 0.0
         },
         "schemas": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/GrpcConfigSchemas"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/definitions/GrpcConfigSchemas"
         }
       },
       "definitions": {
@@ -327,6 +332,10 @@
         },
         "password": {
           "type": "string"
+        },
+        "poll_interval_seconds": {
+          "type": "number",
+          "format": "double"
         },
         "port": {
           "type": "string"
@@ -410,12 +419,10 @@
               "type": "string"
             },
             "marker_extension": {
-              "default": ".marker",
-              "type": "string"
-            },
-            "marker_file": {
-              "default": false,
-              "type": "boolean"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "path": {
               "type": "string"
@@ -444,12 +451,10 @@
               "type": "string"
             },
             "marker_extension": {
-              "default": ".marker",
-              "type": "string"
-            },
-            "marker_file": {
-              "default": false,
-              "type": "boolean"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "path": {
               "type": "string"
@@ -582,12 +587,10 @@
               "type": "string"
             },
             "marker_extension": {
-              "default": ".marker",
-              "type": "string"
-            },
-            "marker_file": {
-              "default": false,
-              "type": "boolean"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "path": {
               "type": "string"
@@ -627,12 +630,10 @@
               "type": "string"
             },
             "marker_extension": {
-              "default": ".marker",
-              "type": "string"
-            },
-            "marker_file": {
-              "default": false,
-              "type": "boolean"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "path": {
               "type": "string"
@@ -785,62 +786,47 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "NestedDozerConfig",
       "type": "object",
+      "required": [
+        "url"
+      ],
       "properties": {
-        "grpc": {
-          "anyOf": [
+        "log_options": {
+          "default": {},
+          "allOf": [
             {
-              "$ref": "#/definitions/AppGrpcOptions"
-            },
-            {
-              "type": "null"
+              "$ref": "#/definitions/NestedDozerLogOptions"
             }
           ]
         },
-        "log_options": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/NestedDozerLogOptions"
-            },
-            {
-              "type": "null"
-            }
-          ]
+        "url": {
+          "type": "string"
         }
       },
       "definitions": {
-        "AppGrpcOptions": {
-          "type": "object",
-          "properties": {
-            "host": {
-              "default": "0.0.0.0",
-              "type": "string"
-            },
-            "port": {
-              "default": 50053,
-              "type": "integer",
-              "format": "uint32",
-              "minimum": 0.0
-            }
-          }
-        },
         "NestedDozerLogOptions": {
           "type": "object",
           "properties": {
             "batch_size": {
-              "default": 30,
-              "type": "integer",
+              "type": [
+                "integer",
+                "null"
+              ],
               "format": "uint32",
               "minimum": 0.0
             },
             "buffer_size": {
-              "default": 1000,
-              "type": "integer",
+              "type": [
+                "integer",
+                "null"
+              ],
               "format": "uint32",
               "minimum": 0.0
             },
             "timeout_in_millis": {
-              "default": 1000,
-              "type": "integer",
+              "type": [
+                "integer",
+                "null"
+              ],
               "format": "uint32",
               "minimum": 0.0
             }

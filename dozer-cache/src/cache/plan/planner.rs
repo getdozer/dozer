@@ -1,8 +1,6 @@
 use crate::cache::expression::{FilterExpression, Operator, SortDirection, SortOptions};
 use crate::errors::PlanError;
-use dozer_types::models::api_endpoint::{
-    CreateSecondaryIndex, FullText, SecondaryIndex, SortedInverted,
-};
+use dozer_types::models::api_endpoint::{FullText, SecondaryIndex, SortedInverted};
 use dozer_types::types::{Field, FieldDefinition, Schema};
 use dozer_types::types::{FieldType, IndexDefinition};
 use dozer_types::{json_value_to_field, serde_yaml};
@@ -268,9 +266,7 @@ fn describe_index_configuration(
         match index {
             IndexScanKind::FullText { filter } => {
                 let field = field_definitions[filter.field_index].name.clone();
-                creates.push(CreateSecondaryIndex {
-                    index: Some(SecondaryIndex::FullText(FullText { field })),
-                });
+                creates.push(SecondaryIndex::FullText(FullText { field }));
             }
             IndexScanKind::SortedInverted {
                 eq_filters,
@@ -285,9 +281,7 @@ fn describe_index_configuration(
                     let field = field_definitions[range_query.field_index].name.clone();
                     fields.push(field);
                 }
-                creates.push(CreateSecondaryIndex {
-                    index: Some(SecondaryIndex::SortedInverted(SortedInverted { fields })),
-                });
+                creates.push(SecondaryIndex::SortedInverted(SortedInverted { fields }));
             }
         }
     }

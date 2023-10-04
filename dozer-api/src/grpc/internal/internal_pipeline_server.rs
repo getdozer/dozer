@@ -1,3 +1,4 @@
+use async_stream::stream;
 use dozer_cache::dozer_log::home_dir::BuildId;
 use dozer_cache::dozer_log::replication::{Log, LogResponseFuture};
 use dozer_types::bincode;
@@ -9,21 +10,23 @@ use dozer_types::grpc_types::internal::{
     EndpointResponse, EndpointsResponse, LogRequest, LogResponse, StorageRequest, StorageResponse,
 };
 use dozer_types::log::info;
-use dozer_types::models::api_config::AppGrpcOptions;
+use dozer_types::models::api_config::{
+    default_app_grpc_host, default_app_grpc_port, AppGrpcOptions,
+};
 use dozer_types::models::api_endpoint::ApiEndpoint;
-use dozer_types::parking_lot::Mutex;
 use dozer_types::tonic::transport::server::TcpIncoming;
 use dozer_types::tonic::transport::Server;
 use dozer_types::tonic::{self, Request, Response, Status, Streaming};
-use futures_util::future::Either;
 use futures_util::stream::BoxStream;
-use futures_util::{Future, StreamExt, TryStreamExt};
+use futures_util::{Future, StreamExt};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::Mutex;
 
 use crate::errors::GrpcError;
 use crate::grpc::run_server;
+use crate::shutdown::ShutdownReceiver;
 
 #[derive(Debug, Clone)]
 pub struct LogEndpoint {
@@ -52,7 +55,7 @@ impl InternalPipelineService for InternalPipelineServer {
     ) -> Result<Response<StorageResponse>, Status> {
         let endpoint = request.into_inner().endpoint;
         let log = &find_log_endpoint(&self.endpoints, &endpoint)?.log;
-        let storage = log.lock().describe_storage();
+        let storage = log.lock().await.describe_storage();
         Ok(Response::new(StorageResponse {
             storage: Some(storage),
         }))
@@ -103,26 +106,34 @@ impl InternalPipelineService for InternalPipelineServer {
         requests: Request<Streaming<LogRequest>>,
     ) -> Result<Response<Self::GetLogStream>, Status> {
         let endpoints = self.endpoints.clone();
-        Ok(Response::new(
-            requests
-                .into_inner()
-                .and_then(move |request| {
-                    let log = &match find_log_endpoint(&endpoints, &request.endpoint) {
-                        Ok(log) => log,
-                        Err(e) => return Either::Left(std::future::ready(Err(e))),
+        let requests = requests.into_inner();
+        let stream = stream! {
+            for await request in requests {
+                let request = match request {
+                    Ok(request) => request,
+                    Err(e) => {
+                        yield Err(e);
+                        continue;
                     }
-                    .log;
+                };
 
-                    let response = log.lock().read(
-                        request.start as usize..request.end as usize,
-                        Duration::from_millis(request.timeout_in_millis as u64),
-                        log.clone(),
-                    );
+                let log = &match find_log_endpoint(&endpoints, &request.endpoint) {
+                    Ok(log) => log,
+                    Err(e) => {
+                        yield Err(e);
+                        continue;
+                    }
+                }.log;
 
-                    Either::Right(serialize_log_response(response))
-                })
-                .boxed(),
-        ))
+                let response = log.lock().await.read(
+                    request.start as usize..request.end as usize,
+                    Duration::from_millis(request.timeout_in_millis as u64),
+                    log.clone(),
+                ).await;
+                yield serialize_log_response(response).await;
+            }
+        };
+        Ok(Response::new(stream.boxed()))
     }
 }
 
@@ -163,7 +174,7 @@ async fn serialize_log_response(response: LogResponseFuture) -> Result<LogRespon
 pub async fn start_internal_pipeline_server(
     endpoint_and_logs: Vec<(ApiEndpoint, LogEndpoint)>,
     options: &AppGrpcOptions,
-    shutdown: impl Future<Output = ()> + Send + 'static,
+    shutdown: ShutdownReceiver,
 ) -> Result<impl Future<Output = Result<(), tonic::transport::Error>>, GrpcError> {
     let endpoints = endpoint_and_logs
         .into_iter()
@@ -172,7 +183,11 @@ pub async fn start_internal_pipeline_server(
     let server = InternalPipelineServer::new(endpoints);
 
     // Start listening.
-    let addr = format!("{}:{}", options.host, options.port);
+    let addr = format!(
+        "{}:{}",
+        options.host.clone().unwrap_or_else(default_app_grpc_host),
+        options.port.unwrap_or_else(default_app_grpc_port)
+    );
     info!("Starting Internal Server on {addr}");
     let addr = addr
         .parse()

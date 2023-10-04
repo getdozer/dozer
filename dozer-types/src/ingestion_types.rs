@@ -1,10 +1,14 @@
 use prettytable::Table as PrettyTable;
 use schemars::JsonSchema;
-use std::fmt::Debug;
+use std::{fmt::Debug, time::Duration};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{models::api_config::AppGrpcOptions, node::OpIdentifier, types::Operation};
+use crate::{
+    helper::{deserialize_duration_secs_f64, f64_schema, serialize_duration_secs_f64},
+    node::OpIdentifier,
+    types::Operation,
+};
 
 #[derive(Clone, Debug, PartialEq)]
 /// All possible kinds of `IngestionMessage`.
@@ -41,44 +45,33 @@ pub struct EthFilter {
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
 pub struct GrpcConfig {
-    #[serde(default = "default_ingest_host")]
-    pub host: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host: Option<String>,
 
-    #[serde(default = "default_ingest_port")]
-    pub port: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub port: Option<u32>,
 
-    pub schemas: Option<GrpcConfigSchemas>,
+    pub schemas: GrpcConfigSchemas,
 
-    #[serde(default = "default_grpc_adapter")]
-    pub adapter: String,
-}
-impl Default for GrpcConfig {
-    fn default() -> Self {
-        Self {
-            host: default_ingest_host(),
-            port: default_ingest_port(),
-            schemas: None,
-            adapter: default_grpc_adapter(),
-        }
-    }
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub adapter: Option<String>,
 }
 
-fn default_grpc_adapter() -> String {
+pub fn default_grpc_adapter() -> String {
     "default".to_owned()
 }
 
-fn default_ingest_host() -> String {
+pub fn default_ingest_host() -> String {
     "0.0.0.0".to_owned()
 }
 
-fn default_ingest_port() -> u32 {
+pub fn default_ingest_port() -> u32 {
     8085
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
 pub enum GrpcConfigSchemas {
     Inline(String),
-
     Path(String),
 }
 
@@ -112,11 +105,11 @@ pub struct EthTraceConfig {
 
     pub to_block: Option<u64>,
 
-    #[serde(default = "default_batch_size")]
-    pub batch_size: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub batch_size: Option<u64>,
 }
 
-fn default_batch_size() -> u64 {
+pub fn default_batch_size() -> u64 {
     3
 }
 
@@ -195,6 +188,15 @@ pub struct SnowflakeConfig {
     pub driver: Option<String>,
 
     pub role: String,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_duration_secs_f64",
+        serialize_with = "serialize_duration_secs_f64"
+    )]
+    #[schemars(schema_with = "f64_schema")]
+    pub poll_interval_seconds: Option<Duration>,
 }
 
 impl SnowflakeConfig {
@@ -208,7 +210,16 @@ impl SnowflakeConfig {
             ["database", self.database],
             ["schema", self.schema],
             ["warehouse", self.warehouse],
-            ["driver", self.driver.as_ref().map_or("default", |d| d)]
+            ["driver", self.driver.as_ref().map_or("default", |d| d)],
+            [
+                "poll_interval_seconds",
+                format!(
+                    "{}s",
+                    self.poll_interval_seconds
+                        .unwrap_or_else(default_snowflake_poll_interval)
+                        .as_secs_f64()
+                )
+            ]
         )
     }
 }
@@ -269,11 +280,8 @@ pub struct CsvConfig {
 
     pub extension: String,
 
-    #[serde(default = "default_false")]
-    pub marker_file: bool,
-
-    #[serde(default = "default_marker")]
-    pub marker_extension: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub marker_extension: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
@@ -287,11 +295,8 @@ pub struct ParquetConfig {
 
     pub extension: String,
 
-    #[serde(default = "default_false")]
-    pub marker_file: bool,
-
-    #[serde(default = "default_marker")]
-    pub marker_extension: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub marker_extension: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
@@ -378,48 +383,37 @@ pub struct MySQLConfig {
     pub server_id: Option<u32>,
 }
 
-fn default_false() -> bool {
-    false
-}
-
-fn default_marker() -> String {
-    String::from(".marker")
-}
-
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
 pub struct NestedDozerConfig {
-    pub grpc: Option<AppGrpcOptions>,
-
-    pub log_options: Option<NestedDozerLogOptions>,
+    pub url: String,
+    #[serde(default)]
+    pub log_options: NestedDozerLogOptions,
 }
 
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema, Default)]
 pub struct NestedDozerLogOptions {
-    #[serde(default = "default_log_batch_size")]
-    pub batch_size: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub batch_size: Option<u32>,
 
-    #[serde(default = "default_timeout")]
-    pub timeout_in_millis: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout_in_millis: Option<u32>,
 
-    #[serde(default = "default_buffer_size")]
-    pub buffer_size: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub buffer_size: Option<u32>,
 }
 
-fn default_log_batch_size() -> u32 {
+pub fn default_log_batch_size() -> u32 {
     30
 }
-fn default_timeout() -> u32 {
+
+pub fn default_timeout() -> u32 {
     1000
 }
 
-fn default_buffer_size() -> u32 {
+pub fn default_buffer_size() -> u32 {
     1000
 }
 
-pub fn default_log_options() -> NestedDozerLogOptions {
-    NestedDozerLogOptions {
-        batch_size: default_log_batch_size(),
-        timeout_in_millis: default_timeout(),
-        buffer_size: default_buffer_size(),
-    }
+pub fn default_snowflake_poll_interval() -> Duration {
+    Duration::from_secs(5)
 }

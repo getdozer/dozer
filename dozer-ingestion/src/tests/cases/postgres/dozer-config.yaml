@@ -46,8 +46,7 @@ endpoints:
     index:
       primary_key:
         - id
-  - id: null
-    name: stocks_meta
+  - name: stocks_meta
     path: /stocks-meta
     # Direct from source
     table_name: stocks_meta

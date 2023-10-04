@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use dozer_api::shutdown::ShutdownReceiver;
 use dozer_cache::dozer_log::replication::Log;
 use dozer_core::app::App;
 use dozer_core::app::AppPipeline;
@@ -18,13 +19,12 @@ use dozer_types::models::connection::Connection;
 use dozer_types::models::flags::Flags;
 use dozer_types::models::source::Source;
 use dozer_types::models::udf_config::UdfConfig;
-use dozer_types::parking_lot::Mutex;
 use std::hash::Hash;
 use tokio::runtime::Runtime;
+use tokio::sync::Mutex;
 
 use crate::pipeline::dummy_sink::DummySinkFactory;
 use crate::pipeline::LogSinkFactory;
-use crate::shutdown::ShutdownReceiver;
 
 use super::source_builder::SourceBuilder;
 use crate::errors::OrchestrationError;
@@ -93,7 +93,7 @@ impl<'a> PipelineBuilder<'a> {
         for connection in self.connections {
             let connector = get_connector(connection.clone())?;
 
-            if let Ok(info_table) = get_connector_info_table(connection) {
+            if let Some(info_table) = get_connector_info_table(connection) {
                 info!("[{}] Connection parameters\n{info_table}", connection.name);
             }
 

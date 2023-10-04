@@ -4,7 +4,7 @@ use dozer_core::{
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
-use dozer_recordstore::ProcessorRecordStore;
+use dozer_recordstore::ProcessorRecordStoreDeserializer;
 use dozer_types::{errors::internal::BoxedError, types::Schema};
 
 use crate::{
@@ -12,10 +12,7 @@ use crate::{
     pipeline_builder::from_builder::TableOperatorDescriptor,
 };
 
-use super::{
-    builder::{window_from_table_operator, window_source_name},
-    processor::WindowProcessor,
-};
+use super::{builder::window_from_table_operator, processor::WindowProcessor};
 
 #[derive(Debug)]
 pub struct WindowProcessorFactory {
@@ -26,10 +23,6 @@ pub struct WindowProcessorFactory {
 impl WindowProcessorFactory {
     pub fn new(id: String, table: TableOperatorDescriptor) -> Self {
         Self { id, table }
-    }
-
-    pub(crate) fn get_source_name(&self) -> Result<String, PipelineError> {
-        window_source_name(&self.table).map_err(PipelineError::WindowError)
     }
 }
 
@@ -81,7 +74,7 @@ impl ProcessorFactory for WindowProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
-        _record_store: &ProcessorRecordStore,
+        _record_store: &ProcessorRecordStoreDeserializer,
         checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         let input_schema = input_schemas

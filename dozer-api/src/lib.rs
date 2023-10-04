@@ -52,11 +52,11 @@ impl CacheEndpoint {
             cache_labels(endpoint.name.clone(), log_reader_builder.build_name.clone());
         cache_labels.extend(labels.labels().clone());
         let schema = log_reader_builder.schema.clone();
-        let conflict_resolution = endpoint.conflict_resolution.unwrap_or_default();
+        let conflict_resolution = endpoint.conflict_resolution;
         let write_options = CacheWriteOptions {
-            insert_resolution: conflict_resolution.on_insert.unwrap_or_default(),
-            delete_resolution: conflict_resolution.on_delete.unwrap_or_default(),
-            update_resolution: conflict_resolution.on_update.unwrap_or_default(),
+            insert_resolution: conflict_resolution.on_insert,
+            delete_resolution: conflict_resolution.on_delete,
+            update_resolution: conflict_resolution.on_update,
             ..Default::default()
         };
         let cache = open_or_create_cache(
@@ -154,18 +154,15 @@ fn get_log_reader_options(endpoint: &ApiEndpoint) -> LogReaderOptions {
         endpoint: endpoint.name.clone(),
         batch_size: endpoint
             .log_reader_options
-            .as_ref()
-            .and_then(|options| options.batch_size)
+            .batch_size
             .unwrap_or_else(default_log_reader_batch_size),
         timeout_in_millis: endpoint
             .log_reader_options
-            .as_ref()
-            .and_then(|options| options.timeout_in_millis)
+            .timeout_in_millis
             .unwrap_or_else(default_log_reader_timeout_in_millis),
         buffer_size: endpoint
             .log_reader_options
-            .as_ref()
-            .and_then(|options| options.buffer_size)
+            .buffer_size
             .unwrap_or_else(default_log_reader_buffer_size),
     }
 }
@@ -184,6 +181,7 @@ pub use actix_web_httpauth;
 pub use api_helper::API_LATENCY_HISTOGRAM_NAME;
 pub use api_helper::API_REQUEST_COUNTER_NAME;
 pub use async_trait;
+pub mod shutdown;
 pub use dozer_types::tonic;
 use errors::ApiInitError;
 pub use openapiv3;

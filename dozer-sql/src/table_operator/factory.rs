@@ -4,7 +4,7 @@ use dozer_core::{
     node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
-use dozer_recordstore::ProcessorRecordStore;
+use dozer_recordstore::ProcessorRecordStoreDeserializer;
 use dozer_sql_expression::{
     builder::ExpressionBuilder,
     execution::Expression,
@@ -15,7 +15,7 @@ use dozer_types::{errors::internal::BoxedError, types::Schema};
 
 use crate::{
     errors::{PipelineError, TableOperatorError},
-    pipeline_builder::from_builder::TableOperatorDescriptor,
+    pipeline_builder::from_builder::{TableOperatorArg, TableOperatorDescriptor},
 };
 
 use super::{
@@ -24,7 +24,7 @@ use super::{
     processor::TableOperatorProcessor,
 };
 
-const SOURCE_TABLE_ARGUMENT: usize = 0;
+const _SOURCE_TABLE_ARGUMENT: usize = 0;
 
 #[derive(Debug)]
 pub struct TableOperatorProcessorFactory {
@@ -42,16 +42,6 @@ impl TableOperatorProcessorFactory {
             name: id,
             udfs,
         }
-    }
-
-    pub(crate) fn get_source_name(&self) -> Result<String, TableOperatorError> {
-        let source_arg = self.table.args.get(SOURCE_TABLE_ARGUMENT).ok_or(
-            TableOperatorError::MissingSourceArgument(self.table.name.to_owned()),
-        )?;
-
-        let source_name = get_source_name(self.table.name.to_owned(), source_arg)?;
-
-        Ok(source_name)
     }
 }
 
@@ -103,7 +93,7 @@ impl ProcessorFactory for TableOperatorProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
-        _record_store: &ProcessorRecordStore,
+        _record_store: &ProcessorRecordStoreDeserializer,
         checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         let input_schema = input_schemas
@@ -149,18 +139,37 @@ fn lifetime_from_descriptor(
     schema: &Schema,
     udfs: &[UdfConfig],
 ) -> Result<LifetimeTableOperator, TableOperatorError> {
-    let expression_arg = descriptor
-        .args
-        .get(1)
-        .ok_or(TableOperatorError::MissingArgument(
+    let table_expression_arg =
+        descriptor
+            .args
+            .get(1)
+            .ok_or(TableOperatorError::MissingArgument(
+                descriptor.name.to_owned(),
+            ))?;
+
+    let expression_arg = if let TableOperatorArg::Argument(argument) = table_expression_arg {
+        argument
+    } else {
+        return Err(TableOperatorError::InvalidReference(
             descriptor.name.to_owned(),
-        ))?;
-    let duration_arg = descriptor
+            format!("{:?}", table_expression_arg),
+        ));
+    };
+
+    let table_duration_arg = descriptor
         .args
         .get(2)
         .ok_or(TableOperatorError::MissingArgument(
             descriptor.name.to_owned(),
         ))?;
+    let duration_arg = if let TableOperatorArg::Argument(argument) = table_duration_arg {
+        argument
+    } else {
+        return Err(TableOperatorError::InvalidInterval(
+            descriptor.name.to_owned(),
+            format!("{:?}", table_duration_arg),
+        ));
+    };
 
     let expression = get_expression(descriptor.name.to_owned(), expression_arg, schema, udfs)?;
     let duration = get_interval(descriptor.name.to_owned(), duration_arg)?;
@@ -279,13 +288,16 @@ fn parse_duration_string(
     }
 }
 
-fn get_source_name(function_name: String, arg: &FunctionArg) -> Result<String, TableOperatorError> {
+pub(crate) fn get_source_name(
+    function_name: &String,
+    arg: &FunctionArg,
+) -> Result<String, TableOperatorError> {
     match arg {
         FunctionArg::Named { name, arg: _ } => {
             let source_name = ExpressionBuilder::normalize_ident(name);
             Err(TableOperatorError::InvalidSourceArgument(
                 source_name,
-                function_name,
+                function_name.to_string(),
             ))
         }
         FunctionArg::Unnamed(arg_expr) => match arg_expr {
@@ -300,15 +312,18 @@ fn get_source_name(function_name: String, arg: &FunctionArg) -> Result<String, T
                 }
                 _ => Err(TableOperatorError::InvalidSourceArgument(
                     expr.to_string(),
-                    function_name,
+                    function_name.to_string(),
                 )),
             },
-            FunctionArgExpr::QualifiedWildcard(_) => Err(
-                TableOperatorError::InvalidSourceArgument("*".to_string(), function_name),
-            ),
+            FunctionArgExpr::QualifiedWildcard(_) => {
+                Err(TableOperatorError::InvalidSourceArgument(
+                    "*".to_string(),
+                    function_name.to_string(),
+                ))
+            }
             FunctionArgExpr::Wildcard => Err(TableOperatorError::InvalidSourceArgument(
                 "*".to_string(),
-                function_name,
+                function_name.to_string(),
             )),
         },
     }

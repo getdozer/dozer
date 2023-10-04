@@ -14,14 +14,16 @@ use crate::errors::OrchestrationError::FailedToReadOrganisationName;
 use crate::errors::{map_tonic_error, CliError, CloudError, CloudLoginError, OrchestrationError};
 use crate::simple::SimpleOrchestrator;
 use dozer_types::constants::{DEFAULT_CLOUD_TARGET_URL, LOCK_FILE};
+use dozer_types::grpc_types::api_explorer::api_explorer_service_client::ApiExplorerServiceClient;
+use dozer_types::grpc_types::api_explorer::GetApiTokenRequest;
 use dozer_types::grpc_types::cloud::{
     dozer_cloud_client::DozerCloudClient, CreateSecretRequest, DeleteAppRequest,
-    DeleteSecretRequest, GetSecretRequest, GetStatusRequest, ListAppRequest, ListSecretsRequest,
-    LogMessageRequest, UpdateSecretRequest,
+    DeleteSecretRequest, GetEndpointCommandsSamplesRequest, GetSecretRequest, ListAppRequest,
+    ListSecretsRequest, LogMessageRequest, UpdateSecretRequest,
 };
 use dozer_types::grpc_types::cloud::{
-    DeploymentInfo, DeploymentStatusWithHealth, File, ListDeploymentRequest,
-    SetCurrentVersionRequest, UpsertVersionRequest,
+    CreateAppRequest, DeleteVersionRequest, DeploymentInfo, DeploymentStatus, File, GetAppRequest,
+    ListDeploymentRequest, RmAliasRequest, SetAliasRequest, SetCurrentVersionRequest,
 };
 use dozer_types::log::info;
 use dozer_types::models::config::Config;
@@ -32,15 +34,13 @@ use std::sync::Arc;
 use tonic::transport::Endpoint;
 use tower::ServiceBuilder;
 
-use super::login::LoginSvc;
-use super::version::{get_version_status, version_is_up_to_date, version_status_table};
-
-pub async fn get_grpc_cloud_client(
+use super::cloud::login::LoginSvc;
+async fn establish_cloud_service_channel(
     cloud: &Cloud,
-    cloud_config: Option<&dozer_types::models::cloud::Cloud>,
-) -> Result<DozerCloudClient<TokenLayer>, CloudError> {
+    cloud_config: &dozer_types::models::cloud::Cloud,
+) -> Result<TokenLayer, CloudError> {
     let profile_name = match &cloud.profile {
-        None => cloud_config.as_ref().and_then(|c| c.profile.clone()),
+        None => cloud_config.profile.clone(),
         Some(_) => cloud.profile.clone(),
     };
     let credential = CredentialInfo::load(profile_name)?;
@@ -55,7 +55,23 @@ pub async fn get_grpc_cloud_client(
     let channel = ServiceBuilder::new()
         .layer_fn(|channel| TokenLayer::new(channel, credential.clone()))
         .service(channel);
-    let client = DozerCloudClient::new(channel);
+    Ok(channel)
+}
+
+pub async fn get_grpc_cloud_client(
+    cloud: &Cloud,
+    cloud_config: &dozer_types::models::cloud::Cloud,
+) -> Result<DozerCloudClient<TokenLayer>, CloudError> {
+    let client = DozerCloudClient::new(establish_cloud_service_channel(cloud, cloud_config).await?);
+    Ok(client)
+}
+
+pub async fn get_explorer_client(
+    cloud: &Cloud,
+    cloud_config: &dozer_types::models::cloud::Cloud,
+) -> Result<ApiExplorerServiceClient<TokenLayer>, CloudError> {
+    let client =
+        ApiExplorerServiceClient::new(establish_cloud_service_channel(cloud, cloud_config).await?);
     Ok(client)
 }
 
@@ -78,15 +94,10 @@ impl DozerGrpcCloudClient for CloudClient {
         deploy: DeployCommandArgs,
         config_paths: Vec<String>,
     ) -> Result<(), OrchestrationError> {
-        let app_id = if cloud.app_id.is_some() {
-            cloud.app_id.clone()
-        } else {
-            let app_id_from_context = CloudAppContext::get_app_id(self.config.cloud.as_ref());
-            match app_id_from_context {
-                Ok(id) => Some(id),
-                Err(_) => None,
-            }
-        };
+        let app_id = cloud
+            .app_id
+            .clone()
+            .or(CloudAppContext::get_app_id(&self.config.cloud).ok());
 
         let dozer = init_dozer(
             self.runtime.clone(),
@@ -118,6 +129,7 @@ impl DozerGrpcCloudClient for CloudClient {
             // 2. START application
             deploy_app(
                 &mut client,
+                // &mut explorer_client,
                 &app_id,
                 deploy.secrets,
                 deploy.allow_incompatible,
@@ -137,16 +149,13 @@ impl DozerGrpcCloudClient for CloudClient {
 
         let (app_id, delete_cloud_file) = if let Some(app_id) = cloud.app_id.clone() {
             // if the app_id on command line is equal to the one in the cloud config file then file can be deleted
-            if app_id == CloudAppContext::get_app_id(self.config.cloud.as_ref())? {
+            if app_id == CloudAppContext::get_app_id(&self.config.cloud)? {
                 (app_id, true)
             } else {
                 (app_id, false)
             }
         } else {
-            (
-                CloudAppContext::get_app_id(self.config.cloud.as_ref())?,
-                true,
-            )
+            (CloudAppContext::get_app_id(&self.config.cloud)?, true)
         };
 
         let mut double_check = String::new();
@@ -163,13 +172,10 @@ impl DozerGrpcCloudClient for CloudClient {
             return Ok(());
         }
 
-        let cloud_config = self.config.cloud.as_ref();
+        let cloud_config = &self.config.cloud;
         self.runtime.block_on(async move {
             let mut client = get_grpc_cloud_client(&cloud, cloud_config).await?;
 
-            stop_app(&mut client, &app_id).await?;
-
-            // steps.start_next_step();
             let delete_result = client
                 .delete_application(DeleteAppRequest {
                     app_id: app_id.clone(),
@@ -193,7 +199,7 @@ impl DozerGrpcCloudClient for CloudClient {
     }
 
     fn list(&mut self, cloud: Cloud, list: ListCommandArgs) -> Result<(), OrchestrationError> {
-        let cloud_config = self.config.cloud.as_ref();
+        let cloud_config = &self.config.cloud;
         self.runtime.block_on(async move {
             let mut client = get_grpc_cloud_client(&cloud, cloud_config).await?;
             let response = client
@@ -234,67 +240,44 @@ impl DozerGrpcCloudClient for CloudClient {
         let app_id = cloud
             .app_id
             .clone()
-            .unwrap_or(CloudAppContext::get_app_id(self.config.cloud.as_ref())?);
-        let cloud_config = self.config.cloud.as_ref();
+            .unwrap_or(CloudAppContext::get_app_id(&self.config.cloud)?);
+        let cloud_config = &self.config.cloud;
         self.runtime.block_on(async move {
             let mut client = get_grpc_cloud_client(&cloud, cloud_config).await?;
             let response = client
-                .get_status(GetStatusRequest { app_id })
+                .get_application(GetAppRequest { app_id })
                 .await
                 .map_err(map_tonic_error)?
                 .into_inner();
 
             let mut table = table!();
+            table.set_titles(row!["Deployment", "Version", "Status"]);
 
-            table.add_row(row!["Api endpoint", response.data_endpoint,]);
-
-            let mut deployment_table = table!();
-            deployment_table.set_titles(row![
-                "Deployment",
-                "App",
-                "Api",
-                "Version",
-                "Phase",
-                "Error"
-            ]);
-
-            for status in response.deployments.iter() {
-                let deployment = status.deployment.as_ref().expect("deployment is expected");
-                fn mark(status: bool) -> &'static str {
-                    if status {
-                        "🟢"
-                    } else {
-                        "🟠"
-                    }
-                }
-
-                let mut version = "".to_string();
-                for (loop_version, loop_deployment) in response.versions.iter() {
-                    if loop_deployment == &deployment.deployment {
-                        if Some(*loop_version) == response.current_version {
-                            version = format!("v{loop_version} (current)");
-                        } else {
-                            version = format!("v{loop_version}");
+            for deployment in response.deployments.iter() {
+                fn deployment_status(status: i32) -> &'static str {
+                    match status {
+                        _ if status == DeploymentStatus::Pending as i32 => {
+                            DeploymentStatus::Pending.as_str_name()
                         }
-                        break;
+                        _ if status == DeploymentStatus::Running as i32 => {
+                            DeploymentStatus::Running.as_str_name()
+                        }
+                        _ if status == DeploymentStatus::Success as i32 => {
+                            DeploymentStatus::Success.as_str_name()
+                        }
+                        _ if status == DeploymentStatus::Failed as i32 => {
+                            DeploymentStatus::Failed.as_str_name()
+                        }
+                        _ => "UNRECOGNIZED",
                     }
                 }
 
-                deployment_table.add_row(row![
-                    deployment.deployment,
-                    format!("Deployment Status: {:?}", deployment.status),
-                    format!("Version: {}", version),
+                table.add_row(row![
+                    deployment.deployment_id,
+                    deployment.version,
+                    deployment_status(deployment.status),
                 ]);
-                for r in status.resources.iter() {
-                    deployment_table.add_row(row![
-                        "",
-                        format!("{}: {}", r.typ, mark(r.available == r.desired)),
-                        format!("{}/{}", r.available.unwrap_or(0), r.desired.unwrap_or(0)),
-                    ]);
-                }
             }
-
-            table.add_row(row!["Deployments", deployment_table]);
 
             table.printstd();
             Ok::<(), CloudError>(())
@@ -304,7 +287,7 @@ impl DozerGrpcCloudClient for CloudClient {
     }
 
     fn monitor(&mut self, cloud: Cloud) -> Result<(), OrchestrationError> {
-        monitor_app(&cloud, self.config.cloud.as_ref(), self.runtime.clone())
+        monitor_app(&cloud, &self.config.cloud, self.runtime.clone())
             .map_err(crate::errors::OrchestrationError::CloudError)
     }
 
@@ -312,8 +295,8 @@ impl DozerGrpcCloudClient for CloudClient {
         let app_id = cloud
             .app_id
             .clone()
-            .unwrap_or(CloudAppContext::get_app_id(self.config.cloud.as_ref())?);
-        let cloud_config = self.config.cloud.as_ref();
+            .unwrap_or(CloudAppContext::get_app_id(&self.config.cloud)?);
+        let cloud_config = &self.config.cloud;
         self.runtime.block_on(async move {
             let mut client = get_grpc_cloud_client(&cloud, cloud_config).await?;
 
@@ -325,18 +308,15 @@ impl DozerGrpcCloudClient for CloudClient {
                 .map_err(map_tonic_error)?
                 .into_inner();
 
-            // Show log of the latest deployment for now.
-            let Some(deployment) = logs
-                .deployment
-                .or_else(|| latest_deployment(&res.deployments))
-            else {
-                info!("No deployments found");
+            // Show log of the latest version for now.
+            let Some(version) = logs.version.or_else(|| latest_version(&res.deployments)) else {
+                info!("No active version found");
                 return Ok(());
             };
             let mut response = client
                 .on_log_message(LogMessageRequest {
                     app_id,
-                    deployment,
+                    version,
                     follow: logs.follow,
                     include_build: !logs.ignore_build,
                     include_app: !logs.ignore_app,
@@ -412,14 +392,41 @@ impl DozerGrpcCloudClient for CloudClient {
         cloud: Cloud,
         command: SecretsCommand,
     ) -> Result<(), OrchestrationError> {
-        let app_id = cloud
+        let app_id_result = cloud
             .app_id
             .clone()
-            .unwrap_or(CloudAppContext::get_app_id(self.config.cloud.as_ref())?);
-        let cloud_config = self.config.cloud.as_ref();
+            .map_or(CloudAppContext::get_app_id(&self.config.cloud), Ok);
+
+        let config = self.config.clone();
+        let cloud_config = &self.config.cloud;
 
         self.runtime.block_on(async move {
             let mut client = get_grpc_cloud_client(&cloud, cloud_config).await?;
+
+            let app_id = match app_id_result {
+                Ok(id) => Ok(id),
+                Err(_e) if matches!(command, SecretsCommand::Create { .. }) => {
+                    let config_content =
+                        dozer_types::serde_yaml::to_string(&config).map_err(|e| {
+                            CloudError::ConfigCombineError(ConfigCombineError::ParseConfig(e))
+                        })?;
+
+                    let response = client
+                        .create_application(CreateAppRequest {
+                            files: vec![File {
+                                name: "dozer.yaml".to_string(),
+                                content: config_content,
+                            }],
+                        })
+                        .await
+                        .map_err(map_tonic_error)?
+                        .into_inner();
+
+                    CloudAppContext::save_app_id(response.app_id.clone())?;
+                    Ok(response.app_id)
+                }
+                Err(e) => Err(e),
+            }?;
 
             match command {
                 SecretsCommand::Create { name, value } => {
@@ -496,98 +503,34 @@ impl CloudClient {
         let app_id = cloud
             .app_id
             .clone()
-            .unwrap_or(CloudAppContext::get_app_id(self.config.cloud.as_ref())?);
+            .unwrap_or(CloudAppContext::get_app_id(&self.config.cloud)?);
 
-        let cloud_config = self.config.cloud.as_ref();
+        let cloud_config = &self.config.cloud;
         self.runtime.block_on(async move {
             let mut client = get_grpc_cloud_client(&cloud, cloud_config).await?;
 
             match version {
-                VersionCommand::Create { deployment } => {
-                    let status = client
-                        .get_status(GetStatusRequest {
-                            app_id: app_id.clone(),
-                        })
-                        .await
-                        .map_err(map_tonic_error)?
-                        .into_inner();
-                    let latest_version = status.versions.into_values().max().unwrap_or(0);
-
-                    client
-                        .upsert_version(UpsertVersionRequest {
-                            app_id,
-                            version: latest_version + 1,
-                            deployment,
-                        })
-                        .await
-                        .map_err(map_tonic_error)?;
-                }
                 VersionCommand::SetCurrent { version } => {
                     client
                         .set_current_version(SetCurrentVersionRequest { app_id, version })
                         .await?;
                 }
-                VersionCommand::Status { version } => {
-                    let status = client
-                        .get_status(GetStatusRequest { app_id })
-                        .await
-                        .map_err(map_tonic_error)?
-                        .into_inner();
-                    let Some(deployment) = status.versions.get(&version) else {
-                        info!("Version {} does not exist", version);
-                        return Ok(());
-                    };
-                    let api_available = get_api_available(&status.deployments, *deployment);
-
-                    let version_status =
-                        get_version_status(&status.data_endpoint, version, api_available).await;
-                    let mut table = table!();
-
-                    if let Some(current_version) = status.current_version {
-                        if current_version != version {
-                            let current_api_available = get_api_available(
-                                &status.deployments,
-                                status.versions[&current_version],
-                            );
-
-                            table.add_row(row![
-                                format!("v{version}"),
-                                version_status_table(&version_status)
-                            ]);
-
-                            let current_version_status = get_version_status(
-                                &status.data_endpoint,
-                                current_version,
-                                current_api_available,
-                            )
-                            .await;
-                            table.add_row(row![
-                                format!("v{current_version} (current)"),
-                                version_status_table(&current_version_status)
-                            ]);
-
-                            table.printstd();
-
-                            if version_is_up_to_date(&version_status, &current_version_status) {
-                                info!("Version {} is up to date", version);
-                            } else {
-                                info!("Version {} is not up to date", version);
-                            }
-                        } else {
-                            table.add_row(row![
-                                format!("v{version} (current)"),
-                                version_status_table(&version_status)
-                            ]);
-                            table.printstd();
-                        }
-                    } else {
-                        table.add_row(row![
-                            format!("v{version}"),
-                            version_status_table(&version_status)
-                        ]);
-                        table.printstd();
-                        info!("No current version");
-                    };
+                VersionCommand::Delete { version } => {
+                    client
+                        .delete_version(DeleteVersionRequest { app_id, version })
+                        .await?;
+                }
+                VersionCommand::Alias { alias, version } => {
+                    client
+                        .set_alias(SetAliasRequest {
+                            app_id,
+                            version,
+                            alias,
+                        })
+                        .await?;
+                }
+                VersionCommand::RmAlias { alias } => {
+                    client.rm_alias(RmAliasRequest { app_id, alias }).await?;
                 }
             }
 
@@ -595,29 +538,67 @@ impl CloudClient {
         })?;
         Ok(())
     }
+
+    pub fn print_api_request_samples(
+        &self,
+        cloud: Cloud,
+        endpoint: Option<String>,
+    ) -> Result<(), OrchestrationError> {
+        let app_id = cloud
+            .app_id
+            .clone()
+            .unwrap_or(CloudAppContext::get_app_id(&self.config.cloud)?);
+        let cloud_config = &self.config.cloud;
+        self.runtime.block_on(async move {
+            let mut client = get_cloud_client(&cloud, cloud_config).await?;
+            let mut explorer_client = get_explorer_client(&cloud, cloud_config).await?;
+
+            let response = client
+                .get_endpoint_commands_samples(GetEndpointCommandsSamplesRequest {
+                    app_id: app_id.clone(),
+                    endpoint,
+                })
+                .await
+                .map_err(map_tonic_error)?
+                .into_inner();
+
+            let token_response = explorer_client
+                .get_api_token(GetApiTokenRequest {
+                    app_id: Some(app_id),
+                    ttl: Some(3600),
+                })
+                .await?
+                .into_inner();
+
+            let mut rows = vec![];
+            let token = match token_response.token {
+                Some(token) => token,
+                None => {
+                    info!("Replace $DOZER_TOKEN with your API authorization token");
+                    "$DOZER_TOKEN".to_string()
+                }
+            };
+
+            for sample in response.samples {
+                rows.push(get_colored_text(
+                    &format!(
+                        "\n##################### {} command ###########################\n",
+                        sample.r#type
+                    ),
+                    PURPLE,
+                ));
+                rows.push(sample.command.replace("{token}", &token).to_string());
+            }
+
+            info!("{}", rows.join("\n"));
+
+            Ok::<(), CloudError>(())
+        })?;
+
+        Ok(())
+    }
 }
 
-fn latest_deployment(deployments: &[DeploymentInfo]) -> Option<u32> {
-    deployments.iter().map(|status| status.deployment).max()
-}
-
-fn get_api_available(deployments: &[DeploymentStatusWithHealth], deployment: u32) -> i32 {
-    let info = deployments
-        .iter()
-        .find(|status| {
-            status
-                .deployment
-                .as_ref()
-                .expect("deployment is expected")
-                .deployment
-                == deployment
-        })
-        .expect("Deployment should be found in deployments");
-
-    info.resources
-        .clone()
-        .into_iter()
-        .find(|r| r.typ == "api")
-        .and_then(|r| r.available)
-        .unwrap_or(1)
+fn latest_version(deployments: &[DeploymentInfo]) -> Option<u32> {
+    deployments.iter().map(|status| status.version).max()
 }

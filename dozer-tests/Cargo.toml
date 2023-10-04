@@ -31,7 +31,7 @@ reqwest = { version = "0.11.20", features = ["json", "rustls-tls"], default-feat
 tokio = { version = "1.25.0", features = ["full", "rt"] }
 bson = { version = "2.7.0", optional = true }
 mongodb = { version = "2.6.1", optional = true }
-futures = { version = "0.3.26", optional = true }
+futures = { version = "0.3.28", optional = true }
 env_logger = "0.10.0"
 clap = { version = "4.4.1", features = ["derive"] }
 rusqlite = { version = "0.28.0", features = ["bundled", "column_decltype", "hooks"] }
@@ -40,7 +40,7 @@ dozer-core = { path = "../dozer-core" }
 dozer-sql = { path = "../dozer-sql" }
 tempdir = "0.3.7"
 walkdir = "2.3.2"
-multimap = "0.8.3"
+multimap = "0.9.0"
 ahash = "0.8.3"
 csv = "1.2"
 url = "2.4.1"
@@ -55,7 +55,7 @@ sqlparser = {git = "https://github.com/getdozer/sqlparser-rs.git" }
 rusqlite = { version = "0.28.0", features = ["bundled", "column_decltype"] }
 csv = "1.2"
 tempdir = "0.3.7"
-sqllogictest = "0.17.0"
+sqllogictest = "0.17.1"
 libtest-mimic = "0.6.1"
 
 [features]

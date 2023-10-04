@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use dozer_recordstore::ProcessorRecordStore;
+use dozer_recordstore::{ProcessorRecordStore, StoreRecord};
 use dozer_sql_expression::execution::Expression;
 use dozer_types::{
     chrono::DateTime,
@@ -36,7 +36,7 @@ fn test_lifetime() {
         )
         .to_owned();
 
-    let record_store = ProcessorRecordStore::new().unwrap();
+    let record_store = ProcessorRecordStore::new(Default::default()).unwrap();
     let record = Record::new(vec![
         Field::Int(0),
         Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),

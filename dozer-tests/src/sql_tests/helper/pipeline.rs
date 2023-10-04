@@ -2,7 +2,7 @@ use ahash::AHasher;
 use dozer_core::app::{App, AppPipeline};
 use dozer_core::appsource::{AppSourceManager, AppSourceMappings};
 use dozer_core::channels::SourceChannelForwarder;
-use dozer_core::checkpoint::{CheckpointFactory, CheckpointFactoryOptions};
+use dozer_core::checkpoint::OptionCheckpoint;
 use dozer_core::dozer_log::storage::Queue;
 use dozer_core::epoch::Epoch;
 use dozer_core::errors::ExecutionError;
@@ -13,9 +13,9 @@ use dozer_core::node::{
 };
 
 use dozer_core::{Dag, DEFAULT_PORT_HANDLE};
-use dozer_recordstore::ProcessorRecordStore;
+use dozer_recordstore::{ProcessorRecordStore, StoreRecord};
 
-use dozer_core::executor::{DagExecutor, ExecutorOptions};
+use dozer_core::executor::DagExecutor;
 
 use crossbeam::channel::{Receiver, Sender};
 use dozer_sql::builder::statement_to_pipeline;
@@ -353,17 +353,8 @@ impl TestPipeline {
             .to_str()
             .expect("Path should always be utf8")
             .to_string();
-        let checkpoint_factory =
-            CheckpointFactory::new(checkpoint_dir, CheckpointFactoryOptions::default())
-                .await?
-                .0;
-        let executor = DagExecutor::new(
-            self.dag,
-            Arc::new(checkpoint_factory),
-            Default::default(),
-            ExecutorOptions::default(),
-        )
-        .await?;
+        let checkpoint = OptionCheckpoint::new(checkpoint_dir, Default::default()).await?;
+        let executor = DagExecutor::new(self.dag, checkpoint, Default::default()).await?;
         let join_handle = executor.start(Arc::new(AtomicBool::new(true)), Default::default())?;
 
         for (schema_name, op) in &self.ops {

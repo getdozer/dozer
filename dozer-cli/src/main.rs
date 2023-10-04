@@ -1,4 +1,5 @@
 use clap::Parser;
+use dozer_api::shutdown;
 #[cfg(feature = "cloud")]
 use dozer_cli::cli::cloud::CloudCommands;
 use dozer_cli::cli::types::{Cli, Commands, ConnectorCommand, RunCommands, SecurityCommands};
@@ -7,7 +8,7 @@ use dozer_cli::cli::{init_dozer, list_sources, LOGO};
 #[cfg(feature = "cloud")]
 use dozer_cli::cloud::{cloud_app_context::CloudAppContext, CloudClient, DozerGrpcCloudClient};
 use dozer_cli::errors::{CliError, CloudError, OrchestrationError};
-use dozer_cli::{live, set_ctrl_handler, set_panic_hook, shutdown};
+use dozer_cli::{live, set_ctrl_handler, set_panic_hook};
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::models::config::Config;
 use dozer_types::models::telemetry::{TelemetryConfig, TelemetryMetricsConfig};
@@ -130,24 +131,19 @@ fn run() -> Result<(), OrchestrationError> {
     set_ctrl_handler(shutdown_sender);
 
     // Now we have access to telemetry configuration. Telemetry must be initialized in tokio runtime.
-    let app_name = config.app_name.clone();
-    let app_id = config
-        .cloud
-        .as_ref()
-        .map(|cloud| cloud.app_id.clone().unwrap_or(app_name));
+    let app_id = config.cloud.app_id.as_deref().unwrap_or(&config.app_name);
 
     // We always enable telemetry when running live.
     let telemetry_config = if matches!(cli.cmd, Commands::Live(_)) {
-        Some(TelemetryConfig {
+        TelemetryConfig {
             trace: None,
-            metrics: Some(TelemetryMetricsConfig::Prometheus(())),
-        })
+            metrics: Some(TelemetryMetricsConfig::Prometheus),
+        }
     } else {
         config.telemetry.clone()
     };
 
-    let _telemetry =
-        runtime.block_on(async { Telemetry::new(app_id.as_deref(), telemetry_config) });
+    let _telemetry = runtime.block_on(async { Telemetry::new(Some(app_id), &telemetry_config) });
 
     set_panic_hook();
 
@@ -260,41 +256,49 @@ fn run() -> Result<(), OrchestrationError> {
 // Some commands dont need to initialize the orchestrator
 // This function is used to run those commands
 fn parse_and_generate() -> Result<Cli, OrchestrationError> {
-    dozer_tracing::init_telemetry_closure(None, None, || -> Result<Cli, OrchestrationError> {
-        let cli = Cli::parse();
+    dozer_tracing::init_telemetry_closure(
+        None,
+        &Default::default(),
+        || -> Result<Cli, OrchestrationError> {
+            let cli = Cli::parse();
 
-        if let Commands::Init = cli.cmd {
-            Telemetry::new(None, None);
-            if let Err(e) = generate_config_repl() {
-                error!("{}", e);
-                Err(e)
+            if let Commands::Init = cli.cmd {
+                Telemetry::new(None, &Default::default());
+                if let Err(e) = generate_config_repl() {
+                    error!("{}", e);
+                    Err(e)
+                } else {
+                    // We need to exit here, otherwise the orchestrator will be initialized
+                    process::exit(0);
+                }
             } else {
-                // We need to exit here, otherwise the orchestrator will be initialized
-                process::exit(0);
+                Ok(cli)
             }
-        } else {
-            Ok(cli)
-        }
-    })
+        },
+    )
 }
 
 fn init_configuration(cli: &Cli, runtime: Arc<Runtime>) -> Result<Config, CliError> {
-    dozer_tracing::init_telemetry_closure(None, None, || -> Result<Config, CliError> {
-        let res = runtime.block_on(init_config(
-            cli.config_paths.clone(),
-            cli.config_token.clone(),
-            cli.config_overrides.clone(),
-            cli.ignore_pipe,
-        ));
+    dozer_tracing::init_telemetry_closure(
+        None,
+        &Default::default(),
+        || -> Result<Config, CliError> {
+            let res = runtime.block_on(init_config(
+                cli.config_paths.clone(),
+                cli.config_token.clone(),
+                cli.config_overrides.clone(),
+                cli.ignore_pipe,
+            ));
 
-        match res {
-            Ok(config) => {
-                runtime.spawn(check_update());
-                Ok(config)
+            match res {
+                Ok(config) => {
+                    runtime.spawn(check_update());
+                    Ok(config)
+                }
+                Err(e) => Err(e),
             }
-            Err(e) => Err(e),
-        }
-    })
+        },
+    )
 }
 
 fn display_error(e: &OrchestrationError) {
@@ -312,7 +316,7 @@ fn display_error(e: &OrchestrationError) {
 struct Telemetry();
 
 impl Telemetry {
-    fn new(app_name: Option<&str>, config: Option<TelemetryConfig>) -> Self {
+    fn new(app_name: Option<&str>, config: &TelemetryConfig) -> Self {
         dozer_tracing::init_telemetry(app_name, config);
         Self()
     }

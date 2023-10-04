@@ -2,13 +2,12 @@ pub mod cli;
 pub mod errors;
 pub mod live;
 pub mod pipeline;
-pub mod shutdown;
 pub mod simple;
+use dozer_api::shutdown::ShutdownSender;
 use dozer_core::{app::AppPipeline, errors::ExecutionError};
 use dozer_sql::{builder::statement_to_pipeline, errors::PipelineError};
 use dozer_types::log::debug;
 use errors::OrchestrationError;
-use shutdown::ShutdownSender;
 use std::{
     backtrace::{Backtrace, BacktraceStatus},
     panic, process,

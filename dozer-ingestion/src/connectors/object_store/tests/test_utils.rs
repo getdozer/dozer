@@ -15,8 +15,7 @@ pub fn get_local_storage_config(typ: &str, prefix: &str) -> LocalStorage {
                     config: Some(TableConfig::Parquet(ParquetConfig {
                         extension: typ.to_string(),
                         path: format!("all_types_{typ}"),
-                        marker_file: false,
-                        marker_extension: String::new(),
+                        marker_extension: None,
                     })),
                     name: format!("all_types_{typ}"),
                 }],
@@ -29,8 +28,7 @@ pub fn get_local_storage_config(typ: &str, prefix: &str) -> LocalStorage {
                     config: Some(TableConfig::Parquet(ParquetConfig {
                         extension: typ.to_string(),
                         path: format!("{prefix}_{typ}"),
-                        marker_file: true,
-                        marker_extension: String::from(".marker"),
+                        marker_extension: Some(String::from(".marker")),
                     })),
                     name: format!("{prefix}_{typ}"),
                 }],
@@ -45,8 +43,7 @@ pub fn get_local_storage_config(typ: &str, prefix: &str) -> LocalStorage {
                     config: Some(TableConfig::CSV(CsvConfig {
                         extension: typ.to_string(),
                         path: format!("all_types_{typ}"),
-                        marker_file: false,
-                        marker_extension: String::new(),
+                        marker_extension: None,
                     })),
                     name: format!("all_types_{typ}"),
                 }],
@@ -59,8 +56,7 @@ pub fn get_local_storage_config(typ: &str, prefix: &str) -> LocalStorage {
                     config: Some(TableConfig::CSV(CsvConfig {
                         extension: typ.to_string(),
                         path: format!("{prefix}_{typ}"),
-                        marker_file: true,
-                        marker_extension: String::from(".marker"),
+                        marker_extension: Some(String::from(".marker")),
                     })),
                     name: format!("{prefix}_{typ}"),
                 }],

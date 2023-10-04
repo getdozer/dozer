@@ -12,7 +12,7 @@ dozer-types = { path = "../dozer-types" }
 dozer-log = { path = "../dozer-log" }
 
 tokio = { version = "1", features = ["full"] }
-futures = "0.3.26"
+futures = "0.3.28"
 # Postgres connector
 postgres-protocol = "0.6.4"
 postgres-types = { version = "0.2.4", features = [
@@ -25,11 +25,11 @@ tokio-postgres = { version = "0.7.7", features = [
     "with-uuid-1",
 ] }
 # DataFusion connector
-object_store = { version = "0.6", features = ["aws"] }
+object_store = { version = "0.6.1", features = ["aws"] }
 # Eth connector
 web3 = { version = "0.18.0", optional = true }
 # Kafka connector
-rdkafka = { version = "0.32.2", optional = true }
+rdkafka = { version = "0.34.0", optional = true }
 # odbc connector
 odbc = { version = "0.17.0", optional = true }
 # Mongodb connector
@@ -40,11 +40,11 @@ schema_registry_converter = { version = "3.1.0", features = [
     "avro",
 ], optional = true }
 regex = "1"
-tonic-web = "0.10.0"
+tonic-web = "0.10.1"
 tonic-reflection = "0.10.0"
 tower-http = { version = "0.4", features = ["full"] }
 prost-reflect = { version = "0.12.0", features = ["serde", "text-format"] }
-deltalake = { version = "0.13.0", default-features = false, features = [
+deltalake = { version = "0.15.0", default-features = false, features = [
     "s3",
     "datafusion",
 ] }
@@ -77,7 +77,7 @@ rand = "0.8.5"
 hex-literal = "0.4.1"
 dozer-tracing = { path = "../dozer-tracing" }
 tempdir = "0.3.7"
-parquet = "42.0.0"
+parquet = "45.0.0"
 env_logger = "0.10.0"
 hex = "0.4.3"
 dozer-cli = { path = "../dozer-cli" }

@@ -59,6 +59,12 @@ pub enum CloudCommands {
     /// Dozer app secrets management
     #[command(subcommand)]
     Secrets(SecretsCommand),
+    /// Get example of API call
+    #[command(name = "api-request-samples")]
+    ApiRequestSamples {
+        #[arg(long, short)]
+        endpoint: Option<String>,
+    },
 }
 
 #[derive(Debug, Args, Clone)]
@@ -87,9 +93,9 @@ pub struct LogCommandArgs {
     #[arg(short, long)]
     pub follow: bool,
 
-    /// The deployment to inspect
+    /// The version to inspect
     #[arg(short, long)]
-    pub deployment: Option<u32>,
+    pub version: Option<u32>,
 
     /// Ignore app logs
     #[arg(long, default_value = "false", action=ArgAction::SetTrue)]
@@ -125,16 +131,6 @@ pub struct ListCommandArgs {
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum VersionCommand {
-    /// Inspects the status of a version, compared to the current version if it's not current.
-    Status {
-        /// The version to inspect
-        version: u32,
-    },
-    /// Creates a new version of the application with the given deployment
-    Create {
-        /// The deployment of the application to create a new version from
-        deployment: u32,
-    },
     /// Sets a version as the "current" version of the application
     ///
     /// Current version of an application can be visited without the "/v<version>" prefix.
@@ -142,6 +138,16 @@ pub enum VersionCommand {
         /// The version to set as current
         version: u32,
     },
+    /// Deletes a version
+    ///
+    /// This will  delete any resources related to the version, including any
+    /// aliases pointing to this version.
+    Delete { version: u32 },
+    /// Creates or updates an alias to point at the given version
+    Alias { alias: String, version: u32 },
+    /// Remove alias
+    #[command(name = "rm-alias", visible_alias = "rma")]
+    RmAlias { alias: String },
 }
 
 #[derive(Debug, Clone, Subcommand)]

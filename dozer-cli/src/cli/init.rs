@@ -83,10 +83,11 @@ pub fn generate_connection(connection_name: &str) -> Connection {
                 warehouse: "warehouse".to_owned(),
                 driver: Some("SnowflakeDSIIDriver".to_owned()),
                 role: "role".to_owned(),
+                poll_interval_seconds: None,
             };
             let connection: Connection = Connection {
                 name: "snowflake".to_owned(),
-                config: Some(ConnectionConfig::Snowflake(snowflake_config)),
+                config: ConnectionConfig::Snowflake(snowflake_config),
             };
             connection
         }
@@ -106,7 +107,7 @@ pub fn generate_connection(connection_name: &str) -> Connection {
             };
             let connection: Connection = Connection {
                 name: "ethereum".to_owned(),
-                config: Some(ConnectionConfig::Ethereum(ethereum_config)),
+                config: ConnectionConfig::Ethereum(ethereum_config),
             };
             connection
         }
@@ -117,7 +118,7 @@ pub fn generate_connection(connection_name: &str) -> Connection {
             };
             let connection: Connection = Connection {
                 name: "mysql".to_owned(),
-                config: Some(ConnectionConfig::MySQL(mysql_config)),
+                config: ConnectionConfig::MySQL(mysql_config),
             };
             connection
         }
@@ -134,7 +135,7 @@ pub fn generate_connection(connection_name: &str) -> Connection {
             };
             let connection: Connection = Connection {
                 name: "s3".to_owned(),
-                config: Some(ConnectionConfig::S3Storage(s3_config)),
+                config: ConnectionConfig::S3Storage(s3_config),
             };
             connection
         }
@@ -145,7 +146,7 @@ pub fn generate_connection(connection_name: &str) -> Connection {
             };
             let connection: Connection = Connection {
                 name: "mongodb".to_owned(),
-                config: Some(ConnectionConfig::MongoDB(mongo_config)),
+                config: ConnectionConfig::MongoDB(mongo_config),
             };
             connection
         }
@@ -161,7 +162,7 @@ pub fn generate_connection(connection_name: &str) -> Connection {
             };
             let connection: Connection = Connection {
                 name: "postgres".to_owned(),
-                config: Some(ConnectionConfig::Postgres(postgres_config)),
+                config: ConnectionConfig::Postgres(postgres_config),
             };
             connection
         }
@@ -197,11 +198,11 @@ pub fn generate_config_repl() -> Result<(), OrchestrationError> {
             format!("question: Home directory ({:}): ", default_home_dir()),
             Box::new(move |(home_dir, config)| {
                 if home_dir.is_empty() {
-                    config.home_dir = default_home_dir();
-                    config.cache_dir = default_cache_dir();
+                    config.home_dir = Some(default_home_dir());
+                    config.cache_dir = Some(default_cache_dir());
                 } else {
-                    config.home_dir = home_dir;
-                    config.cache_dir = get_cache_dir(&config.home_dir);
+                    config.cache_dir = Some(get_cache_dir(&home_dir));
+                    config.home_dir = Some(home_dir);
                 }
                 Ok(())
             }),

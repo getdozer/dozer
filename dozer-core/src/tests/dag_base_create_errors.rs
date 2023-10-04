@@ -1,16 +1,16 @@
-use crate::checkpoint::create_checkpoint_factory_for_test;
-use crate::executor::{DagExecutor, ExecutorOptions};
+use crate::checkpoint::create_checkpoint_for_test;
+use crate::executor::DagExecutor;
 use crate::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Source, SourceFactory,
 };
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
-use dozer_recordstore::ProcessorRecordStore;
 
 use crate::tests::dag_base_run::NoopProcessorFactory;
 use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 
 use dozer_log::tokio;
+use dozer_recordstore::ProcessorRecordStoreDeserializer;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
 use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
@@ -102,19 +102,14 @@ async fn test_create_src_err() {
     )
     .unwrap();
 
-    let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
-    DagExecutor::new(
-        dag,
-        checkpoint_factory,
-        Default::default(),
-        ExecutorOptions::default(),
-    )
-    .await
-    .unwrap()
-    .start(Arc::new(AtomicBool::new(true)), Default::default())
-    .unwrap()
-    .join()
-    .unwrap();
+    let (_temp_dir, checkpoint) = create_checkpoint_for_test().await;
+    DagExecutor::new(dag, checkpoint, Default::default())
+        .await
+        .unwrap()
+        .start(Arc::new(AtomicBool::new(true)), Default::default())
+        .unwrap()
+        .join()
+        .unwrap();
 }
 
 #[tokio::test]
@@ -151,19 +146,14 @@ async fn test_create_src_panic() {
     )
     .unwrap();
 
-    let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
-    DagExecutor::new(
-        dag,
-        checkpoint_factory,
-        Default::default(),
-        ExecutorOptions::default(),
-    )
-    .await
-    .unwrap()
-    .start(Arc::new(AtomicBool::new(true)), Default::default())
-    .unwrap()
-    .join()
-    .unwrap();
+    let (_temp_dir, checkpoint) = create_checkpoint_for_test().await;
+    DagExecutor::new(dag, checkpoint, Default::default())
+        .await
+        .unwrap()
+        .start(Arc::new(AtomicBool::new(true)), Default::default())
+        .unwrap()
+        .join()
+        .unwrap();
 }
 
 #[derive(Debug)]
@@ -215,7 +205,7 @@ impl ProcessorFactory for CreateErrProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _record_store: &ProcessorRecordStore,
+        _record_store: &ProcessorRecordStoreDeserializer,
         _checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         if self.panic {
@@ -267,19 +257,14 @@ async fn test_create_proc_err() {
     )
     .unwrap();
 
-    let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
-    DagExecutor::new(
-        dag,
-        checkpoint_factory,
-        Default::default(),
-        ExecutorOptions::default(),
-    )
-    .await
-    .unwrap()
-    .start(Arc::new(AtomicBool::new(true)), Default::default())
-    .unwrap()
-    .join()
-    .unwrap();
+    let (_temp_dir, checkpoint) = create_checkpoint_for_test().await;
+    DagExecutor::new(dag, checkpoint, Default::default())
+        .await
+        .unwrap()
+        .start(Arc::new(AtomicBool::new(true)), Default::default())
+        .unwrap()
+        .join()
+        .unwrap();
 }
 
 #[tokio::test]
@@ -319,17 +304,12 @@ async fn test_create_proc_panic() {
     )
     .unwrap();
 
-    let (_temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
-    DagExecutor::new(
-        dag,
-        checkpoint_factory,
-        Default::default(),
-        ExecutorOptions::default(),
-    )
-    .await
-    .unwrap()
-    .start(Arc::new(AtomicBool::new(true)), Default::default())
-    .unwrap()
-    .join()
-    .unwrap();
+    let (_temp_dir, checkpoint) = create_checkpoint_for_test().await;
+    DagExecutor::new(dag, checkpoint, Default::default())
+        .await
+        .unwrap()
+        .start(Arc::new(AtomicBool::new(true)), Default::default())
+        .unwrap()
+        .join()
+        .unwrap();
 }

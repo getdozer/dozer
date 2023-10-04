@@ -6,6 +6,7 @@ use crate::grpc::auth::AuthService;
 use crate::grpc::grpc_web_middleware::enable_grpc_web;
 use crate::grpc::health::HealthService;
 use crate::grpc::{common, run_server, typed};
+use crate::shutdown::ShutdownReceiver;
 use crate::{errors::GrpcError, CacheEndpoint};
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::grpc_types::health::health_check_response::ServingStatus;
@@ -15,6 +16,8 @@ use dozer_types::grpc_types::{
     common::common_grpc_service_server::CommonGrpcServiceServer,
     health::health_grpc_service_server::HealthGrpcServiceServer,
 };
+use dozer_types::models::api_config::{default_grpc_port, default_host};
+use dozer_types::models::flags::default_dynamic;
 use dozer_types::tonic::transport::server::TcpIncoming;
 use dozer_types::tonic::transport::Server;
 use dozer_types::tracing::Level;
@@ -62,7 +65,7 @@ impl ApiServer {
         let security = get_api_security(self.security.to_owned());
 
         // Service handling dynamic gRPC requests.
-        let typed_service = if self.flags.dynamic {
+        let typed_service = if self.flags.dynamic.unwrap_or_else(default_dynamic) {
             Some(TypedService::new(
                 cache_endpoints,
                 operations_receiver,
@@ -78,8 +81,8 @@ impl ApiServer {
 
     pub fn new(grpc_config: GrpcApiOptions, security: Option<ApiSecurity>, flags: Flags) -> Self {
         Self {
-            port: grpc_config.port as u16,
-            host: grpc_config.host,
+            port: grpc_config.port.unwrap_or_else(default_grpc_port),
+            host: grpc_config.host.unwrap_or_else(default_host),
             security,
             flags,
         }
@@ -89,19 +92,20 @@ impl ApiServer {
     pub async fn run(
         &self,
         cache_endpoints: Vec<Arc<CacheEndpoint>>,
-        shutdown: impl Future<Output = ()> + Send + 'static,
+        shutdown: ShutdownReceiver,
         operations_receiver: Option<Receiver<Operation>>,
         labels: LabelsAndProgress,
         default_max_num_records: usize,
     ) -> Result<impl Future<Output = Result<(), dozer_types::tonic::transport::Error>>, ApiInitError>
     {
+        let grpc_web = self.flags.grpc_web.unwrap_or(true);
         // Create our services.
         let common_service = CommonGrpcServiceServer::new(CommonService::new(
             cache_endpoints.clone(),
             operations_receiver.as_ref().map(|r| r.resubscribe()),
             default_max_num_records,
         ));
-        let common_service = enable_grpc_web(common_service, self.flags.grpc_web);
+        let common_service = enable_grpc_web(common_service, grpc_web);
 
         let (typed_service, reflection_service) = self.get_dynamic_service(
             cache_endpoints,
@@ -109,8 +113,8 @@ impl ApiServer {
             default_max_num_records,
         )?;
         let typed_service =
-            typed_service.map(|typed_service| enable_grpc_web(typed_service, self.flags.grpc_web));
-        let reflection_service = enable_grpc_web(reflection_service, self.flags.grpc_web);
+            typed_service.map(|typed_service| enable_grpc_web(typed_service, grpc_web));
+        let reflection_service = enable_grpc_web(reflection_service, grpc_web);
 
         let mut service_map: HashMap<String, ServingStatus> = HashMap::new();
         service_map.insert("".to_string(), ServingStatus::Serving);
@@ -123,7 +127,7 @@ impl ApiServer {
         let health_service = HealthGrpcServiceServer::new(HealthService {
             serving_status: service_map,
         });
-        let health_service = enable_grpc_web(health_service, self.flags.grpc_web);
+        let health_service = enable_grpc_web(health_service, grpc_web);
 
         // Auth middleware.
         let security = get_api_security(self.security.to_owned());
@@ -134,7 +138,7 @@ impl ApiServer {
         let typed_service = typed_service.map(|typed_service| auth_middleware.layer(typed_service));
         let mut authenticated_reflection_service = None;
         let mut unauthenticated_reflection_service = None;
-        if self.flags.authenticate_server_reflection {
+        if self.flags.authenticate_server_reflection.unwrap_or(false) {
             authenticated_reflection_service = Some(auth_middleware.layer(reflection_service))
         } else {
             unauthenticated_reflection_service = Some(reflection_service);
@@ -146,7 +150,7 @@ impl ApiServer {
         if security.is_some() {
             let service = enable_grpc_web(
                 AuthGrpcServiceServer::new(AuthService::new(security.to_owned())),
-                self.flags.grpc_web,
+                grpc_web,
             );
             auth_service = Some(auth_middleware.layer(service));
         }

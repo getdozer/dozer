@@ -1,6 +1,6 @@
 use std::{path::Path, process::Command};
 
-use dozer_types::constants::LOCK_FILE;
+use dozer_types::{constants::LOCK_FILE, models::config::default_home_dir};
 use dozer_utils::{
     process::{run_command, run_docker_compose},
     Cleanup,
@@ -49,7 +49,12 @@ impl Runner {
                     }
 
                     // Start dozer.
-                    cleanups.push(Cleanup::RemoveDirectory(case.dozer_config.home_dir.clone()));
+                    cleanups.push(Cleanup::RemoveDirectory(
+                        case.dozer_config
+                            .home_dir
+                            .clone()
+                            .unwrap_or_else(default_home_dir),
+                    ));
                     cleanups.push(Cleanup::RemoveFile(LOCK_FILE.to_owned()));
                     cleanups.extend(spawn_dozer(&self.dozer_bin, &case.dozer_config_path));
 
@@ -70,7 +75,12 @@ impl Runner {
                                 &docker_compose.connections_healthy_service_name,
                             ));
                         }
-                        cleanups.push(Cleanup::RemoveDirectory(case.dozer_config.home_dir.clone()));
+                        cleanups.push(Cleanup::RemoveDirectory(
+                            case.dozer_config
+                                .home_dir
+                                .clone()
+                                .unwrap_or_else(default_home_dir),
+                        ));
                         cleanups.push(Cleanup::RemoveFile(LOCK_FILE.to_owned()));
 
                         (Command::new(&self.dozer_bin), cleanups)

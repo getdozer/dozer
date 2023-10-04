@@ -26,8 +26,8 @@ actix-web = { version = "4.2.1", default-features = false, features = [
     "rustls",
 ] }
 actix-web-httpauth = "0.8.0"
-handlebars = "4.3.7"
-openapiv3 = "1.0.2"
+handlebars = "4.4.0"
+openapiv3 = "1.0.3"
 tonic-build = "0.10.0"
 tokio = { version = "1", features = ["full"] }
 prost-reflect = { version = "0.12.0", features = ["serde", "text-format"] }
@@ -35,11 +35,11 @@ tonic-reflection = "0.10.0"
 Inflector = "0.11.4"
 futures-util = "0.3.28"
 prost-build = "0.12.0"
-tonic-web = "0.10.0"
+tonic-web = "0.10.1"
 jsonwebtoken = "8.3.0"
 tokio-stream = "0.1.12"
 async-trait = "0.1.73"
-tracing-actix-web = "0.7.2"
+tracing-actix-web = "0.7.6"
 tower = "0.4.13"
 hyper = "0.14.24"
 tower-http = { version = "0.4", features = ["full"] }
@@ -50,6 +50,7 @@ http-body = "0.4.5"
 bytes = "1.4.0"
 http = "0.2.9"
 pin-project = "1.1.3"
+async-stream = "0.3.5"
 
 [dev-dependencies]
 tempdir = "0.3.7"

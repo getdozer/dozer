@@ -5,6 +5,8 @@ use crate::types::{Field, FieldType};
 use chrono::{DateTime, NaiveDate};
 use ordered_float::OrderedFloat;
 use rust_decimal::Decimal;
+use schemars::JsonSchema;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 use std::str::FromStr;
 use std::time::Duration;
@@ -301,6 +303,24 @@ impl Field {
             }
         }
     }
+}
+
+pub fn serialize_duration_secs_f64<S>(duration: &Option<Duration>, s: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    duration.unwrap().as_secs_f64().serialize(s)
+}
+
+pub fn deserialize_duration_secs_f64<'a, D>(d: D) -> Result<Option<Duration>, D::Error>
+where
+    D: Deserializer<'a>,
+{
+    f64::deserialize(d).map(|f| Some(Duration::from_secs_f64(f)))
+}
+
+pub fn f64_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+    f64::json_schema(gen)
 }
 
 #[cfg(test)]

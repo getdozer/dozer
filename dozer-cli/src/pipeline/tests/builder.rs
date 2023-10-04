@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use crate::pipeline::source_builder::SourceBuilder;
 use crate::pipeline::PipelineBuilder;
+use dozer_api::shutdown;
 use dozer_types::ingestion_types::{GrpcConfig, GrpcConfigSchemas};
 use dozer_types::models::config::Config;
 
@@ -12,10 +13,12 @@ use dozer_types::models::source::Source;
 fn get_default_config() -> Config {
     let schema_str = include_str!("./schemas.json");
     let grpc_conn = Connection {
-        config: Some(ConnectionConfig::Grpc(GrpcConfig {
-            schemas: Some(GrpcConfigSchemas::Inline(schema_str.to_string())),
-            ..Default::default()
-        })),
+        config: ConnectionConfig::Grpc(GrpcConfig {
+            host: None,
+            port: None,
+            adapter: None,
+            schemas: GrpcConfigSchemas::Inline(schema_str.to_string()),
+        }),
         name: "grpc_conn".to_string(),
     };
 
@@ -32,7 +35,7 @@ fn get_default_config() -> Config {
                 columns: vec!["id".to_string(), "name".to_string()],
                 connection: grpc_conn.name.clone(),
                 schema: None,
-                refresh_config: None,
+                refresh_config: Default::default(),
             },
             Source {
                 name: "grpc_conn_customers".to_string(),
@@ -40,7 +43,7 @@ fn get_default_config() -> Config {
                 columns: vec!["id".to_string(), "name".to_string()],
                 connection: grpc_conn.name,
                 schema: None,
-                refresh_config: None,
+                refresh_config: Default::default(),
             },
         ],
         ..Default::default()
@@ -81,7 +84,7 @@ fn load_multi_sources() {
         .unwrap();
 
     let source_builder = SourceBuilder::new(grouped_connections, Default::default());
-    let (_sender, shutdown_receiver) = crate::shutdown::new(&runtime);
+    let (_sender, shutdown_receiver) = shutdown::new(&runtime);
     let asm = runtime
         .block_on(source_builder.build_source_manager(&runtime, shutdown_receiver))
         .unwrap();
