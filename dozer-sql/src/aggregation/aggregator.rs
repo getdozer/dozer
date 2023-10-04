@@ -17,9 +17,11 @@ use dozer_sql_expression::execution::Expression;
 use crate::aggregation::max_value::MaxValueAggregator;
 use crate::aggregation::min_value::MinValueAggregator;
 use crate::errors::PipelineError::{InvalidFunctionArgument, InvalidValue};
-use dozer_sql_expression::aggregate::AggregateFunctionType::MaxValue;
+use dozer_sql_expression::aggregate::AggregateFunctionType::{MaxAppendOnly, MaxValue, MinAppendOnly};
 use dozer_types::types::{Field, FieldType, Schema};
 use std::fmt::{Debug, Display, Formatter};
+use crate::aggregation::max_append_only::MaxAppendOnlyAggregator;
+use crate::aggregation::min_append_only::MinAppendOnlyAggregator;
 
 #[enum_dispatch]
 pub trait Aggregator: Send + Sync + Serialize + DeserializeOwned {
@@ -35,8 +37,10 @@ pub trait Aggregator: Send + Sync + Serialize + DeserializeOwned {
 pub enum AggregatorEnum {
     AvgAggregator,
     MinAggregator,
+    MinAppendOnlyAggregator,
     MinValueAggregator,
     MaxAggregator,
+    MaxAppendOnlyAggregator,
     MaxValueAggregator,
     SumAggregator,
     CountAggregator,
@@ -47,8 +51,10 @@ pub enum AggregatorType {
     Avg,
     Count,
     Max,
+    MaxAppendOnly,
     MaxValue,
     Min,
+    MinAppendOnly,
     MinValue,
     Sum,
 }
@@ -59,8 +65,10 @@ impl Display for AggregatorType {
             AggregatorType::Avg => f.write_str("avg"),
             AggregatorType::Count => f.write_str("count"),
             AggregatorType::Max => f.write_str("max"),
+            AggregatorType::MaxAppendOnly => f.write_str("max_append_only"),
             AggregatorType::MaxValue => f.write_str("max_value"),
             AggregatorType::Min => f.write_str("min"),
+            AggregatorType::MinAppendOnly => f.write_str("min_append_only"),
             AggregatorType::MinValue => f.write_str("min_value"),
             AggregatorType::Sum => f.write_str("sum"),
         }
@@ -72,8 +80,10 @@ pub fn get_aggregator_from_aggregator_type(typ: AggregatorType) -> AggregatorEnu
         AggregatorType::Avg => AvgAggregator::new().into(),
         AggregatorType::Count => CountAggregator::new().into(),
         AggregatorType::Max => MaxAggregator::new().into(),
+        AggregatorType::MaxAppendOnly => MaxAppendOnlyAggregator::new().into(),
         AggregatorType::MaxValue => MaxValueAggregator::new().into(),
         AggregatorType::Min => MinAggregator::new().into(),
+        AggregatorType::MinAppendOnly => MinAppendOnlyAggregator::new().into(),
         AggregatorType::MinValue => MinValueAggregator::new().into(),
         AggregatorType::Sum => SumAggregator::new().into(),
     }
