@@ -14,14 +14,14 @@ use std::collections::BTreeMap;
 use dozer_sql_expression::aggregate::AggregateFunctionType;
 use dozer_sql_expression::execution::Expression;
 
+use crate::aggregation::max_append_only::MaxAppendOnlyAggregator;
 use crate::aggregation::max_value::MaxValueAggregator;
+use crate::aggregation::min_append_only::MinAppendOnlyAggregator;
 use crate::aggregation::min_value::MinValueAggregator;
 use crate::errors::PipelineError::{InvalidFunctionArgument, InvalidValue};
-use dozer_sql_expression::aggregate::AggregateFunctionType::{MaxValue};
+use dozer_sql_expression::aggregate::AggregateFunctionType::MaxValue;
 use dozer_types::types::{Field, FieldType, Schema};
 use std::fmt::{Debug, Display, Formatter};
-use crate::aggregation::max_append_only::MaxAppendOnlyAggregator;
-use crate::aggregation::min_append_only::MinAppendOnlyAggregator;
 
 #[enum_dispatch]
 pub trait Aggregator: Send + Sync + Serialize + DeserializeOwned {
@@ -125,7 +125,9 @@ pub fn get_aggregator_type_from_aggregation_expression(
             vec![args
                 .get(0)
                 .ok_or_else(|| {
-                    PipelineError::NotEnoughArguments(AggregateFunctionType::MinAppendOnly.to_string())
+                    PipelineError::NotEnoughArguments(
+                        AggregateFunctionType::MinAppendOnly.to_string(),
+                    )
                 })?
                 .clone()],
             AggregatorType::MinAppendOnly,
@@ -149,7 +151,9 @@ pub fn get_aggregator_type_from_aggregation_expression(
             vec![args
                 .get(0)
                 .ok_or_else(|| {
-                    PipelineError::NotEnoughArguments(AggregateFunctionType::MaxAppendOnly.to_string())
+                    PipelineError::NotEnoughArguments(
+                        AggregateFunctionType::MaxAppendOnly.to_string(),
+                    )
                 })?
                 .clone()],
             AggregatorType::MaxAppendOnly,
