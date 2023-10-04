@@ -1,7 +1,7 @@
-use crate::aggregation::aggregator::{Aggregator};
+use crate::aggregation::aggregator::Aggregator;
 
+use crate::calculate_err_field;
 use crate::errors::{PipelineError, UnsupportedSqlError};
-use crate::{calculate_err_field};
 use dozer_sql_expression::aggregate::AggregateFunctionType::MaxAppendOnly;
 
 use dozer_types::chrono::{DateTime, FixedOffset, NaiveDate, Utc};

@@ -1,7 +1,8 @@
 use crate::aggregation::tests::aggregation_tests_utils::{
-    get_date_field, get_decimal_field, get_duration_field, get_ts_field,
-    init_input_schema, init_processor, insert_exp, insert_field, update_exp,
-    DATE4, DATE8, FIELD_100_FLOAT, FIELD_100_INT, FIELD_100_UINT, FIELD_50_FLOAT, FIELD_50_INT, FIELD_50_UINT, FIELD_NULL, ITALY, SINGAPORE,
+    get_date_field, get_decimal_field, get_duration_field, get_ts_field, init_input_schema,
+    init_processor, insert_exp, insert_field, update_exp, DATE4, DATE8, FIELD_100_FLOAT,
+    FIELD_100_INT, FIELD_100_UINT, FIELD_50_FLOAT, FIELD_50_INT, FIELD_50_UINT, FIELD_NULL, ITALY,
+    SINGAPORE,
 };
 use crate::output;
 use dozer_core::DEFAULT_PORT_HANDLE;
