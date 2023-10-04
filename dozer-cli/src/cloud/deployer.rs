@@ -1,7 +1,7 @@
 use crate::errors::CloudError;
 
-use crate::simple::cloud::progress_printer::ProgressPrinter;
-use crate::simple::token_layer::TokenLayer;
+use crate::cloud::progress_printer::ProgressPrinter;
+use crate::cloud::token_layer::TokenLayer;
 use dozer_types::grpc_types::cloud::dozer_cloud_client::DozerCloudClient;
 use dozer_types::grpc_types::cloud::DeploymentStatus;
 use dozer_types::grpc_types::cloud::GetDeploymentStatusRequest;

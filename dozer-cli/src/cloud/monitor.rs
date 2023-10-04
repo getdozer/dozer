@@ -1,8 +1,8 @@
 use crate::cli::cloud::Cloud;
-use crate::cloud_app_context::CloudAppContext;
+use crate::cloud::client::get_grpc_cloud_client;
+use crate::cloud::cloud_app_context::CloudAppContext;
+use crate::cloud::token_layer::TokenLayer;
 use crate::errors::CloudError;
-use crate::simple::cloud_orchestrator::get_cloud_client;
-use crate::simple::token_layer::TokenLayer;
 use dozer_types::grpc_types::cloud::dozer_cloud_client::DozerCloudClient;
 use dozer_types::grpc_types::cloud::StatusUpdate;
 use dozer_types::grpc_types::cloud::StatusUpdateRequest;
@@ -23,7 +23,7 @@ pub fn monitor_app(
 
     runtime.block_on(async move {
         let mut client: DozerCloudClient<TokenLayer> =
-            get_cloud_client(cloud, cloud_config).await?;
+            get_grpc_cloud_client(cloud, cloud_config).await?;
         let mut response = client
             .on_status_update(StatusUpdateRequest { app_id })
             .await?

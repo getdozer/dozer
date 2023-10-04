@@ -1,26 +1,22 @@
 use clap::Parser;
 #[cfg(feature = "cloud")]
 use dozer_cli::cli::cloud::CloudCommands;
-use dozer_cli::cli::generate_config_repl;
 use dozer_cli::cli::types::{Cli, Commands, ConnectorCommand, RunCommands, SecurityCommands};
+use dozer_cli::cli::{generate_config_repl, init_config};
 use dozer_cli::cli::{init_dozer, list_sources, LOGO};
-use dozer_cli::errors::{CliError, CloudError, OrchestrationError};
-use dozer_cli::simple::SimpleOrchestrator;
 #[cfg(feature = "cloud")]
-use dozer_cli::CloudOrchestrator;
+use dozer_cli::cloud::{cloud_app_context::CloudAppContext, CloudClient, DozerGrpcCloudClient};
+use dozer_cli::errors::{CliError, CloudError, OrchestrationError};
 use dozer_cli::{live, set_ctrl_handler, set_panic_hook, shutdown};
 use dozer_tracing::LabelsAndProgress;
+use dozer_types::models::config::Config;
 use dozer_types::models::telemetry::{TelemetryConfig, TelemetryMetricsConfig};
 use dozer_types::serde::Deserialize;
 use dozer_types::tracing::{error, error_span, info};
-use tokio::runtime::Runtime;
-use tokio::time;
-
-use clap::CommandFactory;
-#[cfg(feature = "cloud")]
-use dozer_cli::cloud_app_context::CloudAppContext;
 use std::cmp::Ordering;
 use std::sync::Arc;
+use tokio::runtime::Runtime;
+use tokio::time;
 
 use dozer_types::log::{debug, warn};
 use std::time::Duration;
@@ -126,14 +122,16 @@ fn run() -> Result<(), OrchestrationError> {
     // and then initializing it after reading the configuration. This is a hacky workaround, but it works.
 
     let cli = parse_and_generate()?;
-    let mut dozer = init_orchestrator(&cli)?;
-    let (shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
+
+    let runtime = Arc::new(Runtime::new().map_err(CliError::FailedToCreateTokioRuntime)?);
+
+    let config = init_configuration(&cli, runtime.clone())?;
+    let (shutdown_sender, shutdown_receiver) = shutdown::new(&runtime);
     set_ctrl_handler(shutdown_sender);
 
     // Now we have access to telemetry configuration. Telemetry must be initialized in tokio runtime.
-    let app_name = dozer.config.app_name.clone();
-    let app_id = dozer
-        .config
+    let app_name = config.app_name.clone();
+    let app_id = config
         .cloud
         .as_ref()
         .map(|cloud| cloud.app_id.clone().unwrap_or(app_name));
@@ -145,14 +143,56 @@ fn run() -> Result<(), OrchestrationError> {
             metrics: Some(TelemetryMetricsConfig::Prometheus(())),
         })
     } else {
-        dozer.config.telemetry.clone()
+        config.telemetry.clone()
     };
 
-    let _telemetry = dozer
-        .runtime
-        .block_on(async { Telemetry::new(app_id.as_deref(), telemetry_config) });
+    let _telemetry =
+        runtime.block_on(async { Telemetry::new(app_id.as_deref(), telemetry_config) });
 
     set_panic_hook();
+
+    // Run Cloud
+    #[cfg(feature = "cloud")]
+    if let Commands::Cloud(cloud) = cli.cmd {
+        render_logo();
+        let mut cloud_client = CloudClient::new(config.clone(), runtime.clone());
+        let res = match cloud.command.clone() {
+            CloudCommands::Deploy(deploy) => {
+                cloud_client.deploy(cloud, deploy, cli.config_paths.clone())
+            }
+            CloudCommands::Login {
+                organisation_slug,
+                profile_name,
+                client_id,
+                client_secret,
+            } => cloud_client.login(
+                cloud,
+                organisation_slug,
+                profile_name,
+                client_id,
+                client_secret,
+            ),
+            CloudCommands::Secrets(command) => cloud_client.execute_secrets_command(cloud, command),
+            CloudCommands::Delete => cloud_client.delete(cloud),
+            CloudCommands::Status => cloud_client.status(cloud),
+            CloudCommands::Monitor => cloud_client.monitor(cloud),
+            CloudCommands::Logs(logs) => cloud_client.trace_logs(cloud, logs),
+            CloudCommands::Version(version) => cloud_client.version(cloud, version),
+            CloudCommands::List(list) => cloud_client.list(cloud, list),
+            CloudCommands::SetApp { app_id } => {
+                CloudAppContext::save_app_id(app_id.clone())?;
+                info!("Using \"{app_id}\" app");
+                Ok(())
+            }
+        };
+        return res;
+    }
+    let mut dozer = init_dozer(
+        runtime.clone(),
+        config.clone(),
+        LabelsAndProgress::new(Default::default(), cli.enable_progress),
+    )
+    .map_err(OrchestrationError::CliError)?;
 
     // run individual servers
     (match cli.cmd {
@@ -194,36 +234,8 @@ fn run() -> Result<(), OrchestrationError> {
         )),
         Commands::Clean => dozer.clean(),
         #[cfg(feature = "cloud")]
-        Commands::Cloud(cloud) => {
-            render_logo();
-
-            match cloud.command.clone() {
-                CloudCommands::Deploy(deploy) => dozer.deploy(cloud, deploy, cli.config_paths),
-                CloudCommands::Login {
-                    organisation_slug,
-                    profile_name,
-                    client_id,
-                    client_secret,
-                } => dozer.login(
-                    cloud,
-                    organisation_slug,
-                    profile_name,
-                    client_id,
-                    client_secret,
-                ),
-                CloudCommands::Secrets(command) => dozer.execute_secrets_command(cloud, command),
-                CloudCommands::Delete => dozer.delete(cloud),
-                CloudCommands::Status => dozer.status(cloud),
-                CloudCommands::Monitor => dozer.monitor(cloud),
-                CloudCommands::Logs(logs) => dozer.trace_logs(cloud, logs),
-                CloudCommands::Version(version) => dozer.version(cloud, version),
-                CloudCommands::List(list) => dozer.list(cloud, list),
-                CloudCommands::SetApp { app_id } => {
-                    CloudAppContext::save_app_id(app_id.clone())?;
-                    info!("Using \"{app_id}\" app");
-                    Ok(())
-                }
-            }
+        Commands::Cloud(_) => {
+            panic!("This should not happen as it is handled earlier");
         }
         Commands::Init => {
             panic!("This should not happen as it is handled in parse_and_generate");
@@ -266,38 +278,21 @@ fn parse_and_generate() -> Result<Cli, OrchestrationError> {
     })
 }
 
-fn init_orchestrator(cli: &Cli) -> Result<SimpleOrchestrator, CliError> {
-    dozer_tracing::init_telemetry_closure(None, None, || -> Result<SimpleOrchestrator, CliError> {
-        let runtime = Arc::new(Runtime::new().map_err(CliError::FailedToCreateTokioRuntime)?);
-        let res = runtime.block_on(init_dozer(
-            runtime.clone(),
+fn init_configuration(cli: &Cli, runtime: Arc<Runtime>) -> Result<Config, CliError> {
+    dozer_tracing::init_telemetry_closure(None, None, || -> Result<Config, CliError> {
+        let res = runtime.block_on(init_config(
             cli.config_paths.clone(),
             cli.config_token.clone(),
             cli.config_overrides.clone(),
             cli.ignore_pipe,
-            LabelsAndProgress::new(Default::default(), cli.enable_progress),
         ));
 
         match res {
-            Ok(dozer) => {
-                dozer.runtime.spawn(check_update());
-                Ok(dozer)
+            Ok(config) => {
+                runtime.spawn(check_update());
+                Ok(config)
             }
-            Err(e) => {
-                if let CliError::FailedToFindConfigurationFiles(_) = &e {
-                    let description = "Dozer was not able to find configuration files. \n\n\
-                    Please use \"dozer init\" to create project or \"dozer -c {path}\" with path to your configuration.\n\
-                    Configuration documentation can be found in https://getdozer.io/docs/configuration";
-
-                    let mut command = Cli::command();
-                    command = command.about(format!("\n\n\n{} \n {}", LOGO, description));
-
-                    println!("{}", command.render_help());
-                }
-
-                error!("{}", e);
-                Err(e)
-            }
+            Err(e) => Err(e),
         }
     })
 }

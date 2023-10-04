@@ -19,14 +19,12 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 
-pub async fn init_dozer(
-    runtime: Arc<Runtime>,
+pub async fn init_config(
     config_paths: Vec<String>,
     config_token: Option<String>,
     config_overrides: Vec<(String, serde_json::Value)>,
     ignore_pipe: bool,
-    labels: LabelsAndProgress,
-) -> Result<Dozer, CliError> {
+) -> Result<Config, CliError> {
     let mut config = load_config(config_paths, config_token, ignore_pipe).await?;
 
     config = apply_overrides(&config, config_overrides)?;
@@ -37,6 +35,14 @@ pub async fn init_dozer(
     let page_size = page_size::get() as u64;
     config.cache_max_map_size = Some(cache_max_map_size / page_size * page_size);
 
+    Ok(config)
+}
+
+pub fn init_dozer(
+    runtime: Arc<Runtime>,
+    config: Config,
+    labels: LabelsAndProgress,
+) -> Result<Dozer, CliError> {
     let base_directory = std::env::current_dir().map_err(CliError::Io)?;
     let base_directory =
         Utf8PathBuf::try_from(base_directory).map_err(|e| CliError::Io(e.into_io_error()))?;
@@ -52,15 +58,8 @@ pub async fn list_sources(
     ignore_pipe: bool,
     filter: Option<String>,
 ) -> Result<(), OrchestrationError> {
-    let dozer = init_dozer(
-        runtime,
-        config_paths,
-        config_token,
-        config_overrides,
-        ignore_pipe,
-        Default::default(),
-    )
-    .await?;
+    let config = init_config(config_paths, config_token, config_overrides, ignore_pipe).await?;
+    let dozer = init_dozer(runtime, config, Default::default())?;
     let connection_map = dozer.list_connectors()?;
     let mut table_parent = Table::new();
     for (connection_name, (tables, schemas)) in connection_map {
