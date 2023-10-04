@@ -17,7 +17,7 @@ use dozer_sql_expression::execution::Expression;
 use crate::aggregation::max_value::MaxValueAggregator;
 use crate::aggregation::min_value::MinValueAggregator;
 use crate::errors::PipelineError::{InvalidFunctionArgument, InvalidValue};
-use dozer_sql_expression::aggregate::AggregateFunctionType::{MaxAppendOnly, MaxValue, MinAppendOnly};
+use dozer_sql_expression::aggregate::AggregateFunctionType::{MaxValue};
 use dozer_types::types::{Field, FieldType, Schema};
 use std::fmt::{Debug, Display, Formatter};
 use crate::aggregation::max_append_only::MaxAppendOnlyAggregator;
