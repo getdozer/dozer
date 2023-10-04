@@ -5,14 +5,16 @@ use crate::cli::init_dozer;
 use crate::cloud::cloud_app_context::CloudAppContext;
 use crate::cloud::cloud_helper::list_files;
 
-use crate::cloud::deployer::{deploy_app, stop_app};
+use crate::cloud::deployer::deploy_app;
 use crate::cloud::login::CredentialInfo;
 use crate::cloud::monitor::monitor_app;
 use crate::cloud::token_layer::TokenLayer;
 use crate::cloud::DozerGrpcCloudClient;
+use crate::console_helper::{get_colored_text, PURPLE};
 use crate::errors::OrchestrationError::FailedToReadOrganisationName;
-use crate::errors::{map_tonic_error, CliError, CloudError, CloudLoginError, OrchestrationError};
-use crate::simple::SimpleOrchestrator;
+use crate::errors::{
+    map_tonic_error, CliError, CloudError, CloudLoginError, ConfigCombineError, OrchestrationError,
+};
 use dozer_types::constants::{DEFAULT_CLOUD_TARGET_URL, LOCK_FILE};
 use dozer_types::grpc_types::api_explorer::api_explorer_service_client::ApiExplorerServiceClient;
 use dozer_types::grpc_types::api_explorer::GetApiTokenRequest;
@@ -34,7 +36,7 @@ use std::sync::Arc;
 use tonic::transport::Endpoint;
 use tower::ServiceBuilder;
 
-use super::cloud::login::LoginSvc;
+use super::login::LoginSvc;
 async fn establish_cloud_service_channel(
     cloud: &Cloud,
     cloud_config: &dozer_types::models::cloud::Cloud,
@@ -104,10 +106,9 @@ impl DozerGrpcCloudClient for CloudClient {
             self.config.clone(),
             Default::default(),
         )?;
-        let cloud_config = self.config.cloud.as_ref();
         let lockfile_path = dozer.lockfile_path();
-        self.runtime.block_on(async move {
-            let mut client = get_grpc_cloud_client(&cloud, cloud_config).await?;
+        self.runtime.clone().block_on(async move {
+            let mut client = get_grpc_cloud_client(&cloud, &self.config.cloud).await?;
             let mut files = list_files(config_paths)?;
             if deploy.locked {
                 let lockfile_contents = tokio::fs::read_to_string(lockfile_path)
@@ -550,7 +551,7 @@ impl CloudClient {
             .unwrap_or(CloudAppContext::get_app_id(&self.config.cloud)?);
         let cloud_config = &self.config.cloud;
         self.runtime.block_on(async move {
-            let mut client = get_cloud_client(&cloud, cloud_config).await?;
+            let mut client = get_grpc_cloud_client(&cloud, cloud_config).await?;
             let mut explorer_client = get_explorer_client(&cloud, cloud_config).await?;
 
             let response = client

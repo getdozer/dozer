@@ -6,7 +6,7 @@ use dozer_types::grpc_types::cloud::dozer_cloud_client::DozerCloudClient;
 use dozer_types::grpc_types::cloud::DeploymentStatus;
 use dozer_types::grpc_types::cloud::GetDeploymentStatusRequest;
 
-use crate::cloud_app_context::CloudAppContext;
+use crate::cloud::cloud_app_context::CloudAppContext;
 use dozer_types::grpc_types::cloud::DeployAppRequest;
 use dozer_types::grpc_types::cloud::File;
 use dozer_types::grpc_types::cloud::Secret;

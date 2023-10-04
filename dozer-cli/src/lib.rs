@@ -17,11 +17,11 @@ use tokio::task::JoinHandle;
 #[cfg(feature = "cloud")]
 pub mod cloud;
 pub mod config_helper;
+pub use dozer_api::shutdown;
 pub mod console_helper;
 #[cfg(test)]
 mod tests;
 mod utils;
-
 // Re-exports
 pub use dozer_ingestion::{
     connectors::{get_connector, TableInfo},

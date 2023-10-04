@@ -11,7 +11,6 @@ pub mod login;
 pub mod monitor;
 pub mod progress_printer;
 mod token_layer;
-pub mod version;
 pub use client::CloudClient;
 
 pub trait DozerGrpcCloudClient {

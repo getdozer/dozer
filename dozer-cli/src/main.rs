@@ -180,6 +180,9 @@ fn run() -> Result<(), OrchestrationError> {
                 info!("Using \"{app_id}\" app");
                 Ok(())
             }
+            CloudCommands::ApiRequestSamples { endpoint } => {
+                cloud_client.print_api_request_samples(cloud, endpoint)
+            }
         };
         return res;
     }
