@@ -6,7 +6,11 @@ use dozer_types::indicatif::ProgressBar;
 pub struct ProgressPrinter {
     pb: ProgressBar,
 }
-
+impl Default for ProgressPrinter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl ProgressPrinter {
     pub fn new() -> Self {
         Self {

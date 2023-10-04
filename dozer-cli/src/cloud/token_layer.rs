@@ -1,4 +1,4 @@
-use super::cloud::login::CredentialInfo;
+use super::login::CredentialInfo;
 use http::{Request, Response};
 use std::future::Future;
 use std::pin::Pin;

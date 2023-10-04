@@ -1,20 +1,20 @@
 use crate::cli::cloud::{
     Cloud, DeployCommandArgs, ListCommandArgs, LogCommandArgs, SecretsCommand, VersionCommand,
 };
-use crate::cloud_app_context::CloudAppContext;
-use crate::cloud_helper::list_files;
+use crate::cli::init_dozer;
+use crate::cloud::cloud_app_context::CloudAppContext;
+use crate::cloud::cloud_helper::list_files;
 
+use crate::cloud::deployer::deploy_app;
+use crate::cloud::login::CredentialInfo;
+use crate::cloud::monitor::monitor_app;
+use crate::cloud::token_layer::TokenLayer;
+use crate::cloud::DozerGrpcCloudClient;
 use crate::console_helper::{get_colored_text, PURPLE};
 use crate::errors::OrchestrationError::FailedToReadOrganisationName;
 use crate::errors::{
     map_tonic_error, CliError, CloudError, CloudLoginError, ConfigCombineError, OrchestrationError,
 };
-use crate::simple::cloud::deployer::deploy_app;
-use crate::simple::cloud::login::CredentialInfo;
-use crate::simple::cloud::monitor::monitor_app;
-use crate::simple::token_layer::TokenLayer;
-use crate::simple::SimpleOrchestrator;
-use crate::CloudOrchestrator;
 use dozer_types::constants::{DEFAULT_CLOUD_TARGET_URL, LOCK_FILE};
 use dozer_types::grpc_types::api_explorer::api_explorer_service_client::ApiExplorerServiceClient;
 use dozer_types::grpc_types::api_explorer::GetApiTokenRequest;
@@ -28,13 +28,15 @@ use dozer_types::grpc_types::cloud::{
     ListDeploymentRequest, RmAliasRequest, SetAliasRequest, SetCurrentVersionRequest,
 };
 use dozer_types::log::info;
+use dozer_types::models::config::Config;
 use dozer_types::prettytable::{row, table};
 use futures::{select, FutureExt, StreamExt};
 use std::io;
+use std::sync::Arc;
 use tonic::transport::Endpoint;
 use tower::ServiceBuilder;
 
-use super::cloud::login::LoginSvc;
+use super::login::LoginSvc;
 async fn establish_cloud_service_channel(
     cloud: &Cloud,
     cloud_config: &dozer_types::models::cloud::Cloud,
@@ -58,7 +60,7 @@ async fn establish_cloud_service_channel(
     Ok(channel)
 }
 
-pub async fn get_cloud_client(
+pub async fn get_grpc_cloud_client(
     cloud: &Cloud,
     cloud_config: &dozer_types::models::cloud::Cloud,
 ) -> Result<DozerCloudClient<TokenLayer>, CloudError> {
@@ -75,7 +77,18 @@ pub async fn get_explorer_client(
     Ok(client)
 }
 
-impl CloudOrchestrator for SimpleOrchestrator {
+pub struct CloudClient {
+    config: Config,
+    runtime: Arc<tokio::runtime::Runtime>,
+}
+
+impl CloudClient {
+    pub fn new(config: Config, runtime: Arc<tokio::runtime::Runtime>) -> Self {
+        Self { config, runtime }
+    }
+}
+
+impl DozerGrpcCloudClient for CloudClient {
     // TODO: Deploy Dozer application using local Dozer configuration
     fn deploy(
         &mut self,
@@ -88,10 +101,14 @@ impl CloudOrchestrator for SimpleOrchestrator {
             .clone()
             .or(CloudAppContext::get_app_id(&self.config.cloud).ok());
 
-        let cloud_config = &self.config.cloud;
-        let lockfile_path = self.lockfile_path();
-        self.runtime.block_on(async move {
-            let mut client = get_cloud_client(&cloud, cloud_config).await?;
+        let dozer = init_dozer(
+            self.runtime.clone(),
+            self.config.clone(),
+            Default::default(),
+        )?;
+        let lockfile_path = dozer.lockfile_path();
+        self.runtime.clone().block_on(async move {
+            let mut client = get_grpc_cloud_client(&cloud, &self.config.cloud).await?;
             let mut files = list_files(config_paths)?;
             if deploy.locked {
                 let lockfile_contents = tokio::fs::read_to_string(lockfile_path)
@@ -158,7 +175,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
 
         let cloud_config = &self.config.cloud;
         self.runtime.block_on(async move {
-            let mut client = get_cloud_client(&cloud, cloud_config).await?;
+            let mut client = get_grpc_cloud_client(&cloud, cloud_config).await?;
 
             let delete_result = client
                 .delete_application(DeleteAppRequest {
@@ -185,7 +202,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
     fn list(&mut self, cloud: Cloud, list: ListCommandArgs) -> Result<(), OrchestrationError> {
         let cloud_config = &self.config.cloud;
         self.runtime.block_on(async move {
-            let mut client = get_cloud_client(&cloud, cloud_config).await?;
+            let mut client = get_grpc_cloud_client(&cloud, cloud_config).await?;
             let response = client
                 .list_applications(ListAppRequest {
                     limit: list.limit,
@@ -227,7 +244,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
             .unwrap_or(CloudAppContext::get_app_id(&self.config.cloud)?);
         let cloud_config = &self.config.cloud;
         self.runtime.block_on(async move {
-            let mut client = get_cloud_client(&cloud, cloud_config).await?;
+            let mut client = get_grpc_cloud_client(&cloud, cloud_config).await?;
             let response = client
                 .get_application(GetAppRequest { app_id })
                 .await
@@ -282,7 +299,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
             .unwrap_or(CloudAppContext::get_app_id(&self.config.cloud)?);
         let cloud_config = &self.config.cloud;
         self.runtime.block_on(async move {
-            let mut client = get_cloud_client(&cloud, cloud_config).await?;
+            let mut client = get_grpc_cloud_client(&cloud, cloud_config).await?;
 
             let res = client
                 .list_deployments(ListDeploymentRequest {
@@ -385,7 +402,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
         let cloud_config = &self.config.cloud;
 
         self.runtime.block_on(async move {
-            let mut client = get_cloud_client(&cloud, cloud_config).await?;
+            let mut client = get_grpc_cloud_client(&cloud, cloud_config).await?;
 
             let app_id = match app_id_result {
                 Ok(id) => Ok(id),
@@ -478,7 +495,7 @@ impl CloudOrchestrator for SimpleOrchestrator {
     }
 }
 
-impl SimpleOrchestrator {
+impl CloudClient {
     pub fn version(
         &mut self,
         cloud: Cloud,
@@ -491,7 +508,7 @@ impl SimpleOrchestrator {
 
         let cloud_config = &self.config.cloud;
         self.runtime.block_on(async move {
-            let mut client = get_cloud_client(&cloud, cloud_config).await?;
+            let mut client = get_grpc_cloud_client(&cloud, cloud_config).await?;
 
             match version {
                 VersionCommand::SetCurrent { version } => {
@@ -534,7 +551,7 @@ impl SimpleOrchestrator {
             .unwrap_or(CloudAppContext::get_app_id(&self.config.cloud)?);
         let cloud_config = &self.config.cloud;
         self.runtime.block_on(async move {
-            let mut client = get_cloud_client(&cloud, cloud_config).await?;
+            let mut client = get_grpc_cloud_client(&cloud, cloud_config).await?;
             let mut explorer_client = get_explorer_client(&cloud, cloud_config).await?;
 
             let response = client
