@@ -20,3 +20,8 @@ mod aggregation_sum_tests;
 mod aggregation_test_planner;
 #[cfg(test)]
 mod aggregation_tests_utils;
+
+#[cfg(test)]
+mod aggregation_max_append_only_tests;
+#[cfg(test)]
+mod aggregation_min_append_only_tests;

@@ -721,8 +721,10 @@ fn get_aggregate_function_type(
         AggregateFunctionType::Avg => validate_avg(args, schema),
         AggregateFunctionType::Count => validate_count(args, schema),
         AggregateFunctionType::Max => validate_max(args, schema),
+        AggregateFunctionType::MaxAppendOnly => validate_max(args, schema),
         AggregateFunctionType::MaxValue => validate_max_value(args, schema),
         AggregateFunctionType::Min => validate_min(args, schema),
+        AggregateFunctionType::MinAppendOnly => validate_min(args, schema),
         AggregateFunctionType::MinValue => validate_min_value(args, schema),
         AggregateFunctionType::Sum => validate_sum(args, schema),
     }
