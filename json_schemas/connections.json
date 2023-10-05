@@ -79,16 +79,12 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "EthConfig",
       "type": "object",
+      "required": [
+        "provider"
+      ],
       "properties": {
         "provider": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/EthProviderConfig"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/definitions/EthProviderConfig"
         }
       },
       "definitions": {

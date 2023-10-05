@@ -8,9 +8,9 @@ pub fn get_local_storage_config(typ: &str, prefix: &str) -> LocalStorage {
     match typ {
         "parquet" => match prefix {
             "" => LocalStorage {
-                details: Some(LocalDetails {
+                details: LocalDetails {
                     path: p.to_str().unwrap().to_string(),
-                }),
+                },
                 tables: vec![Table {
                     config: Some(TableConfig::Parquet(ParquetConfig {
                         extension: typ.to_string(),
@@ -21,9 +21,9 @@ pub fn get_local_storage_config(typ: &str, prefix: &str) -> LocalStorage {
                 }],
             },
             &_ => LocalStorage {
-                details: Some(LocalDetails {
+                details: LocalDetails {
                     path: p.to_str().unwrap().to_string(),
-                }),
+                },
                 tables: vec![Table {
                     config: Some(TableConfig::Parquet(ParquetConfig {
                         extension: typ.to_string(),
@@ -36,9 +36,9 @@ pub fn get_local_storage_config(typ: &str, prefix: &str) -> LocalStorage {
         },
         "csv" => match prefix {
             "" => LocalStorage {
-                details: Some(LocalDetails {
+                details: LocalDetails {
                     path: p.to_str().unwrap().to_string(),
-                }),
+                },
                 tables: vec![Table {
                     config: Some(TableConfig::CSV(CsvConfig {
                         extension: typ.to_string(),
@@ -49,9 +49,9 @@ pub fn get_local_storage_config(typ: &str, prefix: &str) -> LocalStorage {
                 }],
             },
             &_ => LocalStorage {
-                details: Some(LocalDetails {
+                details: LocalDetails {
                     path: p.to_str().unwrap().to_string(),
-                }),
+                },
                 tables: vec![Table {
                     config: Some(TableConfig::CSV(CsvConfig {
                         extension: typ.to_string(),
@@ -63,9 +63,9 @@ pub fn get_local_storage_config(typ: &str, prefix: &str) -> LocalStorage {
             },
         },
         &_ => LocalStorage {
-            details: Some(LocalDetails {
+            details: LocalDetails {
                 path: p.to_str().unwrap().to_string(),
-            }),
+            },
             tables: vec![Table {
                 config: None,
                 name: String::new(),

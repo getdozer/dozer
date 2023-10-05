@@ -713,16 +713,12 @@
     },
     "EthConfig": {
       "type": "object",
+      "required": [
+        "provider"
+      ],
       "properties": {
         "provider": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/EthProviderConfig"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/definitions/EthProviderConfig"
         }
       }
     },

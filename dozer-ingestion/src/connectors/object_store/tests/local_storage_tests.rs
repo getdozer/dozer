@@ -388,9 +388,9 @@ fn test_unsupported_format() {
 #[tokio::test]
 async fn test_missing_directory() {
     let mut local_storage = get_local_storage_config("unsupported", "");
-    local_storage.details = Some(LocalDetails {
+    local_storage.details = LocalDetails {
         path: "not_existing_path".to_string(),
-    });
+    };
     let connector = ObjectStoreConnector::new(local_storage);
 
     let tables = connector

@@ -86,9 +86,9 @@ fn create_connector(
     writer.close().expect("Failed to close writer");
 
     let local_storage = LocalStorage {
-        details: Some(LocalDetails {
+        details: LocalDetails {
             path: temp_dir.path().to_str().expect("Non-UTF8 path").to_string(),
-        }),
+        },
         tables: vec![Table {
             config: Some(TableConfig::Parquet(ParquetConfig {
                 path: table_name.to_string(),

@@ -22,13 +22,11 @@ fn standard() {
         topics: vec![],
     };
     let expected_eth_config = EthConfig {
-        provider: Some(crate::ingestion_types::EthProviderConfig::Log(
-            EthLogConfig {
-                filter: Some(expected_eth_filter),
-                wss_url: "wss://link".to_owned(),
-                contracts: vec![],
-            },
-        )),
+        provider: crate::ingestion_types::EthProviderConfig::Log(EthLogConfig {
+            filter: Some(expected_eth_filter),
+            wss_url: "wss://link".to_owned(),
+            contracts: vec![],
+        }),
     };
     let expected = ConnectionConfig::Ethereum(expected_eth_config);
     assert_eq!(expected, deserializer_result);
@@ -51,13 +49,11 @@ fn config_without_empty_array() {
         topics: vec![],
     };
     let expected_eth_config = EthConfig {
-        provider: Some(crate::ingestion_types::EthProviderConfig::Log(
-            EthLogConfig {
-                wss_url: "wss://link".to_owned(),
-                filter: Some(expected_eth_filter),
-                contracts: vec![],
-            },
-        )),
+        provider: crate::ingestion_types::EthProviderConfig::Log(EthLogConfig {
+            wss_url: "wss://link".to_owned(),
+            filter: Some(expected_eth_filter),
+            contracts: vec![],
+        }),
     };
     let expected = ConnectionConfig::Ethereum(expected_eth_config);
     assert_eq!(expected, deserializer_result);

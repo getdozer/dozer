@@ -77,7 +77,7 @@ pub enum GrpcConfigSchemas {
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema, Default)]
 pub struct EthConfig {
-    pub provider: Option<EthProviderConfig>,
+    pub provider: EthProviderConfig,
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
@@ -85,6 +85,11 @@ pub enum EthProviderConfig {
     Log(EthLogConfig),
 
     Trace(EthTraceConfig),
+}
+impl Default for EthProviderConfig {
+    fn default() -> Self {
+        EthProviderConfig::Log(EthLogConfig::default())
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema, Default)]
@@ -117,8 +122,7 @@ impl EthConfig {
     pub fn convert_to_table(&self) -> PrettyTable {
         let mut table = table!();
 
-        let provider = self.provider.as_ref().expect("Must provide provider");
-        match provider {
+        match &self.provider {
             EthProviderConfig::Log(log) => {
                 table.add_row(row!["provider", "logs"]);
                 table.add_row(row!["wss_url", format!("{:?}", log.wss_url)]);
