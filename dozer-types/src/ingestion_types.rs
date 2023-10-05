@@ -312,23 +312,18 @@ pub struct S3Details {
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
 pub struct S3Storage {
-    pub details: Option<S3Details>,
+    pub details: S3Details,
 
     pub tables: Vec<Table>,
 }
 
 impl S3Storage {
     pub fn convert_to_table(&self) -> PrettyTable {
-        self.details.as_ref().map_or_else(
-            || table!(),
-            |details| {
-                table!(
-                    ["access_key_id", details.access_key_id],
-                    ["secret_access_key", details.secret_access_key],
-                    ["region", details.region],
-                    ["bucket_name", details.bucket_name]
-                )
-            },
+        table!(
+            ["access_key_id", self.details.access_key_id],
+            ["secret_access_key", self.details.secret_access_key],
+            ["region", self.details.region],
+            ["bucket_name", self.details.bucket_name]
         )
     }
 }
