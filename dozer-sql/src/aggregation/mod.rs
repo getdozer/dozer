@@ -9,3 +9,6 @@ pub mod min_value;
 pub mod processor;
 pub mod sum;
 mod tests;
+
+pub mod max_append_only;
+pub mod min_append_only;
