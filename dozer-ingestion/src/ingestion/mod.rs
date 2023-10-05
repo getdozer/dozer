@@ -10,7 +10,7 @@ pub struct IngestionConfig {
 impl Default for IngestionConfig {
     fn default() -> Self {
         Self {
-            forwarder_channel_cap: 100000,
+            forwarder_channel_cap: 10000,
         }
     }
 }
