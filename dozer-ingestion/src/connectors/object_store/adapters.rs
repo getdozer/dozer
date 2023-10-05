@@ -1,4 +1,4 @@
-use crate::errors::ObjectStoreObjectError::{MissingStorageDetails, TableDefinitionNotFound};
+use crate::errors::ObjectStoreObjectError::TableDefinitionNotFound;
 use crate::errors::{ConnectorError, ObjectStoreConnectorError};
 use dozer_types::ingestion_types::{LocalStorage, S3Storage, Table};
 use object_store::aws::{AmazonS3, AmazonS3Builder};
@@ -54,7 +54,7 @@ impl DozerObjectStore for S3Storage {
         &self,
         table: &Table,
     ) -> Result<DozerObjectStoreParams<Self::ObjectStore>, ConnectorError> {
-        let details = get_details(&self.details)?;
+        let details = &self.details;
 
         let retry_config = RetryConfig {
             backoff: BackoffConfig::default(),
@@ -116,7 +116,7 @@ impl DozerObjectStore for LocalStorage {
         &self,
         table: &Table,
     ) -> Result<DozerObjectStoreParams<Self::ObjectStore>, ConnectorError> {
-        let path = get_details(&self.details)?.path.as_str();
+        let path = &self.details.path.as_str();
 
         let object_store = LocalFileSystem::new_with_prefix(path)
             .map_err(|e| ConnectorError::InitializationError(e.to_string()))?;
@@ -157,12 +157,4 @@ impl DozerObjectStore for LocalStorage {
     fn tables(&self) -> &[Table] {
         &self.tables
     }
-}
-
-fn get_details<T>(details: &Option<T>) -> Result<&T, ObjectStoreConnectorError> {
-    details
-        .as_ref()
-        .ok_or(ObjectStoreConnectorError::DataFusionStorageObjectError(
-            MissingStorageDetails,
-        ))
 }

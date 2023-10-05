@@ -99,11 +99,11 @@ pub fn generate_connection(connection_name: &str) -> Connection {
                 topics: vec![],
             };
             let ethereum_config = EthConfig {
-                provider: Some(EthProviderConfig::Log(EthLogConfig {
+                provider: EthProviderConfig::Log(EthLogConfig {
                     wss_url: "wss://link".to_owned(),
                     filter: Some(eth_filter),
                     contracts: vec![],
-                })),
+                }),
             };
             let connection: Connection = Connection {
                 name: "ethereum".to_owned(),
@@ -130,7 +130,7 @@ pub fn generate_connection(connection_name: &str) -> Connection {
                 bucket_name: "<your_bucket_name>".to_owned(),
             };
             let s3_config = S3Storage {
-                details: Some(s3_details),
+                details: s3_details,
                 tables: vec![],
             };
             let connection: Connection = Connection {

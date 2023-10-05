@@ -214,7 +214,7 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
             Ok(Box::new(PostgresConnector::new(postgres_config)))
         }
         #[cfg(feature = "ethereum")]
-        ConnectionConfig::Ethereum(eth_config) => match eth_config.provider.unwrap() {
+        ConnectionConfig::Ethereum(eth_config) => match eth_config.provider {
             dozer_types::ingestion_types::EthProviderConfig::Log(log_config) => {
                 Ok(Box::new(EthLogConnector::new(log_config, connection.name)))
             }

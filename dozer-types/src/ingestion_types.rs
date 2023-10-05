@@ -77,7 +77,7 @@ pub enum GrpcConfigSchemas {
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema, Default)]
 pub struct EthConfig {
-    pub provider: Option<EthProviderConfig>,
+    pub provider: EthProviderConfig,
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
@@ -85,6 +85,11 @@ pub enum EthProviderConfig {
     Log(EthLogConfig),
 
     Trace(EthTraceConfig),
+}
+impl Default for EthProviderConfig {
+    fn default() -> Self {
+        EthProviderConfig::Log(EthLogConfig::default())
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema, Default)]
@@ -117,8 +122,7 @@ impl EthConfig {
     pub fn convert_to_table(&self) -> PrettyTable {
         let mut table = table!();
 
-        let provider = self.provider.as_ref().expect("Must provide provider");
-        match provider {
+        match &self.provider {
             EthProviderConfig::Log(log) => {
                 table.add_row(row!["provider", "logs"]);
                 table.add_row(row!["wss_url", format!("{:?}", log.wss_url)]);
@@ -312,23 +316,18 @@ pub struct S3Details {
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
 pub struct S3Storage {
-    pub details: Option<S3Details>,
+    pub details: S3Details,
 
     pub tables: Vec<Table>,
 }
 
 impl S3Storage {
     pub fn convert_to_table(&self) -> PrettyTable {
-        self.details.as_ref().map_or_else(
-            || table!(),
-            |details| {
-                table!(
-                    ["access_key_id", details.access_key_id],
-                    ["secret_access_key", details.secret_access_key],
-                    ["region", details.region],
-                    ["bucket_name", details.bucket_name]
-                )
-            },
+        table!(
+            ["access_key_id", self.details.access_key_id],
+            ["secret_access_key", self.details.secret_access_key],
+            ["region", self.details.region],
+            ["bucket_name", self.details.bucket_name]
         )
     }
 }
@@ -340,16 +339,14 @@ pub struct LocalDetails {
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
 pub struct LocalStorage {
-    pub details: Option<LocalDetails>,
+    pub details: LocalDetails,
 
     pub tables: Vec<Table>,
 }
 
 impl LocalStorage {
     pub fn convert_to_table(&self) -> PrettyTable {
-        self.details
-            .as_ref()
-            .map_or_else(|| table!(), |details| table!(["path", details.path]))
+        table!(["path", self.details.path])
     }
 }
 
