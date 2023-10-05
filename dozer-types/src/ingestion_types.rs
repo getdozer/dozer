@@ -335,16 +335,14 @@ pub struct LocalDetails {
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
 pub struct LocalStorage {
-    pub details: Option<LocalDetails>,
+    pub details: LocalDetails,
 
     pub tables: Vec<Table>,
 }
 
 impl LocalStorage {
     pub fn convert_to_table(&self) -> PrettyTable {
-        self.details
-            .as_ref()
-            .map_or_else(|| table!(), |details| table!(["path", details.path]))
+        table!(["path", self.details.path])
     }
 }
 

@@ -387,18 +387,12 @@
       "title": "S3Storage",
       "type": "object",
       "required": [
+        "details",
         "tables"
       ],
       "properties": {
         "details": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/S3Details"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/definitions/S3Details"
         },
         "tables": {
           "type": "array",
@@ -555,18 +549,12 @@
       "title": "LocalStorage",
       "type": "object",
       "required": [
+        "details",
         "tables"
       ],
       "properties": {
         "details": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/LocalDetails"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/definitions/LocalDetails"
         },
         "tables": {
           "type": "array",

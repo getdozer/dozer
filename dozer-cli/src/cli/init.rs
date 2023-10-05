@@ -130,7 +130,7 @@ pub fn generate_connection(connection_name: &str) -> Connection {
                 bucket_name: "<your_bucket_name>".to_owned(),
             };
             let s3_config = S3Storage {
-                details: Some(s3_details),
+                details: s3_details,
                 tables: vec![],
             };
             let connection: Connection = Connection {
