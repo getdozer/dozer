@@ -143,7 +143,6 @@ impl ApiServer {
         } else {
             unauthenticated_reflection_service = Some(reflection_service);
         };
-        let health_service = health_service;
 
         let mut auth_service = None;
         let security = get_api_security(self.security.to_owned());

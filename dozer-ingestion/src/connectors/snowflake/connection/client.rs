@@ -351,13 +351,13 @@ impl<'env> Client<'env> {
             .map(|(name, (_, schema))| match schema {
                 Ok(mut schema) => {
                     let mut indexes = vec![];
-                    keys.get(&name).map_or((), |columns| {
+                    if let Some(columns) = keys.get(&name) {
                         schema.fields.iter().enumerate().for_each(|(idx, f)| {
                             if columns.contains(&f.name) {
                                 indexes.push(idx);
                             }
                         });
-                    });
+                    }
 
                     let cdc_type = if indexes.is_empty() {
                         CdcType::Nothing
