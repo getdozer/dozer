@@ -210,7 +210,6 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                                 joinset.spawn(async move {
                                     let mut csv_table = CsvTable::new(csv_config, config);
                                     csv_table.update_state = state;
-                                    let table_info = table_info;
                                     csv_table.watch(table_index, &table_info, sender).await?;
                                     Ok::<_, ConnectorError>(())
                                 });
