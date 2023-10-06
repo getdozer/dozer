@@ -6,9 +6,7 @@ RUN apt-get update \
       odbcinst \
       unixodbc \
       curl \
-      unzip \
-      cmake \
-      clang
+      unzip
 
 # INSTALL PROTOBUF
 RUN curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v3.18.1/protoc-3.18.1-linux-x86_64.zip 
@@ -19,13 +17,6 @@ RUN rm protoc-3.18.1-linux-x86_64.zip
 RUN curl -LO https://sfc-repo.snowflakecomputing.com/odbc/linux/2.25.7/snowflake-odbc-2.25.7.x86_64.deb
 RUN dpkg -i snowflake-odbc-2.25.7.x86_64.deb
 RUN rm snowflake-odbc-2.25.7.x86_64.deb
-
-# Install ONNX Runtime
-RUN curl -LO https://github.com/microsoft/onnxruntime/releases/download/v1.15.1/onnxruntime-linux-x64-1.15.1.tgz
-RUN tar -xf onnxruntime-linux-x64-1.15.1.tgz -C /usr/local
-RUN rm onnxruntime-linux-x64-1.15.1.tgz
-RUN cp /usr/local/onnxruntime-linux-x64-1.15.1/lib/libonnxruntime.so.1.15.1 /usr/local/lib/
-RUN ldconfig
 
 # INSTALL DOZER 
 RUN echo "Installing dozer binary"
