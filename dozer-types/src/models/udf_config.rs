@@ -21,5 +21,11 @@ pub enum UdfType {
 #[serde(deny_unknown_fields)]
 pub struct OnnxConfig {
     /// path to the model file
-    pub path: String,
+    pub s3_storage: S3Storage,
+}
+
+pub struct S3Storage {
+    client: Client,
+    region: BucketLocationConstraint,
+    bucket_name: String,
 }
