@@ -193,4 +193,10 @@ pub mod conversions {
             FieldType::Duration => Type::Duration,
         }
     }
+    pub fn map_schema(schema: crate::types::Schema) -> crate::grpc_types::types::Schema {
+        crate::grpc_types::types::Schema {
+            primary_index: schema.primary_index.into_iter().map(|i| i as i32).collect(),
+            fields: field_definition_to_grpc(schema.fields),
+        }
+    }
 }

@@ -12,7 +12,7 @@ use dozer_core::{
         Direction,
     },
 };
-use dozer_types::grpc_types::{contract::Schema, conversions::field_definition_to_grpc};
+use dozer_types::grpc_types::{conversions::map_schema, types::Schema};
 
 use crate::errors::BuildError;
 
@@ -241,13 +241,6 @@ impl Display for UiEdgeType {
 }
 
 type UiGraph = daggy::Dag<UiNodeType, UiEdgeType>;
-
-fn map_schema(schema: dozer_types::types::Schema) -> Schema {
-    Schema {
-        primary_index: schema.primary_index.into_iter().map(|i| i as i32).collect(),
-        fields: field_definition_to_grpc(schema.fields),
-    }
-}
 
 fn remove_from_processor(graph: &UiGraph) -> UiGraph {
     let mut output = UiGraph::new();

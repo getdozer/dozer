@@ -5,10 +5,10 @@ package dozer.contract;
 import "types.proto";
 
 service ContractService {
-  rpc Sources(SourcesRequest) returns (SchemasResponse);
-  rpc Endpoints(CommonRequest) returns (SchemasResponse);
+  rpc Sources(SourcesRequest) returns (dozer.types.SchemasResponse);
+  rpc Endpoints(CommonRequest) returns (dozer.types.SchemasResponse);
   rpc GenerateDot(CommonRequest) returns (DotResponse);
-  rpc GetGraphSchemas(CommonRequest) returns (SchemasResponse);
+  rpc GetGraphSchemas(CommonRequest) returns (dozer.types.SchemasResponse);
   rpc GetProtos(CommonRequest) returns (ProtoResponse);
 }
 
@@ -26,17 +26,6 @@ message SourcesRequest {
 message CommonRequest {
   // Only used in cloud context.
   optional CloudVersionId cloud_id = 1;
-}
-
-message SchemasResponse {
-  map<string, Schema> schemas = 1;
-}
-
-message Schema  {
-  // The list of indexes of the keys that are used as the primary index.
-  repeated int32 primary_index = 1;
-  // The list of field definitions.
-  repeated dozer.types.FieldDefinition fields = 2;
 }
 
 message DotResponse {

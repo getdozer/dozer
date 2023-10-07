@@ -9,8 +9,9 @@ use dozer_sql::builder::statement_to_pipeline;
 use dozer_tracing::{Labels, LabelsAndProgress};
 use dozer_types::{
     grpc_types::{
-        contract::{DotResponse, ProtoResponse, SchemasResponse},
+        contract::{DotResponse, ProtoResponse},
         live::{BuildResponse, BuildStatus, ConnectResponse, LiveApp, LiveResponse, RunRequest},
+        types::SchemasResponse,
     },
     log::info,
     models::{
