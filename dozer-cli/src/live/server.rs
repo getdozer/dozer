@@ -9,12 +9,13 @@ use dozer_types::{
         },
         contract::{
             contract_service_server::{ContractService, ContractServiceServer},
-            CommonRequest, DotResponse, ProtoResponse, SchemasResponse, SourcesRequest,
+            CommonRequest, DotResponse, ProtoResponse, SourcesRequest,
         },
         live::{
             code_service_server::{CodeService, CodeServiceServer},
             ConnectResponse, Label, Labels, RunRequest,
         },
+        types::SchemasResponse,
     },
     log::info,
 };

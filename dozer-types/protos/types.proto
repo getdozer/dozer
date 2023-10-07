@@ -134,3 +134,13 @@ message Value {
     google.protobuf.Value json_value = 14;  // JSON type.
   };
 }
+message SchemasResponse {
+  map<string, Schema> schemas = 1;
+}
+
+message Schema  {
+  // The list of indexes of the keys that are used as the primary index.
+  repeated int32 primary_index = 1;
+  // The list of field definitions.
+  repeated FieldDefinition fields = 2;
+}

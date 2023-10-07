@@ -1,5 +1,6 @@
 syntax = "proto3";
 package dozer.cloud;
+import "types.proto";
 import "cloud_types.proto";
 import "cloud_notification.proto";
 import "cloud_infastructure.proto";
@@ -7,13 +8,11 @@ import "google/protobuf/timestamp.proto";
 import "google/protobuf/empty.proto";
 service DozerCloud {
 
-  rpc validate_connection(ConnectionRequest)
-      returns (ValidateConnectionResponse);
   rpc create_connection(ConnectionRequest) returns (ConnectionResponse);
   rpc get_connection(GetConnectionRequest) returns (ConnectionResponse);
   rpc list_connections(GetAllConnectionRequest)
       returns (GetAllConnectionResponse);
-  rpc get_tables(GetTablesRequest) returns (GetTablesResponse);
+  rpc list_tables(ListTablesRequest) returns (dozer.types.SchemasResponse);
   rpc update_connection(UpdateConnectionRequest) returns (ConnectionResponse);
 
   rpc list_applications(ListAppRequest) returns (ListAppResponse);
@@ -239,7 +238,7 @@ message ConnectionRequest {
 message GetConnectionRequest {
   string connection_id = 1;
 }
-message ValidateConnectionResponse { bool success = 1; }
+
 message ConnectionResponse {
   string id = 1;
   string name = 2;
@@ -249,11 +248,11 @@ message Connection {
   string name = 1;
   string yaml_content = 3;
 }
-message GetTablesRequest { string connection_id = 2; }
-
-message GetTablesResponse {
-  string connection_id = 1;
-  repeated TableInfo tables = 2;
+message ListTablesRequest { 
+  oneof criteria {
+    string connection_id = 1;
+    string yaml = 2;
+  }
 }
 
 message GetAllConnectionRequest {
