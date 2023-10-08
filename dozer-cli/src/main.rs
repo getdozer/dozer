@@ -108,7 +108,7 @@ async fn check_update() {
                 // We dont show error if error is connection error, because mostly it happens
                 // when main thread is shutting down before request completes.
                 if !e.is_connect() {
-                    warn!("Unable to fetch the latest metadata");
+                    warn!("Unable to     fetch the latest metadata");
                 }
 
                 debug!("Updates check error: {}", e);
@@ -131,71 +131,12 @@ fn run() -> Result<(), OrchestrationError> {
 
     set_panic_hook();
 
-    // Run Cloud
-    #[cfg(feature = "cloud")]
-    if let Commands::Cloud(cloud) = &cli.cmd {
-        render_logo();
-        let cloud = cloud.clone();
-        let res = if let CloudCommands::Login {
-            organisation_slug,
-            profile_name,
-            client_id,
-            client_secret,
-        } = cloud.command.clone()
-        {
-            CloudClient::login(
-                runtime.clone(),
-                cloud,
-                organisation_slug,
-                profile_name,
-                client_id,
-                client_secret,
-            )
-        } else {
-            let config = init_configuration(&cli, runtime.clone())?;
-            let mut cloud_client = CloudClient::new(config.clone(), runtime.clone());
-            match cloud.command.clone() {
-                CloudCommands::Deploy(deploy) => {
-                    cloud_client.deploy(cloud, deploy, cli.config_paths.clone())
-                }
-                CloudCommands::Login {
-                    organisation_slug: _,
-                    profile_name: _,
-                    client_id: _,
-                    client_secret: _,
-                } => unreachable!("This is handled earlier"),
-                CloudCommands::Secrets(command) => {
-                    cloud_client.execute_secrets_command(cloud, command)
-                }
-                CloudCommands::Delete => cloud_client.delete(cloud),
-                CloudCommands::Status => cloud_client.status(cloud),
-                CloudCommands::Monitor => cloud_client.monitor(cloud),
-                CloudCommands::Logs(logs) => cloud_client.trace_logs(cloud, logs),
-                CloudCommands::Version(version) => cloud_client.version(cloud, version),
-                CloudCommands::List(list) => cloud_client.list(cloud, list),
-                CloudCommands::SetApp { app_id } => {
-                    CloudAppContext::save_app_id(app_id.clone())?;
-                    info!("Using \"{app_id}\" app");
-                    Ok(())
-                }
-                CloudCommands::ApiRequestSamples { endpoint } => {
-                    cloud_client.print_api_request_samples(cloud, endpoint)
-                }
-            }
-        };
-
-        return match res {
-            Ok(_) => Ok(()),
-            Err(e) => {
-                println!("{}", e);
-                Err(e)
-            }
-        };
-    }
-
-    let config = init_configuration(&cli, runtime.clone())?;
+    let config_res = init_configuration(&cli, runtime.clone());
     // Now we have access to telemetry configuration. Telemetry must be initialized in tokio runtime.
-    let app_id = config.cloud.app_id.as_deref().unwrap_or(&config.app_name);
+    let app_id = config_res
+        .as_ref()
+        .map(|c| c.cloud.app_id.as_deref().unwrap_or(&c.app_name))
+        .ok();
 
     // We always enable telemetry when running live.
     let telemetry_config = if matches!(cli.cmd, Commands::Live(_)) {
@@ -204,10 +145,20 @@ fn run() -> Result<(), OrchestrationError> {
             metrics: Some(TelemetryMetricsConfig::Prometheus),
         }
     } else {
-        config.telemetry.clone()
+        config_res
+            .as_ref()
+            .map(|c| c.telemetry.clone())
+            .unwrap_or_default()
     };
 
-    let _telemetry = runtime.block_on(async { Telemetry::new(Some(app_id), &telemetry_config) });
+    let _telemetry = runtime.block_on(async { Telemetry::new(app_id, &telemetry_config) });
+
+    // Run Cloud
+    #[cfg(feature = "cloud")]
+    if let Commands::Cloud(cloud) = &cli.cmd {
+        return run_cloud(cloud, runtime, &cli);
+    }
+    let config = config_res?;
 
     let mut dozer = init_dozer(
         runtime.clone(),
@@ -279,6 +230,51 @@ fn run() -> Result<(), OrchestrationError> {
     })
 }
 
+#[cfg(feature = "cloud")]
+fn run_cloud(
+    cloud: &dozer_cli::cli::cloud::Cloud,
+    runtime: Arc<Runtime>,
+    cli: &Cli,
+) -> Result<(), OrchestrationError> {
+    render_logo();
+    let cloud = cloud.clone();
+
+    let config = init_configuration(cli, runtime.clone()).ok();
+    let mut cloud_client = CloudClient::new(config.clone(), runtime.clone());
+    match cloud.command.clone() {
+        CloudCommands::Deploy(deploy) => {
+            cloud_client.deploy(cloud, deploy, cli.config_paths.clone())
+        }
+        CloudCommands::Login {
+            organisation_slug,
+            profile_name,
+            client_id,
+            client_secret,
+        } => cloud_client.login(
+            cloud,
+            organisation_slug,
+            profile_name,
+            client_id,
+            client_secret,
+        ),
+        CloudCommands::Secrets(command) => cloud_client.execute_secrets_command(cloud, command),
+        CloudCommands::Delete => cloud_client.delete(cloud),
+        CloudCommands::Status => cloud_client.status(cloud),
+        CloudCommands::Monitor => cloud_client.monitor(cloud),
+        CloudCommands::Logs(logs) => cloud_client.trace_logs(cloud, logs),
+        CloudCommands::Version(version) => cloud_client.version(cloud, version),
+        CloudCommands::List(list) => cloud_client.list(cloud, list),
+        CloudCommands::SetApp { app_id } => {
+            CloudAppContext::save_app_id(app_id.clone())?;
+            info!("Using \"{app_id}\" app");
+            Ok(())
+        }
+        CloudCommands::ApiRequestSamples { endpoint } => {
+            cloud_client.print_api_request_samples(cloud, endpoint)
+        }
+    }
+}
+
 // Some commands dont need to initialize the orchestrator
 // This function is used to run those commands
 fn parse_and_generate() -> Result<Cli, OrchestrationError> {
@@ -321,10 +317,7 @@ fn init_configuration(cli: &Cli, runtime: Arc<Runtime>) -> Result<Config, CliErr
                     runtime.spawn(check_update());
                     Ok(config)
                 }
-                Err(e) => {
-                    error!("{}", e);
-                    Err(e)
-                }
+                Err(e) => Err(e),
             }
         },
     )

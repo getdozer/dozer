@@ -1,7 +1,7 @@
 mod downloader;
 mod errors;
 mod server;
-mod state;
+pub mod state;
 mod watcher;
 use self::state::LiveState;
 use crate::{cli::types::Live, live::server::LIVE_PORT};

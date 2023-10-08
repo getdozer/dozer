@@ -1,15 +1,6 @@
 syntax = "proto3";
 package dozer.cloud;
 
-message TableInfo {
-  string table_name = 1;
-  repeated ColumnInfo columns = 2;
-}
-message ColumnInfo {
-  string column_name = 1;
-  bool is_nullable = 2;
-}
-
 message File {
   string name = 1;
   string content = 2;

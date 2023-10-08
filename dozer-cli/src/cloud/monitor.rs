@@ -1,6 +1,5 @@
 use crate::cli::cloud::Cloud;
 use crate::cloud::client::get_grpc_cloud_client;
-use crate::cloud::cloud_app_context::CloudAppContext;
 use crate::cloud::token_layer::TokenLayer;
 use crate::errors::CloudError;
 use dozer_types::grpc_types::cloud::dozer_cloud_client::DozerCloudClient;
@@ -13,14 +12,10 @@ use tokio::runtime::Runtime;
 
 pub fn monitor_app(
     cloud: &Cloud,
-    cloud_config: &dozer_types::models::cloud::Cloud,
+    app_id: String,
+    cloud_config: Option<dozer_types::models::cloud::Cloud>,
     runtime: Arc<Runtime>,
 ) -> Result<(), CloudError> {
-    let app_id = cloud
-        .app_id
-        .clone()
-        .unwrap_or(CloudAppContext::get_app_id(cloud_config)?);
-
     runtime.block_on(async move {
         let mut client: DozerCloudClient<TokenLayer> =
             get_grpc_cloud_client(cloud, cloud_config).await?;

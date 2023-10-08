@@ -34,10 +34,11 @@ pub async fn deploy_app(
     let deployment_id = response.deployment_id;
     let url = response.deployment_url;
     info!("Deploying new application with App Id: {app_id}, Deployment Id: {deployment_id}");
-    info!("Follow the deployment progress at {url}");
-
+    CloudAppContext::save_app_id(app_id.clone())?;
     if follow {
         print_progress(client, app_id, deployment_id).await?;
+    } else {
+        info!("Follow the deployment progress at {url}");
     }
 
     Ok::<(), CloudError>(())
@@ -63,12 +64,11 @@ async fn print_progress(
         if response.status == DeploymentStatus::Success as i32 {
             info!("Deployment completed successfully");
             info!("You can get API requests samples with `dozer cloud api-request-samples`");
-
-            CloudAppContext::save_app_id(app_id)?;
-
             break;
         } else if response.status == DeploymentStatus::Failed as i32 {
             warn!("Deployment failed!");
+            info!("Cleaning up...");
+            CloudAppContext::delete_config_file()?;
             break;
         } else {
             let steps = response.steps.clone();

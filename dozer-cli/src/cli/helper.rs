@@ -38,15 +38,18 @@ pub async fn init_config(
     Ok(config)
 }
 
+pub fn get_base_dir() -> Result<Utf8PathBuf, CliError> {
+    let base_directory = std::env::current_dir().map_err(CliError::Io)?;
+
+    Utf8PathBuf::try_from(base_directory).map_err(|e| CliError::Io(e.into_io_error()))
+}
+
 pub fn init_dozer(
     runtime: Arc<Runtime>,
     config: Config,
     labels: LabelsAndProgress,
 ) -> Result<Dozer, CliError> {
-    let base_directory = std::env::current_dir().map_err(CliError::Io)?;
-    let base_directory =
-        Utf8PathBuf::try_from(base_directory).map_err(|e| CliError::Io(e.into_io_error()))?;
-
+    let base_directory = get_base_dir()?;
     Ok(Dozer::new(base_directory, config, runtime, labels))
 }
 
