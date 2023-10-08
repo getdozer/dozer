@@ -57,6 +57,11 @@ pub struct LiveState {
     sender: RwLock<Option<tokio::sync::broadcast::Sender<ConnectResponse>>>,
 }
 
+impl Default for LiveState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl LiveState {
     pub fn new() -> Self {
         Self {
