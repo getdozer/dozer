@@ -311,7 +311,7 @@ fn get_contract(dozer_and_contract: &Option<DozerAndContract>) -> Result<&Contra
         .ok_or(LiveError::NotInitialized)
 }
 
-async fn create_contract(dozer: SimpleOrchestrator) -> Result<Contract, OrchestrationError> {
+pub async fn create_contract(dozer: SimpleOrchestrator) -> Result<Contract, OrchestrationError> {
     let dag = create_dag(&dozer).await?;
     let version = dozer.config.version;
     let schemas = DagSchemas::new(dag)?;
@@ -327,7 +327,7 @@ async fn create_contract(dozer: SimpleOrchestrator) -> Result<Contract, Orchestr
     Ok(contract)
 }
 
-async fn create_dag(dozer: &SimpleOrchestrator) -> Result<Dag, OrchestrationError> {
+pub async fn create_dag(dozer: &SimpleOrchestrator) -> Result<Dag, OrchestrationError> {
     let endpoint_and_logs = dozer
         .config
         .endpoints

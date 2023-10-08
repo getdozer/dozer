@@ -31,6 +31,7 @@ service DozerCloud {
   rpc delete_version(DeleteVersionRequest) returns (DeleteVersionResponse);
   rpc list_files(ListFilesRequest) returns (ListFilesResponse);
   rpc get_configuration(GetConfigurationRequest) returns (GetConfigurationResponse);
+  rpc get_all_schemas(GetAllSchemasRequest)  returns (GetAllSchemasResponse);
 
   // returns a list of all the steps for a deployment
   rpc get_deployment_status(GetDeploymentStatusRequest) returns (GetDeploymentStatusResponse);
@@ -119,6 +120,15 @@ message ListAppRequest {
 message ListAppResponse {
   repeated AppResponse apps = 1;
   Pagination pagination = 2;
+}
+
+message GetAllSchemasRequest {
+  string yaml = 1;
+}
+
+message GetAllSchemasResponse {
+  map<string, dozer.types.SchemasResponse> connections = 1;
+  dozer.types.SchemasResponse endpoints = 2; 
 }
 
 message UpdateAppRequest {
