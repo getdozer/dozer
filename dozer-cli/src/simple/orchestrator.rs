@@ -211,7 +211,7 @@ impl SimpleOrchestrator {
     }
 
     pub fn lockfile_path(&self) -> Utf8PathBuf {
-        self.base_directory.join(LOCK_FILE)
+        lockfile_path(self.base_directory.clone())
     }
 
     pub fn run_apps(
@@ -468,4 +468,8 @@ pub fn validate_sql(sql: String) -> Result<(), PipelineError> {
             Ok(())
         },
     )
+}
+
+pub fn lockfile_path(base_directory: Utf8PathBuf) -> Utf8PathBuf {
+    base_directory.join(LOCK_FILE)
 }

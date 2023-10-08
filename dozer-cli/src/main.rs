@@ -183,14 +183,19 @@ fn run() -> Result<(), OrchestrationError> {
                 }
             }
         };
-
-        return match res {
-            Ok(_) => Ok(()),
-            Err(e) => {
-                println!("{}", e);
-                Err(e)
-            }
-        };
+        return dozer_tracing::init_telemetry_closure(
+            None,
+            &Default::default(),
+            || -> Result<(), OrchestrationError> {
+                match res {
+                    Ok(_) => Ok(()),
+                    Err(e) => {
+                        error!("{}", e);
+                        Err(e)
+                    }
+                }
+            },
+        );
     }
 
     let config = init_configuration(&cli, runtime.clone())?;

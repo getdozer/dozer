@@ -1,7 +1,7 @@
 use crate::cli::cloud::{
     Cloud, DeployCommandArgs, ListCommandArgs, LogCommandArgs, SecretsCommand, VersionCommand,
 };
-use crate::cli::init_dozer;
+use crate::cli::{get_base_dir, init_dozer};
 use crate::cloud::cloud_app_context::CloudAppContext;
 use crate::cloud::cloud_helper::list_files;
 
@@ -15,6 +15,7 @@ use crate::errors::OrchestrationError::FailedToReadOrganisationName;
 use crate::errors::{
     map_tonic_error, CliError, CloudError, CloudLoginError, ConfigCombineError, OrchestrationError,
 };
+use crate::simple::orchestrator::lockfile_path;
 use dozer_types::constants::{DEFAULT_CLOUD_TARGET_URL, LOCK_FILE};
 use dozer_types::grpc_types::api_explorer::api_explorer_service_client::ApiExplorerServiceClient;
 use dozer_types::grpc_types::api_explorer::GetApiTokenRequest;
@@ -102,12 +103,8 @@ impl DozerGrpcCloudClient for CloudClient {
             .clone()
             .or(CloudAppContext::get_app_id(&self.config.cloud).ok());
 
-        let dozer = init_dozer(
-            self.runtime.clone(),
-            self.config.clone(),
-            Default::default(),
-        )?;
-        let lockfile_path = dozer.lockfile_path();
+        let base_dir = get_base_dir()?;
+        let lockfile_path = lockfile_path(base_dir);
         self.runtime.clone().block_on(async move {
             let mut client = get_grpc_cloud_client(&cloud, &self.config.cloud).await?;
             let mut files = list_files(config_paths)?;
