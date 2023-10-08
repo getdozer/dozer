@@ -1,7 +1,7 @@
 use crate::cli::cloud::{
     Cloud, DeployCommandArgs, ListCommandArgs, LogCommandArgs, SecretsCommand, VersionCommand,
 };
-use crate::cli::{get_base_dir, init_dozer};
+use crate::cli::get_base_dir;
 use crate::cloud::cloud_app_context::CloudAppContext;
 use crate::cloud::cloud_helper::list_files;
 
@@ -13,7 +13,7 @@ use crate::cloud::DozerGrpcCloudClient;
 use crate::console_helper::{get_colored_text, PURPLE};
 use crate::errors::OrchestrationError::FailedToReadOrganisationName;
 use crate::errors::{
-    map_tonic_error, CliError, CloudError, CloudLoginError, ConfigCombineError, OrchestrationError,
+    map_tonic_error, CliError, CloudContextError, CloudError, CloudLoginError, OrchestrationError,
 };
 use crate::simple::orchestrator::lockfile_path;
 use dozer_types::constants::{DEFAULT_CLOUD_TARGET_URL, LOCK_FILE};
@@ -34,17 +34,16 @@ use dozer_types::prettytable::{row, table};
 use futures::{select, FutureExt, StreamExt};
 use std::io;
 use std::sync::Arc;
-use tokio::runtime::Runtime;
 use tonic::transport::Endpoint;
 use tower::ServiceBuilder;
 
 use super::login::LoginSvc;
 async fn establish_cloud_service_channel(
     cloud: &Cloud,
-    cloud_config: &dozer_types::models::cloud::Cloud,
+    cloud_config: Option<dozer_types::models::cloud::Cloud>,
 ) -> Result<TokenLayer, CloudError> {
-    let profile_name = match &cloud.profile {
-        None => cloud_config.profile.clone(),
+    let profile_name = match cloud.profile.as_ref() {
+        None => cloud_config.as_ref().and_then(|f| f.profile.clone()),
         Some(_) => cloud.profile.clone(),
     };
     let credential = CredentialInfo::load(profile_name)?;
@@ -64,7 +63,7 @@ async fn establish_cloud_service_channel(
 
 pub async fn get_grpc_cloud_client(
     cloud: &Cloud,
-    cloud_config: &dozer_types::models::cloud::Cloud,
+    cloud_config: Option<dozer_types::models::cloud::Cloud>,
 ) -> Result<DozerCloudClient<TokenLayer>, CloudError> {
     let client = DozerCloudClient::new(establish_cloud_service_channel(cloud, cloud_config).await?);
     Ok(client)
@@ -72,7 +71,7 @@ pub async fn get_grpc_cloud_client(
 
 pub async fn get_explorer_client(
     cloud: &Cloud,
-    cloud_config: &dozer_types::models::cloud::Cloud,
+    cloud_config: Option<dozer_types::models::cloud::Cloud>,
 ) -> Result<ApiExplorerServiceClient<TokenLayer>, CloudError> {
     let client =
         ApiExplorerServiceClient::new(establish_cloud_service_channel(cloud, cloud_config).await?);
@@ -80,13 +79,31 @@ pub async fn get_explorer_client(
 }
 
 pub struct CloudClient {
-    config: Config,
+    config: Option<Config>,
     runtime: Arc<tokio::runtime::Runtime>,
 }
 
 impl CloudClient {
-    pub fn new(config: Config, runtime: Arc<tokio::runtime::Runtime>) -> Self {
+    pub fn new(config: Option<Config>, runtime: Arc<tokio::runtime::Runtime>) -> Self {
         Self { config, runtime }
+    }
+
+    pub fn get_app_id(&self) -> Option<(String, bool)> {
+        // Get app_id from command line argument if there, otherwise take it from the cloud config file
+        // if the app_id is from the cloud config file then set `from_cloud_file` to true and use it later
+        // to perform cleanup in case of delete and other operations
+
+        self.config.as_ref().and_then(|config| {
+            config.cloud.app_id.clone().map(|app_id| (app_id, true)).or(
+                CloudAppContext::get_app_id(&config.cloud)
+                    .ok()
+                    .map(|app_id| (app_id, false)),
+            )
+        })
+    }
+
+    fn get_cloud_config(&self) -> Option<dozer_types::models::cloud::Cloud> {
+        self.config.as_ref().map(|config| config.cloud.clone())
     }
 }
 
@@ -98,15 +115,12 @@ impl DozerGrpcCloudClient for CloudClient {
         deploy: DeployCommandArgs,
         config_paths: Vec<String>,
     ) -> Result<(), OrchestrationError> {
-        let app_id = cloud
-            .app_id
-            .clone()
-            .or(CloudAppContext::get_app_id(&self.config.cloud).ok());
+        let app_id = self.get_app_id().map(|a| a.0);
 
         let base_dir = get_base_dir()?;
         let lockfile_path = lockfile_path(base_dir);
         self.runtime.clone().block_on(async move {
-            let mut client = get_grpc_cloud_client(&cloud, &self.config.cloud).await?;
+            let mut client = get_grpc_cloud_client(&cloud, self.get_cloud_config()).await?;
             let mut files = list_files(config_paths)?;
             if deploy.locked {
                 let lockfile_contents = tokio::fs::read_to_string(lockfile_path)
@@ -140,22 +154,37 @@ impl DozerGrpcCloudClient for CloudClient {
         })?;
         Ok(())
     }
+    fn create(
+        &mut self,
+        cloud: Cloud,
+        config_paths: Vec<String>,
+    ) -> Result<(), OrchestrationError> {
+        let cloud_config = self.get_cloud_config();
+        let app_id = self.get_app_id().map(|a| a.0);
+
+        if let Some(app_id) = app_id {
+            return Err(CloudContextError::AppIdAlreadyExists(app_id).into());
+        };
+
+        self.runtime.block_on(async move {
+            let mut client = get_grpc_cloud_client(&cloud, cloud_config).await?;
+            let files = list_files(config_paths)?;
+            let response = client
+                .create_application(CreateAppRequest { files })
+                .await
+                .map_err(map_tonic_error)?
+                .into_inner();
+
+            CloudAppContext::save_app_id(response.app_id.clone())?;
+            info!("Application created with id {}", response.app_id);
+            Ok::<(), OrchestrationError>(())
+        })
+    }
 
     fn delete(&mut self, cloud: Cloud) -> Result<(), OrchestrationError> {
-        // Get app_id from command line argument if there, otherwise take it from the cloud config file
-        // if the app_id is from the cloud config file then set `delete_cloud_file` to true and use it later
-        // to delete the file after deleting the app
-
-        let (app_id, delete_cloud_file) = if let Some(app_id) = cloud.app_id.clone() {
-            // if the app_id on command line is equal to the one in the cloud config file then file can be deleted
-            if app_id == CloudAppContext::get_app_id(&self.config.cloud)? {
-                (app_id, true)
-            } else {
-                (app_id, false)
-            }
-        } else {
-            (CloudAppContext::get_app_id(&self.config.cloud)?, true)
-        };
+        let (app_id, delete_cloud_file) = self
+            .get_app_id()
+            .ok_or_else(|| CloudContextError::AppIdNotFound)?;
 
         let mut double_check = String::new();
         println!("Are you sure to delete the application {}? (y/N)", app_id);
@@ -171,7 +200,7 @@ impl DozerGrpcCloudClient for CloudClient {
             return Ok(());
         }
 
-        let cloud_config = &self.config.cloud;
+        let cloud_config = self.get_cloud_config();
         self.runtime.block_on(async move {
             let mut client = get_grpc_cloud_client(&cloud, cloud_config).await?;
 
@@ -198,7 +227,7 @@ impl DozerGrpcCloudClient for CloudClient {
     }
 
     fn list(&mut self, cloud: Cloud, list: ListCommandArgs) -> Result<(), OrchestrationError> {
-        let cloud_config = &self.config.cloud;
+        let cloud_config = self.get_cloud_config();
         self.runtime.block_on(async move {
             let mut client = get_grpc_cloud_client(&cloud, cloud_config).await?;
             let response = client
@@ -236,11 +265,11 @@ impl DozerGrpcCloudClient for CloudClient {
     }
 
     fn status(&mut self, cloud: Cloud) -> Result<(), OrchestrationError> {
-        let app_id = cloud
-            .app_id
-            .clone()
-            .unwrap_or(CloudAppContext::get_app_id(&self.config.cloud)?);
-        let cloud_config = &self.config.cloud;
+        let app_id = self
+            .get_app_id()
+            .map(|a| a.0)
+            .ok_or_else(|| CloudContextError::AppIdNotFound)?;
+        let cloud_config = self.get_cloud_config();
         self.runtime.block_on(async move {
             let mut client = get_grpc_cloud_client(&cloud, cloud_config).await?;
             let response = client
@@ -286,16 +315,21 @@ impl DozerGrpcCloudClient for CloudClient {
     }
 
     fn monitor(&mut self, cloud: Cloud) -> Result<(), OrchestrationError> {
-        monitor_app(&cloud, &self.config.cloud, self.runtime.clone())
+        let cloud_config = self.get_cloud_config();
+        let app_id = self
+            .get_app_id()
+            .map(|a| a.0)
+            .ok_or_else(|| CloudContextError::AppIdNotFound)?;
+        monitor_app(&cloud, app_id, cloud_config, self.runtime.clone())
             .map_err(crate::errors::OrchestrationError::CloudError)
     }
 
     fn trace_logs(&mut self, cloud: Cloud, logs: LogCommandArgs) -> Result<(), OrchestrationError> {
-        let app_id = cloud
-            .app_id
-            .clone()
-            .unwrap_or(CloudAppContext::get_app_id(&self.config.cloud)?);
-        let cloud_config = &self.config.cloud;
+        let cloud_config = self.get_cloud_config();
+        let app_id = self
+            .get_app_id()
+            .map(|a| a.0)
+            .ok_or_else(|| CloudContextError::AppIdNotFound)?;
         self.runtime.block_on(async move {
             let mut client = get_grpc_cloud_client(&cloud, cloud_config).await?;
 
@@ -352,7 +386,7 @@ impl DozerGrpcCloudClient for CloudClient {
     }
 
     fn login(
-        runtime: Arc<Runtime>,
+        &self,
         cloud: Cloud,
         organisation_slug: Option<String>,
         profile: Option<String>,
@@ -374,7 +408,7 @@ impl DozerGrpcCloudClient for CloudClient {
             Some(name) => name,
         };
 
-        runtime.block_on(async move {
+        self.runtime.block_on(async move {
             let login_svc = LoginSvc::new(
                 organisation_slug,
                 cloud
@@ -393,41 +427,14 @@ impl DozerGrpcCloudClient for CloudClient {
         cloud: Cloud,
         command: SecretsCommand,
     ) -> Result<(), OrchestrationError> {
-        let app_id_result = cloud
-            .app_id
-            .clone()
-            .map_or(CloudAppContext::get_app_id(&self.config.cloud), Ok);
-
-        let config = self.config.clone();
-        let cloud_config = &self.config.cloud;
+        let cloud_config = self.get_cloud_config();
+        let app_id = self
+            .get_app_id()
+            .map(|a| a.0)
+            .ok_or_else(|| CloudContextError::AppIdNotFound)?;
 
         self.runtime.block_on(async move {
             let mut client = get_grpc_cloud_client(&cloud, cloud_config).await?;
-
-            let app_id = match app_id_result {
-                Ok(id) => Ok(id),
-                Err(_e) if matches!(command, SecretsCommand::Create { .. }) => {
-                    let config_content =
-                        dozer_types::serde_yaml::to_string(&config).map_err(|e| {
-                            CloudError::ConfigCombineError(ConfigCombineError::ParseConfig(e))
-                        })?;
-
-                    let response = client
-                        .create_application(CreateAppRequest {
-                            files: vec![File {
-                                name: "dozer.yaml".to_string(),
-                                content: config_content,
-                            }],
-                        })
-                        .await
-                        .map_err(map_tonic_error)?
-                        .into_inner();
-
-                    CloudAppContext::save_app_id(response.app_id.clone())?;
-                    Ok(response.app_id)
-                }
-                Err(e) => Err(e),
-            }?;
 
             match command {
                 SecretsCommand::Create { name, value } => {
@@ -501,12 +508,12 @@ impl CloudClient {
         cloud: Cloud,
         version: VersionCommand,
     ) -> Result<(), OrchestrationError> {
-        let app_id = cloud
-            .app_id
-            .clone()
-            .unwrap_or(CloudAppContext::get_app_id(&self.config.cloud)?);
+        let cloud_config = self.get_cloud_config();
+        let app_id = self
+            .get_app_id()
+            .map(|a| a.0)
+            .ok_or_else(|| CloudContextError::AppIdNotFound)?;
 
-        let cloud_config = &self.config.cloud;
         self.runtime.block_on(async move {
             let mut client = get_grpc_cloud_client(&cloud, cloud_config).await?;
 
@@ -545,13 +552,13 @@ impl CloudClient {
         cloud: Cloud,
         endpoint: Option<String>,
     ) -> Result<(), OrchestrationError> {
-        let app_id = cloud
-            .app_id
-            .clone()
-            .unwrap_or(CloudAppContext::get_app_id(&self.config.cloud)?);
-        let cloud_config = &self.config.cloud;
+        let cloud_config = self.get_cloud_config();
+        let app_id = self
+            .get_app_id()
+            .map(|a| a.0)
+            .ok_or_else(|| CloudContextError::AppIdNotFound)?;
         self.runtime.block_on(async move {
-            let mut client = get_grpc_cloud_client(&cloud, cloud_config).await?;
+            let mut client = get_grpc_cloud_client(&cloud, cloud_config.clone()).await?;
             let mut explorer_client = get_explorer_client(&cloud, cloud_config).await?;
 
             let response = client

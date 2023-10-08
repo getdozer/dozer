@@ -108,7 +108,7 @@ async fn check_update() {
                 // We dont show error if error is connection error, because mostly it happens
                 // when main thread is shutting down before request completes.
                 if !e.is_connect() {
-                    warn!("Unable to fetch the latest metadata");
+                    warn!("Unable to     fetch the latest metadata");
                 }
 
                 debug!("Updates check error: {}", e);
@@ -136,53 +136,42 @@ fn run() -> Result<(), OrchestrationError> {
     if let Commands::Cloud(cloud) = &cli.cmd {
         render_logo();
         let cloud = cloud.clone();
-        let res = if let CloudCommands::Login {
-            organisation_slug,
-            profile_name,
-            client_id,
-            client_secret,
-        } = cloud.command.clone()
-        {
-            CloudClient::login(
-                runtime.clone(),
+
+        let config = init_configuration(&cli, runtime.clone()).ok();
+        let mut cloud_client = CloudClient::new(config.clone(), runtime.clone());
+        let res = match cloud.command.clone() {
+            CloudCommands::Deploy(deploy) => {
+                cloud_client.deploy(cloud, deploy, cli.config_paths.clone())
+            }
+            CloudCommands::Login {
+                organisation_slug,
+                profile_name,
+                client_id,
+                client_secret,
+            } => cloud_client.login(
                 cloud,
                 organisation_slug,
                 profile_name,
                 client_id,
                 client_secret,
-            )
-        } else {
-            let config = init_configuration(&cli, runtime.clone())?;
-            let mut cloud_client = CloudClient::new(config.clone(), runtime.clone());
-            match cloud.command.clone() {
-                CloudCommands::Deploy(deploy) => {
-                    cloud_client.deploy(cloud, deploy, cli.config_paths.clone())
-                }
-                CloudCommands::Login {
-                    organisation_slug: _,
-                    profile_name: _,
-                    client_id: _,
-                    client_secret: _,
-                } => unreachable!("This is handled earlier"),
-                CloudCommands::Secrets(command) => {
-                    cloud_client.execute_secrets_command(cloud, command)
-                }
-                CloudCommands::Delete => cloud_client.delete(cloud),
-                CloudCommands::Status => cloud_client.status(cloud),
-                CloudCommands::Monitor => cloud_client.monitor(cloud),
-                CloudCommands::Logs(logs) => cloud_client.trace_logs(cloud, logs),
-                CloudCommands::Version(version) => cloud_client.version(cloud, version),
-                CloudCommands::List(list) => cloud_client.list(cloud, list),
-                CloudCommands::SetApp { app_id } => {
-                    CloudAppContext::save_app_id(app_id.clone())?;
-                    info!("Using \"{app_id}\" app");
-                    Ok(())
-                }
-                CloudCommands::ApiRequestSamples { endpoint } => {
-                    cloud_client.print_api_request_samples(cloud, endpoint)
-                }
+            ),
+            CloudCommands::Secrets(command) => cloud_client.execute_secrets_command(cloud, command),
+            CloudCommands::Delete => cloud_client.delete(cloud),
+            CloudCommands::Status => cloud_client.status(cloud),
+            CloudCommands::Monitor => cloud_client.monitor(cloud),
+            CloudCommands::Logs(logs) => cloud_client.trace_logs(cloud, logs),
+            CloudCommands::Version(version) => cloud_client.version(cloud, version),
+            CloudCommands::List(list) => cloud_client.list(cloud, list),
+            CloudCommands::SetApp { app_id } => {
+                CloudAppContext::save_app_id(app_id.clone())?;
+                info!("Using \"{app_id}\" app");
+                Ok(())
+            }
+            CloudCommands::ApiRequestSamples { endpoint } => {
+                cloud_client.print_api_request_samples(cloud, endpoint)
             }
         };
+
         return dozer_tracing::init_telemetry_closure(
             None,
             &Default::default(),
@@ -326,10 +315,7 @@ fn init_configuration(cli: &Cli, runtime: Arc<Runtime>) -> Result<Config, CliErr
                     runtime.spawn(check_update());
                     Ok(config)
                 }
-                Err(e) => {
-                    error!("{}", e);
-                    Err(e)
-                }
+                Err(e) => Err(e),
             }
         },
     )

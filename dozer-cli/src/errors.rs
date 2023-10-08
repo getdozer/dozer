@@ -283,4 +283,7 @@ pub enum CloudContextError {
 
     #[error("App id not found in configuration. You need to run \"deploy\" or \"set-app\" first")]
     AppIdNotFound,
+
+    #[error("App id already exists. If you want to create a new app, please remove your cloud configuration")]
+    AppIdAlreadyExists(String),
 }
