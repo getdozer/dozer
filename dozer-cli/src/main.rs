@@ -148,7 +148,7 @@ fn run() -> Result<(), OrchestrationError> {
         config_res
             .as_ref()
             .map(|c| c.telemetry.clone())
-            .unwrap_or(TelemetryConfig::default())
+            .unwrap_or_default()
     };
 
     let _telemetry = runtime.block_on(async { Telemetry::new(app_id, &telemetry_config) });
@@ -230,6 +230,7 @@ fn run() -> Result<(), OrchestrationError> {
     })
 }
 
+#[cfg(feature = "cloud")]
 fn run_cloud(
     cloud: &dozer_cli::cli::cloud::Cloud,
     runtime: Arc<Runtime>,
