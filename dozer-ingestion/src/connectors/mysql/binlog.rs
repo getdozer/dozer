@@ -8,12 +8,12 @@ use crate::{
     errors::{ConnectorError, MySQLConnectorError},
     ingestion::Ingestor,
 };
+use dozer_types::{json_types::JsonValue, types::Field};
 use dozer_types::{
-    ingestion_types::IngestionMessage,
     log::trace,
+    models::ingestion_types::IngestionMessage,
     types::{FieldType, Operation, Record},
 };
-use dozer_types::{json_types::JsonValue, types::Field};
 use futures::StreamExt;
 use mysql_async::{binlog::EventFlags, BinlogStream, Pool};
 use mysql_common::{

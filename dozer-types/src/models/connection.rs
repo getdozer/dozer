@@ -1,4 +1,4 @@
-use crate::ingestion_types::{
+use crate::models::ingestion_types::{
     DeltaLakeConfig, EthConfig, GrpcConfig, KafkaConfig, LocalStorage, MongodbConfig, MySQLConfig,
     NestedDozerConfig, S3Storage, SnowflakeConfig,
 };

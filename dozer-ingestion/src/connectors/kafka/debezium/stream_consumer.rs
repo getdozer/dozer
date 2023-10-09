@@ -7,7 +7,7 @@ use crate::connectors::kafka::stream_consumer_helper::{
 use crate::errors::KafkaError::{BytesConvertError, JsonDecodeError};
 use crate::errors::{ConnectorError, KafkaError, KafkaStreamError};
 use crate::ingestion::Ingestor;
-use dozer_types::ingestion_types::IngestionMessage;
+use dozer_types::models::ingestion_types::IngestionMessage;
 
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::serde_json;

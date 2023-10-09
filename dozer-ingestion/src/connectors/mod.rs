@@ -24,10 +24,10 @@ use crate::connectors::postgres::connector::{PostgresConfig, PostgresConnector};
 use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
 
-use dozer_types::ingestion_types::default_grpc_adapter;
 use dozer_types::log::debug;
 use dozer_types::models::connection::Connection;
 use dozer_types::models::connection::ConnectionConfig;
+use dozer_types::models::ingestion_types::{default_grpc_adapter, EthProviderConfig};
 use dozer_types::node::OpIdentifier;
 use dozer_types::tonic::async_trait;
 
@@ -215,12 +215,13 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
         }
         #[cfg(feature = "ethereum")]
         ConnectionConfig::Ethereum(eth_config) => match eth_config.provider {
-            dozer_types::ingestion_types::EthProviderConfig::Log(log_config) => {
+            EthProviderConfig::Log(log_config) => {
                 Ok(Box::new(EthLogConnector::new(log_config, connection.name)))
             }
-            dozer_types::ingestion_types::EthProviderConfig::Trace(trace_config) => Ok(Box::new(
-                EthTraceConnector::new(trace_config, connection.name),
-            )),
+            EthProviderConfig::Trace(trace_config) => Ok(Box::new(EthTraceConnector::new(
+                trace_config,
+                connection.name,
+            ))),
         },
         #[cfg(not(feature = "ethereum"))]
         ConnectionConfig::Ethereum(_) => Err(ConnectorError::EthereumFeatureNotEnabled),

@@ -1,15 +1,15 @@
 use std::collections::HashMap;
 
-use dozer_types::tonic::async_trait;
 use dozer_types::{
     arrow::datatypes::Schema as ArrowSchema,
     arrow::{self, ipc::reader::StreamReader},
     arrow_types::{self, from_arrow::map_record_batch_to_dozer_records},
     bytes::{Buf, Bytes},
     grpc_types::ingest::IngestArrowRequest,
-    ingestion_types::IngestionMessage,
+    models::ingestion_types::IngestionMessage,
     serde::{Deserialize, Serialize},
     serde_json,
+    tonic::async_trait,
     types::{Operation, Record, Schema},
 };
 

@@ -21,7 +21,7 @@ use crossbeam::channel::{Receiver, Sender};
 use dozer_sql::builder::statement_to_pipeline;
 
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::ingestion_types::IngestionMessage;
+use dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_types::types::{Operation, Record, Schema, SourceDefinition};
 use std::collections::HashMap;
 use tempdir::TempDir;

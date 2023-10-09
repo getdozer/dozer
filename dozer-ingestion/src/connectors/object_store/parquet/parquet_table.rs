@@ -10,11 +10,11 @@ use deltalake::{
     Path as DeltaPath,
 };
 
-use dozer_types::ingestion_types::IngestionMessage;
+use dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_types::tonic::async_trait;
 use dozer_types::{
     chrono::{DateTime, Utc},
-    ingestion_types::ParquetConfig,
+    models::ingestion_types::ParquetConfig,
     tracing::info,
 };
 use futures::StreamExt;

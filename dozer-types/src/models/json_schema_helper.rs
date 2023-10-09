@@ -1,7 +1,7 @@
 use schemars::{schema::RootSchema, schema_for};
 use serde::{Deserialize, Serialize};
 
-use crate::ingestion_types;
+use crate::models::ingestion_types;
 
 use super::{config::Config, connection::PostgresConfig};
 

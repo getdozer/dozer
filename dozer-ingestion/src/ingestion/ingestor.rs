@@ -1,4 +1,4 @@
-use dozer_types::ingestion_types::IngestionMessage;
+use dozer_types::models::ingestion_types::IngestionMessage;
 use std::time::Duration;
 use tokio::{
     sync::mpsc::{channel, error::SendError, Receiver, Sender},
@@ -61,7 +61,7 @@ impl Ingestor {
 #[cfg(test)]
 mod tests {
     use super::Ingestor;
-    use dozer_types::ingestion_types::IngestionMessage;
+    use dozer_types::models::ingestion_types::IngestionMessage;
     use dozer_types::types::{Operation, Record};
 
     #[tokio::test]

@@ -10,6 +10,8 @@ use crate::{
     types::Operation,
 };
 
+use super::equal_default;
+
 #[derive(Clone, Debug, PartialEq)]
 /// All possible kinds of `IngestionMessage`.
 pub enum IngestionMessage {
@@ -36,10 +38,10 @@ pub struct EthFilter {
 
     pub to_block: Option<u64>,
 
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub addresses: Vec<String>,
 
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub topics: Vec<String>,
 }
 
@@ -75,7 +77,7 @@ pub enum GrpcConfigSchemas {
     Path(String),
 }
 
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema, Default)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
 pub struct EthConfig {
     pub provider: EthProviderConfig,
 }
@@ -86,23 +88,18 @@ pub enum EthProviderConfig {
 
     Trace(EthTraceConfig),
 }
-impl Default for EthProviderConfig {
-    fn default() -> Self {
-        EthProviderConfig::Log(EthLogConfig::default())
-    }
-}
 
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema, Default)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
 pub struct EthLogConfig {
     pub wss_url: String,
 
     pub filter: Option<EthFilter>,
 
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub contracts: Vec<EthContract>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema, Default)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
 pub struct EthTraceConfig {
     pub https_url: String,
     // Starting block
@@ -250,21 +247,9 @@ impl DataFusionConfig {
     }
 }
 
-// #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone,  Hash, JsonSchema)]
-// pub struct Table {
-//
-//     pub name: String,
-//
-//     pub prefix: String,
-//
-//     pub file_type: String,
-//
-//     pub extension: String,
-// }
-
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
 pub struct Table {
-    pub config: Option<TableConfig>,
+    pub config: TableConfig,
 
     pub name: String,
 }
@@ -383,7 +368,7 @@ pub struct MySQLConfig {
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
 pub struct NestedDozerConfig {
     pub url: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "equal_default")]
     pub log_options: NestedDozerLogOptions,
 }
 

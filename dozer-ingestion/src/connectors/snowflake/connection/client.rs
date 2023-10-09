@@ -1,5 +1,5 @@
-use dozer_types::ingestion_types::SnowflakeConfig;
 use dozer_types::log::debug;
+use dozer_types::models::ingestion_types::SnowflakeConfig;
 
 use crate::errors::{ConnectorError, SnowflakeError, SnowflakeSchemaError};
 

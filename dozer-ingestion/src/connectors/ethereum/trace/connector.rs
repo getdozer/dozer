@@ -5,8 +5,8 @@ use crate::connectors::{
     TableToIngest,
 };
 use crate::{connectors::TableInfo, errors::ConnectorError, ingestion::Ingestor};
-use dozer_types::ingestion_types::{default_batch_size, EthTraceConfig, IngestionMessage};
 use dozer_types::log::{error, info, warn};
+use dozer_types::models::ingestion_types::{default_batch_size, EthTraceConfig, IngestionMessage};
 
 use dozer_types::tonic::async_trait;
 

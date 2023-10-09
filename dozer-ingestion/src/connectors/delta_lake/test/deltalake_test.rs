@@ -1,8 +1,8 @@
 use crate::connectors::delta_lake::DeltaLakeConnector;
 use crate::connectors::Connector;
 use crate::test_util::create_runtime_and_spawn_connector_all_tables;
-use dozer_types::ingestion_types::IngestionMessage;
-use dozer_types::ingestion_types::{DeltaLakeConfig, DeltaTable};
+use dozer_types::models::ingestion_types::IngestionMessage;
+use dozer_types::models::ingestion_types::{DeltaLakeConfig, DeltaTable};
 use dozer_types::types::SourceDefinition::Dynamic;
 use dozer_types::types::{Field, FieldType, Operation};
 

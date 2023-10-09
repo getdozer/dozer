@@ -15,7 +15,7 @@ use dozer_log::storage::{Object, Queue};
 use dozer_log::tokio;
 use dozer_recordstore::{ProcessorRecordStore, ProcessorRecordStoreDeserializer};
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::ingestion_types::IngestionMessage;
+use dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_types::node::{NodeHandle, OpIdentifier};
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,

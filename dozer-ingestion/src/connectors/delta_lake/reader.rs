@@ -4,7 +4,7 @@ use crate::errors::ConnectorError;
 use crate::ingestion::Ingestor;
 use deltalake::datafusion::prelude::SessionContext;
 use dozer_types::arrow_types::from_arrow::{map_schema_to_dozer, map_value_to_dozer_field};
-use dozer_types::ingestion_types::{DeltaLakeConfig, IngestionMessage};
+use dozer_types::models::ingestion_types::{DeltaLakeConfig, IngestionMessage};
 use dozer_types::types::{Operation, Record};
 use futures::StreamExt;
 use std::sync::Arc;

@@ -6,7 +6,7 @@ use crate::{connectors::SourceSchema, errors::ConnectorError};
 use super::{GrpcIngestMessage, IngestAdapter};
 use dozer_types::{
     chrono,
-    ingestion_types::IngestionMessage,
+    models::ingestion_types::IngestionMessage,
     ordered_float::OrderedFloat,
     types::{Field, Operation, Record, Schema},
 };

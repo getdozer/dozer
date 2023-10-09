@@ -10,8 +10,8 @@ use crate::{
 };
 
 use dozer_types::{
-    ingestion_types::{EthContract, EthFilter, EthLogConfig, IngestionMessage},
     log::info,
+    models::ingestion_types::{EthContract, EthFilter, EthLogConfig, IngestionMessage},
     types::Operation,
 };
 

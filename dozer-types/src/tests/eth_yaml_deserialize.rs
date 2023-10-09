@@ -1,6 +1,6 @@
-use crate::{
-    ingestion_types::{EthConfig, EthFilter, EthLogConfig},
-    models::connection::ConnectionConfig,
+use crate::models::{
+    connection::ConnectionConfig,
+    ingestion_types::{EthConfig, EthFilter, EthLogConfig, EthProviderConfig},
 };
 #[test]
 fn standard() {
@@ -22,7 +22,7 @@ fn standard() {
         topics: vec![],
     };
     let expected_eth_config = EthConfig {
-        provider: crate::ingestion_types::EthProviderConfig::Log(EthLogConfig {
+        provider: EthProviderConfig::Log(EthLogConfig {
             filter: Some(expected_eth_filter),
             wss_url: "wss://link".to_owned(),
             contracts: vec![],
@@ -49,7 +49,7 @@ fn config_without_empty_array() {
         topics: vec![],
     };
     let expected_eth_config = EthConfig {
-        provider: crate::ingestion_types::EthProviderConfig::Log(EthLogConfig {
+        provider: EthProviderConfig::Log(EthLogConfig {
             wss_url: "wss://link".to_owned(),
             filter: Some(expected_eth_filter),
             contracts: vec![],

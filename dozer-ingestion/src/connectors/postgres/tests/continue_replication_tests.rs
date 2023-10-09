@@ -10,7 +10,7 @@ mod tests {
     use crate::test_util::run_connector_test;
     // use crate::connectors::Connector;
     // use crate::ingestion::IngestionConfig;
-    // use dozer_types::ingestion_types::IngestionMessage;
+    // use dozer_types::models::ingestion_types::IngestionMessage;
     // use dozer_types::node::OpIdentifier;
     use rand::Rng;
     use serial_test::serial;

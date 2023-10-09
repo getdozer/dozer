@@ -2,7 +2,7 @@ use crate::channels::SourceChannelForwarder;
 use crate::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory, SourceState};
 use crate::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::ingestion_types::IngestionMessage;
+use dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_types::node::OpIdentifier;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,

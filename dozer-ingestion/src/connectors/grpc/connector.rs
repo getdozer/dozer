@@ -8,8 +8,10 @@ use crate::connectors::{
 };
 use crate::{connectors::TableInfo, errors::ConnectorError, ingestion::Ingestor};
 use dozer_types::grpc_types::ingest::ingest_service_server::IngestServiceServer;
-use dozer_types::ingestion_types::{default_ingest_host, default_ingest_port, GrpcConfig};
 use dozer_types::log::{info, warn};
+use dozer_types::models::ingestion_types::{
+    default_ingest_host, default_ingest_port, GrpcConfig, GrpcConfigSchemas,
+};
 use dozer_types::tonic::async_trait;
 use dozer_types::tonic::transport::Server;
 use dozer_types::tracing::Level;
@@ -43,10 +45,8 @@ where
     {
         let schemas = &config.schemas;
         let schemas_str = match schemas {
-            dozer_types::ingestion_types::GrpcConfigSchemas::Inline(schemas_str) => {
-                schemas_str.clone()
-            }
-            dozer_types::ingestion_types::GrpcConfigSchemas::Path(path) => {
+            GrpcConfigSchemas::Inline(schemas_str) => schemas_str.clone(),
+            GrpcConfigSchemas::Path(path) => {
                 let path = Path::new(path);
                 std::fs::read_to_string(path)
                     .map_err(|e| ConnectorError::InitializationError(e.to_string()))?

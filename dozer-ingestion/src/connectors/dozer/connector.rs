@@ -10,16 +10,13 @@ use dozer_types::{
         internal_pipeline_service_client::InternalPipelineServiceClient,
         DescribeApplicationRequest, DescribeApplicationResponse,
     },
-    ingestion_types::{
-        default_buffer_size, default_timeout, IngestionMessage, NestedDozerConfig,
-        NestedDozerLogOptions,
+    models::ingestion_types::{
+        default_buffer_size, default_log_batch_size, default_timeout, IngestionMessage,
+        NestedDozerConfig, NestedDozerLogOptions,
     },
     serde_json,
-    types::{Operation, Record, Schema},
-};
-use dozer_types::{
-    ingestion_types::default_log_batch_size,
     tonic::{async_trait, transport::Channel},
+    types::{Operation, Record, Schema},
 };
 use tokio::{
     sync::mpsc::{channel, Sender},

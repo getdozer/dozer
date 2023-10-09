@@ -6,7 +6,7 @@ use crate::connectors::{
 };
 use crate::ingestion::Ingestor;
 use crate::{connectors::TableInfo, errors::ConnectorError};
-use dozer_types::ingestion_types::KafkaConfig;
+use dozer_types::models::ingestion_types::KafkaConfig;
 use rdkafka::consumer::Consumer;
 use rdkafka::util::Timeout;
 
