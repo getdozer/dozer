@@ -134,7 +134,7 @@ impl DozerGrpcCloudClient for CloudClient {
                 })?;
                 let lockfile = File {
                     name: LOCK_FILE.to_owned(),
-                    content: lockfile_contents,
+                    content: lockfile_contents.into(),
                 };
                 files.push(lockfile);
             }
