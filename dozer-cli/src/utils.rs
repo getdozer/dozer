@@ -13,6 +13,7 @@ use dozer_types::{
             default_max_num_records_before_persist, default_persist_queue_capacity,
         },
         config::{default_cache_dir, default_cache_max_map_size, Config},
+        flags::default_enable_app_checkpoints,
     },
 };
 use std::time::Duration;
@@ -93,6 +94,10 @@ pub fn get_executor_options(config: &Config) -> ExecutorOptions {
             max_interval_before_persist_in_seconds: get_max_interval_before_persist_in_seconds(
                 config,
             ),
+            enable_app_checkpoints: config
+                .flags
+                .enable_app_checkpoints
+                .unwrap_or_else(default_enable_app_checkpoints),
         },
         checkpoint_factory_options: get_checkpoint_factory_options(config),
     }

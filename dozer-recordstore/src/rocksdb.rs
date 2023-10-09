@@ -45,11 +45,11 @@ impl ProcessorRecordStore {
             .ok_or(RecordStoreError::RocksdbRecordNotFound(*record_ref))
     }
 
-    pub fn serialize_slice(&self, start: usize) -> Result<(Vec<u8>, usize), RecordStoreError> {
-        Ok((vec![], self.num_records() - start)) // TODO: implement rocksdb record store checkpointing
+    pub fn serialize_slice(&self, _start: usize) -> Result<(Vec<u8>, usize), RecordStoreError> {
+        todo!("implement rocksdb record store checkpointing")
     }
 
     pub fn deserialize_and_extend(&self, _data: &[u8]) -> Result<(), RecordStoreError> {
-        Ok(()) // TODO: implement rocksdb record store checkpointing
+        todo!("implement rocksdb record store checkpointing")
     }
 }

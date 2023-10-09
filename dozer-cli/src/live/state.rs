@@ -420,11 +420,9 @@ fn get_dozer_run_instance(
         None => {}
     };
 
-    let app = &mut dozer.config.app;
-    app.max_num_records_before_persist = Some(usize::MAX as u64);
-    app.max_interval_before_persist_in_seconds = Some(u64::MAX);
-
     override_api_config(&mut dozer.config.api);
+
+    dozer.config.flags.enable_app_checkpoints = Some(false);
 
     dozer.config.home_dir = Some(temp_dir.to_string());
     dozer.config.cache_dir = Some(AsRef::<Utf8Path>::as_ref(temp_dir).join("cache").into());
