@@ -30,8 +30,7 @@ pub fn evaluate_onnx_udf(
     let mut output_dim_prefix = false;
 
     let mut input_shape = vec![];
-    let mut i = 0;
-    for d in session.inputs[0].dimensions() {
+    for (i, d) in session.inputs[0].dimensions().enumerate() {
         if let Some(v) = d {
             input_shape.push(v);
         }
@@ -44,8 +43,7 @@ pub fn evaluate_onnx_udf(
         return Err(Onnx(OnnxInvalidInputShapeErr));
     }
     let mut output_shape = vec![];
-    let mut j = 0;
-    for d in session.outputs[0].dimensions() {
+    for (j, d) in session.inputs[0].dimensions().enumerate() {
         if let Some(v) = d {
             output_shape.push(v);
         }
