@@ -9,9 +9,6 @@ use dozer_types::serde_yaml::mapping::Entry;
 use dozer_types::serde_yaml::{Mapping, Value};
 use glob::glob;
 
-use std::fs::File as FsFile;
-use std::io::{BufReader, Read};
-
 pub fn combine_config(
     config_paths: Vec<String>,
     stdin_yaml: Option<String>,
@@ -29,19 +26,14 @@ pub fn combine_config(
                     warn!("[Config] Path {:?} is not valid", path)
                 }
                 Some(name) => {
-                    let f = FsFile::open(path.clone())
+                    let content = std::fs::read(path.clone())
                         .map_err(|e| CannotReadConfig(path.clone(), e))?;
-                    let mut reader = BufReader::new(f);
-                    let mut buffer = Vec::new();
 
-                    reader
-                        .read_to_end(&mut buffer)
-                        .map_err(|e| CannotReadConfig(path, e))?;
                     if name.contains(".yml") || name.contains(".yaml") {
                         config_found = true;
                     }
 
-                    add_file_content_to_config(&mut combined_yaml, name, buffer)?;
+                    add_file_content_to_config(&mut combined_yaml, name, content)?;
                 }
             }
         }
