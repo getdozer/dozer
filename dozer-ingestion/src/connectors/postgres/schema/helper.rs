@@ -189,19 +189,16 @@ impl SchemaHelper {
                 "t.table_schema = ANY($1) AND t.table_name = ANY($2)",
             );
             client.query(&sql, &[&schemas, &table_names]).await
+        } else if let Some(schema) = &self.schema {
+            let sql = str::replace(
+                SQL,
+                ":tables_name_condition",
+                "t.table_schema = $1 AND t.table_type = 'BASE TABLE'",
+            );
+            client.query(&sql, &[&schema]).await
         } else {
-            if let Some(schema) = &self.schema {
-                let sql = str::replace(
-                    SQL,
-                    ":tables_name_condition",
-                    "t.table_schema = $1 AND t.table_type = 'BASE TABLE'",
-                );
-                client.query(&sql, &[&schema]).await
-            } else {
-                let sql =
-                    str::replace(SQL, ":tables_name_condition", "t.table_type = 'BASE TABLE'");
-                client.query(&sql, &[]).await
-            }
+            let sql = str::replace(SQL, ":tables_name_condition", "t.table_type = 'BASE TABLE'");
+            client.query(&sql, &[]).await
         };
 
         query
