@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     helper::{deserialize_duration_secs_f64, f64_schema, serialize_duration_secs_f64},
+    models::connection::SchemaExample,
     node::OpIdentifier,
     types::Operation,
 };
@@ -44,6 +45,8 @@ pub struct EthFilter {
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
+#[schemars(example = "Self::example")]
+
 pub struct GrpcConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub host: Option<String>,
@@ -76,6 +79,8 @@ pub enum GrpcConfigSchemas {
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema, Default)]
+#[schemars(example = "Self::example")]
+
 pub struct EthConfig {
     pub provider: EthProviderConfig,
 }
@@ -153,6 +158,8 @@ pub struct EthContract {
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
+#[schemars(example = "Self::example")]
+
 pub struct KafkaConfig {
     pub broker: String,
 
@@ -174,6 +181,8 @@ impl KafkaConfig {
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
+#[schemars(example = "Self::example")]
+
 pub struct SnowflakeConfig {
     pub server: String,
 
@@ -315,6 +324,7 @@ pub struct S3Details {
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
+#[schemars(example = "Self::example")]
 pub struct S3Storage {
     pub details: S3Details,
 
@@ -331,6 +341,20 @@ impl S3Storage {
         )
     }
 }
+impl SchemaExample for S3Storage {
+    fn example() -> Self {
+        let s3_details = S3Details {
+            access_key_id: "<your_access_key_id>".to_owned(),
+            secret_access_key: "<your_secret_access_key>".to_owned(),
+            region: "<your_region>".to_owned(),
+            bucket_name: "<your_bucket_name>".to_owned(),
+        };
+        Self {
+            details: s3_details,
+            tables: vec![],
+        }
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
 pub struct LocalDetails {
@@ -338,6 +362,8 @@ pub struct LocalDetails {
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
+#[schemars(example = "Self::example")]
+
 pub struct LocalStorage {
     pub details: LocalDetails,
 
@@ -364,16 +390,22 @@ impl DeltaTable {
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
+#[schemars(example = "Self::example")]
+
 pub struct DeltaLakeConfig {
     pub tables: Vec<DeltaTable>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
+#[schemars(example = "Self::example")]
+
 pub struct MongodbConfig {
     pub connection_string: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
+#[schemars(example = "Self::example")]
+
 pub struct MySQLConfig {
     pub url: String,
 
@@ -413,4 +445,106 @@ pub fn default_buffer_size() -> u32 {
 
 pub fn default_snowflake_poll_interval() -> Duration {
     Duration::from_secs(60)
+}
+
+impl SchemaExample for MongodbConfig {
+    fn example() -> Self {
+        Self {
+            connection_string: "mongodb://<username>:<password>@localhost:27017/<database_name>"
+                .to_owned(),
+        }
+    }
+}
+
+impl SchemaExample for MySQLConfig {
+    fn example() -> Self {
+        Self {
+            url: "mysql://<user>:<password>@localhost:3306/<database>".to_owned(),
+            server_id: Some((1).to_owned()),
+        }
+    }
+}
+
+impl SchemaExample for GrpcConfig {
+    fn example() -> Self {
+        Self {
+            host: Some("localhost".to_owned()),
+            port: Some(50051),
+            schemas: GrpcConfigSchemas::Path("schema.json".to_owned()),
+            adapter: Some("arrow".to_owned()),
+        }
+    }
+}
+
+impl SchemaExample for KafkaConfig {
+    fn example() -> Self {
+        Self {
+            broker: "{{broker_url}}".to_owned(),
+            schema_registry_url: Some("{{schema_registry_url}}".to_owned()),
+        }
+    }
+}
+
+impl SchemaExample for DeltaLakeConfig {
+    fn example() -> Self {
+        Self {
+            tables: vec![DeltaTable {
+                path: "{{delta_table_path}}".to_owned(),
+                name: "{{delta_table_name}}".to_owned(),
+            }],
+        }
+    }
+}
+
+impl SchemaExample for LocalStorage {
+    fn example() -> Self {
+        Self {
+            details: LocalDetails {
+                path: "{{local_storage_path}}".to_owned(),
+            },
+            tables: vec![Table {
+                config: Some(TableConfig::CSV(CsvConfig {
+                    path: "path".to_owned(),
+                    extension: ".csv".to_owned(),
+                    marker_extension: None,
+                })),
+                name: "table_name".to_owned(),
+            }],
+        }
+    }
+}
+
+impl SchemaExample for SnowflakeConfig {
+    fn example() -> Self {
+        Self {
+            server: "<account_name>.<region_id>.snowflakecomputing.com".to_owned(),
+            port: "443".to_owned(),
+            user: "bob".to_owned(),
+            password: "password".to_owned(),
+            database: "database".to_owned(),
+            schema: "schema".to_owned(),
+            warehouse: "warehouse".to_owned(),
+            driver: Some("SnowflakeDSIIDriver".to_owned()),
+            role: "role".to_owned(),
+            poll_interval_seconds: None,
+        }
+    }
+}
+
+impl SchemaExample for EthConfig {
+    fn example() -> Self {
+        let eth_filter = EthFilter {
+            from_block: Some(0),
+            to_block: None,
+            addresses: vec![],
+            topics: vec![],
+        };
+        Self {
+            provider: EthProviderConfig::Log(EthLogConfig {
+                wss_url: "{{ETH_WSS_URL}}".to_owned(),
+                filter: Some(eth_filter),
+                contracts: vec![],
+            }),
+        }
+    }
 }
