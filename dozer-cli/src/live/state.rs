@@ -1,4 +1,4 @@
-use std::{sync::Arc, thread::JoinHandle};
+use std::{collections::HashMap, sync::Arc, thread::JoinHandle};
 
 use clap::Parser;
 
@@ -204,6 +204,7 @@ impl LiveState {
         let contract = get_contract(&dozer)?;
         Ok(SchemasResponse {
             schemas: contract.get_endpoints_schemas(),
+            errors: HashMap::new(),
         })
     }
     pub async fn get_source_schemas(
@@ -217,7 +218,10 @@ impl LiveState {
         contract
             .get_source_schemas(&connection_name)
             .ok_or(LiveError::ConnectionNotFound(connection_name))
-            .map(|schemas| SchemasResponse { schemas })
+            .map(|schemas| SchemasResponse {
+                schemas,
+                errors: HashMap::new(),
+            })
     }
 
     pub async fn get_graph_schemas(&self) -> Result<SchemasResponse, LiveError> {
@@ -227,6 +231,7 @@ impl LiveState {
 
         Ok(SchemasResponse {
             schemas: contract.get_graph_schemas(),
+            errors: HashMap::new(),
         })
     }
 

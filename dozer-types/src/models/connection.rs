@@ -57,12 +57,11 @@ impl SchemaExample for PostgresConfig {
     fn example() -> Self {
         Self {
             user: Some("postgres".to_string()),
-            password: None,
+            password: Some("postgres".to_string()),
             host: Some("localhost".to_string()),
             port: Some(5432),
             database: Some("postgres".to_string()),
-            sslmode: None,
-            connection_url: None,
+            ..Default::default()
         }
     }
 }
