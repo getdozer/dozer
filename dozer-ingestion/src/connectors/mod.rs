@@ -27,7 +27,7 @@ use crate::ingestion::Ingestor;
 use dozer_types::log::debug;
 use dozer_types::models::connection::Connection;
 use dozer_types::models::connection::ConnectionConfig;
-use dozer_types::models::ingestion_types::{default_grpc_adapter, EthProviderConfig};
+use dozer_types::models::ingestion_types::default_grpc_adapter;
 use dozer_types::node::OpIdentifier;
 use dozer_types::tonic::async_trait;
 
@@ -45,6 +45,8 @@ pub mod snowflake;
 use self::dozer::NestedDozerConnector;
 #[cfg(feature = "ethereum")]
 use self::ethereum::{EthLogConnector, EthTraceConnector};
+#[cfg(feature = "ethereum")]
+use dozer_types::models::ingestion_types::EthProviderConfig;
 
 use self::grpc::connector::GrpcConnector;
 use self::grpc::{ArrowAdapter, DefaultAdapter};

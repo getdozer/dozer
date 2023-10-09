@@ -10,7 +10,7 @@
           "connection_url": null,
           "database": "postgres",
           "host": "localhost",
-          "password": null,
+          "password": "postgres",
           "port": 5432,
           "sslmode": null,
           "user": "postgres"
@@ -78,6 +78,19 @@
     "schema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "EthConfig",
+      "examples": [
+        {
+          "provider": {
+            "Log": {
+              "filter": {
+                "from_block": 0,
+                "to_block": null
+              },
+              "wss_url": ""
+            }
+          }
+        }
+      ],
       "type": "object",
       "required": [
         "provider"
@@ -236,6 +249,16 @@
     "schema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "GrpcConfig",
+      "examples": [
+        {
+          "adapter": "arrow",
+          "host": "localhost",
+          "port": 50051,
+          "schemas": {
+            "Path": "schema.json"
+          }
+        }
+      ],
       "type": "object",
       "required": [
         "schemas"
@@ -302,6 +325,19 @@
     "schema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "SnowflakeConfig",
+      "examples": [
+        {
+          "database": "database",
+          "driver": "SnowflakeDSIIDriver",
+          "password": "password",
+          "port": "443",
+          "role": "role",
+          "schema": "schema",
+          "server": "<account_name>.<region_id>.snowflakecomputing.com",
+          "user": "bob",
+          "warehouse": "warehouse"
+        }
+      ],
       "type": "object",
       "required": [
         "database",
@@ -356,6 +392,12 @@
     "schema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "KafkaConfig",
+      "examples": [
+        {
+          "broker": "",
+          "schema_registry_url": ""
+        }
+      ],
       "type": "object",
       "required": [
         "broker"
@@ -378,6 +420,27 @@
     "schema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "S3Storage",
+      "examples": [
+        {
+          "details": {
+            "access_key_id": "",
+            "bucket_name": "",
+            "region": "",
+            "secret_access_key": ""
+          },
+          "tables": [
+            {
+              "config": {
+                "CSV": {
+                  "extension": ".csv",
+                  "path": "path/to/file"
+                }
+              },
+              "name": "table_name"
+            }
+          ]
+        }
+      ],
       "type": "object",
       "required": [
         "details",
@@ -534,6 +597,24 @@
     "schema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "LocalStorage",
+      "examples": [
+        {
+          "details": {
+            "path": "path"
+          },
+          "tables": [
+            {
+              "config": {
+                "CSV": {
+                  "extension": ".csv",
+                  "path": "path/to/table"
+                }
+              },
+              "name": "table_name"
+            }
+          ]
+        }
+      ],
       "type": "object",
       "required": [
         "details",
@@ -678,6 +759,16 @@
     "schema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "DeltaLakeConfig",
+      "examples": [
+        {
+          "tables": [
+            {
+              "name": "",
+              "path": ""
+            }
+          ]
+        }
+      ],
       "type": "object",
       "required": [
         "tables"
@@ -714,6 +805,11 @@
     "schema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "MongodbConfig",
+      "examples": [
+        {
+          "connection_string": "mongodb://localhost:27017/db_name"
+        }
+      ],
       "type": "object",
       "required": [
         "connection_string"
@@ -730,6 +826,12 @@
     "schema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "MySQLConfig",
+      "examples": [
+        {
+          "server_id": 1,
+          "url": "mysql://root:1234@localhost:3306/db_name"
+        }
+      ],
       "type": "object",
       "required": [
         "url"

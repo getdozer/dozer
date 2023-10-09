@@ -136,6 +136,7 @@ message Value {
 }
 message SchemasResponse {
   map<string, Schema> schemas = 1;
+  map<string, string> errors = 2;
 }
 
 message Schema  {
