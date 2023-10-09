@@ -20,8 +20,8 @@ fn test_sql_merge_in_config() {
 
     let mut combined_yaml = serde_yaml::Value::Mapping(Mapping::new());
 
-    add_file_content_to_config(&mut combined_yaml, "config.yaml", yaml).unwrap();
-    add_file_content_to_config(&mut combined_yaml, "query.sql", query_b.to_string()).unwrap();
+    add_file_content_to_config(&mut combined_yaml, "config.yaml", yaml.into()).unwrap();
+    add_file_content_to_config(&mut combined_yaml, "query.sql", query_b.into()).unwrap();
 
     let config = serde_yaml::from_value::<Config>(combined_yaml).unwrap();
 
@@ -39,8 +39,8 @@ fn test_sql_from_single_sql_source_in_config() {
 
     let mut combined_yaml = serde_yaml::Value::Mapping(Mapping::new());
 
-    add_file_content_to_config(&mut combined_yaml, "config.yaml", yaml.to_string()).unwrap();
-    add_file_content_to_config(&mut combined_yaml, "query.sql", query.to_string()).unwrap();
+    add_file_content_to_config(&mut combined_yaml, "config.yaml", yaml.into()).unwrap();
+    add_file_content_to_config(&mut combined_yaml, "query.sql", query.into()).unwrap();
 
     let config = serde_yaml::from_value::<Config>(combined_yaml).unwrap();
 
@@ -63,7 +63,7 @@ fn test_sql_from_single_yaml_source_in_config() {
 
     let mut combined_yaml = serde_yaml::Value::Mapping(Mapping::new());
 
-    add_file_content_to_config(&mut combined_yaml, "config.yaml", yaml).unwrap();
+    add_file_content_to_config(&mut combined_yaml, "config.yaml", yaml.into()).unwrap();
 
     let config = serde_yaml::from_value::<Config>(combined_yaml).unwrap();
 

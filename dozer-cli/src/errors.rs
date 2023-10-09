@@ -3,6 +3,7 @@
 use glob::{GlobError, PatternError};
 use std::io;
 use std::path::PathBuf;
+use std::string::FromUtf8Error;
 use tonic::Code::NotFound;
 
 use crate::{
@@ -184,7 +185,7 @@ pub enum ConfigCombineError {
     #[error("Failed to parse config: {0}")]
     ParseConfig(#[source] serde_yaml::Error),
 
-    #[error("Cannot read configuration: {0:?}")]
+    #[error("Cannot read configuration: {0:?}. Error: {1:?}")]
     CannotReadConfig(PathBuf, #[source] std::io::Error),
 
     #[error("Wrong pattern of config files read glob: {0}")]
@@ -198,6 +199,9 @@ pub enum ConfigCombineError {
 
     #[error("SQL is not a string type")]
     SqlIsNotStringType,
+
+    #[error("Failed to read config to string")]
+    CannotReadUtf8String(#[from] FromUtf8Error),
 }
 
 #[derive(Debug, Error)]
