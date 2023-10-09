@@ -8,7 +8,9 @@ use dozer_types::serde_yaml;
 use dozer_types::serde_yaml::mapping::Entry;
 use dozer_types::serde_yaml::{Mapping, Value};
 use glob::glob;
-use std::fs;
+
+use std::fs::File as FsFile;
+use std::io::{BufReader, Read};
 
 pub fn combine_config(
     config_paths: Vec<String>,
@@ -27,14 +29,19 @@ pub fn combine_config(
                     warn!("[Config] Path {:?} is not valid", path)
                 }
                 Some(name) => {
-                    let content =
-                        fs::read_to_string(path.clone()).map_err(|e| CannotReadConfig(path, e))?;
+                    let f = FsFile::open(path.clone())
+                        .map_err(|e| CannotReadConfig(path.clone(), e))?;
+                    let mut reader = BufReader::new(f);
+                    let mut buffer = Vec::new();
 
+                    reader
+                        .read_to_end(&mut buffer)
+                        .map_err(|e| CannotReadConfig(path, e))?;
                     if name.contains(".yml") || name.contains(".yaml") {
                         config_found = true;
                     }
 
-                    add_file_content_to_config(&mut combined_yaml, name, content)?;
+                    add_file_content_to_config(&mut combined_yaml, name, buffer)?;
                 }
             }
         }
@@ -60,21 +67,24 @@ pub fn combine_config(
 pub fn add_file_content_to_config(
     combined_yaml: &mut serde_yaml::Value,
     name: &str,
-    content: String,
+    content: Vec<u8>,
 ) -> Result<(), ConfigCombineError> {
     if name.contains(".yml") || name.contains(".yaml") {
-        let yaml: serde_yaml::Value = serde_yaml::from_str(&content)
+        let c = String::from_utf8(content)?;
+        let yaml: serde_yaml::Value = serde_yaml::from_str(&c)
             .map_err(|e| ConfigCombineError::ParseYaml(name.to_string(), e))?;
         merge_yaml(yaml, combined_yaml)?;
     } else if name.contains(".sql") {
         let mapping = combined_yaml.as_mapping_mut().expect("Should be mapping");
         let sql = mapping.get_mut(serde_yaml::Value::String("sql".into()));
 
+        let c = String::from_utf8(content)?;
+
         match sql {
             None => {
                 mapping.insert(
                     serde_yaml::Value::String("sql".into()),
-                    serde_yaml::Value::String(content),
+                    serde_yaml::Value::String(c),
                 );
             }
             Some(s) => {
@@ -84,7 +94,7 @@ pub fn add_file_content_to_config(
                         return Err(SqlIsNotStringType);
                     }
                     Some(current_query) => {
-                        Value::String(format!("{};{}", current_query, content.as_str()))
+                        Value::String(format!("{};{}", current_query, c.as_str()))
                     }
                 }
             }
