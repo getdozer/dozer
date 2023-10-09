@@ -344,14 +344,21 @@ impl S3Storage {
 impl SchemaExample for S3Storage {
     fn example() -> Self {
         let s3_details = S3Details {
-            access_key_id: "<your_access_key_id>".to_owned(),
-            secret_access_key: "<your_secret_access_key>".to_owned(),
-            region: "<your_region>".to_owned(),
-            bucket_name: "<your_bucket_name>".to_owned(),
+            access_key_id: "".to_owned(),
+            secret_access_key: "".to_owned(),
+            region: "".to_owned(),
+            bucket_name: "".to_owned(),
         };
         Self {
             details: s3_details,
-            tables: vec![],
+            tables: vec![Table {
+                config: Some(TableConfig::CSV(CsvConfig {
+                    path: "path".to_owned(),
+                    extension: ".csv".to_owned(),
+                    marker_extension: None,
+                })),
+                name: "table_name".to_owned(),
+            }],
         }
     }
 }
@@ -450,8 +457,7 @@ pub fn default_snowflake_poll_interval() -> Duration {
 impl SchemaExample for MongodbConfig {
     fn example() -> Self {
         Self {
-            connection_string: "mongodb://<username>:<password>@localhost:27017/<database_name>"
-                .to_owned(),
+            connection_string: "mongodb://localhost:27017/db_name".to_owned(),
         }
     }
 }
@@ -459,7 +465,7 @@ impl SchemaExample for MongodbConfig {
 impl SchemaExample for MySQLConfig {
     fn example() -> Self {
         Self {
-            url: "mysql://<user>:<password>@localhost:3306/<database>".to_owned(),
+            url: "mysql://root:1234@localhost:3306/db_name".to_owned(),
             server_id: Some((1).to_owned()),
         }
     }

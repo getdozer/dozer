@@ -1155,7 +1155,7 @@
     "MongodbConfig": {
       "examples": [
         {
-          "connection_string": "mongodb://<username>:<password>@localhost:27017/<database_name>"
+          "connection_string": "mongodb://localhost:27017/db_name"
         }
       ],
       "type": "object",
@@ -1172,7 +1172,7 @@
       "examples": [
         {
           "server_id": 1,
-          "url": "mysql://<user>:<password>@localhost:3306/<database>"
+          "url": "mysql://root:1234@localhost:3306/db_name"
         }
       ],
       "type": "object",
@@ -1468,12 +1468,22 @@
       "examples": [
         {
           "details": {
-            "access_key_id": "<your_access_key_id>",
-            "bucket_name": "<your_bucket_name>",
-            "region": "<your_region>",
-            "secret_access_key": "<your_secret_access_key>"
+            "access_key_id": "",
+            "bucket_name": "",
+            "region": "",
+            "secret_access_key": ""
           },
-          "tables": []
+          "tables": [
+            {
+              "config": {
+                "CSV": {
+                  "extension": ".csv",
+                  "path": "path"
+                }
+              },
+              "name": "table_name"
+            }
+          ]
         }
       ],
       "type": "object",
