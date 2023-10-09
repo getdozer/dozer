@@ -96,7 +96,7 @@ pub fn evaluate_onnx_udf(
                         }
                     };
                     input_array.push(num);
-                }  else if let Field::UInt(v) = field {
+                } else if let Field::UInt(v) = field {
                     let num = match f32::from_u64(v) {
                         Some(val) => val,
                         None => {
@@ -104,7 +104,7 @@ pub fn evaluate_onnx_udf(
                         }
                     };
                     input_array.push(num);
-                }  else if let Field::U128(v) = field {
+                } else if let Field::U128(v) = field {
                     let num = match f32::from_u128(v) {
                         Some(val) => val,
                         None => {
@@ -154,7 +154,7 @@ pub fn evaluate_onnx_udf(
                         }
                     };
                     input_array.push(num);
-                }  else if let Field::UInt(v) = field {
+                } else if let Field::UInt(v) = field {
                     let num = match f64::from_u64(v) {
                         Some(val) => val,
                         None => {
@@ -162,7 +162,7 @@ pub fn evaluate_onnx_udf(
                         }
                     };
                     input_array.push(num);
-                }  else if let Field::U128(v) = field {
+                } else if let Field::U128(v) = field {
                     let num = match f64::from_u128(v) {
                         Some(val) => val,
                         None => {
@@ -773,7 +773,7 @@ fn onnx_output_to_dozer(
                     Some(v) => {
                         let result = v[0].into();
                         Ok(Field::Float(OrderedFloat(result)))
-                    },
+                    }
                     None => Ok(Field::Null),
                 }
             }
@@ -787,7 +787,7 @@ fn onnx_output_to_dozer(
                     Some(v) => {
                         let result = v[0].into();
                         Ok(Field::Float(OrderedFloat(result)))
-                    },
+                    }
                     None => Ok(Field::Null),
                 }
             }
@@ -801,7 +801,7 @@ fn onnx_output_to_dozer(
                     Some(v) => {
                         let result = v[0];
                         Ok(Field::Float(OrderedFloat(result)))
-                    },
+                    }
                     None => Ok(Field::Null),
                 }
             }
