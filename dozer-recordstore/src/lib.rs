@@ -147,6 +147,12 @@ impl ProcessorRecordStore {
         };
         bincode::serialize(&record)
     }
+
+    pub fn compact(&self) {
+        if let Self::InMemory(store) = self {
+            store.vacuum();
+        }
+    }
 }
 
 impl StoreRecord for ProcessorRecordStore {

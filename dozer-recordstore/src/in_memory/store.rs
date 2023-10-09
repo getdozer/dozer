@@ -1,5 +1,6 @@
 use std::{
     collections::{BTreeMap, HashMap},
+    ops::DerefMut,
     sync::{Arc, Weak},
 };
 
@@ -43,13 +44,10 @@ impl ProcessorRecordStore {
     }
 
     pub fn serialize_slice(&self, start: usize) -> Result<(Vec<u8>, usize), RecordStoreError> {
-        self.inner.write().vacuum();
-
         let inner = self.inner.read();
         let slice = inner
             .records
             .range(start..)
-            // We just removed all the
             .filter_map(|(&id, weak)| weak.upgrade().map(|record| (id, RecordRef(record))))
             .collect::<Vec<_>>();
         let data =
@@ -68,12 +66,12 @@ impl ProcessorRecordStore {
             .get(&(record_ref.id()))
             .expect("RecordRef not found in ProcessorRecordStore") as u64
     }
-}
 
-impl ProcessorRecordStoreInner {
-    fn vacuum(&mut self) {
-        let ptr_to_idx = &mut self.record_pointer_to_index;
-        let records = &mut self.records;
+    pub fn vacuum(&self) {
+        let mut inner = self.inner.write();
+        let inner = inner.deref_mut();
+        let ptr_to_idx = &mut inner.record_pointer_to_index;
+        let records = &mut inner.records;
 
         records.retain(|_, record_ref| {
             if record_ref.strong_count() == 0 {
