@@ -183,12 +183,16 @@ pub enum SecretsCommand {
 }
 
 fn parse_key_val(s: &str) -> Result<Secret, Box<dyn Error + Send + Sync + 'static>> {
-    let pos = s
-        .find('=')
-        .ok_or_else(|| format!("invalid KEY=value: no `=` found in `{s}`"))?;
-
-    Ok(Secret {
-        name: s[..pos].parse()?,
-        value: s[pos + 1..].parse()?,
-    })
+    if let Some(pos) = s.find('=') {
+        Ok(Secret {
+            name: s[..pos].to_string(),
+            value: s[pos + 1..].to_string(),
+        })
+    } else {
+        let value = std::env::var(s)?;
+        Ok(Secret {
+            name: s.to_string(),
+            value,
+        })
+    }
 }
