@@ -630,6 +630,16 @@
       }
     },
     "DeltaLakeConfig": {
+      "examples": [
+        {
+          "tables": [
+            {
+              "name": "",
+              "path": ""
+            }
+          ]
+        }
+      ],
       "type": "object",
       "required": [
         "tables"
@@ -712,6 +722,22 @@
       "additionalProperties": false
     },
     "EthConfig": {
+      "examples": [
+        {
+          "provider": {
+            "Log": {
+              "contracts": [],
+              "filter": {
+                "addresses": [],
+                "from_block": 0,
+                "to_block": null,
+                "topics": []
+              },
+              "wss_url": ""
+            }
+          }
+        }
+      ],
       "type": "object",
       "required": [
         "provider"
@@ -958,6 +984,16 @@
       "additionalProperties": false
     },
     "GrpcConfig": {
+      "examples": [
+        {
+          "adapter": "arrow",
+          "host": "localhost",
+          "port": 50051,
+          "schemas": {
+            "Path": "schema.json"
+          }
+        }
+      ],
       "type": "object",
       "required": [
         "schemas"
@@ -1017,6 +1053,12 @@
       ]
     },
     "KafkaConfig": {
+      "examples": [
+        {
+          "broker": "",
+          "schema_registry_url": ""
+        }
+      ],
       "type": "object",
       "required": [
         "broker"
@@ -1045,6 +1087,24 @@
       }
     },
     "LocalStorage": {
+      "examples": [
+        {
+          "details": {
+            "path": "path"
+          },
+          "tables": [
+            {
+              "config": {
+                "CSV": {
+                  "extension": ".csv",
+                  "path": "path/to/table"
+                }
+              },
+              "name": "table_name"
+            }
+          ]
+        }
+      ],
       "type": "object",
       "required": [
         "details",
@@ -1093,6 +1153,11 @@
       "additionalProperties": false
     },
     "MongodbConfig": {
+      "examples": [
+        {
+          "connection_string": "mongodb://localhost:27017/db_name"
+        }
+      ],
       "type": "object",
       "required": [
         "connection_string"
@@ -1104,6 +1169,12 @@
       }
     },
     "MySQLConfig": {
+      "examples": [
+        {
+          "server_id": 1,
+          "url": "mysql://root:1234@localhost:3306/db_name"
+        }
+      ],
       "type": "object",
       "required": [
         "url"
@@ -1394,6 +1465,27 @@
       }
     },
     "S3Storage": {
+      "examples": [
+        {
+          "details": {
+            "access_key_id": "",
+            "bucket_name": "",
+            "region": "",
+            "secret_access_key": ""
+          },
+          "tables": [
+            {
+              "config": {
+                "CSV": {
+                  "extension": ".csv",
+                  "path": "path/to/file"
+                }
+              },
+              "name": "table_name"
+            }
+          ]
+        }
+      ],
       "type": "object",
       "required": [
         "details",
@@ -1474,6 +1566,19 @@
       "additionalProperties": false
     },
     "SnowflakeConfig": {
+      "examples": [
+        {
+          "database": "database",
+          "driver": "SnowflakeDSIIDriver",
+          "password": "password",
+          "port": "443",
+          "role": "role",
+          "schema": "schema",
+          "server": "<account_name>.<region_id>.snowflakecomputing.com",
+          "user": "bob",
+          "warehouse": "warehouse"
+        }
+      ],
       "type": "object",
       "required": [
         "database",
