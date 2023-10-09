@@ -19,13 +19,15 @@ pub struct Flags {
     pub push_events: Option<bool>,
 
     /// require authentication to access grpc server reflection service if true.; Default: false
-
     #[serde(skip_serializing_if = "Option::is_none")]
     pub authenticate_server_reflection: Option<bool>,
 
     /// probablistic optimizations reduce memory consumption at the expense of accuracy.
     #[serde(default, skip_serializing_if = "equal_default")]
     pub enable_probabilistic_optimizations: EnableProbabilisticOptimizations,
+
+    /// app checkpoints can be used to resume execution of a query.; Default: false
+    pub enable_app_checkpoints: Option<bool>,
 }
 
 pub fn default_dynamic() -> bool {
@@ -50,4 +52,8 @@ pub struct EnableProbabilisticOptimizations {
 
 pub fn default_push_events() -> bool {
     true
+}
+
+pub fn default_enable_app_checkpoints() -> bool {
+    false
 }

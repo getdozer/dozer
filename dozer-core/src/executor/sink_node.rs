@@ -142,8 +142,8 @@ impl ReceiverLoop for SinkNode {
             histogram!(PIPELINE_LATENCY_HISTOGRAM_NAME, duration, labels);
         }
 
-        if let Some(checkpoint_writer) = epoch.common_info.checkpoint_writer.as_ref() {
-            if let Err(e) = self.sink.persist(checkpoint_writer.queue()) {
+        if let Some(queue) = epoch.common_info.sink_persist_queue.as_ref() {
+            if let Err(e) = self.sink.persist(queue) {
                 self.error_manager.report(e);
             }
         }

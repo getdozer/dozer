@@ -83,6 +83,7 @@ impl EpochManagerStateKind {
 pub struct EpochManagerOptions {
     pub max_num_records_before_persist: usize,
     pub max_interval_before_persist_in_seconds: u64,
+    pub enable_app_checkpoints: bool,
 }
 
 impl Default for EpochManagerOptions {
@@ -90,6 +91,7 @@ impl Default for EpochManagerOptions {
         Self {
             max_num_records_before_persist: 100_000,
             max_interval_before_persist_in_seconds: 60,
+            enable_app_checkpoints: false,
         }
     }
 }
@@ -199,6 +201,7 @@ impl EpochManager {
                         .unwrap_or(Duration::from_secs(0))
                         >= Duration::from_secs(self.options.max_interval_before_persist_in_seconds)
                 {
+                    self.record_store().compact(); // Compact the record store to prepare for persisting.
                     state.next_record_index_to_persist = num_records;
                     state.last_persisted_epoch_decision_instant = instant;
                     Action::CommitAndPersist
@@ -229,16 +232,22 @@ impl EpochManager {
                 num_source_confirmations,
             } => {
                 let common_info = action.should_commit().then(|| {
-                    let checkpoint_writer = action.should_persist().then(|| {
-                        Arc::new(CheckpointWriter::new(
-                            self.checkpoint_factory.clone(),
-                            *epoch_id,
-                            source_states.clone(),
-                        ))
-                    });
+                    let checkpoint_writer = (action.should_persist()
+                        && self.options.enable_app_checkpoints)
+                        .then(|| {
+                            Arc::new(CheckpointWriter::new(
+                                self.checkpoint_factory.clone(),
+                                *epoch_id,
+                                source_states.clone(),
+                            ))
+                        });
+                    let sink_persist_queue = action
+                        .should_persist()
+                        .then(|| self.checkpoint_factory.queue().clone());
                     EpochCommonInfo {
                         id: *epoch_id,
                         checkpoint_writer,
+                        sink_persist_queue,
                         source_states: source_states.clone(),
                     }
                 });
@@ -399,6 +408,7 @@ mod tests {
             EpochManagerOptions {
                 max_num_records_before_persist: 1,
                 max_interval_before_persist_in_seconds: 1,
+                enable_app_checkpoints: true,
             },
         )
         .await;
@@ -408,17 +418,59 @@ mod tests {
         std::thread::spawn(move || {
             // No record, no persist.
             let epoch = epoch_manager.wait_for_epoch_close(source_state.clone(), false, true);
-            assert!(epoch.common_info.unwrap().checkpoint_writer.is_none());
+            let common_info = epoch.common_info.unwrap();
+            assert!(common_info.checkpoint_writer.is_none());
+            assert!(common_info.sink_persist_queue.is_none());
 
             // One record, persist.
             epoch_manager.record_store().create_ref(&[]).unwrap();
             let epoch = epoch_manager.wait_for_epoch_close(source_state.clone(), false, true);
-            assert!(epoch.common_info.unwrap().checkpoint_writer.is_some());
+            let common_info = epoch.common_info.unwrap();
+            assert!(common_info.checkpoint_writer.is_some());
+            assert!(common_info.sink_persist_queue.is_some());
 
             // Time passes, persist.
             std::thread::sleep(Duration::from_secs(1));
             let epoch = epoch_manager.wait_for_epoch_close(source_state.clone(), false, true);
-            assert!(epoch.common_info.unwrap().checkpoint_writer.is_some());
+            let common_info = epoch.common_info.unwrap();
+            assert!(common_info.checkpoint_writer.is_some());
+            assert!(common_info.sink_persist_queue.is_some());
+        })
+        .join()
+        .unwrap();
+
+        // Also test the case where checkpoints are disabled.
+        let (_temp_dir, epoch_manager) = create_epoch_manager(
+            1,
+            EpochManagerOptions {
+                max_num_records_before_persist: 1,
+                max_interval_before_persist_in_seconds: 1,
+                enable_app_checkpoints: false,
+            },
+        )
+        .await;
+
+        let source_state = generate_source_state(0);
+        std::thread::spawn(move || {
+            // No record, no persist.
+            let epoch = epoch_manager.wait_for_epoch_close(source_state.clone(), false, true);
+            let common_info = epoch.common_info.unwrap();
+            assert!(common_info.checkpoint_writer.is_none());
+            assert!(common_info.sink_persist_queue.is_none());
+
+            // One record, persist.
+            epoch_manager.record_store().create_ref(&[]).unwrap();
+            let epoch = epoch_manager.wait_for_epoch_close(source_state.clone(), false, true);
+            let common_info = epoch.common_info.unwrap();
+            assert!(common_info.checkpoint_writer.is_none());
+            assert!(common_info.sink_persist_queue.is_some());
+
+            // Time passes, persist.
+            std::thread::sleep(Duration::from_secs(1));
+            let epoch = epoch_manager.wait_for_epoch_close(source_state.clone(), false, true);
+            let common_info = epoch.common_info.unwrap();
+            assert!(common_info.checkpoint_writer.is_none());
+            assert!(common_info.sink_persist_queue.is_some());
         })
         .join()
         .unwrap();

@@ -882,6 +882,13 @@
             "null"
           ]
         },
+        "enable_app_checkpoints": {
+          "description": "app checkpoints can be used to resume execution of a query.; Default: false",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "enable_probabilistic_optimizations": {
           "description": "probablistic optimizations reduce memory consumption at the expense of accuracy.",
           "allOf": [

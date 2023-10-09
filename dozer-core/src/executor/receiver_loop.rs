@@ -230,8 +230,8 @@ mod tests {
         source_states.insert(NodeHandle::new(None, "1".to_string()), Default::default());
         let source_states = Arc::new(source_states);
         let decision_instant = SystemTime::now();
-        let mut epoch0 = Epoch::new(0, source_states.clone(), None, decision_instant);
-        let mut epoch1 = Epoch::new(0, source_states, None, decision_instant);
+        let mut epoch0 = Epoch::new(0, source_states.clone(), None, None, decision_instant);
+        let mut epoch1 = Epoch::new(0, source_states, None, None, decision_instant);
         senders[0]
             .send(ExecutorOperation::Commit {
                 epoch: epoch0.clone(),
@@ -273,8 +273,8 @@ mod tests {
         source_states.insert(NodeHandle::new(None, "1".to_string()), Default::default());
         let source_states = Arc::new(source_states);
         let decision_instant = SystemTime::now();
-        let epoch0 = Epoch::new(0, source_states.clone(), None, decision_instant);
-        let epoch1 = Epoch::new(1, source_states, None, decision_instant);
+        let epoch0 = Epoch::new(0, source_states.clone(), None, None, decision_instant);
+        let epoch1 = Epoch::new(1, source_states, None, None, decision_instant);
         senders[0]
             .send(ExecutorOperation::Commit { epoch: epoch0 })
             .unwrap();

@@ -180,6 +180,10 @@ impl CheckpointFactory {
         ))
     }
 
+    pub fn queue(&self) -> &Queue {
+        &self.queue
+    }
+
     pub fn record_store(&self) -> &Arc<ProcessorRecordStore> {
         &self.record_store
     }
