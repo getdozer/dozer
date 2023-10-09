@@ -1,11 +1,9 @@
 use clap::Parser;
 use dozer_api::shutdown;
-#[cfg(feature = "cloud")]
 use dozer_cli::cli::cloud::CloudCommands;
 use dozer_cli::cli::types::{Cli, Commands, ConnectorCommand, RunCommands, SecurityCommands};
 use dozer_cli::cli::{generate_config_repl, init_config};
 use dozer_cli::cli::{init_dozer, list_sources, LOGO};
-#[cfg(feature = "cloud")]
 use dozer_cli::cloud::{cloud_app_context::CloudAppContext, CloudClient, DozerGrpcCloudClient};
 use dozer_cli::errors::{CliError, CloudError, OrchestrationError};
 use dozer_cli::{live, set_ctrl_handler, set_panic_hook};
@@ -154,7 +152,6 @@ fn run() -> Result<(), OrchestrationError> {
     let _telemetry = runtime.block_on(async { Telemetry::new(app_id, &telemetry_config) });
 
     // Run Cloud
-    #[cfg(feature = "cloud")]
     if let Commands::Cloud(cloud) = &cli.cmd {
         return run_cloud(cloud, runtime, &cli);
     }
@@ -206,7 +203,6 @@ fn run() -> Result<(), OrchestrationError> {
             filter,
         )),
         Commands::Clean => dozer.clean(),
-        #[cfg(feature = "cloud")]
         Commands::Cloud(_) => {
             panic!("This should not happen as it is handled earlier");
         }
@@ -230,7 +226,6 @@ fn run() -> Result<(), OrchestrationError> {
     })
 }
 
-#[cfg(feature = "cloud")]
 fn run_cloud(
     cloud: &dozer_cli::cli::cloud::Cloud,
     runtime: Arc<Runtime>,
@@ -240,37 +235,29 @@ fn run_cloud(
     let cloud = cloud.clone();
 
     let config = init_configuration(cli, runtime.clone()).ok();
-    let mut cloud_client = CloudClient::new(config.clone(), runtime.clone());
+    let mut cloud_client = CloudClient::new(cloud.clone(), config.clone(), runtime.clone());
     match cloud.command.clone() {
-        CloudCommands::Deploy(deploy) => {
-            cloud_client.deploy(cloud, deploy, cli.config_paths.clone())
-        }
+        CloudCommands::Deploy(deploy) => cloud_client.deploy(deploy, cli.config_paths.clone()),
         CloudCommands::Login {
             organisation_slug,
             profile_name,
             client_id,
             client_secret,
-        } => cloud_client.login(
-            cloud,
-            organisation_slug,
-            profile_name,
-            client_id,
-            client_secret,
-        ),
-        CloudCommands::Secrets(command) => cloud_client.execute_secrets_command(cloud, command),
-        CloudCommands::Delete => cloud_client.delete(cloud),
-        CloudCommands::Status => cloud_client.status(cloud),
-        CloudCommands::Monitor => cloud_client.monitor(cloud),
-        CloudCommands::Logs(logs) => cloud_client.trace_logs(cloud, logs),
-        CloudCommands::Version(version) => cloud_client.version(cloud, version),
-        CloudCommands::List(list) => cloud_client.list(cloud, list),
+        } => cloud_client.login(organisation_slug, profile_name, client_id, client_secret),
+        CloudCommands::Secrets(command) => cloud_client.execute_secrets_command(command),
+        CloudCommands::Delete => cloud_client.delete(),
+        CloudCommands::Status => cloud_client.status(),
+        CloudCommands::Monitor => cloud_client.monitor(),
+        CloudCommands::Logs(logs) => cloud_client.trace_logs(logs),
+        CloudCommands::Version(version) => cloud_client.version(version),
+        CloudCommands::List(list) => cloud_client.list(list),
         CloudCommands::SetApp { app_id } => {
             CloudAppContext::save_app_id(app_id.clone())?;
             info!("Using \"{app_id}\" app");
             Ok(())
         }
         CloudCommands::ApiRequestSamples { endpoint } => {
-            cloud_client.print_api_request_samples(cloud, endpoint)
+            cloud_client.print_api_request_samples(endpoint)
         }
     }
 }

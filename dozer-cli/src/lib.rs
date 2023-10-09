@@ -14,7 +14,6 @@ use std::{
     thread::current,
 };
 use tokio::task::JoinHandle;
-#[cfg(feature = "cloud")]
 pub mod cloud;
 pub mod config_helper;
 pub use dozer_api::shutdown;
