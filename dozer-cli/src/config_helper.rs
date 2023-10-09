@@ -70,21 +70,21 @@ pub fn add_file_content_to_config(
     content: Vec<u8>,
 ) -> Result<(), ConfigCombineError> {
     if name.contains(".yml") || name.contains(".yaml") {
-        let c = String::from_utf8(content)?;
-        let yaml: serde_yaml::Value = serde_yaml::from_str(&c)
+        let content_string = String::from_utf8(content)?;
+        let yaml: serde_yaml::Value = serde_yaml::from_str(&content_string)
             .map_err(|e| ConfigCombineError::ParseYaml(name.to_string(), e))?;
         merge_yaml(yaml, combined_yaml)?;
     } else if name.contains(".sql") {
         let mapping = combined_yaml.as_mapping_mut().expect("Should be mapping");
         let sql = mapping.get_mut(serde_yaml::Value::String("sql".into()));
 
-        let c = String::from_utf8(content)?;
+        let content_string = String::from_utf8(content)?;
 
         match sql {
             None => {
                 mapping.insert(
                     serde_yaml::Value::String("sql".into()),
-                    serde_yaml::Value::String(c),
+                    serde_yaml::Value::String(content_string),
                 );
             }
             Some(s) => {
@@ -94,7 +94,7 @@ pub fn add_file_content_to_config(
                         return Err(SqlIsNotStringType);
                     }
                     Some(current_query) => {
-                        Value::String(format!("{};{}", current_query, c.as_str()))
+                        Value::String(format!("{};{}", current_query, content_string.as_str()))
                     }
                 }
             }
