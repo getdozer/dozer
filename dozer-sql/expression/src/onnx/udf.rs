@@ -37,7 +37,6 @@ pub fn evaluate_onnx_udf(
         if i == 0 && d.is_none() {
             input_dim_prefix = true;
         }
-        i += 1;
     }
     if input_shape.is_empty() {
         return Err(Onnx(OnnxInvalidInputShapeErr));
@@ -50,7 +49,6 @@ pub fn evaluate_onnx_udf(
         if j == 0 && d.is_none() {
             output_dim_prefix = true;
         }
-        j += 1;
     }
     if output_shape.is_empty() {
         return Err(Onnx(OnnxInvalidInputShapeErr));
