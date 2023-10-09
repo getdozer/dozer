@@ -131,6 +131,7 @@ async fn create_postgres_server() -> (Client, PostgresConnectorTest, PostgresCon
     let connector = PostgresConnector::new(PostgresConfig {
         name: "postgres_connector_test".to_string(),
         config: config.clone(),
+        schema: None,
     });
 
     let client = connect(config.clone()).await.unwrap();

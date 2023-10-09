@@ -21,6 +21,7 @@ use tokio::task::JoinSet;
 pub struct PostgresSnapshotter<'a> {
     pub conn_config: tokio_postgres::Config,
     pub ingestor: &'a Ingestor,
+    pub schema: Option<String>,
 }
 
 impl<'a> PostgresSnapshotter<'a> {
@@ -28,7 +29,7 @@ impl<'a> PostgresSnapshotter<'a> {
         &self,
         tables: &[ListOrFilterColumns],
     ) -> Result<Vec<SourceSchemaResult>, ConnectorError> {
-        let helper = SchemaHelper::new(self.conn_config.clone());
+        let helper = SchemaHelper::new(self.conn_config.clone(), self.schema.clone());
         helper
             .get_schemas(tables)
             .await
@@ -197,6 +198,7 @@ mod tests {
             let snapshotter = PostgresSnapshotter {
                 conn_config,
                 ingestor: &ingestor,
+                schema: None,
             };
 
             let actual = snapshotter.sync_tables(&input_tables).await;
@@ -248,6 +250,7 @@ mod tests {
             let snapshotter = PostgresSnapshotter {
                 conn_config,
                 ingestor: &ingestor,
+                schema: None,
             };
 
             let actual = snapshotter.sync_tables(&input_tables).await;
@@ -288,6 +291,7 @@ mod tests {
             let snapshotter = PostgresSnapshotter {
                 conn_config,
                 ingestor: &ingestor,
+                schema: None,
             };
 
             let actual = snapshotter.sync_tables(&input_tables).await;

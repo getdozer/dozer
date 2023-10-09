@@ -27,6 +27,7 @@ pub struct Details {
     tables: Vec<PostgresTableInfo>,
     replication_conn_config: tokio_postgres::Config,
     conn_config: tokio_postgres::Config,
+    schema: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -51,6 +52,7 @@ impl<'a> PostgresIterator<'a> {
         replication_conn_config: tokio_postgres::Config,
         ingestor: &'a Ingestor,
         conn_config: tokio_postgres::Config,
+        schema: Option<String>,
     ) -> Self {
         let details = Arc::new(Details {
             name,
@@ -59,6 +61,7 @@ impl<'a> PostgresIterator<'a> {
             tables,
             replication_conn_config,
             conn_config,
+            schema,
         });
         PostgresIterator { details, ingestor }
     }
@@ -160,6 +163,7 @@ impl<'a> PostgresIteratorHandler<'a> {
             let snapshotter = PostgresSnapshotter {
                 conn_config: details.conn_config.to_owned(),
                 ingestor: self.ingestor,
+                schema: details.schema.clone(),
             };
             let tables = details
                 .tables

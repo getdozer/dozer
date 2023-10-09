@@ -159,6 +159,7 @@ pub fn generate_connection(connection_name: &str) -> Connection {
                 database: Some("users".to_owned()),
                 sslmode: None,
                 connection_url: None,
+                schema: None,
             };
             let connection: Connection = Connection {
                 name: "postgres".to_owned(),

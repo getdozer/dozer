@@ -18,6 +18,8 @@ use PostgresSchemaError::TableTypeNotFound;
 #[derive(Debug)]
 pub struct SchemaHelper {
     conn_config: tokio_postgres::Config,
+    // Postgres schema
+    schema: Option<String>,
 }
 
 struct PostgresTableRow {
@@ -84,8 +86,11 @@ pub struct PostgresTableInfo {
 type RowsWithColumnsMap = (Vec<Row>, HashMap<SchemaTableIdentifier, Vec<String>>);
 
 impl SchemaHelper {
-    pub fn new(conn_config: tokio_postgres::Config) -> SchemaHelper {
-        Self { conn_config }
+    pub fn new(conn_config: tokio_postgres::Config, schema: Option<String>) -> SchemaHelper {
+        Self {
+            conn_config,
+            schema,
+        }
     }
 
     pub async fn get_tables(
@@ -185,8 +190,18 @@ impl SchemaHelper {
             );
             client.query(&sql, &[&schemas, &table_names]).await
         } else {
-            let sql = str::replace(SQL, ":tables_name_condition", "t.table_type = 'BASE TABLE'");
-            client.query(&sql, &[]).await
+            if let Some(schema) = &self.schema {
+                let sql = str::replace(
+                    SQL,
+                    ":tables_name_condition",
+                    "t.table_schema = $1 AND t.table_type = 'BASE TABLE'",
+                );
+                client.query(&sql, &[&schema]).await
+            } else {
+                let sql =
+                    str::replace(SQL, ":tables_name_condition", "t.table_type = 'BASE TABLE'");
+                client.query(&sql, &[]).await
+            }
         };
 
         query

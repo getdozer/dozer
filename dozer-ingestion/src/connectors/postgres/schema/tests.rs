@@ -34,7 +34,7 @@ async fn test_connector_get_tables() {
         client.create_schema(&schema).await;
         client.create_simple_table(&schema, &table_name).await;
 
-        let schema_helper = SchemaHelper::new(client.postgres_config.clone());
+        let schema_helper = SchemaHelper::new(client.postgres_config.clone(), None);
         let result = schema_helper.get_tables(None).await.unwrap();
 
         let table = result.get(0).unwrap();
@@ -69,7 +69,7 @@ async fn test_connector_get_schema_with_selected_columns() {
         client.create_schema(&schema).await;
         client.create_simple_table(&schema, &table_name).await;
 
-        let schema_helper = SchemaHelper::new(client.postgres_config.clone());
+        let schema_helper = SchemaHelper::new(client.postgres_config.clone(), None);
         let table_info = ListOrFilterColumns {
             schema: Some(schema.clone()),
             name: table_name.clone(),
@@ -104,7 +104,7 @@ async fn test_connector_get_schema_without_selected_columns() {
         client.create_schema(&schema).await;
         client.create_simple_table(&schema, &table_name).await;
 
-        let schema_helper = SchemaHelper::new(client.postgres_config.clone());
+        let schema_helper = SchemaHelper::new(client.postgres_config.clone(), None);
         let table_info = ListOrFilterColumns {
             name: table_name.clone(),
             schema: Some(schema.clone()),
@@ -146,7 +146,7 @@ async fn test_connector_view_cannot_be_used() {
         client.create_simple_table(&schema, &table_name).await;
         client.create_view(&schema, &table_name, &view_name).await;
 
-        let schema_helper = SchemaHelper::new(client.postgres_config.clone());
+        let schema_helper = SchemaHelper::new(client.postgres_config.clone(), None);
         let table_info = ListOrFilterColumns {
             name: view_name,
             schema: Some(schema.clone()),
