@@ -80,7 +80,7 @@ pub enum GrpcConfigSchemas {
     Path(String),
 }
 
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema, Default)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
 #[schemars(example = "Self::example")]
 
 pub struct EthConfig {
@@ -337,11 +337,11 @@ impl SchemaExample for S3Storage {
         Self {
             details: s3_details,
             tables: vec![Table {
-                config: Some(TableConfig::CSV(CsvConfig {
+                config: TableConfig::CSV(CsvConfig {
                     path: "path/to/file".to_owned(),
                     extension: ".csv".to_owned(),
                     marker_extension: None,
-                })),
+                }),
                 name: "table_name".to_owned(),
             }],
         }
@@ -494,11 +494,11 @@ impl SchemaExample for LocalStorage {
                 path: "path".to_owned(),
             },
             tables: vec![Table {
-                config: Some(TableConfig::CSV(CsvConfig {
+                config: TableConfig::CSV(CsvConfig {
                     path: "path/to/table".to_owned(),
                     extension: ".csv".to_owned(),
                     marker_extension: None,
-                })),
+                }),
                 name: "table_name".to_owned(),
             }],
         }

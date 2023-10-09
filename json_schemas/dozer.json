@@ -726,12 +726,9 @@
         {
           "provider": {
             "Log": {
-              "contracts": [],
               "filter": {
-                "addresses": [],
                 "from_block": 0,
-                "to_block": null,
-                "topics": []
+                "to_block": null
               },
               "wss_url": ""
             }
