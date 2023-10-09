@@ -5,7 +5,7 @@ use crate::connectors::grpc::{ArrowAdapter, DefaultAdapter};
 use crate::ingestion::IngestionIterator;
 use crate::test_util::{create_test_runtime, spawn_connector_all_tables};
 use dozer_types::arrow_types::to_arrow::DOZER_SCHEMA_KEY;
-use dozer_types::ingestion_types::IngestionMessage;
+use dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_types::{
     arrow::array::{Int32Array, StringArray},
     grpc_types::{
@@ -26,7 +26,7 @@ use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::tonic::transport::Channel;
 use dozer_types::types::{FieldDefinition, FieldType, Schema as DozerSchema, SourceDefinition};
 use dozer_types::{
-    ingestion_types::{GrpcConfig, GrpcConfigSchemas},
+    models::ingestion_types::{GrpcConfig, GrpcConfigSchemas},
     serde_json::json,
 };
 use tokio::runtime::Runtime;

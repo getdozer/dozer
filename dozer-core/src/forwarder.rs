@@ -8,8 +8,8 @@ use crate::node::PortHandle;
 use crate::record_store::{RecordWriter, RecordWriterError};
 
 use crossbeam::channel::Sender;
-use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::debug;
+use dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_types::node::{NodeHandle, TableState};
 use std::collections::HashMap;
 use std::ops::Deref;

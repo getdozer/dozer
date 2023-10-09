@@ -11,7 +11,7 @@ use crate::connectors::postgres::schema::helper::SchemaHelper;
 use crate::errors::ConnectorError::PostgresConnectorError;
 use dozer_types::types::Schema;
 
-use dozer_types::ingestion_types::IngestionMessage;
+use dozer_types::models::ingestion_types::IngestionMessage;
 
 use dozer_types::types::Operation;
 use futures::StreamExt;

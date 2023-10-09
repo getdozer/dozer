@@ -12,13 +12,13 @@ use dozer_types::grpc_types::conversions::field_to_grpc;
 use dozer_types::grpc_types::ingest::ingest_service_client::IngestServiceClient;
 use dozer_types::grpc_types::ingest::{IngestRequest, OperationType};
 use dozer_types::grpc_types::types::Record;
-use dozer_types::ingestion_types::GrpcConfig;
 use dozer_types::log::info;
 use dozer_types::models::api_endpoint::ApiEndpoint;
+use dozer_types::models::ingestion_types::GrpcConfigSchemas;
 use dozer_types::models::source::Source;
 use dozer_types::types::{Field, FieldDefinition, FieldType};
 use dozer_types::{
-    ingestion_types::{NestedDozerConfig, NestedDozerLogOptions},
+    models::ingestion_types::{GrpcConfig, NestedDozerConfig, NestedDozerLogOptions},
     serde_json,
 };
 
@@ -190,7 +190,7 @@ async fn create_nested_dozer_server(
     let grpc_config = GrpcConfig {
         host: Some("0.0.0.0".to_owned()),
         port: Some(8085),
-        schemas: dozer_types::ingestion_types::GrpcConfigSchemas::Inline(schema_string),
+        schemas: GrpcConfigSchemas::Inline(schema_string),
         adapter: Some("default".to_owned()),
     };
 

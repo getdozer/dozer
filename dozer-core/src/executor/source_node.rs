@@ -7,7 +7,7 @@ use std::{
 };
 
 use crossbeam::channel::{bounded, Receiver, RecvTimeoutError, Sender};
-use dozer_types::ingestion_types::IngestionMessage;
+use dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_types::{log::debug, node::NodeHandle};
 
 use crate::{

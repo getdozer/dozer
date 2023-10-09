@@ -6,6 +6,7 @@ pub mod cloud;
 pub mod config;
 pub mod connection;
 pub mod flags;
+pub mod ingestion_types;
 mod json_schema_helper;
 pub mod source;
 pub mod telemetry;

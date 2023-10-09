@@ -13,8 +13,8 @@ use tokio::sync::mpsc::{channel, Sender};
 use crate::{errors::ConnectorError, ingestion::Ingestor};
 use dozer_types::{
     errors::types::DeserializationError,
-    ingestion_types::IngestionMessage,
     json_types::{serde_json_to_json_value, JsonValue},
+    models::ingestion_types::IngestionMessage,
     thiserror::{self, Error},
     types::{Field, FieldDefinition, FieldType, Operation, Record, SourceDefinition},
 };

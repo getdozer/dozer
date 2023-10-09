@@ -1,6 +1,6 @@
 use crate::errors::ObjectStoreObjectError::TableDefinitionNotFound;
 use crate::errors::{ConnectorError, ObjectStoreConnectorError};
-use dozer_types::ingestion_types::{LocalStorage, S3Storage, Table};
+use dozer_types::models::ingestion_types::{LocalStorage, S3Storage, Table, TableConfig};
 use object_store::aws::{AmazonS3, AmazonS3Builder};
 use object_store::local::LocalFileSystem;
 use object_store::{BackoffConfig, ObjectStore, RetryConfig};
@@ -71,24 +71,10 @@ impl DozerObjectStore for S3Storage {
             .build()
             .map_err(|e| ConnectorError::InitializationError(e.to_string()))?;
 
-        if table.config.is_none() {
-            return Err(ConnectorError::TableNotFound(format!("{} - Table configuration for Parquet and CSV is changed since v0.1.27, please check our documentation at https://getdozer.io/docs/configuration/connectors/#source-table-types-for-connectors", table.name.clone())));
-        }
-
-        let folder = if let Some(config) = &table.config {
-            match config {
-                dozer_types::ingestion_types::TableConfig::CSV(csv_config) => {
-                    csv_config.path.clone()
-                }
-                dozer_types::ingestion_types::TableConfig::Delta(delta_config) => {
-                    delta_config.path.clone()
-                }
-                dozer_types::ingestion_types::TableConfig::Parquet(parquet_config) => {
-                    parquet_config.path.clone()
-                }
-            }
-        } else {
-            return Err(ConnectorError::TableNotFound(table.name.clone()));
+        let folder = match &table.config {
+            TableConfig::CSV(csv_config) => csv_config.path.clone(),
+            TableConfig::Delta(delta_config) => delta_config.path.clone(),
+            TableConfig::Parquet(parquet_config) => parquet_config.path.clone(),
         };
 
         Ok(DozerObjectStoreParams {
@@ -121,24 +107,10 @@ impl DozerObjectStore for LocalStorage {
         let object_store = LocalFileSystem::new_with_prefix(path)
             .map_err(|e| ConnectorError::InitializationError(e.to_string()))?;
 
-        if table.config.is_none() {
-            return Err(ConnectorError::TableNotFound(format!("`{}` - Table configuration for Parquet and CSV is changed since v0.1.27, please check our documentation at https://getdozer.io/docs/configuration/connectors/#source-table-types-for-connectors", table.name.clone())));
-        }
-
-        let folder = if let Some(config) = &table.config {
-            match config {
-                dozer_types::ingestion_types::TableConfig::CSV(csv_config) => {
-                    csv_config.path.clone()
-                }
-                dozer_types::ingestion_types::TableConfig::Delta(delta_config) => {
-                    delta_config.path.clone()
-                }
-                dozer_types::ingestion_types::TableConfig::Parquet(parquet_config) => {
-                    parquet_config.path.clone()
-                }
-            }
-        } else {
-            return Err(ConnectorError::TableNotFound(table.name.clone()));
+        let folder = match &table.config {
+            TableConfig::CSV(csv_config) => csv_config.path.clone(),
+            TableConfig::Delta(delta_config) => delta_config.path.clone(),
+            TableConfig::Parquet(parquet_config) => parquet_config.path.clone(),
         };
 
         Ok(DozerObjectStoreParams {

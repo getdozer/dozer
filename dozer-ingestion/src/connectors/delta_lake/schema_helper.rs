@@ -4,7 +4,7 @@ use crate::connectors::object_store::schema_mapper::map_schema;
 use crate::connectors::{CdcType, ListOrFilterColumns, SourceSchema, SourceSchemaResult};
 use deltalake::arrow::datatypes::SchemaRef;
 use deltalake::datafusion::prelude::SessionContext;
-use dozer_types::ingestion_types::DeltaLakeConfig;
+use dozer_types::models::ingestion_types::DeltaLakeConfig;
 use std::sync::Arc;
 
 pub struct SchemaHelper {

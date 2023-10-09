@@ -7,7 +7,7 @@ use crate::connectors::{
 };
 use crate::ingestion::Ingestor;
 use crate::{connectors::TableInfo, errors::ConnectorError};
-use dozer_types::ingestion_types::{EthFilter, EthLogConfig};
+use dozer_types::models::ingestion_types::{EthFilter, EthLogConfig};
 
 use dozer_types::log::warn;
 use dozer_types::serde_json;

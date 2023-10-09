@@ -2,7 +2,7 @@ use crate::connectors::snowflake::connection::client::Client;
 
 use crate::errors::{ConnectorError, SnowflakeError};
 use crate::ingestion::Ingestor;
-use dozer_types::ingestion_types::IngestionMessage;
+use dozer_types::models::ingestion_types::IngestionMessage;
 
 use crate::errors::SnowflakeStreamError::{CannotDetermineAction, UnsupportedActionInStream};
 use dozer_types::types::{Field, Operation, Record};

@@ -1,6 +1,6 @@
 use dozer_types::{
     chrono::{DateTime, Utc},
-    ingestion_types::{CsvConfig, IngestionMessage},
+    models::ingestion_types::{CsvConfig, IngestionMessage},
     tracing::info,
 };
 use std::{collections::HashMap, path::Path, sync::Arc, time::Duration};

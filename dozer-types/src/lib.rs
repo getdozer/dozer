@@ -3,7 +3,6 @@ pub mod constants;
 pub mod errors;
 pub mod field_type;
 pub mod helper;
-pub mod ingestion_types;
 pub mod json_types;
 pub mod models;
 pub mod node;

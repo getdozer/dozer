@@ -1,5 +1,5 @@
 use crate::errors::{ConnectorError, SnowflakeSchemaError};
-use dozer_types::ingestion_types::SnowflakeConfig;
+use dozer_types::models::ingestion_types::SnowflakeConfig;
 use odbc::create_environment_v3;
 use std::collections::HashMap;
 

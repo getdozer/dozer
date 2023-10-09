@@ -5,7 +5,7 @@ use crate::{
 use std::collections::HashMap;
 
 use dozer_types::chrono::{DateTime, Utc};
-use dozer_types::ingestion_types::IngestionMessage;
+use dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_types::tonic::async_trait;
 use tokio::sync::mpsc::Sender;
 use tokio::task::JoinHandle;

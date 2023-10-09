@@ -1,13 +1,9 @@
 use crate::connectors::object_store::connector::ObjectStoreConnector;
 use crate::connectors::Connector;
 use crate::test_util::create_runtime_and_spawn_connector_all_tables;
-use dozer_types::ingestion_types::IngestionMessage;
-use dozer_types::ingestion_types::LocalDetails;
+use dozer_types::models::ingestion_types::IngestionMessage;
 
-use crate::connectors::object_store::helper::map_listing_options;
 use crate::connectors::object_store::tests::test_utils::get_local_storage_config;
-use crate::errors::ConnectorError::InitializationError;
-use crate::errors::ObjectStoreObjectError;
 use dozer_types::types::{Field, FieldType, Operation};
 
 #[macro_export]
@@ -370,34 +366,4 @@ fn test_csv_read_no_marker() {
     } else {
         panic!("Unexpected message");
     }
-}
-
-#[test]
-fn test_unsupported_format() {
-    let local_storage = get_local_storage_config("unsupported", "");
-    let table = local_storage.tables.get(0).unwrap();
-
-    let result = map_listing_options(table);
-    assert!(result.is_err());
-    assert!(matches!(
-        result,
-        Err(ObjectStoreObjectError::FileFormatUnsupportedError(_))
-    ));
-}
-
-#[tokio::test]
-async fn test_missing_directory() {
-    let mut local_storage = get_local_storage_config("unsupported", "");
-    local_storage.details = LocalDetails {
-        path: "not_existing_path".to_string(),
-    };
-    let connector = ObjectStoreConnector::new(local_storage);
-
-    let tables = connector
-        .list_columns(connector.list_tables().await.unwrap())
-        .await;
-
-    assert!(tables.is_err());
-
-    assert!(matches!(tables, Err(InitializationError(_))));
 }

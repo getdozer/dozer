@@ -3,7 +3,7 @@ use dozer_ingestion::connectors::object_store::connector::ObjectStoreConnector;
 use dozer_types::tonic::async_trait;
 use dozer_types::{
     arrow,
-    ingestion_types::{LocalDetails, LocalStorage, ParquetConfig, Table, TableConfig},
+    models::ingestion_types::{LocalDetails, LocalStorage, ParquetConfig, Table, TableConfig},
     types::Field,
 };
 use tempdir::TempDir;
@@ -90,11 +90,11 @@ fn create_connector(
             path: temp_dir.path().to_str().expect("Non-UTF8 path").to_string(),
         },
         tables: vec![Table {
-            config: Some(TableConfig::Parquet(ParquetConfig {
+            config: TableConfig::Parquet(ParquetConfig {
                 path: table_name.to_string(),
                 extension: ".parquet".to_string(),
                 marker_extension: None,
-            })),
+            }),
             name: table_name,
         }],
     };

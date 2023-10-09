@@ -10,7 +10,7 @@ use dozer_types::{
         common::common_grpc_service_client::CommonGrpcServiceClient,
         ingest::ingest_service_client::IngestServiceClient,
     },
-    ingestion_types::{default_ingest_host, default_ingest_port},
+    models::ingestion_types::{default_ingest_host, default_ingest_port},
     models::{
         api_config::{default_grpc_port, default_host},
         config::Config,

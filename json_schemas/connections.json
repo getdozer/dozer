@@ -111,7 +111,6 @@
           "type": "object",
           "properties": {
             "addresses": {
-              "default": [],
               "type": "array",
               "items": {
                 "type": "string"
@@ -134,7 +133,6 @@
               "minimum": 0.0
             },
             "topics": {
-              "default": [],
               "type": "array",
               "items": {
                 "type": "string"
@@ -149,7 +147,6 @@
           ],
           "properties": {
             "contracts": {
-              "default": [],
               "type": "array",
               "items": {
                 "$ref": "#/definitions/EthContract"
@@ -477,18 +474,12 @@
         "Table": {
           "type": "object",
           "required": [
+            "config",
             "name"
           ],
           "properties": {
             "config": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/TableConfig"
-                },
-                {
-                  "type": "null"
-                }
-              ]
+              "$ref": "#/definitions/TableConfig"
             },
             "name": {
               "type": "string"
@@ -627,18 +618,12 @@
         "Table": {
           "type": "object",
           "required": [
+            "config",
             "name"
           ],
           "properties": {
             "config": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/TableConfig"
-                },
-                {
-                  "type": "null"
-                }
-              ]
+              "$ref": "#/definitions/TableConfig"
             },
             "name": {
               "type": "string"
@@ -775,12 +760,7 @@
       ],
       "properties": {
         "log_options": {
-          "default": {},
-          "allOf": [
-            {
-              "$ref": "#/definitions/NestedDozerLogOptions"
-            }
-          ]
+          "$ref": "#/definitions/NestedDozerLogOptions"
         },
         "url": {
           "type": "string"

@@ -1,8 +1,8 @@
 use crate::connectors::ListOrFilterColumns;
 use crate::errors::{ConnectorError, PostgresConnectorError};
 use crate::ingestion::Ingestor;
-use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::debug;
+use dozer_types::models::ingestion_types::IngestionMessage;
 
 use std::str::FromStr;
 

@@ -3,8 +3,8 @@ use std::sync::Arc;
 use crate::pipeline::source_builder::SourceBuilder;
 use crate::pipeline::PipelineBuilder;
 use dozer_api::shutdown;
-use dozer_types::ingestion_types::{GrpcConfig, GrpcConfigSchemas};
 use dozer_types::models::config::Config;
+use dozer_types::models::ingestion_types::{GrpcConfig, GrpcConfigSchemas};
 
 use dozer_types::models::connection::{Connection, ConnectionConfig};
 use dozer_types::models::flags::Flags;

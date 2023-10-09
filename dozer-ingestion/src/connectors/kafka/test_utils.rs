@@ -2,7 +2,7 @@
 // use crate::connectors::{get_connector, TableInfo};
 // use crate::ingestion::{IngestionConfig, IngestionIterator, Ingestor};
 // use crate::test_util::load_config;
-// use dozer_types::ingestion_types::KafkaConfig;
+// use dozer_types::models::ingestion_types::KafkaConfig;
 // use dozer_types::models::app_config::Config;
 // use dozer_types::models::connection::ConnectionConfig;
 //

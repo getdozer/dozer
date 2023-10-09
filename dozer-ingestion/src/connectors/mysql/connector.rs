@@ -15,7 +15,7 @@ use crate::{
 use crate::{errors::ConnectorError, ingestion::Ingestor};
 use dozer_types::tonic::async_trait;
 use dozer_types::{
-    ingestion_types::IngestionMessage,
+    models::ingestion_types::IngestionMessage,
     types::{FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition},
 };
 use mysql_async::{Opts, Pool};
@@ -408,8 +408,8 @@ mod tests {
         ingestion::{IngestionIterator, Ingestor},
     };
     use dozer_types::{
-        ingestion_types::IngestionMessage,
         json_types::JsonValue,
+        models::ingestion_types::IngestionMessage,
         types::{
             Field, FieldDefinition, FieldType, Operation::*, Record, Schema, SourceDefinition,
         },

@@ -10,6 +10,7 @@ use deltalake::datafusion::datasource::listing::{ListingOptions, ListingTableUrl
 use deltalake::datafusion::prelude::SessionContext;
 use deltalake::s3_storage_options;
 use dozer_types::log::error;
+use dozer_types::models::ingestion_types::TableConfig;
 use dozer_types::types::Schema;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -52,29 +53,21 @@ async fn get_table_schema(
 ) -> SourceSchemaResult {
     let params = &config.table_params(&table.name)?;
 
-    if let Some(table_config) = &params.data_fusion_table.config {
-        match table_config {
-            dozer_types::ingestion_types::TableConfig::CSV(table_config) => {
-                let format = CsvFormat::default();
-                let listing_options = ListingOptions::new(Arc::new(format))
-                    .with_file_extension(table_config.extension.clone());
-                get_object_schema(table, config, listing_options).await
-            }
-            dozer_types::ingestion_types::TableConfig::Delta(_table_config) => {
-                get_delta_schema(table, config).await
-            }
-            dozer_types::ingestion_types::TableConfig::Parquet(table_config) => {
-                let format = ParquetFormat::default();
-                let listing_options = ListingOptions::new(Arc::new(format))
-                    .with_file_extension(table_config.extension.clone());
-
-                get_object_schema(table, config, listing_options).await
-            }
+    match &params.data_fusion_table.config {
+        TableConfig::CSV(table_config) => {
+            let format = CsvFormat::default();
+            let listing_options = ListingOptions::new(Arc::new(format))
+                .with_file_extension(table_config.extension.clone());
+            get_object_schema(table, config, listing_options).await
         }
-    } else {
-        Err(ConnectorError::UnavailableConnectionConfiguration(
-            "Unable to get the table schema".to_string(),
-        ))
+        TableConfig::Delta(_table_config) => get_delta_schema(table, config).await,
+        TableConfig::Parquet(table_config) => {
+            let format = ParquetFormat::default();
+            let listing_options = ListingOptions::new(Arc::new(format))
+                .with_file_extension(table_config.extension.clone());
+
+            get_object_schema(table, config, listing_options).await
+        }
     }
 }
 

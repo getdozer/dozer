@@ -12,8 +12,8 @@ use deltalake::datafusion::datasource::listing::{
 
 use deltalake::datafusion::prelude::SessionContext;
 use dozer_types::arrow_types::from_arrow::{map_schema_to_dozer, map_value_to_dozer_field};
-use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::error;
+use dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_types::tonic::async_trait;
 use dozer_types::types::{Operation, Record};
 use futures::StreamExt;

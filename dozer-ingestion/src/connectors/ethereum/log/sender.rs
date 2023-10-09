@@ -8,8 +8,8 @@ use crate::{
     connectors::{ethereum::helper as conn_helper, TableToIngest},
     errors::ConnectorError,
 };
-use dozer_types::ingestion_types::{EthFilter, IngestionMessage};
 use dozer_types::log::{debug, info, trace, warn};
+use dozer_types::models::ingestion_types::{EthFilter, IngestionMessage};
 
 use futures::StreamExt;
 

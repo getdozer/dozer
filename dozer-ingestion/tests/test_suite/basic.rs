@@ -5,8 +5,8 @@ use dozer_ingestion::{
     test_util::spawn_connector,
 };
 use dozer_types::{
-    ingestion_types::IngestionMessage,
     log::warn,
+    models::ingestion_types::IngestionMessage,
     types::{Field, FieldDefinition, FieldType, Operation, Record, Schema},
 };
 use tokio::runtime::Runtime;

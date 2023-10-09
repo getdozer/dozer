@@ -9,8 +9,8 @@ use crate::errors::PostgresConnectorError::{
 use crate::ingestion::Ingestor;
 use dozer_types::bytes;
 use dozer_types::chrono::{TimeZone, Utc};
-use dozer_types::ingestion_types::IngestionMessage;
 use dozer_types::log::{error, info};
+use dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_types::node::OpIdentifier;
 use futures::StreamExt;
 use postgres_protocol::message::backend::ReplicationMessage::*;

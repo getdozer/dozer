@@ -1,8 +1,8 @@
 use std::{env, time::Duration};
 
 use dozer_types::{
-    ingestion_types::{EthTraceConfig, IngestionMessage},
     log::info,
+    models::ingestion_types::{EthTraceConfig, IngestionMessage},
     types::{Field, Operation},
 };
 
