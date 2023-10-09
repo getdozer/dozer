@@ -24,6 +24,7 @@ use super::connection::helper;
 pub struct PostgresConfig {
     pub name: String,
     pub config: Config,
+    pub schema: Option<String>,
 }
 
 #[derive(Debug)]
@@ -32,6 +33,7 @@ pub struct PostgresConnector {
     replication_conn_config: Config,
     conn_config: Config,
     schema_helper: SchemaHelper,
+    pub schema: Option<String>,
 }
 
 #[derive(Debug)]
@@ -47,7 +49,7 @@ impl PostgresConnector {
         let mut replication_conn_config = config.config.clone();
         replication_conn_config.replication_mode(ReplicationMode::Logical);
 
-        let helper = SchemaHelper::new(config.config.clone());
+        let helper = SchemaHelper::new(config.config.clone(), config.schema.clone());
 
         // conn_str - replication_conn_config
         // conn_str_plain- conn_config
@@ -57,6 +59,7 @@ impl PostgresConnector {
             conn_config: config.config,
             replication_conn_config,
             schema_helper: helper,
+            schema: config.schema,
         }
     }
 
@@ -198,6 +201,7 @@ impl Connector for PostgresConnector {
             self.replication_conn_config.clone(),
             ingestor,
             self.conn_config.clone(),
+            self.schema.clone(),
         );
         iterator.start(lsn).await
     }

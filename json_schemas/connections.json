@@ -7,12 +7,11 @@
       "description": "Configuration for a Postgres connection",
       "examples": [
         {
-          "connection_url": null,
           "database": "postgres",
           "host": "localhost",
           "password": "postgres",
           "port": 5432,
-          "sslmode": null,
+          "schema": "public",
           "user": "postgres"
         }
       ],
@@ -54,6 +53,13 @@
           ],
           "format": "uint32",
           "minimum": 0.0
+        },
+        "schema": {
+          "description": "The connection url to use",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "sslmode": {
           "description": "The sslmode to use for the connection (disable, prefer, require)",

@@ -47,10 +47,16 @@ pub struct PostgresConfig {
     pub database: Option<String>,
 
     /// The sslmode to use for the connection (disable, prefer, require)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub sslmode: Option<String>,
 
     /// The connection url to use
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub connection_url: Option<String>,
+
+    /// The connection url to use
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub schema: Option<String>,
 }
 
 impl SchemaExample for PostgresConfig {
@@ -61,6 +67,7 @@ impl SchemaExample for PostgresConfig {
             host: Some("localhost".to_string()),
             port: Some(5432),
             database: Some("postgres".to_string()),
+            schema: Some("public".to_string()),
             ..Default::default()
         }
     }

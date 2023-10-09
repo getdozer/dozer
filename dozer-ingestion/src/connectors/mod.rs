@@ -202,12 +202,13 @@ impl TableToIngest {
 
 pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, ConnectorError> {
     let config = connection.config;
-    match config {
-        ConnectionConfig::Postgres(_) => {
+    match config.clone() {
+        ConnectionConfig::Postgres(c) => {
             let config = map_connection_config(&config)?;
             let postgres_config = PostgresConfig {
                 name: connection.name,
                 config,
+                schema: c.schema,
             };
 
             if let Some(dbname) = postgres_config.config.get_dbname() {
