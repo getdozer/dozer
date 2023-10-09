@@ -10,7 +10,7 @@
           "connection_url": null,
           "database": "postgres",
           "host": "localhost",
-          "password": null,
+          "password": "postgres",
           "port": 5432,
           "sslmode": null,
           "user": "postgres"
