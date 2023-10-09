@@ -353,7 +353,7 @@ impl SchemaExample for S3Storage {
             details: s3_details,
             tables: vec![Table {
                 config: Some(TableConfig::CSV(CsvConfig {
-                    path: "path".to_owned(),
+                    path: "path/to/file".to_owned(),
                     extension: ".csv".to_owned(),
                     marker_extension: None,
                 })),
@@ -485,8 +485,8 @@ impl SchemaExample for GrpcConfig {
 impl SchemaExample for KafkaConfig {
     fn example() -> Self {
         Self {
-            broker: "{{broker_url}}".to_owned(),
-            schema_registry_url: Some("{{schema_registry_url}}".to_owned()),
+            broker: "".to_owned(),
+            schema_registry_url: Some("".to_owned()),
         }
     }
 }
@@ -495,8 +495,8 @@ impl SchemaExample for DeltaLakeConfig {
     fn example() -> Self {
         Self {
             tables: vec![DeltaTable {
-                path: "{{delta_table_path}}".to_owned(),
-                name: "{{delta_table_name}}".to_owned(),
+                path: "".to_owned(),
+                name: "".to_owned(),
             }],
         }
     }
@@ -506,11 +506,11 @@ impl SchemaExample for LocalStorage {
     fn example() -> Self {
         Self {
             details: LocalDetails {
-                path: "{{local_storage_path}}".to_owned(),
+                path: "path".to_owned(),
             },
             tables: vec![Table {
                 config: Some(TableConfig::CSV(CsvConfig {
-                    path: "path".to_owned(),
+                    path: "path/to/table".to_owned(),
                     extension: ".csv".to_owned(),
                     marker_extension: None,
                 })),
@@ -547,7 +547,7 @@ impl SchemaExample for EthConfig {
         };
         Self {
             provider: EthProviderConfig::Log(EthLogConfig {
-                wss_url: "{{ETH_WSS_URL}}".to_owned(),
+                wss_url: "".to_owned(),
                 filter: Some(eth_filter),
                 contracts: vec![],
             }),

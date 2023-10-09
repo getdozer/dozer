@@ -89,7 +89,7 @@
                 "to_block": null,
                 "topics": []
               },
-              "wss_url": "{{ETH_WSS_URL}}"
+              "wss_url": ""
             }
           }
         }
@@ -400,8 +400,8 @@
       "title": "KafkaConfig",
       "examples": [
         {
-          "broker": "{{broker_url}}",
-          "schema_registry_url": "{{schema_registry_url}}"
+          "broker": "",
+          "schema_registry_url": ""
         }
       ],
       "type": "object",
@@ -439,7 +439,7 @@
               "config": {
                 "CSV": {
                   "extension": ".csv",
-                  "path": "path"
+                  "path": "path/to/file"
                 }
               },
               "name": "table_name"
@@ -612,14 +612,14 @@
       "examples": [
         {
           "details": {
-            "path": "{{local_storage_path}}"
+            "path": "path"
           },
           "tables": [
             {
               "config": {
                 "CSV": {
                   "extension": ".csv",
-                  "path": "path"
+                  "path": "path/to/table"
                 }
               },
               "name": "table_name"
@@ -781,8 +781,8 @@
         {
           "tables": [
             {
-              "name": "{{delta_table_name}}",
-              "path": "{{delta_table_path}}"
+              "name": "",
+              "path": ""
             }
           ]
         }
