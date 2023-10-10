@@ -115,9 +115,6 @@ pub enum PipelineError {
     )]
     UnsupportedJoinConstraintOperator(String),
 
-    #[error("Invalid Field specified in JOIN: {0}")]
-    InvalidFieldSpecified(String),
-
     #[error("Currently JOIN supports two level of namespacing. For example, `source.field_name` is valid, but `connection.source.field_name` is not.")]
     NameSpaceTooLong(String),
 
