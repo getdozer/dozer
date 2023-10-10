@@ -125,7 +125,8 @@ fn run() -> Result<(), OrchestrationError> {
     let runtime = Arc::new(Runtime::new().map_err(CliError::FailedToCreateTokioRuntime)?);
 
     let (shutdown_sender, shutdown_receiver) = shutdown::new(&runtime);
-    set_ctrl_handler(shutdown_sender);
+
+    runtime.block_on(set_ctrl_handler(shutdown_sender));
 
     set_panic_hook();
 

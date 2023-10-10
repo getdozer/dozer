@@ -276,19 +276,17 @@ impl SimpleOrchestrator {
     }
 
     #[allow(clippy::type_complexity)]
-    pub fn list_connectors(
+    pub async fn list_connectors(
         &self,
     ) -> Result<HashMap<String, (Vec<TableInfo>, Vec<SourceSchema>)>, OrchestrationError> {
-        self.runtime.block_on(async {
-            let mut schema_map = HashMap::new();
-            for connection in &self.config.connections {
-                let connector = get_connector(connection.clone())?;
-                let schema_tuples = connector.list_all_schemas().await?;
-                schema_map.insert(connection.name.clone(), schema_tuples);
-            }
+        let mut schema_map = HashMap::new();
+        for connection in &self.config.connections {
+            let connector = get_connector(connection.clone())?;
+            let schema_tuples = connector.list_all_schemas().await?;
+            schema_map.insert(connection.name.clone(), schema_tuples);
+        }
 
-            Ok(schema_map)
-        })
+        Ok(schema_map)
     }
 
     pub fn generate_token(&self, ttl_in_secs: Option<i32>) -> Result<String, OrchestrationError> {

@@ -8,12 +8,13 @@ use dozer_core::{app::AppPipeline, errors::ExecutionError};
 use dozer_sql::{builder::statement_to_pipeline, errors::PipelineError};
 use dozer_types::log::debug;
 use errors::OrchestrationError;
+use futures::Future;
 use std::{
     backtrace::{Backtrace, BacktraceStatus},
     panic, process,
     thread::current,
 };
-use tokio::task::JoinHandle;
+use tokio::task::{JoinError, JoinHandle};
 pub mod cloud;
 pub mod config_helper;
 pub use dozer_api::shutdown;
@@ -99,12 +100,11 @@ pub fn set_panic_hook() {
     }));
 }
 
-pub fn set_ctrl_handler(shutdown_sender: ShutdownSender) {
-    let mut shutdown = Some(shutdown_sender);
-    ctrlc::set_handler(move || {
-        if let Some(shutdown) = shutdown.take() {
-            shutdown.shutdown()
-        }
-    })
-    .expect("Error setting Ctrl-C handler");
+pub async fn set_ctrl_handler(shutdown_sender: ShutdownSender) {
+    tokio::spawn(async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("Error setting Ctrl-C handler");
+        shutdown_sender.shutdown();
+    });
 }
