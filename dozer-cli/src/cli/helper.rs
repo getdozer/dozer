@@ -63,7 +63,7 @@ pub async fn list_sources(
 ) -> Result<(), OrchestrationError> {
     let config = init_config(config_paths, config_token, config_overrides, ignore_pipe).await?;
     let dozer = init_dozer(runtime, config, Default::default())?;
-    let connection_map = dozer.list_connectors()?;
+    let connection_map = dozer.list_connectors().await?;
     let mut table_parent = Table::new();
     for (connection_name, (tables, schemas)) in connection_map {
         let mut first_table_found = false;
