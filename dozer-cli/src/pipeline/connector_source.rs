@@ -269,9 +269,11 @@ impl Source for ConnectorSource {
                     // Abort the connector when we shut down
                     // TODO: pass a `CancellationToken` to the connector to allow
                     // it to gracefully shut down.
+                    let name = self.connection_name.clone();
                     tokio::spawn(async move {
                         shutdown_future.await;
                         abort_handle.abort();
+                        eprintln!("Aborted connector {}", name);
                     });
                     let result =
                         Abortable::new(self.connector.start(&ingestor, tables), abort_registration)

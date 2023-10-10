@@ -12,7 +12,9 @@ use dozer_types::models::config::Config;
 use dozer_types::models::telemetry::{TelemetryConfig, TelemetryMetricsConfig};
 use dozer_types::serde::Deserialize;
 use dozer_types::tracing::{error, error_span, info};
+use futures::stream::{AbortHandle, Abortable};
 use std::cmp::Ordering;
+use std::convert::identity;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 use tokio::time;
@@ -195,14 +197,28 @@ fn run() -> Result<(), OrchestrationError> {
 
             dozer.build(force, shutdown_receiver, build.locked)
         }
-        Commands::Connectors(ConnectorCommand { filter }) => dozer.runtime.block_on(list_sources(
-            dozer.runtime.clone(),
-            cli.config_paths,
-            cli.config_token,
-            cli.config_overrides,
-            cli.ignore_pipe,
-            filter,
-        )),
+        Commands::Connectors(ConnectorCommand { filter }) => dozer.runtime.block_on(async {
+            let (abort_handle, registration) = AbortHandle::new_pair();
+            tokio::spawn(async move {
+                shutdown_receiver.create_shutdown_future().await;
+                abort_handle.abort();
+            });
+            Abortable::new(
+                list_sources(
+                    dozer.runtime.clone(),
+                    cli.config_paths,
+                    cli.config_token,
+                    cli.config_overrides,
+                    cli.ignore_pipe,
+                    filter,
+                ),
+                registration,
+            )
+            .await
+            .map_err(|_| OrchestrationError::Aborted)
+            // This is basically Result::flatten
+            .and_then(identity)
+        }),
         Commands::Clean => dozer.clean(),
         Commands::Cloud(_) => {
             panic!("This should not happen as it is handled earlier");

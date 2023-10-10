@@ -2161,16 +2161,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ctrlc"
-version = "3.2.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbcf33c2a618cbe41ee43ae6e9f2e48368cd9f9db2896f10167d8d762679f639"
-dependencies = [
- "nix",
- "windows-sys 0.45.0",
-]
-
-[[package]]
 name = "cxx"
 version = "1.0.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2709,7 +2699,6 @@ dependencies = [
  "actix-files",
  "atty",
  "clap 4.4.1",
- "ctrlc",
  "dozer-api",
  "dozer-cache",
  "dozer-core",

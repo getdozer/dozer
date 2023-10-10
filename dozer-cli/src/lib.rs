@@ -8,13 +8,13 @@ use dozer_core::{app::AppPipeline, errors::ExecutionError};
 use dozer_sql::{builder::statement_to_pipeline, errors::PipelineError};
 use dozer_types::log::debug;
 use errors::OrchestrationError;
-use futures::Future;
+
 use std::{
     backtrace::{Backtrace, BacktraceStatus},
     panic, process,
     thread::current,
 };
-use tokio::task::{JoinError, JoinHandle};
+use tokio::task::JoinHandle;
 pub mod cloud;
 pub mod config_helper;
 pub use dozer_api::shutdown;
