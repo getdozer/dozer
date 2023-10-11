@@ -12,7 +12,7 @@ use crate::errors::types::DeserializationError::{
     UnableToParseConnectionUrl, UnknownSslMode,
 };
 use prettytable::Table;
-use tokio_postgres::config::SslMode;
+use tokio_postgres::config::{Host, SslMode};
 use tokio_postgres::Config;
 
 pub trait SchemaExample {
@@ -123,11 +123,15 @@ impl PostgresConfig {
                         None => String::new(),
                     },
                     "host" => match val.get_hosts().first() {
-                        Some(h) => format!("{:?}", h),
+                        Some(host) => match host {
+                            Host::Tcp(host) => host.clone(),
+                            #[cfg(unix)]
+                            Host::Unix(path) => path.to_string_lossy().to_string(),
+                        },
                         None => String::new(),
                     },
                     "port" => match val.get_ports().first() {
-                        Some(p) => format!("{:?}", p),
+                        Some(p) => p.to_string(),
                         None => String::new(),
                     },
                     "database" => match val.get_dbname() {
