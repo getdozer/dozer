@@ -103,6 +103,8 @@ pub enum OrchestrationError {
     LockedOutdatedLockfile,
     #[error("{LOCK_FILE} does not exist. `--locked` requires a lock file.")]
     LockedNoLockFile,
+    #[error("Command was aborted")]
+    Aborted,
 }
 
 #[derive(Error, Debug)]
