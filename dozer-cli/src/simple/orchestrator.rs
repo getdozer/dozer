@@ -87,7 +87,7 @@ impl SimpleOrchestrator {
             let flags = self.config.flags.clone();
             let (operations_sender, operations_receiver) =
                 if flags.dynamic.unwrap_or_else(default_dynamic) {
-                    let (sender, receiver) = broadcast::channel(16);
+                    let (sender, receiver) = broadcast::channel(1024);
                     (Some(sender), Some(receiver))
                 } else {
                     (None, None)
