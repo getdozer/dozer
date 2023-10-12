@@ -45,8 +45,15 @@ struct RecordRefInner {
 unsafe impl Send for RecordRefInner {}
 unsafe impl Sync for RecordRefInner {}
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct RecordRef(Arc<RecordRefInner>);
+
+impl std::fmt::Debug for RecordRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let values: Vec<_> = self.load().iter().map(|val| val.cloned()).collect();
+        write!(f, "RecordRef({:?}), values: {:?}", self.0, &values)
+    }
+}
 
 impl PartialEq for RecordRef {
     fn eq(&self, other: &Self) -> bool {
