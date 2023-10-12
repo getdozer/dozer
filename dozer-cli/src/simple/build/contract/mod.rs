@@ -229,11 +229,42 @@ where
 
 impl PartialEq<PipelineContract> for PipelineContract {
     fn eq(&self, other: &PipelineContract) -> bool {
+        dbg!(self, other);
         is_isomorphic_matching(
             self.0.graph(),
             other.0.graph(),
-            PartialEq::eq,
-            PartialEq::eq,
+            |left, right| {
+                left.handle == right.handle
+                    && match (&left.kind, &right.kind) {
+                        (
+                            NodeKind::Source {
+                                typ: left_typ,
+                                port_names: left_portnames,
+                            },
+                            NodeKind::Source {
+                                typ: right_typ,
+                                port_names: right_portnames,
+                            },
+                        ) => {
+                            if left_typ != right_typ {
+                                false
+                            } else {
+                                let mut left: Vec<_> = left_portnames.values().collect();
+                                left.sort();
+                                let mut right: Vec<_> = right_portnames.values().collect();
+                                right.sort();
+                                left == right
+                            }
+                        }
+                        (
+                            NodeKind::Processor { typ: left_typ },
+                            NodeKind::Processor { typ: right_typ },
+                        ) => left_typ == right_typ,
+                        (NodeKind::Sink, NodeKind::Sink) => true,
+                        _ => false,
+                    }
+            },
+            |left, right| left.schema == right.schema,
         )
     }
 }
