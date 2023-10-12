@@ -29,5 +29,7 @@ pub enum Error {
     WasmUnsupportedReturnTypeSize(usize),
     #[error("The WASM input type must match the number of arguments received: {0} != {1}")]
     WasmInputTypeSizeMismatch(usize, usize),
+    #[error("The WASM function {0} is missing from the module {1}")]
+    WasmFunctionMissing(String, String),
 
 }

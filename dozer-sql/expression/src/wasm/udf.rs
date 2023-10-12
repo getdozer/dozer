@@ -1,6 +1,6 @@
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, FieldType, Record, Schema};
-use super::error::Error::{WasmInputDataTypeMismatchErr, WasmUnsupportedReturnType, WasmUnsupportedInputType, WasmTrap, WasmUnsupportedReturnTypeSize, WasmInputTypeSizeMismatch};
+use super::error::Error::{WasmInputDataTypeMismatchErr, WasmUnsupportedReturnType, WasmUnsupportedInputType, WasmTrap, WasmUnsupportedReturnTypeSize, WasmInputTypeSizeMismatch, WasmFunctionMissing};
 use crate::error::Error::{self, Wasm};
 
 use wasmtime::*;
@@ -10,7 +10,7 @@ use crate::execution::Expression;
 pub fn evaluate_wasm_udf(
     schema: &Schema,
     name: &str,
-    module: &str,
+    config: &str,
     args: &[Expression],
     record: &Record,
 ) -> Result<Field, Error> {
@@ -29,13 +29,19 @@ pub fn evaluate_wasm_udf(
         .collect();
 
     let engine = Engine::default();
-    let module = Module::from_file(&engine, module).unwrap();
-    let mut store = Store::new(&engine, 4);
+    let module = Module::from_file(&engine, config).unwrap();
+    let mut store = Store::new(&engine, ());
     let instance = Instance::new(&mut store, &module, &[]).unwrap();
 
-    let wasm_udf_func = instance
-        .get_func(&mut store, name)
-        .expect("Wasm export was not a function");
+    let wasm_udf_func;
+    match instance.get_func(&mut store, name) {
+        Some(func) => {
+            wasm_udf_func = func;
+        }
+        None => {
+            return Err(Wasm(WasmFunctionMissing(name.to_string(), config.to_string())));
+        },
+    }
 
     let func_type = wasm_udf_func.ty(&mut store);
     let param_types = func_type.params();
