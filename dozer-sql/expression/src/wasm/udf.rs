@@ -1,6 +1,8 @@
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{Field, FieldType, Record, Schema};
-use super::error::Error::{WasmInputDataTypeMismatchErr, WasmUnsupportedReturnType, WasmUnsupportedInputType, WasmTrap, WasmUnsupportedReturnTypeSize, WasmInputTypeSizeMismatch, WasmFunctionMissing};
+use super::error::Error::{WasmInputDataTypeMismatchErr, WasmUnsupportedReturnType,
+    WasmUnsupportedInputType, WasmTrap, WasmUnsupportedReturnTypeSize, WasmInputTypeSizeMismatch,
+    WasmFunctionMissing};
 use crate::error::Error::{self, Wasm};
 
 use wasmtime::*;
