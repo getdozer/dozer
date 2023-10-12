@@ -1,5 +1,6 @@
 use dozer_types::ordered_float::OrderedFloat;
-use dozer_types::types::{Field, FieldType, Record, Schema};
+use dozer_types::types::{Field, Record, Schema};
+use dozer_types::log::warn;
 use super::error::Error::{WasmInputDataTypeMismatchErr, WasmUnsupportedReturnType,
     WasmUnsupportedInputType, WasmTrap, WasmUnsupportedReturnTypeSize, WasmInputTypeSizeMismatch,
     WasmFunctionMissing};
@@ -20,15 +21,6 @@ pub fn evaluate_wasm_udf(
         .iter()
         .map(|arg| arg.evaluate(record, schema))
         .collect::<Result<Vec<_>, Error>>()?;
-
-    let values: Vec<Val> = input_values
-        .iter()
-        .map(|field| match field {
-            Field::Int(value) => Val::I64(*value),
-            Field::Float(value) => Val::F64(value.to_bits()),
-            _ => todo!(),
-        })
-        .collect();
 
     let engine = Engine::default();
     let module = Module::from_file(&engine, config).unwrap();
@@ -54,57 +46,143 @@ pub fn evaluate_wasm_udf(
     if param_types.len() != args.len() {
         return Err(Wasm(WasmInputTypeSizeMismatch(param_types.len(), args.len())));
     }
+
     // 2. Types must also agree
-    for (param, expr) in param_types.zip(args) {
-        match expr.get_type(schema) {
-            Ok(ty) => {
-                match ty.return_type {
-                    FieldType::UInt |
-                    FieldType::U128 => return Err(Wasm(WasmUnsupportedInputType(ty.return_type.to_string()))),
-                    FieldType::Int => {
-                        match param {
-                            ValType::I32 |
-                            ValType::I64 => {
-
+    let values: Vec<Val> = input_values
+        .iter().zip(param_types)
+        .map(|(field, param)| -> Val {match field {
+            Field::Int(value) => {
+                match param {
+                    ValType::I32 => {
+                        match i32::try_from(*value) {
+                            Ok(value) => {
+                                warn!("Precision loss happens due to conversion from Int to i32");
+                                Val::I32(value)
                             },
-                            ValType::F32 |
-                            ValType::F64 |
-                            ValType::V128 |
-                            ValType::FuncRef |
-                            ValType::ExternRef => return Err(Wasm(WasmInputDataTypeMismatchErr(param.to_string(), ty.return_type.to_string()))),
+                            Err(_) => todo!(),
                         }
                     },
-                    FieldType::I128 => return Err(Wasm(WasmUnsupportedInputType(ty.return_type.to_string()))),
-                    FieldType::Float => {
-                        match param {
-                            ValType::F32 |
-                            ValType::F64 => {
-
-                            },
-                            ValType::I32 |
-                            ValType::I64 |
-                            ValType::V128 |
-                            ValType::FuncRef |
-                            ValType::ExternRef => return Err(Wasm(WasmInputDataTypeMismatchErr(param.to_string(), ty.return_type.to_string()))),
-                        }
+                    ValType::I64 => {
+                        Val::I64(*value)
                     },
-                    FieldType::Boolean |
-                    FieldType::String |
-                    FieldType::Text |
-                    FieldType::Binary |
-                    FieldType::Decimal |
-                    FieldType::Timestamp |
-                    FieldType::Date |
-                    FieldType::Json |
-                    FieldType::Point |
-                    FieldType::Duration => {
-                        return Err(Wasm(WasmUnsupportedInputType(ty.return_type.to_string())));
-                    }
+                    ValType::F32 => todo!(),
+                    ValType::F64 => todo!(),
+                    ValType::V128 => todo!(),
+                    ValType::FuncRef => todo!(),
+                    ValType::ExternRef => todo!(),
                 }
             },
-            Err(_) => todo!(),
-        }
-    }
+            Field::Float(value) => {
+                match param {
+                    ValType::I32 => todo!(),
+                    ValType::I64 => todo!(),
+                    ValType::F32 => {
+                        let value = value.to_bits() as f32;
+                        warn!("Precision loss happens due to conversion from f64 to f32");
+                        Val::F32(value.to_bits())
+                    },
+                    ValType::F64 => {
+                        Val::F64(value.to_bits())
+                    },
+                    ValType::V128 => todo!(),
+                    ValType::FuncRef => todo!(),
+                    ValType::ExternRef => todo!(),
+                }
+            },
+            Field::UInt(value) => {
+                match param {
+                    ValType::I32 => {
+                        match i32::try_from(*value) {
+                            Ok(value) => {
+                                warn!("Precision loss happens due to conversion from u64 to i32");
+                                Val::I32(value)
+                            },
+                            Err(_) => todo!(),
+                        }
+                    },
+                    ValType::I64 => {
+                        match i64::try_from(*value) {
+                            Ok(value) => {
+                                warn!("Precision loss happens due to conversion from u64 to i64");
+                                Val::I64(value)
+                            },
+                            Err(_) => todo!(),
+                        }
+                    },
+                    ValType::F32 => todo!(),
+                    ValType::F64 => todo!(),
+                    ValType::V128 => todo!(),
+                    ValType::FuncRef => todo!(),
+                    ValType::ExternRef => todo!(),
+                }
+            },
+            Field::U128(value) => {
+                match param {
+                    ValType::I32 => {
+                        match i32::try_from(*value) {
+                            Ok(value) => {
+                                warn!("Precision loss happens due to conversion from u128 to i32");
+                                Val::I32(value)
+                            },
+                            Err(_) => todo!(),
+                        }
+                    },
+                    ValType::I64 => {
+                        match i64::try_from(*value) {
+                            Ok(value) => {
+                                warn!("Precision loss happens due to conversion from u128 to i64");
+                                Val::I64(value)
+                            },
+                            Err(_) => todo!(),
+                        }
+                    },
+                    ValType::F32 => todo!(),
+                    ValType::F64 => todo!(),
+                    ValType::V128 => todo!(),
+                    ValType::FuncRef => todo!(),
+                    ValType::ExternRef => todo!(),
+                }
+            },
+            Field::I128(value) => {
+                match param {
+                    ValType::I32 => {
+                        match i32::try_from(*value) {
+                            Ok(value) => {
+                                warn!("Precision loss happens due to conversion from i128 to i32");
+                                Val::I32(value)
+                            },
+                            Err(_) => todo!(),
+                        }
+                    },
+                    ValType::I64 => {
+                        match i64::try_from(*value) {
+                            Ok(value) => {
+                                warn!("Precision loss happens due to conversion from i128 to i64");
+                                Val::I64(value)
+                            },
+                            Err(_) => todo!(),
+                        }
+                    },
+                    ValType::F32 => todo!(),
+                    ValType::F64 => todo!(),
+                    ValType::V128 => todo!(),
+                    ValType::FuncRef => todo!(),
+                    ValType::ExternRef => todo!(),
+                }
+            },
+            Field::Boolean(_) => todo!(),
+            Field::String(_) => todo!(),
+            Field::Text(_) => todo!(),
+            Field::Binary(_) => todo!(),
+            Field::Decimal(_) => todo!(),
+            Field::Timestamp(_) => todo!(),
+            Field::Date(_) => todo!(),
+            Field::Json(_) => todo!(),
+            Field::Point(_) => todo!(),
+            Field::Duration(_) => todo!(),
+            Field::Null => todo!(),
+        }})
+        .collect();
 
     // 3. Return type must also agree
     if result_type.len() != 1 {
@@ -112,7 +190,6 @@ pub fn evaluate_wasm_udf(
     }
 
     let result = result_type.next().unwrap();
-
     let mut results: [Val; 1] = [Val::I64(0)];
 
     match wasm_udf_func.call(&mut store, &values, &mut results) {

@@ -1019,8 +1019,6 @@ impl ExpressionBuilder {
     ) -> Result<Expression, Error> {
         // First, get the wasm function defined by name.
         // Then, transfer the wasm function to Expression::WasmUDF
-        use crate::wasm::error::Error::MissingReturnType;
-
         use crate::wasm::utils::wasm_validate_return_type;
         use std::path::Path;
 
@@ -1031,8 +1029,15 @@ impl ExpressionBuilder {
             .collect::<Result<Vec<_>, Error>>()?;
 
         let return_type = wasm_validate_return_type(name.as_str(), Path::new(&config.path.clone())).unwrap();
-
-        Path::new(config.path.as_str());
+        let return_type = match return_type {
+            wasmtime::ValType::I32 => FieldType::Int,
+            wasmtime::ValType::I64 => FieldType::Int,
+            wasmtime::ValType::F32 => FieldType::Float,
+            wasmtime::ValType::F64 => FieldType::Float,
+            wasmtime::ValType::V128 => todo!(),
+            wasmtime::ValType::FuncRef => todo!(),
+            wasmtime::ValType::ExternRef => todo!(),
+        };
 
         Ok(Expression::WasmUDF {
             name: name.to_string(),
