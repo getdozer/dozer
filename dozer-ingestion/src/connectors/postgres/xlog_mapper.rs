@@ -178,6 +178,14 @@ impl XlogMapper {
             })
         }
 
+        columns.sort_by_cached_key(|column| {
+            wanted_columns
+                .iter()
+                .position(|wanted| wanted == &column.name)
+                // Unwrap is safe because we filtered on present keys above
+                .unwrap()
+        });
+
         let replica_identity = match relation.replica_identity() {
             ReplicaIdentity::Default => ReplicaIdentity::Default,
             ReplicaIdentity::Nothing => ReplicaIdentity::Nothing,

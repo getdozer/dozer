@@ -1,7 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use dozer_ingestion::{
-    connectors::{CdcType, Connector, SourceSchema, TableIdentifier},
+    connectors::{CdcType, Connector, SourceSchema, TableIdentifier, TableInfo},
     test_util::spawn_connector,
 };
 use dozer_types::{
@@ -10,6 +10,8 @@ use dozer_types::{
     types::{Field, FieldDefinition, FieldType, Operation, Record, Schema},
 };
 use tokio::runtime::Runtime;
+
+use crate::test_suite::data::reorder;
 
 use super::{
     data,
@@ -197,20 +199,27 @@ pub async fn run_test_suite_basic_cud<T: CudConnectorTest>(runtime: Arc<Runtime>
     // Create connector.
     let schema_name = None;
     let table_name = "test_table".to_string();
-    let (connector_test, connector, (_, actual_primary_index)) = T::new(
+    let (connector_test, connector, (actual_fields, actual_primary_index)) = T::new(
         schema_name.clone(),
         table_name.clone(),
-        (fields, primary_index),
+        (fields.clone(), primary_index),
         vec![],
     )
     .await
     .unwrap();
 
-    // Get schema.
-    let tables = connector
-        .list_columns(vec![TableIdentifier::new(schema_name, table_name)])
-        .await
-        .unwrap();
+    let ((reordered_fields, _reordered_primary_index), reordered_operations) =
+        reorder(&actual_fields, &actual_primary_index, &operations);
+
+    // Create schema.
+    let tables = vec![TableInfo {
+        schema: schema_name,
+        name: table_name,
+        column_names: reordered_fields
+            .into_iter()
+            .map(|field| field.name)
+            .collect(),
+    }];
     let mut schemas = connector.get_schemas(&tables).await.unwrap();
     let actual_schema = schemas.remove(0).unwrap().schema;
 
@@ -262,7 +271,7 @@ pub async fn run_test_suite_basic_cud<T: CudConnectorTest>(runtime: Arc<Runtime>
     // We can't check operation exact match because the connector may have batched some of them,
     // so we check that the final state is the same.
     let mut expected_records = Records::new(actual_primary_index);
-    for operation in operations {
+    for operation in reordered_operations {
         expected_records.append_operation(operation);
     }
     assert_eq!(records, expected_records);
