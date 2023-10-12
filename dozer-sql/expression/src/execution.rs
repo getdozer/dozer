@@ -361,6 +361,7 @@ impl Expression {
                 name,
                 module,
                 args,
+                return_type,
                 ..
             } => {
                 use crate::wasm::udf::evaluate_wasm_udf;

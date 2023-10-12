@@ -29,7 +29,6 @@ pub fn evaluate_wasm_udf(
         .collect();
 
     let engine = Engine::default();
-
     let module = Module::from_file(&engine, module).unwrap();
     let mut store = Store::new(&engine, 4);
     let instance = Instance::new(&mut store, &module, &[]).unwrap();

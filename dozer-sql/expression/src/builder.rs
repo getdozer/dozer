@@ -1020,7 +1020,8 @@ impl ExpressionBuilder {
         // First, get the wasm function defined by name.
         // Then, transfer the wasm function to Expression::WasmUDF
         use crate::wasm::error::Error::MissingReturnType;
-        // use crate::wasm::utils::{wasm_input_validation, wasm_output_validation};
+
+        use crate::wasm::utils::wasm_validate_return_type;
         use std::path::Path;
 
         let args = function
@@ -1029,22 +1030,9 @@ impl ExpressionBuilder {
             .map(|argument| self.parse_sql_function_arg(false, argument, schema, udfs))
             .collect::<Result<Vec<_>, Error>>()?;
 
-        let return_type = {
-            let ident = function
-                .return_type
-                .as_ref()
-                .ok_or_else(|| MissingReturnType).unwrap();
-
-            FieldType::try_from(ident.value.as_str()).unwrap()
-        };
+        let return_type = wasm_validate_return_type(name.as_str(), Path::new(&config.path.clone())).unwrap();
 
         Path::new(config.path.as_str());
-
-        // input number, type, shape validation
-        // wasm_input_validation(schema, &args)?;
-        // output number, type, shape validation
-        // wasm_output_validation(&session.outputs)?;
-
 
         Ok(Expression::WasmUDF {
             name: name.to_string(),
