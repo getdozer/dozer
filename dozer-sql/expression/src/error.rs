@@ -105,7 +105,7 @@ pub enum Error {
 
     #[cfg(feature = "wasm")]
     #[error("WASM UDF error: {0}")]
-    Wasm(#[from] crate::wasm_udf::WasmError),
+    Wasm(#[from] crate::wasm::error::Error),
     #[cfg(not(feature = "wasm"))]
     #[error("WASM UDF is not enabled here")]
     WasmNotEnabled,

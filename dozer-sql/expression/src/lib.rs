@@ -22,7 +22,7 @@ mod onnx;
 #[cfg(feature = "python")]
 mod python_udf;
 #[cfg(feature = "wasm")]
-mod wasm_udf;
+mod wasm;
 
 pub use num_traits;
 pub use sqlparser;

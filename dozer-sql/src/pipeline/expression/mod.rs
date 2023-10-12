@@ -22,4 +22,4 @@ pub mod python_udf;
 #[cfg(test)]
 mod tests;
 #[cfg(feature = "wasm")]
-pub mod wasm_udf;
+pub mod wasm;

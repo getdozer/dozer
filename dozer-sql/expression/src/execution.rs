@@ -361,11 +361,10 @@ impl Expression {
                 name,
                 module,
                 args,
-                return_type,
                 ..
             } => {
-                use crate::wasm_udf::evaluate_wasm_udf;
-                evaluate_wasm_udf(schema, name, module, args, return_type, record)
+                use crate::wasm::udf::evaluate_wasm_udf;
+                evaluate_wasm_udf(schema, name, module, args, record)
             }
             Expression::UnaryOperator { operator, arg } => operator.evaluate(schema, arg, record),
             Expression::AggregateFunction { fun, args: _ } => {

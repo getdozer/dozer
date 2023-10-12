@@ -1019,8 +1019,9 @@ impl ExpressionBuilder {
     ) -> Result<Expression, Error> {
         // First, get the wasm function defined by name.
         // Then, transfer the wasm function to Expression::WasmUDF
-        use crate::wasm_udf::WasmError::MissingReturnType;
-
+        use crate::wasm::error::Error::MissingReturnType;
+        // use crate::wasm::utils::{wasm_input_validation, wasm_output_validation};
+        use std::path::Path;
 
         let args = function
             .args
@@ -1036,6 +1037,14 @@ impl ExpressionBuilder {
 
             FieldType::try_from(ident.value.as_str()).unwrap()
         };
+
+        Path::new(config.path.as_str());
+
+        // input number, type, shape validation
+        // wasm_input_validation(schema, &args)?;
+        // output number, type, shape validation
+        // wasm_output_validation(&session.outputs)?;
+
 
         Ok(Expression::WasmUDF {
             name: name.to_string(),
