@@ -43,7 +43,7 @@ fn read_and_write() {
     for val in items.clone() {
         lmdb_utils::insert_rec_1(&mut cache_writer, val.clone());
     }
-    cache_writer.commit().unwrap();
+    cache_writer.commit(&Default::default(), 0).unwrap();
 
     indexing_thread_pool.lock().wait_until_catchup();
 

@@ -1,6 +1,8 @@
 use dozer_types::thiserror::Error;
 use dozer_types::{bincode, serde_json, thiserror, tonic};
 
+use crate::replication::LoadPersistedLogEntryError;
+
 #[derive(Error, Debug)]
 pub enum ReaderBuilderError {
     #[error("Tonic transport error: {0:?}")]
@@ -17,10 +19,8 @@ pub enum ReaderBuilderError {
 pub enum ReaderError {
     #[error("Failed to deserialize log response: {0}")]
     DeserializeLogResponse(#[source] bincode::Error),
-    #[error("Failed to deserialize log entry: {0}")]
-    DeserializeLogEntry(#[source] bincode::Error),
-    #[error("Storage error: {0}")]
-    Storage(#[from] crate::storage::Error),
+    #[error("Failed to load persisted log entry: {0}")]
+    LoadPersistedLogEntry(#[from] LoadPersistedLogEntryError),
     #[error("Reader thread has quit: {0:?}")]
     ReaderThreadQuit(#[source] Option<tokio::task::JoinError>),
 }

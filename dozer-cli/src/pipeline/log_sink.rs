@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Debug, sync::Arc};
+use std::{collections::HashMap, fmt::Debug, ops::Deref, sync::Arc};
 
 use dozer_cache::dozer_log::{
     replication::{Log, LogOperation},
@@ -104,6 +104,7 @@ impl Sink for LogSink {
             .runtime
             .block_on(self.log.lock())
             .write(LogOperation::Commit {
+                source_states: epoch_details.common_info.source_states.deref().clone(),
                 decision_instant: epoch_details.decision_instant,
             });
         self.pb.set_position(end as u64);
