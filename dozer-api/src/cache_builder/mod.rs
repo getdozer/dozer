@@ -35,7 +35,7 @@ pub async fn build_cache(
     labels: LabelsAndProgress,
 ) -> Result<(), CacheError> {
     // Create log reader.
-    let starting_pos = cache.get_log_position()?.map(|pos| pos + 1).unwrap_or(0);
+    let starting_pos = cache.get_metadata()?.map(|pos| pos + 1).unwrap_or(0);
     debug!(
         "Starting log reader {} from position {starting_pos}",
         log_reader_builder.options.endpoint
@@ -207,11 +207,9 @@ fn build_cache_task(
                     }
                 }
             },
-            LogOperation::Commit {
-                source_states,
-                decision_instant,
-            } => {
-                cache.commit(&source_states, op_and_pos.pos)?;
+            LogOperation::Commit { decision_instant } => {
+                cache.set_metadata(op_and_pos.pos)?;
+                cache.commit()?;
                 if let Ok(duration) = decision_instant.elapsed() {
                     histogram!(
                         DATA_LATENCY_HISTOGRAM_NAME,
@@ -221,7 +219,9 @@ fn build_cache_task(
                 }
             }
             LogOperation::SnapshottingDone { connection_name } => {
+                cache.set_metadata(op_and_pos.pos)?;
                 cache.set_connection_snapshotting_done(&connection_name)?;
+                cache.commit()?;
                 snapshotting = !cache.is_snapshotting_done()?;
             }
         }

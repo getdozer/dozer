@@ -15,8 +15,7 @@ use crate::{
 
 use super::{
     MainEnvironment, MainEnvironmentCommon, OperationLog, RwMainEnvironment,
-    CONNECTION_SNAPSHOTTING_DONE_DB_NAME, LOG_POSITION_DB_NAME, SCHEMA_DB_NAME,
-    SOURCE_STATES_DB_NAME,
+    CONNECTION_SNAPSHOTTING_DONE_DB_NAME, METADATA_DB_NAME, SCHEMA_DB_NAME,
 };
 
 pub async fn dump<'txn, E: MainEnvironment, T: Transaction>(
@@ -33,15 +32,8 @@ pub async fn dump<'txn, E: MainEnvironment, T: Transaction>(
     .await?;
     dozer_storage::dump(
         txn,
-        SOURCE_STATES_DB_NAME,
-        env.common().source_states.database(),
-        context,
-    )
-    .await?;
-    dozer_storage::dump(
-        txn,
-        LOG_POSITION_DB_NAME,
-        env.common().log_position.database(),
+        METADATA_DB_NAME,
+        env.common().metadata.database(),
         context,
     )
     .await?;
@@ -65,9 +57,7 @@ pub async fn restore(
 
     info!("Restoring schema");
     dozer_storage::restore(&mut env, reader).await?;
-    info!("Restoring source states");
-    dozer_storage::restore(&mut env, reader).await?;
-    info!("Restoring log position");
+    info!("Restoring metadata");
     dozer_storage::restore(&mut env, reader).await?;
     info!("Restoring connection snapshotting done");
     dozer_storage::restore(&mut env, reader).await?;
@@ -75,8 +65,7 @@ pub async fn restore(
     let operation_log = OperationLog::restore(&mut env, reader, labels).await?;
 
     let schema_option = LmdbOption::open(&env, Some(SCHEMA_DB_NAME))?;
-    let source_states = LmdbOption::open(&env, Some(SOURCE_STATES_DB_NAME))?;
-    let log_position = LmdbOption::open(&env, Some(LOG_POSITION_DB_NAME))?;
+    let metadata = LmdbOption::open(&env, Some(METADATA_DB_NAME))?;
     let connection_snapshotting_done =
         LmdbMap::open(&env, Some(CONNECTION_SNAPSHOTTING_DONE_DB_NAME))?;
 
@@ -91,8 +80,7 @@ pub async fn restore(
             base_path,
             schema,
             schema_option,
-            source_states,
-            log_position,
+            metadata,
             connection_snapshotting_done,
             operation_log,
             intersection_chunk_size: options.intersection_chunk_size,
@@ -130,15 +118,9 @@ pub mod tests {
         );
         assert_database_equal(
             &txn1,
-            env1.common().source_states.database(),
+            env1.common().metadata.database(),
             &txn2,
-            env2.common().source_states.database(),
-        );
-        assert_database_equal(
-            &txn1,
-            env1.common().log_position.database(),
-            &txn2,
-            env2.common().log_position.database(),
+            env2.common().metadata.database(),
         );
         assert_database_equal(
             &txn1,
@@ -169,7 +151,7 @@ pub mod tests {
         env.insert(&record).unwrap();
         env.insert(&record).unwrap();
         env.delete(&record).unwrap();
-        env.commit(&Default::default(), 0).unwrap();
+        env.commit().unwrap();
 
         let mut data = vec![];
         {

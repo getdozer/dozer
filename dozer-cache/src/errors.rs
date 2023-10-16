@@ -3,8 +3,8 @@ use std::path::PathBuf;
 
 use dozer_storage::errors::StorageError;
 use dozer_storage::RestoreError;
+use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
-use dozer_types::{serde_json, thiserror};
 
 use dozer_log::errors::ReaderError;
 use dozer_types::errors::types::{DeserializationError, SerializationError, TypeError};
@@ -69,8 +69,6 @@ pub enum CacheError {
         meta: RecordMeta,
         insert_operation_id: u64,
     },
-    #[error("Failed to deserialize source states: {0}")]
-    DeserializeSourceStates(#[from] serde_json::Error),
     #[error("Internal thread panic: {0}")]
     InternalThreadPanic(#[source] tokio::task::JoinError),
 }

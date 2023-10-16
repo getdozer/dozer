@@ -36,7 +36,7 @@ fn ignore_insert_error_when_type_nothing() {
         lifetime: None,
     };
     env.insert(&record).unwrap();
-    env.commit(&Default::default(), 0).unwrap();
+    env.commit().unwrap();
 
     let key = index::get_primary_key(&schema.primary_index, &initial_values);
     let record = env.get(&key).unwrap();
@@ -67,7 +67,7 @@ fn update_after_insert_error_when_type_update() {
         lifetime: None,
     };
     env.insert(&record).unwrap();
-    env.commit(&Default::default(), 0).unwrap();
+    env.commit().unwrap();
 
     let key = index::get_primary_key(&schema.primary_index, &initial_values);
     let record = env.get(&key).unwrap();
@@ -85,7 +85,7 @@ fn update_after_insert_error_when_type_update() {
     };
 
     env.insert(&second_record).unwrap();
-    env.commit(&Default::default(), 0).unwrap();
+    env.commit().unwrap();
 
     let key = index::get_primary_key(&schema.primary_index, &initial_values);
     let record = env.get(&key).unwrap();
@@ -113,7 +113,7 @@ fn return_insert_error_when_type_panic() {
         lifetime: None,
     };
     env.insert(&record).unwrap();
-    env.commit(&Default::default(), 0).unwrap();
+    env.commit().unwrap();
 
     let key = index::get_primary_key(&schema.primary_index, &initial_values);
     let record = env.get(&key).unwrap();
@@ -179,7 +179,7 @@ fn update_after_update_error_when_type_upsert() {
         lifetime: None,
     };
     env.update(&initial_record, &update_record).unwrap();
-    env.commit(&Default::default(), 0).unwrap();
+    env.commit().unwrap();
 
     let key = index::get_primary_key(&schema.primary_index, &initial_values);
     let record = env.get(&key).unwrap();

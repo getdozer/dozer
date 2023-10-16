@@ -8,7 +8,6 @@ use dozer_tracing::Labels;
 use dozer_types::models::api_endpoint::{
     OnDeleteResolutionTypes, OnInsertResolutionTypes, OnUpdateResolutionTypes,
 };
-use dozer_types::node::SourceStates;
 use dozer_types::{
     serde::{Deserialize, Serialize},
     types::{IndexDefinition, Record, Schema, SchemaWithIndex},
@@ -93,8 +92,7 @@ pub trait RoCache: Send + Sync + Debug {
     fn query(&self, query: &QueryExpression) -> Result<Vec<CacheRecord>, CacheError>;
 
     // Cache metadata
-    fn get_source_states(&self) -> Result<Option<SourceStates>, CacheError>;
-    fn get_log_position(&self) -> Result<Option<u64>, CacheError>;
+    fn get_metadata(&self) -> Result<Option<u64>, CacheError>;
     fn is_snapshotting_done(&self) -> Result<bool, CacheError>;
 }
 
@@ -143,11 +141,11 @@ pub trait RwCache: RoCache {
     /// If the schema has primary index, only fields that are part of the primary index are used to identify the old record.
     fn update(&mut self, old: &Record, record: &Record) -> Result<UpsertResult, CacheError>;
 
-    /// Marks a connection as snapshotting done. Implicitly starts a transaction if there's no active transaction.
+    /// Sets the metadata of the cache. Implicitly starts a transaction if there's no active transaction.
+    fn set_metadata(&mut self, metadata: u64) -> Result<(), CacheError>;
     fn set_connection_snapshotting_done(&mut self, connection_name: &str)
         -> Result<(), CacheError>;
 
     /// Commits the current transaction.
-    fn commit(&mut self, source_states: &SourceStates, log_position: u64)
-        -> Result<(), CacheError>;
+    fn commit(&mut self) -> Result<(), CacheError>;
 }
