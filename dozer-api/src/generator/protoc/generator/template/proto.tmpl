@@ -54,7 +54,7 @@ message Count{{plural_pascal_name}}Response {
 // Response for `query`.
 message Query{{plural_pascal_name}}Response {
   // The list of records.
-  repeated {{pascal_name}}WithId records = 1;
+  repeated {{pascal_name}} records = 1;
 }
 
 {{#if enable_on_event}}
@@ -66,8 +66,6 @@ message {{pascal_name}}Event {
   optional {{pascal_name}} old = 2;
   // New record data.
   {{pascal_name}} new = 3;
-  // New record id, only applicable for INSERT type.
-  optional uint64 new_id = 4;
 }
 {{/if}}
 /**
@@ -81,16 +79,11 @@ message {{pascal_name}} {
   {{{this}}}
   {{~/each}}
 
+  // The record id in cache.
+  uint64 __dozer_record_id = {{id_field_id}};
+
   // Records with same primary key will have increasing version.
   uint32 __dozer_record_version = {{version_field_id}};
-}
-
-// A record with its id in cache.
-message {{pascal_name}}WithId {
-  // The record id.
-  uint64 id = 1;
-  // The record data.
-  {{pascal_name}} record = 2;
 }
 
 {{#if enable_token}}

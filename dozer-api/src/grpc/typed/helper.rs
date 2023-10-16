@@ -1,6 +1,5 @@
 use crate::generator::protoc::generator::{
-    CountResponseDesc, EventDesc, QueryResponseDesc, RecordDesc, RecordWithIdDesc,
-    TokenResponseDesc,
+    CountResponseDesc, EventDesc, QueryResponseDesc, RecordDesc, TokenResponseDesc,
 };
 use crate::grpc::types_helper::map_record;
 use dozer_cache::cache::CacheRecord;
@@ -33,10 +32,6 @@ pub fn on_event_to_typed_response(
         )?),
     )?;
 
-    if let Some(new_id) = op.new_id {
-        event.try_set_field(&event_desc.new_id_field, prost_reflect::Value::U64(new_id))?;
-    }
-
     Ok(TypedResponse::new(event))
 }
 
@@ -53,6 +48,8 @@ fn internal_record_to_pb(
             msg.try_set_field(&field, v)?;
         }
     }
+
+    msg.try_set_field(&record_desc.id_field, prost_reflect::Value::U64(record.id))?;
 
     msg.try_set_field(
         &record_desc.version_field,
@@ -120,29 +117,6 @@ fn interval_value_to_pb(
     })
 }
 
-fn internal_record_with_id_to_pb(
-    record_with_id: CacheRecord,
-    record_with_id_desc: &RecordWithIdDesc,
-) -> Result<DynamicMessage, SetFieldError> {
-    let mut msg = DynamicMessage::new(record_with_id_desc.message.clone());
-
-    let record_with_id = map_record(record_with_id);
-
-    let record = internal_record_to_pb(
-        record_with_id.record.expect("Record is not optional"),
-        &record_with_id_desc.record_desc,
-    )?;
-    msg.try_set_field(
-        &record_with_id_desc.record_field,
-        prost_reflect::Value::Message(record),
-    )?;
-
-    let id = prost_reflect::Value::U64(record_with_id.id as _);
-    msg.try_set_field(&record_with_id_desc.id_field, id)?;
-
-    Ok(msg)
-}
-
 pub fn count_response_to_typed_response(
     count: usize,
     response_desc: CountResponseDesc,
@@ -164,10 +138,9 @@ pub fn query_response_to_typed_response(
 
     let data: Result<Vec<prost_reflect::Value>, SetFieldError> = records
         .into_iter()
-        .map(|record_with_id| {
-            let record_with_id =
-                internal_record_with_id_to_pb(record_with_id, &response_desc.record_with_id_desc)?;
-            Ok(prost_reflect::Value::Message(record_with_id))
+        .map(|record| {
+            let record = internal_record_to_pb(map_record(record), &response_desc.record_desc)?;
+            Ok(prost_reflect::Value::Message(record))
         })
         .collect();
     msg.try_set_field(

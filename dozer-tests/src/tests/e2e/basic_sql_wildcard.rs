@@ -12,17 +12,14 @@ async fn test_e2e_wildcard() {
     ingest_client
         .ingest(IngestRequest {
             schema_name: "table3".to_string(),
-            new: Some(types::Record {
-                values: vec![
-                    types::Value {
-                        value: Some(types::value::Value::IntValue(1)),
-                    },
-                    types::Value {
-                        value: Some(types::value::Value::IntValue(11)),
-                    },
-                ],
-                version: 1,
-            }),
+            new: vec![
+                types::Value {
+                    value: Some(types::value::Value::IntValue(1)),
+                },
+                types::Value {
+                    value: Some(types::value::Value::IntValue(11)),
+                },
+            ],
             seq_no: 1,
             ..Default::default()
         })
@@ -32,17 +29,14 @@ async fn test_e2e_wildcard() {
     ingest_client
         .ingest(IngestRequest {
             schema_name: "table4".to_string(),
-            new: Some(types::Record {
-                values: vec![
-                    types::Value {
-                        value: Some(types::value::Value::IntValue(1)),
-                    },
-                    types::Value {
-                        value: Some(types::value::Value::IntValue(11)),
-                    },
-                ],
-                version: 1,
-            }),
+            new: vec![
+                types::Value {
+                    value: Some(types::value::Value::IntValue(1)),
+                },
+                types::Value {
+                    value: Some(types::value::Value::IntValue(11)),
+                },
+            ],
             seq_no: 2,
             ..Default::default()
         })

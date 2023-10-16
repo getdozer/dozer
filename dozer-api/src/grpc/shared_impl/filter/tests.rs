@@ -735,6 +735,7 @@ fn test_record_satisfies_filter() {
                 value: Some(value::Value::IntValue(3)),
             },
         ],
+        id: 1,
         version: 1,
     };
 
@@ -781,6 +782,7 @@ fn test_op_satisfies_filter() {
                 value: Some(value::Value::IntValue(3)),
             },
         ],
+        id: 1,
         version: 1,
     };
     let new = Record {
@@ -795,6 +797,7 @@ fn test_op_satisfies_filter() {
                 value: Some(value::Value::IntValue(3)),
             },
         ],
+        id: 1,
         version: 1,
     };
     let filter1 = FilterExpression::Simple("a".into(), Operator::EQ, json!(1));
@@ -808,7 +811,6 @@ fn test_op_satisfies_filter() {
                     typ: typ as _,
                     old: old.cloned(),
                     new: Some(new.clone()),
-                    new_id: None,
                     endpoint_name: "".into()
                 },
                 filter,

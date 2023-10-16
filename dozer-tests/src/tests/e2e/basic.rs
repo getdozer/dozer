@@ -12,17 +12,14 @@ async fn ingest_and_test() {
     let res = ingest_client
         .ingest(IngestRequest {
             schema_name: "users".to_string(),
-            new: Some(types::Record {
-                values: vec![
-                    types::Value {
-                        value: Some(types::value::Value::IntValue(1675)),
-                    },
-                    types::Value {
-                        value: Some(types::value::Value::StringValue("dario".to_string())),
-                    },
-                ],
-                version: 1,
-            }),
+            new: vec![
+                types::Value {
+                    value: Some(types::value::Value::IntValue(1675)),
+                },
+                types::Value {
+                    value: Some(types::value::Value::StringValue("dario".to_string())),
+                },
+            ],
             seq_no: 1,
             ..Default::default()
         })
@@ -46,7 +43,7 @@ async fn ingest_and_test() {
         .unwrap();
     let res = res.into_inner();
     let rec = res.records.first().unwrap().clone();
-    let val = rec.record.unwrap().values.first().unwrap().clone().value;
+    let val = rec.values.first().unwrap().clone().value;
     assert!(matches!(val, Some(types::value::Value::IntValue(_))));
 
     if let Some(types::value::Value::IntValue(v)) = val {

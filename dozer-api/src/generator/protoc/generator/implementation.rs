@@ -2,7 +2,7 @@ use crate::errors::GenerationError;
 use crate::errors::GenerationError::ServiceNotFound;
 use crate::generator::protoc::generator::{
     CountMethodDesc, DecimalDesc, DurationDesc, EventDesc, OnEventMethodDesc, PointDesc,
-    QueryMethodDesc, RecordWithIdDesc, TokenMethodDesc, TokenResponseDesc,
+    QueryMethodDesc, TokenMethodDesc, TokenResponseDesc,
 };
 use dozer_cache::dozer_log::schemas::EndpointSchema;
 use dozer_types::log::error;
@@ -30,6 +30,7 @@ struct ProtoMetadata {
     plural_pascal_name: String,
     pascal_name: String,
     props: Vec<String>,
+    id_field_id: usize,
     version_field_id: usize,
     enable_token: bool,
     enable_on_event: bool,
@@ -108,7 +109,8 @@ impl<'a> ProtoGeneratorImpl<'a> {
             plural_pascal_name: self.names.plural_pascal_name.clone(),
             pascal_name: self.names.pascal_name.clone(),
             props: self.props(),
-            version_field_id: self.schema.schema.fields.len() + 1,
+            id_field_id: self.schema.schema.fields.len() + 1,
+            version_field_id: self.schema.schema.fields.len() + 2,
             enable_token: self.schema.enable_token,
             enable_on_event: self.schema.enable_on_event,
         };
@@ -166,6 +168,7 @@ impl<'a> ProtoGeneratorImpl<'a> {
 
         let record_desc_from_message =
             |message: MessageDescriptor| -> Result<RecordDesc, GenerationError> {
+                let id_field = get_field(&message, "__dozer_record_id")?;
                 let version_field = get_field(&message, "__dozer_record_version")?;
 
                 if let Some(point_values) = descriptor.get_message_by_name(POINT_TYPE_CLASS) {
@@ -176,6 +179,7 @@ impl<'a> ProtoGeneratorImpl<'a> {
                             let durv = dv;
                             Ok(RecordDesc {
                                 message,
+                                id_field,
                                 version_field,
                                 point_field: PointDesc {
                                     message: pv.clone(),
@@ -234,19 +238,10 @@ impl<'a> ProtoGeneratorImpl<'a> {
                     let message = method.output();
                     let records_field = get_field(&message, "records")?;
                     let records_filed_kind = records_field.kind();
-                    let Kind::Message(record_with_id_message) = records_filed_kind else {
+                    let Kind::Message(record_message) = records_filed_kind else {
                         return Err(GenerationError::ExpectedMessageField {
                             filed_name: records_field.full_name().to_string(),
                             actual: records_filed_kind,
-                        });
-                    };
-                    let id_field = get_field(&record_with_id_message, "id")?;
-                    let record_field = get_field(&record_with_id_message, "record")?;
-                    let record_field_kind = record_field.kind();
-                    let Kind::Message(record_message) = record_field_kind else {
-                        return Err(GenerationError::ExpectedMessageField {
-                            filed_name: record_field.full_name().to_string(),
-                            actual: record_field_kind,
                         });
                     };
                     query = Some(QueryMethodDesc {
@@ -254,12 +249,7 @@ impl<'a> ProtoGeneratorImpl<'a> {
                         response_desc: QueryResponseDesc {
                             message,
                             records_field,
-                            record_with_id_desc: RecordWithIdDesc {
-                                message: record_with_id_message,
-                                id_field,
-                                record_field,
-                                record_desc: record_desc_from_message(record_message)?,
-                            },
+                            record_desc: record_desc_from_message(record_message)?,
                         },
                     });
                 }
@@ -268,7 +258,6 @@ impl<'a> ProtoGeneratorImpl<'a> {
                     let typ_field = get_field(&message, "typ")?;
                     let old_field = get_field(&message, "old")?;
                     let new_field = get_field(&message, "new")?;
-                    let new_id_field = get_field(&message, "new_id")?;
                     let old_field_kind = old_field.kind();
                     let Kind::Message(record_message) = old_field_kind else {
                         return Err(GenerationError::ExpectedMessageField {
@@ -283,7 +272,6 @@ impl<'a> ProtoGeneratorImpl<'a> {
                             typ_field,
                             old_field,
                             new_field,
-                            new_id_field,
                             record_desc: record_desc_from_message(record_message)?,
                         },
                     });

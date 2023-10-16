@@ -50,6 +50,7 @@ pub struct CountResponseDesc {
 #[derive(Debug, Clone)]
 pub struct RecordDesc {
     pub message: MessageDescriptor,
+    pub id_field: FieldDescriptor,
     pub version_field: FieldDescriptor,
     pub point_field: PointDesc,
     pub decimal_field: DecimalDesc,
@@ -81,18 +82,10 @@ pub struct DecimalDesc {
 }
 
 #[derive(Debug, Clone)]
-pub struct RecordWithIdDesc {
-    pub message: MessageDescriptor,
-    pub id_field: FieldDescriptor,
-    pub record_field: FieldDescriptor,
-    pub record_desc: RecordDesc,
-}
-
-#[derive(Debug, Clone)]
 pub struct QueryResponseDesc {
     pub message: MessageDescriptor,
     pub records_field: FieldDescriptor,
-    pub record_with_id_desc: RecordWithIdDesc,
+    pub record_desc: RecordDesc,
 }
 
 #[derive(Debug, Clone)]
@@ -101,7 +94,6 @@ pub struct EventDesc {
     pub typ_field: FieldDescriptor,
     pub old_field: FieldDescriptor,
     pub new_field: FieldDescriptor,
-    pub new_id_field: FieldDescriptor,
     pub record_desc: RecordDesc,
 }
 

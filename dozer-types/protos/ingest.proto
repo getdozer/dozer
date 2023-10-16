@@ -25,9 +25,9 @@ message IngestRequest {
   // The operation type.
   dozer.types.OperationType typ = 2;
   // Old record data, only applicable for UPDATE type.
-  optional dozer.types.Record old = 3;
+  repeated dozer.types.Value old = 3;
   // New record data.
-  dozer.types.Record new = 4;
+  repeated dozer.types.Value new = 4;
 
   uint32 seq_no = 5;
 }
