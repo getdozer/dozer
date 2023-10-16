@@ -87,7 +87,7 @@ pub trait MainEnvironment: LmdbEnvironment {
             .load(&txn)?
             .map(|source_states| {
                 serde_json::from_str(source_states.borrow())
-                    .map_err(|e| CacheError::DeserializeSourceStates(e))
+                    .map_err(CacheError::DeserializeSourceStates)
             })
             .transpose()
     }
