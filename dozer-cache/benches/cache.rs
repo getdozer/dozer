@@ -18,7 +18,7 @@ fn insert(cache: &Mutex<Box<dyn RwCache>>, n: usize, commit_size: usize) {
     cache.insert(&record).unwrap();
 
     if n % commit_size == 0 {
-        cache.commit().unwrap();
+        cache.commit(&Default::default(), 0).unwrap();
     }
 }
 

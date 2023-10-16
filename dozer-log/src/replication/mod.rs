@@ -5,6 +5,7 @@ use std::time::{Duration, SystemTime};
 
 use dozer_types::grpc_types::internal::storage_response;
 use dozer_types::log::{debug, error};
+use dozer_types::node::SourceStates;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::Operation;
 use dozer_types::{bincode, thiserror};
@@ -43,6 +44,8 @@ pub enum Error {
     LogEntryNotConsecutive(PersistedLogEntry, PersistedLogEntry),
     #[error("Serialization error: {0}")]
     Serialization(#[from] bincode::Error),
+    #[error("Load persisted log entry error: {0}")]
+    LoadPersistedLogEntry(#[from] LoadPersistedLogEntryError),
     #[error("Persisting thread has quit")]
     PersistingThreadQuit,
 }
@@ -61,6 +64,8 @@ pub struct Log {
     watchers: Vec<Watcher>,
     storage: storage_response::Storage,
     prefix: String,
+    /// The checkpoint state this `Log` was restored from.
+    from_checkpoint: Option<SourceStates>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -89,6 +94,10 @@ impl Log {
         self.storage.clone()
     }
 
+    pub fn from_checkpoint(&self) -> Option<&SourceStates> {
+        self.from_checkpoint.as_ref()
+    }
+
     pub async fn new(
         storage: &dyn Storage,
         prefix: String,
@@ -106,6 +115,17 @@ impl Log {
         };
         let watchers = vec![];
         let storage_description = storage.describe();
+
+        let from_checkpoint = if let Some(persisted) = persisted.last() {
+            let mut ops = load_persisted_log_entry(storage, persisted).await?;
+            ops.pop().map(|op| match op {
+                LogOperation::Commit { source_states, .. } => source_states,
+                _ => panic!("Last operation in a log entry must be a commit"),
+            })
+        } else {
+            None
+        };
+
         Ok(Self {
             persisted,
             in_memory,
@@ -113,6 +133,7 @@ impl Log {
             watchers,
             storage: storage_description,
             prefix,
+            from_checkpoint,
         })
     }
 
@@ -157,6 +178,12 @@ impl Log {
 
         // Persist this entry.
         let ops = &self.in_memory.ops[self.in_memory.next_persist_start..];
+        if let Some(op) = ops.last() {
+            assert!(
+                matches!(op, LogOperation::Commit { .. }),
+                "Last operation in a log entry must be a commit"
+            );
+        }
         let start = self.in_memory.start + self.in_memory.next_persist_start;
         let end = self.in_memory.end();
         let range = start..end;
@@ -280,9 +307,16 @@ impl Log {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(crate = "dozer_types::serde")]
 pub enum LogOperation {
-    Op { op: Operation },
-    Commit { decision_instant: SystemTime },
-    SnapshottingDone { connection_name: String },
+    Op {
+        op: Operation,
+    },
+    Commit {
+        source_states: SourceStates,
+        decision_instant: SystemTime,
+    },
+    SnapshottingDone {
+        connection_name: String,
+    },
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -290,6 +324,22 @@ pub enum LogOperation {
 pub enum LogResponse {
     Persisted(PersistedLogEntry),
     Operations(Vec<LogOperation>),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum LoadPersistedLogEntryError {
+    #[error("Storage error: {0}")]
+    Storage(#[from] super::storage::Error),
+    #[error("Deserialization error: {0}")]
+    DeserializeLogEntry(#[from] bincode::Error),
+}
+
+pub async fn load_persisted_log_entry(
+    storage: &dyn Storage,
+    persisted: &PersistedLogEntry,
+) -> Result<Vec<LogOperation>, LoadPersistedLogEntryError> {
+    let data = storage.download_object(persisted.key.clone()).await?;
+    bincode::deserialize(&data).map_err(Into::into)
 }
 
 #[pin_project(project = LogResponseFutureProj)]

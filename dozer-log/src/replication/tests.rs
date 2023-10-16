@@ -1,4 +1,7 @@
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::Arc,
+    time::{Duration, SystemTime},
+};
 
 use tempdir::TempDir;
 use tokio::{runtime::Runtime, sync::Mutex};
@@ -98,8 +101,9 @@ fn watch_partial() {
         LogOperation::SnapshottingDone {
             connection_name: "0".to_string(),
         },
-        LogOperation::SnapshottingDone {
-            connection_name: "1".to_string(),
+        LogOperation::Commit {
+            source_states: Default::default(),
+            decision_instant: SystemTime::now(),
         },
     ];
     for op in &ops {
@@ -136,8 +140,9 @@ fn watch_out_of_range() {
         LogOperation::SnapshottingDone {
             connection_name: "0".to_string(),
         },
-        LogOperation::SnapshottingDone {
-            connection_name: "1".to_string(),
+        LogOperation::Commit {
+            source_states: Default::default(),
+            decision_instant: SystemTime::now(),
         },
         LogOperation::SnapshottingDone {
             connection_name: "2".to_string(),
@@ -176,8 +181,9 @@ fn in_memory_log_should_shrink_after_persist() {
         LogOperation::SnapshottingDone {
             connection_name: "0".to_string(),
         },
-        LogOperation::SnapshottingDone {
-            connection_name: "1".to_string(),
+        LogOperation::Commit {
+            source_states: Default::default(),
+            decision_instant: SystemTime::now(),
         },
         LogOperation::SnapshottingDone {
             connection_name: "2".to_string(),

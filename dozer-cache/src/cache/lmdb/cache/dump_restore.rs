@@ -41,7 +41,7 @@ pub fn begin_dump_txn<C: LmdbCache>(
 ) -> Result<DumpTransaction<RoTransaction>, CacheError> {
     let main_env = cache.main_env();
     let main_txn = main_env.begin_txn()?;
-    let main_env_metadata = main_env.metadata_with_txn(&main_txn)?;
+    let main_env_metadata = main_env.log_positions_with_txn(&main_txn)?;
 
     let mut secondary_txns = vec![];
     let mut secondary_metadata = vec![];
@@ -139,7 +139,7 @@ mod tests {
         insert_rec_1(&mut cache, (0, Some("a".to_string()), None));
         insert_rec_1(&mut cache, (1, None, Some(2)));
         insert_rec_1(&mut cache, (2, Some("b".to_string()), Some(3)));
-        cache.commit().unwrap();
+        cache.commit(&Default::default(), 0).unwrap();
         indexing_thread_pool.lock().wait_until_catchup();
 
         let mut data = vec![];
