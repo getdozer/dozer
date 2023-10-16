@@ -1,4 +1,5 @@
 use dozer_tracing::Labels;
+use dozer_types::node::SourceStates;
 use dozer_types::parking_lot::Mutex;
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -145,8 +146,12 @@ impl<C: LmdbCache> RoCache for C {
         self.main_env().schema()
     }
 
-    fn get_metadata(&self) -> Result<Option<u64>, CacheError> {
-        self.main_env().metadata()
+    fn get_source_states(&self) -> Result<Option<SourceStates>, CacheError> {
+        self.main_env().source_states()
+    }
+
+    fn get_log_position(&self) -> Result<Option<u64>, CacheError> {
+        self.main_env().log_position()
     }
 
     fn is_snapshotting_done(&self) -> Result<bool, CacheError> {
@@ -169,10 +174,6 @@ impl RwCache for LmdbRwCache {
         self.main_env.update(old, new)
     }
 
-    fn set_metadata(&mut self, metadata: u64) -> Result<(), CacheError> {
-        self.main_env.set_metadata(metadata)
-    }
-
     fn set_connection_snapshotting_done(
         &mut self,
         connection_name: &str,
@@ -181,8 +182,12 @@ impl RwCache for LmdbRwCache {
             .set_connection_snapshotting_done(connection_name)
     }
 
-    fn commit(&mut self) -> Result<(), CacheError> {
-        self.main_env.commit()?;
+    fn commit(
+        &mut self,
+        source_states: &SourceStates,
+        log_position: u64,
+    ) -> Result<(), CacheError> {
+        self.main_env.commit(source_states, log_position)?;
         self.indexing_thread_pool.lock().wake(self.labels());
         Ok(())
     }

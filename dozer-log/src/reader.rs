@@ -1,5 +1,5 @@
 use crate::errors::ReaderBuilderError;
-use crate::replication::LogOperation;
+use crate::replication::{load_persisted_log_entry, LogOperation};
 use crate::schemas::EndpointSchema;
 use crate::storage::{LocalStorage, S3Storage, Storage};
 
@@ -222,9 +222,7 @@ impl LogClient {
                     persisted.key, persisted.range, request_range
                 );
                 // Load the persisted log entry.
-                let data = self.storage.download_object(persisted.key).await?;
-                let mut ops: Vec<LogOperation> =
-                    bincode::deserialize(&data).map_err(ReaderError::DeserializeLogEntry)?;
+                let mut ops = load_persisted_log_entry(&*self.storage, &persisted).await?;
                 // Discard the ops that are before the requested range.
                 ops.drain(..request_range.start as usize - persisted.range.start);
                 Ok(ops)

@@ -116,7 +116,7 @@ mod tests {
         for val in items.clone() {
             lmdb_utils::insert_rec_1(&mut cache, val);
         }
-        cache.commit().unwrap();
+        cache.commit(&Default::default(), 0).unwrap();
         indexing_thread_pool.lock().wait_until_catchup();
 
         // No of index dbs
@@ -137,7 +137,7 @@ mod tests {
             };
             cache.delete(&record).unwrap();
         }
-        cache.commit().unwrap();
+        cache.commit(&Default::default(), 0).unwrap();
         indexing_thread_pool.lock().wait_until_catchup();
 
         assert_eq!(
@@ -187,7 +187,7 @@ mod tests {
             cache.delete(&record).unwrap();
         }
 
-        cache.commit().unwrap();
+        cache.commit(&Default::default(), 0).unwrap();
         indexing_thread_pool.lock().wait_until_catchup();
 
         assert_eq!(
