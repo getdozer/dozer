@@ -206,8 +206,7 @@ impl LoginSvc {
             auth_url: self.auth_url.to_owned(),
         };
 
-        let token = credential_info.get_access_token().await?;
-        println!("Temporary bearer token: {}\n", token.access_token);
+        credential_info.get_access_token().await?;
         credential_info.save()?;
         println!("Login success !");
         Ok(())
