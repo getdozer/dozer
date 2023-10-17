@@ -50,7 +50,7 @@ fn insert_get_and_delete_record() {
     let UpsertResult::Inserted { meta } = cache.insert(&record).unwrap() else {
         panic!("Must be inserted")
     };
-    cache.commit(&Default::default(), 0).unwrap();
+    cache.commit(&Default::default()).unwrap();
     indexing_thread_pool.lock().wait_until_catchup();
 
     assert_eq!(cache.count(&QueryExpression::with_no_limit()).unwrap(), 1);
@@ -70,7 +70,7 @@ fn insert_get_and_delete_record() {
             .unwrap(),
         meta
     );
-    cache.commit(&Default::default(), 0).unwrap();
+    cache.commit(&Default::default()).unwrap();
     indexing_thread_pool.lock().wait_until_catchup();
 
     assert_eq!(cache.count(&QueryExpression::with_no_limit()).unwrap(), 0);
@@ -106,7 +106,7 @@ fn insert_and_query_record_impl(
     let record = Record::new(vec![Field::String(val)]);
 
     cache.insert(&record).unwrap();
-    cache.commit(&Default::default(), 0).unwrap();
+    cache.commit(&Default::default()).unwrap();
     indexing_thread_pool.lock().wait_until_catchup();
 
     // Query with an expression
@@ -152,7 +152,7 @@ fn update_record_when_primary_changes() {
     };
 
     cache.insert(&initial_record).unwrap();
-    cache.commit(&Default::default(), 0).unwrap();
+    cache.commit(&Default::default()).unwrap();
 
     let key = index::get_primary_key(&schema.primary_index, &initial_values);
     let record = cache.get(&key).unwrap().record;
@@ -160,7 +160,7 @@ fn update_record_when_primary_changes() {
     assert_eq!(initial_values, record.values);
 
     cache.update(&initial_record, &updated_record).unwrap();
-    cache.commit(&Default::default(), 0).unwrap();
+    cache.commit(&Default::default()).unwrap();
 
     // Primary key with old values
     let key = index::get_primary_key(&schema.primary_index, &initial_values);
@@ -177,20 +177,12 @@ fn update_record_when_primary_changes() {
 }
 
 #[test]
-fn test_cache_source_states() {
+fn test_cache_commit_state() {
     let (mut cache, _, _) = _setup();
-    assert!(cache.get_source_states().unwrap().is_none());
-    cache.commit(&Default::default(), 0).unwrap();
+    assert!(cache.get_commit_state().unwrap().is_none());
+    cache.commit(&Default::default()).unwrap();
     assert_eq!(
-        cache.get_source_states().unwrap().unwrap(),
+        cache.get_commit_state().unwrap().unwrap(),
         Default::default()
     );
-}
-
-#[test]
-fn test_cache_log_position() {
-    let (mut cache, _, _) = _setup();
-    assert!(cache.get_log_position().unwrap().is_none());
-    cache.commit(&Default::default(), 32).unwrap();
-    assert_eq!(cache.get_log_position().unwrap().unwrap(), 32);
 }

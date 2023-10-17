@@ -121,7 +121,7 @@ pub fn initialize_cache(
     for record in records {
         cache.insert(&record.record).unwrap();
     }
-    cache.commit(&Default::default(), 0).unwrap();
+    cache.commit(&Default::default()).unwrap();
     cache_manager.wait_until_indexing_catchup();
 
     Box::new(cache_manager)

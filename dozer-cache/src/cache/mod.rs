@@ -93,8 +93,7 @@ pub trait RoCache: Send + Sync + Debug {
     fn query(&self, query: &QueryExpression) -> Result<Vec<CacheRecord>, CacheError>;
 
     // Cache metadata
-    fn get_source_states(&self) -> Result<Option<SourceStates>, CacheError>;
-    fn get_log_position(&self) -> Result<Option<u64>, CacheError>;
+    fn get_commit_state(&self) -> Result<Option<CommitState>, CacheError>;
     fn is_snapshotting_done(&self) -> Result<bool, CacheError>;
 }
 
@@ -123,6 +122,13 @@ pub enum UpsertResult {
     Ignored,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(crate = "dozer_types::serde")]
+pub struct CommitState {
+    pub source_states: SourceStates,
+    pub log_position: u64,
+}
+
 pub trait RwCache: RoCache {
     /// Inserts a record into the cache. Implicitly starts a transaction if there's no active transaction.
     ///
@@ -148,6 +154,5 @@ pub trait RwCache: RoCache {
         -> Result<(), CacheError>;
 
     /// Commits the current transaction.
-    fn commit(&mut self, source_states: &SourceStates, log_position: u64)
-        -> Result<(), CacheError>;
+    fn commit(&mut self, state: &CommitState) -> Result<(), CacheError>;
 }
