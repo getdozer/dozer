@@ -58,6 +58,7 @@ fn cache(c: &mut Criterion) {
     let cache = Mutex::new(
         cache_manager
             .create_cache(
+                "temp".to_string(),
                 Default::default(),
                 schema,
                 secondary_indexes,

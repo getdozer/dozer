@@ -51,7 +51,10 @@ async fn main() {
                 ..Default::default()
             })
             .unwrap();
-            let cache = cache_manager.open_lmdb_cache(labels).unwrap().unwrap();
+            let cache = cache_manager
+                .open_lmdb_cache(labels.to_non_empty_string().into_owned(), labels)
+                .unwrap()
+                .unwrap();
             let count = cache.count(&QueryExpression::with_no_limit()).unwrap();
             println!("Count: {}", count);
         }
@@ -61,7 +64,10 @@ async fn main() {
                 ..Default::default()
             })
             .unwrap();
-            let cache = &cache_manager.open_lmdb_cache(labels).unwrap().unwrap();
+            let cache = &cache_manager
+                .open_lmdb_cache(labels.to_non_empty_string().into_owned(), labels)
+                .unwrap()
+                .unwrap();
             let file = tokio::fs::File::create(path).await.unwrap();
             let mut writer = tokio::io::BufWriter::new(file);
 
@@ -84,7 +90,12 @@ async fn main() {
             let file = tokio::fs::File::open(path).await.unwrap();
             let mut reader = tokio::io::BufReader::new(file);
             cache_manager
-                .restore_cache(labels, Default::default(), &mut reader)
+                .restore_cache(
+                    labels.to_non_empty_string().into_owned(),
+                    labels,
+                    Default::default(),
+                    &mut reader,
+                )
                 .await
                 .unwrap();
         }

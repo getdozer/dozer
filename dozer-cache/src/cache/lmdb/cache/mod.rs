@@ -39,8 +39,11 @@ pub struct CacheOptions {
     pub intersection_chunk_size: usize,
 
     /// Provide a path where db will be created. If nothing is provided, will default to a temp location.
-    /// Db path will be `PathBuf.join(Labels.to_non_empty_string())`.
-    pub path: Option<(PathBuf, Labels)>,
+    /// Db path will be `PathBuf.join(name)`.
+    pub path: Option<(PathBuf, String)>,
+
+    /// The labels to attach to the cache.
+    pub labels: Labels,
 }
 
 impl Default for CacheOptions {
@@ -51,6 +54,7 @@ impl Default for CacheOptions {
             max_size: 1024 * 1024 * 1024,
             intersection_chunk_size: 100,
             path: None,
+            labels: Labels::default(),
         }
     }
 }
@@ -62,10 +66,12 @@ pub struct LmdbRoCache {
 }
 
 impl LmdbRoCache {
-    pub fn new(options: &CacheOptions) -> Result<Self, CacheError> {
-        let main_env = RoMainEnvironment::new(options)?;
+    pub fn new(options: CacheOptions) -> Result<Self, CacheError> {
+        let main_env = RoMainEnvironment::new(options.clone())?;
         let secondary_envs = (0..main_env.schema().1.len())
-            .map(|index| RoSecondaryEnvironment::new(secondary_environment_name(index), options))
+            .map(|index| {
+                RoSecondaryEnvironment::new(secondary_environment_name(index), options.clone())
+            })
             .collect::<Result<_, _>>()?;
         Ok(Self {
             main_env,
@@ -85,18 +91,19 @@ impl LmdbRwCache {
     pub fn new(
         schema: Option<&SchemaWithIndex>,
         connections: Option<&HashSet<String>>,
-        options: &CacheOptions,
+        options: CacheOptions,
         write_options: CacheWriteOptions,
         indexing_thread_pool: Arc<Mutex<IndexingThreadPool>>,
     ) -> Result<Self, CacheError> {
-        let rw_main_env = RwMainEnvironment::new(schema, connections, options, write_options)?;
+        let rw_main_env =
+            RwMainEnvironment::new(schema, connections, options.clone(), write_options)?;
 
         let options = CacheOptions {
             path: Some((
                 rw_main_env.base_path().to_path_buf(),
-                rw_main_env.labels().clone(),
+                rw_main_env.name().to_string(),
             )),
-            ..*options
+            ..options
         };
         let ro_main_env = rw_main_env.share();
 
@@ -105,7 +112,7 @@ impl LmdbRwCache {
         for (index, index_definition) in ro_main_env.schema().1.iter().enumerate() {
             let name = secondary_environment_name(index);
             let rw_secondary_env =
-                RwSecondaryEnvironment::new(index_definition, name.clone(), &options)?;
+                RwSecondaryEnvironment::new(index_definition, name.clone(), options.clone())?;
             let ro_secondary_env = rw_secondary_env.share();
 
             rw_secondary_envs.push(rw_secondary_env);
@@ -125,6 +132,10 @@ impl LmdbRwCache {
 }
 
 impl<C: LmdbCache> RoCache for C {
+    fn name(&self) -> &str {
+        self.main_env().name()
+    }
+
     fn labels(&self) -> &Labels {
         self.main_env().labels()
     }

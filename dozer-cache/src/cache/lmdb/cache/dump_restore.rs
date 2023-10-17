@@ -80,21 +80,21 @@ pub async fn dump<'txn, T: Transaction, C: LmdbCache>(
 }
 
 pub async fn restore(
-    options: &CacheOptions,
+    options: CacheOptions,
     write_options: CacheWriteOptions,
     indexing_thread_pool: Arc<Mutex<IndexingThreadPool>>,
     reader: &mut (impl AsyncRead + Unpin),
 ) -> Result<LmdbRwCache, CacheError> {
     info!("Restoring cache with options {options:?}");
     let rw_main_env =
-        main_environment::dump_restore::restore(options, write_options, reader).await?;
+        main_environment::dump_restore::restore(&options, write_options, reader).await?;
 
     let options = CacheOptions {
         path: Some((
             rw_main_env.base_path().to_path_buf(),
-            rw_main_env.labels().clone(),
+            rw_main_env.name().to_string(),
         )),
-        ..*options
+        ..options
     };
     let ro_main_env = rw_main_env.share();
 
@@ -103,7 +103,7 @@ pub async fn restore(
     for index in 0..ro_main_env.schema().1.len() {
         let name = secondary_environment_name(index);
         let rw_secondary_env =
-            secondary_environment::dump_restore::restore(name, &options, reader).await?;
+            secondary_environment::dump_restore::restore(name, options.clone(), reader).await?;
         let ro_secondary_env = rw_secondary_env.share();
 
         rw_secondary_envs.push(rw_secondary_env);
@@ -156,7 +156,7 @@ mod tests {
         }
 
         let restored_cache = restore(
-            &Default::default(),
+            Default::default(),
             Default::default(),
             indexing_thread_pool.clone(),
             &mut data.as_slice(),

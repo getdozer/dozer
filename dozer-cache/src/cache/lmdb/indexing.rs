@@ -63,9 +63,9 @@ impl IndexingThreadPool {
         }
     }
 
-    pub fn find_cache(&self, labels: &Labels) -> Option<LmdbRoCache> {
+    pub fn find_cache(&self, name: &str) -> Option<LmdbRoCache> {
         for cache in self.caches.iter() {
-            if cache.main_env.labels() == labels {
+            if cache.main_env.name() == name {
                 let secondary_envs = cache
                     .secondary_envs
                     .iter()

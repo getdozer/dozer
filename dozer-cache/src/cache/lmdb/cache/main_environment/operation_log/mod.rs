@@ -52,6 +52,8 @@ pub struct OperationLog {
     next_operation_id: LmdbCounter,
     /// Operation_id -> operation.
     operation_id_to_operation: LmdbMap<u64, Operation>,
+    /// The cache name.
+    name: String,
     /// The cache labels.
     labels: Labels,
 }
@@ -69,7 +71,11 @@ const OPERATION_ID_TO_OPERATION_DB_NAME: &str = "operation_id_to_operation";
 const CACHE_OPERATION_LOG_COUNTER_NAME: &str = "cache_operation_log";
 
 impl OperationLog {
-    pub fn create(env: &mut RwLmdbEnvironment, labels: Labels) -> Result<Self, StorageError> {
+    pub fn create(
+        env: &mut RwLmdbEnvironment,
+        name: String,
+        labels: Labels,
+    ) -> Result<Self, StorageError> {
         describe_counter!(
             CACHE_OPERATION_LOG_COUNTER_NAME,
             "Number of operations stored in the cache"
@@ -87,11 +93,16 @@ impl OperationLog {
             present_operation_ids,
             next_operation_id,
             operation_id_to_operation,
+            name,
             labels,
         })
     }
 
-    pub fn open<E: LmdbEnvironment>(env: &E, labels: Labels) -> Result<Self, StorageError> {
+    pub fn open<E: LmdbEnvironment>(
+        env: &E,
+        name: String,
+        labels: Labels,
+    ) -> Result<Self, StorageError> {
         let primary_key_metadata = PrimaryKeyMetadata::open(env)?;
         let hash_metadata = HashMetadata::open(env)?;
         let present_operation_ids = LmdbSet::open(env, Some(PRESENT_OPERATION_IDS_DB_NAME))?;
@@ -104,8 +115,13 @@ impl OperationLog {
             present_operation_ids,
             next_operation_id,
             operation_id_to_operation,
+            name,
             labels,
         })
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
     }
 
     pub fn labels(&self) -> &Labels {
@@ -506,6 +522,7 @@ impl OperationLog {
     pub async fn restore<'txn, R: tokio::io::AsyncRead + Unpin>(
         env: &mut RwLmdbEnvironment,
         reader: &mut R,
+        name: String,
         labels: Labels,
     ) -> Result<Self, dozer_storage::RestoreError> {
         info!("Restoring primary key metadata");
@@ -518,7 +535,7 @@ impl OperationLog {
         dozer_storage::restore(env, reader).await?;
         info!("Restoring operation id to operation");
         dozer_storage::restore(env, reader).await?;
-        Self::open(env, labels).map_err(Into::into)
+        Self::open(env, name, labels).map_err(Into::into)
     }
 }
 

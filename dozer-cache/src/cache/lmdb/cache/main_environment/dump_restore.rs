@@ -53,7 +53,7 @@ pub async fn restore(
     reader: &mut (impl AsyncRead + Unpin),
 ) -> Result<RwMainEnvironment, CacheError> {
     info!("Restoring main environment with options {options:?}");
-    let (mut env, (base_path, labels), temp_dir) = create_env(options)?;
+    let (mut env, (base_path, name), temp_dir) = create_env(options)?;
 
     info!("Restoring schema");
     dozer_storage::restore(&mut env, reader).await?;
@@ -62,7 +62,8 @@ pub async fn restore(
     info!("Restoring connection snapshotting done");
     dozer_storage::restore(&mut env, reader).await?;
     info!("Restoring operation log");
-    let operation_log = OperationLog::restore(&mut env, reader, labels).await?;
+    let operation_log =
+        OperationLog::restore(&mut env, reader, name, options.labels.clone()).await?;
 
     let schema_option = LmdbOption::open(&env, Some(SCHEMA_DB_NAME))?;
     let commit_state = LmdbOption::open(&env, Some(COMMIT_STATE_DB_NAME))?;
@@ -142,7 +143,7 @@ pub mod tests {
         let mut env = RwMainEnvironment::new(
             Some(&(schema, vec![])),
             None,
-            &Default::default(),
+            Default::default(),
             Default::default(),
         )
         .unwrap();

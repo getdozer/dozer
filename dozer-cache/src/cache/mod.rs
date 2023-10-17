@@ -40,8 +40,12 @@ impl CacheRecord {
 }
 
 pub trait RoCacheManager: Send + Sync + Debug {
-    /// Opens a cache in read-only mode with given labels.
-    fn open_ro_cache(&self, labels: Labels) -> Result<Option<Box<dyn RoCache>>, CacheError>;
+    /// Opens a cache in read-only mode, and attach given labels.
+    fn open_ro_cache(
+        &self,
+        name_or_alias: String,
+        labels: Labels,
+    ) -> Result<Option<Box<dyn RoCache>>, CacheError>;
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -53,9 +57,10 @@ pub struct CacheWriteOptions {
 }
 
 pub trait RwCacheManager: RoCacheManager {
-    /// Opens a cache in read-write mode with given labels.
+    /// Opens a cache in read-write mode, and attach given labels.
     fn open_rw_cache(
         &self,
+        name_or_alias: String,
         labels: Labels,
         write_options: CacheWriteOptions,
     ) -> Result<Option<Box<dyn RwCache>>, CacheError>;
@@ -64,9 +69,10 @@ pub trait RwCacheManager: RoCacheManager {
     ///
     /// Schemas cannot be changed after the cache is created.
     ///
-    /// The labels must be unique.
+    /// The name must be unique and non-empty.
     fn create_cache(
         &self,
+        name: String,
         labels: Labels,
         schema: Schema,
         indexes: Vec<IndexDefinition>,
@@ -81,6 +87,8 @@ pub trait RwCacheManager: RoCacheManager {
 }
 
 pub trait RoCache: Send + Sync + Debug {
+    /// Returns the name of the cache.
+    fn name(&self) -> &str;
     /// Returns the labels of the cache.
     fn labels(&self) -> &Labels;
 

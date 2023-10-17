@@ -24,7 +24,7 @@ pub fn create_cache(
     let cache = LmdbRwCache::new(
         Some(&schema),
         None,
-        &Default::default(),
+        Default::default(),
         Default::default(),
         indexing_thread_pool.clone(),
     )

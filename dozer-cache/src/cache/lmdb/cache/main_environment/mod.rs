@@ -53,6 +53,10 @@ pub trait MainEnvironment: LmdbEnvironment {
         &self.common().base_path
     }
 
+    fn name(&self) -> &str {
+        self.common().operation_log.name()
+    }
+
     fn labels(&self) -> &Labels {
         self.common().operation_log.labels()
     }
@@ -154,12 +158,12 @@ impl RwMainEnvironment {
     pub fn new(
         schema: Option<&SchemaWithIndex>,
         connections: Option<&HashSet<String>>,
-        options: &CacheOptions,
+        options: CacheOptions,
         write_options: CacheWriteOptions,
     ) -> Result<Self, CacheError> {
-        let (mut env, (base_path, labels), temp_dir) = create_env(options)?;
+        let (mut env, (base_path, name), temp_dir) = create_env(&options)?;
 
-        let operation_log = OperationLog::create(&mut env, labels.clone())?;
+        let operation_log = OperationLog::create(&mut env, name.clone(), options.labels)?;
         let schema_option = LmdbOption::create(&mut env, Some(SCHEMA_DB_NAME))?;
         let commit_state = LmdbOption::create(&mut env, Some(COMMIT_STATE_DB_NAME))?;
         let connection_snapshotting_done =
@@ -173,7 +177,7 @@ impl RwMainEnvironment {
             (Some(schema), Some(old_schema)) => {
                 if &old_schema != schema {
                     return Err(CacheError::SchemaMismatch {
-                        name: labels.to_string(),
+                        name: name.clone(),
                         given: Box::new(schema.clone()),
                         stored: Box::new(old_schema),
                     });
@@ -206,7 +210,7 @@ impl RwMainEnvironment {
                 if &existing_connections != connections {
                     return Err(CacheError::ConnectionsMismatch(Box::new(
                         ConnectionMismatch {
-                            name: labels.to_string(),
+                            name,
                             given: connections.clone(),
                             stored: existing_connections,
                         },
@@ -587,10 +591,11 @@ impl MainEnvironment for RoMainEnvironment {
 }
 
 impl RoMainEnvironment {
-    pub fn new(options: &CacheOptions) -> Result<Self, CacheError> {
-        let (env, (base_path, labels), _temp_dir) = open_env(options)?;
+    pub fn new(options: CacheOptions) -> Result<Self, CacheError> {
+        let (env, (base_path, name)) = open_env(&options)?;
+        let base_path = base_path.to_path_buf();
 
-        let operation_log = OperationLog::open(&env, labels.clone())?;
+        let operation_log = OperationLog::open(&env, name.to_string(), options.labels)?;
         let schema_option = LmdbOption::open(&env, Some(SCHEMA_DB_NAME))?;
         let commit_state = LmdbOption::open(&env, Some(COMMIT_STATE_DB_NAME))?;
         let connection_snapshotting_done =
@@ -604,7 +609,7 @@ impl RoMainEnvironment {
         Ok(Self {
             env,
             common: MainEnvironmentCommon {
-                base_path: base_path.to_path_buf(),
+                base_path,
                 schema,
                 schema_option,
                 commit_state,

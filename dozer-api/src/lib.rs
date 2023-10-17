@@ -136,7 +136,7 @@ fn open_cache_reader(
     labels: Labels,
 ) -> Result<Option<CacheReader>, ApiInitError> {
     let cache = cache_manager
-        .open_ro_cache(labels)
+        .open_ro_cache(labels.to_non_empty_string().into_owned(), labels)
         .map_err(ApiInitError::OpenOrCreateCache)?;
     Ok(cache.map(CacheReader::new))
 }

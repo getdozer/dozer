@@ -12,7 +12,7 @@ use tempdir::TempDir;
 #[test]
 fn read_and_write() {
     let path = TempDir::new("dozer").unwrap();
-    let path = (path.path().to_path_buf(), Default::default());
+    let path = (path.path().to_path_buf(), "temp".to_string());
 
     // write and read from cache from two different threads.
 
@@ -21,12 +21,13 @@ fn read_and_write() {
     let mut cache_writer = LmdbRwCache::new(
         Some(&schema),
         None,
-        &CacheOptions {
+        CacheOptions {
             max_readers: 2,
             max_db_size: 100,
             max_size: 1024 * 1024,
             path: Some(path.clone()),
             intersection_chunk_size: 1,
+            labels: Default::default(),
         },
         Default::default(),
         indexing_thread_pool.clone(),
@@ -51,7 +52,7 @@ fn read_and_write() {
         path: Some(path),
         ..Default::default()
     };
-    let cache_reader = LmdbRoCache::new(&read_options).unwrap();
+    let cache_reader = LmdbRoCache::new(read_options).unwrap();
     for (a, b, c) in items {
         let rec = cache_reader.get(&Field::Int(a).encode()).unwrap();
         let values = vec![
