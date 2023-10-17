@@ -65,7 +65,7 @@ pub async fn load_database(
             .await
             .unwrap();
     }
-    cache.commit(&Default::default(), 0).unwrap();
+    cache.commit(&Default::default()).unwrap();
     cache_manager.wait_until_indexing_catchup();
 
     drop(cache);

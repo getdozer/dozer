@@ -14,7 +14,6 @@ use dozer_tracing::Labels;
 use dozer_types::{
     bincode,
     borrow::{Borrow, IntoOwned},
-    node::SourceStates,
     types::{Field, FieldType, Record, Schema, SchemaWithIndex},
 };
 use dozer_types::{
@@ -29,7 +28,7 @@ use crate::{
     cache::{
         index,
         lmdb::utils::{create_env, open_env},
-        CacheRecord, RecordMeta, UpsertResult,
+        CacheRecord, CommitState, RecordMeta, UpsertResult,
     },
     errors::{CacheError, ConnectionMismatch},
 };
@@ -80,21 +79,9 @@ pub trait MainEnvironment: LmdbEnvironment {
             .ok_or(CacheError::PrimaryKeyNotFound)
     }
 
-    fn source_states(&self) -> Result<Option<SourceStates>, CacheError> {
+    fn commit_state(&self) -> Result<Option<CommitState>, CacheError> {
         let txn = self.begin_txn()?;
-        self.common()
-            .source_states
-            .load(&txn)?
-            .map(|source_states| {
-                bincode::deserialize(source_states.borrow())
-                    .map_err(CacheError::map_deserialization_error)
-            })
-            .transpose()
-    }
-
-    fn log_position(&self) -> Result<Option<u64>, CacheError> {
-        let txn = self.begin_txn()?;
-        self.log_positions_with_txn(&txn)
+        self.commit_state_with_txn(&txn)
     }
 
     fn is_snapshotting_done(&self) -> Result<bool, CacheError> {
@@ -107,18 +94,23 @@ pub trait MainEnvironment: LmdbEnvironment {
         Ok(true)
     }
 
-    fn log_positions_with_txn<T: Transaction>(&self, txn: &T) -> Result<Option<u64>, CacheError> {
+    fn commit_state_with_txn<T: Transaction>(
+        &self,
+        txn: &T,
+    ) -> Result<Option<CommitState>, CacheError> {
         self.common()
-            .log_position
-            .load(txn)
-            .map(|data| data.map(IntoOwned::into_owned))
-            .map_err(Into::into)
+            .commit_state
+            .load(txn)?
+            .map(|commit_state| {
+                bincode::deserialize(commit_state.borrow())
+                    .map_err(CacheError::map_deserialization_error)
+            })
+            .transpose()
     }
 }
 
 const SCHEMA_DB_NAME: &str = "schema";
-const SOURCE_STATES_DB_NAME: &str = "source_states";
-const LOG_POSITION_DB_NAME: &str = "log_position";
+const COMMIT_STATE_DB_NAME: &str = "commit_state";
 const CONNECTION_SNAPSHOTTING_DONE_DB_NAME: &str = "connection_snapshotting_done";
 
 #[derive(Debug, Clone)]
@@ -129,10 +121,8 @@ pub struct MainEnvironmentCommon {
     schema: SchemaWithIndex,
     /// The schema database, used for dumping.
     schema_option: LmdbOption<SchemaWithIndex>,
-    /// The serialized source states.
-    source_states: LmdbOption<Vec<u8>>,
-    /// The log position.
-    log_position: LmdbOption<u64>,
+    /// The serialized commit state.
+    commit_state: LmdbOption<Vec<u8>>,
     /// The source status.
     connection_snapshotting_done: LmdbMap<String, bool>,
     /// The operation log.
@@ -171,8 +161,7 @@ impl RwMainEnvironment {
 
         let operation_log = OperationLog::create(&mut env, labels.clone())?;
         let schema_option = LmdbOption::create(&mut env, Some(SCHEMA_DB_NAME))?;
-        let source_states = LmdbOption::create(&mut env, Some(SOURCE_STATES_DB_NAME))?;
-        let log_position = LmdbOption::create(&mut env, Some(LOG_POSITION_DB_NAME))?;
+        let commit_state = LmdbOption::create(&mut env, Some(COMMIT_STATE_DB_NAME))?;
         let connection_snapshotting_done =
             LmdbMap::create(&mut env, Some(CONNECTION_SNAPSHOTTING_DONE_DB_NAME))?;
 
@@ -232,8 +221,7 @@ impl RwMainEnvironment {
                 base_path,
                 schema,
                 schema_option,
-                log_position,
-                source_states,
+                commit_state,
                 connection_snapshotting_done,
                 operation_log,
                 intersection_chunk_size: options.intersection_chunk_size,
@@ -420,19 +408,14 @@ impl RwMainEnvironment {
             .map_err(Into::into)
     }
 
-    pub fn commit(
-        &mut self,
-        source_states: &SourceStates,
-        log_position: u64,
-    ) -> Result<(), CacheError> {
+    pub fn commit(&mut self, state: &CommitState) -> Result<(), CacheError> {
         let txn = self.env.txn_mut()?;
-        self.common.source_states.store(
+        self.common.commit_state.store(
             txn,
-            bincode::serialize(source_states)
+            bincode::serialize(state)
                 .map_err(CacheError::map_serialization_error)?
                 .as_slice(),
         )?;
-        self.common.log_position.store(txn, &log_position)?;
         self.env.commit().map_err(Into::into)
     }
 }
@@ -609,8 +592,7 @@ impl RoMainEnvironment {
 
         let operation_log = OperationLog::open(&env, labels.clone())?;
         let schema_option = LmdbOption::open(&env, Some(SCHEMA_DB_NAME))?;
-        let source_states = LmdbOption::open(&env, Some(SOURCE_STATES_DB_NAME))?;
-        let log_position = LmdbOption::open(&env, Some(LOG_POSITION_DB_NAME))?;
+        let commit_state = LmdbOption::open(&env, Some(COMMIT_STATE_DB_NAME))?;
         let connection_snapshotting_done =
             LmdbMap::open(&env, Some(CONNECTION_SNAPSHOTTING_DONE_DB_NAME))?;
 
@@ -625,8 +607,7 @@ impl RoMainEnvironment {
                 base_path: base_path.to_path_buf(),
                 schema,
                 schema_option,
-                source_states,
-                log_position,
+                commit_state,
                 connection_snapshotting_done,
                 operation_log,
                 intersection_chunk_size: options.intersection_chunk_size,

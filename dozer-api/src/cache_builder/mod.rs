@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::time::Duration;
 
 use crate::grpc::types_helper;
+use dozer_cache::cache::CommitState;
 use dozer_cache::dozer_log::reader::{LogReader, LogReaderBuilder, OpAndPos};
 use dozer_cache::dozer_log::replication::LogOperation;
 use dozer_cache::{
@@ -35,7 +36,10 @@ pub async fn build_cache(
     labels: LabelsAndProgress,
 ) -> Result<(), CacheError> {
     // Create log reader.
-    let starting_pos = cache.get_log_position()?.map(|pos| pos + 1).unwrap_or(0);
+    let starting_pos = cache
+        .get_commit_state()?
+        .map(|commit_state| commit_state.log_position + 1)
+        .unwrap_or(0);
     debug!(
         "Starting log reader {} from position {starting_pos}",
         log_reader_builder.options.endpoint
@@ -211,7 +215,10 @@ fn build_cache_task(
                 source_states,
                 decision_instant,
             } => {
-                cache.commit(&source_states, op_and_pos.pos)?;
+                cache.commit(&CommitState {
+                    source_states,
+                    log_position: op_and_pos.pos,
+                })?;
                 if let Ok(duration) = decision_instant.elapsed() {
                     histogram!(
                         DATA_LATENCY_HISTOGRAM_NAME,

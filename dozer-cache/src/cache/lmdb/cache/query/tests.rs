@@ -20,7 +20,7 @@ fn query_secondary_sorted_inverted() {
     ]);
 
     cache.insert(&record).unwrap();
-    cache.commit(&Default::default(), 0).unwrap();
+    cache.commit(&Default::default()).unwrap();
     indexing_thread_pool.lock().wait_until_catchup();
 
     let filter = FilterExpression::And(vec![
@@ -51,7 +51,7 @@ fn query_secondary_full_text() {
     ]);
 
     cache.insert(&record).unwrap();
-    cache.commit(&Default::default(), 0).unwrap();
+    cache.commit(&Default::default()).unwrap();
     indexing_thread_pool.lock().wait_until_catchup();
 
     let filter = FilterExpression::Simple("foo".into(), Operator::Contains, "good".into());
@@ -89,7 +89,7 @@ fn query_secondary_vars() {
     for val in items {
         insert_rec_1(&mut cache, val);
     }
-    cache.commit(&Default::default(), 0).unwrap();
+    cache.commit(&Default::default()).unwrap();
     indexing_thread_pool.lock().wait_until_catchup();
 
     test_query(json!({}), 8, &cache);
@@ -198,7 +198,7 @@ fn query_secondary_multi_indices() {
         };
         cache.insert(&record).unwrap();
     }
-    cache.commit(&Default::default(), 0).unwrap();
+    cache.commit(&Default::default()).unwrap();
     indexing_thread_pool.lock().wait_until_catchup();
 
     let query = query_from_filter(FilterExpression::And(vec![

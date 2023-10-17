@@ -155,7 +155,7 @@ pub mod tests {
         main_env.insert(&record_a).unwrap();
         main_env.insert(&record_b).unwrap();
         main_env.delete(&record_a).unwrap();
-        main_env.commit(&Default::default(), 0).unwrap();
+        main_env.commit(&Default::default()).unwrap();
 
         let mut env = RwSecondaryEnvironment::new(
             &IndexDefinition::SortedInverted(vec![0]),
