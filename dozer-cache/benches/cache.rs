@@ -60,8 +60,7 @@ fn cache(c: &mut Criterion) {
             .create_cache(
                 "temp".to_string(),
                 Default::default(),
-                schema,
-                secondary_indexes,
+                (schema, secondary_indexes),
                 &Default::default(),
                 Default::default(),
             )

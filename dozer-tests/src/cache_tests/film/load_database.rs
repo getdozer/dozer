@@ -23,8 +23,7 @@ pub async fn load_database(
         .create_cache(
             labels.to_non_empty_string().into_owned(),
             labels.clone(),
-            schema.clone(),
-            secondary_indexes,
+            (schema.clone(), secondary_indexes),
             &Default::default(),
             Default::default(),
         )

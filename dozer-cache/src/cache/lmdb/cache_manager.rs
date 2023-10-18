@@ -6,11 +6,9 @@ use dozer_storage::{lmdb_storage::LmdbEnvironmentManager, LmdbMap, RwLmdbEnviron
 use dozer_storage::{LmdbEnvironment, RoLmdbEnvironment};
 use dozer_tracing::Labels;
 use dozer_types::borrow::IntoOwned;
+use dozer_types::parking_lot::Mutex;
 use dozer_types::parking_lot::RwLock;
-use dozer_types::{
-    parking_lot::Mutex,
-    types::{IndexDefinition, Schema},
-};
+use dozer_types::types::SchemaWithIndex;
 use tempdir::TempDir;
 use tokio::io::AsyncRead;
 
@@ -240,8 +238,7 @@ impl RwCacheManager for LmdbRwCacheManager {
         &self,
         name: String,
         labels: Labels,
-        schema: Schema,
-        indexes: Vec<IndexDefinition>,
+        schema: SchemaWithIndex,
         connections: &HashSet<String>,
         write_options: CacheWriteOptions,
     ) -> Result<Box<dyn RwCache>, CacheError> {
@@ -250,7 +247,7 @@ impl RwCacheManager for LmdbRwCacheManager {
         }
 
         let cache = LmdbRwCache::new(
-            Some(&(schema, indexes)),
+            Some(&schema),
             Some(connections),
             cache_options(&self.options, self.base_path.clone(), name, labels),
             write_options,
@@ -326,8 +323,7 @@ mod tests {
             .create_cache(
                 "temp".to_string(),
                 Default::default(),
-                Schema::default(),
-                vec![],
+                Default::default(),
                 &Default::default(),
                 Default::default(),
             )

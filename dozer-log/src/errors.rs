@@ -17,6 +17,10 @@ pub enum ReaderBuilderError {
 
 #[derive(Debug, Error)]
 pub enum ReaderError {
+    #[error("Log stream ended")]
+    LogStreamEnded,
+    #[error("Tonic error: {0}")]
+    Tonic(#[from] tonic::Status),
     #[error("Failed to deserialize log response: {0}")]
     DeserializeLogResponse(#[source] bincode::Error),
     #[error("Failed to load persisted log entry: {0}")]

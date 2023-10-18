@@ -5,12 +5,19 @@ package dozer.internal;
 import "google/protobuf/empty.proto";
 
 service InternalPipelineService {
+  /// Get a running server's uuid. The id never changes. Different servers will have different ids.
+  rpc GetId(google.protobuf.Empty) returns (GetIdResponse);
+
   rpc DescribeStorage(StorageRequest) returns (StorageResponse);
   rpc ListEndpoints(google.protobuf.Empty) returns (EndpointsResponse);
   rpc DescribeBuild(BuildRequest) returns (BuildResponse);
   rpc DescribeApplication(DescribeApplicationRequest) returns (DescribeApplicationResponse);
   /// For every `LogRequest` sent, the server will reply one `LogResponse`.
   rpc GetLog(stream LogRequest) returns (stream LogResponse);
+}
+
+message GetIdResponse {
+  string id = 1;
 }
 
 message StorageRequest {
