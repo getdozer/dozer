@@ -17,7 +17,7 @@ use crate::{errors::ApiInitError, grpc::types_helper};
 
 use super::endpoint_meta::EndpointMeta;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 struct CatchUpInfo {
     /// The log position that's being served. Need to catch up with it.
     serving_cache_next_log_position: u64,
@@ -277,5 +277,180 @@ fn send_upsert_result(
             send_and_log_error(operations_sender, op);
         }
         UpsertResult::Ignored => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::SystemTime;
+
+    use dozer_cache::{
+        cache::{LmdbRwCacheManager, RwCacheManager},
+        dozer_log::schemas::EndpointSchema,
+    };
+
+    use super::*;
+
+    const INITIAL_CACHE_NAME: &str = "initial_cache_name";
+    const INITIAL_LOG_POSITION: u64 = 42;
+
+    fn create_test_state() -> (Box<dyn RwCacheManager>, CacheBuilderState) {
+        let cache_manager: Box<dyn RwCacheManager> =
+            Box::new(LmdbRwCacheManager::new(Default::default()).unwrap());
+        let mut cache = cache_manager
+            .create_cache(
+                INITIAL_CACHE_NAME.to_string(),
+                Default::default(),
+                Default::default(),
+                &Default::default(),
+                Default::default(),
+            )
+            .unwrap();
+        cache
+            .commit(&CommitState {
+                source_states: Default::default(),
+                log_position: INITIAL_LOG_POSITION,
+            })
+            .unwrap();
+        let state = CacheBuilderState::new(cache, ProgressBar::hidden()).unwrap();
+        assert_eq!(state.building.name(), INITIAL_CACHE_NAME);
+        assert_eq!(state.next_log_position, INITIAL_LOG_POSITION + 1);
+        assert!(state.catch_up_info.is_none());
+        (cache_manager, state)
+    }
+
+    fn test_endpoint_meta(log_id: String) -> EndpointMeta {
+        EndpointMeta {
+            name: Default::default(),
+            log_id,
+            build_name: Default::default(),
+            schema: EndpointSchema {
+                path: Default::default(),
+                schema: Default::default(),
+                secondary_indexes: Default::default(),
+                enable_token: Default::default(),
+                enable_on_event: Default::default(),
+                connections: Default::default(),
+            },
+            descriptor_bytes: Default::default(),
+        }
+    }
+
+    #[test]
+    fn test_state_update() {
+        let (cache_manager, mut state) = create_test_state();
+        state
+            .update(
+                test_endpoint_meta(INITIAL_CACHE_NAME.to_string()),
+                &*cache_manager,
+                Default::default(),
+                Default::default(),
+            )
+            .unwrap();
+        assert_eq!(state.building.name(), INITIAL_CACHE_NAME);
+        assert_eq!(state.next_log_position, INITIAL_LOG_POSITION + 1);
+        assert!(state.catch_up_info.is_none());
+
+        let new_log_id = "new_log_id";
+        state
+            .update(
+                test_endpoint_meta(new_log_id.to_string()),
+                &*cache_manager,
+                Default::default(),
+                Default::default(),
+            )
+            .unwrap();
+        assert_eq!(state.building.name(), new_log_id);
+        assert_eq!(state.next_log_position, 0);
+        assert_eq!(
+            state.catch_up_info,
+            Some(CatchUpInfo {
+                serving_cache_next_log_position: INITIAL_LOG_POSITION + 1,
+                endpoint_meta: test_endpoint_meta(new_log_id.to_string()),
+            })
+        );
+
+        state
+            .update(
+                test_endpoint_meta(new_log_id.to_string()),
+                &*cache_manager,
+                Default::default(),
+                Default::default(),
+            )
+            .unwrap();
+        assert_eq!(state.building.name(), new_log_id);
+        assert_eq!(state.next_log_position, 0);
+        assert_eq!(
+            state.catch_up_info,
+            Some(CatchUpInfo {
+                serving_cache_next_log_position: INITIAL_LOG_POSITION + 1,
+                endpoint_meta: test_endpoint_meta(new_log_id.to_string()),
+            })
+        );
+
+        let new_log_id = "new_log_id_2";
+        state
+            .update(
+                test_endpoint_meta(new_log_id.to_string()),
+                &*cache_manager,
+                Default::default(),
+                Default::default(),
+            )
+            .unwrap();
+        assert_eq!(state.building.name(), new_log_id);
+        assert_eq!(state.next_log_position, 0);
+        assert_eq!(
+            state.catch_up_info,
+            Some(CatchUpInfo {
+                serving_cache_next_log_position: INITIAL_LOG_POSITION + 1,
+                endpoint_meta: test_endpoint_meta(new_log_id.to_string()),
+            })
+        );
+    }
+
+    #[test]
+    fn test_state_process_op() {
+        let (cache_manager, mut state) = create_test_state();
+        let new_log_id = "new_log_id";
+        state
+            .update(
+                test_endpoint_meta(new_log_id.to_string()),
+                &*cache_manager,
+                Default::default(),
+                Default::default(),
+            )
+            .unwrap();
+
+        for pos in 0..INITIAL_LOG_POSITION {
+            assert!(state
+                .process_op(
+                    OpAndPos {
+                        op: LogOperation::Commit {
+                            source_states: Default::default(),
+                            decision_instant: SystemTime::now(),
+                        },
+                        pos,
+                    },
+                    None,
+                )
+                .unwrap()
+                .is_none());
+        }
+        assert!(state
+            .process_op(
+                OpAndPos {
+                    op: LogOperation::Commit {
+                        source_states: Default::default(),
+                        decision_instant: SystemTime::now()
+                    },
+                    pos: INITIAL_LOG_POSITION
+                },
+                None
+            )
+            .unwrap()
+            .is_some());
+        assert_eq!(state.building.name(), new_log_id);
+        assert_eq!(state.next_log_position, INITIAL_LOG_POSITION + 1);
+        assert!(state.catch_up_info.is_none());
     }
 }

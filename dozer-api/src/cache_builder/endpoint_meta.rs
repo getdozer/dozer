@@ -10,7 +10,7 @@ use dozer_types::{
 
 use crate::{cache_alias_and_labels, errors::ApiInitError};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EndpointMeta {
     pub name: String,
     pub log_id: String,
