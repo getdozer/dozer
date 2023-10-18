@@ -5,7 +5,11 @@ use crate::aggregation::count::CountAggregator;
 use crate::aggregation::max::MaxAggregator;
 use crate::aggregation::min::MinAggregator;
 use crate::aggregation::sum::SumAggregator;
+use crate::calculate_err;
 use crate::errors::PipelineError;
+use dozer_types::chrono::{DateTime, FixedOffset, NaiveDate};
+use dozer_types::ordered_float::OrderedFloat;
+use dozer_types::rust_decimal::Decimal;
 use dozer_types::serde::de::DeserializeOwned;
 use dozer_types::serde::{Deserialize, Serialize};
 use enum_dispatch::enum_dispatch;
@@ -20,7 +24,7 @@ use crate::aggregation::min_append_only::MinAppendOnlyAggregator;
 use crate::aggregation::min_value::MinValueAggregator;
 use crate::errors::PipelineError::{InvalidFunctionArgument, InvalidValue};
 use dozer_sql_expression::aggregate::AggregateFunctionType::MaxValue;
-use dozer_types::types::{Field, FieldType, Schema};
+use dozer_types::types::{DozerDuration, Field, FieldType, Schema};
 use std::fmt::{Debug, Display, Formatter};
 
 #[enum_dispatch]
@@ -57,6 +61,185 @@ pub enum AggregatorType {
     MinAppendOnly,
     MinValue,
     Sum,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(crate = "dozer_types::serde")]
+pub(crate) struct OrderedAggregatorState {
+    function_type: AggregateFunctionType,
+    inner: OrderedAggregatorStateInner,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(crate = "dozer_types::serde")]
+enum OrderedAggregatorStateInner {
+    UInt(BTreeMap<u64, u64>),
+    U128(BTreeMap<u128, u64>),
+    Int(BTreeMap<i64, u64>),
+    I128(BTreeMap<i128, u64>),
+    Float(BTreeMap<OrderedFloat<f64>, u64>),
+    Decimal(BTreeMap<Decimal, u64>),
+    Timestamp(BTreeMap<DateTime<FixedOffset>, u64>),
+    Date(BTreeMap<NaiveDate, u64>),
+    Duration(BTreeMap<DozerDuration, u64>),
+}
+
+impl OrderedAggregatorState {
+    fn max_in_map<T: Ord + Clone>(map: &BTreeMap<T, u64>) -> Option<T> {
+        let (value, _count) = map.last_key_value()?;
+        Some(value.clone())
+    }
+    fn min_in_map<T: Ord + Clone>(map: &BTreeMap<T, u64>) -> Option<T> {
+        Some(map.first_key_value()?.0.clone())
+    }
+
+    fn update_for_map<T: Ord + Clone + Debug>(
+        map: &mut BTreeMap<T, u64>,
+        for_value: T,
+        incr: bool,
+    ) {
+        let amount = map.entry(for_value.clone()).or_insert(0);
+        if incr {
+            *amount += 1;
+        } else {
+            *amount -= 1;
+        }
+        if *amount == 0 {
+            map.remove(&for_value);
+        }
+    }
+
+    fn update(&mut self, for_value: &Field, incr: bool) -> Result<(), PipelineError> {
+        if for_value == &Field::Null {
+            return Ok(());
+        }
+        match &mut self.inner {
+            OrderedAggregatorStateInner::UInt(map) => Self::update_for_map(
+                map,
+                calculate_err!(for_value.as_uint(), self.function_type),
+                incr,
+            ),
+            OrderedAggregatorStateInner::U128(map) => Self::update_for_map(
+                map,
+                calculate_err!(for_value.as_u128(), self.function_type),
+                incr,
+            ),
+
+            OrderedAggregatorStateInner::Int(map) => Self::update_for_map(
+                map,
+                calculate_err!(for_value.as_int(), self.function_type),
+                incr,
+            ),
+
+            OrderedAggregatorStateInner::I128(map) => Self::update_for_map(
+                map,
+                calculate_err!(for_value.as_i128(), self.function_type),
+                incr,
+            ),
+
+            OrderedAggregatorStateInner::Float(map) => Self::update_for_map(
+                map,
+                OrderedFloat(calculate_err!(for_value.as_float(), self.function_type)),
+                incr,
+            ),
+
+            OrderedAggregatorStateInner::Decimal(map) => Self::update_for_map(
+                map,
+                calculate_err!(for_value.as_decimal(), self.function_type),
+                incr,
+            ),
+
+            OrderedAggregatorStateInner::Timestamp(map) => Self::update_for_map(
+                map,
+                calculate_err!(for_value.as_timestamp(), self.function_type),
+                incr,
+            ),
+
+            OrderedAggregatorStateInner::Date(map) => Self::update_for_map(
+                map,
+                calculate_err!(for_value.as_date(), self.function_type),
+                incr,
+            ),
+
+            OrderedAggregatorStateInner::Duration(map) => Self::update_for_map(
+                map,
+                calculate_err!(for_value.as_duration(), self.function_type),
+                incr,
+            ),
+        }
+        Ok(())
+    }
+
+    #[inline]
+    pub(crate) fn incr(&mut self, value: &Field) -> Result<(), PipelineError> {
+        self.update(value, true)?;
+        Ok(())
+    }
+
+    #[inline]
+    pub(crate) fn decr(&mut self, value: &Field) -> Result<(), PipelineError> {
+        self.update(value, false)?;
+        Ok(())
+    }
+
+    pub(crate) fn new(function_type: AggregateFunctionType, field_type: FieldType) -> Option<Self> {
+        let inner = match field_type {
+            FieldType::UInt => OrderedAggregatorStateInner::UInt(Default::default()),
+            FieldType::U128 => OrderedAggregatorStateInner::U128(Default::default()),
+            FieldType::Int => OrderedAggregatorStateInner::Int(Default::default()),
+            FieldType::I128 => OrderedAggregatorStateInner::I128(Default::default()),
+            FieldType::Float => OrderedAggregatorStateInner::Float(Default::default()),
+            FieldType::Decimal => OrderedAggregatorStateInner::Decimal(Default::default()),
+            FieldType::Timestamp => OrderedAggregatorStateInner::Timestamp(Default::default()),
+            FieldType::Date => OrderedAggregatorStateInner::Date(Default::default()),
+            FieldType::Duration => OrderedAggregatorStateInner::Duration(Default::default()),
+            _ => return None,
+        };
+        Some(Self {
+            function_type,
+            inner,
+        })
+    }
+
+    fn get_min_opt(&self) -> Option<Field> {
+        let field = match &self.inner {
+            OrderedAggregatorStateInner::UInt(map) => Field::UInt(Self::min_in_map(map)?),
+            OrderedAggregatorStateInner::U128(map) => Field::U128(Self::min_in_map(map)?),
+            OrderedAggregatorStateInner::Int(map) => Field::Int(Self::min_in_map(map)?),
+            OrderedAggregatorStateInner::I128(map) => Field::I128(Self::min_in_map(map)?),
+            OrderedAggregatorStateInner::Float(map) => Field::Float(Self::min_in_map(map)?),
+            OrderedAggregatorStateInner::Decimal(map) => Field::Decimal(Self::min_in_map(map)?),
+            OrderedAggregatorStateInner::Timestamp(map) => Field::Timestamp(Self::min_in_map(map)?),
+            OrderedAggregatorStateInner::Date(map) => Field::Date(Self::min_in_map(map)?),
+            OrderedAggregatorStateInner::Duration(map) => Field::Duration(Self::min_in_map(map)?),
+        };
+        Some(field)
+    }
+
+    #[inline]
+    pub(crate) fn get_min(&self) -> Field {
+        self.get_min_opt().unwrap_or(Field::Null)
+    }
+
+    fn get_max_opt(&self) -> Option<Field> {
+        let field = match &self.inner {
+            OrderedAggregatorStateInner::UInt(map) => Field::UInt(Self::max_in_map(map)?),
+            OrderedAggregatorStateInner::U128(map) => Field::U128(Self::max_in_map(map)?),
+            OrderedAggregatorStateInner::Int(map) => Field::Int(Self::max_in_map(map)?),
+            OrderedAggregatorStateInner::I128(map) => Field::I128(Self::max_in_map(map)?),
+            OrderedAggregatorStateInner::Float(map) => Field::Float(Self::max_in_map(map)?),
+            OrderedAggregatorStateInner::Decimal(map) => Field::Decimal(Self::max_in_map(map)?),
+            OrderedAggregatorStateInner::Timestamp(map) => Field::Timestamp(Self::max_in_map(map)?),
+            OrderedAggregatorStateInner::Date(map) => Field::Date(Self::max_in_map(map)?),
+            OrderedAggregatorStateInner::Duration(map) => Field::Duration(Self::max_in_map(map)?),
+        };
+        Some(field)
+    }
+
+    #[inline]
+    pub(crate) fn get_max(&self) -> Field {
+        self.get_max_opt().unwrap_or(Field::Null)
+    }
 }
 
 impl Display for AggregatorType {
@@ -227,40 +410,6 @@ pub fn get_aggregator_type_from_aggregation_expression(
             AggregatorType::Count,
         )),
         _ => Err(PipelineError::InvalidFunction(e.to_string(schema))),
-    }
-}
-
-pub fn update_map(
-    fields: &[Field],
-    val_delta: u64,
-    decr: bool,
-    field_map: &mut BTreeMap<Field, u64>,
-) {
-    for field in fields {
-        if field == &Field::Null {
-            continue;
-        }
-
-        let get_prev_count = field_map.get(field);
-        let prev_count = match get_prev_count {
-            Some(v) => *v,
-            None => 0_u64,
-        };
-        let mut new_count = prev_count;
-        if decr {
-            new_count = new_count.wrapping_sub(val_delta);
-        } else {
-            new_count = new_count.wrapping_add(val_delta);
-        }
-        if new_count < 1 {
-            field_map.remove(field);
-        } else if field_map.contains_key(field) {
-            if let Some(val) = field_map.get_mut(field) {
-                *val = new_count;
-            }
-        } else {
-            field_map.insert(field.clone(), new_count);
-        }
     }
 }
 

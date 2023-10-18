@@ -1,6 +1,9 @@
 use std::fmt::{Display, Formatter};
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
+use dozer_types::serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash, Serialize, Deserialize)]
+#[serde(crate = "dozer_types::serde")]
 pub enum AggregateFunctionType {
     Avg,
     Count,
