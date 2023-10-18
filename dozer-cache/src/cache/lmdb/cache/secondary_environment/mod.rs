@@ -80,7 +80,7 @@ impl RwSecondaryEnvironment {
     pub fn new(
         index_definition: &IndexDefinition,
         name: String,
-        options: &CacheOptions,
+        options: CacheOptions,
     ) -> Result<Self, CacheError> {
         let mut env = create_env(&get_cache_options(name.clone(), options))?.0;
 
@@ -212,7 +212,7 @@ impl SecondaryEnvironment for RoSecondaryEnvironment {
 }
 
 impl RoSecondaryEnvironment {
-    pub fn new(name: String, options: &CacheOptions) -> Result<Self, CacheError> {
+    pub fn new(name: String, options: CacheOptions) -> Result<Self, CacheError> {
         let env = open_env(&get_cache_options(name.clone(), options))?.0;
 
         let database = LmdbMultimap::open(&env, Some(DATABASE_DB_NAME))?;
@@ -239,14 +239,12 @@ impl RoSecondaryEnvironment {
 
 pub mod dump_restore;
 
-fn get_cache_options(name: String, options: &CacheOptions) -> CacheOptions {
-    let path = options.path.as_ref().map(|(main_base_path, main_labels)| {
-        let base_path = main_base_path.join(format!("{}_index", main_labels));
-        let mut labels = Labels::empty();
-        labels.push("secondary_index", name);
-        (base_path, labels)
+fn get_cache_options(name: String, options: CacheOptions) -> CacheOptions {
+    let path = options.path.as_ref().map(|(main_base_path, main_name)| {
+        let base_path = main_base_path.join(format!("{}_index", main_name));
+        (base_path, format!("secondary_index_{name}"))
     });
-    CacheOptions { path, ..*options }
+    CacheOptions { path, ..options }
 }
 
 fn set_comparator<E: LmdbEnvironment>(

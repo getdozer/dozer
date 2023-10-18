@@ -39,6 +39,8 @@ pub enum CacheError {
 
     #[error("Storage error: {0}")]
     Storage(#[from] dozer_storage::errors::StorageError),
+    #[error("Cache name is empty")]
+    EmptyName,
     #[error("Schema is not found")]
     SchemaNotFound,
     #[error("Schema for {name} mismatch: given {given:?}, stored {stored:?}")]

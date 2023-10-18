@@ -110,6 +110,7 @@ pub fn initialize_cache(
     let (schema, secondary_indexes) = schema.unwrap_or_else(get_schema);
     let mut cache = cache_manager
         .create_cache(
+            labels.to_non_empty_string().into_owned(),
             labels,
             schema,
             secondary_indexes,

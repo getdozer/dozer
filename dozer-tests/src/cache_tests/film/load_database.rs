@@ -21,6 +21,7 @@ pub async fn load_database(
     let labels = Labels::default();
     let mut cache = cache_manager
         .create_cache(
+            labels.to_non_empty_string().into_owned(),
             labels.clone(),
             schema.clone(),
             secondary_indexes,
@@ -70,7 +71,10 @@ pub async fn load_database(
 
     drop(cache);
     (
-        cache_manager.open_ro_cache(labels).unwrap().unwrap(),
+        cache_manager
+            .open_ro_cache(labels.to_non_empty_string().into_owned(), labels)
+            .unwrap()
+            .unwrap(),
         mongo_collection,
     )
 }

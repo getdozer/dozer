@@ -77,13 +77,18 @@ pub fn open_or_create_cache(
     connections: &HashSet<String>,
     write_options: CacheWriteOptions,
 ) -> Result<Box<dyn RwCache>, CacheError> {
-    match cache_manager.open_rw_cache(labels.clone(), write_options)? {
+    match cache_manager.open_rw_cache(
+        labels.to_non_empty_string().into_owned(),
+        labels.clone(),
+        write_options,
+    )? {
         Some(cache) => {
             debug_assert!(cache.get_schema() == &schema);
             Ok(cache)
         }
         None => {
             let cache = cache_manager.create_cache(
+                labels.to_non_empty_string().into_owned(),
                 labels,
                 schema.0,
                 schema.1,

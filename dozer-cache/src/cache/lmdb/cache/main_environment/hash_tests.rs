@@ -10,7 +10,7 @@ fn test_hash_insert_delete_insert() {
     let mut env = RwMainEnvironment::new(
         Some(&(schema, vec![])),
         None,
-        &Default::default(),
+        Default::default(),
         Default::default(),
     )
     .unwrap();

@@ -43,7 +43,7 @@ pub async fn dump<'txn, E: SecondaryEnvironment, T: Transaction>(
 
 pub async fn restore(
     name: String,
-    options: &CacheOptions,
+    options: CacheOptions,
     reader: &mut (impl AsyncRead + Unpin),
 ) -> Result<RwSecondaryEnvironment, CacheError> {
     info!("Restoring secondary environment {name} with options {options:?}");
@@ -139,7 +139,7 @@ pub mod tests {
         let mut main_env = RwMainEnvironment::new(
             Some(&(schema, vec![])),
             None,
-            &Default::default(),
+            Default::default(),
             Default::default(),
         )
         .unwrap();
@@ -160,7 +160,7 @@ pub mod tests {
         let mut env = RwSecondaryEnvironment::new(
             &IndexDefinition::SortedInverted(vec![0]),
             "0".to_string(),
-            &Default::default(),
+            Default::default(),
         )
         .unwrap();
         {
@@ -186,7 +186,7 @@ pub mod tests {
             }
         }
 
-        let restored_env = restore("0".to_string(), &Default::default(), &mut data.as_slice())
+        let restored_env = restore("0".to_string(), Default::default(), &mut data.as_slice())
             .await
             .unwrap();
         assert_secondary_env_equal(&env, &restored_env);
