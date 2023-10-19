@@ -162,4 +162,7 @@ pub trait RwCache: RoCache {
 
     /// Commits the current transaction.
     fn commit(&mut self, state: &CommitState) -> Result<(), CacheError>;
+
+    /// Upcast.
+    fn as_ro(&self) -> &dyn RoCache;
 }

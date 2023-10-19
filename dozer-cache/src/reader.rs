@@ -44,6 +44,10 @@ impl CacheReader {
         Ok(())
     }
 
+    pub fn cache_name(&self) -> &str {
+        self.cache.name()
+    }
+
     pub fn get_schema(&self) -> &SchemaWithIndex {
         self.cache.get_schema()
     }

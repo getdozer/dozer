@@ -193,6 +193,10 @@ impl RwCache for LmdbRwCache {
         self.indexing_thread_pool.lock().wake(self.labels());
         Ok(())
     }
+
+    fn as_ro(&self) -> &dyn RoCache {
+        self
+    }
 }
 
 pub trait LmdbCache: Send + Sync + Debug {

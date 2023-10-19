@@ -1,14 +1,20 @@
+use std::sync::Arc;
+
+use arc_swap::ArcSwap;
 use dozer_cache::{
-    cache::{CacheRecord, CacheWriteOptions, CommitState, RwCache, RwCacheManager, UpsertResult},
+    cache::{
+        CacheRecord, CacheWriteOptions, CommitState, RoCache, RwCache, RwCacheManager, UpsertResult,
+    },
     dozer_log::{reader::OpAndPos, replication::LogOperation},
     errors::CacheError,
+    CacheReader,
 };
 use dozer_tracing::Labels;
 use dozer_types::{
     grpc_types::types::Operation as GrpcOperation,
     indicatif::ProgressBar,
     log::error,
-    types::{Field, Operation, Record, Schema},
+    types::{Field, Operation, Record, Schema, SchemaWithIndex},
 };
 use metrics::{describe_counter, describe_histogram, histogram, increment_counter};
 use tokio::sync::broadcast::Sender;
@@ -27,8 +33,13 @@ struct CatchUpInfo {
 
 #[derive(Debug)]
 pub struct CacheBuilderState {
+    cache_manager: Arc<dyn RwCacheManager>,
+    labels: Labels,
+    cache_write_options: CacheWriteOptions,
     building: Box<dyn RwCache>,
     next_log_position: u64,
+    /// The cache that's being served.
+    serving: Arc<ArcSwap<CacheReader>>,
     /// `Some`: The cache that's being built is behind the one being served,
     /// because the data source (log) has a different id and we have to rebuild the cache.
     ///
@@ -39,47 +50,65 @@ pub struct CacheBuilderState {
 
 impl CacheBuilderState {
     pub fn new(
-        cache: Box<dyn RwCache>,
-        progress_bar: ProgressBar,
-    ) -> Result<CacheBuilderState, ApiInitError> {
-        let next_log_position = next_log_position(&*cache)?;
-        progress_bar.set_position(next_log_position);
-        Ok(CacheBuilderState {
-            building: cache,
-            next_log_position,
-            catch_up_info: None,
-            progress_bar,
-        })
-    }
-
-    pub fn update(
-        &mut self,
-        endpoint_meta: EndpointMeta,
-        cache_manager: &dyn RwCacheManager,
+        cache_manager: Arc<dyn RwCacheManager>,
         labels: Labels,
         cache_write_options: CacheWriteOptions,
-    ) -> Result<(), ApiInitError> {
-        if self.building.name() != endpoint_meta.log_id {
-            let building = super::create_cache(
-                cache_manager,
-                endpoint_meta.clone(),
-                labels,
-                cache_write_options,
-            )?;
-            let next_log_position = 0;
-            let serving_cache_next_log_position = self.serving_cache_next_log_position()?;
-            let progress_bar = self.progress_bar.clone();
-            progress_bar.set_position(next_log_position);
+        endpoint_meta: EndpointMeta,
+        progress_bar: ProgressBar,
+    ) -> Result<CacheBuilderState, ApiInitError> {
+        // Open or create cache.
+        let cache = open_or_create_cache(
+            &*cache_manager,
+            endpoint_meta.clone(),
+            labels.clone(),
+            cache_write_options,
+        )?;
+        let serving = Arc::new(ArcSwap::from_pointee(
+            open_cache_reader(&*cache_manager, endpoint_meta.clone(), labels.clone())
+                .map_err(ApiInitError::OpenOrCreateCache)?,
+        ));
 
-            *self = Self {
-                building,
-                next_log_position,
-                catch_up_info: Some(CatchUpInfo {
-                    serving_cache_next_log_position,
-                    endpoint_meta,
-                }),
-                progress_bar,
-            }
+        // Create state, assuming there's no need to catch up now.
+        let next_log_position = next_log_position(&*cache)?;
+        let mut this = CacheBuilderState {
+            cache_manager,
+            labels,
+            cache_write_options,
+            building: cache,
+            next_log_position,
+            serving,
+            catch_up_info: None,
+            progress_bar,
+        };
+
+        // Compare cache and log id.
+        this.update(endpoint_meta)?;
+
+        this.progress_bar.set_position(this.next_log_position);
+        Ok(this)
+    }
+
+    pub fn cache_reader(&self) -> &Arc<ArcSwap<CacheReader>> {
+        &self.serving
+    }
+
+    pub fn update(&mut self, endpoint_meta: EndpointMeta) -> Result<(), ApiInitError> {
+        if self.building.name() != endpoint_meta.log_id {
+            let building = create_cache(
+                &*self.cache_manager,
+                endpoint_meta.clone(),
+                self.labels.clone(),
+                self.cache_write_options,
+            )?;
+            let serving_cache_next_log_position = self.serving_cache_next_log_position()?;
+
+            self.building = building;
+            self.next_log_position = 0;
+            self.catch_up_info = Some(CatchUpInfo {
+                serving_cache_next_log_position,
+                endpoint_meta,
+            });
+            self.progress_bar.set_position(self.next_log_position);
         }
 
         Ok(())
@@ -94,7 +123,7 @@ impl CacheBuilderState {
         &mut self,
         op_and_pos: OpAndPos,
         operations_sender: Option<&(String, Sender<GrpcOperation>)>,
-    ) -> Result<Option<EndpointMeta>, CacheError> {
+    ) -> Result<(), CacheError> {
         const CACHE_OPERATION_COUNTER_NAME: &str = "cache_operation";
         describe_counter!(
             CACHE_OPERATION_COUNTER_NAME,
@@ -194,11 +223,14 @@ impl CacheBuilderState {
                 }
 
                 // See if we have caught up with the cache being served.
-                if let Some(catchup_info) = self.catch_up_info.take() {
+                if let Some(catchup_info) = &self.catch_up_info {
                     if self.next_log_position >= catchup_info.serving_cache_next_log_position {
-                        return Ok(Some(catchup_info.endpoint_meta));
-                    } else {
-                        self.catch_up_info = Some(catchup_info);
+                        self.serving.store(Arc::new(open_cache_reader(
+                            &*self.cache_manager,
+                            catchup_info.endpoint_meta.clone(),
+                            self.labels.clone(),
+                        )?));
+                        self.catch_up_info = None;
                     }
                 }
             }
@@ -208,7 +240,7 @@ impl CacheBuilderState {
             }
         }
 
-        Ok(None)
+        Ok(())
     }
 
     fn serving_cache_next_log_position(&self) -> Result<u64, ApiInitError> {
@@ -218,6 +250,88 @@ impl CacheBuilderState {
             next_log_position(&*self.building)
         }
     }
+}
+
+fn open_or_create_cache(
+    cache_manager: &dyn RwCacheManager,
+    endpoint_meta: EndpointMeta,
+    labels: Labels,
+    write_options: CacheWriteOptions,
+) -> Result<Box<dyn RwCache>, ApiInitError> {
+    let (alias, cache_labels) = endpoint_meta.cache_alias_and_labels(labels.clone());
+    match cache_manager
+        .open_rw_cache(alias.clone(), cache_labels, write_options)
+        .map_err(ApiInitError::OpenOrCreateCache)?
+    {
+        Some(cache) => {
+            check_cache_schema(
+                cache.as_ro(),
+                (
+                    endpoint_meta.schema.schema,
+                    endpoint_meta.schema.secondary_indexes,
+                ),
+            )
+            .map_err(ApiInitError::OpenOrCreateCache)?;
+            Ok(cache)
+        }
+        None => create_cache(cache_manager, endpoint_meta, labels, write_options),
+    }
+}
+
+fn create_cache(
+    cache_manager: &dyn RwCacheManager,
+    endpoint_meta: EndpointMeta,
+    labels: Labels,
+    write_options: CacheWriteOptions,
+) -> Result<Box<dyn RwCache>, ApiInitError> {
+    let (alias, cache_labels) = endpoint_meta.cache_alias_and_labels(labels);
+    let cache = cache_manager
+        .create_cache(
+            endpoint_meta.log_id.clone(),
+            cache_labels,
+            (
+                endpoint_meta.schema.schema,
+                endpoint_meta.schema.secondary_indexes,
+            ),
+            &endpoint_meta.schema.connections,
+            write_options,
+        )
+        .map_err(ApiInitError::OpenOrCreateCache)?;
+    cache_manager
+        .create_alias(&endpoint_meta.log_id, &alias)
+        .map_err(ApiInitError::OpenOrCreateCache)?;
+    Ok(cache)
+}
+
+fn open_cache_reader(
+    cache_manager: &dyn RwCacheManager,
+    endpoint_meta: EndpointMeta,
+    labels: Labels,
+) -> Result<CacheReader, CacheError> {
+    let (alias, cache_labels) = endpoint_meta.cache_alias_and_labels(labels);
+    let cache = cache_manager
+        .open_ro_cache(alias.clone(), cache_labels)?
+        .expect("we've created this cache");
+    check_cache_schema(
+        &*cache,
+        (
+            endpoint_meta.schema.schema,
+            endpoint_meta.schema.secondary_indexes,
+        ),
+    )?;
+    Ok(CacheReader::new(cache))
+}
+
+fn check_cache_schema(cache: &dyn RoCache, given: SchemaWithIndex) -> Result<(), CacheError> {
+    let stored = cache.get_schema();
+    if &given != stored {
+        return Err(CacheError::SchemaMismatch {
+            name: cache.name().to_string(),
+            given: Box::new(given),
+            stored: Box::new(stored.clone()),
+        });
+    }
+    Ok(())
 }
 
 fn next_log_position(cache: &dyn RwCache) -> Result<u64, ApiInitError> {
@@ -294,29 +408,35 @@ mod tests {
     const INITIAL_CACHE_NAME: &str = "initial_cache_name";
     const INITIAL_LOG_POSITION: u64 = 42;
 
-    fn create_test_state() -> (Box<dyn RwCacheManager>, CacheBuilderState) {
-        let cache_manager: Box<dyn RwCacheManager> =
-            Box::new(LmdbRwCacheManager::new(Default::default()).unwrap());
-        let mut cache = cache_manager
-            .create_cache(
-                INITIAL_CACHE_NAME.to_string(),
-                Default::default(),
-                Default::default(),
-                &Default::default(),
-                Default::default(),
-            )
-            .unwrap();
+    fn create_test_state() -> CacheBuilderState {
+        let cache_manager: Arc<dyn RwCacheManager> =
+            Arc::new(LmdbRwCacheManager::new(Default::default()).unwrap());
+        let mut cache = open_or_create_cache(
+            &*cache_manager,
+            test_endpoint_meta(INITIAL_CACHE_NAME.to_string()),
+            Default::default(),
+            Default::default(),
+        )
+        .unwrap();
         cache
             .commit(&CommitState {
                 source_states: Default::default(),
                 log_position: INITIAL_LOG_POSITION,
             })
             .unwrap();
-        let state = CacheBuilderState::new(cache, ProgressBar::hidden()).unwrap();
+        drop(cache);
+        let state = CacheBuilderState::new(
+            cache_manager,
+            Default::default(),
+            Default::default(),
+            test_endpoint_meta(INITIAL_CACHE_NAME.to_string()),
+            ProgressBar::hidden(),
+        )
+        .unwrap();
         assert_eq!(state.building.name(), INITIAL_CACHE_NAME);
         assert_eq!(state.next_log_position, INITIAL_LOG_POSITION + 1);
         assert!(state.catch_up_info.is_none());
-        (cache_manager, state)
+        state
     }
 
     fn test_endpoint_meta(log_id: String) -> EndpointMeta {
@@ -338,14 +458,9 @@ mod tests {
 
     #[test]
     fn test_state_update() {
-        let (cache_manager, mut state) = create_test_state();
+        let mut state = create_test_state();
         state
-            .update(
-                test_endpoint_meta(INITIAL_CACHE_NAME.to_string()),
-                &*cache_manager,
-                Default::default(),
-                Default::default(),
-            )
+            .update(test_endpoint_meta(INITIAL_CACHE_NAME.to_string()))
             .unwrap();
         assert_eq!(state.building.name(), INITIAL_CACHE_NAME);
         assert_eq!(state.next_log_position, INITIAL_LOG_POSITION + 1);
@@ -353,12 +468,7 @@ mod tests {
 
         let new_log_id = "new_log_id";
         state
-            .update(
-                test_endpoint_meta(new_log_id.to_string()),
-                &*cache_manager,
-                Default::default(),
-                Default::default(),
-            )
+            .update(test_endpoint_meta(new_log_id.to_string()))
             .unwrap();
         assert_eq!(state.building.name(), new_log_id);
         assert_eq!(state.next_log_position, 0);
@@ -371,12 +481,7 @@ mod tests {
         );
 
         state
-            .update(
-                test_endpoint_meta(new_log_id.to_string()),
-                &*cache_manager,
-                Default::default(),
-                Default::default(),
-            )
+            .update(test_endpoint_meta(new_log_id.to_string()))
             .unwrap();
         assert_eq!(state.building.name(), new_log_id);
         assert_eq!(state.next_log_position, 0);
@@ -390,12 +495,7 @@ mod tests {
 
         let new_log_id = "new_log_id_2";
         state
-            .update(
-                test_endpoint_meta(new_log_id.to_string()),
-                &*cache_manager,
-                Default::default(),
-                Default::default(),
-            )
+            .update(test_endpoint_meta(new_log_id.to_string()))
             .unwrap();
         assert_eq!(state.building.name(), new_log_id);
         assert_eq!(state.next_log_position, 0);
@@ -410,19 +510,15 @@ mod tests {
 
     #[test]
     fn test_state_process_op() {
-        let (cache_manager, mut state) = create_test_state();
+        let mut state = create_test_state();
         let new_log_id = "new_log_id";
         state
-            .update(
-                test_endpoint_meta(new_log_id.to_string()),
-                &*cache_manager,
-                Default::default(),
-                Default::default(),
-            )
+            .update(test_endpoint_meta(new_log_id.to_string()))
             .unwrap();
+        assert_eq!(state.building.name(), new_log_id);
 
         for pos in 0..INITIAL_LOG_POSITION {
-            assert!(state
+            state
                 .process_op(
                     OpAndPos {
                         op: LogOperation::Commit {
@@ -433,24 +529,23 @@ mod tests {
                     },
                     None,
                 )
-                .unwrap()
-                .is_none());
+                .unwrap();
+            assert!(state.catch_up_info.is_some());
+            assert_eq!(state.serving.load().cache_name(), INITIAL_CACHE_NAME);
         }
-        assert!(state
+        state
             .process_op(
                 OpAndPos {
                     op: LogOperation::Commit {
                         source_states: Default::default(),
-                        decision_instant: SystemTime::now()
+                        decision_instant: SystemTime::now(),
                     },
-                    pos: INITIAL_LOG_POSITION
+                    pos: INITIAL_LOG_POSITION,
                 },
-                None
+                None,
             )
-            .unwrap()
-            .is_some());
-        assert_eq!(state.building.name(), new_log_id);
-        assert_eq!(state.next_log_position, INITIAL_LOG_POSITION + 1);
+            .unwrap();
         assert!(state.catch_up_info.is_none());
+        assert_eq!(state.serving.load().cache_name(), new_log_id);
     }
 }

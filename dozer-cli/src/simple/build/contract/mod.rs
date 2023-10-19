@@ -229,7 +229,6 @@ where
 
 impl PartialEq<PipelineContract> for PipelineContract {
     fn eq(&self, other: &PipelineContract) -> bool {
-        dbg!(self, other);
         is_isomorphic_matching(
             self.0.graph(),
             other.0.graph(),

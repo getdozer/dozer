@@ -20,7 +20,7 @@ pub struct EndpointMeta {
 }
 
 impl EndpointMeta {
-    pub async fn new(
+    pub async fn load_from_client(
         client: &mut InternalPipelineServiceClient<Channel>,
         endpoint: String,
     ) -> Result<Self, ApiInitError> {

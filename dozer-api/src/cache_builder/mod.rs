@@ -7,10 +7,10 @@ use dozer_cache::dozer_log::reader::{LogClient, LogReader, LogReaderOptions, OpA
 use dozer_cache::dozer_log::schemas::EndpointSchema;
 use dozer_cache::CacheReader;
 use dozer_cache::{
-    cache::{CacheWriteOptions, RwCache, RwCacheManager},
+    cache::{CacheWriteOptions, RwCacheManager},
     errors::CacheError,
 };
-use dozer_tracing::{Labels, LabelsAndProgress};
+use dozer_tracing::LabelsAndProgress;
 use dozer_types::grpc_types::internal::internal_pipeline_service_client::InternalPipelineServiceClient;
 use dozer_types::models::api_endpoint::{
     default_log_reader_batch_size, default_log_reader_buffer_size,
@@ -30,11 +30,6 @@ const READ_LOG_RETRY_INTERVAL: Duration = Duration::from_secs(1);
 #[derive(Debug)]
 pub struct CacheBuilder {
     client: InternalPipelineServiceClient<Channel>,
-    cache_manager: Arc<dyn RwCacheManager>,
-    labels: Labels,
-    cache_write_options: CacheWriteOptions,
-    /// The cache that's being served.
-    serving: Arc<ArcSwap<CacheReader>>,
     /// The cache that's being built. It must have the name of the connected log's id but may not be `serving`.
     state: CacheBuilderState,
     log_reader_options: LogReaderOptions,
@@ -61,33 +56,18 @@ impl CacheBuilder {
                 url: app_server_url,
                 error,
             })?;
-        let endpoint_meta = EndpointMeta::new(&mut client, endpoint.name.clone()).await?;
+        let endpoint_meta =
+            EndpointMeta::load_from_client(&mut client, endpoint.name.clone()).await?;
 
         // Open or create cache.
         let cache_write_options = cache_write_options(endpoint.conflict_resolution);
-        let cache = open_or_create_cache(
-            &*cache_manager,
-            endpoint_meta.clone(),
-            labels.labels().clone(),
-            cache_write_options,
-        )?;
-        let serving = Arc::new(ArcSwap::from_pointee(
-            open_cache_reader(
-                &*cache_manager,
-                endpoint_meta.clone(),
-                labels.labels().clone(),
-            )
-            .map_err(ApiInitError::OpenOrCreateCache)?,
-        ));
-
-        // Compare cache and log id.
         let progress_bar = labels.create_progress_bar(format!("cache: {}", endpoint_meta.name));
-        let mut state = CacheBuilderState::new(cache, progress_bar)?;
-        state.update(
-            endpoint_meta.clone(),
-            &*cache_manager,
+        let state = CacheBuilderState::new(
+            cache_manager,
             labels.labels().clone(),
             cache_write_options,
+            endpoint_meta.clone(),
+            progress_bar,
         )?;
 
         // Create log reader.
@@ -103,10 +83,6 @@ impl CacheBuilder {
         Ok((
             Self {
                 client,
-                cache_manager,
-                labels: labels.labels().clone(),
-                cache_write_options,
-                serving,
                 state,
                 log_reader_options,
                 log_reader,
@@ -116,7 +92,7 @@ impl CacheBuilder {
     }
 
     pub fn cache_reader(&self) -> &Arc<ArcSwap<CacheReader>> {
-        &self.serving
+        self.state.cache_reader()
     }
 
     pub fn run(
@@ -131,16 +107,8 @@ impl CacheBuilder {
             };
             cancel = read_one_result.1;
 
-            if let Some(endpoint_meta) = self
-                .state
-                .process_op(read_one_result.0, operations_sender.as_ref())?
-            {
-                self.serving.store(Arc::new(open_cache_reader(
-                    &*self.cache_manager,
-                    endpoint_meta,
-                    self.labels.clone(),
-                )?));
-            }
+            self.state
+                .process_op(read_one_result.0, operations_sender.as_ref())?;
         }
     }
 
@@ -181,15 +149,13 @@ impl CacheBuilder {
 
     async fn reconnect(&mut self) -> Result<(), ApiInitError> {
         // Get endpoint meta.
-        let endpoint_meta =
-            EndpointMeta::new(&mut self.client, self.log_reader_options.endpoint.clone()).await?;
+        let endpoint_meta = EndpointMeta::load_from_client(
+            &mut self.client,
+            self.log_reader_options.endpoint.clone(),
+        )
+        .await?;
         // Compare cache and log id.
-        self.state.update(
-            endpoint_meta.clone(),
-            &*self.cache_manager,
-            self.labels.clone(),
-            self.cache_write_options,
-        )?;
+        self.state.update(endpoint_meta.clone())?;
         // Create log reader.
         self.log_reader = create_log_reader(
             &mut self.client,
@@ -200,65 +166,6 @@ impl CacheBuilder {
         .await?;
         Ok(())
     }
-}
-
-fn open_or_create_cache(
-    cache_manager: &dyn RwCacheManager,
-    endpoint_meta: EndpointMeta,
-    labels: Labels,
-    write_options: CacheWriteOptions,
-) -> Result<Box<dyn RwCache>, ApiInitError> {
-    let (alias, cache_labels) = endpoint_meta.cache_alias_and_labels(labels.clone());
-    match cache_manager
-        .open_rw_cache(alias, cache_labels, write_options)
-        .map_err(ApiInitError::OpenOrCreateCache)?
-    {
-        Some(cache) => {
-            debug_assert!(cache.get_schema().0 == endpoint_meta.schema.schema);
-            debug_assert!(cache.get_schema().1 == endpoint_meta.schema.secondary_indexes);
-            Ok(cache)
-        }
-        None => create_cache(cache_manager, endpoint_meta, labels, write_options),
-    }
-}
-
-fn create_cache(
-    cache_manager: &dyn RwCacheManager,
-    endpoint_meta: EndpointMeta,
-    labels: Labels,
-    write_options: CacheWriteOptions,
-) -> Result<Box<dyn RwCache>, ApiInitError> {
-    let (alias, cache_labels) = endpoint_meta.cache_alias_and_labels(labels);
-    let cache = cache_manager
-        .create_cache(
-            endpoint_meta.log_id.clone(),
-            cache_labels,
-            (
-                endpoint_meta.schema.schema,
-                endpoint_meta.schema.secondary_indexes,
-            ),
-            &endpoint_meta.schema.connections,
-            write_options,
-        )
-        .map_err(ApiInitError::OpenOrCreateCache)?;
-    cache_manager
-        .create_alias(&endpoint_meta.log_id, &alias)
-        .map_err(ApiInitError::OpenOrCreateCache)?;
-    Ok(cache)
-}
-
-fn open_cache_reader(
-    cache_manager: &dyn RwCacheManager,
-    endpoint_meta: EndpointMeta,
-    labels: Labels,
-) -> Result<CacheReader, CacheError> {
-    let (alias, cache_labels) = endpoint_meta.cache_alias_and_labels(labels);
-    let cache = cache_manager
-        .open_ro_cache(alias.clone(), cache_labels)?
-        .expect("we've created this cache");
-    debug_assert!(cache.get_schema().0 == endpoint_meta.schema.schema);
-    debug_assert!(cache.get_schema().1 == endpoint_meta.schema.secondary_indexes);
-    Ok(CacheReader::new(cache))
 }
 
 fn cache_write_options(conflict_resolution: ConflictResolution) -> CacheWriteOptions {
