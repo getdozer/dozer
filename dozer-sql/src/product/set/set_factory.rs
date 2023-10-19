@@ -4,7 +4,7 @@ use crate::errors::PipelineError;
 use crate::errors::SetError;
 
 use dozer_core::{
-    node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
+    node::{PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
 use dozer_recordstore::ProcessorRecordStoreDeserializer;
@@ -49,11 +49,8 @@ impl ProcessorFactory for SetProcessorFactory {
         vec![0, 1]
     }
 
-    fn get_output_ports(&self) -> Vec<OutputPortDef> {
-        vec![OutputPortDef::new(
-            DEFAULT_PORT_HANDLE,
-            OutputPortType::Stateless,
-        )]
+    fn get_output_ports(&self) -> Vec<PortHandle> {
+        vec![DEFAULT_PORT_HANDLE]
     }
 
     fn get_output_schema(

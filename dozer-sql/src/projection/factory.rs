@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use dozer_core::{
-    node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
+    node::{PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
 use dozer_recordstore::ProcessorRecordStoreDeserializer;
@@ -46,11 +46,8 @@ impl ProcessorFactory for ProjectionProcessorFactory {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn get_output_ports(&self) -> Vec<OutputPortDef> {
-        vec![OutputPortDef::new(
-            DEFAULT_PORT_HANDLE,
-            OutputPortType::Stateless,
-        )]
+    fn get_output_ports(&self) -> Vec<PortHandle> {
+        vec![DEFAULT_PORT_HANDLE]
     }
 
     fn get_output_schema(

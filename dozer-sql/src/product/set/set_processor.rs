@@ -4,8 +4,8 @@ use super::record_map::{
     ProbabilisticCountingRecordMap,
 };
 use crate::errors::{PipelineError, ProductError, SetError};
-use crate::utils::serialize::Cursor;
 use dozer_core::channels::ProcessorChannelForwarder;
+use dozer_core::checkpoint::serialize::Cursor;
 use dozer_core::dozer_log::storage::Object;
 use dozer_core::epoch::Epoch;
 use dozer_core::executor_operation::ProcessorOperation;

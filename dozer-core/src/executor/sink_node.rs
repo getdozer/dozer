@@ -43,7 +43,7 @@ const SINK_OPERATION_COUNTER_NAME: &str = "sink_operation";
 const PIPELINE_LATENCY_HISTOGRAM_NAME: &str = "pipeline_latency";
 
 impl SinkNode {
-    pub fn new(dag: &mut ExecutionDag, node_index: NodeIndex, initial_epoch_id: u64) -> Self {
+    pub fn new(dag: &mut ExecutionDag, node_index: NodeIndex) -> Self {
         let Some(node) = dag.node_weight_mut(node_index).take() else {
             panic!("Must pass in a node")
         };
@@ -65,7 +65,7 @@ impl SinkNode {
 
         Self {
             node_handle,
-            initial_epoch_id,
+            initial_epoch_id: dag.epoch_manager().epoch_id(),
             port_handles,
             receivers,
             sink,

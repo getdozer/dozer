@@ -1,5 +1,6 @@
 #![allow(clippy::enum_variant_names)]
 
+use dozer_core::checkpoint::serialize::DeserializationError;
 use dozer_core::node::PortHandle;
 use dozer_recordstore::RecordStoreError;
 use dozer_types::chrono::RoundingError;
@@ -10,8 +11,6 @@ use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
 use dozer_types::types::{Field, FieldType};
 use std::fmt::{Display, Formatter};
-
-use super::utils::serialize::DeserializationError;
 
 #[derive(Debug, Clone)]
 pub struct FieldTypes {

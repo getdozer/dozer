@@ -7,14 +7,16 @@ use std::{
 };
 
 use crossbeam::channel::{bounded, Receiver, RecvTimeoutError, Sender};
+use daggy::petgraph::{visit::IntoEdgesDirected, Direction};
 use dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_types::{log::debug, node::NodeHandle};
 
 use crate::{
     builder_dag::NodeKind,
     channels::SourceChannelForwarder,
+    dag_schemas::EdgeKind,
     errors::ExecutionError,
-    forwarder::{SourceChannelManager, StateWriter},
+    forwarder::SourceChannelManager,
     node::{PortHandle, Source, SourceState},
 };
 
@@ -131,7 +133,7 @@ impl InternalChannelSourceForwarder {
     }
 }
 
-pub fn create_source_nodes(
+pub async fn create_source_nodes(
     dag: &mut ExecutionDag,
     node_index: daggy::NodeIndex,
     options: &ExecutorOptions,
@@ -144,12 +146,21 @@ pub fn create_source_nodes(
     let node_handle = node.handle;
     let NodeKind::Source {
         source,
-        port_names,
         last_checkpoint,
     } = node.kind
     else {
         panic!("Must pass in a source node");
     };
+    let port_names = dag
+        .graph()
+        .edges_directed(node_index, Direction::Outgoing)
+        .map(|edge| {
+            let EdgeKind::FromSource { port_name, .. } = &edge.weight().edge_kind else {
+                panic!("Must pass in from source edges");
+            };
+            (edge.weight().output_port, port_name.clone())
+        })
+        .collect();
 
     // Create channel between source sender and source listener.
     let (source_sender, source_receiver) = bounded(options.channel_buffer_sz);
@@ -165,13 +176,12 @@ pub fn create_source_nodes(
     };
 
     // Create source sender node.
-    let (senders, record_writers) = dag.collect_senders_and_record_writers(node_index);
-    let state_writer = StateWriter::new(record_writers);
+    let (senders, record_writers) = dag.collect_senders_and_record_writers(node_index).await;
     let channel_manager = SourceChannelManager::new(
         node_handle.clone(),
         port_names,
+        record_writers,
         senders,
-        Some(state_writer),
         options.commit_sz,
         options.commit_time_threshold,
         dag.epoch_manager().clone(),

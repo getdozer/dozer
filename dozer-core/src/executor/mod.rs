@@ -64,6 +64,7 @@ use self::source_node::{create_source_nodes, SourceListenerNode, SourceSenderNod
 
 pub struct DagExecutor {
     builder_dag: BuilderDag,
+    checkpoint: OptionCheckpoint,
     options: ExecutorOptions,
 }
 
@@ -79,15 +80,11 @@ impl DagExecutor {
     ) -> Result<Self, ExecutionError> {
         let dag_schemas = DagSchemas::new(dag)?;
 
-        let builder_dag = BuilderDag::new(
-            checkpoint,
-            options.checkpoint_factory_options.clone(),
-            dag_schemas,
-        )
-        .await?;
+        let builder_dag = BuilderDag::new(&checkpoint, dag_schemas).await?;
 
         Ok(Self {
             builder_dag,
+            checkpoint,
             options,
         })
     }
@@ -97,20 +94,22 @@ impl DagExecutor {
         Ok(())
     }
 
-    pub fn start(
+    pub async fn start(
         self,
         running: Arc<AtomicBool>,
         labels: LabelsAndProgress,
     ) -> Result<DagExecutorJoinHandle, ExecutionError> {
         // Construct execution dag.
-        let initial_epoch_id = self.builder_dag.initial_epoch_id();
         let mut execution_dag = ExecutionDag::new(
             self.builder_dag,
+            self.checkpoint,
             labels,
             self.options.channel_buffer_sz,
             self.options.error_threshold,
+            self.options.checkpoint_factory_options.clone(),
             self.options.epoch_manager_options.clone(),
-        )?;
+        )
+        .await?;
         let node_indexes = execution_dag.graph().node_identifiers().collect::<Vec<_>>();
 
         // Start the threads.
@@ -126,18 +125,18 @@ impl DagExecutor {
                         node_index,
                         &self.options,
                         running.clone(),
-                    );
+                    )
+                    .await;
                     let (sender, receiver) =
                         start_source(source_sender_node, source_listener_node)?;
                     join_handles.extend([sender, receiver]);
                 }
                 NodeKind::Processor(_) => {
-                    let processor_node =
-                        ProcessorNode::new(&mut execution_dag, node_index, initial_epoch_id);
+                    let processor_node = ProcessorNode::new(&mut execution_dag, node_index).await;
                     join_handles.push(start_processor(processor_node)?);
                 }
                 NodeKind::Sink(_) => {
-                    let sink_node = SinkNode::new(&mut execution_dag, node_index, initial_epoch_id);
+                    let sink_node = SinkNode::new(&mut execution_dag, node_index);
                     join_handles.push(start_sink(sink_node)?);
                 }
             }

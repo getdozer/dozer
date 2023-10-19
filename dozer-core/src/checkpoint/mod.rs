@@ -154,6 +154,20 @@ impl OptionCheckpoint {
             Ok(None)
         }
     }
+
+    pub async fn load_record_writer_data(
+        &self,
+        node_handle: &NodeHandle,
+        port_name: &str,
+    ) -> Result<Option<Vec<u8>>, storage::Error> {
+        if let Some(checkpoint) = &self.checkpoint {
+            let key = record_writer_key(&checkpoint.processor_prefix, node_handle, port_name);
+            info!("Loading record writer {node_handle}-{port_name} checkpoint from {key}");
+            self.storage.download_object(key).await.map(Some)
+        } else {
+            Ok(None)
+        }
+    }
 }
 
 impl CheckpointFactory {
@@ -248,6 +262,12 @@ fn processor_key(processor_prefix: &str, node_handle: &NodeHandle) -> String {
         .into_string()
 }
 
+fn record_writer_key(processor_prefix: &str, node_handle: &NodeHandle, port_name: &str) -> String {
+    AsRef::<Utf8Path>::as_ref(processor_prefix)
+        .join(format!("{}-{}", node_handle, port_name))
+        .into_string()
+}
+
 impl CheckpointWriter {
     pub fn new(
         factory: Arc<CheckpointFactory>,
@@ -277,6 +297,16 @@ impl CheckpointWriter {
         node_handle: &NodeHandle,
     ) -> Result<Object, ExecutionError> {
         let key = processor_key(&self.processor_prefix, node_handle);
+        Object::new(self.factory.queue.clone(), key)
+            .map_err(|_| ExecutionError::CheckpointWriterThreadPanicked)
+    }
+
+    pub fn create_record_writer_object(
+        &self,
+        node_handle: &NodeHandle,
+        port_name: &str,
+    ) -> Result<Object, ExecutionError> {
+        let key = record_writer_key(&self.processor_prefix, node_handle, port_name);
         Object::new(self.factory.queue.clone(), key)
             .map_err(|_| ExecutionError::CheckpointWriterThreadPanicked)
     }
@@ -428,6 +458,8 @@ pub async fn create_checkpoint_factory_for_test(
         .unwrap();
     (temp_dir, Arc::new(checkpoint_factory), handle)
 }
+
+pub mod serialize;
 
 #[cfg(test)]
 mod tests {

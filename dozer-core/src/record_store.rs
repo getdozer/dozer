@@ -1,13 +1,17 @@
+use crate::checkpoint::serialize::{
+    deserialize_record, deserialize_u64, deserialize_vec_u8, serialize_record, serialize_u64,
+    serialize_vec_u8, Cursor, DeserializationError, SerializationError,
+};
 use crate::executor_operation::ProcessorOperation;
-use crate::node::OutputPortType;
-use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore, RecordStoreError, StoreRecord};
+use dozer_log::storage::Object;
+use dozer_recordstore::{
+    ProcessorRecord, ProcessorRecordStore, ProcessorRecordStoreDeserializer, RecordStoreError,
+    StoreRecord,
+};
 use dozer_types::thiserror::{self, Error};
 use dozer_types::types::Schema;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
-use std::sync::Arc;
-
-use super::node::PortHandle;
 
 #[derive(Debug, Error)]
 pub enum RecordWriterError {
@@ -18,7 +22,16 @@ pub enum RecordWriterError {
 }
 
 pub trait RecordWriter: Send + Sync {
-    fn write(&mut self, op: ProcessorOperation) -> Result<ProcessorOperation, RecordWriterError>;
+    fn write(
+        &mut self,
+        record_store: &ProcessorRecordStore,
+        op: ProcessorOperation,
+    ) -> Result<ProcessorOperation, RecordWriterError>;
+    fn serialize(
+        &self,
+        record_store: &ProcessorRecordStore,
+        object: Object,
+    ) -> Result<(), SerializationError>;
 }
 
 impl Debug for dyn RecordWriter {
@@ -28,53 +41,68 @@ impl Debug for dyn RecordWriter {
 }
 
 pub fn create_record_writer(
-    _output_port: PortHandle,
-    output_port_type: OutputPortType,
     schema: Schema,
-    record_store: Arc<ProcessorRecordStore>,
-) -> Option<Box<dyn RecordWriter>> {
-    match output_port_type {
-        OutputPortType::Stateless => None,
-
-        OutputPortType::StatefulWithPrimaryKeyLookup => {
-            let writer = Box::new(PrimaryKeyLookupRecordWriter::new(schema, record_store));
-            Some(writer)
-        }
-    }
+    record_store: &ProcessorRecordStoreDeserializer,
+    checkpoint_data: Option<Vec<u8>>,
+) -> Result<Box<dyn RecordWriter>, DeserializationError> {
+    let writer = Box::new(PrimaryKeyLookupRecordWriter::new(
+        schema,
+        record_store,
+        checkpoint_data,
+    )?);
+    Ok(writer)
 }
 
 #[derive(Debug)]
 pub(crate) struct PrimaryKeyLookupRecordWriter {
     schema: Schema,
-    record_store: Arc<ProcessorRecordStore>,
     index: HashMap<Vec<u8>, ProcessorRecord>,
 }
 
 impl PrimaryKeyLookupRecordWriter {
-    pub(crate) fn new(schema: Schema, record_store: Arc<ProcessorRecordStore>) -> Self {
+    pub(crate) fn new(
+        schema: Schema,
+        record_store: &ProcessorRecordStoreDeserializer,
+        checkpoint_data: Option<Vec<u8>>,
+    ) -> Result<Self, DeserializationError> {
         debug_assert!(
             !schema.primary_index.is_empty(),
             "PrimaryKeyLookupRecordWriter can only be used with a schema that has a primary key."
         );
-        Self {
-            schema,
-            record_store,
-            index: HashMap::new(),
-        }
+
+        let index = if let Some(checkpoint_data) = checkpoint_data {
+            let mut cursor = Cursor::new(&checkpoint_data);
+            let mut index = HashMap::new();
+            let len = deserialize_u64(&mut cursor)?;
+            for _ in 0..len {
+                let key = deserialize_vec_u8(&mut cursor)?.to_vec();
+                let record = deserialize_record(&mut cursor, record_store)?;
+                index.insert(key, record);
+            }
+            index
+        } else {
+            HashMap::new()
+        };
+
+        Ok(Self { schema, index })
     }
 }
 
 impl RecordWriter for PrimaryKeyLookupRecordWriter {
-    fn write(&mut self, op: ProcessorOperation) -> Result<ProcessorOperation, RecordWriterError> {
+    fn write(
+        &mut self,
+        record_store: &ProcessorRecordStore,
+        op: ProcessorOperation,
+    ) -> Result<ProcessorOperation, RecordWriterError> {
         match op {
             ProcessorOperation::Insert { new } => {
-                let new_record = self.record_store.load_record(&new)?;
+                let new_record = record_store.load_record(&new)?;
                 let new_key = new_record.get_key(&self.schema.primary_index);
                 self.index.insert(new_key, new.clone());
                 Ok(ProcessorOperation::Insert { new })
             }
             ProcessorOperation::Delete { mut old } => {
-                let old_record = self.record_store.load_record(&old)?;
+                let old_record = record_store.load_record(&old)?;
                 let old_key = old_record.get_key(&self.schema.primary_index);
                 old = self
                     .index
@@ -84,18 +112,31 @@ impl RecordWriter for PrimaryKeyLookupRecordWriter {
                 Ok(ProcessorOperation::Delete { old })
             }
             ProcessorOperation::Update { mut old, new } => {
-                let old_record = self.record_store.load_record(&old)?;
+                let old_record = record_store.load_record(&old)?;
                 let old_key = old_record.get_key(&self.schema.primary_index);
                 old = self
                     .index
                     .remove_entry(&old_key)
                     .ok_or(RecordWriterError::RecordNotFound)?
                     .1;
-                let new_record = self.record_store.load_record(&new)?;
+                let new_record = record_store.load_record(&new)?;
                 let new_key = new_record.get_key(&self.schema.primary_index);
                 self.index.insert(new_key, new.clone());
                 Ok(ProcessorOperation::Update { old, new })
             }
         }
+    }
+
+    fn serialize(
+        &self,
+        record_store: &ProcessorRecordStore,
+        mut object: Object,
+    ) -> Result<(), SerializationError> {
+        serialize_u64(self.index.len() as u64, &mut object)?;
+        for (key, record) in &self.index {
+            serialize_vec_u8(key, &mut object)?;
+            serialize_record(record, record_store, &mut object)?;
+        }
+        Ok(())
     }
 }

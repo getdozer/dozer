@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use dozer_core::{
-    node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
+    node::{PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
 use dozer_sql_expression::{
@@ -69,11 +69,8 @@ impl ProcessorFactory for JoinProcessorFactory {
         vec![LEFT_JOIN_PORT, RIGHT_JOIN_PORT]
     }
 
-    fn get_output_ports(&self) -> Vec<OutputPortDef> {
-        vec![OutputPortDef::new(
-            DEFAULT_PORT_HANDLE,
-            OutputPortType::Stateless,
-        )]
+    fn get_output_ports(&self) -> Vec<PortHandle> {
+        vec![DEFAULT_PORT_HANDLE]
     }
 
     fn get_output_schema(

@@ -6,7 +6,13 @@ use std::{
     iter::{once, Flatten, Once},
 };
 
-use dozer_core::dozer_log::storage::Object;
+use dozer_core::{
+    checkpoint::serialize::{
+        deserialize_bincode, deserialize_record, deserialize_u64, serialize_bincode,
+        serialize_record, serialize_u64, Cursor, DeserializationError, SerializationError,
+    },
+    dozer_log::storage::Object,
+};
 use dozer_recordstore::{
     ProcessorRecord, ProcessorRecordStore, ProcessorRecordStoreDeserializer, StoreRecord,
 };
@@ -18,13 +24,7 @@ use linked_hash_map::LinkedHashMap;
 
 use crate::{
     errors::JoinError,
-    utils::{
-        record_hashtable_key::{get_record_hash, RecordKey},
-        serialize::{
-            deserialize_bincode, deserialize_record, deserialize_u64, serialize_bincode,
-            serialize_record, serialize_u64, Cursor, DeserializationError, SerializationError,
-        },
-    },
+    utils::record_hashtable_key::{get_record_hash, RecordKey},
 };
 
 pub type JoinKey = RecordKey;

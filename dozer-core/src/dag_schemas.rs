@@ -19,25 +19,35 @@ use super::{EdgeType as DagEdgeType, NodeType};
 #[serde(crate = "dozer_types::serde")]
 pub struct EdgeType {
     pub output_port: PortHandle,
-    pub output_port_type: OutputPortType,
     pub input_port: PortHandle,
     pub schema: Schema,
+    pub edge_kind: EdgeKind,
 }
 
 impl EdgeType {
     pub fn new(
         output_port: PortHandle,
-        output_port_type: OutputPortType,
         input_port: PortHandle,
         schema: Schema,
+        edge_kind: EdgeKind,
     ) -> Self {
         Self {
             output_port,
-            output_port_type,
             input_port,
             schema,
+            edge_kind,
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(crate = "dozer_types::serde")]
+pub enum EdgeKind {
+    FromSource {
+        port_type: OutputPortType,
+        port_name: String,
+    },
+    FromProcessor,
 }
 
 pub trait EdgeHaveSchema: EdgeHavePorts {
@@ -191,11 +201,21 @@ fn populate_schemas(
                 let ports = source.get_output_ports();
 
                 for edge in dag.graph().edges(node_index) {
-                    let port = find_output_port_def(&ports, edge);
+                    let port = edge.weight().from;
+                    let port_type = find_output_port_type(&ports, edge);
+                    let port_name = source.get_output_port_name(&port);
                     let schema = source
-                        .get_output_schema(&port.handle)
+                        .get_output_schema(&port)
                         .map_err(ExecutionError::Factory)?;
-                    create_edge(&mut edges, edge, port, schema);
+                    create_edge(
+                        &mut edges,
+                        edge,
+                        EdgeKind::FromSource {
+                            port_type,
+                            port_name,
+                        },
+                        schema,
+                    );
                 }
             }
 
@@ -203,14 +223,11 @@ fn populate_schemas(
                 let input_schemas =
                     validate_input_schemas(&dag, &edges, node_index, processor.get_input_ports())?;
 
-                let ports = processor.get_output_ports();
-
                 for edge in dag.graph().edges(node_index) {
-                    let port = find_output_port_def(&ports, edge);
                     let schema = processor
-                        .get_output_schema(&port.handle, &input_schemas)
+                        .get_output_schema(&edge.weight().from, &input_schemas)
                         .map_err(ExecutionError::Factory)?;
-                    create_edge(&mut edges, edge, port, schema);
+                    create_edge(&mut edges, edge, EdgeKind::FromProcessor, schema);
                 }
             }
 
@@ -229,14 +246,14 @@ fn populate_schemas(
     ))
 }
 
-fn find_output_port_def<'a>(
-    ports: &'a [OutputPortDef],
+fn find_output_port_type(
+    ports: &[OutputPortDef],
     edge: EdgeReference<DagEdgeType>,
-) -> &'a OutputPortDef {
+) -> OutputPortType {
     let handle = edge.weight().from;
     for port in ports {
         if port.handle == handle {
-            return port;
+            return port.typ;
         }
     }
     panic!("BUG: port {handle} not found")
@@ -245,17 +262,16 @@ fn find_output_port_def<'a>(
 fn create_edge(
     edges: &mut [Option<EdgeType>],
     edge: EdgeReference<DagEdgeType>,
-    port: &OutputPortDef,
+    edge_kind: EdgeKind,
     schema: Schema,
 ) {
-    debug_assert!(port.handle == edge.weight().from);
     let edge_ref = &mut edges[edge.id().index()];
     debug_assert!(edge_ref.is_none());
     *edge_ref = Some(EdgeType::new(
-        port.handle,
-        port.typ,
+        edge.weight().from,
         edge.weight().to,
         schema,
+        edge_kind,
     ));
 }
 

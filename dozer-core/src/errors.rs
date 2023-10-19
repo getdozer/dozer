@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use crate::checkpoint::serialize::{DeserializationError, SerializationError};
 use crate::node::PortHandle;
 use dozer_recordstore::RecordStoreError;
 use dozer_types::errors::internal::BoxedError;
@@ -31,6 +32,8 @@ pub enum ExecutionError {
     AppSourceConnectionAlreadyExists(String),
     #[error("Factory error: {0}")]
     Factory(#[source] BoxedError),
+    #[error("Failed to restore record writer: {0}")]
+    RestoreRecordWriter(#[source] DeserializationError),
     #[error("Source error: {0}")]
     Source(#[source] BoxedError),
     #[error("File system error {0:?}: {1}")]
@@ -52,6 +55,8 @@ pub enum ExecutionError {
     },
     #[error("Failed to create checkpoint: {0}")]
     FailedToCreateCheckpoint(BoxedError),
+    #[error("Failed to serialize record writer: {0}")]
+    SerializeRecordWriter(#[source] SerializationError),
 }
 
 impl<T> From<crossbeam::channel::SendError<T>> for ExecutionError {

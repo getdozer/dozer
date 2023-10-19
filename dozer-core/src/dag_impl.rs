@@ -376,7 +376,7 @@ fn contains_port(
     Ok(match node {
         NodeKind::Processor(p) => {
             if direction == PortDirection::Output {
-                p.get_output_ports().iter().any(|e| e.handle == port)
+                p.get_output_ports().iter().any(|e| e == &port)
             } else {
                 p.get_input_ports().contains(&port)
             }

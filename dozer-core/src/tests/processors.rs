@@ -4,7 +4,7 @@ use dozer_recordstore::ProcessorRecordStoreDeserializer;
 use dozer_types::{errors::internal::BoxedError, types::Schema};
 
 use crate::{
-    node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory},
+    node::{PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
 
@@ -19,11 +19,8 @@ impl ProcessorFactory for ConnectivityTestProcessorFactory {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn get_output_ports(&self) -> Vec<OutputPortDef> {
-        vec![OutputPortDef::new(
-            DEFAULT_PORT_HANDLE,
-            OutputPortType::Stateless,
-        )]
+    fn get_output_ports(&self) -> Vec<PortHandle> {
+        vec![DEFAULT_PORT_HANDLE]
     }
 
     fn get_output_schema(
@@ -61,11 +58,8 @@ impl ProcessorFactory for NoInputPortProcessorFactory {
         vec![]
     }
 
-    fn get_output_ports(&self) -> Vec<OutputPortDef> {
-        vec![OutputPortDef::new(
-            DEFAULT_PORT_HANDLE,
-            OutputPortType::Stateless,
-        )]
+    fn get_output_ports(&self) -> Vec<PortHandle> {
+        vec![DEFAULT_PORT_HANDLE]
     }
 
     fn get_output_schema(

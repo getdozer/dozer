@@ -52,11 +52,8 @@ impl ProcessorFactory for ErrorProcessorFactory {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn get_output_ports(&self) -> Vec<OutputPortDef> {
-        vec![OutputPortDef::new(
-            DEFAULT_PORT_HANDLE,
-            OutputPortType::Stateless,
-        )]
+    fn get_output_ports(&self) -> Vec<PortHandle> {
+        vec![DEFAULT_PORT_HANDLE]
     }
 
     fn build(
@@ -164,6 +161,7 @@ async fn test_run_dag_proc_err_panic() {
         .await
         .unwrap()
         .start(Arc::new(AtomicBool::new(true)), Default::default())
+        .await
         .unwrap()
         .join()
         .unwrap();
@@ -224,6 +222,7 @@ async fn test_run_dag_proc_err_2() {
         .await
         .unwrap()
         .start(Arc::new(AtomicBool::new(true)), Default::default())
+        .await
         .unwrap()
         .join()
         .unwrap();
@@ -285,6 +284,7 @@ async fn test_run_dag_proc_err_3() {
         .await
         .unwrap()
         .start(Arc::new(AtomicBool::new(true)), Default::default())
+        .await
         .unwrap()
         .join()
         .unwrap();
@@ -423,6 +423,7 @@ async fn test_run_dag_src_err() {
         .await
         .unwrap()
         .start(Arc::new(AtomicBool::new(true)), Default::default())
+        .await
         .unwrap();
     // join_handle.join().unwrap();
 }
@@ -536,6 +537,7 @@ async fn test_run_dag_sink_err() {
         .await
         .unwrap()
         .start(Arc::new(AtomicBool::new(true)), Default::default())
+        .await
         .unwrap()
         .join()
         .unwrap();
@@ -580,6 +582,7 @@ async fn test_run_dag_sink_err_panic() {
         .await
         .unwrap()
         .start(Arc::new(AtomicBool::new(true)), Default::default())
+        .await
         .unwrap()
         .join()
         .unwrap();
