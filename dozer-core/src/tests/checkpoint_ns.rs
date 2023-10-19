@@ -76,6 +76,7 @@ async fn test_checkpoint_consistency_ns() {
         .await
         .unwrap()
         .start(Arc::new(AtomicBool::new(true)), Default::default())
+        .await
         .unwrap()
         .join()
         .unwrap();

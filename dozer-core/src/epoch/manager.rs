@@ -50,6 +50,15 @@ enum EpochManagerStateKind {
     },
 }
 
+impl EpochManagerStateKind {
+    fn epoch_id(&self) -> u64 {
+        match self {
+            EpochManagerStateKind::Closing { epoch_id, .. }
+            | EpochManagerStateKind::Closed { epoch_id, .. } => *epoch_id,
+        }
+    }
+}
+
 #[derive(Debug)]
 enum Action {
     Commit,
@@ -132,6 +141,10 @@ impl EpochManager {
                 last_persisted_epoch_decision_instant: SystemTime::now(),
             }),
         }
+    }
+
+    pub fn epoch_id(&self) -> u64 {
+        self.state.lock().kind.epoch_id()
     }
 
     pub fn record_store(&self) -> &Arc<ProcessorRecordStore> {

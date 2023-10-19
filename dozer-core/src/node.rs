@@ -70,7 +70,7 @@ pub trait ProcessorFactory: Send + Sync + Debug {
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<Schema, BoxedError>;
     fn get_input_ports(&self) -> Vec<PortHandle>;
-    fn get_output_ports(&self) -> Vec<OutputPortDef>;
+    fn get_output_ports(&self) -> Vec<PortHandle>;
     fn build(
         &self,
         input_schemas: HashMap<PortHandle, Schema>,

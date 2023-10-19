@@ -11,7 +11,7 @@ use crate::executor_operation::{ExecutorOperation, ProcessorOperation};
 use crate::{
     builder_dag::NodeKind,
     errors::ExecutionError,
-    forwarder::ProcessorChannelManager,
+    forwarder::ChannelManager,
     node::{PortHandle, Processor},
 };
 use dozer_recordstore::ProcessorRecordStore;
@@ -32,7 +32,7 @@ pub struct ProcessorNode {
     /// The processor.
     processor: Box<dyn Processor>,
     /// This node's output channel manager, for forwarding data, writing metadata and writing port state.
-    channel_manager: ProcessorChannelManager,
+    channel_manager: ChannelManager,
     /// Where all the records from ingested data are stored.
     record_store: Arc<ProcessorRecordStore>,
     /// The error manager, for reporting non-fatal errors.
@@ -40,7 +40,7 @@ pub struct ProcessorNode {
 }
 
 impl ProcessorNode {
-    pub fn new(dag: &mut ExecutionDag, node_index: NodeIndex, initial_epoch_id: u64) -> Self {
+    pub async fn new(dag: &mut ExecutionDag, node_index: NodeIndex) -> Self {
         let Some(node) = dag.node_weight_mut(node_index).take() else {
             panic!("Must pass in a node")
         };
@@ -51,18 +51,19 @@ impl ProcessorNode {
 
         let (port_handles, receivers) = dag.collect_receivers(node_index);
 
-        let (senders, _) = dag.collect_senders_and_record_writers(node_index);
+        let (senders, record_writers) = dag.collect_senders_and_record_writers(node_index).await;
 
-        let channel_manager = ProcessorChannelManager::new(
+        let channel_manager = ChannelManager::new(
             node_handle.clone(),
+            record_writers,
             senders,
-            None,
+            dag.record_store().clone(),
             dag.error_manager().clone(),
         );
 
         Self {
             node_handle,
-            initial_epoch_id,
+            initial_epoch_id: dag.epoch_manager().epoch_id(),
             port_handles,
             receivers,
             processor,
@@ -122,7 +123,7 @@ impl ReceiverLoop for ProcessorNode {
                 .map_err(ExecutionError::FailedToCreateCheckpoint)?;
         }
 
-        self.channel_manager.store_and_send_commit(epoch)
+        self.channel_manager.send_commit(epoch)
     }
 
     fn on_terminate(&mut self) -> Result<(), ExecutionError> {

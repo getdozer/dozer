@@ -1,13 +1,14 @@
-use dozer_core::dozer_log::storage::Object;
+use dozer_core::{
+    checkpoint::serialize::{
+        deserialize_bincode, deserialize_record, deserialize_u64, serialize_bincode,
+        serialize_record, serialize_u64, Cursor, DeserializationError, SerializationError,
+    },
+    dozer_log::storage::Object,
+};
 use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore, ProcessorRecordStoreDeserializer};
 use dozer_types::serde::{Deserialize, Serialize};
 use enum_dispatch::enum_dispatch;
 use std::collections::HashMap;
-
-use crate::utils::serialize::{
-    deserialize_bincode, deserialize_record, deserialize_u64, serialize_bincode, serialize_record,
-    serialize_u64, Cursor, DeserializationError, SerializationError,
-};
 
 #[enum_dispatch(CountingRecordMap)]
 pub enum CountingRecordMapEnum {

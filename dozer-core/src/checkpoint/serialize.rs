@@ -1,4 +1,4 @@
-use dozer_core::dozer_log::{storage::Object, tokio::sync::mpsc::error::SendError};
+use dozer_log::{storage::Object, tokio::sync::mpsc::error::SendError};
 use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore, ProcessorRecordStoreDeserializer};
 use dozer_types::{
     bincode,

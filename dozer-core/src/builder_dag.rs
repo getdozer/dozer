@@ -1,13 +1,13 @@
-use std::{collections::HashMap, fmt::Debug, sync::Arc};
+use std::{collections::HashMap, fmt::Debug};
 
 use daggy::petgraph::visit::{IntoNodeIdentifiers, IntoNodeReferences};
 use dozer_types::node::NodeHandle;
 
 use crate::{
-    checkpoint::{CheckpointFactory, CheckpointFactoryOptions, OptionCheckpoint},
+    checkpoint::OptionCheckpoint,
     dag_schemas::{DagHaveSchemas, DagSchemas, EdgeType},
     errors::ExecutionError,
-    node::{PortHandle, Processor, Sink, Source, SourceState},
+    node::{Processor, Sink, Source, SourceState},
     NodeKind as DagNodeKind,
 };
 
@@ -25,7 +25,6 @@ pub struct NodeType {
 pub enum NodeKind {
     Source {
         source: Box<dyn Source>,
-        port_names: HashMap<PortHandle, String>,
         last_checkpoint: SourceState,
     },
     Processor(Box<dyn Processor>),
@@ -38,14 +37,11 @@ pub enum NodeKind {
 #[derive(Debug)]
 pub struct BuilderDag {
     graph: daggy::Dag<NodeType, EdgeType>,
-    checkpoint_factory: Arc<CheckpointFactory>,
-    initial_epoch_id: u64,
 }
 
 impl BuilderDag {
     pub async fn new(
-        checkpoint: OptionCheckpoint,
-        options: CheckpointFactoryOptions,
+        checkpoint: &OptionCheckpoint,
         dag_schemas: DagSchemas,
     ) -> Result<Self, ExecutionError> {
         // Collect input output schemas.
@@ -69,21 +65,16 @@ impl BuilderDag {
         let graph = dag_schemas.into_graph().try_map(
             |node_index, node| match node.kind {
                 DagNodeKind::Source(source) => {
-                    let mut port_names = HashMap::default();
-                    for port in source.get_output_ports() {
-                        let port_name = source.get_output_port_name(&port.handle);
-                        port_names.insert(port.handle, port_name);
-                    }
-
                     let mut last_checkpoint_by_name = checkpoint.get_source_state(&node.handle)?;
                     let mut last_checkpoint = HashMap::new();
-                    for (port_handle, port_name) in port_names.iter() {
+                    for port_def in source.get_output_ports() {
+                        let port_name = source.get_output_port_name(&port_def.handle);
                         last_checkpoint.insert(
-                            *port_handle,
+                            port_def.handle,
                             last_checkpoint_by_name
                                 .as_mut()
                                 .and_then(|last_checkpoint| {
-                                    last_checkpoint.remove(port_name).flatten()
+                                    last_checkpoint.remove(&port_name).flatten()
                                 }),
                         );
                     }
@@ -100,7 +91,6 @@ impl BuilderDag {
                         handle: node.handle,
                         kind: NodeKind::Source {
                             source,
-                            port_names,
                             last_checkpoint,
                         },
                     })
@@ -142,26 +132,11 @@ impl BuilderDag {
             |_, edge| Ok(edge),
         )?;
 
-        let initial_epoch_id = checkpoint.next_epoch_id();
-        let (checkpoint_factory, _) = CheckpointFactory::new(checkpoint, options).await?;
-
-        Ok(BuilderDag {
-            graph,
-            initial_epoch_id,
-            checkpoint_factory: Arc::new(checkpoint_factory),
-        })
+        Ok(BuilderDag { graph })
     }
 
     pub fn graph(&self) -> &daggy::Dag<NodeType, EdgeType> {
         &self.graph
-    }
-
-    pub fn checkpoint_factory(&self) -> &Arc<CheckpointFactory> {
-        &self.checkpoint_factory
-    }
-
-    pub fn initial_epoch_id(&self) -> u64 {
-        self.initial_epoch_id
     }
 
     pub fn into_graph(self) -> daggy::Dag<NodeType, EdgeType> {

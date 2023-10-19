@@ -3,7 +3,7 @@ use crate::checkpoint::create_checkpoint_for_test;
 use crate::epoch::Epoch;
 use crate::executor::DagExecutor;
 use crate::executor_operation::ProcessorOperation;
-use crate::node::{OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory};
+use crate::node::{PortHandle, Processor, ProcessorFactory};
 use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::tests::sources::{
     DualPortGeneratorSourceFactory, GeneratorSourceFactory,
@@ -44,11 +44,8 @@ impl ProcessorFactory for NoopProcessorFactory {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn get_output_ports(&self) -> Vec<OutputPortDef> {
-        vec![OutputPortDef::new(
-            DEFAULT_PORT_HANDLE,
-            OutputPortType::Stateless,
-        )]
+    fn get_output_ports(&self) -> Vec<PortHandle> {
+        vec![DEFAULT_PORT_HANDLE]
     }
 
     fn build(
@@ -132,6 +129,7 @@ async fn test_run_dag() {
         .await
         .unwrap()
         .start(Arc::new(AtomicBool::new(true)), Default::default())
+        .await
         .unwrap()
         .join()
         .unwrap();
@@ -176,6 +174,7 @@ async fn test_run_dag_and_stop() {
         .await
         .unwrap()
         .start(running.clone(), Default::default())
+        .await
         .unwrap();
 
     thread::sleep(Duration::from_millis(1000));
@@ -206,11 +205,8 @@ impl ProcessorFactory for NoopJoinProcessorFactory {
         vec![1, 2]
     }
 
-    fn get_output_ports(&self) -> Vec<OutputPortDef> {
-        vec![OutputPortDef::new(
-            DEFAULT_PORT_HANDLE,
-            OutputPortType::Stateless,
-        )]
+    fn get_output_ports(&self) -> Vec<PortHandle> {
+        vec![DEFAULT_PORT_HANDLE]
     }
 
     fn build(
@@ -306,6 +302,7 @@ async fn test_run_dag_2_sources_stateless() {
         .await
         .unwrap()
         .start(Arc::new(AtomicBool::new(true)), Default::default())
+        .await
         .unwrap()
         .join()
         .unwrap();
@@ -361,6 +358,7 @@ async fn test_run_dag_2_sources_stateful() {
         .await
         .unwrap()
         .start(Arc::new(AtomicBool::new(true)), Default::default())
+        .await
         .unwrap()
         .join()
         .unwrap();
@@ -417,6 +415,7 @@ async fn test_run_dag_1_source_2_ports_stateless() {
         .await
         .unwrap()
         .start(Arc::new(AtomicBool::new(true)), Default::default())
+        .await
         .unwrap()
         .join()
         .unwrap();

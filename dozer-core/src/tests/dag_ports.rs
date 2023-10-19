@@ -70,11 +70,8 @@ impl ProcessorFactory for DynPortsProcessorFactory {
         self.input_ports.clone()
     }
 
-    fn get_output_ports(&self) -> Vec<OutputPortDef> {
-        self.output_ports
-            .iter()
-            .map(|p| OutputPortDef::new(*p, OutputPortType::Stateless))
-            .collect()
+    fn get_output_ports(&self) -> Vec<PortHandle> {
+        self.output_ports.clone()
     }
 
     fn build(

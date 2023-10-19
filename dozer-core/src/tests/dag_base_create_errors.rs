@@ -107,6 +107,7 @@ async fn test_create_src_err() {
         .await
         .unwrap()
         .start(Arc::new(AtomicBool::new(true)), Default::default())
+        .await
         .unwrap()
         .join()
         .unwrap();
@@ -151,6 +152,7 @@ async fn test_create_src_panic() {
         .await
         .unwrap()
         .start(Arc::new(AtomicBool::new(true)), Default::default())
+        .await
         .unwrap()
         .join()
         .unwrap();
@@ -194,11 +196,8 @@ impl ProcessorFactory for CreateErrProcessorFactory {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn get_output_ports(&self) -> Vec<OutputPortDef> {
-        vec![OutputPortDef::new(
-            DEFAULT_PORT_HANDLE,
-            OutputPortType::Stateless,
-        )]
+    fn get_output_ports(&self) -> Vec<PortHandle> {
+        vec![DEFAULT_PORT_HANDLE]
     }
 
     fn build(
@@ -262,6 +261,7 @@ async fn test_create_proc_err() {
         .await
         .unwrap()
         .start(Arc::new(AtomicBool::new(true)), Default::default())
+        .await
         .unwrap()
         .join()
         .unwrap();
@@ -309,6 +309,7 @@ async fn test_create_proc_panic() {
         .await
         .unwrap()
         .start(Arc::new(AtomicBool::new(true)), Default::default())
+        .await
         .unwrap()
         .join()
         .unwrap();

@@ -299,6 +299,7 @@ async fn test_app_dag() {
         .await
         .unwrap()
         .start(Arc::new(AtomicBool::new(true)), Default::default())
+        .await
         .unwrap()
         .join()
         .unwrap();

@@ -1,11 +1,11 @@
-use dozer_core::dozer_log::storage::Object;
+use dozer_core::{
+    checkpoint::serialize::{Cursor, SerializationError},
+    dozer_log::storage::Object,
+};
 use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore, ProcessorRecordStoreDeserializer};
 use dozer_types::types::{Record, Schema, Timestamp};
 
-use crate::{
-    errors::JoinError,
-    utils::serialize::{Cursor, SerializationError},
-};
+use crate::errors::JoinError;
 
 use self::table::{JoinKey, JoinTable};
 

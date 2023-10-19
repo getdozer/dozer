@@ -355,7 +355,9 @@ impl TestPipeline {
             .to_string();
         let checkpoint = OptionCheckpoint::new(checkpoint_dir, Default::default()).await?;
         let executor = DagExecutor::new(self.dag, checkpoint, Default::default()).await?;
-        let join_handle = executor.start(Arc::new(AtomicBool::new(true)), Default::default())?;
+        let join_handle = executor
+            .start(Arc::new(AtomicBool::new(true)), Default::default())
+            .await?;
 
         for (schema_name, op) in &self.ops {
             if self.used_schemas.contains(&schema_name.to_string()) {
