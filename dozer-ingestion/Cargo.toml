@@ -68,7 +68,7 @@ geozero = { version = "0.11.0", default-features = false, features = [
 ] }
 bytes = "1.4.0"
 genawaiter = { version = "0.99.1", optional = true }
-memchr = { version = "2.6.3", optional = true }
+memchr = { version = "2.6.4", optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.4.0", features = ["html_reports"] }
