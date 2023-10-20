@@ -381,6 +381,8 @@ impl SimpleOrchestrator {
             if &contract != existing_contract {
                 return Err(OrchestrationError::LockedOutdatedLockfile);
             }
+
+            return Ok(());
         }
 
         // Run build
