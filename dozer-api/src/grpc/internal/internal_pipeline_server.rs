@@ -33,7 +33,6 @@ use crate::shutdown::ShutdownReceiver;
 pub struct LogEndpoint {
     pub build_id: BuildId,
     pub schema_string: String,
-    pub descriptor_bytes: Vec<u8>,
     pub log: Arc<Mutex<Log>>,
 }
 
@@ -152,7 +151,6 @@ fn get_build_response(endpoint: &LogEndpoint) -> BuildResponse {
     BuildResponse {
         name: endpoint.build_id.name().to_owned(),
         schema_string: endpoint.schema_string.clone(),
-        descriptor_bytes: endpoint.descriptor_bytes.clone(),
     }
 }
 

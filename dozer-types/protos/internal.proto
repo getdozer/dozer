@@ -64,7 +64,6 @@ message BuildRequest {
 message BuildResponse {
   string name = 1;
   string schema_string = 2;
-  bytes descriptor_bytes = 3;
 }
 
 message LogRequest {

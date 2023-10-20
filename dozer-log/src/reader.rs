@@ -47,8 +47,6 @@ pub struct LogReaderBuilder {
     pub build_name: String,
     /// Schema of this endpoint.
     pub schema: EndpointSchema,
-    /// Protobuf descriptor of this endpoint's API.
-    pub descriptor: Vec<u8>,
     pub options: LogReaderOptions,
     client: LogClient,
 }
@@ -81,7 +79,6 @@ impl LogReaderBuilder {
         Ok(Self {
             build_name,
             schema,
-            descriptor: build.descriptor_bytes,
             client,
             options,
         })

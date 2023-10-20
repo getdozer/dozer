@@ -16,7 +16,6 @@ pub struct EndpointMeta {
     pub log_id: String,
     pub build_name: String,
     pub schema: EndpointSchema,
-    pub descriptor_bytes: Vec<u8>,
 }
 
 impl EndpointMeta {
@@ -41,7 +40,6 @@ impl EndpointMeta {
                 log_id,
                 build_name: build.name,
                 schema,
-                descriptor_bytes: build.descriptor_bytes,
             },
             log_client,
         ))

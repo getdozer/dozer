@@ -352,7 +352,6 @@ mod tests {
                 enable_on_event: Default::default(),
                 connections: Default::default(),
             },
-            descriptor_bytes: Default::default(),
         }
     }
 

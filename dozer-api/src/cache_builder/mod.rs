@@ -5,6 +5,7 @@ use crate::errors::ApiInitError;
 use arc_swap::ArcSwap;
 use dozer_cache::cache::{RoCache, RwCache};
 use dozer_cache::dozer_log::reader::{LogClient, LogReader, LogReaderOptions};
+use dozer_cache::dozer_log::schemas::EndpointSchema;
 use dozer_cache::CacheReader;
 use dozer_cache::{
     cache::{CacheWriteOptions, RwCacheManager},
@@ -52,7 +53,7 @@ impl CacheBuilder {
         app_server_url: String,
         endpoint: &ApiEndpoint,
         labels: LabelsAndProgress,
-    ) -> Result<(Self, Vec<u8>), ApiInitError> {
+    ) -> Result<(Self, EndpointSchema), ApiInitError> {
         // Connect to the endpoint's log.
         let mut client = InternalPipelineServiceClient::connect(app_server_url.clone())
             .await
@@ -86,7 +87,7 @@ impl CacheBuilder {
                 progress_bar,
                 log_reader_options,
             },
-            endpoint_meta.descriptor_bytes,
+            endpoint_meta.schema,
         ))
     }
 

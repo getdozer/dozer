@@ -1,4 +1,3 @@
-use dozer_api::generator::protoc::generator::ProtoGenerator;
 use dozer_cache::dozer_log::home_dir::{BuildId, HomeDir};
 use dozer_types::log::info;
 
@@ -15,7 +14,7 @@ pub async fn build(
 ) -> Result<(), BuildError> {
     if let Some(build_id) = new_build_id(home_dir, contract, existing_contract).await? {
         let build_name = build_id.name().to_string();
-        build_endpoint_protos(home_dir, build_id, contract)?;
+        generate_protos(home_dir, build_id, contract)?;
         info!("Created new build {build_name}");
     } else {
         info!("Building not needed");
@@ -50,7 +49,7 @@ async fn new_build_id(
     Ok(None)
 }
 
-fn build_endpoint_protos(
+fn generate_protos(
     home_dir: &HomeDir,
     build_id: BuildId,
     contract: &Contract,
@@ -58,25 +57,16 @@ fn build_endpoint_protos(
     let build_path = home_dir
         .create_build_dir_all(build_id)
         .map_err(|(path, error)| BuildError::FileSystem(path.into(), error))?;
-
-    let mut resources = Vec::new();
-
     let proto_folder_path = build_path.contracts_dir.as_ref();
-    for (endpoint_name, schema) in &contract.endpoints {
-        let resource_name = ProtoGenerator::generate(proto_folder_path, endpoint_name, schema)?;
-        resources.push(resource_name);
-    }
+    let descriptor_path = build_path.descriptor_path.as_ref();
 
-    let common_resources = ProtoGenerator::copy_common(proto_folder_path)?;
-
-    // Copy common service to be included in descriptor.
-    resources.extend(common_resources);
-
-    // Generate a descriptor based on all proto files generated within sink.
-    ProtoGenerator::generate_descriptor(
+    dozer_api::generator::protoc::generate_all(
         proto_folder_path,
-        build_path.descriptor_path.as_ref(),
-        &resources,
+        descriptor_path,
+        contract
+            .endpoints
+            .iter()
+            .map(|(endpoint_name, schema)| (endpoint_name.as_str(), schema)),
     )?;
 
     Ok(())

@@ -9,7 +9,7 @@ use dozer_tracing::Labels;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::{CannotConvertF64ToJson, TypeError};
 use dozer_types::thiserror::Error;
-use dozer_types::{bincode, serde_json, thiserror, tonic};
+use dozer_types::{serde_json, thiserror, tonic};
 
 use dozer_cache::errors::CacheError;
 use handlebars::{RenderError, TemplateError};
@@ -35,8 +35,8 @@ pub enum ApiInitError {
     GetCacheCommitState(#[source] CacheError),
     #[error("Failed to parse endpoint schema: {0}")]
     ParseEndpointSchema(#[from] serde_json::Error),
-    #[error("Failed to parse checkpoint: {0}")]
-    ParseCheckpoint(#[from] bincode::Error),
+    #[error("Failed to create temp dir: {0}")]
+    CreateTempDir(#[source] std::io::Error),
     #[error("Failed to open or create cache: {0}")]
     OpenOrCreateCache(#[source] CacheError),
     #[error("Failed to find cache: {0}")]
