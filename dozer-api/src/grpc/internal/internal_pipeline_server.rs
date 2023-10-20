@@ -6,9 +6,8 @@ use dozer_types::grpc_types::internal::internal_pipeline_service_server::{
     InternalPipelineService, InternalPipelineServiceServer,
 };
 use dozer_types::grpc_types::internal::{
-    BuildRequest, BuildResponse, DescribeApplicationRequest, DescribeApplicationResponse,
-    EndpointResponse, EndpointsResponse, GetIdResponse, LogRequest, LogResponse, StorageRequest,
-    StorageResponse,
+    BuildRequest, BuildResponse, DescribeApplicationResponse, GetIdResponse, LogRequest,
+    LogResponse, StorageRequest, StorageResponse,
 };
 use dozer_types::log::info;
 use dozer_types::models::api_config::{
@@ -71,23 +70,9 @@ impl InternalPipelineService for InternalPipelineServer {
         }))
     }
 
-    async fn list_endpoints(
-        &self,
-        _request: Request<()>,
-    ) -> Result<Response<EndpointsResponse>, Status> {
-        let endpoints = self
-            .endpoints
-            .iter()
-            .map(|(endpoint, log)| EndpointResponse {
-                endpoint: endpoint.clone(),
-                build_name: log.build_id.name().to_string(),
-            })
-            .collect();
-        Ok(Response::new(EndpointsResponse { endpoints }))
-    }
     async fn describe_application(
         &self,
-        _: Request<DescribeApplicationRequest>,
+        _: Request<()>,
     ) -> Result<Response<DescribeApplicationResponse>, Status> {
         let mut endpoints = HashMap::with_capacity(self.endpoints.len());
 

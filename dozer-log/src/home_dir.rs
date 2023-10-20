@@ -47,7 +47,6 @@ impl HomeDir {
         let build_dir = self.home_dir.join(&build_id.name);
 
         let contracts_dir = build_dir.join("contracts");
-        let dag_path = contracts_dir.join("__dozer_pipeline.json");
         let descriptor_path = contracts_dir.join("file_descriptor_set.bin");
 
         let data_dir = build_dir.join("data");
@@ -56,7 +55,6 @@ impl HomeDir {
         BuildPath {
             id: build_id,
             contracts_dir,
-            dag_path,
             descriptor_path,
             data_dir,
             log_dir_relative_to_data_dir,
@@ -168,7 +166,6 @@ fn find_latest_build_id(dir: Utf8PathBuf) -> Result<Option<BuildId>, Error> {
 pub struct BuildPath {
     pub id: BuildId,
     pub contracts_dir: Utf8PathBuf,
-    pub dag_path: Utf8PathBuf,
     pub descriptor_path: Utf8PathBuf,
     pub data_dir: Utf8PathBuf,
     log_dir_relative_to_data_dir: Utf8PathBuf,

@@ -8,7 +8,7 @@ use dozer_types::{
     errors::types::DeserializationError,
     grpc_types::internal::{
         internal_pipeline_service_client::InternalPipelineServiceClient,
-        DescribeApplicationRequest, DescribeApplicationResponse,
+        DescribeApplicationResponse,
     },
     models::ingestion_types::{
         default_buffer_size, default_log_batch_size, default_timeout, IngestionMessage,
@@ -176,14 +176,11 @@ impl NestedDozerConnector {
     async fn describe_application(&self) -> Result<DescribeApplicationResponse, ConnectorError> {
         let mut client = self.get_client().await?;
 
-        let response = client
-            .describe_application(DescribeApplicationRequest {})
-            .await
-            .map_err(|e| {
-                ConnectorError::NestedDozerConnectorError(
-                    NestedDozerConnectorError::DescribeEndpointsError(e),
-                )
-            })?;
+        let response = client.describe_application(()).await.map_err(|e| {
+            ConnectorError::NestedDozerConnectorError(
+                NestedDozerConnectorError::DescribeEndpointsError(e),
+            )
+        })?;
 
         Ok(response.into_inner())
     }
