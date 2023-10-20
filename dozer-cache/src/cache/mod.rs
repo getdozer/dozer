@@ -11,7 +11,7 @@ use dozer_types::models::api_endpoint::{
 use dozer_types::node::SourceStates;
 use dozer_types::{
     serde::{Deserialize, Serialize},
-    types::{IndexDefinition, Record, Schema, SchemaWithIndex},
+    types::{Record, SchemaWithIndex},
 };
 pub use lmdb::cache_manager::{
     begin_dump_txn, dump, CacheManagerOptions, LmdbRoCacheManager, LmdbRwCacheManager,
@@ -74,8 +74,7 @@ pub trait RwCacheManager: RoCacheManager {
         &self,
         name: String,
         labels: Labels,
-        schema: Schema,
-        indexes: Vec<IndexDefinition>,
+        schema: SchemaWithIndex,
         connections: &HashSet<String>,
         write_options: CacheWriteOptions,
     ) -> Result<Box<dyn RwCache>, CacheError>;
@@ -163,4 +162,7 @@ pub trait RwCache: RoCache {
 
     /// Commits the current transaction.
     fn commit(&mut self, state: &CommitState) -> Result<(), CacheError>;
+
+    /// Upcast.
+    fn as_ro(&self) -> &dyn RoCache;
 }

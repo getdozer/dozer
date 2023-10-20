@@ -1,19 +1,8 @@
 use arc_swap::ArcSwap;
-use cache_builder::open_or_create_cache;
-use dozer_cache::{
-    cache::{CacheWriteOptions, RwCacheManager},
-    dozer_log::reader::{LogReaderBuilder, LogReaderOptions},
-    errors::CacheError,
-    CacheReader,
-};
+use cache_builder::CacheBuilder;
+use dozer_cache::{cache::RwCacheManager, errors::CacheError, CacheReader};
 use dozer_tracing::{Labels, LabelsAndProgress};
-use dozer_types::{
-    grpc_types::types::Operation,
-    models::api_endpoint::{
-        default_log_reader_batch_size, default_log_reader_buffer_size,
-        default_log_reader_timeout_in_millis, ApiEndpoint,
-    },
-};
+use dozer_types::{grpc_types::types::Operation, models::api_endpoint::ApiEndpoint};
 use futures_util::Future;
 use std::{ops::Deref, sync::Arc};
 
@@ -25,7 +14,7 @@ pub use api_helper::get_api_security;
 
 #[derive(Debug)]
 pub struct CacheEndpoint {
-    cache_reader: ArcSwap<CacheReader>,
+    cache_reader: Arc<ArcSwap<CacheReader>>,
     descriptor: Vec<u8>,
     endpoint: ApiEndpoint,
 }
@@ -35,61 +24,29 @@ const BUILD_LABEL: &str = "build";
 
 impl CacheEndpoint {
     pub async fn new(
-        app_server_addr: String,
-        cache_manager: &dyn RwCacheManager,
+        runtime: Arc<Runtime>,
+        app_server_url: String,
+        cache_manager: Arc<dyn RwCacheManager>,
         endpoint: ApiEndpoint,
         cancel: impl Future<Output = ()> + Unpin + Send + 'static,
         operations_sender: Option<Sender<Operation>>,
         labels: LabelsAndProgress,
     ) -> Result<(Self, JoinHandle<Result<(), CacheError>>), ApiInitError> {
-        // Create log reader builder.
-        let log_reader_builder =
-            LogReaderBuilder::new(app_server_addr, get_log_reader_options(&endpoint)).await?;
-        let descriptor = log_reader_builder.descriptor.clone();
-
-        // Open or create cache.
-        let mut cache_labels =
-            cache_labels(endpoint.name.clone(), log_reader_builder.build_name.clone());
-        cache_labels.extend(labels.labels().clone());
-        let schema = log_reader_builder.schema.clone();
-        let conflict_resolution = endpoint.conflict_resolution;
-        let write_options = CacheWriteOptions {
-            insert_resolution: conflict_resolution.on_insert,
-            delete_resolution: conflict_resolution.on_delete,
-            update_resolution: conflict_resolution.on_update,
-            ..Default::default()
-        };
-        let cache = open_or_create_cache(
-            cache_manager,
-            cache_labels.clone(),
-            (schema.schema, schema.secondary_indexes),
-            &schema.connections,
-            write_options,
-        )
-        .map_err(ApiInitError::OpenOrCreateCache)?;
-
-        // Open cache reader.
-        let cache_reader =
-            open_cache_reader(cache_manager, cache_labels)?.expect("We just created the cache");
+        let (cache_builder, descriptor) =
+            CacheBuilder::new(cache_manager, app_server_url, &endpoint, labels).await?;
+        let cache_reader = cache_builder.cache_reader().clone();
 
         // Start cache builder.
         let handle = {
             let operations_sender = operations_sender.map(|sender| (endpoint.name.clone(), sender));
-            tokio::spawn(async move {
-                cache_builder::build_cache(
-                    cache,
-                    cancel,
-                    log_reader_builder,
-                    operations_sender,
-                    labels,
-                )
-                .await
-            })
+            let runtime_clone = runtime.clone();
+            runtime_clone
+                .spawn_blocking(move || cache_builder.run(runtime, cancel, operations_sender))
         };
 
         Ok((
             Self {
-                cache_reader: ArcSwap::from_pointee(cache_reader),
+                cache_reader,
                 descriptor,
                 endpoint,
             },
@@ -105,7 +62,10 @@ impl CacheEndpoint {
         let mut labels = Labels::new();
         labels.push(endpoint.name.clone(), endpoint.name.clone());
         Ok(Self {
-            cache_reader: ArcSwap::from_pointee(open_existing_cache_reader(cache_manager, labels)?),
+            cache_reader: Arc::new(ArcSwap::from_pointee(open_existing_cache_reader(
+                cache_manager,
+                labels,
+            )?)),
             descriptor,
             endpoint,
         })
@@ -124,11 +84,11 @@ impl CacheEndpoint {
     }
 }
 
-pub fn cache_labels(endpoint: String, build: String) -> Labels {
+pub fn cache_alias_and_labels(endpoint: String, build: String) -> (String, Labels) {
     let mut labels = Labels::new();
     labels.push(ENDPOINT_LABEL, endpoint);
     labels.push(BUILD_LABEL, build);
-    labels
+    (labels.to_non_empty_string().into_owned(), labels)
 }
 
 fn open_cache_reader(
@@ -147,24 +107,6 @@ fn open_existing_cache_reader(
 ) -> Result<CacheReader, ApiInitError> {
     open_cache_reader(cache_manager, labels.clone())?
         .ok_or_else(|| ApiInitError::CacheNotFound(labels))
-}
-
-fn get_log_reader_options(endpoint: &ApiEndpoint) -> LogReaderOptions {
-    LogReaderOptions {
-        endpoint: endpoint.name.clone(),
-        batch_size: endpoint
-            .log_reader_options
-            .batch_size
-            .unwrap_or_else(default_log_reader_batch_size),
-        timeout_in_millis: endpoint
-            .log_reader_options
-            .timeout_in_millis
-            .unwrap_or_else(default_log_reader_timeout_in_millis),
-        buffer_size: endpoint
-            .log_reader_options
-            .buffer_size
-            .unwrap_or_else(default_log_reader_buffer_size),
-    }
 }
 
 // Exports
@@ -186,7 +128,7 @@ pub use dozer_types::tonic;
 use errors::ApiInitError;
 pub use openapiv3;
 pub use tokio;
-use tokio::{sync::broadcast::Sender, task::JoinHandle};
+use tokio::{runtime::Runtime, sync::broadcast::Sender, task::JoinHandle};
 pub use tracing_actix_web;
 #[cfg(test)]
 mod test_utils;

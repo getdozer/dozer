@@ -7,7 +7,8 @@ use dozer_types::grpc_types::internal::internal_pipeline_service_server::{
 };
 use dozer_types::grpc_types::internal::{
     BuildRequest, BuildResponse, DescribeApplicationRequest, DescribeApplicationResponse,
-    EndpointResponse, EndpointsResponse, LogRequest, LogResponse, StorageRequest, StorageResponse,
+    EndpointResponse, EndpointsResponse, GetIdResponse, LogRequest, LogResponse, StorageRequest,
+    StorageResponse,
 };
 use dozer_types::log::info;
 use dozer_types::models::api_config::{
@@ -38,17 +39,27 @@ pub struct LogEndpoint {
 
 #[derive(Debug)]
 pub struct InternalPipelineServer {
+    id: String,
     endpoints: HashMap<String, LogEndpoint>,
 }
 
 impl InternalPipelineServer {
     pub fn new(endpoints: HashMap<String, LogEndpoint>) -> Self {
-        Self { endpoints }
+        Self {
+            id: uuid::Uuid::new_v4().to_string(),
+            endpoints,
+        }
     }
 }
 
 #[tonic::async_trait]
 impl InternalPipelineService for InternalPipelineServer {
+    async fn get_id(&self, _: Request<()>) -> Result<Response<GetIdResponse>, Status> {
+        Ok(Response::new(GetIdResponse {
+            id: self.id.clone(),
+        }))
+    }
+
     async fn describe_storage(
         &self,
         request: Request<StorageRequest>,

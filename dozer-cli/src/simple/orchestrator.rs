@@ -94,7 +94,7 @@ impl SimpleOrchestrator {
                 };
 
             let internal_grpc_config = &self.config.api.app_grpc;
-            let app_server_addr = format!(
+            let app_server_url = format!(
                 "http://{}:{}",
                 internal_grpc_config
                     .host
@@ -115,8 +115,9 @@ impl SimpleOrchestrator {
                     // If we're shutting down, the cache endpoint will fail to connect
                     _shutdown_future = shutdown.create_shutdown_future() => return Ok(()),
                     result = CacheEndpoint::new(
-                        app_server_addr.clone(),
-                        &*cache_manager,
+                        self.runtime.clone(),
+                        app_server_url.clone(),
+                        cache_manager.clone(),
                         endpoint.clone(),
                         Box::pin(shutdown.create_shutdown_future()),
                         operations_sender.clone(),

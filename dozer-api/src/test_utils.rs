@@ -112,8 +112,7 @@ pub fn initialize_cache(
         .create_cache(
             labels.to_non_empty_string().into_owned(),
             labels,
-            schema,
-            secondary_indexes,
+            (schema, secondary_indexes),
             &Default::default(),
             Default::default(),
         )

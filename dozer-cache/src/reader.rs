@@ -1,4 +1,4 @@
-use crate::cache::{expression::QueryExpression, CacheRecord, RoCache};
+use crate::cache::{expression::QueryExpression, CacheRecord, CommitState, RoCache};
 
 use super::cache::expression::FilterExpression;
 use crate::errors::CacheError;
@@ -42,6 +42,14 @@ impl CacheReader {
     // TODO: Implement check_access
     fn check_access(&self, _rec: &Record, _access_filter: &AccessFilter) -> Result<(), CacheError> {
         Ok(())
+    }
+
+    pub fn cache_name(&self) -> &str {
+        self.cache.name()
+    }
+
+    pub fn get_commit_state(&self) -> Result<Option<CommitState>, CacheError> {
+        self.cache.get_commit_state()
     }
 
     pub fn get_schema(&self) -> &SchemaWithIndex {

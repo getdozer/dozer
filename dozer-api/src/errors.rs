@@ -1,4 +1,3 @@
-#![allow(clippy::enum_variant_names)]
 use std::net::{AddrParseError, SocketAddr};
 use std::path::PathBuf;
 
@@ -10,7 +9,7 @@ use dozer_tracing::Labels;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::{CannotConvertF64ToJson, TypeError};
 use dozer_types::thiserror::Error;
-use dozer_types::{serde_json, thiserror};
+use dozer_types::{bincode, serde_json, thiserror, tonic};
 
 use dozer_cache::errors::CacheError;
 use handlebars::{RenderError, TemplateError};
@@ -22,8 +21,22 @@ pub enum ApiInitError {
     Grpc(#[from] GrpcError),
     #[error("Generation error: {0}")]
     Generation(#[from] GenerationError),
-    #[error("Failed to create log reader builder: {0}")]
-    CreateLogReaderBuilder(#[from] ReaderBuilderError),
+    #[error("Failed to create log reader")]
+    ReaderBuilder(#[from] ReaderBuilderError),
+    #[error("Failed to connect to app server {url}: {error}")]
+    ConnectToAppServer {
+        url: String,
+        #[source]
+        error: tonic::transport::Error,
+    },
+    #[error("Failed to get log metadata: {0}")]
+    GetLogMetadata(#[from] tonic::Status),
+    #[error("Query cache: {0}")]
+    GetCacheCommitState(#[source] CacheError),
+    #[error("Failed to parse endpoint schema: {0}")]
+    ParseEndpointSchema(#[from] serde_json::Error),
+    #[error("Failed to parse checkpoint: {0}")]
+    ParseCheckpoint(#[from] bincode::Error),
     #[error("Failed to open or create cache: {0}")]
     OpenOrCreateCache(#[source] CacheError),
     #[error("Failed to find cache: {0}")]
