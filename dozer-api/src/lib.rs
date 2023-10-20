@@ -22,7 +22,6 @@ pub struct CacheEndpoint {
 }
 
 const ENDPOINT_LABEL: &str = "endpoint";
-const BUILD_LABEL: &str = "build";
 
 impl CacheEndpoint {
     pub async fn new(
@@ -97,10 +96,9 @@ impl CacheEndpoint {
     }
 }
 
-pub fn cache_alias_and_labels(endpoint: String, build: String) -> (String, Labels) {
+pub fn cache_alias_and_labels(endpoint: String) -> (String, Labels) {
     let mut labels = Labels::new();
     labels.push(ENDPOINT_LABEL, endpoint);
-    labels.push(BUILD_LABEL, build);
     (labels.to_non_empty_string().into_owned(), labels)
 }
 

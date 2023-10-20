@@ -373,8 +373,8 @@ impl SimpleOrchestrator {
         )?;
 
         let contract_path = self.lockfile_path();
-        let existing_contract = Contract::deserialize(contract_path.as_std_path()).ok();
         if locked {
+            let existing_contract = Contract::deserialize(contract_path.as_std_path()).ok();
             let Some(existing_contract) = existing_contract.as_ref() else {
                 return Err(OrchestrationError::LockedNoLockFile);
             };
@@ -385,11 +385,7 @@ impl SimpleOrchestrator {
         }
 
         // Run build
-        self.runtime.block_on(build::build(
-            &home_dir,
-            &contract,
-            existing_contract.as_ref(),
-        ))?;
+        build::generate_protos(&home_dir, &contract)?;
 
         contract.serialize(contract_path.as_std_path())?;
 

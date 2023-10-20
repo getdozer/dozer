@@ -48,8 +48,7 @@ message BuildRequest {
 }
 
 message BuildResponse {
-  string name = 1;
-  string schema_string = 2;
+  string schema_string = 1;
 }
 
 message LogRequest {

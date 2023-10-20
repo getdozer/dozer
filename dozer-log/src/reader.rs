@@ -43,8 +43,6 @@ impl LogReaderOptions {
 
 #[derive(Debug)]
 pub struct LogReaderBuilder {
-    /// Log server runs on a specific build of the endpoint. This is the name of the build.
-    pub build_name: String,
     /// Schema of this endpoint.
     pub schema: EndpointSchema,
     pub options: LogReaderOptions,
@@ -71,13 +69,11 @@ impl LogReaderBuilder {
             })
             .await?
             .into_inner();
-        let build_name = build.name;
         let schema = serde_json::from_str(&build.schema_string)?;
 
         let client = LogClient::new(&mut client, options.endpoint.clone()).await?;
 
         Ok(Self {
-            build_name,
             schema,
             client,
             options,

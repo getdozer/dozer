@@ -153,9 +153,5 @@ async fn create_log_endpoint(
     .await?;
     let log = Arc::new(Mutex::new(log));
 
-    Ok(LogEndpoint {
-        build_id: build_path.id.clone(),
-        schema_string,
-        log,
-    })
+    Ok(LogEndpoint { schema_string, log })
 }

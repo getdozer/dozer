@@ -1,5 +1,4 @@
 use async_stream::stream;
-use dozer_cache::dozer_log::home_dir::BuildId;
 use dozer_cache::dozer_log::replication::{Log, LogResponseFuture};
 use dozer_types::bincode;
 use dozer_types::grpc_types::internal::internal_pipeline_service_server::{
@@ -30,7 +29,6 @@ use crate::shutdown::ShutdownReceiver;
 
 #[derive(Debug, Clone)]
 pub struct LogEndpoint {
-    pub build_id: BuildId,
     pub schema_string: String,
     pub log: Arc<Mutex<Log>>,
 }
@@ -134,7 +132,6 @@ impl InternalPipelineService for InternalPipelineServer {
 
 fn get_build_response(endpoint: &LogEndpoint) -> BuildResponse {
     BuildResponse {
-        name: endpoint.build_id.name().to_owned(),
         schema_string: endpoint.schema_string.clone(),
     }
 }
