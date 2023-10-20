@@ -17,7 +17,7 @@ actix-cors = "0.6.3"
 actix-http = { version = "3.4.0", default-features = false, features = [
     "rustls",
 ] }
-actix-web = { version = "4.2.1", default-features = false, features = [
+actix-web = { version = "4.4.0", default-features = false, features = [
     "macros",
     "compress-brotli",
     "compress-gzip",
