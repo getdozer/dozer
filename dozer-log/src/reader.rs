@@ -150,6 +150,8 @@ impl LogClient {
         client: &mut InternalPipelineServiceClient<Channel>,
         endpoint: String,
     ) -> Result<Self, ReaderBuilderError> {
+        let (request_sender, response_stream) = create_get_log_stream(client).await?;
+
         let storage = client
             .describe_storage(StorageRequest { endpoint })
             .await?
@@ -162,8 +164,6 @@ impl LogClient {
                 Box::new(LocalStorage::new(local.root).await?)
             }
         };
-
-        let (request_sender, response_stream) = create_get_log_stream(client).await?;
 
         Ok(Self {
             request_sender,

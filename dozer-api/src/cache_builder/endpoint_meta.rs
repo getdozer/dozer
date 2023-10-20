@@ -1,4 +1,4 @@
-use dozer_cache::dozer_log::schemas::EndpointSchema;
+use dozer_cache::dozer_log::{reader::LogClient, schemas::EndpointSchema};
 use dozer_tracing::Labels;
 use dozer_types::{
     grpc_types::internal::{
@@ -23,7 +23,9 @@ impl EndpointMeta {
     pub async fn load_from_client(
         client: &mut InternalPipelineServiceClient<Channel>,
         endpoint: String,
-    ) -> Result<Self, ApiInitError> {
+    ) -> Result<(Self, LogClient), ApiInitError> {
+        // We establish the log stream first to avoid tonic auto-reconnecting without us knowing.
+        let log_client = LogClient::new(client, endpoint.clone()).await?;
         let log_id = client.get_id(()).await?.into_inner().id;
         let build = client
             .describe_build(BuildRequest {
@@ -33,13 +35,16 @@ impl EndpointMeta {
             .into_inner();
         let schema = serde_json::from_str(&build.schema_string)?;
 
-        Ok(Self {
-            name: endpoint,
-            log_id,
-            build_name: build.name,
-            schema,
-            descriptor_bytes: build.descriptor_bytes,
-        })
+        Ok((
+            Self {
+                name: endpoint,
+                log_id,
+                build_name: build.name,
+                schema,
+                descriptor_bytes: build.descriptor_bytes,
+            },
+            log_client,
+        ))
     }
 
     pub fn cache_alias_and_labels(&self, extra_labels: Labels) -> (String, Labels) {
