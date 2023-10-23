@@ -1,14 +1,12 @@
 use async_stream::stream;
-use dozer_cache::dozer_log::home_dir::BuildId;
 use dozer_cache::dozer_log::replication::{Log, LogResponseFuture};
 use dozer_types::bincode;
 use dozer_types::grpc_types::internal::internal_pipeline_service_server::{
     InternalPipelineService, InternalPipelineServiceServer,
 };
 use dozer_types::grpc_types::internal::{
-    BuildRequest, BuildResponse, DescribeApplicationRequest, DescribeApplicationResponse,
-    EndpointResponse, EndpointsResponse, GetIdResponse, LogRequest, LogResponse, StorageRequest,
-    StorageResponse,
+    BuildRequest, BuildResponse, DescribeApplicationResponse, GetIdResponse, LogRequest,
+    LogResponse, StorageRequest, StorageResponse,
 };
 use dozer_types::log::info;
 use dozer_types::models::api_config::{
@@ -31,9 +29,7 @@ use crate::shutdown::ShutdownReceiver;
 
 #[derive(Debug, Clone)]
 pub struct LogEndpoint {
-    pub build_id: BuildId,
     pub schema_string: String,
-    pub descriptor_bytes: Vec<u8>,
     pub log: Arc<Mutex<Log>>,
 }
 
@@ -72,23 +68,9 @@ impl InternalPipelineService for InternalPipelineServer {
         }))
     }
 
-    async fn list_endpoints(
-        &self,
-        _request: Request<()>,
-    ) -> Result<Response<EndpointsResponse>, Status> {
-        let endpoints = self
-            .endpoints
-            .iter()
-            .map(|(endpoint, log)| EndpointResponse {
-                endpoint: endpoint.clone(),
-                build_name: log.build_id.name().to_string(),
-            })
-            .collect();
-        Ok(Response::new(EndpointsResponse { endpoints }))
-    }
     async fn describe_application(
         &self,
-        _: Request<DescribeApplicationRequest>,
+        _: Request<()>,
     ) -> Result<Response<DescribeApplicationResponse>, Status> {
         let mut endpoints = HashMap::with_capacity(self.endpoints.len());
 
@@ -150,9 +132,7 @@ impl InternalPipelineService for InternalPipelineServer {
 
 fn get_build_response(endpoint: &LogEndpoint) -> BuildResponse {
     BuildResponse {
-        name: endpoint.build_id.name().to_owned(),
         schema_string: endpoint.schema_string.clone(),
-        descriptor_bytes: endpoint.descriptor_bytes.clone(),
     }
 }
 

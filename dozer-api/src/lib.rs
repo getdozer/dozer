@@ -4,7 +4,9 @@ use dozer_cache::{cache::RwCacheManager, errors::CacheError, CacheReader};
 use dozer_tracing::{Labels, LabelsAndProgress};
 use dozer_types::{grpc_types::types::Operation, models::api_endpoint::ApiEndpoint};
 use futures_util::Future;
+use generator::protoc::generate_all;
 use std::{ops::Deref, sync::Arc};
+use tempdir::TempDir;
 
 pub use tonic_reflection;
 pub use tonic_web;
@@ -20,7 +22,6 @@ pub struct CacheEndpoint {
 }
 
 const ENDPOINT_LABEL: &str = "endpoint";
-const BUILD_LABEL: &str = "build";
 
 impl CacheEndpoint {
     pub async fn new(
@@ -32,9 +33,20 @@ impl CacheEndpoint {
         operations_sender: Option<Sender<Operation>>,
         labels: LabelsAndProgress,
     ) -> Result<(Self, JoinHandle<Result<(), CacheError>>), ApiInitError> {
-        let (cache_builder, descriptor) =
+        // Create cache builder.
+        let (cache_builder, endpoint_schema) =
             CacheBuilder::new(cache_manager, app_server_url, &endpoint, labels).await?;
         let cache_reader = cache_builder.cache_reader().clone();
+
+        // Generate descriptor.
+        let temp_dir = TempDir::new(&endpoint.name).map_err(ApiInitError::CreateTempDir)?;
+        let proto_folder_path = temp_dir.path();
+        let descriptor_path = proto_folder_path.join("descriptor.bin");
+        let descriptor = generate_all(
+            proto_folder_path,
+            &descriptor_path,
+            [(endpoint.name.as_str(), &endpoint_schema)],
+        )?;
 
         // Start cache builder.
         let handle = {
@@ -84,10 +96,9 @@ impl CacheEndpoint {
     }
 }
 
-pub fn cache_alias_and_labels(endpoint: String, build: String) -> (String, Labels) {
+pub fn cache_alias_and_labels(endpoint: String) -> (String, Labels) {
     let mut labels = Labels::new();
     labels.push(ENDPOINT_LABEL, endpoint);
-    labels.push(BUILD_LABEL, build);
     (labels.to_non_empty_string().into_owned(), labels)
 }
 

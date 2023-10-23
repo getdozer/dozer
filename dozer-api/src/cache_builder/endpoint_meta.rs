@@ -14,9 +14,7 @@ use crate::{cache_alias_and_labels, errors::ApiInitError};
 pub struct EndpointMeta {
     pub name: String,
     pub log_id: String,
-    pub build_name: String,
     pub schema: EndpointSchema,
-    pub descriptor_bytes: Vec<u8>,
 }
 
 impl EndpointMeta {
@@ -39,17 +37,14 @@ impl EndpointMeta {
             Self {
                 name: endpoint,
                 log_id,
-                build_name: build.name,
                 schema,
-                descriptor_bytes: build.descriptor_bytes,
             },
             log_client,
         ))
     }
 
     pub fn cache_alias_and_labels(&self, extra_labels: Labels) -> (String, Labels) {
-        let (alias, mut labels) =
-            cache_alias_and_labels(self.name.clone(), self.build_name.clone());
+        let (alias, mut labels) = cache_alias_and_labels(self.name.clone());
         labels.extend(extra_labels);
         (alias, labels)
     }

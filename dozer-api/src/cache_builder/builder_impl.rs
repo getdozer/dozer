@@ -343,7 +343,6 @@ mod tests {
         EndpointMeta {
             name: Default::default(),
             log_id,
-            build_name: Default::default(),
             schema: EndpointSchema {
                 path: Default::default(),
                 schema: Default::default(),
@@ -352,7 +351,6 @@ mod tests {
                 enable_on_event: Default::default(),
                 connections: Default::default(),
             },
-            descriptor_bytes: Default::default(),
         }
     }
 

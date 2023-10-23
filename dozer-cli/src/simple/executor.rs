@@ -143,12 +143,6 @@ async fn create_log_endpoint(
     let schema_string =
         dozer_types::serde_json::to_string(schema).map_err(BuildError::SerdeJson)?;
 
-    let descriptor_bytes = tokio::fs::read(&build_path.descriptor_path)
-        .await
-        .map_err(|e| {
-            OrchestrationError::FileSystem(build_path.descriptor_path.clone().into(), e)
-        })?;
-
     let log_prefix = AsRef::<Utf8Path>::as_ref(checkpoint.prefix())
         .join(&endpoint_path.log_dir_relative_to_data_dir);
     let log = Log::new(
@@ -159,10 +153,5 @@ async fn create_log_endpoint(
     .await?;
     let log = Arc::new(Mutex::new(log));
 
-    Ok(LogEndpoint {
-        build_id: build_path.id.clone(),
-        schema_string,
-        descriptor_bytes,
-        log,
-    })
+    Ok(LogEndpoint { schema_string, log })
 }
