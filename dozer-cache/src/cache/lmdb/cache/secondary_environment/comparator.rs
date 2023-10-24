@@ -1,33 +1,41 @@
 use dozer_storage::errors::StorageError;
 use dozer_storage::lmdb::{Database, Transaction};
-use dozer_storage::lmdb_sys::{mdb_set_compare, MDB_cmp_func, MDB_val, MDB_SUCCESS};
+use dozer_storage::lmdb_sys::{mdb_set_compare, MDB_val, MDB_SUCCESS};
 
-use crate::cache::index::compare_composite_secondary_index;
+use crate::cache::index::{compare_composite_secondary_index, compare_single_secondary_index};
 
 pub fn set_sorted_inverted_comparator<T: Transaction>(
     txn: &T,
     db: Database,
     fields: &[usize],
 ) -> Result<(), StorageError> {
-    let comparator: MDB_cmp_func = if fields.len() == 1 {
-        None
+    let comparator = if fields.len() == 1 {
+        compare_single_key
     } else {
-        Some(compare_composite_key)
+        compare_composite_key
     };
 
-    if let Some(comparator) = comparator {
-        unsafe {
-            assert_eq!(
-                mdb_set_compare(txn.txn(), db.dbi(), Some(comparator)),
-                MDB_SUCCESS
-            );
-        }
+    unsafe {
+        assert_eq!(
+            mdb_set_compare(txn.txn(), db.dbi(), Some(comparator)),
+            MDB_SUCCESS
+        );
     }
     Ok(())
 }
 
 unsafe fn mdb_val_to_slice(val: &MDB_val) -> &[u8] {
     std::slice::from_raw_parts(val.mv_data as *const u8, val.mv_size)
+}
+
+unsafe extern "C" fn compare_single_key(a: *const MDB_val, b: *const MDB_val) -> std::ffi::c_int {
+    match compare_single_secondary_index(mdb_val_to_slice(&*a), mdb_val_to_slice(&*b)) {
+        Ok(ordering) => ordering as std::ffi::c_int,
+        Err(e) => {
+            dozer_types::log::error!("Error deserializing secondary index key: {}", e);
+            0
+        }
+    }
 }
 
 unsafe extern "C" fn compare_composite_key(
