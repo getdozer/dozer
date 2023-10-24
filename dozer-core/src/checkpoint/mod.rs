@@ -208,9 +208,9 @@ impl CheckpointFactory {
         source_states: SourceStates,
     ) -> Result<(), ExecutionError> {
         let mut state = self.state.lock();
-        let (data, num_records_serialized) =
+        let (data, next_record_index) =
             self.record_store.serialize_slice(state.next_record_index)?;
-        state.next_record_index += num_records_serialized;
+        state.next_record_index = next_record_index;
         drop(state);
 
         let data = bincode::serialize(&RecordStoreSlice {
