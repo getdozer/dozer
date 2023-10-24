@@ -1,4 +1,5 @@
 use dozer_recordstore::ProcessorRecordStore;
+use dozer_types::log::info;
 use dozer_types::node::{NodeHandle, SourceStates, TableState};
 use dozer_types::parking_lot::Mutex;
 use std::collections::HashMap;
@@ -217,6 +218,10 @@ impl EpochManager {
                     self.record_store().compact(); // Compact the record store to prepare for persisting.
                     state.next_record_index_to_persist = num_records;
                     state.last_persisted_epoch_decision_instant = instant;
+                    info!(
+                        "Persisting epoch {}, source states: {:?}",
+                        epoch_id, source_states
+                    );
                     Action::CommitAndPersist
                 } else {
                     Action::Commit

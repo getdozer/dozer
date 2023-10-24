@@ -109,7 +109,6 @@ pub struct ProcessorRecordStoreDeserializer {
 struct ProcessorRecordStoreDeserializerInner {
     records: BTreeMap<usize, RecordRef>,
     record_pointer_to_index: HashMap<usize, usize>,
-    idx: usize,
 }
 
 impl ProcessorRecordStoreDeserializer {
@@ -118,7 +117,6 @@ impl ProcessorRecordStoreDeserializer {
             inner: RwLock::new(ProcessorRecordStoreDeserializerInner {
                 records: BTreeMap::new(),
                 record_pointer_to_index: HashMap::new(),
-                idx: 0,
             }),
         })
     }
@@ -176,8 +174,11 @@ impl StoreRecord for ProcessorRecordStoreDeserializer {
     fn store_record(&self, record: &RecordRef) -> Result<(), RecordStoreError> {
         let mut inner = self.inner.write();
 
-        inner.idx += 1;
-        let idx = inner.idx;
+        let idx = inner
+            .records
+            .last_key_value()
+            .map(|(index, _)| index + 1)
+            .unwrap_or(0);
         insert_record_pointer_to_index(&mut inner.record_pointer_to_index, record, idx);
         inner.records.insert(idx, record.clone());
 

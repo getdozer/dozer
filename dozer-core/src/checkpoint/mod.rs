@@ -355,6 +355,10 @@ async fn read_record_store_slices(
             let record_store_slice = bincode::deserialize::<RecordStoreSlice>(&data)
                 .map_err(ExecutionError::CorruptedCheckpoint)?;
             let processor_prefix = processor_prefix(factory_prefix, object_name.as_str());
+            info!(
+                "Current source states are {:?}",
+                record_store_slice.source_states
+            );
 
             if let Some(last_checkpoint) = last_checkpoint.as_mut() {
                 last_checkpoint.num_slices = last_checkpoint
@@ -365,10 +369,6 @@ async fn read_record_store_slices(
                 last_checkpoint.source_states = record_store_slice.source_states;
                 last_checkpoint.processor_prefix = processor_prefix;
             } else {
-                info!(
-                    "Current source states are {:?}",
-                    record_store_slice.source_states
-                );
                 last_checkpoint = Some(Checkpoint {
                     num_slices: NonZeroUsize::new(objects.objects.len())
                         .expect("have at least one element"),
