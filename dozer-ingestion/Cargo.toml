@@ -44,7 +44,7 @@ tonic-web = "0.10.2"
 tonic-reflection = "0.10.0"
 tower-http = { version = "0.4", features = ["full"] }
 prost-reflect = { version = "0.12.0", features = ["serde", "text-format"] }
-deltalake = { version = "0.15.0", default-features = false, features = [
+deltalake = { version = "0.16.2", default-features = false, features = [
     "s3",
     "datafusion",
 ] }
