@@ -251,14 +251,15 @@ impl EpochManager {
             } => {
                 let common_info = action.should_commit().then(|| {
                     let checkpoint_writer = (action.should_persist()
-                        && self.options.enable_app_checkpoints)
-                        .then(|| {
-                            Arc::new(CheckpointWriter::new(
-                                self.checkpoint_factory.clone(),
-                                *epoch_id,
-                                source_states.clone(),
-                            ))
-                        });
+                        && self.options.enable_app_checkpoints
+                        && is_restartable(source_states))
+                    .then(|| {
+                        Arc::new(CheckpointWriter::new(
+                            self.checkpoint_factory.clone(),
+                            *epoch_id,
+                            source_states.clone(),
+                        ))
+                    });
                     let sink_persist_queue = action
                         .should_persist()
                         .then(|| self.checkpoint_factory.queue().clone());
@@ -296,6 +297,14 @@ impl EpochManager {
             }
         }
     }
+}
+
+fn is_restartable(source_states: &SourceStates) -> bool {
+    source_states.values().all(|table_states| {
+        table_states
+            .values()
+            .all(|table_state| table_state != &TableState::NonRestartable)
+    })
 }
 
 #[cfg(test)]
