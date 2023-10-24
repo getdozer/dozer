@@ -47,6 +47,12 @@ pub fn get_secondary_index(fields: &[&Field], is_single_field_index: bool) -> Ve
     }
 }
 
+pub fn compare_single_secondary_index(a: &[u8], b: &[u8]) -> Result<Ordering, CompareError> {
+    let a = Field::decode(a)?;
+    let b = Field::decode(b)?;
+    Ok(a.cmp(&b))
+}
+
 pub fn compare_composite_secondary_index(a: &[u8], b: &[u8]) -> Result<Ordering, CompareError> {
     let mut a = CompositeSecondaryIndexKey::new(a);
     let mut b = CompositeSecondaryIndexKey::new(b);
