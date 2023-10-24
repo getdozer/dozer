@@ -26,10 +26,12 @@ pub struct ProcessorRecordStore {
 }
 
 #[derive(Debug, Default)]
+/// This struct maintains a one-to-one map from an increasing integer to a `RecordRef`.
+/// It's essentially one `BTreeMap` with `record_pointer_to_index` and `next_index` as computed fields.
 struct ProcessorRecordStoreInner {
     records: BTreeMap<usize, Weak<RecordRefInner>>,
     record_pointer_to_index: HashMap<usize, usize>,
-    idx: usize,
+    next_index: usize,
 }
 
 impl ProcessorRecordStore {
@@ -40,9 +42,10 @@ impl ProcessorRecordStore {
     }
 
     pub fn num_records(&self) -> usize {
-        self.inner.read().idx
+        self.inner.read().next_index
     }
 
+    /// Returns the serialized data and the `start` for next `serialize_slice` call.
     pub fn serialize_slice(&self, start: usize) -> Result<(Vec<u8>, usize), RecordStoreError> {
         let inner = self.inner.read();
         let slice = inner
@@ -55,7 +58,7 @@ impl ProcessorRecordStore {
                 typ: "[(usize, RecordRef)]",
                 reason: Box::new(e),
             })?;
-        Ok((data, slice.len()))
+        Ok((data, inner.next_index))
     }
 
     pub fn serialize_ref(&self, record_ref: &RecordRef) -> u64 {
@@ -87,11 +90,17 @@ impl ProcessorRecordStore {
 impl StoreRecord for ProcessorRecordStore {
     fn store_record(&self, record: &RecordRef) -> Result<(), RecordStoreError> {
         let mut inner = self.inner.write();
+        let inner = inner.deref_mut();
 
-        inner.idx += 1;
-        let idx = inner.idx;
-        insert_record_pointer_to_index(&mut inner.record_pointer_to_index, record, idx);
-        inner.records.insert(idx, Arc::downgrade(&record.0));
+        inner
+            .records
+            .insert(inner.next_index, Arc::downgrade(&record.0));
+        insert_record_pointer_to_index(
+            &mut inner.record_pointer_to_index,
+            record,
+            inner.next_index,
+        );
+        inner.next_index += 1;
 
         Ok(())
     }
@@ -151,14 +160,14 @@ impl ProcessorRecordStoreDeserializer {
 
     pub fn into_record_store(self) -> ProcessorRecordStore {
         let inner = self.inner.into_inner();
-        let max_idx = inner
+        let next_index = inner
             .records
             .last_key_value()
-            .map(|(idx, _)| *idx)
+            .map(|(index, _)| index + 1)
             .unwrap_or(0);
         ProcessorRecordStore {
             inner: RwLock::new(ProcessorRecordStoreInner {
-                idx: max_idx,
+                next_index,
                 records: inner
                     .records
                     .into_iter()
@@ -227,5 +236,37 @@ mod tests {
                 .push(record_store.deserialize_ref(serialized_record_ref).unwrap());
         }
         assert_eq!(deserialized_record_refs, record_refs);
+    }
+
+    #[test]
+    fn test_multiple_serialization_calls() {
+        let record_store = ProcessorRecordStore::new().unwrap();
+        record_store.create_ref(&[Field::Int(0)]).unwrap();
+        record_store.create_ref(&[Field::Int(1)]).unwrap();
+        let record1 = record_store.create_ref(&[Field::Int(2)]).unwrap();
+        record_store.vacuum();
+        let persisted1 = record_store.serialize_ref(&record1);
+        assert_eq!(persisted1, 2);
+        let (data1, next_index) = record_store.serialize_slice(0).unwrap();
+        assert_eq!(next_index, 3);
+        let record2 = record_store.create_ref(&[Field::Int(3)]).unwrap();
+        let persisted2 = record_store.serialize_ref(&record2);
+        assert_eq!(persisted2, 3);
+        let (data2, next_index) = record_store.serialize_slice(next_index).unwrap();
+        assert_eq!(next_index, 4);
+
+        let record_store = ProcessorRecordStoreDeserializer::new().unwrap();
+        record_store.deserialize_and_extend(&data1).unwrap();
+        record_store.deserialize_and_extend(&data2).unwrap();
+        let deserialized1 = record_store.deserialize_ref(persisted1).unwrap();
+        assert_eq!(deserialized1, record1);
+        let deserialized2 = record_store.deserialize_ref(persisted2).unwrap();
+        assert_eq!(deserialized2, record2);
+
+        let record_store = record_store.into_record_store();
+        assert_eq!(
+            record_store.serialize_ref(&record_store.create_ref(&[]).unwrap()),
+            next_index as u64
+        );
     }
 }
