@@ -25,7 +25,7 @@ actix-web = { version = "4.4.0", default-features = false, features = [
     "cookies",
     "rustls",
 ] }
-actix-web-httpauth = "0.8.0"
+actix-web-httpauth = "0.8.1"
 handlebars = "4.4.0"
 openapiv3 = "1.0.3"
 tonic-build = "0.10.0"
