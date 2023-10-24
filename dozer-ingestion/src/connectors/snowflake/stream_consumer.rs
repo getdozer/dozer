@@ -3,6 +3,7 @@ use crate::connectors::snowflake::connection::client::Client;
 use crate::errors::{ConnectorError, SnowflakeError};
 use crate::ingestion::Ingestor;
 use dozer_types::models::ingestion_types::IngestionMessage;
+use dozer_types::node::OpIdentifier;
 
 use crate::errors::SnowflakeStreamError::{CannotDetermineAction, UnsupportedActionInStream};
 use dozer_types::types::{Field, Operation, Record};
@@ -97,7 +98,7 @@ impl StreamConsumer {
         table_name: &str,
         ingestor: &Ingestor,
         table_index: usize,
-        _iteration: u64,
+        iteration: u64,
     ) -> Result<(), ConnectorError> {
         let temp_table_name = Self::get_stream_temp_table_name(table_name, &client.get_name());
         let stream_name = Self::get_stream_table_name(table_name, &client.get_name());
@@ -119,14 +120,14 @@ impl StreamConsumer {
             let used_columns_for_schema = columns_length - 3;
             let action_idx = used_columns_for_schema;
 
-            for (_idx, result) in rows.enumerate() {
+            for (idx, result) in rows.enumerate() {
                 let row = result?;
                 let op = Self::get_operation(row, action_idx, used_columns_for_schema)?;
                 ingestor
                     .blocking_handle_message(IngestionMessage::OperationEvent {
                         table_index,
                         op,
-                        id: None,
+                        id: Some(OpIdentifier::new(iteration, idx as u64)),
                     })
                     .map_err(|_| ConnectorError::IngestorError)?;
             }
