@@ -2,19 +2,17 @@ use std::{sync::Arc, thread};
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use dozer_ingestion::test_util::create_test_runtime;
-use dozer_types::tonic::transport::Channel;
-use dozer_types::{
+use dozer_ingestion_connector::dozer_types::{
     arrow::array::{Int32Array, StringArray},
+    arrow::{datatypes as arrow_types, record_batch::RecordBatch},
+    arrow_types::from_arrow::serialize_record_batch,
     grpc_types::ingest::{ingest_service_client::IngestServiceClient, IngestArrowRequest},
     indicatif::{MultiProgress, ProgressBar},
     serde_yaml,
+    tonic::transport::Channel,
 };
 mod helper;
 use crate::helper::TestConfig;
-use dozer_types::{
-    arrow::{datatypes as arrow_types, record_batch::RecordBatch},
-    arrow_types::from_arrow::serialize_record_batch,
-};
 
 const ARROW_PORT: u32 = 60056;
 const BATCH_SIZE: usize = 100;

@@ -1,5 +1,8 @@
-use dozer_ingestion::connectors::Connector;
-use dozer_types::types::{Field, FieldDefinition};
+use dozer_ingestion_connector::{
+    async_trait,
+    dozer_types::types::{Field, FieldDefinition},
+    Connector,
+};
 
 #[async_trait]
 pub trait DataReadyConnectorTest: Send + Sized + 'static {
@@ -51,4 +54,3 @@ pub use connectors::MongodbConnectorTest;
 pub use connectors::{
     DozerConnectorTest, LocalStorageObjectStoreConnectorTest, PostgresConnectorTest,
 };
-use dozer_types::tonic::async_trait;

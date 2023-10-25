@@ -24,8 +24,8 @@ mod tests;
 mod utils;
 // Re-exports
 pub use dozer_ingestion::{
-    connectors::{get_connector, TableInfo},
     errors::ConnectorError,
+    {get_connector, TableInfo},
 };
 pub use dozer_sql::builder::QueryContext;
 pub fn wrapped_statement_to_pipeline(sql: &str) -> Result<QueryContext, PipelineError> {

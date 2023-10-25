@@ -1,4 +1,4 @@
-use dozer_types::types::{Field, FieldDefinition, FieldType};
+use dozer_ingestion_connector::dozer_types::types::{Field, FieldDefinition, FieldType};
 
 use crate::test_suite::{records::Operation, FieldsAndPk};
 

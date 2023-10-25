@@ -1,13 +1,13 @@
 use std::{sync::Arc, time::Duration};
 
-use dozer_ingestion::{
-    connectors::{CdcType, Connector, SourceSchema, TableIdentifier, TableInfo},
+use dozer_ingestion_connector::{
+    dozer_types::{
+        log::warn,
+        models::ingestion_types::IngestionMessage,
+        types::{Field, FieldDefinition, FieldType, Operation, Record, Schema},
+    },
     test_util::spawn_connector,
-};
-use dozer_types::{
-    log::warn,
-    models::ingestion_types::IngestionMessage,
-    types::{Field, FieldDefinition, FieldType, Operation, Record, Schema},
+    CdcType, Connector, SourceSchema, TableIdentifier, TableInfo,
 };
 use tokio::runtime::Runtime;
 
