@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use dozer_ingestion::test_util::create_test_runtime;
-use dozer_types::serde_yaml;
+use dozer_ingestion_connector::dozer_types::serde_yaml;
 use helper::TestConfig;
 mod helper;
 fn connectors(criter: &mut Criterion) {

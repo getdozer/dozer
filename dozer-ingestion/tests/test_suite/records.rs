@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use dozer_types::types::Field;
+use dozer_ingestion_connector::dozer_types::types::Field;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Operation {

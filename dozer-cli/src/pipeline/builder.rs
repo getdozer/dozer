@@ -9,7 +9,7 @@ use dozer_core::app::AppPipeline;
 use dozer_core::app::PipelineEntryPoint;
 use dozer_core::node::SinkFactory;
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_ingestion::connectors::{get_connector, get_connector_info_table};
+use dozer_ingestion::{get_connector, get_connector_info_table};
 use dozer_sql::builder::statement_to_pipeline;
 use dozer_sql::builder::{OutputNodeInfo, QueryContext};
 use dozer_tracing::LabelsAndProgress;
@@ -26,6 +26,7 @@ use tokio::sync::Mutex;
 use crate::pipeline::dummy_sink::DummySinkFactory;
 use crate::pipeline::LogSinkFactory;
 
+use super::connector_source::ConnectorSourceFactoryError;
 use super::source_builder::SourceBuilder;
 use crate::errors::OrchestrationError;
 use dozer_types::log::info;
@@ -91,13 +92,17 @@ impl<'a> PipelineBuilder<'a> {
 
         let mut connector_map = HashMap::new();
         for connection in self.connections {
-            let connector = get_connector(connection.clone())?;
+            let connector = get_connector(connection.clone())
+                .map_err(|e| ConnectorSourceFactoryError::Connector(e.into()))?;
 
             if let Some(info_table) = get_connector_info_table(connection) {
                 info!("[{}] Connection parameters\n{info_table}", connection.name);
             }
 
-            let connector_tables = connector.list_tables().await?;
+            let connector_tables = connector
+                .list_tables()
+                .await
+                .map_err(ConnectorSourceFactoryError::Connector)?;
 
             // override source name if specified
             let connector_tables: Vec<Source> = connector_tables

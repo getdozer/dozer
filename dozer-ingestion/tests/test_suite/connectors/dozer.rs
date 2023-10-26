@@ -6,24 +6,27 @@ use std::time::Duration;
 
 use dozer_cli::shutdown::{self, ShutdownSender};
 use dozer_cli::simple::SimpleOrchestrator;
-use dozer_ingestion::connectors::dozer::NestedDozerConnector;
-use dozer_ingestion::connectors::{CdcType, SourceSchema};
-use dozer_types::grpc_types::conversions::field_to_grpc;
-use dozer_types::grpc_types::ingest::ingest_service_client::IngestServiceClient;
-use dozer_types::grpc_types::ingest::{IngestRequest, OperationType};
-use dozer_types::grpc_types::types::Record;
-use dozer_types::log::info;
-use dozer_types::models::api_endpoint::ApiEndpoint;
-use dozer_types::models::ingestion_types::GrpcConfigSchemas;
-use dozer_types::models::source::Source;
-use dozer_types::types::{Field, FieldDefinition, FieldType};
-use dozer_types::{
-    models::ingestion_types::{GrpcConfig, NestedDozerConfig, NestedDozerLogOptions},
+use dozer_ingestion_connector::dozer_types::{
+    grpc_types::{
+        conversions::field_to_grpc,
+        ingest::{ingest_service_client::IngestServiceClient, IngestRequest, OperationType},
+        types::Record,
+    },
+    log::info,
+    models::{
+        api_endpoint::ApiEndpoint,
+        ingestion_types::{
+            GrpcConfig, GrpcConfigSchemas, NestedDozerConfig, NestedDozerLogOptions,
+        },
+        source::Source,
+    },
     serde_json,
+    tonic::transport::Channel,
+    types::{Field, FieldDefinition, FieldType},
 };
+use dozer_ingestion_connector::{async_trait, dozer_types, CdcType, SourceSchema};
+use dozer_ingestion_dozer::NestedDozerConnector;
 
-use dozer_types::tonic::async_trait;
-use dozer_types::tonic::transport::Channel;
 use futures::lock::Mutex;
 use tempdir::TempDir;
 use tokio::runtime::Runtime;

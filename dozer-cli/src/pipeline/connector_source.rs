@@ -3,11 +3,10 @@ use dozer_core::channels::SourceChannelForwarder;
 use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory, SourceState,
 };
-use dozer_ingestion::connectors::{
+use dozer_ingestion::{
     get_connector, CdcType, Connector, TableIdentifier, TableInfo, TableToIngest,
 };
-use dozer_ingestion::errors::ConnectorError;
-use dozer_ingestion::ingestion::{IngestionConfig, Ingestor};
+use dozer_ingestion::{IngestionConfig, Ingestor};
 
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::errors::internal::BoxedError;
@@ -39,7 +38,7 @@ struct Table {
 #[derive(Debug, Error)]
 pub enum ConnectorSourceFactoryError {
     #[error("Connector error: {0}")]
-    Connector(#[from] ConnectorError),
+    Connector(#[source] BoxedError),
     #[error("Port not found for source: {0}")]
     PortNotFoundInSource(PortHandle),
     #[error("Schema not initialized")]
@@ -75,14 +74,18 @@ impl ConnectorSourceFactory {
     ) -> Result<Self, ConnectorSourceFactoryError> {
         let connection_name = connection.name.clone();
 
-        let connector = get_connector(connection)?;
+        let connector = get_connector(connection)
+            .map_err(|e| ConnectorSourceFactoryError::Connector(e.into()))?;
 
         // Fill column names if not provided.
         let table_identifiers = table_and_ports
             .iter()
             .map(|(table, _)| TableIdentifier::new(table.schema.clone(), table.name.clone()))
             .collect();
-        let all_columns = connector.list_columns(table_identifiers).await?;
+        let all_columns = connector
+            .list_columns(table_identifiers)
+            .await
+            .map_err(ConnectorSourceFactoryError::Connector)?;
         for ((table, _), columns) in table_and_ports.iter_mut().zip(all_columns) {
             if table.column_names.is_empty() {
                 table.column_names = columns.column_names;
@@ -93,13 +96,16 @@ impl ConnectorSourceFactory {
             .iter()
             .map(|(table, _)| table.clone())
             .collect();
-        let source_schemas = connector.get_schemas(&tables).await?;
+        let source_schemas = connector
+            .get_schemas(&tables)
+            .await
+            .map_err(ConnectorSourceFactoryError::Connector)?;
 
         let mut tables = vec![];
         for ((table, port), source_schema) in table_and_ports.into_iter().zip(source_schemas) {
             let name = table.name;
             let columns = table.column_names;
-            let source_schema = source_schema?;
+            let source_schema = source_schema.map_err(ConnectorSourceFactoryError::Connector)?;
             let schema = source_schema.schema;
             let cdc_type = source_schema.cdc_type;
 
@@ -280,9 +286,6 @@ impl Source for ConnectorSource {
                             .await;
                     match result {
                         Ok(Ok(_)) => {}
-                        // If we get a channel error, it means the source sender thread has quit.
-                        // Any error handling is done in that thread.
-                        Ok(Err(ConnectorError::IngestorError)) => {}
                         Ok(Err(e)) => std::panic::panic_any(e),
                         // Aborted means we are shutting down
                         Err(Aborted) => (),

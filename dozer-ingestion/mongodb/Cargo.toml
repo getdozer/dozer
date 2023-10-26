@@ -1,0 +1,11 @@
+[package]
+name = "dozer-ingestion-mongodb"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+dozer-ingestion-connector = { path = "../connector" }
+mongodb = "2.6.1"
+bson = "2.7.0"

@@ -1,0 +1,24 @@
+[package]
+name = "dozer-ingestion-mysql"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+dozer-ingestion-connector = { path = "../connector" }
+mysql_async = { version = "0.32.2", default-features = false, features = [
+    "default-rustls",
+] }
+mysql_common = { version = "0.30", default-features = false, features = [
+    "chrono",
+    "rust_decimal",
+] }
+geozero = { version = "0.11.0", default-features = false, features = [
+    "with-wkb",
+] }
+rand = "0.8.5"
+
+[dev-dependencies]
+serial_test = "1.0.0"
+hex = "0.4.3"

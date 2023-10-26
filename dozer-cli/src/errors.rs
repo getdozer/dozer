@@ -17,7 +17,6 @@ use dozer_api::{
 use dozer_cache::dozer_log::storage;
 use dozer_cache::errors::CacheError;
 use dozer_core::errors::ExecutionError;
-use dozer_ingestion::errors::ConnectorError;
 use dozer_sql::errors::PipelineError;
 use dozer_types::{constants::LOCK_FILE, thiserror::Error};
 use dozer_types::{errors::internal::BoxedError, serde_json};
@@ -75,8 +74,6 @@ pub enum OrchestrationError {
     ConnectorSourceFactory(#[from] ConnectorSourceFactoryError),
     #[error(transparent)]
     ExecutionError(#[from] ExecutionError),
-    #[error(transparent)]
-    ConnectorError(#[from] ConnectorError),
     #[error(transparent)]
     PipelineError(#[from] PipelineError),
     #[error(transparent)]

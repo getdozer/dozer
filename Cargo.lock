@@ -1306,26 +1306,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bindgen"
-version = "0.66.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2b84e06fc203107bfbad243f4aba2af864eb7db3b1cf46ea0a023b0b433d2a7"
-dependencies = [
- "bitflags 2.4.0",
- "cexpr",
- "clang-sys",
- "lazy_static",
- "lazycell",
- "peeking_take_while",
- "proc-macro2",
- "quote",
- "regex",
- "rustc-hash",
- "shlex",
- "syn 2.0.29",
-]
-
-[[package]]
 name = "bit-set"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2751,51 +2731,150 @@ dependencies = [
 name = "dozer-ingestion"
 version = "0.1.39"
 dependencies = [
- "base64 0.21.0",
- "bson",
  "bytes",
  "chrono",
  "criterion",
- "deltalake",
  "dozer-cli",
- "dozer-log",
+ "dozer-ingestion-connector",
+ "dozer-ingestion-deltalake",
+ "dozer-ingestion-dozer",
+ "dozer-ingestion-ethereum",
+ "dozer-ingestion-grpc",
+ "dozer-ingestion-kafka",
+ "dozer-ingestion-mongodb",
+ "dozer-ingestion-mysql",
+ "dozer-ingestion-object-store",
+ "dozer-ingestion-postgres",
+ "dozer-ingestion-snowflake",
  "dozer-tracing",
- "dozer-types",
  "dozer-utils",
  "env_logger",
  "futures",
- "genawaiter",
- "geozero",
  "hex",
- "hex-literal",
- "include_dir",
- "memchr",
- "mongodb",
- "mysql_async",
- "mysql_common",
- "object_store",
- "odbc",
  "parquet",
- "postgres-protocol",
- "postgres-types",
  "prost-reflect",
  "rand 0.8.5",
- "rdkafka",
- "regex",
- "rustls 0.21.7",
- "rustls-native-certs 0.6.3",
- "schema_registry_converter",
  "serial_test",
  "tempdir",
  "tokio",
- "tokio-postgres",
- "tokio-postgres-rustls",
+ "url",
+]
+
+[[package]]
+name = "dozer-ingestion-connector"
+version = "0.1.0"
+dependencies = [
+ "dozer-types",
+ "futures",
+ "tokio",
+]
+
+[[package]]
+name = "dozer-ingestion-deltalake"
+version = "0.1.0"
+dependencies = [
+ "deltalake",
+ "dozer-ingestion-connector",
+ "dozer-ingestion-object-store",
+]
+
+[[package]]
+name = "dozer-ingestion-dozer"
+version = "0.1.0"
+dependencies = [
+ "dozer-ingestion-connector",
+ "dozer-log",
+]
+
+[[package]]
+name = "dozer-ingestion-ethereum"
+version = "0.1.0"
+dependencies = [
+ "dozer-ingestion-connector",
+ "dozer-tracing",
+ "hex-literal",
+ "web3",
+]
+
+[[package]]
+name = "dozer-ingestion-grpc"
+version = "0.1.0"
+dependencies = [
+ "dozer-ingestion-connector",
  "tonic-reflection",
  "tonic-web",
  "tower-http",
+]
+
+[[package]]
+name = "dozer-ingestion-kafka"
+version = "0.1.0"
+dependencies = [
+ "base64 0.21.0",
+ "dozer-ingestion-connector",
+ "rdkafka",
+ "schema_registry_converter",
+]
+
+[[package]]
+name = "dozer-ingestion-mongodb"
+version = "0.1.0"
+dependencies = [
+ "bson",
+ "dozer-ingestion-connector",
+ "mongodb",
+]
+
+[[package]]
+name = "dozer-ingestion-mysql"
+version = "0.1.0"
+dependencies = [
+ "dozer-ingestion-connector",
+ "geozero",
+ "hex",
+ "mysql_async",
+ "mysql_common",
+ "rand 0.8.5",
+ "serial_test",
+]
+
+[[package]]
+name = "dozer-ingestion-object-store"
+version = "0.1.0"
+dependencies = [
+ "deltalake",
+ "dozer-ingestion-connector",
+ "object_store",
  "url",
+]
+
+[[package]]
+name = "dozer-ingestion-postgres"
+version = "0.1.0"
+dependencies = [
+ "dozer-ingestion-connector",
+ "postgres-protocol",
+ "postgres-types",
+ "rand 0.8.5",
+ "regex",
+ "rustls 0.21.7",
+ "rustls-native-certs 0.6.3",
+ "serial_test",
+ "tokio-postgres",
+ "tokio-postgres-rustls",
  "uuid",
- "web3",
+]
+
+[[package]]
+name = "dozer-ingestion-snowflake"
+version = "0.1.0"
+dependencies = [
+ "dozer-ingestion-connector",
+ "genawaiter",
+ "include_dir",
+ "memchr",
+ "odbc",
+ "rand 0.8.5",
 ]
 
 [[package]]
@@ -4508,7 +4587,7 @@ version = "0.11.0+8.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d3386f101bcb4bd252d8e9d2fb41ec3b0862a15a62b478c355b2982efa469e3e"
 dependencies = [
- "bindgen 0.65.1",
+ "bindgen",
  "bzip2-sys",
  "cc",
  "glob",
@@ -5053,7 +5132,7 @@ checksum = "57349d5a326b437989b6ee4dc8f2f34b0cc131202748414712a8e7d98952fc8c"
 dependencies = [
  "base64 0.21.0",
  "bigdecimal",
- "bindgen 0.66.1",
+ "bindgen",
  "bitflags 2.4.0",
  "bitvec 1.0.1",
  "byteorder",

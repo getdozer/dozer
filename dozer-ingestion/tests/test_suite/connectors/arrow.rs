@@ -1,11 +1,13 @@
 use std::sync::Arc;
 
-use dozer_types::arrow::array::{
-    Time32MillisecondArray, Time32SecondArray, Time64MicrosecondArray, Time64NanosecondArray,
-};
-
-use dozer_types::{
-    arrow,
+use dozer_ingestion_connector::dozer_types::{
+    arrow::{
+        self,
+        array::{
+            Time32MillisecondArray, Time32SecondArray, Time64MicrosecondArray,
+            Time64NanosecondArray,
+        },
+    },
     chrono::Datelike,
     types::{Field, FieldDefinition, FieldType},
 };

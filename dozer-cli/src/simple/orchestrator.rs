@@ -1,6 +1,7 @@
 use super::executor::{run_dag_executor, Executor};
 use super::Contract;
 use crate::errors::OrchestrationError;
+use crate::pipeline::connector_source::ConnectorSourceFactoryError;
 use crate::pipeline::PipelineBuilder;
 use crate::simple::build;
 use crate::simple::helper::validate_config;
@@ -30,7 +31,7 @@ use crate::console_helper::GREEN;
 use crate::console_helper::PURPLE;
 use crate::console_helper::RED;
 use dozer_core::errors::ExecutionError;
-use dozer_ingestion::connectors::{get_connector, SourceSchema, TableInfo};
+use dozer_ingestion::{get_connector, SourceSchema, TableInfo};
 use dozer_sql::builder::statement_to_pipeline;
 use dozer_sql::errors::PipelineError;
 use dozer_types::log::info;
@@ -288,8 +289,12 @@ impl SimpleOrchestrator {
     ) -> Result<HashMap<String, (Vec<TableInfo>, Vec<SourceSchema>)>, OrchestrationError> {
         let mut schema_map = HashMap::new();
         for connection in &self.config.connections {
-            let connector = get_connector(connection.clone())?;
-            let schema_tuples = connector.list_all_schemas().await?;
+            let connector = get_connector(connection.clone())
+                .map_err(|e| ConnectorSourceFactoryError::Connector(e.into()))?;
+            let schema_tuples = connector
+                .list_all_schemas()
+                .await
+                .map_err(ConnectorSourceFactoryError::Connector)?;
             schema_map.insert(connection.name.clone(), schema_tuples);
         }
 
