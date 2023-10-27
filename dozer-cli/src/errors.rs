@@ -4,6 +4,7 @@ use glob::{GlobError, PatternError};
 use std::io;
 use std::path::PathBuf;
 use std::string::FromUtf8Error;
+use tonic::Code;
 use tonic::Code::NotFound;
 
 use crate::{
@@ -142,7 +143,7 @@ pub enum CloudError {
     #[error("Connection failed. Error: {0:?}")]
     ConnectionToCloudServiceError(#[from] tonic::transport::Error),
 
-    #[error("Cloud service returned error: {}", .0.message())]
+    #[error("Cloud service returned error: {}", map_status_error_message(.0.clone()))]
     CloudServiceError(#[from] tonic::Status),
 
     #[error("GRPC request failed, error: {} (GRPC status {})", .0.message(), .0.code())]
@@ -289,4 +290,13 @@ pub enum CloudContextError {
 
     #[error("App id already exists. If you want to create a new app, please remove your cloud configuration")]
     AppIdAlreadyExists(String),
+}
+
+fn map_status_error_message(status: tonic::Status) -> String {
+    match status.code() {
+        Code::PermissionDenied => {
+            "Permission denied. Please check your credentials and try again.".to_string()
+        }
+        _ => status.message().to_string(),
+    }
 }
