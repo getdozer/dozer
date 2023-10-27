@@ -350,7 +350,7 @@ impl<T: DozerObjectStore + Send> TableWatcher for ParquetTable<T> {
         Ok(h)
     }
 
-    async fn ingest(
+    async fn watch(
         &self,
         table_index: usize,
         table: &TableInfo,

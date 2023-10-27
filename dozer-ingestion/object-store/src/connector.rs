@@ -19,7 +19,6 @@ use crate::{schema_mapper, ObjectStoreConnectorError};
 
 use super::connection::validator::validate_connection;
 use super::csv::csv_table::CsvTable;
-use super::delta::delta_table::DeltaTable;
 use super::parquet::parquet_table::ParquetTable;
 use super::table_watcher::TableWatcher;
 
@@ -154,14 +153,6 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                                     .unwrap(),
                             );
                         }
-                        TableConfig::Delta(config) => {
-                            let table = DeltaTable::new(config.clone(), self.config.clone());
-                            handles.push(
-                                table
-                                    .snapshot(table_index, &table_info, sender.clone())
-                                    .await?,
-                            );
-                        }
                         TableConfig::Parquet(config) => {
                             let table = ParquetTable::new(config.clone(), self.config.clone());
                             handles.push(
@@ -207,15 +198,6 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                                 let mut csv_table = CsvTable::new(csv_config, config);
                                 csv_table.update_state = state;
                                 csv_table.watch(table_index, &table_info, sender).await?;
-                                Ok::<_, ObjectStoreConnectorError>(())
-                            });
-                        }
-                        TableConfig::Delta(config) => {
-                            let table = DeltaTable::new(config.clone(), self.config.clone());
-                            joinset.spawn(async move {
-                                table
-                                    .watch(table_index, &table_info, sender.clone())
-                                    .await?;
                                 Ok::<_, ObjectStoreConnectorError>(())
                             });
                         }

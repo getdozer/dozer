@@ -43,10 +43,7 @@ pub trait TableWatcher {
         table_index: usize,
         table: &TableInfo,
         sender: Sender<Result<Option<IngestionMessage>, ObjectStoreConnectorError>>,
-    ) -> Result<(), ObjectStoreConnectorError> {
-        self.ingest(table_index, table, sender.clone()).await?;
-        Ok(())
-    }
+    ) -> Result<(), ObjectStoreConnectorError>;
 
     async fn snapshot(
         &self,
@@ -57,11 +54,4 @@ pub trait TableWatcher {
         JoinHandle<(usize, HashMap<object_store::path::Path, DateTime<Utc>>)>,
         ObjectStoreConnectorError,
     >;
-
-    async fn ingest(
-        &self,
-        table_index: usize,
-        table: &TableInfo,
-        sender: Sender<Result<Option<IngestionMessage>, ObjectStoreConnectorError>>,
-    ) -> Result<(), ObjectStoreConnectorError>;
 }

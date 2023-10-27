@@ -266,9 +266,6 @@ pub struct Table {
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
 pub enum TableConfig {
     CSV(CsvConfig),
-
-    Delta(DeltaConfig),
-
     Parquet(ParquetConfig),
 }
 
@@ -280,11 +277,6 @@ pub struct CsvConfig {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub marker_extension: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
-pub struct DeltaConfig {
-    pub path: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
