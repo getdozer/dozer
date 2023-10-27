@@ -10,7 +10,6 @@ use dozer_ingestion_connector::dozer_types::{
     grpc_types::{
         conversions::field_to_grpc,
         ingest::{ingest_service_client::IngestServiceClient, IngestRequest, OperationType},
-        types::Record,
     },
     log::info,
     models::{
@@ -55,14 +54,12 @@ async fn ingest(
         Operation::Delete { old } => (OperationType::Delete, Some(old), None),
     };
 
-    let old = old.map(|fields| Record {
-        version: 0,
-        values: fields.into_iter().map(field_to_grpc).collect::<Vec<_>>(),
-    });
-    let new = new.map(|fields| Record {
-        version: 0,
-        values: fields.into_iter().map(field_to_grpc).collect::<Vec<_>>(),
-    });
+    let old = old
+        .map(|fields| fields.into_iter().map(field_to_grpc).collect::<Vec<_>>())
+        .unwrap_or_default();
+    let new = new
+        .map(|fields| fields.into_iter().map(field_to_grpc).collect::<Vec<_>>())
+        .unwrap_or_default();
 
     let request = IngestRequest {
         seq_no: *seq_no,

@@ -53,7 +53,7 @@ message CountFilmsResponse {
 // Response for `query`.
 message QueryFilmsResponse {
   // The list of records.
-  repeated FilmWithId records = 1;
+  repeated Film records = 1;
 }
 
 // Response for `OnEvent`.
@@ -64,8 +64,6 @@ message FilmEvent {
   optional Film old = 2;
   // New record data.
   Film new = 3;
-  // New record id, only applicable for INSERT type.
-  optional uint64 new_id = 4;
 }
 
 /**
@@ -78,16 +76,10 @@ message FilmEvent {
   optional string description = 2;
   optional string rental_rate = 3;
   optional uint64 release_year = 4;
+  // The record id in cache.
+  uint64 __dozer_record_id = 5;
   // Records with same primary key will have increasing version.
-  uint32 __dozer_record_version = 5;
-}
-
-// A record with its id in cache.
-message FilmWithId {
-  // The record id.
-  uint64 id = 1;
-  // The record data.
-  Film record = 2;
+  uint32 __dozer_record_version = 6;
 }
 
 // Request for `token`.

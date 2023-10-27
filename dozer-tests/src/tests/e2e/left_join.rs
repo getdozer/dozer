@@ -11,12 +11,9 @@ async fn test_e2e_left_join() {
     ingest_client
         .ingest(IngestRequest {
             schema_name: "table1".to_string(),
-            new: Some(types::Record {
-                values: vec![types::Value {
-                    value: Some(types::value::Value::IntValue(1)),
-                }],
-                version: 1,
-            }),
+            new: vec![types::Value {
+                value: Some(types::value::Value::IntValue(1)),
+            }],
             seq_no: 1,
             ..Default::default()
         })
@@ -25,12 +22,9 @@ async fn test_e2e_left_join() {
     ingest_client
         .ingest(IngestRequest {
             schema_name: "table2".to_string(),
-            new: Some(types::Record {
-                values: vec![types::Value {
-                    value: Some(types::value::Value::IntValue(1)),
-                }],
-                version: 1,
-            }),
+            new: vec![types::Value {
+                value: Some(types::value::Value::IntValue(1)),
+            }],
             seq_no: 2,
             ..Default::default()
         })

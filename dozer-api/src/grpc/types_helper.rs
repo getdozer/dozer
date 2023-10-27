@@ -1,13 +1,12 @@
 use dozer_cache::cache::CacheRecord;
 use dozer_types::grpc_types::conversions::field_to_grpc;
-use dozer_types::grpc_types::types::{Operation, OperationType, Record, RecordWithId, Value};
+use dozer_types::grpc_types::types::{Operation, OperationType, Record, Value};
 
 pub fn map_insert_operation(endpoint_name: String, record: CacheRecord) -> Operation {
     Operation {
         typ: OperationType::Insert as i32,
         old: None,
-        new_id: Some(record.id),
-        new: Some(record_to_internal_record(record)),
+        new: Some(map_record(record)),
         endpoint_name,
     }
 }
@@ -16,8 +15,7 @@ pub fn map_delete_operation(endpoint_name: String, record: CacheRecord) -> Opera
     Operation {
         typ: OperationType::Delete as i32,
         old: None,
-        new: Some(record_to_internal_record(record)),
-        new_id: None,
+        new: Some(map_record(record)),
         endpoint_name,
     }
 }
@@ -29,14 +27,13 @@ pub fn map_update_operation(
 ) -> Operation {
     Operation {
         typ: OperationType::Update as i32,
-        old: Some(record_to_internal_record(old)),
-        new: Some(record_to_internal_record(new)),
-        new_id: None,
+        old: Some(map_record(old)),
+        new: Some(map_record(new)),
         endpoint_name,
     }
 }
 
-fn record_to_internal_record(record: CacheRecord) -> Record {
+pub fn map_record(record: CacheRecord) -> Record {
     let values: Vec<Value> = record
         .record
         .values
@@ -46,13 +43,7 @@ fn record_to_internal_record(record: CacheRecord) -> Record {
 
     Record {
         values,
-        version: record.version,
-    }
-}
-
-pub fn map_record(record: CacheRecord) -> RecordWithId {
-    RecordWithId {
         id: record.id,
-        record: Some(record_to_internal_record(record)),
+        version: record.version,
     }
 }

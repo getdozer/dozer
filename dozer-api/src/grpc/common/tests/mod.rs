@@ -7,9 +7,7 @@ use dozer_types::grpc_types::{
         common_grpc_service_server::CommonGrpcService, GetEndpointsRequest, GetFieldsRequest,
         OnEventRequest, QueryRequest,
     },
-    types::{
-        value, EventFilter, EventType, FieldDefinition, OperationType, RecordWithId, Type, Value,
-    },
+    types::{value, EventFilter, EventType, FieldDefinition, OperationType, Record, Type, Value},
 };
 use dozer_types::tonic::Request;
 
@@ -24,7 +22,7 @@ async fn count_and_query(
     service: &impl CommonGrpcService,
     endpoint: &str,
     query: Option<String>,
-) -> (u64, Vec<RecordWithId>) {
+) -> (u64, Vec<Record>) {
     let response = service
         .count(Request::new(QueryRequest {
             endpoint: endpoint.to_string(),

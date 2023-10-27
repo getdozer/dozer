@@ -94,17 +94,14 @@ fn ingest_grpc_default() {
     runtime
         .block_on(ingest_client.ingest(IngestRequest {
             schema_name: "users".to_string(),
-            new: Some(types::Record {
-                values: vec![
-                    types::Value {
-                        value: Some(types::value::Value::IntValue(1675)),
-                    },
-                    types::Value {
-                        value: Some(types::value::Value::StringValue("dario".to_string())),
-                    },
-                ],
-                version: 1,
-            }),
+            new: vec![
+                types::Value {
+                    value: Some(types::value::Value::IntValue(1675)),
+                },
+                types::Value {
+                    value: Some(types::value::Value::StringValue("dario".to_string())),
+                },
+            ],
             seq_no: 1,
             ..Default::default()
         }))

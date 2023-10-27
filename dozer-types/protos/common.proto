@@ -77,7 +77,7 @@ message QueryResponse {
   // The list of field definitions.
   repeated dozer.types.FieldDefinition fields = 1;
   // The list of record data.
-  repeated dozer.types.RecordWithId records = 2;
+  repeated dozer.types.Record records = 2;
 }
 
 // Request for `getEndpoints`.

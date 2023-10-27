@@ -62,9 +62,9 @@ pub async fn setup_pipeline() -> (Vec<Arc<CacheEndpoint>>, Receiver<Operation>) 
                         Value { value: None },
                         Value { value: None },
                     ],
+                    id: 1,
                     version: 1,
                 }),
-                new_id: Some(0),
                 endpoint_name: "films".to_string(),
             };
             if sender.send(op).is_err() {

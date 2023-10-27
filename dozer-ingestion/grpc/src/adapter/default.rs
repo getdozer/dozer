@@ -73,14 +73,14 @@ pub async fn handle_message(
 
     let op = match req.typ() {
         grpc_types::types::OperationType::Insert => Operation::Insert {
-            new: map_record(req.new.unwrap(), schema)?,
+            new: map_record(req.new, schema)?,
         },
         grpc_types::types::OperationType::Delete => Operation::Delete {
-            old: map_record(req.old.unwrap(), schema)?,
+            old: map_record(req.old, schema)?,
         },
         grpc_types::types::OperationType::Update => Operation::Update {
-            old: map_record(req.old.unwrap(), schema)?,
-            new: map_record(req.new.unwrap(), schema)?,
+            old: map_record(req.old, schema)?,
+            new: map_record(req.new, schema)?,
         },
     };
     // If receiving end is closed, then we can just ignore the message
@@ -94,9 +94,9 @@ pub async fn handle_message(
     Ok(())
 }
 
-fn map_record(rec: grpc_types::types::Record, schema: &Schema) -> Result<Record, Error> {
+fn map_record(rec: Vec<grpc_types::types::Value>, schema: &Schema) -> Result<Record, Error> {
     let mut values: Vec<Field> = vec![];
-    let values_count = rec.values.len();
+    let values_count = rec.len();
     let schema_fields_count = schema.fields.len();
     if values_count != schema_fields_count {
         return Err(Error::NumFieldsMismatch {
@@ -105,7 +105,7 @@ fn map_record(rec: grpc_types::types::Record, schema: &Schema) -> Result<Record,
         });
     }
 
-    for (idx, v) in rec.values.into_iter().enumerate() {
+    for (idx, v) in rec.into_iter().enumerate() {
         let typ = schema.fields[idx].typ;
 
         let val = v.value.map(|value| match (value, typ) {
