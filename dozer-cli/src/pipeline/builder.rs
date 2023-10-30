@@ -86,13 +86,14 @@ impl<'a> PipelineBuilder<'a> {
     // For not breaking current functionality, current format is to be still supported.
     pub async fn get_grouped_tables(
         &self,
+        runtime: &Arc<Runtime>,
         original_sources: &[String],
     ) -> Result<HashMap<Connection, Vec<Source>>, OrchestrationError> {
         let mut grouped_connections: HashMap<Connection, Vec<Source>> = HashMap::new();
 
         let mut connector_map = HashMap::new();
         for connection in self.connections {
-            let connector = get_connector(connection.clone())
+            let connector = get_connector(runtime.clone(), connection.clone())
                 .map_err(|e| ConnectorSourceFactoryError::Connector(e.into()))?;
 
             if let Some(info_table) = get_connector_info_table(connection) {
@@ -205,7 +206,7 @@ impl<'a> PipelineBuilder<'a> {
 
         debug!("Used Sources: {:?}", calculated_sources.original_sources);
         let grouped_connections = self
-            .get_grouped_tables(&calculated_sources.original_sources)
+            .get_grouped_tables(runtime, &calculated_sources.original_sources)
             .await?;
 
         let mut pipelines: Vec<AppPipeline> = vec![];

@@ -1,6 +1,6 @@
 use crate::models::ingestion_types::{
-    DeltaLakeConfig, EthConfig, GrpcConfig, KafkaConfig, LocalStorage, MongodbConfig, MySQLConfig,
-    NestedDozerConfig, S3Storage, SnowflakeConfig,
+    DeltaLakeConfig, EthConfig, GrpcConfig, JavaScriptConfig, KafkaConfig, LocalStorage,
+    MongodbConfig, MySQLConfig, NestedDozerConfig, S3Storage, SnowflakeConfig,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -236,6 +236,9 @@ pub enum ConnectionConfig {
 
     /// In yaml, present as tag" `!Dozer`
     Dozer(NestedDozerConfig),
+
+    /// In yaml, present as tag" `!JavaScript`
+    JavaScript(JavaScriptConfig),
 }
 
 impl ConnectionConfig {
@@ -252,6 +255,7 @@ impl ConnectionConfig {
             ConnectionConfig::MongoDB(_) => "mongodb".to_string(),
             ConnectionConfig::MySQL(_) => "mysql".to_string(),
             ConnectionConfig::Dozer(_) => "dozer".to_string(),
+            ConnectionConfig::JavaScript(_) => "javascript".to_string(),
         }
     }
 }

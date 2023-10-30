@@ -80,7 +80,7 @@ fn load_multi_sources() {
         .unwrap();
     let runtime = Arc::new(runtime);
     let grouped_connections = runtime
-        .block_on(builder.get_grouped_tables(&used_sources))
+        .block_on(builder.get_grouped_tables(&runtime, &used_sources))
         .unwrap();
 
     let source_builder = SourceBuilder::new(grouped_connections, Default::default());

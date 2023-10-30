@@ -531,3 +531,13 @@ impl SchemaExample for EthConfig {
         }
     }
 }
+
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, Default, JsonSchema)]
+pub struct JavaScriptConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bootstrap_path: Option<String>,
+}
+
+pub fn default_bootstrap_path() -> String {
+    String::from("src/js/bootstrap.js")
+}
