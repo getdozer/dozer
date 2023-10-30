@@ -7,11 +7,10 @@ use dozer_ingestion_connector::dozer_types::{
 mod adapters;
 mod connection;
 pub mod connector;
-mod csv;
 mod helper;
-mod parquet;
 mod schema_helper;
 pub mod schema_mapper;
+mod table;
 mod table_reader;
 pub(crate) mod table_watcher;
 #[cfg(test)]
