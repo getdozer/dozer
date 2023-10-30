@@ -8,7 +8,6 @@ mod adapters;
 mod connection;
 pub mod connector;
 mod csv;
-mod delta;
 mod helper;
 mod parquet;
 mod schema_helper;

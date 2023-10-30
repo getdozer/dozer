@@ -14,7 +14,6 @@ pub fn map_listing_options(
             let format = CsvFormat::default();
             Ok(ListingOptions::new(Arc::new(format)).with_file_extension(csv.extension.clone()))
         }
-        TableConfig::Delta(_) => todo!(),
         TableConfig::Parquet(parquet) => {
             let format = ParquetFormat::new();
             Ok(

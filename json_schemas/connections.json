@@ -485,17 +485,6 @@
             }
           }
         },
-        "DeltaConfig": {
-          "type": "object",
-          "required": [
-            "path"
-          ],
-          "properties": {
-            "path": {
-              "type": "string"
-            }
-          }
-        },
         "ParquetConfig": {
           "type": "object",
           "required": [
@@ -565,18 +554,6 @@
               "properties": {
                 "CSV": {
                   "$ref": "#/definitions/CsvConfig"
-                }
-              },
-              "additionalProperties": false
-            },
-            {
-              "type": "object",
-              "required": [
-                "Delta"
-              ],
-              "properties": {
-                "Delta": {
-                  "$ref": "#/definitions/DeltaConfig"
                 }
               },
               "additionalProperties": false
@@ -659,17 +636,6 @@
             }
           }
         },
-        "DeltaConfig": {
-          "type": "object",
-          "required": [
-            "path"
-          ],
-          "properties": {
-            "path": {
-              "type": "string"
-            }
-          }
-        },
         "LocalDetails": {
           "type": "object",
           "required": [
@@ -727,18 +693,6 @@
               "properties": {
                 "CSV": {
                   "$ref": "#/definitions/CsvConfig"
-                }
-              },
-              "additionalProperties": false
-            },
-            {
-              "type": "object",
-              "required": [
-                "Delta"
-              ],
-              "properties": {
-                "Delta": {
-                  "$ref": "#/definitions/DeltaConfig"
                 }
               },
               "additionalProperties": false

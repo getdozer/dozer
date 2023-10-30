@@ -74,7 +74,6 @@ impl DozerObjectStore for S3Storage {
 
         let folder = match &table.config {
             TableConfig::CSV(csv_config) => csv_config.path.clone(),
-            TableConfig::Delta(delta_config) => delta_config.path.clone(),
             TableConfig::Parquet(parquet_config) => parquet_config.path.clone(),
         };
 
@@ -109,7 +108,6 @@ impl DozerObjectStore for LocalStorage {
 
         let folder = match &table.config {
             TableConfig::CSV(csv_config) => csv_config.path.clone(),
-            TableConfig::Delta(delta_config) => delta_config.path.clone(),
             TableConfig::Parquet(parquet_config) => parquet_config.path.clone(),
         };
 

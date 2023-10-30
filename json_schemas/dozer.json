@@ -618,17 +618,6 @@
         }
       ]
     },
-    "DeltaConfig": {
-      "type": "object",
-      "required": [
-        "path"
-      ],
-      "properties": {
-        "path": {
-          "type": "string"
-        }
-      }
-    },
     "DeltaLakeConfig": {
       "examples": [
         {
@@ -1714,18 +1703,6 @@
           "properties": {
             "CSV": {
               "$ref": "#/definitions/CsvConfig"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "Delta"
-          ],
-          "properties": {
-            "Delta": {
-              "$ref": "#/definitions/DeltaConfig"
             }
           },
           "additionalProperties": false
