@@ -92,7 +92,7 @@ jobs:
           cache-key: '${{ env.CARGO_TARGET }}'
 
       - name: Build dozer
-        run: cross build --profile=release --target ${{ env.CARGO_TARGET }} --bin dozer
+        run: cross build --package=dozer-cli --profile=release --target ${{ env.CARGO_TARGET }} --bin dozer
 
       - name: Install cargo-deb
         uses: baptiste0928/cargo-install@v1
