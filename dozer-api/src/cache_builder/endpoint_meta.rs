@@ -48,4 +48,8 @@ impl EndpointMeta {
         labels.extend(extra_labels);
         (alias, labels)
     }
+
+    pub fn cache_name(&self) -> String {
+        format!("{}_{}", self.log_id, self.name)
+    }
 }

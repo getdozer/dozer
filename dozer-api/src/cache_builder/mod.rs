@@ -232,8 +232,9 @@ fn create_cache(
     write_options: CacheWriteOptions,
 ) -> Result<Box<dyn RwCache>, CacheError> {
     let (alias, cache_labels) = endpoint_meta.cache_alias_and_labels(labels);
+    let cache_name = endpoint_meta.cache_name();
     let cache = cache_manager.create_cache(
-        endpoint_meta.log_id.clone(),
+        cache_name.clone(),
         cache_labels,
         (
             endpoint_meta.schema.schema,
@@ -242,7 +243,7 @@ fn create_cache(
         &endpoint_meta.schema.connections,
         write_options,
     )?;
-    cache_manager.create_alias(&endpoint_meta.log_id, &alias)?;
+    cache_manager.create_alias(&cache_name, &alias)?;
     Ok(cache)
 }
 

@@ -60,7 +60,7 @@ impl CacheBuilderImpl {
         progress_bar: ProgressBar,
     ) -> Result<(CacheBuilderImpl, u64), CacheError> {
         // Compare cache and log id.
-        let this = if serving.load().cache_name() != endpoint_meta.log_id {
+        let this = if serving.load().cache_name() != endpoint_meta.cache_name() {
             let building = super::create_cache(
                 &*cache_manager,
                 endpoint_meta.clone(),
@@ -358,14 +358,20 @@ mod tests {
     fn test_builder_impl_new() {
         let (builder, start) = create_build_impl(INITIAL_CACHE_NAME.to_string());
         assert_eq!(start, INITIAL_LOG_POSITION + 1);
-        assert_eq!(builder.building.name(), INITIAL_CACHE_NAME);
+        assert_eq!(
+            builder.building.name(),
+            test_endpoint_meta(INITIAL_CACHE_NAME.to_string()).cache_name()
+        );
         assert_eq!(builder.next_log_position, INITIAL_LOG_POSITION + 1);
         assert!(builder.catch_up_info.is_none());
 
         let new_log_id = "new_log_id";
         let (builder, start) = create_build_impl(new_log_id.to_string());
         assert_eq!(start, 0);
-        assert_eq!(builder.building.name(), new_log_id);
+        assert_eq!(
+            builder.building.name(),
+            test_endpoint_meta(new_log_id.to_string()).cache_name()
+        );
         assert_eq!(builder.next_log_position, 0);
         assert_eq!(
             builder.catch_up_info,
@@ -395,7 +401,10 @@ mod tests {
                 )
                 .unwrap();
             assert!(builder.catch_up_info.is_some());
-            assert_eq!(builder.serving.load().cache_name(), INITIAL_CACHE_NAME);
+            assert_eq!(
+                builder.serving.load().cache_name(),
+                test_endpoint_meta(INITIAL_CACHE_NAME.to_string()).cache_name()
+            );
         }
         builder
             .process_op(
@@ -410,6 +419,9 @@ mod tests {
             )
             .unwrap();
         assert!(builder.catch_up_info.is_none());
-        assert_eq!(builder.serving.load().cache_name(), new_log_id);
+        assert_eq!(
+            builder.serving.load().cache_name(),
+            test_endpoint_meta(new_log_id.to_string()).cache_name()
+        );
     }
 }
