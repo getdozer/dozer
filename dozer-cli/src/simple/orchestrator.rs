@@ -22,8 +22,11 @@ use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::DagSchemas;
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::constants::LOCK_FILE;
-use dozer_types::models::api_config::{default_app_grpc_host, default_app_grpc_port};
+use dozer_types::models::api_config::{
+    default_app_grpc_host, default_app_grpc_port, AppGrpcOptions,
+};
 use dozer_types::models::flags::{default_dynamic, default_push_events};
+use dozer_types::models::lambda_config::LambdaConfig;
 use tokio::select;
 
 use crate::console_helper::get_colored_text;
@@ -94,17 +97,7 @@ impl SimpleOrchestrator {
                     (None, None)
                 };
 
-            let internal_grpc_config = &self.config.api.app_grpc;
-            let app_server_url = format!(
-                "http://{}:{}",
-                internal_grpc_config
-                    .host
-                    .clone()
-                    .unwrap_or_else(default_app_grpc_host),
-                internal_grpc_config
-                    .port
-                    .unwrap_or_else(default_app_grpc_port)
-            );
+            let app_server_url = app_url(&self.config.api.app_grpc);
             let cache_manager = Arc::new(
                 LmdbRwCacheManager::new(get_cache_manager_options(&self.config))
                     .map_err(OrchestrationError::CacheInitFailed)?,
@@ -281,6 +274,38 @@ impl SimpleOrchestrator {
             }
             Ok(())
         })
+    }
+
+    pub fn run_lambda(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError> {
+        let runtime = self.runtime.clone();
+        let result = self.run_lambda_impl();
+        let shutdown = shutdown.create_shutdown_future();
+        runtime.block_on(async move {
+            select! {
+                () = shutdown => Ok(()),
+                result = result => result,
+            }
+        })
+    }
+
+    async fn run_lambda_impl(&mut self) -> Result<(), OrchestrationError> {
+        let registration_scripts = self
+            .config
+            .lambdas
+            .iter()
+            .map(|lambda| match lambda {
+                LambdaConfig::JavaScript { path } => path.clone(),
+            })
+            .collect();
+        let runtime = dozer_lambda::JsRuntime::new(
+            self.runtime.clone(),
+            app_url(&self.config.api.app_grpc),
+            registration_scripts,
+            Default::default(),
+        )
+        .await?;
+        runtime.run().await;
+        Ok(())
     }
 
     #[allow(clippy::type_complexity)]
@@ -478,4 +503,12 @@ pub fn validate_sql(sql: String) -> Result<(), PipelineError> {
 
 pub fn lockfile_path(base_directory: Utf8PathBuf) -> Utf8PathBuf {
     base_directory.join(LOCK_FILE)
+}
+
+fn app_url(config: &AppGrpcOptions) -> String {
+    format!(
+        "http://{}:{}",
+        config.host.clone().unwrap_or_else(default_app_grpc_host),
+        config.port.unwrap_or_else(default_app_grpc_port)
+    )
 }

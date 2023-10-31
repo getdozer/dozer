@@ -2,8 +2,8 @@ use std::path::Path;
 
 use super::{
     api_config::ApiConfig, api_endpoint::ApiEndpoint, app_config::AppConfig, cloud::Cloud,
-    connection::Connection, equal_default, flags::Flags, source::Source,
-    telemetry::TelemetryConfig,
+    connection::Connection, equal_default, flags::Flags, lambda_config::LambdaConfig,
+    source::Source, telemetry::TelemetryConfig,
 };
 use crate::constants::DEFAULT_HOME_DIR;
 use crate::models::udf_config::UdfConfig;
@@ -71,6 +71,10 @@ pub struct Config {
     /// UDF specific configuration (eg. !Onnx)
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub udfs: Vec<UdfConfig>,
+
+    /// Lambda functions.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub lambdas: Vec<LambdaConfig>,
 }
 
 pub fn default_home_dir() -> String {

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use dozer_log::{
-    reader::{LogReader as RustLogReader, LogReaderBuilder, LogReaderOptions},
+    reader::{LogReader as RustLogReader, LogReaderBuilder},
     tokio::{runtime::Runtime as TokioRuntime, sync::Mutex},
 };
 use neon::prelude::*;
@@ -64,7 +64,7 @@ fn runtime_create_reader(mut cx: FunctionContext) -> JsResult<JsPromise> {
     runtime.runtime.spawn(async move {
         // Create the builder.
         let reader_builder =
-            LogReaderBuilder::new(server_addr, LogReaderOptions::new(endpoint_name)).await;
+            LogReaderBuilder::new(server_addr, endpoint_name, Default::default()).await;
         match reader_builder {
             Ok(reader) => {
                 // Create the reader and resolve the promise.

@@ -172,13 +172,15 @@ fn run() -> Result<(), OrchestrationError> {
         Commands::Run(run) => match run.command {
             Some(RunCommands::Api) => {
                 render_logo();
-
                 dozer.run_api(shutdown_receiver)
             }
             Some(RunCommands::App) => {
                 render_logo();
-
                 dozer.run_apps(shutdown_receiver, None)
+            }
+            Some(RunCommands::Lambda) => {
+                render_logo();
+                dozer.run_lambda(shutdown_receiver)
             }
             None => {
                 render_logo();

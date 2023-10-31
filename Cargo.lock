@@ -3638,6 +3638,7 @@ dependencies = [
  "dozer-cache",
  "dozer-core",
  "dozer-ingestion",
+ "dozer-lambda",
  "dozer-recordstore",
  "dozer-sql",
  "dozer-storage",
@@ -3849,6 +3850,16 @@ dependencies = [
  "memchr",
  "odbc",
  "rand 0.8.5",
+]
+
+[[package]]
+name = "dozer-lambda"
+version = "0.1.0"
+dependencies = [
+ "deno_runtime",
+ "dozer-log",
+ "dozer-types",
+ "env_logger",
 ]
 
 [[package]]

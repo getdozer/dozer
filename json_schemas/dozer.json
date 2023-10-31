@@ -81,6 +81,13 @@
         "null"
       ]
     },
+    "lambdas": {
+      "description": "Lambda functions.",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/LambdaConfig"
+      }
+    },
     "sources": {
       "description": "sources to ingest data related to particular connection",
       "type": "array",
@@ -1088,6 +1095,31 @@
           ]
         }
       }
+    },
+    "LambdaConfig": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "JavaScript"
+          ],
+          "properties": {
+            "JavaScript": {
+              "type": "object",
+              "required": [
+                "path"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
     },
     "LocalDetails": {
       "type": "object",

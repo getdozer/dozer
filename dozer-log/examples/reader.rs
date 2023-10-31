@@ -1,5 +1,5 @@
 use clap::Parser;
-use dozer_log::reader::{LogReaderBuilder, LogReaderOptions};
+use dozer_log::reader::LogReaderBuilder;
 
 #[derive(Parser)]
 struct Cli {
@@ -11,11 +11,10 @@ struct Cli {
 async fn main() {
     let cli = Cli::parse();
 
-    let mut log_reader =
-        LogReaderBuilder::new(cli.server_addr, LogReaderOptions::new(cli.endpoint))
-            .await
-            .unwrap()
-            .build(0);
+    let mut log_reader = LogReaderBuilder::new(cli.server_addr, cli.endpoint, Default::default())
+        .await
+        .unwrap()
+        .build(0);
 
     let mut counter = 0;
     loop {

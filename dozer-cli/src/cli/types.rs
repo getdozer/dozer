@@ -116,6 +116,11 @@ pub enum RunCommands {
             API endpoints through REST and GRPC (depends on configuration)"
     )]
     Api,
+    #[command(
+        about = "Run lambda functions",
+        long_about = "Run lambda functions. Lambda functions are JavaScript or Python functions that are called when a new operation is output."
+    )]
+    Lambda,
 }
 
 #[derive(Debug, Args)]
