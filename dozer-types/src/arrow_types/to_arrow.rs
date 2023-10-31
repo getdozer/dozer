@@ -84,8 +84,8 @@ pub fn map_record_to_arrow(
                 None as Option<i256>,
             ])) as ArrayRef,
             (Field::Timestamp(v), FieldType::Timestamp) => {
-                Arc::new(arrow_array::TimestampNanosecondArray::from_iter_values([
-                    v.timestamp_nanos()
+                Arc::new(arrow_array::TimestampNanosecondArray::from(vec![
+                    v.timestamp_nanos_opt()
                 ])) as ArrayRef
             }
             (Field::Null, FieldType::Timestamp) => {

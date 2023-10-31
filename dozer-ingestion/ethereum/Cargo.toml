@@ -7,6 +7,6 @@ edition = "2021"
 
 [dependencies]
 dozer-ingestion-connector = { path = "../connector" }
-web3 = "0.18.0"
+web3 = "0.19.0"
 hex-literal = "0.4.1"
 dozer-tracing = { path = "../../dozer-tracing" }

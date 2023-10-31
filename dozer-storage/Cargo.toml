@@ -13,7 +13,7 @@ lmdb-rkv = "0.14.0"
 lmdb-rkv-sys = "0.11.2"
 page_size = "0.6.0"
 pin-project = "1.1.0"
-rocksdb = "0.21.0"
+rocksdb = { version = "0.21.0", default-features = false, features = ["snappy"] }
 tokio = "1.28.2"
 
 [dev-dependencies]

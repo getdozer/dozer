@@ -1,16 +1,13 @@
 use std::path::Path;
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
-use deltalake::{
-    datafusion::{datasource::listing::ListingTableUrl, prelude::SessionContext},
-    Path as DeltaPath,
-};
+use deltalake::datafusion::{datasource::listing::ListingTableUrl, prelude::SessionContext};
 use dozer_ingestion_connector::dozer_types::log::info;
 use dozer_ingestion_connector::dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_ingestion_connector::futures::StreamExt;
 use dozer_ingestion_connector::tokio::sync::mpsc::Sender;
 use dozer_ingestion_connector::{async_trait, tokio, TableInfo};
-use object_store::ObjectStore;
+use object_store::{path::Path as ObjectStorePath, ObjectStore};
 
 use crate::helper::map_listing_options;
 use crate::{table_reader, ObjectStoreConnectorError, ObjectStoreObjectError};
@@ -84,7 +81,7 @@ impl<T: DozerObjectStore> Watcher<T> for TableReader<T> {
             loop {
                 // List objects in the S3 bucket with the specified prefix
                 let mut stream = store
-                    .list(Some(&DeltaPath::from(source_folder.to_owned())))
+                    .list(Some(&ObjectStorePath::from(source_folder.to_owned())))
                     .await
                     .unwrap();
 
