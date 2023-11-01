@@ -74,7 +74,7 @@ impl ConnectorSourceFactory {
     ) -> Result<Self, ConnectorSourceFactoryError> {
         let connection_name = connection.name.clone();
 
-        let connector = get_connector(connection)
+        let connector = get_connector(runtime.clone(), connection)
             .map_err(|e| ConnectorSourceFactoryError::Connector(e.into()))?;
 
         // Fill column names if not provided.

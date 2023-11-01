@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 #[cfg(feature = "ethereum")]
 use dozer_ingestion_connector::dozer_types::models::ingestion_types::EthProviderConfig;
 use dozer_ingestion_connector::dozer_types::{
@@ -13,6 +15,7 @@ use dozer_ingestion_dozer::NestedDozerConnector;
 #[cfg(feature = "ethereum")]
 use dozer_ingestion_ethereum::{EthLogConnector, EthTraceConnector};
 use dozer_ingestion_grpc::{connector::GrpcConnector, ArrowAdapter, DefaultAdapter};
+use dozer_ingestion_javascript::JavaScriptConnector;
 #[cfg(feature = "kafka")]
 use dozer_ingestion_kafka::connector::KafkaConnector;
 #[cfg(feature = "mongodb")]
@@ -26,11 +29,15 @@ use dozer_ingestion_postgres::{
 #[cfg(feature = "snowflake")]
 use dozer_ingestion_snowflake::connector::SnowflakeConnector;
 use errors::ConnectorError;
+use tokio::runtime::Runtime;
 
 pub mod errors;
 pub use dozer_ingestion_connector::*;
 
-pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, ConnectorError> {
+pub fn get_connector(
+    runtime: Arc<Runtime>,
+    connection: Connection,
+) -> Result<Box<dyn Connector>, ConnectorError> {
     let config = connection.config;
     match config.clone() {
         ConnectionConfig::Postgres(c) => {
@@ -121,6 +128,10 @@ pub fn get_connector(connection: Connection) -> Result<Box<dyn Connector>, Conne
         ConnectionConfig::Dozer(dozer_config) => {
             Ok(Box::new(NestedDozerConnector::new(dozer_config)))
         }
+        ConnectionConfig::JavaScript(javascript_config) => Ok(Box::new(JavaScriptConnector::new(
+            runtime,
+            javascript_config,
+        ))),
     }
 }
 

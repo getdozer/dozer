@@ -572,6 +572,19 @@
             }
           },
           "additionalProperties": false
+        },
+        {
+          "description": "In yaml, present as tag\" `!JavaScript`",
+          "type": "object",
+          "required": [
+            "JavaScript"
+          ],
+          "properties": {
+            "JavaScript": {
+              "$ref": "#/definitions/JavaScriptConfig"
+            }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -623,8 +636,8 @@
         {
           "tables": [
             {
-              "name": "",
-              "path": ""
+              "path": "",
+              "name": ""
             }
           ]
         }
@@ -715,11 +728,11 @@
         {
           "provider": {
             "Log": {
+              "wss_url": "",
               "filter": {
                 "from_block": 0,
                 "to_block": null
-              },
-              "wss_url": ""
+              }
             }
           }
         }
@@ -976,12 +989,12 @@
     "GrpcConfig": {
       "examples": [
         {
-          "adapter": "arrow",
           "host": "localhost",
           "port": 50051,
           "schemas": {
             "Path": "schema.json"
-          }
+          },
+          "adapter": "arrow"
         }
       ],
       "type": "object",
@@ -1042,6 +1055,17 @@
         }
       ]
     },
+    "JavaScriptConfig": {
+      "type": "object",
+      "properties": {
+        "bootstrap_path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
     "KafkaConfig": {
       "examples": [
         {
@@ -1086,8 +1110,8 @@
             {
               "config": {
                 "CSV": {
-                  "extension": ".csv",
-                  "path": "path/to/table"
+                  "path": "path/to/table",
+                  "extension": ".csv"
                 }
               },
               "name": "table_name"
@@ -1161,8 +1185,8 @@
     "MySQLConfig": {
       "examples": [
         {
-          "server_id": 1,
-          "url": "mysql://root:1234@localhost:3306/db_name"
+          "url": "mysql://root:1234@localhost:3306/db_name",
+          "server_id": 1
         }
       ],
       "type": "object",
@@ -1287,12 +1311,12 @@
       "description": "Configuration for a Postgres connection",
       "examples": [
         {
-          "database": "postgres",
-          "host": "localhost",
+          "user": "postgres",
           "password": "postgres",
+          "host": "localhost",
           "port": 5432,
-          "schema": "public",
-          "user": "postgres"
+          "database": "postgres",
+          "schema": "public"
         }
       ],
       "type": "object",
@@ -1460,16 +1484,16 @@
         {
           "details": {
             "access_key_id": "",
-            "bucket_name": "",
+            "secret_access_key": "",
             "region": "",
-            "secret_access_key": ""
+            "bucket_name": ""
           },
           "tables": [
             {
               "config": {
                 "CSV": {
-                  "extension": ".csv",
-                  "path": "path/to/file"
+                  "path": "path/to/file",
+                  "extension": ".csv"
                 }
               },
               "name": "table_name"
@@ -1559,15 +1583,15 @@
     "SnowflakeConfig": {
       "examples": [
         {
-          "database": "database",
-          "driver": "SnowflakeDSIIDriver",
-          "password": "password",
-          "port": "443",
-          "role": "role",
-          "schema": "schema",
           "server": "<account_name>.<region_id>.snowflakecomputing.com",
+          "port": "443",
           "user": "bob",
-          "warehouse": "warehouse"
+          "password": "password",
+          "database": "database",
+          "schema": "schema",
+          "warehouse": "warehouse",
+          "driver": "SnowflakeDSIIDriver",
+          "role": "role"
         }
       ],
       "type": "object",

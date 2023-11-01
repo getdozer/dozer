@@ -12,6 +12,7 @@ dozer-ingestion-deltalake = { path = "./deltalake" }
 dozer-ingestion-dozer = { path = "./dozer" }
 dozer-ingestion-ethereum = { path = "./ethereum", optional = true }
 dozer-ingestion-grpc = { path = "./grpc" }
+dozer-ingestion-javascript = { path = "./javascript" }
 dozer-ingestion-kafka = { path = "./kafka", optional = true }
 dozer-ingestion-mongodb = { path = "./mongodb", optional = true }
 dozer-ingestion-mysql = { path = "./mysql" }
