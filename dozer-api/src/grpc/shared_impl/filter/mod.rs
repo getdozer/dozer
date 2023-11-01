@@ -5,7 +5,7 @@ use dozer_types::{
     types::{Field, Schema},
 };
 
-use dozer_types::grpc_types::types::{value, Operation, OperationType, Record, Value};
+use dozer_services::types::{value, Operation, OperationType, Record, Value};
 
 pub fn op_satisfies_filter(
     op: &Operation,

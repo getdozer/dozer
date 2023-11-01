@@ -6,10 +6,6 @@ use dozer_ingestion_connector::dozer_types::{
     arrow::{datatypes as arrow_types, record_batch::RecordBatch},
     arrow_types::from_arrow::serialize_record_batch,
     arrow_types::to_arrow::DOZER_SCHEMA_KEY,
-    grpc_types::{
-        ingest::{ingest_service_client::IngestServiceClient, IngestArrowRequest, IngestRequest},
-        types,
-    },
     json_types::JsonValue as dozer_JsonValue,
     models::ingestion_types::IngestionMessage,
     models::ingestion_types::{GrpcConfig, GrpcConfigSchemas},
@@ -17,13 +13,17 @@ use dozer_ingestion_connector::dozer_types::{
     serde_json,
     serde_json::json,
     serde_json::Value,
-    tonic::transport::Channel,
     types::Operation,
     types::{FieldDefinition, FieldType, Schema as DozerSchema, SourceDefinition},
 };
 use dozer_ingestion_connector::test_util::{create_test_runtime, spawn_connector_all_tables};
 use dozer_ingestion_connector::tokio::runtime::Runtime;
 use dozer_ingestion_connector::{dozer_types, tokio, IngestionIterator};
+use dozer_services::tonic::transport::Channel;
+use dozer_services::{
+    ingest::{ingest_service_client::IngestServiceClient, IngestArrowRequest, IngestRequest},
+    types,
+};
 
 use crate::{ArrowAdapter, DefaultAdapter};
 

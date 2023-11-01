@@ -5,11 +5,12 @@ use actix_web::http::header::ContentType;
 use actix_web::http::StatusCode;
 use actix_web::HttpResponse;
 use dozer_cache::dozer_log::errors::ReaderBuilderError;
+use dozer_services::tonic;
 use dozer_tracing::Labels;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::{CannotConvertF64ToJson, TypeError};
 use dozer_types::thiserror::Error;
-use dozer_types::{serde_json, thiserror, tonic};
+use dozer_types::{serde_json, thiserror};
 
 use dozer_cache::errors::CacheError;
 use handlebars::{RenderError, TemplateError};
@@ -79,9 +80,9 @@ pub enum GrpcError {
     Listen(SocketAddr, #[source] BoxedError),
 }
 
-impl From<ApiError> for dozer_types::tonic::Status {
+impl From<ApiError> for tonic::Status {
     fn from(input: ApiError) -> Self {
-        dozer_types::tonic::Status::new(dozer_types::tonic::Code::Unknown, input.to_string())
+        tonic::Status::new(tonic::Code::Unknown, input.to_string())
     }
 }
 

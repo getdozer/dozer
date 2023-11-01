@@ -1,9 +1,9 @@
-use dozer_types::tonic::Request;
 use std::collections::HashMap;
 
-use dozer_types::grpc_types::health::health_check_response::ServingStatus;
-use dozer_types::grpc_types::health::health_grpc_service_server::HealthGrpcService;
-use dozer_types::grpc_types::health::HealthCheckRequest;
+use dozer_services::health::health_check_response::ServingStatus;
+use dozer_services::health::health_grpc_service_server::HealthGrpcService;
+use dozer_services::health::HealthCheckRequest;
+use dozer_services::tonic::Request;
 
 use super::HealthService;
 
@@ -31,6 +31,6 @@ async fn test_grpc_health_check() {
         .await;
     assert_eq!(
         response.unwrap_err().code(),
-        dozer_types::tonic::Code::NotFound
+        dozer_services::tonic::Code::NotFound
     );
 }

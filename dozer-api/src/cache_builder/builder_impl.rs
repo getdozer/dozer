@@ -7,9 +7,9 @@ use dozer_cache::{
     errors::CacheError,
     CacheReader,
 };
+use dozer_services::types::Operation as GrpcOperation;
 use dozer_tracing::Labels;
 use dozer_types::{
-    grpc_types::types::Operation as GrpcOperation,
     indicatif::ProgressBar,
     log::error,
     types::{Field, Operation, Record, Schema},

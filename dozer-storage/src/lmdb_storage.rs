@@ -43,7 +43,7 @@ impl Default for LmdbEnvironmentOptions {
             max_dbs: DEFAULT_MAX_DBS,
             max_readers: DEFAULT_MAX_READERS,
             max_map_sz: DEFAULT_MAX_MAP_SZ,
-            flags: EnvironmentFlags::empty(),
+            flags: EnvironmentFlags::NO_TLS,
         }
     }
 }

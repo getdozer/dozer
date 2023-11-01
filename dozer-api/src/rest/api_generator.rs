@@ -15,7 +15,7 @@ use crate::api_helper::{get_record, get_records, get_records_count};
 use crate::generator::oapi::generator::OpenApiGenerator;
 use crate::CacheEndpoint;
 use crate::{auth::Access, errors::ApiError};
-use dozer_types::grpc_types::health::health_check_response::ServingStatus;
+use dozer_services::health::health_check_response::ServingStatus;
 use dozer_types::json_types::field_to_json_value;
 use dozer_types::serde_json::{json, Value};
 

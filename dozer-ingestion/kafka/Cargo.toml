@@ -8,5 +8,5 @@ edition = "2021"
 [dependencies]
 dozer-ingestion-connector = { path = "../connector" }
 rdkafka = "0.34.0"
-schema_registry_converter = { version = "3.1.0", features = ["avro"] }
+schema_registry_converter = { version = "4.0", features = ["avro"] }
 base64 = "0.21.0"

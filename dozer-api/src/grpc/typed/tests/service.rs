@@ -4,7 +4,7 @@ use crate::{
     CacheEndpoint,
 };
 use dozer_cache::cache::expression::{FilterExpression, QueryExpression};
-use dozer_types::grpc_types::{
+use dozer_services::{
     generated::films::{
         films_client::FilmsClient, CountFilmsResponse, FilmEvent, QueryFilmsRequest,
         QueryFilmsResponse,
@@ -16,7 +16,7 @@ use futures_util::FutureExt;
 use std::{env, str::FromStr, sync::Arc, time::Duration};
 
 use crate::test_utils;
-use dozer_types::tonic::{
+use dozer_services::tonic::{
     self,
     metadata::MetadataValue,
     transport::{Endpoint, Server},

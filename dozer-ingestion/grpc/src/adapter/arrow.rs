@@ -7,7 +7,6 @@ use dozer_ingestion_connector::{
         arrow::{self, ipc::reader::StreamReader},
         arrow_types::{self, from_arrow::map_record_batch_to_dozer_records},
         bytes::{Buf, Bytes},
-        grpc_types::ingest::IngestArrowRequest,
         models::ingestion_types::IngestionMessage,
         serde::{Deserialize, Serialize},
         serde_json,
@@ -15,6 +14,8 @@ use dozer_ingestion_connector::{
     },
     CdcType, Ingestor, SourceSchema,
 };
+
+use dozer_services::ingest::IngestArrowRequest;
 
 use crate::Error;
 

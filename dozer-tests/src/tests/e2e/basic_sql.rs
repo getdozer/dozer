@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use dozer_types::grpc_types::common::QueryRequest;
+use dozer_services::common::QueryRequest;
 
 use super::DozerE2eTest;
 

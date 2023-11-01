@@ -272,7 +272,7 @@ fn is_value_len_fixed(flags: DatabaseFlags) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use dozer_types::tonic::async_trait;
+    use async_trait::async_trait;
 
     use super::*;
 

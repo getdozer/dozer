@@ -15,11 +15,15 @@ members = [
   "dozer-log-python",
   "dozer-utils",
   "dozer-recordstore",
+  "dozer-services",
 ]
 resolver = "2"
 
+[workspace.dependencies]
+async-trait = "0.1.74"
+
 [patch.crates-io]
-postgres = { git = "https://github.com/getdozer/rust-postgres" }
-postgres-protocol = { git = "https://github.com/getdozer/rust-postgres" }
-postgres-types = { git = "https://github.com/getdozer/rust-postgres" }
-tokio-postgres = { git = "https://github.com/getdozer/rust-postgres" }
+postgres = { git = "https://github.com/MaterializeInc/rust-postgres" }
+postgres-protocol = { git = "https://github.com/MaterializeInc/rust-postgres" }
+postgres-types = { git = "https://github.com/MaterializeInc/rust-postgres" }
+tokio-postgres = { git = "https://github.com/MaterializeInc/rust-postgres" }

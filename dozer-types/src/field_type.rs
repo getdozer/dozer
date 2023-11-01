@@ -90,7 +90,7 @@ impl From<Decimal> for Field {
 
 impl From<NaiveDateTime> for Field {
     fn from(value: NaiveDateTime) -> Self {
-        Field::Timestamp(DateTime::from_utc(value, Utc.fix()))
+        Field::Timestamp(DateTime::from_naive_utc_and_offset(value, Utc.fix()))
     }
 }
 

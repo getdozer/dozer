@@ -1,8 +1,9 @@
 use arc_swap::ArcSwap;
 use cache_builder::CacheBuilder;
 use dozer_cache::{cache::RwCacheManager, errors::CacheError, CacheReader};
+use dozer_services::types::Operation;
 use dozer_tracing::{Labels, LabelsAndProgress};
-use dozer_types::{grpc_types::types::Operation, models::api_endpoint::ApiEndpoint};
+use dozer_types::models::api_endpoint::ApiEndpoint;
 use futures_util::Future;
 use generator::protoc::generate_all;
 use std::{ops::Deref, sync::Arc};
@@ -135,7 +136,6 @@ pub use api_helper::API_LATENCY_HISTOGRAM_NAME;
 pub use api_helper::API_REQUEST_COUNTER_NAME;
 pub use async_trait;
 pub mod shutdown;
-pub use dozer_types::tonic;
 use errors::ApiInitError;
 pub use openapiv3;
 pub use tokio;

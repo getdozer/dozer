@@ -17,10 +17,11 @@ use std::task::{Context, Poll};
 
 use bytes::Bytes;
 pub use client_server::ApiServer;
-use dozer_types::errors::internal::BoxedError;
-use dozer_types::tonic::transport::server::{
-    Connected, Router, Routes, TcpConnectInfo, TcpIncoming,
+use dozer_services::tonic::{
+    self,
+    transport::server::{Connected, Router, Routes, TcpConnectInfo, TcpIncoming},
 };
+use dozer_types::errors::internal::BoxedError;
 use futures_util::Future;
 use futures_util::StreamExt;
 pub use grpc_web_middleware::enable_grpc_web;
@@ -132,7 +133,7 @@ async fn run_server<L, ResBody>(
     server: Router<L>,
     incoming: TcpIncoming,
     shutdown: ShutdownReceiver,
-) -> Result<(), dozer_types::tonic::transport::Error>
+) -> Result<(), tonic::transport::Error>
 where
     L: Layer<Routes>,
     L::Service: Service<Request<Body>, Response = Response<ResBody>> + Clone + Send + 'static,

@@ -4,17 +4,16 @@ use crate::schemas::EndpointSchema;
 use crate::storage::{LocalStorage, S3Storage, Storage};
 
 use super::errors::ReaderError;
-use dozer_types::grpc_types::internal::internal_pipeline_service_client::InternalPipelineServiceClient;
-use dozer_types::grpc_types::internal::{
-    storage_response, BuildRequest, LogRequest, LogResponse, StorageRequest,
+use dozer_services::internal::{
+    internal_pipeline_service_client::InternalPipelineServiceClient, storage_response,
+    BuildRequest, LogRequest, LogResponse, StorageRequest,
 };
+use dozer_services::tonic::{transport::Channel, Streaming};
 use dozer_types::log::debug;
 use dozer_types::models::api_endpoint::{
     default_log_reader_batch_size, default_log_reader_buffer_size,
     default_log_reader_timeout_in_millis,
 };
-use dozer_types::tonic::transport::Channel;
-use dozer_types::tonic::Streaming;
 use dozer_types::{bincode, serde_json};
 use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender};
@@ -205,7 +204,7 @@ impl LogClient {
 
 async fn create_get_log_stream(
     client: &mut InternalPipelineServiceClient<Channel>,
-) -> Result<(Sender<LogRequest>, Streaming<LogResponse>), dozer_types::tonic::Status> {
+) -> Result<(Sender<LogRequest>, Streaming<LogResponse>), dozer_services::tonic::Status> {
     let (request_sender, request_receiver) = tokio::sync::mpsc::channel::<LogRequest>(1);
     let request_stream = ReceiverStream::new(request_receiver);
     let response_stream = client.get_log(request_stream).await?.into_inner();

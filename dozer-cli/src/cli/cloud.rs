@@ -1,7 +1,7 @@
 use clap::{Args, Subcommand};
 
 use clap::ArgAction;
-use dozer_types::grpc_types::cloud::Secret;
+use dozer_services::cloud::Secret;
 use std::error::Error;
 
 #[derive(Debug, Args, Clone)]

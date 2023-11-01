@@ -230,7 +230,10 @@ fn get_record_from_json(data: String, schema: &Schema) -> Record {
                 )
                 .unwrap();
 
-                Field::Timestamp(DateTime::from_utc(naive_date_time, Utc.fix()))
+                Field::Timestamp(DateTime::from_naive_utc_and_offset(
+                    naive_date_time,
+                    Utc.fix(),
+                ))
             }
             _ => panic!("Unsupported field type: {field_type:?}"),
         };

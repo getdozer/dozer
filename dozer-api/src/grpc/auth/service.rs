@@ -1,11 +1,12 @@
 use crate::auth::Access;
 
-use dozer_types::tonic::{self, Request, Response, Status};
+use async_trait::async_trait;
 
 use crate::auth::api::auth_grpc;
-use dozer_types::grpc_types::auth::auth_grpc_service_server::AuthGrpcService;
-use dozer_types::grpc_types::auth::GetAuthTokenRequest;
-use dozer_types::grpc_types::auth::GetAuthTokenResponse;
+use dozer_services::auth::auth_grpc_service_server::AuthGrpcService;
+use dozer_services::auth::GetAuthTokenRequest;
+use dozer_services::auth::GetAuthTokenResponse;
+use dozer_services::tonic::{Request, Response, Status};
 use dozer_types::models::api_security::ApiSecurity;
 
 // #[derive(Clone)]
@@ -20,7 +21,7 @@ impl AuthService {
     }
 }
 
-#[tonic::async_trait]
+#[async_trait]
 impl AuthGrpcService for AuthService {
     async fn get_auth_token(
         &self,

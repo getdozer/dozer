@@ -6,17 +6,16 @@ use crate::auth::Access;
 use crate::grpc::shared_impl::{self, EndpointFilter};
 use crate::grpc::types_helper::map_record;
 use crate::CacheEndpoint;
-use dozer_types::grpc_types::common::common_grpc_service_server::CommonGrpcService;
-use dozer_types::grpc_types::conversions::field_definition_to_grpc;
-use dozer_types::indexmap::IndexMap;
-use dozer_types::tonic::{self, Request, Response, Status};
-use tokio_stream::wrappers::ReceiverStream;
-
-use dozer_types::grpc_types::common::{
-    CountResponse, GetEndpointsRequest, GetEndpointsResponse, GetFieldsRequest, GetFieldsResponse,
-    OnEventRequest, QueryRequest, QueryResponse,
+use dozer_services::common::{
+    common_grpc_service_server::CommonGrpcService, CountResponse, GetEndpointsRequest,
+    GetEndpointsResponse, GetFieldsRequest, GetFieldsResponse, OnEventRequest, QueryRequest,
+    QueryResponse,
 };
-use dozer_types::grpc_types::types::Operation;
+use dozer_services::conversions::field_definition_to_grpc;
+use dozer_services::tonic::{self, Request, Response, Status};
+use dozer_services::types::Operation;
+use dozer_types::indexmap::IndexMap;
+use tokio_stream::wrappers::ReceiverStream;
 
 type EventResult<T> = Result<Response<T>, Status>;
 type ResponseStream = ReceiverStream<Result<Operation, tonic::Status>>;

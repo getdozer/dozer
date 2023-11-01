@@ -121,7 +121,7 @@ pub async fn restore<'txn, R: AsyncRead + Unpin>(
 
 #[cfg(test)]
 mod tests {
-    use dozer_types::tonic::async_trait;
+    use async_trait::async_trait;
 
     use super::*;
 

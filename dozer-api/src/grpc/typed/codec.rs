@@ -1,4 +1,4 @@
-use dozer_types::tonic::{
+use dozer_services::tonic::{
     codec::{Codec, DecodeBuf, Decoder, EncodeBuf, Encoder},
     Status,
 };

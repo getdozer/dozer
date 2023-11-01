@@ -2,8 +2,6 @@ use dozer_ingestion_connector::{
     async_trait,
     dozer_types::{
         self, chrono,
-        grpc_types::{self, ingest::IngestRequest},
-        json_types::prost_to_json_value,
         models::ingestion_types::IngestionMessage,
         ordered_float::OrderedFloat,
         rust_decimal::Decimal,
@@ -11,6 +9,9 @@ use dozer_ingestion_connector::{
         types::{Field, Operation, Record, Schema},
     },
     Ingestor, SourceSchema,
+};
+use dozer_services::{
+    conversions::prost_to_json_value, ingest::IngestRequest, types as grpc_types,
 };
 
 use crate::Error;
@@ -72,13 +73,13 @@ pub async fn handle_message(
         .schema;
 
     let op = match req.typ() {
-        grpc_types::types::OperationType::Insert => Operation::Insert {
+        grpc_types::OperationType::Insert => Operation::Insert {
             new: map_record(req.new, schema)?,
         },
-        grpc_types::types::OperationType::Delete => Operation::Delete {
+        grpc_types::OperationType::Delete => Operation::Delete {
             old: map_record(req.old, schema)?,
         },
-        grpc_types::types::OperationType::Update => Operation::Update {
+        grpc_types::OperationType::Update => Operation::Update {
             old: map_record(req.old, schema)?,
             new: map_record(req.new, schema)?,
         },
@@ -94,7 +95,7 @@ pub async fn handle_message(
     Ok(())
 }
 
-fn map_record(rec: Vec<grpc_types::types::Value>, schema: &Schema) -> Result<Record, Error> {
+fn map_record(rec: Vec<grpc_types::Value>, schema: &Schema) -> Result<Record, Error> {
     let mut values: Vec<Field> = vec![];
     let values_count = rec.len();
     let schema_fields_count = schema.fields.len();
@@ -109,72 +110,61 @@ fn map_record(rec: Vec<grpc_types::types::Value>, schema: &Schema) -> Result<Rec
         let typ = schema.fields[idx].typ;
 
         let val = v.value.map(|value| match (value, typ) {
-            (
-                grpc_types::types::value::Value::UintValue(a),
-                dozer_types::types::FieldType::UInt,
-            ) => Ok(dozer_types::types::Field::UInt(a)),
+            (grpc_types::value::Value::UintValue(a), dozer_types::types::FieldType::UInt) => {
+                Ok(dozer_types::types::Field::UInt(a))
+            }
 
-            (grpc_types::types::value::Value::IntValue(a), dozer_types::types::FieldType::Int) => {
+            (grpc_types::value::Value::IntValue(a), dozer_types::types::FieldType::Int) => {
                 Ok(dozer_types::types::Field::Int(a))
             }
 
-            (
-                grpc_types::types::value::Value::FloatValue(a),
-                dozer_types::types::FieldType::Float,
-            ) => Ok(dozer_types::types::Field::Float(OrderedFloat(a))),
+            (grpc_types::value::Value::FloatValue(a), dozer_types::types::FieldType::Float) => {
+                Ok(dozer_types::types::Field::Float(OrderedFloat(a)))
+            }
 
-            (
-                grpc_types::types::value::Value::BoolValue(a),
-                dozer_types::types::FieldType::Boolean,
-            ) => Ok(dozer_types::types::Field::Boolean(a)),
+            (grpc_types::value::Value::BoolValue(a), dozer_types::types::FieldType::Boolean) => {
+                Ok(dozer_types::types::Field::Boolean(a))
+            }
 
-            (
-                grpc_types::types::value::Value::StringValue(a),
-                dozer_types::types::FieldType::String,
-            ) => Ok(dozer_types::types::Field::String(a)),
+            (grpc_types::value::Value::StringValue(a), dozer_types::types::FieldType::String) => {
+                Ok(dozer_types::types::Field::String(a))
+            }
 
+            (grpc_types::value::Value::BytesValue(a), dozer_types::types::FieldType::Binary) => {
+                Ok(dozer_types::types::Field::Binary(a))
+            }
+            (grpc_types::value::Value::StringValue(a), dozer_types::types::FieldType::Text) => {
+                Ok(dozer_types::types::Field::Text(a))
+            }
+            (grpc_types::value::Value::JsonValue(a), dozer_types::types::FieldType::Json) => {
+                Ok(dozer_types::types::Field::Json(prost_to_json_value(a)))
+            }
             (
-                grpc_types::types::value::Value::BytesValue(a),
-                dozer_types::types::FieldType::Binary,
-            ) => Ok(dozer_types::types::Field::Binary(a)),
-            (
-                grpc_types::types::value::Value::StringValue(a),
-                dozer_types::types::FieldType::Text,
-            ) => Ok(dozer_types::types::Field::Text(a)),
-            (
-                grpc_types::types::value::Value::JsonValue(a),
-                dozer_types::types::FieldType::Json,
-            ) => Ok(dozer_types::types::Field::Json(prost_to_json_value(a))),
-            (
-                grpc_types::types::value::Value::TimestampValue(a),
+                grpc_types::value::Value::TimestampValue(a),
                 dozer_types::types::FieldType::Timestamp,
             ) => Ok(
                 chrono::NaiveDateTime::from_timestamp_opt(a.seconds, a.nanos as u32)
                     .map(|t| {
                         dozer_types::types::Field::Timestamp(
-                            chrono::DateTime::<chrono::Utc>::from_utc(t, chrono::Utc).into(),
+                            chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
+                                t,
+                                chrono::Utc,
+                            )
+                            .into(),
                         )
                     })
                     .unwrap_or(dozer_types::types::Field::Null),
             ),
-            (
-                grpc_types::types::value::Value::DecimalValue(d),
-                dozer_types::types::FieldType::Decimal,
-            ) => Ok(dozer_types::types::Field::Decimal(Decimal::from_parts(
-                d.lo, d.mid, d.hi, d.negative, d.scale,
-            ))),
-            (
-                grpc_types::types::value::Value::DateValue(_),
-                dozer_types::types::FieldType::UInt,
-            )
-            | (
-                grpc_types::types::value::Value::DateValue(_),
-                dozer_types::types::FieldType::Date,
-            )
-            | (
-                grpc_types::types::value::Value::PointValue(_),
-                dozer_types::types::FieldType::Point,
-            ) => Ok(dozer_types::types::Field::Null),
+            (grpc_types::value::Value::DecimalValue(d), dozer_types::types::FieldType::Decimal) => {
+                Ok(dozer_types::types::Field::Decimal(Decimal::from_parts(
+                    d.lo, d.mid, d.hi, d.negative, d.scale,
+                )))
+            }
+            (grpc_types::value::Value::DateValue(_), dozer_types::types::FieldType::UInt)
+            | (grpc_types::value::Value::DateValue(_), dozer_types::types::FieldType::Date)
+            | (grpc_types::value::Value::PointValue(_), dozer_types::types::FieldType::Point) => {
+                Ok(dozer_types::types::Field::Null)
+            }
             (a, b) => Err(Error::FieldTypeMismatch {
                 index: idx,
                 value: a,

@@ -129,19 +129,19 @@ impl ProtoGenerator {
         let protos = vec![
             (
                 "types",
-                include_str!("../../../../../dozer-types/protos/types.proto"),
+                include_str!("../../../../../dozer-services/protos/types.proto"),
             ),
             (
                 "common",
-                include_str!("../../../../../dozer-types/protos/common.proto"),
+                include_str!("../../../../../dozer-services/protos/common.proto"),
             ),
             (
                 "health",
-                include_str!("../../../../../dozer-types/protos/health.proto"),
+                include_str!("../../../../../dozer-services/protos/health.proto"),
             ),
             (
                 "auth",
-                include_str!("../../../../../dozer-types/protos/auth.proto"),
+                include_str!("../../../../../dozer-services/protos/auth.proto"),
             ),
         ];
 

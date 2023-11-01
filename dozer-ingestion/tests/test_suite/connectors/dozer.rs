@@ -7,10 +7,6 @@ use std::time::Duration;
 use dozer_cli::shutdown::{self, ShutdownSender};
 use dozer_cli::simple::SimpleOrchestrator;
 use dozer_ingestion_connector::dozer_types::{
-    grpc_types::{
-        conversions::field_to_grpc,
-        ingest::{ingest_service_client::IngestServiceClient, IngestRequest, OperationType},
-    },
     log::info,
     models::{
         api_endpoint::ApiEndpoint,
@@ -20,11 +16,15 @@ use dozer_ingestion_connector::dozer_types::{
         source::Source,
     },
     serde_json,
-    tonic::transport::Channel,
     types::{Field, FieldDefinition, FieldType},
 };
 use dozer_ingestion_connector::{async_trait, dozer_types, CdcType, SourceSchema};
 use dozer_ingestion_dozer::NestedDozerConnector;
+use dozer_services::{
+    conversions::field_to_grpc,
+    ingest::{ingest_service_client::IngestServiceClient, IngestRequest, OperationType},
+    tonic::transport::Channel,
+};
 
 use futures::lock::Mutex;
 use tempdir::TempDir;

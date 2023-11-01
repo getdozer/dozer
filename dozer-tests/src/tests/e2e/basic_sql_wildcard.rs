@@ -1,4 +1,4 @@
-use dozer_types::grpc_types::{ingest::IngestRequest, types};
+use dozer_services::{ingest::IngestRequest, types};
 
 use super::DozerE2eTest;
 

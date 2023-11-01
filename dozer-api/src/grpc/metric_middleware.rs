@@ -1,5 +1,5 @@
+use dozer_services::tonic::{body::BoxBody, transport::NamedService};
 use dozer_tracing::LabelsAndProgress;
-use dozer_types::tonic::{body::BoxBody, transport::NamedService};
 use futures_util::future::BoxFuture;
 use hyper::Body;
 use metrics::{histogram, increment_counter};

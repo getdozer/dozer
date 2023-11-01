@@ -4,13 +4,10 @@ use std::{
     sync::Arc,
 };
 
+use async_trait::async_trait;
 use camino::Utf8Path;
-use dozer_types::{
-    bytes::Bytes,
-    grpc_types::internal::{self, storage_response},
-    tonic::async_trait,
-    tracing::debug,
-};
+use dozer_services::internal::{self, storage_response};
+use dozer_types::{bytes::Bytes, tracing::debug};
 use futures_util::{stream::BoxStream, StreamExt};
 use tempdir::TempDir;
 use tokio::{

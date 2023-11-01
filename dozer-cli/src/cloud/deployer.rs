@@ -2,14 +2,12 @@ use crate::errors::CloudError;
 
 use crate::cloud::progress_printer::ProgressPrinter;
 use crate::cloud::token_layer::TokenLayer;
-use dozer_types::grpc_types::cloud::dozer_cloud_client::DozerCloudClient;
-use dozer_types::grpc_types::cloud::DeploymentStatus;
-use dozer_types::grpc_types::cloud::GetDeploymentStatusRequest;
+use dozer_services::cloud::{
+    dozer_cloud_client::DozerCloudClient, DeploymentStatus, GetDeploymentStatusRequest,
+};
 
 use crate::cloud::cloud_app_context::CloudAppContext;
-use dozer_types::grpc_types::cloud::DeployAppRequest;
-use dozer_types::grpc_types::cloud::File;
-use dozer_types::grpc_types::cloud::Secret;
+use dozer_services::cloud::{DeployAppRequest, File, Secret};
 use dozer_types::log::{info, warn};
 
 pub async fn deploy_app(

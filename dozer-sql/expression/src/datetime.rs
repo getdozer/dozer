@@ -124,7 +124,9 @@ pub(crate) fn evaluate_date_part(
         DateTimeField::Second => ts.second().to_i64(),
         DateTimeField::Millisecond | DateTimeField::Milliseconds => ts.timestamp_millis().to_i64(),
         DateTimeField::Microsecond | DateTimeField::Microseconds => ts.timestamp_micros().to_i64(),
-        DateTimeField::Nanoseconds | DateTimeField::Nanosecond => ts.timestamp_nanos().to_i64(),
+        DateTimeField::Nanoseconds | DateTimeField::Nanosecond => {
+            ts.timestamp_nanos_opt().and_then(|v| v.to_i64())
+        }
         DateTimeField::Quarter => ts.month0().to_i64().map(|m| m / 3 + 1),
         DateTimeField::Epoch => ts.timestamp().to_i64(),
         DateTimeField::Week => ts.iso_week().week().to_i64(),

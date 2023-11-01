@@ -12,7 +12,7 @@ use dozer_core::{
         Direction,
     },
 };
-use dozer_types::grpc_types::{conversions::map_schema, types::Schema};
+use dozer_services::{conversions::map_schema, types::Schema};
 
 use crate::errors::BuildError;
 

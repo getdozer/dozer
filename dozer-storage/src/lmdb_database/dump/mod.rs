@@ -173,7 +173,7 @@ pub mod tests {
 
     use super::*;
 
-    use dozer_types::tonic::async_trait;
+    use async_trait::async_trait;
     use lmdb::WriteFlags;
     use tempdir::TempDir;
 

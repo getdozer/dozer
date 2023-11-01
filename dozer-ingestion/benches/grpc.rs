@@ -6,9 +6,11 @@ use dozer_ingestion_connector::dozer_types::{
     arrow::array::{Int32Array, StringArray},
     arrow::{datatypes as arrow_types, record_batch::RecordBatch},
     arrow_types::from_arrow::serialize_record_batch,
-    grpc_types::ingest::{ingest_service_client::IngestServiceClient, IngestArrowRequest},
     indicatif::{MultiProgress, ProgressBar},
     serde_yaml,
+};
+use dozer_services::{
+    ingest::{ingest_service_client::IngestServiceClient, IngestArrowRequest},
     tonic::transport::Channel,
 };
 mod helper;

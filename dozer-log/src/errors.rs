@@ -1,5 +1,7 @@
 use dozer_types::thiserror::Error;
-use dozer_types::{bincode, serde_json, thiserror, tonic};
+use dozer_types::{bincode, serde_json, thiserror};
+
+use dozer_services::tonic;
 
 use crate::replication::LoadPersistedLogEntryError;
 

@@ -1,15 +1,12 @@
 use std::{future::Future, sync::Arc, thread::JoinHandle, time::Duration};
 
-use dozer_api::{
-    shutdown::{self, ShutdownSender},
-    tonic::transport::Channel,
-};
+use dozer_api::shutdown::{self, ShutdownSender};
 use dozer_cli::simple::SimpleOrchestrator;
+use dozer_services::{
+    common::common_grpc_service_client::CommonGrpcServiceClient,
+    ingest::ingest_service_client::IngestServiceClient, tonic::transport::Channel,
+};
 use dozer_types::{
-    grpc_types::{
-        common::common_grpc_service_client::CommonGrpcServiceClient,
-        ingest::ingest_service_client::IngestServiceClient,
-    },
     models::ingestion_types::{default_ingest_host, default_ingest_port},
     models::{
         api_config::{default_grpc_port, default_host},

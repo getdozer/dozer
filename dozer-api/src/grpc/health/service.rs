@@ -1,7 +1,8 @@
-use dozer_types::grpc_types::health::health_check_response::ServingStatus;
-use dozer_types::grpc_types::health::health_grpc_service_server::HealthGrpcService;
-use dozer_types::grpc_types::health::{HealthCheckRequest, HealthCheckResponse};
-use dozer_types::tonic::{self, Request, Response, Status};
+use async_trait::async_trait;
+use dozer_services::health::health_check_response::ServingStatus;
+use dozer_services::health::health_grpc_service_server::HealthGrpcService;
+use dozer_services::health::{HealthCheckRequest, HealthCheckResponse};
+use dozer_services::tonic::{Request, Response, Status};
 use std::collections::HashMap;
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -12,7 +13,7 @@ pub struct HealthService {
     pub serving_status: HashMap<String, ServingStatus>,
 }
 
-#[tonic::async_trait]
+#[async_trait]
 impl HealthGrpcService for HealthService {
     async fn health_check(
         &self,

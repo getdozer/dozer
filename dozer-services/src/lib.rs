@@ -1,3 +1,5 @@
+pub use tonic;
+
 pub mod types {
     #![allow(clippy::derive_partial_eq_without_eq)]
     tonic::include_proto!("dozer.types"); // The string specified here must match the proto package name
@@ -31,7 +33,7 @@ pub mod cloud {
     #![allow(clippy::derive_partial_eq_without_eq, clippy::large_enum_variant)]
     tonic::include_proto!("dozer.cloud");
     pub const FILE_DESCRIPTOR_SET: &[u8] = tonic::include_file_descriptor_set!("cloud");
-    use crate::chrono::NaiveDateTime;
+    use dozer_types::chrono::NaiveDateTime;
     use prost_types::Timestamp;
     pub fn naive_datetime_to_timestamp(naive_dt: NaiveDateTime) -> Timestamp {
         let unix_timestamp = naive_dt.timestamp(); // Get the UNIX timestamp (seconds since epoch)
@@ -78,11 +80,13 @@ pub mod generated {
 
 pub mod conversions {
     use super::types::{value, DurationType, PointType, RustDecimal, Type, Value};
-    use crate::json_types::json_value_to_prost;
-    use crate::ordered_float::OrderedFloat;
-    use crate::rust_decimal::Decimal;
-    use crate::types::{DozerDuration, Field, FieldType, DATE_FORMAT};
+    use dozer_types::json_types::JsonValue;
+    use dozer_types::ordered_float::OrderedFloat;
+    use dozer_types::rust_decimal::Decimal;
+    use dozer_types::types::{DozerDuration, Field, FieldType, DATE_FORMAT};
+    use prost_types::value::Kind;
     use prost_types::Timestamp;
+    use prost_types::{ListValue, Struct, Value as ProstValue};
 
     fn map_x_y_to_prost_coord_map((x, y): (OrderedFloat<f64>, OrderedFloat<f64>)) -> Value {
         Value {
@@ -162,7 +166,7 @@ pub mod conversions {
     }
 
     pub fn field_definition_to_grpc(
-        fields: Vec<crate::types::FieldDefinition>,
+        fields: Vec<dozer_types::types::FieldDefinition>,
     ) -> Vec<super::types::FieldDefinition> {
         fields
             .into_iter()
@@ -193,10 +197,57 @@ pub mod conversions {
             FieldType::Duration => Type::Duration,
         }
     }
-    pub fn map_schema(schema: crate::types::Schema) -> crate::grpc_types::types::Schema {
-        crate::grpc_types::types::Schema {
+    pub fn map_schema(schema: dozer_types::types::Schema) -> super::types::Schema {
+        super::types::Schema {
             primary_index: schema.primary_index.into_iter().map(|i| i as i32).collect(),
             fields: field_definition_to_grpc(schema.fields),
+        }
+    }
+
+    pub fn prost_to_json_value(val: ProstValue) -> JsonValue {
+        match val.kind {
+            Some(v) => match v {
+                Kind::NullValue(_) => JsonValue::Null,
+                Kind::BoolValue(b) => JsonValue::Bool(b),
+                Kind::NumberValue(n) => JsonValue::Number(OrderedFloat(n)),
+                Kind::StringValue(s) => JsonValue::String(s),
+                Kind::ListValue(l) => {
+                    JsonValue::Array(l.values.into_iter().map(prost_to_json_value).collect())
+                }
+                Kind::StructValue(s) => JsonValue::Object(
+                    s.fields
+                        .into_iter()
+                        .map(|(key, val)| (key, prost_to_json_value(val)))
+                        .collect(),
+                ),
+            },
+            None => JsonValue::Null,
+        }
+    }
+
+    pub fn json_value_to_prost(val: JsonValue) -> ProstValue {
+        ProstValue {
+            kind: match val {
+                JsonValue::Null => Some(Kind::NullValue(0)),
+                JsonValue::Bool(b) => Some(Kind::BoolValue(b)),
+                JsonValue::Number(n) => Some(Kind::NumberValue(*n)),
+                JsonValue::String(s) => Some(Kind::StringValue(s)),
+                JsonValue::Array(a) => {
+                    let values: prost::alloc::vec::Vec<ProstValue> =
+                        a.into_iter().map(json_value_to_prost).collect();
+                    Some(Kind::ListValue(ListValue { values }))
+                }
+                JsonValue::Object(o) => {
+                    let fields: prost::alloc::collections::BTreeMap<
+                        prost::alloc::string::String,
+                        ProstValue,
+                    > = o
+                        .into_iter()
+                        .map(|(key, val)| (key, json_value_to_prost(val)))
+                        .collect();
+                    Some(Kind::StructValue(Struct { fields }))
+                }
+            },
         }
     }
 }

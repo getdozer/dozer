@@ -121,7 +121,7 @@ impl<'a> ProtoGeneratorImpl<'a> {
         let metadata = self.get_metadata()?;
         let mut protos = vec![];
 
-        let types_proto = include_str!("../../../../../dozer-types/protos/types.proto");
+        let types_proto = include_str!("../../../../../dozer-services/protos/types.proto");
         let resource_proto = self.handlebars.render("main", &metadata)?;
 
         protos.push(NamedProto {

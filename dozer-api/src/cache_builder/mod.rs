@@ -11,16 +11,17 @@ use dozer_cache::{
     cache::{CacheWriteOptions, RwCacheManager},
     errors::CacheError,
 };
+use dozer_services::internal::internal_pipeline_service_client::InternalPipelineServiceClient;
+use dozer_services::tonic::transport::Channel;
+use dozer_services::types::Operation as GrpcOperation;
 use dozer_tracing::{Labels, LabelsAndProgress};
-use dozer_types::grpc_types::internal::internal_pipeline_service_client::InternalPipelineServiceClient;
 use dozer_types::indicatif::ProgressBar;
+use dozer_types::log::error;
 use dozer_types::models::api_endpoint::{
     default_log_reader_batch_size, default_log_reader_buffer_size,
     default_log_reader_timeout_in_millis, ApiEndpoint, ConflictResolution,
 };
-use dozer_types::tonic::transport::Channel;
 use dozer_types::types::SchemaWithIndex;
-use dozer_types::{grpc_types::types::Operation as GrpcOperation, log::error};
 use futures_util::{
     future::{select, Either},
     Future,

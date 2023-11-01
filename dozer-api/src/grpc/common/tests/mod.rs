@@ -2,14 +2,14 @@ use std::time::Duration;
 
 use crate::grpc::typed::tests::service::setup_pipeline;
 
-use dozer_types::grpc_types::{
+use dozer_services::tonic::Request;
+use dozer_services::{
     common::{
         common_grpc_service_server::CommonGrpcService, GetEndpointsRequest, GetFieldsRequest,
         OnEventRequest, QueryRequest,
     },
     types::{value, EventFilter, EventType, FieldDefinition, OperationType, Record, Type, Value},
 };
-use dozer_types::tonic::Request;
 
 use super::CommonService;
 

@@ -1,6 +1,6 @@
 use dozer_cache::cache::CacheRecord;
-use dozer_types::grpc_types::conversions::field_to_grpc;
-use dozer_types::grpc_types::types::{Operation, OperationType, Record, Value};
+use dozer_services::conversions::field_to_grpc;
+use dozer_services::types::{Operation, OperationType, Record, Value};
 
 pub fn map_insert_operation(endpoint_name: String, record: CacheRecord) -> Operation {
     Operation {

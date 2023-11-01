@@ -16,18 +16,10 @@ use crate::errors::{
     map_tonic_error, CliError, CloudContextError, CloudError, CloudLoginError, OrchestrationError,
 };
 use crate::simple::orchestrator::lockfile_path;
+use dozer_services::api_explorer::api_explorer_service_client::ApiExplorerServiceClient;
+use dozer_services::api_explorer::GetApiTokenRequest;
+use dozer_services::cloud::{dozer_cloud_client::DozerCloudClient, *};
 use dozer_types::constants::{DEFAULT_CLOUD_TARGET_URL, LOCK_FILE};
-use dozer_types::grpc_types::api_explorer::api_explorer_service_client::ApiExplorerServiceClient;
-use dozer_types::grpc_types::api_explorer::GetApiTokenRequest;
-use dozer_types::grpc_types::cloud::{
-    dozer_cloud_client::DozerCloudClient, CreateSecretRequest, DeleteAppRequest,
-    DeleteSecretRequest, GetEndpointCommandsSamplesRequest, GetSecretRequest, ListAppRequest,
-    ListSecretsRequest, LogMessageRequest, UpdateSecretRequest,
-};
-use dozer_types::grpc_types::cloud::{
-    CreateAppRequest, DeleteVersionRequest, DeploymentInfo, DeploymentStatus, File, GetAppRequest,
-    ListDeploymentRequest, RmAliasRequest, SetAliasRequest, SetCurrentVersionRequest,
-};
 use dozer_types::log::info;
 use dozer_types::models::config::Config;
 use dozer_types::prettytable::{row, table};

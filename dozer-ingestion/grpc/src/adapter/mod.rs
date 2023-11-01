@@ -6,11 +6,8 @@ mod arrow;
 
 pub use arrow::ArrowAdapter;
 pub use default::DefaultAdapter;
-use dozer_ingestion_connector::{
-    async_trait,
-    dozer_types::grpc_types::ingest::{IngestArrowRequest, IngestRequest},
-    Ingestor, SourceSchema,
-};
+use dozer_ingestion_connector::{async_trait, Ingestor, SourceSchema};
+use dozer_services::ingest::{IngestArrowRequest, IngestRequest};
 
 use crate::Error;
 

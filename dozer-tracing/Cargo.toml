@@ -8,6 +8,7 @@ authors = ["getdozer/dozer-dev"]
 
 [dependencies]
 dozer-types = { path = "../dozer-types" }
+dozer-services = { path = "../dozer-services" }
 
 tracing-subscriber = { version = "0.3.17", features = [
     "env-filter",

@@ -409,7 +409,7 @@ fn fields_to_arrow<'a, F: IntoIterator<Item = &'a Field>>(
             let mut builder = arrow::array::TimestampNanosecondArray::builder(count);
             for field in fields {
                 match field {
-                    Field::Timestamp(value) => builder.append_value(value.timestamp_nanos()),
+                    Field::Timestamp(value) => builder.append_option(value.timestamp_nanos_opt()),
                     Field::Null => builder.append_null(),
                     _ => panic!("Unexpected field type"),
                 }
