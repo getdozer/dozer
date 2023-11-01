@@ -1,16 +1,12 @@
 use std::sync::Arc;
 
 use dozer_ingestion_connector::{
-    dozer_types::{
-        grpc_types::ingest::{
-            ingest_service_server::IngestService, IngestArrowRequest, IngestRequest, IngestResponse,
-        },
-        log::error,
-        tonic::{self, Streaming},
-    },
-    futures::StreamExt,
-    tokio, Ingestor, TableToIngest,
+    dozer_types::log::error, futures::StreamExt, tokio, Ingestor, TableToIngest,
 };
+use dozer_services::ingest::{
+    ingest_service_server::IngestService, IngestArrowRequest, IngestRequest, IngestResponse,
+};
+use dozer_services::tonic::{self, Streaming};
 
 use super::adapter::{GrpcIngestMessage, GrpcIngestor, IngestAdapter};
 

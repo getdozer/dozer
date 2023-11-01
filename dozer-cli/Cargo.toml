@@ -11,14 +11,15 @@ name = "dozer"
 
 [dependencies]
 dozer-api = { path = "../dozer-api" }
-dozer-ingestion = { path = "../dozer-ingestion" }
-dozer-core = { path = "../dozer-core" }
 dozer-cache = { path = "../dozer-cache" }
-dozer-sql = { path = "../dozer-sql" }
-dozer-types = { path = "../dozer-types" }
-dozer-tracing = { path = "../dozer-tracing" }
-dozer-storage = { path = "../dozer-storage" }
+dozer-core = { path = "../dozer-core" }
+dozer-ingestion = { path = "../dozer-ingestion" }
 dozer-recordstore = { path = "../dozer-recordstore" }
+dozer-services = { path = "../dozer-services" }
+dozer-sql = { path = "../dozer-sql" }
+dozer-storage = { path = "../dozer-storage" }
+dozer-tracing = { path = "../dozer-tracing" }
+dozer-types = { path = "../dozer-types" }
 
 uuid = { version = "1.3.0", features = ["v4", "serde"] }
 tokio = { version = "1", features = ["full"] }

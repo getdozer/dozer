@@ -15,6 +15,7 @@ page_size = "0.6.0"
 pin-project = "1.1.0"
 rocksdb = { version = "0.21.0", default-features = false, features = ["snappy"] }
 tokio = "1.28.2"
+async-trait = "0.1"
 
 [dev-dependencies]
 tempdir = "0.3.7"

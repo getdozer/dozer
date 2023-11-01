@@ -12,8 +12,6 @@ pub mod types;
 
 // Export Arrow functionality
 pub mod arrow_types;
-// Export grpc types
-pub mod grpc_types;
 
 pub use helper::json_value_to_field;
 
@@ -28,8 +26,6 @@ pub use indicatif;
 pub use log;
 pub use ordered_float;
 pub use parking_lot;
-pub use prost;
-pub use tonic;
 #[macro_use]
 pub extern crate prettytable;
 

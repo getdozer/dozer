@@ -10,6 +10,7 @@ authors = ["getdozer/dozer-dev"]
 [dependencies]
 dozer-cache = { path = "../dozer-cache" }
 dozer-types = { path = "../dozer-types" }
+dozer-services = { path = "../dozer-services" }
 dozer-tracing = { path = "../dozer-tracing" }
 dozer-core = { path = "../dozer-core" }
 

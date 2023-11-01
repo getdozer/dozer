@@ -37,6 +37,7 @@ env_logger = "0.10.0"
 hex = "0.4.3"
 dozer-utils = { path = "../dozer-utils" }
 dozer-cli = { path = "../dozer-cli" }
+dozer-services = { path = "../dozer-services" }
 
 [features]
 snowflake = ["dep:dozer-ingestion-snowflake"]

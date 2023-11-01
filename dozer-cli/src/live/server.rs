@@ -1,24 +1,22 @@
 use std::sync::Arc;
 
 use dozer_api::{tonic_reflection, tonic_web, tower_http};
-use dozer_types::{
-    grpc_types::{
-        api_explorer::{
-            api_explorer_service_server::{ApiExplorerService, ApiExplorerServiceServer},
-            GetApiTokenRequest, GetApiTokenResponse,
-        },
-        contract::{
-            contract_service_server::{ContractService, ContractServiceServer},
-            CommonRequest, DotResponse, ProtoResponse, SourcesRequest,
-        },
-        live::{
-            code_service_server::{CodeService, CodeServiceServer},
-            ConnectResponse, Label, Labels, RunRequest,
-        },
-        types::SchemasResponse,
+use dozer_services::{
+    api_explorer::{
+        api_explorer_service_server::{ApiExplorerService, ApiExplorerServiceServer},
+        GetApiTokenRequest, GetApiTokenResponse,
     },
-    log::info,
+    contract::{
+        contract_service_server::{ContractService, ContractServiceServer},
+        CommonRequest, DotResponse, ProtoResponse, SourcesRequest,
+    },
+    live::{
+        code_service_server::{CodeService, CodeServiceServer},
+        ConnectResponse, Label, Labels, RunRequest,
+    },
+    types::SchemasResponse,
 };
+use dozer_types::log::info;
 use futures::stream::BoxStream;
 use metrics::IntoLabels;
 use tokio::sync::broadcast::Receiver;
@@ -215,13 +213,9 @@ pub async fn serve(
     let api_explorer_service = tonic_web::enable(api_explorer_service);
 
     let reflection_service = tonic_reflection::server::Builder::configure()
-        .register_encoded_file_descriptor_set(
-            dozer_types::grpc_types::contract::FILE_DESCRIPTOR_SET,
-        )
-        .register_encoded_file_descriptor_set(dozer_types::grpc_types::live::FILE_DESCRIPTOR_SET)
-        .register_encoded_file_descriptor_set(
-            dozer_types::grpc_types::api_explorer::FILE_DESCRIPTOR_SET,
-        )
+        .register_encoded_file_descriptor_set(dozer_services::contract::FILE_DESCRIPTOR_SET)
+        .register_encoded_file_descriptor_set(dozer_services::live::FILE_DESCRIPTOR_SET)
+        .register_encoded_file_descriptor_set(dozer_services::api_explorer::FILE_DESCRIPTOR_SET)
         .build()
         .unwrap();
 

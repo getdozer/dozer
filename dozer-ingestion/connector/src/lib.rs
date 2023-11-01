@@ -4,8 +4,9 @@ use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::OpIdentifier;
 use dozer_types::serde;
 use dozer_types::serde::{Deserialize, Serialize};
-pub use dozer_types::tonic::async_trait;
 use dozer_types::types::{FieldType, Schema};
+
+pub use async_trait::async_trait;
 
 mod ingestor;
 pub mod test_util;

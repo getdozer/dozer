@@ -2,7 +2,7 @@ use crate::errors::ConfigCombineError::{
     CannotReadConfig, CannotReadFile, WrongPatternOfConfigFilesGlob,
 };
 
-use dozer_types::grpc_types::cloud::File;
+use dozer_services::cloud::File;
 use glob::glob;
 
 pub fn list_files(config_paths: Vec<String>) -> Result<Vec<File>, crate::errors::CloudError> {

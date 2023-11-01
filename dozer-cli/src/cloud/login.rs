@@ -4,9 +4,9 @@ use std::{env, fs, io};
 use tonic::Code::NotFound;
 
 use crate::errors::CloudLoginError::OrganisationNotFound;
-use dozer_types::grpc_types::cloud::company_request::Criteria;
-use dozer_types::grpc_types::cloud::dozer_public_client::DozerPublicClient;
-use dozer_types::grpc_types::cloud::CompanyRequest;
+use dozer_services::cloud::company_request::Criteria;
+use dozer_services::cloud::dozer_public_client::DozerPublicClient;
+use dozer_services::cloud::CompanyRequest;
 
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::serde_json::{self, Value};

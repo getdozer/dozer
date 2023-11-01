@@ -7,12 +7,14 @@ edition = "2021"
 
 
 [dependencies]
+async-trait = { workspace = true }
 aws-config = "0.56.1"
 aws-sdk-s3 = "0.31.2"
 aws-smithy-http = "0.56.1"
 aws-smithy-types = "0.56.1"
 camino = "1.1.6"
 dozer-types = { path = "../dozer-types" }
+dozer-services = { path = "../dozer-services" }
 dyn-clone = "1.0.14"
 futures-util = "0.3.28"
 nonzero_ext = "0.3.0"

@@ -1,9 +1,9 @@
-use dozer_types::models::api_security::ApiSecurity;
-use dozer_types::tonic::{
+use dozer_services::tonic::{
     body::{empty_body, BoxBody},
     codegen::http,
     transport::NamedService,
 };
+use dozer_types::models::api_security::ApiSecurity;
 use futures_util::future::BoxFuture;
 use hyper::{Body, Method};
 use std::task::{Context, Poll};

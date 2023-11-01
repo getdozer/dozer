@@ -17,7 +17,7 @@ use crate::{
     CacheEndpoint,
 };
 use dozer_cache::CacheReader;
-use dozer_types::tonic::{
+use dozer_services::tonic::{
     self,
     codegen::{
         self, empty_body, Body, BoxFuture, Context, EnabledCompressionEncodings, Poll, StdError,
@@ -25,7 +25,8 @@ use dozer_types::tonic::{
     metadata::MetadataMap,
     Code, Extensions, Request, Response, Status,
 };
-use dozer_types::{grpc_types::types::Operation, models::api_security::ApiSecurity};
+use dozer_services::types::Operation;
+use dozer_types::models::api_security::ApiSecurity;
 use dozer_types::{log::error, types::Schema};
 use futures_util::future;
 use prost_reflect::{MethodDescriptor, Value};

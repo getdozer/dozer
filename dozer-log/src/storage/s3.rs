@@ -1,5 +1,6 @@
 use std::num::NonZeroU16;
 
+use async_trait::async_trait;
 use aws_sdk_s3::{
     operation::create_bucket::CreateBucketError,
     types::{
@@ -9,13 +10,11 @@ use aws_sdk_s3::{
     Client,
 };
 use aws_smithy_http::result::SdkError;
-use dozer_types::{
-    bytes::Bytes,
-    grpc_types::internal::{self, storage_response},
-    tonic::async_trait,
-};
 use futures_util::{stream::BoxStream, StreamExt, TryStreamExt};
 use nonzero_ext::nonzero;
+
+use dozer_services::internal::{self, storage_response};
+use dozer_types::bytes::Bytes;
 
 use super::{Error, ListObjectsOutput, ListedObject, Storage};
 

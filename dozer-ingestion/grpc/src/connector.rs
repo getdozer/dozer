@@ -10,17 +10,18 @@ use dozer_ingestion_connector::{
     async_trait, dozer_types,
     dozer_types::{
         errors::internal::BoxedError,
-        grpc_types::ingest::ingest_service_server::IngestServiceServer,
         log::{info, warn},
         models::ingestion_types::{
             default_ingest_host, default_ingest_port, GrpcConfig, GrpcConfigSchemas,
         },
-        tonic::transport::Server,
         tracing::Level,
     },
     Connector, Ingestor, SourceSchema, SourceSchemaResult, TableIdentifier, TableInfo,
     TableToIngest,
 };
+use dozer_services::ingest::ingest_service_server::IngestServiceServer;
+
+use dozer_services::tonic::transport::Server;
 use tower_http::trace::{self, TraceLayer};
 
 #[derive(Debug)]
@@ -83,9 +84,7 @@ where
         let ingest_service = tonic_web::enable(IngestServiceServer::new(ingest_service));
 
         let reflection_service = tonic_reflection::server::Builder::configure()
-            .register_encoded_file_descriptor_set(
-                dozer_types::grpc_types::ingest::FILE_DESCRIPTOR_SET,
-            )
+            .register_encoded_file_descriptor_set(dozer_services::ingest::FILE_DESCRIPTOR_SET)
             .build()
             .unwrap();
         info!("Starting Dozer GRPC Ingestor  on http://{}:{} ", host, port,);

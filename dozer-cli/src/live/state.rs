@@ -5,14 +5,14 @@ use clap::Parser;
 use dozer_api::shutdown::{self, ShutdownReceiver, ShutdownSender};
 use dozer_cache::dozer_log::camino::Utf8Path;
 use dozer_core::{app::AppPipeline, dag_schemas::DagSchemas, Dag};
+use dozer_services::{
+    contract::{DotResponse, ProtoResponse},
+    live::{BuildResponse, BuildStatus, ConnectResponse, LiveApp, LiveResponse, RunRequest},
+    types::SchemasResponse,
+};
 use dozer_sql::builder::statement_to_pipeline;
 use dozer_tracing::{Labels, LabelsAndProgress};
 use dozer_types::{
-    grpc_types::{
-        contract::{DotResponse, ProtoResponse},
-        live::{BuildResponse, BuildStatus, ConnectResponse, LiveApp, LiveResponse, RunRequest},
-        types::SchemasResponse,
-    },
     log::info,
     models::{
         api_config::{ApiConfig, AppGrpcOptions, GrpcApiOptions, RestApiOptions},
@@ -387,7 +387,7 @@ fn get_dozer_run_instance(
     temp_dir: &str,
 ) -> Result<SimpleOrchestrator, LiveError> {
     match req.request {
-        Some(dozer_types::grpc_types::live::run_request::Request::Sql(req)) => {
+        Some(dozer_services::live::run_request::Request::Sql(req)) => {
             let context = statement_to_pipeline(
                 &req.sql,
                 &mut AppPipeline::new(dozer.config.flags.clone().into()),
@@ -411,7 +411,7 @@ fn get_dozer_run_instance(
                 dozer.config.endpoints.push(endpoint);
             }
         }
-        Some(dozer_types::grpc_types::live::run_request::Request::Source(req)) => {
+        Some(dozer_services::live::run_request::Request::Source(req)) => {
             dozer.config.sql = None;
             dozer.config.endpoints = vec![];
             let endpoint = req.source;

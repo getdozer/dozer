@@ -1,4 +1,4 @@
-use dozer_types::tonic::{body::BoxBody, transport::NamedService};
+use dozer_services::tonic::{body::BoxBody, transport::NamedService};
 use futures_util::Future;
 use pin_project::pin_project;
 use tonic_web::{CorsGrpcWeb, GrpcWebLayer, GrpcWebService};

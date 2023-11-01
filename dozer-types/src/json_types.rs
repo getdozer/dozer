@@ -2,8 +2,6 @@ use crate::errors::types::{CannotConvertF64ToJson, DeserializationError};
 use crate::types::{DozerDuration, Field, DATE_FORMAT};
 use chrono::SecondsFormat;
 use ordered_float::OrderedFloat;
-use prost_types::value::Kind;
-use prost_types::{ListValue, Struct, Value as ProstValue};
 use rust_decimal::prelude::FromPrimitive;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Number, Value};
@@ -312,53 +310,6 @@ pub fn json_value_to_serde_json(value: JsonValue) -> Result<Value, CannotConvert
             }
             Ok(Value::Object(values))
         }
-    }
-}
-
-pub fn prost_to_json_value(val: ProstValue) -> JsonValue {
-    match val.kind {
-        Some(v) => match v {
-            Kind::NullValue(_) => JsonValue::Null,
-            Kind::BoolValue(b) => JsonValue::Bool(b),
-            Kind::NumberValue(n) => JsonValue::Number(OrderedFloat(n)),
-            Kind::StringValue(s) => JsonValue::String(s),
-            Kind::ListValue(l) => {
-                JsonValue::Array(l.values.into_iter().map(prost_to_json_value).collect())
-            }
-            Kind::StructValue(s) => JsonValue::Object(
-                s.fields
-                    .into_iter()
-                    .map(|(key, val)| (key, prost_to_json_value(val)))
-                    .collect(),
-            ),
-        },
-        None => JsonValue::Null,
-    }
-}
-
-pub fn json_value_to_prost(val: JsonValue) -> ProstValue {
-    ProstValue {
-        kind: match val {
-            JsonValue::Null => Some(Kind::NullValue(0)),
-            JsonValue::Bool(b) => Some(Kind::BoolValue(b)),
-            JsonValue::Number(n) => Some(Kind::NumberValue(*n)),
-            JsonValue::String(s) => Some(Kind::StringValue(s)),
-            JsonValue::Array(a) => {
-                let values: prost::alloc::vec::Vec<ProstValue> =
-                    a.into_iter().map(json_value_to_prost).collect();
-                Some(Kind::ListValue(ListValue { values }))
-            }
-            JsonValue::Object(o) => {
-                let fields: prost::alloc::collections::BTreeMap<
-                    prost::alloc::string::String,
-                    ProstValue,
-                > = o
-                    .into_iter()
-                    .map(|(key, val)| (key, json_value_to_prost(val)))
-                    .collect();
-                Some(Kind::StructValue(Struct { fields }))
-            }
-        },
     }
 }
 

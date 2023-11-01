@@ -1,21 +1,21 @@
 use async_stream::stream;
 use dozer_cache::dozer_log::replication::{Log, LogResponseFuture};
-use dozer_types::bincode;
-use dozer_types::grpc_types::internal::internal_pipeline_service_server::{
-    InternalPipelineService, InternalPipelineServiceServer,
-};
-use dozer_types::grpc_types::internal::{
+use dozer_services::internal::{
+    internal_pipeline_service_server::{InternalPipelineService, InternalPipelineServiceServer},
     BuildRequest, BuildResponse, DescribeApplicationResponse, GetIdResponse, LogRequest,
     LogResponse, StorageRequest, StorageResponse,
 };
+use dozer_services::tonic::{
+    self,
+    transport::{server::TcpIncoming, Server},
+    Request, Response, Status, Streaming,
+};
+use dozer_types::bincode;
 use dozer_types::log::info;
 use dozer_types::models::api_config::{
     default_app_grpc_host, default_app_grpc_port, AppGrpcOptions,
 };
 use dozer_types::models::api_endpoint::ApiEndpoint;
-use dozer_types::tonic::transport::server::TcpIncoming;
-use dozer_types::tonic::transport::Server;
-use dozer_types::tonic::{self, Request, Response, Status, Streaming};
 use futures_util::stream::BoxStream;
 use futures_util::{Future, StreamExt};
 use std::collections::HashMap;

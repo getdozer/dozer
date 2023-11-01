@@ -452,9 +452,9 @@ dependencies = [
 
 [[package]]
 name = "arbitrary"
-version = "1.3.1"
+version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2e1373abdaa212b704512ec2bd8b26bd0b7d5c3f70117411a5d9a451383c859"
+checksum = "7d5a26814d8dcb93b0e5a0ff3c6d80a8843bafb21b39e8e18a6f05471870e110"
 dependencies = [
  "derive_arbitrary",
 ]
@@ -618,7 +618,7 @@ dependencies = [
  "arrow-schema",
  "chrono",
  "half 2.3.1",
- "indexmap 2.0.2",
+ "indexmap 2.1.0",
  "lexical-core",
  "num",
  "serde",
@@ -1857,9 +1857,9 @@ dependencies = [
 
 [[package]]
 name = "const-random"
-version = "0.1.16"
+version = "0.1.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11df32a13d7892ec42d51d3d175faba5211ffe13ed25d4fb348ac9e9ce835593"
+checksum = "5aaf16c9c2c612020bcfd042e170f6e32de9b9d75adb5277cdbbd2e2c8c8299a"
 dependencies = [
  "const-random-macro",
 ]
@@ -2263,7 +2263,7 @@ dependencies = [
  "glob",
  "half 2.3.1",
  "hashbrown 0.14.2",
- "indexmap 2.0.2",
+ "indexmap 2.1.0",
  "itertools 0.11.0",
  "log",
  "num_cpus",
@@ -2379,7 +2379,7 @@ dependencies = [
  "half 2.3.1",
  "hashbrown 0.14.2",
  "hex",
- "indexmap 2.0.2",
+ "indexmap 2.1.0",
  "itertools 0.11.0",
  "libc",
  "log",
@@ -2499,9 +2499,9 @@ dependencies = [
 
 [[package]]
 name = "derive_arbitrary"
-version = "1.3.1"
+version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "53e0efad4403bfc52dc201159c4b842a246a14b98c64b55dfd0f2d89729dfeb8"
+checksum = "67e77553c4162a157adbf834ebae5b415acbecbeafc7a74b0e886657506a7611"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2583,6 +2583,7 @@ dependencies = [
  "bytes",
  "dozer-cache",
  "dozer-core",
+ "dozer-services",
  "dozer-tracing",
  "dozer-types",
  "futures-util",
@@ -2645,6 +2646,7 @@ dependencies = [
  "dozer-core",
  "dozer-ingestion",
  "dozer-recordstore",
+ "dozer-services",
  "dozer-sql",
  "dozer-storage",
  "dozer-tracing",
@@ -2707,6 +2709,7 @@ dependencies = [
  "dozer-ingestion-object-store",
  "dozer-ingestion-postgres",
  "dozer-ingestion-snowflake",
+ "dozer-services",
  "dozer-tracing",
  "dozer-utils",
  "env_logger",
@@ -2725,6 +2728,7 @@ dependencies = [
 name = "dozer-ingestion-connector"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "dozer-types",
  "futures",
  "tokio",
@@ -2743,8 +2747,10 @@ dependencies = [
 name = "dozer-ingestion-dozer"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "dozer-ingestion-connector",
  "dozer-log",
+ "dozer-services",
 ]
 
 [[package]]
@@ -2762,6 +2768,7 @@ name = "dozer-ingestion-grpc"
 version = "0.1.0"
 dependencies = [
  "dozer-ingestion-connector",
+ "dozer-services",
  "tonic-reflection",
  "tonic-web",
  "tower-http",
@@ -2842,12 +2849,14 @@ dependencies = [
 name = "dozer-log"
 version = "0.1.39"
 dependencies = [
+ "async-trait",
  "aws-config",
  "aws-sdk-s3",
  "aws-smithy-http",
  "aws-smithy-types",
  "camino",
  "clap 4.4.7",
+ "dozer-services",
  "dozer-types",
  "dyn-clone",
  "env_logger",
@@ -2885,6 +2894,17 @@ dependencies = [
  "dozer-storage",
  "dozer-types",
  "tempdir",
+]
+
+[[package]]
+name = "dozer-services"
+version = "0.1.39"
+dependencies = [
+ "dozer-types",
+ "prost 0.12.1",
+ "prost-types 0.12.1",
+ "tonic 0.10.2",
+ "tonic-build",
 ]
 
 [[package]]
@@ -2928,6 +2948,7 @@ dependencies = [
 name = "dozer-storage"
 version = "0.1.39"
 dependencies = [
+ "async-trait",
  "dozer-types",
  "lmdb-rkv",
  "lmdb-rkv-sys",
@@ -2953,6 +2974,7 @@ dependencies = [
  "dozer-cli",
  "dozer-core",
  "dozer-recordstore",
+ "dozer-services",
  "dozer-sql",
  "dozer-tracing",
  "dozer-types",
@@ -2978,6 +3000,7 @@ version = "0.1.39"
 dependencies = [
  "atty",
  "console-subscriber",
+ "dozer-services",
  "dozer-types",
  "futures-util",
  "metrics",
@@ -3001,14 +3024,12 @@ dependencies = [
  "bytes",
  "chrono",
  "geo",
- "indexmap 2.0.2",
+ "indexmap 2.1.0",
  "indicatif",
  "log",
  "ordered-float 3.9.2",
  "parking_lot",
  "prettytable-rs",
- "prost 0.12.1",
- "prost-types 0.12.1",
  "pyo3",
  "rust_decimal",
  "schemars",
@@ -3018,8 +3039,6 @@ dependencies = [
  "serde_yaml",
  "thiserror",
  "tokio-postgres",
- "tonic 0.10.2",
- "tonic-build",
  "tracing",
 ]
 
@@ -4142,9 +4161,9 @@ dependencies = [
 
 [[package]]
 name = "indexmap"
-version = "2.0.2"
+version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8adf3ddd720272c6ea8bf59463c04e0f93d0bbf7c5439b691bca2987e0270897"
+checksum = "d530e1a18b1cb4c484e6e34556a0d948706958449fca0cab753d649f2bce3d1f"
 dependencies = [
  "equivalent",
  "hashbrown 0.14.2",
@@ -5458,7 +5477,7 @@ version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "75e56d5c441965b6425165b7e3223cc933ca469834f4a8b4786817a1f9dc4f13"
 dependencies = [
- "indexmap 2.0.2",
+ "indexmap 2.1.0",
  "serde",
  "serde_json",
 ]
@@ -5871,7 +5890,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e1d3afd2628e69da2be385eb6f2fd57c8ac7977ceeff6dc166ff1657b0e386a9"
 dependencies = [
  "fixedbitset",
- "indexmap 2.0.2",
+ "indexmap 2.1.0",
 ]
 
 [[package]]
@@ -5986,8 +6005,8 @@ checksum = "3bccab0e7fd7cc19f820a1c8c91720af652d0c88dc9664dd72aef2614f04af3b"
 
 [[package]]
 name = "postgres"
-version = "0.19.4"
-source = "git+https://github.com/getdozer/rust-postgres#0ecaeddecbba32600e8ecc2026ebdc663170551e"
+version = "0.19.5"
+source = "git+https://github.com/MaterializeInc/rust-postgres#7bdd17b5acf4d7dbc53b08a9038793ab7e49da6c"
 dependencies = [
  "bytes",
  "fallible-iterator",
@@ -5999,10 +6018,10 @@ dependencies = [
 
 [[package]]
 name = "postgres-protocol"
-version = "0.6.4"
-source = "git+https://github.com/getdozer/rust-postgres#0ecaeddecbba32600e8ecc2026ebdc663170551e"
+version = "0.6.5"
+source = "git+https://github.com/MaterializeInc/rust-postgres#7bdd17b5acf4d7dbc53b08a9038793ab7e49da6c"
 dependencies = [
- "base64 0.13.1",
+ "base64 0.21.5",
  "byteorder",
  "bytes",
  "fallible-iterator",
@@ -6016,8 +6035,8 @@ dependencies = [
 
 [[package]]
 name = "postgres-types"
-version = "0.2.4"
-source = "git+https://github.com/getdozer/rust-postgres#0ecaeddecbba32600e8ecc2026ebdc663170551e"
+version = "0.2.5"
+source = "git+https://github.com/MaterializeInc/rust-postgres#7bdd17b5acf4d7dbc53b08a9038793ab7e49da6c"
 dependencies = [
  "bytes",
  "chrono",
@@ -7470,11 +7489,11 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.107"
+version = "1.0.108"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b420ce6e3d8bd882e9b243c6eed35dbc9a6110c9769e74b584e0d68d1f20c65"
+checksum = "3d1c7e3eac408d115102c4c24ad393e0821bb3a5df4d506a80f85f7a742a526b"
 dependencies = [
- "indexmap 2.0.2",
+ "indexmap 2.1.0",
  "itoa",
  "ryu",
  "serde",
@@ -7520,7 +7539,7 @@ version = "0.9.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3cc7a1570e38322cfe4154732e5110f887ea57e22b76f4bfd32b5bdd3368666c"
 dependencies = [
- "indexmap 2.0.2",
+ "indexmap 2.1.0",
  "itoa",
  "ryu",
  "serde",
@@ -8215,14 +8234,13 @@ dependencies = [
 
 [[package]]
 name = "tokio-postgres"
-version = "0.7.7"
-source = "git+https://github.com/getdozer/rust-postgres#0ecaeddecbba32600e8ecc2026ebdc663170551e"
+version = "0.7.8"
+source = "git+https://github.com/MaterializeInc/rust-postgres#7bdd17b5acf4d7dbc53b08a9038793ab7e49da6c"
 dependencies = [
  "async-trait",
  "byteorder",
  "bytes",
  "fallible-iterator",
- "futures",
  "futures-channel",
  "futures-util",
  "log",
@@ -8232,7 +8250,7 @@ dependencies = [
  "pin-project-lite",
  "postgres-protocol",
  "postgres-types",
- "socket2 0.4.10",
+ "socket2 0.5.5",
  "tokio",
  "tokio-util",
 ]
@@ -8330,7 +8348,7 @@ version = "0.19.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b5bb770da30e5cbfde35a2d7b9b8a2c4b8ef89548a7a6aeab5c9a576e3e7421"
 dependencies = [
- "indexmap 2.0.2",
+ "indexmap 2.1.0",
  "toml_datetime",
  "winnow",
 ]
@@ -9297,9 +9315,9 @@ checksum = "ed94fce61571a4006852b7389a063ab983c02eb1bb37b47f8272ce92d06d9538"
 
 [[package]]
 name = "winnow"
-version = "0.5.17"
+version = "0.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3b801d0e0a6726477cc207f60162da452f3a95adb368399bef20a946e06f65c"
+checksum = "176b6138793677221d420fd2f0aeeced263f197688b36484660da767bca2fa32"
 dependencies = [
  "memchr",
 ]
@@ -9367,18 +9385,18 @@ dependencies = [
 
 [[package]]
 name = "zerocopy"
-version = "0.7.20"
+version = "0.7.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd66a62464e3ffd4e37bd09950c2b9dd6c4f8767380fabba0d523f9a775bc85a"
+checksum = "686b7e407015242119c33dab17b8f61ba6843534de936d94368856528eae4dcc"
 dependencies = [
  "zerocopy-derive",
 ]
 
 [[package]]
 name = "zerocopy-derive"
-version = "0.7.20"
+version = "0.7.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "255c4596d41e6916ced49cfafea18727b24d67878fa180ddfd69b9df34fd1726"
+checksum = "020f3dfe25dfc38dfea49ce62d5d45ecdd7f0d8a724fa63eb36b6eba4ec76806"
 dependencies = [
  "proc-macro2",
  "quote",

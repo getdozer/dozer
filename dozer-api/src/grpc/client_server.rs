@@ -1,30 +1,38 @@
-use super::metric_middleware::MetricMiddlewareLayer;
-use super::{auth_middleware::AuthMiddlewareLayer, common::CommonService, typed::TypedService};
 use crate::api_helper::get_api_security;
 use crate::errors::ApiInitError;
 use crate::grpc::auth::AuthService;
 use crate::grpc::grpc_web_middleware::enable_grpc_web;
 use crate::grpc::health::HealthService;
+use crate::grpc::metric_middleware::MetricMiddlewareLayer;
+use crate::grpc::{
+    auth_middleware::AuthMiddlewareLayer, common::CommonService, typed::TypedService,
+};
 use crate::grpc::{common, run_server, typed};
 use crate::shutdown::ShutdownReceiver;
 use crate::{errors::GrpcError, CacheEndpoint};
+
 use dozer_tracing::LabelsAndProgress;
-use dozer_types::grpc_types::health::health_check_response::ServingStatus;
-use dozer_types::grpc_types::types::Operation;
-use dozer_types::grpc_types::{
+
+use dozer_services::{
     auth::auth_grpc_service_server::AuthGrpcServiceServer,
     common::common_grpc_service_server::CommonGrpcServiceServer,
-    health::health_grpc_service_server::HealthGrpcServiceServer,
+    health::{
+        health_check_response::ServingStatus, health_grpc_service_server::HealthGrpcServiceServer,
+    },
+    types::Operation,
 };
-use dozer_types::models::api_config::{default_grpc_port, default_host};
-use dozer_types::models::flags::default_dynamic;
-use dozer_types::tonic::transport::server::TcpIncoming;
-use dozer_types::tonic::transport::Server;
-use dozer_types::tracing::Level;
+
+use dozer_services::tonic::transport::{server::TcpIncoming, Server};
+use dozer_types::models::{
+    api_config::{default_grpc_port, default_host},
+    flags::default_dynamic,
+};
 use dozer_types::{
     log::info,
     models::{api_config::GrpcApiOptions, api_security::ApiSecurity, flags::Flags},
+    tracing::Level,
 };
+
 use futures_util::Future;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::broadcast::{self, Receiver};
@@ -96,8 +104,10 @@ impl ApiServer {
         operations_receiver: Option<Receiver<Operation>>,
         labels: LabelsAndProgress,
         default_max_num_records: usize,
-    ) -> Result<impl Future<Output = Result<(), dozer_types::tonic::transport::Error>>, ApiInitError>
-    {
+    ) -> Result<
+        impl Future<Output = Result<(), dozer_services::tonic::transport::Error>>,
+        ApiInitError,
+    > {
         let grpc_web = self.flags.grpc_web.unwrap_or(true);
         // Create our services.
         let common_service = CommonGrpcServiceServer::new(CommonService::new(

@@ -8,11 +8,12 @@ pub use adapter::{ArrowAdapter, DefaultAdapter, GrpcIngestMessage, GrpcIngestor,
 use dozer_ingestion_connector::dozer_types::{
     arrow::error::ArrowError,
     arrow_types::errors::FromArrowError,
-    grpc_types, serde_json,
+    serde_json,
     thiserror::{self, Error},
-    tonic::transport,
     types::FieldType,
 };
+use dozer_services::tonic::transport;
+use dozer_services::types as grpc_types;
 
 #[cfg(test)]
 mod tests;
@@ -45,7 +46,7 @@ pub enum Error {
     #[error("data is not valid at index: {index}, Type: {value:?}, Expected Type: {field_type}")]
     FieldTypeMismatch {
         index: usize,
-        value: grpc_types::types::value::Value,
+        value: grpc_types::value::Value,
         field_type: FieldType,
     },
 }

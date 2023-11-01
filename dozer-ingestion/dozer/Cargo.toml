@@ -8,3 +8,5 @@ edition = "2021"
 [dependencies]
 dozer-ingestion-connector = { path = "../connector" }
 dozer-log = { path = "../../dozer-log" }
+async-trait = { workspace = true }
+dozer-services = { path = "../../dozer-services" }

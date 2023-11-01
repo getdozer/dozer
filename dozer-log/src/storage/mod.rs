@@ -1,5 +1,6 @@
 use std::{fmt::Debug, num::NonZeroU16, path::PathBuf, time::SystemTime};
 
+use async_trait::async_trait;
 use aws_sdk_s3::{
     error::SdkError,
     operation::{
@@ -11,9 +12,9 @@ use aws_sdk_s3::{
     },
 };
 use aws_smithy_types::date_time::ConversionError;
-use dozer_types::{
-    bytes::Bytes, grpc_types::internal::storage_response, thiserror, tonic::async_trait,
-};
+
+use dozer_services::internal::storage_response;
+use dozer_types::{bytes::Bytes, thiserror};
 
 pub use nonzero_ext::nonzero;
 

@@ -3,7 +3,7 @@ use std::ops::{DerefMut, Range};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
-use dozer_types::grpc_types::internal::storage_response;
+use dozer_services::internal::storage_response;
 use dozer_types::log::{debug, error};
 use dozer_types::node::SourceStates;
 use dozer_types::serde::{Deserialize, Serialize};

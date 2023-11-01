@@ -3,7 +3,7 @@ use crate::generator::protoc::generator::{
 };
 use crate::grpc::types_helper::map_record;
 use dozer_cache::cache::CacheRecord;
-use dozer_types::grpc_types::types as GrpcTypes;
+use dozer_services::types as GrpcTypes;
 use prost_reflect::{DynamicMessage, ReflectMessage, SetFieldError, Value};
 
 use super::TypedResponse;

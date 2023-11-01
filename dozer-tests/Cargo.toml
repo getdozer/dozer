@@ -21,6 +21,7 @@ path = "src/sql_tests/logic_test.rs"
 
 [dependencies]
 dozer-types = { path = "../dozer-types" }
+dozer-services = { path = "../dozer-services" }
 dozer-api = { path = "../dozer-api" }
 dozer-utils = { path = "../dozer-utils" }
 dozer-cli = { path = "../dozer-cli" }

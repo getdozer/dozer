@@ -1,20 +1,16 @@
 use std::collections::HashMap;
 
+use async_trait::async_trait;
 use dozer_ingestion_connector::{
     dozer_types::{
         self,
         errors::internal::BoxedError,
-        grpc_types::internal::{
-            internal_pipeline_service_client::InternalPipelineServiceClient,
-            DescribeApplicationResponse,
-        },
         models::ingestion_types::{
             default_buffer_size, default_log_batch_size, default_timeout, IngestionMessage,
             NestedDozerConfig, NestedDozerLogOptions,
         },
         node::OpIdentifier,
         serde_json,
-        tonic::{async_trait, transport::Channel},
         types::{FieldType, Operation, Record, Schema},
     },
     tokio::{
@@ -29,6 +25,10 @@ use dozer_log::{
     reader::{LogReaderBuilder, LogReaderOptions},
     replication::LogOperation,
 };
+use dozer_services::internal::{
+    internal_pipeline_service_client::InternalPipelineServiceClient, DescribeApplicationResponse,
+};
+use dozer_services::tonic::transport::Channel;
 
 use crate::NestedDozerConnectorError;
 

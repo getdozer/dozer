@@ -4,13 +4,13 @@ use actix_web::{
     Error, HttpMessage, HttpRequest, HttpResponse,
 };
 use actix_web_httpauth::extractors::bearer::BearerAuth;
-use dozer_types::tonic::{Response, Status};
+use dozer_services::tonic::{Response, Status};
 use dozer_types::{models::api_security::ApiSecurity, serde_json::json};
 
 use crate::errors::{ApiError, AuthError};
 
 use super::{Access, Authorizer};
-use dozer_types::grpc_types::auth::GetAuthTokenResponse;
+use dozer_services::auth::GetAuthTokenResponse;
 
 pub fn auth_grpc(
     access: Option<&Access>,

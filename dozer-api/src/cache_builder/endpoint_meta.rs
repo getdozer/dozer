@@ -1,12 +1,10 @@
 use dozer_cache::dozer_log::{reader::LogClient, schemas::EndpointSchema};
-use dozer_tracing::Labels;
-use dozer_types::{
-    grpc_types::internal::{
-        internal_pipeline_service_client::InternalPipelineServiceClient, BuildRequest,
-    },
-    serde_json,
-    tonic::transport::Channel,
+use dozer_services::internal::{
+    internal_pipeline_service_client::InternalPipelineServiceClient, BuildRequest,
 };
+use dozer_services::tonic::transport::Channel;
+use dozer_tracing::Labels;
+use dozer_types::serde_json;
 
 use crate::{cache_alias_and_labels, errors::ApiInitError};
 
