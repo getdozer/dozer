@@ -3543,7 +3543,7 @@ checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
 
 [[package]]
 name = "dozer-api"
-version = "0.1.39"
+version = "0.2.0"
 dependencies = [
  "Inflector",
  "actix-cors",
@@ -3584,7 +3584,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-cache"
-version = "0.1.39"
+version = "0.2.0"
 dependencies = [
  "ahash 0.8.3",
  "clap 4.4.1",
@@ -3608,7 +3608,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-cli"
-version = "0.1.39"
+version = "0.2.0"
 dependencies = [
  "actix-files",
  "atty",
@@ -3647,7 +3647,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-core"
-version = "0.1.39"
+version = "0.2.0"
 dependencies = [
  "crossbeam",
  "daggy",
@@ -3663,7 +3663,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-ingestion"
-version = "0.1.39"
+version = "0.2.0"
 dependencies = [
  "bytes",
  "chrono",
@@ -3697,7 +3697,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-ingestion-connector"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "dozer-types",
  "futures",
@@ -3706,7 +3706,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-ingestion-deltalake"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "deltalake",
  "dozer-ingestion-connector",
@@ -3715,7 +3715,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-ingestion-dozer"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "dozer-ingestion-connector",
  "dozer-log",
@@ -3723,7 +3723,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-ingestion-ethereum"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "dozer-ingestion-connector",
  "dozer-tracing",
@@ -3733,7 +3733,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-ingestion-grpc"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "dozer-ingestion-connector",
  "tonic-reflection",
@@ -3743,7 +3743,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-ingestion-javascript"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "camino",
  "deno_ast",
@@ -3753,7 +3753,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-ingestion-kafka"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64 0.21.0",
  "dozer-ingestion-connector",
@@ -3763,7 +3763,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-ingestion-mongodb"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "bson",
  "dozer-ingestion-connector",
@@ -3772,7 +3772,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-ingestion-mysql"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "dozer-ingestion-connector",
  "geozero",
@@ -3785,7 +3785,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-ingestion-object-store"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "deltalake",
  "dozer-ingestion-connector",
@@ -3795,7 +3795,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-ingestion-postgres"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "dozer-ingestion-connector",
  "postgres-protocol",
@@ -3812,7 +3812,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-ingestion-snowflake"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "dozer-ingestion-connector",
  "genawaiter",
@@ -3824,7 +3824,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-log"
-version = "0.1.39"
+version = "0.2.0"
 dependencies = [
  "aws-config",
  "aws-sdk-s3",
@@ -3846,7 +3846,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-log-js"
-version = "0.1.39"
+version = "0.2.0"
 dependencies = [
  "dozer-log",
  "dozer-types",
@@ -3855,7 +3855,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-log-python"
-version = "0.1.39"
+version = "0.2.0"
 dependencies = [
  "dozer-log",
  "dozer-types",
@@ -3864,7 +3864,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-recordstore"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "dozer-storage",
  "dozer-types",
@@ -3873,7 +3873,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-sql"
-version = "0.1.39"
+version = "0.2.0"
 dependencies = [
  "ahash 0.8.3",
  "dozer-core",
@@ -3894,7 +3894,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-sql-expression"
-version = "0.1.39"
+version = "0.2.0"
 dependencies = [
  "bigdecimal",
  "dozer-types",
@@ -3910,7 +3910,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-storage"
-version = "0.1.39"
+version = "0.2.0"
 dependencies = [
  "dozer-types",
  "lmdb-rkv",
@@ -3924,7 +3924,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-tests"
-version = "0.1.39"
+version = "0.2.0"
 dependencies = [
  "ahash 0.8.3",
  "async-trait",
@@ -3958,7 +3958,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-tracing"
-version = "0.1.39"
+version = "0.2.0"
 dependencies = [
  "atty",
  "console-subscriber",
@@ -3975,7 +3975,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-types"
-version = "0.1.39"
+version = "0.2.0"
 dependencies = [
  "ahash 0.8.3",
  "arbitrary",
@@ -4009,7 +4009,7 @@ dependencies = [
 
 [[package]]
 name = "dozer-utils"
-version = "0.1.39"
+version = "0.2.0"
 dependencies = [
  "dozer-types",
 ]

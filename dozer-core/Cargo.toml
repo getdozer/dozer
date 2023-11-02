@@ -1,6 +1,6 @@
 [package]
 name = "dozer-core"
-version = "0.1.39"
+version = "0.2.0"
 edition = "2021"
 authors = ["getdozer/dozer-dev"]
 
@@ -8,14 +8,16 @@ authors = ["getdozer/dozer-dev"]
 
 [dependencies]
 dozer-log = { path = "../dozer-log/" }
-dozer-storage = {path = "../dozer-storage/"}
-dozer-types = {path = "../dozer-types/"}
-dozer-tracing = {path = "../dozer-tracing/"}
-dozer-recordstore = {path = "../dozer-recordstore/"}
+dozer-storage = { path = "../dozer-storage/" }
+dozer-types = { path = "../dozer-types/" }
+dozer-tracing = { path = "../dozer-tracing/" }
+dozer-recordstore = { path = "../dozer-recordstore/" }
 
-uuid = {version = "1.3.0", features = ["v1", "v4", "fast-rng"]}
+uuid = { version = "1.3.0", features = ["v1", "v4", "fast-rng"] }
 crossbeam = "0.8.2"
-daggy = { git = "https://github.com/getdozer/daggy", branch = "feat/try_map", features = ["serde-1"] }
+daggy = { git = "https://github.com/getdozer/daggy", branch = "feat/try_map", features = [
+    "serde-1",
+] }
 metrics = "0.21.0"
 
 tempdir = "0.3.7"

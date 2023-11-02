@@ -1,6 +1,6 @@
 [package]
 name = "dozer-sql"
-version = "0.1.39"
+version = "0.2.0"
 edition = "2021"
 authors = ["getdozer/dozer-dev"]
 
@@ -12,7 +12,7 @@ dozer-storage = { path = "../dozer-storage" }
 dozer-core = { path = "../dozer-core" }
 dozer-tracing = { path = "../dozer-tracing" }
 dozer-sql-expression = { path = "expression" }
-dozer-recordstore = {path = "../dozer-recordstore"}
+dozer-recordstore = { path = "../dozer-recordstore" }
 
 ahash = "0.8.3"
 enum_dispatch = "0.3.12"
