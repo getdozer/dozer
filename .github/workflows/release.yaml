@@ -261,7 +261,6 @@ jobs:
     runs-on:
       labels: ${{ matrix.os }}
     needs: prepare
-    timeout-minutes: 60
     strategy:
       matrix:
         os: [ubuntu-20-16-cores]
