@@ -114,9 +114,9 @@ jobs:
 
           tar -czvf ${{ env.DEB_NAME }}.tar.gz ${{ env.DEB_NAME }}/
 
-          cp deb/${{ env.DEB_NAME }}.deb ${{ env.DEB_NAME }}/
+          cp deb/${{ env.DEB_NAME }}.deb ./
 
-          ls -l ${{ env.DEB_NAME }}
+          ls -l ${{ env.DEB_NAME }}*
 
       - name: Upload the release
         uses: svenstaro/upload-release-action@v2
@@ -306,9 +306,9 @@ jobs:
           tar -czvf ${{matrix.asset_name}}.tar.gz \
               ${{matrix.asset_name}}/
 
-          cp deb/${{matrix.asset_name}}.deb ${{matrix.asset_name}}/ 2>/dev/null || :
+          cp deb/${{matrix.asset_name}}.deb ./ 2>/dev/null || :
 
-          ls -l ${{matrix.asset_name}}
+          ls -l ${{matrix.asset_name}}*
 
       - name: Upload the release
         uses: svenstaro/upload-release-action@v2
