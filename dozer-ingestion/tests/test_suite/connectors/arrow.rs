@@ -9,6 +9,7 @@ use dozer_ingestion_connector::dozer_types::{
         },
     },
     chrono::Datelike,
+    json_types::json_to_string,
     types::{Field, FieldDefinition, FieldType},
 };
 
@@ -431,7 +432,7 @@ fn fields_to_arrow<'a, F: IntoIterator<Item = &'a Field>>(
             let mut builder = arrow::array::StringBuilder::new();
             for field in fields {
                 match field {
-                    Field::Json(value) => builder.append_value(value.to_string()),
+                    Field::Json(value) => builder.append_value(json_to_string(value)),
                     Field::Null => builder.append_null(),
                     _ => panic!("Unexpected field type"),
                 }

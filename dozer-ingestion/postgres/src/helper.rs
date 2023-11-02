@@ -3,7 +3,7 @@ use dozer_ingestion_connector::dozer_types::{
     chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime, Offset, Utc},
     errors::types::TypeError,
     geo::Point as GeoPoint,
-    json_types::{serde_json_to_json_value, JsonValue},
+    json_types::{parse_json_slice, serde_json_to_json_value, JsonArray, JsonValue},
     ordered_float::OrderedFloat,
     rust_decimal, serde_json,
     types::*,
@@ -85,19 +85,13 @@ pub fn postgres_type_to_field(
             Ok(Field::Json(json))
         }
         Type::JSONB_ARRAY | Type::JSON_ARRAY => {
-            let val: Vec<serde_json::Value> = serde_json::from_slice(v).map_err(|_| {
+            let json_val = parse_json_slice(v).map_err(|_| {
                 PostgresSchemaError::JSONBParseError(format!(
                     "Error converting to a single row for: {}",
                     column_type.name()
                 ))
             })?;
-            let mut lst = vec![];
-            for v in val {
-                lst.push(serde_json_to_json_value(v).map_err(|e| {
-                    PostgresSchemaError::TypeError(TypeError::DeserializationError(e))
-                })?);
-            }
-            Ok(Field::Json(JsonValue::Array(lst)))
+            Ok(Field::Json(json_val))
         }
         Type::BOOL => Ok(Field::Boolean(v.slice(0..1) == "t")),
         Type::POINT => Ok(Field::Point(
@@ -192,24 +186,17 @@ pub fn value_to_field(
         &Type::JSONB_ARRAY | &Type::JSON_ARRAY => {
             let value: Result<Vec<serde_json::Value>, _> = row.try_get(idx);
             value.map_or_else(handle_error, |val| {
-                let mut lst = vec![];
-                for v in val {
-                    lst.push(serde_json_to_json_value(v).map_err(|e| {
-                        PostgresSchemaError::TypeError(TypeError::DeserializationError(e))
-                    })?);
-                }
-                Ok(Field::Json(JsonValue::Array(lst)))
+                let field = val
+                    .into_iter()
+                    .map(serde_json_to_json_value)
+                    .collect::<Result<JsonArray, _>>()
+                    .map_err(TypeError::DeserializationError)?;
+                Ok(Field::Json(field.into()))
             })
         }
         &Type::CHAR_ARRAY | &Type::TEXT_ARRAY | &Type::VARCHAR_ARRAY | &Type::BPCHAR_ARRAY => {
             let value: Result<Vec<String>, _> = row.try_get(idx);
-            value.map_or_else(handle_error, |val| {
-                let mut lst = vec![];
-                for v in val {
-                    lst.push(JsonValue::String(v));
-                }
-                Ok(Field::Json(JsonValue::Array(lst)))
-            })
+            value.map_or_else(handle_error, |val| Ok(Field::Json(val.into())))
         }
         &Type::POINT => convert_row_value_to_field!(row, idx, GeoPoint),
         // &Type::UUID => convert_row_value_to_field!(row, idx, Uuid),
@@ -277,8 +264,7 @@ pub fn convert_column_to_field(column: &Column) -> Result<FieldDefinition, Postg
 #[cfg(test)]
 mod tests {
     use super::*;
-    use dozer_ingestion_connector::dozer_types::chrono::NaiveDate;
-    use std::collections::BTreeMap;
+    use dozer_ingestion_connector::dozer_types::{chrono::NaiveDate, json_types::json};
 
     #[macro_export]
     macro_rules! test_conversion {
@@ -365,17 +351,11 @@ mod tests {
             Field::Timestamp(value)
         );
 
-        let value = JsonValue::Object(BTreeMap::from([(
-            String::from("abc"),
-            JsonValue::String(String::from("foo")),
-        )]));
+        let value = json!({"abc": "foo"});
         test_conversion!("{\"abc\":\"foo\"}", Type::JSONB, Field::Json(value.clone()));
         test_conversion!("{\"abc\":\"foo\"}", Type::JSON, Field::Json(value));
 
-        let value = JsonValue::Array(vec![JsonValue::Object(BTreeMap::from([(
-            String::from("abc"),
-            JsonValue::String(String::from("foo")),
-        )]))]);
+        let value = json!([{"abc": "foo"}]);
         test_conversion!(
             "[{\"abc\":\"foo\"}]",
             Type::JSON_ARRAY,

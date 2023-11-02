@@ -105,9 +105,9 @@ pub fn map_record_to_arrow(
             (Field::Binary(v), FieldType::Binary) => {
                 Arc::new(arrow_array::BinaryArray::from_iter_values([v])) as ArrayRef
             }
-            (Field::Json(v), FieldType::Json) => {
-                Arc::new(arrow_array::StringArray::from_iter_values([v.to_string()])) as ArrayRef
-            }
+            (Field::Json(v), FieldType::Json) => Arc::new(
+                arrow_array::StringArray::from_iter_values([format!("{v:?}")]),
+            ) as ArrayRef,
             (Field::Null, FieldType::Json) => {
                 Arc::new(arrow_array::StringArray::from(vec![None as Option<String>])) as ArrayRef
             }

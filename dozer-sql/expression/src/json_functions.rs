@@ -56,14 +56,10 @@ impl JsonFunctionType {
         let path = args[1].evaluate(record, schema)?.to_string();
 
         if let Ok(json_value) = self.evaluate_json(json_input, path) {
-            match json_value {
-                JsonValue::Object(_) => Ok(Field::Json(JsonValue::Null)),
-                JsonValue::Array(_) => Ok(Field::Json(JsonValue::Null)),
-                JsonValue::String(val) => Ok(Field::Json(JsonValue::String(val))),
-                JsonValue::Bool(val) => Ok(Field::Json(JsonValue::Bool(val))),
-                JsonValue::Number(val) => Ok(Field::Json(JsonValue::Number(val))),
-                JsonValue::Null => Ok(Field::Json(JsonValue::Null)),
+            if json_value.is_string() || json_value.is_number() || json_value.is_bool() {
+                return Ok(Field::Json(json_value));
             }
+            Ok(Field::Json(JsonValue::NULL))
         } else {
             Ok(Field::Null)
         }
@@ -86,14 +82,10 @@ impl JsonFunctionType {
             let path = args[1].evaluate(record, schema)?.to_string();
 
             if let Ok(json_value) = self.evaluate_json(json_input, path) {
-                match json_value {
-                    JsonValue::Object(val) => Ok(Field::Json(JsonValue::Object(val))),
-                    JsonValue::Array(val) => Ok(Field::Json(JsonValue::Array(val))),
-                    JsonValue::String(_) => Ok(Field::Json(JsonValue::Null)),
-                    JsonValue::Bool(_) => Ok(Field::Json(JsonValue::Null)),
-                    JsonValue::Number(_) => Ok(Field::Json(JsonValue::Null)),
-                    JsonValue::Null => Ok(Field::Json(JsonValue::Null)),
+                if json_value.is_object() || json_value.is_array() {
+                    return Ok(Field::Json(json_value));
                 }
+                Ok(Field::Json(JsonValue::NULL))
             } else {
                 Ok(Field::Null)
             }
@@ -107,7 +99,7 @@ impl JsonFunctionType {
     ) -> Result<JsonValue, Error> {
         let json_val = match json_input.to_json() {
             Some(json) => json,
-            None => JsonValue::Null,
+            None => JsonValue::NULL,
         };
 
         let finder = JsonPathFinder::new(
@@ -115,22 +107,12 @@ impl JsonFunctionType {
             Box::from(JsonPathInst::from_str(path.as_str()).map_err(Error::InvalidJsonPath)?),
         );
 
-        match finder.find() {
-            JsonValue::Null => Ok(JsonValue::Null),
-            JsonValue::Array(mut a) => {
-                if a.is_empty() {
-                    Ok(JsonValue::Array(vec![]))
-                } else if a.len() == 1 {
-                    Ok(a.remove(0))
-                } else {
-                    let mut array_val = vec![];
-                    for item in a {
-                        array_val.push(item);
-                    }
-                    Ok(JsonValue::Array(array_val))
-                }
+        let found = finder.find();
+        if let Some(a) = found.as_array() {
+            if a.len() == 1 {
+                return Ok(a.first().unwrap().clone());
             }
-            other => Ok(other),
         }
+        Ok(found)
     }
 }

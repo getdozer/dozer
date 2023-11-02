@@ -86,11 +86,7 @@ fn map_record<'a, C: Context<'a>>(
 }
 
 fn map_value<'a, C: Context<'a>>(value: Field, cx: &mut C) -> JsResult<'a, JsValue> {
-    let value = match field_to_json_value(value) {
-        Ok(val) => val,
-        Err(error) => return cx.throw_error(error.to_string()),
-    };
-    map_json_value(value, cx)
+    map_json_value(field_to_json_value(value), cx)
 }
 
 fn map_json_value<'a, C: Context<'a>>(value: Value, cx: &mut C) -> JsResult<'a, JsValue> {

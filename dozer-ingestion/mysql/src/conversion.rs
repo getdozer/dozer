@@ -329,7 +329,7 @@ mod tests {
                 .unwrap()
         );
         assert_eq!(
-            Field::Json(JsonValue::Number(12.0.into())),
+            Field::Json(12.0.into()),
             Value::Bytes(b"12".as_slice().into())
                 .into_field(&FieldType::Json)
                 .unwrap()

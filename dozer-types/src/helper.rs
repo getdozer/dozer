@@ -1,5 +1,5 @@
 use crate::errors::types::{DeserializationError, TypeError};
-use crate::json_types::{serde_json_to_json_value, JsonValue};
+use crate::json_types::{parse_json, serde_json_to_json_value};
 use crate::types::{DozerDuration, DozerPoint, TimeUnit, DATE_FORMAT};
 use crate::types::{Field, FieldType};
 use chrono::{DateTime, NaiveDate};
@@ -278,13 +278,13 @@ impl Field {
                 if nullable && (value.is_empty() || value == "null") {
                     Ok(Field::Null)
                 } else {
-                    JsonValue::from_str(value).map(Field::Json).map_err(|_| {
-                        TypeError::InvalidFieldValue {
+                    parse_json(value)
+                        .map(Field::Json)
+                        .map_err(|_| TypeError::InvalidFieldValue {
                             field_type: typ,
                             nullable,
                             value: value.to_string(),
-                        }
-                    })
+                        })
                 }
             }
             FieldType::Point => {
@@ -325,10 +325,10 @@ pub fn f64_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema:
 
 #[cfg(test)]
 mod tests {
+    use crate::json_types::json;
     use chrono::FixedOffset;
     use geo::Point;
     use rust_decimal::prelude::FromPrimitive;
-    use std::collections::BTreeMap;
 
     use super::*;
 
@@ -386,10 +386,7 @@ mod tests {
                 "{\"abc\":\"foo\"}",
                 FieldType::Json,
                 false,
-                Field::Json(JsonValue::Object(BTreeMap::from([(
-                    String::from("abc"),
-                    JsonValue::String(String::from("foo")),
-                )]))),
+                Field::Json(json!({"abc": "foo"})),
             ),
             ("null", FieldType::UInt, true, Field::Null),
             ("null", FieldType::U128, true, Field::Null),

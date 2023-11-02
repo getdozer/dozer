@@ -2525,6 +2525,16 @@ dependencies = [
 
 [[package]]
 name = "dashmap"
+version = "4.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e77a43b28d0668df09411cb0bc9a8c2adc40f9a048afe863e05fd43251e8e39c"
+dependencies = [
+ "cfg-if",
+ "num_cpus",
+]
+
+[[package]]
+name = "dashmap"
 version = "5.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "907076dfda823b0b36d2a1bb5f90c96660a5bbcd7729e10727f07858f22c4edc"
@@ -2563,7 +2573,7 @@ dependencies = [
  "bytes",
  "bzip2",
  "chrono",
- "dashmap",
+ "dashmap 5.4.0",
  "datafusion-common",
  "datafusion-execution",
  "datafusion-expr",
@@ -2628,7 +2638,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4973610d680bdc38f409a678c838d3873356cc6c29a543d1f56d7b4801e8d0a4"
 dependencies = [
  "arrow",
- "dashmap",
+ "dashmap 5.4.0",
  "datafusion-common",
  "datafusion-expr",
  "futures",
@@ -2766,7 +2776,7 @@ dependencies = [
  "bytes",
  "cfg-if",
  "chrono",
- "dashmap",
+ "dashmap 5.4.0",
  "datafusion",
  "datafusion-common",
  "datafusion-expr",
@@ -3989,9 +3999,11 @@ dependencies = [
  "arrow",
  "arrow-schema",
  "bincode",
+ "bson",
  "bytes",
  "chrono",
  "geo",
+ "ijson",
  "indexmap 2.0.0",
  "indicatif",
  "log",
@@ -5434,6 +5446,18 @@ name = "if_chain"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb56e1aa765b4b4f3aadfab769793b7087bb03a4ea4920644a6d238e2df5b9ed"
+
+[[package]]
+name = "ijson"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b96214564d1f12875bd9661b183d8494dd10e373cb693629536fe2f3125e254b"
+dependencies = [
+ "dashmap 4.0.2",
+ "lazy_static",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "impl-codec"
@@ -9196,7 +9220,7 @@ checksum = "5ea1c251bea837ece3126074d9e01c5868e5ae6135946404ceb20b5b2e264f7c"
 dependencies = [
  "apache-avro",
  "byteorder",
- "dashmap",
+ "dashmap 5.4.0",
  "futures",
  "reqwest",
  "serde",
@@ -9535,7 +9559,7 @@ version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "538c30747ae860d6fb88330addbbd3e0ddbe46d662d032855596d8a8ca260611"
 dependencies = [
- "dashmap",
+ "dashmap 5.4.0",
  "futures",
  "lazy_static",
  "log",
@@ -10293,7 +10317,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "675b5c755b0448268830e85e59429095d3423c0ce4a850b209c6f0eeab069f63"
 dependencies = [
  "base64 0.13.1",
- "dashmap",
+ "dashmap 5.4.0",
  "indexmap 1.9.3",
  "once_cell",
  "serde",

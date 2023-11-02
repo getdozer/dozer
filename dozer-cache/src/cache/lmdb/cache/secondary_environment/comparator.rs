@@ -59,7 +59,6 @@ mod tests {
         lmdb::DatabaseFlags, lmdb_sys::mdb_cmp, LmdbEnvironment, RwLmdbEnvironment,
     };
 
-    use dozer_types::json_types::JsonValue;
     use dozer_types::{
         chrono::{DateTime, NaiveDate, TimeZone, Utc},
         ordered_float::OrderedFloat,
@@ -163,6 +162,8 @@ mod tests {
     fn get_single_key_checker() -> impl FnMut(Option<i64>, Option<i64>, Ordering) {
         let (env, db) = setup(1);
         move |a: Option<i64>, b: Option<i64>, expected: Ordering| {
+            let orig_a = a;
+            let orig_b = b;
             let serialize =
                 |a: Option<i64>| get_secondary_index(&[&a.map_or(Field::Null, Field::Int)], true);
             let a = serialize(a);
@@ -176,9 +177,10 @@ mod tests {
                 mv_data: b.as_ptr() as *mut _,
             };
             let txn = env.begin_txn().unwrap();
+            let result = unsafe { mdb_cmp(txn.txn(), db.dbi(), &a, &b) }.cmp(&0);
             assert_eq!(
-                unsafe { mdb_cmp(txn.txn(), db.dbi(), &a, &b) }.cmp(&0),
-                expected
+                result, expected,
+                "Comparing {orig_a:?} and {orig_b:?}. Expected: {expected:?}, Actual: {result:?}"
             );
         }
     }
@@ -227,8 +229,8 @@ mod tests {
                 mv_size: b.len() as _,
                 mv_data: b.as_ptr() as *mut _,
             };
-            assert!(unsafe { mdb_cmp(txn.txn(), db.dbi(), &a, &b) } < 0);
             assert_eq!(field.cmp(&Field::Null), Ordering::Less);
+            assert!(unsafe { mdb_cmp(txn.txn(), db.dbi(), &a, &b) } < 0);
         };
 
         let test_cases = [
@@ -242,9 +244,7 @@ mod tests {
             Field::Decimal(Decimal::new(i64::MAX, 0)),
             Field::Timestamp(DateTime::from(Utc.timestamp_millis_opt(1).unwrap())),
             Field::Date(NaiveDate::from_ymd_opt(2020, 1, 2).unwrap()),
-            Field::Json(JsonValue::Array(vec![JsonValue::Number(OrderedFloat(
-                255_f64,
-            ))])),
+            Field::Json(vec![255_f64].into()),
         ];
         for a in test_cases.iter() {
             check(a);

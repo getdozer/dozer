@@ -6,7 +6,7 @@ use super::errors::FromArrowError::FieldTypeNotSupported;
 use super::errors::FromArrowError::TimeConversionError;
 use super::to_arrow;
 use crate::arrow_types::to_arrow::DOZER_SCHEMA_KEY;
-use crate::json_types::JsonValue;
+use crate::json_types::parse_json;
 use crate::types::{
     Field as DozerField, FieldDefinition, FieldType, Record, Schema as DozerSchema, Schema,
     SourceDefinition,
@@ -19,9 +19,7 @@ use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
 use arrow::row::SortField;
 
-use crate::arrow_types::errors::FromArrowError::DeserializationError;
 use log::error;
-use std::str::FromStr;
 use std::sync::Arc;
 
 fn make_from<A: Array + 'static>(column: &Arc<dyn Array>, row: usize) -> DozerField
@@ -152,19 +150,16 @@ macro_rules! make_text {
 fn make_json(column: &ArrayRef, row: usize) -> Result<DozerField, FromArrowError> {
     let array = column.as_any().downcast_ref::<array::StringArray>();
 
-    return if let Some(r) = array {
+    if let Some(r) = array {
         let s: DozerField = if r.is_null(row) {
             DozerField::Null
         } else {
-            match JsonValue::from_str(r.value(row)) {
-                Ok(j) => DozerField::Json(j),
-                Err(e) => return Err(DeserializationError(e)),
-            }
+            DozerField::Json(parse_json(r.value(row))?)
         };
         Ok(s)
     } else {
         Ok(DozerField::Null)
-    };
+    }
 }
 
 pub fn map_schema_to_dozer(

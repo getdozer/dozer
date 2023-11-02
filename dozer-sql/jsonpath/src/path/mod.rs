@@ -59,7 +59,10 @@ pub fn json_path_instance<'a>(json_path: &'a JsonPath, root: &'a JsonValue) -> P
 /// The method processes the indexes(all expressions indie [])
 fn process_index<'a>(json_path_index: &'a JsonPathIndex, root: &'a JsonValue) -> PathInstance<'a> {
     match json_path_index {
-        JsonPathIndex::Single(index) => Box::new(ArrayIndex::new(index.as_u64().unwrap() as usize)),
+        // We roundtrip through isize, because of a bug when the f64 representation is used
+        JsonPathIndex::Single(index) => {
+            Box::new(ArrayIndex::new(index.to_isize().unwrap() as usize))
+        }
         JsonPathIndex::Slice(s, e, step) => Box::new(ArraySlice::new(*s, *e, *step)),
         JsonPathIndex::UnionKeys(elems) => Box::new(UnionIndex::from_keys(elems)),
         JsonPathIndex::UnionIndex(elems) => Box::new(UnionIndex::from_indexes(elems)),

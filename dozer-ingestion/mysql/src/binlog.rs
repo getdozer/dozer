@@ -7,7 +7,7 @@ use super::{
 };
 use dozer_ingestion_connector::{
     dozer_types::{
-        json_types::JsonValue,
+        json_types::{JsonArray, JsonObject, JsonValue},
         log::trace,
         models::ingestion_types::IngestionMessage,
         types::Field,
@@ -27,7 +27,7 @@ use mysql_common::{
     },
     Row,
 };
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone)]
 pub struct BinlogPosition {
@@ -530,29 +530,27 @@ impl<'a> IntoJsonValue for binlog::jsonb::Value<'a> {
     fn into_json_value(self) -> Result<JsonValue, MySQLConnectorError> {
         use binlog::jsonb::Value::*;
         let json_value = match self {
-            Null => JsonValue::Null,
-            Bool(v) => JsonValue::Bool(v),
-            I16(v) => JsonValue::Number((v as f64).into()),
-            U16(v) => JsonValue::Number((v as f64).into()),
-            I32(v) => JsonValue::Number((v as f64).into()),
-            U32(v) => JsonValue::Number((v as f64).into()),
-            I64(v) => JsonValue::Number((v as f64).into()),
-            U64(v) => JsonValue::Number((v as f64).into()),
-            F64(v) => JsonValue::Number(v.into()),
-            String(v) => JsonValue::String(v.str().into_owned()),
+            Null => JsonValue::NULL,
+            Bool(v) => v.into(),
+            I16(v) => v.into(),
+            U16(v) => v.into(),
+            I32(v) => v.into(),
+            U32(v) => v.into(),
+            I64(v) => v.into(),
+            U64(v) => v.into(),
+            F64(v) => v.into(),
+            String(v) => (&*v.str()).into(),
             SmallArray(v) => v.into_json_value()?,
             LargeArray(v) => v.into_json_value()?,
             SmallObject(v) => v.into_json_value()?,
             LargeObject(v) => v.into_json_value()?,
-            Opaque(v) => JsonValue::Object({
-                let mut map = BTreeMap::new();
-                map.insert(
-                    "value_type".into(),
-                    JsonValue::from(u8::from(v.value_type()) as usize),
-                );
-                map.insert("data".into(), JsonValue::from(v.data()));
-                map
-            }),
+            Opaque(v) => {
+                let object: [(&str, JsonValue); 2] = [
+                    ("value_type", (v.value_type() as u8).into()),
+                    ("data", (&*v.data()).into()),
+                ];
+                object.into_iter().collect::<JsonObject>().into()
+            }
         };
 
         Ok(json_value)
@@ -561,26 +559,24 @@ impl<'a> IntoJsonValue for binlog::jsonb::Value<'a> {
 
 impl<'a, T: StorageFormat> IntoJsonValue for ComplexValue<'a, T, Array> {
     fn into_json_value(self) -> Result<JsonValue, MySQLConnectorError> {
-        Ok(JsonValue::Array({
-            let mut vec = Vec::new();
-            for value in self.iter() {
-                vec.push(value.map_err(binlog_io_error)?.into_json_value()?);
-            }
-            vec
-        }))
+        Ok(self
+            .iter()
+            .map(|value| value.map_err(binlog_io_error)?.into_json_value())
+            .collect::<Result<JsonArray, _>>()?
+            .into())
     }
 }
 
 impl<'a, T: StorageFormat> IntoJsonValue for ComplexValue<'a, T, Object> {
     fn into_json_value(self) -> Result<JsonValue, MySQLConnectorError> {
-        Ok(JsonValue::Object({
-            let mut map = BTreeMap::new();
-            for entry in self.iter() {
+        Ok(self
+            .iter()
+            .map(|entry| {
                 let (key, value) = entry.map_err(binlog_io_error)?;
-                map.insert(key.value().into_owned(), value.into_json_value()?);
-            }
-            map
-        }))
+                Ok((key.value().into_owned(), value.into_json_value()?))
+            })
+            .collect::<Result<JsonObject, MySQLConnectorError>>()?
+            .into())
     }
 }
 
@@ -707,10 +703,9 @@ impl<'a> BinlogRowsEvent<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
 
     use dozer_ingestion_connector::dozer_types::{
-        json_types::JsonValue,
+        json_types::json,
         types::{Field, FieldType},
     };
 
@@ -738,70 +733,70 @@ mod tests {
         );
 
         assert_eq!(
-            Field::Json(JsonValue::Null),
+            Field::Json(json!(null)),
             Some(BinlogValue::Jsonb(Null))
                 .into_field(&FieldType::Json)
                 .unwrap()
         );
 
         assert_eq!(
-            Field::Json(JsonValue::Number(2.0.into())),
+            Field::Json(json!(2.0)),
             Some(BinlogValue::Jsonb(I16(2)))
                 .into_field(&FieldType::Json)
                 .unwrap()
         );
 
         assert_eq!(
-            Field::Json(JsonValue::Number(3.0.into())),
+            Field::Json(json!(3.0)),
             Some(BinlogValue::Jsonb(I32(3)))
                 .into_field(&FieldType::Json)
                 .unwrap()
         );
 
         assert_eq!(
-            Field::Json(JsonValue::Number(4.0.into())),
+            Field::Json(json!(4.0)),
             Some(BinlogValue::Jsonb(U16(4)))
                 .into_field(&FieldType::Json)
                 .unwrap()
         );
 
         assert_eq!(
-            Field::Json(JsonValue::Number(5.0.into())),
+            Field::Json(json!(5.0)),
             Some(BinlogValue::Jsonb(U32(5)))
                 .into_field(&FieldType::Json)
                 .unwrap()
         );
 
         assert_eq!(
-            Field::Json(JsonValue::Number(6.0.into())),
+            Field::Json(json!(6.0)),
             Some(BinlogValue::Jsonb(I64(6)))
                 .into_field(&FieldType::Json)
                 .unwrap()
         );
 
         assert_eq!(
-            Field::Json(JsonValue::Number(7.0.into())),
+            Field::Json(json!(7.0)),
             Some(BinlogValue::Jsonb(U64(7)))
                 .into_field(&FieldType::Json)
                 .unwrap()
         );
 
         assert_eq!(
-            Field::Json(JsonValue::Number(8.0.into())),
+            Field::Json(json!(8.0)),
             Some(BinlogValue::Jsonb(F64(8.0)))
                 .into_field(&FieldType::Json)
                 .unwrap()
         );
 
         assert_eq!(
-            Field::Json(JsonValue::String("9".into())),
+            Field::Json(json!("9")),
             Some(BinlogValue::Jsonb(String(JsonbString::new(vec![b'9']))))
                 .into_field(&FieldType::Json)
                 .unwrap()
         );
 
         assert_eq!(
-            Field::Json(JsonValue::Array(vec![JsonValue::Number(10.0.into())])),
+            Field::Json(json!([10.0])),
             Some(BinlogValue::Jsonb(SmallArray(
                 ParseBuf(&[1, 0, 7, 0, JsonbType::JSONB_TYPE_INT16 as u8, 10, 0])
                     .parse(())
@@ -812,7 +807,7 @@ mod tests {
         );
 
         assert_eq!(
-            Field::Json(JsonValue::Array(vec![])),
+            Field::Json(json!([])),
             Some(BinlogValue::Jsonb(LargeArray(
                 ParseBuf(&[0, 0, 0, 0, 8, 0, 0, 0]).parse(()).unwrap(),
             )))
@@ -821,11 +816,7 @@ mod tests {
         );
 
         assert_eq!(
-            Field::Json(JsonValue::Object({
-                let mut map = BTreeMap::new();
-                map.insert("k".into(), JsonValue::Number(12.0.into()));
-                map
-            })),
+            Field::Json(json!({"k": 12.0})),
             Some(BinlogValue::Jsonb(SmallObject(
                 ParseBuf(&[
                     1,
@@ -849,7 +840,7 @@ mod tests {
         );
 
         assert_eq!(
-            Field::Json(JsonValue::Object(BTreeMap::new())),
+            Field::Json(json!({})),
             Some(BinlogValue::Jsonb(LargeObject(
                 ParseBuf(&[0, 0, 0, 0, 8, 0, 0, 0]).parse(()).unwrap(),
             )))
@@ -858,15 +849,7 @@ mod tests {
         );
 
         assert_eq!(
-            Field::Json(JsonValue::Object({
-                let mut map = BTreeMap::new();
-                map.insert(
-                    "value_type".into(),
-                    JsonValue::from(u8::from(ColumnType::MYSQL_TYPE_TINY) as usize),
-                );
-                map.insert("data".into(), JsonValue::String('a'.into()));
-                map
-            })),
+            Field::Json(json!({"value_type": ColumnType::MYSQL_TYPE_TINY as u8, "data": "a"})),
             Some(BinlogValue::Jsonb(Opaque(OpaqueValue::new(
                 ColumnType::MYSQL_TYPE_TINY,
                 vec![b'a']
@@ -876,7 +859,7 @@ mod tests {
         );
 
         assert_eq!(
-            Field::Json(JsonValue::Bool(true)),
+            Field::Json(json!(true)),
             Some(BinlogValue::Jsonb(Bool(true)))
                 .into_field(&FieldType::Json)
                 .unwrap()

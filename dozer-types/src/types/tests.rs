@@ -3,8 +3,6 @@ use chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use ordered_float::OrderedFloat;
 use rust_decimal::Decimal;
 
-use crate::json_types::JsonValue;
-
 #[test]
 fn data_encoding_len_must_agree_with_encode() {
     for field in field_test_cases() {
@@ -231,7 +229,7 @@ fn test_as_conversion() {
     assert!(field.as_duration().is_none());
     assert!(field.as_null().is_none());
 
-    let field = Field::Json(JsonValue::Array(vec![]));
+    let field = Field::Json(Vec::<String>::new().into());
     assert!(field.as_uint().is_none());
     assert!(field.as_int().is_none());
     assert!(field.as_u128().is_none());
@@ -500,7 +498,7 @@ fn test_to_conversion() {
     assert!(field.to_duration().is_none());
     assert!(field.to_null().is_none());
 
-    let field = Field::Json(JsonValue::Array(vec![]));
+    let field = Field::Json(Vec::<String>::new().into());
     assert!(field.to_uint().is_none());
     assert!(field.to_int().is_none());
     assert!(field.to_u128().is_none());

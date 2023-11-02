@@ -109,9 +109,7 @@ fn parse_chain_in_operand(rule: Pair<Rule>) -> Operand {
                     Some(JsonPath::Index(JsonPathIndex::UnionIndex(keys))) => {
                         Operand::val(JsonValue::from(keys.clone()))
                     }
-                    Some(JsonPath::Field(f)) => {
-                        Operand::val(JsonValue::Array(vec![JsonValue::from(f.clone())]))
-                    }
+                    Some(JsonPath::Field(f)) => Operand::val(vec![f].into()),
                     _ => Operand::Dynamic(Box::new(JsonPath::Chain(elems))),
                 }
             } else {
@@ -175,8 +173,8 @@ fn parse_atom(rule: Pair<Rule>) -> Operand {
         Rule::number => Operand::Static(number_to_value(rule.as_str())),
         Rule::string_qt => Operand::Static(JsonValue::from(down(atom).as_str())),
         Rule::chain => parse_chain_in_operand(down(rule)),
-        Rule::boolean => Operand::Static(rule.as_str().parse().unwrap()),
-        _ => Operand::Static(JsonValue::Null),
+        Rule::boolean => Operand::Static(rule.as_str().parse::<bool>().unwrap().into()),
+        _ => Operand::Static(JsonValue::NULL),
     }
 }
 

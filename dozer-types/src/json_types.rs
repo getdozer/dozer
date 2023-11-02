@@ -1,253 +1,92 @@
-use crate::errors::types::{CannotConvertF64ToJson, DeserializationError};
+use std::cmp::Ordering;
+
+use crate::errors::types::DeserializationError;
 use crate::types::{DozerDuration, Field, DATE_FORMAT};
 use chrono::SecondsFormat;
 use ordered_float::OrderedFloat;
 use prost_types::value::Kind;
 use prost_types::{ListValue, Struct, Value as ProstValue};
-use rust_decimal::prelude::FromPrimitive;
-use serde::{Deserialize, Serialize};
-use serde_json::{Map, Number, Value};
-use std::borrow::Cow;
-use std::collections::BTreeMap;
-use std::fmt::{Display, Formatter};
-use std::str::FromStr;
+use serde_json::{Map, Value};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-pub enum JsonValue {
-    Null,
-    Bool(bool),
-    Number(
-        #[cfg_attr(feature="arbitrary", arbitrary(with = crate::types::field::arbitrary_float))]
-        OrderedFloat<f64>,
-    ),
-    String(String),
-    Array(Vec<JsonValue>),
-    Object(BTreeMap<String, JsonValue>),
+use ijson::{Destructured, DestructuredRef, IArray, IObject, IValue};
+
+pub type JsonValue = IValue;
+pub type JsonObject = IObject;
+pub type JsonArray = IArray;
+
+pub type DestructuredJsonRef<'a> = DestructuredRef<'a>;
+pub type DestructuredJson = Destructured;
+pub use ijson::ijson as json;
+
+pub fn parse_json(from: &str) -> Result<JsonValue, DeserializationError> {
+    let serde_value: serde_json::Value = serde_json::from_str(from)?;
+    ijson::to_value(serde_value).map_err(Into::into)
 }
 
-#[allow(clippy::derivable_impls)]
-impl Default for JsonValue {
-    fn default() -> JsonValue {
-        JsonValue::Null
-    }
+pub fn parse_json_slice(bytes: &[u8]) -> Result<JsonValue, DeserializationError> {
+    let serde_value: serde_json::Value = serde_json::from_slice(bytes)?;
+    ijson::to_value(serde_value).map_err(Into::into)
 }
 
-impl JsonValue {
-    pub fn as_array(&self) -> Option<&Vec<JsonValue>> {
-        match self {
-            JsonValue::Array(array) => Some(array),
-            _ => None,
-        }
-    }
-
-    pub fn as_object(&self) -> Option<&BTreeMap<String, JsonValue>> {
-        match self {
-            JsonValue::Object(map) => Some(map),
-            _ => None,
-        }
-    }
-
-    pub fn as_str(&self) -> Option<&str> {
-        match self {
-            JsonValue::String(s) => Some(s),
-            _ => None,
-        }
-    }
-
-    pub fn as_i64(&self) -> Option<i64> {
-        match self {
-            JsonValue::Number(n) => Some(n.0 as i64),
-            _ => None,
-        }
-    }
-
-    pub fn as_i128(&self) -> Option<i128> {
-        match self {
-            JsonValue::Number(n) => i128::from_f64(n.0),
-            _ => None,
-        }
-    }
-
-    pub fn as_u64(&self) -> Option<u64> {
-        match self {
-            JsonValue::Number(n) => Some(n.0 as u64),
-            _ => None,
-        }
-    }
-
-    pub fn as_u128(&self) -> Option<u128> {
-        match self {
-            JsonValue::Number(n) => u128::from_f64(n.0),
-            _ => None,
-        }
-    }
-
-    pub fn as_f64(&self) -> Option<f64> {
-        match self {
-            JsonValue::Number(n) => Some(n.0),
-            _ => None,
-        }
-    }
-
-    pub fn as_bool(&self) -> Option<bool> {
-        match *self {
-            JsonValue::Bool(b) => Some(b),
-            _ => None,
-        }
-    }
-
-    pub fn as_null(&self) -> Option<()> {
-        match *self {
-            JsonValue::Null => Some(()),
-            _ => None,
-        }
-    }
+pub fn json_to_string(value: &JsonValue) -> String {
+    // The debug implementation of IValue produces a json string, but this is
+    // not a stable guarantee. Therefore, roundtrip through serde_json
+    let serde_value = json_value_to_serde_json(value);
+    serde_value.to_string()
 }
 
-impl Display for JsonValue {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            JsonValue::Null => f.write_str("NULL"),
-            JsonValue::Bool(v) => f.write_str(&format!("{v}")),
-            JsonValue::Number(v) => f.write_str(&format!("{v}")),
-            JsonValue::String(v) => f.write_str(&v.to_string()),
-            JsonValue::Array(v) => {
-                let list: Vec<String> = v.iter().map(|val| format!("{val}")).collect();
-                let data = &format!("[{}]", list.join(","));
-                f.write_str(data)
-            }
-            JsonValue::Object(v) => {
-                let list: Vec<String> = v.iter().map(|(key, val)| format!("{key}:{val}")).collect();
-                let data = &format!("{{ {} }}", list.join(","));
-                f.write_str(data)
-            }
-        }
-    }
+pub(crate) fn json_to_bytes(value: &JsonValue) -> Vec<u8> {
+    bson::to_vec(&json!({"data": value})).unwrap()
 }
 
-impl FromStr for JsonValue {
-    type Err = DeserializationError;
+pub(crate) fn json_from_bytes(bytes: &[u8]) -> Result<JsonValue, DeserializationError> {
+    let v: JsonValue = bson::from_slice(bytes)?;
+    // We always wrap the value in an object for bson's sake, so safe to unwrap
+    // Ideally, we'd use `JsonValue::into_object()`, but that's bugged
+    Ok(v.as_object().unwrap().to_owned()["data"].clone())
+}
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let object = serde_json::from_str(s);
-        if object.is_ok() {
-            serde_json_to_json_value(object?)
-        } else {
-            let f = OrderedFloat::from_str(s)
-                .map_err(|e| DeserializationError::Custom(Box::from(format!("{:?}", e))));
-            if f.is_ok() {
-                Ok(JsonValue::Number(f?))
-            } else {
-                let b = bool::from_str(s)
-                    .map_err(|e| DeserializationError::Custom(Box::from(format!("{:?}", e))));
-                if b.is_ok() {
-                    Ok(JsonValue::Bool(b?))
-                } else {
-                    Ok(JsonValue::String(String::from(s)))
+pub fn json_to_bytes_size(value: &JsonValue) -> usize {
+    json_to_bytes(value).len()
+}
+
+pub(crate) fn json_cmp(l: &JsonValue, r: &JsonValue) -> std::cmp::Ordering {
+    // Early return in the common case
+    if l.type_() != r.type_() {
+        return l.type_().cmp(&r.type_());
+    }
+
+    match (l.destructure_ref(), r.destructure_ref()) {
+        (DestructuredRef::Object(l), DestructuredRef::Object(r)) => {
+            let mut l_sorted: Vec<_> = l.iter().collect();
+            l_sorted.sort_by(|v0, v1| v0.0.cmp(v1.0));
+
+            let mut r_sorted: Vec<_> = r.iter().collect();
+            r_sorted.sort_by(|v0, v1| v0.0.cmp(v1.0).then_with(|| json_cmp(v0.1, v1.1)));
+
+            for ((l_k, l_v), (r_k, r_v)) in l_sorted.into_iter().zip(r_sorted) {
+                let cmp = l_k.cmp(r_k).then_with(|| json_cmp(l_v, r_v));
+                if !cmp.is_eq() {
+                    return cmp;
                 }
             }
+            l.len().cmp(&r.len())
         }
-    }
-}
-
-impl From<usize> for JsonValue {
-    fn from(f: usize) -> Self {
-        From::from(f as f64)
-    }
-}
-
-impl From<f32> for JsonValue {
-    fn from(f: f32) -> Self {
-        From::from(f as f64)
-    }
-}
-
-impl From<f64> for JsonValue {
-    fn from(f: f64) -> Self {
-        JsonValue::Number(OrderedFloat(f))
-    }
-}
-
-impl From<bool> for JsonValue {
-    fn from(f: bool) -> Self {
-        JsonValue::Bool(f)
-    }
-}
-
-impl From<String> for JsonValue {
-    fn from(f: String) -> Self {
-        JsonValue::String(f)
-    }
-}
-
-impl<'a> From<&'a str> for JsonValue {
-    fn from(f: &str) -> Self {
-        JsonValue::String(f.to_string())
-    }
-}
-
-impl<'a> From<Cow<'a, str>> for JsonValue {
-    fn from(f: Cow<'a, str>) -> Self {
-        JsonValue::String(f.into_owned())
-    }
-}
-
-impl From<OrderedFloat<f64>> for JsonValue {
-    fn from(f: OrderedFloat<f64>) -> Self {
-        JsonValue::Number(f)
-    }
-}
-
-impl From<BTreeMap<String, JsonValue>> for JsonValue {
-    fn from(f: BTreeMap<String, JsonValue>) -> Self {
-        JsonValue::Object(f)
-    }
-}
-
-impl<T: Into<JsonValue>> From<Vec<T>> for JsonValue {
-    fn from(f: Vec<T>) -> Self {
-        JsonValue::Array(f.into_iter().map(Into::into).collect())
-    }
-}
-
-impl<'a, T: Clone + Into<JsonValue>> From<&'a [T]> for JsonValue {
-    fn from(f: &'a [T]) -> Self {
-        JsonValue::Array(f.iter().cloned().map(Into::into).collect())
-    }
-}
-
-impl<T: Into<JsonValue>> FromIterator<T> for JsonValue {
-    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        JsonValue::Array(iter.into_iter().map(Into::into).collect())
-    }
-}
-
-impl<K: Into<String>, V: Into<JsonValue>> FromIterator<(K, V)> for JsonValue {
-    fn from_iter<I: IntoIterator<Item = (K, V)>>(iter: I) -> Self {
-        JsonValue::Object(
-            iter.into_iter()
-                .map(|(k, v)| (k.into(), v.into()))
-                .collect(),
-        )
-    }
-}
-
-impl From<()> for JsonValue {
-    fn from((): ()) -> Self {
-        JsonValue::Null
-    }
-}
-
-impl<T> From<Option<T>> for JsonValue
-where
-    T: Into<JsonValue>,
-{
-    fn from(opt: Option<T>) -> Self {
-        match opt {
-            None => JsonValue::Null,
-            Some(value) => Into::into(value),
+        (DestructuredRef::Array(l), DestructuredRef::Array(r)) => {
+            for (l, r) in l.iter().zip(r) {
+                match json_cmp(l, r) {
+                    Ordering::Equal => (),
+                    non_eq => return non_eq,
+                }
+            }
+            l.len().cmp(&r.len())
         }
+        (DestructuredRef::Null, DestructuredRef::Null) => Ordering::Equal,
+        (DestructuredRef::Bool(l), DestructuredRef::Bool(r)) => l.cmp(&r),
+        (DestructuredRef::Number(l), DestructuredRef::Number(r)) => l.cmp(r),
+        (DestructuredRef::String(l), DestructuredRef::String(r)) => l.cmp(r),
+        // We checked the types were equal before
+        _ => unreachable!(),
     }
 }
 
@@ -266,95 +105,76 @@ fn convert_duration_to_object(d: &DozerDuration) -> Value {
 }
 
 /// Should be consistent with `convert_cache_type_to_schema_type`.
-pub fn field_to_json_value(field: Field) -> Result<Value, CannotConvertF64ToJson> {
+pub fn field_to_json_value(field: Field) -> Value {
     match field {
-        Field::UInt(n) => Ok(Value::from(n)),
-        Field::U128(n) => Ok(Value::String(n.to_string())),
-        Field::Int(n) => Ok(Value::from(n)),
-        Field::I128(n) => Ok(Value::String(n.to_string())),
-        Field::Float(n) => Ok(Value::from(n.0)),
-        Field::Boolean(b) => Ok(Value::from(b)),
-        Field::String(s) => Ok(Value::from(s)),
-        Field::Text(n) => Ok(Value::from(n)),
-        Field::Binary(b) => Ok(Value::from(b)),
-        Field::Decimal(n) => Ok(Value::String(n.to_string())),
-        Field::Timestamp(ts) => Ok(Value::String(
-            ts.to_rfc3339_opts(SecondsFormat::Millis, true),
-        )),
-        Field::Date(n) => Ok(Value::String(n.format(DATE_FORMAT).to_string())),
-        Field::Json(b) => json_value_to_serde_json(b),
-        Field::Point(point) => Ok(convert_x_y_to_object(&point.0.x_y())),
-        Field::Duration(d) => Ok(convert_duration_to_object(&d)),
-        Field::Null => Ok(Value::Null),
+        Field::UInt(n) => Value::from(n),
+        Field::U128(n) => Value::String(n.to_string()),
+        Field::Int(n) => Value::from(n),
+        Field::I128(n) => Value::String(n.to_string()),
+        Field::Float(n) => Value::from(n.0),
+        Field::Boolean(b) => Value::from(b),
+        Field::String(s) => Value::from(s),
+        Field::Text(n) => Value::from(n),
+        Field::Binary(b) => Value::from(b),
+        Field::Decimal(n) => Value::String(n.to_string()),
+        Field::Timestamp(ts) => Value::String(ts.to_rfc3339_opts(SecondsFormat::Millis, true)),
+        Field::Date(n) => Value::String(n.format(DATE_FORMAT).to_string()),
+        Field::Json(b) => json_value_to_serde_json(&b),
+        Field::Point(point) => convert_x_y_to_object(&point.0.x_y()),
+        Field::Duration(d) => convert_duration_to_object(&d),
+        Field::Null => Value::Null,
     }
 }
 
-pub fn json_value_to_serde_json(value: JsonValue) -> Result<Value, CannotConvertF64ToJson> {
-    match value {
-        JsonValue::Null => Ok(Value::Null),
-        JsonValue::Bool(b) => Ok(Value::Bool(b)),
-        JsonValue::Number(n) => match Number::from_f64(n.0) {
-            Some(number) => Ok(Value::Number(number)),
-            None => Err(CannotConvertF64ToJson(n.0)),
-        },
-        JsonValue::String(s) => Ok(Value::String(s)),
-        JsonValue::Array(a) => {
-            let mut lst: Vec<Value> = vec![];
-            for val in a {
-                lst.push(json_value_to_serde_json(val)?);
-            }
-            Ok(Value::Array(lst))
-        }
-        JsonValue::Object(o) => {
-            let mut values: Map<String, Value> = Map::new();
-            for (key, val) in o {
-                values.insert(key, json_value_to_serde_json(val)?);
-            }
-            Ok(Value::Object(values))
-        }
-    }
+pub fn json_value_to_serde_json(value: &JsonValue) -> Value {
+    // Note that while this cannot fail, the other way might, as our internal JSON
+    // representation does not support `inf`, `-inf` and NaN
+    ijson::from_value(value).expect("Json to Json conversion should never fail")
 }
 
 pub fn prost_to_json_value(val: ProstValue) -> JsonValue {
     match val.kind {
         Some(v) => match v {
-            Kind::NullValue(_) => JsonValue::Null,
-            Kind::BoolValue(b) => JsonValue::Bool(b),
-            Kind::NumberValue(n) => JsonValue::Number(OrderedFloat(n)),
-            Kind::StringValue(s) => JsonValue::String(s),
-            Kind::ListValue(l) => {
-                JsonValue::Array(l.values.into_iter().map(prost_to_json_value).collect())
-            }
-            Kind::StructValue(s) => JsonValue::Object(
-                s.fields
-                    .into_iter()
-                    .map(|(key, val)| (key, prost_to_json_value(val)))
-                    .collect(),
-            ),
+            Kind::NullValue(_) => JsonValue::NULL,
+            Kind::BoolValue(b) => b.into(),
+            Kind::NumberValue(n) => n.into(),
+            Kind::StringValue(s) => s.into(),
+            Kind::ListValue(l) => l
+                .values
+                .into_iter()
+                .map(prost_to_json_value)
+                .collect::<IArray>()
+                .into(),
+            Kind::StructValue(s) => s
+                .fields
+                .into_iter()
+                .map(|(key, val)| (key, prost_to_json_value(val)))
+                .collect::<IObject>()
+                .into(),
         },
-        None => JsonValue::Null,
+        None => JsonValue::NULL,
     }
 }
 
 pub fn json_value_to_prost(val: JsonValue) -> ProstValue {
     ProstValue {
-        kind: match val {
-            JsonValue::Null => Some(Kind::NullValue(0)),
-            JsonValue::Bool(b) => Some(Kind::BoolValue(b)),
-            JsonValue::Number(n) => Some(Kind::NumberValue(*n)),
-            JsonValue::String(s) => Some(Kind::StringValue(s)),
-            JsonValue::Array(a) => {
+        kind: match val.destructure() {
+            Destructured::Null => Some(Kind::NullValue(0)),
+            Destructured::Bool(b) => Some(Kind::BoolValue(b)),
+            Destructured::Number(n) => Some(Kind::NumberValue(n.to_f64_lossy())),
+            Destructured::String(s) => Some(Kind::StringValue(s.into())),
+            Destructured::Array(a) => {
                 let values: prost::alloc::vec::Vec<ProstValue> =
                     a.into_iter().map(json_value_to_prost).collect();
                 Some(Kind::ListValue(ListValue { values }))
             }
-            JsonValue::Object(o) => {
+            Destructured::Object(o) => {
                 let fields: prost::alloc::collections::BTreeMap<
                     prost::alloc::string::String,
                     ProstValue,
                 > = o
                     .into_iter()
-                    .map(|(key, val)| (key, json_value_to_prost(val)))
+                    .map(|(key, val)| (key.into(), json_value_to_prost(val)))
                     .collect();
                 Some(Kind::StructValue(Struct { fields }))
             }
@@ -363,29 +183,7 @@ pub fn json_value_to_prost(val: JsonValue) -> ProstValue {
 }
 
 pub fn serde_json_to_json_value(value: Value) -> Result<JsonValue, DeserializationError> {
-    match value {
-        Value::Null => Ok(JsonValue::Null),
-        Value::Bool(b) => Ok(JsonValue::Bool(b)),
-        Value::Number(n) => Ok(JsonValue::Number(OrderedFloat(match n.as_f64() {
-            Some(f) => f,
-            None => return Err(DeserializationError::F64TypeConversionError(n)),
-        }))),
-        Value::String(s) => Ok(JsonValue::String(s)),
-        Value::Array(a) => {
-            let mut lst = vec![];
-            for val in a {
-                lst.push(serde_json_to_json_value(val)?);
-            }
-            Ok(JsonValue::Array(lst))
-        }
-        Value::Object(o) => {
-            let mut values: BTreeMap<String, JsonValue> = BTreeMap::<String, JsonValue>::new();
-            for (key, val) in o {
-                values.insert(key, serde_json_to_json_value(val)?);
-            }
-            Ok(JsonValue::Object(values))
-        }
-    }
+    ijson::to_value(value).map_err(Into::into)
 }
 
 #[cfg(test)]
@@ -407,9 +205,34 @@ mod tests {
         let value = field_to_json_value(field.clone());
 
         // Convert the JSON value back to a Field.
-        let deserialized = json_value_to_field(value.unwrap(), field_type, true).unwrap();
+        let deserialized = json_value_to_field(value, field_type, true).unwrap();
 
-        assert_eq!(deserialized, field, "must be equal");
+        assert_eq!(deserialized, field);
+    }
+
+    macro_rules! check_cmp {
+        ($l:tt, $r:tt, $ordering:expr) => {
+            assert_eq!(json_cmp(&json!($l), &json!($r)), $ordering);
+            // Invertible
+            assert_eq!(json_cmp(&json!($r), &json!($l)), $ordering.reverse());
+        };
+    }
+    #[test]
+    fn test_json_ord_object() {
+        check_cmp!({"a": 2, "b": 3}, {"a": 2, "b": 2}, Ordering::Greater);
+        check_cmp!({"a": 2, "b": 3}, {"a": 2, "b": 4}, Ordering::Less);
+        check_cmp!({"a": 2, "b": 3}, {"a": 2, "b": 3}, Ordering::Equal);
+
+        // Insertion order independent
+        check_cmp!({"a": 2, "b": 3}, {"b": 2, "a": 2}, Ordering::Greater);
+        check_cmp!({"a": 2, "b": 3}, {"b": 4, "a": 2}, Ordering::Less);
+        check_cmp!({"a": 2, "b": 3}, {"b": 3, "a": 2}, Ordering::Equal);
+
+        // Sorted key-value comparison
+        check_cmp!({"b": 3}, {"a": 3, "b": 3}, Ordering::Greater);
+
+        check_cmp!({"a": 2}, {"b": 2}, Ordering::Less);
+        check_cmp!({}, {"b": 2}, Ordering::Less);
     }
 
     #[test]
@@ -432,20 +255,13 @@ mod tests {
             ),
             (
                 FieldType::Json,
-                Field::Json(JsonValue::Array(vec![
-                    JsonValue::Number(OrderedFloat(123_f64)),
-                    JsonValue::Number(OrderedFloat(34_f64)),
-                    JsonValue::Number(OrderedFloat(97_f64)),
-                    JsonValue::Number(OrderedFloat(98_f64)),
-                    JsonValue::Number(OrderedFloat(99_f64)),
-                    JsonValue::Number(OrderedFloat(34_f64)),
-                    JsonValue::Number(OrderedFloat(58_f64)),
-                    JsonValue::Number(OrderedFloat(34_f64)),
-                    JsonValue::Number(OrderedFloat(102_f64)),
-                    JsonValue::Number(OrderedFloat(111_f64)),
-                    JsonValue::Number(OrderedFloat(111_f64)),
-                    JsonValue::Number(OrderedFloat(34_f64)),
-                ])),
+                Field::Json(
+                    vec![
+                        123_f64, 34_f64, 97_f64, 98_f64, 99_f64, 34_f64, 58_f64, 34_f64, 102_f64,
+                        111_f64, 111_f64, 34_f64,
+                    ]
+                    .into(),
+                ),
             ),
             (FieldType::Text, Field::Text("lorem ipsum".to_string())),
             (

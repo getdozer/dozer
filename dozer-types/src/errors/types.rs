@@ -41,6 +41,8 @@ pub enum DeserializationError {
     Json(#[from] serde_json::Error),
     #[error("bincode: {0}")]
     Bincode(#[from] bincode::Error),
+    #[error("bson: {0}")]
+    Bson(#[from] bson::de::Error),
     #[error("custom: {0}")]
     Custom(#[from] BoxedError),
     #[error("Empty input")]

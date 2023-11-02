@@ -1,5 +1,5 @@
 use dozer_log::replication::LogOperation;
-use dozer_types::json_types::JsonValue;
+use dozer_types::json_types::{DestructuredJson, JsonValue};
 use dozer_types::pyo3::types::PyList;
 
 use dozer_types::{
@@ -85,22 +85,22 @@ fn map_value(value: Field, py: Python) -> PyResult<Py<PyAny>> {
 }
 
 fn map_json_py(val: JsonValue, py: Python) -> PyResult<Py<PyAny>> {
-    match val {
-        JsonValue::Null => Ok(py.None()),
-        JsonValue::Bool(b) => Ok(b.to_object(py)),
-        JsonValue::Number(n) => Ok(n.to_object(py)),
-        JsonValue::String(s) => Ok(s.to_object(py)),
-        JsonValue::Array(a) => {
+    match val.destructure() {
+        DestructuredJson::Null => Ok(py.None()),
+        DestructuredJson::Bool(b) => Ok(b.to_object(py)),
+        DestructuredJson::Number(n) => Ok(n.to_f64_lossy().to_object(py)),
+        DestructuredJson::String(s) => Ok(s.to_object(py)),
+        DestructuredJson::Array(a) => {
             let lst: &PyList = PyList::empty(py);
-            for val in a {
+            for val in a.into_iter() {
                 lst.append(map_json_py(val, py)?)?;
             }
             Ok(lst.to_object(py))
         }
-        JsonValue::Object(o) => {
+        DestructuredJson::Object(o) => {
             let obj = PyDict::new(py);
             for (key, val) in o {
-                obj.set_item(key, map_json_py(val, py)?)?;
+                obj.set_item(key.as_str(), map_json_py(val, py)?)?;
             }
             Ok(obj.to_object(py))
         }

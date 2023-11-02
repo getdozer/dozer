@@ -1,7 +1,7 @@
 use crate::parser::model::JsonPath;
 use crate::path::{json_path_instance, PathInstance};
 use crate::JsonPathValue::{NewValue, NoValue, Slice};
-use dozer_types::json_types::JsonValue;
+use dozer_types::json_types::{parse_json, JsonArray, JsonValue};
 use std::convert::TryInto;
 use std::fmt::Debug;
 use std::str::FromStr;
@@ -163,7 +163,7 @@ impl JsonPathFinder {
     }
     /// updates a json from string and therefore can be some parsing errors
     pub fn set_json_str(&mut self, json: &str) -> Result<(), String> {
-        self.json = Box::from(JsonValue::from_str(json).map_err(|e| e.to_string())?);
+        self.json = Box::from(parse_json(json).map_err(|e| e.to_string())?);
         Ok(())
     }
     /// updates a path from string and therefore can be some parsing errors
@@ -174,7 +174,7 @@ impl JsonPathFinder {
 
     /// create a new instance from string and therefore can be some parsing errors
     pub fn from_str(json: &str, path: &str) -> Result<Self, String> {
-        let json = JsonValue::from_str(json).map_err(|e| e.to_string())?;
+        let json = parse_json(json).map_err(|e| e.to_string())?;
         let path = Box::new(JsonPathInst::from_str(path)?);
         Ok(JsonPathFinder::new(Box::from(json), path))
     }
@@ -203,18 +203,17 @@ impl JsonPathFinder {
         let slice = self.find_slice();
         if !slice.is_empty() {
             if JsonPathValue::only_no_value(&slice) {
-                JsonValue::Null
+                JsonValue::NULL
             } else {
-                JsonValue::Array(
-                    self.find_slice()
-                        .into_iter()
-                        .filter(|v| v.has_value())
-                        .map(|v| v.to_data())
-                        .collect(),
-                )
+                self.find_slice()
+                    .into_iter()
+                    .filter(|v| v.has_value())
+                    .map(|v| v.to_data())
+                    .collect::<JsonArray>()
+                    .into()
             }
         } else {
-            JsonValue::Array(vec![])
+            JsonArray::new().into()
         }
     }
 }

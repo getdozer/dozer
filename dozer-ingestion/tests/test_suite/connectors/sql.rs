@@ -1,4 +1,7 @@
-use dozer_ingestion_connector::dozer_types::types::{Field, FieldDefinition, FieldType};
+use dozer_ingestion_connector::dozer_types::{
+    json_types::json_to_string,
+    types::{Field, FieldDefinition, FieldType},
+};
 
 use crate::test_suite::{records::Operation, FieldsAndPk};
 
@@ -235,7 +238,7 @@ fn field_to_sql(field: &Field) -> String {
         Field::Decimal(d) => d.to_string(),
         Field::Timestamp(t) => format!("'{}'", t),
         Field::Date(d) => format!("'{}'", d),
-        Field::Json(b) => format!("'{b}'::jsonb"),
+        Field::Json(b) => format!("'{}'::jsonb", json_to_string(b)),
         Field::Point(p) => format!("'({},{})'", p.0.x(), p.0.y()),
         Field::Duration(_) => field.to_string(),
         Field::Null => "NULL".to_string(),

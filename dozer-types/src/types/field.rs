@@ -1,10 +1,13 @@
 use crate::errors::types::DeserializationError;
-use crate::json_types::JsonValue;
+use crate::json_types::{
+    json_cmp, json_from_bytes, json_to_bytes, json_to_bytes_size, parse_json, JsonValue,
+};
 use crate::types::{
     DozerDuration, DozerPoint, FieldDefinition, Schema, SourceDefinition, TimeUnit,
 };
 #[allow(unused_imports)]
 use chrono::{DateTime, Datelike, FixedOffset, LocalResult, NaiveDate, TimeZone, Utc};
+use ijson::DestructuredRef;
 use ordered_float::OrderedFloat;
 use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use rust_decimal::Decimal;
@@ -15,7 +18,7 @@ use std::str::FromStr;
 use std::time::Duration;
 
 pub const DATE_FORMAT: &str = "%Y-%m-%d";
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Hash)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub enum Field {
     UInt(u64),
@@ -30,10 +33,41 @@ pub enum Field {
     Decimal(Decimal),
     Timestamp(DateTime<FixedOffset>),
     Date(NaiveDate),
-    Json(JsonValue),
+    Json(#[cfg_attr(feature= "arbitrary", arbitrary(with = arb_json::arbitrary_json))] JsonValue),
     Point(DozerPoint),
     Duration(DozerDuration),
     Null,
+}
+
+impl Ord for Field {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match (self, other) {
+            (Self::UInt(l), Self::UInt(r)) => l.cmp(r),
+            (Self::U128(l), Self::U128(r)) => l.cmp(r),
+            (Self::Int(l), Self::Int(r)) => l.cmp(r),
+            (Self::I128(l), Self::I128(r)) => l.cmp(r),
+            (Self::Float(l), Self::Float(r)) => l.cmp(r),
+            (Self::Boolean(l), Self::Boolean(r)) => l.cmp(r),
+            (Self::String(l), Self::String(r)) => l.cmp(r),
+            (Self::Text(l), Self::Text(r)) => l.cmp(r),
+            (Self::Binary(l), Self::Binary(r)) => l.cmp(r),
+            (Self::Decimal(l), Self::Decimal(r)) => l.cmp(r),
+            (Self::Timestamp(l), Self::Timestamp(r)) => l.cmp(r),
+            (Self::Date(l), Self::Date(r)) => l.cmp(r),
+            (Self::Json(l), Self::Json(r)) => json_cmp(l, r),
+            (Self::Point(l), Self::Point(r)) => l.cmp(r),
+            (Self::Duration(l), Self::Duration(r)) => l.cmp(r),
+            (Self::Null, Self::Null) => std::cmp::Ordering::Equal,
+            (Self::Null, _) => std::cmp::Ordering::Greater,
+            (_, Self::Null) => std::cmp::Ordering::Less,
+            (l, r) => l.ty().cmp(&r.ty()),
+        }
+    }
+}
+impl PartialOrd for Field {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 #[cfg(feature = "arbitrary")]
@@ -41,6 +75,57 @@ pub(crate) fn arbitrary_float(
     arbitrary: &mut arbitrary::Unstructured,
 ) -> arbitrary::Result<OrderedFloat<f64>> {
     Ok(OrderedFloat(arbitrary.arbitrary()?))
+}
+
+#[cfg(feature = "arbitrary")]
+mod arb_json {
+    use arbitrary::Arbitrary;
+    use ijson::{IArray, IObject};
+
+    use super::JsonValue;
+
+    struct ArbitraryJson(JsonValue);
+
+    impl<'a> arbitrary::Arbitrary<'a> for ArbitraryJson {
+        fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+            use ijson::ValueType;
+
+            let v = match u.choose(&[
+                ValueType::Null,
+                ValueType::Bool,
+                ValueType::Number,
+                ValueType::String,
+                ValueType::Array,
+                ValueType::Object,
+            ])? {
+                ValueType::Null => JsonValue::NULL,
+                ValueType::Bool => bool::arbitrary(u)?.into(),
+                ValueType::Number => f64::arbitrary(u)?.into(),
+                ValueType::String => String::arbitrary(u)?.into(),
+                ValueType::Array => {
+                    let mut values = IArray::new();
+                    for json_value in u.arbitrary_iter::<ArbitraryJson>()? {
+                        values.push(json_value?.0);
+                    }
+                    values.into()
+                }
+                ValueType::Object => {
+                    let mut object = IObject::new();
+                    for result in u.arbitrary_iter::<(String, ArbitraryJson)>()? {
+                        let (key, value) = result?;
+                        object.insert(key, value.0);
+                    }
+                    object.into()
+                }
+            };
+            Ok(ArbitraryJson(v))
+        }
+    }
+    pub(crate) fn arbitrary_json(
+        arbitrary: &mut arbitrary::Unstructured,
+    ) -> arbitrary::Result<JsonValue> {
+        Ok(ArbitraryJson::arbitrary(arbitrary)?.0)
+    }
 }
 
 impl Field {
@@ -59,7 +144,7 @@ impl Field {
             Field::Timestamp(_) => 8,
             Field::Date(_) => 10,
             // todo: should optimize with better serialization method
-            Field::Json(b) => bincode::serialize(b).unwrap().len(),
+            Field::Json(b) => json_to_bytes_size(b),
             Field::Point(_p) => 16,
             Field::Duration(_) => 17,
             Field::Null => 0,
@@ -80,7 +165,7 @@ impl Field {
             Field::Decimal(d) => Cow::Owned(d.serialize().into()),
             Field::Timestamp(t) => Cow::Owned(t.timestamp_millis().to_be_bytes().into()),
             Field::Date(t) => Cow::Owned(t.to_string().into()),
-            Field::Json(b) => Cow::Owned(bincode::serialize(b).unwrap()),
+            Field::Json(b) => Cow::Owned(json_to_bytes(b)),
             Field::Point(p) => Cow::Owned(p.to_bytes().into()),
             Field::Duration(d) => Cow::Owned(d.to_bytes().into()),
             Field::Null => Cow::Owned([].into()),
@@ -156,9 +241,7 @@ impl Field {
                 std::str::from_utf8(val)?,
                 DATE_FORMAT,
             )?)),
-            12 => Ok(Field::Json(
-                bincode::deserialize(val).map_err(DeserializationError::Bincode)?,
-            )),
+            12 => Ok(Field::Json(json_from_bytes(val)?)),
             13 => Ok(Field::Point(
                 DozerPoint::from_bytes(val).map_err(|_| DeserializationError::BadDataLength)?,
             )),
@@ -215,7 +298,7 @@ impl Field {
     pub fn as_uint(&self) -> Option<u64> {
         match self {
             Field::UInt(i) => Some(*i),
-            Field::Json(JsonValue::Number(f)) => Some(f.0 as u64),
+            Field::Json(v) => v.as_number()?.to_u64(),
             _ => None,
         }
     }
@@ -223,7 +306,7 @@ impl Field {
     pub fn as_u128(&self) -> Option<u128> {
         match self {
             Field::U128(i) => Some(*i),
-            Field::Json(j) => j.as_u128(),
+            Field::Json(j) => Some(j.to_f64_lossy()? as u128),
             _ => None,
         }
     }
@@ -235,7 +318,7 @@ impl Field {
     pub fn as_int(&self) -> Option<i64> {
         match self {
             Field::Int(i) => Some(*i),
-            Field::Json(j) => j.as_i64(),
+            Field::Json(j) => j.to_i64(),
             _ => None,
         }
     }
@@ -243,7 +326,7 @@ impl Field {
     pub fn as_i128(&self) -> Option<i128> {
         match self {
             Field::I128(i) => Some(*i),
-            Field::Json(j) => j.as_i128(),
+            Field::Json(j) => Some(j.to_f64_lossy()? as i128),
             _ => None,
         }
     }
@@ -255,7 +338,7 @@ impl Field {
     pub fn as_float(&self) -> Option<f64> {
         match self {
             Field::Float(f) => Some(f.0),
-            Field::Json(j) => j.as_f64(),
+            Field::Json(j) => j.to_f64_lossy(),
             _ => None,
         }
     }
@@ -263,7 +346,7 @@ impl Field {
     pub fn as_boolean(&self) -> Option<bool> {
         match self {
             Field::Boolean(b) => Some(*b),
-            Field::Json(j) => j.as_bool(),
+            Field::Json(j) => j.to_bool(),
             _ => None,
         }
     }
@@ -271,7 +354,7 @@ impl Field {
     pub fn as_string(&self) -> Option<&str> {
         match self {
             Field::String(s) => Some(s),
-            Field::Json(j) => j.as_str(),
+            Field::Json(j) => Some(j.as_string()?.as_str()),
             _ => None,
         }
     }
@@ -279,7 +362,7 @@ impl Field {
     pub fn as_text(&self) -> Option<&str> {
         match self {
             Field::Text(s) => Some(s),
-            Field::Json(j) => j.as_str(),
+            Field::Json(j) => Some(j.as_string()?.as_str()),
             _ => None,
         }
     }
@@ -356,7 +439,13 @@ impl Field {
     pub fn as_null(&self) -> Option<()> {
         match self {
             Field::Null => Some(()),
-            Field::Json(j) => j.as_null(),
+            Field::Json(j) => {
+                if j.is_null() {
+                    Some(())
+                } else {
+                    None
+                }
+            }
             _ => None,
         }
     }
@@ -371,10 +460,9 @@ impl Field {
             Field::Decimal(d) => d.to_u64(),
             Field::String(s) => s.parse::<u64>().ok(),
             Field::Text(s) => s.parse::<u64>().ok(),
-            Field::Json(j) => match j {
-                &JsonValue::Number(n) => u64::from_f64(*n),
-                JsonValue::String(s) => s.parse::<u64>().ok(),
-                &JsonValue::Null => Some(0_u64),
+            Field::Json(j) => match j.destructure_ref() {
+                DestructuredRef::Number(n) => Some(n.to_f64_lossy() as u64),
+                DestructuredRef::String(s) => s.parse::<u64>().ok(),
                 _ => None,
             },
             Field::Null => Some(0_u64),
@@ -392,13 +480,12 @@ impl Field {
             Field::Decimal(d) => d.to_u128(),
             Field::String(s) => s.parse::<u128>().ok(),
             Field::Text(s) => s.parse::<u128>().ok(),
-            Field::Json(j) => match j {
-                &JsonValue::Number(n) => u128::from_f64(*n),
-                JsonValue::String(s) => s.parse::<u128>().ok(),
-                &JsonValue::Null => Some(0_u128),
+            Field::Json(j) => match j.destructure_ref() {
+                DestructuredRef::Number(n) => Some(n.to_f64_lossy() as u128),
+                DestructuredRef::String(s) => s.parse::<u128>().ok(),
                 _ => None,
             },
-            Field::Null => Some(0_u128),
+            Field::Null => None,
             _ => None,
         }
     }
@@ -413,10 +500,9 @@ impl Field {
             Field::Decimal(d) => d.to_i64(),
             Field::String(s) => s.parse::<i64>().ok(),
             Field::Text(s) => s.parse::<i64>().ok(),
-            Field::Json(j) => match j {
-                &JsonValue::Number(n) => i64::from_f64(*n),
-                JsonValue::String(s) => s.parse::<i64>().ok(),
-                &JsonValue::Null => Some(0_i64),
+            Field::Json(j) => match j.destructure_ref() {
+                DestructuredRef::Number(n) => Some(n.to_f64_lossy() as i64),
+                DestructuredRef::String(s) => s.parse::<i64>().ok(),
                 _ => None,
             },
             Field::Null => Some(0_i64),
@@ -434,10 +520,9 @@ impl Field {
             Field::Decimal(d) => d.to_i128(),
             Field::String(s) => s.parse::<i128>().ok(),
             Field::Text(s) => s.parse::<i128>().ok(),
-            Field::Json(j) => match j {
-                &JsonValue::Number(n) => i128::from_f64(*n),
-                JsonValue::String(s) => s.parse::<i128>().ok(),
-                &JsonValue::Null => Some(0_i128),
+            Field::Json(j) => match j.destructure_ref() {
+                DestructuredRef::Number(n) => Some(n.to_f64_lossy() as i128),
+                DestructuredRef::String(s) => s.parse::<i128>().ok(),
                 _ => None,
             },
             Field::Null => Some(0_i128),
@@ -455,10 +540,9 @@ impl Field {
             Field::Decimal(d) => d.to_f64(),
             Field::String(s) => s.parse::<f64>().ok(),
             Field::Text(s) => s.parse::<f64>().ok(),
-            Field::Json(j) => match j {
-                &JsonValue::Number(n) => Some(*n),
-                JsonValue::String(s) => s.parse::<f64>().ok(),
-                &JsonValue::Null => Some(0_f64),
+            Field::Json(j) => match j.destructure_ref() {
+                DestructuredRef::Number(n) => Some(n.to_f64_lossy()),
+                DestructuredRef::String(s) => s.parse::<f64>().ok(),
                 _ => None,
             },
             Field::Null => Some(0_f64),
@@ -477,11 +561,7 @@ impl Field {
             Field::Boolean(b) => Some(*b),
             Field::String(s) => s.parse::<bool>().ok(),
             Field::Text(s) => s.parse::<bool>().ok(),
-            Field::Json(j) => match j {
-                JsonValue::Bool(b) => Some(*b),
-                JsonValue::Null => Some(false),
-                _ => None,
-            },
+            Field::Json(j) => j.to_bool(),
             Field::Null => Some(false),
             _ => None,
         }
@@ -536,18 +616,15 @@ impl Field {
     pub fn to_json(&self) -> Option<JsonValue> {
         match self {
             Field::Json(b) => Some(b.to_owned()),
-            Field::UInt(u) => Some(JsonValue::Number(OrderedFloat((*u) as f64))),
-            Field::U128(u) => Some(JsonValue::Number(OrderedFloat((*u) as f64))),
-            Field::Int(i) => Some(JsonValue::Number(OrderedFloat((*i) as f64))),
-            Field::I128(i) => Some(JsonValue::Number(OrderedFloat((*i) as f64))),
-            Field::Float(f) => Some(JsonValue::Number(*f)),
-            Field::Boolean(b) => Some(JsonValue::Bool(*b)),
-            Field::String(s) => match JsonValue::from_str(s.as_str()) {
-                Ok(v) => Some(v),
-                _ => None,
-            },
-            Field::Text(t) => Some(JsonValue::String(t.to_owned())),
-            Field::Null => Some(JsonValue::Null),
+            Field::UInt(u) => Some((*u).into()),
+            Field::U128(u) => Some((*u as f64).into()),
+            Field::Int(i) => Some((*i).into()),
+            Field::I128(i) => Some((*i as f64).into()),
+            Field::Float(OrderedFloat(f)) => Some((*f).into()),
+            Field::Boolean(b) => Some((*b).into()),
+            Field::String(s) => parse_json(s.as_str()).ok(),
+            Field::Text(t) => Some(t.into()),
+            Field::Null => Some(JsonValue::NULL),
             _ => None,
         }
     }
@@ -597,34 +674,32 @@ impl Field {
 
 impl Display for Field {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let string = match self {
-            Field::UInt(u) => format!("{u}"),
-            Field::U128(u) => format!("{u}"),
-            Field::Int(i) => format!("{i}"),
-            Field::I128(i) => format!("{i}"),
-            Field::Float(f) => format!("{f}"),
-            Field::Decimal(d) => format!("{d}"),
-            Field::Boolean(i) => {
-                if *i {
-                    "TRUE".to_string()
-                } else {
-                    "FALSE".to_string()
-                }
+        match self {
+            Field::UInt(u) => write!(f, "{u}"),
+            Field::U128(u) => write!(f, "{u}"),
+            Field::Int(i) => write!(f, "{i}"),
+            Field::I128(i) => write!(f, "{i}"),
+            Field::Float(OrderedFloat(fl)) => write!(f, "{fl}"),
+            Field::Decimal(d) => write!(f, "{d}"),
+            Field::Boolean(false) => {
+                write!(f, "FALSE")
             }
-            Field::String(s) => s.to_owned(),
-            Field::Text(t) => t.to_owned(),
-            Field::Date(d) => d.format(DATE_FORMAT).to_string(),
-            Field::Timestamp(t) => t.to_rfc3339(),
-            Field::Binary(b) => format!("{b:X?}"),
-            Field::Json(j) => j.to_string(),
+            Field::Boolean(true) => {
+                write!(f, "TRUE")
+            }
+            Field::String(s) => f.write_str(s),
+            Field::Text(t) => write!(f, "{t}"),
+            Field::Date(d) => write!(f, "{}", d.format(DATE_FORMAT)),
+            Field::Timestamp(t) => write!(f, "{}", t.to_rfc3339()),
+            Field::Binary(b) => write!(f, "{b:X?}"),
+            Field::Json(j) => write!(f, "{j:?}"),
             Field::Point(p) => {
                 let (x, y) = p.0.x_y();
-                format!("POINT({}, {})", x.0, y.0)
+                write!(f, "POINT({}, {})", x.0, y.0)
             }
-            Field::Duration(d) => format!("{:?}", d.0),
-            Field::Null => "".to_string(),
-        };
-        f.write_str(&string)
+            Field::Duration(d) => write!(f, "{:?}", d.0),
+            Field::Null => write!(f, ""),
+        }
     }
 }
 
@@ -746,21 +821,14 @@ pub fn field_test_cases() -> impl Iterator<Item = Field> {
         Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:00:00Z").unwrap()),
         Field::Date(NaiveDate::from_ymd_opt(1970, 1, 1).unwrap()),
         Field::Date(NaiveDate::from_ymd_opt(2020, 1, 1).unwrap()),
-        Field::Json(JsonValue::Array(vec![])),
-        Field::Json(JsonValue::Array(vec![
-            JsonValue::Number(OrderedFloat(123_f64)),
-            JsonValue::Number(OrderedFloat(34_f64)),
-            JsonValue::Number(OrderedFloat(97_f64)),
-            JsonValue::Number(OrderedFloat(98_f64)),
-            JsonValue::Number(OrderedFloat(99_f64)),
-            JsonValue::Number(OrderedFloat(34_f64)),
-            JsonValue::Number(OrderedFloat(58_f64)),
-            JsonValue::Number(OrderedFloat(34_f64)),
-            JsonValue::Number(OrderedFloat(102_f64)),
-            JsonValue::Number(OrderedFloat(111_f64)),
-            JsonValue::Number(OrderedFloat(111_f64)),
-            JsonValue::Number(OrderedFloat(34_f64)),
-        ])),
+        Field::Json(Vec::<String>::new().into()),
+        Field::Json(
+            vec![
+                123_f64, 34_f64, 97_f64, 98_f64, 99_f64, 34_f64, 58_f64, 34_f64, 102_f64, 111_f64,
+                111_f64, 34_f64,
+            ]
+            .into(),
+        ),
         Field::Null,
     ]
     .into_iter()

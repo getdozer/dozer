@@ -10,10 +10,9 @@ use dozer_ingestion_connector::dozer_types::{
         ingest::{ingest_service_client::IngestServiceClient, IngestArrowRequest, IngestRequest},
         types,
     },
-    json_types::JsonValue as dozer_JsonValue,
+    json_types::json as dozer_json,
     models::ingestion_types::IngestionMessage,
     models::ingestion_types::{GrpcConfig, GrpcConfigSchemas},
-    ordered_float::OrderedFloat,
     serde_json,
     serde_json::json,
     serde_json::Value,
@@ -23,7 +22,7 @@ use dozer_ingestion_connector::dozer_types::{
 };
 use dozer_ingestion_connector::test_util::{create_test_runtime, spawn_connector_all_tables};
 use dozer_ingestion_connector::tokio::runtime::Runtime;
-use dozer_ingestion_connector::{dozer_types, tokio, IngestionIterator};
+use dozer_ingestion_connector::{dozer_types, IngestionIterator};
 
 use crate::{ArrowAdapter, DefaultAdapter};
 
@@ -121,9 +120,9 @@ fn ingest_grpc_default() {
     }
 }
 
-#[tokio::test]
+#[test]
 #[ignore]
-async fn test_serialize_arrow_schema() {
+fn test_serialize_arrow_schema() {
     let schema = arrow_types::Schema::new(vec![
         arrow_types::Field::new("id", arrow_types::DataType::Int32, false),
         arrow_types::Field::new(
@@ -224,7 +223,7 @@ fn ingest_grpc_arrow() {
 
     let a = Int32Array::from_iter([1675, 1676, 1677]);
     let b = StringArray::from_iter_values(vec!["dario", "mario", "vario"]);
-    let c = StringArray::from_iter_values(vec!["[1, 2, 3]", "{'a': 'b'}", "s"]);
+    let c = StringArray::from_iter_values(vec!["[1, 2, 3]", "{\"a\": \"b\"}", "\"s\""]);
 
     let record_batch = RecordBatch::try_new(
         Arc::new(schema),
@@ -249,11 +248,7 @@ fn ingest_grpc_arrow() {
             assert_eq!(record.values[1].as_string(), Some("dario"));
             assert_eq!(
                 record.values[2].as_json(),
-                Some(&dozer_JsonValue::Array(vec![
-                    dozer_JsonValue::Number(OrderedFloat(1_f64)),
-                    dozer_JsonValue::Number(OrderedFloat(2_f64)),
-                    dozer_JsonValue::Number(OrderedFloat(3_f64)),
-                ]))
+                Some(&dozer_json!([1_f64, 2_f64, 3_f64]))
             );
         } else {
             panic!("wrong operation kind");
