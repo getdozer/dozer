@@ -1073,6 +1073,22 @@
         }
       }
     },
+    "JavaScriptLambda": {
+      "type": "object",
+      "required": [
+        "endpoint",
+        "module"
+      ],
+      "properties": {
+        "endpoint": {
+          "type": "string"
+        },
+        "module": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
     "KafkaConfig": {
       "examples": [
         {
@@ -1105,16 +1121,7 @@
           ],
           "properties": {
             "JavaScript": {
-              "type": "object",
-              "required": [
-                "path"
-              ],
-              "properties": {
-                "path": {
-                  "type": "string"
-                }
-              },
-              "additionalProperties": false
+              "$ref": "#/definitions/JavaScriptLambda"
             }
           },
           "additionalProperties": false

@@ -1,7 +1,7 @@
 use std::{
     cell::RefCell,
     collections::HashMap,
-    future::{poll_fn, Future},
+    future::poll_fn,
     num::NonZeroI32,
     ops::ControlFlow,
     rc::Rc,
@@ -10,7 +10,7 @@ use std::{
 };
 
 use deno_runtime::{
-    deno_core::{self, error::AnyError, extension, op2, JsRuntime, ModuleSpecifier},
+    deno_core::{error::AnyError, JsRuntime, ModuleSpecifier},
     deno_napi::v8,
     permissions::PermissionsContainer,
     worker::{MainWorker, WorkerOptions},
@@ -28,6 +28,7 @@ use dozer_log::{
 };
 use dozer_types::{
     log::{error, info},
+    models::lambda_config::JavaScriptLambda,
     thiserror,
     tracing::trace,
     types::{Field, Operation},
@@ -47,15 +48,25 @@ pub enum Error {
     InitPanic(#[source] Option<JoinError>),
     #[error("failed to canonicalize path {0}: {1}")]
     CanonicalizePath(String, #[source] std::io::Error),
-    #[error("failed to execute registration script: {0}")]
-    ExecuteRegistrationScript(#[from] AnyError),
+    #[error("failed to load lambda module {0}: {1}")]
+    LoadLambdaModule(String, #[source] AnyError),
+    #[error("failed to evaluate lambda module {0}: {1}")]
+    EvaluateLambdaModule(String, #[source] AnyError),
+    #[error("failed to get namespace of lambda module {0}: {1}")]
+    GetLambdaModuleNamespace(String, #[source] AnyError),
+    #[error("lambda module {0} has no default export")]
+    LambdaModuleNoDefaultExport(String),
+    #[error("lambda module {0} default export is not a function: {1}")]
+    LambdaModuleDefaultExportNotFunction(String, #[source] v8::DataError),
+    #[error("failed to register lambda {0} for endpoint {1}: {2}")]
+    RegisterLambda(String, String, #[source] ReaderBuilderError),
 }
 
 impl Worker {
     pub async fn new(
         runtime: Arc<Runtime>,
         trigger: Arc<Mutex<Trigger>>,
-        registration_scripts: Vec<String>,
+        lambda_modules: Vec<JavaScriptLambda>,
     ) -> Result<Self, Error> {
         let (init_sender, init_receiver) = oneshot::channel();
         let (work_sender, work_receiver) = channel(1);
@@ -66,14 +77,18 @@ impl Worker {
                 "https://github.com".try_into().unwrap(), // This doesn't matter. We never execute it.
                 PermissionsContainer::allow_all(),
                 WorkerOptions {
-                    extensions: vec![dozer_lambda_extension::init_ops(trigger, lambdas.clone())],
                     ..Default::default()
                 },
             );
             let local_set = LocalSet::new();
             let _ = init_sender.send(local_set.block_on(
                 &runtime_clone,
-                execute_registration_scripts(&mut main_worker, registration_scripts),
+                register_lambdas(
+                    &mut main_worker,
+                    lambda_modules,
+                    trigger,
+                    &mut lambdas.borrow_mut(),
+                ),
             ));
             local_set.block_on(
                 &runtime_clone,
@@ -128,66 +143,52 @@ impl Worker {
     }
 }
 
-/// Registration script should call `register_lambda`.
-async fn execute_registration_scripts(
+type LambdaHashMap = HashMap<NonZeroI32, v8::Global<v8::Function>>;
+
+async fn register_lambdas(
     main_worker: &mut MainWorker,
-    registration_scripts: Vec<String>,
+    lambda_modules: Vec<JavaScriptLambda>,
+    trigger: Arc<Mutex<Trigger>>,
+    lambdas: &mut LambdaHashMap,
 ) -> Result<(), Error> {
-    for registration_script in registration_scripts {
-        let path = std::fs::canonicalize(registration_script.clone())
-            .map_err(|e| Error::CanonicalizePath(registration_script, e))?;
+    for JavaScriptLambda { endpoint, module } in lambda_modules {
+        let path = std::fs::canonicalize(module.clone())
+            .map_err(|e| Error::CanonicalizePath(module.clone(), e))?;
         let module_specifier =
             ModuleSpecifier::from_file_path(path).expect("we just canonicalized it");
-        info!("executing module {}", module_specifier);
-        main_worker.execute_side_module(&module_specifier).await?;
+        info!("loading module {}", module_specifier);
+        let module_id = main_worker
+            .preload_side_module(&module_specifier)
+            .await
+            .map_err(|e| Error::LoadLambdaModule(module.clone(), e))?;
+        main_worker
+            .evaluate_module(module_id)
+            .await
+            .map_err(|e| Error::EvaluateLambdaModule(module.clone(), e))?;
+        let namespace = main_worker
+            .js_runtime
+            .get_module_namespace(module_id)
+            .map_err(|e| Error::GetLambdaModuleNamespace(module.clone(), e))?;
+        let scope = &mut main_worker.js_runtime.handle_scope();
+        let namespace = v8::Local::new(scope, namespace);
+        let default_key = v8::String::new(scope, "default").unwrap().into();
+        let default_export = namespace
+            .get(scope, default_key)
+            .ok_or_else(|| Error::LambdaModuleNoDefaultExport(module.clone()))?;
+        let lambda: v8::Local<v8::Function> = default_export
+            .try_into()
+            .map_err(|e| Error::LambdaModuleDefaultExportNotFunction(module.clone(), e))?;
+        let hash = lambda.get_identity_hash();
+        trigger
+            .lock()
+            .await
+            .add_lambda(endpoint.clone(), hash)
+            .await
+            .map_err(|e| Error::RegisterLambda(module.clone(), endpoint, e))?;
+        lambdas.insert(hash, v8::Global::new(scope, lambda));
     }
     Ok(())
 }
-
-type LambdaHashMap = HashMap<NonZeroI32, v8::Global<v8::Function>>;
-
-#[op2(async)]
-fn register_lambda(
-    #[state] trigger: &Arc<Mutex<Trigger>>,
-    #[state] lambdas: &Rc<RefCell<LambdaHashMap>>,
-    #[string] endpoint: String,
-    lambda: &v8::Function,
-    #[global] lambda_global: v8::Global<v8::Function>,
-) -> impl Future<Output = Result<(), ReaderBuilderError>> {
-    register_lambda_impl(
-        trigger.clone(),
-        lambdas.clone(),
-        endpoint,
-        lambda.get_identity_hash(),
-        lambda_global,
-    )
-}
-
-async fn register_lambda_impl(
-    trigger: Arc<Mutex<Trigger>>,
-    lambdas: Rc<RefCell<LambdaHashMap>>,
-    endpoint: String,
-    identity: NonZeroI32,
-    lambda_global: v8::Global<v8::Function>,
-) -> Result<(), ReaderBuilderError> {
-    info!("registering lambda {} for endpoint {}", identity, endpoint);
-    trigger.lock().await.add_lambda(endpoint, identity).await?;
-    lambdas.borrow_mut().insert(identity, lambda_global);
-    Ok(())
-}
-
-extension!(
-    dozer_lambda_extension,
-    ops = [register_lambda],
-    options = {
-        trigger: Arc<Mutex<Trigger>>,
-        lambdas: Rc<RefCell<LambdaHashMap>>
-    },
-    state = |state, options| {
-        state.put(options.trigger);
-        state.put(options.lambdas);
-    },
-);
 
 #[derive(Debug)]
 enum Work {

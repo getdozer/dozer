@@ -289,18 +289,18 @@ impl SimpleOrchestrator {
     }
 
     async fn run_lambda_impl(&mut self) -> Result<(), OrchestrationError> {
-        let registration_scripts = self
+        let lambda_modules = self
             .config
             .lambdas
             .iter()
             .map(|lambda| match lambda {
-                LambdaConfig::JavaScript { path } => path.clone(),
+                LambdaConfig::JavaScript(module) => module.clone(),
             })
             .collect();
         let runtime = dozer_lambda::JsRuntime::new(
             self.runtime.clone(),
             app_url(&self.config.api.app_grpc),
-            registration_scripts,
+            lambda_modules,
             Default::default(),
         )
         .await?;

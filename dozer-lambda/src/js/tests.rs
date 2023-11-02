@@ -1,6 +1,6 @@
-use std::time::Duration;
+use std::{pin::pin, time::Duration};
 
-use deno_runtime::deno_core::futures::future::join;
+use deno_runtime::deno_core::futures::future::{join, select, Either};
 
 use super::*;
 
@@ -18,15 +18,17 @@ fn test_lambda_runtime() {
 
 async fn test_lambda_runtime_impl(tokio_runtime: Arc<tokio::runtime::Runtime>) {
     let (app_url, app_server) = mock::start_mock_internal_pipeline_server().await;
-    let registration_scripts = vec!["src/js/test_lambda.js".to_string()];
-    let lambda_runtime = Runtime::new(
-        tokio_runtime,
-        app_url,
-        registration_scripts,
-        Default::default(),
-    )
-    .await
-    .unwrap();
+    let lambda_modules = vec![JavaScriptLambda {
+        endpoint: mock::mock_endpoint(),
+        module: "src/js/test_lambda.js".to_string(),
+    }];
+    let lambda_runtime = Runtime::new(tokio_runtime, app_url, lambda_modules, Default::default());
+    let (lambda_runtime, app_server) = match select(pin!(lambda_runtime), app_server).await {
+        Either::Left((lambda_runtime, app_server)) => (lambda_runtime.unwrap(), app_server),
+        Either::Right((app_server, _)) => {
+            panic!("unexpected app server error: {:?}", app_server);
+        }
+    };
     tokio::time::timeout(
         Duration::from_millis(10),
         join(lambda_runtime.run(), app_server),
@@ -41,7 +43,7 @@ mod mock {
         net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     };
 
-    use deno_runtime::deno_core::futures::{stream::BoxStream, StreamExt};
+    use deno_runtime::deno_core::futures::{stream::BoxStream, FutureExt, StreamExt};
     use dozer_log::{
         replication::{self, LogOperation},
         schemas::EndpointSchema,
@@ -68,7 +70,7 @@ mod mock {
 
     pub async fn start_mock_internal_pipeline_server() -> (
         String,
-        impl Future<Output = Result<(), tonic::transport::Error>>,
+        impl Future<Output = Result<(), tonic::transport::Error>> + Unpin,
     ) {
         let listener = TcpListener::bind(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0)))
             .await
@@ -81,13 +83,14 @@ mod mock {
                 .add_service(InternalPipelineServiceServer::new(
                     MockInternalPipelineServer,
                 ))
-                .serve_with_incoming(incoming),
+                .serve_with_incoming(incoming)
+                .boxed(),
         )
     }
 
     struct MockInternalPipelineServer;
 
-    fn mock_endpoint() -> String {
+    pub fn mock_endpoint() -> String {
         "mock".to_string()
     }
 

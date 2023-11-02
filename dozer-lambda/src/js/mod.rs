@@ -6,7 +6,7 @@ use dozer_log::{
 };
 use dozer_types::{
     grpc_types::internal::internal_pipeline_service_client::InternalPipelineServiceClient,
-    thiserror, tonic,
+    models::lambda_config::JavaScriptLambda, thiserror, tonic,
 };
 
 use self::{trigger::Trigger, worker::Worker};
@@ -29,14 +29,14 @@ impl Runtime {
     pub async fn new(
         runtime: Arc<tokio::runtime::Runtime>,
         app_url: String,
-        registration_scripts: Vec<String>,
+        lambda_modules: Vec<JavaScriptLambda>,
         options: LogReaderOptions,
     ) -> Result<Self, Error> {
         let client = InternalPipelineServiceClient::connect(app_url.clone())
             .await
             .map_err(|e| Error::Connect(app_url, e))?;
         let trigger = Arc::new(Mutex::new(Trigger::new(client, options)));
-        let worker = Worker::new(runtime, trigger.clone(), registration_scripts).await?;
+        let worker = Worker::new(runtime, trigger.clone(), lambda_modules).await?;
         Ok(Self { trigger, worker })
     }
 
