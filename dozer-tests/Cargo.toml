@@ -1,6 +1,6 @@
 [package]
 name = "dozer-tests"
-version = "0.1.39"
+version = "0.2.0"
 edition = "2021"
 authors = ["getdozer/dozer-dev"]
 
@@ -27,14 +27,21 @@ dozer-cli = { path = "../dozer-cli" }
 dozer-tracing = { path = "../dozer-tracing" }
 dozer-recordstore = { path = "../dozer-recordstore" }
 
-reqwest = { version = "0.11.20", features = ["json", "rustls-tls"], default-features = false }
+reqwest = { version = "0.11.20", features = [
+    "json",
+    "rustls-tls",
+], default-features = false }
 tokio = { version = "1.25.0", features = ["full", "rt"] }
 bson = { version = "2.7.0", optional = true }
 mongodb = { version = "2.6.1", optional = true }
 futures = { version = "0.3.28", optional = true }
 env_logger = "0.10.0"
 clap = { version = "4.4.1", features = ["derive"] }
-rusqlite = { version = "0.29.0", features = ["bundled", "column_decltype", "hooks"] }
+rusqlite = { version = "0.29.0", features = [
+    "bundled",
+    "column_decltype",
+    "hooks",
+] }
 async-trait = "0.1.74"
 dozer-core = { path = "../dozer-core" }
 dozer-sql = { path = "../dozer-sql" }
@@ -51,7 +58,7 @@ dozer-core = { path = "../dozer-core" }
 dozer-sql = { path = "../dozer-sql" }
 dozer-cache = { path = "../dozer-cache" }
 
-sqlparser = {git = "https://github.com/getdozer/sqlparser-rs.git" }
+sqlparser = { git = "https://github.com/getdozer/sqlparser-rs.git" }
 rusqlite = { version = "0.29.0", features = ["bundled", "column_decltype"] }
 csv = "1.2"
 tempdir = "0.3.7"
@@ -60,4 +67,4 @@ libtest-mimic = "0.6.1"
 
 [features]
 mongodb = ["dep:bson", "dep:mongodb", "dep:futures"]
-python=["dozer-sql/python"]
+python = ["dozer-sql/python"]
