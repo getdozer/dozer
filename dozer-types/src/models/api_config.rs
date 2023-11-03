@@ -18,6 +18,9 @@ pub struct ApiConfig {
     #[serde(default, skip_serializing_if = "equal_default")]
     pub app_grpc: AppGrpcOptions,
 
+    #[serde(default, skip_serializing_if = "equal_default")]
+    pub sql: SqlOptions,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     // max records to be returned from the endpoints
     pub default_max_num_records: Option<usize>,
@@ -68,6 +71,16 @@ pub struct AppGrpcOptions {
     pub host: Option<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema, Default)]
+#[serde(deny_unknown_fields)]
+pub struct SqlOptions {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub port: Option<u32>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host: Option<String>,
+}
+
 pub fn default_app_grpc_port() -> u32 {
     50053
 }
@@ -82,6 +95,10 @@ pub fn default_grpc_port() -> u16 {
 
 pub fn default_rest_port() -> u16 {
     8080
+}
+
+pub fn default_sql_port() -> u32 {
+    50054
 }
 
 pub fn default_host() -> String {

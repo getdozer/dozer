@@ -24,6 +24,8 @@ api:
     port: 7503
   app_grpc:
     port: 7504
+  sql:
+    port: 7501
 
 sql: |
   SELECT trip_miles, trip_time, puz.Zone as pickup_location, doz.Zone as dropout_location
