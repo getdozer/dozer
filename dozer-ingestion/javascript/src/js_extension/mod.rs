@@ -1,6 +1,6 @@
 use std::{future::Future, sync::Arc};
 
-use deno_runtime::{
+use dozer_deno::deno_runtime::{
     deno_core::{self, anyhow::Error, extension, op2, ModuleSpecifier},
     permissions::PermissionsContainer,
     worker::{MainWorker, WorkerOptions},
@@ -94,7 +94,7 @@ impl JsExtension {
                         PermissionsContainer::allow_all(),
                         WorkerOptions {
                             module_loader: std::rc::Rc::new(
-                                ts_module_loader::TypescriptModuleLoader::with_no_source_map(),
+                                dozer_deno::TypescriptModuleLoader::with_no_source_map(),
                             ),
                             extensions: vec![dozer_extension::init_ops(self.ingestor)],
                             ..Default::default()
@@ -157,8 +157,6 @@ fn map_operation(msg: JsMessage) -> Result<Operation, DeserializationError> {
         _ => unreachable!(),
     })
 }
-
-mod ts_module_loader;
 
 #[cfg(test)]
 mod tests;

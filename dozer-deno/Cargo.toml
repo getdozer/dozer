@@ -1,0 +1,10 @@
+[package]
+name = "dozer-deno"
+version = "0.3.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+deno_runtime = "0.129.0"
+deno_ast = "0.29.5"
