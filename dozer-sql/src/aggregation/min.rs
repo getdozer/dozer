@@ -1,13 +1,12 @@
 use crate::aggregation::aggregator::Aggregator;
 use crate::errors::PipelineError;
 use dozer_sql_expression::aggregate::AggregateFunctionType::{self, Min};
-use dozer_types::serde::{Deserialize, Serialize};
+
 use dozer_types::types::{Field, FieldType};
 
 use super::aggregator::OrderedAggregatorState;
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(crate = "dozer_types::serde")]
+#[derive(Debug, bincode::Encode, bincode::Decode)]
 pub struct MinAggregator {
     current_state: Option<OrderedAggregatorState>,
     return_type: Option<FieldType>,

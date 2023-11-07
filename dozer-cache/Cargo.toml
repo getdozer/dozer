@@ -24,6 +24,7 @@ ahash = "0.8.3"
 metrics = "0.21.0"
 clap = { version = "4.4.1", features = ["derive"] }
 env_logger = "0.10.0"
+bincode = { workspace = true }
 
 [dev-dependencies]
 criterion = "0.4"

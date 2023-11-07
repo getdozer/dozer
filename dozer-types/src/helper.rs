@@ -1,5 +1,5 @@
 use crate::errors::types::{DeserializationError, TypeError};
-use crate::json_types::{parse_json, serde_json_to_json_value};
+use crate::json_types::{json_from_str, serde_json_to_json_value};
 use crate::types::{DozerDuration, DozerPoint, TimeUnit, DATE_FORMAT};
 use crate::types::{Field, FieldType};
 use chrono::{DateTime, NaiveDate};
@@ -278,13 +278,13 @@ impl Field {
                 if nullable && (value.is_empty() || value == "null") {
                     Ok(Field::Null)
                 } else {
-                    parse_json(value)
-                        .map(Field::Json)
-                        .map_err(|_| TypeError::InvalidFieldValue {
+                    json_from_str(value).map(Field::Json).map_err(|_| {
+                        TypeError::InvalidFieldValue {
                             field_type: typ,
                             nullable,
                             value: value.to_string(),
-                        })
+                        }
+                    })
                 }
             }
             FieldType::Point => {

@@ -7,13 +7,12 @@ use dozer_sql_expression::num_traits::FromPrimitive;
 use dozer_types::arrow::datatypes::ArrowNativeTypeOp;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
-use dozer_types::serde::{Deserialize, Serialize};
+
 use dozer_types::types::{DozerDuration, Field, FieldType, TimeUnit};
 
 use std::ops::Div;
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(crate = "dozer_types::serde")]
+#[derive(Debug, bincode::Encode, bincode::Decode)]
 pub struct AvgAggregator {
     current_state: SumState,
     current_count: u64,

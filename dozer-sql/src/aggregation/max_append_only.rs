@@ -7,11 +7,10 @@ use dozer_sql_expression::aggregate::AggregateFunctionType::MaxAppendOnly;
 use dozer_types::chrono::{DateTime, FixedOffset, NaiveDate, Utc};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
-use dozer_types::serde::{Deserialize, Serialize};
+
 use dozer_types::types::{DozerDuration, Field, FieldType, TimeUnit};
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(crate = "dozer_types::serde")]
+#[derive(Debug, bincode::Encode, bincode::Decode)]
 pub struct MaxAppendOnlyAggregator {
     current_state: Field,
     return_type: Option<FieldType>,

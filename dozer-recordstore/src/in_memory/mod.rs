@@ -69,22 +69,21 @@ impl Hash for RecordRef {
     }
 }
 
-impl<'de> Deserialize<'de> for RecordRef {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: dozer_types::serde::Deserializer<'de>,
-    {
-        let fields = Vec::<FieldRef>::deserialize(deserializer)?;
-        let owned_fields: Vec<_> = fields.iter().map(FieldRef::cloned).collect();
-        Ok(Self::new(owned_fields))
+impl bincode::Decode for RecordRef {
+    fn decode<D: bincode::de::Decoder>(
+        decoder: &mut D,
+    ) -> Result<Self, bincode::error::DecodeError> {
+        let fields = Vec::<Field>::decode(decoder)?;
+        Ok(Self::new(fields))
     }
 }
-impl Serialize for RecordRef {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: dozer_types::serde::Serializer,
-    {
-        self.load().serialize(serializer)
+
+impl bincode::Encode for RecordRef {
+    fn encode<E: bincode::enc::Encoder>(
+        &self,
+        encoder: &mut E,
+    ) -> Result<(), bincode::error::EncodeError> {
+        self.load_owned().encode(encoder)
     }
 }
 
@@ -348,7 +347,7 @@ impl RecordRef {
         Self(Arc::new(RecordRefInner::new(fields)))
     }
 
-    pub fn load(&self) -> Vec<FieldRef<'_>> {
+    fn iter(&self) -> impl Iterator<Item = FieldRef<'_>> {
         self.0
             .field_types()
             .iter()
@@ -363,7 +362,13 @@ impl RecordRef {
                     Some(value)
                 }
             })
-            .collect()
+    }
+    pub fn load(&self) -> Vec<FieldRef<'_>> {
+        self.iter().collect()
+    }
+
+    pub fn load_owned(&self) -> Vec<Field> {
+        self.iter().map(|fieldref| fieldref.cloned()).collect()
     }
 
     #[inline(always)]
@@ -522,8 +527,12 @@ mod tests {
 
         let record = RecordRef::new(fields.clone());
 
-        let bytes = dozer_types::bincode::serialize(&record).unwrap();
-        let deserialized: RecordRef = dozer_types::bincode::deserialize(&bytes).unwrap();
+        let bincode_config = bincode::config::legacy();
+        let bytes = dozer_types::bincode::encode_to_vec(&record, bincode_config).unwrap();
+        let deserialized: RecordRef =
+            dozer_types::bincode::decode_from_slice(&bytes, bincode_config)
+                .unwrap()
+                .0;
         let loaded_fields: Vec<_> = deserialized
             .load()
             .into_iter()

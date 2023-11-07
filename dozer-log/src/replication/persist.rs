@@ -102,7 +102,8 @@ pub fn persist(
 ) -> Result<tokio::sync::oneshot::Receiver<String>, Error> {
     let name = log_entry_name(&range);
     let key = AsRef::<Utf8Path>::as_ref(prefix).join(name).to_string();
-    let data = bincode::serialize(&ops).expect("LogOperation must be serializable");
+    let data = bincode::encode_to_vec(ops, bincode::config::legacy())
+        .expect("LogOperation must be serializable");
     queue
         .upload_object(key, data)
         .map_err(|_| Error::PersistingThreadQuit)

@@ -1,6 +1,6 @@
 use crate::errors::types::DeserializationError;
 use crate::json_types::{
-    json_cmp, json_from_bytes, json_to_bytes, json_to_bytes_size, parse_json, JsonValue,
+    json_cmp, json_from_bytes, json_from_str, json_to_bytes, json_to_bytes_size, JsonValue,
 };
 use crate::types::{
     DozerDuration, DozerPoint, FieldDefinition, Schema, SourceDefinition, TimeUnit,
@@ -37,6 +37,127 @@ pub enum Field {
     Point(DozerPoint),
     Duration(DozerDuration),
     Null,
+}
+
+impl bincode::Decode for Field {
+    fn decode<D: bincode::de::Decoder>(
+        decoder: &mut D,
+    ) -> Result<Self, bincode::error::DecodeError> {
+        let first_byte = u32::decode(decoder)?;
+        match first_byte {
+            0 => Ok(Field::UInt(u64::decode(decoder)?)),
+            1 => Ok(Field::U128(u128::decode(decoder)?)),
+            2 => Ok(Field::Int(i64::decode(decoder)?)),
+            3 => Ok(Field::I128(i128::decode(decoder)?)),
+            4 => Ok(Field::Float(OrderedFloat(f64::decode(decoder)?))),
+            5 => Ok(Field::Boolean(bool::decode(decoder)?)),
+            6 => Ok(Field::String(String::decode(decoder)?)),
+            7 => Ok(Field::Text(String::decode(decoder)?)),
+            8 => Ok(Field::Binary(Vec::<u8>::decode(decoder)?)),
+            9 => {
+                let decoded = bincode::serde::Compat::decode(decoder)?;
+                Ok(Field::Decimal(decoded.0))
+            }
+            10 => {
+                let decoded = bincode::serde::Compat::decode(decoder)?;
+                Ok(Field::Timestamp(decoded.0))
+            }
+            11 => {
+                let decoded = bincode::serde::Compat::decode(decoder)?;
+                Ok(Field::Date(decoded.0))
+            }
+            12 => {
+                let bytes = Vec::<u8>::decode(decoder)?;
+                Ok(Field::Json(rmp_serde::from_slice(&bytes).map_err(|e| {
+                    bincode::error::DecodeError::OtherString(e.to_string())
+                })?))
+            }
+            13 => Ok(Field::Point(DozerPoint::decode(decoder)?)),
+            14 => Ok(Field::Duration(DozerDuration::decode(decoder)?)),
+            15 => Ok(Field::Null),
+            other => Err(bincode::error::DecodeError::UnexpectedVariant {
+                type_name: "Field",
+                allowed: &bincode::error::AllowedEnumVariants::Range { min: 0, max: 15 },
+                found: other,
+            }),
+        }
+    }
+}
+
+impl<'de> bincode::BorrowDecode<'de> for Field {
+    fn borrow_decode<D: bincode::de::BorrowDecoder<'de>>(
+        decoder: &mut D,
+    ) -> Result<Self, bincode::error::DecodeError> {
+        let first_byte = u32::borrow_decode(decoder)?;
+        match first_byte {
+            0 => Ok(Field::UInt(u64::borrow_decode(decoder)?)),
+            1 => Ok(Field::U128(u128::borrow_decode(decoder)?)),
+            2 => Ok(Field::Int(i64::borrow_decode(decoder)?)),
+            3 => Ok(Field::I128(i128::borrow_decode(decoder)?)),
+            4 => Ok(Field::Float(OrderedFloat(f64::borrow_decode(decoder)?))),
+            5 => Ok(Field::Boolean(bool::borrow_decode(decoder)?)),
+            6 => Ok(Field::String(String::borrow_decode(decoder)?)),
+            7 => Ok(Field::Text(String::borrow_decode(decoder)?)),
+            8 => Ok(Field::Binary(Vec::<u8>::borrow_decode(decoder)?)),
+            9 => {
+                let decoded = bincode::serde::Compat::borrow_decode(decoder)?;
+                Ok(Field::Decimal(decoded.0))
+            }
+            10 => {
+                let decoded = bincode::serde::Compat::borrow_decode(decoder)?;
+                Ok(Field::Timestamp(decoded.0))
+            }
+            11 => {
+                let decoded = bincode::serde::Compat::borrow_decode(decoder)?;
+                Ok(Field::Date(decoded.0))
+            }
+            12 => {
+                let bytes = <&[u8]>::borrow_decode(decoder)?;
+                Ok(Field::Json(rmp_serde::from_slice(bytes).map_err(|e| {
+                    bincode::error::DecodeError::OtherString(e.to_string())
+                })?))
+            }
+            13 => Ok(Field::Point(DozerPoint::borrow_decode(decoder)?)),
+            14 => Ok(Field::Duration(DozerDuration::borrow_decode(decoder)?)),
+            15 => Ok(Field::Null),
+            other => Err(bincode::error::DecodeError::UnexpectedVariant {
+                type_name: "Field",
+                allowed: &bincode::error::AllowedEnumVariants::Range { min: 0, max: 15 },
+                found: other,
+            }),
+        }
+    }
+}
+
+impl bincode::Encode for Field {
+    fn encode<E: bincode::enc::Encoder>(
+        &self,
+        encoder: &mut E,
+    ) -> Result<(), bincode::error::EncodeError> {
+        (self.get_type_prefix() as u32).encode(encoder)?;
+        match self {
+            Field::UInt(v) => v.encode(encoder),
+            Field::U128(v) => v.encode(encoder),
+            Field::Int(v) => v.encode(encoder),
+            Field::I128(v) => v.encode(encoder),
+            Field::Float(v) => v.encode(encoder),
+            Field::Boolean(v) => v.encode(encoder),
+            Field::String(v) => v.encode(encoder),
+            Field::Text(v) => v.encode(encoder),
+            Field::Binary(v) => v.encode(encoder),
+            Field::Decimal(v) => bincode::serde::Compat(v).encode(encoder),
+            Field::Timestamp(v) => bincode::serde::Compat(v).encode(encoder),
+            Field::Date(v) => bincode::serde::Compat(v).encode(encoder),
+            Field::Json(v) => {
+                let bytes = rmp_serde::to_vec(v)
+                    .map_err(|e| bincode::error::EncodeError::OtherString(e.to_string()))?;
+                bytes.encode(encoder)
+            }
+            Field::Point(v) => v.encode(encoder),
+            Field::Duration(v) => v.encode(encoder),
+            Field::Null => Ok(()),
+        }
+    }
 }
 
 impl Ord for Field {
@@ -485,7 +606,7 @@ impl Field {
                 DestructuredRef::String(s) => s.parse::<u128>().ok(),
                 _ => None,
             },
-            Field::Null => None,
+            Field::Null => Some(0),
             _ => None,
         }
     }
@@ -622,7 +743,7 @@ impl Field {
             Field::I128(i) => Some((*i as f64).into()),
             Field::Float(OrderedFloat(f)) => Some((*f).into()),
             Field::Boolean(b) => Some((*b).into()),
-            Field::String(s) => parse_json(s.as_str()).ok(),
+            Field::String(s) => json_from_str(s.as_str()).ok(),
             Field::Text(t) => Some(t.into()),
             Field::Null => Some(JsonValue::NULL),
             _ => None,
@@ -703,7 +824,20 @@ impl Display for Field {
     }
 }
 
-#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Clone,
+    Copy,
+    Serialize,
+    Deserialize,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    bincode::Encode,
+    bincode::Decode,
+)]
 /// All field types supported in Dozer.
 pub enum FieldType {
     /// Unsigned 64-bit integer.

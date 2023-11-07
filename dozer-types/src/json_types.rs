@@ -18,8 +18,9 @@ pub type DestructuredJsonRef<'a> = DestructuredRef<'a>;
 pub type DestructuredJson = Destructured;
 pub use ijson::ijson as json;
 
-pub fn parse_json(from: &str) -> Result<JsonValue, DeserializationError> {
-    let serde_value: serde_json::Value = serde_json::from_str(from)?;
+pub fn json_from_str(from: &str) -> Result<JsonValue, DeserializationError> {
+    let serde_value: serde_json::Value =
+        serde_json::from_str(from).unwrap_or_else(|_| serde_json::Value::String(from.to_owned()));
     ijson::to_value(serde_value).map_err(Into::into)
 }
 
@@ -36,14 +37,11 @@ pub fn json_to_string(value: &JsonValue) -> String {
 }
 
 pub(crate) fn json_to_bytes(value: &JsonValue) -> Vec<u8> {
-    bson::to_vec(&json!({"data": value})).unwrap()
+    rmp_serde::to_vec(value).unwrap()
 }
 
 pub(crate) fn json_from_bytes(bytes: &[u8]) -> Result<JsonValue, DeserializationError> {
-    let v: JsonValue = bson::from_slice(bytes)?;
-    // We always wrap the value in an object for bson's sake, so safe to unwrap
-    // Ideally, we'd use `JsonValue::into_object()`, but that's bugged
-    Ok(v.as_object().unwrap().to_owned()["data"].clone())
+    rmp_serde::from_slice(bytes).map_err(Into::into)
 }
 
 pub fn json_to_bytes_size(value: &JsonValue) -> usize {

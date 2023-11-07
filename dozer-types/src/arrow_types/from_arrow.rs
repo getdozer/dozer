@@ -6,7 +6,7 @@ use super::errors::FromArrowError::FieldTypeNotSupported;
 use super::errors::FromArrowError::TimeConversionError;
 use super::to_arrow;
 use crate::arrow_types::to_arrow::DOZER_SCHEMA_KEY;
-use crate::json_types::parse_json;
+use crate::json_types::json_from_str;
 use crate::types::{
     Field as DozerField, FieldDefinition, FieldType, Record, Schema as DozerSchema, Schema,
     SourceDefinition,
@@ -154,7 +154,7 @@ fn make_json(column: &ArrayRef, row: usize) -> Result<DozerField, FromArrowError
         let s: DozerField = if r.is_null(row) {
             DozerField::Null
         } else {
-            DozerField::Json(parse_json(r.value(row))?)
+            DozerField::Json(json_from_str(r.value(row))?)
         };
         Ok(s)
     } else {

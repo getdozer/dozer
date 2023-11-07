@@ -12,7 +12,6 @@ use dozer_recordstore::ProcessorRecordStore;
 use dozer_sql_expression::execution::Expression;
 use dozer_types::bincode;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::{Field, FieldType, Operation, Record, Schema};
 use std::collections::HashMap;
 
@@ -24,8 +23,7 @@ use dozer_core::epoch::Epoch;
 
 const DEFAULT_SEGMENT_KEY: &str = "DOZER_DEFAULT_SEGMENT_KEY";
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(crate = "dozer_types::serde")]
+#[derive(Debug, bincode::Encode, bincode::Decode)]
 struct AggregationState {
     count: usize,
     states: Vec<AggregatorEnum>,
@@ -102,7 +100,7 @@ impl AggregationProcessor {
         let accurate_keys = !enable_probabilistic_optimizations;
 
         let states = if let Some(data) = checkpoint_data {
-            bincode::deserialize(&data)?
+            bincode::decode_from_slice(&data, bincode::config::legacy())?.0
         } else {
             HashMap::new()
         };
@@ -599,6 +597,9 @@ impl Processor for AggregationProcessor {
         _record_store: &ProcessorRecordStore,
         mut object: Object,
     ) -> Result<(), BoxedError> {
-        Ok(object.write(&bincode::serialize(&self.states)?)?)
+        Ok(object.write(&bincode::encode_to_vec(
+            &self.states,
+            bincode::config::legacy(),
+        )?)?)
     }
 }

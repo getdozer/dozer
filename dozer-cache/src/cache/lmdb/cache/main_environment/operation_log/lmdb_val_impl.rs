@@ -56,23 +56,25 @@ impl BorrowEncode for Operation {
 
 impl<'a> Encode<'a> for OperationBorrow<'a> {
     fn encode(self) -> Result<Encoded<'a>, StorageError> {
-        dozer_types::bincode::serialize(&self)
-            .map(Encoded::Vec)
-            .map_err(|e| StorageError::SerializationError {
+        let encoded = bincode::encode_to_vec(self, bincode::config::legacy()).map_err(|e| {
+            StorageError::SerializationError {
                 typ: "Operation",
                 reason: Box::new(e),
-            })
+            }
+        })?;
+        Ok(Encoded::Vec(encoded))
     }
 }
 
 impl Decode for Operation {
     fn decode(bytes: &[u8]) -> Result<Cow<Self>, StorageError> {
-        dozer_types::bincode::deserialize(bytes)
-            .map(Cow::Owned)
+        let decoded = dozer_types::bincode::decode_from_slice(bytes, bincode::config::legacy())
             .map_err(|e| StorageError::DeserializationError {
                 typ: "Operation",
                 reason: Box::new(e),
-            })
+            })?
+            .0;
+        Ok(Cow::Owned(decoded))
     }
 }
 

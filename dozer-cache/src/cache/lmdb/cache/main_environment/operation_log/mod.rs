@@ -7,34 +7,33 @@ use dozer_tracing::Labels;
 use dozer_types::{
     borrow::{Borrow, Cow, IntoOwned},
     log::info,
-    serde::{Deserialize, Serialize},
     types::Record,
 };
 use metrics::{describe_counter, increment_counter};
 
 use crate::cache::{CacheRecord, RecordMeta};
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
-#[serde(crate = "dozer_types::serde")]
+#[derive(Debug, Clone, PartialEq, bincode::Decode)]
 pub enum Operation {
     Delete {
         /// The operation id of an `Insert` operation, which must exist.
         operation_id: u64,
     },
     Insert {
+        #[bincode(with_serde)]
         record_meta: RecordMeta,
         record: Record,
     },
 }
 
-#[derive(Debug, Clone, Copy, Serialize)]
-#[serde(crate = "dozer_types::serde")]
+#[derive(Debug, Clone, Copy, bincode::Encode)]
 pub enum OperationBorrow<'a> {
     Delete {
         /// The operation id of an `Insert` operation, which must exist.
         operation_id: u64,
     },
     Insert {
+        #[bincode(with_serde)]
         record_meta: RecordMeta,
         record: &'a Record,
     },

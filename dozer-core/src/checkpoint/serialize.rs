@@ -1,15 +1,20 @@
 use dozer_log::{storage::Object, tokio::sync::mpsc::error::SendError};
 use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore, ProcessorRecordStoreDeserializer};
 use dozer_types::{
-    bincode,
-    serde::{de::DeserializeOwned, Serialize},
+    bincode::{
+        self,
+        config::{Fixint, LittleEndian, NoLimit},
+    },
     thiserror::{self, Error},
 };
+
+const CONFIG: bincode::config::Configuration<LittleEndian, Fixint, NoLimit> =
+    bincode::config::legacy();
 
 #[derive(Debug, Error)]
 pub enum SerializationError {
     #[error("bincode error: {0}")]
-    Bincode(#[from] bincode::Error),
+    Bincode(#[from] bincode::error::EncodeError),
     #[error("Cannot send value to persisting thread")]
     SendError,
 }
@@ -46,7 +51,7 @@ pub enum DeserializationError {
     #[error("not enough data: requested {requested}, remaining {remaining}")]
     NotEnoughData { requested: usize, remaining: usize },
     #[error("bincode error: {0}")]
-    Bincode(#[from] bincode::Error),
+    Bincode(#[from] bincode::error::DecodeError),
     #[error("record store error: {0}")]
     RecordStore(#[from] dozer_recordstore::RecordStoreError),
 }
@@ -72,18 +77,18 @@ pub fn deserialize_vec_u8<'a>(cursor: &mut Cursor<'a>) -> Result<&'a [u8], Deser
 }
 
 pub fn serialize_bincode(
-    value: impl Serialize,
+    value: impl bincode::Encode,
     object: &mut Object,
 ) -> Result<(), SerializationError> {
-    let data = bincode::serialize(&value)?;
+    let data = bincode::encode_to_vec(&value, CONFIG)?;
     serialize_vec_u8(&data, object)
 }
 
-pub fn deserialize_bincode<T: DeserializeOwned>(
+pub fn deserialize_bincode<T: bincode::Decode>(
     cursor: &mut Cursor,
 ) -> Result<T, DeserializationError> {
     let data = deserialize_vec_u8(cursor)?;
-    Ok(bincode::deserialize(data)?)
+    Ok(bincode::decode_from_slice(data, CONFIG)?.0)
 }
 
 pub fn serialize_record(

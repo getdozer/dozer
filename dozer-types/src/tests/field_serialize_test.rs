@@ -1,3 +1,5 @@
+use bincode::config;
+
 use crate::types::{field_test_cases, Field};
 
 #[test]
@@ -12,10 +14,11 @@ fn test_field_serialize_roundtrip() {
 #[test]
 fn test_field_bincode_serialize_roundtrip() {
     for field in field_test_cases() {
-        let bytes = bincode::serialize(&field).unwrap();
-        let deserialized = bincode::deserialize::<Field>(&bytes).unwrap_or_else(|_| {
-            panic!("Failed to deserialize field: {field:?} from bytes: {bytes:?}")
-        });
+        let bytes = bincode::encode_to_vec(&field, config::legacy()).unwrap();
+        let (deserialized, _): (Field, _) = bincode::decode_from_slice(&bytes, config::legacy())
+            .unwrap_or_else(|e| {
+                panic!("Failed to deserialize field: {field:?} from bytes: {bytes:?}. {e}")
+            });
         assert_eq!(field, deserialized);
     }
 }

@@ -5,11 +5,9 @@ use dozer_sql_expression::aggregate::AggregateFunctionType::Count;
 use dozer_sql_expression::num_traits::FromPrimitive;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
-use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::{Field, FieldType};
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(crate = "dozer_types::serde")]
+#[derive(Debug, bincode::Encode, bincode::Decode)]
 pub struct CountAggregator {
     current_state: u64,
     return_type: Option<FieldType>,

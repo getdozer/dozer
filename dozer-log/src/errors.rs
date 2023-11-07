@@ -22,7 +22,7 @@ pub enum ReaderError {
     #[error("Tonic error: {0}")]
     Tonic(#[from] tonic::Status),
     #[error("Failed to deserialize log response: {0}")]
-    DeserializeLogResponse(#[source] bincode::Error),
+    DeserializeLogResponse(#[source] bincode::error::DecodeError),
     #[error("Failed to load persisted log entry: {0}")]
     LoadPersistedLogEntry(#[from] LoadPersistedLogEntryError),
     #[error("Reader thread has quit: {0:?}")]

@@ -129,8 +129,7 @@ pub enum UpsertResult {
     Ignored,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(crate = "dozer_types::serde")]
+#[derive(Debug, Clone, Default, PartialEq, Eq, bincode::Encode, bincode::Decode)]
 pub struct CommitState {
     pub source_states: SourceStates,
     pub log_position: u64,

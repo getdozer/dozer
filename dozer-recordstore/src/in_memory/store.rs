@@ -53,11 +53,12 @@ impl ProcessorRecordStore {
             .range(start..)
             .filter_map(|(&id, weak)| weak.upgrade().map(|record| (id, RecordRef(record))))
             .collect::<Vec<_>>();
-        let data =
-            bincode::serialize(&slice).map_err(|e| RecordStoreError::SerializationError {
+        let data = bincode::encode_to_vec(&slice, bincode::config::legacy()).map_err(|e| {
+            RecordStoreError::SerializationError {
                 typ: "[(usize, RecordRef)]",
                 reason: Box::new(e),
-            })?;
+            }
+        })?;
         Ok((data, inner.next_index))
     }
 
@@ -131,10 +132,12 @@ impl ProcessorRecordStoreDeserializer {
     }
 
     pub fn deserialize_and_extend(&self, data: &[u8]) -> Result<(), RecordStoreError> {
-        let slice: Vec<(usize, RecordRef)> =
-            bincode::deserialize(data).map_err(|e| RecordStoreError::DeserializationError {
-                typ: "[(usize, RecordRef)]",
-                reason: Box::new(e),
+        let (slice, _): (Vec<(usize, RecordRef)>, _) =
+            bincode::decode_from_slice(data, bincode::config::legacy()).map_err(|e| {
+                RecordStoreError::DeserializationError {
+                    typ: "[(usize, RecordRef)]",
+                    reason: Box::new(e),
+                }
             })?;
 
         let mut inner = self.inner.write();

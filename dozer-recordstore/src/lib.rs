@@ -1,8 +1,6 @@
 use dozer_types::{
-    bincode,
     errors::internal::BoxedError,
     models::app_config::RecordStore,
-    serde::{Deserialize, Serialize},
     thiserror::{self, Error},
     types::{Field, Lifetime, Record},
 };
@@ -29,8 +27,6 @@ pub enum RecordStoreError {
     InMemoryRecordNotFound(u64),
     #[error("Rocksdb record not found: {0}")]
     RocksdbRecordNotFound(u64),
-    #[error("Bincode error: {0}")]
-    Bincode(#[from] bincode::Error),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -129,7 +125,10 @@ impl ProcessorRecordStore {
         }
     }
 
-    pub fn serialize_record(&self, record: &ProcessorRecord) -> Result<Vec<u8>, bincode::Error> {
+    pub fn serialize_record(
+        &self,
+        record: &ProcessorRecord,
+    ) -> Result<Vec<u8>, bincode::error::EncodeError> {
         let ProcessorRecord { values, lifetime } = record;
         let values = values
             .iter()
@@ -145,7 +144,7 @@ impl ProcessorRecordStore {
             values,
             lifetime: lifetime.clone(),
         };
-        bincode::serialize(&record)
+        bincode::encode_to_vec(&record, bincode::config::legacy())
     }
 
     pub fn compact(&self) {
@@ -200,7 +199,13 @@ impl ProcessorRecordStoreDeserializer {
     }
 
     pub fn deserialize_record(&self, data: &[u8]) -> Result<ProcessorRecord, RecordStoreError> {
-        let ProcessorRecordForSerialization { values, lifetime } = bincode::deserialize(data)?;
+        let (ProcessorRecordForSerialization { values, lifetime }, _) =
+            bincode::decode_from_slice(data, bincode::config::legacy()).map_err(|e| {
+                RecordStoreError::DeserializationError {
+                    typ: "ProcessorRecord",
+                    reason: Box::new(e),
+                }
+            })?;
         let mut deserialized_values = Vec::with_capacity(values.len());
         for value in values {
             match self {
@@ -254,8 +259,7 @@ fn load_in_memory_record_ref(record_ref: &in_memory::RecordRef) -> Vec<Field> {
 mod in_memory;
 mod rocksdb;
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(crate = "dozer_types::serde")]
+#[derive(Debug, bincode::Encode, bincode::Decode)]
 struct ProcessorRecordForSerialization {
     values: Vec<u64>,
     lifetime: Option<Box<Lifetime>>,

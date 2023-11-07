@@ -47,7 +47,7 @@ pub enum ExecutionError {
     #[error("Unrecognized checkpoint: {0}")]
     UnrecognizedCheckpoint(String),
     #[error("Cannot deserialize checkpoint: {0}")]
-    CorruptedCheckpoint(#[source] bincode::Error),
+    CorruptedCheckpoint(#[source] bincode::error::DecodeError),
     #[error("Table {table_name} of source {source_name} cannot restart. You have to clean data from previous runs by running `dozer clean`")]
     SourceCannotRestart {
         source_name: NodeHandle,

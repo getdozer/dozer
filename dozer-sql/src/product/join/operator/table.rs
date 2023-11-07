@@ -58,7 +58,7 @@ impl JoinTable {
             (
                 deserialize_record(cursor, record_store)?,
                 deserialize_join_map(cursor, record_store)?,
-                deserialize_bincode(cursor)?,
+                deserialize_bincode::<bincode::serde::Compat<_>>(cursor)?.0,
             )
         } else {
             (
@@ -171,7 +171,7 @@ impl JoinTable {
     ) -> Result<(), SerializationError> {
         serialize_record(&self.default_record, record_store, object)?;
         serialize_join_map(&self.map, record_store, object)?;
-        serialize_bincode(&self.lifetime_map, object)?;
+        serialize_bincode(&bincode::serde::Compat(&self.lifetime_map), object)?;
         Ok(())
     }
 

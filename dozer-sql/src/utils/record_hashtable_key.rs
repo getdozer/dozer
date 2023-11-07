@@ -5,7 +5,9 @@ use dozer_types::{
 };
 use std::hash::{Hash, Hasher};
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Clone, Debug, Hash, PartialEq, Eq, bincode::Encode, bincode::Decode, Deserialize, Serialize,
+)]
 #[serde(crate = "dozer_types::serde")]
 pub enum RecordKey {
     Accurate(Vec<Field>),

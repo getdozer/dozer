@@ -12,3 +12,4 @@ fuzz = ["dozer-types/arbitrary"]
 dozer-types = { path = "../dozer-types" }
 dozer-storage = { path = "../dozer-storage" }
 tempdir = "0.3.7"
+bincode = { workspace = true }

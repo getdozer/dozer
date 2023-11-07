@@ -1,2 +1,5 @@
 [build]
 rustflags = ["--cfg", "tokio_unstable"]
+
+[profile.test]
+lto = "off"
