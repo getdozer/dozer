@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 dozer-types = { path = "../dozer-types" }
 dozer-log = { path = "../dozer-log" }
-deno_runtime = "0.129.0"
+dozer-deno = { path = "../dozer-deno" }
 
 [dev-dependencies]
 env_logger = "0.10.0"

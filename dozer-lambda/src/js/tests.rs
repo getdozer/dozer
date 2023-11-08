@@ -1,6 +1,6 @@
 use std::{pin::pin, time::Duration};
 
-use deno_runtime::deno_core::futures::future::{join, select, Either};
+use dozer_deno::deno_runtime::deno_core::futures::future::{join, select, Either};
 
 use super::*;
 
@@ -43,7 +43,7 @@ mod mock {
         net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     };
 
-    use deno_runtime::deno_core::futures::{stream::BoxStream, FutureExt, StreamExt};
+    use dozer_deno::deno_runtime::deno_core::futures::{stream::BoxStream, FutureExt, StreamExt};
     use dozer_log::{
         replication::{self, LogOperation},
         schemas::EndpointSchema,
@@ -190,9 +190,10 @@ mod mock {
                             })
                             .collect();
                         Ok(LogResponse {
-                            data: bincode::serialize(&replication::LogResponse::Operations(
-                                operations,
-                            ))
+                            data: bincode::encode_to_vec(
+                                &replication::LogResponse::Operations(operations),
+                                bincode::config::legacy(),
+                            )
                             .unwrap(),
                         })
                     } else {
