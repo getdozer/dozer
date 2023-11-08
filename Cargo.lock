@@ -3662,6 +3662,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "dozer-deno"
+version = "0.3.0"
+dependencies = [
+ "deno_ast",
+ "deno_runtime",
+]
+
+[[package]]
 name = "dozer-ingestion"
 version = "0.3.0"
 dependencies = [
@@ -3746,8 +3754,7 @@ name = "dozer-ingestion-javascript"
 version = "0.3.0"
 dependencies = [
  "camino",
- "deno_ast",
- "deno_runtime",
+ "dozer-deno",
  "dozer-ingestion-connector",
 ]
 
