@@ -92,30 +92,32 @@ impl ScalarFunctionType {
     pub(crate) fn evaluate(
         &self,
         schema: &Schema,
-        args: &[Expression],
+        args: &mut [Expression],
         record: &Record,
     ) -> Result<Field, Error> {
         match self {
             ScalarFunctionType::Abs => {
                 validate_num_arguments(1..2, args.len(), ScalarFunctionType::Abs)?;
-                evaluate_abs(schema, &args[0], record)
+                evaluate_abs(schema, &mut args[0], record)
             }
             ScalarFunctionType::Round => {
                 validate_num_arguments(1..3, args.len(), ScalarFunctionType::Round)?;
-                evaluate_round(schema, &args[0], args.get(1), record)
+                let (arg0, arg1) = args.split_at_mut(1);
+                evaluate_round(schema, &mut arg0[0], arg1.get_mut(0), record)
             }
             ScalarFunctionType::Ucase => {
                 validate_num_arguments(1..2, args.len(), ScalarFunctionType::Ucase)?;
-                evaluate_ucase(schema, &args[0], record)
+                evaluate_ucase(schema, &mut args[0], record)
             }
             ScalarFunctionType::Concat => evaluate_concat(schema, args, record),
             ScalarFunctionType::Length => {
                 validate_num_arguments(1..2, args.len(), ScalarFunctionType::Length)?;
-                evaluate_length(schema, &args[0], record)
+                evaluate_length(schema, &mut args[0], record)
             }
             ScalarFunctionType::ToChar => {
                 validate_num_arguments(2..3, args.len(), ScalarFunctionType::ToChar)?;
-                evaluate_to_char(schema, &args[0], &args[1], record)
+                let (arg0, arg1) = args.split_at_mut(1);
+                evaluate_to_char(schema, &mut arg0[0], &mut arg1[0], record)
             }
         }
     }

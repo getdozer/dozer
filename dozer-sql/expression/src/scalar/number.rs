@@ -8,7 +8,7 @@ use num_traits::{Float, ToPrimitive};
 
 pub(crate) fn evaluate_abs(
     schema: &Schema,
-    arg: &Expression,
+    arg: &mut Expression,
     record: &Record,
 ) -> Result<Field, Error> {
     let value = arg.evaluate(record, schema)?;
@@ -38,8 +38,8 @@ pub(crate) fn evaluate_abs(
 
 pub(crate) fn evaluate_round(
     schema: &Schema,
-    arg: &Expression,
-    decimals: Option<&Expression>,
+    arg: &mut Expression,
+    decimals: Option<&mut Expression>,
     record: &Record,
 ) -> Result<Field, Error> {
     let value = arg.evaluate(record, schema)?;
@@ -115,18 +115,18 @@ mod tests {
         proptest!(ProptestConfig::with_cases(1000), |(i_num in 0i64..100000000i64, f_num in 0f64..100000000f64)| {
         let row = Record::new(vec![]);
 
-        let v = Box::new(Literal(Field::Int(i_num.neg())));
+        let mut v = Box::new(Literal(Field::Int(i_num.neg())));
         assert_eq!(
-            evaluate_abs(&Schema::default(), &v, &row)
+            evaluate_abs(&Schema::default(), &mut v, &row)
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
             Field::Int(i_num)
         );
 
         let row = Record::new(vec![]);
 
-        let v = Box::new(Literal(Field::Float(OrderedFloat(f_num.neg()))));
+        let mut v = Box::new(Literal(Field::Float(OrderedFloat(f_num.neg()))));
         assert_eq!(
-            evaluate_abs(&Schema::default(), &v, &row)
+            evaluate_abs(&Schema::default(), &mut v, &row)
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
             Field::Float(OrderedFloat(f_num))
         );
@@ -138,52 +138,52 @@ mod tests {
         proptest!(ProptestConfig::with_cases(1000), |(i_num: i64, f_num: f64, i_pow: i32, f_pow: f32)| {
             let row = Record::new(vec![]);
 
-            let v = Box::new(Literal(Field::Int(i_num)));
-            let d = &Box::new(Literal(Field::Int(0)));
+            let mut v = Box::new(Literal(Field::Int(i_num)));
+            let d = &mut Box::new(Literal(Field::Int(0)));
             assert_eq!(
-                evaluate_round(&Schema::default(), &v, Some(d), &row)
+                evaluate_round(&Schema::default(), &mut v, Some(d), &row)
                     .unwrap_or_else(|e| panic!("{}", e.to_string())),
                 Field::Int(i_num)
             );
 
-            let v = Box::new(Literal(Field::Float(OrderedFloat(f_num))));
-            let d = &Box::new(Literal(Field::Int(0)));
+            let mut v = Box::new(Literal(Field::Float(OrderedFloat(f_num))));
+            let d = &mut Box::new(Literal(Field::Int(0)));
             assert_eq!(
-                evaluate_round(&Schema::default(), &v, Some(d), &row)
+                evaluate_round(&Schema::default(), &mut v, Some(d), &row)
                     .unwrap_or_else(|e| panic!("{}", e.to_string())),
                 Field::Float(OrderedFloat(f_num.round()))
             );
 
-            let v = Box::new(Literal(Field::Float(OrderedFloat(f_num))));
-            let d = &Box::new(Literal(Field::Int(i_pow as i64)));
+            let mut v = Box::new(Literal(Field::Float(OrderedFloat(f_num))));
+            let d = &mut Box::new(Literal(Field::Int(i_pow as i64)));
             let order = 10.0_f64.powi(i_pow);
             assert_eq!(
-                evaluate_round(&Schema::default(), &v, Some(d), &row)
+                evaluate_round(&Schema::default(), &mut v, Some(d), &row)
                     .unwrap_or_else(|e| panic!("{}", e.to_string())),
                 Field::Float(OrderedFloat((f_num * order).round() / order))
             );
 
-            let v = Box::new(Literal(Field::Float(OrderedFloat(f_num))));
-            let d = &Box::new(Literal(Field::Float(OrderedFloat(f_pow as f64))));
+            let mut v = Box::new(Literal(Field::Float(OrderedFloat(f_num))));
+            let d = &mut Box::new(Literal(Field::Float(OrderedFloat(f_pow as f64))));
             let order = 10.0_f64.powi(f_pow.round() as i32);
             assert_eq!(
-                evaluate_round(&Schema::default(), &v, Some(d), &row)
+                evaluate_round(&Schema::default(), &mut v, Some(d), &row)
                     .unwrap_or_else(|e| panic!("{}", e.to_string())),
                 Field::Float(OrderedFloat((f_num * order).round() / order))
             );
 
-            let v = Box::new(Literal(Field::Float(OrderedFloat(f_num))));
-            let d = &Box::new(Literal(Field::String(f_pow.to_string())));
+            let mut v = Box::new(Literal(Field::Float(OrderedFloat(f_num))));
+            let d = &mut Box::new(Literal(Field::String(f_pow.to_string())));
             assert_eq!(
-                evaluate_round(&Schema::default(), &v, Some(d), &row)
+                evaluate_round(&Schema::default(), &mut v, Some(d), &row)
                     .unwrap_or_else(|e| panic!("{}", e.to_string())),
                 Field::Float(OrderedFloat(f_num.round()))
             );
 
-            let v = Box::new(Literal(Field::Null));
-            let d = &Box::new(Literal(Field::String(i_pow.to_string())));
+            let mut v = Box::new(Literal(Field::Null));
+            let d = &mut Box::new(Literal(Field::String(i_pow.to_string())));
             assert_eq!(
-                evaluate_round(&Schema::default(), &v, Some(d), &row)
+                evaluate_round(&Schema::default(), &mut v, Some(d), &row)
                     .unwrap_or_else(|e| panic!("{}", e.to_string())),
                 Field::Null
             );

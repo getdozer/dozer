@@ -18,11 +18,11 @@ use std::ops::Deref;
 pub fn evaluate_onnx_udf(
     schema: &Schema,
     session: &Session,
-    args: &[Expression],
+    args: &mut [Expression],
     record: &Record,
 ) -> Result<Field, Error> {
     let input_values = args
-        .iter()
+        .iter_mut()
         .map(|arg| arg.evaluate(record, schema))
         .collect::<Result<Vec<_>, Error>>()?;
 

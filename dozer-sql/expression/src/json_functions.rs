@@ -36,7 +36,7 @@ impl JsonFunctionType {
     pub(crate) fn evaluate(
         &self,
         schema: &Schema,
-        args: &Vec<Expression>,
+        args: &mut [Expression],
         record: &Record,
     ) -> Result<Field, Error> {
         match self {
@@ -48,7 +48,7 @@ impl JsonFunctionType {
     pub(crate) fn evaluate_json_value(
         &self,
         schema: &Schema,
-        args: &Vec<Expression>,
+        args: &mut [Expression],
         record: &Record,
     ) -> Result<Field, Error> {
         validate_num_arguments(2..3, args.len(), self)?;
@@ -72,7 +72,7 @@ impl JsonFunctionType {
     pub(crate) fn evaluate_json_query(
         &self,
         schema: &Schema,
-        args: &Vec<Expression>,
+        args: &mut [Expression],
         record: &Record,
     ) -> Result<Field, Error> {
         validate_num_arguments(1..3, args.len(), self)?;

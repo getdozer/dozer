@@ -13,409 +13,414 @@ fn test_comparison() {
         u_num1: u64, u_num2: u64, i_num1: i64, i_num2: i64, f_num1: f64, f_num2: f64, d_num1: ArbitraryDecimal, d_num2: ArbitraryDecimal)| {
         let row = Record::new(vec![]);
 
-        let uint1 = Literal(Field::UInt(u_num1));
-        let uint2 = Literal(Field::UInt(u_num2));
-        let int1 = Literal(Field::Int(i_num1));
-        let int2 = Literal(Field::Int(i_num2));
-        let float1 = Literal(Field::Float(OrderedFloat(f_num1)));
-        let float2 = Literal(Field::Float(OrderedFloat(f_num2)));
-        let dec1 = Literal(Field::Decimal(d_num1.0));
-        let dec2 = Literal(Field::Decimal(d_num2.0));
-        let null = Literal(Field::Null);
+        let mut uint1 = Literal(Field::UInt(u_num1));
+        let mut uint2 = Literal(Field::UInt(u_num2));
+        let mut int1 = Literal(Field::Int(i_num1));
+        let mut int2 = Literal(Field::Int(i_num2));
+        let mut float1 = Literal(Field::Float(OrderedFloat(f_num1)));
+        let mut float2 = Literal(Field::Float(OrderedFloat(f_num2)));
+        let mut dec1 = Literal(Field::Decimal(d_num1.0));
+        let mut dec2 = Literal(Field::Decimal(d_num2.0));
+        let mut null = Literal(Field::Null);
 
         // eq: UInt
-        test_eq(&uint1, &uint1, &row, None);
+        let mut uint1_clone = uint1.clone();
+        test_eq(&mut uint1, &mut uint1_clone, &row, None);
         if u_num1 == u_num2 && u_num1 as i64 == i_num1 && u_num1 as f64 == f_num1 && Decimal::from(u_num1) == d_num1.0 {
-            test_eq(&uint1, &uint2, &row, None);
-            test_eq(&uint1, &int1, &row, None);
-            test_eq(&uint1, &float1, &row, None);
-            test_eq(&uint1, &dec1, &row, None);
-            test_eq(&uint1, &null, &row, Some(Field::Null));
+            test_eq(&mut uint1, &mut uint2, &row, None);
+            test_eq(&mut uint1, &mut int1, &row, None);
+            test_eq(&mut uint1, &mut float1, &row, None);
+            test_eq(&mut uint1, &mut dec1, &row, None);
+            test_eq(&mut uint1, &mut null, &row, Some(Field::Null));
 
-            test_gte(&uint1, &uint2, &row, None);
-            test_gte(&uint1, &int1, &row, None);
-            test_gte(&uint1, &float1, &row, None);
-            test_gte(&uint1, &dec1, &row, None);
-            test_gte(&uint1, &null, &row, Some(Field::Null));
+            test_gte(&mut uint1, &mut uint2, &row, None);
+            test_gte(&mut uint1, &mut int1, &row, None);
+            test_gte(&mut uint1, &mut float1, &row, None);
+            test_gte(&mut uint1, &mut dec1, &row, None);
+            test_gte(&mut uint1, &mut null, &row, Some(Field::Null));
 
-            test_lte(&uint1, &uint2, &row, None);
-            test_lte(&uint1, &int1, &row, None);
-            test_lte(&uint1, &float1, &row, None);
-            test_lte(&uint1, &dec1, &row, None);
-            test_lte(&uint1, &null, &row, Some(Field::Null));
+            test_lte(&mut uint1, &mut uint2, &row, None);
+            test_lte(&mut uint1, &mut int1, &row, None);
+            test_lte(&mut uint1, &mut float1, &row, None);
+            test_lte(&mut uint1, &mut dec1, &row, None);
+            test_lte(&mut uint1, &mut null, &row, Some(Field::Null));
         }
 
         // eq: Int
-        test_eq(&int1, &int1, &row, None);
+        let mut int1_clone = int1.clone();
+        test_eq(&mut int1, &mut int1_clone, &row, None);
         if i_num1 == u_num1 as i64 && i_num1 == i_num2 && i_num1 as f64 == f_num1 && Decimal::from(i_num1) == d_num1.0 {
-            test_eq(&int1, &uint1, &row, None);
-            test_eq(&int1, &int2, &row, None);
-            test_eq(&int1, &float1, &row, None);
-            test_eq(&int1, &dec1, &row, None);
-            test_eq(&int1, &null, &row, Some(Field::Null));
+            test_eq(&mut int1, &mut uint1, &row, None);
+            test_eq(&mut int1, &mut int2, &row, None);
+            test_eq(&mut int1, &mut float1, &row, None);
+            test_eq(&mut int1, &mut dec1, &row, None);
+            test_eq(&mut int1, &mut null, &row, Some(Field::Null));
 
-            test_gte(&int1, &uint1, &row, None);
-            test_gte(&int1, &int2, &row, None);
-            test_gte(&int1, &float1, &row, None);
-            test_gte(&int1, &dec1, &row, None);
-            test_gte(&int1, &null, &row, Some(Field::Null));
+            test_gte(&mut int1, &mut uint1, &row, None);
+            test_gte(&mut int1, &mut int2, &row, None);
+            test_gte(&mut int1, &mut float1, &row, None);
+            test_gte(&mut int1, &mut dec1, &row, None);
+            test_gte(&mut int1, &mut null, &row, Some(Field::Null));
 
-            test_lte(&int1, &uint1, &row, None);
-            test_lte(&int1, &int2, &row, None);
-            test_lte(&int1, &float1, &row, None);
-            test_lte(&int1, &dec1, &row, None);
-            test_lte(&int1, &null, &row, Some(Field::Null));
+            test_lte(&mut int1, &mut uint1, &row, None);
+            test_lte(&mut int1, &mut int2, &row, None);
+            test_lte(&mut int1, &mut float1, &row, None);
+            test_lte(&mut int1, &mut dec1, &row, None);
+            test_lte(&mut int1, &mut null, &row, Some(Field::Null));
         }
 
         // eq: Float
-        test_eq(&float1, &float1, &row, None);
+        let mut float1_clone = float1.clone();
+        test_eq(&mut float1, &mut float1_clone, &row, None);
         let d_val = Decimal::from_f64(f_num1);
         if d_val.is_some() && f_num1 == u_num1 as f64 && f_num1 == i_num1 as f64 && f_num1 == f_num2 && d_val.unwrap() == d_num1.0 {
-            test_eq(&float1, &uint1, &row, None);
-            test_eq(&float1, &int1, &row, None);
-            test_eq(&float1, &float2, &row, None);
-            test_eq(&float1, &dec1, &row, None);
-            test_eq(&float1, &null, &row, Some(Field::Null));
+            test_eq(&mut float1, &mut uint1, &row, None);
+            test_eq(&mut float1, &mut int1, &row, None);
+            test_eq(&mut float1, &mut float2, &row, None);
+            test_eq(&mut float1, &mut dec1, &row, None);
+            test_eq(&mut float1, &mut null, &row, Some(Field::Null));
 
-            test_gte(&float1, &uint1, &row, None);
-            test_gte(&float1, &int1, &row, None);
-            test_gte(&float1, &float2, &row, None);
-            test_gte(&float1, &dec1, &row, None);
-            test_gte(&float1, &null, &row, Some(Field::Null));
+            test_gte(&mut float1, &mut uint1, &row, None);
+            test_gte(&mut float1, &mut int1, &row, None);
+            test_gte(&mut float1, &mut float2, &row, None);
+            test_gte(&mut float1, &mut dec1, &row, None);
+            test_gte(&mut float1, &mut null, &row, Some(Field::Null));
 
-            test_lte(&float1, &uint1, &row, None);
-            test_lte(&float1, &int1, &row, None);
-            test_lte(&float1, &float2, &row, None);
-            test_lte(&float1, &dec1, &row, None);
-            test_lte(&float1, &null, &row, Some(Field::Null));
+            test_lte(&mut float1, &mut uint1, &row, None);
+            test_lte(&mut float1, &mut int1, &row, None);
+            test_lte(&mut float1, &mut float2, &row, None);
+            test_lte(&mut float1, &mut dec1, &row, None);
+            test_lte(&mut float1, &mut null, &row, Some(Field::Null));
         }
 
         // eq: Decimal
-        test_eq(&dec1, &dec1, &row, None);
+        let mut dec1_clone = dec1.clone();
+        test_eq(&mut dec1, &mut dec1_clone, &row, None);
         let d_val = Decimal::from_f64(f_num1);
         if d_val.is_some() && d_num1.0 == Decimal::from(u_num1) && d_num1.0 == Decimal::from(i_num1) && d_num1.0 == d_val.unwrap() && d_num1.0 == d_num2.0 {
-            test_eq(&dec1, &uint1, &row, None);
-            test_eq(&dec1, &int1, &row, None);
-            test_eq(&dec1, &float1, &row, None);
-            test_eq(&dec1, &dec2, &row, None);
-            test_eq(&dec1, &null, &row, Some(Field::Null));
+            test_eq(&mut dec1, &mut uint1, &row, None);
+            test_eq(&mut dec1, &mut int1, &row, None);
+            test_eq(&mut dec1, &mut float1, &row, None);
+            test_eq(&mut dec1, &mut dec2, &row, None);
+            test_eq(&mut dec1, &mut null, &row, Some(Field::Null));
 
-            test_gte(&dec1, &uint1, &row, None);
-            test_gte(&dec1, &int1, &row, None);
-            test_gte(&dec1, &float1, &row, None);
-            test_gte(&dec1, &dec2, &row, None);
-            test_gte(&dec1, &null, &row, Some(Field::Null));
+            test_gte(&mut dec1, &mut uint1, &row, None);
+            test_gte(&mut dec1, &mut int1, &row, None);
+            test_gte(&mut dec1, &mut float1, &row, None);
+            test_gte(&mut dec1, &mut dec2, &row, None);
+            test_gte(&mut dec1, &mut null, &row, Some(Field::Null));
 
-            test_lte(&dec1, &uint1, &row, None);
-            test_lte(&dec1, &int1, &row, None);
-            test_lte(&dec1, &float1, &row, None);
-            test_lte(&dec1, &dec2, &row, None);
-            test_lte(&dec1, &null, &row, Some(Field::Null));
+            test_lte(&mut dec1, &mut uint1, &row, None);
+            test_lte(&mut dec1, &mut int1, &row, None);
+            test_lte(&mut dec1, &mut float1, &row, None);
+            test_lte(&mut dec1, &mut dec2, &row, None);
+            test_lte(&mut dec1, &mut null, &row, Some(Field::Null));
         }
 
         // eq: Null
-        test_eq(&null, &uint2, &row, Some(Field::Null));
-        test_eq(&null, &int2, &row, Some(Field::Null));
-        test_eq(&null, &float2, &row, Some(Field::Null));
-        test_eq(&null, &dec2, &row, Some(Field::Null));
-        test_eq(&null, &null, &row, Some(Field::Null));
+        test_eq(&mut null, &mut uint2, &row, Some(Field::Null));
+        test_eq(&mut null, &mut int2, &row, Some(Field::Null));
+        test_eq(&mut null, &mut float2, &row, Some(Field::Null));
+        test_eq(&mut null, &mut dec2, &row, Some(Field::Null));
+        let mut null_clone = null.clone();
+        test_eq(&mut null, &mut null_clone, &row, Some(Field::Null));
 
         // not eq: UInt
         if u_num1 != u_num2 && u_num1 as i64 != i_num1 && u_num1 as f64 != f_num1 && Decimal::from(u_num1) != d_num1.0 {
-            test_eq(&uint1, &uint2, &row, Some(Field::Boolean(false)));
-            test_eq(&uint1, &int1, &row, Some(Field::Boolean(false)));
-            test_eq(&uint1, &float1, &row, Some(Field::Boolean(false)));
-            test_eq(&uint1, &dec1, &row, Some(Field::Boolean(false)));
-            test_eq(&uint1, &null, &row, Some(Field::Null));
+            test_eq(&mut uint1, &mut uint2, &row, Some(Field::Boolean(false)));
+            test_eq(&mut uint1, &mut int1, &row, Some(Field::Boolean(false)));
+            test_eq(&mut uint1, &mut float1, &row, Some(Field::Boolean(false)));
+            test_eq(&mut uint1, &mut dec1, &row, Some(Field::Boolean(false)));
+            test_eq(&mut uint1, &mut null, &row, Some(Field::Null));
 
-            test_ne(&uint1, &uint2, &row, None);
-            test_ne(&uint1, &int1, &row, None);
-            test_ne(&uint1, &float1, &row, None);
-            test_ne(&uint1, &dec1, &row, None);
-            test_ne(&uint1, &null, &row, Some(Field::Null));
+            test_ne(&mut uint1, &mut uint2, &row, None);
+            test_ne(&mut uint1, &mut int1, &row, None);
+            test_ne(&mut uint1, &mut float1, &row, None);
+            test_ne(&mut uint1, &mut dec1, &row, None);
+            test_ne(&mut uint1, &mut null, &row, Some(Field::Null));
         }
 
         // not eq: Int
         if i_num1 != u_num1 as i64 && i_num1 != i_num2 && i_num1 as f64 != f_num1 && Decimal::from(i_num1) != d_num1.0 {
-            test_eq(&int1, &uint1, &row, Some(Field::Boolean(false)));
-            test_eq(&int1, &int2, &row, Some(Field::Boolean(false)));
-            test_eq(&int1, &float1, &row, Some(Field::Boolean(false)));
-            test_eq(&int1, &dec1, &row, Some(Field::Boolean(false)));
-            test_eq(&int1, &null, &row, Some(Field::Null));
+            test_eq(&mut int1, &mut uint1, &row, Some(Field::Boolean(false)));
+            test_eq(&mut int1, &mut int2, &row, Some(Field::Boolean(false)));
+            test_eq(&mut int1, &mut float1, &row, Some(Field::Boolean(false)));
+            test_eq(&mut int1, &mut dec1, &row, Some(Field::Boolean(false)));
+            test_eq(&mut int1, &mut null, &row, Some(Field::Null));
 
-            test_ne(&int1, &uint1, &row, None);
-            test_ne(&int1, &int2, &row, None);
-            test_ne(&int1, &float1, &row, None);
-            test_ne(&int1, &dec1, &row, None);
-            test_ne(&int1, &null, &row, Some(Field::Null));
+            test_ne(&mut int1, &mut uint1, &row, None);
+            test_ne(&mut int1, &mut int2, &row, None);
+            test_ne(&mut int1, &mut float1, &row, None);
+            test_ne(&mut int1, &mut dec1, &row, None);
+            test_ne(&mut int1, &mut null, &row, Some(Field::Null));
         }
 
         // not eq: Float
         let d_val = Decimal::from_f64(f_num1);
         if d_val.is_some() && f_num1 != u_num1 as f64 && f_num1 != i_num1 as f64 && f_num1 != f_num2 && d_val.unwrap() != d_num1.0 {
-            test_eq(&float1, &uint1, &row, Some(Field::Boolean(false)));
-            test_eq(&float1, &int1, &row, Some(Field::Boolean(false)));
-            test_eq(&float1, &float2, &row, Some(Field::Boolean(false)));
-            test_eq(&float1, &dec1, &row, Some(Field::Boolean(false)));
-            test_eq(&float1, &null, &row, Some(Field::Null));
+            test_eq(&mut float1, &mut uint1, &row, Some(Field::Boolean(false)));
+            test_eq(&mut float1, &mut int1, &row, Some(Field::Boolean(false)));
+            test_eq(&mut float1, &mut float2, &row, Some(Field::Boolean(false)));
+            test_eq(&mut float1, &mut dec1, &row, Some(Field::Boolean(false)));
+            test_eq(&mut float1, &mut null, &row, Some(Field::Null));
 
-            test_ne(&float1, &uint1, &row, None);
-            test_ne(&float1, &int1, &row, None);
-            test_ne(&float1, &float2, &row, None);
-            test_ne(&float1, &dec1, &row, None);
-            test_ne(&float1, &null, &row, Some(Field::Null));
+            test_ne(&mut float1, &mut uint1, &row, None);
+            test_ne(&mut float1, &mut int1, &row, None);
+            test_ne(&mut float1, &mut float2, &row, None);
+            test_ne(&mut float1, &mut dec1, &row, None);
+            test_ne(&mut float1, &mut null, &row, Some(Field::Null));
         }
 
         // not eq: Decimal
         let d_val = Decimal::from_f64(f_num1);
         if d_val.is_some() && d_num1.0 != Decimal::from(u_num1) && d_num1.0 != Decimal::from(i_num1) && d_num1.0 != d_val.unwrap() && d_num1.0 != d_num2.0 {
-            test_eq(&dec1, &uint1, &row, Some(Field::Boolean(false)));
-            test_eq(&dec1, &int1, &row, Some(Field::Boolean(false)));
-            test_eq(&dec1, &float1, &row, Some(Field::Boolean(false)));
-            test_eq(&dec1, &dec2, &row, Some(Field::Boolean(false)));
-            test_eq(&dec1, &null, &row, Some(Field::Null));
+            test_eq(&mut dec1, &mut uint1, &row, Some(Field::Boolean(false)));
+            test_eq(&mut dec1, &mut int1, &row, Some(Field::Boolean(false)));
+            test_eq(&mut dec1, &mut float1, &row, Some(Field::Boolean(false)));
+            test_eq(&mut dec1, &mut dec2, &row, Some(Field::Boolean(false)));
+            test_eq(&mut dec1, &mut null, &row, Some(Field::Null));
 
-            test_ne(&dec1, &uint1, &row, None);
-            test_ne(&dec1, &int1, &row, None);
-            test_ne(&dec1, &float1, &row, None);
-            test_ne(&dec1, &dec2, &row, None);
-            test_ne(&dec1, &null, &row, Some(Field::Null));
+            test_ne(&mut dec1, &mut uint1, &row, None);
+            test_ne(&mut dec1, &mut int1, &row, None);
+            test_ne(&mut dec1, &mut float1, &row, None);
+            test_ne(&mut dec1, &mut dec2, &row, None);
+            test_ne(&mut dec1, &mut null, &row, Some(Field::Null));
         }
 
         // not eq: Null
-        test_eq(&null, &uint2, &row, Some(Field::Null));
-        test_eq(&null, &int2, &row, Some(Field::Null));
-        test_eq(&null, &float2, &row, Some(Field::Null));
-        test_eq(&null, &dec2, &row, Some(Field::Null));
+        test_eq(&mut null, &mut uint2, &row, Some(Field::Null));
+        test_eq(&mut null, &mut int2, &row, Some(Field::Null));
+        test_eq(&mut null, &mut float2, &row, Some(Field::Null));
+        test_eq(&mut null, &mut dec2, &row, Some(Field::Null));
 
-        test_ne(&null, &uint2, &row, Some(Field::Null));
-        test_ne(&null, &int2, &row, Some(Field::Null));
-        test_ne(&null, &float2, &row, Some(Field::Null));
-        test_ne(&null, &dec2, &row, Some(Field::Null));
+        test_ne(&mut null, &mut uint2, &row, Some(Field::Null));
+        test_ne(&mut null, &mut int2, &row, Some(Field::Null));
+        test_ne(&mut null, &mut float2, &row, Some(Field::Null));
+        test_ne(&mut null, &mut dec2, &row, Some(Field::Null));
 
         // gt: UInt
         if u_num1 > u_num2 && u_num1 as i64 > i_num1 && u_num1 as f64 > f_num1 && Decimal::from(u_num1) > d_num1.0 {
-            test_gt(&uint1, &uint2, &row, None);
-            test_gt(&uint1, &int1, &row, None);
-            test_gt(&uint1, &float1, &row, None);
-            test_gt(&uint1, &dec1, &row, None);
-            test_gt(&uint1, &null, &row, Some(Field::Null));
+            test_gt(&mut uint1, &mut uint2, &row, None);
+            test_gt(&mut uint1, &mut int1, &row, None);
+            test_gt(&mut uint1, &mut float1, &row, None);
+            test_gt(&mut uint1, &mut dec1, &row, None);
+            test_gt(&mut uint1, &mut null, &row, Some(Field::Null));
 
-            test_gte(&uint1, &uint2, &row, None);
-            test_gte(&uint1, &int1, &row, None);
-            test_gte(&uint1, &float1, &row, None);
-            test_gte(&uint1, &dec1, &row, None);
-            test_gte(&uint1, &null, &row, Some(Field::Null));
+            test_gte(&mut uint1, &mut uint2, &row, None);
+            test_gte(&mut uint1, &mut int1, &row, None);
+            test_gte(&mut uint1, &mut float1, &row, None);
+            test_gte(&mut uint1, &mut dec1, &row, None);
+            test_gte(&mut uint1, &mut null, &row, Some(Field::Null));
 
-            test_lt(&uint1, &uint2, &row, Some(Field::Boolean(false)));
-            test_lt(&uint1, &int1, &row, Some(Field::Boolean(false)));
-            test_lt(&uint1, &float1, &row, Some(Field::Boolean(false)));
-            test_lt(&uint1, &dec1, &row, Some(Field::Boolean(false)));
-            test_lt(&uint1, &null, &row, Some(Field::Null));
+            test_lt(&mut uint1, &mut uint2, &row, Some(Field::Boolean(false)));
+            test_lt(&mut uint1, &mut int1, &row, Some(Field::Boolean(false)));
+            test_lt(&mut uint1, &mut float1, &row, Some(Field::Boolean(false)));
+            test_lt(&mut uint1, &mut dec1, &row, Some(Field::Boolean(false)));
+            test_lt(&mut uint1, &mut null, &row, Some(Field::Null));
 
-            test_lte(&uint1, &uint2, &row, Some(Field::Boolean(false)));
-            test_lte(&uint1, &int1, &row, Some(Field::Boolean(false)));
-            test_lte(&uint1, &float1, &row, Some(Field::Boolean(false)));
-            test_lte(&uint1, &dec1, &row, Some(Field::Boolean(false)));
-            test_lte(&uint1, &null, &row, Some(Field::Null));
+            test_lte(&mut uint1, &mut uint2, &row, Some(Field::Boolean(false)));
+            test_lte(&mut uint1, &mut int1, &row, Some(Field::Boolean(false)));
+            test_lte(&mut uint1, &mut float1, &row, Some(Field::Boolean(false)));
+            test_lte(&mut uint1, &mut dec1, &row, Some(Field::Boolean(false)));
+            test_lte(&mut uint1, &mut null, &row, Some(Field::Null));
         }
 
         // gt: Int
         if i_num1 > u_num1 as i64 && i_num1 > i_num2 && i_num1 as f64 > f_num1 && Decimal::from(i_num1) > d_num1.0 {
-            test_gt(&int1, &uint1, &row, None);
-            test_gt(&int1, &int2, &row, None);
-            test_gt(&int1, &float1, &row, None);
-            test_gt(&int1, &dec1, &row, None);
-            test_gt(&int1, &null, &row, Some(Field::Null));
+            test_gt(&mut int1, &mut uint1, &row, None);
+            test_gt(&mut int1, &mut int2, &row, None);
+            test_gt(&mut int1, &mut float1, &row, None);
+            test_gt(&mut int1, &mut dec1, &row, None);
+            test_gt(&mut int1, &mut null, &row, Some(Field::Null));
 
-            test_gte(&int1, &uint1, &row, None);
-            test_gte(&int1, &int2, &row, None);
-            test_gte(&int1, &float1, &row, None);
-            test_gte(&int1, &dec1, &row, None);
-            test_gte(&int1, &null, &row, Some(Field::Null));
+            test_gte(&mut int1, &mut uint1, &row, None);
+            test_gte(&mut int1, &mut int2, &row, None);
+            test_gte(&mut int1, &mut float1, &row, None);
+            test_gte(&mut int1, &mut dec1, &row, None);
+            test_gte(&mut int1, &mut null, &row, Some(Field::Null));
 
-            test_lt(&int1, &uint1, &row, Some(Field::Boolean(false)));
-            test_lt(&int1, &int2, &row, Some(Field::Boolean(false)));
-            test_lt(&int1, &float1, &row, Some(Field::Boolean(false)));
-            test_lt(&int1, &dec1, &row, Some(Field::Boolean(false)));
-            test_lt(&int1, &null, &row, Some(Field::Null));
+            test_lt(&mut int1, &mut uint1, &row, Some(Field::Boolean(false)));
+            test_lt(&mut int1, &mut int2, &row, Some(Field::Boolean(false)));
+            test_lt(&mut int1, &mut float1, &row, Some(Field::Boolean(false)));
+            test_lt(&mut int1, &mut dec1, &row, Some(Field::Boolean(false)));
+            test_lt(&mut int1, &mut null, &row, Some(Field::Null));
 
-            test_lte(&int1, &uint1, &row, Some(Field::Boolean(false)));
-            test_lte(&int1, &int2, &row, Some(Field::Boolean(false)));
-            test_lte(&int1, &float1, &row, Some(Field::Boolean(false)));
-            test_lte(&int1, &dec1, &row, Some(Field::Boolean(false)));
-            test_lte(&int1, &null, &row, Some(Field::Null));
+            test_lte(&mut int1, &mut uint1, &row, Some(Field::Boolean(false)));
+            test_lte(&mut int1, &mut int2, &row, Some(Field::Boolean(false)));
+            test_lte(&mut int1, &mut float1, &row, Some(Field::Boolean(false)));
+            test_lte(&mut int1, &mut dec1, &row, Some(Field::Boolean(false)));
+            test_lte(&mut int1, &mut null, &row, Some(Field::Null));
         }
 
         // gt: Float
         let d_val = Decimal::from_f64(f_num1);
         if d_val.is_some() && f_num1 > u_num1 as f64 && f_num1 > i_num1 as f64 && f_num1 > f_num2 && d_val.unwrap() > d_num1.0 {
-            test_gt(&float1, &uint1, &row, None);
-            test_gt(&float1, &int1, &row, None);
-            test_gt(&float1, &float2, &row, None);
-            test_gt(&float1, &dec1, &row, None);
-            test_gt(&float1, &null, &row, Some(Field::Null));
+            test_gt(&mut float1, &mut uint1, &row, None);
+            test_gt(&mut float1, &mut int1, &row, None);
+            test_gt(&mut float1, &mut float2, &row, None);
+            test_gt(&mut float1, &mut dec1, &row, None);
+            test_gt(&mut float1, &mut null, &row, Some(Field::Null));
 
-            test_gte(&float1, &uint1, &row, None);
-            test_gte(&float1, &int1, &row, None);
-            test_gte(&float1, &float2, &row, None);
-            test_gte(&float1, &dec1, &row, None);
-            test_gte(&float1, &null, &row, Some(Field::Null));
+            test_gte(&mut float1, &mut uint1, &row, None);
+            test_gte(&mut float1, &mut int1, &row, None);
+            test_gte(&mut float1, &mut float2, &row, None);
+            test_gte(&mut float1, &mut dec1, &row, None);
+            test_gte(&mut float1, &mut null, &row, Some(Field::Null));
 
-            test_lt(&float1, &uint1, &row, Some(Field::Boolean(false)));
-            test_lt(&float1, &int1, &row, Some(Field::Boolean(false)));
-            test_lt(&float1, &float2, &row, Some(Field::Boolean(false)));
-            test_lt(&float1, &dec1, &row, Some(Field::Boolean(false)));
-            test_lt(&float1, &null, &row, Some(Field::Null));
+            test_lt(&mut float1, &mut uint1, &row, Some(Field::Boolean(false)));
+            test_lt(&mut float1, &mut int1, &row, Some(Field::Boolean(false)));
+            test_lt(&mut float1, &mut float2, &row, Some(Field::Boolean(false)));
+            test_lt(&mut float1, &mut dec1, &row, Some(Field::Boolean(false)));
+            test_lt(&mut float1, &mut null, &row, Some(Field::Null));
 
-            test_lte(&float1, &uint1, &row, Some(Field::Boolean(false)));
-            test_lte(&float1, &int1, &row, Some(Field::Boolean(false)));
-            test_lte(&float1, &float2, &row, Some(Field::Boolean(false)));
-            test_lte(&float1, &dec1, &row, Some(Field::Boolean(false)));
-            test_lte(&float1, &null, &row, Some(Field::Null));
+            test_lte(&mut float1, &mut uint1, &row, Some(Field::Boolean(false)));
+            test_lte(&mut float1, &mut int1, &row, Some(Field::Boolean(false)));
+            test_lte(&mut float1, &mut float2, &row, Some(Field::Boolean(false)));
+            test_lte(&mut float1, &mut dec1, &row, Some(Field::Boolean(false)));
+            test_lte(&mut float1, &mut null, &row, Some(Field::Null));
         }
 
         // gt: Decimal
         let d_val = Decimal::from_f64(f_num1);
         if d_val.is_some() && d_num1.0 > Decimal::from(u_num1) && d_num1.0 > Decimal::from(i_num1) && d_num1.0 > d_val.unwrap() && d_num1.0 > d_num2.0 {
-            test_gt(&dec1, &uint1, &row, None);
-            test_gt(&dec1, &int1, &row, None);
-            test_gt(&dec1, &float1, &row, None);
-            test_gt(&dec1, &dec2, &row, None);
-            test_gt(&dec1, &null, &row, Some(Field::Null));
+            test_gt(&mut dec1, &mut uint1, &row, None);
+            test_gt(&mut dec1, &mut int1, &row, None);
+            test_gt(&mut dec1, &mut float1, &row, None);
+            test_gt(&mut dec1, &mut dec2, &row, None);
+            test_gt(&mut dec1, &mut null, &row, Some(Field::Null));
 
-            test_gte(&dec1, &uint1, &row, None);
-            test_gte(&dec1, &int1, &row, None);
-            test_gte(&dec1, &float1, &row, None);
-            test_gte(&dec1, &dec2, &row, None);
-            test_gte(&dec1, &null, &row, Some(Field::Null));
+            test_gte(&mut dec1, &mut uint1, &row, None);
+            test_gte(&mut dec1, &mut int1, &row, None);
+            test_gte(&mut dec1, &mut float1, &row, None);
+            test_gte(&mut dec1, &mut dec2, &row, None);
+            test_gte(&mut dec1, &mut null, &row, Some(Field::Null));
 
-            test_lt(&dec1, &uint1, &row, Some(Field::Boolean(false)));
-            test_lt(&dec1, &int1, &row, Some(Field::Boolean(false)));
-            test_lt(&dec1, &float1, &row, Some(Field::Boolean(false)));
-            test_lt(&dec1, &dec2, &row, Some(Field::Boolean(false)));
-            test_lt(&dec1, &null, &row, Some(Field::Null));
+            test_lt(&mut dec1, &mut uint1, &row, Some(Field::Boolean(false)));
+            test_lt(&mut dec1, &mut int1, &row, Some(Field::Boolean(false)));
+            test_lt(&mut dec1, &mut float1, &row, Some(Field::Boolean(false)));
+            test_lt(&mut dec1, &mut dec2, &row, Some(Field::Boolean(false)));
+            test_lt(&mut dec1, &mut null, &row, Some(Field::Null));
 
-            test_lte(&dec1, &uint1, &row, Some(Field::Boolean(false)));
-            test_lte(&dec1, &int1, &row, Some(Field::Boolean(false)));
-            test_lt(&dec1, &float1, &row, Some(Field::Boolean(false)));
-            test_lte(&dec1, &dec2, &row, Some(Field::Boolean(false)));
-            test_lte(&dec1, &null, &row, Some(Field::Null));
+            test_lte(&mut dec1, &mut uint1, &row, Some(Field::Boolean(false)));
+            test_lte(&mut dec1, &mut int1, &row, Some(Field::Boolean(false)));
+            test_lt(&mut dec1, &mut float1, &row, Some(Field::Boolean(false)));
+            test_lte(&mut dec1, &mut dec2, &row, Some(Field::Boolean(false)));
+            test_lte(&mut dec1, &mut null, &row, Some(Field::Null));
         }
 
         // lt: UInt
         if u_num1 < u_num2 && (u_num1 as i64) < i_num1 && (u_num1 as f64) < f_num1 && Decimal::from(u_num1) < d_num1.0 {
-            test_lt(&uint1, &uint2, &row, None);
-            test_lt(&uint1, &int1, &row, None);
-            test_lt(&uint1, &float1, &row, None);
-            test_lt(&uint1, &dec1, &row, None);
-            test_lt(&uint1, &null, &row, Some(Field::Null));
+            test_lt(&mut uint1, &mut uint2, &row, None);
+            test_lt(&mut uint1, &mut int1, &row, None);
+            test_lt(&mut uint1, &mut float1, &row, None);
+            test_lt(&mut uint1, &mut dec1, &row, None);
+            test_lt(&mut uint1, &mut null, &row, Some(Field::Null));
 
-            test_lte(&uint1, &uint2, &row, None);
-            test_lte(&uint1, &int1, &row, None);
-            test_lte(&uint1, &float1, &row, None);
-            test_lte(&uint1, &dec1, &row, None);
-            test_lte(&uint1, &null, &row, Some(Field::Null));
+            test_lte(&mut uint1, &mut uint2, &row, None);
+            test_lte(&mut uint1, &mut int1, &row, None);
+            test_lte(&mut uint1, &mut float1, &row, None);
+            test_lte(&mut uint1, &mut dec1, &row, None);
+            test_lte(&mut uint1, &mut null, &row, Some(Field::Null));
 
-            test_gt(&uint1, &uint2, &row, Some(Field::Boolean(false)));
-            test_gt(&uint1, &int1, &row, Some(Field::Boolean(false)));
-            test_gt(&uint1, &float1, &row, Some(Field::Boolean(false)));
-            test_gt(&uint1, &dec1, &row, Some(Field::Boolean(false)));
-            test_gt(&uint1, &null, &row, Some(Field::Null));
+            test_gt(&mut uint1, &mut uint2, &row, Some(Field::Boolean(false)));
+            test_gt(&mut uint1, &mut int1, &row, Some(Field::Boolean(false)));
+            test_gt(&mut uint1, &mut float1, &row, Some(Field::Boolean(false)));
+            test_gt(&mut uint1, &mut dec1, &row, Some(Field::Boolean(false)));
+            test_gt(&mut uint1, &mut null, &row, Some(Field::Null));
 
-            test_gte(&uint1, &uint2, &row, Some(Field::Boolean(false)));
-            test_gte(&uint1, &int1, &row, Some(Field::Boolean(false)));
-            test_gte(&uint1, &float1, &row, Some(Field::Boolean(false)));
-            test_gte(&uint1, &dec1, &row, Some(Field::Boolean(false)));
-            test_gte(&uint1, &null, &row, Some(Field::Null));
+            test_gte(&mut uint1, &mut uint2, &row, Some(Field::Boolean(false)));
+            test_gte(&mut uint1, &mut int1, &row, Some(Field::Boolean(false)));
+            test_gte(&mut uint1, &mut float1, &row, Some(Field::Boolean(false)));
+            test_gte(&mut uint1, &mut dec1, &row, Some(Field::Boolean(false)));
+            test_gte(&mut uint1, &mut null, &row, Some(Field::Null));
         }
 
         // gt: Int
         if i_num1 < (u_num1 as i64) && i_num1 < i_num2 && (i_num1 as f64) < f_num1 && Decimal::from(i_num1) < d_num1.0 {
-            test_lt(&int1, &uint1, &row, None);
-            test_lt(&int1, &int2, &row, None);
-            test_lt(&int1, &float1, &row, None);
-            test_lt(&int1, &dec1, &row, None);
-            test_lt(&int1, &null, &row, Some(Field::Null));
+            test_lt(&mut int1, &mut uint1, &row, None);
+            test_lt(&mut int1, &mut int2, &row, None);
+            test_lt(&mut int1, &mut float1, &row, None);
+            test_lt(&mut int1, &mut dec1, &row, None);
+            test_lt(&mut int1, &mut null, &row, Some(Field::Null));
 
-            test_lte(&int1, &uint1, &row, None);
-            test_lte(&int1, &int2, &row, None);
-            test_lte(&int1, &float1, &row, None);
-            test_lte(&int1, &dec1, &row, None);
-            test_lte(&int1, &null, &row, Some(Field::Null));
+            test_lte(&mut int1, &mut uint1, &row, None);
+            test_lte(&mut int1, &mut int2, &row, None);
+            test_lte(&mut int1, &mut float1, &row, None);
+            test_lte(&mut int1, &mut dec1, &row, None);
+            test_lte(&mut int1, &mut null, &row, Some(Field::Null));
 
-            test_gt(&int1, &uint1, &row, Some(Field::Boolean(false)));
-            test_gt(&int1, &int2, &row, Some(Field::Boolean(false)));
-            test_gt(&int1, &float1, &row, Some(Field::Boolean(false)));
-            test_gt(&int1, &dec1, &row, Some(Field::Boolean(false)));
-            test_gt(&int1, &null, &row, Some(Field::Null));
+            test_gt(&mut int1, &mut uint1, &row, Some(Field::Boolean(false)));
+            test_gt(&mut int1, &mut int2, &row, Some(Field::Boolean(false)));
+            test_gt(&mut int1, &mut float1, &row, Some(Field::Boolean(false)));
+            test_gt(&mut int1, &mut dec1, &row, Some(Field::Boolean(false)));
+            test_gt(&mut int1, &mut null, &row, Some(Field::Null));
 
-            test_gte(&int1, &uint1, &row, Some(Field::Boolean(false)));
-            test_gte(&int1, &int2, &row, Some(Field::Boolean(false)));
-            test_gte(&int1, &float1, &row, Some(Field::Boolean(false)));
-            test_gte(&int1, &dec1, &row, Some(Field::Boolean(false)));
-            test_gte(&int1, &null, &row, Some(Field::Null));
+            test_gte(&mut int1, &mut uint1, &row, Some(Field::Boolean(false)));
+            test_gte(&mut int1, &mut int2, &row, Some(Field::Boolean(false)));
+            test_gte(&mut int1, &mut float1, &row, Some(Field::Boolean(false)));
+            test_gte(&mut int1, &mut dec1, &row, Some(Field::Boolean(false)));
+            test_gte(&mut int1, &mut null, &row, Some(Field::Null));
         }
 
         // gt: Float
         let d_val = Decimal::from_f64(f_num1);
         if d_val.is_some() && f_num1 < u_num1 as f64 && f_num1 < i_num1 as f64 && f_num1 < f_num2 && d_val.unwrap() < d_num1.0 {
-            test_lt(&float1, &uint1, &row, None);
-            test_lt(&float1, &int1, &row, None);
-            test_lt(&float1, &float2, &row, None);
-            test_lt(&float1, &dec1, &row, None);
-            test_lt(&float1, &null, &row, Some(Field::Null));
+            test_lt(&mut float1, &mut uint1, &row, None);
+            test_lt(&mut float1, &mut int1, &row, None);
+            test_lt(&mut float1, &mut float2, &row, None);
+            test_lt(&mut float1, &mut dec1, &row, None);
+            test_lt(&mut float1, &mut null, &row, Some(Field::Null));
 
-            test_lte(&float1, &uint1, &row, None);
-            test_lte(&float1, &int1, &row, None);
-            test_lte(&float1, &float2, &row, None);
-            test_lte(&float1, &dec1, &row, None);
-            test_lte(&float1, &null, &row, Some(Field::Null));
+            test_lte(&mut float1, &mut uint1, &row, None);
+            test_lte(&mut float1, &mut int1, &row, None);
+            test_lte(&mut float1, &mut float2, &row, None);
+            test_lte(&mut float1, &mut dec1, &row, None);
+            test_lte(&mut float1, &mut null, &row, Some(Field::Null));
 
-            test_gt(&float1, &uint1, &row, Some(Field::Boolean(false)));
-            test_gt(&float1, &int1, &row, Some(Field::Boolean(false)));
-            test_gt(&float1, &float2, &row, Some(Field::Boolean(false)));
-            test_gt(&float1, &dec1, &row, Some(Field::Boolean(false)));
-            test_gt(&float1, &null, &row, Some(Field::Null));
+            test_gt(&mut float1, &mut uint1, &row, Some(Field::Boolean(false)));
+            test_gt(&mut float1, &mut int1, &row, Some(Field::Boolean(false)));
+            test_gt(&mut float1, &mut float2, &row, Some(Field::Boolean(false)));
+            test_gt(&mut float1, &mut dec1, &row, Some(Field::Boolean(false)));
+            test_gt(&mut float1, &mut null, &row, Some(Field::Null));
 
-            test_gte(&float1, &uint1, &row, Some(Field::Boolean(false)));
-            test_gte(&float1, &int1, &row, Some(Field::Boolean(false)));
-            test_gte(&float1, &float2, &row, Some(Field::Boolean(false)));
-            test_gte(&float1, &dec1, &row, Some(Field::Boolean(false)));
-            test_gte(&float1, &null, &row, Some(Field::Null));
+            test_gte(&mut float1, &mut uint1, &row, Some(Field::Boolean(false)));
+            test_gte(&mut float1, &mut int1, &row, Some(Field::Boolean(false)));
+            test_gte(&mut float1, &mut float2, &row, Some(Field::Boolean(false)));
+            test_gte(&mut float1, &mut dec1, &row, Some(Field::Boolean(false)));
+            test_gte(&mut float1, &mut null, &row, Some(Field::Null));
         }
 
         // gt: Decimal
         let d_val = Decimal::from_f64(f_num1);
         if d_val.is_some() && d_num1.0 < Decimal::from(u_num1) && d_num1.0 < Decimal::from(i_num1) && d_num1.0 < d_val.unwrap() && d_num1.0 < d_num2.0 {
-            test_lt(&dec1, &uint1, &row, None);
-            test_lt(&dec1, &int1, &row, None);
-            test_lt(&dec1, &float1, &row, None);
-            test_lt(&dec1, &dec2, &row, None);
-            test_lt(&dec1, &null, &row, Some(Field::Null));
+            test_lt(&mut dec1, &mut uint1, &row, None);
+            test_lt(&mut dec1, &mut int1, &row, None);
+            test_lt(&mut dec1, &mut float1, &row, None);
+            test_lt(&mut dec1, &mut dec2, &row, None);
+            test_lt(&mut dec1, &mut null, &row, Some(Field::Null));
 
-            test_lte(&dec1, &uint1, &row, None);
-            test_lte(&dec1, &int1, &row, None);
-            test_lte(&dec1, &float1, &row, None);
-            test_lte(&dec1, &dec2, &row, None);
-            test_lte(&dec1, &null, &row, Some(Field::Null));
+            test_lte(&mut dec1, &mut uint1, &row, None);
+            test_lte(&mut dec1, &mut int1, &row, None);
+            test_lte(&mut dec1, &mut float1, &row, None);
+            test_lte(&mut dec1, &mut dec2, &row, None);
+            test_lte(&mut dec1, &mut null, &row, Some(Field::Null));
 
-            test_gt(&dec1, &uint1, &row, Some(Field::Boolean(false)));
-            test_gt(&dec1, &int1, &row, Some(Field::Boolean(false)));
-            test_gt(&dec1, &float1, &row, Some(Field::Boolean(false)));
-            test_gt(&dec1, &dec2, &row, Some(Field::Boolean(false)));
-            test_gt(&dec1, &null, &row, Some(Field::Null));
+            test_gt(&mut dec1, &mut uint1, &row, Some(Field::Boolean(false)));
+            test_gt(&mut dec1, &mut int1, &row, Some(Field::Boolean(false)));
+            test_gt(&mut dec1, &mut float1, &row, Some(Field::Boolean(false)));
+            test_gt(&mut dec1, &mut dec2, &row, Some(Field::Boolean(false)));
+            test_gt(&mut dec1, &mut null, &row, Some(Field::Null));
 
-            test_gte(&dec1, &uint1, &row, Some(Field::Boolean(false)));
-            test_gte(&dec1, &int1, &row, Some(Field::Boolean(false)));
-            test_gte(&dec1, &float1, &row, Some(Field::Boolean(false)));
-            test_gte(&dec1, &dec2, &row, Some(Field::Boolean(false)));
-            test_gte(&dec1, &null, &row, Some(Field::Null));
+            test_gte(&mut dec1, &mut uint1, &row, Some(Field::Boolean(false)));
+            test_gte(&mut dec1, &mut int1, &row, Some(Field::Boolean(false)));
+            test_gte(&mut dec1, &mut float1, &row, Some(Field::Boolean(false)));
+            test_gte(&mut dec1, &mut dec2, &row, Some(Field::Boolean(false)));
+            test_gte(&mut dec1, &mut null, &row, Some(Field::Null));
         }
     });
 }
 
-fn test_eq(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<Field>) {
+fn test_eq(exp1: &mut Expression, exp2: &mut Expression, row: &Record, result: Option<Field>) {
     match result {
         None => {
             assert!(matches!(
@@ -432,7 +437,7 @@ fn test_eq(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<Fi
     }
 }
 
-fn test_ne(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<Field>) {
+fn test_ne(exp1: &mut Expression, exp2: &mut Expression, row: &Record, result: Option<Field>) {
     match result {
         None => {
             assert!(matches!(
@@ -449,7 +454,7 @@ fn test_ne(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<Fi
     }
 }
 
-fn test_gt(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<Field>) {
+fn test_gt(exp1: &mut Expression, exp2: &mut Expression, row: &Record, result: Option<Field>) {
     match result {
         None => {
             assert!(matches!(
@@ -466,7 +471,7 @@ fn test_gt(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<Fi
     }
 }
 
-fn test_lt(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<Field>) {
+fn test_lt(exp1: &mut Expression, exp2: &mut Expression, row: &Record, result: Option<Field>) {
     match result {
         None => {
             assert!(matches!(
@@ -483,7 +488,7 @@ fn test_lt(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<Fi
     }
 }
 
-fn test_gte(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<Field>) {
+fn test_gte(exp1: &mut Expression, exp2: &mut Expression, row: &Record, result: Option<Field>) {
     match result {
         None => {
             assert!(matches!(
@@ -500,7 +505,7 @@ fn test_gte(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<F
     }
 }
 
-fn test_lte(exp1: &Expression, exp2: &Expression, row: &Record, result: Option<Field>) {
+fn test_lte(exp1: &mut Expression, exp2: &mut Expression, row: &Record, result: Option<Field>) {
     match result {
         None => {
             assert!(matches!(

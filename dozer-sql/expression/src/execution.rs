@@ -302,7 +302,7 @@ impl ExpressionType {
 }
 
 impl Expression {
-    pub fn evaluate(&self, record: &Record, schema: &Schema) -> Result<Field, Error> {
+    pub fn evaluate(&mut self, record: &Record, schema: &Schema) -> Result<Field, Error> {
         match self {
             Expression::Literal(field) => Ok(field.clone()),
             Expression::Column { index } => Ok(record.values[*index].clone()),

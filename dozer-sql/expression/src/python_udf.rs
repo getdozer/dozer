@@ -29,12 +29,12 @@ pub enum Error {
 pub fn evaluate_py_udf(
     schema: &Schema,
     name: &str,
-    args: &[Expression],
+    args: &mut [Expression],
     return_type: &FieldType,
     record: &Record,
 ) -> Result<Field, crate::error::Error> {
     let values = args
-        .iter()
+        .iter_mut()
         .map(|arg| arg.evaluate(record, schema))
         .collect::<Result<Vec<_>, crate::error::Error>>()?;
 

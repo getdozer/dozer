@@ -15,8 +15,8 @@ macro_rules! define_math_operator {
     ($id:ident, $op:expr, $fct:expr, $t: expr) => {
         pub fn $id(
             schema: &Schema,
-            left: &Expression,
-            right: &Expression,
+            left: &mut Expression,
+            right: &mut Expression,
             record: &Record,
         ) -> Result<Field, PipelineError> {
             let left_p = left.evaluate(&record, schema)?;
@@ -1777,7 +1777,7 @@ define_math_operator!(evaluate_mod, "%", std::ops::Rem::rem, 0);
 
 pub fn evaluate_plus(
     schema: &Schema,
-    expression: &Expression,
+    expression: &mut Expression,
     record: &Record,
 ) -> Result<Field, PipelineError> {
     let expression_result = expression.evaluate(record, schema)?;
@@ -1806,7 +1806,7 @@ pub fn evaluate_plus(
 
 pub fn evaluate_minus(
     schema: &Schema,
-    expression: &Expression,
+    expression: &mut Expression,
     record: &Record,
 ) -> Result<Field, PipelineError> {
     let expression_result = expression.evaluate(record, schema)?;

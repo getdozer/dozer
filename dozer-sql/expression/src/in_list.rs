@@ -6,8 +6,8 @@ use crate::execution::Expression;
 
 pub(crate) fn evaluate_in_list(
     schema: &Schema,
-    expr: &Expression,
-    list: &[Expression],
+    expr: &mut Expression,
+    list: &mut [Expression],
     negated: bool,
     record: &Record,
 ) -> Result<Field, Error> {

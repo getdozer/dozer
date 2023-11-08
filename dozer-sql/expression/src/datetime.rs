@@ -85,7 +85,7 @@ impl DateTimeFunctionType {
     pub(crate) fn evaluate(
         &self,
         schema: &Schema,
-        arg: &Expression,
+        arg: &mut Expression,
         record: &Record,
     ) -> Result<Field, Error> {
         match self {
@@ -107,7 +107,7 @@ impl DateTimeFunctionType {
 pub(crate) fn evaluate_date_part(
     schema: &Schema,
     field: &sqlparser::ast::DateTimeField,
-    arg: &Expression,
+    arg: &mut Expression,
     record: &Record,
 ) -> Result<Field, Error> {
     let value = arg.evaluate(record, schema)?;
@@ -149,7 +149,7 @@ pub(crate) fn evaluate_date_part(
 pub(crate) fn evaluate_interval(
     schema: &Schema,
     field: &sqlparser::ast::DateTimeField,
-    arg: &Expression,
+    arg: &mut Expression,
     record: &Record,
 ) -> Result<Field, Error> {
     let value = arg.evaluate(record, schema)?;
@@ -240,10 +240,10 @@ mod tests {
             ),
         ];
 
-        let v = Expression::Literal(Field::Date(datetime.0.date_naive()));
+        let mut v = Expression::Literal(Field::Date(datetime.0.date_naive()));
 
         for (part, value) in date_parts {
-            let result = evaluate_date_part(&Schema::default(), &part, &v, &row).unwrap();
+            let result = evaluate_date_part(&Schema::default(), &part, &mut v, &row).unwrap();
             assert_eq!(result, Field::Int(value));
         }
     }

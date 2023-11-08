@@ -28,7 +28,7 @@ impl UnaryOperatorType {
     pub fn evaluate(
         &self,
         schema: &Schema,
-        value: &Expression,
+        value: &mut Expression,
         record: &Record,
     ) -> Result<Field, Error> {
         match self {
@@ -85,8 +85,8 @@ impl BinaryOperatorType {
     pub fn evaluate(
         &self,
         schema: &Schema,
-        left: &Expression,
-        right: &Expression,
+        left: &mut Expression,
+        right: &mut Expression,
         record: &Record,
     ) -> Result<Field, Error> {
         match self {
