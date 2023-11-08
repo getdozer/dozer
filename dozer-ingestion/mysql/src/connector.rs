@@ -415,7 +415,6 @@ mod tests {
     use super::MySQLConnector;
     use dozer_ingestion_connector::{
         dozer_types::{
-            json_types::JsonValue,
             models::ingestion_types::IngestionMessage,
             types::{
                 Field, FieldDefinition, FieldType, Operation::*, Record, Schema, SourceDefinition,
@@ -628,7 +627,7 @@ mod tests {
             IngestionMessage::OperationEvent {
                 table_index: 1,
                 op: Insert {
-                    new: Record::new(vec![Field::Int(1), Field::Json(JsonValue::Bool(true))]),
+                    new: Record::new(vec![Field::Int(1), Field::Json(true.into())]),
                 },
                 id: None,
             },

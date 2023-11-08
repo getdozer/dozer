@@ -10,8 +10,9 @@ edition = "2021"
 chrono = { version = "0.4.23", features = ["serde"] }
 serde = { version = "1.0.189", features = ["derive", "rc"] }
 serde_json = { version = "1.0.93", features = ["std"] }
+ijson = "0.1.3"
 rust_decimal = { version = "1.32", features = ["serde-str", "db-postgres"] }
-bincode = "1.3.3"
+bincode = { workspace = true, features = ["serde"] }
 ahash = "0.8.3"
 thiserror = "1.0.48"
 parking_lot = "0.12"
@@ -38,6 +39,7 @@ tokio-postgres = { version = "0.7.7", features = [
 serde_bytes = "0.11.12"
 arbitrary = { version = "1", features = ["derive"], optional = true }
 schemars = "0.8.15"
+rmp-serde = "1.1.2"
 
 [build-dependencies]
 tonic-build = "0.10.0"

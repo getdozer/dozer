@@ -76,12 +76,12 @@ pub enum CacheError {
 }
 
 impl CacheError {
-    pub fn map_serialization_error(e: dozer_types::bincode::Error) -> CacheError {
+    pub fn map_serialization_error(e: dozer_types::bincode::error::EncodeError) -> CacheError {
         CacheError::Type(TypeError::SerializationError(SerializationError::Bincode(
             e,
         )))
     }
-    pub fn map_deserialization_error(e: dozer_types::bincode::Error) -> CacheError {
+    pub fn map_deserialization_error(e: dozer_types::bincode::error::DecodeError) -> CacheError {
         CacheError::Type(TypeError::DeserializationError(
             DeserializationError::Bincode(e),
         ))

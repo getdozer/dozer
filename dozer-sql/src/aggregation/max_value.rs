@@ -3,12 +3,11 @@ use crate::calculate_err;
 use crate::errors::PipelineError;
 use crate::errors::PipelineError::InvalidReturnType;
 use dozer_sql_expression::aggregate::AggregateFunctionType::MaxValue;
-use dozer_types::serde::{Deserialize, Serialize};
+
 use dozer_types::types::{Field, FieldType};
 use std::collections::BTreeMap;
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(crate = "dozer_types::serde")]
+#[derive(Debug, bincode::Encode, bincode::Decode)]
 pub struct MaxValueAggregator {
     current_state: BTreeMap<Field, u64>,
     return_state: BTreeMap<Field, Vec<Field>>,

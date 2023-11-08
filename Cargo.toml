@@ -18,8 +18,13 @@ members = [
 ]
 resolver = "2"
 
+[workspace.dependencies]
+bincode = { version = "2.0.0-rc.3", features = ["derive"]}
+
 [patch.crates-io]
 postgres = { git = "https://github.com/getdozer/rust-postgres" }
 postgres-protocol = { git = "https://github.com/getdozer/rust-postgres" }
 postgres-types = { git = "https://github.com/getdozer/rust-postgres" }
 tokio-postgres = { git = "https://github.com/getdozer/rust-postgres" }
+
+

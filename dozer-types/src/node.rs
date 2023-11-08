@@ -5,7 +5,9 @@ use std::{
     fmt::{Display, Formatter},
     str::from_utf8,
 };
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, bincode::Encode, bincode::Decode,
+)]
 pub struct NodeHandle {
     pub ns: Option<u16>,
     pub id: String,
@@ -61,7 +63,19 @@ impl Display for NodeHandle {
 }
 
 #[derive(
-    Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Serialize, Deserialize,
+    Clone,
+    Debug,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Default,
+    Serialize,
+    Deserialize,
+    bincode::Encode,
+    bincode::Decode,
 )]
 /// A identifier made of two `u64`s.
 pub struct OpIdentifier {
@@ -90,7 +104,20 @@ impl OpIdentifier {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Serialize,
+    Deserialize,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    bincode::Encode,
+    bincode::Decode,
+)]
 /// A table's ingestion state.
 pub enum TableState {
     /// This table hasn't been ingested.

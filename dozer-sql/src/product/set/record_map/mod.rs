@@ -119,7 +119,7 @@ impl ProbabilisticCountingRecordMap {
     pub fn new(cursor: Option<&mut Cursor>) -> Result<Self, DeserializationError> {
         Ok(if let Some(cursor) = cursor {
             Self {
-                map: deserialize_bincode(cursor)?,
+                map: deserialize_bincode::<bincode::serde::Compat<_>>(cursor)?.0,
             }
         } else {
             Self {
@@ -154,7 +154,7 @@ impl CountingRecordMap for ProbabilisticCountingRecordMap {
         _record_store: &ProcessorRecordStore,
         object: &mut Object,
     ) -> Result<(), SerializationError> {
-        serialize_bincode(&self.map, object)
+        serialize_bincode(&bincode::serde::Compat(&self.map), object)
     }
 }
 

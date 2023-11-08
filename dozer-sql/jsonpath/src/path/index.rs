@@ -5,7 +5,6 @@ use crate::path::{json_path_instance, process_operand, Path, PathInstance};
 use crate::JsonPathValue;
 use crate::JsonPathValue::{NoValue, Slice};
 use dozer_types::json_types::JsonValue;
-use dozer_types::json_types::JsonValue::Array;
 
 /// process the slice like [start:end:step]
 #[derive(Debug)]
@@ -158,7 +157,7 @@ impl<'a> UnionIndex<'a> {
         let mut indexes: Vec<PathInstance<'a>> = vec![];
 
         for idx in elems.iter() {
-            indexes.push(Box::new(ArrayIndex::new(idx.as_u64().unwrap() as usize)))
+            indexes.push(Box::new(ArrayIndex::new(idx.to_u64().unwrap() as usize)))
         }
 
         UnionIndex::new(indexes)
@@ -308,19 +307,14 @@ impl<'a> Path<'a> for FilterPath<'a> {
     fn find(&self, input: JsonPathValue<'a, Self::Data>) -> Vec<JsonPathValue<'a, Self::Data>> {
         input.flat_map_slice(|data| {
             let mut res = vec![];
-            match data {
-                Array(elems) => {
-                    for el in elems.iter() {
-                        if self.process(el) {
-                            res.push(Slice(el))
-                        }
-                    }
-                }
-                el => {
+            if let Some(elems) = data.as_array() {
+                for el in elems.iter() {
                     if self.process(el) {
                         res.push(Slice(el))
                     }
                 }
+            } else if self.process(data) {
+                res.push(Slice(data))
             }
             if res.is_empty() {
                 vec![NoValue]

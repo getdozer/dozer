@@ -30,7 +30,7 @@ pub enum SerializationError {
     #[error("json: {0}")]
     Json(#[from] serde_json::Error),
     #[error("bincode: {0}")]
-    Bincode(#[from] bincode::Error),
+    Bincode(#[from] bincode::error::EncodeError),
     #[error("custom: {0}")]
     Custom(#[from] BoxedError),
 }
@@ -40,7 +40,9 @@ pub enum DeserializationError {
     #[error("json: {0}")]
     Json(#[from] serde_json::Error),
     #[error("bincode: {0}")]
-    Bincode(#[from] bincode::Error),
+    Bincode(#[from] bincode::error::DecodeError),
+    #[error("bson: {0}")]
+    Msgpack(#[from] rmp_serde::decode::Error),
     #[error("custom: {0}")]
     Custom(#[from] BoxedError),
     #[error("Empty input")]

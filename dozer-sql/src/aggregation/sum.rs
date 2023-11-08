@@ -5,24 +5,23 @@ use dozer_sql_expression::aggregate::AggregateFunctionType::Sum;
 use dozer_sql_expression::num_traits::FromPrimitive;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
-use dozer_types::serde::{Deserialize, Serialize};
+
 use dozer_types::types::{DozerDuration, Field, FieldType, TimeUnit};
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(crate = "dozer_types::serde")]
+#[derive(Debug, bincode::Encode, bincode::Decode)]
 pub struct SumAggregator {
     current_state: SumState,
     return_type: Option<FieldType>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(crate = "dozer_types::serde")]
+#[derive(Debug, bincode::Encode, bincode::Decode)]
 pub struct SumState {
     pub(crate) int_state: i64,
     pub(crate) i128_state: i128,
     pub(crate) uint_state: u64,
     pub(crate) u128_state: u128,
     pub(crate) float_state: f64,
+    #[bincode(with_serde)]
     pub(crate) decimal_state: Decimal,
     pub(crate) duration_state: std::time::Duration,
 }

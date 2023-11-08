@@ -1,4 +1,5 @@
 use dozer_types::{
+    bincode,
     borrow::{Borrow, Cow},
     types::{Field, IndexDefinition, Record, SchemaWithIndex},
 };
@@ -225,7 +226,7 @@ unsafe impl LmdbKey for String {
 
 impl<'a> Encode<'a> for &'a [Field] {
     fn encode(self) -> Result<Encoded<'a>, StorageError> {
-        dozer_types::bincode::serialize(self)
+        bincode::encode_to_vec(self, bincode::config::legacy())
             .map(Encoded::Vec)
             .map_err(|e| StorageError::SerializationError {
                 typ: "[Field]",
@@ -240,12 +241,14 @@ impl BorrowEncode for Vec<Field> {
 
 impl Decode for Vec<Field> {
     fn decode(bytes: &[u8]) -> Result<Cow<Self>, StorageError> {
-        dozer_types::bincode::deserialize(bytes)
-            .map(Cow::Owned)
-            .map_err(|e| StorageError::DeserializationError {
-                typ: "Vec<Field>",
-                reason: Box::new(e),
-            })
+        let (value, _): (Self, usize) =
+            dozer_types::bincode::decode_from_slice(bytes, bincode::config::legacy()).map_err(
+                |e| StorageError::DeserializationError {
+                    typ: "Vec<Field>",
+                    reason: Box::new(e),
+                },
+            )?;
+        Ok(Cow::Owned(value))
     }
 }
 
@@ -253,7 +256,7 @@ unsafe impl LmdbVal for Vec<Field> {}
 
 impl<'a> Encode<'a> for &'a Record {
     fn encode(self) -> Result<Encoded<'a>, StorageError> {
-        dozer_types::bincode::serialize(self)
+        dozer_types::bincode::encode_to_vec(self, bincode::config::legacy())
             .map(Encoded::Vec)
             .map_err(|e| StorageError::SerializationError {
                 typ: "Record",
@@ -268,12 +271,14 @@ impl BorrowEncode for Record {
 
 impl Decode for Record {
     fn decode(bytes: &[u8]) -> Result<Cow<Self>, StorageError> {
-        dozer_types::bincode::deserialize(bytes)
-            .map(Cow::Owned)
-            .map_err(|e| StorageError::DeserializationError {
-                typ: "Record",
-                reason: Box::new(e),
-            })
+        let (value, _): (Self, _) =
+            dozer_types::bincode::decode_from_slice(bytes, bincode::config::legacy()).map_err(
+                |e| StorageError::DeserializationError {
+                    typ: "Record",
+                    reason: Box::new(e),
+                },
+            )?;
+        Ok(Cow::Owned(value))
     }
 }
 
@@ -285,7 +290,7 @@ unsafe impl LmdbVal for Record {}
 
 impl<'a> Encode<'a> for &'a IndexDefinition {
     fn encode(self) -> Result<Encoded<'a>, StorageError> {
-        dozer_types::bincode::serialize(self)
+        dozer_types::bincode::encode_to_vec(self, bincode::config::legacy())
             .map(Encoded::Vec)
             .map_err(|e| StorageError::SerializationError {
                 typ: "IndexDefinition",
@@ -300,12 +305,14 @@ impl BorrowEncode for IndexDefinition {
 
 impl Decode for IndexDefinition {
     fn decode(bytes: &[u8]) -> Result<Cow<Self>, StorageError> {
-        dozer_types::bincode::deserialize(bytes)
-            .map(Cow::Owned)
-            .map_err(|e| StorageError::DeserializationError {
-                typ: "IndexDefinition",
-                reason: Box::new(e),
-            })
+        let (value, _): (Self, _) =
+            dozer_types::bincode::decode_from_slice(bytes, bincode::config::legacy()).map_err(
+                |e| StorageError::DeserializationError {
+                    typ: "IndexDefinition",
+                    reason: Box::new(e),
+                },
+            )?;
+        Ok(Cow::Owned(value))
     }
 }
 
@@ -313,7 +320,7 @@ unsafe impl LmdbVal for IndexDefinition {}
 
 impl<'a> Encode<'a> for &'a SchemaWithIndex {
     fn encode(self) -> Result<Encoded<'a>, StorageError> {
-        dozer_types::bincode::serialize(self)
+        dozer_types::bincode::serde::encode_to_vec(self, bincode::config::legacy())
             .map(Encoded::Vec)
             .map_err(|e| StorageError::SerializationError {
                 typ: "SchemaWithIndex",
@@ -328,12 +335,13 @@ impl BorrowEncode for SchemaWithIndex {
 
 impl Decode for SchemaWithIndex {
     fn decode(bytes: &[u8]) -> Result<Cow<Self>, StorageError> {
-        dozer_types::bincode::deserialize(bytes)
-            .map(Cow::Owned)
-            .map_err(|e| StorageError::DeserializationError {
-                typ: "SchemaWithIndex",
-                reason: Box::new(e),
-            })
+        let (value, _) =
+            dozer_types::bincode::serde::decode_from_slice(bytes, bincode::config::legacy())
+                .map_err(|e| StorageError::DeserializationError {
+                    typ: "SchemaWithIndex",
+                    reason: Box::new(e),
+                })?;
+        Ok(Cow::Owned(value))
     }
 }
 

@@ -7,8 +7,8 @@ use dozer_types::grpc_types::internal::storage_response;
 use dozer_types::log::{debug, error};
 use dozer_types::node::SourceStates;
 use dozer_types::serde::{Deserialize, Serialize};
+use dozer_types::thiserror;
 use dozer_types::types::Operation;
-use dozer_types::{bincode, thiserror};
 use pin_project::pin_project;
 use tokio::runtime::Runtime;
 use tokio::sync::oneshot::error::RecvError;
@@ -23,8 +23,7 @@ pub use self::persist::create_data_storage;
 
 mod persist;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(crate = "dozer_types::serde")]
+#[derive(Debug, Clone, PartialEq, bincode::Decode, bincode::Encode)]
 pub struct PersistedLogEntry {
     pub key: String,
     pub range: Range<usize>,
@@ -43,7 +42,7 @@ pub enum Error {
     #[error("Log entry is not consecutive: {0:?}, {1:?}")]
     LogEntryNotConsecutive(PersistedLogEntry, PersistedLogEntry),
     #[error("Serialization error: {0}")]
-    Serialization(#[from] bincode::Error),
+    Serialization(#[from] bincode::error::EncodeError),
     #[error("Load persisted log entry error: {0}")]
     LoadPersistedLogEntry(#[from] LoadPersistedLogEntryError),
     #[error("Persisting thread has quit")]
@@ -304,7 +303,7 @@ impl Log {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, bincode::Encode, bincode::Decode)]
 #[serde(crate = "dozer_types::serde")]
 pub enum LogOperation {
     Op {
@@ -319,8 +318,7 @@ pub enum LogOperation {
     },
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(crate = "dozer_types::serde")]
+#[derive(Debug, PartialEq, bincode::Encode, bincode::Decode)]
 pub enum LogResponse {
     Persisted(PersistedLogEntry),
     Operations(Vec<LogOperation>),
@@ -331,7 +329,7 @@ pub enum LoadPersistedLogEntryError {
     #[error("Storage error: {0}")]
     Storage(#[from] super::storage::Error),
     #[error("Deserialization error: {0}")]
-    DeserializeLogEntry(#[from] bincode::Error),
+    DeserializeLogEntry(#[from] bincode::error::DecodeError),
 }
 
 pub async fn load_persisted_log_entry(
@@ -339,7 +337,7 @@ pub async fn load_persisted_log_entry(
     persisted: &PersistedLogEntry,
 ) -> Result<Vec<LogOperation>, LoadPersistedLogEntryError> {
     let data = storage.download_object(persisted.key.clone()).await?;
-    bincode::deserialize(&data).map_err(Into::into)
+    Ok(bincode::decode_from_slice(&data, bincode::config::legacy())?.0)
 }
 
 #[pin_project(project = LogResponseFutureProj)]

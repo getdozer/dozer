@@ -1,9 +1,7 @@
 use crate::parser::model::*;
 use crate::path::JsonPathValue::{NewValue, NoValue, Slice};
 use crate::path::{json_path_instance, JsonPathValue, Path, PathInstance};
-use dozer_types::json_types::JsonValue::{Array, Object};
-use dozer_types::json_types::{serde_json_to_json_value, JsonValue};
-use dozer_types::serde_json::json;
+use dozer_types::json_types::{json, JsonValue};
 
 /// to process the element [*]
 pub(crate) struct Wildcard {}
@@ -13,28 +11,12 @@ impl<'a> Path<'a> for Wildcard {
 
     fn find(&self, data: JsonPathValue<'a, Self::Data>) -> Vec<JsonPathValue<'a, Self::Data>> {
         data.flat_map_slice(|data| {
-            let res = match data {
-                Array(elems) => {
-                    let mut res = vec![];
-                    for el in elems.iter() {
-                        res.push(Slice(el));
-                    }
-
-                    res
-                }
-                Object(elems) => {
-                    let mut res = vec![];
-                    for el in elems.values() {
-                        res.push(Slice(el));
-                    }
-                    res
-                }
-                _ => vec![],
-            };
-            if res.is_empty() {
-                vec![NoValue]
+            if let Some(elems) = data.as_array() {
+                elems.iter().map(Slice).collect()
+            } else if let Some(elems) = data.as_object() {
+                elems.values().map(Slice).collect()
             } else {
-                res
+                vec![NoValue]
             }
         })
     }
@@ -110,14 +92,14 @@ impl<'a> Path<'a> for FnPath {
         }
 
         let res = if is_search_length {
-            NewValue(
-                serde_json_to_json_value(json!(input.iter().filter(|v| v.has_value()).count()))
-                    .unwrap(),
-            )
+            NewValue(json!(input.iter().filter(|v| v.has_value()).count()))
         } else {
-            let take_len = |v: &JsonValue| match v {
-                Array(elems) => NewValue(serde_json_to_json_value(json!(elems.len())).unwrap()),
-                _ => NoValue,
+            let take_len = |v: &JsonValue| {
+                if let Some(elems) = v.as_array() {
+                    NewValue(json!(elems.len()))
+                } else {
+                    NoValue
+                }
             };
 
             match input.get(0) {
@@ -145,10 +127,7 @@ impl<'a> Path<'a> for ObjectField<'a> {
     type Data = JsonValue;
 
     fn find(&self, data: JsonPathValue<'a, Self::Data>) -> Vec<JsonPathValue<'a, Self::Data>> {
-        let take_field = |v: &'a JsonValue| match v {
-            Object(fields) => fields.get(self.key),
-            _ => None,
-        };
+        let take_field = |v: &'a JsonValue| v.as_object()?.get(self.key);
 
         let res = match data {
             Slice(js) => take_field(js).map(Slice).unwrap_or_else(|| NoValue),
@@ -170,45 +149,36 @@ impl<'a> Path<'a> for DescentWildcard {
 
 fn deep_flatten(data: &JsonValue) -> Vec<&JsonValue> {
     let mut acc = vec![];
-    match data {
-        Object(elems) => {
-            for v in elems.values() {
-                acc.push(v);
-                acc.append(&mut deep_flatten(v));
-            }
+    if let Some(elems) = data.as_array() {
+        for v in elems.iter() {
+            acc.push(v);
+            acc.append(&mut deep_flatten(v));
         }
-        Array(elems) => {
-            for v in elems.iter() {
-                acc.push(v);
-                acc.append(&mut deep_flatten(v));
-            }
+    } else if let Some(elems) = data.as_object() {
+        for v in elems.values() {
+            acc.push(v);
+            acc.append(&mut deep_flatten(v));
         }
-        _ => (),
     }
     acc
 }
 
 fn deep_path_by_key<'a>(data: &'a JsonValue, key: ObjectField<'a>) -> Vec<&'a JsonValue> {
     let mut level: Vec<&JsonValue> = JsonPathValue::into_data(key.find(data.into()));
-    match data {
-        Object(elems) => {
-            let mut next_levels: Vec<&JsonValue> = elems
-                .values()
-                .flat_map(|v| deep_path_by_key(v, key.clone()))
-                .collect();
-            level.append(&mut next_levels);
-            level
-        }
-        Array(elems) => {
-            let mut next_levels: Vec<&JsonValue> = elems
-                .iter()
-                .flat_map(|v| deep_path_by_key(v, key.clone()))
-                .collect();
-            level.append(&mut next_levels);
-            level
-        }
-        _ => level,
+    if let Some(elems) = data.as_object() {
+        let mut next_levels: Vec<&JsonValue> = elems
+            .values()
+            .flat_map(|v| deep_path_by_key(v, key.clone()))
+            .collect();
+        level.append(&mut next_levels);
+    } else if let Some(elems) = data.as_array() {
+        let mut next_levels: Vec<&JsonValue> = elems
+            .iter()
+            .flat_map(|v| deep_path_by_key(v, key.clone()))
+            .collect();
+        level.append(&mut next_levels);
     }
+    level
 }
 
 /// processes decent object like ..

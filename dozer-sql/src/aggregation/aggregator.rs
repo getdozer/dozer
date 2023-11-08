@@ -10,8 +10,7 @@ use crate::errors::PipelineError;
 use dozer_types::chrono::{DateTime, FixedOffset, NaiveDate};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::rust_decimal::Decimal;
-use dozer_types::serde::de::DeserializeOwned;
-use dozer_types::serde::{Deserialize, Serialize};
+
 use enum_dispatch::enum_dispatch;
 use std::collections::BTreeMap;
 
@@ -28,7 +27,7 @@ use dozer_types::types::{DozerDuration, Field, FieldType, Schema};
 use std::fmt::{Debug, Display, Formatter};
 
 #[enum_dispatch]
-pub trait Aggregator: Send + Sync + Serialize + DeserializeOwned {
+pub trait Aggregator: Send + Sync + bincode::Encode + bincode::Decode {
     fn init(&mut self, return_type: FieldType);
     fn update(&mut self, old: &[Field], new: &[Field]) -> Result<Field, PipelineError>;
     fn delete(&mut self, old: &[Field]) -> Result<Field, PipelineError>;
@@ -36,8 +35,7 @@ pub trait Aggregator: Send + Sync + Serialize + DeserializeOwned {
 }
 
 #[enum_dispatch(Aggregator)]
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(crate = "dozer_types::serde")]
+#[derive(Debug, bincode::Encode, bincode::Decode)]
 pub enum AggregatorEnum {
     AvgAggregator,
     MinAggregator,
@@ -63,24 +61,22 @@ pub enum AggregatorType {
     Sum,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(crate = "dozer_types::serde")]
+#[derive(Debug, bincode::Encode, bincode::Decode)]
 pub(crate) struct OrderedAggregatorState {
     function_type: AggregateFunctionType,
     inner: OrderedAggregatorStateInner,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(crate = "dozer_types::serde")]
+#[derive(Debug, bincode::Encode, bincode::Decode)]
 enum OrderedAggregatorStateInner {
     UInt(BTreeMap<u64, u64>),
     U128(BTreeMap<u128, u64>),
     Int(BTreeMap<i64, u64>),
     I128(BTreeMap<i128, u64>),
-    Float(BTreeMap<OrderedFloat<f64>, u64>),
-    Decimal(BTreeMap<Decimal, u64>),
-    Timestamp(BTreeMap<DateTime<FixedOffset>, u64>),
-    Date(BTreeMap<NaiveDate, u64>),
+    Float(#[bincode(with_serde)] BTreeMap<OrderedFloat<f64>, u64>),
+    Decimal(#[bincode(with_serde)] BTreeMap<Decimal, u64>),
+    Timestamp(#[bincode(with_serde)] BTreeMap<DateTime<FixedOffset>, u64>),
+    Date(#[bincode(with_serde)] BTreeMap<NaiveDate, u64>),
     Duration(BTreeMap<DozerDuration, u64>),
 }
 

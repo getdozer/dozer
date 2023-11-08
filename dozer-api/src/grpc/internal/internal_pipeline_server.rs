@@ -152,7 +152,7 @@ async fn serialize_log_response(response: LogResponseFuture) -> Result<LogRespon
     let response = response
         .await
         .map_err(|e| Status::new(tonic::Code::Internal, e.to_string()))?;
-    let data = bincode::serialize(&response).map_err(|e| {
+    let data = bincode::encode_to_vec(&response, bincode::config::legacy()).map_err(|e| {
         Status::new(
             tonic::Code::Internal,
             format!("Failed to serialize response: {}", e),

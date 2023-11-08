@@ -106,7 +106,8 @@ pub trait MainEnvironment: LmdbEnvironment {
             .commit_state
             .load(txn)?
             .map(|commit_state| {
-                bincode::deserialize(commit_state.borrow())
+                bincode::decode_from_slice(commit_state.borrow(), bincode::config::legacy())
+                    .map(|v| v.0)
                     .map_err(CacheError::map_deserialization_error)
             })
             .transpose()
@@ -416,7 +417,7 @@ impl RwMainEnvironment {
         let txn = self.env.txn_mut()?;
         self.common.commit_state.store(
             txn,
-            bincode::serialize(state)
+            bincode::encode_to_vec(state, bincode::config::legacy())
                 .map_err(CacheError::map_serialization_error)?
                 .as_slice(),
         )?;

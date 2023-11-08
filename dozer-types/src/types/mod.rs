@@ -20,7 +20,19 @@ use crate::errors::internal::BoxedError;
 use crate::errors::types::TypeError::InvalidFieldValue;
 pub use field::{field_test_cases, Field, FieldType, DATE_FORMAT};
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(
+    Clone,
+    Serialize,
+    Deserialize,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Default,
+    bincode::Encode,
+    bincode::Decode,
+)]
 pub enum SourceDefinition {
     Table {
         connection: String,
@@ -129,7 +141,7 @@ impl Display for Schema {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, bincode::Encode, bincode::Decode)]
 pub enum IndexDefinition {
     /// The sorted inverted index, supporting `Eq` filter on multiple fields and `LT`, `LTE`, `GT`, `GTE` filter on at most one field.
     SortedInverted(Vec<usize>),
@@ -141,13 +153,27 @@ pub type SchemaWithIndex = (Schema, Vec<IndexDefinition>);
 
 pub type Timestamp = DateTime<FixedOffset>;
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, Hash)]
+#[derive(
+    Clone, Serialize, Deserialize, Debug, PartialEq, Eq, Hash, bincode::Encode, bincode::Decode,
+)]
 pub struct Lifetime {
+    #[bincode(with_serde)]
     pub reference: Timestamp,
     pub duration: std::time::Duration,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]
+#[derive(
+    Debug,
+    Clone,
+    Serialize,
+    Deserialize,
+    PartialEq,
+    Eq,
+    Hash,
+    Default,
+    bincode::Encode,
+    bincode::Decode,
+)]
 pub struct Record {
     /// List of values, following the definitions of `fields` of the associated schema
     pub values: Vec<Field>,
@@ -249,7 +275,7 @@ impl Display for Record {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, bincode::Encode, bincode::Decode)]
 /// A CDC event.
 pub enum Operation {
     Delete { old: Record },
@@ -259,7 +285,20 @@ pub enum Operation {
 
 // Helpful in interacting with external systems during ingestion and querying
 // For example, nanoseconds can overflow.
-#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Clone,
+    Copy,
+    Serialize,
+    Deserialize,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    bincode::Decode,
+    bincode::Encode,
+)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub enum TimeUnit {
     Seconds,
@@ -320,7 +359,18 @@ impl TimeUnit {
     }
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Serialize,
+    Deserialize,
+    Eq,
+    PartialEq,
+    Hash,
+    bincode::Encode,
+    bincode::Decode,
+)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct DozerDuration(pub std::time::Duration, pub TimeUnit);
 
@@ -370,8 +420,19 @@ impl DozerDuration {
     }
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
-pub struct DozerPoint(pub Point<OrderedFloat<f64>>);
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Serialize,
+    Deserialize,
+    Eq,
+    PartialEq,
+    Hash,
+    bincode::Encode,
+    bincode::Decode,
+)]
+pub struct DozerPoint(#[bincode(with_serde)] pub Point<OrderedFloat<f64>>);
 
 #[cfg(feature = "arbitrary")]
 impl<'a> arbitrary::Arbitrary<'a> for DozerPoint {

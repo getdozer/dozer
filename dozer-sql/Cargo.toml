@@ -15,6 +15,7 @@ dozer-sql-expression = { path = "expression" }
 dozer-recordstore = { path = "../dozer-recordstore" }
 
 ahash = "0.8.3"
+bincode = { workspace = true }
 enum_dispatch = "0.3.12"
 linked-hash-map = { version = "0.5.6", features = ["serde_impl"] }
 metrics = "0.21.0"

@@ -61,6 +61,8 @@ impl Ingestor {
         self.sender.send(message).await
     }
 
+    // FIXME: Fix large error variant
+    #[allow(clippy::result_large_err)]
     pub fn blocking_handle_message(
         &self,
         message: IngestionMessage,

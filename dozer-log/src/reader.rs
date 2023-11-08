@@ -175,7 +175,9 @@ impl LogClient {
         .await?;
         use crate::replication::LogResponse;
         let response: LogResponse =
-            bincode::deserialize(&response.data).map_err(ReaderError::DeserializeLogResponse)?;
+            bincode::decode_from_slice(&response.data, bincode::config::legacy())
+                .map_err(ReaderError::DeserializeLogResponse)?
+                .0;
 
         // Load response.
         let request_range = request.start..request.end;

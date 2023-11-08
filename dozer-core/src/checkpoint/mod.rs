@@ -13,7 +13,6 @@ use dozer_types::{
     models::app_config::{DataStorage, RecordStore},
     node::{NodeHandle, OpIdentifier, SourceStates, TableState},
     parking_lot::Mutex,
-    serde::{Deserialize, Serialize},
     types::Field,
 };
 use tempdir::TempDir;
@@ -213,10 +212,13 @@ impl CheckpointFactory {
         state.next_record_index = next_record_index;
         drop(state);
 
-        let data = bincode::serialize(&RecordStoreSlice {
-            source_states,
-            data,
-        })
+        let data = bincode::encode_to_vec(
+            RecordStoreSlice {
+                source_states,
+                data,
+            },
+            bincode::config::legacy(),
+        )
         .expect("Record store slice should be serializable");
         self.queue
             .upload_object(key, data)
@@ -230,11 +232,9 @@ struct CheckpointWriterFactoryState {
     next_record_index: usize,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(crate = "dozer_types::serde")]
+#[derive(Debug, bincode::Encode, bincode::Decode)]
 struct RecordStoreSlice {
     source_states: SourceStates,
-    #[serde(with = "dozer_types::serde_bytes")]
     data: Vec<u8>,
 }
 
@@ -352,8 +352,10 @@ async fn read_record_store_slices(
                 .map_err(|_| ExecutionError::UnrecognizedCheckpoint(object.key.clone()))?;
             info!("Loading {}", object.key);
             let data = storage.download_object(object.key.clone()).await?;
-            let record_store_slice = bincode::deserialize::<RecordStoreSlice>(&data)
-                .map_err(ExecutionError::CorruptedCheckpoint)?;
+            let record_store_slice: RecordStoreSlice =
+                bincode::decode_from_slice(&data, bincode::config::legacy())
+                    .map_err(ExecutionError::CorruptedCheckpoint)?
+                    .0;
             let processor_prefix = processor_prefix(factory_prefix, object_name.as_str());
             info!(
                 "Current source states are {:?}",
@@ -382,8 +384,10 @@ async fn read_record_store_slices(
         for object in objects.objects {
             info!("Loading {}", object.key);
             let data = storage.download_object(object.key).await?;
-            let record_store_slice = bincode::deserialize::<RecordStoreSlice>(&data)
-                .map_err(ExecutionError::CorruptedCheckpoint)?;
+            let record_store_slice: RecordStoreSlice =
+                bincode::decode_from_slice(&data, bincode::config::legacy())
+                    .map_err(ExecutionError::CorruptedCheckpoint)?
+                    .0;
             record_store.deserialize_and_extend(&record_store_slice.data)?;
         }
 
