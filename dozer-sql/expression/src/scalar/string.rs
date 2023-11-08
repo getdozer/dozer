@@ -21,7 +21,11 @@ pub(crate) fn validate_ucase(arg: &Expression, schema: &Schema) -> Result<Expres
     )
 }
 
-pub fn evaluate_ucase(schema: &Schema, arg: &Expression, record: &Record) -> Result<Field, Error> {
+pub fn evaluate_ucase(
+    schema: &Schema,
+    arg: &mut Expression,
+    record: &Record,
+) -> Result<Field, Error> {
     let f = arg.evaluate(record, schema)?;
     let v = f.to_string();
     let ret = v.to_uppercase();
@@ -69,7 +73,7 @@ pub fn validate_concat(args: &[Expression], schema: &Schema) -> Result<Expressio
 
 pub fn evaluate_concat(
     schema: &Schema,
-    args: &[Expression],
+    args: &mut [Expression],
     record: &Record,
 ) -> Result<Field, Error> {
     let mut res_type = FieldType::String;
@@ -106,7 +110,7 @@ pub fn evaluate_concat(
 
 pub(crate) fn evaluate_length(
     schema: &Schema,
-    arg0: &Expression,
+    arg0: &mut Expression,
     record: &Record,
 ) -> Result<Field, Error> {
     let f0 = arg0.evaluate(record, schema)?;
@@ -143,8 +147,8 @@ pub fn validate_trim(arg: &Expression, schema: &Schema) -> Result<ExpressionType
 
 pub fn evaluate_trim(
     schema: &Schema,
-    arg: &Expression,
-    what: &Option<Box<Expression>>,
+    arg: &mut Expression,
+    what: &mut Option<Box<Expression>>,
     typ: &Option<TrimType>,
     record: &Record,
 ) -> Result<Field, Error> {
@@ -209,8 +213,8 @@ pub(crate) fn get_like_operator_type(
 
 pub fn evaluate_like(
     schema: &Schema,
-    arg: &Expression,
-    pattern: &Expression,
+    arg: &mut Expression,
+    pattern: &mut Expression,
     escape: Option<char>,
     record: &Record,
 ) -> Result<Field, Error> {
@@ -235,8 +239,8 @@ pub fn evaluate_like(
 
 pub(crate) fn evaluate_to_char(
     schema: &Schema,
-    arg: &Expression,
-    pattern: &Expression,
+    arg: &mut Expression,
+    pattern: &mut Expression,
     record: &Record,
 ) -> Result<Field, Error> {
     let arg_field = arg.evaluate(record, schema)?;
@@ -291,90 +295,90 @@ mod tests {
         let row = Record::new(vec![]);
 
         // Field::String
-        let value = Box::new(Literal(Field::String(format!("Hello{}", s_val))));
-        let pattern = Box::new(Literal(Field::String("Hello%".to_owned())));
+        let mut value = Box::new(Literal(Field::String(format!("Hello{}", s_val))));
+        let mut pattern = Box::new(Literal(Field::String("Hello%".to_owned())));
 
         assert_eq!(
-            evaluate_like(&Schema::default(), &value, &pattern, None, &row).unwrap(),
+            evaluate_like(&Schema::default(), &mut value, &mut pattern, None, &row).unwrap(),
             Field::Boolean(true)
         );
 
-        let value = Box::new(Literal(Field::String(format!("Hello, {}orld!", c_val))));
-        let pattern = Box::new(Literal(Field::String("Hello, _orld!".to_owned())));
+        let mut value = Box::new(Literal(Field::String(format!("Hello, {}orld!", c_val))));
+        let mut pattern = Box::new(Literal(Field::String("Hello, _orld!".to_owned())));
 
         assert_eq!(
-            evaluate_like(&Schema::default(), &value, &pattern, None, &row).unwrap(),
+            evaluate_like(&Schema::default(), &mut value, &mut pattern, None, &row).unwrap(),
             Field::Boolean(true)
         );
 
-        let value = Box::new(Literal(Field::String(s_val.to_string())));
-        let pattern = Box::new(Literal(Field::String("Hello%".to_owned())));
+        let mut value = Box::new(Literal(Field::String(s_val.to_string())));
+        let mut pattern = Box::new(Literal(Field::String("Hello%".to_owned())));
 
         assert_eq!(
-            evaluate_like(&Schema::default(), &value, &pattern, None, &row).unwrap(),
+            evaluate_like(&Schema::default(), &mut value, &mut pattern, None, &row).unwrap(),
             Field::Boolean(false)
         );
 
         let c_value = &s_val[0..0];
-        let value = Box::new(Literal(Field::String(format!("Hello, {}!", c_value))));
-        let pattern = Box::new(Literal(Field::String("Hello, _!".to_owned())));
+        let mut value = Box::new(Literal(Field::String(format!("Hello, {}!", c_value))));
+        let mut pattern = Box::new(Literal(Field::String("Hello, _!".to_owned())));
 
         assert_eq!(
-            evaluate_like(&Schema::default(), &value, &pattern, None, &row).unwrap(),
+            evaluate_like(&Schema::default(), &mut value, &mut pattern, None, &row).unwrap(),
             Field::Boolean(false)
         );
 
         // todo: should find the way to generate escape character using proptest
-        // let value = Box::new(Literal(Field::String(format!("Hello, {}%", c_val))));
-        // let pattern = Box::new(Literal(Field::String("Hello, %".to_owned())));
+        // let mut value = Box::new(Literal(Field::String(format!("Hello, {}%", c_val))));
+        // let mut pattern = Box::new(Literal(Field::String("Hello, %".to_owned())));
         // let escape = Some(c_val);
         //
         // assert_eq!(
-        //     evaluate_like(&Schema::default(), &value, &pattern, escape, &row).unwrap(),
+        //     evaluate_like(&Schema::default(), &mut value, &mut pattern, escape, &row).unwrap(),
         //     Field::Boolean(true)
         // );
 
         // Field::Text
-        let value = Box::new(Literal(Field::Text(format!("Hello{}", s_val))));
-        let pattern = Box::new(Literal(Field::Text("Hello%".to_owned())));
+        let mut value = Box::new(Literal(Field::Text(format!("Hello{}", s_val))));
+        let mut pattern = Box::new(Literal(Field::Text("Hello%".to_owned())));
 
         assert_eq!(
-            evaluate_like(&Schema::default(), &value, &pattern, None, &row).unwrap(),
+            evaluate_like(&Schema::default(), &mut value, &mut pattern, None, &row).unwrap(),
             Field::Boolean(true)
         );
 
-        let value = Box::new(Literal(Field::Text(format!("Hello, {}orld!", c_val))));
-        let pattern = Box::new(Literal(Field::Text("Hello, _orld!".to_owned())));
+        let mut value = Box::new(Literal(Field::Text(format!("Hello, {}orld!", c_val))));
+        let mut pattern = Box::new(Literal(Field::Text("Hello, _orld!".to_owned())));
 
         assert_eq!(
-            evaluate_like(&Schema::default(), &value, &pattern, None, &row).unwrap(),
+            evaluate_like(&Schema::default(), &mut value, &mut pattern, None, &row).unwrap(),
             Field::Boolean(true)
         );
 
-        let value = Box::new(Literal(Field::Text(s_val.to_string())));
-        let pattern = Box::new(Literal(Field::Text("Hello%".to_owned())));
+        let mut value = Box::new(Literal(Field::Text(s_val.to_string())));
+        let mut pattern = Box::new(Literal(Field::Text("Hello%".to_owned())));
 
         assert_eq!(
-            evaluate_like(&Schema::default(), &value, &pattern, None, &row).unwrap(),
+            evaluate_like(&Schema::default(), &mut value, &mut pattern, None, &row).unwrap(),
             Field::Boolean(false)
         );
 
         let c_value = &s_val[0..0];
-        let value = Box::new(Literal(Field::Text(format!("Hello, {}!", c_value))));
-        let pattern = Box::new(Literal(Field::Text("Hello, _!".to_owned())));
+        let mut value = Box::new(Literal(Field::Text(format!("Hello, {}!", c_value))));
+        let mut pattern = Box::new(Literal(Field::Text("Hello, _!".to_owned())));
 
         assert_eq!(
-            evaluate_like(&Schema::default(), &value, &pattern, None, &row).unwrap(),
+            evaluate_like(&Schema::default(), &mut value, &mut pattern, None, &row).unwrap(),
             Field::Boolean(false)
         );
 
         // todo: should find the way to generate escape character using proptest
-        // let value = Box::new(Literal(Field::Text(format!("Hello, {}%", c_val))));
-        // let pattern = Box::new(Literal(Field::Text("Hello, %".to_owned())));
+        // let mut value = Box::new(Literal(Field::Text(format!("Hello, {}%", c_val))));
+        // let mut pattern = Box::new(Literal(Field::Text("Hello, %".to_owned())));
         // let escape = Some(c_val);
         //
         // assert_eq!(
-        //     evaluate_like(&Schema::default(), &value, &pattern, escape, &row).unwrap(),
+        //     evaluate_like(&Schema::default(), &mut value, &mut pattern, escape, &row).unwrap(),
         //     Field::Boolean(true)
         // );
     }
@@ -383,28 +387,28 @@ mod tests {
         let row = Record::new(vec![]);
 
         // Field::String
-        let value = Box::new(Literal(Field::String(s_val.to_string())));
+        let mut value = Box::new(Literal(Field::String(s_val.to_string())));
         assert_eq!(
-            evaluate_ucase(&Schema::default(), &value, &row).unwrap(),
+            evaluate_ucase(&Schema::default(), &mut value, &row).unwrap(),
             Field::String(s_val.to_uppercase())
         );
 
-        let value = Box::new(Literal(Field::String(c_val.to_string())));
+        let mut value = Box::new(Literal(Field::String(c_val.to_string())));
         assert_eq!(
-            evaluate_ucase(&Schema::default(), &value, &row).unwrap(),
+            evaluate_ucase(&Schema::default(), &mut value, &row).unwrap(),
             Field::String(c_val.to_uppercase().to_string())
         );
 
         // Field::Text
-        let value = Box::new(Literal(Field::Text(s_val.to_string())));
+        let mut value = Box::new(Literal(Field::Text(s_val.to_string())));
         assert_eq!(
-            evaluate_ucase(&Schema::default(), &value, &row).unwrap(),
+            evaluate_ucase(&Schema::default(), &mut value, &row).unwrap(),
             Field::Text(s_val.to_uppercase())
         );
 
-        let value = Box::new(Literal(Field::Text(c_val.to_string())));
+        let mut value = Box::new(Literal(Field::Text(c_val.to_string())));
         assert_eq!(
-            evaluate_ucase(&Schema::default(), &value, &row).unwrap(),
+            evaluate_ucase(&Schema::default(), &mut value, &row).unwrap(),
             Field::Text(c_val.to_uppercase().to_string())
         );
     }
@@ -418,7 +422,7 @@ mod tests {
 
         if validate_concat(&[val1.clone(), val2.clone()], &Schema::default()).is_ok() {
             assert_eq!(
-                evaluate_concat(&Schema::default(), &[val1, val2], &row).unwrap(),
+                evaluate_concat(&Schema::default(), &mut [val1, val2], &row).unwrap(),
                 Field::String(s_val1.to_string() + s_val2)
             );
         }
@@ -428,7 +432,7 @@ mod tests {
 
         if validate_concat(&[val1.clone(), val2.clone()], &Schema::default()).is_ok() {
             assert_eq!(
-                evaluate_concat(&Schema::default(), &[val1, val2], &row).unwrap(),
+                evaluate_concat(&Schema::default(), &mut [val1, val2], &row).unwrap(),
                 Field::String(s_val2.to_string() + s_val1)
             );
         }
@@ -438,7 +442,7 @@ mod tests {
 
         if validate_concat(&[val1.clone(), val2.clone()], &Schema::default()).is_ok() {
             assert_eq!(
-                evaluate_concat(&Schema::default(), &[val1, val2], &row).unwrap(),
+                evaluate_concat(&Schema::default(), &mut [val1, val2], &row).unwrap(),
                 Field::String(s_val1.to_string() + c_val.to_string().as_str())
             );
         }
@@ -448,7 +452,7 @@ mod tests {
 
         if validate_concat(&[val1.clone(), val2.clone()], &Schema::default()).is_ok() {
             assert_eq!(
-                evaluate_concat(&Schema::default(), &[val1, val2], &row).unwrap(),
+                evaluate_concat(&Schema::default(), &mut [val1, val2], &row).unwrap(),
                 Field::String(c_val.to_string() + s_val1)
             );
         }
@@ -459,7 +463,7 @@ mod tests {
 
         if validate_concat(&[val1.clone(), val2.clone()], &Schema::default()).is_ok() {
             assert_eq!(
-                evaluate_concat(&Schema::default(), &[val1, val2], &row).unwrap(),
+                evaluate_concat(&Schema::default(), &mut [val1, val2], &row).unwrap(),
                 Field::Text(s_val1.to_string() + s_val2)
             );
         }
@@ -469,7 +473,7 @@ mod tests {
 
         if validate_concat(&[val1.clone(), val2.clone()], &Schema::default()).is_ok() {
             assert_eq!(
-                evaluate_concat(&Schema::default(), &[val1, val2], &row).unwrap(),
+                evaluate_concat(&Schema::default(), &mut [val1, val2], &row).unwrap(),
                 Field::Text(s_val2.to_string() + s_val1)
             );
         }
@@ -479,7 +483,7 @@ mod tests {
 
         if validate_concat(&[val1.clone(), val2.clone()], &Schema::default()).is_ok() {
             assert_eq!(
-                evaluate_concat(&Schema::default(), &[val1, val2], &row).unwrap(),
+                evaluate_concat(&Schema::default(), &mut [val1, val2], &row).unwrap(),
                 Field::Text(s_val1.to_string() + c_val.to_string().as_str())
             );
         }
@@ -489,7 +493,7 @@ mod tests {
 
         if validate_concat(&[val1.clone(), val2.clone()], &Schema::default()).is_ok() {
             assert_eq!(
-                evaluate_concat(&Schema::default(), &[val1, val2], &row).unwrap(),
+                evaluate_concat(&Schema::default(), &mut [val1, val2], &row).unwrap(),
                 Field::Text(c_val.to_string() + s_val1)
             );
         }
@@ -499,19 +503,19 @@ mod tests {
         let row = Record::new(vec![]);
 
         // Field::String
-        let value = Literal(Field::String(s_val1.to_string()));
+        let mut value = Literal(Field::String(s_val1.to_string()));
         let what = ' ';
 
         if validate_trim(&value, &Schema::default()).is_ok() {
             assert_eq!(
-                evaluate_trim(&Schema::default(), &value, &None, &None, &row).unwrap(),
+                evaluate_trim(&Schema::default(), &mut value, &mut None, &None, &row).unwrap(),
                 Field::String(s_val1.trim_matches(what).to_string())
             );
             assert_eq!(
                 evaluate_trim(
                     &Schema::default(),
-                    &value,
-                    &None,
+                    &mut value,
+                    &mut None,
                     &Some(TrimType::Trailing),
                     &row
                 )
@@ -521,8 +525,8 @@ mod tests {
             assert_eq!(
                 evaluate_trim(
                     &Schema::default(),
-                    &value,
-                    &None,
+                    &mut value,
+                    &mut None,
                     &Some(TrimType::Leading),
                     &row
                 )
@@ -532,8 +536,8 @@ mod tests {
             assert_eq!(
                 evaluate_trim(
                     &Schema::default(),
-                    &value,
-                    &None,
+                    &mut value,
+                    &mut None,
                     &Some(TrimType::Both),
                     &row
                 )
@@ -542,19 +546,19 @@ mod tests {
             );
         }
 
-        let value = Literal(Field::String(s_val1.to_string()));
-        let what = Some(Box::new(Literal(Field::String(c_val.to_string()))));
+        let mut value = Literal(Field::String(s_val1.to_string()));
+        let mut what = Some(Box::new(Literal(Field::String(c_val.to_string()))));
 
         if validate_trim(&value, &Schema::default()).is_ok() {
             assert_eq!(
-                evaluate_trim(&Schema::default(), &value, &what, &None, &row).unwrap(),
+                evaluate_trim(&Schema::default(), &mut value, &mut what, &None, &row).unwrap(),
                 Field::String(s_val1.trim_matches(c_val).to_string())
             );
             assert_eq!(
                 evaluate_trim(
                     &Schema::default(),
-                    &value,
-                    &what,
+                    &mut value,
+                    &mut what,
                     &Some(TrimType::Trailing),
                     &row
                 )
@@ -564,8 +568,8 @@ mod tests {
             assert_eq!(
                 evaluate_trim(
                     &Schema::default(),
-                    &value,
-                    &what,
+                    &mut value,
+                    &mut what,
                     &Some(TrimType::Leading),
                     &row
                 )
@@ -575,8 +579,8 @@ mod tests {
             assert_eq!(
                 evaluate_trim(
                     &Schema::default(),
-                    &value,
-                    &what,
+                    &mut value,
+                    &mut what,
                     &Some(TrimType::Both),
                     &row
                 )

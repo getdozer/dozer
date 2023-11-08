@@ -8,9 +8,9 @@ use crate::execution::Expression;
 pub fn evaluate_case(
     schema: &Schema,
     _operand: &Option<Box<Expression>>,
-    conditions: &Vec<Expression>,
-    results: &Vec<Expression>,
-    else_result: &Option<Box<Expression>>,
+    conditions: &mut [Expression],
+    results: &mut [Expression],
+    else_result: &mut Option<Box<Expression>>,
     record: &Record,
 ) -> Result<Field, Error> {
     let iter = zip(conditions, results);

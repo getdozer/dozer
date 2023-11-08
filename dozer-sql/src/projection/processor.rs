@@ -32,7 +32,7 @@ impl ProjectionProcessor {
     fn delete(&mut self, record: &Record) -> Result<Operation, PipelineError> {
         let mut results = vec![];
 
-        for expr in &self.expressions {
+        for expr in &mut self.expressions {
             results.push(expr.evaluate(record, &self.input_schema)?);
         }
 
@@ -45,7 +45,7 @@ impl ProjectionProcessor {
     fn insert(&mut self, record: &Record) -> Result<Operation, PipelineError> {
         let mut results = vec![];
 
-        for expr in self.expressions.clone() {
+        for expr in &mut self.expressions {
             results.push(expr.evaluate(record, &self.input_schema)?);
         }
 
@@ -54,11 +54,11 @@ impl ProjectionProcessor {
         Ok(Operation::Insert { new: output_record })
     }
 
-    fn update(&self, old: &Record, new: &Record) -> Result<Operation, PipelineError> {
+    fn update(&mut self, old: &Record, new: &Record) -> Result<Operation, PipelineError> {
         let mut old_results = vec![];
         let mut new_results = vec![];
 
-        for expr in &self.expressions {
+        for expr in &mut self.expressions {
             old_results.push(expr.evaluate(old, &self.input_schema)?);
             new_results.push(expr.evaluate(new, &self.input_schema)?);
         }

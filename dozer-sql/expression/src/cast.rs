@@ -41,7 +41,7 @@ impl CastOperatorType {
     pub(crate) fn evaluate(
         &self,
         schema: &Schema,
-        arg: &Expression,
+        arg: &mut Expression,
         record: &Record,
     ) -> Result<Field, Error> {
         let field = arg.evaluate(record, schema)?;

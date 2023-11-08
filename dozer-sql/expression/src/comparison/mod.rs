@@ -13,8 +13,8 @@ macro_rules! define_comparison {
     ($id:ident, $op:expr, $function:expr) => {
         pub fn $id(
             schema: &Schema,
-            left: &Expression,
-            right: &Expression,
+            left: &mut Expression,
+            right: &mut Expression,
             record: &Record,
         ) -> Result<Field, PipelineError> {
             let left_p = left.evaluate(&record, schema)?;
@@ -627,8 +627,8 @@ macro_rules! define_comparison {
 
 pub fn evaluate_lt(
     schema: &Schema,
-    left: &Expression,
-    right: &Expression,
+    left: &mut Expression,
+    right: &mut Expression,
     record: &Record,
 ) -> Result<Field, PipelineError> {
     let left_p = left.evaluate(record, schema)?;
@@ -1164,8 +1164,8 @@ pub fn evaluate_lt(
 
 pub fn evaluate_gt(
     schema: &Schema,
-    left: &Expression,
-    right: &Expression,
+    left: &mut Expression,
+    right: &mut Expression,
     record: &Record,
 ) -> Result<Field, PipelineError> {
     let left_p = left.evaluate(record, schema)?;

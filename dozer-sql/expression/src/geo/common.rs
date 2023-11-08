@@ -45,7 +45,7 @@ impl GeoFunctionType {
     pub(crate) fn evaluate(
         &self,
         schema: &Schema,
-        args: &[Expression],
+        args: &mut [Expression],
         record: &Record,
     ) -> Result<Field, Error> {
         match self {

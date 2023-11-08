@@ -34,7 +34,7 @@ pub fn validate_point(args: &[Expression], schema: &Schema) -> Result<Expression
 
 pub fn evaluate_point(
     schema: &Schema,
-    args: &[Expression],
+    args: &mut [Expression],
     record: &Record,
 ) -> Result<Field, Error> {
     validate_num_arguments(2..3, args.len(), GeoFunctionType::Point)?;
@@ -182,14 +182,14 @@ mod tests {
             )
             .clone();
 
-        let result = evaluate_point(&schema, &[], &row);
+        let result = evaluate_point(&schema, &mut [], &row);
         assert!(result.is_err());
         assert!(matches!(
             result,
             Err(Error::InvalidNumberOfArguments { .. })
         ));
 
-        let result = evaluate_point(&schema, &[Expression::Literal(Field::Int(x))], &row);
+        let result = evaluate_point(&schema, &mut [Expression::Literal(Field::Int(x))], &row);
         assert!(result.is_err());
         assert!(matches!(
             result,
@@ -198,7 +198,7 @@ mod tests {
 
         let result = evaluate_point(
             &schema,
-            &[
+            &mut [
                 Expression::Literal(Field::Int(x)),
                 Expression::Literal(Field::Int(y)),
             ],
@@ -209,7 +209,7 @@ mod tests {
 
         let result = evaluate_point(
             &schema,
-            &[
+            &mut [
                 Expression::Literal(Field::Int(x)),
                 Expression::Literal(Field::Null),
             ],
@@ -221,7 +221,7 @@ mod tests {
 
         let result = evaluate_point(
             &schema,
-            &[
+            &mut [
                 Expression::Literal(Field::Null),
                 Expression::Literal(Field::Int(y)),
             ],

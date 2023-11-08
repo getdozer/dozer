@@ -49,21 +49,21 @@ fn test_column_execution() {
     ]);
 
     // Column
-    let e = Expression::Column { index: 0 };
+    let mut e = Expression::Column { index: 0 };
     assert_eq!(
         e.evaluate(&record, &schema)
             .unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::Int(1337)
     );
 
-    let e = Expression::Column { index: 1 };
+    let mut e = Expression::Column { index: 1 };
     assert_eq!(
         e.evaluate(&record, &schema)
             .unwrap_or_else(|e| panic!("{}", e.to_string())),
         Field::String("test".to_string())
     );
 
-    let e = Expression::Column { index: 2 };
+    let mut e = Expression::Column { index: 2 };
     assert_eq!(
         e.evaluate(&record, &schema)
             .unwrap_or_else(|e| panic!("{}", e.to_string())),
@@ -71,7 +71,7 @@ fn test_column_execution() {
     );
 
     // Literal
-    let e = Expression::Literal(Field::Int(1337));
+    let mut e = Expression::Literal(Field::Int(1337));
     assert_eq!(
         e.evaluate(&record, &schema)
             .unwrap_or_else(|e| panic!("{}", e.to_string())),
@@ -79,7 +79,7 @@ fn test_column_execution() {
     );
 
     // UnaryOperator
-    let e = Expression::UnaryOperator {
+    let mut e = Expression::UnaryOperator {
         operator: UnaryOperatorType::Not,
         arg: Box::new(Expression::Literal(Field::Boolean(true))),
     };
@@ -90,7 +90,7 @@ fn test_column_execution() {
     );
 
     // BinaryOperator
-    let e = Expression::BinaryOperator {
+    let mut e = Expression::BinaryOperator {
         left: Box::new(Expression::Literal(Field::Boolean(true))),
         operator: BinaryOperatorType::And,
         right: Box::new(Expression::Literal(Field::Boolean(false))),
@@ -102,7 +102,7 @@ fn test_column_execution() {
     );
 
     // ScalarFunction
-    let e = Expression::ScalarFunction {
+    let mut e = Expression::ScalarFunction {
         fun: ScalarFunctionType::Abs,
         args: vec![Expression::Literal(Field::Int(-1))],
     };

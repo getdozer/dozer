@@ -141,12 +141,12 @@ impl AggregationProcessor {
         out_rec_delete: &mut Vec<Field>,
         out_rec_insert: &mut Vec<Field>,
         op: AggregatorOperation,
-        measures: &Vec<Vec<Expression>>,
+        measures: &mut Vec<Vec<Expression>>,
         input_schema: &Schema,
     ) -> Result<Vec<Field>, PipelineError> {
         let mut new_fields: Vec<Field> = Vec::with_capacity(measures.len());
 
-        for (idx, measure) in measures.iter().enumerate() {
+        for (idx, measure) in measures.iter_mut().enumerate() {
             let curr_aggr = &mut curr_state.states[idx];
             let curr_val_opt: Option<&Field> = curr_state.values.as_ref().map(|e| &e[idx]);
 
@@ -173,7 +173,7 @@ impl AggregationProcessor {
                 }
                 AggregatorOperation::Update => {
                     let mut deleted_fields = Vec::with_capacity(measure.len());
-                    for m in measure {
+                    for m in measure.iter_mut() {
                         deleted_fields.push(m.evaluate(deleted_record.unwrap(), input_schema)?);
                     }
                     let mut inserted_fields = Vec::with_capacity(measure.len());
@@ -217,28 +217,28 @@ impl AggregationProcessor {
             &mut out_rec_delete,
             &mut out_rec_insert,
             AggregatorOperation::Delete,
-            &self.measures,
+            &mut self.measures,
             &self.input_schema,
         )?;
 
-        let (out_rec_delete_having_satisfied, out_rec_insert_having_satisfied) = match &self.having
-        {
-            None => (true, true),
-            Some(having) => (
-                Self::having_is_satisfied(
-                    &self.having_eval_schema,
-                    old,
-                    having,
-                    &mut out_rec_delete,
-                )?,
-                Self::having_is_satisfied(
-                    &self.having_eval_schema,
-                    old,
-                    having,
-                    &mut out_rec_insert,
-                )?,
-            ),
-        };
+        let (out_rec_delete_having_satisfied, out_rec_insert_having_satisfied) =
+            match &mut self.having {
+                None => (true, true),
+                Some(having) => (
+                    Self::having_is_satisfied(
+                        &self.having_eval_schema,
+                        old,
+                        having,
+                        &mut out_rec_delete,
+                    )?,
+                    Self::having_is_satisfied(
+                        &self.having_eval_schema,
+                        old,
+                        having,
+                        &mut out_rec_insert,
+                    )?,
+                ),
+            };
 
         let res = if curr_state.count == 1 {
             self.states.remove(key);
@@ -247,7 +247,7 @@ impl AggregationProcessor {
                     old: Self::build_projection(
                         old,
                         out_rec_delete,
-                        &self.projections,
+                        &mut self.projections,
                         &self.aggregation_schema,
                     )?,
                 }]
@@ -264,7 +264,7 @@ impl AggregationProcessor {
                 out_rec_delete,
                 out_rec_insert,
                 old,
-                &self.projections,
+                &mut self.projections,
                 &self.aggregation_schema,
             )?
         };
@@ -294,28 +294,28 @@ impl AggregationProcessor {
             &mut out_rec_delete,
             &mut out_rec_insert,
             AggregatorOperation::Insert,
-            &self.measures,
+            &mut self.measures,
             &self.input_schema,
         )?;
 
-        let (out_rec_delete_having_satisfied, out_rec_insert_having_satisfied) = match &self.having
-        {
-            None => (true, true),
-            Some(having) => (
-                Self::having_is_satisfied(
-                    &self.having_eval_schema,
-                    new,
-                    having,
-                    &mut out_rec_delete,
-                )?,
-                Self::having_is_satisfied(
-                    &self.having_eval_schema,
-                    new,
-                    having,
-                    &mut out_rec_insert,
-                )?,
-            ),
-        };
+        let (out_rec_delete_having_satisfied, out_rec_insert_having_satisfied) =
+            match &mut self.having {
+                None => (true, true),
+                Some(having) => (
+                    Self::having_is_satisfied(
+                        &self.having_eval_schema,
+                        new,
+                        having,
+                        &mut out_rec_delete,
+                    )?,
+                    Self::having_is_satisfied(
+                        &self.having_eval_schema,
+                        new,
+                        having,
+                        &mut out_rec_insert,
+                    )?,
+                ),
+            };
 
         let res = if curr_state.count == 0 {
             if out_rec_insert_having_satisfied {
@@ -323,7 +323,7 @@ impl AggregationProcessor {
                     new: Self::build_projection(
                         new,
                         out_rec_insert,
-                        &self.projections,
+                        &mut self.projections,
                         &self.aggregation_schema,
                     )?,
                 }]
@@ -337,7 +337,7 @@ impl AggregationProcessor {
                 out_rec_delete,
                 out_rec_insert,
                 new,
-                &self.projections,
+                &mut self.projections,
                 &self.aggregation_schema,
             )?
         };
@@ -354,7 +354,7 @@ impl AggregationProcessor {
         out_rec_delete: Vec<Field>,
         out_rec_insert: Vec<Field>,
         rec: &mut Record,
-        projections: &Vec<Expression>,
+        projections: &mut Vec<Expression>,
         aggregation_schema: &Schema,
     ) -> Result<Vec<Operation>, PipelineError> {
         Ok(
@@ -400,7 +400,7 @@ impl AggregationProcessor {
     fn having_is_satisfied(
         having_eval_schema: &Schema,
         original_record: &mut Record,
-        having: &Expression,
+        having: &mut Expression,
         out_rec: &mut Vec<Field>,
     ) -> Result<bool, PipelineError> {
         //
@@ -447,28 +447,28 @@ impl AggregationProcessor {
             &mut out_rec_delete,
             &mut out_rec_insert,
             AggregatorOperation::Update,
-            &self.measures,
+            &mut self.measures,
             &self.input_schema,
         )?;
 
-        let (out_rec_delete_having_satisfied, out_rec_insert_having_satisfied) = match &self.having
-        {
-            None => (true, true),
-            Some(having) => (
-                Self::having_is_satisfied(
-                    &self.having_eval_schema,
-                    old,
-                    having,
-                    &mut out_rec_delete,
-                )?,
-                Self::having_is_satisfied(
-                    &self.having_eval_schema,
-                    new,
-                    having,
-                    &mut out_rec_insert,
-                )?,
-            ),
-        };
+        let (out_rec_delete_having_satisfied, out_rec_insert_having_satisfied) =
+            match &mut self.having {
+                None => (true, true),
+                Some(having) => (
+                    Self::having_is_satisfied(
+                        &self.having_eval_schema,
+                        old,
+                        having,
+                        &mut out_rec_delete,
+                    )?,
+                    Self::having_is_satisfied(
+                        &self.having_eval_schema,
+                        new,
+                        having,
+                        &mut out_rec_insert,
+                    )?,
+                ),
+            };
 
         let res = match (
             out_rec_delete_having_satisfied,
@@ -478,7 +478,7 @@ impl AggregationProcessor {
                 new: Self::build_projection(
                     new,
                     out_rec_insert,
-                    &self.projections,
+                    &mut self.projections,
                     &self.aggregation_schema,
                 )?,
             }],
@@ -486,7 +486,7 @@ impl AggregationProcessor {
                 old: Self::build_projection(
                     old,
                     out_rec_delete,
-                    &self.projections,
+                    &mut self.projections,
                     &self.aggregation_schema,
                 )?,
             }],
@@ -494,13 +494,13 @@ impl AggregationProcessor {
                 new: Self::build_projection(
                     new,
                     out_rec_insert,
-                    &self.projections,
+                    &mut self.projections,
                     &self.aggregation_schema,
                 )?,
                 old: Self::build_projection(
                     old,
                     out_rec_delete,
-                    &self.projections,
+                    &mut self.projections,
                     &self.aggregation_schema,
                 )?,
             }],
@@ -514,7 +514,7 @@ impl AggregationProcessor {
     pub fn build_projection(
         original: &mut Record,
         measures: Vec<Field>,
-        projections: &Vec<Expression>,
+        projections: &mut Vec<Expression>,
         aggregation_schema: &Schema,
     ) -> Result<Record, PipelineError> {
         let original_len = original.values.len();
@@ -560,9 +560,9 @@ impl AggregationProcessor {
         }
     }
 
-    fn get_key(&self, record: &Record) -> Result<RecordKey, PipelineError> {
+    fn get_key(&mut self, record: &Record) -> Result<RecordKey, PipelineError> {
         let mut key = Vec::<Field>::with_capacity(self.dimensions.len());
-        for dimension in self.dimensions.iter() {
+        for dimension in self.dimensions.iter_mut() {
             key.push(dimension.evaluate(record, &self.input_schema)?);
         }
         if self.accurate_keys {

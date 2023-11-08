@@ -33,7 +33,7 @@ impl ConditionalExpressionType {
     pub(crate) fn evaluate(
         &self,
         schema: &Schema,
-        args: &[Expression],
+        args: &mut [Expression],
         record: &Record,
     ) -> Result<Field, Error> {
         match self {
@@ -67,7 +67,7 @@ pub(crate) fn validate_coalesce(
 
 pub(crate) fn evaluate_coalesce(
     schema: &Schema,
-    args: &[Expression],
+    args: &mut [Expression],
     record: &Record,
 ) -> Result<Field, Error> {
     // The COALESCE function returns the first of its arguments that is not null.
@@ -130,181 +130,181 @@ mod tests {
             let f = Field::UInt(u_num1);
             let row = Record::new(vec![f.clone()]);
 
-            let args = vec![null.clone(), uint1.clone()];
+            let mut args = vec![null.clone(), uint1.clone()];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f.clone());
+            test_evaluate_coalesce(&mut args, &row, typ, f.clone());
 
-            let args = vec![null.clone(), null.clone(), uint1.clone()];
+            let mut args = vec![null.clone(), null.clone(), uint1.clone()];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f.clone());
+            test_evaluate_coalesce(&mut args, &row, typ, f.clone());
 
-            let args = vec![null.clone(), null.clone(), uint1.clone(), null.clone()];
+            let mut args = vec![null.clone(), null.clone(), uint1.clone(), null.clone()];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f.clone());
+            test_evaluate_coalesce(&mut args, &row, typ, f.clone());
 
-            let args = vec![null.clone(), null.clone(), uint1, uint2];
+            let mut args = vec![null.clone(), null.clone(), uint1, uint2];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f);
+            test_evaluate_coalesce(&mut args, &row, typ, f);
 
             // Int
             let typ = FieldType::Int;
             let f = Field::Int(i_num1);
             let row = Record::new(vec![f.clone()]);
 
-            let args = vec![null.clone(), int1.clone()];
+            let mut args = vec![null.clone(), int1.clone()];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f.clone());
+            test_evaluate_coalesce(&mut args, &row, typ, f.clone());
 
-            let args = vec![null.clone(), null.clone(), int1.clone()];
+            let mut args = vec![null.clone(), null.clone(), int1.clone()];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f.clone());
+            test_evaluate_coalesce(&mut args, &row, typ, f.clone());
 
-            let args = vec![null.clone(), null.clone(), int1.clone(), null.clone()];
+            let mut args = vec![null.clone(), null.clone(), int1.clone(), null.clone()];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f.clone());
+            test_evaluate_coalesce(&mut args, &row, typ, f.clone());
 
-            let args = vec![null.clone(), null.clone(), int1, int2];
+            let mut args = vec![null.clone(), null.clone(), int1, int2];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f);
+            test_evaluate_coalesce(&mut args, &row, typ, f);
 
             // Float
             let typ = FieldType::Float;
             let f = Field::Float(OrderedFloat(f_num1));
             let row = Record::new(vec![f.clone()]);
 
-            let args = vec![null.clone(), float1.clone()];
+            let mut args = vec![null.clone(), float1.clone()];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f.clone());
+            test_evaluate_coalesce(&mut args, &row, typ, f.clone());
 
-            let args = vec![null.clone(), null.clone(), float1.clone()];
+            let mut args = vec![null.clone(), null.clone(), float1.clone()];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f.clone());
+            test_evaluate_coalesce(&mut args, &row, typ, f.clone());
 
-            let args = vec![null.clone(), null.clone(), float1.clone(), null.clone()];
+            let mut args = vec![null.clone(), null.clone(), float1.clone(), null.clone()];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f.clone());
+            test_evaluate_coalesce(&mut args, &row, typ, f.clone());
 
-            let args = vec![null.clone(), null.clone(), float1, float2];
+            let mut args = vec![null.clone(), null.clone(), float1, float2];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f);
+            test_evaluate_coalesce(&mut args, &row, typ, f);
 
             // Decimal
             let typ = FieldType::Decimal;
             let f = Field::Decimal(d_num1.0);
             let row = Record::new(vec![f.clone()]);
 
-            let args = vec![null.clone(), dec1.clone()];
+            let mut args = vec![null.clone(), dec1.clone()];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f.clone());
+            test_evaluate_coalesce(&mut args, &row, typ, f.clone());
 
-            let args = vec![null.clone(), null.clone(), dec1.clone()];
+            let mut args = vec![null.clone(), null.clone(), dec1.clone()];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f.clone());
+            test_evaluate_coalesce(&mut args, &row, typ, f.clone());
 
-            let args = vec![null.clone(), null.clone(), dec1.clone(), null.clone()];
+            let mut args = vec![null.clone(), null.clone(), dec1.clone(), null.clone()];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f.clone());
+            test_evaluate_coalesce(&mut args, &row, typ, f.clone());
 
-            let args = vec![null.clone(), null.clone(), dec1, dec2];
+            let mut args = vec![null.clone(), null.clone(), dec1, dec2];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f);
+            test_evaluate_coalesce(&mut args, &row, typ, f);
 
             // String
             let typ = FieldType::String;
             let f = Field::String(s_val1.clone());
             let row = Record::new(vec![f.clone()]);
 
-            let args = vec![null.clone(), str1.clone()];
+            let mut args = vec![null.clone(), str1.clone()];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f.clone());
+            test_evaluate_coalesce(&mut args, &row, typ, f.clone());
 
-            let args = vec![null.clone(), null.clone(), str1.clone()];
+            let mut args = vec![null.clone(), null.clone(), str1.clone()];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f.clone());
+            test_evaluate_coalesce(&mut args, &row, typ, f.clone());
 
-            let args = vec![null.clone(), null.clone(), str1.clone(), null.clone()];
+            let mut args = vec![null.clone(), null.clone(), str1.clone(), null.clone()];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f.clone());
+            test_evaluate_coalesce(&mut args, &row, typ, f.clone());
 
-            let args = vec![null.clone(), null.clone(), str1.clone(), str2.clone()];
+            let mut args = vec![null.clone(), null.clone(), str1.clone(), str2.clone()];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f);
+            test_evaluate_coalesce(&mut args, &row, typ, f);
 
             // String
             let typ = FieldType::String;
             let f = Field::String(s_val1);
             let row = Record::new(vec![f.clone()]);
 
-            let args = vec![null.clone(), str1.clone()];
+            let mut args = vec![null.clone(), str1.clone()];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f.clone());
+            test_evaluate_coalesce(&mut args, &row, typ, f.clone());
 
-            let args = vec![null.clone(), null.clone(), str1.clone()];
+            let mut args = vec![null.clone(), null.clone(), str1.clone()];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f.clone());
+            test_evaluate_coalesce(&mut args, &row, typ, f.clone());
 
-            let args = vec![null.clone(), null.clone(), str1.clone(), null.clone()];
+            let mut args = vec![null.clone(), null.clone(), str1.clone(), null.clone()];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f.clone());
+            test_evaluate_coalesce(&mut args, &row, typ, f.clone());
 
-            let args = vec![null.clone(), null.clone(), str1, str2];
+            let mut args = vec![null.clone(), null.clone(), str1, str2];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f);
+            test_evaluate_coalesce(&mut args, &row, typ, f);
 
             // Timestamp
             let typ = FieldType::Timestamp;
             let f = Field::Timestamp(dt_val1.0);
             let row = Record::new(vec![f.clone()]);
 
-            let args = vec![null.clone(), t1.clone()];
+            let mut args = vec![null.clone(), t1.clone()];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f.clone());
+            test_evaluate_coalesce(&mut args, &row, typ, f.clone());
 
-            let args = vec![null.clone(), null.clone(), t1.clone()];
+            let mut args = vec![null.clone(), null.clone(), t1.clone()];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f.clone());
+            test_evaluate_coalesce(&mut args, &row, typ, f.clone());
 
-            let args = vec![null.clone(), null.clone(), t1.clone(), null.clone()];
+            let mut args = vec![null.clone(), null.clone(), t1.clone(), null.clone()];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f.clone());
+            test_evaluate_coalesce(&mut args, &row, typ, f.clone());
 
-            let args = vec![null.clone(), null.clone(), t1, t2];
+            let mut args = vec![null.clone(), null.clone(), t1, t2];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f);
+            test_evaluate_coalesce(&mut args, &row, typ, f);
 
             // Date
             let typ = FieldType::Date;
             let f = Field::Date(dt_val1.0.date_naive());
             let row = Record::new(vec![f.clone()]);
 
-            let args = vec![null.clone(), dt1.clone()];
+            let mut args = vec![null.clone(), dt1.clone()];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f.clone());
+            test_evaluate_coalesce(&mut args, &row, typ, f.clone());
 
-            let args = vec![null.clone(), null.clone(), dt1.clone()];
+            let mut args = vec![null.clone(), null.clone(), dt1.clone()];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f.clone());
+            test_evaluate_coalesce(&mut args, &row, typ, f.clone());
 
-            let args = vec![null.clone(), null.clone(), dt1.clone(), null.clone()];
+            let mut args = vec![null.clone(), null.clone(), dt1.clone(), null.clone()];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f.clone());
+            test_evaluate_coalesce(&mut args, &row, typ, f.clone());
 
-            let args = vec![null.clone(), null.clone(), dt1, dt2];
+            let mut args = vec![null.clone(), null.clone(), dt1, dt2];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f);
+            test_evaluate_coalesce(&mut args, &row, typ, f);
 
             // Null
             let typ = FieldType::Date;
             let f = Field::Null;
             let row = Record::new(vec![f.clone()]);
 
-            let args = vec![null.clone()];
+            let mut args = vec![null.clone()];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f.clone());
+            test_evaluate_coalesce(&mut args, &row, typ, f.clone());
 
-            let args = vec![null.clone(), null];
+            let mut args = vec![null.clone(), null];
             test_validate_coalesce(&args, typ);
-            test_evaluate_coalesce(&args, &row, typ, f);
+            test_evaluate_coalesce(&mut args, &row, typ, f);
         });
     }
 
@@ -320,7 +320,12 @@ mod tests {
         assert_eq!(result, typ);
     }
 
-    fn test_evaluate_coalesce(args: &[Expression], row: &Record, typ: FieldType, _result: Field) {
+    fn test_evaluate_coalesce(
+        args: &mut [Expression],
+        row: &Record,
+        typ: FieldType,
+        _result: Field,
+    ) {
         let schema = Schema::default()
             .field(
                 FieldDefinition::new(String::from("field"), typ, false, SourceDefinition::Dynamic),

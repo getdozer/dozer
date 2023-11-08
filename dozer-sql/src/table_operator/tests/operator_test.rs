@@ -43,7 +43,7 @@ fn test_lifetime() {
     ]);
     let record = record_store.create_record(&record).unwrap();
 
-    let table_operator = LifetimeTableOperator::new(
+    let mut table_operator = LifetimeTableOperator::new(
         None,
         Expression::Column { index: 1 },
         // Expression::new(

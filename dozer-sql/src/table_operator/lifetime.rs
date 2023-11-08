@@ -33,13 +33,13 @@ impl TableOperator for LifetimeTableOperator {
     }
 
     fn execute(
-        &self,
+        &mut self,
         record_store: &ProcessorRecordStore,
         record: &ProcessorRecord,
         schema: &Schema,
     ) -> Result<Vec<ProcessorRecord>, TableOperatorError> {
         let mut ttl_records = vec![];
-        if let Some(operator) = &self.operator {
+        if let Some(operator) = &mut self.operator {
             let operator_records = operator.execute(record_store, record, schema)?;
 
             let schema = operator.get_output_schema(schema)?;

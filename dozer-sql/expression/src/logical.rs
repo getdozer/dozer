@@ -6,8 +6,8 @@ use crate::execution::Expression;
 
 pub fn evaluate_and(
     schema: &Schema,
-    left: &Expression,
-    right: &Expression,
+    left: &mut Expression,
+    right: &mut Expression,
     record: &Record,
 ) -> Result<Field, Error> {
     let l_field = left.evaluate(record, schema)?;
@@ -71,8 +71,8 @@ pub fn evaluate_and(
 
 pub fn evaluate_or(
     schema: &Schema,
-    left: &Expression,
-    right: &Expression,
+    left: &mut Expression,
+    right: &mut Expression,
     record: &Record,
 ) -> Result<Field, Error> {
     let l_field = left.evaluate(record, schema)?;
@@ -133,7 +133,11 @@ pub fn evaluate_or(
     }
 }
 
-pub fn evaluate_not(schema: &Schema, value: &Expression, record: &Record) -> Result<Field, Error> {
+pub fn evaluate_not(
+    schema: &Schema,
+    value: &mut Expression,
+    record: &Record,
+) -> Result<Field, Error> {
     let value_p = value.evaluate(record, schema)?;
 
     match value_p {
@@ -213,10 +217,10 @@ mod tests {
 
     fn _test_bool_bool_and(bool1: bool, bool2: bool) {
         let row = Record::new(vec![]);
-        let l = Box::new(Literal(Field::Boolean(bool1)));
-        let r = Box::new(Literal(Field::Boolean(bool2)));
+        let mut l = Box::new(Literal(Field::Boolean(bool1)));
+        let mut r = Box::new(Literal(Field::Boolean(bool2)));
         assert!(matches!(
-            evaluate_and(&Schema::default(), &l, &r, &row)
+            evaluate_and(&Schema::default(), &mut l, &mut r, &row)
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
             Field::Boolean(_ans)
         ));
@@ -224,10 +228,10 @@ mod tests {
 
     fn _test_bool_null_and(f1: Field, f2: Field) {
         let row = Record::new(vec![]);
-        let l = Box::new(Literal(f1));
-        let r = Box::new(Literal(f2));
+        let mut l = Box::new(Literal(f1));
+        let mut r = Box::new(Literal(f2));
         assert!(matches!(
-            evaluate_and(&Schema::default(), &l, &r, &row)
+            evaluate_and(&Schema::default(), &mut l, &mut r, &row)
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
             Field::Boolean(false)
         ));
@@ -235,10 +239,10 @@ mod tests {
 
     fn _test_bool_bool_or(bool1: bool, bool2: bool) {
         let row = Record::new(vec![]);
-        let l = Box::new(Literal(Field::Boolean(bool1)));
-        let r = Box::new(Literal(Field::Boolean(bool2)));
+        let mut l = Box::new(Literal(Field::Boolean(bool1)));
+        let mut r = Box::new(Literal(Field::Boolean(bool2)));
         assert!(matches!(
-            evaluate_or(&Schema::default(), &l, &r, &row)
+            evaluate_or(&Schema::default(), &mut l, &mut r, &row)
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
             Field::Boolean(_ans)
         ));
@@ -246,10 +250,10 @@ mod tests {
 
     fn _test_bool_null_or(_bool: bool) {
         let row = Record::new(vec![]);
-        let l = Box::new(Literal(Field::Boolean(_bool)));
-        let r = Box::new(Literal(Field::Null));
+        let mut l = Box::new(Literal(Field::Boolean(_bool)));
+        let mut r = Box::new(Literal(Field::Null));
         assert!(matches!(
-            evaluate_or(&Schema::default(), &l, &r, &row)
+            evaluate_or(&Schema::default(), &mut l, &mut r, &row)
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
             Field::Boolean(_bool)
         ));
@@ -257,10 +261,10 @@ mod tests {
 
     fn _test_null_bool_or(_bool: bool) {
         let row = Record::new(vec![]);
-        let l = Box::new(Literal(Field::Null));
-        let r = Box::new(Literal(Field::Boolean(_bool)));
+        let mut l = Box::new(Literal(Field::Null));
+        let mut r = Box::new(Literal(Field::Boolean(_bool)));
         assert!(matches!(
-            evaluate_or(&Schema::default(), &l, &r, &row)
+            evaluate_or(&Schema::default(), &mut l, &mut r, &row)
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
             Field::Boolean(_bool)
         ));
@@ -268,9 +272,9 @@ mod tests {
 
     fn _test_bool_not(bool: bool) {
         let row = Record::new(vec![]);
-        let v = Box::new(Literal(Field::Boolean(bool)));
+        let mut v = Box::new(Literal(Field::Boolean(bool)));
         assert!(matches!(
-            evaluate_not(&Schema::default(), &v, &row)
+            evaluate_not(&Schema::default(), &mut v, &row)
                 .unwrap_or_else(|e| panic!("{}", e.to_string())),
             Field::Boolean(_ans)
         ));
@@ -278,15 +282,15 @@ mod tests {
 
     fn _test_bool_non_bool_and(f1: Field, f2: Field) {
         let row = Record::new(vec![]);
-        let l = Box::new(Literal(f1));
-        let r = Box::new(Literal(f2));
-        assert!(evaluate_and(&Schema::default(), &l, &r, &row).is_err());
+        let mut l = Box::new(Literal(f1));
+        let mut r = Box::new(Literal(f2));
+        assert!(evaluate_and(&Schema::default(), &mut l, &mut r, &row).is_err());
     }
 
     fn _test_bool_non_bool_or(f1: Field, f2: Field) {
         let row = Record::new(vec![]);
-        let l = Box::new(Literal(f1));
-        let r = Box::new(Literal(f2));
-        assert!(evaluate_or(&Schema::default(), &l, &r, &row).is_err());
+        let mut l = Box::new(Literal(f1));
+        let mut r = Box::new(Literal(f2));
+        assert!(evaluate_or(&Schema::default(), &mut l, &mut r, &row).is_err());
     }
 }

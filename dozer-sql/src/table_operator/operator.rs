@@ -9,7 +9,7 @@ use crate::errors::TableOperatorError;
 pub trait TableOperator: Send + Sync {
     fn get_name(&self) -> String;
     fn execute(
-        &self,
+        &mut self,
         record_store: &ProcessorRecordStore,
         record: &ProcessorRecord,
         schema: &Schema,

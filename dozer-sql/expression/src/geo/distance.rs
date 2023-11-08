@@ -68,7 +68,7 @@ pub(crate) fn validate_distance(
 
 pub(crate) fn evaluate_distance(
     schema: &Schema,
-    args: &[Expression],
+    args: &mut [Expression],
     record: &Record,
 ) -> Result<Field, Error> {
     validate_num_arguments(2..4, args.len(), GeoFunctionType::Distance)?;
@@ -81,7 +81,7 @@ pub(crate) fn evaluate_distance(
     } else {
         let from = extract_point(f_from, GeoFunctionType::Distance, 0)?;
         let to = extract_point(f_to, GeoFunctionType::Distance, 1)?;
-        let calculation_type = args.get(2).map_or_else(
+        let calculation_type = args.get_mut(2).map_or_else(
             || Ok(DEFAULT_ALGORITHM),
             |arg| {
                 let f = arg.evaluate(record, schema)?;
@@ -144,7 +144,7 @@ mod tests {
         row: &Record,
         result: Option<Result<Field, Error>>,
     ) {
-        let args = &vec![Literal(from.clone()), Literal(to.clone())];
+        let args = &mut [Literal(from.clone()), Literal(to.clone())];
         if validate_distance(args, &Schema::default()).is_ok() {
             match result {
                 None => {
