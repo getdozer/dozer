@@ -181,9 +181,8 @@ impl NestedDozerConnector {
         Ok(response.into_inner())
     }
 
-    fn get_log_options(endpoint: String, value: NestedDozerLogOptions) -> LogReaderOptions {
+    fn get_log_options(value: NestedDozerLogOptions) -> LogReaderOptions {
         LogReaderOptions {
-            endpoint,
             batch_size: value.batch_size.unwrap_or_else(default_log_batch_size),
             timeout_in_millis: value.timeout_in_millis.unwrap_or_else(default_timeout),
             buffer_size: value.buffer_size.unwrap_or_else(default_buffer_size),
@@ -194,10 +193,11 @@ impl NestedDozerConnector {
         &self,
         endpoint: String,
     ) -> Result<LogReaderBuilder, NestedDozerConnectorError> {
-        let log_options = Self::get_log_options(endpoint, self.config.log_options.clone());
-        let log_reader_builder = LogReaderBuilder::new(self.config.url.clone(), log_options)
-            .await
-            .map_err(NestedDozerConnectorError::ReaderBuilderError)?;
+        let log_options = Self::get_log_options(self.config.log_options.clone());
+        let log_reader_builder =
+            LogReaderBuilder::new(self.config.url.clone(), endpoint, log_options)
+                .await
+                .map_err(NestedDozerConnectorError::ReaderBuilderError)?;
         Ok(log_reader_builder)
     }
 }

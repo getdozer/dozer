@@ -24,16 +24,14 @@ use tokio_stream::StreamExt;
 
 #[derive(Debug, Clone)]
 pub struct LogReaderOptions {
-    pub endpoint: String,
     pub batch_size: u32,
     pub timeout_in_millis: u32,
     pub buffer_size: u32,
 }
 
-impl LogReaderOptions {
-    pub fn new(endpoint: String) -> Self {
+impl Default for LogReaderOptions {
+    fn default() -> Self {
         Self {
-            endpoint,
             batch_size: default_log_reader_batch_size(),
             timeout_in_millis: default_log_reader_timeout_in_millis(),
             buffer_size: default_log_reader_buffer_size(),
@@ -60,18 +58,11 @@ pub struct LogReader {
 impl LogReaderBuilder {
     pub async fn new(
         server_addr: String,
+        endpoint: String,
         options: LogReaderOptions,
     ) -> Result<Self, ReaderBuilderError> {
         let mut client = InternalPipelineServiceClient::connect(server_addr).await?;
-        let build = client
-            .describe_build(BuildRequest {
-                endpoint: options.endpoint.clone(),
-            })
-            .await?
-            .into_inner();
-        let schema = serde_json::from_str(&build.schema_string)?;
-
-        let client = LogClient::new(&mut client, options.endpoint.clone()).await?;
+        let (client, schema) = LogClient::new(&mut client, endpoint).await?;
 
         Ok(Self {
             schema,
@@ -135,6 +126,7 @@ impl LogReader {
 pub struct LogClient {
     request_sender: Sender<LogRequest>,
     response_stream: Streaming<LogResponse>,
+    endpoint: String,
     storage: Box<dyn Storage>,
 }
 
@@ -142,11 +134,21 @@ impl LogClient {
     pub async fn new(
         client: &mut InternalPipelineServiceClient<Channel>,
         endpoint: String,
-    ) -> Result<Self, ReaderBuilderError> {
+    ) -> Result<(Self, EndpointSchema), ReaderBuilderError> {
+        let build = client
+            .describe_build(BuildRequest {
+                endpoint: endpoint.clone(),
+            })
+            .await?
+            .into_inner();
+        let schema = serde_json::from_str(&build.schema_string)?;
+
         let (request_sender, response_stream) = create_get_log_stream(client).await?;
 
         let storage = client
-            .describe_storage(StorageRequest { endpoint })
+            .describe_storage(StorageRequest {
+                endpoint: endpoint.clone(),
+            })
             .await?
             .into_inner();
         let storage: Box<dyn Storage> = match storage.storage.expect("Must not be None") {
@@ -158,11 +160,15 @@ impl LogClient {
             }
         };
 
-        Ok(Self {
-            request_sender,
-            response_stream,
-            storage,
-        })
+        Ok((
+            Self {
+                request_sender,
+                response_stream,
+                endpoint,
+                storage,
+            },
+            schema,
+        ))
     }
 
     async fn get_log(&mut self, request: LogRequest) -> Result<Vec<LogOperation>, ReaderError> {
@@ -255,7 +261,7 @@ async fn log_reader_worker_loop(
     loop {
         // Request ops.
         let request = LogRequest {
-            endpoint: options.endpoint.clone(),
+            endpoint: log_client.endpoint.clone(),
             start: pos,
             end: pos + options.batch_size as u64,
             timeout_in_millis: options.timeout_in_millis,

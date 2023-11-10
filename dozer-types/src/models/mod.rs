@@ -8,6 +8,7 @@ pub mod connection;
 pub mod flags;
 pub mod ingestion_types;
 mod json_schema_helper;
+pub mod lambda_config;
 pub mod source;
 pub mod telemetry;
 pub mod udf_config;

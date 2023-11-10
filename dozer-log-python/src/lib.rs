@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use dozer_log::{
-    reader::{LogReader as DozerLogReader, LogReaderBuilder, LogReaderOptions},
+    reader::{LogReader as DozerLogReader, LogReaderBuilder},
     tokio::sync::Mutex,
 };
 use dozer_types::pyo3::{exceptions::PyException, prelude::*};
@@ -20,7 +20,7 @@ impl LogReader {
     fn new(py: Python, server_addr: String, endpoint_name: String) -> PyResult<&PyAny> {
         pyo3_asyncio::tokio::future_into_py(py, async move {
             let reader_result =
-                LogReaderBuilder::new(server_addr, LogReaderOptions::new(endpoint_name)).await;
+                LogReaderBuilder::new(server_addr, endpoint_name, Default::default()).await;
             let reader = reader_result
                 .map_err(|e| PyException::new_err(e.to_string()))?
                 .build(0);

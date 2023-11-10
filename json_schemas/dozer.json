@@ -81,6 +81,13 @@
         "null"
       ]
     },
+    "lambdas": {
+      "description": "Lambda functions.",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/LambdaConfig"
+      }
+    },
     "sources": {
       "description": "sources to ingest data related to particular connection",
       "type": "array",
@@ -1066,6 +1073,22 @@
         }
       }
     },
+    "JavaScriptLambda": {
+      "type": "object",
+      "required": [
+        "endpoint",
+        "module"
+      ],
+      "properties": {
+        "endpoint": {
+          "type": "string"
+        },
+        "module": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
     "KafkaConfig": {
       "examples": [
         {
@@ -1088,6 +1111,22 @@
           ]
         }
       }
+    },
+    "LambdaConfig": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "JavaScript"
+          ],
+          "properties": {
+            "JavaScript": {
+              "$ref": "#/definitions/JavaScriptLambda"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
     },
     "LocalDetails": {
       "type": "object",

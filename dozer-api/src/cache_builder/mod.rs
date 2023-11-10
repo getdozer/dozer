@@ -33,6 +33,7 @@ const READ_LOG_RETRY_INTERVAL: Duration = Duration::from_secs(1);
 #[derive(Debug)]
 pub struct CacheBuilder {
     client: InternalPipelineServiceClient<Channel>,
+    endpoint: String,
     cache_manager: Arc<dyn RwCacheManager>,
     serving: Arc<ArcSwap<CacheReader>>,
     labels: Labels,
@@ -80,6 +81,7 @@ impl CacheBuilder {
         Ok((
             Self {
                 client,
+                endpoint: endpoint.name.clone(),
                 cache_manager,
                 serving: Arc::new(ArcSwap::from_pointee(serving)),
                 labels: labels.labels().clone(),
@@ -104,7 +106,7 @@ impl CacheBuilder {
         loop {
             // Connect to the endpoint's log.
             let Some(connect_result) = runtime.block_on(with_cancel(
-                connect_until_success(&mut self.client, &self.log_reader_options.endpoint),
+                connect_until_success(&mut self.client, &self.endpoint),
                 cancel,
             )) else {
                 return Ok(());
@@ -280,7 +282,6 @@ fn check_cache_schema(cache: &dyn RoCache, given: SchemaWithIndex) -> Result<(),
 
 fn get_log_reader_options(endpoint: &ApiEndpoint) -> LogReaderOptions {
     LogReaderOptions {
-        endpoint: endpoint.name.clone(),
         batch_size: endpoint
             .log_reader_options
             .batch_size
