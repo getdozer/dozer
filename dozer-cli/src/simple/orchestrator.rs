@@ -251,13 +251,9 @@ impl SimpleOrchestrator {
 
         let labels = self.labels.clone();
         let runtime_clone = self.runtime.clone();
+        let running = shutdown.get_running_flag();
         let pipeline_future = self.runtime.spawn_blocking(move || {
-            run_dag_executor(
-                &runtime_clone,
-                dag_executor,
-                shutdown.get_running_flag(),
-                labels,
-            )
+            run_dag_executor(&runtime_clone, dag_executor, running, labels)
         });
 
         let mut futures = FuturesUnordered::new();
@@ -267,6 +263,8 @@ impl SimpleOrchestrator {
                 .boxed(),
         );
         futures.push(flatten_join_handle(pipeline_future).boxed());
+        let dozer_lambda = self.clone();
+        futures.push(async move { dozer_lambda.run_lambda(shutdown).await }.boxed());
 
         self.runtime.block_on(async move {
             while let Some(result) = futures.next().await {
@@ -276,19 +274,16 @@ impl SimpleOrchestrator {
         })
     }
 
-    pub fn run_lambda(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError> {
-        let runtime = self.runtime.clone();
+    pub async fn run_lambda(&self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError> {
         let result = self.run_lambda_impl();
         let shutdown = shutdown.create_shutdown_future();
-        runtime.block_on(async move {
-            select! {
-                () = shutdown => Ok(()),
-                result = result => result,
-            }
-        })
+        select! {
+            () = shutdown => Ok(()),
+            result = result => result,
+        }
     }
 
-    async fn run_lambda_impl(&mut self) -> Result<(), OrchestrationError> {
+    async fn run_lambda_impl(&self) -> Result<(), OrchestrationError> {
         let lambda_modules = self
             .config
             .lambdas

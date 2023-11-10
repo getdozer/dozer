@@ -180,7 +180,7 @@ fn run() -> Result<(), OrchestrationError> {
             }
             Some(RunCommands::Lambda) => {
                 render_logo();
-                dozer.run_lambda(shutdown_receiver)
+                dozer.runtime.block_on(dozer.run_lambda(shutdown_receiver))
             }
             None => {
                 render_logo();
