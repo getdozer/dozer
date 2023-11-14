@@ -68,7 +68,7 @@ fn get_min_value(
         let val = calculate_err!(field_map.keys().min(), MinValue).clone();
 
         match return_map.get(&val) {
-            Some(v) => match v.get(0) {
+            Some(v) => match v.first() {
                 Some(v) => {
                     let value = v.clone();
                     Ok(value)

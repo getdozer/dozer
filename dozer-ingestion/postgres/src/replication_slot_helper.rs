@@ -57,7 +57,7 @@ impl ReplicationSlotHelper {
             .map_err(PostgresConnectorError::FetchReplicationSlotError)?;
 
         Ok(matches!(
-            slot_query_row.get(0),
+            slot_query_row.first(),
             Some(SimpleQueryMessage::Row(_))
         ))
     }
@@ -75,7 +75,7 @@ impl ReplicationSlotHelper {
             .await
             .map_err(PostgresConnectorError::FetchReplicationSlotError)?;
 
-        let column_index = if let Some(SimpleQueryMessage::Row(row)) = slots.get(0) {
+        let column_index = if let Some(SimpleQueryMessage::Row(row)) = slots.first() {
             row.columns().iter().position(|c| c.name() == "slot_name")
         } else {
             None

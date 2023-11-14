@@ -446,7 +446,7 @@ impl Expression {
                 results,
                 else_result: _,
             } => {
-                let typ = results.get(0).unwrap().get_type(schema)?;
+                let typ = results.first().unwrap().get_type(schema)?;
                 Ok(ExpressionType::new(
                     typ.return_type,
                     true,

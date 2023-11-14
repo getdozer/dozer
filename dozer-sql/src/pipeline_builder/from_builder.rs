@@ -161,7 +161,7 @@ pub fn insert_table_operator_processor_to_pipeline(
             query_context.udfs.to_owned(),
         );
 
-        if let Some(table) = operator.args.get(0) {
+        if let Some(table) = operator.args.first() {
             let source_name = match table {
                 TableOperatorArg::Argument(argument) => get_source_name(&operator.name, argument)?,
                 TableOperatorArg::Descriptor(descriptor) => {
@@ -221,7 +221,7 @@ pub fn insert_table_operator_processor_to_pipeline(
         }
         let processor = WindowProcessorFactory::new(processor_name.clone(), operator.clone());
 
-        if let Some(table) = operator.args.get(0) {
+        if let Some(table) = operator.args.first() {
             let source_name = match table {
                 TableOperatorArg::Argument(argument) => get_source_name(&operator.name, argument)?,
                 TableOperatorArg::Descriptor(descriptor) => {

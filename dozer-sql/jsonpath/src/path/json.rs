@@ -5,7 +5,7 @@ use regex::Regex;
 /// The method expects to get a number on the right side and array or string or object on the left
 /// where the number of characters, elements or fields will be compared respectively.
 pub fn size(left: Vec<&JsonValue>, right: Vec<&JsonValue>) -> bool {
-    let Some(n) = right.get(0).and_then(|v| v.to_usize()) else {
+    let Some(n) = right.first().and_then(|v| v.to_usize()) else {
         return false;
     };
     left.iter().all(|el| match el.destructure_ref() {
@@ -26,7 +26,7 @@ pub fn sub_set_of(left: Vec<&JsonValue>, right: Vec<&JsonValue>) -> bool {
     }
 
     if let Some(elems) = left.first().and_then(|e| (*e).as_array()) {
-        if let Some(right_elems) = right.get(0).and_then(|v| v.as_array()) {
+        if let Some(right_elems) = right.first().and_then(|v| v.as_array()) {
             if right_elems.is_empty() {
                 return false;
             }
@@ -58,7 +58,7 @@ pub fn any_of(left: Vec<&JsonValue>, right: Vec<&JsonValue>) -> bool {
         return false;
     }
 
-    let Some(elems) = right.get(0).and_then(|v| v.as_array()) else {
+    let Some(elems) = right.first().and_then(|v| v.as_array()) else {
         return false;
     };
     if elems.is_empty() {
@@ -91,7 +91,7 @@ pub fn regex(left: Vec<&JsonValue>, right: Vec<&JsonValue>) -> bool {
         return false;
     }
 
-    let Some(str) = right.get(0).and_then(|v| v.as_string()) else {
+    let Some(str) = right.first().and_then(|v| v.as_string()) else {
         return false;
     };
     if let Ok(regex) = Regex::new(str) {
@@ -112,7 +112,7 @@ pub fn inside(left: Vec<&JsonValue>, right: Vec<&JsonValue>) -> bool {
         return false;
     }
 
-    let Some(first) = right.get(0) else {
+    let Some(first) = right.first() else {
         return false;
     };
     if let Some(elems) = first.as_array() {
@@ -136,8 +136,8 @@ pub fn inside(left: Vec<&JsonValue>, right: Vec<&JsonValue>) -> bool {
 /// ensure the number on the left side is less the number on the right side
 pub fn less(left: Vec<&JsonValue>, right: Vec<&JsonValue>) -> bool {
     if left.len() == 1 && right.len() == 1 {
-        let left_no = left.get(0).and_then(|v| v.as_number());
-        let right_no = right.get(0).and_then(|v| v.as_number());
+        let left_no = left.first().and_then(|v| v.as_number());
+        let right_no = right.first().and_then(|v| v.as_number());
         match (left_no, right_no) {
             (Some(l), Some(r)) => l < r,
             _ => false,

@@ -66,7 +66,7 @@ fn test_lifetime() {
         .execute(&record_store, &record, &schema)
         .unwrap();
     assert_eq!(result.len(), 1);
-    let lifetime_record = result.get(0).unwrap();
+    let lifetime_record = result.first().unwrap();
 
     let mut expected_record = record.clone();
 

@@ -277,8 +277,7 @@ pub fn get_aggregator_type_from_aggregation_expression(
             fun: AggregateFunctionType::Sum,
             args,
         } => Ok((
-            vec![args
-                .get(0)
+            vec![args.first()
                 .ok_or_else(|| {
                     PipelineError::NotEnoughArguments(AggregateFunctionType::Sum.to_string())
                 })?
@@ -289,8 +288,7 @@ pub fn get_aggregator_type_from_aggregation_expression(
             fun: AggregateFunctionType::Min,
             args,
         } => Ok((
-            vec![args
-                .get(0)
+            vec![args.first()
                 .ok_or_else(|| {
                     PipelineError::NotEnoughArguments(AggregateFunctionType::Min.to_string())
                 })?
@@ -301,8 +299,7 @@ pub fn get_aggregator_type_from_aggregation_expression(
             fun: AggregateFunctionType::MinAppendOnly,
             args,
         } => Ok((
-            vec![args
-                .get(0)
+            vec![args.first()
                 .ok_or_else(|| {
                     PipelineError::NotEnoughArguments(
                         AggregateFunctionType::MinAppendOnly.to_string(),
@@ -315,8 +312,7 @@ pub fn get_aggregator_type_from_aggregation_expression(
             fun: AggregateFunctionType::Max,
             args,
         } => Ok((
-            vec![args
-                .get(0)
+            vec![args.first()
                 .ok_or_else(|| {
                     PipelineError::NotEnoughArguments(AggregateFunctionType::Max.to_string())
                 })?
@@ -327,8 +323,7 @@ pub fn get_aggregator_type_from_aggregation_expression(
             fun: AggregateFunctionType::MaxAppendOnly,
             args,
         } => Ok((
-            vec![args
-                .get(0)
+            vec![args.first()
                 .ok_or_else(|| {
                     PipelineError::NotEnoughArguments(
                         AggregateFunctionType::MaxAppendOnly.to_string(),
@@ -342,7 +337,7 @@ pub fn get_aggregator_type_from_aggregation_expression(
             args,
         } => Ok((
             vec![
-                args.get(0)
+                args.first()
                     .ok_or_else(|| {
                         PipelineError::NotEnoughArguments(
                             AggregateFunctionType::MaxValue.to_string(),
@@ -364,7 +359,7 @@ pub fn get_aggregator_type_from_aggregation_expression(
             args,
         } => Ok((
             vec![
-                args.get(0)
+                args.first()
                     .ok_or_else(|| {
                         PipelineError::NotEnoughArguments(
                             AggregateFunctionType::MinValue.to_string(),
@@ -385,8 +380,7 @@ pub fn get_aggregator_type_from_aggregation_expression(
             fun: AggregateFunctionType::Avg,
             args,
         } => Ok((
-            vec![args
-                .get(0)
+            vec![args.first()
                 .ok_or_else(|| {
                     PipelineError::NotEnoughArguments(AggregateFunctionType::Avg.to_string())
                 })?
@@ -397,8 +391,7 @@ pub fn get_aggregator_type_from_aggregation_expression(
             fun: AggregateFunctionType::Count,
             args,
         } => Ok((
-            vec![args
-                .get(0)
+            vec![args.first()
                 .ok_or_else(|| {
                     PipelineError::NotEnoughArguments(AggregateFunctionType::Count.to_string())
                 })?
@@ -416,7 +409,7 @@ pub fn update_val_map(
     field_map: &mut BTreeMap<Field, u64>,
     return_map: &mut BTreeMap<Field, Vec<Field>>,
 ) -> Result<(), PipelineError> {
-    let field = match fields.get(0) {
+    let field = match fields.first() {
         Some(v) => v,
         None => {
             return Err(InvalidFunctionArgument(
