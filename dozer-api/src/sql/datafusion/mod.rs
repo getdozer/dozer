@@ -1,3 +1,5 @@
+mod predicate_pushdown;
+
 use std::{any::Any, sync::Arc};
 
 use async_trait::async_trait;
@@ -29,7 +31,7 @@ use futures_util::StreamExt;
 use crate::api_helper::get_records;
 use crate::CacheEndpoint;
 
-use super::predicate_pushdown::{predicate_pushdown, supports_predicates_pushdown};
+use predicate_pushdown::{predicate_pushdown, supports_predicates_pushdown};
 
 pub struct SQLExecutor {
     ctx: SessionContext,
@@ -210,9 +212,11 @@ impl ExecutionPlan for CacheEndpointExec {
     ) -> Result<SendableRecordBatchStream> {
         let stream = futures_util::stream::iter({
             let cache_reader = &self.cache_endpoint.cache_reader();
-            let mut expr = QueryExpression::default();
-            expr.limit = self.limit;
-            expr.filter = predicate_pushdown(self.filters.iter());
+            let mut expr = QueryExpression {
+                limit: self.limit,
+                filter: predicate_pushdown(self.filters.iter()),
+                ..Default::default()
+            };
             debug!("Using predicate pushdown {:?}", expr.filter);
             let records = get_records(
                 cache_reader,
@@ -262,6 +266,12 @@ fn transpose(
 #[derive(Debug)]
 pub struct PgTypesView {
     schema: SchemaRef,
+}
+
+impl Default for PgTypesView {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl PgTypesView {
@@ -327,7 +337,7 @@ impl TableProvider for PgTypesView {
         _limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         Ok(Arc::new(MemoryExec::try_new(
-            &vec![],
+            &[],
             self.schema.clone(),
             projection.cloned(),
         )?))

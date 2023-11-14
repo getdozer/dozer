@@ -1,12 +1,12 @@
 use dozer_types::serde::{
-    de::{Deserialize, Deserializer, Error, MapAccess, Visitor},
+    de::{self, Deserialize, Deserializer, Error, MapAccess, Visitor},
     ser::{Serialize, SerializeMap, Serializer},
 };
 
 use super::{
     super::expression::{FilterExpression, Skip, SortOption},
     query_helper::{OperatorAndValue, OperatorAndValueBorrow},
-    QueryExpression, SortOptions,
+    QueryExpression, SQLQuery, SortOptions,
 };
 
 impl<'de> Deserialize<'de> for FilterExpression {
@@ -196,6 +196,51 @@ impl Serialize for QueryExpression {
                 state.serialize_entry("$after", &after)?;
             }
         }
+        state.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for SQLQuery {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct SQLQueryVisitor;
+        impl<'de> Visitor<'de> for SQLQueryVisitor {
+            type Value = SQLQuery;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("map containing a single key 'query'")
+            }
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where
+                A: MapAccess<'de>,
+            {
+                let mut query = None;
+                while let Some(key) = map.next_key::<String>()? {
+                    if key.as_str() == "query" {
+                        query = Some(map.next_value()?);
+                        break;
+                    }
+                }
+                if let Some(query) = query {
+                    Ok(SQLQuery(query))
+                } else {
+                    Err(de::Error::missing_field("query"))
+                }
+            }
+        }
+        deserializer.deserialize_map(SQLQueryVisitor)
+    }
+}
+
+impl Serialize for SQLQuery {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_map(Some(1))?;
+        state.serialize_entry("query", &self.0)?;
         state.end()
     }
 }

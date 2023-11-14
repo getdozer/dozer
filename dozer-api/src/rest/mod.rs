@@ -112,6 +112,7 @@ impl ApiServer {
         let mut app = App::new()
             .app_data(web::Data::new(endpoint_paths))
             .app_data(web::Data::new(default_max_num_records))
+            .app_data(web::Data::new(cache_endpoints.clone()))
             .app_data(cfg)
             .wrap(Logger::default())
             .wrap(TracingLogger::default())
@@ -163,6 +164,7 @@ impl ApiServer {
             .route("/health", web::get().to(health_route))
             .route("/", web::get().to(list_endpoint_paths))
             .route("", web::get().to(list_endpoint_paths))
+            .route("/sql", web::post().to(api_generator::sql))
             // Wrap Api Validator
             .wrap(auth_middleware)
             // Wrap CORS around api validator. Required to return the right headers.

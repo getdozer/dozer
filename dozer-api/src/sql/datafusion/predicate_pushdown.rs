@@ -65,8 +65,6 @@ fn supports_predicate_pushdown(expr: &Expr) -> TableProviderFilterPushDown {
                 (Expr::Column(_), Expr::Literal(v)) | (Expr::Literal(v), Expr::Column(_)) if is_suitable_for_pushdown(v))
         }
 
-        Expr::Like(_) => todo!(),
-
         Expr::IsNull(expr) | Expr::IsTrue(expr) | Expr::IsFalse(expr) => {
             matches!(&**expr, Expr::Column(_))
         }
@@ -186,8 +184,6 @@ pub(crate) fn predicate_pushdown<'a>(
             }
             _ => unreachable!(),
         },
-
-        Expr::Like(_) => todo!(),
 
         _ => unreachable!(),
     });
