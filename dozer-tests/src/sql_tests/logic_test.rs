@@ -3,7 +3,9 @@ mod error;
 mod helper;
 mod validator;
 
+use std::future::Ready;
 use std::path::Path;
+use std::sync::Arc;
 
 use arg::SqlLogicTestArgs;
 use clap::Parser;
@@ -23,6 +25,7 @@ use libtest_mimic::Trial;
 use sqllogictest::default_column_validator;
 use sqllogictest::harness;
 use sqllogictest::DefaultColumnType;
+use sqllogictest::MakeConnection;
 use sqllogictest::{default_validator, AsyncDB, DBOutput, Runner};
 use tokio::runtime::Runtime;
 use validator::Validator;
@@ -34,13 +37,15 @@ pub struct Dozer {
     pub source_db: SqlMapper,
     // Key is table name, value is operation(Insert/Update/Delete) for the table.
     pub ops: Vec<(String, Operation)>,
+    runtime: Arc<Runtime>,
 }
 
 impl Dozer {
-    pub fn create(source_db: SqlMapper) -> Self {
+    pub fn create(source_db: SqlMapper, runtime: Arc<Runtime>) -> Self {
         Self {
             source_db,
             ops: vec![],
+            runtime,
         }
     }
 
@@ -50,6 +55,7 @@ impl Dozer {
             sql.to_string(),
             self.source_db.schema_map.clone(),
             self.ops.clone(),
+            self.runtime.clone(),
         );
         pipeline.run().await.map_err(DozerSqlLogicTestError::from)
     }
@@ -107,17 +113,22 @@ impl AsyncDB for Dozer {
     }
 }
 
-async fn create_dozer() -> Result<Dozer> {
-    // create dozer
-    let source_db = SqlMapper::default();
-    let dozer = Dozer::create(source_db);
-    Ok(dozer)
+struct MakeDozer {
+    runtime: Arc<Runtime>,
+}
+
+impl MakeConnection for MakeDozer {
+    type Conn = Dozer;
+    type MakeFuture = Ready<Result<Dozer>>;
+
+    fn make(&mut self) -> Self::MakeFuture {
+        std::future::ready(Ok(Dozer::create(Default::default(), self.runtime.clone())))
+    }
 }
 
 const BASE_PATH: &str = "src/sql_tests";
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     env_logger::init();
 
     let args = SqlLogicTestArgs::parse();
@@ -149,6 +160,7 @@ async fn main() -> Result<()> {
         }
     }
 
+    let runtime = Arc::new(Runtime::new().unwrap());
     let mut tests = vec![];
     for file in files.into_iter() {
         let file_path = file.unwrap().path().to_owned();
@@ -158,23 +170,24 @@ async fn main() -> Result<()> {
             let mut validator_runner = Runner::new(Validator::create);
             let col_separator = " ";
             let validator = default_validator;
-            validator_runner
-                .update_test_file(
+            runtime
+                .block_on(validator_runner.update_test_file(
                     &file_path,
                     col_separator,
                     validator,
                     default_column_validator,
-                )
-                .await
+                ))
                 .unwrap();
         }
 
+        let runtime_clone = runtime.clone();
         tests.push(Trial::test(
             file_path.to_str().unwrap().to_owned(),
             move || {
-                let mut tester = Runner::new(create_dozer);
-                let runtime = Runtime::new().unwrap();
-                runtime.block_on(tester.run_file_async(file_path))?;
+                let mut tester = Runner::new(MakeDozer {
+                    runtime: runtime_clone.clone(),
+                });
+                runtime_clone.block_on(tester.run_file_async(file_path))?;
                 Ok(())
             },
         ));

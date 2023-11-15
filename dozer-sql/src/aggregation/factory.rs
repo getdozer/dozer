@@ -10,8 +10,11 @@ use dozer_sql_expression::sqlparser::ast::Select;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::models::udf_config::UdfConfig;
 use dozer_types::parking_lot::Mutex;
+use dozer_types::tonic::async_trait;
 use dozer_types::types::Schema;
 use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::runtime::Runtime;
 
 #[derive(Debug)]
 pub struct AggregationProcessorFactory {
@@ -20,6 +23,7 @@ pub struct AggregationProcessorFactory {
     _stateful: bool,
     enable_probabilistic_optimizations: bool,
     udfs: Vec<UdfConfig>,
+    runtime: Arc<Runtime>,
 
     /// Type name can only be determined after schema propagation.
     type_name: Mutex<Option<String>>,
@@ -32,6 +36,7 @@ impl AggregationProcessorFactory {
         stateful: bool,
         enable_probabilistic_optimizations: bool,
         udfs: Vec<UdfConfig>,
+        runtime: Arc<Runtime>,
     ) -> Self {
         Self {
             id,
@@ -39,17 +44,20 @@ impl AggregationProcessorFactory {
             _stateful: stateful,
             enable_probabilistic_optimizations,
             udfs,
+            runtime,
             type_name: Mutex::new(None),
         }
     }
 
-    fn get_planner(&self, input_schema: Schema) -> Result<CommonPlanner, PipelineError> {
-        let mut projection_planner = CommonPlanner::new(input_schema, self.udfs.as_slice());
-        projection_planner.plan(self.projection.clone())?;
+    async fn get_planner(&self, input_schema: Schema) -> Result<CommonPlanner, PipelineError> {
+        let mut projection_planner =
+            CommonPlanner::new(input_schema, self.udfs.as_slice(), self.runtime.clone());
+        projection_planner.plan(self.projection.clone()).await?;
         Ok(projection_planner)
     }
 }
 
+#[async_trait]
 impl ProcessorFactory for AggregationProcessorFactory {
     fn type_name(&self) -> String {
         self.type_name
@@ -66,7 +74,7 @@ impl ProcessorFactory for AggregationProcessorFactory {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn get_output_schema(
+    async fn get_output_schema(
         &self,
         _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
@@ -75,7 +83,7 @@ impl ProcessorFactory for AggregationProcessorFactory {
             .get(&DEFAULT_PORT_HANDLE)
             .ok_or(PipelineError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
 
-        let planner = self.get_planner(input_schema.clone())?;
+        let planner = self.get_planner(input_schema.clone()).await?;
 
         *self.type_name.lock() = Some(
             if is_projection(&planner) {
@@ -89,7 +97,7 @@ impl ProcessorFactory for AggregationProcessorFactory {
         Ok(planner.post_projection_schema)
     }
 
-    fn build(
+    async fn build(
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
@@ -100,7 +108,7 @@ impl ProcessorFactory for AggregationProcessorFactory {
             .get(&DEFAULT_PORT_HANDLE)
             .ok_or(PipelineError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
 
-        let planner = self.get_planner(input_schema.clone())?;
+        let planner = self.get_planner(input_schema.clone()).await?;
 
         let processor: Box<dyn Processor> = if is_projection(&planner) {
             Box::new(ProjectionProcessor::new(

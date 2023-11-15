@@ -1,9 +1,12 @@
+use std::sync::Arc;
+
 use crate::errors::PipelineError;
 use dozer_sql_expression::sqlparser::{
     ast::{Query, Select, SetExpr, Statement},
     dialect::DozerDialect,
     parser::Parser,
 };
+use tokio::runtime::Runtime;
 
 pub fn get_select(sql: &str) -> Result<Box<Select>, PipelineError> {
     let dialect = DozerDialect {};
@@ -24,4 +27,13 @@ pub fn get_query_select(query: &Query) -> Box<Select> {
         SetExpr::Query(query) => get_query_select(&query),
         _ => panic!("Only select queries are supported"),
     }
+}
+
+pub fn create_test_runtime() -> Arc<Runtime> {
+    Arc::new(
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap(),
+    )
 }

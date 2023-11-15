@@ -5,17 +5,13 @@ use crate::node::{
 };
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 
+use dozer_log::tokio;
 use dozer_recordstore::ProcessorRecordStoreDeserializer;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
+use dozer_types::tonic::async_trait;
 use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
 use std::collections::HashMap;
-
-macro_rules! chk {
-    ($stmt:expr) => {
-        $stmt.unwrap_or_else(|e| panic!("{}", e.to_string()))
-    };
-}
 
 #[derive(Debug)]
 struct TestUsersSourceFactory {}
@@ -121,8 +117,9 @@ impl SourceFactory for TestCountriesSourceFactory {
 #[derive(Debug)]
 struct TestJoinProcessorFactory {}
 
+#[async_trait]
 impl ProcessorFactory for TestJoinProcessorFactory {
-    fn get_output_schema(
+    async fn get_output_schema(
         &self,
         _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
@@ -144,7 +141,7 @@ impl ProcessorFactory for TestJoinProcessorFactory {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn build(
+    async fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
@@ -183,8 +180,8 @@ impl SinkFactory for TestSinkFactory {
     }
 }
 
-#[test]
-fn test_extract_dag_schemas() {
+#[tokio::test]
+async fn test_extract_dag_schemas() {
     let mut dag = Dag::new();
 
     let users_handle = NodeHandle::new(Some(1), 1.to_string());
@@ -200,20 +197,23 @@ fn test_extract_dag_schemas() {
     let join_index = dag.add_processor(join_handle.clone(), Box::new(TestJoinProcessorFactory {}));
     let sink_index = dag.add_sink(sink_handle.clone(), Box::new(TestSinkFactory {}));
 
-    chk!(dag.connect(
+    dag.connect(
         Endpoint::new(users_handle, DEFAULT_PORT_HANDLE),
         Endpoint::new(join_handle.clone(), 1),
-    ));
-    chk!(dag.connect(
+    )
+    .unwrap();
+    dag.connect(
         Endpoint::new(countries_handle, DEFAULT_PORT_HANDLE),
         Endpoint::new(join_handle.clone(), 2),
-    ));
-    chk!(dag.connect(
+    )
+    .unwrap();
+    dag.connect(
         Endpoint::new(join_handle, DEFAULT_PORT_HANDLE),
         Endpoint::new(sink_handle, DEFAULT_PORT_HANDLE),
-    ));
+    )
+    .unwrap();
 
-    let dag_schemas = chk!(DagSchemas::new(dag));
+    let dag_schemas = DagSchemas::new(dag).await.unwrap();
 
     let users_output = dag_schemas.get_node_output_schemas(users_index);
     assert_eq!(

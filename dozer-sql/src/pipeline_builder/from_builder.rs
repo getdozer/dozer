@@ -159,6 +159,7 @@ pub fn insert_table_operator_processor_to_pipeline(
             processor_name.clone(),
             operator.clone(),
             query_context.udfs.to_owned(),
+            query_context.runtime.clone(),
         );
 
         if let Some(table) = operator.args.get(0) {

@@ -16,6 +16,7 @@ mod mathematical;
 pub mod operator;
 pub mod scalar;
 
+mod javascript;
 #[cfg(feature = "onnx")]
 mod onnx;
 #[cfg(feature = "python")]

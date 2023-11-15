@@ -100,6 +100,9 @@ pub enum Error {
     #[error("ONNX UDF is not enabled")]
     OnnxNotEnabled,
 
+    #[error("JavaScript UDF error: {0}")]
+    JavaScript(#[from] crate::javascript::Error),
+
     // Legacy error types.
     #[error("Sql error: {0}")]
     SqlError(#[source] OperationError),

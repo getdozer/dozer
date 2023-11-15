@@ -13,6 +13,7 @@ use dozer_log::tokio;
 use dozer_recordstore::ProcessorRecordStoreDeserializer;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
+use dozer_types::tonic::async_trait;
 use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
 
 use std::collections::HashMap;
@@ -169,12 +170,13 @@ impl CreateErrProcessorFactory {
     }
 }
 
+#[async_trait]
 impl ProcessorFactory for CreateErrProcessorFactory {
     fn type_name(&self) -> String {
         "CreateErr".to_owned()
     }
 
-    fn get_output_schema(
+    async fn get_output_schema(
         &self,
         _port: &PortHandle,
         _input_schemas: &HashMap<PortHandle, Schema>,
@@ -200,7 +202,7 @@ impl ProcessorFactory for CreateErrProcessorFactory {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn build(
+    async fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,

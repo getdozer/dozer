@@ -28,6 +28,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use crate::builder::statement_to_pipeline;
+use crate::tests::utils::create_test_runtime;
 
 /// Test Source
 #[derive(Debug)]
@@ -190,9 +191,10 @@ impl Sink for TestSink {
     }
 }
 
-#[tokio::test]
-async fn test_pipeline_builder() {
+#[test]
+fn test_pipeline_builder() {
     let mut pipeline = AppPipeline::new_with_default_flags();
+    let runtime = create_test_runtime();
     let context = statement_to_pipeline(
         "SELECT t.Spending  \
         FROM TTL(TUMBLE(users, timestamp, '5 MINUTES'), timestamp, '1 MINUTE') t JOIN users u on t.CustomerID=u.CustomerID \
@@ -200,6 +202,7 @@ async fn test_pipeline_builder() {
         &mut pipeline,
         Some("results".to_string()),
         vec![],
+        runtime.clone()
     )
     .unwrap();
 
@@ -236,15 +239,17 @@ async fn test_pipeline_builder() {
 
     let now = std::time::Instant::now();
 
-    let (_temp_dir, checkpoint) = create_checkpoint_for_test().await;
-    DagExecutor::new(dag, checkpoint, Default::default())
-        .await
-        .unwrap()
-        .start(Arc::new(AtomicBool::new(true)), Default::default())
-        .await
-        .unwrap()
-        .join()
-        .unwrap();
+    runtime.block_on(async move {
+        let (_temp_dir, checkpoint) = create_checkpoint_for_test().await;
+        DagExecutor::new(dag, checkpoint, Default::default())
+            .await
+            .unwrap()
+            .start(Arc::new(AtomicBool::new(true)), Default::default())
+            .await
+            .unwrap()
+            .join()
+            .unwrap();
+    });
 
     let elapsed = now.elapsed();
     debug!("Elapsed: {:.2?}", elapsed);

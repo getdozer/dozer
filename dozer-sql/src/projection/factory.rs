@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use dozer_core::{
     node::{PortHandle, Processor, ProcessorFactory},
@@ -10,11 +10,12 @@ use dozer_sql_expression::{
     execution::Expression,
     sqlparser::ast::{Expr, Ident, SelectItem},
 };
-use dozer_types::models::udf_config::UdfConfig;
 use dozer_types::{
     errors::internal::BoxedError,
     types::{FieldDefinition, Schema},
 };
+use dozer_types::{models::udf_config::UdfConfig, tonic::async_trait};
+use tokio::runtime::Runtime;
 
 use crate::errors::PipelineError;
 
@@ -25,15 +26,27 @@ pub struct ProjectionProcessorFactory {
     select: Vec<SelectItem>,
     id: String,
     udfs: Vec<UdfConfig>,
+    runtime: Arc<Runtime>,
 }
 
 impl ProjectionProcessorFactory {
     /// Creates a new [`ProjectionProcessorFactory`].
-    pub fn _new(id: String, select: Vec<SelectItem>, udfs: Vec<UdfConfig>) -> Self {
-        Self { select, id, udfs }
+    pub fn _new(
+        id: String,
+        select: Vec<SelectItem>,
+        udfs: Vec<UdfConfig>,
+        runtime: Arc<Runtime>,
+    ) -> Self {
+        Self {
+            select,
+            id,
+            udfs,
+            runtime,
+        }
     }
 }
 
+#[async_trait]
 impl ProcessorFactory for ProjectionProcessorFactory {
     fn id(&self) -> String {
         self.id.clone()
@@ -50,7 +63,7 @@ impl ProcessorFactory for ProjectionProcessorFactory {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn get_output_schema(
+    async fn get_output_schema(
         &self,
         _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
@@ -71,13 +84,23 @@ impl ProcessorFactory for ProjectionProcessorFactory {
                         })
                         .collect();
                     for f in fields {
-                        if let Ok(res) = parse_sql_select_item(&f, input_schema, &self.udfs) {
+                        if let Ok(res) = parse_sql_select_item(
+                            &f,
+                            input_schema,
+                            &self.udfs,
+                            self.runtime.clone(),
+                        )
+                        .await
+                        {
                             select_expr.push(res)
                         }
                     }
                 }
                 _ => {
-                    if let Ok(res) = parse_sql_select_item(s, input_schema, &self.udfs) {
+                    if let Ok(res) =
+                        parse_sql_select_item(s, input_schema, &self.udfs, self.runtime.clone())
+                            .await
+                    {
                         select_expr.push(res)
                     }
                 }
@@ -101,7 +124,7 @@ impl ProcessorFactory for ProjectionProcessorFactory {
         Ok(output_schema)
     }
 
-    fn build(
+    async fn build(
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
@@ -113,35 +136,37 @@ impl ProcessorFactory for ProjectionProcessorFactory {
             None => Err(PipelineError::InvalidPortHandle(DEFAULT_PORT_HANDLE)),
         }?;
 
-        match self
-            .select
-            .iter()
-            .map(|item| parse_sql_select_item(item, schema, &self.udfs))
-            .collect::<Result<Vec<(String, Expression)>, PipelineError>>()
-        {
-            Ok(expressions) => Ok(Box::new(ProjectionProcessor::new(
-                schema.clone(),
-                expressions.into_iter().map(|e| e.1).collect(),
-                checkpoint_data,
-            ))),
-            Err(error) => Err(error.into()),
+        let mut expressions = vec![];
+        for select in &self.select {
+            expressions.push(
+                parse_sql_select_item(select, schema, &self.udfs, self.runtime.clone()).await?,
+            );
         }
+        Ok(Box::new(ProjectionProcessor::new(
+            schema.clone(),
+            expressions.into_iter().map(|e| e.1).collect(),
+            checkpoint_data,
+        )))
     }
 }
 
-pub(crate) fn parse_sql_select_item(
+pub(crate) async fn parse_sql_select_item(
     sql: &SelectItem,
     schema: &Schema,
     udfs: &[UdfConfig],
+    runtime: Arc<Runtime>,
 ) -> Result<(String, Expression), PipelineError> {
     match sql {
         SelectItem::UnnamedExpr(sql_expr) => {
-            let expr =
-                ExpressionBuilder::new(0).parse_sql_expression(true, sql_expr, schema, udfs)?;
+            let expr = ExpressionBuilder::new(0, runtime)
+                .parse_sql_expression(true, sql_expr, schema, udfs)
+                .await?;
             Ok((sql_expr.to_string(), expr))
         }
         SelectItem::ExprWithAlias { expr, alias } => {
-            let expr = ExpressionBuilder::new(0).parse_sql_expression(true, expr, schema, udfs)?;
+            let expr = ExpressionBuilder::new(0, runtime)
+                .parse_sql_expression(true, expr, schema, udfs)
+                .await?;
             Ok((alias.value.clone(), expr))
         }
         SelectItem::Wildcard(_) => Err(PipelineError::InvalidOperator("*".to_string())),

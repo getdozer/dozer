@@ -1,6 +1,9 @@
 use std::{collections::HashMap, fmt::Debug};
 
-use daggy::petgraph::visit::{IntoNodeIdentifiers, IntoNodeReferences};
+use daggy::{
+    petgraph::visit::{IntoNodeIdentifiers, IntoNodeReferences},
+    NodeIndex,
+};
 use dozer_types::node::NodeHandle;
 
 use crate::{
@@ -62,8 +65,12 @@ impl BuilderDag {
         }
 
         // Build the nodes.
-        let graph = dag_schemas.into_graph().try_map(
-            |node_index, node| match node.kind {
+        let mut graph = daggy::Dag::new();
+        let (nodes, edges) = dag_schemas.into_graph().into_graph().into_nodes_edges();
+        for (node_index, node) in nodes.into_iter().enumerate() {
+            let node_index = NodeIndex::new(node_index);
+            let node = node.weight;
+            let node = match node.kind {
                 DagNodeKind::Source(source) => {
                     let mut last_checkpoint_by_name = checkpoint.get_source_state(&node.handle)?;
                     let mut last_checkpoint = HashMap::new();
@@ -87,13 +94,13 @@ impl BuilderDag {
                         )
                         .map_err(ExecutionError::Factory)?;
 
-                    Ok::<_, ExecutionError>(NodeType {
+                    NodeType {
                         handle: node.handle,
                         kind: NodeKind::Source {
                             source,
                             last_checkpoint,
                         },
-                    })
+                    }
                 }
                 DagNodeKind::Processor(processor) => {
                     let processor = processor
@@ -109,11 +116,12 @@ impl BuilderDag {
                                 .remove(&node_index)
                                 .expect("we collected all processor checkpoint data"),
                         )
+                        .await
                         .map_err(ExecutionError::Factory)?;
-                    Ok(NodeType {
+                    NodeType {
                         handle: node.handle,
                         kind: NodeKind::Processor(processor),
-                    })
+                    }
                 }
                 DagNodeKind::Sink(sink) => {
                     let sink = sink
@@ -123,14 +131,21 @@ impl BuilderDag {
                                 .expect("we collected all input schemas"),
                         )
                         .map_err(ExecutionError::Factory)?;
-                    Ok(NodeType {
+                    NodeType {
                         handle: node.handle,
                         kind: NodeKind::Sink(sink),
-                    })
+                    }
                 }
-            },
-            |_, edge| Ok(edge),
-        )?;
+            };
+            graph.add_node(node);
+        }
+
+        // Connect the edges.
+        for edge in edges {
+            graph
+                .add_edge(edge.source(), edge.target(), edge.weight)
+                .expect("we know there's no loop");
+        }
 
         Ok(BuilderDag { graph })
     }

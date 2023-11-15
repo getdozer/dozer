@@ -16,6 +16,7 @@ use dozer_log::tokio;
 use dozer_recordstore::{ProcessorRecordStore, ProcessorRecordStoreDeserializer};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
+use dozer_types::tonic::async_trait;
 use dozer_types::types::Schema;
 
 use std::collections::HashMap;
@@ -27,12 +28,13 @@ use std::time::Duration;
 #[derive(Debug)]
 pub(crate) struct NoopProcessorFactory {}
 
+#[async_trait]
 impl ProcessorFactory for NoopProcessorFactory {
     fn type_name(&self) -> String {
         "Noop".to_owned()
     }
 
-    fn get_output_schema(
+    async fn get_output_schema(
         &self,
         _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
@@ -48,7 +50,7 @@ impl ProcessorFactory for NoopProcessorFactory {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn build(
+    async fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
@@ -188,12 +190,13 @@ pub(crate) struct NoopJoinProcessorFactory {}
 pub const NOOP_JOIN_LEFT_INPUT_PORT: u16 = 1;
 pub const NOOP_JOIN_RIGHT_INPUT_PORT: u16 = 2;
 
+#[async_trait]
 impl ProcessorFactory for NoopJoinProcessorFactory {
     fn type_name(&self) -> String {
         "NoopJoin".to_owned()
     }
 
-    fn get_output_schema(
+    async fn get_output_schema(
         &self,
         _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
@@ -209,7 +212,7 @@ impl ProcessorFactory for NoopJoinProcessorFactory {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn build(
+    async fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,

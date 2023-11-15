@@ -25,6 +25,7 @@ use dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_types::types::{Operation, Record, Schema, SourceDefinition};
 use std::collections::HashMap;
 use tempdir::TempDir;
+use tokio::runtime::Runtime;
 
 use std::hash::{Hash, Hasher};
 use std::sync::atomic::AtomicBool;
@@ -277,20 +278,27 @@ impl TestPipeline {
         sql: String,
         schemas: HashMap<String, Schema>,
         ops: Vec<(String, Operation)>,
+        runtime: Arc<Runtime>,
     ) -> Self {
-        Self::build_pipeline(sql, schemas, ops).unwrap()
+        Self::build_pipeline(sql, schemas, ops, runtime).unwrap()
     }
 
     pub fn build_pipeline(
         sql: String,
         schemas: HashMap<String, Schema>,
         ops: Vec<(String, Operation)>,
+        runtime: Arc<Runtime>,
     ) -> Result<TestPipeline, ExecutionError> {
         let mut pipeline = AppPipeline::new_with_default_flags();
 
-        let transform_response =
-            statement_to_pipeline(&sql, &mut pipeline, Some("results".to_string()), vec![])
-                .unwrap();
+        let transform_response = statement_to_pipeline(
+            &sql,
+            &mut pipeline,
+            Some("results".to_string()),
+            vec![],
+            runtime,
+        )
+        .unwrap();
 
         let output_table = transform_response.output_tables_map.get("results").unwrap();
         let (sender, receiver) = crossbeam::channel::bounded::<Option<(String, Operation)>>(1000);

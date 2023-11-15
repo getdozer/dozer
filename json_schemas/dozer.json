@@ -1073,6 +1073,19 @@
         }
       }
     },
+    "JavaScriptConfig2": {
+      "type": "object",
+      "required": [
+        "module"
+      ],
+      "properties": {
+        "module": {
+          "description": "path to the module file",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
     "JavaScriptLambda": {
       "type": "object",
       "required": [
@@ -1876,6 +1889,18 @@
           "properties": {
             "Onnx": {
               "$ref": "#/definitions/OnnxConfig"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "JavaScript"
+          ],
+          "properties": {
+            "JavaScript": {
+              "$ref": "#/definitions/JavaScriptConfig2"
             }
           },
           "additionalProperties": false

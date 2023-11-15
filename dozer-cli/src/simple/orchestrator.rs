@@ -377,7 +377,7 @@ impl SimpleOrchestrator {
             .runtime
             .block_on(builder.build(&self.runtime, shutdown))?;
         // Populate schemas.
-        let dag_schemas = DagSchemas::new(dag)?;
+        let dag_schemas = self.runtime.block_on(DagSchemas::new(dag))?;
 
         // Get current contract.
         let enable_token = self.config.api.api_security.is_some();
@@ -470,12 +470,13 @@ impl SimpleOrchestrator {
     }
 }
 
-pub fn validate_sql(sql: String) -> Result<(), PipelineError> {
+pub fn validate_sql(sql: String, runtime: Arc<Runtime>) -> Result<(), PipelineError> {
     statement_to_pipeline(
         &sql,
         &mut AppPipeline::new_with_default_flags(),
         None,
         vec![],
+        runtime,
     )
     .map_or_else(
         |e| {

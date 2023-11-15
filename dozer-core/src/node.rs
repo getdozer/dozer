@@ -7,6 +7,7 @@ use dozer_log::storage::{Object, Queue};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::OpIdentifier;
 use dozer_types::serde::{Deserialize, Serialize};
+use dozer_types::tonic::async_trait;
 use dozer_types::types::Schema;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
@@ -63,15 +64,16 @@ pub trait Source: Send + Sync + Debug {
     ) -> Result<(), BoxedError>;
 }
 
+#[async_trait]
 pub trait ProcessorFactory: Send + Sync + Debug {
-    fn get_output_schema(
+    async fn get_output_schema(
         &self,
         output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
     ) -> Result<Schema, BoxedError>;
     fn get_input_ports(&self) -> Vec<PortHandle>;
     fn get_output_ports(&self) -> Vec<PortHandle>;
-    fn build(
+    async fn build(
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
         output_schemas: HashMap<PortHandle, Schema>,

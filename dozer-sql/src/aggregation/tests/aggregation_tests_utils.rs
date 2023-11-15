@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use crate::aggregation::processor::AggregationProcessor;
 use crate::errors::PipelineError;
 use crate::planner::projection::CommonPlanner;
-use crate::tests::utils::get_select;
+use crate::tests::utils::{create_test_runtime, get_select};
 use dozer_types::arrow::datatypes::ArrowNativeTypeOp;
 use dozer_types::chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use dozer_types::ordered_float::OrderedFloat;
@@ -23,10 +23,13 @@ pub(crate) fn init_processor(
         .get(&DEFAULT_PORT_HANDLE)
         .unwrap_or_else(|| panic!("Error getting Input Schema"));
 
-    let mut projection_planner = CommonPlanner::new(input_schema.clone(), &[]);
+    let runtime = create_test_runtime();
+    let mut projection_planner = CommonPlanner::new(input_schema.clone(), &[], runtime.clone());
     let statement = get_select(sql).unwrap();
 
-    projection_planner.plan(*statement).unwrap();
+    runtime
+        .block_on(projection_planner.plan(*statement))
+        .unwrap();
 
     let processor = AggregationProcessor::new(
         "".to_string(),

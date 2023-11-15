@@ -89,10 +89,10 @@ impl DagSchemas {
 impl DagSchemas {
     /// Validate and populate the schemas, the resultant DAG will have the exact same structure as the input DAG,
     /// with validated schema information on the edges.
-    pub fn new(dag: Dag) -> Result<Self, ExecutionError> {
+    pub async fn new(dag: Dag) -> Result<Self, ExecutionError> {
         validate_connectivity(&dag);
 
-        match populate_schemas(dag.into_graph()) {
+        match populate_schemas(dag.into_graph()).await {
             Ok(graph) => {
                 info!("[pipeline] Validation completed");
                 Ok(Self { graph })
@@ -188,7 +188,7 @@ fn validate_connectivity(dag: &Dag) {
 }
 
 /// In topological order, pass output schemas to downstream nodes' input schemas.
-fn populate_schemas(
+async fn populate_schemas(
     dag: daggy::Dag<NodeType, DagEdgeType>,
 ) -> Result<daggy::Dag<NodeType, EdgeType>, ExecutionError> {
     let mut edges = vec![None; dag.graph().edge_count()];
@@ -226,6 +226,7 @@ fn populate_schemas(
                 for edge in dag.graph().edges(node_index) {
                     let schema = processor
                         .get_output_schema(&edge.weight().from, &input_schemas)
+                        .await
                         .map_err(ExecutionError::Factory)?;
                     create_edge(&mut edges, edge, EdgeKind::FromProcessor, schema);
                 }

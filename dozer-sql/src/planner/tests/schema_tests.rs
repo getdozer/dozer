@@ -1,5 +1,5 @@
-use crate::planner::projection::CommonPlanner;
 use crate::tests::utils::get_select;
+use crate::{planner::projection::CommonPlanner, tests::utils::create_test_runtime};
 use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
 
 #[test]
@@ -44,10 +44,13 @@ fn test_schema_index_partial_group_by() {
         )
         .to_owned();
 
-    let mut projection_planner = CommonPlanner::new(schema, &[]);
+    let runtime = create_test_runtime();
+    let mut projection_planner = CommonPlanner::new(schema, &[], runtime.clone());
     let statement = get_select(sql).unwrap();
 
-    projection_planner.plan(*statement).unwrap();
+    runtime
+        .block_on(projection_planner.plan(*statement))
+        .unwrap();
 
     assert!(projection_planner
         .post_projection_schema
@@ -97,10 +100,13 @@ fn test_schema_index_full_group_by() {
         )
         .to_owned();
 
-    let mut projection_planner = CommonPlanner::new(schema, &[]);
+    let runtime = create_test_runtime();
+    let mut projection_planner = CommonPlanner::new(schema, &[], runtime.clone());
     let statement = get_select(sql).unwrap();
 
-    projection_planner.plan(*statement).unwrap();
+    runtime
+        .block_on(projection_planner.plan(*statement))
+        .unwrap();
 
     assert_eq!(
         projection_planner.post_projection_schema.primary_index,
