@@ -28,10 +28,7 @@ use dozer_types::{
 };
 use tokio::{
     sync::{
-        mpsc::{
-            self,
-            error::{TryRecvError, TrySendError},
-        },
+        mpsc::{self, error::TryRecvError},
         oneshot,
     },
     task::{JoinHandle, LocalSet},
@@ -40,7 +37,6 @@ use tokio::{
 #[derive(Debug)]
 pub struct Runtime {
     work_sender: mpsc::Sender<Work>,
-    return_receiver: mpsc::Receiver<Return>,
     handle: JoinHandle<()>,
 }
 
@@ -67,8 +63,7 @@ impl Runtime {
         modules: Vec<String>,
     ) -> Result<(Self, Vec<NonZeroI32>), Error> {
         let (init_sender, init_receiver) = oneshot::channel();
-        let (work_sender, work_receiver) = mpsc::channel(1);
-        let (return_sender, return_receiver) = mpsc::channel(1);
+        let (work_sender, work_receiver) = mpsc::channel(10);
         let handle = tokio_runtime.clone().spawn_blocking(move || {
             let mut js_runtime = js_runtime::new();
             let local_set = LocalSet::new();
@@ -92,7 +87,7 @@ impl Runtime {
             let functions = functions.into_iter().collect();
             local_set.block_on(
                 &tokio_runtime,
-                worker_loop(js_runtime, work_receiver, return_sender, functions),
+                worker_loop(js_runtime, work_receiver, functions),
             );
         });
 
@@ -109,17 +104,25 @@ impl Runtime {
         Ok((
             Self {
                 work_sender,
-                return_receiver,
                 handle,
             },
             functions,
         ))
     }
 
-    pub async fn call_function(mut self, id: NonZeroI32, args: Vec<Value>) -> (Self, Value) {
+    pub async fn call_function(
+        self,
+        id: NonZeroI32,
+        args: Vec<Value>,
+    ) -> (Self, Result<Value, AnyError>) {
+        let (return_sender, return_receiver) = oneshot::channel();
         if self
             .work_sender
-            .send(Work::CallFunction { id, args })
+            .send(Work::CallFunction {
+                id,
+                args,
+                return_sender,
+            })
             .await
             .is_err()
         {
@@ -127,12 +130,11 @@ impl Runtime {
             self.handle.await.unwrap();
             unreachable!("we should have panicked");
         }
-        let Some(result) = self.return_receiver.recv().await else {
+        let Ok(result) = return_receiver.await else {
             // Propagate the panic.
             self.handle.await.unwrap();
             unreachable!("we should have panicked");
         };
-        let Return::CallFunction(result) = result;
         (self, result)
     }
 }
@@ -176,29 +178,21 @@ async fn load_functions(
 
 #[derive(Debug)]
 enum Work {
-    CallFunction { id: NonZeroI32, args: Vec<Value> },
-}
-
-#[derive(Debug)]
-enum Return {
-    CallFunction(Value),
+    CallFunction {
+        id: NonZeroI32,
+        args: Vec<Value>,
+        return_sender: oneshot::Sender<Result<Value, AnyError>>,
+    },
 }
 
 async fn worker_loop(
     mut runtime: JsRuntime,
     mut work_receiver: mpsc::Receiver<Work>,
-    return_sender: mpsc::Sender<Return>,
     functions: HashMap<NonZeroI32, Global<Function>>,
 ) {
     loop {
         match poll_fn(|cx| {
-            poll_work_and_event_loop(
-                &mut runtime,
-                &mut work_receiver,
-                &return_sender,
-                &functions,
-                cx,
-            )
+            poll_work_and_event_loop(&mut runtime, &mut work_receiver, &functions, cx)
         })
         .await
         {
@@ -216,20 +210,12 @@ async fn worker_loop(
 fn poll_work_and_event_loop(
     runtime: &mut JsRuntime,
     work_receiver: &mut mpsc::Receiver<Work>,
-    return_sender: &mpsc::Sender<Return>,
     functions: &HashMap<NonZeroI32, Global<Function>>,
     cx: &mut Context,
 ) -> Poll<ControlFlow<(), Result<(), AnyError>>> {
     match work_receiver.try_recv() {
         Ok(work) => {
-            return match do_work(runtime, work, functions) {
-                Ok(value) => match return_sender.try_send(Return::CallFunction(value)) {
-                    Ok(()) => Poll::Ready(ControlFlow::Continue(Ok(()))),
-                    Err(TrySendError::Full(_)) => unreachable!("work can only be sent serially"),
-                    Err(TrySendError::Closed(_)) => Poll::Ready(ControlFlow::Break(())),
-                },
-                Err(e) => Poll::Ready(ControlFlow::Continue(Err(e))),
-            }
+            do_work(runtime, work, functions);
         }
         Err(TryRecvError::Empty) => (),
         Err(TryRecvError::Disconnected) => return Poll::Ready(ControlFlow::Break(())),
@@ -240,28 +226,38 @@ fn poll_work_and_event_loop(
         .map(ControlFlow::Continue)
 }
 
-fn do_work(
-    runtime: &mut JsRuntime,
-    work: Work,
-    functions: &HashMap<NonZeroI32, Global<Function>>,
-) -> Result<Value, AnyError> {
+fn do_work(runtime: &mut JsRuntime, work: Work, functions: &HashMap<NonZeroI32, Global<Function>>) {
     match work {
-        Work::CallFunction { id, args } => {
-            let function = functions
-                .get(&id)
-                .context(format!("function {} not found", id))?;
-            let scope = &mut runtime.handle_scope();
-            let recv = undefined(scope);
-            let args = args
-                .into_iter()
-                .map(|arg| to_v8(scope, arg))
-                .collect::<Result<Vec<_>, _>>()?;
-            let result = Local::new(scope, function).call(scope, recv.into(), &args);
-            result
-                .map(|value| from_v8(scope, value).map_err(Into::into))
-                .unwrap_or(Ok(Value::Null))
+        Work::CallFunction {
+            id,
+            args,
+            return_sender,
+        } => {
+            // Ignore error if receiver is closed.
+            let _ = return_sender.send(call_function(runtime, id, args, functions));
         }
     }
+}
+
+fn call_function(
+    runtime: &mut JsRuntime,
+    function: NonZeroI32,
+    args: Vec<Value>,
+    functions: &HashMap<NonZeroI32, Global<Function>>,
+) -> Result<Value, AnyError> {
+    let function = functions
+        .get(&function)
+        .context(format!("function {} not found", function))?;
+    let scope = &mut runtime.handle_scope();
+    let recv = undefined(scope);
+    let args = args
+        .into_iter()
+        .map(|arg| to_v8(scope, arg))
+        .collect::<Result<Vec<_>, _>>()?;
+    let result = Local::new(scope, function).call(scope, recv.into(), &args);
+    result
+        .map(|value| from_v8(scope, value).map_err(Into::into))
+        .unwrap_or(Ok(Value::Null))
 }
 
 mod js_runtime;

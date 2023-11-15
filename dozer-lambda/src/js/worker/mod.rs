@@ -3,6 +3,7 @@ use std::{num::NonZeroI32, sync::Arc};
 use dozer_log::tokio::runtime::Runtime;
 use dozer_types::{
     json_types::field_to_json_value,
+    log::error,
     serde_json::{json, Value},
     types::{Field, Operation},
 };
@@ -45,14 +46,16 @@ impl Worker {
             "new": create_record_json_value(field_names.clone(), new_values),
             "old": old_values.map(|old_values| create_record_json_value(field_names, old_values)),
         });
-        self.runtime = Some(
-            self.runtime
-                .take()
-                .unwrap()
-                .call_function(func, vec![arg])
-                .await
-                .0,
-        );
+        let result = self
+            .runtime
+            .take()
+            .unwrap()
+            .call_function(func, vec![arg])
+            .await;
+        self.runtime = Some(result.0);
+        if let Err(e) = result.1 {
+            error!("error calling lambda: {}", e);
+        }
     }
 }
 
