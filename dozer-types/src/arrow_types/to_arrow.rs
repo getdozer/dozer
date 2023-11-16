@@ -87,9 +87,11 @@ pub fn map_record_to_arrow(
                 None as Option<i256>,
             ])) as ArrayRef,
             (Field::Timestamp(v), FieldType::Timestamp) => {
-                Arc::new(arrow_array::TimestampNanosecondArray::from_iter_values([
-                    v.timestamp_nanos()
-                ])) as ArrayRef
+                Arc::new(arrow_array::TimestampNanosecondArray::from_iter_values([{
+                    v.timestamp_nanos_opt().expect(
+                        "value can not be represented in a timestamp with nanosecond precision.",
+                    )
+                }])) as ArrayRef
             }
             (Field::Null, FieldType::Timestamp) => {
                 Arc::new(arrow_array::TimestampNanosecondArray::from(vec![

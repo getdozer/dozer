@@ -152,7 +152,11 @@ fn map_record(rec: Vec<grpc_types::types::Value>, schema: &Schema) -> Result<Rec
                 chrono::NaiveDateTime::from_timestamp_opt(a.seconds, a.nanos as u32)
                     .map(|t| {
                         dozer_types::types::Field::Timestamp(
-                            chrono::DateTime::<chrono::Utc>::from_utc(t, chrono::Utc).into(),
+                            chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
+                                t,
+                                chrono::Utc,
+                            )
+                            .into(),
                         )
                     })
                     .unwrap_or(dozer_types::types::Field::Null),
