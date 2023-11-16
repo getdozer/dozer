@@ -171,6 +171,7 @@ enum DeploymentStatus {
   RUNNING = 1;
   SUCCESS = 2;
   FAILED = 3;
+  TERMINATED = 4;
 }
 
 message ListVersionsRequest { string app_id = 1; }
@@ -185,6 +186,8 @@ message DeploymentInfo {
   DeploymentStatus status = 3;
   optional google.protobuf.Timestamp created_at = 4;
   optional google.protobuf.Timestamp updated_at = 5;
+  optional google.protobuf.Timestamp terminated_at = 6;
+  optional string termination_reason = 7;
 }
 
 message GetDeploymentStatusRequest {
