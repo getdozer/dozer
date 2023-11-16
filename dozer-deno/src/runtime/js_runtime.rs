@@ -15,11 +15,10 @@ use deno_runtime::{
     deno_websocket::deno_websocket,
     deno_webstorage::deno_webstorage,
     permissions::PermissionsContainer,
-    BootstrapOptions,
 };
 use tokio::select;
 
-use crate::TypescriptModuleLoader;
+use crate::{user_agent, TypescriptModuleLoader};
 
 extension!(
     dozer_permissions_worker,
@@ -57,16 +56,8 @@ extension!(
 );
 
 /// This is `MainWorker::from_options` with selected list of extensions.
-pub fn new() -> JsRuntime {
+pub fn new() -> Result<JsRuntime, std::io::Error> {
     let extensions = {
-        let user_agent = {
-            let version: String = env!("CARGO_PKG_VERSION").into();
-            format!(
-                "Dozer/{} {}",
-                version,
-                BootstrapOptions::default().user_agent
-            )
-        };
         vec![
             deno_webidl::init_ops_and_esm(),
             deno_console::init_ops_and_esm(),
@@ -78,7 +69,7 @@ pub fn new() -> JsRuntime {
             deno_fetch::init_ops_and_esm::<PermissionsContainer>(Default::default()),
             deno_cache::init_ops_and_esm::<SqliteBackedCache>(Default::default()),
             deno_websocket::init_ops_and_esm::<PermissionsContainer>(
-                user_agent,
+                user_agent(),
                 Default::default(),
                 Default::default(),
             ),
@@ -92,11 +83,11 @@ pub fn new() -> JsRuntime {
         ]
     };
 
-    JsRuntime::new(RuntimeOptions {
-        module_loader: Some(Rc::new(TypescriptModuleLoader::with_no_source_map())),
+    Ok(JsRuntime::new(RuntimeOptions {
+        module_loader: Some(Rc::new(TypescriptModuleLoader::new()?)),
         extensions,
         ..Default::default()
-    })
+    }))
 }
 
 /// `MainWorker::evaluate_module`.

@@ -8,10 +8,10 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use deno_runtime::deno_core::{self, anyhow, futures};
 
-use anyhow::anyhow;
 use anyhow::bail;
 use anyhow::Error;
 use deno_ast::MediaType;
@@ -26,7 +26,15 @@ use deno_core::ModuleSpecifier;
 use deno_core::ModuleType;
 use deno_core::ResolutionKind;
 use deno_core::SourceMapGetter;
+use deno_runtime::permissions::PermissionsContainer;
 use futures::FutureExt;
+
+use self::cache::GlobalHttpCache;
+use self::cache::RealDenoCacheEnv;
+use self::file_fetcher::FileFetcher;
+use self::http_util::HttpClient;
+
+use tempdir::TempDir;
 
 #[derive(Clone)]
 struct SourceMapStore(Rc<RefCell<HashMap<String, Vec<u8>>>>);
@@ -43,13 +51,26 @@ impl SourceMapGetter for SourceMapStore {
 
 pub struct TypescriptModuleLoader {
     source_maps: SourceMapStore,
+    file_fetcher: FileFetcher,
+    _temp_dir: TempDir,
 }
 
 impl TypescriptModuleLoader {
-    pub fn with_no_source_map() -> Self {
-        Self {
+    pub fn new() -> Result<Self, std::io::Error> {
+        let temp_dir = TempDir::new("dozer-deno-cache")?;
+        Ok(Self {
             source_maps: SourceMapStore(Rc::new(RefCell::new(HashMap::new()))),
-        }
+            file_fetcher: FileFetcher::new(
+                Arc::new(GlobalHttpCache::new(
+                    temp_dir.path().to_path_buf(),
+                    RealDenoCacheEnv,
+                )),
+                true,
+                Arc::new(HttpClient::new(None, None)),
+                Default::default(),
+            ),
+            _temp_dir: temp_dir,
+        })
     }
 }
 
@@ -70,16 +91,13 @@ impl ModuleLoader for TypescriptModuleLoader {
         _is_dyn_import: bool,
     ) -> Pin<Box<ModuleSourceFuture>> {
         let source_maps = self.source_maps.clone();
-        fn load(
+        async fn load(
             source_maps: SourceMapStore,
-            module_specifier: &ModuleSpecifier,
+            file_fetcher: FileFetcher,
+            module_specifier: ModuleSpecifier,
         ) -> Result<ModuleSource, AnyError> {
-            let path = module_specifier
-                .to_file_path()
-                .map_err(|_| anyhow!("Only file:// URLs are supported."))?;
-
-            let media_type = MediaType::from_path(&path);
-            let (module_type, should_transpile) = match MediaType::from_path(&path) {
+            let media_type = MediaType::from_specifier(&module_specifier);
+            let (module_type, should_transpile) = match media_type {
                 MediaType::JavaScript | MediaType::Mjs | MediaType::Cjs => {
                     (ModuleType::JavaScript, false)
                 }
@@ -92,10 +110,14 @@ impl ModuleLoader for TypescriptModuleLoader {
                 | MediaType::Dcts
                 | MediaType::Tsx => (ModuleType::JavaScript, true),
                 MediaType::Json => (ModuleType::Json, false),
-                _ => bail!("Unknown extension {:?}", path.extension()),
+                _ => bail!("Unknown media type: {:?}", module_specifier),
             };
 
-            let code = std::fs::read_to_string(&path)?;
+            let code = file_fetcher
+                .fetch(&module_specifier, PermissionsContainer::allow_all())
+                .await?
+                .source
+                .to_string();
             let code = if should_transpile {
                 let parsed = deno_ast::parse_module(ParseParams {
                     specifier: module_specifier.to_string(),
@@ -123,10 +145,21 @@ impl ModuleLoader for TypescriptModuleLoader {
             Ok(ModuleSource::new(
                 module_type,
                 code.into(),
-                module_specifier,
+                &module_specifier,
             ))
         }
 
-        futures::future::ready(load(source_maps, module_specifier)).boxed_local()
+        load(
+            source_maps,
+            self.file_fetcher.clone(),
+            module_specifier.clone(),
+        )
+        .boxed_local()
     }
 }
+
+mod cache;
+mod file_fetcher;
+mod fs;
+mod http_util;
+mod text_encoding;

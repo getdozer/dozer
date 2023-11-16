@@ -42,6 +42,8 @@ pub struct Runtime {
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("failed to create JavaScript runtime: {0}")]
+    CreateJsRuntime(#[source] std::io::Error),
     #[error("failed to canonicalize path {0}: {1}")]
     CanonicalizePath(String, #[source] std::io::Error),
     #[error("failed to load module {0}: {1}")]
@@ -65,7 +67,13 @@ impl Runtime {
         let (init_sender, init_receiver) = oneshot::channel();
         let (work_sender, work_receiver) = mpsc::channel(10);
         let handle = tokio_runtime.clone().spawn_blocking(move || {
-            let mut js_runtime = js_runtime::new();
+            let mut js_runtime = match js_runtime::new() {
+                Ok(js_runtime) => js_runtime,
+                Err(e) => {
+                    let _ = init_sender.send(Err(Error::CreateJsRuntime(e)));
+                    return;
+                }
+            };
             let local_set = LocalSet::new();
             let functions = match local_set
                 .block_on(&tokio_runtime, load_functions(&mut js_runtime, modules))

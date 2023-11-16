@@ -94,7 +94,7 @@ impl JsExtension {
                         PermissionsContainer::allow_all(),
                         WorkerOptions {
                             module_loader: std::rc::Rc::new(
-                                dozer_deno::TypescriptModuleLoader::with_no_source_map(),
+                                dozer_deno::TypescriptModuleLoader::new()?,
                             ),
                             extensions: vec![dozer_extension::init_ops(self.ingestor)],
                             ..Default::default()
