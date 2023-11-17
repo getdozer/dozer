@@ -16,8 +16,8 @@ pub struct Udf {
     function_name: String,
     arg: Box<Expression>,
     tokio_runtime: Arc<Runtime>,
-    /// Always `Some`. `Arc<Mutex>` to enable `Clone`. Not sure why `Expression` should be `Clone`.
-    deno_runtime: Arc<Mutex<Option<dozer_deno::Runtime>>>,
+    /// `Arc<Mutex>` to enable `Clone`. Not sure why `Expression` should be `Clone`.
+    deno_runtime: Arc<Mutex<dozer_deno::Runtime>>,
     function: NonZeroI32,
 }
 
@@ -52,7 +52,7 @@ impl Udf {
             function_name,
             arg: Box::new(arg),
             tokio_runtime,
-            deno_runtime: Arc::new(Mutex::new(Some(deno_runtime))),
+            deno_runtime: Arc::new(Mutex::new(deno_runtime)),
             function,
         })
     }
@@ -89,7 +89,7 @@ impl Udf {
 async fn evaluate_impl(
     function_name: String,
     arg: &mut Expression,
-    runtime: &Arc<Mutex<Option<dozer_deno::Runtime>>>,
+    runtime: &Arc<Mutex<dozer_deno::Runtime>>,
     function: NonZeroI32,
     record: &Record,
     schema: &Schema,
@@ -105,14 +105,11 @@ async fn evaluate_impl(
 
     let mut runtime = runtime.lock().await;
     let result = runtime
-        .take()
-        .unwrap()
         .call_function(function, vec![json_value_to_serde_json(&arg)])
-        .await;
-    *runtime = Some(result.0);
+        .await
+        .map_err(Error::Evaluate)?;
     drop(runtime);
 
-    let result = result.1.map_err(Error::Evaluate)?;
     let result = serde_json_to_json_value(result).map_err(Error::JsonConversion)?;
     Ok(Field::Json(result))
 }

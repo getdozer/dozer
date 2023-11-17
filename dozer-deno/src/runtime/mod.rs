@@ -37,7 +37,7 @@ use tokio::{
 #[derive(Debug)]
 pub struct Runtime {
     work_sender: mpsc::Sender<Work>,
-    handle: JoinHandle<()>,
+    handle: Option<JoinHandle<()>>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -112,17 +112,17 @@ impl Runtime {
         Ok((
             Self {
                 work_sender,
-                handle,
+                handle: Some(handle),
             },
             functions,
         ))
     }
 
     pub async fn call_function(
-        self,
+        &mut self,
         id: NonZeroI32,
         args: Vec<Value>,
-    ) -> (Self, Result<Value, AnyError>) {
+    ) -> Result<Value, AnyError> {
         let (return_sender, return_receiver) = oneshot::channel();
         if self
             .work_sender
@@ -134,16 +134,22 @@ impl Runtime {
             .await
             .is_err()
         {
-            // Propagate the panic.
-            self.handle.await.unwrap();
-            unreachable!("we should have panicked");
+            return self.propagate_panic().await;
         }
         let Ok(result) = return_receiver.await else {
-            // Propagate the panic.
-            self.handle.await.unwrap();
-            unreachable!("we should have panicked");
+            return self.propagate_panic().await;
         };
-        (self, result)
+        result
+    }
+
+    // Return type is actually `!`
+    async fn propagate_panic(&mut self) -> Result<Value, AnyError> {
+        self.handle
+            .take()
+            .expect("runtime panicked before and cannot be used again")
+            .await
+            .unwrap();
+        unreachable!("we should have panicked");
     }
 }
 

@@ -10,8 +10,7 @@ use dozer_types::{
 
 #[derive(Debug)]
 pub struct Worker {
-    /// Always `Some`.
-    runtime: Option<dozer_deno::Runtime>,
+    runtime: dozer_deno::Runtime,
 }
 
 impl Worker {
@@ -20,12 +19,7 @@ impl Worker {
         modules: Vec<String>,
     ) -> Result<(Self, Vec<NonZeroI32>), dozer_deno::RuntimeError> {
         let (runtime, lambdas) = dozer_deno::Runtime::new(runtime, modules).await?;
-        Ok((
-            Self {
-                runtime: Some(runtime),
-            },
-            lambdas,
-        ))
+        Ok((Self { runtime }, lambdas))
     }
 
     pub async fn call_lambda(
@@ -46,14 +40,7 @@ impl Worker {
             "new": create_record_json_value(field_names.clone(), new_values),
             "old": old_values.map(|old_values| create_record_json_value(field_names, old_values)),
         });
-        let result = self
-            .runtime
-            .take()
-            .unwrap()
-            .call_function(func, vec![arg])
-            .await;
-        self.runtime = Some(result.0);
-        if let Err(e) = result.1 {
+        if let Err(e) = self.runtime.call_function(func, vec![arg]).await {
             error!("error calling lambda: {}", e);
         }
     }
