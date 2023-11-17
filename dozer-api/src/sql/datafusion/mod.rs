@@ -18,7 +18,7 @@ use datafusion::physical_plan::{
 };
 use datafusion::prelude::{DataFrame, SessionConfig, SessionContext};
 use datafusion::sql::TableReference;
-use datafusion_expr::{Expr, TableProviderFilterPushDown};
+use datafusion_expr::{Expr, LogicalPlan, LogicalPlanBuilder, TableProviderFilterPushDown};
 use dozer_types::arrow::datatypes::SchemaRef;
 use dozer_types::arrow::record_batch::RecordBatch;
 
@@ -68,8 +68,25 @@ impl SQLExecutor {
         Self { ctx }
     }
 
+    fn return_empty_dataframe(&self) -> Result<DataFrame, DataFusionError> {
+        let plan = LogicalPlanBuilder::empty(false).build()?;
+        Ok(DataFrame::new(self.ctx.state(), plan))
+    }
+
     pub async fn execute(&self, sql: &str) -> Result<DataFrame, DataFusionError> {
-        self.ctx.sql(sql).await
+        let statement = self.ctx.state().sql_to_statement(sql, "postgres")?;
+        if let datafusion::sql::parser::Statement::Statement(ref stmt) = statement {
+            match stmt.as_ref() {
+                datafusion::sql::sqlparser::ast::Statement::StartTransaction { .. }
+                | datafusion::sql::sqlparser::ast::Statement::Commit { .. }
+                | datafusion::sql::sqlparser::ast::Statement::Rollback { .. } => {
+                    return self.return_empty_dataframe()
+                }
+                _ => (),
+            }
+        }
+        let plan = self.ctx.state().statement_to_plan(statement).await?;
+        self.ctx.execute_logical_plan(plan).await
     }
 }
 
