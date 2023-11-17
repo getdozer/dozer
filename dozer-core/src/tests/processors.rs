@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use dozer_recordstore::ProcessorRecordStoreDeserializer;
-use dozer_types::{errors::internal::BoxedError, types::Schema};
+use dozer_types::{errors::internal::BoxedError, tonic::async_trait, types::Schema};
 
 use crate::{
     node::{PortHandle, Processor, ProcessorFactory},
@@ -11,6 +11,7 @@ use crate::{
 #[derive(Debug)]
 pub struct ConnectivityTestProcessorFactory;
 
+#[async_trait]
 impl ProcessorFactory for ConnectivityTestProcessorFactory {
     fn type_name(&self) -> String {
         "ConnectivityTest".to_owned()
@@ -23,7 +24,7 @@ impl ProcessorFactory for ConnectivityTestProcessorFactory {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn get_output_schema(
+    async fn get_output_schema(
         &self,
         _output_port: &PortHandle,
         _input_schemas: &HashMap<PortHandle, Schema>,
@@ -33,7 +34,7 @@ impl ProcessorFactory for ConnectivityTestProcessorFactory {
         )
     }
 
-    fn build(
+    async fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
@@ -53,6 +54,7 @@ impl ProcessorFactory for ConnectivityTestProcessorFactory {
 #[derive(Debug)]
 pub struct NoInputPortProcessorFactory;
 
+#[async_trait]
 impl ProcessorFactory for NoInputPortProcessorFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![]
@@ -62,7 +64,7 @@ impl ProcessorFactory for NoInputPortProcessorFactory {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn get_output_schema(
+    async fn get_output_schema(
         &self,
         _output_port: &PortHandle,
         _input_schemas: &HashMap<PortHandle, Schema>,
@@ -72,7 +74,7 @@ impl ProcessorFactory for NoInputPortProcessorFactory {
         )
     }
 
-    fn build(
+    async fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,

@@ -1,3 +1,4 @@
+use crate::tests::utils::create_test_runtime;
 use crate::{projection::factory::ProjectionProcessorFactory, tests::utils::get_select};
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::executor_operation::ProcessorOperation;
@@ -22,24 +23,31 @@ pub(crate) fn run_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Field {
     let record_store = ProcessorRecordStoreDeserializer::new(Default::default()).unwrap();
 
     let select = get_select(sql).unwrap();
-    let processor_factory =
-        ProjectionProcessorFactory::_new("projection_id".to_owned(), select.projection, vec![]);
-    processor_factory
-        .get_output_schema(
-            &DEFAULT_PORT_HANDLE,
-            &[(DEFAULT_PORT_HANDLE, schema.clone())]
-                .into_iter()
-                .collect(),
+    let runtime = create_test_runtime();
+    let processor_factory = ProjectionProcessorFactory::_new(
+        "projection_id".to_owned(),
+        select.projection,
+        vec![],
+        runtime.clone(),
+    );
+    runtime
+        .block_on(
+            processor_factory.get_output_schema(
+                &DEFAULT_PORT_HANDLE,
+                &[(DEFAULT_PORT_HANDLE, schema.clone())]
+                    .into_iter()
+                    .collect(),
+            ),
         )
         .unwrap();
 
-    let mut processor = processor_factory
-        .build(
+    let mut processor = runtime
+        .block_on(processor_factory.build(
             HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
             HashMap::new(),
             &record_store,
             None,
-        )
+        ))
         .unwrap();
 
     let record_store = record_store.into_record_store();

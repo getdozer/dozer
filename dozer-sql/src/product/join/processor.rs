@@ -251,7 +251,7 @@ mod tests {
     }
 
     impl Executor {
-        fn new(kind: JoinType) -> Self {
+        async fn new(kind: JoinType) -> Self {
             let record_store =
                 ProcessorRecordStoreDeserializer::new(RecordStore::InMemory).unwrap();
             let left_schema = create_schema("left");
@@ -287,6 +287,7 @@ mod tests {
             .collect();
             let processor = factory
                 .build(schemas, HashMap::new(), &record_store, None)
+                .await
                 .unwrap();
 
             let record_store = record_store.into_record_store();
@@ -352,9 +353,9 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_inner_join() {
-        let mut exec = Executor::new(JoinType::Inner);
+    #[tokio::test]
+    async fn test_inner_join() {
+        let mut exec = Executor::new(JoinType::Inner).await;
 
         let (left_record, ops) = exec.insert(JoinSide::Left, &[Field::UInt(0), Field::UInt(1)]);
         assert_eq!(ops, &[]);
@@ -400,9 +401,9 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_left_outer_join() {
-        let mut exec = Executor::new(JoinType::LeftOuter);
+    #[tokio::test]
+    async fn test_left_outer_join() {
+        let mut exec = Executor::new(JoinType::LeftOuter).await;
 
         let null_record = exec
             .record_store
@@ -485,9 +486,9 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_right_outer_join() {
-        let mut exec = Executor::new(JoinType::RightOuter);
+    #[tokio::test]
+    async fn test_right_outer_join() {
+        let mut exec = Executor::new(JoinType::RightOuter).await;
 
         let null_record = exec
             .record_store

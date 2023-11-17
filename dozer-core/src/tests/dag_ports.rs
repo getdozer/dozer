@@ -4,6 +4,7 @@ use crate::node::{
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use dozer_recordstore::ProcessorRecordStoreDeserializer;
 use dozer_types::errors::internal::BoxedError;
+use dozer_types::tonic::async_trait;
 use dozer_types::{node::NodeHandle, types::Schema};
 use std::collections::HashMap;
 
@@ -57,8 +58,9 @@ impl DynPortsProcessorFactory {
     }
 }
 
+#[async_trait]
 impl ProcessorFactory for DynPortsProcessorFactory {
-    fn get_output_schema(
+    async fn get_output_schema(
         &self,
         _output_port: &PortHandle,
         _input_schemas: &HashMap<PortHandle, Schema>,
@@ -74,7 +76,7 @@ impl ProcessorFactory for DynPortsProcessorFactory {
         self.output_ports.clone()
     }
 
-    fn build(
+    async fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,

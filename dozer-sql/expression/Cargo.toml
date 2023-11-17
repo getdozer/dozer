@@ -6,6 +6,7 @@ authors = ["getdozer/dozer-dev"]
 
 [dependencies]
 dozer-types = { path = "../../dozer-types" }
+dozer-deno = { path = "../../dozer-deno" }
 num-traits = "0.2.16"
 sqlparser = { git = "https://github.com/getdozer/sqlparser-rs.git" }
 bigdecimal = { version = "0.3", features = ["serde"], optional = true }
@@ -15,6 +16,8 @@ half = { version = "2.3.1", optional = true }
 like = "0.3.1"
 jsonpath = { path = "../jsonpath" }
 bincode = { workspace = true }
+tokio = "1.34.0"
+async-recursion = "1.0.5"
 
 [dev-dependencies]
 proptest = "1.2.0"

@@ -9,7 +9,7 @@ use dozer_sql_expression::{
     builder::{extend_schema_source_def, NameOrAlias},
     sqlparser::ast::TableFactor,
 };
-use dozer_types::{errors::internal::BoxedError, types::Schema};
+use dozer_types::{errors::internal::BoxedError, tonic::async_trait, types::Schema};
 
 use crate::errors::{PipelineError, ProductError};
 use crate::window::builder::string_from_sql_object_name;
@@ -28,6 +28,7 @@ impl TableProcessorFactory {
     }
 }
 
+#[async_trait]
 impl ProcessorFactory for TableProcessorFactory {
     fn id(&self) -> String {
         self.id.clone()
@@ -45,7 +46,7 @@ impl ProcessorFactory for TableProcessorFactory {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn get_output_schema(
+    async fn get_output_schema(
         &self,
         _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
@@ -59,7 +60,7 @@ impl ProcessorFactory for TableProcessorFactory {
         }
     }
 
-    fn build(
+    async fn build(
         &self,
         _input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,

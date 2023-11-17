@@ -155,7 +155,10 @@ impl<'a> PipelineBuilder<'a> {
 
     // This function is used to figure out the sources that are used in the pipeline
     // based on the SQL and API Endpoints
-    pub fn calculate_sources(&self) -> Result<CalculatedSources, OrchestrationError> {
+    pub fn calculate_sources(
+        &self,
+        runtime: Arc<Runtime>,
+    ) -> Result<CalculatedSources, OrchestrationError> {
         let mut original_sources = vec![];
 
         let mut query_ctx = None;
@@ -164,8 +167,9 @@ impl<'a> PipelineBuilder<'a> {
         let mut transformed_sources = vec![];
 
         if let Some(sql) = &self.sql {
-            let query_context = statement_to_pipeline(sql, &mut pipeline, None, self.udfs.to_vec())
-                .map_err(OrchestrationError::PipelineError)?;
+            let query_context =
+                statement_to_pipeline(sql, &mut pipeline, None, self.udfs.to_vec(), runtime)
+                    .map_err(OrchestrationError::PipelineError)?;
 
             query_ctx = Some(query_context.clone());
 
@@ -202,7 +206,7 @@ impl<'a> PipelineBuilder<'a> {
         runtime: &Arc<Runtime>,
         shutdown: ShutdownReceiver,
     ) -> Result<dozer_core::Dag, OrchestrationError> {
-        let calculated_sources = self.calculate_sources()?;
+        let calculated_sources = self.calculate_sources(runtime.clone())?;
 
         debug!("Used Sources: {:?}", calculated_sources.original_sources);
         let grouped_connections = self
@@ -229,8 +233,14 @@ impl<'a> PipelineBuilder<'a> {
         }
 
         if let Some(sql) = &self.sql {
-            let query_context = statement_to_pipeline(sql, &mut pipeline, None, self.udfs.to_vec())
-                .map_err(OrchestrationError::PipelineError)?;
+            let query_context = statement_to_pipeline(
+                sql,
+                &mut pipeline,
+                None,
+                self.udfs.to_vec(),
+                runtime.clone(),
+            )
+            .map_err(OrchestrationError::PipelineError)?;
 
             for (name, table_info) in query_context.output_tables_map {
                 available_output_tables

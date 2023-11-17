@@ -1,4 +1,4 @@
-use crate::tests::utils::get_select;
+use crate::tests::utils::{create_test_runtime, get_select};
 use dozer_sql_expression::execution::Expression;
 use dozer_sql_expression::operator::BinaryOperatorType;
 use dozer_sql_expression::scalar::common::ScalarFunctionType;
@@ -31,19 +31,17 @@ fn test_simple_function() {
         )
         .to_owned();
 
-    let mut builder = ExpressionBuilder::new(schema.fields.len());
+    let runtime = create_test_runtime();
+    let mut builder = ExpressionBuilder::new(schema.fields.len(), runtime.clone());
     let e = match &get_select(sql).unwrap().projection[0] {
-        SelectItem::UnnamedExpr(e) => builder.build(true, e, &schema, &[]).unwrap(),
+        SelectItem::UnnamedExpr(e) => runtime
+            .block_on(builder.build(true, e, &schema, &[]))
+            .unwrap(),
         _ => panic!("Invalid expr"),
     };
 
-    assert_eq!(
-        builder,
-        ExpressionBuilder {
-            offset: schema.fields.len(),
-            aggregations: vec![]
-        }
-    );
+    assert_eq!(builder.offset, schema.fields.len());
+    assert_eq!(builder.aggregations, vec![]);
     assert_eq!(
         e,
         Expression::ScalarFunction {
@@ -71,21 +69,22 @@ fn test_simple_aggr_function() {
         )
         .to_owned();
 
-    let mut builder = ExpressionBuilder::new(schema.fields.len());
+    let runtime = create_test_runtime();
+    let mut builder = ExpressionBuilder::new(schema.fields.len(), runtime.clone());
     let e = match &get_select(sql).unwrap().projection[0] {
-        SelectItem::UnnamedExpr(e) => builder.build(true, e, &schema, &[]).unwrap(),
+        SelectItem::UnnamedExpr(e) => runtime
+            .block_on(builder.build(true, e, &schema, &[]))
+            .unwrap(),
         _ => panic!("Invalid expr"),
     };
 
+    assert_eq!(builder.offset, schema.fields.len());
     assert_eq!(
-        builder,
-        ExpressionBuilder {
-            offset: schema.fields.len(),
-            aggregations: vec![Expression::AggregateFunction {
-                fun: AggregateFunctionType::Sum,
-                args: vec![Expression::Column { index: 0 }]
-            }]
-        }
+        builder.aggregations,
+        vec![Expression::AggregateFunction {
+            fun: AggregateFunctionType::Sum,
+            args: vec![Expression::Column { index: 0 }]
+        }]
     );
     assert_eq!(e, Expression::Column { index: 1 });
 }
@@ -114,27 +113,28 @@ fn test_2_nested_aggr_function() {
         )
         .to_owned();
 
-    let mut builder = ExpressionBuilder::new(schema.fields.len());
+    let runtime = create_test_runtime();
+    let mut builder = ExpressionBuilder::new(schema.fields.len(), runtime.clone());
     let e = match &get_select(sql).unwrap().projection[0] {
-        SelectItem::UnnamedExpr(e) => builder.build(true, e, &schema, &[]).unwrap(),
+        SelectItem::UnnamedExpr(e) => runtime
+            .block_on(builder.build(true, e, &schema, &[]))
+            .unwrap(),
         _ => panic!("Invalid expr"),
     };
 
+    assert_eq!(builder.offset, schema.fields.len());
     assert_eq!(
-        builder,
-        ExpressionBuilder {
-            offset: schema.fields.len(),
-            aggregations: vec![Expression::AggregateFunction {
-                fun: AggregateFunctionType::Sum,
-                args: vec![Expression::ScalarFunction {
-                    fun: ScalarFunctionType::Round,
-                    args: vec![
-                        Expression::Column { index: 1 },
-                        Expression::Literal(Field::Int(2))
-                    ]
-                }]
+        builder.aggregations,
+        vec![Expression::AggregateFunction {
+            fun: AggregateFunctionType::Sum,
+            args: vec![Expression::ScalarFunction {
+                fun: ScalarFunctionType::Round,
+                args: vec![
+                    Expression::Column { index: 1 },
+                    Expression::Literal(Field::Int(2))
+                ]
             }]
-        }
+        }]
     );
     assert_eq!(e, Expression::Column { index: 2 });
 }
@@ -163,27 +163,28 @@ fn test_3_nested_aggr_function() {
         )
         .to_owned();
 
-    let mut builder = ExpressionBuilder::new(schema.fields.len());
+    let runtime = create_test_runtime();
+    let mut builder = ExpressionBuilder::new(schema.fields.len(), runtime.clone());
     let e = match &get_select(sql).unwrap().projection[0] {
-        SelectItem::UnnamedExpr(e) => builder.build(true, e, &schema, &[]).unwrap(),
+        SelectItem::UnnamedExpr(e) => runtime
+            .block_on(builder.build(true, e, &schema, &[]))
+            .unwrap(),
         _ => panic!("Invalid expr"),
     };
 
+    assert_eq!(builder.offset, schema.fields.len());
     assert_eq!(
-        builder,
-        ExpressionBuilder {
-            offset: schema.fields.len(),
-            aggregations: vec![Expression::AggregateFunction {
-                fun: AggregateFunctionType::Sum,
-                args: vec![Expression::ScalarFunction {
-                    fun: ScalarFunctionType::Round,
-                    args: vec![
-                        Expression::Column { index: 1 },
-                        Expression::Literal(Field::Int(2))
-                    ]
-                }]
+        builder.aggregations,
+        vec![Expression::AggregateFunction {
+            fun: AggregateFunctionType::Sum,
+            args: vec![Expression::ScalarFunction {
+                fun: ScalarFunctionType::Round,
+                args: vec![
+                    Expression::Column { index: 1 },
+                    Expression::Literal(Field::Int(2))
+                ]
             }]
-        }
+        }]
     );
     assert_eq!(
         e,
@@ -218,27 +219,28 @@ fn test_3_nested_aggr_function_dup() {
         )
         .to_owned();
 
-    let mut builder = ExpressionBuilder::new(schema.fields.len());
+    let runtime = create_test_runtime();
+    let mut builder = ExpressionBuilder::new(schema.fields.len(), runtime.clone());
     let e = match &get_select(sql).unwrap().projection[0] {
-        SelectItem::UnnamedExpr(e) => builder.build(true, e, &schema, &[]).unwrap(),
+        SelectItem::UnnamedExpr(e) => runtime
+            .block_on(builder.build(true, e, &schema, &[]))
+            .unwrap(),
         _ => panic!("Invalid expr"),
     };
 
+    assert_eq!(builder.offset, schema.fields.len());
     assert_eq!(
-        builder,
-        ExpressionBuilder {
-            offset: schema.fields.len(),
-            aggregations: vec![Expression::AggregateFunction {
-                fun: AggregateFunctionType::Sum,
-                args: vec![Expression::ScalarFunction {
-                    fun: ScalarFunctionType::Round,
-                    args: vec![
-                        Expression::Column { index: 1 },
-                        Expression::Literal(Field::Int(2))
-                    ]
-                }]
+        builder.aggregations,
+        vec![Expression::AggregateFunction {
+            fun: AggregateFunctionType::Sum,
+            args: vec![Expression::ScalarFunction {
+                fun: ScalarFunctionType::Round,
+                args: vec![
+                    Expression::Column { index: 1 },
+                    Expression::Literal(Field::Int(2))
+                ]
             }]
-        }
+        }]
     );
     assert_eq!(
         e,
@@ -276,33 +278,34 @@ fn test_3_nested_aggr_function_and_sum() {
         )
         .to_owned();
 
-    let mut builder = ExpressionBuilder::new(schema.fields.len());
+    let runtime = create_test_runtime();
+    let mut builder = ExpressionBuilder::new(schema.fields.len(), runtime.clone());
     let e = match &get_select(sql).unwrap().projection[0] {
-        SelectItem::UnnamedExpr(e) => builder.build(true, e, &schema, &[]).unwrap(),
+        SelectItem::UnnamedExpr(e) => runtime
+            .block_on(builder.build(true, e, &schema, &[]))
+            .unwrap(),
         _ => panic!("Invalid expr"),
     };
 
+    assert_eq!(builder.offset, schema.fields.len());
     assert_eq!(
-        builder,
-        ExpressionBuilder {
-            offset: schema.fields.len(),
-            aggregations: vec![
-                Expression::AggregateFunction {
-                    fun: AggregateFunctionType::Sum,
-                    args: vec![Expression::ScalarFunction {
-                        fun: ScalarFunctionType::Round,
-                        args: vec![
-                            Expression::Column { index: 1 },
-                            Expression::Literal(Field::Int(2))
-                        ]
-                    }]
-                },
-                Expression::AggregateFunction {
-                    fun: AggregateFunctionType::Sum,
-                    args: vec![Expression::Column { index: 0 }]
-                }
-            ]
-        }
+        builder.aggregations,
+        vec![
+            Expression::AggregateFunction {
+                fun: AggregateFunctionType::Sum,
+                args: vec![Expression::ScalarFunction {
+                    fun: ScalarFunctionType::Round,
+                    args: vec![
+                        Expression::Column { index: 1 },
+                        Expression::Literal(Field::Int(2))
+                    ]
+                }]
+            },
+            Expression::AggregateFunction {
+                fun: AggregateFunctionType::Sum,
+                args: vec![Expression::Column { index: 0 }]
+            }
+        ]
     );
     assert_eq!(
         e,
@@ -341,33 +344,34 @@ fn test_3_nested_aggr_function_and_sum_3() {
         )
         .to_owned();
 
-    let mut builder = ExpressionBuilder::new(schema.fields.len());
+    let runtime = create_test_runtime();
+    let mut builder = ExpressionBuilder::new(schema.fields.len(), runtime.clone());
     let e = match &get_select(sql).unwrap().projection[0] {
-        SelectItem::UnnamedExpr(e) => builder.build(true, e, &schema, &[]).unwrap(),
+        SelectItem::UnnamedExpr(e) => runtime
+            .block_on(builder.build(true, e, &schema, &[]))
+            .unwrap(),
         _ => panic!("Invalid expr"),
     };
 
+    assert_eq!(builder.offset, schema.fields.len());
     assert_eq!(
-        builder,
-        ExpressionBuilder {
-            offset: schema.fields.len(),
-            aggregations: vec![
-                Expression::AggregateFunction {
-                    fun: AggregateFunctionType::Sum,
-                    args: vec![Expression::ScalarFunction {
-                        fun: ScalarFunctionType::Round,
-                        args: vec![
-                            Expression::Column { index: 1 },
-                            Expression::Literal(Field::Int(2))
-                        ]
-                    }]
-                },
-                Expression::AggregateFunction {
-                    fun: AggregateFunctionType::Sum,
-                    args: vec![Expression::Column { index: 0 }]
-                }
-            ]
-        }
+        builder.aggregations,
+        vec![
+            Expression::AggregateFunction {
+                fun: AggregateFunctionType::Sum,
+                args: vec![Expression::ScalarFunction {
+                    fun: ScalarFunctionType::Round,
+                    args: vec![
+                        Expression::Column { index: 1 },
+                        Expression::Literal(Field::Int(2))
+                    ]
+                }]
+            },
+            Expression::AggregateFunction {
+                fun: AggregateFunctionType::Sum,
+                args: vec![Expression::Column { index: 0 }]
+            }
+        ]
     );
     assert_eq!(
         e,
@@ -403,9 +407,12 @@ fn test_wrong_nested_aggregations() {
         )
         .to_owned();
 
-    let mut builder = ExpressionBuilder::new(schema.fields.len());
+    let runtime = create_test_runtime();
+    let mut builder = ExpressionBuilder::new(schema.fields.len(), runtime.clone());
     let _e = match &get_select(sql).unwrap().projection[0] {
-        SelectItem::UnnamedExpr(e) => builder.build(true, e, &schema, &[]).unwrap(),
+        SelectItem::UnnamedExpr(e) => runtime
+            .block_on(builder.build(true, e, &schema, &[]))
+            .unwrap(),
         _ => panic!("Invalid expr"),
     };
 }
@@ -440,19 +447,17 @@ fn test_name_resolution() {
         )
         .to_owned();
 
-    let mut builder = ExpressionBuilder::new(schema.fields.len());
+    let runtime = create_test_runtime();
+    let mut builder = ExpressionBuilder::new(schema.fields.len(), runtime.clone());
     let e = match &get_select(sql).unwrap().projection[0] {
-        SelectItem::UnnamedExpr(e) => builder.build(true, e, &schema, &[]).unwrap(),
+        SelectItem::UnnamedExpr(e) => runtime
+            .block_on(builder.build(true, e, &schema, &[]))
+            .unwrap(),
         _ => panic!("Invalid expr"),
     };
 
-    assert_eq!(
-        builder,
-        ExpressionBuilder {
-            offset: schema.fields.len(),
-            aggregations: vec![]
-        }
-    );
+    assert_eq!(builder.offset, schema.fields.len());
+    assert_eq!(builder.aggregations, vec![]);
     assert_eq!(
         e,
         Expression::ScalarFunction {
@@ -483,19 +488,17 @@ fn test_alias_resolution() {
         )
         .to_owned();
 
-    let mut builder = ExpressionBuilder::new(schema.fields.len());
+    let runtime = create_test_runtime();
+    let mut builder = ExpressionBuilder::new(schema.fields.len(), runtime.clone());
     let e = match &get_select(sql).unwrap().projection[0] {
-        SelectItem::UnnamedExpr(e) => builder.build(true, e, &schema, &[]).unwrap(),
+        SelectItem::UnnamedExpr(e) => runtime
+            .block_on(builder.build(true, e, &schema, &[]))
+            .unwrap(),
         _ => panic!("Invalid expr"),
     };
 
-    assert_eq!(
-        builder,
-        ExpressionBuilder {
-            offset: schema.fields.len(),
-            aggregations: vec![]
-        }
-    );
+    assert_eq!(builder.offset, schema.fields.len());
+    assert_eq!(builder.aggregations, vec![]);
     assert_eq!(
         e,
         Expression::ScalarFunction {

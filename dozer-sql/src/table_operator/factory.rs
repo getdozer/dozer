@@ -1,4 +1,4 @@
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use dozer_core::{
     node::{PortHandle, Processor, ProcessorFactory},
@@ -10,8 +10,9 @@ use dozer_sql_expression::{
     execution::Expression,
     sqlparser::ast::{Expr, FunctionArg, FunctionArgExpr, Value},
 };
-use dozer_types::models::udf_config::UdfConfig;
 use dozer_types::{errors::internal::BoxedError, types::Schema};
+use dozer_types::{models::udf_config::UdfConfig, tonic::async_trait};
+use tokio::runtime::Runtime;
 
 use crate::{
     errors::{PipelineError, TableOperatorError},
@@ -32,19 +33,27 @@ pub struct TableOperatorProcessorFactory {
     table: TableOperatorDescriptor,
     name: String,
     udfs: Vec<UdfConfig>,
+    runtime: Arc<Runtime>,
 }
 
 impl TableOperatorProcessorFactory {
-    pub fn new(id: String, table: TableOperatorDescriptor, udfs: Vec<UdfConfig>) -> Self {
+    pub fn new(
+        id: String,
+        table: TableOperatorDescriptor,
+        udfs: Vec<UdfConfig>,
+        runtime: Arc<Runtime>,
+    ) -> Self {
         Self {
             id: id.clone(),
             table,
             name: id,
             udfs,
+            runtime,
         }
     }
 }
 
+#[async_trait]
 impl ProcessorFactory for TableOperatorProcessorFactory {
     fn id(&self) -> String {
         self.id.clone()
@@ -61,7 +70,7 @@ impl ProcessorFactory for TableOperatorProcessorFactory {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn get_output_schema(
+    async fn get_output_schema(
         &self,
         _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
@@ -71,7 +80,14 @@ impl ProcessorFactory for TableOperatorProcessorFactory {
             .ok_or(PipelineError::InvalidPortHandle(DEFAULT_PORT_HANDLE))?;
 
         let output_schema =
-            match operator_from_descriptor(&self.table, input_schema, &self.udfs)? {
+            match operator_from_descriptor(
+                &self.table,
+                input_schema,
+                &self.udfs,
+                self.runtime.clone(),
+            )
+            .await?
+            {
                 Some(operator) => operator
                     .get_output_schema(input_schema)
                     .map_err(PipelineError::TableOperatorError)?,
@@ -86,7 +102,7 @@ impl ProcessorFactory for TableOperatorProcessorFactory {
         Ok(output_schema)
     }
 
-    fn build(
+    async fn build(
         &self,
         input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
@@ -100,7 +116,9 @@ impl ProcessorFactory for TableOperatorProcessorFactory {
             ))?
             .clone();
 
-        match operator_from_descriptor(&self.table, &input_schema, &self.udfs)? {
+        match operator_from_descriptor(&self.table, &input_schema, &self.udfs, self.runtime.clone())
+            .await?
+        {
             Some(operator) => Ok(Box::new(TableOperatorProcessor::new(
                 self.id.clone(),
                 operator,
@@ -117,13 +135,14 @@ impl ProcessorFactory for TableOperatorProcessorFactory {
     }
 }
 
-pub(crate) fn operator_from_descriptor(
+pub(crate) async fn operator_from_descriptor(
     descriptor: &TableOperatorDescriptor,
     schema: &Schema,
     udfs: &[UdfConfig],
+    runtime: Arc<Runtime>,
 ) -> Result<Option<TableOperatorType>, PipelineError> {
     if &descriptor.name.to_uppercase() == "TTL" {
-        let operator = lifetime_from_descriptor(descriptor, schema, udfs)?;
+        let operator = lifetime_from_descriptor(descriptor, schema, udfs, runtime).await?;
 
         Ok(Some(operator.into()))
     } else {
@@ -131,10 +150,11 @@ pub(crate) fn operator_from_descriptor(
     }
 }
 
-fn lifetime_from_descriptor(
+async fn lifetime_from_descriptor(
     descriptor: &TableOperatorDescriptor,
     schema: &Schema,
     udfs: &[UdfConfig],
+    runtime: Arc<Runtime>,
 ) -> Result<LifetimeTableOperator, TableOperatorError> {
     let table_expression_arg =
         descriptor
@@ -168,7 +188,14 @@ fn lifetime_from_descriptor(
         ));
     };
 
-    let expression = get_expression(descriptor.name.to_owned(), expression_arg, schema, udfs)?;
+    let expression = get_expression(
+        descriptor.name.to_owned(),
+        expression_arg,
+        schema,
+        udfs,
+        runtime,
+    )
+    .await?;
     let duration = get_interval(descriptor.name.to_owned(), duration_arg)?;
 
     let operator = LifetimeTableOperator::new(None, expression, duration);
@@ -214,11 +241,12 @@ fn get_interval(
     }
 }
 
-fn get_expression(
+async fn get_expression(
     function_name: String,
     interval_arg: &FunctionArg,
     schema: &Schema,
     udfs: &[UdfConfig],
+    runtime: Arc<Runtime>,
 ) -> Result<Expression, TableOperatorError> {
     match interval_arg {
         FunctionArg::Named { name, arg: _ } => {
@@ -230,10 +258,13 @@ fn get_expression(
         }
         FunctionArg::Unnamed(arg_expr) => match arg_expr {
             FunctionArgExpr::Expr(expr) => {
-                let mut builder = ExpressionBuilder::new(schema.fields.len());
-                let expression = builder.build(false, expr, schema, udfs).map_err(|_| {
-                    TableOperatorError::InvalidReference(expr.to_string(), function_name)
-                })?;
+                let mut builder = ExpressionBuilder::new(schema.fields.len(), runtime);
+                let expression = builder
+                    .build(false, expr, schema, udfs)
+                    .await
+                    .map_err(|_| {
+                        TableOperatorError::InvalidReference(expr.to_string(), function_name)
+                    })?;
 
                 Ok(expression)
             }

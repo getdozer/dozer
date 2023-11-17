@@ -4,8 +4,7 @@ pub mod live;
 pub mod pipeline;
 pub mod simple;
 use dozer_api::shutdown::ShutdownSender;
-use dozer_core::{app::AppPipeline, errors::ExecutionError};
-use dozer_sql::{builder::statement_to_pipeline, errors::PipelineError};
+use dozer_core::errors::ExecutionError;
 use dozer_types::log::debug;
 use errors::OrchestrationError;
 
@@ -27,11 +26,6 @@ pub use dozer_ingestion::{
     errors::ConnectorError,
     {get_connector, TableInfo},
 };
-pub use dozer_sql::builder::QueryContext;
-pub fn wrapped_statement_to_pipeline(sql: &str) -> Result<QueryContext, PipelineError> {
-    let mut pipeline = AppPipeline::new_with_default_flags();
-    statement_to_pipeline(sql, &mut pipeline, None, vec![])
-}
 
 pub use dozer_types::models::connection::Connection;
 use dozer_types::tracing::error;

@@ -19,6 +19,8 @@ use dozer_sql_expression::sqlparser::{
 };
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::sync::Arc;
+use tokio::runtime::Runtime;
 
 use super::errors::UnsupportedSqlError;
 use super::pipeline_builder::from_builder::insert_from_to_pipeline;
@@ -42,7 +44,7 @@ pub struct TableInfo {
     pub is_derived: bool,
 }
 /// The struct contains some contexts during query to pipeline.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct QueryContext {
     // Internal tables map, used to store the tables that are created by the queries
     pub pipeline_map: HashMap<(usize, String), OutputNodeInfo>,
@@ -61,6 +63,9 @@ pub struct QueryContext {
 
     // Udf related configs
     pub udfs: Vec<UdfConfig>,
+
+    // The tokio runtime
+    pub runtime: Arc<Runtime>,
 }
 
 impl QueryContext {
@@ -69,10 +74,15 @@ impl QueryContext {
         self.processor_counter
     }
 
-    pub fn new(udfs: Vec<UdfConfig>) -> Self {
+    pub fn new(udfs: Vec<UdfConfig>, runtime: Arc<Runtime>) -> Self {
         QueryContext {
+            pipeline_map: Default::default(),
+            output_tables_map: Default::default(),
+            used_sources: Default::default(),
+            processors_list: Default::default(),
+            processor_counter: Default::default(),
             udfs,
-            ..Default::default()
+            runtime,
         }
     }
 }
@@ -87,9 +97,10 @@ pub fn statement_to_pipeline(
     pipeline: &mut AppPipeline,
     override_name: Option<String>,
     udfs: Vec<UdfConfig>,
+    runtime: Arc<Runtime>,
 ) -> Result<QueryContext, PipelineError> {
     let dialect = DozerDialect {};
-    let mut ctx = QueryContext::new(udfs);
+    let mut ctx = QueryContext::new(udfs, runtime);
     let is_top_select = true;
     let ast = Parser::parse_sql(&dialect, sql)
         .map_err(|err| PipelineError::InternalError(Box::new(err)))?;
@@ -198,7 +209,7 @@ fn query_to_pipeline(
         }
         SetExpr::Query(query) => {
             let query_name = format!("subquery_{}", query_ctx.get_next_processor_id());
-            let mut ctx = QueryContext::new(query_ctx.udfs.clone());
+            let mut ctx = QueryContext::new(query_ctx.udfs.clone(), query_ctx.runtime.clone());
             query_to_pipeline(
                 &TableInfo {
                     name: NameOrAlias(query_name, None),
@@ -306,6 +317,7 @@ fn select_to_pipeline(
             .in_aggregations
             .unwrap_or(false),
         query_ctx.udfs.clone(),
+        query_ctx.runtime.clone(),
     );
 
     pipeline.add_processor(Box::new(aggregation), &gen_agg_name, vec![]);
@@ -316,6 +328,7 @@ fn select_to_pipeline(
             gen_selection_name.to_owned(),
             selection,
             query_ctx.udfs.clone(),
+            query_ctx.runtime.clone(),
         );
 
         pipeline.add_processor(Box::new(selection), &gen_selection_name, vec![]);
@@ -663,17 +676,19 @@ pub fn get_from_source(
 #[cfg(test)]
 mod tests {
     use super::statement_to_pipeline;
-    use crate::errors::PipelineError;
+    use crate::{errors::PipelineError, tests::utils::create_test_runtime};
     use dozer_core::app::AppPipeline;
     #[test]
     #[should_panic]
     fn disallow_zero_outgoing_ndes() {
         let sql = "select * from film";
+        let runtime = create_test_runtime();
         statement_to_pipeline(
             sql,
             &mut AppPipeline::new_with_default_flags(),
             None,
             vec![],
+            runtime,
         )
         .unwrap();
     }
@@ -681,11 +696,13 @@ mod tests {
     #[test]
     fn test_duplicate_into_clause() {
         let sql = "select * into table1 from film1 ; select * into table1 from film2";
+        let runtime = create_test_runtime();
         let result = statement_to_pipeline(
             sql,
             &mut AppPipeline::new_with_default_flags(),
             None,
             vec![],
+            runtime,
         );
         assert!(matches!(
             result,
@@ -750,11 +767,13 @@ mod tests {
                 from  stocks join tbl on tbl.id = stocks.id;
             "#;
 
+        let runtime = create_test_runtime();
         let context = statement_to_pipeline(
             sql,
             &mut AppPipeline::new_with_default_flags(),
             None,
             vec![],
+            runtime,
         )
         .unwrap();
 
@@ -772,87 +791,99 @@ mod tests {
         expected_keys.sort();
         assert_eq!(output_keys, expected_keys);
     }
-}
 
-#[test]
-fn test_missing_into_in_simple_from_clause() {
-    let sql = r#"SELECT a FROM B "#;
-    let result = statement_to_pipeline(
-        sql,
-        &mut AppPipeline::new_with_default_flags(),
-        None,
-        vec![],
-    );
-    //check if the result is an error
-    assert!(matches!(result, Err(PipelineError::MissingIntoClause)))
-}
+    #[test]
+    fn test_missing_into_in_simple_from_clause() {
+        let sql = r#"SELECT a FROM B "#;
+        let runtime = create_test_runtime();
+        let result = statement_to_pipeline(
+            sql,
+            &mut AppPipeline::new_with_default_flags(),
+            None,
+            vec![],
+            runtime,
+        );
+        //check if the result is an error
+        assert!(matches!(result, Err(PipelineError::MissingIntoClause)))
+    }
 
-#[test]
-fn test_correct_into_clause() {
-    let sql = r#"SELECT a INTO C FROM B"#;
-    let result = statement_to_pipeline(
-        sql,
-        &mut AppPipeline::new_with_default_flags(),
-        None,
-        vec![],
-    );
-    //check if the result is ok
-    assert!(result.is_ok());
-}
+    #[test]
+    fn test_correct_into_clause() {
+        let sql = r#"SELECT a INTO C FROM B"#;
+        let runtime = create_test_runtime();
+        let result = statement_to_pipeline(
+            sql,
+            &mut AppPipeline::new_with_default_flags(),
+            None,
+            vec![],
+            runtime,
+        );
+        //check if the result is ok
+        assert!(result.is_ok());
+    }
 
-#[test]
-fn test_missing_into_in_nested_from_clause() {
-    let sql = r#"SELECT a FROM (SELECT a from b)"#;
-    let result = statement_to_pipeline(
-        sql,
-        &mut AppPipeline::new_with_default_flags(),
-        None,
-        vec![],
-    );
-    //check if the result is an error
-    assert!(matches!(result, Err(PipelineError::MissingIntoClause)))
-}
+    #[test]
+    fn test_missing_into_in_nested_from_clause() {
+        let sql = r#"SELECT a FROM (SELECT a from b)"#;
+        let runtime = create_test_runtime();
+        let result = statement_to_pipeline(
+            sql,
+            &mut AppPipeline::new_with_default_flags(),
+            None,
+            vec![],
+            runtime,
+        );
+        //check if the result is an error
+        assert!(matches!(result, Err(PipelineError::MissingIntoClause)))
+    }
 
-#[test]
-fn test_correct_into_in_nested_from() {
-    let sql = r#"SELECT a INTO c FROM (SELECT a from b)"#;
-    let result = statement_to_pipeline(
-        sql,
-        &mut AppPipeline::new_with_default_flags(),
-        None,
-        vec![],
-    );
-    //check if the result is ok
-    assert!(result.is_ok());
-}
+    #[test]
+    fn test_correct_into_in_nested_from() {
+        let sql = r#"SELECT a INTO c FROM (SELECT a from b)"#;
+        let runtime = create_test_runtime();
+        let result = statement_to_pipeline(
+            sql,
+            &mut AppPipeline::new_with_default_flags(),
+            None,
+            vec![],
+            runtime,
+        );
+        //check if the result is ok
+        assert!(result.is_ok());
+    }
 
-#[test]
-fn test_missing_into_in_with_clause() {
-    let sql = r#"WITH tbl as (select a from B)
+    #[test]
+    fn test_missing_into_in_with_clause() {
+        let sql = r#"WITH tbl as (select a from B)
     select B
     from tbl;"#;
-    let result = statement_to_pipeline(
-        sql,
-        &mut AppPipeline::new_with_default_flags(),
-        None,
-        vec![],
-    );
-    //check if the result is an error
-    assert!(matches!(result, Err(PipelineError::MissingIntoClause)))
-}
+        let runtime = create_test_runtime();
+        let result = statement_to_pipeline(
+            sql,
+            &mut AppPipeline::new_with_default_flags(),
+            None,
+            vec![],
+            runtime,
+        );
+        //check if the result is an error
+        assert!(matches!(result, Err(PipelineError::MissingIntoClause)))
+    }
 
-#[test]
-fn test_correct_into_in_with_clause() {
-    let sql = r#"WITH tbl as (select a from B)
+    #[test]
+    fn test_correct_into_in_with_clause() {
+        let sql = r#"WITH tbl as (select a from B)
     select B
     into C
     from tbl;"#;
-    let result = statement_to_pipeline(
-        sql,
-        &mut AppPipeline::new_with_default_flags(),
-        None,
-        vec![],
-    );
-    //check if the result is ok
-    assert!(result.is_ok());
+        let runtime = create_test_runtime();
+        let result = statement_to_pipeline(
+            sql,
+            &mut AppPipeline::new_with_default_flags(),
+            None,
+            vec![],
+            runtime,
+        );
+        //check if the result is ok
+        assert!(result.is_ok());
+    }
 }

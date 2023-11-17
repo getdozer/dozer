@@ -1,6 +1,6 @@
-use crate::aggregation::processor::AggregationProcessor;
 use crate::planner::projection::CommonPlanner;
 use crate::tests::utils::get_select;
+use crate::{aggregation::processor::AggregationProcessor, tests::utils::create_test_runtime};
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
 };
@@ -71,10 +71,13 @@ fn test_planner_with_aggregator() {
         )
         .clone();
 
-    let mut projection_planner = CommonPlanner::new(schema.clone(), &[]);
+    let runtime = create_test_runtime();
+    let mut projection_planner = CommonPlanner::new(schema.clone(), &[], runtime.clone());
     let statement = get_select(sql).unwrap();
 
-    projection_planner.plan(*statement).unwrap();
+    runtime
+        .block_on(projection_planner.plan(*statement))
+        .unwrap();
 
     let mut processor = AggregationProcessor::new(
         "".to_string(),

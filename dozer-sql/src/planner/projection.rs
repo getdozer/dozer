@@ -1,4 +1,6 @@
 #![allow(dead_code)]
+use std::sync::Arc;
+
 use crate::errors::PipelineError;
 use crate::pipeline_builder::from_builder::string_from_sql_object_name;
 use dozer_sql_expression::builder::ExpressionBuilder;
@@ -6,6 +8,7 @@ use dozer_sql_expression::execution::Expression;
 use dozer_sql_expression::sqlparser::ast::{Expr, Ident, Select, SelectItem};
 use dozer_types::models::udf_config::UdfConfig;
 use dozer_types::types::{FieldDefinition, Schema};
+use tokio::runtime::Runtime;
 
 #[derive(Clone, Copy)]
 pub enum PrimaryKeyAction {
@@ -24,6 +27,7 @@ pub struct CommonPlanner<'a> {
     pub groupby: Vec<Expression>,
     pub projection_output: Vec<Expression>,
     pub udfs: &'a [UdfConfig],
+    pub runtime: Arc<Runtime>,
 }
 
 impl<'a> CommonPlanner<'_> {
@@ -44,7 +48,7 @@ impl<'a> CommonPlanner<'_> {
         Ok(())
     }
 
-    fn add_select_item(&mut self, item: SelectItem) -> Result<(), PipelineError> {
+    async fn add_select_item(&mut self, item: SelectItem) -> Result<(), PipelineError> {
         let expr_items: Vec<(Expr, Option<String>)> = match item {
             SelectItem::UnnamedExpr(expr) => vec![(expr, None)],
             SelectItem::ExprWithAlias { expr, alias } => vec![(expr, Some(alias.value))],
@@ -74,9 +78,11 @@ impl<'a> CommonPlanner<'_> {
         for (expr, alias) in expr_items {
             let mut builder = ExpressionBuilder::new(
                 self.input_schema.fields.len() + self.aggregation_output.len(),
+                self.runtime.clone(),
             );
-            let projection_expression =
-                builder.build(true, &expr, &self.input_schema, self.udfs)?;
+            let projection_expression = builder
+                .build(true, &expr, &self.input_schema, self.udfs)
+                .await?;
 
             for new_aggr in builder.aggregations {
                 Self::append_to_schema(
@@ -100,7 +106,7 @@ impl<'a> CommonPlanner<'_> {
         Ok(())
     }
 
-    fn add_join_item(&mut self, item: SelectItem) -> Result<(), PipelineError> {
+    async fn add_join_item(&mut self, item: SelectItem) -> Result<(), PipelineError> {
         let expr_items: Vec<(Expr, Option<String>)> = match item {
             SelectItem::UnnamedExpr(expr) => vec![(expr, None)],
             SelectItem::ExprWithAlias { expr, alias } => vec![(expr, Some(alias.value))],
@@ -111,9 +117,11 @@ impl<'a> CommonPlanner<'_> {
         for (expr, alias) in expr_items {
             let mut builder = ExpressionBuilder::new(
                 self.input_schema.fields.len() + self.aggregation_output.len(),
+                self.runtime.clone(),
             );
-            let projection_expression =
-                builder.build(true, &expr, &self.input_schema, self.udfs)?;
+            let projection_expression = builder
+                .build(true, &expr, &self.input_schema, self.udfs)
+                .await?;
 
             for new_aggr in builder.aggregations {
                 Self::append_to_schema(
@@ -137,12 +145,15 @@ impl<'a> CommonPlanner<'_> {
         Ok(())
     }
 
-    fn add_having_item(&mut self, expr: Expr) -> Result<(), PipelineError> {
+    async fn add_having_item(&mut self, expr: Expr) -> Result<(), PipelineError> {
         let mut builder = ExpressionBuilder::from(
             self.input_schema.fields.len(),
             self.aggregation_output.clone(),
+            self.runtime.clone(),
         );
-        let having_expression = builder.build(true, &expr, &self.input_schema, self.udfs)?;
+        let having_expression = builder
+            .build(true, &expr, &self.input_schema, self.udfs)
+            .await?;
 
         let mut post_aggregation_schema = self.input_schema.clone();
         let mut aggregation_output = Vec::new();
@@ -164,14 +175,17 @@ impl<'a> CommonPlanner<'_> {
         Ok(())
     }
 
-    fn add_groupby_items(&mut self, expr_items: Vec<Expr>) -> Result<(), PipelineError> {
+    async fn add_groupby_items(&mut self, expr_items: Vec<Expr>) -> Result<(), PipelineError> {
         let mut indexes = vec![];
         let mut set_pk = true;
         for expr in expr_items {
             let mut builder = ExpressionBuilder::new(
                 self.input_schema.fields.len() + self.aggregation_output.len(),
+                self.runtime.clone(),
             );
-            let groupby_expression = builder.build(false, &expr, &self.input_schema, self.udfs)?;
+            let groupby_expression = builder
+                .build(false, &expr, &self.input_schema, self.udfs)
+                .await?;
             self.groupby.push(groupby_expression.clone());
 
             if let Some(e) = self
@@ -194,22 +208,26 @@ impl<'a> CommonPlanner<'_> {
         Ok(())
     }
 
-    pub fn plan(&mut self, select: Select) -> Result<(), PipelineError> {
+    pub async fn plan(&mut self, select: Select) -> Result<(), PipelineError> {
         for expr in select.clone().projection {
-            self.add_select_item(expr)?;
+            self.add_select_item(expr).await?;
         }
         if !select.group_by.is_empty() {
-            self.add_groupby_items(select.group_by)?;
+            self.add_groupby_items(select.group_by).await?;
         }
 
         if let Some(having) = select.having {
-            self.add_having_item(having)?;
+            self.add_having_item(having).await?;
         }
 
         Ok(())
     }
 
-    pub fn new(input_schema: Schema, udfs: &'a [UdfConfig]) -> CommonPlanner<'a> {
+    pub fn new(
+        input_schema: Schema,
+        udfs: &'a [UdfConfig],
+        runtime: Arc<Runtime>,
+    ) -> CommonPlanner<'a> {
         CommonPlanner {
             input_schema: input_schema.clone(),
             post_aggregation_schema: input_schema,
@@ -219,6 +237,7 @@ impl<'a> CommonPlanner<'_> {
             groupby: Vec::new(),
             projection_output: Vec::new(),
             udfs,
+            runtime,
         }
     }
 }

@@ -5,7 +5,7 @@ use dozer_core::{
     DEFAULT_PORT_HANDLE,
 };
 use dozer_recordstore::ProcessorRecordStoreDeserializer;
-use dozer_types::{errors::internal::BoxedError, types::Schema};
+use dozer_types::{errors::internal::BoxedError, tonic::async_trait, types::Schema};
 
 use crate::{
     errors::{PipelineError, WindowError},
@@ -26,6 +26,7 @@ impl WindowProcessorFactory {
     }
 }
 
+#[async_trait]
 impl ProcessorFactory for WindowProcessorFactory {
     fn id(&self) -> String {
         self.id.clone()
@@ -43,7 +44,7 @@ impl ProcessorFactory for WindowProcessorFactory {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn get_output_schema(
+    async fn get_output_schema(
         &self,
         _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
@@ -67,7 +68,7 @@ impl ProcessorFactory for WindowProcessorFactory {
         Ok(output_schema)
     }
 
-    fn build(
+    async fn build(
         &self,
         input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,

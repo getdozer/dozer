@@ -78,7 +78,7 @@ impl DagExecutor {
         checkpoint: OptionCheckpoint,
         options: ExecutorOptions,
     ) -> Result<Self, ExecutionError> {
-        let dag_schemas = DagSchemas::new(dag)?;
+        let dag_schemas = DagSchemas::new(dag).await?;
 
         let builder_dag = BuilderDag::new(&checkpoint, dag_schemas).await?;
 
@@ -89,8 +89,8 @@ impl DagExecutor {
         })
     }
 
-    pub fn validate<T: Clone + Debug>(dag: Dag) -> Result<(), ExecutionError> {
-        DagSchemas::new(dag)?;
+    pub async fn validate<T: Clone + Debug>(dag: Dag) -> Result<(), ExecutionError> {
+        DagSchemas::new(dag).await?;
         Ok(())
     }
 

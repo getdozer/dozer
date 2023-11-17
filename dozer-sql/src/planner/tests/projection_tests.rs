@@ -1,6 +1,6 @@
 use dozer_sql_expression::aggregate::AggregateFunctionType;
 
-use crate::planner::projection::CommonPlanner;
+use crate::{planner::projection::CommonPlanner, tests::utils::create_test_runtime};
 use dozer_sql_expression::execution::Expression;
 use dozer_sql_expression::operator::BinaryOperatorType;
 use dozer_sql_expression::scalar::common::ScalarFunctionType;
@@ -39,10 +39,13 @@ fn test_basic_projection() {
         )
         .to_owned();
 
-    let mut projection_planner = CommonPlanner::new(schema, &[]);
+    let runtime = create_test_runtime();
+    let mut projection_planner = CommonPlanner::new(schema, &[], runtime.clone());
     let statement = get_select(sql).unwrap();
 
-    projection_planner.plan(*statement).unwrap();
+    runtime
+        .block_on(projection_planner.plan(*statement))
+        .unwrap();
 
     assert_eq!(
         projection_planner.aggregation_output,

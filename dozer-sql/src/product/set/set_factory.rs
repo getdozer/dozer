@@ -10,6 +10,7 @@ use dozer_core::{
 use dozer_recordstore::ProcessorRecordStoreDeserializer;
 use dozer_sql_expression::sqlparser::ast::{SetOperator, SetQuantifier};
 use dozer_types::errors::internal::BoxedError;
+use dozer_types::tonic::async_trait;
 use dozer_types::types::{FieldDefinition, Schema, SourceDefinition};
 
 use super::operator::SetOperation;
@@ -37,6 +38,7 @@ impl SetProcessorFactory {
     }
 }
 
+#[async_trait]
 impl ProcessorFactory for SetProcessorFactory {
     fn id(&self) -> String {
         self.id.clone()
@@ -53,7 +55,7 @@ impl ProcessorFactory for SetProcessorFactory {
         vec![DEFAULT_PORT_HANDLE]
     }
 
-    fn get_output_schema(
+    async fn get_output_schema(
         &self,
         _output_port: &PortHandle,
         input_schemas: &HashMap<PortHandle, Schema>,
@@ -73,7 +75,7 @@ impl ProcessorFactory for SetProcessorFactory {
         Ok(output_schema)
     }
 
-    fn build(
+    async fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,

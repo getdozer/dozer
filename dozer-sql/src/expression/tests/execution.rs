@@ -1,5 +1,5 @@
 use crate::projection::factory::ProjectionProcessorFactory;
-use crate::tests::utils::get_select;
+use crate::tests::utils::{create_test_runtime, get_select};
 use dozer_core::node::ProcessorFactory;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_sql_expression::execution::Expression;
@@ -137,13 +137,18 @@ fn test_alias() {
         .clone();
 
     let select = get_select("SELECT count(fn) AS alias1, ln as alias2 FROM t1").unwrap();
-    let processor_factory =
-        ProjectionProcessorFactory::_new("projection_id".to_owned(), select.projection, vec![]);
-    let r = processor_factory
-        .get_output_schema(
+    let runtime = create_test_runtime();
+    let processor_factory = ProjectionProcessorFactory::_new(
+        "projection_id".to_owned(),
+        select.projection,
+        vec![],
+        runtime.clone(),
+    );
+    let r = runtime
+        .block_on(processor_factory.get_output_schema(
             &DEFAULT_PORT_HANDLE,
             &[(DEFAULT_PORT_HANDLE, schema)].into_iter().collect(),
-        )
+        ))
         .unwrap();
 
     assert_eq!(
@@ -195,13 +200,18 @@ fn test_wildcard() {
         .clone();
 
     let select = get_select("SELECT * FROM t1").unwrap();
-    let processor_factory =
-        ProjectionProcessorFactory::_new("projection_id".to_owned(), select.projection, vec![]);
-    let r = processor_factory
-        .get_output_schema(
+    let runtime = create_test_runtime();
+    let processor_factory = ProjectionProcessorFactory::_new(
+        "projection_id".to_owned(),
+        select.projection,
+        vec![],
+        runtime.clone(),
+    );
+    let r = runtime
+        .block_on(processor_factory.get_output_schema(
             &DEFAULT_PORT_HANDLE,
             &[(DEFAULT_PORT_HANDLE, schema)].into_iter().collect(),
-        )
+        ))
         .unwrap();
 
     assert_eq!(

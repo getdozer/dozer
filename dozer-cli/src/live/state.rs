@@ -324,7 +324,7 @@ fn get_contract(dozer_and_contract: &Option<DozerAndContract>) -> Result<&Contra
 pub async fn create_contract(dozer: SimpleOrchestrator) -> Result<Contract, OrchestrationError> {
     let dag = create_dag(&dozer).await?;
     let version = dozer.config.version;
-    let schemas = DagSchemas::new(dag)?;
+    let schemas = DagSchemas::new(dag).await?;
     let contract = Contract::new(
         version as usize,
         &schemas,
@@ -393,6 +393,7 @@ fn get_dozer_run_instance(
                 &mut AppPipeline::new(dozer.config.flags.clone().into()),
                 None,
                 dozer.config.udfs.clone(),
+                dozer.runtime.clone(),
             )
             .map_err(LiveError::PipelineError)?;
 

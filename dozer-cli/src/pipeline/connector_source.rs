@@ -11,7 +11,7 @@ use dozer_ingestion::{IngestionConfig, Ingestor};
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::indicatif::ProgressBar;
-use dozer_types::log::info;
+use dozer_types::log::{error, info};
 use dozer_types::models::connection::Connection;
 use dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_types::parking_lot::Mutex;
@@ -286,7 +286,10 @@ impl Source for ConnectorSource {
                             .await;
                     match result {
                         Ok(Ok(_)) => {}
-                        Ok(Err(e)) => std::panic::panic_any(e),
+                        Ok(Err(e)) => {
+                            error!("{}", e);
+                            std::panic::panic_any(e)
+                        }
                         // Aborted means we are shutting down
                         Err(Aborted) => (),
                     }
