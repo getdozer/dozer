@@ -39,7 +39,7 @@ pub struct SQLExecutor {
 
 impl SQLExecutor {
     pub fn new(cache_endpoints: Vec<Arc<CacheEndpoint>>) -> Self {
-        let ctx = SessionContext::with_config(
+        let ctx = SessionContext::new_with_config(
             SessionConfig::new()
                 .with_information_schema(true)
                 .with_default_catalog_and_schema("public", "dozer"),
