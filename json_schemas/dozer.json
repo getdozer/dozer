@@ -155,6 +155,9 @@
         },
         "rest": {
           "$ref": "#/definitions/RestApiOptions"
+        },
+        "sql": {
+          "$ref": "#/definitions/SqlOptions"
         }
       },
       "additionalProperties": false
@@ -1750,6 +1753,26 @@
         "table_name": {
           "description": "name of the table in source database; Type: String",
           "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "SqlOptions": {
+      "type": "object",
+      "properties": {
+        "host": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "port": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
         }
       },
       "additionalProperties": false

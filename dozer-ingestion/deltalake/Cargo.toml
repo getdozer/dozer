@@ -8,6 +8,6 @@ edition = "2021"
 [dependencies]
 dozer-ingestion-connector = { path = "../connector" }
 dozer-ingestion-object-store = { path = "../object-store" }
-deltalake = { version = "0.15.0", default-features = false, features = [
+deltalake = { version = "0.16.2", default-features = false, features = [
     "datafusion",
 ] }

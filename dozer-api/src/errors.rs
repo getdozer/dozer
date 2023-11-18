@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use actix_web::http::header::ContentType;
 use actix_web::http::StatusCode;
 use actix_web::HttpResponse;
+use datafusion::error::DataFusionError;
 use dozer_cache::dozer_log::errors::ReaderBuilderError;
 use dozer_tracing::Labels;
 use dozer_types::errors::internal::BoxedError;
@@ -67,6 +68,8 @@ pub enum ApiError {
     InvalidAccessFilter(#[source] serde_json::Error),
     #[error(transparent)]
     CannotConvertF64ToJson(#[from] CannotConvertF64ToJson),
+    #[error("SQL query failed: {0}")]
+    SQLQueryFailed(#[source] DataFusionError),
 }
 
 #[derive(Error, Debug)]
@@ -147,7 +150,8 @@ impl actix_web::error::ResponseError for ApiError {
             ApiError::QueryFailed(_)
             | ApiError::CountFailed(_)
             | ApiError::GetPhaseFailed(_)
-            | ApiError::CannotConvertF64ToJson(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            | ApiError::CannotConvertF64ToJson(_)
+            | ApiError::SQLQueryFailed(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }

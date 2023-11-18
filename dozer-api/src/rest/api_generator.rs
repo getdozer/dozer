@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use actix_web::web::ReqData;
 use actix_web::{web, HttpResponse};
+use datafusion::error::DataFusionError;
 use dozer_cache::cache::expression::{QueryExpression, Skip};
 use dozer_cache::cache::CacheRecord;
 use dozer_cache::{CacheReader, Phase};
@@ -13,6 +14,7 @@ use openapiv3::OpenAPI;
 
 use crate::api_helper::{get_record, get_records, get_records_count};
 use crate::generator::oapi::generator::OpenApiGenerator;
+use crate::sql::datafusion::SQLExecutor;
 use crate::CacheEndpoint;
 use crate::{auth::Access, errors::ApiError};
 use dozer_types::grpc_types::health::health_check_response::ServingStatus;
@@ -176,6 +178,29 @@ pub async fn get_phase(
     Ok(web::Json(phase))
 }
 
+pub async fn sql(
+    // access: Option<ReqData<Access>>, // TODO:
+    cache_endpoints: web::Data<Vec<Arc<CacheEndpoint>>>,
+    sql: extractor::SQLQueryExtractor,
+) -> Result<actix_web::HttpResponse, crate::errors::ApiError> {
+    let cache_endpoints = (*cache_endpoints.into_inner()).clone();
+    let sql_executor = SQLExecutor::new(cache_endpoints);
+    let query = sql.0 .0;
+    let record_batches = sql_executor
+        .execute(&query)
+        .await
+        .map_err(ApiError::SQLQueryFailed)?
+        .collect()
+        .await
+        .map_err(ApiError::SQLQueryFailed)?;
+    datafusion::arrow::json::writer::record_batches_to_json_rows(
+        record_batches.iter().collect::<Vec<_>>().as_slice(),
+    )
+    .map_err(DataFusionError::ArrowError)
+    .map_err(ApiError::SQLQueryFailed)
+    .map(|result| HttpResponse::Ok().json(result))
+}
+
 mod extractor {
     use std::{
         future::{ready, Ready},
@@ -187,7 +212,7 @@ mod extractor {
         error::{ErrorBadRequest, JsonPayloadError},
         Error, FromRequest, HttpRequest,
     };
-    use dozer_cache::cache::expression::QueryExpression;
+    use dozer_cache::cache::expression::{QueryExpression, SQLQuery};
     use dozer_types::serde_json;
     use futures_util::{future::Either, Future};
     use pin_project::pin_project;
@@ -206,6 +231,21 @@ mod extractor {
                 Either::Right(QueryExpressionExtractFuture(String::from_request(
                     req, payload,
                 )))
+            }
+        }
+    }
+
+    pub struct SQLQueryExtractor(pub SQLQuery);
+
+    impl FromRequest for SQLQueryExtractor {
+        type Error = Error;
+        type Future = Either<Ready<Result<SQLQueryExtractor, Error>>, SQLQueryExtractFuture>;
+
+        fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+            if let Err(e) = check_content_type(req) {
+                Either::Left(ready(Err(e)))
+            } else {
+                Either::Right(SQLQueryExtractFuture(String::from_request(req, payload)))
             }
         }
     }
@@ -241,9 +281,38 @@ mod extractor {
         }
     }
 
+    #[pin_project]
+    pub struct SQLQueryExtractFuture(#[pin] StringExtractFut);
+
+    impl Future for SQLQueryExtractFuture {
+        type Output = Result<SQLQueryExtractor, Error>;
+
+        fn poll(
+            self: std::pin::Pin<&mut Self>,
+            cx: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<Self::Output> {
+            let this = self.project();
+            match this.0.poll(cx) {
+                Poll::Pending => Poll::Pending,
+                Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
+                Poll::Ready(Ok(body)) => Poll::Ready(parse_sql_query(&body).map(SQLQueryExtractor)),
+            }
+        }
+    }
+
     fn parse_query_expression(body: &str) -> Result<QueryExpression, Error> {
         if body.is_empty() {
             return Ok(QueryExpression::with_no_limit());
+        }
+
+        serde_json::from_str(body)
+            .map_err(JsonPayloadError::Deserialize)
+            .map_err(Into::into)
+    }
+
+    fn parse_sql_query(body: &str) -> Result<SQLQuery, Error> {
+        if body.is_empty() {
+            return Ok(SQLQuery(String::new()));
         }
 
         serde_json::from_str(body)

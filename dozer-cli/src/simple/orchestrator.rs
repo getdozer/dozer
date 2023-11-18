@@ -14,7 +14,7 @@ use crate::{flatten_join_handle, join_handle_map_err};
 use dozer_api::auth::{Access, Authorizer};
 use dozer_api::grpc::internal::internal_pipeline_server::start_internal_pipeline_server;
 use dozer_api::shutdown::ShutdownReceiver;
-use dozer_api::{get_api_security, grpc, rest, CacheEndpoint};
+use dozer_api::{get_api_security, grpc, rest, sql, CacheEndpoint};
 use dozer_cache::cache::LmdbRwCacheManager;
 use dozer_cache::dozer_log::camino::Utf8PathBuf;
 use dozer_cache::dozer_log::home_dir::HomeDir;
@@ -157,7 +157,7 @@ impl SimpleOrchestrator {
                 let grpc_server = grpc::ApiServer::new(grpc_config, api_security, flags);
                 let grpc_server = grpc_server
                     .run(
-                        cache_endpoints,
+                        cache_endpoints.clone(),
                         shutdown.clone(),
                         operations_receiver,
                         self.labels.clone(),
@@ -174,8 +174,20 @@ impl SimpleOrchestrator {
                 tokio::spawn(async move { Ok::<(), OrchestrationError>(()) })
             };
 
+            let pgwire_handle = {
+                let pgwire_config = self.config.api.sql.clone();
+                let pgwire_server = sql::pgwire::PgWireServer::new(pgwire_config);
+                tokio::spawn(async move {
+                    pgwire_server
+                        .run(shutdown, cache_endpoints)
+                        .await
+                        .map_err(OrchestrationError::PGWireServerFailed)
+                })
+            };
+
             futures.push(flatten_join_handle(rest_handle));
             futures.push(flatten_join_handle(grpc_handle));
+            futures.push(flatten_join_handle(pgwire_handle));
 
             while let Some(result) = futures.next().await {
                 result?;

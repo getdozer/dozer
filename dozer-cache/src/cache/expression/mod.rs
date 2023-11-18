@@ -148,3 +148,6 @@ pub enum SortDirection {
     #[serde(rename = "desc")]
     Descending,
 }
+
+#[derive(Debug, Clone)]
+pub struct SQLQuery(pub String);

@@ -61,6 +61,8 @@ pub enum OrchestrationError {
     RestServeFailed(#[source] std::io::Error),
     #[error("Failed to server gRPC API: {0:?}")]
     GrpcServeFailed(#[source] tonic::transport::Error),
+    #[error("Failed to server pgwire: {0}")]
+    PGWireServerFailed(#[source] std::io::Error),
     #[error("Failed to initialize internal server: {0}")]
     InternalServerFailed(#[source] GrpcError),
     #[error("{0}: Failed to initialize cache. Have you run `dozer build`?")]

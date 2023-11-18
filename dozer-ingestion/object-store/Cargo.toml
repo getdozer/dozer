@@ -7,9 +7,9 @@ edition = "2021"
 
 [dependencies]
 dozer-ingestion-connector = { path = "../connector" }
-deltalake = { version = "0.15.0", default-features = false, features = [
+deltalake = { version = "0.16.2", default-features = false, features = [
     "s3",
     "datafusion",
 ] }
-object_store = { version = "0.6.1", features = ["aws"] }
+object_store = { version = "0.7.1", features = ["aws"] }
 url = "2.4.1"

@@ -55,7 +55,10 @@ pub fn postgres_type_to_field(
                 "%Y-%m-%d %H:%M:%S%.f"
             };
             let date = NaiveDateTime::parse_from_str(date_string.as_str(), format)?;
-            Ok(Field::Timestamp(DateTime::from_utc(date, Utc.fix())))
+            Ok(Field::Timestamp(DateTime::from_naive_utc_and_offset(
+                date,
+                Utc.fix(),
+            )))
         }
         Type::TIMESTAMPTZ => {
             let date: DateTime<FixedOffset> = DateTime::parse_from_str(
@@ -312,7 +315,7 @@ mod tests {
         let value = rust_decimal::Decimal::from_f64(8.28).unwrap();
         test_conversion!("8.28", Type::NUMERIC, Field::Decimal(value));
 
-        let value = DateTime::from_utc(
+        let value = DateTime::from_naive_utc_and_offset(
             NaiveDate::from_ymd_opt(2022, 9, 16)
                 .unwrap()
                 .and_hms_opt(5, 56, 29)
@@ -325,7 +328,7 @@ mod tests {
             Field::Timestamp(value)
         );
 
-        let value = DateTime::from_utc(
+        let value = DateTime::from_naive_utc_and_offset(
             NaiveDate::from_ymd_opt(2022, 9, 16)
                 .unwrap()
                 .and_hms_milli_opt(7, 59, 29, 321)
@@ -338,7 +341,7 @@ mod tests {
             Field::Timestamp(value)
         );
 
-        let value = DateTime::from_utc(
+        let value = DateTime::from_naive_utc_and_offset(
             NaiveDate::from_ymd_opt(2022, 9, 16)
                 .unwrap()
                 .and_hms_micro_opt(3, 56, 30, 959787)

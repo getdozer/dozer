@@ -33,7 +33,7 @@ criterion = { version = "0.4.0", features = ["html_reports"] }
 serial_test = "1.0.0"
 dozer-tracing = { path = "../dozer-tracing" }
 tempdir = "0.3.7"
-parquet = "45.0.0"
+parquet = "46.0.0"
 env_logger = "0.10.0"
 hex = "0.4.3"
 dozer-utils = { path = "../dozer-utils" }

@@ -5,7 +5,9 @@ use arrow::{
     datatypes::i256,
     record_batch::RecordBatch,
 };
-use arrow_schema::TimeUnit;
+use arrow_schema::{
+    TimeUnit, DECIMAL128_MAX_PRECISION, DECIMAL128_MAX_SCALE, DECIMAL256_MAX_PRECISION,
+};
 use std::{collections::HashMap, sync::Arc};
 
 pub const DOZER_SCHEMA_KEY: &str = "dozer_schema";
@@ -35,11 +37,11 @@ pub fn map_record_to_arrow(
     rec: Record,
     schema: &Schema,
 ) -> Result<RecordBatch, arrow::error::ArrowError> {
-    let mut rows = vec![];
+    let mut columns = vec![];
 
     for (idx, f) in rec.values.iter().enumerate() {
         let fd = schema.fields.get(idx).unwrap();
-        let r = match (f, fd.typ) {
+        let column = match (f, fd.typ) {
             (Field::UInt(v), FieldType::UInt) => {
                 Arc::new(arrow_array::UInt64Array::from_iter_values([*v])) as ArrayRef
             }
@@ -76,17 +78,20 @@ pub fn map_record_to_arrow(
             (Field::Null, FieldType::Text) => Arc::new(arrow_array::LargeStringArray::from(vec![
                 None as Option<String>,
             ])) as ArrayRef,
-            (Field::Decimal(v), FieldType::Decimal) => Arc::new(arrow_array::Decimal256Array::from(
-                i256::from_string(&v.to_string())
-                    .map_or(vec![None as Option<i256>], |f| vec![Some(f)]),
-            )) as ArrayRef,
+            (Field::Decimal(v), FieldType::Decimal) => arrow_cast::cast(
+                &arrow_array::Decimal128Array::from(vec![v.mantissa()])
+                    .with_precision_and_scale(DECIMAL128_MAX_PRECISION, v.scale() as i8)?,
+                &DataType::Decimal256(DECIMAL256_MAX_PRECISION, DECIMAL128_MAX_SCALE),
+            )?,
             (Field::Null, FieldType::Decimal) => Arc::new(arrow_array::Decimal256Array::from(vec![
                 None as Option<i256>,
             ])) as ArrayRef,
             (Field::Timestamp(v), FieldType::Timestamp) => {
-                Arc::new(arrow_array::TimestampNanosecondArray::from_iter_values([
-                    v.timestamp_nanos()
-                ])) as ArrayRef
+                Arc::new(arrow_array::TimestampNanosecondArray::from_iter_values([{
+                    v.timestamp_nanos_opt().expect(
+                        "value can not be represented in a timestamp with nanosecond precision.",
+                    )
+                }])) as ArrayRef
             }
             (Field::Null, FieldType::Timestamp) => {
                 Arc::new(arrow_array::TimestampNanosecondArray::from(vec![
@@ -133,11 +138,11 @@ pub fn map_record_to_arrow(
                 "Invalid field type {b:?} for the field: {a:?}",
             )))?,
         };
-        rows.push(r);
+        columns.push(column);
     }
 
     let schema = map_to_arrow_schema(schema).unwrap();
-    RecordBatch::try_new(Arc::new(schema), rows)
+    RecordBatch::try_new(Arc::new(schema), columns)
 }
 
 // Maps the dozer field type to the arrow data type
@@ -153,7 +158,7 @@ pub fn map_field_type(typ: FieldType) -> DataType {
         FieldType::Boolean => DataType::Boolean,
         FieldType::String => DataType::Utf8,
         FieldType::Text => DataType::LargeUtf8,
-        FieldType::Decimal => DataType::Decimal256(10, 5), // TODO: Map this correctly
+        FieldType::Decimal => DataType::Decimal256(DECIMAL256_MAX_PRECISION, DECIMAL128_MAX_SCALE),
         FieldType::Timestamp => DataType::Timestamp(arrow_types::TimeUnit::Nanosecond, None),
         FieldType::Date => DataType::Date64,
         FieldType::Binary => DataType::Binary,

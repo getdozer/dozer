@@ -73,7 +73,7 @@ mod tests {
                         return ArbitraryDateTime(DateTime::default());
                     }
                     let time = NaiveTime::from_num_seconds_from_midnight_opt(secs, nano).unwrap();
-                    let datetime = DateTime::<FixedOffset>::from_local(
+                    let datetime = DateTime::<FixedOffset>::from_naive_utc_and_offset(
                         NaiveDateTime::new(date.unwrap(), time),
                         timezone_east,
                     );

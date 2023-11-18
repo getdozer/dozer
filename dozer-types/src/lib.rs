@@ -19,6 +19,7 @@ pub use helper::json_value_to_field;
 
 // Re-exports
 pub use arrow;
+pub use arrow_cast;
 pub use bincode;
 pub use bytes;
 pub use chrono;

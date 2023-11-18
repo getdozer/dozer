@@ -137,7 +137,7 @@ impl<'a> IntoField<'a> for Value {
                 FieldType::Decimal => Field::Decimal(from_value_opt::<Decimal>(value)?),
                 FieldType::Timestamp => {
                     let date_time = from_value_opt::<NaiveDateTime>(value)?;
-                    Field::Timestamp(DateTime::from_utc(date_time, Utc.fix()))
+                    Field::Timestamp(DateTime::from_naive_utc_and_offset(date_time, Utc.fix()))
                 }
                 FieldType::Date => Field::Date(from_value_opt::<NaiveDate>(value)?),
                 FieldType::Json => {
@@ -311,7 +311,7 @@ mod tests {
             Value::Int(9).into_field(&FieldType::Decimal).unwrap()
         );
         assert_eq!(
-            Field::Timestamp(DateTime::from_utc(
+            Field::Timestamp(DateTime::from_naive_utc_and_offset(
                 NaiveDateTime::new(
                     NaiveDate::from_ymd_opt(2023, 8, 17).unwrap(),
                     NaiveTime::from_hms_micro_opt(10, 30, 0, 0).unwrap(),
