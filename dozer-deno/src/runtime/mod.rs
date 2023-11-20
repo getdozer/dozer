@@ -14,12 +14,13 @@ use std::{
 
 use deno_runtime::{
     deno_core::{
-        anyhow::Context as _,
+        anyhow::{anyhow, Context as _},
         error::AnyError,
+        futures::future::Either,
         serde_v8::{from_v8, to_v8},
         JsRuntime, ModuleSpecifier,
     },
-    deno_napi::v8::{self, undefined, Function, Global, Local},
+    deno_napi::v8::{self, undefined, Function, Global, HandleScope, Local, Promise, PromiseState},
 };
 use dozer_types::{
     log::{error, info},
@@ -199,14 +200,54 @@ enum Work {
     },
 }
 
+#[derive(Debug)]
+struct FunctionReturnPromise {
+    promise: Global<Promise>,
+    return_sender: oneshot::Sender<Result<Value, AnyError>>,
+}
+
+impl FunctionReturnPromise {
+    fn return_if_resolved(self, scope: &mut HandleScope) -> Option<Self> {
+        let promise = Local::new(scope, self.promise);
+        match promise.state() {
+            // Ignore error if receiver is closed.
+            PromiseState::Fulfilled => {
+                let result = promise.result(scope);
+                let _ = self
+                    .return_sender
+                    .send(from_v8(scope, result).map_err(Into::into));
+                None
+            }
+            PromiseState::Rejected => {
+                let _ = self.return_sender.send(Err(anyhow!("promise rejected")));
+                None
+            }
+            PromiseState::Pending => {
+                let promise = Global::new(scope, promise);
+                Some(Self {
+                    promise,
+                    return_sender: self.return_sender,
+                })
+            }
+        }
+    }
+}
+
 async fn worker_loop(
     mut runtime: JsRuntime,
     mut work_receiver: mpsc::Receiver<Work>,
     functions: HashMap<NonZeroI32, Global<Function>>,
 ) {
+    let mut pending = vec![];
     loop {
         match poll_fn(|cx| {
-            poll_work_and_event_loop(&mut runtime, &mut work_receiver, &functions, cx)
+            poll_work_and_event_loop(
+                &mut runtime,
+                &mut work_receiver,
+                &mut pending,
+                &functions,
+                cx,
+            )
         })
         .await
         {
@@ -224,23 +265,36 @@ async fn worker_loop(
 fn poll_work_and_event_loop(
     runtime: &mut JsRuntime,
     work_receiver: &mut mpsc::Receiver<Work>,
+    pending: &mut Vec<FunctionReturnPromise>,
     functions: &HashMap<NonZeroI32, Global<Function>>,
     cx: &mut Context,
 ) -> Poll<ControlFlow<(), Result<(), AnyError>>> {
     match work_receiver.try_recv() {
         Ok(work) => {
-            do_work(runtime, work, functions);
+            pending.extend(do_work(runtime, work, functions));
         }
         Err(TryRecvError::Empty) => (),
         Err(TryRecvError::Disconnected) => return Poll::Ready(ControlFlow::Break(())),
     }
 
-    runtime
+    let result = runtime
         .poll_event_loop(cx, false)
-        .map(ControlFlow::Continue)
+        .map(ControlFlow::Continue);
+
+    let scope = &mut runtime.handle_scope();
+    *pending = std::mem::take(pending)
+        .into_iter()
+        .flat_map(|promise| promise.return_if_resolved(scope))
+        .collect();
+
+    result
 }
 
-fn do_work(runtime: &mut JsRuntime, work: Work, functions: &HashMap<NonZeroI32, Global<Function>>) {
+fn do_work(
+    runtime: &mut JsRuntime,
+    work: Work,
+    functions: &HashMap<NonZeroI32, Global<Function>>,
+) -> Option<FunctionReturnPromise> {
     match work {
         Work::CallFunction {
             id,
@@ -248,7 +302,20 @@ fn do_work(runtime: &mut JsRuntime, work: Work, functions: &HashMap<NonZeroI32, 
             return_sender,
         } => {
             // Ignore error if receiver is closed.
-            let _ = return_sender.send(call_function(runtime, id, args, functions));
+            match call_function(runtime, id, args, functions) {
+                Ok(Either::Left(result)) => {
+                    let _ = return_sender.send(Ok(result));
+                    None
+                }
+                Err(e) => {
+                    let _ = return_sender.send(Err(e));
+                    None
+                }
+                Ok(Either::Right(promise)) => Some(FunctionReturnPromise {
+                    promise,
+                    return_sender,
+                }),
+            }
         }
     }
 }
@@ -258,7 +325,7 @@ fn call_function(
     function: NonZeroI32,
     args: Vec<Value>,
     functions: &HashMap<NonZeroI32, Global<Function>>,
-) -> Result<Value, AnyError> {
+) -> Result<Either<Value, Global<Promise>>, AnyError> {
     let function = functions
         .get(&function)
         .context(format!("function {} not found", function))?;
@@ -268,10 +335,14 @@ fn call_function(
         .into_iter()
         .map(|arg| to_v8(scope, arg))
         .collect::<Result<Vec<_>, _>>()?;
-    let result = Local::new(scope, function).call(scope, recv.into(), &args);
-    result
-        .map(|value| from_v8(scope, value).map_err(Into::into))
-        .unwrap_or(Ok(Value::Null))
+    let Some(result) = Local::new(scope, function).call(scope, recv.into(), &args) else {
+        return Ok(Either::Left(Value::Null));
+    };
+    if let Ok(promise) = TryInto::<Local<'_, Promise>>::try_into(result) {
+        Ok(Either::Right(Global::new(scope, promise)))
+    } else {
+        from_v8(scope, result).map_err(Into::into).map(Either::Left)
+    }
 }
 
 mod js_runtime;
