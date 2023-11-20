@@ -160,7 +160,7 @@ fn run() -> Result<(), OrchestrationError> {
     }
     let config = config_res?;
 
-    let mut dozer = init_dozer(
+    let dozer = init_dozer(
         runtime.clone(),
         config.clone(),
         LabelsAndProgress::new(Default::default(), cli.enable_progress),
@@ -172,11 +172,13 @@ fn run() -> Result<(), OrchestrationError> {
         Commands::Run(run) => match run.command {
             Some(RunCommands::Api) => {
                 render_logo();
-                dozer.run_api(shutdown_receiver)
+                dozer.runtime.block_on(dozer.run_api(shutdown_receiver))
             }
             Some(RunCommands::App) => {
                 render_logo();
-                dozer.run_apps(shutdown_receiver, None)
+                dozer
+                    .runtime
+                    .block_on(dozer.run_apps(shutdown_receiver, None))
             }
             Some(RunCommands::Lambda) => {
                 render_logo();
@@ -184,7 +186,9 @@ fn run() -> Result<(), OrchestrationError> {
             }
             None => {
                 render_logo();
-                dozer.run_all(shutdown_receiver, run.locked)
+                dozer
+                    .runtime
+                    .block_on(dozer.run_all(shutdown_receiver, run.locked))
             }
         },
         Commands::Security(security) => match security.command {
@@ -197,7 +201,9 @@ fn run() -> Result<(), OrchestrationError> {
         Commands::Build(build) => {
             let force = build.force.is_some();
 
-            dozer.build(force, shutdown_receiver, build.locked)
+            dozer
+                .runtime
+                .block_on(dozer.build(force, shutdown_receiver, build.locked))
         }
         Commands::Connectors(ConnectorCommand { filter }) => dozer.runtime.block_on(async {
             let (abort_handle, registration) = AbortHandle::new_pair();
