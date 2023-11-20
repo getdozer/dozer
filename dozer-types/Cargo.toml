@@ -9,7 +9,7 @@ edition = "2021"
 [dependencies]
 chrono = { version = "0.4.23", features = ["serde"] }
 serde = { version = "1.0.189", features = ["derive", "rc"] }
-serde_json = { version = "1.0.93", features = ["std"] }
+serde_json = { version = "1.0.108", features = ["arbitrary_precision"] }
 ijson = "0.1.3"
 rust_decimal = { version = "1.32", features = ["serde-str", "db-postgres"] }
 bincode = { workspace = true, features = ["serde"] }

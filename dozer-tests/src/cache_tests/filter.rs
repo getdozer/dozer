@@ -1,6 +1,6 @@
-use bson::{doc, Document};
+use bson::{doc, Bson, Document};
 use dozer_cache::cache::expression::{FilterExpression, Operator, QueryExpression};
-use dozer_types::types::Record;
+use dozer_types::{serde_json::Value, types::Record};
 use futures::stream::StreamExt;
 use mongodb::Collection;
 
@@ -44,13 +44,13 @@ fn convert_filter(filter: Option<&FilterExpression>) -> Document {
                         Operator::GTE => "$gte",
                         _ => unreachable!(),
                     };
-                    document.insert(name, doc! {operator: bson::to_bson(value).unwrap()});
+                    document.insert(name, doc! {operator: to_bson(value).unwrap()});
                 }
                 Operator::Contains => {
                     document.insert(
                         "$text",
                         doc! {
-                            "$search": bson::to_bson(value).unwrap()
+                            "$search": to_bson(value).unwrap()
                         },
                     );
                 }
@@ -102,4 +102,37 @@ fn check_equals(film: &Film, record: &Record) {
         values.next().unwrap().as_string().unwrap()
     );
     assert!(values.next().is_none());
+}
+
+fn to_bson(value: &Value) -> bson::ser::Result<bson::Bson> {
+    // this match block's sole purpose is to properly convert `serde_json::Number` to Bson
+    // when `serde_json/arbitrary_precision` feature is enabled.
+    // `bson::to_bson()` by itself does not properly convert it.
+    match value {
+        Value::Number(number) => {
+            let bson_value = if let Some(n) = number.as_i64() {
+                Bson::Int64(n)
+            } else if let Some(n) = number.as_f64() {
+                Bson::Double(n)
+            } else {
+                bson::to_bson(value)?
+            };
+            Ok(bson_value)
+        }
+        Value::Array(vec) => {
+            let mut array = Vec::with_capacity(vec.len());
+            for value in vec {
+                array.push(to_bson(value)?)
+            }
+            Ok(array.into())
+        }
+        Value::Object(map) => {
+            let mut object = bson::Document::new();
+            for (key, value) in map.into_iter() {
+                object.insert(key, to_bson(value)?);
+            }
+            Ok(object.into())
+        }
+        value => bson::to_bson(value),
+    }
 }

@@ -1,3 +1,4 @@
+pub mod json;
 mod predicate_pushdown;
 
 use std::{any::Any, sync::Arc};
