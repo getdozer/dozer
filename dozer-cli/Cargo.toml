@@ -21,7 +21,7 @@ dozer-storage = { path = "../dozer-storage" }
 dozer-recordstore = { path = "../dozer-recordstore" }
 dozer-lambda = { path = "../dozer-lambda" }
 
-uuid = { version = "1.3.0", features = ["v4", "serde"] }
+uuid = { version = "1.6.1", features = ["v4", "serde"] }
 tokio = { version = "1", features = ["full"] }
 tempdir = "0.3.7"
 clap = { version = "4.4.1", features = ["derive"] }
