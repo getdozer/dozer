@@ -1,14 +1,19 @@
 pub mod json;
 mod predicate_pushdown;
 
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::{any::Any, sync::Arc};
 
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
-use datafusion::catalog::schema::{MemorySchemaProvider, SchemaProvider};
-use datafusion::datasource::{TableProvider, TableType};
+use datafusion::catalog::information_schema::InformationSchemaProvider;
+use datafusion::catalog::schema::SchemaProvider;
+use datafusion::config::ConfigOptions;
+use datafusion::datasource::{DefaultTableSource, TableProvider, TableType};
 use datafusion::error::{DataFusionError, Result};
 use datafusion::execution::context::{SessionState, TaskContext};
+use datafusion::physical_expr::var_provider::is_system_variables;
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::memory::MemoryExec;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
@@ -17,8 +22,12 @@ use datafusion::physical_plan::{
     Statistics,
 };
 use datafusion::prelude::{DataFrame, SessionConfig, SessionContext};
-use datafusion::sql::TableReference;
-use datafusion_expr::{Expr, LogicalPlan, LogicalPlanBuilder, TableProviderFilterPushDown};
+use datafusion::sql::planner::{ContextProvider, ParserOptions, SqlToRel};
+use datafusion::sql::{ResolvedTableReference, TableReference};
+use datafusion::variable::VarType;
+use datafusion_expr::{
+    AggregateUDF, Expr, LogicalPlan, ScalarUDF, TableProviderFilterPushDown, TableSource, WindowUDF,
+};
 use dozer_types::arrow::datatypes::SchemaRef;
 use dozer_types::arrow::record_batch::RecordBatch;
 
@@ -35,7 +44,112 @@ use crate::CacheEndpoint;
 use predicate_pushdown::{predicate_pushdown, supports_predicates_pushdown};
 
 pub struct SQLExecutor {
-    ctx: SessionContext,
+    pub ctx: Arc<SessionContext>,
+}
+
+struct ContextResolver {
+    tables: HashMap<String, Arc<dyn TableSource>>,
+    state: SessionState,
+}
+
+impl ContextProvider for ContextResolver {
+    fn get_table_provider(
+        &self,
+        name: TableReference,
+    ) -> Result<Arc<dyn datafusion_expr::TableSource>> {
+        if let Some(table) = PgCatalogTable::from_ref(&name) {
+            Ok(Arc::new(DefaultTableSource::new(Arc::new(table))))
+        } else {
+            let catalog = &self.state.config_options().catalog;
+            let name = name
+                .resolve(&catalog.default_catalog, &catalog.default_schema)
+                .to_string();
+            self.tables
+                .get(&name)
+                .ok_or_else(|| DataFusionError::Plan(format!("table '{name}' not found")))
+                .cloned()
+        }
+    }
+    fn get_function_meta(&self, name: &str) -> Option<Arc<ScalarUDF>> {
+        let mut parts = name.splitn(3, '.');
+        let first = parts.next()?;
+        let second = parts.next();
+        let third = parts.next();
+        match (first, second, third) {
+            (_, Some("pg_catalog"), Some(name))
+            | ("pg_catalog", Some(name), None)
+            | (name, None, None) => match name {
+                "version" => {
+                    return Some(Arc::new(ScalarUDF {
+                        name: "pg_catalog.version".to_owned(),
+                        signature: datafusion_expr::Signature {
+                            type_signature: datafusion_expr::TypeSignature::Exact(vec![]),
+                            volatility: datafusion_expr::Volatility::Immutable,
+                        },
+                        return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
+                        fun: Arc::new(|_| {
+                            Ok(datafusion_expr::ColumnarValue::Scalar(
+                                datafusion::scalar::ScalarValue::Utf8(Some(format!(
+                                    "PostgreSQL 9.0 (Dozer {})",
+                                    env!("CARGO_PKG_VERSION")
+                                ))),
+                            ))
+                        }),
+                    }))
+                }
+                "current_schema" => {
+                    let schema = self.state.config_options().catalog.default_schema.clone();
+                    return Some(Arc::new(ScalarUDF {
+                        name: "pg_catalog.current_schema".to_owned(),
+                        signature: datafusion_expr::Signature {
+                            type_signature: datafusion_expr::TypeSignature::Exact(vec![]),
+                            volatility: datafusion_expr::Volatility::Immutable,
+                        },
+                        return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
+                        fun: Arc::new(move |_| {
+                            Ok(datafusion_expr::ColumnarValue::Scalar(
+                                datafusion::scalar::ScalarValue::Utf8(Some(schema.clone())),
+                            ))
+                        }),
+                    }));
+                }
+                _ => {}
+            },
+            _ => {}
+        }
+
+        self.state.scalar_functions().get(name).cloned()
+    }
+
+    fn get_aggregate_meta(&self, name: &str) -> Option<Arc<AggregateUDF>> {
+        self.state.aggregate_functions().get(name).cloned()
+    }
+
+    fn get_window_meta(&self, name: &str) -> Option<Arc<WindowUDF>> {
+        self.state.window_functions().get(name).cloned()
+    }
+
+    fn get_variable_type(&self, variable_names: &[String]) -> Option<DataType> {
+        if variable_names.is_empty() {
+            return None;
+        }
+
+        let provider_type = if is_system_variables(variable_names) {
+            VarType::System
+        } else {
+            VarType::UserDefined
+        };
+
+        self.state
+            .execution_props()
+            .var_providers
+            .as_ref()
+            .and_then(|provider| provider.get(&provider_type)?.get_type(variable_names))
+    }
+
+    fn options(&self) -> &ConfigOptions {
+        self.state.config_options()
+    }
 }
 
 impl SQLExecutor {
@@ -43,7 +157,11 @@ impl SQLExecutor {
         let ctx = SessionContext::new_with_config(
             SessionConfig::new()
                 .with_information_schema(true)
-                .with_default_catalog_and_schema("public", "dozer"),
+                .with_default_catalog_and_schema("public", "dozer")
+                .set(
+                    "transaction.isolation.level",
+                    datafusion::scalar::ScalarValue::Utf8(Some("read committed".to_owned())),
+                ),
         );
         for cache_endpoint in cache_endpoints {
             let data_source = CacheEndpointDataSource::new(cache_endpoint.clone());
@@ -56,37 +174,83 @@ impl SQLExecutor {
                 )
                 .unwrap();
         }
-        {
-            let schema = Arc::new(MemorySchemaProvider::new()) as Arc<dyn SchemaProvider>;
-            let pg_type = Arc::new(PgTypesView::new());
-            schema.register_table("pg_type".into(), pg_type).unwrap();
-            ctx.catalog("public")
-                .unwrap()
-                .register_schema("pg_catalog", schema.clone())
-                .unwrap();
+
+        Self { ctx: Arc::new(ctx) }
+    }
+
+    pub async fn execute(&self, plan: LogicalPlan) -> Result<DataFrame, DataFusionError> {
+        self.ctx.execute_logical_plan(plan).await
+    }
+
+    fn schema_for_ref(
+        &self,
+        state: &SessionState,
+        resolved_ref: ResolvedTableReference<'_>,
+    ) -> Result<Arc<dyn SchemaProvider>> {
+        if state.config().information_schema() && resolved_ref.schema == "information_schema" {
+            return Ok(Arc::new(InformationSchemaProvider::new(
+                state.catalog_list().clone(),
+            )));
         }
-        Self { ctx }
+
+        state
+            .catalog_list()
+            .catalog(&resolved_ref.catalog)
+            .ok_or_else(|| {
+                DataFusionError::Plan(format!(
+                    "failed to resolve catalog: {}",
+                    resolved_ref.catalog
+                ))
+            })?
+            .schema(&resolved_ref.schema)
+            .ok_or_else(|| {
+                DataFusionError::Plan(format!("failed to resolve schema: {}", resolved_ref.schema))
+            })
     }
 
-    fn return_empty_dataframe(&self) -> Result<DataFrame, DataFusionError> {
-        let plan = LogicalPlanBuilder::empty(false).build()?;
-        Ok(DataFrame::new(self.ctx.state(), plan))
-    }
-
-    pub async fn execute(&self, sql: &str) -> Result<DataFrame, DataFusionError> {
+    pub async fn parse(&self, sql: &str) -> Result<Option<LogicalPlan>, DataFusionError> {
         let statement = self.ctx.state().sql_to_statement(sql, "postgres")?;
         if let datafusion::sql::parser::Statement::Statement(ref stmt) = statement {
             match stmt.as_ref() {
                 datafusion::sql::sqlparser::ast::Statement::StartTransaction { .. }
                 | datafusion::sql::sqlparser::ast::Statement::Commit { .. }
                 | datafusion::sql::sqlparser::ast::Statement::Rollback { .. } => {
-                    return self.return_empty_dataframe()
+                    return Ok(None);
                 }
                 _ => (),
             }
         }
-        let plan = self.ctx.state().statement_to_plan(statement).await?;
-        self.ctx.execute_logical_plan(plan).await
+        let state = self.ctx.state();
+        let table_refs = state.resolve_table_references(&statement)?;
+
+        let mut provider = ContextResolver {
+            state,
+            tables: HashMap::with_capacity(table_refs.len()),
+        };
+        let state = self.ctx.state();
+        let config = state.config_options();
+        let default_catalog = &config.catalog.default_catalog;
+        let default_schema = &config.catalog.default_schema;
+        for table_ref in table_refs {
+            let table = table_ref.table();
+            let resolved = table_ref.clone().resolve(default_catalog, default_schema);
+            if let Entry::Vacant(v) = provider.tables.entry(resolved.to_string()) {
+                if let Ok(schema) = self.schema_for_ref(&state, resolved) {
+                    if let Some(table) = schema.table(table).await {
+                        v.insert(Arc::new(DefaultTableSource::new(table)));
+                    }
+                }
+            }
+        }
+
+        let query = SqlToRel::new_with_options(
+            &provider,
+            ParserOptions {
+                parse_float_as_decimal: false,
+                enable_ident_normalization: true,
+            },
+        );
+        Some(query.statement_to_plan(statement)).transpose()
     }
 }
 
@@ -282,18 +446,24 @@ fn transpose(
 }
 
 #[derive(Debug)]
-pub struct PgTypesView {
+pub struct PgCatalogTable {
     schema: SchemaRef,
 }
 
-impl Default for PgTypesView {
-    fn default() -> Self {
-        Self::new()
+impl PgCatalogTable {
+    pub fn from_ref(reference: &TableReference) -> Option<Self> {
+        match reference.schema() {
+            Some("pg_catalog") | None => (),
+            _ => return None,
+        }
+        match reference.table() {
+            "pg_type" => Some(Self::pg_type()),
+            "pg_namespace" => Some(Self::pg_namespace()),
+            _ => None,
+        }
     }
-}
 
-impl PgTypesView {
-    pub fn new() -> Self {
+    pub fn pg_type() -> Self {
         Self {
             schema: Arc::new(Schema::new(vec![
                 Field::new("oid", DataType::Utf8, false),
@@ -330,10 +500,20 @@ impl PgTypesView {
             ])),
         }
     }
+    pub fn pg_namespace() -> Self {
+        Self {
+            schema: Arc::new(Schema::new(vec![
+                Field::new("oid", DataType::Utf8, false),
+                Field::new("nspname", DataType::Utf8, false),
+                Field::new("nspowner", DataType::Utf8, false),
+                Field::new("nspacl", DataType::Utf8, false),
+            ])),
+        }
+    }
 }
 
 #[async_trait]
-impl TableProvider for PgTypesView {
+impl TableProvider for PgCatalogTable {
     fn as_any(&self) -> &dyn Any {
         self
     }

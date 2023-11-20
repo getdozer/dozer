@@ -3,6 +3,7 @@ use std::sync::Arc;
 use ::datafusion::arrow::datatypes::DECIMAL128_MAX_PRECISION;
 use ::datafusion::error::DataFusionError;
 use async_trait::async_trait;
+use datafusion_expr::{LogicalPlan, LogicalPlanBuilder};
 use dozer_types::arrow::array::{
     Array, BinaryArray, BooleanArray, Date32Array, Date64Array, Decimal128Array, Decimal256Array,
     DurationMicrosecondArray, DurationMillisecondArray, DurationNanosecondArray,
@@ -16,13 +17,13 @@ use dozer_types::arrow::array::{
 use dozer_types::arrow::array::{Int64Array, LargeBinaryArray};
 use dozer_types::arrow::datatypes::{DataType, IntervalUnit};
 use dozer_types::arrow::datatypes::{TimeUnit, DECIMAL_DEFAULT_SCALE};
-use dozer_types::log::{debug, info};
+use dozer_types::log::info;
 use dozer_types::models::api_config::{default_host, default_sql_port, SqlOptions};
 use dozer_types::rust_decimal::Decimal;
 use futures_util::stream::BoxStream;
 use futures_util::{stream, StreamExt};
 use pgwire::api::portal::Portal;
-use pgwire::api::stmt::NoopQueryParser;
+use pgwire::api::stmt::QueryParser;
 use pgwire::api::store::MemPortalStore;
 use pgwire::messages::data::DataRow;
 use tokio::net::TcpListener;
@@ -30,7 +31,7 @@ use tokio::net::TcpListener;
 use pgwire::api::auth::noop::NoopStartupHandler;
 use pgwire::api::query::{ExtendedQueryHandler, SimpleQueryHandler, StatementOrPortal};
 use pgwire::api::results::{
-    DataRowEncoder, DescribeResponse, FieldFormat, FieldInfo, QueryResponse, Response,
+    DataRowEncoder, DescribeResponse, FieldFormat, FieldInfo, QueryResponse, Response, Tag,
 };
 use pgwire::api::{ClientInfo, MakeHandler, StatelessMakeHandler, Type};
 use pgwire::error::{ErrorInfo, PgWireError, PgWireResult};
@@ -95,36 +96,26 @@ impl PgWireServer {
 }
 
 struct QueryProcessor {
-    sql_executor: SQLExecutor,
-    portal_store: Arc<MemPortalStore<String>>,
-    query_parser: Arc<NoopQueryParser>,
+    sql_executor: Arc<SQLExecutor>,
+    portal_store: Arc<MemPortalStore<Option<LogicalPlan>>>,
 }
 
 impl QueryProcessor {
     pub fn new(cache_endpoints: Vec<Arc<CacheEndpoint>>) -> Self {
         let sql_executor = SQLExecutor::new(cache_endpoints);
         Self {
-            sql_executor,
+            sql_executor: Arc::new(sql_executor),
             portal_store: Arc::new(MemPortalStore::new()),
-            query_parser: Arc::new(NoopQueryParser::new()),
         }
     }
 
-    async fn execute_query<'a>(&self, query: String) -> PgWireResult<Response<'a>> {
-        debug!("Executing SQL query {:?}", query);
-
+    async fn execute<'a>(&self, plan: LogicalPlan) -> PgWireResult<Response<'a>> {
         fn error_info(err: DataFusionError) -> Box<ErrorInfo> {
             Box::new(generic_error_info(err.to_string()))
         }
-        let result = self.sql_executor.execute(&query).await;
-        if let Err(err) = result {
-            return Ok(Response::Error(error_info(err)));
-        }
 
-        let dataframe = result.unwrap();
         let schema = Arc::new(
-            dataframe
-                .schema()
+            plan.schema()
                 .fields()
                 .iter()
                 .map(|field| {
@@ -139,10 +130,16 @@ impl QueryProcessor {
                 })
                 .collect::<Vec<_>>(),
         );
+        let dataframe = match self.sql_executor.execute(plan).await {
+            Ok(df) => df,
+            Err(err) => {
+                return Err(PgWireError::UserError(error_info(err)));
+            }
+        };
 
         let result = dataframe.execute_stream().await;
         if let Err(err) = result {
-            return Ok(Response::Error(error_info(err)));
+            return Err(PgWireError::UserError(error_info(err)));
         }
 
         let recordbatch_stream = result.unwrap();
@@ -182,37 +179,58 @@ impl SimpleQueryHandler for QueryProcessor {
     where
         C: ClientInfo + Unpin + Send + Sync,
     {
-        self.execute_query(query.to_string())
+        let Some(parsed) = self.sql_executor.parse_sql(query, &[]).await? else {
+            return Ok(vec![Response::Execution(Tag::new_for_execution(
+                query, None,
+            ))]);
+        };
+        self.execute(parsed).await.map(|r| vec![r])
+    }
+}
+
+#[async_trait]
+impl QueryParser for SQLExecutor {
+    type Statement = Option<LogicalPlan>;
+
+    async fn parse_sql(&self, sql: &str, _types: &[Type]) -> PgWireResult<Self::Statement> {
+        self.parse(sql)
             .await
-            .map(|response| vec![response])
+            .map_err(|e| PgWireError::UserError(Box::new(generic_error_info(e.to_string()))))
     }
 }
 
 #[async_trait]
 impl ExtendedQueryHandler for QueryProcessor {
-    type Statement = String;
+    type Statement = Option<LogicalPlan>;
     type PortalStore = MemPortalStore<Self::Statement>;
-    type QueryParser = NoopQueryParser;
+    type QueryParser = SQLExecutor;
 
     fn portal_store(&self) -> Arc<Self::PortalStore> {
         self.portal_store.clone()
     }
 
     fn query_parser(&self) -> Arc<Self::QueryParser> {
-        self.query_parser.clone()
+        self.sql_executor.clone()
     }
 
     async fn do_query<'a, 'b: 'a, C>(
         &'b self,
         _client: &mut C,
         portal: &'a Portal<Self::Statement>,
-        _max_rows: usize,
+        max_rows: usize,
     ) -> PgWireResult<Response<'a>>
     where
         C: ClientInfo + Unpin + Send + Sync,
     {
-        let query = portal.statement().statement();
-        self.execute_query(query.to_string()).await
+        let Some(query) = portal.statement().statement() else {
+            return Ok(Response::Execution(Tag::new_for_execution("", None)));
+        };
+        let plan = LogicalPlanBuilder::from(query.clone())
+            .limit(0, Some(max_rows))
+            .unwrap()
+            .build()
+            .unwrap();
+        self.execute(plan).await
     }
 
     async fn do_describe<C>(

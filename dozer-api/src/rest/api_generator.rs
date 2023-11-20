@@ -185,8 +185,16 @@ pub async fn sql(
     let cache_endpoints = (*cache_endpoints.into_inner()).clone();
     let sql_executor = SQLExecutor::new(cache_endpoints);
     let query = sql.0 .0;
+    let plan = sql_executor
+        .parse(&query)
+        .await
+        .map_err(ApiError::SQLQueryFailed)?;
+    let Some(plan) = plan else {
+        // This was a transaction statement, which doesn't require a result
+        return Ok(HttpResponse::Ok().json(json!({})));
+    };
     let record_batches = sql_executor
-        .execute(&query)
+        .execute(plan)
         .await
         .map_err(ApiError::SQLQueryFailed)?
         .collect()
