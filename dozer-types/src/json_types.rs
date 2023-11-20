@@ -8,7 +8,7 @@ use prost_types::value::Kind;
 use prost_types::{ListValue, Struct, Value as ProstValue};
 use serde_json::{Map, Value};
 
-use ijson::{Destructured, DestructuredRef, IArray, IObject, IValue};
+use ijson::{Destructured, DestructuredRef, IArray, INumber, IObject, IValue};
 
 pub type JsonValue = IValue;
 pub type JsonObject = IObject;
@@ -21,7 +21,7 @@ pub use ijson::ijson as json;
 pub fn json_from_str(from: &str) -> Result<JsonValue, DeserializationError> {
     let serde_value: serde_json::Value =
         serde_json::from_str(from).unwrap_or_else(|_| serde_json::Value::String(from.to_owned()));
-    ijson::to_value(serde_value).map_err(Into::into)
+    serde_json_to_json_value(serde_value)
 }
 
 pub fn parse_json_slice(bytes: &[u8]) -> Result<JsonValue, DeserializationError> {
@@ -181,7 +181,45 @@ pub fn json_value_to_prost(val: JsonValue) -> ProstValue {
 }
 
 pub fn serde_json_to_json_value(value: Value) -> Result<JsonValue, DeserializationError> {
-    ijson::to_value(value).map_err(Into::into)
+    // this match block's sole purpose is to properly convert `serde_json::Number` to IValue
+    // when `serde_json/arbitrary_precision` feature is enabled.
+    // `ijson::to_value()` by itself does not properly convert it.
+    match value {
+        Value::Number(number) => {
+            fn ivalue_from_number_opt(number: &serde_json::Number) -> Option<IValue> {
+                if let Some(n) = number.as_f64() {
+                    if let Ok(value) = INumber::try_from(n) {
+                        return Some(value.into());
+                    }
+                } else if let Some(n) = number.as_i64() {
+                    return Some(INumber::from(n).into());
+                } else if let Some(n) = number.as_u64() {
+                    return Some(INumber::from(n).into());
+                }
+                None
+            }
+            if let Some(value) = ivalue_from_number_opt(&number) {
+                Ok(value)
+            } else {
+                ijson::to_value(Value::Number(number)).map_err(Into::into)
+            }
+        }
+        Value::Array(vec) => {
+            let mut array = IArray::with_capacity(vec.len());
+            for value in vec {
+                array.push(serde_json_to_json_value(value)?)
+            }
+            Ok(array.into())
+        }
+        Value::Object(map) => {
+            let mut object = IObject::with_capacity(map.len());
+            for (key, value) in map.into_iter() {
+                object.insert(key, serde_json_to_json_value(value)?);
+            }
+            Ok(object.into())
+        }
+        value => ijson::to_value(value).map_err(Into::into),
+    }
 }
 
 #[cfg(test)]

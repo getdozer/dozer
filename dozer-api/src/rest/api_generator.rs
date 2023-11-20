@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use actix_web::web::ReqData;
 use actix_web::{web, HttpResponse};
-use datafusion::error::DataFusionError;
 use dozer_cache::cache::expression::{QueryExpression, Skip};
 use dozer_cache::cache::CacheRecord;
 use dozer_cache::{CacheReader, Phase};
@@ -14,6 +13,7 @@ use openapiv3::OpenAPI;
 
 use crate::api_helper::{get_record, get_records, get_records_count};
 use crate::generator::oapi::generator::OpenApiGenerator;
+use crate::sql::datafusion::json::record_batches_to_json_rows;
 use crate::sql::datafusion::SQLExecutor;
 use crate::CacheEndpoint;
 use crate::{auth::Access, errors::ApiError};
@@ -193,12 +193,7 @@ pub async fn sql(
         .collect()
         .await
         .map_err(ApiError::SQLQueryFailed)?;
-    datafusion::arrow::json::writer::record_batches_to_json_rows(
-        record_batches.iter().collect::<Vec<_>>().as_slice(),
-    )
-    .map_err(DataFusionError::ArrowError)
-    .map_err(ApiError::SQLQueryFailed)
-    .map(|result| HttpResponse::Ok().json(result))
+    Ok(HttpResponse::Ok().json(record_batches_to_json_rows(&record_batches)))
 }
 
 mod extractor {

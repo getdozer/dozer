@@ -55,6 +55,6 @@ uuid = "1.4.1"
 chrono = "0.4.31"
 datafusion = "32.0.0"
 datafusion-expr = "32.0.0"
-serde_json = "1.0.93"
+serde_json = { version = "1.0.108", features = ["arbitrary_precision"] }
 pgwire = "0.16.1"
 tempdir = "0.3.7"
