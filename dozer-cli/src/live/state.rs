@@ -365,16 +365,13 @@ fn run(
     shutdown_receiver: ShutdownReceiver,
     temp_dir: &str,
 ) -> Result<JoinHandle<()>, OrchestrationError> {
-    let mut dozer = get_dozer_run_instance(dozer, labels, request, temp_dir)?;
+    let dozer = get_dozer_run_instance(dozer, labels, request, temp_dir)?;
 
     validate_config(&dozer.config)?;
     let runtime = dozer.runtime.clone();
-    let run_thread = std::thread::spawn(move || dozer.run_all(shutdown_receiver, false));
 
     let handle = std::thread::spawn(move || {
-        runtime.block_on(async {
-            run_thread.join().unwrap().unwrap();
-        });
+        runtime.block_on(async move { dozer.run_all(shutdown_receiver, false).await.unwrap() });
     });
 
     Ok(handle)

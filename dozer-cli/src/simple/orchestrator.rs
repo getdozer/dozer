@@ -27,7 +27,8 @@ use dozer_types::models::api_config::{
 };
 use dozer_types::models::flags::{default_dynamic, default_push_events};
 use dozer_types::models::lambda_config::LambdaConfig;
-use tokio::select;
+use futures::future::{select, Either};
+use tokio::{select, try_join};
 
 use crate::console_helper::get_colored_text;
 use crate::console_helper::GREEN;
@@ -46,11 +47,9 @@ use metrics::{describe_counter, describe_histogram};
 use std::collections::HashMap;
 use std::fs;
 
-use std::sync::mpsc::Sender;
-use std::sync::{mpsc, Arc};
-use std::thread;
+use std::sync::Arc;
 use tokio::runtime::Runtime;
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, oneshot};
 
 #[derive(Clone)]
 pub struct SimpleOrchestrator {
@@ -75,7 +74,7 @@ impl SimpleOrchestrator {
         }
     }
 
-    pub fn run_api(&mut self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError> {
+    pub async fn run_api(&self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError> {
         describe_histogram!(
             dozer_api::API_LATENCY_HISTOGRAM_NAME,
             "The api processing latency in seconds"
@@ -84,117 +83,112 @@ impl SimpleOrchestrator {
             dozer_api::API_REQUEST_COUNTER_NAME,
             "Number of requests processed by the api"
         );
-        self.runtime.block_on(async {
-            let mut futures = FuturesUnordered::new();
+        let mut futures = FuturesUnordered::new();
 
-            // Open `RoCacheEndpoint`s. Streaming operations if necessary.
-            let flags = self.config.flags.clone();
-            let (operations_sender, operations_receiver) =
-                if flags.dynamic.unwrap_or_else(default_dynamic) {
-                    let (sender, receiver) = broadcast::channel(1024);
-                    (Some(sender), Some(receiver))
+        // Open `RoCacheEndpoint`s. Streaming operations if necessary.
+        let flags = self.config.flags.clone();
+        let (operations_sender, operations_receiver) =
+            if flags.dynamic.unwrap_or_else(default_dynamic) {
+                let (sender, receiver) = broadcast::channel(1024);
+                (Some(sender), Some(receiver))
+            } else {
+                (None, None)
+            };
+
+        let app_server_url = app_url(&self.config.api.app_grpc);
+        let cache_manager = Arc::new(
+            LmdbRwCacheManager::new(get_cache_manager_options(&self.config))
+                .map_err(OrchestrationError::CacheInitFailed)?,
+        );
+        let default_max_num_records = get_default_max_num_records(&self.config);
+        let mut cache_endpoints = vec![];
+        for endpoint in &self.config.endpoints {
+            let (cache_endpoint, handle) = select! {
+                // If we're shutting down, the cache endpoint will fail to connect
+                _shutdown_future = shutdown.create_shutdown_future() => return Ok(()),
+                result = CacheEndpoint::new(
+                    self.runtime.clone(),
+                    app_server_url.clone(),
+                    cache_manager.clone(),
+                    endpoint.clone(),
+                    Box::pin(shutdown.create_shutdown_future()),
+                    operations_sender.clone(),
+                    self.labels.clone(),
+
+                ) => result?
+            };
+            let cache_name = endpoint.name.clone();
+            futures.push(flatten_join_handle(join_handle_map_err(handle, move |e| {
+                if e.is_map_full() {
+                    OrchestrationError::CacheFull(cache_name)
                 } else {
-                    (None, None)
-                };
+                    OrchestrationError::CacheBuildFailed(cache_name, e)
+                }
+            })));
+            cache_endpoints.push(Arc::new(cache_endpoint));
+        }
 
-            let app_server_url = app_url(&self.config.api.app_grpc);
-            let cache_manager = Arc::new(
-                LmdbRwCacheManager::new(get_cache_manager_options(&self.config))
-                    .map_err(OrchestrationError::CacheInitFailed)?,
-            );
-            let default_max_num_records = get_default_max_num_records(&self.config);
-            let mut cache_endpoints = vec![];
-            for endpoint in &self.config.endpoints {
-                let (cache_endpoint, handle) = select! {
-                    // If we're shutting down, the cache endpoint will fail to connect
-                    _shutdown_future = shutdown.create_shutdown_future() => return Ok(()),
-                    result = CacheEndpoint::new(
-                        self.runtime.clone(),
-                        app_server_url.clone(),
-                        cache_manager.clone(),
-                        endpoint.clone(),
-                        Box::pin(shutdown.create_shutdown_future()),
-                        operations_sender.clone(),
-                        self.labels.clone(),
+        // Initialize API Server
+        let rest_config = self.config.api.rest.clone();
+        let rest_handle = if rest_config.enabled.unwrap_or(true) {
+            let security = self.config.api.api_security.clone();
+            let cache_endpoints_for_rest = cache_endpoints.clone();
+            let shutdown_for_rest = shutdown.create_shutdown_future();
+            let api_server = rest::ApiServer::new(rest_config, security, default_max_num_records);
+            let api_server = api_server
+                .run(
+                    cache_endpoints_for_rest,
+                    shutdown_for_rest,
+                    self.labels.clone(),
+                )
+                .map_err(OrchestrationError::ApiInitFailed)?;
+            tokio::spawn(api_server.map_err(OrchestrationError::RestServeFailed))
+        } else {
+            tokio::spawn(async move { Ok::<(), OrchestrationError>(()) })
+        };
 
-                    ) => result?
-                };
-                let cache_name = endpoint.name.clone();
-                futures.push(flatten_join_handle(join_handle_map_err(handle, move |e| {
-                    if e.is_map_full() {
-                        OrchestrationError::CacheFull(cache_name)
-                    } else {
-                        OrchestrationError::CacheBuildFailed(cache_name, e)
-                    }
-                })));
-                cache_endpoints.push(Arc::new(cache_endpoint));
-            }
-
-            // Initialize API Server
-            let rest_config = self.config.api.rest.clone();
-            let rest_handle = if rest_config.enabled.unwrap_or(true) {
-                let security = self.config.api.api_security.clone();
-                let cache_endpoints_for_rest = cache_endpoints.clone();
-                let shutdown_for_rest = shutdown.create_shutdown_future();
-                let api_server =
-                    rest::ApiServer::new(rest_config, security, default_max_num_records);
-                let api_server = api_server
-                    .run(
-                        cache_endpoints_for_rest,
-                        shutdown_for_rest,
-                        self.labels.clone(),
-                    )
-                    .map_err(OrchestrationError::ApiInitFailed)?;
-                tokio::spawn(api_server.map_err(OrchestrationError::RestServeFailed))
-            } else {
-                tokio::spawn(async move { Ok::<(), OrchestrationError>(()) })
-            };
-
-            // Initialize gRPC Server
-            let grpc_config = self.config.api.grpc.clone();
-            let grpc_handle = if grpc_config.enabled.unwrap_or(true) {
-                let api_security = self.config.api.api_security.clone();
-                let grpc_server = grpc::ApiServer::new(grpc_config, api_security, flags);
-                let grpc_server = grpc_server
-                    .run(
-                        cache_endpoints.clone(),
-                        shutdown.clone(),
-                        operations_receiver,
-                        self.labels.clone(),
-                        default_max_num_records,
-                    )
+        // Initialize gRPC Server
+        let grpc_config = self.config.api.grpc.clone();
+        let grpc_handle = if grpc_config.enabled.unwrap_or(true) {
+            let api_security = self.config.api.api_security.clone();
+            let grpc_server = grpc::ApiServer::new(grpc_config, api_security, flags);
+            let grpc_server = grpc_server
+                .run(
+                    cache_endpoints.clone(),
+                    shutdown.clone(),
+                    operations_receiver,
+                    self.labels.clone(),
+                    default_max_num_records,
+                )
+                .await
+                .map_err(OrchestrationError::ApiInitFailed)?;
+            tokio::spawn(async move {
+                grpc_server
                     .await
-                    .map_err(OrchestrationError::ApiInitFailed)?;
-                tokio::spawn(async move {
-                    grpc_server
-                        .await
-                        .map_err(OrchestrationError::GrpcServeFailed)
-                })
-            } else {
-                tokio::spawn(async move { Ok::<(), OrchestrationError>(()) })
-            };
+                    .map_err(OrchestrationError::GrpcServeFailed)
+            })
+        } else {
+            tokio::spawn(async move { Ok::<(), OrchestrationError>(()) })
+        };
 
-            let pgwire_handle = {
-                let pgwire_config = self.config.api.sql.clone();
-                let pgwire_server = sql::pgwire::PgWireServer::new(pgwire_config);
-                tokio::spawn(async move {
-                    pgwire_server
-                        .run(shutdown, cache_endpoints)
-                        .await
-                        .map_err(OrchestrationError::PGWireServerFailed)
-                })
-            };
+        let pgwire_handle = {
+            let pgwire_config = self.config.api.sql.clone();
+            let pgwire_server = sql::pgwire::PgWireServer::new(pgwire_config);
+            tokio::spawn(async move {
+                pgwire_server
+                    .run(shutdown, cache_endpoints)
+                    .await
+                    .map_err(OrchestrationError::PGWireServerFailed)
+            })
+        };
 
-            futures.push(flatten_join_handle(rest_handle));
-            futures.push(flatten_join_handle(grpc_handle));
-            futures.push(flatten_join_handle(pgwire_handle));
+        futures.push(flatten_join_handle(rest_handle));
+        futures.push(flatten_join_handle(grpc_handle));
+        futures.push(flatten_join_handle(pgwire_handle));
 
-            while let Some(result) = futures.next().await {
-                result?;
-            }
-
-            Ok::<(), OrchestrationError>(())
-        })?;
+        while let Some(result) = futures.next().await {
+            result?;
+        }
 
         Ok(())
     }
@@ -221,14 +215,14 @@ impl SimpleOrchestrator {
         lockfile_path(self.base_directory.clone())
     }
 
-    pub fn run_apps(
-        &mut self,
+    pub async fn run_apps(
+        &self,
         shutdown: ShutdownReceiver,
-        api_notifier: Option<Sender<()>>,
+        api_notifier: Option<oneshot::Sender<()>>,
     ) -> Result<(), OrchestrationError> {
         let home_dir = HomeDir::new(self.home_dir(), self.cache_dir());
         let contract = Contract::deserialize(self.lockfile_path().as_std_path())?;
-        let executor = self.runtime.block_on(Executor::new(
+        let executor = Executor::new(
             &home_dir,
             &contract,
             &self.config.connections,
@@ -238,24 +232,23 @@ impl SimpleOrchestrator {
             get_checkpoint_options(&self.config),
             self.labels.clone(),
             &self.config.udfs,
-        ))?;
+        )
+        .await?;
         let endpoint_and_logs = executor.endpoint_and_logs().to_vec();
-        let dag_executor = self.runtime.block_on(executor.create_dag_executor(
-            &self.runtime,
-            get_executor_options(&self.config),
-            shutdown.clone(),
-            self.config.flags.clone(),
-        ))?;
+        let dag_executor = executor
+            .create_dag_executor(
+                &self.runtime,
+                get_executor_options(&self.config),
+                shutdown.clone(),
+                self.config.flags.clone(),
+            )
+            .await?;
 
         let app_grpc_config = &self.config.api.app_grpc;
-        let internal_server_future = self
-            .runtime
-            .block_on(start_internal_pipeline_server(
-                endpoint_and_logs,
-                app_grpc_config,
-                shutdown.clone(),
-            ))
-            .map_err(OrchestrationError::InternalServerFailed)?;
+        let internal_server_future =
+            start_internal_pipeline_server(endpoint_and_logs, app_grpc_config, shutdown.clone())
+                .await
+                .map_err(OrchestrationError::InternalServerFailed)?;
 
         if let Some(api_notifier) = api_notifier {
             api_notifier.send(()).expect("Failed to notify API server");
@@ -278,12 +271,10 @@ impl SimpleOrchestrator {
         let dozer_lambda = self.clone();
         futures.push(async move { dozer_lambda.run_lambda(shutdown).await }.boxed());
 
-        self.runtime.block_on(async move {
-            while let Some(result) = futures.next().await {
-                result?;
-            }
-            Ok(())
-        })
+        while let Some(result) = futures.next().await {
+            result?;
+        }
+        Ok(())
     }
 
     pub async fn run_lambda(&self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError> {
@@ -349,8 +340,8 @@ impl SimpleOrchestrator {
         Err(OrchestrationError::MissingSecurityConfig)
     }
 
-    pub fn build(
-        &mut self,
+    pub async fn build(
+        &self,
         force: bool,
         shutdown: ShutdownReceiver,
         locked: bool,
@@ -385,11 +376,9 @@ impl SimpleOrchestrator {
             self.config.flags.clone(),
             &self.config.udfs,
         );
-        let dag = self
-            .runtime
-            .block_on(builder.build(&self.runtime, shutdown))?;
+        let dag = builder.build(&self.runtime, shutdown).await?;
         // Populate schemas.
-        let dag_schemas = self.runtime.block_on(DagSchemas::new(dag))?;
+        let dag_schemas = DagSchemas::new(dag).await?;
 
         // Get current contract.
         let enable_token = self.config.api.api_security.is_some();
@@ -431,7 +420,7 @@ impl SimpleOrchestrator {
 
     // Cleaning the entire folder as there will be inconsistencies
     // between pipeline, cache and generated proto files.
-    pub fn clean(&mut self) -> Result<(), OrchestrationError> {
+    pub fn clean(&self) -> Result<(), OrchestrationError> {
         let cache_dir = self.cache_dir();
         if cache_dir.exists() {
             fs::remove_dir_all(&cache_dir)
@@ -447,38 +436,36 @@ impl SimpleOrchestrator {
         Ok(())
     }
 
-    pub fn run_all(
-        &mut self,
+    pub async fn run_all(
+        &self,
         shutdown: ShutdownReceiver,
         locked: bool,
     ) -> Result<(), OrchestrationError> {
-        let mut dozer_api = self.clone();
+        let dozer_api = self.clone();
 
-        let (tx, rx) = mpsc::channel::<()>();
+        let (tx, rx) = oneshot::channel::<()>();
 
-        self.build(false, shutdown.clone(), locked)?;
+        self.build(false, shutdown.clone(), locked).await?;
 
-        let mut dozer_pipeline = self.clone();
+        let dozer_pipeline = self.clone();
         let pipeline_shutdown = shutdown.clone();
-        let pipeline_thread =
-            thread::spawn(move || dozer_pipeline.run_apps(pipeline_shutdown, Some(tx)));
+        let pipeline_future =
+            async move { dozer_pipeline.run_apps(pipeline_shutdown, Some(tx)).await }.boxed();
 
-        // Wait for pipeline to initialize caches before starting api server
-        if rx.recv().is_err() {
-            // This means the pipeline thread returned before sending a message. Either an error happened or it panicked.
-            return match pipeline_thread.join() {
-                Ok(Err(e)) => Err(e),
-                Ok(Ok(())) => panic!("An error must have happened"),
-                Err(e) => {
-                    std::panic::panic_any(e);
+        match select(rx, pipeline_future).await {
+            Either::Left((result, pipeline_future)) => {
+                if result.is_err() {
+                    // Pipeline panics before ready. Propagate the panic.
+                    pipeline_future.await.unwrap();
+                    unreachable!("we must have panicked");
+                } else {
+                    let api_future = dozer_api.run_api(shutdown);
+                    try_join!(pipeline_future, api_future)?;
+                    Ok(())
                 }
-            };
+            }
+            Either::Right((result, _)) => result,
         }
-
-        dozer_api.run_api(shutdown)?;
-
-        // wait for pipeline thread to shutdown gracefully
-        pipeline_thread.join().unwrap()
     }
 }
 

@@ -226,9 +226,14 @@ async fn create_nested_dozer_server(
     let dozer_runtime = Runtime::new().expect("Failed to start tokio runtime for nested dozer");
     let runtime = Arc::new(dozer_runtime);
     let directory = temp_dir.path().to_owned().try_into().unwrap();
-    let mut dozer = SimpleOrchestrator::new(directory, config, runtime.clone(), Default::default());
+    let dozer = SimpleOrchestrator::new(directory, config, runtime.clone(), Default::default());
     let (shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
-    let dozer_thread = std::thread::spawn(move || dozer.run_all(shutdown_receiver, false).unwrap());
+    let dozer_thread = std::thread::spawn(move || {
+        dozer
+            .runtime
+            .block_on(dozer.run_all(shutdown_receiver, false))
+            .unwrap()
+    });
 
     let client = try_connect_ingest("http://localhost:8085".to_owned()).await;
 

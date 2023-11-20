@@ -20,7 +20,6 @@ use super::join_builder::insert_join_to_pipeline;
 
 #[derive(Clone, Debug)]
 pub struct ConnectionInfo {
-    pub processor_name: String,
     pub input_nodes: Vec<(String, String, PortHandle)>,
     pub output_node: (String, PortHandle),
 }
@@ -75,7 +74,6 @@ fn insert_table_to_pipeline(
         );
 
         Ok(ConnectionInfo {
-            processor_name: product_processor_name.clone(),
             input_nodes: connection_info.input_nodes,
             output_node: (product_processor_name, DEFAULT_PORT_HANDLE),
         })
@@ -132,7 +130,6 @@ fn insert_table_processor_to_pipeline(
     );
 
     Ok(ConnectionInfo {
-        processor_name: processor_name.clone(),
         input_nodes,
         output_node: (processor_name, DEFAULT_PORT_HANDLE),
     })
@@ -172,7 +169,7 @@ pub fn insert_table_operator_processor_to_pipeline(
                         pipeline_idx,
                         query_context,
                     )?;
-                    connection_info.processor_name
+                    connection_info.output_node.0
                 }
             };
 
@@ -204,7 +201,6 @@ pub fn insert_table_operator_processor_to_pipeline(
             }
 
             Ok(ConnectionInfo {
-                processor_name: processor_name.clone(),
                 input_nodes,
                 output_node: (processor_name, DEFAULT_PORT_HANDLE),
             })
@@ -232,7 +228,7 @@ pub fn insert_table_operator_processor_to_pipeline(
                         pipeline_idx,
                         query_context,
                     )?;
-                    connection_info.processor_name
+                    connection_info.output_node.0
                 }
             };
 
@@ -264,7 +260,6 @@ pub fn insert_table_operator_processor_to_pipeline(
             }
 
             Ok(ConnectionInfo {
-                processor_name: processor_name.clone(),
                 input_nodes,
                 output_node: (processor_name, DEFAULT_PORT_HANDLE),
             })
