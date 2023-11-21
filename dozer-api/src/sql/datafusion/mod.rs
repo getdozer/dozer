@@ -157,11 +157,11 @@ impl SQLExecutor {
         let ctx = SessionContext::new_with_config(
             SessionConfig::new()
                 .with_information_schema(true)
-                .with_default_catalog_and_schema("public", "dozer")
-                .set(
-                    "transaction.isolation.level",
-                    datafusion::scalar::ScalarValue::Utf8(Some("read committed".to_owned())),
-                ),
+                .with_default_catalog_and_schema("public", "dozer"),
+            //.set(
+            //    "transaction.isolation.level",
+            //    datafusion::scalar::ScalarValue::Utf8(Some("read committed".to_owned())),
+            //),
         );
         for cache_endpoint in cache_endpoints {
             let data_source = CacheEndpointDataSource::new(cache_endpoint.clone());

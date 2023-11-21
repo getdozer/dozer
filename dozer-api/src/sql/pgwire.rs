@@ -17,7 +17,7 @@ use dozer_types::arrow::array::{
 use dozer_types::arrow::array::{Int64Array, LargeBinaryArray};
 use dozer_types::arrow::datatypes::{DataType, IntervalUnit};
 use dozer_types::arrow::datatypes::{TimeUnit, DECIMAL_DEFAULT_SCALE};
-use dozer_types::log::info;
+use dozer_types::log::{debug, info};
 use dozer_types::models::api_config::{default_host, default_sql_port, SqlOptions};
 use dozer_types::rust_decimal::Decimal;
 use futures_util::stream::BoxStream;
@@ -114,6 +114,7 @@ impl QueryProcessor {
             Box::new(generic_error_info(err.to_string()))
         }
 
+        debug!("Executing query plan {plan:?}");
         let schema = Arc::new(
             plan.schema()
                 .fields()
@@ -171,6 +172,19 @@ impl QueryProcessor {
 
         Ok(Response::Query(QueryResponse::new(schema, data_row_stream)))
     }
+
+    fn pg_schema(&self, stmt: &LogicalPlan) -> Vec<FieldInfo> {
+        let schema = stmt.schema();
+        schema
+            .fields()
+            .iter()
+            .map(|df_field| {
+                let name = df_field.name().to_owned();
+                let datatype = map_data_type(df_field.data_type());
+                FieldInfo::new(name, None, None, datatype, FieldFormat::Text)
+            })
+            .collect()
+    }
 }
 
 #[async_trait]
@@ -193,6 +207,7 @@ impl QueryParser for SQLExecutor {
     type Statement = Option<LogicalPlan>;
 
     async fn parse_sql(&self, sql: &str, _types: &[Type]) -> PgWireResult<Self::Statement> {
+        debug!("parsing {sql}");
         self.parse(sql)
             .await
             .map_err(|e| PgWireError::UserError(Box::new(generic_error_info(e.to_string()))))
@@ -217,7 +232,7 @@ impl ExtendedQueryHandler for QueryProcessor {
         &'b self,
         _client: &mut C,
         portal: &'a Portal<Self::Statement>,
-        max_rows: usize,
+        _max_rows: usize,
     ) -> PgWireResult<Response<'a>>
     where
         C: ClientInfo + Unpin + Send + Sync,
@@ -226,8 +241,8 @@ impl ExtendedQueryHandler for QueryProcessor {
             return Ok(Response::Execution(Tag::new_for_execution("", None)));
         };
         let plan = LogicalPlanBuilder::from(query.clone())
-            .limit(0, Some(max_rows))
-            .unwrap()
+            //.limit(0, Some(max_rows))
+            //.unwrap()
             .build()
             .unwrap();
         self.execute(plan).await
@@ -241,18 +256,51 @@ impl ExtendedQueryHandler for QueryProcessor {
     where
         C: ClientInfo + Unpin + Send + Sync,
     {
-        let _query = match target {
+        match target {
             StatementOrPortal::Statement(stmt) => {
-                let query = stmt.statement();
-                query
+                let Some(df_stmt) = stmt.statement() else {
+                    return Ok(DescribeResponse::no_data());
+                };
+                let unknown_type = Type::new(
+                    "unknown".to_owned(),
+                    0,
+                    postgres_types::Kind::Pseudo,
+                    "pg_catalog".to_owned(),
+                );
+                let types = df_stmt.get_parameter_types().map_err(|e| {
+                    PgWireError::UserError(Box::new(ErrorInfo::new(
+                        "FATAL".to_owned(),
+                        "XXX01".to_owned(),
+                        e.to_string(),
+                    )))
+                })?;
+
+                let mut types = Vec::from_iter(types);
+                // The id's of types are always of the form `$1`, `$2` etc, so
+                // a simple sort works
+                types.sort();
+
+                let pg_types = types
+                    .into_iter()
+                    .map(|(_, ty)| {
+                        ty.as_ref()
+                            .map_or_else(|| unknown_type.clone(), map_data_type)
+                    })
+                    .collect();
+                return Ok(DescribeResponse::new(
+                    Some(pg_types),
+                    self.pg_schema(df_stmt),
+                ));
             }
             StatementOrPortal::Portal(portal) => {
-                let query = portal.statement().statement();
-                query
+                let Some(stmt) = portal.statement().statement() else {
+                    return Ok(DescribeResponse::no_data());
+                };
+                return Ok(DescribeResponse::new(None, self.pg_schema(stmt)));
             }
-        };
+        }
         // TODO: proper implementations
-        Ok(DescribeResponse::new(None, Vec::new()))
+        //Ok(DescribeResponse::new(None, vec![FieldInfo]))
         // unimplemented!("Extended Query is not implemented on this server.")
     }
 }
