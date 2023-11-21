@@ -3672,6 +3672,7 @@ dependencies = [
  "openapiv3",
  "pgwire",
  "pin-project",
+ "postgres-types",
  "prost-build 0.12.0",
  "prost-reflect",
  "serde_json",

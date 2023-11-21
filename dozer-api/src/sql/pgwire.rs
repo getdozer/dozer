@@ -299,9 +299,6 @@ impl ExtendedQueryHandler for QueryProcessor {
                 return Ok(DescribeResponse::new(None, self.pg_schema(stmt)));
             }
         }
-        // TODO: proper implementations
-        //Ok(DescribeResponse::new(None, vec![FieldInfo]))
-        // unimplemented!("Extended Query is not implemented on this server.")
     }
 }
 
