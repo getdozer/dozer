@@ -13,12 +13,7 @@ use std::{
 };
 
 use deno_runtime::{
-    deno_core::{
-        anyhow::Context as _,
-        error::AnyError,
-        serde_v8::{from_v8, to_v8},
-        JsRuntime, ModuleSpecifier,
-    },
+    deno_core::{anyhow::Context as _, error::AnyError, JsRuntime, ModuleSpecifier},
     deno_napi::v8::{self, undefined, Function, Global, Local},
 };
 use dozer_types::{
@@ -33,6 +28,8 @@ use tokio::{
     },
     task::{JoinHandle, LocalSet},
 };
+
+use self::conversion::{from_v8, to_v8};
 
 #[derive(Debug)]
 pub struct Runtime {
@@ -270,8 +267,9 @@ fn call_function(
         .collect::<Result<Vec<_>, _>>()?;
     let result = Local::new(scope, function).call(scope, recv.into(), &args);
     result
-        .map(|value| from_v8(scope, value).map_err(Into::into))
+        .map(|value| from_v8(scope, value))
         .unwrap_or(Ok(Value::Null))
 }
 
+mod conversion;
 mod js_runtime;
