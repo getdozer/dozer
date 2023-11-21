@@ -28,7 +28,7 @@ geo = { version = "0.26.0", features = ["use-serde"] }
 pyo3 = { version = "0.18.1", optional = true }
 tonic = { version = "0.10.0" }
 prost-types = "0.12.0"
-prost = "0.12.0"
+prost = "0.12.2"
 arrow = { version = "47.0.0" }
 arrow-cast = { version = "47.0.0" }
 arrow-schema = { version = "47.0.0", features = ["serde"] }
