@@ -48,6 +48,15 @@ pub struct PgWireServer {
     config: SqlOptions,
 }
 
+struct MakeQueryHandler(Vec<Arc<CacheEndpoint>>);
+
+impl MakeHandler for MakeQueryHandler {
+    type Handler = QueryProcessor;
+
+    fn make(&self) -> Self::Handler {
+        QueryProcessor::new(self.0.clone())
+    }
+}
 impl PgWireServer {
     pub fn new(config: SqlOptions) -> Self {
         Self { config }
@@ -59,10 +68,7 @@ impl PgWireServer {
         cache_endpoints: Vec<Arc<CacheEndpoint>>,
     ) -> std::io::Result<()> {
         let config = self.config.clone();
-        let query_processor = Arc::new(QueryProcessor::new(cache_endpoints));
-        let processor = Arc::new(StatelessMakeHandler::new(query_processor.clone()));
-        // We have not implemented extended query in this server, use placeholder instead
-        let placeholder = Arc::new(StatelessMakeHandler::new(query_processor));
+        let processor = Arc::new(MakeQueryHandler(cache_endpoints));
         let authenticator = Arc::new(StatelessMakeHandler::new(Arc::new(NoopStartupHandler)));
 
         let host = config.host.unwrap_or_else(default_host);
@@ -76,14 +82,14 @@ impl PgWireServer {
                     let incoming_socket = accept_result?;
                     let authenticator_ref = authenticator.make();
                     let processor_ref = processor.make();
-                    let placeholder_ref = placeholder.make();
+                    let placeholder_ref = processor.make();
                     tokio::spawn(async move {
                         process_socket(
                             incoming_socket.0,
                             None,
                             authenticator_ref,
-                            processor_ref,
-                            placeholder_ref,
+                            Arc::new(processor_ref),
+                            Arc::new(placeholder_ref),
                         )
                         .await
                     });
