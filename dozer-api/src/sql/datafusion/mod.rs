@@ -468,6 +468,7 @@ impl PgCatalogTable {
             "pg_type" => Some(Self::pg_type()),
             "pg_namespace" => Some(Self::pg_namespace()),
             "pg_proc" => Some(Self::pg_proc()),
+            "pg_class" => Some(Self::pg_class()),
             _ => None,
         }
     }
@@ -553,6 +554,46 @@ impl PgCatalogTable {
                  "prosqlbody"      : DataType::Utf8[true],
                  "proconfig"       : DataType::Utf8[true],
                  "proacl"          : DataType::Utf8[true]
+            }),
+        }
+    }
+
+    fn pg_class() -> Self {
+        Self {
+            schema: schema! ({
+                 "oid"                : DataType::UInt32[false],
+                 "relname"             : DataType::Utf8[false],
+                 "relnamespace"        : DataType::UInt32[false],
+                 "reltype"             : DataType::UInt32[false],
+                 "reloftype"           : DataType::UInt32[false],
+                 "relowner"            : DataType::UInt32[false],
+                 "relam"               : DataType::UInt32[false],
+                 "relfilenode"         : DataType::UInt32[false],
+                 "reltablespace"       : DataType::UInt32[false],
+                 "relpages"            : DataType::Int32[false],
+                 "reltuples"           : DataType::Float64[false],
+                 "relallvisible"       : DataType::Int32[false],
+                 "reltoastrelid"       : DataType::UInt32[false],
+                 "relhasindex"         : DataType::Boolean[false],
+                 "relisshared"         : DataType::Boolean[false],
+                 "relpersistence"      : DataType::Utf8[false],
+                 "relkind"             : DataType::Utf8[false],
+                 "relnatts"            : DataType::Int16[false],
+                 "relchecks"           : DataType::Int16[false],
+                 "relhasrules"         : DataType::Boolean[false],
+                 "relhastriggers"      : DataType::Boolean[false],
+                 "relhassubclass"      : DataType::Boolean[false],
+                 "relrowsecurity"      : DataType::Boolean[false],
+                 "relforcerowsecurity" : DataType::Boolean[false],
+                 "relispopulated"      : DataType::Boolean[false],
+                 "relreplident"        : DataType::Utf8[false],
+                 "relispartition"      : DataType::Boolean[false],
+                 "relrewrite"          : DataType::UInt32[false],
+                 "relfrozenxid"        : DataType::UInt32[false],
+                 "relminmxid"          : DataType::UInt32[false],
+                 "relacl"              : DataType::Utf8[true],
+                 "reloptions"          : DataType::Utf8[true],
+                 "relpartbound"        : DataType::Utf8[true]
             }),
         }
     }
