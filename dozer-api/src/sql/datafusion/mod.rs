@@ -455,7 +455,7 @@ macro_rules! schema {
         let v = vec![$(Field::new($name, $type, $nullable)),*];
 
         Arc::new(Schema::new(v))
-        }};
+    }};
 }
 
 impl PgCatalogTable {
@@ -469,6 +469,7 @@ impl PgCatalogTable {
             "pg_namespace" => Some(Self::pg_namespace()),
             "pg_proc" => Some(Self::pg_proc()),
             "pg_class" => Some(Self::pg_class()),
+            "pg_attribute" => Some(Self::pg_attribute()),
             _ => None,
         }
     }
@@ -554,6 +555,39 @@ impl PgCatalogTable {
                  "prosqlbody"      : DataType::Utf8[true],
                  "proconfig"       : DataType::Utf8[true],
                  "proacl"          : DataType::Utf8[true]
+            }),
+        }
+    }
+
+    fn pg_attribute() -> Self {
+        Self {
+            schema: schema!({
+                "attrelid"       : DataType::UInt32[false],
+                "attname"        : DataType::Utf8[false],
+                "atttypid"       : DataType::UInt32[false],
+                "attlen"         : DataType::Int16[false],
+                "attnum"         : DataType::Int16[false],
+                "attcacheoff"    : DataType::Int32[false],
+                "atttypmod"      : DataType::Int32[false],
+                "attndims"       : DataType::Int16[false],
+                "attbyval"       : DataType::Boolean[false],
+                "attalign"       : DataType::Utf8[false],
+                "attstorage"     : DataType::Utf8[false],
+                "attcompression" : DataType::Utf8[false],
+                "attnotnull"     : DataType::Boolean[false],
+                "atthasdef"      : DataType::Boolean[false],
+                "atthasmissing"  : DataType::Boolean[false],
+                "attidentity"    : DataType::Utf8[false],
+                "attgenerated"   : DataType::Utf8[false],
+                "attisdropped"   : DataType::Boolean[false],
+                "attislocal"     : DataType::Boolean[false],
+                "attinhcount"    : DataType::UInt16[false],
+                "attstattarget"  : DataType::UInt16[false],
+                "attcollation"   : DataType::UInt32[false],
+                "attacl"         : DataType::Utf8[true],
+                "attoptions"     : DataType::Utf8[true],
+                "attfdwoptions"  : DataType::Utf8[true],
+                "attmissingval"  : DataType::Utf8[true]
             }),
         }
     }
