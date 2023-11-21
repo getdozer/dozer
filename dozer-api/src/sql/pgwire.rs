@@ -240,6 +240,14 @@ impl ExtendedQueryHandler for QueryProcessor {
         let Some(query) = portal.statement().statement() else {
             return Ok(Response::Execution(Tag::new_for_execution("", None)));
         };
+        let _params = query.get_parameter_types().map_err(|e| {
+            PgWireError::UserError(Box::new(ErrorInfo::new(
+                "FATAL".to_owned(),
+                "XXX01".to_owned(),
+                e.to_string(),
+            )))
+        })?;
+
         let plan = LogicalPlanBuilder::from(query.clone())
             //.limit(0, Some(max_rows))
             //.unwrap()

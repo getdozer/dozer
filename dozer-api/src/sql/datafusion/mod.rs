@@ -450,6 +450,14 @@ pub struct PgCatalogTable {
     schema: SchemaRef,
 }
 
+macro_rules! schema {
+    ({$($name:literal: $type:path[$nullable:literal]),*})  => {{
+        let v = vec![$(Field::new($name, $type, $nullable)),*];
+
+        Arc::new(Schema::new(v))
+        }};
+}
+
 impl PgCatalogTable {
     pub fn from_ref(reference: &TableReference) -> Option<Self> {
         match reference.schema() {
@@ -459,55 +467,93 @@ impl PgCatalogTable {
         match reference.table() {
             "pg_type" => Some(Self::pg_type()),
             "pg_namespace" => Some(Self::pg_namespace()),
+            "pg_proc" => Some(Self::pg_proc()),
             _ => None,
         }
     }
 
     pub fn pg_type() -> Self {
         Self {
-            schema: Arc::new(Schema::new(vec![
-                Field::new("oid", DataType::Utf8, false),
-                Field::new("typname", DataType::Utf8, false),
-                Field::new("typnamespace", DataType::Utf8, false),
-                Field::new("typowner", DataType::Utf8, false),
-                Field::new("typlen", DataType::Int16, false),
-                Field::new("typbyval", DataType::Boolean, false),
-                Field::new("typtype", DataType::Utf8, false),
-                Field::new("typcategory", DataType::Utf8, false),
-                Field::new("typispreferred", DataType::Boolean, false),
-                Field::new("typisdefined", DataType::Boolean, false),
-                Field::new("typdelim", DataType::Utf8, false),
-                Field::new("typrelid", DataType::Utf8, false),
-                Field::new("typelem", DataType::Utf8, false),
-                Field::new("typarray", DataType::Utf8, false),
-                Field::new("typinput", DataType::Utf8, false),
-                Field::new("typoutput", DataType::Utf8, false),
-                Field::new("typreceive", DataType::Utf8, false),
-                Field::new("typsend", DataType::Utf8, false),
-                Field::new("typmodin", DataType::Utf8, false),
-                Field::new("typmodout", DataType::Utf8, false),
-                Field::new("typanalyze", DataType::Utf8, false),
-                Field::new("typalign", DataType::Utf8, false),
-                Field::new("typstorage", DataType::Utf8, false),
-                Field::new("typnotnull", DataType::Boolean, false),
-                Field::new("typbasetype", DataType::Utf8, false),
-                Field::new("typtypmod", DataType::Int32, false),
-                Field::new("typndims", DataType::Int32, false),
-                Field::new("typcollation", DataType::Utf8, false),
-                Field::new("typdefaultbin", DataType::Binary, true),
-                Field::new("typdefault", DataType::Utf8, true),
-                Field::new("typacl", DataType::Utf8, true),
-            ])),
+            schema: schema!({
+                "oid"               : DataType::Utf8[false],
+                "typname"           : DataType::Utf8[false],
+                "typnamespace"      : DataType::Utf8[false],
+                "typowner"          : DataType::Utf8[false],
+                "typlen"            : DataType::Int16[false],
+                "typbyval"          : DataType::Boolean[false],
+                "typtype"           : DataType::Utf8[false],
+                "typcategory"       : DataType::Utf8[false],
+                "typispreferred"    : DataType::Boolean[false],
+                "typisdefined"      : DataType::Boolean[false],
+                "typdelim"          : DataType::Utf8[false],
+                "typrelid"          : DataType::Utf8[false],
+                "typelem"           : DataType::Utf8[false],
+                "typarray"          : DataType::Utf8[false],
+                "typinput"          : DataType::Utf8[false],
+                "typoutput"         : DataType::Utf8[false],
+                "typreceive"        : DataType::Utf8[false],
+                "typsend"           : DataType::Utf8[false],
+                "typmodin"          : DataType::Utf8[false],
+                "typmodout"         : DataType::Utf8[false],
+                "typanalyze"        : DataType::Utf8[false],
+                "typalign"          : DataType::Utf8[false],
+                "typstorage"        : DataType::Utf8[false],
+                "typnotnull"        : DataType::Boolean[false],
+                "typbasetype"       : DataType::Utf8[false],
+                "typtypmod"         : DataType::Int32[false],
+                "typndims"          : DataType::Int32[false],
+                "typcollation"      : DataType::Utf8[false],
+                "typdefaultbin"     : DataType::Binary[true],
+                "typdefault"        : DataType::Utf8[true],
+                "typacl"            : DataType::Utf8[true]
+            }),
         }
     }
     pub fn pg_namespace() -> Self {
         Self {
-            schema: Arc::new(Schema::new(vec![
-                Field::new("oid", DataType::Utf8, false),
-                Field::new("nspname", DataType::Utf8, false),
-                Field::new("nspowner", DataType::Utf8, false),
-                Field::new("nspacl", DataType::Utf8, false),
-            ])),
+            schema: schema!({
+                "oid"       : DataType::UInt32[false],
+                "nspname"   : DataType::Utf8[false],
+                "nspowner"  : DataType::Utf8[false],
+                "nspacl"    : DataType::Utf8[false]
+            }),
+        }
+    }
+
+    pub fn pg_proc() -> Self {
+        Self {
+            schema: schema!({
+                 "oid"             : DataType::UInt32[false],
+                 "proname"         : DataType::Utf8[false],
+                 "pronamespace"    : DataType::UInt32[false],
+                 "proowner"        : DataType::UInt32[false],
+                 "prolang"         : DataType::UInt32[false],
+                 "procost"         : DataType::Float64[false],
+                 "prorows"         : DataType::Float64[false],
+                 "provariadic"     : DataType::UInt32[false],
+                 "prosupport"      : DataType::UInt32[false],
+                 "prokind"         : DataType::Utf8[false],
+                 "prosecdef"       : DataType::Boolean[false],
+                 "proleakproof"    : DataType::Boolean[false],
+                 "proisstrict"     : DataType::Boolean[false],
+                 "proretset"       : DataType::Boolean[false],
+                 "provolatile"     : DataType::Utf8[false],
+                 "proparallel"     : DataType::Utf8[false],
+                 "pronargs"        : DataType::Int16[false],
+                 "pronargdefaults" : DataType::Int16[false],
+                 "prorettype"      : DataType::UInt32[false],
+                 "proargtypes"     : DataType::Utf8[false],
+                 "proallargtypes"  : DataType::Utf8[true],
+                 "proargmodes"     : DataType::Utf8[true],
+                 "proargnames"     : DataType::Utf8[true],
+                 "proargdefaults"  : DataType::Utf8[true],
+                 "protrftypes"     : DataType::Utf8[true],
+                 "prosrc"          : DataType::Utf8[false],
+                 "probin"          : DataType::Utf8[true],
+                 "prosqlbody"      : DataType::Utf8[true],
+                 "proconfig"       : DataType::Utf8[true],
+                 "proacl"          : DataType::Utf8[true]
+            }),
         }
     }
 }
