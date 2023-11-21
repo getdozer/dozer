@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::catalog::information_schema::InformationSchemaProvider;
 use datafusion::catalog::schema::SchemaProvider;
-use datafusion::config::ConfigOptions;
+use datafusion::config::{ConfigExtension, ConfigOptions, ExtensionOptions};
 use datafusion::datasource::{DefaultTableSource, TableProvider, TableType};
 use datafusion::error::{DataFusionError, Result};
 use datafusion::execution::context::{SessionState, TaskContext};
@@ -22,9 +22,11 @@ use datafusion::physical_plan::{
     Statistics,
 };
 use datafusion::prelude::{DataFrame, SessionConfig, SessionContext};
+use datafusion::scalar::ScalarValue;
 use datafusion::sql::planner::{ContextProvider, ParserOptions, SqlToRel};
+use datafusion::sql::sqlparser::ast;
 use datafusion::sql::{ResolvedTableReference, TableReference};
-use datafusion::variable::VarType;
+use datafusion::variable::{VarProvider, VarType};
 use datafusion_expr::{
     AggregateUDF, Expr, LogicalPlan, ScalarUDF, TableProviderFilterPushDown, TableSource, WindowUDF,
 };
@@ -158,10 +160,6 @@ impl SQLExecutor {
             SessionConfig::new()
                 .with_information_schema(true)
                 .with_default_catalog_and_schema("public", "dozer"),
-            //.set(
-            //    "transaction.isolation.level",
-            //    datafusion::scalar::ScalarValue::Utf8(Some("read committed".to_owned())),
-            //),
         );
         for cache_endpoint in cache_endpoints {
             let data_source = CacheEndpointDataSource::new(cache_endpoint.clone());
@@ -174,6 +172,10 @@ impl SQLExecutor {
                 )
                 .unwrap();
         }
+
+        let variable_provider = Arc::new(SystemVariables);
+        ctx.register_variable(VarType::UserDefined, variable_provider.clone());
+        ctx.register_variable(VarType::System, variable_provider);
 
         Self { ctx: Arc::new(ctx) }
     }
@@ -209,16 +211,32 @@ impl SQLExecutor {
     }
 
     pub async fn parse(&self, sql: &str) -> Result<Option<LogicalPlan>, DataFusionError> {
-        let statement = self.ctx.state().sql_to_statement(sql, "postgres")?;
-        if let datafusion::sql::parser::Statement::Statement(ref stmt) = statement {
+        println!("@@ query: {sql}");
+        let mut statement = self.ctx.state().sql_to_statement(sql, "postgres")?;
+        let rewrite = if let datafusion::sql::parser::Statement::Statement(ref stmt) = statement {
             match stmt.as_ref() {
-                datafusion::sql::sqlparser::ast::Statement::StartTransaction { .. }
-                | datafusion::sql::sqlparser::ast::Statement::Commit { .. }
-                | datafusion::sql::sqlparser::ast::Statement::Rollback { .. } => {
+                ast::Statement::StartTransaction { .. }
+                | ast::Statement::Commit { .. }
+                | ast::Statement::Rollback { .. } => {
                     return Ok(None);
                 }
-                _ => (),
+                ast::Statement::ShowVariable { variable } => {
+                    let variable = object_name_to_string(&variable);
+                    match variable.as_str() {
+                        "transaction.isolation.level" => Some("SELECT \"@@transaction_isolation\""),
+                        "standard_conforming_strings" => {
+                            Some("SELECT \"@@standard_conforming_strings\"")
+                        }
+                        _ => None,
+                    }
+                }
+                _ => None,
             }
+        } else {
+            None
+        };
+        if let Some(query) = rewrite {
+            statement = self.ctx.state().sql_to_statement(query, "postgres")?;
         }
         let state = self.ctx.state();
         let table_refs = state.resolve_table_references(&statement)?;
@@ -660,5 +678,56 @@ impl TableProvider for PgCatalogTable {
             self.schema.clone(),
             projection.cloned(),
         )?))
+    }
+}
+
+#[derive(Debug)]
+struct SystemVariables;
+
+impl VarProvider for SystemVariables {
+    fn get_value(&self, var_names: Vec<String>) -> Result<datafusion::scalar::ScalarValue> {
+        if var_names.len() == 1 {
+            match var_names[0].as_str() {
+                "@@transaction_isolation" => {
+                    return Ok(ScalarValue::Utf8(Some("read committed".into())))
+                }
+                "@@standard_conforming_strings" => return Ok(ScalarValue::Utf8(Some("on".into()))),
+                _ => (),
+            }
+        }
+        Err(DataFusionError::Internal(format!(
+            "unrecognized variable {var_names:?}"
+        )))
+    }
+
+    fn get_type(&self, var_names: &[String]) -> Option<DataType> {
+        if var_names.len() == 1 {
+            match var_names[0].as_str() {
+                "@@transaction_isolation" | "@@standard_conforming_strings" => {
+                    return Some(DataType::Utf8)
+                }
+                _ => (),
+            }
+        }
+        None
+    }
+}
+
+fn object_name_to_string(object_name: &[ast::Ident]) -> String {
+    object_name
+        .iter()
+        .map(ident_to_string)
+        .collect::<Vec<String>>()
+        .join(".")
+}
+
+fn ident_to_string(ident: &ast::Ident) -> String {
+    normalize_ident(ident.to_owned())
+}
+
+fn normalize_ident(id: ast::Ident) -> String {
+    match id.quote_style {
+        Some(_) => id.value,
+        None => id.value.to_ascii_lowercase(),
     }
 }
