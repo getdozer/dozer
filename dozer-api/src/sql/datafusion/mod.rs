@@ -1,4 +1,5 @@
 pub mod json;
+mod pg_catalog;
 mod predicate_pushdown;
 
 use std::collections::hash_map::Entry;
@@ -6,16 +7,15 @@ use std::collections::HashMap;
 use std::{any::Any, sync::Arc};
 
 use async_trait::async_trait;
-use datafusion::arrow::datatypes::{DataType, Field, Schema};
+use datafusion::arrow::datatypes::DataType;
 use datafusion::catalog::information_schema::InformationSchemaProvider;
 use datafusion::catalog::schema::SchemaProvider;
-use datafusion::config::{ConfigExtension, ConfigOptions, ExtensionOptions};
+use datafusion::config::ConfigOptions;
 use datafusion::datasource::{DefaultTableSource, TableProvider, TableType};
 use datafusion::error::{DataFusionError, Result};
 use datafusion::execution::context::{SessionState, TaskContext};
 use datafusion::physical_expr::var_provider::is_system_variables;
 use datafusion::physical_expr::PhysicalSortExpr;
-use datafusion::physical_plan::memory::MemoryExec;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
     DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
@@ -45,13 +45,15 @@ use crate::CacheEndpoint;
 
 use predicate_pushdown::{predicate_pushdown, supports_predicates_pushdown};
 
+use self::pg_catalog::PgCatalogTable;
+
 pub struct SQLExecutor {
     pub ctx: Arc<SessionContext>,
 }
 
 struct ContextResolver {
     tables: HashMap<String, Arc<dyn TableSource>>,
-    state: SessionState,
+    state: Arc<SessionState>,
 }
 
 impl ContextProvider for ContextResolver {
@@ -59,7 +61,7 @@ impl ContextProvider for ContextResolver {
         &self,
         name: TableReference,
     ) -> Result<Arc<dyn datafusion_expr::TableSource>> {
-        if let Some(table) = PgCatalogTable::from_ref(&name) {
+        if let Some(table) = PgCatalogTable::from_ref_with_state(&name, self.state.clone()) {
             Ok(Arc::new(DefaultTableSource::new(Arc::new(table))))
         } else {
             let catalog = &self.state.config_options().catalog;
@@ -111,6 +113,39 @@ impl ContextProvider for ContextResolver {
                         fun: Arc::new(move |_| {
                             Ok(datafusion_expr::ColumnarValue::Scalar(
                                 datafusion::scalar::ScalarValue::Utf8(Some(schema.clone())),
+                            ))
+                        }),
+                    }));
+                }
+                "format_type" => {
+                    return Some(Arc::new(ScalarUDF {
+                        name: "pg_catalog.format_type".to_owned(),
+                        signature: datafusion_expr::Signature {
+                            type_signature: datafusion_expr::TypeSignature::Exact(vec![
+                                DataType::UInt32,
+                                DataType::Int32,
+                            ]),
+                            volatility: datafusion_expr::Volatility::Immutable,
+                        },
+                        return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
+                        fun: Arc::new(move |_| {
+                            Ok(datafusion_expr::ColumnarValue::Scalar(
+                                datafusion::scalar::ScalarValue::Utf8(Some("".to_string())),
+                            ))
+                        }),
+                    }));
+                }
+                "pg_get_expr" => {
+                    return Some(Arc::new(ScalarUDF {
+                        name: "pg_catalog.pg_get_expr".to_owned(),
+                        signature: datafusion_expr::Signature {
+                            type_signature: datafusion_expr::TypeSignature::VariadicAny,
+                            volatility: datafusion_expr::Volatility::Immutable,
+                        },
+                        return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
+                        fun: Arc::new(move |_| {
+                            Ok(datafusion_expr::ColumnarValue::Scalar(
+                                datafusion::scalar::ScalarValue::Utf8(Some("".to_string())),
                             ))
                         }),
                     }));
@@ -242,7 +277,7 @@ impl SQLExecutor {
         let table_refs = state.resolve_table_references(&statement)?;
 
         let mut provider = ContextResolver {
-            state,
+            state: Arc::new(state),
             tables: HashMap::with_capacity(table_refs.len()),
         };
         let state = self.ctx.state();
@@ -461,233 +496,6 @@ fn transpose(
     records.into_iter().map(move |CacheRecord { record, .. }| {
         map_record_to_arrow(record, &schema).map_err(DataFusionError::ArrowError)
     })
-}
-
-#[derive(Debug)]
-pub struct PgCatalogTable {
-    schema: SchemaRef,
-}
-
-macro_rules! nullable_helper {
-    (nullable) => {
-        true
-    };
-    () => {
-        false
-    };
-}
-
-macro_rules! schema {
-    ({$($name:literal: $type:path $(: $nullable:ident)?),* $(,)?})  => {{
-        let v = vec![$(Field::new($name, $type, nullable_helper!($($nullable)?))),*];
-
-        Arc::new(Schema::new(v))
-    }};
-}
-
-impl PgCatalogTable {
-    pub fn from_ref(reference: &TableReference) -> Option<Self> {
-        match reference.schema() {
-            Some("pg_catalog") | None => (),
-            _ => return None,
-        }
-        match reference.table() {
-            "pg_type" => Some(Self::pg_type()),
-            "pg_namespace" => Some(Self::pg_namespace()),
-            "pg_proc" => Some(Self::pg_proc()),
-            "pg_class" => Some(Self::pg_class()),
-            "pg_attribute" => Some(Self::pg_attribute()),
-            _ => None,
-        }
-    }
-
-    pub fn pg_type() -> Self {
-        Self {
-            schema: schema!({
-                "oid"               : DataType::Utf8,
-                "typname"           : DataType::Utf8,
-                "typnamespace"      : DataType::Utf8,
-                "typowner"          : DataType::Utf8,
-                "typlen"            : DataType::Int16,
-                "typbyval"          : DataType::Boolean,
-                "typtype"           : DataType::Utf8,
-                "typcategory"       : DataType::Utf8,
-                "typispreferred"    : DataType::Boolean,
-                "typisdefined"      : DataType::Boolean,
-                "typdelim"          : DataType::Utf8,
-                "typrelid"          : DataType::Utf8,
-                "typelem"           : DataType::Utf8,
-                "typarray"          : DataType::Utf8,
-                "typinput"          : DataType::Utf8,
-                "typoutput"         : DataType::Utf8,
-                "typreceive"        : DataType::Utf8,
-                "typsend"           : DataType::Utf8,
-                "typmodin"          : DataType::Utf8,
-                "typmodout"         : DataType::Utf8,
-                "typanalyze"        : DataType::Utf8,
-                "typalign"          : DataType::Utf8,
-                "typstorage"        : DataType::Utf8,
-                "typnotnull"        : DataType::Boolean,
-                "typbasetype"       : DataType::Utf8,
-                "typtypmod"         : DataType::Int32,
-                "typndims"          : DataType::Int32,
-                "typcollation"      : DataType::Utf8,
-                "typdefaultbin"     : DataType::Binary : nullable,
-                "typdefault"        : DataType::Utf8 : nullable,
-                "typacl"            : DataType::Utf8 : nullable,
-            }),
-        }
-    }
-    pub fn pg_namespace() -> Self {
-        Self {
-            schema: schema!({
-                "oid"       : DataType::UInt32,
-                "nspname"   : DataType::Utf8,
-                "nspowner"  : DataType::Utf8,
-                "nspacl"    : DataType::Utf8,
-            }),
-        }
-    }
-
-    pub fn pg_proc() -> Self {
-        Self {
-            schema: schema!({
-                 "oid"             : DataType::UInt32,
-                 "proname"         : DataType::Utf8,
-                 "pronamespace"    : DataType::UInt32,
-                 "proowner"        : DataType::UInt32,
-                 "prolang"         : DataType::UInt32,
-                 "procost"         : DataType::Float64,
-                 "prorows"         : DataType::Float64,
-                 "provariadic"     : DataType::UInt32,
-                 "prosupport"      : DataType::UInt32,
-                 "prokind"         : DataType::Utf8,
-                 "prosecdef"       : DataType::Boolean,
-                 "proleakproof"    : DataType::Boolean,
-                 "proisstrict"     : DataType::Boolean,
-                 "proretset"       : DataType::Boolean,
-                 "provolatile"     : DataType::Utf8,
-                 "proparallel"     : DataType::Utf8,
-                 "pronargs"        : DataType::Int16,
-                 "pronargdefaults" : DataType::Int16,
-                 "prorettype"      : DataType::UInt32,
-                 "proargtypes"     : DataType::Utf8,
-                 "proallargtypes"  : DataType::Utf8 : nullable,
-                 "proargmodes"     : DataType::Utf8 : nullable,
-                 "proargnames"     : DataType::Utf8 : nullable,
-                 "proargdefaults"  : DataType::Utf8 : nullable,
-                 "protrftypes"     : DataType::Utf8 : nullable,
-                 "prosrc"          : DataType::Utf8,
-                 "probin"          : DataType::Utf8 : nullable,
-                 "prosqlbody"      : DataType::Utf8 : nullable,
-                 "proconfig"       : DataType::Utf8 : nullable,
-                 "proacl"          : DataType::Utf8 : nullable,
-            }),
-        }
-    }
-
-    fn pg_attribute() -> Self {
-        Self {
-            schema: schema!({
-                "attrelid"       : DataType::UInt32,
-                "attname"        : DataType::Utf8,
-                "atttypid"       : DataType::UInt32,
-                "attlen"         : DataType::Int16,
-                "attnum"         : DataType::Int16,
-                "attcacheoff"    : DataType::Int32,
-                "atttypmod"      : DataType::Int32,
-                "attndims"       : DataType::Int16,
-                "attbyval"       : DataType::Boolean,
-                "attalign"       : DataType::Utf8,
-                "attstorage"     : DataType::Utf8,
-                "attcompression" : DataType::Utf8,
-                "attnotnull"     : DataType::Boolean,
-                "atthasdef"      : DataType::Boolean,
-                "atthasmissing"  : DataType::Boolean,
-                "attidentity"    : DataType::Utf8,
-                "attgenerated"   : DataType::Utf8,
-                "attisdropped"   : DataType::Boolean,
-                "attislocal"     : DataType::Boolean,
-                "attinhcount"    : DataType::UInt16,
-                "attstattarget"  : DataType::UInt16,
-                "attcollation"   : DataType::UInt32,
-                "attacl"         : DataType::Utf8 : nullable,
-                "attoptions"     : DataType::Utf8 : nullable,
-                "attfdwoptions"  : DataType::Utf8 : nullable,
-                "attmissingval"  : DataType::Utf8 : nullable,
-            }),
-        }
-    }
-
-    fn pg_class() -> Self {
-        Self {
-            schema: schema! ({
-                 "oid"                 : DataType::UInt32,
-                 "relname"             : DataType::Utf8,
-                 "relnamespace"        : DataType::UInt32,
-                 "reltype"             : DataType::UInt32,
-                 "reloftype"           : DataType::UInt32,
-                 "relowner"            : DataType::UInt32,
-                 "relam"               : DataType::UInt32,
-                 "relfilenode"         : DataType::UInt32,
-                 "reltablespace"       : DataType::UInt32,
-                 "relpages"            : DataType::Int32,
-                 "reltuples"           : DataType::Float64,
-                 "relallvisible"       : DataType::Int32,
-                 "reltoastrelid"       : DataType::UInt32,
-                 "relhasindex"         : DataType::Boolean,
-                 "relisshared"         : DataType::Boolean,
-                 "relpersistence"      : DataType::Utf8,
-                 "relkind"             : DataType::Utf8,
-                 "relnatts"            : DataType::Int16,
-                 "relchecks"           : DataType::Int16,
-                 "relhasrules"         : DataType::Boolean,
-                 "relhastriggers"      : DataType::Boolean,
-                 "relhassubclass"      : DataType::Boolean,
-                 "relrowsecurity"      : DataType::Boolean,
-                 "relforcerowsecurity" : DataType::Boolean,
-                 "relispopulated"      : DataType::Boolean,
-                 "relreplident"        : DataType::Utf8,
-                 "relispartition"      : DataType::Boolean,
-                 "relrewrite"          : DataType::UInt32,
-                 "relfrozenxid"        : DataType::UInt32,
-                 "relminmxid"          : DataType::UInt32,
-                 "relacl"              : DataType::Utf8 : nullable,
-                 "reloptions"          : DataType::Utf8 : nullable,
-                 "relpartbound"        : DataType::Utf8 : nullable,
-            }),
-        }
-    }
-}
-
-#[async_trait]
-impl TableProvider for PgCatalogTable {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn schema(&self) -> SchemaRef {
-        self.schema.clone()
-    }
-
-    fn table_type(&self) -> TableType {
-        TableType::Base
-    }
-
-    async fn scan(
-        &self,
-        _state: &SessionState,
-        projection: Option<&Vec<usize>>,
-        // filters and limit can be used here to inject some push-down operations if needed
-        _filters: &[Expr],
-        _limit: Option<usize>,
-    ) -> Result<Arc<dyn ExecutionPlan>> {
-        Ok(Arc::new(MemoryExec::try_new(
-            &[],
-            self.schema.clone(),
-            projection.cloned(),
-        )?))
-    }
 }
 
 #[derive(Debug)]
