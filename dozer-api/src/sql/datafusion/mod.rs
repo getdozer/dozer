@@ -7,15 +7,17 @@ use std::collections::HashMap;
 use std::{any::Any, sync::Arc};
 
 use async_trait::async_trait;
-use datafusion::arrow::datatypes::DataType;
+use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::catalog::information_schema::InformationSchemaProvider;
 use datafusion::catalog::schema::SchemaProvider;
 use datafusion::config::ConfigOptions;
+use datafusion::datasource::streaming::StreamingTable;
 use datafusion::datasource::{DefaultTableSource, TableProvider, TableType};
 use datafusion::error::{DataFusionError, Result};
 use datafusion::execution::context::{SessionState, TaskContext};
 use datafusion::physical_expr::var_provider::is_system_variables;
 use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::memory::MemoryExec;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::physical_plan::{
     DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream,
@@ -225,9 +227,9 @@ impl SQLExecutor {
         resolved_ref: ResolvedTableReference<'_>,
     ) -> Result<Arc<dyn SchemaProvider>> {
         if state.config().information_schema() && resolved_ref.schema == "information_schema" {
-            return Ok(Arc::new(InformationSchemaProvider::new(
-                state.catalog_list().clone(),
-            )));
+            return Ok(Arc::new(InformationSchemaProviderWrapper {
+                inner: InformationSchemaProvider::new(state.catalog_list().clone()),
+            }));
         }
 
         state
@@ -245,8 +247,15 @@ impl SQLExecutor {
             })
     }
 
-    pub async fn parse(&self, sql: &str) -> Result<Option<LogicalPlan>, DataFusionError> {
+    pub async fn parse(&self, mut sql: &str) -> Result<Option<LogicalPlan>, DataFusionError> {
         println!("@@ query: {sql}");
+        if sql
+            .to_ascii_lowercase()
+            .trim_start()
+            .starts_with("select character_set_name")
+        {
+            sql = "select 'UTF8'"
+        }
         let mut statement = self.ctx.state().sql_to_statement(sql, "postgres")?;
         let rewrite = if let datafusion::sql::parser::Statement::Statement(ref stmt) = statement {
             match stmt.as_ref() {
@@ -546,5 +555,141 @@ fn normalize_ident(id: ast::Ident) -> String {
     match id.quote_style {
         Some(_) => id.value,
         None => id.value.to_ascii_lowercase(),
+    }
+}
+
+macro_rules! nullable_helper {
+    (nullable) => {
+        true
+    };
+    () => {
+        false
+    };
+}
+
+macro_rules! schema {
+    ({$($name:literal: $type:path $(: $nullable:ident)?),* $(,)?})  => {{
+        let v = vec![$(Field::new($name, $type, nullable_helper!($($nullable)?))),*];
+
+        Arc::new(Schema::new(v))
+    }};
+}
+
+struct InformationSchemaProviderWrapper {
+    pub inner: InformationSchemaProvider,
+}
+
+#[async_trait]
+impl SchemaProvider for InformationSchemaProviderWrapper {
+    fn as_any(&self) -> &(dyn Any + 'static) {
+        self
+    }
+
+    fn table_names(&self) -> Vec<String> {
+        let mut names = self.inner.table_names();
+        names.extend(
+            InformationSchemaEmptyTable::TABLES
+                .iter()
+                .map(ToString::to_string),
+        );
+        names
+    }
+
+    async fn table(&self, name: &str) -> Option<Arc<dyn TableProvider>> {
+        let name_lowercase = name.to_ascii_lowercase();
+        if InformationSchemaEmptyTable::TABLES.contains(&name_lowercase.as_str()) {
+            Some(Arc::new(InformationSchemaEmptyTable::new(name_lowercase)))
+        } else {
+            self.inner.table(name).await
+        }
+    }
+
+    fn table_exist(&self, name: &str) -> bool {
+        InformationSchemaEmptyTable::TABLES.contains(&name) || self.inner.table_exist(name)
+    }
+}
+
+#[derive(Debug)]
+struct InformationSchemaEmptyTable {
+    table: String,
+}
+
+impl InformationSchemaEmptyTable {
+    const TABLES: [&str; 3] = [
+        "referential_constraints",
+        "key_column_usage",
+        "table_constraints",
+    ];
+
+    fn new(table: String) -> Self {
+        Self { table }
+    }
+}
+
+#[async_trait]
+impl TableProvider for InformationSchemaEmptyTable {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn schema(&self) -> SchemaRef {
+        match self.table.as_str() {
+            "referential_constraints" => schema!({
+                "constraint_catalog"        : DataType::Utf8,
+                "constraint_schema"         : DataType::Utf8,
+                "constraint_name"           : DataType::Utf8,
+                "unique_constraint_catalog" : DataType::Utf8,
+                "unique_constraint_schema"  : DataType::Utf8,
+                "unique_constraint_name"    : DataType::Utf8,
+                "match_option"              : DataType::Utf8,
+                "update_rule"               : DataType::Utf8,
+                "delete_rule"               : DataType::Utf8,
+            }),
+            "key_column_usage" => schema!({
+                "constraint_catalog"            : DataType::Utf8,
+                "constraint_schema"             : DataType::Utf8,
+                "constraint_name"               : DataType::Utf8,
+                "table_catalog"                 : DataType::Utf8,
+                "table_schema"                  : DataType::Utf8,
+                "table_name"                    : DataType::Utf8,
+                "column_name"                   : DataType::Utf8,
+                "ordinal_position"              : DataType::UInt32,
+                "position_in_unique_constraint" : DataType::UInt32,
+
+            }),
+            "table_constraints" => schema!({
+                "constraint_catalog" : DataType::Utf8,
+                "constraint_schema"  : DataType::Utf8,
+                "constraint_name"    : DataType::Utf8,
+                "table_catalog"      : DataType::Utf8,
+                "table_schema"       : DataType::Utf8,
+                "table_name"         : DataType::Utf8,
+                "constraint_type"    : DataType::Utf8,
+                "is_deferrable"      : DataType::Utf8,
+                "initially_deferred" : DataType::Utf8,
+                "enforced"           : DataType::Utf8,
+                "nulls_distinct"     : DataType::Utf8,
+            }),
+            _ => unreachable!(),
+        }
+    }
+
+    fn table_type(&self) -> TableType {
+        TableType::View
+    }
+
+    async fn scan(
+        &self,
+        _state: &SessionState,
+        projection: Option<&Vec<usize>>,
+        // filters and limit can be used here to inject some push-down operations if needed
+        filters: &[Expr],
+        limit: Option<usize>,
+    ) -> Result<Arc<dyn ExecutionPlan>> {
+        Ok(Arc::new(MemoryExec::try_new(
+            &[],
+            self.schema(),
+            projection.cloned(),
+        )?))
     }
 }

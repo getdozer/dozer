@@ -59,3 +59,4 @@ serde_json = { version = "1.0.108", features = ["arbitrary_precision"] }
 pgwire = "0.16.1"
 tempdir = "0.3.7"
 postgres-types = "0.2"
+futures-sink = "0.3.29"
