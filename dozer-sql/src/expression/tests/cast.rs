@@ -758,3 +758,29 @@ fn test_text() {
     );
     assert_eq!(f, Field::Text("42".to_string()));
 }
+
+#[test]
+fn test_date() {
+    let date = "2023-11-22";
+    let date_time = DateTime::parse_from_rfc3339(&format!("{}T10:00:00+00:00", date)).unwrap();
+    let f = run_fct(
+        "SELECT CAST(field AS DATE) FROM users",
+        Schema::default()
+            .field(
+                FieldDefinition::new(
+                    String::from("field"),
+                    FieldType::Timestamp,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Timestamp(date_time)],
+    );
+
+    assert_eq!(
+        f,
+        Field::Date(NaiveDate::parse_from_str(date, "%Y-%m-%d").unwrap())
+    );
+}

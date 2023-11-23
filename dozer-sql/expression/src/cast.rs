@@ -177,7 +177,10 @@ impl CastOperatorType {
                 vec![FieldType::String, FieldType::Timestamp],
                 FieldType::Timestamp,
             ),
-            FieldType::Date => (vec![FieldType::Date, FieldType::String], FieldType::Date),
+            FieldType::Date => (
+                vec![FieldType::Date, FieldType::Timestamp, FieldType::String],
+                FieldType::Date,
+            ),
             FieldType::Json => (
                 vec![
                     FieldType::Boolean,

@@ -729,6 +729,7 @@ impl Field {
     pub fn to_date(&self) -> Option<NaiveDate> {
         match self {
             Field::String(s) => NaiveDate::parse_from_str(s, DATE_FORMAT).ok(),
+            Field::Timestamp(t) => Some(t.date_naive()),
             Field::Date(d) => Some(*d),
             _ => None,
         }
