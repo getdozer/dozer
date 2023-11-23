@@ -20,6 +20,7 @@ use dozer_types::arrow::datatypes::{TimeUnit, DECIMAL_DEFAULT_SCALE};
 use dozer_types::log::{debug, info};
 use dozer_types::models::api_config::{default_host, default_sql_port, SqlOptions};
 use dozer_types::rust_decimal::Decimal;
+use futures_util::future::try_join_all;
 use futures_util::stream::BoxStream;
 use futures_util::{stream, StreamExt};
 use pgwire::api::portal::Portal;
@@ -199,12 +200,19 @@ impl SimpleQueryHandler for QueryProcessor {
     where
         C: ClientInfo + Unpin + Send + Sync,
     {
-        let Some(parsed) = self.sql_executor.parse_sql(query, &[]).await? else {
-            return Ok(vec![Response::Execution(Tag::new_for_execution(
-                query, None,
-            ))]);
-        };
-        self.execute(parsed).await.map(|r| vec![r])
+        let queries = self
+            .sql_executor
+            .parse(query)
+            .await
+            .map_err(|e| PgWireError::UserError(Box::new(generic_error_info(e.to_string()))))?;
+
+        try_join_all(queries.into_iter().map(|q| async {
+            match q {
+                Some(plan) => self.execute(plan).await,
+                None => Ok(Response::Execution(Tag::new_for_execution("", None))),
+            }
+        }))
+        .await
     }
 }
 
@@ -213,10 +221,21 @@ impl QueryParser for SQLExecutor {
     type Statement = Option<LogicalPlan>;
 
     async fn parse_sql(&self, sql: &str, _types: &[Type]) -> PgWireResult<Self::Statement> {
-        debug!("parsing {sql}");
-        self.parse(sql)
+        let mut plans = self
+            .parse(sql)
             .await
-            .map_err(|e| PgWireError::UserError(Box::new(generic_error_info(e.to_string()))))
+            .map_err(|e| PgWireError::UserError(Box::new(generic_error_info(e.to_string()))))?;
+        if plans.len() > 1 {
+            return Err(PgWireError::UserError(Box::new(generic_error_info(
+                "Multiple statements found".to_owned(),
+            ))));
+        } else if plans.is_empty() {
+            return Err(PgWireError::UserError(Box::new(generic_error_info(
+                "No statement found".to_owned(),
+            ))));
+        } else {
+            Ok(plans.remove(0))
+        }
     }
 }
 

@@ -24,6 +24,7 @@ use datafusion::physical_plan::{
 };
 use datafusion::prelude::{DataFrame, SessionConfig, SessionContext};
 use datafusion::scalar::ScalarValue;
+use datafusion::sql::parser::{DFParser, Statement};
 use datafusion::sql::planner::{ContextProvider, ParserOptions, SqlToRel};
 use datafusion::sql::sqlparser::ast;
 use datafusion::sql::{ResolvedTableReference, TableReference};
@@ -38,6 +39,7 @@ use dozer_cache::cache::{expression::QueryExpression, CacheRecord};
 use dozer_types::arrow_types::to_arrow::{map_record_to_arrow, map_to_arrow_schema};
 use dozer_types::log::debug;
 use dozer_types::types::Schema as DozerSchema;
+use futures_util::future::{join_all, try_join_all};
 use futures_util::stream::BoxStream;
 use futures_util::StreamExt;
 
@@ -243,21 +245,17 @@ impl SQLExecutor {
             })
     }
 
-    pub async fn parse(&self, mut sql: &str) -> Result<Option<LogicalPlan>, DataFusionError> {
-        println!("@@ query: {sql}");
-        if sql
-            .to_ascii_lowercase()
-            .trim_start()
-            .starts_with("select character_set_name")
-        {
-            sql = "select 'UTF8'"
-        }
-        let mut statement = self.ctx.state().sql_to_statement(sql, "postgres")?;
-        let rewrite = if let datafusion::sql::parser::Statement::Statement(ref stmt) = statement {
+    async fn parse_statement(
+        &self,
+        mut statement: Statement,
+    ) -> Result<Option<LogicalPlan>, DataFusionError> {
+        let rewrite = if let Statement::Statement(ref stmt) = statement {
             match stmt.as_ref() {
                 ast::Statement::StartTransaction { .. }
                 | ast::Statement::Commit { .. }
-                | ast::Statement::Rollback { .. } => {
+                | ast::Statement::Rollback { .. }
+                | ast::Statement::SetVariable { .. } => {
+                    dbg!(stmt);
                     return Ok(None);
                 }
                 ast::Statement::ShowVariable { variable } => {
@@ -309,6 +307,27 @@ impl SQLExecutor {
             },
         );
         Some(query.statement_to_plan(statement)).transpose()
+    }
+
+    pub async fn parse(&self, mut sql: &str) -> Result<Vec<Option<LogicalPlan>>, DataFusionError> {
+        println!("@@ query: {sql}");
+        if sql
+            .to_ascii_lowercase()
+            .trim_start()
+            .starts_with("select character_set_name")
+        {
+            sql = "select 'UTF8'"
+        }
+        let statements = DFParser::parse_sql_with_dialect(
+            sql,
+            &datafusion::sql::sqlparser::dialect::PostgreSqlDialect {},
+        )?;
+        try_join_all(
+            statements
+                .into_iter()
+                .map(|stmt| self.parse_statement(stmt)),
+        )
+        .await
     }
 }
 

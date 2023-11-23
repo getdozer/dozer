@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use actix_web::web::ReqData;
 use actix_web::{web, HttpResponse};
+use datafusion::common::plan_datafusion_err;
+use datafusion::error::DataFusionError;
 use dozer_cache::cache::expression::{QueryExpression, Skip};
 use dozer_cache::cache::CacheRecord;
 use dozer_cache::{CacheReader, Phase};
@@ -189,7 +191,12 @@ pub async fn sql(
         .parse(&query)
         .await
         .map_err(ApiError::SQLQueryFailed)?;
-    let Some(plan) = plan else {
+    if plan.len() > 1 {
+        return Err(ApiError::SQLQueryFailed(plan_datafusion_err!(
+            "More than one query supplied"
+        )));
+    }
+    let Some(Some(plan)) = plan.first().cloned() else {
         // This was a transaction statement, which doesn't require a result
         return Ok(HttpResponse::Ok().json(json!({})));
     };
