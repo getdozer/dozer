@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use deltalake::arrow::datatypes::{DataType, Field};
+use datafusion::arrow::datatypes::{DataType, Field};
 use dozer_ingestion_connector::dozer_types::types::{FieldDefinition, FieldType, SourceDefinition};
 
 use crate::ObjectStoreSchemaError;

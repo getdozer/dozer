@@ -8,6 +8,12 @@ edition = "2021"
 [dependencies]
 dozer-ingestion-connector = { path = "../connector" }
 dozer-ingestion-object-store = { path = "../object-store" }
-deltalake = { version = "0.16.5", default-features = false, features = [
+
+[dependencies.deltalake]
+git = "https://github.com/delta-io/delta-rs"
+rev = "72505449e9538371fe5fda35d545dbd662facd07"
+version = "0.17"
+default-features = false
+features = [
     "datafusion",
-] }
+]

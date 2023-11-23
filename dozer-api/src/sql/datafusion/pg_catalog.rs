@@ -46,7 +46,7 @@ impl PgCatalogTable {
         Some(Self {
             table,
             schema,
-            state: state,
+            state,
         })
     }
 }

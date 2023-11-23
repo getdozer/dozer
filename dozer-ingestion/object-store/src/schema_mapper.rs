@@ -1,8 +1,8 @@
-use deltalake::arrow::datatypes::SchemaRef;
-use deltalake::datafusion::datasource::file_format::csv::CsvFormat;
-use deltalake::datafusion::datasource::file_format::parquet::ParquetFormat;
-use deltalake::datafusion::datasource::listing::{ListingOptions, ListingTableUrl};
-use deltalake::datafusion::prelude::SessionContext;
+use datafusion::arrow::datatypes::SchemaRef;
+use datafusion::datasource::file_format::csv::CsvFormat;
+use datafusion::datasource::file_format::parquet::ParquetFormat;
+use datafusion::datasource::listing::{ListingOptions, ListingTableUrl};
+use datafusion::prelude::SessionContext;
 use dozer_ingestion_connector::dozer_types::log::error;
 use dozer_ingestion_connector::dozer_types::models::ingestion_types::TableConfig;
 use dozer_ingestion_connector::dozer_types::types::Schema;

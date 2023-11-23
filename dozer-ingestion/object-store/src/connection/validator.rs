@@ -1,4 +1,4 @@
-use deltalake::datafusion::datasource::listing::ListingTableUrl;
+use datafusion::datasource::listing::ListingTableUrl;
 use dozer_ingestion_connector::{
     dozer_types::indicatif::{ProgressBar, ProgressStyle},
     TableIdentifier,

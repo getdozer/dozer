@@ -21,6 +21,8 @@ resolver = "2"
 
 [workspace.dependencies]
 bincode = { version = "2.0.0-rc.3", features = ["derive"]}
+datafusion = { version = "33.0.0"}
+datafusion-expr = { version = "33.0.0"}
 
 [patch.crates-io]
 postgres = { git = "https://github.com/getdozer/rust-postgres" }
@@ -28,4 +30,10 @@ postgres-protocol = { git = "https://github.com/getdozer/rust-postgres" }
 postgres-types = { git = "https://github.com/getdozer/rust-postgres" }
 tokio-postgres = { git = "https://github.com/getdozer/rust-postgres" }
 
-
+datafusion = { git = "https://github.com/Jesse-Bakker/arrow-datafusion", branch = "scalar-filter-33" }
+datafusion-expr = { git = "https://github.com/Jesse-Bakker/arrow-datafusion", branch = "scalar-filter-33" }
+datafusion-physical-expr = { git = "https://github.com/Jesse-Bakker/arrow-datafusion", branch = "scalar-filter-33"}
+datafusion-physical-plan = { git = "https://github.com/Jesse-Bakker/arrow-datafusion", branch = "scalar-filter-33"}
+datafusion-sql = { git = "https://github.com/Jesse-Bakker/arrow-datafusion", branch = "scalar-filter-33"}
+datafusion-proto = { git = "https://github.com/Jesse-Bakker/arrow-datafusion", branch = "scalar-filter-33"}
+datafusion-common = { git = "https://github.com/Jesse-Bakker/arrow-datafusion", branch = "scalar-filter-33"}

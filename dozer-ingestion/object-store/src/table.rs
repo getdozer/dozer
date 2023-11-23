@@ -1,9 +1,6 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
-use deltalake::{
-    datafusion::{common::DFSchema, datasource::listing::ListingTableUrl, prelude::SessionContext},
-    Path,
-};
+use datafusion::{common::DFSchema, datasource::listing::ListingTableUrl, prelude::SessionContext};
 use dozer_ingestion_connector::{
     dozer_types::{
         chrono::{DateTime, Utc},
@@ -14,6 +11,7 @@ use dozer_ingestion_connector::{
     tokio::{self, sync::mpsc::Sender},
     TableInfo,
 };
+use object_store::path::Path;
 use object_store::ObjectStore;
 
 use crate::{

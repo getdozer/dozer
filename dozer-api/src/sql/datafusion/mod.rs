@@ -11,7 +11,6 @@ use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::catalog::information_schema::InformationSchemaProvider;
 use datafusion::catalog::schema::SchemaProvider;
 use datafusion::config::ConfigOptions;
-use datafusion::datasource::streaming::StreamingTable;
 use datafusion::datasource::{DefaultTableSource, TableProvider, TableType};
 use datafusion::error::{DataFusionError, Result};
 use datafusion::execution::context::{SessionState, TaskContext};
@@ -59,10 +58,7 @@ struct ContextResolver {
 }
 
 impl ContextProvider for ContextResolver {
-    fn get_table_provider(
-        &self,
-        name: TableReference,
-    ) -> Result<Arc<dyn datafusion_expr::TableSource>> {
+    fn get_table_source(&self, name: TableReference) -> Result<Arc<dyn TableSource>> {
         if let Some(table) = PgCatalogTable::from_ref_with_state(&name, self.state.clone()) {
             Ok(Arc::new(DefaultTableSource::new(Arc::new(table))))
         } else {
@@ -265,7 +261,7 @@ impl SQLExecutor {
                     return Ok(None);
                 }
                 ast::Statement::ShowVariable { variable } => {
-                    let variable = object_name_to_string(&variable);
+                    let variable = object_name_to_string(variable);
                     match variable.as_str() {
                         "transaction.isolation.level" => Some("SELECT \"@@transaction_isolation\""),
                         "standard_conforming_strings" => {
@@ -483,8 +479,8 @@ impl ExecutionPlan for CacheEndpointExec {
         )))
     }
 
-    fn statistics(&self) -> Statistics {
-        Default::default()
+    fn statistics(&self) -> Result<Statistics, DataFusionError> {
+        Ok(Statistics::new_unknown(self.schema().as_ref()))
     }
 }
 
@@ -683,8 +679,8 @@ impl TableProvider for InformationSchemaEmptyTable {
         _state: &SessionState,
         projection: Option<&Vec<usize>>,
         // filters and limit can be used here to inject some push-down operations if needed
-        filters: &[Expr],
-        limit: Option<usize>,
+        _filters: &[Expr],
+        _limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         Ok(Arc::new(MemoryExec::try_new(
             &[],

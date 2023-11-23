@@ -53,8 +53,8 @@ pin-project = "1.1.3"
 async-stream = "0.3.5"
 uuid = "1.6.1"
 chrono = "0.4.31"
-datafusion = "32.0.0"
-datafusion-expr = "32.0.0"
+datafusion = { workspace = true }
+datafusion-expr = { workspace = true }
 serde_json = { version = "1.0.108", features = ["arbitrary_precision"] }
 pgwire = "0.16.1"
 tempdir = "0.3.7"

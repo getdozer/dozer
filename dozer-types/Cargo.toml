@@ -17,7 +17,7 @@ ahash = "0.8.3"
 thiserror = "1.0.48"
 parking_lot = "0.12"
 bytes = "1.4.0"
-indexmap = "2.0.0"
+indexmap = "1.9.3"
 ordered-float = { version = "3.9.1", features = ["serde"] }
 tracing = "0.1.36"
 log = "0.4.17"
@@ -29,9 +29,9 @@ pyo3 = { version = "0.18.1", optional = true }
 tonic = { version = "0.10.0" }
 prost-types = "0.12.0"
 prost = "0.12.2"
-arrow = { version = "47.0.0" }
-arrow-cast = { version = "47.0.0" }
-arrow-schema = { version = "47.0.0", features = ["serde"] }
+arrow = { version = "48.0.1" }
+arrow-cast = { version = "48.0.1" }
+arrow-schema = { version = "48.0.1", features = ["serde"] }
 tokio-postgres = { version = "0.7.7", features = [
     "with-chrono-0_4",
     "with-geo-types-0_7",
