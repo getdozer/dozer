@@ -476,7 +476,7 @@ fn test_to_conversion() {
     assert!(field.to_binary().is_none());
     assert!(field.to_decimal().is_none());
     assert!(field.to_timestamp().is_some());
-    assert!(field.to_date().is_none());
+    assert!(field.to_date().is_some());
     assert!(field.to_json().is_none());
     assert!(field.to_point().is_none());
     assert!(field.to_duration().is_none());

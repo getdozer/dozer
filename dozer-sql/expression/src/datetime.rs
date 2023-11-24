@@ -178,6 +178,10 @@ pub(crate) fn evaluate_interval(
         DateTimeField::Nanoseconds | DateTimeField::Nanosecond => Ok(Field::Duration(
             DozerDuration(std::time::Duration::from_nanos(dur), TimeUnit::Nanoseconds),
         )),
+        DateTimeField::Day => Ok(Field::Duration(DozerDuration(
+            std::time::Duration::from_secs(dur * 24 * 60 * 60),
+            TimeUnit::Nanoseconds,
+        ))),
         DateTimeField::Isodow
         | DateTimeField::Timezone
         | DateTimeField::Dow
@@ -189,7 +193,6 @@ pub(crate) fn evaluate_interval(
         | DateTimeField::TimezoneMinute
         | DateTimeField::Date
         | DateTimeField::NoDateTime
-        | DateTimeField::Day
         | DateTimeField::Month
         | DateTimeField::Year
         | DateTimeField::Hour
