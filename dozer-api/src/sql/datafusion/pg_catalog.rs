@@ -7,6 +7,7 @@ use datafusion::{
         datatypes::SchemaRef,
         record_batch::RecordBatch,
     },
+    common::Constraints,
     datasource::TableProvider,
     error::Result,
     execution::context::SessionState,
@@ -20,6 +21,7 @@ pub struct PgCatalogTable {
     table: String,
     schema: SchemaRef,
     state: Arc<SessionState>,
+    constraints: Constraints,
 }
 
 impl PgCatalogTable {
@@ -32,7 +34,7 @@ impl PgCatalogTable {
             _ => return None,
         }
         let table = reference.table();
-        let schema = match table {
+        let (schema, constraints) = match table {
             "pg_type" => schemas::pg_type(),
             "pg_namespace" => schemas::pg_namespace(),
             "pg_proc" => schemas::pg_proc(),
@@ -40,10 +42,14 @@ impl PgCatalogTable {
             "pg_attribute" => schemas::pg_attribute(),
             "pg_description" => schemas::pg_description(),
             "pg_attrdef" => schemas::pg_attrdef(),
+            "pg_enum" => schemas::pg_enum(),
+            "pg_index" => schemas::pg_index(),
+            "pg_constraint" => schemas::pg_constraint(),
             _ => return None,
         };
         let table = table.to_string();
         Some(Self {
+            constraints,
             table,
             schema,
             state,
@@ -63,6 +69,10 @@ impl TableProvider for PgCatalogTable {
 
     fn table_type(&self) -> TableType {
         TableType::View
+    }
+
+    fn constraints(&self) -> Option<&Constraints> {
+        Some(&self.constraints)
     }
 
     async fn scan(
@@ -161,28 +171,60 @@ impl PgCatalogTable {
 
 pub mod schemas {
     use datafusion::arrow::datatypes::{DataType, Field, Schema};
+    use datafusion::common::{Constraint, Constraints};
     use std::sync::Arc;
+
+    #[derive(PartialEq)]
+    enum Modifier {
+        Nullable,
+        PrimaryKey,
+        None,
+    }
 
     macro_rules! nullable_helper {
         (nullable) => {
-            true
+            Modifier::Nullable
+        };
+        (primary_key) => {
+            Modifier::PrimaryKey
         };
         () => {
-            false
+            Modifier::None
         };
     }
 
     macro_rules! schema {
-        ({$($name:literal: $type:path $(: $nullable:ident)?),* $(,)?})  => {{
-            let v = vec![$(Field::new($name, $type, nullable_helper!($($nullable)?))),*];
-
-            Arc::new(Schema::new(v))
+        ({$($name:literal: $type:expr $(=> $modifier:ident)?),* $(,)?} $(, unique($($uniq_field:literal),+))*)  => {{
+            #![allow(unused_assignments)]
+            #![allow(unused_mut)]
+            let mut fields = Vec::new();
+            let mut primary_key = Vec::new();
+            let mut i = 0;
+            $(
+                let modifier = nullable_helper!($($modifier)?);
+                let nullable = modifier == Modifier::Nullable;
+                if modifier == Modifier::PrimaryKey {
+                    primary_key.push(i);
+                }
+                fields.push(Field::new($name, $type, nullable));
+                i += 1;
+            )*
+            let mut indexes = vec![Constraint::PrimaryKey(primary_key)];
+            $(
+                let mut elems = Vec::new();
+                $(
+                    let elem = fields.iter().position(|field| field.name() == $uniq_field).expect("Unique index field not found");
+                    elems.push(elem);
+                )+
+                indexes.push(Constraint::Unique(elems));
+            )*
+            (Arc::new(Schema::new(fields)), Constraints::new_unverified(indexes))
         }};
     }
 
-    pub fn pg_type() -> Arc<Schema> {
+    pub fn pg_type() -> (Arc<Schema>, Constraints) {
         schema!({
-            "oid"               : DataType::Utf8,
+            "oid"               : DataType::UInt32 => primary_key,
             "typname"           : DataType::Utf8,
             "typnamespace"      : DataType::Utf8,
             "typowner"          : DataType::Utf8,
@@ -206,27 +248,27 @@ pub mod schemas {
             "typalign"          : DataType::Utf8,
             "typstorage"        : DataType::Utf8,
             "typnotnull"        : DataType::Boolean,
-            "typbasetype"       : DataType::Utf8,
+            "typbasetype"       : DataType::UInt32,
             "typtypmod"         : DataType::Int32,
             "typndims"          : DataType::Int32,
             "typcollation"      : DataType::Utf8,
-            "typdefaultbin"     : DataType::Binary : nullable,
-            "typdefault"        : DataType::Utf8 : nullable,
-            "typacl"            : DataType::Utf8 : nullable,
-        })
+            "typdefaultbin"     : DataType::Binary => nullable,
+            "typdefault"        : DataType::Utf8 => nullable,
+            "typacl"            : DataType::Utf8 => nullable,
+        }, unique("typname", "typnamespace"))
     }
-    pub fn pg_namespace() -> Arc<Schema> {
+    pub fn pg_namespace() -> (Arc<Schema>, Constraints) {
         schema!({
-            "oid"       : DataType::UInt32,
+            "oid"       : DataType::UInt32 => primary_key,
             "nspname"   : DataType::Utf8,
             "nspowner"  : DataType::UInt32,
-            "nspacl"    : DataType::Utf8 : nullable,
-        })
+            "nspacl"    : DataType::Utf8 => nullable,
+        }, unique("nspname"))
     }
 
-    pub fn pg_proc() -> Arc<Schema> {
+    pub fn pg_proc() -> (Arc<Schema>, Constraints) {
         schema!({
-             "oid"             : DataType::UInt32,
+             "oid"             : DataType::UInt32 => primary_key,
              "proname"         : DataType::Utf8,
              "pronamespace"    : DataType::UInt32,
              "proowner"        : DataType::UInt32,
@@ -246,26 +288,26 @@ pub mod schemas {
              "pronargdefaults" : DataType::Int16,
              "prorettype"      : DataType::UInt32,
              "proargtypes"     : DataType::Utf8,
-             "proallargtypes"  : DataType::Utf8 : nullable,
-             "proargmodes"     : DataType::Utf8 : nullable,
-             "proargnames"     : DataType::Utf8 : nullable,
-             "proargdefaults"  : DataType::Utf8 : nullable,
-             "protrftypes"     : DataType::Utf8 : nullable,
+             "proallargtypes"  : DataType::Utf8 => nullable,
+             "proargmodes"     : DataType::Utf8 => nullable,
+             "proargnames"     : DataType::Utf8 => nullable,
+             "proargdefaults"  : DataType::Utf8 => nullable,
+             "protrftypes"     : DataType::Utf8 => nullable,
              "prosrc"          : DataType::Utf8,
-             "probin"          : DataType::Utf8 : nullable,
-             "prosqlbody"      : DataType::Utf8 : nullable,
-             "proconfig"       : DataType::Utf8 : nullable,
-             "proacl"          : DataType::Utf8 : nullable,
-        })
+             "probin"          : DataType::Utf8 => nullable,
+             "prosqlbody"      : DataType::Utf8 => nullable,
+             "proconfig"       : DataType::Utf8 => nullable,
+             "proacl"          : DataType::Utf8 => nullable,
+        }, unique("proname", "proargtypes", "pronamespace"))
     }
 
-    pub fn pg_attribute() -> Arc<Schema> {
+    pub fn pg_attribute() -> (Arc<Schema>, Constraints) {
         schema!({
-            "attrelid"       : DataType::UInt32,
+            "attrelid"       : DataType::UInt32 => primary_key,
             "attname"        : DataType::Utf8,
             "atttypid"       : DataType::UInt32,
             "attlen"         : DataType::Int16,
-            "attnum"         : DataType::Int16,
+            "attnum"         : DataType::Int16 => primary_key,
             "attcacheoff"    : DataType::Int32,
             "atttypmod"      : DataType::Int32,
             "attndims"       : DataType::Int16,
@@ -283,16 +325,16 @@ pub mod schemas {
             "attinhcount"    : DataType::UInt16,
             "attstattarget"  : DataType::UInt16,
             "attcollation"   : DataType::UInt32,
-            "attacl"         : DataType::Utf8 : nullable,
-            "attoptions"     : DataType::Utf8 : nullable,
-            "attfdwoptions"  : DataType::Utf8 : nullable,
-            "attmissingval"  : DataType::Utf8 : nullable,
-        })
+            "attacl"         : DataType::Utf8 => nullable,
+            "attoptions"     : DataType::Utf8 => nullable,
+            "attfdwoptions"  : DataType::Utf8 => nullable,
+            "attmissingval"  : DataType::Utf8 => nullable,
+        }, unique("attrelid", "attname"))
     }
 
-    pub fn pg_class() -> Arc<Schema> {
+    pub fn pg_class() -> (Arc<Schema>, Constraints) {
         schema! ({
-             "oid"                 : DataType::UInt32,
+             "oid"                 : DataType::UInt32 => primary_key,
              "relname"             : DataType::Utf8,
              "relnamespace"        : DataType::UInt32,
             //  "reltype"             : DataType::UInt32,
@@ -325,24 +367,99 @@ pub mod schemas {
             //  "relacl"              : DataType::Utf8 : nullable,
             //  "reloptions"          : DataType::Utf8 : nullable,
             //  "relpartbound"        : DataType::Utf8 : nullable,
-        })
+        }, unique("relname", "relnamespace"))
     }
 
-    pub fn pg_description() -> Arc<Schema> {
+    pub fn pg_description() -> (Arc<Schema>, Constraints) {
         schema!({
-            "objoid"      : DataType::UInt32,
-            "classoid"    : DataType::UInt32,
-            "objsubid"    : DataType::Int32,
+            "objoid"      : DataType::UInt32 => primary_key,
+            "classoid"    : DataType::UInt32 => primary_key,
+            "objsubid"    : DataType::Int32 => primary_key,
             "description" : DataType::Utf8,
         })
     }
 
-    pub fn pg_attrdef() -> Arc<Schema> {
+    pub fn pg_attrdef() -> (Arc<Schema>, Constraints) {
         schema!({
-            "oid"     : DataType::UInt32,
+            "oid"     : DataType::UInt32 => primary_key,
             "adrelid" : DataType::UInt32,
             "adnum"   : DataType::Int16,
             "adbin"   : DataType::Utf8,
+        }, unique("adrelid", "adnum"))
+    }
+
+    pub fn pg_enum() -> (Arc<Schema>, Constraints) {
+        schema!({
+            "oid"           : DataType::UInt32 => primary_key,
+            "enumtypid"     : DataType::UInt32,
+            "enumsortorder" : DataType::Float64,
+            "enumlabel"     : DataType::Utf8,
+        },
+            unique("enumtypid", "enumlabel"), unique("enumtypid", "enumsortorder")
+        )
+    }
+
+    pub(crate) fn pg_index() -> (Arc<Schema>, Constraints) {
+        let int2list = DataType::List(Arc::new(Field::new("indkey", DataType::Int16, false)));
+        schema!({
+        "indexrelid"          : DataType::UInt32 => primary_key,
+        "indrelid"            : DataType::UInt32,
+        "indnatts"            : DataType::Int16,
+        "indnkeyatts"         : DataType::Int16,
+        "indisunique"         : DataType::Boolean,
+        "indnullsnotdistinct" : DataType::Boolean,
+        "indisprimary"        : DataType::Boolean,
+        "indisexclusion"      : DataType::Boolean,
+        "indimmediate"        : DataType::Boolean,
+        "indisclustered"      : DataType::Boolean,
+        "indisvalid"          : DataType::Boolean,
+        "indcheckxmin"        : DataType::Boolean,
+        "indisready"          : DataType::Boolean,
+        "indislive"           : DataType::Boolean,
+        "indisreplident"      : DataType::Boolean,
+        "indkey"              : int2list,
+        "indcollation"        : DataType::Utf8,
+        "indclass"            : DataType::Utf8,
+        "indoption"           : DataType::Utf8,
+        "indexprs"            : DataType::Utf8 => nullable,
+        "indpred"             : DataType::Utf8 => nullable,
         })
+    }
+
+    pub(crate) fn pg_constraint() -> (Arc<Schema>, Constraints) {
+        fn oidlist(name: &'static str) -> DataType {
+            DataType::List(Arc::new(Field::new(name, DataType::UInt32, false)))
+        }
+        fn smallintlist(name: &'static str) -> DataType {
+            DataType::List(Arc::new(Field::new(name, DataType::Int16, false)))
+        }
+        schema!({
+        "oid"            : DataType::UInt32 => primary_key,
+        "conname"        : DataType::Utf8,
+        "connamespace"   : DataType::UInt32,
+        "contype"        : DataType::UInt8,
+        "condeferrable"  : DataType::Boolean,
+        "condeferred"    : DataType::Boolean,
+        "convalidated"   : DataType::Boolean,
+        "conrelid"       : DataType::UInt32,
+        "contypid"       : DataType::UInt32,
+        "conindid"       : DataType::UInt32,
+        "conparentid"    : DataType::UInt32,
+        "confrelid"      : DataType::UInt32,
+        "confupdtype"    : DataType::UInt8,
+        "confdeltype"    : DataType::UInt8,
+        "confmatchtype"  : DataType::UInt8,
+        "conislocal"     : DataType::Boolean,
+        "coninhcount"    : DataType::Int16,
+        "connoinherit"   : DataType::Boolean,
+        "conkey"         : smallintlist("conkey")           => nullable,
+        "confkey"        : smallintlist("confkey")          => nullable,
+        "conpfeqop"      : oidlist("conpfeqop")             => nullable,
+        "conppeqop"      : oidlist("conppeqop")             => nullable,
+        "conffeqop"      : oidlist("conffeqop")             => nullable,
+        "confdelsetcols" : smallintlist("confdelsetcols")   => nullable,
+        "conexclop"      : oidlist("conexclop")             => nullable,
+        "conbin"         : DataType::Utf8                   => nullable,
+           }, unique("conrelid", "contypid", "conname"))
     }
 }

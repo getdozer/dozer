@@ -2,14 +2,17 @@ pub mod json;
 mod pg_catalog;
 mod predicate_pushdown;
 
+use std::any::Any;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::{any::Any, sync::Arc};
+use std::sync::Arc;
 
 use async_trait::async_trait;
+
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::catalog::information_schema::InformationSchemaProvider;
 use datafusion::catalog::schema::SchemaProvider;
+use datafusion::common::not_impl_err;
 use datafusion::config::ConfigOptions;
 use datafusion::datasource::{DefaultTableSource, TableProvider, TableType};
 use datafusion::error::{DataFusionError, Result};
@@ -30,7 +33,8 @@ use datafusion::sql::sqlparser::ast;
 use datafusion::sql::{ResolvedTableReference, TableReference};
 use datafusion::variable::{VarProvider, VarType};
 use datafusion_expr::{
-    AggregateUDF, Expr, LogicalPlan, ScalarUDF, TableProviderFilterPushDown, TableSource, WindowUDF,
+    AggregateUDF, Expr, LogicalPlan, ScalarUDF, TableProviderFilterPushDown, TableSource,
+    TypeSignature, WindowUDF,
 };
 use dozer_types::arrow::datatypes::SchemaRef;
 use dozer_types::arrow::record_batch::RecordBatch;
@@ -39,7 +43,7 @@ use dozer_cache::cache::{expression::QueryExpression, CacheRecord};
 use dozer_types::arrow_types::to_arrow::{map_record_to_arrow, map_to_arrow_schema};
 use dozer_types::log::debug;
 use dozer_types::types::Schema as DozerSchema;
-use futures_util::future::{join_all, try_join_all};
+use futures_util::future::try_join_all;
 use futures_util::stream::BoxStream;
 use futures_util::StreamExt;
 
@@ -148,6 +152,84 @@ impl ContextProvider for ContextResolver {
                                 datafusion::scalar::ScalarValue::Utf8(Some("".to_string())),
                             ))
                         }),
+                    }));
+                }
+                "pg_type_is_visible" => {
+                    return Some(Arc::new(ScalarUDF {
+                        name: "pg_catalog.pg_get_expr".to_owned(),
+                        signature: datafusion_expr::Signature {
+                            type_signature: datafusion_expr::TypeSignature::Exact(vec![
+                                DataType::UInt32,
+                            ]),
+                            volatility: datafusion_expr::Volatility::Immutable,
+                        },
+                        return_type: Arc::new(|_| Ok(Arc::new(DataType::Boolean))),
+                        fun: Arc::new(move |_| {
+                            Ok(datafusion_expr::ColumnarValue::Scalar(
+                                datafusion::scalar::ScalarValue::Boolean(Some(true)),
+                            ))
+                        }),
+                    }));
+                }
+                "unnest" => {
+                    return Some(Arc::new(ScalarUDF {
+                        name: "pg_catalog.unnest".to_owned(),
+                        signature: datafusion_expr::Signature {
+                            type_signature: datafusion_expr::TypeSignature::Any(1),
+                            volatility: datafusion_expr::Volatility::Immutable,
+                        },
+                        return_type: Arc::new(|input| match &input[0] {
+                            DataType::List(field)
+                            | DataType::FixedSizeList(field, _)
+                            | DataType::LargeList(field) => {
+                                Ok(Arc::new(field.data_type().to_owned()))
+                            }
+                            _ => Err(DataFusionError::Plan(
+                                "Invalid data type for function unnest".to_owned(),
+                            )),
+                        }),
+                        // Dummy impl
+                        fun: Arc::new(|_| not_impl_err!("unnest")),
+                    }));
+                }
+                "generate_subscripts" => {
+                    return Some(Arc::new(ScalarUDF {
+                        name: "pg_catalog.generate_subscripts".to_owned(),
+                        signature: datafusion_expr::Signature {
+                            type_signature: datafusion_expr::TypeSignature::Any(2),
+                            volatility: datafusion_expr::Volatility::Immutable,
+                        },
+                        return_type: Arc::new(|input| {
+                            if matches!(
+                                input[0],
+                                DataType::List(_)
+                                    | DataType::FixedSizeList(_, _)
+                                    | DataType::LargeList(_)
+                            ) && input[1].is_integer()
+                            {
+                                Ok(Arc::new(DataType::UInt32))
+                            } else {
+                                Err(DataFusionError::Plan(
+                                    "Invalid argument type for function generate_subscripts"
+                                        .to_owned(),
+                                ))
+                            }
+                        }),
+                        fun: Arc::new(|_| not_impl_err!("generate_subscripts")),
+                    }));
+                }
+                "pg_get_constraintdef" => {
+                    return Some(Arc::new(ScalarUDF {
+                        name: "pg_catalog.pg_get_constraintdef".to_owned(),
+                        signature: datafusion_expr::Signature {
+                            type_signature: datafusion_expr::TypeSignature::OneOf(vec![
+                                TypeSignature::Exact(vec![DataType::UInt32]),
+                                TypeSignature::Exact(vec![DataType::UInt32, DataType::Boolean]),
+                            ]),
+                            volatility: datafusion_expr::Volatility::Immutable,
+                        },
+                        return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
+                        fun: Arc::new(|_| not_impl_err!("pg_get_constraintdef")),
                     }));
                 }
                 _ => {}

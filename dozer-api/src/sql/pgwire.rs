@@ -339,7 +339,7 @@ fn map_data_type(datafusion_type: &DataType) -> Type {
     match datafusion_type {
         DataType::Null => Type::BOOL,
         DataType::Boolean => Type::BOOL,
-        DataType::Int8 => Type::INT2,
+        DataType::Int8 => Type::CHAR,
         DataType::Int16 => Type::INT2,
         DataType::Int32 => Type::INT4,
         DataType::Int64 => Type::INT8,
@@ -365,10 +365,41 @@ fn map_data_type(datafusion_type: &DataType) -> Type {
         DataType::LargeUtf8 => Type::VARCHAR,
         DataType::Decimal128(_, _) => Type::NUMERIC,
         DataType::Decimal256(_, _) => Type::NUMERIC,
-        DataType::List(_)
-        | DataType::FixedSizeList(_, _)
-        | DataType::LargeList(_)
-        | DataType::Struct(_)
+        DataType::List(f) | DataType::FixedSizeList(f, _) | DataType::LargeList(f) => {
+            match f.data_type() {
+                DataType::Boolean => Type::BOOL_ARRAY,
+                DataType::Int8 => Type::INT2_ARRAY,
+                DataType::Int16 => Type::INT2_ARRAY,
+                DataType::Int32 => Type::INT4_ARRAY,
+                DataType::Int64 => Type::INT8_ARRAY,
+                DataType::UInt8 => Type::CHAR_ARRAY,
+                DataType::UInt16 => Type::INT2_ARRAY,
+                DataType::UInt32 => Type::INT4_ARRAY,
+                DataType::UInt64 => Type::INT8_ARRAY,
+                DataType::Float16 => Type::FLOAT4_ARRAY,
+                DataType::Float32 => Type::FLOAT4_ARRAY,
+                DataType::Float64 => Type::FLOAT8_ARRAY,
+                DataType::Timestamp(_, _) => Type::TIMESTAMP_ARRAY,
+                DataType::Date32 => Type::TIMESTAMPTZ_ARRAY,
+                DataType::Date64 => Type::TIMESTAMPTZ_ARRAY,
+                DataType::Time32(_) => Type::TIME_ARRAY,
+                DataType::Time64(_) => Type::TIME_ARRAY,
+                DataType::Duration(_) => Type::INTERVAL_ARRAY,
+                DataType::Interval(_) => Type::INTERVAL_ARRAY,
+                DataType::Binary => Type::BYTEA_ARRAY,
+                DataType::FixedSizeBinary(_) => Type::BYTEA_ARRAY,
+                DataType::LargeBinary => Type::BYTEA_ARRAY,
+                DataType::Utf8 => Type::VARCHAR_ARRAY,
+                DataType::LargeUtf8 => Type::VARCHAR_ARRAY,
+                DataType::List(_) => Type::ANYARRAY,
+                DataType::FixedSizeList(_, _) => Type::ANYARRAY,
+                DataType::LargeList(_) => Type::ANYARRAY,
+                DataType::Decimal128(_, _) => Type::NUMERIC_ARRAY,
+                DataType::Decimal256(_, _) => Type::NUMERIC_ARRAY,
+                _ => unimplemented!(),
+            }
+        }
+        DataType::Struct(_)
         | DataType::Union(_, _)
         | DataType::Dictionary(_, _)
         | DataType::Map(_, _)
