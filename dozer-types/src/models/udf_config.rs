@@ -16,6 +16,7 @@ pub struct UdfConfig {
 pub enum UdfType {
     Onnx(OnnxConfig),
     JavaScript(JavaScriptConfig),
+    Wasm(WasmConfig),
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
@@ -30,4 +31,11 @@ pub struct OnnxConfig {
 pub struct JavaScriptConfig {
     /// path to the module file
     pub module: String,
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message)]
+pub struct WasmConfig {
+    #[prost(string)]
+    /// path to the module file
+    pub path: String,
 }

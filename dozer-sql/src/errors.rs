@@ -59,6 +59,9 @@ pub enum PipelineError {
     #[cfg(feature = "wasm")]
     #[error("Wasm Error: {0}")]
     WasmErr(wasmtime::Error),
+    #[cfg(not(feature = "wasm"))]
+    #[error("Wasm UDF feature is not enabled")]
+    WasmNotEnabled,
 
     // Error forwarding
     #[error("Internal type error: {0}")]
