@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use dozer_types::{
     thiserror::{self, Error},
-    types::{Field, FieldType}, models::udf_config::UdfType,
+    types::{Field, FieldType},
 };
 use sqlparser::ast::{
     BinaryOperator, DataType, DateTimeField, Expr, FunctionArg, Ident, UnaryOperator,
@@ -105,9 +105,9 @@ pub enum Error {
 
     #[cfg(feature = "wasm")]
     #[error("WASM UDF error: {0}")]
-    Wasm(#[from] crate::wasm_udf::Error),
+    Wasm(#[from] crate::wasm_udf::WasmError),
     #[cfg(not(feature = "wasm"))]
-    #[error("WASM UDF is not enabled")]
+    #[error("WASM UDF is not enabled here")]
     WasmNotEnabled,
 
     #[error("Unsupported UDF type")]

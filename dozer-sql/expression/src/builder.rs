@@ -1016,26 +1016,25 @@ impl ExpressionBuilder {
         function: &Function,
         schema: &Schema,
         udfs: &[UdfConfig],
-    ) -> Result<Expression, PipelineError> {
+    ) -> Result<Expression, Error> {
         // First, get the wasm function defined by name.
         // Then, transfer the wasm function to Expression::WasmUDF
-        use dozer_types::types::FieldType;
-        use PipelineError::InvalidQuery;
+        use crate::wasm_udf::WasmError::MissingReturnType;
+
 
         let args = function
             .args
             .iter()
             .map(|argument| self.parse_sql_function_arg(false, argument, schema, udfs))
-            .collect::<Result<Vec<_>, PipelineError>>()?;
+            .collect::<Result<Vec<_>, Error>>()?;
 
         let return_type = {
             let ident = function
                 .return_type
                 .as_ref()
-                .ok_or_else(|| InvalidQuery("Wasm UDF must have a return type. The syntax is: function_name<return_type>(arguments)".to_string()))?;
+                .ok_or_else(|| MissingReturnType).unwrap();
 
-            FieldType::try_from(ident.value.as_str())
-                .map_err(|e| InvalidQuery(format!("Failed to parse Wasm UDF return type: {e}")))?
+            FieldType::try_from(ident.value.as_str()).unwrap()
         };
 
         Ok(Expression::WasmUDF {

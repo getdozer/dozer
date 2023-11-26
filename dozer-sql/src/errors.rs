@@ -12,8 +12,7 @@ use dozer_types::thiserror::Error;
 use dozer_types::types::{Field, FieldType};
 use std::fmt::{Display, Formatter};
 
-#[cfg(feature = "wasm")]
-use wasmtime;
+use super::utils::serialize::DeserializationError;
 
 #[derive(Debug, Clone)]
 pub struct FieldTypes {
@@ -55,13 +54,6 @@ pub enum PipelineError {
     MissingIntoClause,
     #[error("Duplicate INTO table name found: {0:?}")]
     DuplicateIntoClause(String),
-
-    #[cfg(feature = "wasm")]
-    #[error("Wasm Error: {0}")]
-    WasmErr(wasmtime::Error),
-    #[cfg(not(feature = "wasm"))]
-    #[error("Wasm UDF feature is not enabled")]
-    WasmNotEnabled,
 
     // Error forwarding
     #[error("Internal type error: {0}")]
@@ -135,13 +127,6 @@ pub enum PipelineError {
 
     #[error("Duplicated Processor name: {0}")]
     ProcessorAlreadyExists(String),
-}
-
-#[cfg(feature = "wasm")]
-impl From<wasmtime::Error> for PipelineError {
-    fn from(wasm_err: wasmtime::Error) -> Self {
-        PipelineError::WasmErr(wasm_err)
-    }
 }
 
 #[derive(Error, Debug)]

@@ -21,6 +21,8 @@ mod javascript;
 mod onnx;
 #[cfg(feature = "python")]
 mod python_udf;
+#[cfg(feature = "wasm")]
+mod wasm_udf;
 
 pub use num_traits;
 pub use sqlparser;

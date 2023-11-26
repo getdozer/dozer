@@ -364,7 +364,7 @@ impl Expression {
                 return_type,
                 ..
             } => {
-                use crate::pipeline::expression::wasm_udf::evaluate_wasm_udf;
+                use crate::wasm_udf::evaluate_wasm_udf;
                 evaluate_wasm_udf(schema, name, module, args, return_type, record)
             }
             Expression::UnaryOperator { operator, arg } => operator.evaluate(schema, arg, record),
