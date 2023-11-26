@@ -1028,17 +1028,6 @@ impl ExpressionBuilder {
             .map(|argument| self.parse_sql_function_arg(false, argument, schema, udfs))
             .collect::<Result<Vec<_>, PipelineError>>()?;
 
-        // let last_arg = args
-        //     .last()
-        //     .ok_or_else(|| InvalidQuery("Can't get wasm udf return type".to_string()))?;
-
-        // let return_type = match last_arg {
-        //     Expression::Literal(Field::String(s)) => {
-        //         FieldType::try_from(s.as_str()).map_err(|e| InvalidQuery(format!("Failed to parse Wasm UDF return type: {e}")))?
-        //     }
-        //     _ => return Err(InvalidArgument("The last arg for wasm udf should be a string literal, which represents return type".to_string())),
-        // };
-
         let return_type = {
             let ident = function
                 .return_type
