@@ -110,7 +110,7 @@ jobs:
           SN_DRIVER: ${{ secrets.SN_DRIVER }}
         shell: bash
         run: |
-          cargo test test_connector_ --lib --features snowflake,ethereum,kafka,python  --no-fail-fast -- --ignored
+          cargo test test_connector_ --lib --features snowflake,ethereum,kafka,python,wasm  --no-fail-fast -- --ignored
 
       - name: Run tests
         env:
@@ -120,7 +120,9 @@ jobs:
         shell: bash
         run: |
           source ./dozer-tests/python_udf/virtualenv.sh
-          cargo test --features snowflake,ethereum,kafka,python,mongodb --no-fail-fast
+          apt-get update && apt-get install -y npm
+          (cd ./dozer-tests/wasm_udf/assemblyscript && npm install && npm run asbuild)
+          cargo test --features snowflake,ethereum,kafka,python,mongodb,wasm --no-fail-fast
 
       - name: Get current date
         id: date
