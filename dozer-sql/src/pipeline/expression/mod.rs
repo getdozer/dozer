@@ -19,7 +19,7 @@ pub mod scalar;
 pub mod onnx;
 #[cfg(feature = "python")]
 pub mod python_udf;
-#[cfg(feature = "wasm")]
-pub mod wasm_udf;
 #[cfg(test)]
 mod tests;
+#[cfg(feature = "wasm")]
+pub mod wasm_udf;
