@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use dozer_types::{
     thiserror::{self, Error},
-    types::{Field, FieldType},
+    types::{Field, FieldType}, models::udf_config::UdfType,
 };
 use sqlparser::ast::{
     BinaryOperator, DataType, DateTimeField, Expr, FunctionArg, Ident, UnaryOperator,
@@ -102,6 +102,16 @@ pub enum Error {
 
     #[error("JavaScript UDF error: {0}")]
     JavaScript(#[from] crate::javascript::Error),
+
+    #[cfg(feature = "wasm")]
+    #[error("WASM UDF error: {0}")]
+    Wasm(#[from] crate::wasm_udf::Error),
+    #[cfg(not(feature = "wasm"))]
+    #[error("WASM UDF is not enabled")]
+    WasmNotEnabled,
+
+    #[error("Unsupported UDF type")]
+    UnsupportedUdfType,
 
     // Legacy error types.
     #[error("Sql error: {0}")]

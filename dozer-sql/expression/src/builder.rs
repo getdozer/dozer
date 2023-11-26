@@ -567,7 +567,7 @@ impl ExpressionBuilder {
                     )
                     .await
                 }
-                Some(UdfType::Wasm(config)) => {
+                UdfType::Wasm(config) => {
                     #[cfg(feature = "wasm")]
                     {
                         self.parse_wasm_udf(
@@ -582,11 +582,11 @@ impl ExpressionBuilder {
                     #[cfg(not(feature = "wasm"))]
                     {
                         let _ = config;
-                        Err(PipelineError::WasmNotEnabled)
+                        Err(Error::WasmNotEnabled)
                     }
 
                 }
-                None => Err(PipelineError::UdfConfigMissing(function_name.clone())),
+                _ => Err(Error::UnsupportedUdfType),
             };
         }
 

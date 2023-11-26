@@ -33,7 +33,7 @@ pub struct JavaScriptConfig {
     pub module: String,
 }
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, ::prost::Message)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
 pub struct WasmConfig {
     #[prost(string)]
     /// path to the module file

@@ -111,7 +111,7 @@
       ]
     },
     "udfs": {
-      "description": "UDF specific configuration (eg. !Onnx)",
+      "description": "UDF specific configuration (eg. !Onnx, !Wasm)",
       "type": "array",
       "items": {
         "$ref": "#/definitions/UdfConfig"
@@ -1927,6 +1927,18 @@
             }
           },
           "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Wasm"
+          ],
+          "properties": {
+            "Wasm": {
+              "$ref": "#/definitions/WasmConfig"
+            }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -1936,6 +1948,18 @@
         "OnCreate",
         "Manual"
       ]
+    },
+    "WasmConfig": {
+      "type": "object",
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "description": "path to the module file",
+          "type": "string"
+        }
+      }
     },
     "XRayConfig": {
       "type": "object",
