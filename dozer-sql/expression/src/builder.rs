@@ -584,9 +584,7 @@ impl ExpressionBuilder {
                         let _ = config;
                         Err(Error::WasmNotEnabled)
                     }
-
                 }
-                _ => Err(Error::UnsupportedUdfType),
             };
         }
 
@@ -1019,7 +1017,7 @@ impl ExpressionBuilder {
     ) -> Result<Expression, Error> {
         // First, get the wasm function defined by name.
         // Then, transfer the wasm function to Expression::WasmUDF
-        use crate::wasm::utils::wasm_validate_return_type;
+        use crate::wasm::utils::wasm_validate_input_and_return;
         use std::path::Path;
 
         let args = function
@@ -1028,7 +1026,13 @@ impl ExpressionBuilder {
             .map(|argument| self.parse_sql_function_arg(false, argument, schema, udfs))
             .collect::<Result<Vec<_>, Error>>()?;
 
-        let return_type = wasm_validate_return_type(name.as_str(), Path::new(&config.path.clone())).unwrap();
+        let (value_types, return_type) = wasm_validate_input_and_return(
+            schema,
+            name.as_str(),
+            Path::new(&config.path.clone()),
+            &args,
+        )
+        .unwrap();
         let return_type = match return_type {
             wasmtime::ValType::I32 => FieldType::Int,
             wasmtime::ValType::I64 => FieldType::Int,
@@ -1043,6 +1047,7 @@ impl ExpressionBuilder {
             name: name.to_string(),
             module: config.path.clone(),
             args,
+            value_types,
             return_type,
         })
     }

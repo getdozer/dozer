@@ -1,6 +1,6 @@
-use dozer_types::types::Field;
-use dozer_types::thiserror::{self, Error};
 use crate::execution::Expression;
+use dozer_types::thiserror::{self, Error};
+use dozer_types::types::Field;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -31,5 +31,4 @@ pub enum Error {
     WasmInputTypeSizeMismatch(usize, usize),
     #[error("The WASM function {0} is missing from the module {1}")]
     WasmFunctionMissing(String, String),
-
 }

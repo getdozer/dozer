@@ -17,6 +17,9 @@ use super::scalar::string::{evaluate_like, get_like_operator_type};
 use dozer_types::types::Record;
 use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
 
+#[cfg(feature = "wasm")]
+use wasmtime::ValType;
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum Expression {
     Column {
@@ -103,6 +106,7 @@ pub enum Expression {
         name: String,
         module: String,
         args: Vec<Expression>,
+        value_types: Vec<ValType>,
         return_type: FieldType,
     },
 }
@@ -172,14 +176,14 @@ impl Expression {
             #[cfg(feature = "onnx")]
             Expression::OnnxUDF { name, args, .. } => {
                 name.to_string()
-                + "("
-                + args
-                    .iter()
-                    .map(|expr| expr.to_string(schema))
-                    .collect::<Vec<String>>()
-                    .join(",")
-                    .as_str()
-                + ")"
+                    + "("
+                    + args
+                        .iter()
+                        .map(|expr| expr.to_string(schema))
+                        .collect::<Vec<String>>()
+                        .join(",")
+                        .as_str()
+                    + ")"
             }
             #[cfg(feature = "wasm")]
             Expression::WasmUDF { name, args, .. } => {
@@ -358,10 +362,7 @@ impl Expression {
 
             #[cfg(feature = "wasm")]
             Expression::WasmUDF {
-                name,
-                module,
-                args,
-                ..
+                name, module, args, ..
             } => {
                 use crate::wasm::udf::evaluate_wasm_udf;
                 evaluate_wasm_udf(schema, name, module, args, record)
