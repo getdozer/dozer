@@ -18,7 +18,8 @@ use dozer_types::types::Record;
 use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
 
 #[cfg(feature = "wasm")]
-use wasmtime::ValType;
+use crate::wasm::WasmSession;
+
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Expression {
@@ -106,8 +107,8 @@ pub enum Expression {
         name: String,
         module: String,
         args: Vec<Expression>,
-        value_types: Vec<ValType>,
         return_type: FieldType,
+        session: WasmSession,
     },
 }
 
@@ -362,10 +363,10 @@ impl Expression {
 
             #[cfg(feature = "wasm")]
             Expression::WasmUDF {
-                name, module, args, ..
+                name: _name, module: _module, args, return_type: _, session
             } => {
                 use crate::wasm::udf::evaluate_wasm_udf;
-                evaluate_wasm_udf(schema, name, module, args, record)
+                evaluate_wasm_udf(schema, args, record, session)
             }
             Expression::UnaryOperator { operator, arg } => operator.evaluate(schema, arg, record),
             Expression::AggregateFunction { fun, args: _ } => {

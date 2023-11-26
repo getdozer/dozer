@@ -40,7 +40,7 @@ use dozer_types::models::udf_config::OnnxConfig;
 #[cfg(feature = "wasm")]
 use dozer_types::models::udf_config::WasmConfig;
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, Debug)]
 pub struct ExpressionBuilder {
     // Must be an aggregation function
     pub aggregations: Vec<Expression>,
@@ -577,6 +577,7 @@ impl ExpressionBuilder {
                             schema,
                             udfs,
                         )
+                        .await
                     }
 
                     #[cfg(not(feature = "wasm"))]
@@ -1007,7 +1008,7 @@ impl ExpressionBuilder {
     }
 
     #[cfg(feature = "wasm")]
-    fn parse_wasm_udf(
+    async fn parse_wasm_udf(
         &mut self,
         name: String,
         config: &WasmConfig,
@@ -1020,35 +1021,36 @@ impl ExpressionBuilder {
         use crate::wasm::utils::wasm_validate_input_and_return;
         use std::path::Path;
 
-        let args = function
-            .args
-            .iter()
-            .map(|argument| self.parse_sql_function_arg(false, argument, schema, udfs))
-            .collect::<Result<Vec<_>, Error>>()?;
+        let mut args = vec![];
+        for argument in &function.args {
+            let arg = self
+                .parse_sql_function_arg(false, argument, schema, udfs)
+                .await?;
+            args.push(arg);
+        }
 
-        let (value_types, return_type) = wasm_validate_input_and_return(
+        let session = wasm_validate_input_and_return(
             schema,
             name.as_str(),
             Path::new(&config.path.clone()),
             &args,
         )
         .unwrap();
-        let return_type = match return_type {
+
+        let return_type = match session.return_type {
             wasmtime::ValType::I32 => FieldType::Int,
             wasmtime::ValType::I64 => FieldType::Int,
             wasmtime::ValType::F32 => FieldType::Float,
             wasmtime::ValType::F64 => FieldType::Float,
-            wasmtime::ValType::V128 => todo!(),
-            wasmtime::ValType::FuncRef => todo!(),
-            wasmtime::ValType::ExternRef => todo!(),
+            _ => todo!(),
         };
 
         Ok(Expression::WasmUDF {
             name: name.to_string(),
             module: config.path.clone(),
             args,
-            value_types,
             return_type,
+            session,
         })
     }
 

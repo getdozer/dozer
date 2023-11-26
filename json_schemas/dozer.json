@@ -111,7 +111,7 @@
       ]
     },
     "udfs": {
-      "description": "UDF specific configuration (eg. !Onnx, !Wasm)",
+      "description": "UDF specific configuration (eg. !Onnx, Wasm)",
       "type": "array",
       "items": {
         "$ref": "#/definitions/UdfConfig"

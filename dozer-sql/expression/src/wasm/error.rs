@@ -31,4 +31,6 @@ pub enum Error {
     WasmInputTypeSizeMismatch(usize, usize),
     #[error("The WASM function {0} is missing from the module {1}")]
     WasmFunctionMissing(String, String),
+    #[error("Could not instantiate WASM module {0}")]
+    WasmInstantiateError(String),
 }

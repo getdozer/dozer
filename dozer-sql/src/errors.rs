@@ -12,8 +12,6 @@ use dozer_types::thiserror::Error;
 use dozer_types::types::{Field, FieldType};
 use std::fmt::{Display, Formatter};
 
-use super::utils::serialize::DeserializationError;
-
 #[derive(Debug, Clone)]
 pub struct FieldTypes {
     types: Vec<FieldType>,
