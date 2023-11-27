@@ -6,7 +6,7 @@ use chrono::SecondsFormat;
 use ordered_float::OrderedFloat;
 use prost_types::value::Kind;
 use prost_types::{ListValue, Struct, Value as ProstValue};
-use serde_json::{Map, Value};
+use serde_json::Value;
 
 use ijson::{Destructured, DestructuredRef, IArray, INumber, IObject, IValue};
 
@@ -88,43 +88,43 @@ pub(crate) fn json_cmp(l: &JsonValue, r: &JsonValue) -> std::cmp::Ordering {
     }
 }
 
-fn convert_x_y_to_object((x, y): &(OrderedFloat<f64>, OrderedFloat<f64>)) -> Value {
-    let mut m = Map::new();
-    m.insert("x".to_string(), Value::from(x.0));
-    m.insert("y".to_string(), Value::from(y.0));
-    Value::Object(m)
+fn convert_x_y_to_object((x, y): (OrderedFloat<f64>, OrderedFloat<f64>)) -> JsonValue {
+    let mut object = JsonObject::new();
+    object.insert("x", x.0);
+    object.insert("y", y.0);
+    object.into()
 }
 
-fn convert_duration_to_object(d: &DozerDuration) -> Value {
-    let mut m = Map::new();
-    m.insert("value".to_string(), Value::from(d.0.as_nanos().to_string()));
-    m.insert("time_unit".to_string(), Value::from(d.1.to_string()));
-    Value::Object(m)
+fn convert_duration_to_object(duration: DozerDuration) -> JsonValue {
+    let mut object = JsonObject::new();
+    object.insert("value", duration.0.as_nanos().to_string());
+    object.insert("time_unit", duration.1.to_string());
+    object.into()
 }
 
 /// Should be consistent with `convert_cache_type_to_schema_type`.
-pub fn field_to_json_value(field: Field) -> Value {
+pub fn field_to_json_value(field: Field) -> JsonValue {
     match field {
-        Field::UInt(n) => Value::from(n),
-        Field::U128(n) => Value::String(n.to_string()),
-        Field::Int(n) => Value::from(n),
-        Field::I128(n) => Value::String(n.to_string()),
-        Field::Float(n) => Value::from(n.0),
-        Field::Boolean(b) => Value::from(b),
-        Field::String(s) => Value::from(s),
-        Field::Text(n) => Value::from(n),
-        Field::Binary(b) => Value::from(b),
-        Field::Decimal(n) => Value::String(n.to_string()),
-        Field::Timestamp(ts) => Value::String(ts.to_rfc3339_opts(SecondsFormat::Millis, true)),
-        Field::Date(n) => Value::String(n.format(DATE_FORMAT).to_string()),
-        Field::Json(b) => json_value_to_serde_json(&b),
-        Field::Point(point) => convert_x_y_to_object(&point.0.x_y()),
-        Field::Duration(d) => convert_duration_to_object(&d),
-        Field::Null => Value::Null,
+        Field::UInt(n) => n.into(),
+        Field::U128(n) => n.to_string().into(),
+        Field::Int(n) => n.into(),
+        Field::I128(n) => n.to_string().into(),
+        Field::Float(n) => n.0.into(),
+        Field::Boolean(b) => b.into(),
+        Field::String(s) => s.into(),
+        Field::Text(n) => n.into(),
+        Field::Binary(b) => b.into(),
+        Field::Decimal(n) => n.to_string().into(),
+        Field::Timestamp(ts) => ts.to_rfc3339_opts(SecondsFormat::Millis, true).into(),
+        Field::Date(n) => n.format(DATE_FORMAT).to_string().into(),
+        Field::Json(b) => b,
+        Field::Point(point) => convert_x_y_to_object(point.0.x_y()),
+        Field::Duration(d) => convert_duration_to_object(d),
+        Field::Null => JsonValue::NULL,
     }
 }
 
-pub fn json_value_to_serde_json(value: &JsonValue) -> Value {
+fn json_value_to_serde_json(value: &JsonValue) -> Value {
     // Note that while this cannot fail, the other way might, as our internal JSON
     // representation does not support `inf`, `-inf` and NaN
     ijson::from_value(value).expect("Json to Json conversion should never fail")
@@ -241,7 +241,8 @@ mod tests {
         let value = field_to_json_value(field.clone());
 
         // Convert the JSON value back to a Field.
-        let deserialized = json_value_to_field(value, field_type, true).unwrap();
+        let deserialized =
+            json_value_to_field(json_value_to_serde_json(&value), field_type, true).unwrap();
 
         assert_eq!(deserialized, field);
     }

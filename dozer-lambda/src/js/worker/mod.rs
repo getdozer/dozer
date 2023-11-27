@@ -2,9 +2,8 @@ use std::{num::NonZeroI32, sync::Arc};
 
 use dozer_log::tokio::runtime::Runtime;
 use dozer_types::{
-    json_types::field_to_json_value,
+    json_types::{field_to_json_value, json, JsonObject, JsonValue},
     log::error,
-    serde_json::{json, Value},
     types::{Field, Operation},
 };
 
@@ -46,10 +45,10 @@ impl Worker {
     }
 }
 
-fn create_record_json_value(field_names: Vec<String>, values: Vec<Field>) -> Value {
-    let mut record = Value::Object(Default::default());
+fn create_record_json_value(field_names: Vec<String>, values: Vec<Field>) -> JsonValue {
+    let mut record = JsonObject::new();
     for (field_name, value) in field_names.into_iter().zip(values.into_iter()) {
-        record[field_name] = field_to_json_value(value);
+        record.insert(field_name, field_to_json_value(value));
     }
-    record
+    record.into()
 }

@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use deno_runtime::{
     deno_core::{
         anyhow::{bail, Context as _},
@@ -5,23 +7,23 @@ use deno_runtime::{
     },
     deno_napi::v8::{self, HandleScope, Local},
 };
-use dozer_types::serde_json::{self, Number};
+use dozer_types::json_types::{DestructuredJson, JsonObject, JsonValue};
 
 pub fn to_v8<'s>(
     scope: &mut HandleScope<'s>,
-    value: serde_json::Value,
+    value: JsonValue,
 ) -> Result<Local<'s, v8::Value>, AnyError> {
-    match value {
-        serde_json::Value::Null => Ok(v8::null(scope).into()),
-        serde_json::Value::Bool(value) => Ok(v8::Boolean::new(scope, value).into()),
-        serde_json::Value::Number(value) => {
-            let value = value.as_f64().context("number is not a f64")?;
+    match value.destructure() {
+        DestructuredJson::Null => Ok(v8::null(scope).into()),
+        DestructuredJson::Bool(value) => Ok(v8::Boolean::new(scope, value).into()),
+        DestructuredJson::Number(value) => {
+            let value = value.to_f64().context("number is not a f64")?;
             Ok(v8::Number::new(scope, value).into())
         }
-        serde_json::Value::String(value) => Ok(v8::String::new(scope, &value)
-            .context(format!("failed to create string {}", value))?
+        DestructuredJson::String(value) => Ok(v8::String::new(scope, &value)
+            .context(format!("failed to create string {}", value.deref()))?
             .into()),
-        serde_json::Value::Array(values) => {
+        DestructuredJson::Array(values) => {
             let array = v8::Array::new(scope, values.len() as i32);
             for (index, value) in values.into_iter().enumerate() {
                 let value = to_v8(scope, value)?;
@@ -29,11 +31,11 @@ pub fn to_v8<'s>(
             }
             Ok(array.into())
         }
-        serde_json::Value::Object(map) => {
+        DestructuredJson::Object(map) => {
             let object = v8::Object::new(scope);
             for (key, value) in map.into_iter() {
                 let key = v8::String::new(scope, &key)
-                    .context(format!("failed to create key {}", key))?;
+                    .context(format!("failed to create key {}", key.deref()))?;
                 let value = to_v8(scope, value)?;
                 object.set(scope, key.into(), value);
             }
@@ -45,18 +47,18 @@ pub fn to_v8<'s>(
 pub fn from_v8<'s>(
     scope: &mut HandleScope<'s>,
     value: Local<'s, v8::Value>,
-) -> Result<serde_json::Value, AnyError> {
+) -> Result<JsonValue, AnyError> {
     if value.is_null_or_undefined() {
-        Ok(serde_json::Value::Null)
+        Ok(JsonValue::NULL)
     } else if value.is_boolean() {
-        Ok(serde_json::Value::Bool(value.boolean_value(scope)))
+        Ok(value.boolean_value(scope).into())
     } else if value.is_number() {
-        Ok(serde_json::Value::Number(
-            Number::from_f64(value.number_value(scope).context("number is not a f64")?)
-                .context("f64 number cannot be represented in JSON")?,
-        ))
+        Ok(value
+            .number_value(scope)
+            .context("number is not a f64")?
+            .into())
     } else if let Ok(value) = TryInto::<Local<v8::String>>::try_into(value) {
-        Ok(serde_json::Value::String(value.to_rust_string_lossy(scope)))
+        Ok(value.to_rust_string_lossy(scope).into())
     } else if let Ok(value) = TryInto::<Local<v8::Array>>::try_into(value) {
         let mut values = Vec::new();
         for index in 0..value.length() {
@@ -64,11 +66,11 @@ pub fn from_v8<'s>(
             let value = from_v8(scope, value)?;
             values.push(value);
         }
-        Ok(serde_json::Value::Array(values))
+        Ok(values.into())
     } else if let Ok(value) = TryInto::<Local<v8::Object>>::try_into(value) {
-        let mut map = serde_json::Map::new();
+        let mut map = JsonObject::new();
         let Some(keys) = value.get_own_property_names(scope, Default::default()) else {
-            return Ok(serde_json::Value::Object(map));
+            return Ok(map.into());
         };
         for index in 0..keys.length() {
             let key = keys.get_index(scope, index).unwrap();
@@ -77,7 +79,7 @@ pub fn from_v8<'s>(
             let value = from_v8(scope, value)?;
             map.insert(key, value);
         }
-        Ok(serde_json::Value::Object(map))
+        Ok(map.into())
     } else {
         bail!("cannot convert v8 value to JSON because its type is not supported")
     }

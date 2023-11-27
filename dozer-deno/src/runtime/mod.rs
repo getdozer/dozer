@@ -17,8 +17,8 @@ use deno_runtime::{
     deno_napi::v8::{self, undefined, Function, Global, Local},
 };
 use dozer_types::{
+    json_types::JsonValue,
     log::{error, info},
-    serde_json::Value,
     thiserror,
 };
 use tokio::{
@@ -118,8 +118,8 @@ impl Runtime {
     pub async fn call_function(
         &mut self,
         id: NonZeroI32,
-        args: Vec<Value>,
-    ) -> Result<Value, AnyError> {
+        args: Vec<JsonValue>,
+    ) -> Result<JsonValue, AnyError> {
         let (return_sender, return_receiver) = oneshot::channel();
         if self
             .work_sender
@@ -140,7 +140,7 @@ impl Runtime {
     }
 
     // Return type is actually `!`
-    async fn propagate_panic(&mut self) -> Result<Value, AnyError> {
+    async fn propagate_panic(&mut self) -> Result<JsonValue, AnyError> {
         self.handle
             .take()
             .expect("runtime panicked before and cannot be used again")
@@ -191,8 +191,8 @@ async fn load_functions(
 enum Work {
     CallFunction {
         id: NonZeroI32,
-        args: Vec<Value>,
-        return_sender: oneshot::Sender<Result<Value, AnyError>>,
+        args: Vec<JsonValue>,
+        return_sender: oneshot::Sender<Result<JsonValue, AnyError>>,
     },
 }
 
@@ -253,9 +253,9 @@ fn do_work(runtime: &mut JsRuntime, work: Work, functions: &HashMap<NonZeroI32, 
 fn call_function(
     runtime: &mut JsRuntime,
     function: NonZeroI32,
-    args: Vec<Value>,
+    args: Vec<JsonValue>,
     functions: &HashMap<NonZeroI32, Global<Function>>,
-) -> Result<Value, AnyError> {
+) -> Result<JsonValue, AnyError> {
     let function = functions
         .get(&function)
         .context(format!("function {} not found", function))?;
@@ -268,7 +268,7 @@ fn call_function(
     let result = Local::new(scope, function).call(scope, recv.into(), &args);
     result
         .map(|value| from_v8(scope, value))
-        .unwrap_or(Ok(Value::Null))
+        .unwrap_or(Ok(JsonValue::NULL))
 }
 
 mod conversion;
