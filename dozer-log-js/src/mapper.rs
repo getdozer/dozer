@@ -1,7 +1,8 @@
+use std::ops::Deref;
+
 use dozer_log::replication::LogOperation;
 use dozer_types::{
-    json_types::field_to_json_value,
-    serde_json::Value,
+    json_types::{field_to_json_value, DestructuredJson, JsonValue},
     types::{Field, Operation, Record, Schema},
 };
 use neon::{
@@ -89,13 +90,13 @@ fn map_value<'a, C: Context<'a>>(value: Field, cx: &mut C) -> JsResult<'a, JsVal
     map_json_value(field_to_json_value(value), cx)
 }
 
-fn map_json_value<'a, C: Context<'a>>(value: Value, cx: &mut C) -> JsResult<'a, JsValue> {
-    match value {
-        Value::Null => Ok(cx.null().upcast()),
-        Value::Bool(b) => Ok(cx.boolean(b).upcast()),
-        Value::Number(n) => Ok(cx.number(n.as_f64().unwrap_or(f64::NAN)).upcast()),
-        Value::String(s) => Ok(cx.string(s).upcast()),
-        Value::Array(a) => {
+fn map_json_value<'a, C: Context<'a>>(value: JsonValue, cx: &mut C) -> JsResult<'a, JsValue> {
+    match value.destructure() {
+        DestructuredJson::Null => Ok(cx.null().upcast()),
+        DestructuredJson::Bool(b) => Ok(cx.boolean(b).upcast()),
+        DestructuredJson::Number(n) => Ok(cx.number(n.to_f64().unwrap_or(f64::NAN)).upcast()),
+        DestructuredJson::String(s) => Ok(cx.string(s.deref()).upcast()),
+        DestructuredJson::Array(a) => {
             let result = cx.empty_array();
             for (i, v) in a.into_iter().enumerate() {
                 let v = map_json_value(v, cx)?;
@@ -103,7 +104,7 @@ fn map_json_value<'a, C: Context<'a>>(value: Value, cx: &mut C) -> JsResult<'a, 
             }
             Ok(result.upcast())
         }
-        Value::Object(o) => {
+        DestructuredJson::Object(o) => {
             let result = cx.empty_object();
             for (k, v) in o.into_iter() {
                 let v = map_json_value(v, cx)?;

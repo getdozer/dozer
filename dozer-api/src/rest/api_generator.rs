@@ -18,8 +18,7 @@ use crate::sql::datafusion::SQLExecutor;
 use crate::CacheEndpoint;
 use crate::{auth::Access, errors::ApiError};
 use dozer_types::grpc_types::health::health_check_response::ServingStatus;
-use dozer_types::json_types::field_to_json_value;
-use dozer_types::serde_json::{json, Value};
+use dozer_types::json_types::{field_to_json_value, json, JsonValue};
 
 use self::extractor::QueryExpressionExtractor;
 
@@ -90,10 +89,8 @@ pub async fn list(
 }
 
 // Generated get function for health check
-pub async fn health_route() -> Result<HttpResponse, ApiError> {
-    let status = ServingStatus::Serving;
-    let resp = json!({ "status": status.as_str_name() }).to_string();
-    Ok(HttpResponse::Ok().body(resp))
+pub async fn health_route() -> HttpResponse {
+    HttpResponse::Ok().json(json!({ "status": ServingStatus::Serving.as_str_name() }))
 }
 
 pub async fn count(
@@ -132,7 +129,7 @@ fn get_records_map(
     access: Option<ReqData<Access>>,
     cache_endpoint: ReqData<Arc<CacheEndpoint>>,
     exp: &mut QueryExpression,
-) -> Result<Vec<IndexMap<String, Value>>, ApiError> {
+) -> Result<Vec<IndexMap<String, JsonValue>>, ApiError> {
     let mut maps = vec![];
     let cache_reader = &cache_endpoint.cache_reader();
     let records = get_records(
@@ -153,7 +150,7 @@ fn get_records_map(
 fn record_to_map(
     record: CacheRecord,
     schema: &Schema,
-) -> Result<IndexMap<String, Value>, CannotConvertF64ToJson> {
+) -> Result<IndexMap<String, JsonValue>, CannotConvertF64ToJson> {
     let mut map = IndexMap::new();
 
     for (field_def, field) in schema.fields.iter().zip(record.record.values) {
@@ -161,10 +158,10 @@ fn record_to_map(
         map.insert(field_def.name.clone(), val);
     }
 
-    map.insert("__dozer_record_id".to_string(), Value::from(record.id));
+    map.insert("__dozer_record_id".to_string(), JsonValue::from(record.id));
     map.insert(
         "__dozer_record_version".to_string(),
-        Value::from(record.version),
+        JsonValue::from(record.version),
     );
 
     Ok(map)

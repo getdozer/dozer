@@ -2,8 +2,6 @@ use std::{num::NonZeroI32, sync::Arc};
 
 use dozer_deno::deno_runtime::deno_core::error::AnyError;
 use dozer_types::{
-    errors::types::DeserializationError,
-    json_types::{json_value_to_serde_json, serde_json_to_json_value},
     thiserror,
     types::{Field, FieldType, Record, Schema, SourceDefinition},
 };
@@ -34,8 +32,6 @@ pub enum Error {
     CreateRuntime(#[from] dozer_deno::RuntimeError),
     #[error("failed to evaluate udf: {0}")]
     Evaluate(#[source] AnyError),
-    #[error("failed to convert json: {0}")]
-    JsonConversion(#[source] DeserializationError),
 }
 
 impl Udf {
@@ -105,11 +101,8 @@ async fn evaluate_impl(
 
     let mut runtime = runtime.lock().await;
     let result = runtime
-        .call_function(function, vec![json_value_to_serde_json(&arg)])
+        .call_function(function, vec![arg])
         .await
         .map_err(Error::Evaluate)?;
-    drop(runtime);
-
-    let result = serde_json_to_json_value(result).map_err(Error::JsonConversion)?;
     Ok(Field::Json(result))
 }
