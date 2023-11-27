@@ -46,9 +46,10 @@ impl Worker {
 }
 
 fn create_record_json_value(field_names: Vec<String>, values: Vec<Field>) -> JsonValue {
-    let mut record = JsonObject::new();
-    for (field_name, value) in field_names.into_iter().zip(values.into_iter()) {
-        record.insert(field_name, field_to_json_value(value));
-    }
-    record.into()
+    let values = values.into_iter().map(field_to_json_value);
+    field_names
+        .into_iter()
+        .zip(values)
+        .collect::<JsonObject>()
+        .into()
 }
