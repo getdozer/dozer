@@ -1,15 +1,17 @@
-use dozer_types::serde::{
-    de::{self, Visitor},
-    ser::SerializeMap,
-    Deserialize, Deserializer, Serialize,
+use dozer_types::{
+    json_types::JsonValue,
+    serde::{
+        de::{self, Visitor},
+        ser::SerializeMap,
+        Deserialize, Deserializer, Serialize,
+    },
 };
-use dozer_types::serde_json::Value;
 
 use super::super::expression::Operator;
 
 pub struct OperatorAndValue {
     pub operator: Operator,
-    pub value: Value,
+    pub value: JsonValue,
 }
 
 impl<'de> Deserialize<'de> for OperatorAndValue {
@@ -31,7 +33,7 @@ impl<'de> Deserialize<'de> for OperatorAndValue {
             {
                 Ok(OperatorAndValue {
                     operator: Operator::EQ,
-                    value: Value::Bool(v),
+                    value: v.into(),
                 })
             }
 
@@ -41,7 +43,7 @@ impl<'de> Deserialize<'de> for OperatorAndValue {
             {
                 Ok(OperatorAndValue {
                     operator: Operator::EQ,
-                    value: Value::String(v.to_string()),
+                    value: v.into(),
                 })
             }
 
@@ -51,7 +53,7 @@ impl<'de> Deserialize<'de> for OperatorAndValue {
             {
                 Ok(OperatorAndValue {
                     operator: Operator::EQ,
-                    value: Value::String(v.to_string()),
+                    value: v.to_string().into(),
                 })
             }
 
@@ -61,7 +63,7 @@ impl<'de> Deserialize<'de> for OperatorAndValue {
             {
                 Ok(OperatorAndValue {
                     operator: Operator::EQ,
-                    value: Value::from(v),
+                    value: v.into(),
                 })
             }
 
@@ -71,7 +73,7 @@ impl<'de> Deserialize<'de> for OperatorAndValue {
             {
                 Ok(OperatorAndValue {
                     operator: Operator::EQ,
-                    value: Value::from(v),
+                    value: v.into(),
                 })
             }
 
@@ -81,7 +83,7 @@ impl<'de> Deserialize<'de> for OperatorAndValue {
             {
                 Ok(OperatorAndValue {
                     operator: Operator::EQ,
-                    value: Value::from(v),
+                    value: v.into(),
                 })
             }
 
@@ -91,7 +93,7 @@ impl<'de> Deserialize<'de> for OperatorAndValue {
             {
                 Ok(OperatorAndValue {
                     operator: Operator::EQ,
-                    value: Value::from(v),
+                    value: v.into(),
                 })
             }
 
@@ -101,7 +103,7 @@ impl<'de> Deserialize<'de> for OperatorAndValue {
             {
                 Ok(OperatorAndValue {
                     operator: Operator::EQ,
-                    value: Value::from(v),
+                    value: v.into(),
                 })
             }
 
@@ -111,7 +113,7 @@ impl<'de> Deserialize<'de> for OperatorAndValue {
             {
                 Ok(OperatorAndValue {
                     operator: Operator::EQ,
-                    value: Value::from(v),
+                    value: v.into(),
                 })
             }
 
@@ -120,7 +122,7 @@ impl<'de> Deserialize<'de> for OperatorAndValue {
                 A: de::MapAccess<'de>,
             {
                 if let Some((operator, value)) = map.next_entry()? {
-                    if map.next_entry::<Operator, Value>()?.is_some() {
+                    if map.next_entry::<Operator, JsonValue>()?.is_some() {
                         Err(de::Error::custom(
                             "More than one statement passed in Simple Expression",
                         ))
@@ -138,7 +140,7 @@ impl<'de> Deserialize<'de> for OperatorAndValue {
             {
                 Ok(OperatorAndValue {
                     operator: Operator::EQ,
-                    value: Value::Null,
+                    value: JsonValue::NULL,
                 })
             }
 
@@ -148,7 +150,7 @@ impl<'de> Deserialize<'de> for OperatorAndValue {
             {
                 Ok(OperatorAndValue {
                     operator: Operator::EQ,
-                    value: Value::String(v.to_string()),
+                    value: v.into(),
                 })
             }
 
@@ -158,7 +160,7 @@ impl<'de> Deserialize<'de> for OperatorAndValue {
             {
                 Ok(OperatorAndValue {
                     operator: Operator::EQ,
-                    value: Value::String(v),
+                    value: v.into(),
                 })
             }
 
@@ -168,7 +170,7 @@ impl<'de> Deserialize<'de> for OperatorAndValue {
             {
                 Ok(OperatorAndValue {
                     operator: Operator::EQ,
-                    value: Value::from(v),
+                    value: v.into(),
                 })
             }
 
@@ -178,7 +180,7 @@ impl<'de> Deserialize<'de> for OperatorAndValue {
             {
                 Ok(OperatorAndValue {
                     operator: Operator::EQ,
-                    value: Value::from(v),
+                    value: v.into(),
                 })
             }
 
@@ -188,7 +190,7 @@ impl<'de> Deserialize<'de> for OperatorAndValue {
             {
                 Ok(OperatorAndValue {
                     operator: Operator::EQ,
-                    value: Value::from(v),
+                    value: v.into(),
                 })
             }
 
@@ -198,7 +200,7 @@ impl<'de> Deserialize<'de> for OperatorAndValue {
             {
                 Ok(OperatorAndValue {
                     operator: Operator::EQ,
-                    value: Value::from(v),
+                    value: v.into(),
                 })
             }
 
@@ -208,7 +210,7 @@ impl<'de> Deserialize<'de> for OperatorAndValue {
             {
                 Ok(OperatorAndValue {
                     operator: Operator::EQ,
-                    value: Value::Null,
+                    value: JsonValue::NULL,
                 })
             }
         }
@@ -218,7 +220,7 @@ impl<'de> Deserialize<'de> for OperatorAndValue {
 
 pub struct OperatorAndValueBorrow<'a> {
     pub operator: &'a Operator,
-    pub value: &'a Value,
+    pub value: &'a JsonValue,
 }
 
 impl<'a> Serialize for OperatorAndValueBorrow<'a> {

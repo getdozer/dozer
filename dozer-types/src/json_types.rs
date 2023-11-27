@@ -16,7 +16,7 @@ pub type JsonArray = IArray;
 
 pub type DestructuredJsonRef<'a> = DestructuredRef<'a>;
 pub type DestructuredJson = Destructured;
-pub use ijson::ijson as json;
+pub use ijson::{from_value, ijson as json, to_value};
 
 pub fn json_from_str(from: &str) -> Result<JsonValue, DeserializationError> {
     let serde_value: serde_json::Value =
@@ -31,9 +31,12 @@ pub fn parse_json_slice(bytes: &[u8]) -> Result<JsonValue, DeserializationError>
 
 pub fn json_to_string(value: &JsonValue) -> String {
     // The debug implementation of IValue produces a json string, but this is
-    // not a stable guarantee. Therefore, roundtrip through serde_json
-    let serde_value = json_value_to_serde_json(value);
-    serde_value.to_string()
+    // not a stable guarantee. Therefore, roundtrip through serde_json.
+    // Note that while this cannot fail, the other way might, as our internal JSON
+    // representation does not support `inf`, `-inf` and NaN
+    ijson::from_value::<Value>(value)
+        .expect("Json to Json conversion should never fail")
+        .to_string()
 }
 
 pub(crate) fn json_to_bytes(value: &JsonValue) -> Vec<u8> {
@@ -122,12 +125,6 @@ pub fn field_to_json_value(field: Field) -> JsonValue {
         Field::Duration(d) => convert_duration_to_object(d),
         Field::Null => JsonValue::NULL,
     }
-}
-
-fn json_value_to_serde_json(value: &JsonValue) -> Value {
-    // Note that while this cannot fail, the other way might, as our internal JSON
-    // representation does not support `inf`, `-inf` and NaN
-    ijson::from_value(value).expect("Json to Json conversion should never fail")
 }
 
 pub fn prost_to_json_value(val: ProstValue) -> JsonValue {
@@ -241,8 +238,7 @@ mod tests {
         let value = field_to_json_value(field.clone());
 
         // Convert the JSON value back to a Field.
-        let deserialized =
-            json_value_to_field(json_value_to_serde_json(&value), field_type, true).unwrap();
+        let deserialized = json_value_to_field(value, field_type, true).unwrap();
 
         assert_eq!(deserialized, field);
     }

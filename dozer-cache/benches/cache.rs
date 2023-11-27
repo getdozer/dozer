@@ -5,8 +5,8 @@ use dozer_cache::cache::expression::{self, FilterExpression, QueryExpression, Sk
 use dozer_cache::cache::{
     test_utils, CacheManagerOptions, LmdbRwCacheManager, RwCache, RwCacheManager,
 };
+use dozer_types::json_types::JsonValue;
 use dozer_types::parking_lot::Mutex;
-use dozer_types::serde_json::Value;
 use dozer_types::types::{Field, Record};
 
 fn insert(cache: &Mutex<Box<dyn RwCache>>, n: usize, commit_size: usize) {
@@ -28,7 +28,7 @@ fn query(cache: &Mutex<Box<dyn RwCache>>, _n: usize) {
         Some(FilterExpression::Simple(
             "foo".to_string(),
             expression::Operator::EQ,
-            Value::from("bar".to_string()),
+            JsonValue::from("bar"),
         )),
         vec![],
         Some(10),

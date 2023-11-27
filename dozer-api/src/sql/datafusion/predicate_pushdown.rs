@@ -1,3 +1,4 @@
+use std::ops::Deref;
 use std::sync::Arc;
 
 use datafusion::arrow::datatypes::{Decimal128Type, Decimal256Type, DecimalType};
@@ -6,6 +7,7 @@ use datafusion_expr::{Between, BinaryExpr, Expr, Operator, TableProviderFilterPu
 use dozer_cache::cache::expression::{
     FilterExpression, Operator as CacheFilterOperator, QueryExpression,
 };
+use dozer_types::json_types::JsonValue;
 use dozer_types::log::debug;
 
 use crate::api_helper::get_records;
@@ -99,7 +101,6 @@ fn supports_predicate_pushdown(expr: &Expr) -> TableProviderFilterPushDown {
 pub(crate) fn predicate_pushdown<'a>(
     predicates: impl Iterator<Item = &'a Expr>,
 ) -> Option<FilterExpression> {
-    use serde_json::Value;
     let mut and_list = Vec::new();
     predicates.into_iter().for_each(|expr| match expr {
         Expr::BinaryExpr(BinaryExpr { left, op, right }) => {
@@ -130,7 +131,7 @@ pub(crate) fn predicate_pushdown<'a>(
             };
 
             let column = c.name.clone();
-            let value = serde_json_value_from_scalar_value(v.clone());
+            let value = json_value_from_scalar_value(v.clone());
             and_list.push(FilterExpression::Simple(column, op, value))
         }
 
@@ -138,7 +139,7 @@ pub(crate) fn predicate_pushdown<'a>(
             Expr::Column(c) => and_list.push(FilterExpression::Simple(
                 c.name.clone(),
                 CacheFilterOperator::EQ,
-                Value::Null,
+                JsonValue::NULL,
             )),
             _ => unreachable!(),
         },
@@ -147,7 +148,7 @@ pub(crate) fn predicate_pushdown<'a>(
             Expr::Column(c) => and_list.push(FilterExpression::Simple(
                 c.name.clone(),
                 CacheFilterOperator::EQ,
-                Value::Bool(true),
+                true.into(),
             )),
             _ => unreachable!(),
         },
@@ -156,7 +157,7 @@ pub(crate) fn predicate_pushdown<'a>(
             Expr::Column(c) => and_list.push(FilterExpression::Simple(
                 c.name.clone(),
                 CacheFilterOperator::EQ,
-                Value::Bool(false),
+                false.into(),
             )),
             _ => unreachable!(),
         },
@@ -169,8 +170,8 @@ pub(crate) fn predicate_pushdown<'a>(
         }) => match (&**expr, &**low, &**high) {
             (Expr::Column(c), Expr::Literal(low), Expr::Literal(high)) => {
                 let column = c.name.clone();
-                let low = serde_json_value_from_scalar_value(low.clone());
-                let high = serde_json_value_from_scalar_value(high.clone());
+                let low = json_value_from_scalar_value(low.clone());
+                let high = json_value_from_scalar_value(high.clone());
                 and_list.push(FilterExpression::Simple(
                     column.clone(),
                     CacheFilterOperator::GTE,
@@ -224,8 +225,7 @@ fn is_suitable_for_pushdown(value: &ScalarValue) -> bool {
     }
 }
 
-fn serde_json_value_from_scalar_value(value: ScalarValue) -> serde_json::Value {
-    use serde_json::{Number, Value};
+fn json_value_from_scalar_value(value: ScalarValue) -> JsonValue {
     let is_null = matches!(
         &value,
         ScalarValue::Null
@@ -249,37 +249,31 @@ fn serde_json_value_from_scalar_value(value: ScalarValue) -> serde_json::Value {
             | ScalarValue::LargeBinary(None)
     );
     if is_null {
-        Value::Null
+        JsonValue::NULL
     } else {
         match value {
-            ScalarValue::Null => Value::Null,
-            ScalarValue::Boolean(Some(v)) => Value::Bool(v),
-            ScalarValue::Float32(Some(v)) => Value::Number(
-                Number::from_f64(v as f64).expect("infinite and NaN are not supported"),
-            ),
-            ScalarValue::Float64(Some(v)) => {
-                Value::Number(Number::from_f64(v).expect("infinite and NaN are not supported"))
+            ScalarValue::Null => JsonValue::NULL,
+            ScalarValue::Boolean(Some(v)) => v.into(),
+            ScalarValue::Float32(Some(v)) => v.into(),
+            ScalarValue::Float64(Some(v)) => v.into(),
+            ScalarValue::Int8(Some(v)) => v.into(),
+            ScalarValue::Decimal128(Some(v), precision, scale) => {
+                <Decimal128Type as DecimalType>::format_decimal(v, precision, scale).into()
             }
-            ScalarValue::Int8(Some(v)) => Value::Number(Number::from_f64(v as f64).unwrap()),
-            ScalarValue::Decimal128(Some(v), precision, scale) => Value::String(
-                <Decimal128Type as DecimalType>::format_decimal(v, precision, scale),
-            ),
-            ScalarValue::Decimal256(Some(v), precision, scale) => Value::String(
-                <Decimal256Type as DecimalType>::format_decimal(v, precision, scale),
-            ),
-            ScalarValue::Int16(Some(v)) => Value::Number(Number::from_f64(v as f64).unwrap()),
-            ScalarValue::Int32(Some(v)) => Value::Number(Number::from_f64(v as f64).unwrap()),
-            ScalarValue::Int64(Some(v)) => Value::Number(Number::from_f64(v as f64).unwrap()),
-            ScalarValue::UInt8(Some(v)) => Value::Number(Number::from_f64(v as f64).unwrap()),
-            ScalarValue::UInt16(Some(v)) => Value::Number(Number::from_f64(v as f64).unwrap()),
-            ScalarValue::UInt32(Some(v)) => Value::Number(Number::from_f64(v as f64).unwrap()),
-            ScalarValue::UInt64(Some(v)) => Value::Number(Number::from_f64(v as f64).unwrap()),
-            ScalarValue::Utf8(Some(v)) | ScalarValue::LargeUtf8(Some(v)) => Value::String(v),
+            ScalarValue::Decimal256(Some(v), precision, scale) => {
+                <Decimal256Type as DecimalType>::format_decimal(v, precision, scale).into()
+            }
+            ScalarValue::Int16(Some(v)) => v.into(),
+            ScalarValue::Int32(Some(v)) => v.into(),
+            ScalarValue::Int64(Some(v)) => v.into(),
+            ScalarValue::UInt8(Some(v)) => v.into(),
+            ScalarValue::UInt16(Some(v)) => v.into(),
+            ScalarValue::UInt32(Some(v)) => v.into(),
+            ScalarValue::UInt64(Some(v)) => v.into(),
+            ScalarValue::Utf8(Some(v)) | ScalarValue::LargeUtf8(Some(v)) => v.into(),
             ScalarValue::Binary(Some(v))
             | ScalarValue::FixedSizeBinary(_, Some(v))
-            | ScalarValue::LargeBinary(Some(v)) => {
-                Value::String(String::from_utf8_lossy(&v).into())
-            }
+            | ScalarValue::LargeBinary(Some(v)) => String::from_utf8_lossy(&v).deref().into(),
             _ => unreachable!(),
         }
     }

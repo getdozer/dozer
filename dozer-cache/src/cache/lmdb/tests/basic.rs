@@ -8,8 +8,8 @@ use crate::cache::{
     RoCache, RwCache, UpsertResult,
 };
 use dozer_types::{
+    json_types::JsonValue,
     parking_lot::Mutex,
-    serde_json::Value,
     types::{Field, Record, Schema},
 };
 
@@ -113,7 +113,7 @@ fn insert_and_query_record_impl(
     let exp = query_from_filter(FilterExpression::Simple(
         "foo".to_string(),
         expression::Operator::EQ,
-        Value::from("bar".to_string()),
+        JsonValue::from("bar".to_string()),
     ));
 
     query_and_test(&cache, &record, &exp);

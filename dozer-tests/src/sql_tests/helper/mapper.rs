@@ -3,10 +3,11 @@ use std::collections::HashMap;
 use super::schema::*;
 use crate::error::Result;
 use dozer_types::chrono::{DateTime, NaiveDateTime, Offset, Utc};
+use dozer_types::json_types::JsonValue;
 use dozer_types::json_value_to_field;
 use dozer_types::rust_decimal::prelude::FromPrimitive;
 use dozer_types::rust_decimal::Decimal;
-use dozer_types::serde_json::{self, Value};
+use dozer_types::serde_json;
 use dozer_types::types::{Field, FieldType, Operation, Record, Schema};
 use rusqlite::config::DbConfig;
 use rusqlite::types::Type;
@@ -197,7 +198,7 @@ fn get_update(old_data: String, new_data: String, schema: &Schema) -> Operation 
 }
 
 fn get_record_from_json(data: String, schema: &Schema) -> Record {
-    let root: Value = serde_json::from_str(&data).unwrap();
+    let root: JsonValue = serde_json::from_str(&data).unwrap();
     let mut record = Record {
         values: vec![],
         lifetime: None,
@@ -205,7 +206,7 @@ fn get_record_from_json(data: String, schema: &Schema) -> Record {
 
     for field_definition in schema.fields.iter() {
         let field_type = field_definition.typ;
-        let field_name = &field_definition.name;
+        let field_name = field_definition.name.as_str();
         let json_value = root.get(field_name).unwrap();
 
         let value = match field_definition.typ {
@@ -221,11 +222,11 @@ fn get_record_from_json(data: String, schema: &Schema) -> Record {
             )
             .unwrap(),
             FieldType::Decimal => {
-                Field::Decimal(Decimal::from_f64(json_value.as_f64().unwrap()).unwrap())
+                Field::Decimal(Decimal::from_f64(json_value.to_f64().unwrap()).unwrap())
             }
             FieldType::Timestamp => {
                 let naive_date_time = NaiveDateTime::parse_from_str(
-                    json_value.as_str().unwrap(),
+                    json_value.as_string().unwrap(),
                     "%Y-%m-%d %H:%M:%S",
                 )
                 .unwrap();

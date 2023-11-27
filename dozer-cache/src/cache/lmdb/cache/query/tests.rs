@@ -5,7 +5,7 @@ use crate::cache::{
     CacheRecord, RoCache, RwCache,
 };
 use dozer_types::{
-    serde_json::{from_value, json, Value},
+    json_types::{from_value, json, JsonValue},
     types::{Field, Record},
 };
 
@@ -24,11 +24,11 @@ fn query_secondary_sorted_inverted() {
     indexing_thread_pool.lock().wait_until_catchup();
 
     let filter = FilterExpression::And(vec![
-        FilterExpression::Simple("a".to_string(), Operator::EQ, Value::from(1)),
+        FilterExpression::Simple("a".to_string(), Operator::EQ, JsonValue::from(1)),
         FilterExpression::Simple(
             "b".to_string(),
             Operator::EQ,
-            Value::from("test".to_string()),
+            JsonValue::from("test".to_string()),
         ),
     ]);
 
@@ -202,8 +202,8 @@ fn query_secondary_multi_indices() {
     indexing_thread_pool.lock().wait_until_catchup();
 
     let query = query_from_filter(FilterExpression::And(vec![
-        FilterExpression::Simple("id".into(), Operator::GT, Value::from(2)),
-        FilterExpression::Simple("text".into(), Operator::Contains, Value::from("dance")),
+        FilterExpression::Simple("id".into(), Operator::GT, JsonValue::from(2)),
+        FilterExpression::Simple("text".into(), Operator::Contains, JsonValue::from("dance")),
     ]));
 
     let records = cache.query(&query).unwrap();
@@ -231,8 +231,8 @@ fn query_secondary_multi_indices() {
     );
 }
 
-fn test_query_err(query: Value, cache: &dyn RwCache) {
-    let query = from_value::<QueryExpression>(query).unwrap();
+fn test_query_err(query: JsonValue, cache: &dyn RwCache) {
+    let query = from_value::<QueryExpression>(&query).unwrap();
     let count_result = cache.count(&query);
     let result = cache.query(&query);
 
@@ -245,16 +245,20 @@ fn test_query_err(query: Value, cache: &dyn RwCache) {
         crate::errors::CacheError::Plan(_)
     ),);
 }
-fn test_query(query: Value, count: usize, cache: &dyn RwCache) {
-    let query = from_value::<QueryExpression>(query).unwrap();
+fn test_query(query: JsonValue, count: usize, cache: &dyn RwCache) {
+    let query = from_value::<QueryExpression>(&query).unwrap();
     assert_eq!(cache.count(&query).unwrap(), count);
     let records = cache.query(&query).unwrap();
 
     assert_eq!(records.len(), count, "Count must be equal : {query:?}");
 }
 
-fn test_query_record(query: Value, expected: Vec<(u64, i64, String, i64)>, cache: &dyn RwCache) {
-    let query = from_value::<QueryExpression>(query).unwrap();
+fn test_query_record(
+    query: JsonValue,
+    expected: Vec<(u64, i64, String, i64)>,
+    cache: &dyn RwCache,
+) {
+    let query = from_value::<QueryExpression>(&query).unwrap();
     assert_eq!(cache.count(&query).unwrap(), expected.len());
     let records = cache.query(&query).unwrap();
     let expected = expected

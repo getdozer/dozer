@@ -1,142 +1,119 @@
 use crate::errors::types::{DeserializationError, TypeError};
-use crate::json_types::{json_from_str, serde_json_to_json_value};
+use crate::json_types::{json_from_str, JsonValue};
 use crate::types::{DozerDuration, DozerPoint, TimeUnit, DATE_FORMAT};
 use crate::types::{Field, FieldType};
 use chrono::{DateTime, NaiveDate};
+use geo::Point;
 use ordered_float::OrderedFloat;
 use rust_decimal::Decimal;
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde_json::Value;
+use std::ops::Deref;
 use std::str::FromStr;
 use std::time::Duration;
 
 /// Used in REST APIs and query expressions for converting JSON value to `Field`
 pub fn json_value_to_field(
-    value: Value,
+    value: JsonValue,
     typ: FieldType,
     nullable: bool,
 ) -> Result<Field, TypeError> {
-    if nullable {
-        if let Value::Null = value {
-            return Ok(Field::Null);
-        }
+    if nullable && value.is_null() {
+        return Ok(Field::Null);
     }
 
     match typ {
-        FieldType::UInt => serde_json::from_value(value)
-            .map_err(DeserializationError::Json)
-            .map(Field::UInt),
-        FieldType::U128 => match value {
-            Value::String(str) => return Field::from_str(str.as_str(), typ, nullable),
-            _ => Err(DeserializationError::Custom(
-                "Json value type does not match field type"
-                    .to_string()
-                    .into(),
-            )),
-        },
-        FieldType::Int => serde_json::from_value(value)
-            .map_err(DeserializationError::Json)
-            .map(Field::Int),
-        FieldType::I128 => match value {
-            Value::String(str) => return Field::from_str(str.as_str(), typ, nullable),
-            _ => Err(DeserializationError::Custom(
-                "Json value type does not match field type"
-                    .to_string()
-                    .into(),
-            )),
-        },
-        FieldType::Float => serde_json::from_value(value)
-            .map_err(DeserializationError::Json)
-            .map(Field::Float),
-        FieldType::Boolean => serde_json::from_value(value)
-            .map_err(DeserializationError::Json)
-            .map(Field::Boolean),
-        FieldType::String => serde_json::from_value(value)
-            .map_err(DeserializationError::Json)
-            .map(Field::String),
-        FieldType::Text => serde_json::from_value(value)
-            .map_err(DeserializationError::Json)
-            .map(Field::Text),
-        FieldType::Binary => serde_json::from_value(value)
-            .map_err(DeserializationError::Json)
-            .map(Field::Binary),
-        FieldType::Decimal => match value {
-            Value::String(str) => return Field::from_str(str.as_str(), typ, nullable),
-            Value::Number(number) => return Field::from_str(&number.to_string(), typ, nullable),
-            _ => Err(DeserializationError::Custom(
-                "Json value type does not match field type"
-                    .to_string()
-                    .into(),
-            )),
-        },
-        FieldType::Timestamp => match value {
-            Value::String(str) => return Field::from_str(str.as_str(), typ, nullable),
-            _ => Err(DeserializationError::Custom(
-                "Json value type does not match field type"
-                    .to_string()
-                    .into(),
-            )),
-        },
-        FieldType::Date => match value {
-            Value::String(str) => return Field::from_str(str.as_str(), typ, nullable),
-            _ => Err(DeserializationError::Custom(
-                "Json value type does not match field type"
-                    .to_string()
-                    .into(),
-            )),
-        },
-        FieldType::Json => Ok(Field::Json(
-            serde_json_to_json_value(value).map_err(TypeError::DeserializationError)?,
-        )),
-        FieldType::Point => serde_json::from_value(value)
-            .map_err(DeserializationError::Json)
-            .map(Field::Point),
-        FieldType::Duration => match value.get("value") {
-            Some(Value::String(v_val)) => match value.get("time_unit") {
-                Some(Value::String(tu_val)) => {
-                    let time_unit = TimeUnit::from_str(tu_val)?;
-                    return match time_unit {
-                        TimeUnit::Seconds => {
-                            let dur = u64::from_str(v_val).unwrap();
-                            Ok(Field::Duration(DozerDuration(
-                                Duration::from_secs(dur),
-                                time_unit,
-                            )))
-                        }
-                        TimeUnit::Milliseconds => {
-                            let dur = u64::from_str(v_val).unwrap();
-                            Ok(Field::Duration(DozerDuration(
-                                Duration::from_millis(dur),
-                                time_unit,
-                            )))
-                        }
-                        TimeUnit::Microseconds => {
-                            let dur = u64::from_str(v_val).unwrap();
-                            Ok(Field::Duration(DozerDuration(
-                                Duration::from_micros(dur),
-                                time_unit,
-                            )))
-                        }
-                        TimeUnit::Nanoseconds => {
-                            Ok(Field::Duration(DozerDuration::from_str(v_val).unwrap()))
-                        }
-                    };
-                }
-                _ => Err(DeserializationError::Custom(
-                    "Json value type does not match field type"
-                        .to_string()
-                        .into(),
-                )),
-            },
-            _ => Err(DeserializationError::Custom(
-                "Json value type does not match field type"
-                    .to_string()
-                    .into(),
-            )),
-        },
+        FieldType::UInt => {
+            let Some(value) = value.as_number().and_then(|value| value.to_u64()) else {
+                return Err(DeserializationError::JsonType(typ, value).into());
+            };
+            Ok(Field::UInt(value))
+        }
+        FieldType::Int => {
+            let Some(value) = value.as_number().and_then(|value| value.to_i64()) else {
+                return Err(DeserializationError::JsonType(typ, value).into());
+            };
+            Ok(Field::Int(value))
+        }
+        FieldType::Float => {
+            let Some(value) = value.as_number().and_then(|value| value.to_f64()) else {
+                return Err(DeserializationError::JsonType(typ, value).into());
+            };
+            Ok(Field::Float(OrderedFloat(value)))
+        }
+        FieldType::Boolean => {
+            let Some(boolean) = value.to_bool() else {
+                return Err(DeserializationError::JsonType(typ, value).into());
+            };
+            Ok(Field::Boolean(boolean))
+        }
+        FieldType::U128
+        | FieldType::I128
+        | FieldType::String
+        | FieldType::Text
+        | FieldType::Decimal
+        | FieldType::Timestamp
+        | FieldType::Date => {
+            let Some(string) = value.as_string() else {
+                return Err(DeserializationError::JsonType(typ, value).into());
+            };
+            Field::from_str(string.deref(), typ, nullable)
+        }
+        FieldType::Binary => {
+            let Some(array) = value.as_array() else {
+                return Err(DeserializationError::JsonType(typ, value).into());
+            };
+            let mut bytes = Vec::new();
+            for item in array {
+                let Some(number) = item
+                    .as_number()
+                    .and_then(|item| item.to_u32())
+                    .and_then(|item| u8::try_from(item).ok())
+                else {
+                    return Err(DeserializationError::JsonType(typ, value).into());
+                };
+                bytes.push(number);
+            }
+            Ok(Field::Binary(bytes))
+        }
+        FieldType::Json => Ok(Field::Json(value)),
+        FieldType::Point => {
+            let Some(object) = value.as_object() else {
+                return Err(DeserializationError::JsonType(typ, value).into());
+            };
+            let Some(x) = object.get("x").and_then(|x| x.to_f64()) else {
+                return Err(DeserializationError::JsonType(typ, value).into());
+            };
+            let Some(y) = object.get("y").and_then(|y| y.to_f64()) else {
+                return Err(DeserializationError::JsonType(typ, value).into());
+            };
+            Ok(Field::Point(DozerPoint(Point::new(
+                OrderedFloat(x),
+                OrderedFloat(y),
+            ))))
+        }
+        FieldType::Duration => {
+            let Some(object) = value.as_object() else {
+                return Err(DeserializationError::JsonType(typ, value).into());
+            };
+            let Some(nanos) = object
+                .get("value")
+                .and_then(|value| value.as_string())
+                .and_then(|value| value.parse().ok())
+            else {
+                return Err(DeserializationError::JsonType(typ, value).into());
+            };
+            let duration = Duration::from_nanos(nanos);
+            let Some(time_unit) = object
+                .get("time_unit")
+                .and_then(|time_unit| time_unit.as_string())
+                .and_then(|time_unit| TimeUnit::from_str(time_unit).ok())
+            else {
+                return Err(DeserializationError::JsonType(typ, value).into());
+            };
+            Ok(Field::Duration(DozerDuration(duration, time_unit)))
+        }
     }
-    .map_err(TypeError::DeserializationError)
 }
 
 impl Field {

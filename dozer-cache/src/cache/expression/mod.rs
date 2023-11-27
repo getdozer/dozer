@@ -1,5 +1,5 @@
+use dozer_types::json_types::JsonValue;
 use dozer_types::serde::{Deserialize, Serialize};
-use dozer_types::serde_json::Value;
 mod query_helper;
 mod query_serde;
 use dozer_types::constants::DEFAULT_DEFAULT_MAX_NUM_RECORDS;
@@ -71,7 +71,7 @@ impl QueryExpression {
 #[derive(Clone, Debug, PartialEq)]
 pub enum FilterExpression {
     // a = 1, a containts "s", a > 4
-    Simple(String, Operator, Value),
+    Simple(String, Operator, JsonValue),
     And(Vec<FilterExpression>),
 }
 

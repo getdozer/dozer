@@ -1,5 +1,5 @@
 use super::internal::BoxedError;
-use crate::types::FieldType;
+use crate::{json_types::JsonValue, types::FieldType};
 use serde_json::Number;
 use std::num::ParseIntError;
 use thiserror::Error;
@@ -22,7 +22,7 @@ pub enum TypeError {
     #[error("Serialization failed: {0}")]
     SerializationError(#[source] SerializationError),
     #[error("Failed to parse the field: {0}")]
-    DeserializationError(#[source] DeserializationError),
+    DeserializationError(#[from] DeserializationError),
 }
 
 #[derive(Error, Debug)]
@@ -43,8 +43,8 @@ pub enum DeserializationError {
     Bincode(#[from] bincode::error::DecodeError),
     #[error("bson: {0}")]
     Msgpack(#[from] rmp_serde::decode::Error),
-    #[error("custom: {0}")]
-    Custom(#[from] BoxedError),
+    #[error("json value {1:?} doesn't match field type {0}")]
+    JsonType(FieldType, JsonValue),
     #[error("Empty input")]
     EmptyInput,
     #[error("Unrecognised field type : {0}")]
@@ -53,6 +53,10 @@ pub enum DeserializationError {
     BadDataLength,
     #[error("Bad data format: {0}")]
     BadDateFormat(#[from] chrono::ParseError),
+    #[error("Ambiguous timestamp")]
+    AmbiguousTimestamp,
+    #[error("Invalid timestamp")]
+    InvalidTimestamp,
     #[error("utf8: {0}")]
     Utf8(#[from] std::str::Utf8Error),
     #[error("Failed to convert type due to json numbers being out of the f64 range: {0}")]

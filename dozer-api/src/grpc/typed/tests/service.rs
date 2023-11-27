@@ -3,15 +3,18 @@ use crate::{
     grpc::{auth_middleware::AuthMiddlewareLayer, typed::TypedService},
     CacheEndpoint,
 };
-use dozer_cache::cache::expression::{FilterExpression, QueryExpression};
-use dozer_types::grpc_types::{
-    generated::films::{
-        films_client::FilmsClient, CountFilmsResponse, FilmEvent, QueryFilmsRequest,
-        QueryFilmsResponse,
-    },
-    types::{value, EventFilter, EventType, Operation, OperationType, Record, Value},
-};
+use dozer_cache::cache::expression::{FilterExpression, Operator, QueryExpression};
 use dozer_types::models::api_security::ApiSecurity;
+use dozer_types::{
+    grpc_types::{
+        generated::films::{
+            films_client::FilmsClient, CountFilmsResponse, FilmEvent, QueryFilmsRequest,
+            QueryFilmsResponse,
+        },
+        types::{value, EventFilter, EventType, Operation, OperationType, Record, Value},
+    },
+    json_types::JsonValue,
+};
 use futures_util::FutureExt;
 use std::{env, str::FromStr, sync::Arc, time::Duration};
 
@@ -133,11 +136,8 @@ async fn test_grpc_count_and_query_common(
 #[tokio::test]
 async fn test_grpc_query() {
     // create filter expression
-    let filter = FilterExpression::Simple(
-        "film_id".to_string(),
-        dozer_cache::cache::expression::Operator::EQ,
-        dozer_types::serde_json::Value::from(524),
-    );
+    let filter =
+        FilterExpression::Simple("film_id".to_string(), Operator::EQ, JsonValue::from(524));
 
     let query = QueryExpression {
         filter: Some(filter),
@@ -158,11 +158,8 @@ async fn test_grpc_query() {
 #[tokio::test]
 async fn test_grpc_query_with_access_token() {
     // create filter expression
-    let filter = FilterExpression::Simple(
-        "film_id".to_string(),
-        dozer_cache::cache::expression::Operator::EQ,
-        dozer_types::serde_json::Value::from(524),
-    );
+    let filter =
+        FilterExpression::Simple("film_id".to_string(), Operator::EQ, JsonValue::from(524));
 
     let query = QueryExpression {
         filter: Some(filter),
@@ -185,11 +182,8 @@ async fn test_grpc_query_with_access_token() {
 #[tokio::test]
 async fn test_grpc_query_with_wrong_access_token() {
     // create filter expression
-    let filter = FilterExpression::Simple(
-        "film_id".to_string(),
-        dozer_cache::cache::expression::Operator::EQ,
-        dozer_types::serde_json::Value::from(524),
-    );
+    let filter =
+        FilterExpression::Simple("film_id".to_string(), Operator::EQ, JsonValue::from(524));
 
     let query = QueryExpression {
         filter: Some(filter),

@@ -5,7 +5,7 @@ use crate::cache::{
     test_utils,
 };
 
-use dozer_types::{serde_json::Value, types::Field};
+use dozer_types::{json_types::JsonValue, types::Field};
 
 #[test]
 fn test_generate_plan_simple() {
@@ -14,7 +14,7 @@ fn test_generate_plan_simple() {
     let filter = FilterExpression::Simple(
         "foo".to_string(),
         expression::Operator::EQ,
-        Value::from("bar".to_string()),
+        JsonValue::from("bar".to_string()),
     );
     let plan = QueryPlanner::new(
         &schema,
@@ -48,11 +48,15 @@ fn test_generate_plan_and() {
     let (schema, secondary_indexes) = test_utils::schema_1();
 
     let filter = FilterExpression::And(vec![
-        FilterExpression::Simple("a".to_string(), expression::Operator::EQ, Value::from(1)),
+        FilterExpression::Simple(
+            "a".to_string(),
+            expression::Operator::EQ,
+            JsonValue::from(1),
+        ),
         FilterExpression::Simple(
             "b".to_string(),
             expression::Operator::EQ,
-            Value::from("test".to_string()),
+            JsonValue::from("test".to_string()),
         ),
     ]);
     let plan = QueryPlanner::new(
@@ -122,7 +126,7 @@ fn test_generate_plan_range_query_and_order_by() {
 fn test_generate_plan_empty() {
     let (schema, secondary_indexes) = test_utils::schema_1();
 
-    let filter = FilterExpression::Simple("c".into(), Operator::LT, Value::Null);
+    let filter = FilterExpression::Simple("c".into(), Operator::LT, JsonValue::NULL);
     let plan = QueryPlanner::new(
         &schema,
         &secondary_indexes,

@@ -350,12 +350,8 @@ impl Field {
 
                 match timestamp {
                     LocalResult::Single(v) => Ok(Field::Timestamp(DateTime::from(v))),
-                    LocalResult::Ambiguous(_, _) => Err(DeserializationError::Custom(
-                        "Ambiguous timestamp".to_string().into(),
-                    )),
-                    LocalResult::None => Err(DeserializationError::Custom(
-                        "Invalid timestamp".to_string().into(),
-                    )),
+                    LocalResult::Ambiguous(_, _) => Err(DeserializationError::AmbiguousTimestamp),
+                    LocalResult::None => Err(DeserializationError::InvalidTimestamp),
                 }
             }
             11 => Ok(Field::Date(NaiveDate::parse_from_str(

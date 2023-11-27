@@ -1,5 +1,5 @@
 use dozer_cache::cache::test_utils::schema_1;
-use dozer_types::serde_json::json;
+use dozer_types::json_types::json;
 
 use super::*;
 

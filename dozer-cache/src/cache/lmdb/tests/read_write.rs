@@ -4,8 +4,8 @@ use crate::cache::expression::{FilterExpression, Operator, QueryExpression};
 use crate::cache::lmdb::cache::{CacheOptions, LmdbRoCache, LmdbRwCache};
 use crate::cache::lmdb::indexing::IndexingThreadPool;
 use crate::cache::{lmdb::tests::utils as lmdb_utils, test_utils, RoCache, RwCache};
+use dozer_types::json_types::JsonValue;
 use dozer_types::parking_lot::Mutex;
-use dozer_types::serde_json::Value;
 use dozer_types::types::Field;
 use tempdir::TempDir;
 
@@ -67,7 +67,7 @@ fn read_and_write() {
             filter: Some(FilterExpression::Simple(
                 "a".to_string(),
                 Operator::EQ,
-                Value::from(1),
+                JsonValue::from(1),
             )),
             ..Default::default()
         })
