@@ -419,6 +419,9 @@ fn encode_field(
     column_data_type: &DataType,
     row_index: usize,
 ) -> Result<(), PgWireError> {
+    if column_data.is_null(row_index) {
+        return encoder.encode_field(&None::<bool>);
+    }
     match column_data_type {
         DataType::Null => encoder.encode_field(&None::<bool>),
         DataType::Boolean => {

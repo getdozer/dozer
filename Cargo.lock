@@ -832,6 +832,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-once-cell"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9338790e78aa95a416786ec8389546c4b6a1dfc3dc36071ed9518a9413a542eb"
+
+[[package]]
 name = "async-recursion"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3583,6 +3589,7 @@ dependencies = [
  "actix-web",
  "actix-web-httpauth",
  "arc-swap",
+ "async-once-cell",
  "async-stream",
  "async-trait",
  "bytes",
@@ -3595,6 +3602,7 @@ dependencies = [
  "dozer-types",
  "futures-sink",
  "futures-util",
+ "genawaiter",
  "gethostname",
  "handlebars",
  "http",
@@ -4060,7 +4068,7 @@ dependencies = [
  "chrono",
  "geo",
  "ijson",
- "indexmap 1.9.3",
+ "indexmap 2.1.0",
  "indicatif",
  "log",
  "ordered-float 3.9.2",
@@ -5573,7 +5581,6 @@ checksum = "bd070e393353796e801d209ad339e89596eb4c8d430d18ede6a1cced8fafbd99"
 dependencies = [
  "autocfg",
  "hashbrown 0.12.3",
- "serde",
 ]
 
 [[package]]
@@ -7083,7 +7090,7 @@ version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "75e56d5c441965b6425165b7e3223cc933ca469834f4a8b4786817a1f9dc4f13"
 dependencies = [
- "indexmap 1.9.3",
+ "indexmap 2.1.0",
  "serde",
  "serde_json",
 ]
@@ -8156,7 +8163,7 @@ checksum = "c55e02e35260070b6f716a2423c2ff1c3bb1642ddca6f99e1f26d06268a0e2d2"
 dependencies = [
  "bytes",
  "heck",
- "itertools 0.10.5",
+ "itertools 0.11.0",
  "log",
  "multimap 0.8.3",
  "once_cell",
@@ -8190,7 +8197,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "efb6c9a1dd1def8e2124d17e83a20af56f1570d6c2d2bd9e266ccb768df3840e"
 dependencies = [
  "anyhow",
- "itertools 0.10.5",
+ "itertools 0.11.0",
  "proc-macro2 1.0.69",
  "quote 1.0.33",
  "syn 2.0.39",
@@ -11303,7 +11310,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
- "rand 0.4.6",
+ "rand 0.8.5",
  "static_assertions",
 ]
 
