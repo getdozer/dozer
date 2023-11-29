@@ -362,9 +362,10 @@ impl ContextProvider for ContextResolver {
                             | DataType::LargeList(field) => {
                                 Ok(Arc::new(field.data_type().to_owned()))
                             }
-                            _ => Err(DataFusionError::Plan(
-                                "Invalid data type for function unnest".to_owned(),
-                            )),
+                            // This is invalid, but we need it for system
+                            // table columns, as we can't express array types
+                            // yet in datafusion sql
+                            _ => Ok(Arc::new(DataType::Null)),
                         }),
                         // Dummy impl
                         fun: Arc::new(|_| not_impl_err!("unnest")),
@@ -387,10 +388,10 @@ impl ContextProvider for ContextResolver {
                             {
                                 Ok(Arc::new(DataType::UInt32))
                             } else {
-                                Err(DataFusionError::Plan(
-                                    "Invalid argument type for function generate_subscripts"
-                                        .to_owned(),
-                                ))
+                                // This is invalid, but we need it for system
+                                // table columns, as we can't express array types
+                                // yet in datafusion sql
+                                Ok(Arc::new(DataType::Null))
                             }
                         }),
                         fun: Arc::new(|_| not_impl_err!("generate_subscripts")),
@@ -1085,6 +1086,7 @@ impl SQLExecutor {
             PRIMARY KEY (oid),
             UNIQUE (relname, relnamespace),
         );
+
 
         CREATE SCHEMA information_schema;
 
