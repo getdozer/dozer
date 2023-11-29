@@ -29,7 +29,9 @@ use datafusion::scalar::ScalarValue;
 use datafusion::sql::parser::{DFParser, Statement};
 use datafusion::sql::planner::{ContextProvider, ParserOptions, SqlToRel};
 use datafusion::sql::sqlparser::ast::{self, Function, FunctionArg, FunctionArgExpr};
-use datafusion::sql::{ResolvedTableReference, TableReference};
+use datafusion::sql::sqlparser::parser::{Parser, ParserError};
+use datafusion::sql::sqlparser::tokenizer::Tokenizer;
+use datafusion::sql::{sqlparser, ResolvedTableReference, TableReference};
 use datafusion::variable::{VarProvider, VarType};
 use datafusion_expr::{
     AggregateUDF, ColumnarValue, Expr, LogicalPlan, ScalarUDF, TableProviderFilterPushDown,
@@ -534,7 +536,7 @@ impl SQLExecutor {
                 | ast::Statement::Commit { .. }
                 | ast::Statement::Rollback { .. }
                 | ast::Statement::SetVariable { .. } => {
-                    dbg!(stmt);
+                    // dbg!(stmt);
                     return Ok(None);
                 }
                 ast::Statement::ShowVariable { variable } => {
@@ -555,7 +557,7 @@ impl SQLExecutor {
         }
 
         match &mut statement {
-            Statement::Statement(statement) => rewrite_sum(statement),
+            Statement::Statement(statement) => sql_ast_rewrites(statement),
             _ => (),
         };
 
@@ -618,10 +620,8 @@ impl SQLExecutor {
         {
             sql = "select 'UTF8'"
         }
-        let statements = DFParser::parse_sql_with_dialect(
-            sql,
-            &datafusion::sql::sqlparser::dialect::PostgreSqlDialect {},
-        )?;
+        let statements =
+            DFParser::parse_sql_with_dialect(sql, &sqlparser::dialect::PostgreSqlDialect {})?;
         try_join_all(
             statements
                 .into_iter()
@@ -1005,6 +1005,49 @@ impl SQLExecutor {
             deptype char NOT NULL,
         );
 
+        CREATE TABLE pg_catalog.pg_description (
+            objoid int unsigned NOT NULL,
+            classoid int unsigned NOT NULL,
+            objsubid integer NOT NULL,
+            description text NOT NULL,
+            PRIMARY KEY (objoid, classoid, objsubid),
+        );
+
+        CREATE TABLE pg_catalog.pg_enum (
+            oid int unsigned NOT NULL,
+            enumtypid int unsigned NOT NULL,
+            enumsortorder real NOT NULL,
+            enumlabel string NOT NULL,
+            PRIMARY KEY (oid),
+            UNIQUE (enumtypid, enumlabel),
+            UNIQUE (enumtypid, enumsortorder),
+        );
+
+        CREATE TABLE pg_catalog.pg_index (
+            indexrelid int unsigned NOT NULL,
+            indrelid int unsigned NOT NULL,
+            indnatts smallint NOT NULL,
+            indnkeyatts smallint NOT NULL,
+            indisunique boolean NOT NULL,
+            indnullsnotdistinct boolean NOT NULL,
+            indisprimary boolean NOT NULL,
+            indisexclusion boolean NOT NULL,
+            indimmediate boolean NOT NULL,
+            indisclustered boolean NOT NULL,
+            indisvalid boolean NOT NULL,
+            indcheckxmin boolean NOT NULL,
+            indisready boolean NOT NULL,
+            indislive boolean NOT NULL,
+            indisreplident boolean NOT NULL,
+            indkey string NOT NULL,
+            indcollation string NOT NULL,
+            indclass string NOT NULL,
+            indoption string NOT NULL,
+            indexprs string,
+            indpred string,
+            PRIMARY KEY (indexrelid),
+        );
+
         CREATE TABLE pg_catalog.pg_class (
             oid int unsigned NOT NULL,
             relname string NOT NULL,
@@ -1319,7 +1362,7 @@ impl SQLExecutor {
         {
             let statements = DFParser::parse_sql_with_dialect(
                 schema_query,
-                &datafusion::sql::sqlparser::dialect::PostgreSqlDialect {},
+                &sqlparser::dialect::PostgreSqlDialect {},
             )?;
             for statement in statements {
                 let provider = self.context_provider_for_statment(&statement).await?;
@@ -1833,6 +1876,12 @@ fn normalize_ident(id: ast::Ident) -> String {
     }
 }
 
+// SQL AST rewrites
+fn sql_ast_rewrites(statement: &mut ast::Statement) {
+    rewrite_sum(statement);
+    rewrite_format_type(statement);
+}
+
 // SQL AST rewirte for SUM('1') to SUM(1)
 fn rewrite_sum(statement: &mut ast::Statement) {
     ast::visit_expressions_mut(statement, |expr: &mut ast::Expr| {
@@ -1862,4 +1911,43 @@ fn rewrite_sum(statement: &mut ast::Statement) {
         };
         ControlFlow::<()>::Continue(())
     });
+}
+
+// SQL AST rewirte for format_type(arg) to format_typname((SELECT typname FROM pg_type WHERE oid = arg))
+fn rewrite_format_type(statement: &mut ast::Statement) {
+    ast::visit_expressions_mut(statement, |expr: &mut ast::Expr| {
+        match expr {
+            ast::Expr::Function(Function { name, args, .. }) => {
+                if name
+                    .0
+                    .last()
+                    .unwrap()
+                    .value
+                    .eq_ignore_ascii_case("format_type")
+                {
+                    if args.len() >= 1 {
+                        let arg = &args[0];
+                        let sql_expr = format!(
+                            "format_typname((SELECT typname FROM pg_type WHERE oid = {arg}))"
+                        );
+                        let result = try_parse_sql_expr(&sql_expr);
+                        if let Ok(new_expr) = result {
+                            *expr = new_expr;
+                        }
+                        return ControlFlow::<()>::Break(());
+                    }
+                }
+            }
+            _ => (),
+        };
+        ControlFlow::<()>::Continue(())
+    });
+}
+
+fn try_parse_sql_expr(sql: &str) -> Result<ast::Expr, ParserError> {
+    let dialect = &sqlparser::dialect::PostgreSqlDialect {};
+    let mut tokenizer = Tokenizer::new(dialect, sql);
+    let tokens = tokenizer.tokenize()?;
+    let mut parser = Parser::new(dialect).with_tokens(tokens);
+    parser.parse_expr()
 }
