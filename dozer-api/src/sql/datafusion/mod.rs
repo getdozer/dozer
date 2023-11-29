@@ -1395,24 +1395,23 @@ impl SQLExecutor {
             }
 
             let sqltypes = [
-                SQLType::new(oids.next(), "boolean", 1i16, "B", true),
-                SQLType::new(oids.next(), "bytea", -1, "A", true),
-                SQLType::new(oids.next(), "tinyint", 1, "N", false),
+                SQLType::new(oids.next(), "bool", 1i16, "B", true),
+                SQLType::new(oids.next(), "bytea", -1, "U", false),
+                SQLType::new(oids.next(), "char", 1, "Z", false),
                 SQLType::new(oids.next(), "int2", 2, "N", false),
-                SQLType::new(oids.next(), "int4", 4, "N", true),
-                SQLType::new(oids.next(), "int8", 8, "N", true),
-                SQLType::new(oids.next(), "char", -1, "S", true),
-                SQLType::new(oids.next(), "varchar", -1, "S", true),
+                SQLType::new(oids.next(), "int4", 4, "N", false),
+                SQLType::new(oids.next(), "int8", 8, "N", false),
+                SQLType::new(oids.next(), "varchar", -1, "S", false),
                 SQLType::new(oids.next(), "text", -1, "S", true),
-                SQLType::new(oids.next(), "string", -1, "S", true),
                 SQLType::new(oids.next(), "float4", 4, "N", false),
                 SQLType::new(oids.next(), "float8", 8, "N", true),
-                SQLType::new(oids.next(), "date", 4, "D", true),
-                SQLType::new(oids.next(), "time", 8, "D", true),
-                SQLType::new(oids.next(), "timestamp", 8, "T", true),
-                SQLType::new(oids.next(), "timestamptz", 8, "T", true),
-                SQLType::new(oids.next(), "interval", 8, "T", true),
-                SQLType::new(oids.next(), "numeric", -1, "N", true),
+                SQLType::new(oids.next(), "date", 4, "D", false),
+                SQLType::new(oids.next(), "time", 8, "D", false),
+                SQLType::new(oids.next(), "timestamp", 8, "D", false),
+                SQLType::new(oids.next(), "timestamptz", 8, "D", true),
+                SQLType::new(oids.next(), "interval", 16, "T", true),
+                SQLType::new(oids.next(), "numeric", -1, "N", false),
+                SQLType::new(oids.next(), "unknown", -2, "X", false),
             ];
 
             let sqltype_by_name =
@@ -1420,12 +1419,13 @@ impl SQLExecutor {
 
             let sqltype_for_dftype = |dftype: &DataType| -> &SQLType {
                 match dftype {
-                    DataType::Null | DataType::Boolean => sqltype_by_name("boolean"),
-                    DataType::Int8 => sqltype_by_name("tinyint"),
+                    DataType::Null => sqltype_by_name("unknown"),
+                    DataType::Boolean => sqltype_by_name("bool"),
+                    DataType::Int8 => sqltype_by_name("char"),
                     DataType::Int16 => sqltype_by_name("int2"),
                     DataType::Int32 => sqltype_by_name("int4"),
                     DataType::Int64 => sqltype_by_name("int8"),
-                    DataType::UInt8 => sqltype_by_name("tinyint"),
+                    DataType::UInt8 => sqltype_by_name("char"),
                     DataType::UInt16 => sqltype_by_name("int2"),
                     DataType::UInt32 => sqltype_by_name("int4"),
                     DataType::UInt64 => sqltype_by_name("int8"),
@@ -1443,7 +1443,7 @@ impl SQLExecutor {
                     DataType::Binary => sqltype_by_name("bytea"),
                     DataType::FixedSizeBinary(_) => sqltype_by_name("bytea"),
                     DataType::LargeBinary => sqltype_by_name("bytea"),
-                    DataType::Utf8 => sqltype_by_name("string"),
+                    DataType::Utf8 => sqltype_by_name("text"),
                     DataType::LargeUtf8 => sqltype_by_name("text"),
                     DataType::Decimal256(_, _) | DataType::Decimal128(_, _) => {
                         sqltype_by_name("numeric")

@@ -344,15 +344,16 @@ fn map_data_type(datafusion_type: &DataType) -> Type {
         DataType::Int32 => Type::INT4,
         DataType::Int64 => Type::INT8,
         DataType::UInt8 => Type::INT2,
-        DataType::UInt16 => Type::INT4,
-        DataType::UInt32 => Type::INT8,
-        DataType::UInt64 => Type::NUMERIC,
+        DataType::UInt16 => Type::INT2,
+        DataType::UInt32 => Type::INT4,
+        DataType::UInt64 => Type::INT8,
         DataType::Float16 => Type::FLOAT4,
         DataType::Float32 => Type::FLOAT4,
         DataType::Float64 => Type::FLOAT8,
         DataType::Timestamp(_, None) => Type::TIMESTAMP,
         DataType::Timestamp(_, Some(_)) => Type::TIMESTAMPTZ,
         DataType::Date32 => Type::DATE,
+        // This might lose data
         DataType::Date64 => Type::DATE,
         DataType::Time32(_) => Type::TIME,
         DataType::Time64(_) => Type::TIME,
@@ -368,7 +369,7 @@ fn map_data_type(datafusion_type: &DataType) -> Type {
         DataType::List(f) | DataType::FixedSizeList(f, _) | DataType::LargeList(f) => {
             match f.data_type() {
                 DataType::Boolean => Type::BOOL_ARRAY,
-                DataType::Int8 => Type::INT2_ARRAY,
+                DataType::Int8 => Type::CHAR_ARRAY,
                 DataType::Int16 => Type::INT2_ARRAY,
                 DataType::Int32 => Type::INT4_ARRAY,
                 DataType::Int64 => Type::INT8_ARRAY,

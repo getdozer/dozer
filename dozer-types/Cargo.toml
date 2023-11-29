@@ -17,7 +17,7 @@ ahash = "0.8.3"
 thiserror = "1.0.48"
 parking_lot = "0.12"
 bytes = "1.4.0"
-indexmap = "2.1.0"
+indexmap = "1.9.0"
 ordered-float = { version = "3.9.1", features = ["serde"] }
 tracing = "0.1.36"
 log = "0.4.17"
