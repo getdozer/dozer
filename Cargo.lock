@@ -2527,7 +2527,7 @@ checksum = "41b319d1b62ffbd002e057f36bebd1f42b9f97927c9577461d855f3513c4289f"
 [[package]]
 name = "datafusion"
 version = "33.0.0"
-source = "git+https://github.com/Jesse-Bakker/arrow-datafusion?branch=scalar-filter-33#b453b5c8ec47c360aecc8758b8dbc960f59b8e7c"
+source = "git+https://github.com/Jesse-Bakker/arrow-datafusion?branch=scalar-filter-33#404e0a4b5d49dfc6a73d48edba6acb528ecce5a0"
 dependencies = [
  "ahash 0.8.6",
  "arrow",
@@ -2573,7 +2573,7 @@ dependencies = [
 [[package]]
 name = "datafusion-common"
 version = "33.0.0"
-source = "git+https://github.com/Jesse-Bakker/arrow-datafusion?branch=scalar-filter-33#b453b5c8ec47c360aecc8758b8dbc960f59b8e7c"
+source = "git+https://github.com/Jesse-Bakker/arrow-datafusion?branch=scalar-filter-33#404e0a4b5d49dfc6a73d48edba6acb528ecce5a0"
 dependencies = [
  "ahash 0.8.6",
  "arrow",
@@ -2591,7 +2591,7 @@ dependencies = [
 [[package]]
 name = "datafusion-execution"
 version = "33.0.0"
-source = "git+https://github.com/Jesse-Bakker/arrow-datafusion?branch=scalar-filter-33#b453b5c8ec47c360aecc8758b8dbc960f59b8e7c"
+source = "git+https://github.com/Jesse-Bakker/arrow-datafusion?branch=scalar-filter-33#404e0a4b5d49dfc6a73d48edba6acb528ecce5a0"
 dependencies = [
  "arrow",
  "chrono",
@@ -2611,7 +2611,7 @@ dependencies = [
 [[package]]
 name = "datafusion-expr"
 version = "33.0.0"
-source = "git+https://github.com/Jesse-Bakker/arrow-datafusion?branch=scalar-filter-33#b453b5c8ec47c360aecc8758b8dbc960f59b8e7c"
+source = "git+https://github.com/Jesse-Bakker/arrow-datafusion?branch=scalar-filter-33#404e0a4b5d49dfc6a73d48edba6acb528ecce5a0"
 dependencies = [
  "ahash 0.8.6",
  "arrow",
@@ -2625,7 +2625,7 @@ dependencies = [
 [[package]]
 name = "datafusion-optimizer"
 version = "33.0.0"
-source = "git+https://github.com/Jesse-Bakker/arrow-datafusion?branch=scalar-filter-33#b453b5c8ec47c360aecc8758b8dbc960f59b8e7c"
+source = "git+https://github.com/Jesse-Bakker/arrow-datafusion?branch=scalar-filter-33#404e0a4b5d49dfc6a73d48edba6acb528ecce5a0"
 dependencies = [
  "arrow",
  "async-trait",
@@ -2642,7 +2642,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr"
 version = "33.0.0"
-source = "git+https://github.com/Jesse-Bakker/arrow-datafusion?branch=scalar-filter-33#b453b5c8ec47c360aecc8758b8dbc960f59b8e7c"
+source = "git+https://github.com/Jesse-Bakker/arrow-datafusion?branch=scalar-filter-33#404e0a4b5d49dfc6a73d48edba6acb528ecce5a0"
 dependencies = [
  "ahash 0.8.6",
  "arrow",
@@ -2676,7 +2676,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-plan"
 version = "33.0.0"
-source = "git+https://github.com/Jesse-Bakker/arrow-datafusion?branch=scalar-filter-33#b453b5c8ec47c360aecc8758b8dbc960f59b8e7c"
+source = "git+https://github.com/Jesse-Bakker/arrow-datafusion?branch=scalar-filter-33#404e0a4b5d49dfc6a73d48edba6acb528ecce5a0"
 dependencies = [
  "ahash 0.8.6",
  "arrow",
@@ -2706,7 +2706,7 @@ dependencies = [
 [[package]]
 name = "datafusion-proto"
 version = "33.0.0"
-source = "git+https://github.com/Jesse-Bakker/arrow-datafusion?branch=scalar-filter-33#b453b5c8ec47c360aecc8758b8dbc960f59b8e7c"
+source = "git+https://github.com/Jesse-Bakker/arrow-datafusion?branch=scalar-filter-33#404e0a4b5d49dfc6a73d48edba6acb528ecce5a0"
 dependencies = [
  "arrow",
  "chrono",
@@ -2720,7 +2720,7 @@ dependencies = [
 [[package]]
 name = "datafusion-sql"
 version = "33.0.0"
-source = "git+https://github.com/Jesse-Bakker/arrow-datafusion?branch=scalar-filter-33#b453b5c8ec47c360aecc8758b8dbc960f59b8e7c"
+source = "git+https://github.com/Jesse-Bakker/arrow-datafusion?branch=scalar-filter-33#404e0a4b5d49dfc6a73d48edba6acb528ecce5a0"
 dependencies = [
  "arrow",
  "arrow-schema",
@@ -8164,7 +8164,7 @@ checksum = "c55e02e35260070b6f716a2423c2ff1c3bb1642ddca6f99e1f26d06268a0e2d2"
 dependencies = [
  "bytes",
  "heck",
- "itertools 0.10.5",
+ "itertools 0.11.0",
  "log",
  "multimap 0.8.3",
  "once_cell",
@@ -8198,7 +8198,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "efb6c9a1dd1def8e2124d17e83a20af56f1570d6c2d2bd9e266ccb768df3840e"
 dependencies = [
  "anyhow",
- "itertools 0.10.5",
+ "itertools 0.11.0",
  "proc-macro2 1.0.69",
  "quote 1.0.33",
  "syn 2.0.39",
@@ -11311,7 +11311,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
- "rand 0.4.6",
+ "rand 0.8.5",
  "static_assertions",
 ]
 
