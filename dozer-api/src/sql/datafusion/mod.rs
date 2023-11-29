@@ -4,6 +4,7 @@ mod predicate_pushdown;
 use std::any::Any;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::ops::ControlFlow;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -27,7 +28,7 @@ use datafusion::prelude::{DataFrame, SessionConfig, SessionContext};
 use datafusion::scalar::ScalarValue;
 use datafusion::sql::parser::{DFParser, Statement};
 use datafusion::sql::planner::{ContextProvider, ParserOptions, SqlToRel};
-use datafusion::sql::sqlparser::ast;
+use datafusion::sql::sqlparser::ast::{self, Function, FunctionArg, FunctionArgExpr};
 use datafusion::sql::{ResolvedTableReference, TableReference};
 use datafusion::variable::{VarProvider, VarType};
 use datafusion_expr::{
@@ -49,8 +50,6 @@ use crate::api_helper::get_records;
 use crate::CacheEndpoint;
 
 use predicate_pushdown::{predicate_pushdown, supports_predicates_pushdown};
-
-// use self::pg_catalog::PgCatalogTable;
 
 pub struct SQLExecutor {
     ctx: Arc<SessionContext>,
@@ -554,6 +553,12 @@ impl SQLExecutor {
         if let Some(query) = rewrite {
             statement = self.ctx.state().sql_to_statement(&query, "postgres")?;
         }
+
+        match &mut statement {
+            Statement::Statement(statement) => rewrite_sum(statement),
+            _ => (),
+        };
+
         self.lazy_init().await?;
 
         let provider = self.context_provider_for_statment(&statement).await?;
@@ -1826,4 +1831,35 @@ fn normalize_ident(id: ast::Ident) -> String {
         Some(_) => id.value,
         None => id.value.to_ascii_lowercase(),
     }
+}
+
+// SQL AST rewirte for SUM('1') to SUM(1)
+fn rewrite_sum(statement: &mut ast::Statement) {
+    ast::visit_expressions_mut(statement, |expr: &mut ast::Expr| {
+        match expr {
+            ast::Expr::Function(Function { name, args, .. }) => {
+                let name = &name.0;
+                if name.len() == 1 && name[0].value.eq_ignore_ascii_case("sum") {
+                    if args.len() == 1 {
+                        let arg = &mut args[0];
+                        match arg {
+                            FunctionArg::Unnamed(FunctionArgExpr::Expr(ast::Expr::Value(
+                                value,
+                            ))) => {
+                                if let ast::Value::SingleQuotedString(literal) = value {
+                                    if literal.parse::<i64>().is_ok() {
+                                        *value = ast::Value::Number(literal.clone(), false);
+                                        return ControlFlow::<()>::Break(());
+                                    }
+                                }
+                            }
+                            _ => (),
+                        }
+                    }
+                }
+            }
+            _ => (),
+        };
+        ControlFlow::<()>::Continue(())
+    });
 }
