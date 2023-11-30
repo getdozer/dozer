@@ -65,10 +65,6 @@ struct ContextResolver {
 
 impl ContextProvider for ContextResolver {
     fn get_table_source(&self, name: TableReference) -> Result<Arc<dyn TableSource>> {
-        // if let Some(table) = PgCatalogTable::from_ref_with_state(&name, self.state.clone()) {
-        //     Ok(Arc::new(DefaultTableSource::new(Arc::new(table))))
-        // } else {
-
         let catalog = &self.state.config_options().catalog;
         let name =
             resolve_table_ref(&name, &catalog.default_catalog, &catalog.default_schema).to_string();
@@ -76,7 +72,6 @@ impl ContextProvider for ContextResolver {
             .get(&name)
             .ok_or_else(|| DataFusionError::Plan(format!("table '{name}' not found")))
             .cloned()
-        // }
     }
 
     fn get_function_meta(&self, name: &str) -> Option<Arc<ScalarUDF>> {
@@ -488,8 +483,6 @@ impl SQLExecutor {
         ctx.register_variable(VarType::UserDefined, variable_provider.clone());
         ctx.register_variable(VarType::System, variable_provider);
 
-        // let _df = ctx.sql("sql").await.unwrap();
-
         Self {
             ctx: Arc::new(ctx),
             lazy_init: Default::default(),
@@ -630,17 +623,6 @@ impl SQLExecutor {
         )
         .await
     }
-
-    // async fn sql_with_params(
-    //     &self,
-    //     sql: &str,
-    //     param_values: Vec<ScalarValue>,
-    // ) -> Result<(), DataFusionError> {
-    //     let sql = format!("PREPARE my_plan as {sql}");
-    //     let df = self.ctx.sql(&sql).await?;
-    //     let _r = df.with_param_values(param_values)?.collect().await?;
-    //     Ok(())
-    // }
 
     async fn dml_sql_with_params(
         &self,
@@ -1688,10 +1670,6 @@ impl TableProvider for CacheEndpointDataSource {
         )?))
     }
 
-    // fn supports_filter_pushdown(&self, filter: &Expr) -> Result<TableProviderFilterPushDown> {
-    //     supports_predicate_pushdown(filter)
-    // }
-
     fn supports_filters_pushdown(
         &self,
         filters: &[&Expr],
@@ -1882,6 +1860,7 @@ fn normalize_ident(id: ast::Ident) -> String {
 fn sql_ast_rewrites(statement: &mut ast::Statement) {
     rewrite_sum(statement);
     rewrite_format_type(statement);
+    rewirte_eq_any(statement);
 }
 
 // SQL AST rewirte for SUM('1') to SUM(1)
@@ -1939,6 +1918,28 @@ fn rewrite_format_type(statement: &mut ast::Statement) {
                         return ControlFlow::<()>::Break(());
                     }
                 }
+            }
+            _ => (),
+        };
+        ControlFlow::<()>::Continue(())
+    });
+}
+
+// SQL AST rewirte for left = ANY(right) to left in (right)
+fn rewirte_eq_any(statement: &mut ast::Statement) {
+    ast::visit_expressions_mut(statement, |expr: &mut ast::Expr| {
+        match expr {
+            ast::Expr::AnyOp {
+                left,
+                compare_op: ast::BinaryOperator::Eq,
+                right,
+            } => {
+                let sql_expr = format!("{left} in ({right})");
+                let result = try_parse_sql_expr(&sql_expr);
+                if let Ok(new_expr) = result {
+                    *expr = new_expr;
+                }
+                return ControlFlow::<()>::Break(());
             }
             _ => (),
         };
