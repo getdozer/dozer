@@ -1,6 +1,6 @@
 use bson::{doc, Bson, Document};
 use dozer_cache::cache::expression::{FilterExpression, Operator, QueryExpression};
-use dozer_types::{serde_json::Value, types::Record};
+use dozer_types::{json_types::lossless_f64_parse_opt, serde_json::Value, types::Record};
 use futures::stream::StreamExt;
 use mongodb::Collection;
 
@@ -112,7 +112,7 @@ fn to_bson(value: &Value) -> bson::ser::Result<bson::Bson> {
         Value::Number(number) => {
             let bson_value = if let Some(n) = number.as_i64() {
                 Bson::Int64(n)
-            } else if let Some(n) = number.as_f64() {
+            } else if let Some(n) = lossless_f64_parse_opt(number.as_str()) {
                 Bson::Double(n)
             } else {
                 bson::to_bson(value)?

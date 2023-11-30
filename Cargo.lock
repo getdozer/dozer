@@ -4134,6 +4134,7 @@ dependencies = [
  "prost 0.12.2",
  "prost-types 0.12.0",
  "pyo3",
+ "regex",
  "rmp-serde",
  "rust_decimal",
  "schemars",

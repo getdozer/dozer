@@ -42,6 +42,9 @@ arbitrary = { version = "1", features = ["derive"], optional = true }
 schemars = "0.8.15"
 rmp-serde = "1.1.2"
 
+[dev-dependencies]
+regex = "1"
+
 [build-dependencies]
 tonic-build = "0.10.0"
 
