@@ -83,8 +83,10 @@ pub async fn get(
 pub async fn list(
     access: Option<ReqData<Access>>,
     cache_endpoint: ReqData<Arc<CacheEndpoint>>,
+    default_max_num_records: web::Data<usize>,
 ) -> Result<HttpResponse, ApiError> {
-    let mut exp = QueryExpression::new(None, vec![], Some(50), Skip::Skip(0));
+    let mut exp =
+        QueryExpression::new(None, vec![], Some(**default_max_num_records), Skip::Skip(0));
     get_records_map(access, cache_endpoint, &mut exp).map(|map| HttpResponse::Ok().json(map))
 }
 
