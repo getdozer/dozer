@@ -141,6 +141,7 @@ impl SimpleOrchestrator {
                     shutdown_for_rest,
                     self.labels.clone(),
                 )
+                .await
                 .map_err(OrchestrationError::ApiInitFailed)?;
             tokio::spawn(api_server.map_err(OrchestrationError::RestServeFailed))
         } else {

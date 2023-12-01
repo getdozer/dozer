@@ -1,3 +1,4 @@
+use std::io::ErrorKind;
 use std::sync::Arc;
 
 use ::datafusion::arrow::datatypes::DECIMAL128_MAX_PRECISION;
@@ -49,15 +50,28 @@ pub struct PgWireServer {
     config: SqlOptions,
 }
 
-struct MakeQueryHandler(Vec<Arc<CacheEndpoint>>);
+struct MakeQueryHandler {
+    sql_executor: Arc<SQLExecutor>,
+}
+
+impl MakeQueryHandler {
+    pub async fn try_new(
+        cache_endpoints: Vec<Arc<CacheEndpoint>>,
+    ) -> Result<Self, DataFusionError> {
+        Ok(Self {
+            sql_executor: Arc::new(SQLExecutor::try_new(&cache_endpoints).await?),
+        })
+    }
+}
 
 impl MakeHandler for MakeQueryHandler {
     type Handler = QueryProcessor;
 
     fn make(&self) -> Self::Handler {
-        QueryProcessor::new(self.0.clone())
+        QueryProcessor::new(self.sql_executor.clone())
     }
 }
+
 impl PgWireServer {
     pub fn new(config: SqlOptions) -> Self {
         Self { config }
@@ -69,7 +83,11 @@ impl PgWireServer {
         cache_endpoints: Vec<Arc<CacheEndpoint>>,
     ) -> std::io::Result<()> {
         let config = self.config.clone();
-        let processor = Arc::new(MakeQueryHandler(cache_endpoints));
+        let processor = Arc::new(
+            MakeQueryHandler::try_new(cache_endpoints)
+                .await
+                .map_err(|err| std::io::Error::new(ErrorKind::Other, err))?,
+        );
         let authenticator = Arc::new(StatelessMakeHandler::new(Arc::new(NoopStartupHandler)));
 
         let host = config.host.unwrap_or_else(default_host);
@@ -108,10 +126,9 @@ struct QueryProcessor {
 }
 
 impl QueryProcessor {
-    pub fn new(cache_endpoints: Vec<Arc<CacheEndpoint>>) -> Self {
-        let sql_executor = SQLExecutor::new(cache_endpoints);
+    pub fn new(sql_executor: Arc<SQLExecutor>) -> Self {
         Self {
-            sql_executor: Arc::new(sql_executor),
+            sql_executor,
             portal_store: Arc::new(MemPortalStore::new()),
         }
     }

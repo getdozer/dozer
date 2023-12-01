@@ -181,11 +181,9 @@ pub async fn get_phase(
 
 pub async fn sql(
     // access: Option<ReqData<Access>>, // TODO:
-    cache_endpoints: web::Data<Vec<Arc<CacheEndpoint>>>,
+    sql_executor: web::Data<Arc<SQLExecutor>>,
     sql: extractor::SQLQueryExtractor,
 ) -> Result<actix_web::HttpResponse, crate::errors::ApiError> {
-    let cache_endpoints = (*cache_endpoints.into_inner()).clone();
-    let sql_executor = SQLExecutor::new(cache_endpoints);
     let query = sql.0 .0;
     let plan = sql_executor
         .parse(&query)

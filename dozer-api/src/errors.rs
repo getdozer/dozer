@@ -44,6 +44,8 @@ pub enum ApiInitError {
     CacheNotFound(Labels),
     #[error("Failed to bind to address {0}: {1}")]
     FailedToBindToAddress(String, #[source] std::io::Error),
+    #[error("Failed to initialize SQL engine: {0}")]
+    SQLEngineError(#[source] DataFusionError),
 }
 
 #[derive(Error, Debug)]

@@ -4,6 +4,7 @@ use crate::api_helper::get_api_security;
 // Exports
 use crate::errors::ApiInitError;
 use crate::rest::api_generator::health_route;
+use crate::sql::datafusion::SQLExecutor;
 use crate::{
     auth::api::{auth_route, validate},
     CacheEndpoint,
@@ -95,6 +96,7 @@ impl ApiServer {
         mut cache_endpoints: Vec<Arc<CacheEndpoint>>,
         labels: LabelsAndProgress,
         default_max_num_records: usize,
+        sql_executor: Arc<SQLExecutor>,
     ) -> App<
         impl ServiceFactory<
             ServiceRequest,
@@ -113,6 +115,7 @@ impl ApiServer {
             .app_data(web::Data::new(endpoint_paths))
             .app_data(web::Data::new(default_max_num_records))
             .app_data(web::Data::new(cache_endpoints.clone()))
+            .app_data(web::Data::new(sql_executor))
             .app_data(cfg)
             .wrap(Logger::default())
             .wrap(TracingLogger::default())
@@ -171,7 +174,7 @@ impl ApiServer {
             .wrap(cors_middleware)
     }
 
-    pub fn run(
+    pub async fn run(
         self,
         cache_endpoints: Vec<Arc<CacheEndpoint>>,
         shutdown: impl Future<Output = ()> + Send + 'static,
@@ -190,6 +193,10 @@ impl ApiServer {
 
         let address = format!("{}:{}", self.host, self.port);
         let default_max_num_records = self.default_max_num_records;
+        let sql_executor = SQLExecutor::try_new(&cache_endpoints)
+            .await
+            .map_err(ApiInitError::SQLEngineError)?;
+        let sql_executor = Arc::new(sql_executor);
         let server = HttpServer::new(move || {
             ApiServer::create_app_entry(
                 security.clone(),
@@ -197,6 +204,7 @@ impl ApiServer {
                 cache_endpoints.clone(),
                 labels.clone(),
                 default_max_num_records,
+                sql_executor.clone(),
             )
         })
         .bind(&address)

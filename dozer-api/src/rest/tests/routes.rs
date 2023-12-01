@@ -1,6 +1,7 @@
 use std::{fmt::Debug, sync::Arc};
 
 use super::super::{ApiServer, CorsOptions};
+use crate::sql::datafusion::SQLExecutor;
 use crate::{generator::oapi::generator::OpenApiGenerator, test_utils, CacheEndpoint};
 use actix_http::{body::MessageBody, Request};
 use actix_web::dev::{Service, ServiceResponse};
@@ -38,6 +39,7 @@ async fn list_route() {
         )],
         Default::default(),
         50,
+        Arc::new(SQLExecutor::new_empty()),
     );
     let app = actix_web::test::init_service(api_server).await;
 
@@ -230,6 +232,7 @@ async fn path_collision_test() {
         ],
         Default::default(),
         50,
+        Arc::new(SQLExecutor::new_empty()),
     );
     let app = actix_web::test::init_service(api_server).await;
 
@@ -257,6 +260,7 @@ async fn setup_service() -> (
         )],
         Default::default(),
         50,
+        Arc::new(SQLExecutor::new_empty()),
     );
     (actix_web::test::init_service(api_server).await, endpoint)
 }
