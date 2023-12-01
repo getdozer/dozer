@@ -54,8 +54,14 @@ use crate::CacheEndpoint;
 
 use predicate_pushdown::{predicate_pushdown, supports_predicates_pushdown};
 
-pub struct SQLExecutor {
+pub(crate) struct SQLExecutor {
     ctx: Arc<SessionContext>,
+}
+
+#[derive(Clone)]
+pub(crate) enum PlannedStatement {
+    Query(LogicalPlan),
+    Statement(&'static str),
 }
 
 struct ContextResolver {
@@ -548,15 +554,19 @@ impl SQLExecutor {
     async fn parse_statement(
         &self,
         mut statement: Statement,
-    ) -> Result<Option<LogicalPlan>, DataFusionError> {
+    ) -> Result<PlannedStatement, DataFusionError> {
         let rewrite = if let Statement::Statement(ref stmt) = statement {
             match stmt.as_ref() {
-                ast::Statement::StartTransaction { .. }
-                | ast::Statement::Commit { .. }
-                | ast::Statement::Rollback { .. }
-                | ast::Statement::SetVariable { .. } => {
+                ast::Statement::StartTransaction { .. } => {
+                    return Ok(PlannedStatement::Statement("BEGIN"))
+                }
+                ast::Statement::Commit { .. } => return Ok(PlannedStatement::Statement("COMMIT")),
+                ast::Statement::Rollback { .. } => {
+                    return Ok(PlannedStatement::Statement("ROLLBACK"))
+                }
+                ast::Statement::SetVariable { .. } => {
                     // dbg!(stmt);
-                    return Ok(None);
+                    return Ok(PlannedStatement::Statement("SET"));
                 }
                 ast::Statement::ShowVariable { variable } => {
                     let variable = object_name_to_string(variable);
@@ -587,14 +597,13 @@ impl SQLExecutor {
             ContextResolver::try_new_for_statement(Arc::new(state), &statement).await?;
         let planner = SqlToRel::new(&context_provider);
         let plan = planner.statement_to_plan(statement)?;
-        let options = SQLOptions::new()
-            .with_allow_ddl(false)
-            .with_allow_dml(false);
+        // Some BI tools use temporary tables. Let them
+        let options = SQLOptions::new().with_allow_ddl(true).with_allow_dml(true);
         options.verify_plan(&plan)?;
-        Ok(Some(plan))
+        Ok(PlannedStatement::Query(plan))
     }
 
-    pub async fn parse(&self, mut sql: &str) -> Result<Vec<Option<LogicalPlan>>, DataFusionError> {
+    pub async fn parse(&self, mut sql: &str) -> Result<Vec<PlannedStatement>, DataFusionError> {
         println!("@@ query: {sql}");
         if sql
             .to_ascii_lowercase()
@@ -812,6 +821,7 @@ impl VarProvider for SystemVariables {
                     return Ok(ScalarValue::Utf8(Some("read committed".into())))
                 }
                 "@@standard_conforming_strings" => return Ok(ScalarValue::Utf8(Some("on".into()))),
+                "@@lc_collate" => return Ok(ScalarValue::Utf8(Some("en_US.utf8".into()))),
                 _ => (),
             }
         }
@@ -823,7 +833,7 @@ impl VarProvider for SystemVariables {
     fn get_type(&self, var_names: &[String]) -> Option<DataType> {
         if var_names.len() == 1 {
             match var_names[0].as_str() {
-                "@@transaction_isolation" | "@@standard_conforming_strings" => {
+                "@@transaction_isolation" | "@@standard_conforming_strings" | "@@lc_collate" => {
                     return Some(DataType::Utf8)
                 }
                 _ => (),
@@ -856,35 +866,39 @@ fn normalize_ident(id: ast::Ident) -> String {
 fn sql_ast_rewrites(statement: &mut ast::Statement) {
     rewrite_sum(statement);
     rewrite_format_type(statement);
-    rewirte_eq_any(statement);
+    rewrite_eq_any(statement);
+    rewrite_cast_to_regclass(statement);
+}
+
+fn rewrite_cast_to_regclass(statement: &mut ast::Statement) {
+    ast::visit_expressions_mut(statement, |cast: &mut ast::Expr| {
+        if let ast::Expr::Cast {
+            data_type: ast::DataType::Regclass,
+            ..
+        } = cast
+        {
+            *cast = ast::Expr::Value(ast::Value::Number("0".to_owned(), false));
+        }
+        ControlFlow::<()>::Continue(())
+    });
 }
 
 // SQL AST rewirte for SUM('1') to SUM(1)
 fn rewrite_sum(statement: &mut ast::Statement) {
     ast::visit_expressions_mut(statement, |expr: &mut ast::Expr| {
-        match expr {
-            ast::Expr::Function(Function { name, args, .. }) => {
-                let name = &name.0;
-                if name.len() == 1 && name[0].value.eq_ignore_ascii_case("sum") {
-                    if args.len() == 1 {
-                        let arg = &mut args[0];
-                        match arg {
-                            FunctionArg::Unnamed(FunctionArgExpr::Expr(ast::Expr::Value(
-                                value,
-                            ))) => {
-                                if let ast::Value::SingleQuotedString(literal) = value {
-                                    if literal.parse::<i64>().is_ok() {
-                                        *value = ast::Value::Number(literal.clone(), false);
-                                        return ControlFlow::<()>::Break(());
-                                    }
-                                }
-                            }
-                            _ => (),
+        if let ast::Expr::Function(Function { name, args, .. }) = expr {
+            let name = &name.0;
+            if name.len() == 1 && name[0].value.eq_ignore_ascii_case("sum") && args.len() == 1 {
+                let arg = &mut args[0];
+                if let FunctionArg::Unnamed(FunctionArgExpr::Expr(ast::Expr::Value(value))) = arg {
+                    if let ast::Value::SingleQuotedString(literal) = value {
+                        if literal.parse::<i64>().is_ok() {
+                            *value = ast::Value::Number(literal.clone(), false);
+                            return ControlFlow::<()>::Break(());
                         }
                     }
                 }
             }
-            _ => (),
         };
         ControlFlow::<()>::Continue(())
     });
@@ -893,51 +907,44 @@ fn rewrite_sum(statement: &mut ast::Statement) {
 // SQL AST rewirte for format_type(arg) to format_typname((SELECT typname FROM pg_type WHERE oid = arg))
 fn rewrite_format_type(statement: &mut ast::Statement) {
     ast::visit_expressions_mut(statement, |expr: &mut ast::Expr| {
-        match expr {
-            ast::Expr::Function(Function { name, args, .. }) => {
-                if name
-                    .0
-                    .last()
-                    .unwrap()
-                    .value
-                    .eq_ignore_ascii_case("format_type")
-                {
-                    if args.len() >= 1 {
-                        let arg = &args[0];
-                        let sql_expr = format!(
-                            "format_typname((SELECT typname FROM pg_type WHERE oid = {arg}))"
-                        );
-                        let result = try_parse_sql_expr(&sql_expr);
-                        if let Ok(new_expr) = result {
-                            *expr = new_expr;
-                        }
-                        return ControlFlow::<()>::Break(());
-                    }
-                }
-            }
-            _ => (),
-        };
-        ControlFlow::<()>::Continue(())
-    });
-}
-
-// SQL AST rewirte for left = ANY(right) to left in (right)
-fn rewirte_eq_any(statement: &mut ast::Statement) {
-    ast::visit_expressions_mut(statement, |expr: &mut ast::Expr| {
-        match expr {
-            ast::Expr::AnyOp {
-                left,
-                compare_op: ast::BinaryOperator::Eq,
-                right,
-            } => {
-                let sql_expr = format!("{left} in ({right})");
+        if let ast::Expr::Function(Function { name, args, .. }) = expr {
+            if name
+                .0
+                .last()
+                .unwrap()
+                .value
+                .eq_ignore_ascii_case("format_type")
+                && args.len() == 1
+            {
+                let arg = &args[0];
+                let sql_expr =
+                    format!("format_typname((SELECT typname FROM pg_type WHERE oid = {arg}))");
                 let result = try_parse_sql_expr(&sql_expr);
                 if let Ok(new_expr) = result {
                     *expr = new_expr;
                 }
                 return ControlFlow::<()>::Break(());
             }
-            _ => (),
+        };
+        ControlFlow::<()>::Continue(())
+    });
+}
+
+// SQL AST rewirte for left = ANY(right) to left in (right)
+fn rewrite_eq_any(statement: &mut ast::Statement) {
+    ast::visit_expressions_mut(statement, |expr: &mut ast::Expr| {
+        if let ast::Expr::AnyOp {
+            left,
+            compare_op: ast::BinaryOperator::Eq,
+            right,
+        } = expr
+        {
+            let sql_expr = format!("{left} in ({right})");
+            let result = try_parse_sql_expr(&sql_expr);
+            if let Ok(new_expr) = result {
+                *expr = new_expr;
+            }
+            return ControlFlow::<()>::Break(());
         };
         ControlFlow::<()>::Continue(())
     });

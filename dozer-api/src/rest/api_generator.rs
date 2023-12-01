@@ -16,7 +16,7 @@ use openapiv3::OpenAPI;
 use crate::api_helper::{get_record, get_records, get_records_count};
 use crate::generator::oapi::generator::OpenApiGenerator;
 use crate::sql::datafusion::json::record_batches_to_json_rows;
-use crate::sql::datafusion::SQLExecutor;
+use crate::sql::datafusion::{PlannedStatement, SQLExecutor};
 use crate::CacheEndpoint;
 use crate::{auth::Access, errors::ApiError};
 use dozer_types::grpc_types::health::health_check_response::ServingStatus;
@@ -185,16 +185,16 @@ pub async fn sql(
     sql: extractor::SQLQueryExtractor,
 ) -> Result<actix_web::HttpResponse, crate::errors::ApiError> {
     let query = sql.0 .0;
-    let plan = sql_executor
+    let planned = sql_executor
         .parse(&query)
         .await
         .map_err(ApiError::SQLQueryFailed)?;
-    if plan.len() > 1 {
+    if planned.len() > 1 {
         return Err(ApiError::SQLQueryFailed(plan_datafusion_err!(
             "More than one query supplied"
         )));
     }
-    let Some(Some(plan)) = plan.first().cloned() else {
+    let Some(PlannedStatement::Query(plan)) = planned.first().cloned() else {
         // This was a transaction statement, which doesn't require a result
         return Ok(HttpResponse::Ok().json(json!({})));
     };

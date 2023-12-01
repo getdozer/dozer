@@ -44,6 +44,7 @@ use crate::shutdown::ShutdownReceiver;
 use crate::sql::datafusion::SQLExecutor;
 use crate::CacheEndpoint;
 
+use super::datafusion::PlannedStatement;
 use super::util::Iso8601Duration;
 
 pub struct PgWireServer {
@@ -122,7 +123,7 @@ impl PgWireServer {
 
 struct QueryProcessor {
     sql_executor: Arc<SQLExecutor>,
-    portal_store: Arc<MemPortalStore<Option<LogicalPlan>>>,
+    portal_store: Arc<MemPortalStore<Option<PlannedStatement>>>,
 }
 
 impl QueryProcessor {
@@ -223,10 +224,15 @@ impl SimpleQueryHandler for QueryProcessor {
             .await
             .map_err(|e| PgWireError::UserError(Box::new(generic_error_info(e.to_string()))))?;
 
+        if queries.is_empty() {
+            return Ok(vec![Response::EmptyQuery]);
+        }
         try_join_all(queries.into_iter().map(|q| async {
             match q {
-                Some(plan) => self.execute(plan).await,
-                None => Ok(Response::Execution(Tag::new_for_execution("", None))),
+                super::datafusion::PlannedStatement::Query(plan) => self.execute(plan).await,
+                super::datafusion::PlannedStatement::Statement(name) => {
+                    Ok(Response::Execution(Tag::new_for_execution(name, None)))
+                }
             }
         }))
         .await
@@ -235,7 +241,7 @@ impl SimpleQueryHandler for QueryProcessor {
 
 #[async_trait]
 impl QueryParser for SQLExecutor {
-    type Statement = Option<LogicalPlan>;
+    type Statement = Option<PlannedStatement>;
 
     async fn parse_sql(&self, sql: &str, _types: &[Type]) -> PgWireResult<Self::Statement> {
         let mut plans = self
@@ -247,18 +253,16 @@ impl QueryParser for SQLExecutor {
                 "Multiple statements found".to_owned(),
             ))));
         } else if plans.is_empty() {
-            return Err(PgWireError::UserError(Box::new(generic_error_info(
-                "No statement found".to_owned(),
-            ))));
+            Ok(None)
         } else {
-            Ok(plans.remove(0))
+            Ok(Some(plans.remove(0)))
         }
     }
 }
 
 #[async_trait]
 impl ExtendedQueryHandler for QueryProcessor {
-    type Statement = Option<LogicalPlan>;
+    type Statement = Option<PlannedStatement>;
     type PortalStore = MemPortalStore<Self::Statement>;
     type QueryParser = SQLExecutor;
 
@@ -279,8 +283,14 @@ impl ExtendedQueryHandler for QueryProcessor {
     where
         C: ClientInfo + Unpin + Send + Sync,
     {
-        let Some(query) = portal.statement().statement() else {
-            return Ok(Response::Execution(Tag::new_for_execution("", None)));
+        let query = match portal.statement().statement() {
+            Some(PlannedStatement::Query(query)) => query,
+            Some(PlannedStatement::Statement(name)) => {
+                return Ok(Response::Execution(Tag::new_for_execution(name, None)))
+            }
+            None => {
+                return Ok(Response::EmptyQuery);
+            }
         };
         let _params = query.get_parameter_types().map_err(|e| {
             PgWireError::UserError(Box::new(ErrorInfo::new(
@@ -308,7 +318,7 @@ impl ExtendedQueryHandler for QueryProcessor {
     {
         match target {
             StatementOrPortal::Statement(stmt) => {
-                let Some(df_stmt) = stmt.statement() else {
+                let Some(PlannedStatement::Query(query)) = stmt.statement() else {
                     return Ok(DescribeResponse::no_data());
                 };
                 let unknown_type = Type::new(
@@ -317,7 +327,7 @@ impl ExtendedQueryHandler for QueryProcessor {
                     postgres_types::Kind::Pseudo,
                     "pg_catalog".to_owned(),
                 );
-                let types = df_stmt.get_parameter_types().map_err(|e| {
+                let types = query.get_parameter_types().map_err(|e| {
                     PgWireError::UserError(Box::new(ErrorInfo::new(
                         "FATAL".to_owned(),
                         "XXX01".to_owned(),
@@ -337,17 +347,14 @@ impl ExtendedQueryHandler for QueryProcessor {
                             .map_or_else(|| unknown_type.clone(), map_data_type)
                     })
                     .collect();
-                return Ok(DescribeResponse::new(
-                    Some(pg_types),
-                    self.pg_schema(df_stmt),
-                ));
+                return Ok(DescribeResponse::new(Some(pg_types), self.pg_schema(query)));
             }
-            StatementOrPortal::Portal(portal) => {
-                let Some(stmt) = portal.statement().statement() else {
-                    return Ok(DescribeResponse::no_data());
-                };
-                return Ok(DescribeResponse::new(None, self.pg_schema(stmt)));
-            }
+            StatementOrPortal::Portal(portal) => match portal.statement().statement() {
+                Some(PlannedStatement::Query(query)) => {
+                    Ok(DescribeResponse::new(None, self.pg_schema(query)))
+                }
+                Some(PlannedStatement::Statement(_)) | None => Ok(DescribeResponse::no_data()),
+            },
         }
     }
 }
