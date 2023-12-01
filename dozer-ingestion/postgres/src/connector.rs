@@ -240,7 +240,7 @@ impl PostgresConnector {
                     .iter()
                     .map(|table_identifier| {
                         format!(
-                            "{}.{}",
+                            r#""{}"."{}""#,
                             table_identifier
                                 .schema
                                 .as_deref()
