@@ -51,7 +51,7 @@ impl<'a> PostgresSnapshotter<'a> {
             .collect();
 
         let column_str = column_str.join(",");
-        let query = format!("select {column_str} from {schema_name}.{table_name}");
+        let query = format!(r#"select {column_str} from "{schema_name}"."{table_name}""#);
         let stmt = client_plain
             .prepare(&query)
             .await
