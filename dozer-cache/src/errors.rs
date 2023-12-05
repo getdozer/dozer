@@ -93,6 +93,13 @@ impl CacheError {
             CacheError::Storage(StorageError::Lmdb(dozer_storage::lmdb::Error::MapFull))
         )
     }
+
+    pub fn is_key_size(&self) -> bool {
+        matches!(
+            self,
+            CacheError::Storage(StorageError::Lmdb(dozer_storage::lmdb::Error::BadValSize))
+        )
+    }
 }
 
 #[derive(Error, Debug)]
