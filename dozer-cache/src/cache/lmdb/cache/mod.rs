@@ -8,7 +8,7 @@ use dozer_types::types::{Record, SchemaWithIndex};
 
 use super::{
     super::{RoCache, RwCache},
-    indexing::IndexingThreadPool,
+    indexing::{secondary_environment_name, IndexingThreadPool},
 };
 use crate::cache::expression::QueryExpression;
 use crate::cache::{CacheRecord, CacheWriteOptions, CommitState, RecordMeta, UpsertResult};
@@ -106,26 +106,13 @@ impl LmdbRwCache {
             ..options
         };
         let ro_main_env = rw_main_env.share();
-
-        let mut rw_secondary_envs = vec![];
-        let mut ro_secondary_envs = vec![];
-        for (index, index_definition) in ro_main_env.schema().1.iter().enumerate() {
-            let name = secondary_environment_name(index);
-            let rw_secondary_env =
-                RwSecondaryEnvironment::new(index_definition, name.clone(), options.clone())?;
-            let ro_secondary_env = rw_secondary_env.share();
-
-            rw_secondary_envs.push(rw_secondary_env);
-            ro_secondary_envs.push(ro_secondary_env);
-        }
-
-        indexing_thread_pool
+        let secondary_envs = indexing_thread_pool
             .lock()
-            .add_cache(ro_main_env, rw_secondary_envs);
+            .add_cache(ro_main_env, &options)?;
 
         Ok(Self {
             main_env: rw_main_env,
-            secondary_envs: ro_secondary_envs,
+            secondary_envs,
             indexing_thread_pool,
         })
     }
@@ -231,8 +218,4 @@ impl LmdbCache for LmdbRwCache {
     fn secondary_env(&self, index: usize) -> &Self::SecondaryEnvironment {
         &self.secondary_envs[index]
     }
-}
-
-fn secondary_environment_name(index: usize) -> String {
-    format!("{index}")
 }

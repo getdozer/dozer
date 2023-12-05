@@ -14,9 +14,16 @@ use metrics::describe_counter;
 
 use crate::{cache::lmdb::cache::SecondaryEnvironment, errors::CacheError};
 
-use super::cache::{LmdbRoCache, MainEnvironment, RoMainEnvironment, RwSecondaryEnvironment};
+use super::cache::{
+    CacheOptions, LmdbRoCache, MainEnvironment, RoMainEnvironment, RoSecondaryEnvironment,
+    RwSecondaryEnvironment,
+};
 
 const BUILD_INDEX_COUNTER_NAME: &str = "build_index";
+
+pub fn secondary_environment_name(index: usize) -> String {
+    format!("{index}")
+}
 
 #[derive(Debug)]
 pub struct IndexingThreadPool {
@@ -45,9 +52,42 @@ impl IndexingThreadPool {
     pub fn add_cache(
         &mut self,
         main_env: RoMainEnvironment,
+        options: &CacheOptions,
+    ) -> Result<Vec<RoSecondaryEnvironment>, CacheError> {
+        if let Some(cache) = self.find_cache(main_env.name()) {
+            return Ok(cache.secondary_envs);
+        }
+
+        let mut secondary_envs = vec![];
+        for (index, index_definition) in main_env.schema().1.iter().enumerate() {
+            let name = secondary_environment_name(index);
+            let secondary_env =
+                RwSecondaryEnvironment::new(index_definition, name.clone(), options.clone())?;
+            secondary_envs.push(secondary_env);
+        }
+
+        Ok(self.add_cache_unsafe(main_env, secondary_envs))
+    }
+
+    /// # Safety
+    ///
+    /// User must ensure:
+    /// 1. The cache was never added to indexing thread pool before.
+    /// 2. The `secondary_envs` must belong to the same cache as `main_env`.
+    pub fn add_cache_unsafe(
+        &mut self,
+        main_env: RoMainEnvironment,
         secondary_envs: Vec<RwSecondaryEnvironment>,
-    ) {
-        let num_secondary_envs = secondary_envs.len();
+    ) -> Vec<RoSecondaryEnvironment> {
+        if self.find_cache(main_env.name()).is_some() {
+            panic!("Cache with name {} already exists", main_env.name());
+        }
+
+        let ro_secondary_envs = secondary_envs
+            .iter()
+            .map(|env| env.share())
+            .collect::<Vec<_>>();
+
         let secondary_envs = secondary_envs
             .into_iter()
             .map(|env| (Arc::new(Mutex::new(env)), false))
@@ -57,10 +97,13 @@ impl IndexingThreadPool {
             secondary_envs,
         };
         self.caches.push(cache);
+
         let index = self.caches.len() - 1;
-        for secondary_index in 0..num_secondary_envs {
+        for secondary_index in 0..ro_secondary_envs.len() {
             self.spawn_task_if_not_running(index, secondary_index);
         }
+
+        ro_secondary_envs
     }
 
     pub fn find_cache(&self, name: &str) -> Option<LmdbRoCache> {
