@@ -5,11 +5,7 @@ use std::sync::{
 
 use dozer_storage::LmdbEnvironment;
 use dozer_tracing::Labels;
-use dozer_types::{
-    log::{debug, error},
-    parking_lot::Mutex,
-    types::IndexDefinition,
-};
+use dozer_types::{log::debug, parking_lot::Mutex, types::IndexDefinition};
 use metrics::describe_counter;
 
 use crate::{cache::lmdb::cache::SecondaryEnvironment, errors::CacheError};
@@ -221,11 +217,13 @@ fn index_and_log_error(
             Err(e) => {
                 debug!("Error while indexing {}: {e}", main_env.labels());
                 if e.is_map_full() {
-                    error!(
+                    panic!(
                         "Cache {} has reached its maximum size. Try to increase `cache_max_map_size` in the config.",
                         main_env.labels()
                     );
-                    break;
+                }
+                if e.is_key_size() {
+                    panic!("Secondary index key is too long. This usually happens with `String` fields. Try to [skip](https://getdozer.io/docs/configuration/api-endpoints#indexes) creating secondary index {:?}.", secondary_env.index_definition());
                 }
             }
         }
