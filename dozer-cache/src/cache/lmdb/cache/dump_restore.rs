@@ -112,7 +112,7 @@ pub async fn restore(
 
     indexing_thread_pool
         .lock()
-        .add_cache(ro_main_env, rw_secondary_envs);
+        .add_cache_unsafe(ro_main_env, rw_secondary_envs);
 
     Ok(LmdbRwCache {
         main_env: rw_main_env,
@@ -155,10 +155,11 @@ mod tests {
             }
         }
 
+        let indexing_thread_pool = Arc::new(Mutex::new(IndexingThreadPool::new(1)));
         let restored_cache = restore(
             Default::default(),
             Default::default(),
-            indexing_thread_pool.clone(),
+            indexing_thread_pool,
             &mut data.as_slice(),
         )
         .await
