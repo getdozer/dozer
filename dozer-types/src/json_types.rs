@@ -114,7 +114,13 @@ pub fn field_to_json_value(field: Field) -> JsonValue {
         Field::String(s) => s.into(),
         Field::Text(n) => n.into(),
         Field::Binary(b) => b.into(),
-        Field::Decimal(n) => n.to_string().into(),
+        Field::Decimal(n) => serde_json_to_json_value(
+            // Converting to serde_json::Number first, keeps Decimal a JSON Number.
+            // When converted to ijson directly, it becomes a JSON String.
+            // This is because serde_json supports large numbers, while ijson doesn't.
+            serde_json::Number::from_string_unchecked(n.to_string()).into(),
+        )
+        .unwrap(),
         Field::Timestamp(ts) => ts.to_rfc3339_opts(SecondsFormat::Millis, true).into(),
         Field::Date(n) => n.format(DATE_FORMAT).to_string().into(),
         Field::Json(b) => b,
@@ -187,14 +193,14 @@ pub fn serde_json_to_json_value(value: Value) -> Result<JsonValue, Deserializati
     match value {
         Value::Number(number) => {
             fn ivalue_from_number_opt(number: &serde_json::Number) -> Option<IValue> {
-                if let Some(n) = number.as_f64() {
-                    if let Ok(value) = INumber::try_from(n) {
-                        return Some(value.into());
-                    }
-                } else if let Some(n) = number.as_i64() {
+                if let Some(n) = number.as_i64() {
                     return Some(INumber::from(n).into());
                 } else if let Some(n) = number.as_u64() {
                     return Some(INumber::from(n).into());
+                } else if let Some(n) = lossless_string_f64_parse_opt(number.as_str()) {
+                    if let Ok(value) = INumber::try_from(n) {
+                        return Some(value.into());
+                    }
                 }
                 None
             }
@@ -222,8 +228,49 @@ pub fn serde_json_to_json_value(value: Value) -> Result<JsonValue, Deserializati
     }
 }
 
+/// tries to parse a decimal number to an f64 without losing precision when the f64 is converted back to a string.
+pub fn lossless_string_f64_parse_opt(s: &str) -> Option<f64> {
+    if can_roundtrip_through_f64_losslessly(s) {
+        s.parse().ok()
+    } else {
+        None
+    }
+}
+
+/// efficiently check if a decimal number can be parsed to an f64 such that when this f64 is converted back to a string,
+/// it matches the original input without precision loss.
+fn can_roundtrip_through_f64_losslessly(s: &str) -> bool {
+    let c: &[_] = &['-', '0', '.'];
+    let s = s.trim_matches(c);
+
+    if s.chars().any(|c| !c.is_ascii_digit() && c != '.') {
+        // invalid number
+        return false;
+    }
+
+    const LARGEST_ACCURATE_FRACTION: &str = "4503599627370495"; // 2^52 - 1
+
+    let fraction_digits = s.chars().filter(|c| c.is_ascii_digit()).count();
+
+    #[allow(clippy::comparison_chain)]
+    if fraction_digits > LARGEST_ACCURATE_FRACTION.len() {
+        return false;
+    } else if fraction_digits < LARGEST_ACCURATE_FRACTION.len() {
+        return true;
+    }
+
+    let no_dot = fraction_digits == s.len();
+    if no_dot {
+        s <= LARGEST_ACCURATE_FRACTION
+    } else {
+        s.replace('.', "").as_str() <= LARGEST_ACCURATE_FRACTION
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use regex::Regex;
+
     use crate::{
         chrono::{NaiveDate, Offset, TimeZone, Utc},
         json_value_to_field,
@@ -232,7 +279,7 @@ mod tests {
         types::{DozerPoint, Field, FieldType, TimeUnit},
     };
 
-    use std::time::Duration;
+    use std::{str::FromStr, time::Duration};
 
     use super::*;
 
@@ -316,5 +363,34 @@ mod tests {
         for (field_type, field) in fields {
             test_field_conversion(field_type, field);
         }
+    }
+
+    #[test]
+    fn test_decimal_json_conversion() {
+        fn test(input: &str) {
+            let json = field_to_json_value(Field::Decimal(Decimal::from_str(input).unwrap()));
+            let output = json_to_string(&json);
+
+            // remove exccessive leading and trailing zeros
+            let normalized_input = Regex::new(r"^(?<s>-?)(0+)(?<d1>\d)|(?<d2>\d)(0+)$")
+                .unwrap()
+                .replace_all(input, "$s$d1$d2")
+                .to_string();
+
+            assert_eq!(normalized_input, output)
+        }
+
+        test("0.1");
+        test("0.100000000000000004");
+        test("0.0");
+        test("00000000.00000000");
+        test("0.5");
+        test("-0.5");
+        test("1.0");
+        test("-1.0");
+        test("00004503599627.370495");
+        test("-4503599627370.495");
+        test("3.1415926535897932384626433833");
+        test("-0000003.14159265358979323846264338330000");
     }
 }
