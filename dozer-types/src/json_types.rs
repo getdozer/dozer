@@ -197,7 +197,7 @@ pub fn serde_json_to_json_value(value: Value) -> Result<JsonValue, Deserializati
                     return Some(INumber::from(n).into());
                 } else if let Some(n) = number.as_u64() {
                     return Some(INumber::from(n).into());
-                } else if let Some(n) = lossless_f64_parse_opt(number.as_str()) {
+                } else if let Some(n) = lossless_string_f64_parse_opt(number.as_str()) {
                     if let Ok(value) = INumber::try_from(n) {
                         return Some(value.into());
                     }
@@ -228,17 +228,18 @@ pub fn serde_json_to_json_value(value: Value) -> Result<JsonValue, Deserializati
     }
 }
 
-/// tries to parse a decimal number to an f64 without losing precision
-pub fn lossless_f64_parse_opt(s: &str) -> Option<f64> {
-    if can_parse_losslessly_to_f64(s) {
+/// tries to parse a decimal number to an f64 without losing precision when the f64 is converted back to a string.
+pub fn lossless_string_f64_parse_opt(s: &str) -> Option<f64> {
+    if can_roundtrip_through_f64_losslessly(s) {
         s.parse().ok()
     } else {
         None
     }
 }
 
-/// efficiently check if a decimal number can be parsed to an f64 without loss of precision
-fn can_parse_losslessly_to_f64(s: &str) -> bool {
+/// efficiently check if a decimal number can be parsed to an f64 such that when this f64 is converted back to a string,
+/// it matches the original input without precision loss.
+fn can_roundtrip_through_f64_losslessly(s: &str) -> bool {
     let c: &[_] = &['-', '0', '.'];
     let s = s.trim_matches(c);
 
@@ -380,6 +381,7 @@ mod tests {
         }
 
         test("0.1");
+        test("0.100000000000000004");
         test("0.0");
         test("00000000.00000000");
         test("0.5");
