@@ -58,3 +58,4 @@ datafusion-expr = "32.0.0"
 serde_json = { version = "1.0.108", features = ["arbitrary_precision"] }
 pgwire = "0.16.1"
 tempdir = "0.3.7"
+unicode-segmentation = "1.10.1"
