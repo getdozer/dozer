@@ -379,6 +379,7 @@ mod tests {
             assert_eq!(normalized_input, output)
         }
 
+        test("0.1");
         test("0.0");
         test("00000000.00000000");
         test("0.5");
