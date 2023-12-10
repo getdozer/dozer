@@ -3902,6 +3902,7 @@ dependencies = [
  "mysql_common",
  "rand 0.8.5",
  "serial_test 1.0.0",
+ "sqlparser 0.40.0",
 ]
 
 [[package]]
@@ -10161,6 +10162,15 @@ checksum = "0272b7bb0a225320170c99901b4b5fb3a4384e255a7f2cc228f61e2ba3893e75"
 dependencies = [
  "log",
  "sqlparser_derive",
+]
+
+[[package]]
+name = "sqlparser"
+version = "0.40.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7c80afe31cdb649e56c0d9bb5503be9166600d68a852c38dd445636d126858e5"
+dependencies = [
+ "log",
 ]
 
 [[package]]

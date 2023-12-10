@@ -72,6 +72,71 @@ pub fn get_field_type_for_mysql_column_type(
     Ok(field_type)
 }
 
+pub fn get_field_type_for_sql_type(sql_data_type: &sqlparser::ast::DataType) -> FieldType {
+    use sqlparser::ast::DataType;
+    match sql_data_type {
+        DataType::Character(_)
+        | DataType::Char(_)
+        | DataType::String(_)
+        | DataType::Enum(_)
+        | DataType::Set(_) => FieldType::String,
+        DataType::CharacterVarying(_)
+        | DataType::CharVarying(_)
+        | DataType::Varchar(_)
+        | DataType::Nvarchar(_)
+        | DataType::Text => FieldType::Text,
+        DataType::Uuid
+        | DataType::CharacterLargeObject(_)
+        | DataType::CharLargeObject(_)
+        | DataType::Clob(_)
+        | DataType::Regclass
+        | DataType::Custom(_, _)
+        | DataType::Array(_)
+        | DataType::Struct(_) => unreachable!("MySQL does not support this type: {sql_data_type}"),
+        DataType::Binary(_)
+        | DataType::Varbinary(_)
+        | DataType::Blob(_)
+        | DataType::Bytes(_)
+        | DataType::Bytea => FieldType::Binary,
+        DataType::Numeric(_)
+        | DataType::Decimal(_)
+        | DataType::BigNumeric(_)
+        | DataType::BigDecimal(_)
+        | DataType::Dec(_) => FieldType::Decimal,
+        DataType::Float(_)
+        | DataType::Float4
+        | DataType::Float64
+        | DataType::Real
+        | DataType::Float8
+        | DataType::Double
+        | DataType::DoublePrecision => FieldType::Float,
+        DataType::TinyInt(_)
+        | DataType::Int2(_)
+        | DataType::SmallInt(_)
+        | DataType::MediumInt(_)
+        | DataType::Int(_)
+        | DataType::Int4(_)
+        | DataType::Int64
+        | DataType::Integer(_)
+        | DataType::BigInt(_)
+        | DataType::Int8(_) => FieldType::Int,
+        DataType::UnsignedTinyInt(_)
+        | DataType::UnsignedInt2(_)
+        | DataType::UnsignedSmallInt(_)
+        | DataType::UnsignedMediumInt(_)
+        | DataType::UnsignedInt(_)
+        | DataType::UnsignedInt4(_)
+        | DataType::UnsignedInteger(_)
+        | DataType::UnsignedBigInt(_)
+        | DataType::UnsignedInt8(_) => FieldType::UInt,
+        DataType::Bool | DataType::Boolean => FieldType::Boolean,
+        DataType::Date => FieldType::Date,
+        DataType::Time(_, _) | DataType::Interval => FieldType::Duration,
+        DataType::Datetime(_) | DataType::Timestamp(_, _) => FieldType::Timestamp,
+        DataType::JSON => FieldType::Json,
+    }
+}
+
 pub trait IntoFields<'a> {
     type Ctx: 'a;
 

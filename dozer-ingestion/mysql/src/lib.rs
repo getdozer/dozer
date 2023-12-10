@@ -47,4 +47,7 @@ pub enum MySQLConnectorError {
 
     #[error("Failed to fetch query result. {0}")]
     QueryResultError(#[source] mysql_async::Error),
+
+    #[error("Schema had a breaking change: {0}")]
+    BreakingSchemaChange(String),
 }
