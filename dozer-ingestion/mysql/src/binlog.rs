@@ -1,6 +1,6 @@
 use crate::{
     connection::is_network_failure, conversion::get_field_type_for_sql_type, schema::SchemaHelper,
-    MySQLConnectorError,
+    BreakingSchemaChange, MySQLConnectorError,
 };
 
 use super::{
@@ -254,7 +254,9 @@ impl BinlogIngestor<'_, '_, '_> {
                                                         .databases()
                                                         .contains(&database_name)
                                                     {
-                                                        Err(MySQLConnectorError::BreakingSchemaChange(format!("Database \"{}\" was dropped", database_name)))?
+                                                        Err(BreakingSchemaChange::DatabaseDropped(
+                                                            database_name,
+                                                        ))?
                                                     }
                                                 }
                                             }
@@ -267,7 +269,9 @@ impl BinlogIngestor<'_, '_, '_> {
                                                     if let Some(table) = table_cache
                                                         .find_table_by_object_name(&name, schema)
                                                     {
-                                                        Err(MySQLConnectorError::BreakingSchemaChange(format!("Table \"{}\" was dropped", table)))?
+                                                        Err(BreakingSchemaChange::TableDropped(
+                                                            table.to_string(),
+                                                        ))?
                                                     }
                                                 }
                                             }
@@ -299,7 +303,7 @@ impl BinlogIngestor<'_, '_, '_> {
                                                             if let Some(column) =
                                                                 find_column(column_name)
                                                             {
-                                                                Err(MySQLConnectorError::BreakingSchemaChange(format!("Column \"{}\" from table \"{}\" was dropped", column, table)))?
+                                                                Err(BreakingSchemaChange::ColumnDropped { table_name: table.to_string(), column_name: column.to_string()})?
                                                             }
                                                             schema_change_tracker.column_order_changed_in(table.table_index);
                                                         }
@@ -316,14 +320,21 @@ impl BinlogIngestor<'_, '_, '_> {
                                                                 if let Some(column) =
                                                                     find_column(old_column_name)
                                                                 {
-                                                                    Err(MySQLConnectorError::BreakingSchemaChange(format!("Column \"{}\" from table \"{}\" was renamed to \"{}\"", column, table, new_column_name.value)))?
+                                                                    Err(BreakingSchemaChange::ColumnRenamed{
+                                                                        table_name: table.to_string(),
+                                                                        old_column_name: column.to_string(),
+                                                                        new_column_name: new_column_name.value.clone()
+                                                                    })?
                                                                 }
                                                             }
                                                         }
                                                         AlterTableOperation::RenameTable {
                                                             table_name,
                                                         } => {
-                                                            Err(MySQLConnectorError::BreakingSchemaChange(format!("Table \"{}\" was renamed to \"{}\"", table, object_name_to_string(table_name))))?
+                                                            Err(BreakingSchemaChange::TableRenamed{
+                                                                old_table_name: table.to_string(),
+                                                                new_table_name: object_name_to_string(table_name),
+                                                            })?
                                                         }
                                                         AlterTableOperation::ChangeColumn {
                                                             old_name,
@@ -333,11 +344,20 @@ impl BinlogIngestor<'_, '_, '_> {
                                                         } => {
                                                             if let Some(column) = find_column(old_name) {
                                                                 if !old_name.value.eq_ignore_ascii_case(&new_name.value) {
-                                                                    Err(MySQLConnectorError::BreakingSchemaChange(format!("Column \"{}\" from table \"{}\" was renamed to \"{}\"", column, table, new_name.value)))?
+                                                                    Err(BreakingSchemaChange::ColumnRenamed{
+                                                                        table_name: table.to_string(),
+                                                                        old_column_name: column.to_string(),
+                                                                        new_column_name: new_name.value.clone(),
+                                                                    })?
                                                                 }
                                                                 let new_type = get_field_type_for_sql_type(data_type);
                                                                 if new_type != column.typ {
-                                                                    Err(MySQLConnectorError::BreakingSchemaChange(format!("Column \"{}\" from table \"{}\" changed data type from \"{}\" to \"{}\"", column, table, column.typ, new_type)))?
+                                                                    Err(BreakingSchemaChange::ColumnDataTypeChanged{
+                                                                        table_name: table.to_string(),
+                                                                        column_name: column.to_string(),
+                                                                        old_data_type: column.typ,
+                                                                        new_column_name: new_type,
+                                                                    })?
                                                                 }
                                                             }
                                                         }

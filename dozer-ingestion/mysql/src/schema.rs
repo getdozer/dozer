@@ -1,4 +1,4 @@
-use crate::{helpers::escape_identifier, MySQLConnectorError};
+use crate::{helpers::escape_identifier, BreakingSchemaChange, MySQLConnectorError};
 
 use super::{
     connection::{Conn, QueryResult},
@@ -277,19 +277,13 @@ impl SchemaHelper<'_> {
                 )
                 .collect::<Vec<_>>();
             if missing.len() == 1 {
-                Err(MySQLConnectorError::BreakingSchemaChange(format!(
-                    "Table \"{}\" has been dropped or renamed",
-                    missing[0]
-                )))?
+                Err(BreakingSchemaChange::TableDroppedOrRenamed(
+                    missing[0].to_string(),
+                ))?
             } else {
-                Err(MySQLConnectorError::BreakingSchemaChange(format!(
-                    "Multiple tables have been dropped or renamed: {}",
-                    missing
-                        .iter()
-                        .map(|td| td.to_string())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )))?
+                Err(BreakingSchemaChange::MultipleTablesDroppedOrRenamed(
+                    missing.iter().map(|td| td.to_string()).collect::<Vec<_>>(),
+                ))?
             }
         }
 
@@ -313,20 +307,15 @@ impl SchemaHelper<'_> {
                     )
                     .collect::<Vec<_>>();
                 if missing.len() == 1 {
-                    Err(MySQLConnectorError::BreakingSchemaChange(format!(
-                        "Column \"{}\" from table \"{}\" has been dropped or renamed",
-                        missing[0], old
-                    )))?
+                    Err(BreakingSchemaChange::ColumnDroppedOrRenamed {
+                        column_name: missing[0].to_string(),
+                        table_name: old.to_string(),
+                    })?
                 } else {
-                    Err(MySQLConnectorError::BreakingSchemaChange(format!(
-                        "Multiple columns from table \"{}\" have been dropped or renamed: {}",
-                        old,
-                        missing
-                            .iter()
-                            .map(|cd| cd.to_string())
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    )))?
+                    Err(BreakingSchemaChange::MultipleColumnsDroppedOrRenamed {
+                        table_name: old.to_string(),
+                        columns: missing.iter().map(|cd| cd.to_string()).collect::<Vec<_>>(),
+                    })?
                 }
             }
 
@@ -339,10 +328,12 @@ impl SchemaHelper<'_> {
                     .unwrap();
 
                 if old_column.typ != new_column.typ {
-                    Err(MySQLConnectorError::BreakingSchemaChange(format!(
-                        "Column \"{}\" from table \"{}\" has changed data type from \"{}\" to \"{}\"",
-                        old_column, old, old_column.typ, new_column.typ
-                    )))?
+                    Err(BreakingSchemaChange::ColumnDataTypeChanged {
+                        table_name: old.to_string(),
+                        column_name: old_column.to_string(),
+                        old_data_type: old_column.typ,
+                        new_column_name: new_column.typ,
+                    })?
                 }
             }
 
