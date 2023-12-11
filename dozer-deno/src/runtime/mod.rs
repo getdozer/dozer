@@ -51,7 +51,7 @@ impl Runtime {
         let (init_sender, init_receiver) = oneshot::channel();
         let (work_sender, work_receiver) = mpsc::channel(10);
         let handle = std::thread::spawn(move || {
-            let worker = match Worker::new(modules) {
+            let mut worker = match Worker::new(modules) {
                 Ok(worker) => worker,
                 Err(e) => {
                     let _ = init_sender.send(Err(e));
@@ -59,15 +59,12 @@ impl Runtime {
                 }
             };
             if init_sender
-                .send(Ok(worker.functions.iter().map(|(id, _)| *id).collect()))
+                .send(Ok(worker.functions.keys().cloned().collect()))
                 .is_err()
             {
                 return;
             }
-            let functions = worker.functions.into_iter().collect();
-            worker
-                .tokio_runtime
-                .block_on(worker_loop(worker.js_runtime, work_receiver, functions));
+            worker.run(work_receiver)
         });
 
         let mut this = Self {
@@ -122,7 +119,7 @@ impl Runtime {
 struct Worker {
     tokio_runtime: tokio::runtime::Runtime,
     js_runtime: JsRuntime,
-    functions: Vec<(NonZeroI32, Global<Function>)>,
+    functions: HashMap<NonZeroI32, Global<Function>>,
 }
 
 impl Worker {
@@ -133,9 +130,10 @@ impl Worker {
             .map_err(Error::CreateJsRuntime)?;
         let mut js_runtime = js_runtime::new().map_err(Error::CreateJsRuntime)?;
 
-        let mut functions = vec![];
+        let mut functions = HashMap::with_capacity(modules.len());
         for module in modules {
-            functions.push(tokio_runtime.block_on(load_function(&mut js_runtime, module))?);
+            let (id, fun) = tokio_runtime.block_on(Self::load_function(&mut js_runtime, module))?;
+            functions.insert(id, fun);
         }
 
         Ok(Self {
@@ -144,38 +142,86 @@ impl Worker {
             functions,
         })
     }
-}
 
-async fn load_function(
-    runtime: &mut JsRuntime,
-    module: String,
-) -> Result<(NonZeroI32, Global<Function>), Error> {
-    let path = canonicalize(&module).map_err(|e| Error::CanonicalizePath(module.clone(), e))?;
-    let module_specifier = ModuleSpecifier::from_file_path(path).expect("we just canonicalized it");
-    info!("loading module {}", module_specifier);
-    let module_id = runtime
-        .load_side_module(&module_specifier, None)
-        .await
-        .map_err(|e| Error::LoadModule(module.clone(), e))?;
-    js_runtime::evaluate_module(runtime, module_id)
-        .await
-        .map_err(|e| Error::EvaluateModule(module.clone(), e))?;
-    let namespace = runtime
-        .get_module_namespace(module_id)
-        .map_err(|e| Error::GetModuleNamespace(module.clone(), e))?;
-    let scope = &mut runtime.handle_scope();
-    let namespace = v8::Local::new(scope, namespace);
-    let default_key = v8::String::new_external_onebyte_static(scope, b"default")
-        .unwrap()
-        .into();
-    let default_export = namespace
-        .get(scope, default_key)
-        .ok_or_else(|| Error::ModuleNoDefaultExport(module.clone()))?;
-    let function: Local<Function> = default_export
-        .try_into()
-        .map_err(|e| Error::ModuleDefaultExportNotFunction(module.clone(), e))?;
-    let id = function.get_identity_hash();
-    Ok((id, Global::new(scope, function)))
+    async fn call_function(
+        runtime: &mut JsRuntime,
+        function: NonZeroI32,
+        args: Vec<JsonValue>,
+        functions: &HashMap<NonZeroI32, Global<Function>>,
+    ) -> Result<JsonValue, AnyError> {
+        let function = functions
+            .get(&function)
+            .context(format!("function {} not found", function))?;
+        let mut scope = runtime.handle_scope();
+        let recv = undefined(&mut scope);
+        let args = args
+            .into_iter()
+            .map(|arg| to_v8(&mut scope, arg))
+            .collect::<Result<Vec<_>, _>>()?;
+        let Some(promise) = Local::new(&mut scope, function).call(&mut scope, recv.into(), &args)
+        else {
+            // Deno doesn't expose a way to get the exception.
+            bail!("uncaught javascript exception");
+        };
+        let promise = Global::new(&mut scope, promise);
+        drop(scope);
+        let result = runtime.resolve_value(promise).await?;
+        let scope = &mut runtime.handle_scope();
+        let result = Local::new(scope, result);
+        from_v8(scope, result)
+    }
+
+    fn run(&mut self, mut work_receiver: mpsc::Receiver<Work>) {
+        let runtime = &mut self.js_runtime;
+        let functions = &self.functions;
+        self.tokio_runtime.block_on(async {
+            while let Some(work) = work_receiver.recv().await {
+                match work {
+                    Work::CallFunction {
+                        id,
+                        args,
+                        return_sender,
+                    } => {
+                        // Ignore error if receiver is closed.
+                        let _ = return_sender
+                            .send(Self::call_function(runtime, id, args, functions).await);
+                    }
+                }
+            }
+        })
+    }
+    async fn load_function(
+        runtime: &mut JsRuntime,
+        module: String,
+    ) -> Result<(NonZeroI32, Global<Function>), Error> {
+        let path = canonicalize(&module).map_err(|e| Error::CanonicalizePath(module.clone(), e))?;
+        let module_specifier =
+            ModuleSpecifier::from_file_path(path).expect("we just canonicalized it");
+        info!("loading module {}", module_specifier);
+        let module_id = runtime
+            .load_side_module(&module_specifier, None)
+            .await
+            .map_err(|e| Error::LoadModule(module.clone(), e))?;
+        js_runtime::evaluate_module(runtime, module_id)
+            .await
+            .map_err(|e| Error::EvaluateModule(module.clone(), e))?;
+        let namespace = runtime
+            .get_module_namespace(module_id)
+            .map_err(|e| Error::GetModuleNamespace(module.clone(), e))?;
+        let scope = &mut runtime.handle_scope();
+        let namespace = v8::Local::new(scope, namespace);
+        let default_key = v8::String::new_external_onebyte_static(scope, b"default")
+            .unwrap()
+            .into();
+        let default_export = namespace
+            .get(scope, default_key)
+            .ok_or_else(|| Error::ModuleNoDefaultExport(module.clone()))?;
+        let function: Local<Function> = default_export
+            .try_into()
+            .map_err(|e| Error::ModuleDefaultExportNotFunction(module.clone(), e))?;
+        let id = function.get_identity_hash();
+        Ok((id, Global::new(scope, function)))
+    }
 }
 
 #[derive(Debug)]
@@ -185,61 +231,6 @@ enum Work {
         args: Vec<JsonValue>,
         return_sender: oneshot::Sender<Result<JsonValue, AnyError>>,
     },
-}
-
-async fn worker_loop(
-    mut runtime: JsRuntime,
-    mut work_receiver: mpsc::Receiver<Work>,
-    functions: HashMap<NonZeroI32, Global<Function>>,
-) {
-    while let Some(work) = work_receiver.recv().await {
-        do_work(&mut runtime, work, &functions).await;
-    }
-}
-
-async fn do_work(
-    runtime: &mut JsRuntime,
-    work: Work,
-    functions: &HashMap<NonZeroI32, Global<Function>>,
-) {
-    match work {
-        Work::CallFunction {
-            id,
-            args,
-            return_sender,
-        } => {
-            // Ignore error if receiver is closed.
-            let _ = return_sender.send(call_function(runtime, id, args, functions).await);
-        }
-    }
-}
-
-async fn call_function(
-    runtime: &mut JsRuntime,
-    function: NonZeroI32,
-    args: Vec<JsonValue>,
-    functions: &HashMap<NonZeroI32, Global<Function>>,
-) -> Result<JsonValue, AnyError> {
-    let function = functions
-        .get(&function)
-        .context(format!("function {} not found", function))?;
-    let mut scope = runtime.handle_scope();
-    let recv = undefined(&mut scope);
-    let args = args
-        .into_iter()
-        .map(|arg| to_v8(&mut scope, arg))
-        .collect::<Result<Vec<_>, _>>()?;
-    let Some(promise) = Local::new(&mut scope, function).call(&mut scope, recv.into(), &args)
-    else {
-        // Deno doesn't expose a way to get the exception.
-        bail!("uncaught javascript exception");
-    };
-    let promise = Global::new(&mut scope, promise);
-    drop(scope);
-    let result = runtime.resolve_value(promise).await?;
-    let scope = &mut runtime.handle_scope();
-    let result = Local::new(scope, result);
-    from_v8(scope, result)
 }
 
 mod conversion;
