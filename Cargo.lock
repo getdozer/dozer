@@ -4034,6 +4034,7 @@ dependencies = [
  "async-recursion",
  "bigdecimal",
  "bincode",
+ "dozer-core",
  "dozer-deno",
  "dozer-types",
  "half 2.3.1",

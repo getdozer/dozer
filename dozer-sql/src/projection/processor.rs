@@ -1,4 +1,5 @@
 use crate::errors::PipelineError;
+use dozer_core::checkpoint::serialize::Cursor;
 use dozer_sql_expression::execution::Expression;
 
 use dozer_core::channels::ProcessorChannelForwarder;
@@ -20,13 +21,19 @@ pub struct ProjectionProcessor {
 impl ProjectionProcessor {
     pub fn new(
         input_schema: Schema,
-        expressions: Vec<Expression>,
-        _checkpoint_data: Option<Vec<u8>>,
-    ) -> Self {
-        Self {
+        mut expressions: Vec<Expression>,
+        checkpoint_data: Option<Vec<u8>>,
+    ) -> Result<Self, PipelineError> {
+        if let Some(data) = checkpoint_data {
+            let mut cursor = Cursor::new(&data);
+            for expr in &mut expressions {
+                expr.deserialize_state(&mut cursor)?;
+            }
+        }
+        Ok(Self {
             input_schema,
             expressions,
-        }
+        })
     }
 
     fn delete(&mut self, record: &Record) -> Result<Operation, PipelineError> {
@@ -100,8 +107,11 @@ impl Processor for ProjectionProcessor {
     fn serialize(
         &mut self,
         _record_store: &ProcessorRecordStore,
-        _object: Object,
+        mut object: Object,
     ) -> Result<(), BoxedError> {
+        for expr in &self.expressions {
+            expr.serialize_state(&mut object)?;
+        }
         Ok(())
     }
 }

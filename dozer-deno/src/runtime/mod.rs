@@ -8,7 +8,7 @@ use deno_runtime::{
     deno_core::{
         anyhow::{bail, Context as _},
         error::AnyError,
-        JsRuntime, ModuleSpecifier,
+        Extension, JsRuntime, ModuleSpecifier,
     },
     deno_napi::v8::{self, undefined, Function, Global, Local},
 };
@@ -47,11 +47,18 @@ pub enum Error {
 
 impl Runtime {
     /// Returns `Runtime` and the ids of the exported functions.
-    pub async fn new(modules: Vec<String>) -> Result<(Self, Vec<NonZeroI32>), Error> {
+    pub async fn new<T: (FnOnce() -> Extension) + Send + 'static>(
+        modules: Vec<String>,
+        extension_generators: Vec<T>,
+    ) -> Result<(Self, Vec<NonZeroI32>), Error> {
         let (init_sender, init_receiver) = oneshot::channel();
         let (work_sender, work_receiver) = mpsc::channel(10);
         let handle = std::thread::spawn(move || {
-            let mut worker = match Worker::new(modules) {
+            let extensions = extension_generators
+                .into_iter()
+                .map(|generate| generate())
+                .collect::<Vec<_>>();
+            let mut worker = match Worker::new(modules, extensions) {
                 Ok(worker) => worker,
                 Err(e) => {
                     let _ = init_sender.send(Err(e));
@@ -123,12 +130,12 @@ struct Worker {
 }
 
 impl Worker {
-    fn new(modules: Vec<String>) -> Result<Self, Error> {
+    fn new(modules: Vec<String>, extensions: Vec<Extension>) -> Result<Self, Error> {
         let tokio_runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .map_err(Error::CreateJsRuntime)?;
-        let mut js_runtime = js_runtime::new().map_err(Error::CreateJsRuntime)?;
+        let mut js_runtime = js_runtime::new(extensions).map_err(Error::CreateJsRuntime)?;
 
         let mut functions = HashMap::with_capacity(modules.len());
         for module in modules {

@@ -1,5 +1,6 @@
 use std::num::NonZeroI32;
 
+use dozer_deno::deno_runtime::deno_core::Extension;
 use dozer_types::{
     json_types::{field_to_json_value, json, JsonObject, JsonValue},
     log::error,
@@ -15,7 +16,8 @@ impl Worker {
     pub async fn new(
         modules: Vec<String>,
     ) -> Result<(Self, Vec<NonZeroI32>), dozer_deno::RuntimeError> {
-        let (runtime, lambdas) = dozer_deno::Runtime::new(modules).await?;
+        let (runtime, lambdas) =
+            dozer_deno::Runtime::new::<fn() -> Extension>(modules, vec![]).await?;
         Ok((Self { runtime }, lambdas))
     }
 

@@ -7,6 +7,7 @@ authors = ["getdozer/dozer-dev"]
 [dependencies]
 dozer-types = { path = "../../dozer-types" }
 dozer-deno = { path = "../../dozer-deno" }
+dozer-core = { path = "../../dozer-core" }
 num-traits = "0.2.16"
 sqlparser = { git = "https://github.com/getdozer/sqlparser-rs.git" }
 bigdecimal = { version = "0.3", features = ["serde"], optional = true }

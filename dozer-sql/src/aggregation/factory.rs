@@ -115,7 +115,7 @@ impl ProcessorFactory for AggregationProcessorFactory {
                 input_schema.clone(),
                 planner.projection_output,
                 checkpoint_data,
-            ))
+            )?)
         } else {
             Box::new(AggregationProcessor::new(
                 self.id.clone(),

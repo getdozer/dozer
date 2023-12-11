@@ -1,4 +1,5 @@
 use dozer_core::channels::ProcessorChannelForwarder;
+use dozer_core::checkpoint::serialize::Cursor;
 use dozer_core::dozer_log::storage::Object;
 use dozer_core::epoch::Epoch;
 use dozer_core::executor_operation::ProcessorOperation;
@@ -9,6 +10,8 @@ use dozer_sql_expression::execution::Expression;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::{Field, Schema};
 
+use crate::errors::PipelineError;
+
 #[derive(Debug)]
 pub struct SelectionProcessor {
     expression: Expression,
@@ -18,13 +21,18 @@ pub struct SelectionProcessor {
 impl SelectionProcessor {
     pub fn new(
         input_schema: Schema,
-        expression: Expression,
-        _checkpoint_data: Option<Vec<u8>>,
-    ) -> Self {
-        Self {
+        mut expression: Expression,
+        checkpoint_data: Option<Vec<u8>>,
+    ) -> Result<Self, PipelineError> {
+        if let Some(data) = checkpoint_data {
+            let mut cursor = Cursor::new(&data);
+            expression.deserialize_state(&mut cursor)?;
+        }
+
+        Ok(Self {
             input_schema,
             expression,
-        }
+        })
     }
 }
 
@@ -85,8 +93,9 @@ impl Processor for SelectionProcessor {
     fn serialize(
         &mut self,
         _record_store: &ProcessorRecordStore,
-        _object: Object,
+        mut object: Object,
     ) -> Result<(), BoxedError> {
+        self.expression.serialize_state(&mut object)?;
         Ok(())
     }
 }
