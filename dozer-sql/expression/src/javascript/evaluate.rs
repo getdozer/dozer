@@ -41,8 +41,7 @@ impl Udf {
         module: String,
         arg: Expression,
     ) -> Result<Self, Error> {
-        let (deno_runtime, functions) =
-            dozer_deno::Runtime::new(tokio_runtime.clone(), vec![module]).await?;
+        let (deno_runtime, functions) = dozer_deno::Runtime::new(vec![module]).await?;
         let function = functions[0];
         Ok(Self {
             function_name,

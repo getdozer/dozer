@@ -1,10 +1,6 @@
 use std::sync::Arc;
 
-use dozer_log::{
-    errors::ReaderBuilderError,
-    reader::LogReaderOptions,
-    tokio::{self, sync::Mutex},
-};
+use dozer_log::{errors::ReaderBuilderError, reader::LogReaderOptions, tokio::sync::Mutex};
 use dozer_types::{
     grpc_types::internal::internal_pipeline_service_client::InternalPipelineServiceClient,
     models::lambda_config::JavaScriptLambda, thiserror, tonic,
@@ -30,7 +26,6 @@ pub enum Error {
 
 impl Runtime {
     pub async fn new(
-        runtime: Arc<tokio::runtime::Runtime>,
         app_url: String,
         lambda_modules: Vec<JavaScriptLambda>,
         options: LogReaderOptions,
@@ -40,7 +35,7 @@ impl Runtime {
             .iter()
             .map(|module| module.module.clone())
             .collect();
-        let (worker, lambdas) = Worker::new(runtime, modules).await?;
+        let (worker, lambdas) = Worker::new(modules).await?;
 
         // Create trigger.
         let client = InternalPipelineServiceClient::connect(app_url.clone())

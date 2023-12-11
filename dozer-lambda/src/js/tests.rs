@@ -1,28 +1,18 @@
 use std::{pin::pin, time::Duration};
 
 use dozer_deno::deno_runtime::deno_core::futures::future::{join, select, Either};
+use dozer_log::tokio;
 
 use super::*;
 
-#[test]
-fn test_lambda_runtime() {
-    // env_logger::init();
-    let tokio_runtime = Arc::new(
-        tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .unwrap(),
-    );
-    tokio_runtime.block_on(test_lambda_runtime_impl(tokio_runtime.clone()));
-}
-
-async fn test_lambda_runtime_impl(tokio_runtime: Arc<tokio::runtime::Runtime>) {
+#[tokio::test]
+async fn test_lambda_runtime() {
     let (app_url, app_server) = mock::start_mock_internal_pipeline_server().await;
     let lambda_modules = vec![JavaScriptLambda {
         endpoint: mock::mock_endpoint(),
         module: "src/js/test_lambda.js".to_string(),
     }];
-    let lambda_runtime = Runtime::new(tokio_runtime, app_url, lambda_modules, Default::default());
+    let lambda_runtime = Runtime::new(app_url, lambda_modules, Default::default());
     let (lambda_runtime, app_server) = match select(pin!(lambda_runtime), app_server).await {
         Either::Left((lambda_runtime, app_server)) => (lambda_runtime.unwrap(), app_server),
         Either::Right((app_server, _)) => {

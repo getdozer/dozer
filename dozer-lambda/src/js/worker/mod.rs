@@ -1,6 +1,5 @@
-use std::{num::NonZeroI32, sync::Arc};
+use std::num::NonZeroI32;
 
-use dozer_log::tokio::runtime::Runtime;
 use dozer_types::{
     json_types::{field_to_json_value, json, JsonObject, JsonValue},
     log::error,
@@ -14,10 +13,9 @@ pub struct Worker {
 
 impl Worker {
     pub async fn new(
-        runtime: Arc<Runtime>,
         modules: Vec<String>,
     ) -> Result<(Self, Vec<NonZeroI32>), dozer_deno::RuntimeError> {
-        let (runtime, lambdas) = dozer_deno::Runtime::new(runtime, modules).await?;
+        let (runtime, lambdas) = dozer_deno::Runtime::new(modules).await?;
         Ok((Self { runtime }, lambdas))
     }
 

@@ -296,7 +296,6 @@ impl SimpleOrchestrator {
             })
             .collect();
         let runtime = dozer_lambda::JsRuntime::new(
-            self.runtime.clone(),
             app_url(&self.config.api.app_grpc),
             lambda_modules,
             Default::default(),
