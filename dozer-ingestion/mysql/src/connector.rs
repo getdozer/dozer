@@ -217,7 +217,7 @@ impl MySQLConnector {
             .map_err(|err| MySQLConnectorError::ConnectionFailure(self.conn_url.clone(), err))
     }
 
-    fn schema_helper(&self) -> SchemaHelper<'_, '_> {
+    fn schema_helper(&self) -> SchemaHelper<'_> {
         SchemaHelper::new(&self.conn_url, &self.conn_pool)
     }
 
@@ -226,7 +226,7 @@ impl MySQLConnector {
         ingestor: &Ingestor,
         table_infos: Vec<TableInfo>,
     ) -> Result<(), MySQLConnectorError> {
-        let table_definitions = self
+        let mut table_definitions = self
             .schema_helper()
             .get_table_definitions(&table_infos)
             .await?;
@@ -234,7 +234,7 @@ impl MySQLConnector {
 
         let binlog_position = self.sync_with_binlog(ingestor, binlog_positions).await?;
 
-        self.ingest_binlog(ingestor, &table_definitions, binlog_position, None)
+        self.ingest_binlog(ingestor, &mut table_definitions, binlog_position, None)
             .await?;
 
         Ok(())
@@ -367,7 +367,7 @@ impl MySQLConnector {
 
                     self.ingest_binlog(
                         ingestor,
-                        &synced_tables,
+                        &mut synced_tables,
                         start_position,
                         Some(end_position),
                     )
@@ -386,7 +386,7 @@ impl MySQLConnector {
     async fn ingest_binlog(
         &self,
         ingestor: &Ingestor,
-        tables: &[TableDefinition],
+        tables: &mut [TableDefinition],
         start_position: BinlogPosition,
         stop_position: Option<BinlogPosition>,
     ) -> Result<(), MySQLConnectorError> {
@@ -394,14 +394,13 @@ impl MySQLConnector {
 
         let mut binlog_ingestor = BinlogIngestor::new(
             ingestor,
-            tables,
             start_position,
             stop_position,
             server_id,
             (&self.conn_pool, &self.conn_url),
         );
 
-        binlog_ingestor.ingest().await
+        binlog_ingestor.ingest(tables, self.schema_helper()).await
     }
 }
 

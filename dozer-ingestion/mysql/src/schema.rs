@@ -1,4 +1,4 @@
-use crate::{helpers::escape_identifier, MySQLConnectorError};
+use crate::{helpers::escape_identifier, BreakingSchemaChange, MySQLConnectorError};
 
 use super::{
     connection::{Conn, QueryResult},
@@ -25,14 +25,32 @@ pub struct ColumnDefinition {
     pub primary_key: bool,
 }
 
-#[derive(Clone, Debug)]
-pub struct SchemaHelper<'a, 'b> {
+#[derive(Debug, Clone, Copy)]
+pub struct SchemaHelper<'a> {
     conn_url: &'a String,
-    conn_pool: &'b Pool,
+    conn_pool: &'a Pool,
 }
 
-impl SchemaHelper<'_, '_> {
-    pub fn new<'a, 'b>(conn_url: &'a String, conn_pool: &'b Pool) -> SchemaHelper<'a, 'b> {
+impl TableDefinition {
+    pub fn qualified_name(&self) -> String {
+        format!("{}.{}", self.database_name, self.table_name)
+    }
+}
+
+impl std::fmt::Display for TableDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.qualified_name().as_str())
+    }
+}
+
+impl std::fmt::Display for ColumnDefinition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.name.as_str())
+    }
+}
+
+impl SchemaHelper<'_> {
+    pub fn new<'a>(conn_url: &'a String, conn_pool: &'a Pool) -> SchemaHelper<'a> {
         SchemaHelper {
             conn_url,
             conn_pool,
@@ -115,10 +133,13 @@ impl SchemaHelper<'_, '_> {
         Ok(table_infos)
     }
 
-    pub async fn get_table_definitions(
+    pub async fn get_table_definitions<'a, T>(
         &self,
-        table_infos: &[TableInfo],
-    ) -> Result<Vec<TableDefinition>, MySQLConnectorError> {
+        table_infos: &'a [T],
+    ) -> Result<Vec<TableDefinition>, MySQLConnectorError>
+    where
+        TableInfoRef<'a>: From<&'a T>,
+    {
         if table_infos.is_empty() {
             return Ok(Vec::new());
         }
@@ -190,6 +211,141 @@ impl SchemaHelper<'_, '_> {
         Ok(table_definitions)
     }
 
+    pub async fn refresh_column_ordinals(
+        &self,
+        tables: &mut [&mut TableDefinition],
+    ) -> Result<(), MySQLConnectorError> {
+        if tables.is_empty() {
+            return Ok(());
+        }
+
+        let mut conn = self.connect().await?;
+
+        let mut query_params: Vec<Value> = Vec::new();
+        let query = format!(
+            "
+            SELECT {} AS table_index, {} as column_index, ordinal_position
+            FROM information_schema.columns
+            WHERE {}
+            ",
+            SqlHelper::table_index_case_expression(tables, &mut query_params),
+            SqlHelper::column_index_case_expression(tables, &mut query_params),
+            SqlHelper::select_columns_filter_predicate(tables, &mut query_params),
+        );
+
+        let mut rows = conn.exec_iter(query, query_params);
+
+        while let Some(result) = rows.next().await {
+            let row = result.map_err(MySQLConnectorError::QueryResultError)?;
+            let (table_index, column_index, ordinal_position) =
+                from_row::<(usize, usize, u32)>(row);
+
+            let table = &mut tables[table_index];
+            let column = &mut table.columns[column_index];
+            column.ordinal_position = ordinal_position;
+        }
+
+        tables.iter_mut().for_each(|table| {
+            table
+                .columns
+                .sort_unstable_by_key(|column| column.ordinal_position)
+        });
+
+        Ok(())
+    }
+
+    pub async fn refresh_schema_and_check_for_breaking_changes(
+        &self,
+        tables: &mut [TableDefinition],
+    ) -> Result<(), MySQLConnectorError> {
+        let new_schema = self.get_table_definitions(tables).await?;
+
+        // Check missing tables
+        if new_schema.len() != tables.len() {
+            let missing = tables
+                .iter()
+                .filter(
+                    |TableDefinition {
+                         table_name,
+                         database_name,
+                         ..
+                     }| {
+                        !new_schema.iter().any(|td| {
+                            td.table_name.eq(table_name) && td.database_name.eq(database_name)
+                        })
+                    },
+                )
+                .collect::<Vec<_>>();
+            if missing.len() == 1 {
+                Err(BreakingSchemaChange::TableDroppedOrRenamed(
+                    missing[0].to_string(),
+                ))?
+            } else {
+                Err(BreakingSchemaChange::MultipleTablesDroppedOrRenamed(
+                    missing.iter().map(|td| td.to_string()).collect::<Vec<_>>(),
+                ))?
+            }
+        }
+
+        // Check missing columns and data type changes
+        for (old, new) in tables.iter_mut().zip(new_schema) {
+            debug_assert_eq!(old.table_index, new.table_index);
+            debug_assert_eq!(old.table_name, new.table_name);
+            debug_assert_eq!(old.database_name, new.database_name);
+
+            // Check missing columns
+            if old.columns.len() != new.columns.len() {
+                let missing = old
+                    .columns
+                    .iter()
+                    .filter(
+                        |ColumnDefinition {
+                             name: column_name, ..
+                         }| {
+                            !new.columns.iter().any(|cd| cd.name.eq(column_name))
+                        },
+                    )
+                    .collect::<Vec<_>>();
+                if missing.len() == 1 {
+                    Err(BreakingSchemaChange::ColumnDroppedOrRenamed {
+                        column_name: missing[0].to_string(),
+                        table_name: old.to_string(),
+                    })?
+                } else {
+                    Err(BreakingSchemaChange::MultipleColumnsDroppedOrRenamed {
+                        table_name: old.to_string(),
+                        columns: missing.iter().map(|cd| cd.to_string()).collect::<Vec<_>>(),
+                    })?
+                }
+            }
+
+            // Check data type change
+            for old_column in old.columns.iter() {
+                let new_column = new
+                    .columns
+                    .iter()
+                    .find(|cd| cd.name == old_column.name)
+                    .unwrap();
+
+                if old_column.typ != new_column.typ {
+                    Err(BreakingSchemaChange::ColumnDataTypeChanged {
+                        table_name: old.to_string(),
+                        column_name: old_column.to_string(),
+                        old_data_type: old_column.typ,
+                        new_column_name: new_column.typ,
+                    })?
+                }
+            }
+
+            // TODO: check nullable and primary key change
+
+            // Checks passed; update schema
+            *old = new;
+        }
+
+        Ok(())
+    }
+
     const MARIADB_JSON_CHECK: &'static str = "(column_type = 'longtext'
         AND (
             SELECT COUNT(*) > 0
@@ -235,65 +391,14 @@ impl SchemaHelper<'_, '_> {
 
                 select
             },
-            // where clause: filter by table name and table schema
-            table_infos
-                .iter()
-                .map(Into::into)
-                .map(
-                    |TableInfoRef {
-                         schema,
-                         name,
-                         column_names,
-                     }| {
-                        query_params.push(name.into());
-                        let mut condition = "(table_name = ? AND table_schema = ".to_string();
-                        if let Some(schema) = schema {
-                            query_params.push(schema.into());
-                            condition.push('?');
-                        } else {
-                            condition.push_str("DATABASE()");
-                        }
-                        if !column_names.is_empty() {
-                            condition.push_str(" AND column_name IN (");
-                            for (i, column) in column_names.iter().enumerate() {
-                                query_params.push(column.into());
-                                if i == 0 {
-                                    condition.push('?');
-                                } else {
-                                    condition.push_str(", ?");
-                                }
-                            }
-                            condition.push(')');
-                        }
-                        condition.push(')');
-                        condition
-                    }
-                )
-                .collect::<Vec<String>>()
-                .join(" OR "),
+            // where clause: filter by table name and table schema and column names
+            SqlHelper::select_columns_filter_predicate(table_infos, &mut query_params),
             // order by clause: preserve the order of the input tables in the output
             {
-                let mut case = String::from("CASE ");
-
-                table_infos.iter().map(Into::into).enumerate().for_each(
-                    |(i, TableInfoRef { schema, name, .. })| {
-                        case.push_str("WHEN (table_name = ? AND table_schema = ");
-                        query_params.push(name.into());
-
-                        if let Some(schema) = schema {
-                            query_params.push(schema.into());
-                            case.push('?');
-                        } else {
-                            case.push_str("DATABASE()");
-                        }
-                        case.push(')');
-                        case.push_str(" THEN ? ");
-                        query_params.push(i.into());
-                    },
-                );
-
-                case.push_str("END ASC");
-                case
+                let table_index_expression =
+                    SqlHelper::table_index_case_expression(table_infos, &mut query_params);
+                let order_by = format!("{} ASC", table_index_expression);
+                order_by
             }
         );
 
@@ -309,10 +414,125 @@ impl SchemaHelper<'_, '_> {
     }
 }
 
-struct TableInfoRef<'a> {
+struct SqlHelper;
+
+impl SqlHelper {
+    fn table_index_case_expression<'a, T>(tables: &'a [T], query_params: &mut Vec<Value>) -> String
+    where
+        TableInfoRef<'a>: From<&'a T>,
+    {
+        let mut case = String::from("CASE ");
+
+        tables.iter().map(Into::into).enumerate().for_each(
+            |(i, TableInfoRef { schema, name, .. })| {
+                case.push_str("WHEN (table_name = ? AND table_schema = ");
+                query_params.push(name.into());
+
+                if let Some(schema) = schema {
+                    query_params.push(schema.into());
+                    case.push('?');
+                } else {
+                    case.push_str("DATABASE()");
+                }
+                case.push(')');
+                case.push_str(" THEN ? ");
+                query_params.push(i.into());
+            },
+        );
+
+        case.push_str("END");
+        case
+    }
+
+    fn column_index_case_expression<'a, T>(tables: &'a [T], query_params: &mut Vec<Value>) -> String
+    where
+        TableInfoRef<'a>: From<&'a T>,
+    {
+        let mut case = String::from("CASE ");
+
+        tables.iter().map(Into::into).for_each(
+            |TableInfoRef {
+                 column_names,
+                 schema,
+                 name: table_name,
+             }| {
+                column_names
+                    .iter()
+                    .enumerate()
+                    .for_each(|(i, &column_name)| {
+                        case.push_str("WHEN (table_name = ? AND table_schema = ");
+                        query_params.push(table_name.into());
+
+                        if let Some(schema) = schema {
+                            query_params.push(schema.into());
+                            case.push('?');
+                        } else {
+                            case.push_str("DATABASE()");
+                        }
+                        case.push_str(" AND column_name = ?");
+                        query_params.push(column_name.into());
+                        case.push(')');
+
+                        case.push_str(" THEN ? ");
+                        query_params.push(i.into());
+                    })
+            },
+        );
+
+        case.push_str("END");
+        case
+    }
+
+    fn select_columns_filter_predicate<'a, T>(
+        tables: &'a [T],
+        query_params: &mut Vec<Value>,
+    ) -> String
+    where
+        TableInfoRef<'a>: From<&'a T>,
+    {
+        let predicate = tables
+            .iter()
+            .map(Into::into)
+            .map(
+                |TableInfoRef {
+                     schema,
+                     name,
+                     column_names,
+                 }| {
+                    query_params.push(name.into());
+                    let mut condition = "(table_name = ? AND table_schema = ".to_string();
+                    if let Some(schema) = schema {
+                        query_params.push(schema.into());
+                        condition.push('?');
+                    } else {
+                        condition.push_str("DATABASE()");
+                    }
+                    if !column_names.is_empty() {
+                        condition.push_str(" AND column_name IN (");
+                        for (i, column) in column_names.iter().enumerate() {
+                            query_params.push(column.into());
+                            if i == 0 {
+                                condition.push('?');
+                            } else {
+                                condition.push_str(", ?");
+                            }
+                        }
+                        condition.push(')');
+                    }
+                    condition.push(')');
+                    condition
+                },
+            )
+            .collect::<Vec<String>>()
+            .join(" OR ");
+        predicate
+    }
+}
+
+pub struct TableInfoRef<'a> {
     pub schema: Option<&'a str>,
     pub name: &'a str,
-    pub column_names: &'a [String],
+    pub column_names: Vec<&'a String>,
 }
 
 impl<'a> From<&'a TableIdentifier> for TableInfoRef<'a> {
@@ -320,7 +540,7 @@ impl<'a> From<&'a TableIdentifier> for TableInfoRef<'a> {
         Self {
             schema: value.schema.as_deref(),
             name: &value.name,
-            column_names: &[],
+            column_names: vec![],
         }
     }
 }
@@ -330,7 +550,27 @@ impl<'a> From<&'a TableInfo> for TableInfoRef<'a> {
         Self {
             schema: value.schema.as_deref(),
             name: &value.name,
-            column_names: &value.column_names,
+            column_names: value.column_names.iter().collect(),
+        }
+    }
+}
+
+impl<'a> From<&'a TableDefinition> for TableInfoRef<'a> {
+    fn from(value: &'a TableDefinition) -> Self {
+        Self {
+            schema: Some(value.database_name.as_str()),
+            name: &value.table_name,
+            column_names: value.columns.iter().map(|cd| &cd.name).collect(),
+        }
+    }
+}
+
+impl<'a> From<&'a &mut TableDefinition> for TableInfoRef<'a> {
+    fn from(value: &'a &mut TableDefinition) -> Self {
+        Self {
+            schema: Some(value.database_name.as_str()),
+            name: &value.table_name,
+            column_names: value.columns.iter().map(|cd| &cd.name).collect(),
         }
     }
 }

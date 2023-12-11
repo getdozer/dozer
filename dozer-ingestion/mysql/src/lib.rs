@@ -1,6 +1,7 @@
 use dozer_ingestion_connector::dozer_types::{
     errors::types::DeserializationError,
     thiserror::{self, Error},
+    types::FieldType,
 };
 use geozero::error::GeozeroError;
 
@@ -47,4 +48,52 @@ pub enum MySQLConnectorError {
 
     #[error("Failed to fetch query result. {0}")]
     QueryResultError(#[source] mysql_async::Error),
+
+    #[error("Schema had a breaking change: {0}")]
+    BreakingSchemaChange(#[from] BreakingSchemaChange),
+}
+
+#[derive(Error, Debug)]
+pub enum BreakingSchemaChange {
+    #[error("Database \"{0}\" was dropped")]
+    DatabaseDropped(String),
+    #[error("Table \"{0}\" was dropped")]
+    TableDropped(String),
+    #[error("Table \"{0}\" has been dropped or renamed")]
+    TableDroppedOrRenamed(String),
+    #[error("Multiple tables have been dropped or renamed: {}", .0.join(", "))]
+    MultipleTablesDroppedOrRenamed(Vec<String>),
+    #[error("Table \"{old_table_name}\" was renamed to \"{new_table_name}\"")]
+    TableRenamed {
+        old_table_name: String,
+        new_table_name: String,
+    },
+    #[error("Column \"{column_name}\" from table \"{table_name}\" was dropped")]
+    ColumnDropped {
+        table_name: String,
+        column_name: String,
+    },
+    #[error("Column \"{old_column_name}\" from table \"{table_name}\" was renamed to \"{new_column_name}\"")]
+    ColumnRenamed {
+        table_name: String,
+        old_column_name: String,
+        new_column_name: String,
+    },
+    #[error("Column \"{column_name}\" from table \"{table_name}\" has been dropped or renamed")]
+    ColumnDroppedOrRenamed {
+        table_name: String,
+        column_name: String,
+    },
+    #[error("Multiple columns from table \"{table_name}\" have been dropped or renamed: {}", .columns.join(", "))]
+    MultipleColumnsDroppedOrRenamed {
+        table_name: String,
+        columns: Vec<String>,
+    },
+    #[error("Column \"{column_name}\" from table \"{table_name}\" changed data type from \"{old_data_type}\" to \"{new_column_name}\"")]
+    ColumnDataTypeChanged {
+        table_name: String,
+        column_name: String,
+        old_data_type: FieldType,
+        new_column_name: FieldType,
+    },
 }

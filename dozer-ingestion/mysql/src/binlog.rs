@@ -1,4 +1,7 @@
-use crate::{connection::is_network_failure, MySQLConnectorError};
+use crate::{
+    connection::is_network_failure, conversion::get_field_type_for_sql_type, schema::SchemaHelper,
+    BreakingSchemaChange, MySQLConnectorError,
+};
 
 use super::{
     connection::Conn,
@@ -8,7 +11,7 @@ use super::{
 use dozer_ingestion_connector::{
     dozer_types::{
         json_types::{JsonArray, JsonObject, JsonValue},
-        log::trace,
+        log::{trace, warn},
         models::ingestion_types::IngestionMessage,
         types::Field,
         types::{FieldType, Operation, Record},
@@ -27,7 +30,10 @@ use mysql_common::{
     },
     Row,
 };
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    ops::Deref,
+};
 
 #[derive(Debug, Clone)]
 pub struct BinlogPosition {
@@ -60,23 +66,20 @@ pub async fn get_binlog_format(conn: &mut Conn) -> Result<String, MySQLConnector
     Ok(binlog_logging_format)
 }
 
-pub struct BinlogIngestor<'a, 'b, 'd, 'e> {
+pub struct BinlogIngestor<'a, 'd, 'e> {
     ingestor: &'a Ingestor,
     binlog_stream: Option<BinlogStream>,
-    tables: &'b [TableDefinition],
     next_position: BinlogPosition,
     stop_position: Option<BinlogPosition>,
     local_stop_position: Option<u64>,
     server_id: u32,
     conn_pool: &'d Pool,
     conn_url: &'e String,
-    column_definitions_cache: ColumnDefinitionsCache<'b>,
 }
 
-impl<'a, 'b, 'd, 'e> BinlogIngestor<'a, 'b, 'd, 'e> {
+impl<'a, 'd, 'e> BinlogIngestor<'a, 'd, 'e> {
     pub fn new(
         ingestor: &'a Ingestor,
-        tables: &'b [TableDefinition],
         start_position: BinlogPosition,
         stop_position: Option<BinlogPosition>,
         server_id: u32,
@@ -85,19 +88,17 @@ impl<'a, 'b, 'd, 'e> BinlogIngestor<'a, 'b, 'd, 'e> {
         Self {
             ingestor,
             binlog_stream: None,
-            tables,
             next_position: start_position,
             stop_position,
             local_stop_position: None,
             server_id,
             conn_pool,
             conn_url,
-            column_definitions_cache: ColumnDefinitionsCache::new(tables),
         }
     }
 }
 
-impl BinlogIngestor<'_, '_, '_, '_> {
+impl BinlogIngestor<'_, '_, '_> {
     async fn connect(&self) -> Result<Conn, MySQLConnectorError> {
         Conn::new(self.conn_pool.clone())
             .await
@@ -129,12 +130,17 @@ impl BinlogIngestor<'_, '_, '_, '_> {
         Ok(())
     }
 
-    pub async fn ingest(&mut self) -> Result<(), MySQLConnectorError> {
+    pub async fn ingest(
+        &mut self,
+        tables: &mut [TableDefinition],
+        schema_helper: SchemaHelper<'_>,
+    ) -> Result<(), MySQLConnectorError> {
         if self.binlog_stream.is_none() {
             self.open_binlog().await?;
         }
 
-        let mut table_cache = BinlogTableCache::new(self.tables);
+        let mut table_cache = TableManager::new(tables);
+        let mut schema_change_tracker = SchemaChangeTracker::new();
 
         'binlog_read: while let Some(result) = self.binlog_stream.as_mut().unwrap().next().await {
             match self.local_stop_position {
@@ -192,7 +198,7 @@ impl BinlogIngestor<'_, '_, '_, '_> {
                         self.open_binlog().await?;
                     }
 
-                    table_cache.binlog_rotate();
+                    table_cache.handle_binlog_rotate();
                 }
 
                 QUERY_EVENT => {
@@ -202,7 +208,9 @@ impl BinlogIngestor<'_, '_, '_, '_> {
                             _ => unreachable!(),
                         };
 
-                    if query_event.query_raw() == b"BEGIN"
+                    let query = query_event.query_raw().trim_start();
+
+                    if query == b"BEGIN"
                         && self
                             .ingestor
                             .handle_message(IngestionMessage::SnapshottingStarted)
@@ -211,6 +219,174 @@ impl BinlogIngestor<'_, '_, '_, '_> {
                     {
                         // If receiving side is closed, we can stop ingesting.
                         return Ok(());
+                    } else if query.starts_with_case_insensitive(b"ALTER")
+                        || query.starts_with_case_insensitive(b"DROP")
+                    {
+                        if schema_change_tracker.unknown_schema_change_occured {
+                            // An unknown schema change has occured before, so granular checks might be inaccurate.
+                            // The pending full schema check should suffice.
+                        } else {
+                            let query = String::from_utf8_lossy(query);
+                            let dialect = &sqlparser::dialect::MySqlDialect {};
+                            let result = sqlparser::parser::Parser::parse_sql(dialect, &query);
+                            let schema = query_event.schema_raw();
+                            match result {
+                                Err(err) => {
+                                    warn!("Failed to parse MySQL query {query:?}: {err}");
+                                    // resort to manual schema verification
+                                    schema_change_tracker.unknown_schema_change_occured();
+                                }
+                                Ok(statements) => {
+                                    for statement in statements {
+                                        use sqlparser::ast::{
+                                            AlterTableOperation, ObjectType, Statement,
+                                        };
+                                        match statement {
+                                            Statement::Drop {
+                                                object_type: ObjectType::Schema,
+                                                names,
+                                                ..
+                                            } => {
+                                                for name in names {
+                                                    let database_name =
+                                                        object_name_to_string(&name);
+                                                    if table_cache
+                                                        .databases()
+                                                        .contains(&database_name)
+                                                    {
+                                                        Err(BreakingSchemaChange::DatabaseDropped(
+                                                            database_name,
+                                                        ))?
+                                                    }
+                                                }
+                                            }
+                                            Statement::Drop {
+                                                object_type: ObjectType::Table,
+                                                names,
+                                                ..
+                                            } => {
+                                                for name in names {
+                                                    if let Some(table) = table_cache
+                                                        .find_table_by_object_name(&name, schema)
+                                                    {
+                                                        Err(BreakingSchemaChange::TableDropped(
+                                                            table.to_string(),
+                                                        ))?
+                                                    }
+                                                }
+                                            }
+                                            Statement::AlterTable {
+                                                name, operations, ..
+                                            } => {
+                                                if let Some(table) = table_cache
+                                                    .find_table_by_object_name(&name, schema)
+                                                {
+                                                    let find_column =
+                                                        |name: &sqlparser::ast::Ident| {
+                                                            table.columns.iter().find(|cd| {
+                                                                cd.name.eq_ignore_ascii_case(
+                                                                    &name.value,
+                                                                )
+                                                            })
+                                                        };
+                                                    for operation in operations.iter() {
+                                                        match operation {
+                                                        AlterTableOperation::AddColumn {
+                                                            ..
+                                                        } => {
+                                                            schema_change_tracker.column_order_changed_in(table.table_index);
+                                                        }
+                                                        AlterTableOperation::DropColumn {
+                                                            column_name,
+                                                            ..
+                                                        } => {
+                                                            if let Some(column) =
+                                                                find_column(column_name)
+                                                            {
+                                                                Err(BreakingSchemaChange::ColumnDropped { table_name: table.to_string(), column_name: column.to_string()})?
+                                                            }
+                                                            schema_change_tracker.column_order_changed_in(table.table_index);
+                                                        }
+                                                        AlterTableOperation::RenameColumn {
+                                                            old_column_name,
+                                                            new_column_name,
+                                                        } => {
+                                                            if !old_column_name
+                                                                .value
+                                                                .eq_ignore_ascii_case(
+                                                                    &new_column_name.value,
+                                                                )
+                                                            {
+                                                                if let Some(column) =
+                                                                    find_column(old_column_name)
+                                                                {
+                                                                    Err(BreakingSchemaChange::ColumnRenamed{
+                                                                        table_name: table.to_string(),
+                                                                        old_column_name: column.to_string(),
+                                                                        new_column_name: new_column_name.value.clone()
+                                                                    })?
+                                                                }
+                                                            }
+                                                        }
+                                                        AlterTableOperation::RenameTable {
+                                                            table_name,
+                                                        } => {
+                                                            Err(BreakingSchemaChange::TableRenamed{
+                                                                old_table_name: table.to_string(),
+                                                                new_table_name: object_name_to_string(table_name),
+                                                            })?
+                                                        }
+                                                        AlterTableOperation::ChangeColumn {
+                                                            old_name,
+                                                            new_name,
+                                                            data_type,
+                                                            options: _, // TODO: handle options changes
+                                                        } => {
+                                                            if let Some(column) = find_column(old_name) {
+                                                                if !old_name.value.eq_ignore_ascii_case(&new_name.value) {
+                                                                    Err(BreakingSchemaChange::ColumnRenamed{
+                                                                        table_name: table.to_string(),
+                                                                        old_column_name: column.to_string(),
+                                                                        new_column_name: new_name.value.clone(),
+                                                                    })?
+                                                                }
+                                                                let new_type = get_field_type_for_sql_type(data_type);
+                                                                if new_type != column.typ {
+                                                                    Err(BreakingSchemaChange::ColumnDataTypeChanged{
+                                                                        table_name: table.to_string(),
+                                                                        column_name: column.to_string(),
+                                                                        old_data_type: column.typ,
+                                                                        new_column_name: new_type,
+                                                                    })?
+                                                                }
+                                                            }
+                                                        }
+                                                        AlterTableOperation::AlterColumn {
+                                                            column_name,
+                                                            op,
+                                                        } => {
+                                                            if let Some(_column) = find_column(column_name) {
+                                                                use sqlparser::ast::AlterColumnOperation;
+                                                                match op {
+                                                                    AlterColumnOperation::SetDefault { .. } |
+                                                                    AlterColumnOperation::DropDefault => (), // TODO: handle options changes
+                                                                    AlterColumnOperation::SetNotNull |
+                                                                    AlterColumnOperation::DropNotNull |
+                                                                    AlterColumnOperation::SetDataType {..} => unreachable!("MySQL does not support this statement {}", operation),
+                                                                }
+                                                            }
+                                                        }
+                                                        _ => (),
+                                                    }
+                                                    }
+                                                }
+                                            }
+                                            _ => (),
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -240,8 +416,25 @@ impl BinlogIngestor<'_, '_, '_, '_> {
 
                     let tme = self.get_tme(binlog_table_id)?;
 
-                    if let Some(table) = table_cache.get_corresponding_table(tme) {
-                        self.handle_rows_event(&rows_event, table, tme).await?;
+                    if schema_change_tracker.unknown_schema_change_occured {
+                        table_cache.refresh_full_schema(schema_helper).await?;
+                        schema_change_tracker.clear();
+                    }
+
+                    if let Some(table_index) = table_cache.get_corresponding_table_index(tme) {
+                        if schema_change_tracker
+                            .column_order_changed
+                            .contains(&table_index)
+                        {
+                            let tables = &schema_change_tracker.column_order_changed;
+                            table_cache
+                                .refresh_column_ordinals(schema_helper, tables)
+                                .await?;
+                            schema_change_tracker.clear();
+                        }
+
+                        let table = table_cache.get_table_details(table_index).unwrap();
+                        self.handle_rows_event(&rows_event, &table, tme).await?;
                     }
                 }
 
@@ -257,14 +450,14 @@ impl BinlogIngestor<'_, '_, '_, '_> {
     async fn handle_rows_event<'a>(
         &self,
         rows_event: &BinlogRowsEvent<'_>,
-        table: &TableDefinition,
+        table: &TableDetails<'_>,
         tme: &TableMapEvent<'a>,
     ) -> Result<(), MySQLConnectorError> {
         for op in self.make_rows_operations(rows_event, table, tme) {
             if self
                 .ingestor
                 .handle_message(IngestionMessage::OperationEvent {
-                    table_index: table.table_index,
+                    table_index: table.def.table_index,
                     op: op?,
                     id: None,
                 })
@@ -298,19 +491,15 @@ impl BinlogIngestor<'_, '_, '_, '_> {
     // # Parameters
     // - `row_columns`: The zero-based indexes of columns present in the binlog row.
     // - `table_definition`: The table definition.
-    fn select_columns(
+    fn select_columns<'a>(
         &self,
         row_columns: Vec<usize>,
-        table_definition: &TableDefinition,
-    ) -> Vec<(usize, &FieldType)> {
-        let table_columns = self
-            .column_definitions_cache
-            .get_columns_of_table(table_definition.table_index)
-            .unwrap();
+        table: &TableDetails<'a>,
+    ) -> Vec<(usize, &'a FieldType)> {
         let columns = row_columns
             .iter()
             .enumerate()
-            .filter_map(|(i, col)| table_columns.get(col).map(|cd| (i, &cd.typ)))
+            .filter_map(|(i, col)| table.columns.get(col).map(|cd| (i, &cd.typ)))
             .collect::<Vec<_>>();
 
         columns
@@ -319,7 +508,7 @@ impl BinlogIngestor<'_, '_, '_, '_> {
     fn rows_iter<'a: 'r, 'b: 'r, 'c: 'r, 'd: 'r, 'r>(
         &'a self,
         rows_event: &'b BinlogRowsEvent<'_>,
-        table: &'c TableDefinition,
+        table: &TableDetails<'c>,
         tme: &'d TableMapEvent,
     ) -> impl Iterator<Item = Result<RowValues, MySQLConnectorError>> + 'r {
         let rows = rows_event.rows(tme);
@@ -360,7 +549,7 @@ impl BinlogIngestor<'_, '_, '_, '_> {
     fn make_rows_operations<'a: 'r, 'b: 'r, 'c: 'r, 'd: 'r, 'r>(
         &'a self,
         rows_event: &'b BinlogRowsEvent<'_>,
-        table: &'c TableDefinition,
+        table: &TableDetails<'c>,
         tme: &'d TableMapEvent,
     ) -> impl Iterator<Item = Result<Operation, MySQLConnectorError>> + 'r {
         if rows_event.is_write() {
@@ -377,7 +566,7 @@ impl BinlogIngestor<'_, '_, '_, '_> {
     fn make_insert_operations<'a: 'r, 'b: 'r, 'c: 'r, 'd: 'r, 'r>(
         &'a self,
         rows_event: &'b BinlogRowsEvent<'_>,
-        table: &'c TableDefinition,
+        table: &TableDetails<'c>,
         tme: &'d TableMapEvent,
     ) -> impl Iterator<Item = Result<Operation, MySQLConnectorError>> + 'r {
         self.rows_iter(rows_event, table, tme).map(|row| {
@@ -394,7 +583,7 @@ impl BinlogIngestor<'_, '_, '_, '_> {
     fn make_update_operations<'a: 'r, 'b: 'r, 'c: 'r, 'd: 'r, 'r>(
         &'a self,
         rows_event: &'b BinlogRowsEvent<'_>,
-        table: &'c TableDefinition,
+        table: &TableDetails<'c>,
         tme: &'d TableMapEvent,
     ) -> impl Iterator<Item = Result<Operation, MySQLConnectorError>> + 'r {
         self.rows_iter(rows_event, table, tme).map(|row| {
@@ -415,7 +604,7 @@ impl BinlogIngestor<'_, '_, '_, '_> {
     fn make_delete_operations<'a: 'r, 'b: 'r, 'c: 'r, 'd: 'r, 'r>(
         &'a self,
         rows_event: &'b BinlogRowsEvent<'_>,
-        table: &'c TableDefinition,
+        table: &TableDetails<'c>,
         tme: &'d TableMapEvent,
     ) -> impl Iterator<Item = Result<Operation, MySQLConnectorError>> + 'r {
         self.rows_iter(rows_event, table, tme).map(|row| {
@@ -427,6 +616,35 @@ impl BinlogIngestor<'_, '_, '_, '_> {
 
             Ok(op)
         })
+    }
+}
+
+struct SchemaChangeTracker {
+    /// Table indexes for tables which had a column order change, usually caused by column addition or dropping.
+    pub column_order_changed: HashSet<usize>,
+    /// Some unkown schema change has occured. A a full schema refresh is needed and a rigourous check for breaking changes.
+    pub unknown_schema_change_occured: bool,
+}
+
+impl SchemaChangeTracker {
+    fn new() -> Self {
+        Self {
+            column_order_changed: HashSet::new(),
+            unknown_schema_change_occured: false,
+        }
+    }
+
+    fn column_order_changed_in(&mut self, table_index: usize) {
+        self.column_order_changed.insert(table_index);
+    }
+
+    fn unknown_schema_change_occured(&mut self) {
+        self.unknown_schema_change_occured = true;
+    }
+
+    fn clear(&mut self) {
+        self.column_order_changed.clear();
+        self.unknown_schema_change_occured = false;
     }
 }
 
@@ -458,30 +676,36 @@ struct RowValues {
     pub new_values: Option<Vec<Field>>, // present in Update and Insert operations
 }
 
-struct ColumnDefinitionsCache<'a> {
-    cache: Vec<HashMap<usize, &'a ColumnDefinition>>,
+struct ColumnDefinitionsCache {
+    cache: Vec<HashMap<usize, usize>>,
 }
 
-impl<'a> ColumnDefinitionsCache<'a> {
-    pub fn new(table_definitions: &'a [TableDefinition]) -> Self {
+impl ColumnDefinitionsCache {
+    pub fn new(table_definitions: &[TableDefinition]) -> Self {
         Self {
             cache: table_definitions
                 .iter()
                 .map(|td| {
                     td.columns
                         .iter()
-                        .map(|c| ((c.ordinal_position - 1) as usize, c))
+                        .enumerate()
+                        .map(|(i, c)| ((c.ordinal_position - 1) as usize, i))
                         .collect()
                 })
                 .collect(),
         }
     }
 
-    pub fn get_columns_of_table(
+    pub fn get_columns_of_table<'a>(
         &self,
-        table_index: usize,
-    ) -> Option<&HashMap<usize, &ColumnDefinition>> {
-        self.cache.get(table_index)
+        td: &'a TableDefinition,
+    ) -> Option<HashMap<usize, &'a ColumnDefinition>> {
+        self.cache.get(td.table_index).map(|hashmap| {
+            hashmap
+                .iter()
+                .map(|(&zero_based_ordinal, &i)| (zero_based_ordinal, &td.columns[i]))
+                .collect()
+        })
     }
 }
 
@@ -580,36 +804,97 @@ impl<'a, T: StorageFormat> IntoJsonValue for ComplexValue<'a, T, Object> {
     }
 }
 
-pub struct BinlogTableCache<'a> {
-    tables: &'a [TableDefinition],
-    binlog_table_id_to_table_map: HashMap<u64, &'a TableDefinition>,
-    known_missing: HashSet<u64>,
+#[derive(Debug, Clone)]
+pub struct TableDetails<'a> {
+    pub def: &'a TableDefinition,
+    pub columns: HashMap<usize, &'a ColumnDefinition>,
 }
 
-impl BinlogTableCache<'_> {
-    pub fn new(tables: &[TableDefinition]) -> BinlogTableCache<'_> {
-        BinlogTableCache {
+pub struct TableManager<'a> {
+    tables: &'a mut [TableDefinition],
+    binlog_table_id_to_table_index_map: HashMap<u64, usize>,
+    known_missing_tme_table_ids: HashSet<u64>,
+    column_definitions_cache: ColumnDefinitionsCache,
+    databases: HashSet<String>,
+}
+
+impl TableManager<'_> {
+    pub fn new(tables: &mut [TableDefinition]) -> TableManager<'_> {
+        let column_definitions_cache = ColumnDefinitionsCache::new(tables);
+        let databases = Self::get_unique_databases_set(tables);
+        TableManager {
             tables,
-            binlog_table_id_to_table_map: HashMap::new(),
-            known_missing: HashSet::new(),
+            binlog_table_id_to_table_index_map: HashMap::new(),
+            known_missing_tme_table_ids: HashSet::new(),
+            column_definitions_cache,
+            databases,
         }
     }
 
-    pub fn binlog_rotate(&mut self) {
+    pub fn handle_binlog_rotate(&mut self) {
         // binlog table ids are not guranteed to be consistent across binlog rotates
-        self.binlog_table_id_to_table_map.clear();
-        self.known_missing.clear();
+        self.binlog_table_id_to_table_index_map.clear();
+        self.known_missing_tme_table_ids.clear();
     }
 
-    pub fn get_corresponding_table(&mut self, tme: &TableMapEvent<'_>) -> Option<&TableDefinition> {
+    /// Reload column ordinals after ALTER TABLE ADD COLUMN or DROP COLUMN.
+    pub async fn refresh_column_ordinals(
+        &mut self,
+        schema_helper: SchemaHelper<'_>,
+        table_indexes: &HashSet<usize>,
+    ) -> Result<(), MySQLConnectorError> {
+        let mut tables_to_refresh = self
+            .tables
+            .iter_mut()
+            .filter(|td| table_indexes.contains(&td.table_index))
+            .collect::<Vec<_>>();
+
+        schema_helper
+            .refresh_column_ordinals(tables_to_refresh.as_mut_slice())
+            .await?;
+
+        self.column_definitions_cache = ColumnDefinitionsCache::new(self.tables);
+
+        Ok(())
+    }
+
+    // Refresh the entire schema after an ALTER TABLE.
+    // This is a last resort when granular schema changes are not known.
+    pub async fn refresh_full_schema(
+        &mut self,
+        schema_helper: SchemaHelper<'_>,
+    ) -> Result<(), MySQLConnectorError> {
+        schema_helper
+            .refresh_schema_and_check_for_breaking_changes(self.tables)
+            .await?;
+
+        self.column_definitions_cache = ColumnDefinitionsCache::new(self.tables);
+
+        Ok(())
+    }
+
+    pub fn get_table_details(&self, table_index: usize) -> Option<TableDetails> {
+        self.tables.get(table_index).map(|td| TableDetails {
+            def: td,
+            columns: self
+                .column_definitions_cache
+                .get_columns_of_table(td)
+                .unwrap(),
+        })
+    }
+
+    pub fn get_corresponding_table_index(&mut self, tme: &TableMapEvent<'_>) -> Option<usize> {
         let binlog_table_id = tme.table_id();
-        if let Some(found) = self.binlog_table_id_to_table_map.get(&binlog_table_id) {
+        if let Some(&found) = self
+            .binlog_table_id_to_table_index_map
+            .get(&binlog_table_id)
+        {
             Some(found)
-        } else if self.known_missing.contains(&binlog_table_id) {
+        } else if self.known_missing_tme_table_ids.contains(&binlog_table_id) {
             None
         } else {
             // see if we can find it
-            if let Some(value) = self.tables.iter().find(
+            if let Some(&TableDefinition { table_index, .. }) = self.tables.iter().find(
                 |TableDefinition {
                      table_name,
                      database_name,
@@ -619,14 +904,44 @@ impl BinlogTableCache<'_> {
                         && table_name.as_bytes() == tme.table_name_raw()
                 },
             ) {
-                self.binlog_table_id_to_table_map
-                    .insert(binlog_table_id, value);
-                Some(value)
+                self.binlog_table_id_to_table_index_map
+                    .insert(binlog_table_id, table_index);
+                Some(table_index)
             } else {
-                self.known_missing.insert(binlog_table_id);
+                self.known_missing_tme_table_ids.insert(binlog_table_id);
                 None
             }
         }
+    }
+
+    pub fn find_table_by_object_name(
+        &self,
+        object_name: &sqlparser::ast::ObjectName,
+        fallback_schema: &[u8],
+    ) -> Option<&TableDefinition> {
+        let object_name = &object_name.0;
+        if object_name.is_empty() || object_name.len() > 2 {
+            return None;
+        }
+        let table_name = &object_name.last().unwrap().value;
+        let database_name = if object_name.len() > 1 {
+            object_name.first().unwrap().value.as_str().into()
+        } else {
+            String::from_utf8_lossy(fallback_schema)
+        };
+        let database_name = database_name.deref();
+        self.tables.iter().find(|td| {
+            td.table_name.eq_ignore_ascii_case(table_name)
+                && td.database_name.eq_ignore_ascii_case(database_name)
+        })
+    }
+
+    pub fn databases(&self) -> &HashSet<String> {
+        &self.databases
+    }
+
+    fn get_unique_databases_set(tables: &[TableDefinition]) -> HashSet<String> {
+        tables.iter().map(|td| td.database_name.clone()).collect()
     }
 }
 
@@ -870,4 +1185,37 @@ mod tests {
             None::<BinlogValue<'_>>.into_field(&FieldType::Int).unwrap(),
         );
     }
+}
+
+trait ByteSliceExt {
+    fn trim_start(&self) -> &[u8];
+    fn starts_with_case_insensitive(&self, prefix: &[u8]) -> bool;
+}
+
+impl ByteSliceExt for [u8] {
+    fn trim_start(&self) -> &[u8] {
+        for i in 0..self.len() {
+            if !self[i].is_ascii_whitespace() {
+                return &self[i..];
+            }
+        }
+        &[]
+    }
+
+    fn starts_with_case_insensitive(&self, prefix: &[u8]) -> bool {
+        if self.len() < prefix.len() {
+            false
+        } else {
+            self[..prefix.len()].eq_ignore_ascii_case(prefix)
+        }
+    }
+}
+
+fn object_name_to_string(object_name: &sqlparser::ast::ObjectName) -> String {
+    object_name
+        .0
+        .iter()
+        .map(|ident| ident.value.as_str())
+        .collect::<Vec<_>>()
+        .join(".")
 }
