@@ -19,11 +19,11 @@ pub fn get_primary_key(primary_index: &[usize], values: &[Field]) -> Vec<u8> {
         "Primary key indexes cannot be empty"
     );
 
-    let key: Vec<Vec<u8>> = primary_index
-        .iter()
-        .map(|idx| values[*idx].encode())
-        .collect();
+    encode_primary_key(primary_index.iter().map(|idx| &values[*idx]))
+}
 
+pub fn encode_primary_key<'a>(values: impl IntoIterator<Item = &'a Field>) -> Vec<u8> {
+    let key: Vec<Vec<u8>> = values.into_iter().map(|v| v.encode()).collect();
     key.join("#".as_bytes())
 }
 

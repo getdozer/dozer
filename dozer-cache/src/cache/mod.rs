@@ -1,4 +1,6 @@
 mod lmdb;
+mod sqlite;
+
 use std::collections::HashSet;
 use std::fmt::Debug;
 
@@ -9,6 +11,7 @@ use dozer_types::models::api_endpoint::{
     OnDeleteResolutionTypes, OnInsertResolutionTypes, OnUpdateResolutionTypes,
 };
 use dozer_types::node::SourceStates;
+use dozer_types::types::Field;
 use dozer_types::{
     serde::{Deserialize, Serialize},
     types::{Record, SchemaWithIndex},
@@ -16,6 +19,7 @@ use dozer_types::{
 pub use lmdb::cache_manager::{
     begin_dump_txn, dump, CacheManagerOptions, LmdbRoCacheManager, LmdbRwCacheManager,
 };
+pub use sqlite::SqliteRwCache;
 pub mod expression;
 mod index;
 mod plan;
@@ -45,7 +49,7 @@ pub trait RoCacheManager: Send + Sync + Debug {
         &self,
         name_or_alias: String,
         labels: Labels,
-    ) -> Result<Option<Box<dyn RoCache>>, CacheError>;
+    ) -> Result<Option<Box<dyn RoCache + Send + Sync>>, CacheError>;
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -85,7 +89,7 @@ pub trait RwCacheManager: RoCacheManager {
     fn create_alias(&self, name: &str, alias: &str) -> Result<(), CacheError>;
 }
 
-pub trait RoCache: Send + Sync + Debug {
+pub trait RoCache {
     /// Returns the name of the cache.
     fn name(&self) -> &str;
     /// Returns the labels of the cache.
@@ -95,7 +99,7 @@ pub trait RoCache: Send + Sync + Debug {
     fn get_schema(&self) -> &SchemaWithIndex;
 
     // Record Operations
-    fn get(&self, key: &[u8]) -> Result<CacheRecord, CacheError>;
+    fn get(&self, key: &[Field]) -> Result<CacheRecord, CacheError>;
     fn count(&self, query: &QueryExpression) -> Result<usize, CacheError>;
     fn query(&self, query: &QueryExpression) -> Result<Vec<CacheRecord>, CacheError>;
 

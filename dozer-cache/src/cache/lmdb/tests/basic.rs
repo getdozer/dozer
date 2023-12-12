@@ -55,9 +55,8 @@ fn insert_get_and_delete_record() {
 
     assert_eq!(cache.count(&QueryExpression::with_no_limit()).unwrap(), 1);
 
-    let key = index::get_primary_key(&[0], &[Field::String(val.clone())]);
-
-    let get_record = cache.get(&key).unwrap().record;
+    let key = &[Field::String(val.clone())];
+    let get_record = cache.get(key).unwrap().record;
     assert_eq!(get_record, record, "must be equal");
 
     assert_eq!(
@@ -75,7 +74,7 @@ fn insert_get_and_delete_record() {
 
     assert_eq!(cache.count(&QueryExpression::with_no_limit()).unwrap(), 0);
 
-    cache.get(&key).expect_err("Must not find a record");
+    cache.get(key).expect_err("Must not find a record");
 
     assert_eq!(cache.query(&QueryExpression::default()).unwrap(), vec![]);
 }
@@ -154,8 +153,7 @@ fn update_record_when_primary_changes() {
     cache.insert(&initial_record).unwrap();
     cache.commit(&Default::default()).unwrap();
 
-    let key = index::get_primary_key(&schema.primary_index, &initial_values);
-    let record = cache.get(&key).unwrap().record;
+    let record = cache.get(&initial_values).unwrap().record;
 
     assert_eq!(initial_values, record.values);
 
@@ -163,15 +161,14 @@ fn update_record_when_primary_changes() {
     cache.commit(&Default::default()).unwrap();
 
     // Primary key with old values
-    let key = index::get_primary_key(&schema.primary_index, &initial_values);
+    let _key = index::get_primary_key(&schema.primary_index, &initial_values);
 
-    let record = cache.get(&key);
+    let record = cache.get(&initial_values);
 
     assert!(record.is_err());
 
     // Primary key with updated values
-    let key = index::get_primary_key(&schema.primary_index, &updated_values);
-    let record = cache.get(&key).unwrap().record;
+    let record = cache.get(&updated_values).unwrap().record;
 
     assert_eq!(updated_values, record.values);
 }

@@ -73,6 +73,8 @@ pub enum CacheError {
     },
     #[error("Internal thread panic: {0}")]
     InternalThreadPanic(#[source] tokio::task::JoinError),
+    #[error("Sqlite error: {0}")]
+    SqliteError(#[from] rusqlite::Error),
 }
 
 impl CacheError {
@@ -155,4 +157,6 @@ pub enum PlanError {
     RangeQueryLimit,
     #[error("Matching index not found. Try to add following secondary index configuration:\n{0}")]
     MatchingIndexNotFound(String),
+    #[error("Query using skip, but without specifying limit")]
+    SkipWithoutLimit,
 }

@@ -1,21 +1,24 @@
+use std::slice;
+
 use crate::auth::Access;
 use crate::errors::{ApiError, AuthError};
 use dozer_cache::cache::expression::QueryExpression;
 use dozer_cache::cache::CacheRecord;
 use dozer_cache::{AccessFilter, CacheReader};
 use dozer_types::models::api_security::ApiSecurity;
+use dozer_types::types::Field;
 
 pub const API_LATENCY_HISTOGRAM_NAME: &str = "api_latency";
 pub const API_REQUEST_COUNTER_NAME: &str = "api_requests";
 pub fn get_record(
     cache_reader: &CacheReader,
-    key: &[u8],
+    key: &Field,
     endpoint: &str,
     access: Option<Access>,
 ) -> Result<CacheRecord, ApiError> {
     let access_filter = get_access_filter(access, endpoint)?;
     let record = cache_reader
-        .get(key, &access_filter)
+        .get(slice::from_ref(key), &access_filter)
         .map_err(ApiError::NotFound)?;
     Ok(record)
 }

@@ -25,6 +25,9 @@ metrics = "0.21.0"
 clap = { version = "4.4.1", features = ["derive"] }
 env_logger = "0.10.0"
 bincode = { workspace = true }
+rusqlite = { version = "0.29.0", features = ["i128_blob", "chrono", "serde_json", "collation"] }
+r2d2 = "0.8.10"
+ouroboros = "0.18.1"
 
 [dev-dependencies]
 criterion = "0.4"

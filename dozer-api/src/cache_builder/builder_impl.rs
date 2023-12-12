@@ -29,7 +29,6 @@ struct CatchUpInfo {
     endpoint_meta: EndpointMeta,
 }
 
-#[derive(Debug)]
 pub struct CacheBuilderImpl {
     cache_manager: Arc<dyn RwCacheManager>,
     labels: Labels,

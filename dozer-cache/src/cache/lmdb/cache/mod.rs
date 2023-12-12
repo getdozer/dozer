@@ -4,13 +4,14 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::{fmt::Debug, sync::Arc};
 
-use dozer_types::types::{Record, SchemaWithIndex};
+use dozer_types::types::{Field, Record, SchemaWithIndex};
 
 use super::{
     super::{RoCache, RwCache},
     indexing::IndexingThreadPool,
 };
 use crate::cache::expression::QueryExpression;
+use crate::cache::index::encode_primary_key;
 use crate::cache::{CacheRecord, CacheWriteOptions, CommitState, RecordMeta, UpsertResult};
 use crate::errors::CacheError;
 
@@ -140,8 +141,9 @@ impl<C: LmdbCache> RoCache for C {
         self.main_env().labels()
     }
 
-    fn get(&self, key: &[u8]) -> Result<CacheRecord, CacheError> {
-        self.main_env().get(key)
+    fn get(&self, key: &[Field]) -> Result<CacheRecord, CacheError> {
+        let key = encode_primary_key(key);
+        self.main_env().get(&key)
     }
 
     fn count(&self, query: &QueryExpression) -> Result<usize, CacheError> {

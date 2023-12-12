@@ -108,7 +108,7 @@ impl RoCacheManager for LmdbRoCacheManager {
         &self,
         name_or_alias: String,
         labels: Labels,
-    ) -> Result<Option<Box<dyn RoCache>>, CacheError> {
+    ) -> Result<Option<Box<dyn RoCache + Send + Sync>>, CacheError> {
         self.open_lmdb_cache(name_or_alias, labels)
             .map(|cache| cache.map(|cache| Box::new(cache) as _))
     }
@@ -189,7 +189,7 @@ impl RoCacheManager for LmdbRwCacheManager {
         &self,
         name_or_alias: String,
         labels: Labels,
-    ) -> Result<Option<Box<dyn RoCache>>, CacheError> {
+    ) -> Result<Option<Box<dyn RoCache + Send + Sync>>, CacheError> {
         let name = resolve_alias(
             self.env.read().deref(),
             self.alias_to_real_name,

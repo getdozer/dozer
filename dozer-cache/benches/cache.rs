@@ -1,17 +1,14 @@
-use std::path::Path;
-
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use dozer_cache::cache::expression::{self, FilterExpression, QueryExpression, Skip};
 use dozer_cache::cache::{
-    test_utils, CacheManagerOptions, LmdbRwCacheManager, RwCache, RwCacheManager,
+    test_utils, CacheManagerOptions, CacheRecord, LmdbRwCacheManager, RwCache, RwCacheManager,
+    SqliteRwCache,
 };
-use dozer_types::parking_lot::Mutex;
 use dozer_types::serde_json::Value;
 use dozer_types::types::{Field, Record};
+use rusqlite::Connection;
 
-fn insert(cache: &Mutex<Box<dyn RwCache>>, n: usize, commit_size: usize) {
-    let mut cache = cache.lock();
-
+fn insert(cache: &mut Box<dyn RwCache>, n: usize, commit_size: usize) {
     let val = format!("bar_{n}");
     let record = Record::new(vec![Field::String(val)]);
 
@@ -22,8 +19,7 @@ fn insert(cache: &Mutex<Box<dyn RwCache>>, n: usize, commit_size: usize) {
     }
 }
 
-fn query(cache: &Mutex<Box<dyn RwCache>>, _n: usize) {
-    let cache = cache.lock();
+fn query(cache: &mut Box<dyn RwCache>, _n: usize) -> Vec<CacheRecord> {
     let exp = QueryExpression::new(
         Some(FilterExpression::Simple(
             "foo".to_string(),
@@ -35,13 +31,16 @@ fn query(cache: &Mutex<Box<dyn RwCache>>, _n: usize) {
         Skip::Skip(0),
     );
 
-    let _get_record = cache.query(&exp).unwrap();
+    cache.query(&exp).unwrap()
 }
 
-fn cache(c: &mut Criterion) {
+fn lmdb_cache(c: &mut Criterion) {
+    let mut group = c.benchmark_group("lmdb");
     let (schema, secondary_indexes) = test_utils::schema_0();
 
     let path = std::env::var("CACHE_BENCH_PATH").unwrap_or(".dozer".to_string());
+    std::fs::create_dir_all(&path).unwrap();
+    let tmpdir = tempdir::TempDir::new_in(path, "bench").unwrap();
     let commit_size = std::env::var("CACHE_BENCH_COMMIT_SIZE").unwrap_or("".to_string());
     let commit_size: usize = commit_size.parse().unwrap_or(1000);
 
@@ -51,43 +50,87 @@ fn cache(c: &mut Criterion) {
     let cache_manager = LmdbRwCacheManager::new(CacheManagerOptions {
         max_db_size: 1000,
         max_size,
-        path: Some(Path::new(&path).to_path_buf()),
+        path: Some(tmpdir.path().to_path_buf()),
         ..Default::default()
     })
     .unwrap();
-    let cache = Mutex::new(
-        cache_manager
-            .create_cache(
-                "temp".to_string(),
-                Default::default(),
-                (schema, secondary_indexes),
-                &Default::default(),
-                Default::default(),
-            )
-            .unwrap(),
-    );
+    let mut cache = cache_manager
+        .create_cache(
+            "temp".to_string(),
+            Default::default(),
+            (schema, secondary_indexes),
+            &Default::default(),
+            Default::default(),
+        )
+        .unwrap();
 
     let iterations = std::env::var("CACHE_BENCH_ITERATIONS").unwrap_or("".to_string());
     let iterations: usize = iterations.parse().unwrap_or(1000000);
 
     let mut idx = 0;
-    c.bench_with_input(
+    group.bench_with_input(
         BenchmarkId::new("cache_insert", iterations),
         &iterations,
         |b, &_s| {
             b.iter(|| {
-                insert(&cache, idx, commit_size);
+                insert(&mut cache, idx, commit_size);
                 idx += 1;
             })
         },
     );
 
-    c.bench_with_input(
+    cache_manager.wait_until_indexing_catchup();
+
+    group.bench_with_input(
         BenchmarkId::new("cache_query", iterations),
         &iterations,
-        |b, &s| b.iter(|| query(&cache, s)),
+        |b, &s| b.iter(|| query(&mut cache, s)),
     );
+    group.finish()
 }
 
-criterion_group!(benches, cache);
+fn sqlite_cache(c: &mut Criterion) {
+    let mut group = c.benchmark_group("sqlite");
+    let (schema, secondary_indexes) = test_utils::schema_0();
+
+    let path = std::env::var("CACHE_BENCH_PATH").unwrap_or(".dozer".to_string());
+    std::fs::create_dir_all(&path).unwrap();
+    let tmpdir = tempdir::TempDir::new_in(path, "bench").unwrap();
+    let commit_size = std::env::var("CACHE_BENCH_COMMIT_SIZE").unwrap_or("".to_string());
+    let commit_size: usize = commit_size.parse().unwrap_or(1000);
+
+    let conn = Connection::open(tmpdir.path().join("bench.db")).unwrap();
+    let journal_mode: String = conn
+        .pragma_update_and_check(None, "journal_mode", "WAL", |new| new.get(0))
+        .unwrap();
+    assert_eq!(journal_mode.to_lowercase(), "wal");
+    let cache =
+        SqliteRwCache::open_or_create("bench".to_owned(), Some((schema, secondary_indexes)), conn)
+            .unwrap();
+    let mut cache = Box::new(cache) as Box<dyn RwCache>;
+
+    let iterations = std::env::var("CACHE_BENCH_ITERATIONS").unwrap_or("".to_string());
+    let iterations: usize = iterations.parse().unwrap_or(1000000);
+
+    let mut idx = 0;
+    group.bench_with_input(
+        BenchmarkId::new("cache_insert", iterations),
+        &iterations,
+        |b, &_s| {
+            b.iter(|| {
+                insert(&mut cache, idx, commit_size);
+                idx += 1;
+            })
+        },
+    );
+
+    group.bench_with_input(
+        BenchmarkId::new("cache_query", iterations),
+        &iterations,
+        |b, &s| b.iter(|| query(&mut cache, s)),
+    );
+    group.finish()
+}
+
+criterion_group!(benches, lmdb_cache, sqlite_cache);
 criterion_main!(benches);

@@ -74,7 +74,7 @@ impl SQLExecutor {
 }
 
 /// A custom datasource, used to represent a datastore with a single index
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct CacheEndpointDataSource {
     cache_endpoint: Arc<CacheEndpoint>,
     schema: SchemaRef,

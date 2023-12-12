@@ -30,7 +30,6 @@ use tokio::sync::broadcast::Sender;
 
 const READ_LOG_RETRY_INTERVAL: Duration = Duration::from_secs(1);
 
-#[derive(Debug)]
 pub struct CacheBuilder {
     client: InternalPipelineServiceClient<Channel>,
     endpoint: String,

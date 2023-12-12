@@ -66,7 +66,6 @@ pub async fn get(
     };
 
     // This implementation must be consistent with `dozer_cache::cache::index::get_primary_key`
-    let key = key.encode();
     let record = get_record(
         &cache_endpoint.cache_reader(),
         &key,

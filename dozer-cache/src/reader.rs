@@ -4,7 +4,7 @@ use super::cache::expression::FilterExpression;
 use crate::errors::CacheError;
 use dozer_types::{
     serde,
-    types::{Record, SchemaWithIndex},
+    types::{Field, Record, SchemaWithIndex},
 };
 use serde::{Deserialize, Serialize};
 
@@ -28,14 +28,13 @@ pub enum Phase {
     Streaming,
 }
 
-#[derive(Debug)]
 /// CacheReader dynamically attaches permissions on top of queries
 pub struct CacheReader {
-    cache: Box<dyn RoCache>,
+    cache: Box<dyn RoCache + Send + Sync>,
 }
 
 impl CacheReader {
-    pub fn new(cache: Box<dyn RoCache>) -> Self {
+    pub fn new(cache: Box<dyn RoCache + Send + Sync>) -> Self {
         Self { cache }
     }
 
@@ -56,7 +55,11 @@ impl CacheReader {
         self.cache.get_schema()
     }
 
-    pub fn get(&self, key: &[u8], access_filter: &AccessFilter) -> Result<CacheRecord, CacheError> {
+    pub fn get(
+        &self,
+        key: &[Field],
+        access_filter: &AccessFilter,
+    ) -> Result<CacheRecord, CacheError> {
         let record = self.cache.get(key)?;
         match self.check_access(&record.record, access_filter) {
             Ok(_) => Ok(record),

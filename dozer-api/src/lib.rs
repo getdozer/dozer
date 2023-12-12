@@ -15,11 +15,18 @@ mod api_helper;
 pub mod sql;
 pub use api_helper::get_api_security;
 
-#[derive(Debug)]
 pub struct CacheEndpoint {
     cache_reader: Arc<ArcSwap<CacheReader>>,
     descriptor: Vec<u8>,
     endpoint: ApiEndpoint,
+}
+
+impl std::fmt::Debug for CacheEndpoint {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CacheEndpoint")
+            .field("endpoint", &self.endpoint)
+            .finish()
+    }
 }
 
 const ENDPOINT_LABEL: &str = "endpoint";
