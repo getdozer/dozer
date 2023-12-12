@@ -1,3 +1,4 @@
+use deltalake::datafusion::common::DFSchema;
 use deltalake::datafusion::datasource::listing::{
     ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl,
 };
@@ -15,10 +16,6 @@ use std::sync::Arc;
 
 use crate::{ObjectStoreConnectorError, ObjectStoreTableReaderError};
 
-pub struct TableReader<T: Clone + Send + Sync> {
-    pub(crate) config: T,
-}
-
 pub async fn read(
     table_index: usize,
     ctx: SessionContext,
@@ -26,7 +23,8 @@ pub async fn read(
     listing_options: ListingOptions,
     table: &TableInfo,
     sender: Sender<Result<Option<IngestionMessage>, ObjectStoreConnectorError>>,
-) -> Result<(), ObjectStoreConnectorError> {
+    schema: Option<&DFSchema>,
+) -> Result<DFSchema, ObjectStoreConnectorError> {
     let resolved_schema = listing_options
         .infer_schema(&ctx.state(), &table_path)
         .await
@@ -48,7 +46,7 @@ pub async fn read(
     } else {
         table.column_names.iter().map(|c| c.as_str()).collect()
     };
-    let data = ctx
+    let dataframe = ctx
         .read_table(provider.clone())
         .map_err(|e| {
             ObjectStoreConnectorError::TableReaderError(
@@ -60,14 +58,21 @@ pub async fn read(
             ObjectStoreConnectorError::TableReaderError(
                 ObjectStoreTableReaderError::ColumnsSelectFailed(e),
             )
-        })?
-        .execute_stream()
-        .await
-        .map_err(|e| {
-            ObjectStoreConnectorError::TableReaderError(
-                ObjectStoreTableReaderError::StreamExecutionError(e),
-            )
         })?;
+
+    let this_schema = dataframe.schema().to_owned();
+    if let Some(schema) = schema {
+        if schema != &this_schema {
+            return Err(ObjectStoreConnectorError::TableReaderError(
+                ObjectStoreTableReaderError::ConflictingSchema(table_path),
+            ));
+        }
+    }
+    let data = dataframe.execute_stream().await.map_err(|e| {
+        ObjectStoreConnectorError::TableReaderError(
+            ObjectStoreTableReaderError::StreamExecutionError(e),
+        )
+    })?;
 
     tokio::pin!(data);
 
@@ -121,5 +126,5 @@ pub async fn read(
 
     // sender.send(Ok(None)).await.unwrap();
 
-    Ok(())
+    Ok(this_schema.to_owned())
 }

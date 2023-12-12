@@ -1,4 +1,5 @@
 use dozer_ingestion_connector::dozer_types::errors::internal::BoxedError;
+use dozer_ingestion_connector::dozer_types::log::error;
 use dozer_ingestion_connector::dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_ingestion_connector::dozer_types::types::FieldType;
 use dozer_ingestion_connector::futures::future::try_join_all;
@@ -107,12 +108,16 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                 let message = receiver
                     .recv()
                     .await
-                    .ok_or(ObjectStoreConnectorError::RecvError)??;
+                    .ok_or(ObjectStoreConnectorError::RecvError)?;
                 match message {
-                    None => {
+                    Ok(Some(evt)) => ingestor_clone.handle_message(evt).await?,
+                    Ok(None) => {
                         break;
                     }
-                    Some(evt) => ingestor_clone.handle_message(evt).await?,
+                    Err(ObjectStoreConnectorError::TableReaderError(e)) => error!("{e}"),
+                    Err(e) => {
+                        return Err(e.into());
+                    }
                 }
             }
             Ok::<_, BoxedError>(())
@@ -181,14 +186,15 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
 
             for table in self.config.tables() {
                 if table_info.name == table.name {
-                    let table = ObjectStoreTable::new(
-                        table.config.clone(),
-                        self.config.clone(),
-                        updated_state[table_index].clone(),
-                    );
+                    let (state, schema) = updated_state[table_index].clone();
+                    let table =
+                        ObjectStoreTable::new(table.config.clone(), self.config.clone(), state);
                     let sender = sender.clone();
-                    joinset
-                        .spawn(async move { table.watch(table_index, &table_info, sender).await });
+                    joinset.spawn(async move {
+                        table
+                            .watch(table_index, &table_info, sender, schema.as_ref())
+                            .await
+                    });
                     break;
                 }
             }
