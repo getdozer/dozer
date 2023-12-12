@@ -541,6 +541,7 @@ impl SQLExecutor {
         Ok(Self { ctx: Arc::new(ctx) })
     }
 
+    #[allow(unused)]
     pub fn new_empty() -> Self {
         Self {
             ctx: Arc::new(SessionContext::new()),
@@ -588,9 +589,8 @@ impl SQLExecutor {
             statement = state.sql_to_statement(&query, "postgres")?;
         }
 
-        match &mut statement {
-            Statement::Statement(statement) => sql_ast_rewrites(statement),
-            _ => (),
+        if let Statement::Statement(statement) = &mut statement {
+            sql_ast_rewrites(statement)
         };
 
         let context_provider =

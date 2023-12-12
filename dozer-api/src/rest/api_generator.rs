@@ -179,7 +179,7 @@ pub async fn get_phase(
     Ok(web::Json(phase))
 }
 
-pub async fn sql(
+pub(crate) async fn sql(
     // access: Option<ReqData<Access>>, // TODO:
     sql_executor: web::Data<Arc<SQLExecutor>>,
     sql: extractor::SQLQueryExtractor,
