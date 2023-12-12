@@ -2527,7 +2527,7 @@ checksum = "41b319d1b62ffbd002e057f36bebd1f42b9f97927c9577461d855f3513c4289f"
 [[package]]
 name = "datafusion"
 version = "33.0.0"
-source = "git+https://github.com/abcpro1/arrow-datafusion?branch=disable-ambiguity-check#b97dccb7c223435df7431821985dc73ea04c7a66"
+source = "git+https://github.com/getdozer/arrow-datafusion#c3e381599c7938d1053cb10a600991169246f4a4"
 dependencies = [
  "ahash 0.8.6",
  "arrow",
@@ -2573,7 +2573,7 @@ dependencies = [
 [[package]]
 name = "datafusion-common"
 version = "33.0.0"
-source = "git+https://github.com/abcpro1/arrow-datafusion?branch=disable-ambiguity-check#b97dccb7c223435df7431821985dc73ea04c7a66"
+source = "git+https://github.com/getdozer/arrow-datafusion#c3e381599c7938d1053cb10a600991169246f4a4"
 dependencies = [
  "ahash 0.8.6",
  "arrow",
@@ -2591,7 +2591,7 @@ dependencies = [
 [[package]]
 name = "datafusion-execution"
 version = "33.0.0"
-source = "git+https://github.com/abcpro1/arrow-datafusion?branch=disable-ambiguity-check#b97dccb7c223435df7431821985dc73ea04c7a66"
+source = "git+https://github.com/getdozer/arrow-datafusion#c3e381599c7938d1053cb10a600991169246f4a4"
 dependencies = [
  "arrow",
  "chrono",
@@ -2611,7 +2611,7 @@ dependencies = [
 [[package]]
 name = "datafusion-expr"
 version = "33.0.0"
-source = "git+https://github.com/abcpro1/arrow-datafusion?branch=disable-ambiguity-check#b97dccb7c223435df7431821985dc73ea04c7a66"
+source = "git+https://github.com/getdozer/arrow-datafusion#c3e381599c7938d1053cb10a600991169246f4a4"
 dependencies = [
  "ahash 0.8.6",
  "arrow",
@@ -2625,7 +2625,7 @@ dependencies = [
 [[package]]
 name = "datafusion-optimizer"
 version = "33.0.0"
-source = "git+https://github.com/abcpro1/arrow-datafusion?branch=disable-ambiguity-check#b97dccb7c223435df7431821985dc73ea04c7a66"
+source = "git+https://github.com/getdozer/arrow-datafusion#c3e381599c7938d1053cb10a600991169246f4a4"
 dependencies = [
  "arrow",
  "async-trait",
@@ -2642,7 +2642,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr"
 version = "33.0.0"
-source = "git+https://github.com/abcpro1/arrow-datafusion?branch=disable-ambiguity-check#b97dccb7c223435df7431821985dc73ea04c7a66"
+source = "git+https://github.com/getdozer/arrow-datafusion#c3e381599c7938d1053cb10a600991169246f4a4"
 dependencies = [
  "ahash 0.8.6",
  "arrow",
@@ -2676,7 +2676,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-plan"
 version = "33.0.0"
-source = "git+https://github.com/abcpro1/arrow-datafusion?branch=disable-ambiguity-check#b97dccb7c223435df7431821985dc73ea04c7a66"
+source = "git+https://github.com/getdozer/arrow-datafusion#c3e381599c7938d1053cb10a600991169246f4a4"
 dependencies = [
  "ahash 0.8.6",
  "arrow",
@@ -2706,7 +2706,7 @@ dependencies = [
 [[package]]
 name = "datafusion-proto"
 version = "33.0.0"
-source = "git+https://github.com/abcpro1/arrow-datafusion?branch=disable-ambiguity-check#b97dccb7c223435df7431821985dc73ea04c7a66"
+source = "git+https://github.com/getdozer/arrow-datafusion#c3e381599c7938d1053cb10a600991169246f4a4"
 dependencies = [
  "arrow",
  "chrono",
@@ -2720,7 +2720,7 @@ dependencies = [
 [[package]]
 name = "datafusion-sql"
 version = "33.0.0"
-source = "git+https://github.com/abcpro1/arrow-datafusion?branch=disable-ambiguity-check#b97dccb7c223435df7431821985dc73ea04c7a66"
+source = "git+https://github.com/getdozer/arrow-datafusion#c3e381599c7938d1053cb10a600991169246f4a4"
 dependencies = [
  "arrow",
  "arrow-schema",
