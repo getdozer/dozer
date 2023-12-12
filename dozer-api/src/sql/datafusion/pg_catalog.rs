@@ -989,21 +989,9 @@ async fn dml_sql_with_params(
     param_values: Vec<ScalarValue>,
 ) -> Result<(), DataFusionError> {
     ctx.sql(sql)
-        .await
-        .map_err(|err| {
-            eprintln!("error in dml query {sql}: {err}");
-            err
-        })?
-        .with_param_values(param_values)
-        .map_err(|err| {
-            eprintln!("error in dml query {sql}: {err}");
-            err
-        })?
+        .await?
+        .with_param_values(param_values)?
         .collect()
-        .await
-        .map_err(|err| {
-            eprintln!("error in dml query {sql}: {err}");
-            err
-        })?;
+        .await?;
     Ok(())
 }

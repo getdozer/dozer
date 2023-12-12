@@ -604,7 +604,6 @@ impl SQLExecutor {
     }
 
     pub async fn parse(&self, mut sql: &str) -> Result<Vec<PlannedStatement>, DataFusionError> {
-        println!("@@ query: {sql}");
         if sql
             .to_ascii_lowercase()
             .trim_start()
