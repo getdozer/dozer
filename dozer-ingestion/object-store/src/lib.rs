@@ -1,4 +1,4 @@
-use deltalake::datafusion::error::DataFusionError;
+use deltalake::datafusion::{datasource::listing::ListingTableUrl, error::DataFusionError};
 use dozer_ingestion_connector::dozer_types::{
     arrow_types::errors::FromArrowError,
     thiserror::{self, Error},
@@ -15,7 +15,6 @@ mod table_reader;
 pub(crate) mod table_watcher;
 #[cfg(test)]
 mod tests;
-mod watcher;
 
 #[derive(Error, Debug)]
 pub enum ObjectStoreConnectorError {
@@ -90,4 +89,7 @@ pub enum ObjectStoreTableReaderError {
 
     #[error("Stream execution failed: {0}")]
     StreamExecutionError(DataFusionError),
+
+    #[error("File {0} has a conflicting schema")]
+    ConflictingSchema(ListingTableUrl),
 }

@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use deltalake::{
-    datafusion::{datasource::listing::ListingTableUrl, prelude::SessionContext},
+    datafusion::{common::DFSchema, datasource::listing::ListingTableUrl, prelude::SessionContext},
     Path,
 };
 use dozer_ingestion_connector::{
@@ -50,7 +50,7 @@ impl<C: TableConfig, O: DozerObjectStore> ObjectStoreTable<C, O> {
         table_index: usize,
         table_info: &TableInfo,
         sender: Sender<Result<Option<IngestionMessage>, ObjectStoreConnectorError>>,
-    ) -> Result<HashMap<Path, DateTime<Utc>>, ObjectStoreConnectorError> {
+    ) -> Result<(HashMap<Path, DateTime<Utc>>, Option<DFSchema>), ObjectStoreConnectorError> {
         let params = self.store.table_params(&table_info.name)?;
         let store = Arc::new(params.object_store);
 
@@ -151,6 +151,7 @@ impl<C: TableConfig, O: DozerObjectStore> ObjectStoreTable<C, O> {
             }
         }
 
+        let mut schema = None;
         new_files.sort();
         for file in &new_files {
             let marker_file_exist = is_marker_file_exist(new_marker_files.clone(), file);
@@ -172,15 +173,19 @@ impl<C: TableConfig, O: DozerObjectStore> ObjectStoreTable<C, O> {
                     listing_options.clone(),
                     table_info,
                     sender.clone(),
+                    schema.as_ref(),
                 )
                 .await;
-                if let Err(e) = result {
-                    sender.send(Err(e)).await.unwrap();
+                match result {
+                    Ok(s) => {
+                        schema = Some(s);
+                    }
+                    Err(e) => sender.send(Err(e)).await.unwrap(),
                 }
             }
         }
 
-        Ok(update_state)
+        Ok((update_state, schema))
     }
 
     pub async fn watch(
@@ -188,6 +193,7 @@ impl<C: TableConfig, O: DozerObjectStore> ObjectStoreTable<C, O> {
         table_index: usize,
         table_info: &TableInfo,
         sender: Sender<Result<Option<IngestionMessage>, ObjectStoreConnectorError>>,
+        schema: Option<&DFSchema>,
     ) -> Result<(), ObjectStoreConnectorError> {
         let params = self.store.table_params(&table_info.name)?;
         let store = Arc::new(params.object_store);
@@ -316,6 +322,7 @@ impl<C: TableConfig, O: DozerObjectStore> ObjectStoreTable<C, O> {
                         listing_options.clone(),
                         table_info,
                         sender.clone(),
+                        schema,
                     )
                     .await;
                     if let Err(e) = result {
