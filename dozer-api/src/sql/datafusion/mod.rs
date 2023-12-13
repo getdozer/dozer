@@ -604,13 +604,6 @@ impl SQLExecutor {
     }
 
     pub async fn parse(&self, mut sql: &str) -> Result<Vec<PlannedStatement>, DataFusionError> {
-        if sql
-            .to_ascii_lowercase()
-            .trim_start()
-            .starts_with("select character_set_name")
-        {
-            sql = "select 'UTF8'"
-        }
         let statements =
             DFParser::parse_sql_with_dialect(sql, &sqlparser::dialect::PostgreSqlDialect {})?;
         try_join_all(

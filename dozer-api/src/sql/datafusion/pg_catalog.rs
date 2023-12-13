@@ -673,6 +673,22 @@ pub async fn create(ctx: &SessionContext) -> Result<(), DataFusionError> {
             OR has_table_privilege(c.oid, 'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'::text)
             OR has_any_column_privilege(c.oid, 'INSERT, UPDATE, REFERENCES'::text));
 
+    CREATE VIEW information_schema.character_sets AS
+    SELECT (NULL::string) AS character_set_catalog,
+        (NULL::string) AS character_set_schema,
+        'UTF8' AS character_set_name,
+        'UCS' AS character_repertoire,
+        'UTF8' AS form_of_use,
+        current_database() AS default_collate_catalog,
+        nc.nspname AS default_collate_schema,
+        c.collname AS default_collate_name
+        FROM (pg_database d
+        LEFT JOIN (pg_collation c
+        JOIN pg_namespace nc ON ((c.collnamespace = nc.oid))) ON (((d.datcollate = c.collcollate) AND (d.datctype = c.collctype))))
+        WHERE (d.datname = current_database())
+        ORDER BY (char_length(default_collate_name)) DESC, default_collate_name
+    LIMIT 1;
+
     CREATE TABLE information_schema.key_column_usage(
         constraint_catalog string,
         constraint_schema string,
