@@ -1,6 +1,6 @@
 use crate::models::ingestion_types::{
     DeltaLakeConfig, EthConfig, GrpcConfig, JavaScriptConfig, KafkaConfig, LocalStorage,
-    MongodbConfig, MySQLConfig, NestedDozerConfig, S3Storage, SnowflakeConfig,
+    MongodbConfig, MySQLConfig, NestedDozerConfig, S3Storage, SnowflakeConfig, SECRET,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -87,7 +87,7 @@ impl PostgresConfigReplenished {
     pub fn convert_to_table(&self) -> Table {
         table!(
             ["user", self.user],
-            ["password", "*************"],
+            ["password", SECRET],
             ["host", self.host],
             ["port", self.port],
             ["database", self.database],

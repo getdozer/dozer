@@ -13,6 +13,8 @@ use crate::{
 
 use super::equal_default;
 
+pub const SECRET: &str = "*********";
+
 #[derive(Clone, Debug, PartialEq)]
 /// All possible kinds of `IngestionMessage`.
 pub enum IngestionMessage {
@@ -215,7 +217,7 @@ impl SnowflakeConfig {
             ["server", self.server],
             ["port", self.port],
             ["user", self.user],
-            ["password", "************"],
+            ["password", SECRET],
             ["role", self.role],
             ["database", self.database],
             ["schema", self.schema],
@@ -248,8 +250,8 @@ pub struct DataFusionConfig {
 impl DataFusionConfig {
     pub fn convert_to_table(&self) -> PrettyTable {
         table!(
-            ["access_key_id", self.access_key_id],
-            ["secret_access_key", self.secret_access_key],
+            ["access_key_id", SECRET],
+            ["secret_access_key", SECRET],
             ["region", self.region],
             ["bucket_name", self.bucket_name]
         )
@@ -311,8 +313,8 @@ pub struct S3Storage {
 impl S3Storage {
     pub fn convert_to_table(&self) -> PrettyTable {
         table!(
-            ["access_key_id", self.details.access_key_id],
-            ["secret_access_key", self.details.secret_access_key],
+            ["access_key_id", SECRET],
+            ["secret_access_key", SECRET],
             ["region", self.details.region],
             ["bucket_name", self.details.bucket_name]
         )
