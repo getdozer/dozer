@@ -19,7 +19,7 @@ use dozer_types::arrow::array::{Int64Array, LargeBinaryArray};
 use dozer_types::arrow::datatypes::{DataType, IntervalUnit};
 use dozer_types::arrow::datatypes::{TimeUnit, DECIMAL_DEFAULT_SCALE};
 use dozer_types::log::{debug, info};
-use dozer_types::models::api_config::{default_host, default_sql_port, SqlOptions};
+use dozer_types::models::api_config::{default_host, default_sql_port, PgWireOptions};
 use dozer_types::rust_decimal::Decimal;
 use futures_util::future::try_join_all;
 use futures_util::stream::BoxStream;
@@ -48,7 +48,7 @@ use super::datafusion::PlannedStatement;
 use super::util::Iso8601Duration;
 
 pub struct PgWireServer {
-    config: SqlOptions,
+    config: PgWireOptions,
 }
 
 struct MakeQueryHandler {
@@ -74,7 +74,7 @@ impl MakeHandler for MakeQueryHandler {
 }
 
 impl PgWireServer {
-    pub fn new(config: SqlOptions) -> Self {
+    pub fn new(config: PgWireOptions) -> Self {
         Self { config }
     }
 

@@ -172,8 +172,8 @@ impl SimpleOrchestrator {
             tokio::spawn(async move { Ok::<(), OrchestrationError>(()) })
         };
 
-        let pgwire_handle = {
-            let pgwire_config = self.config.api.sql.clone();
+        let pgwire_config = self.config.api.pgwire.clone();
+        let pgwire_handle = if pgwire_config.enabled.unwrap_or(true) {
             let pgwire_server = sql::pgwire::PgWireServer::new(pgwire_config);
             tokio::spawn(async move {
                 pgwire_server
@@ -181,6 +181,8 @@ impl SimpleOrchestrator {
                     .await
                     .map_err(OrchestrationError::PGWireServerFailed)
             })
+        } else {
+            tokio::spawn(async move { Ok::<(), OrchestrationError>(()) })
         };
 
         futures.push(flatten_join_handle(rest_handle));

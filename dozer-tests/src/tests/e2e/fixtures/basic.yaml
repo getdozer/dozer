@@ -23,6 +23,10 @@ connections:
         }
     name: ingest
 
+api:
+  pgwire:
+    enabled: false
+
 sources:
   - name: users
     table_name: users

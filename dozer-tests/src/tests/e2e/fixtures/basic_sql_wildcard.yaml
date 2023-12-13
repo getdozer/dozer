@@ -47,6 +47,8 @@ api:
     port: 7512
   app_grpc:
     port: 7513
+  pgwire:
+    enabled: false
 
 sql: |
   SELECT table4.* 
