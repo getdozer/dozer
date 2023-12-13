@@ -4,6 +4,7 @@ use crate::api_helper::get_api_security;
 // Exports
 use crate::errors::ApiInitError;
 use crate::rest::api_generator::health_route;
+use crate::sql::datafusion::SQLExecutor;
 use crate::{
     auth::api::{auth_route, validate},
     CacheEndpoint,
@@ -49,6 +50,7 @@ pub struct ApiServer {
     security: Option<ApiSecurity>,
     host: String,
     default_max_num_records: usize,
+    enable_sql: bool,
 }
 
 impl Default for ApiServer {
@@ -60,6 +62,7 @@ impl Default for ApiServer {
             security: None,
             host: "0.0.0.0".to_owned(),
             default_max_num_records: 50,
+            enable_sql: true,
         }
     }
 }
@@ -77,8 +80,10 @@ impl ApiServer {
             security,
             host: rest_config.host.unwrap_or_else(default_host),
             default_max_num_records,
+            enable_sql: rest_config.enable_sql.unwrap_or(true),
         }
     }
+
     fn get_cors(cors: CorsOptions) -> Cors {
         match cors {
             CorsOptions::Permissive => Cors::permissive(),
@@ -95,6 +100,7 @@ impl ApiServer {
         mut cache_endpoints: Vec<Arc<CacheEndpoint>>,
         labels: LabelsAndProgress,
         default_max_num_records: usize,
+        sql_executor: Option<Arc<SQLExecutor>>,
     ) -> App<
         impl ServiceFactory<
             ServiceRequest,
@@ -113,6 +119,7 @@ impl ApiServer {
             .app_data(web::Data::new(endpoint_paths))
             .app_data(web::Data::new(default_max_num_records))
             .app_data(web::Data::new(cache_endpoints.clone()))
+            .app_data(web::Data::new(sql_executor))
             .app_data(cfg)
             .wrap(Logger::default())
             .wrap(TracingLogger::default())
@@ -171,7 +178,7 @@ impl ApiServer {
             .wrap(cors_middleware)
     }
 
-    pub fn run(
+    pub async fn run(
         self,
         cache_endpoints: Vec<Arc<CacheEndpoint>>,
         shutdown: impl Future<Output = ()> + Send + 'static,
@@ -190,6 +197,14 @@ impl ApiServer {
 
         let address = format!("{}:{}", self.host, self.port);
         let default_max_num_records = self.default_max_num_records;
+        let sql_executor = if self.enable_sql {
+            let sql_executor = SQLExecutor::try_new(&cache_endpoints)
+                .await
+                .map_err(ApiInitError::SQLEngineError)?;
+            Some(Arc::new(sql_executor))
+        } else {
+            None
+        };
         let server = HttpServer::new(move || {
             ApiServer::create_app_entry(
                 security.clone(),
@@ -197,6 +212,7 @@ impl ApiServer {
                 cache_endpoints.clone(),
                 labels.clone(),
                 default_max_num_records,
+                sql_executor.clone(),
             )
         })
         .bind(&address)

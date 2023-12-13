@@ -38,6 +38,7 @@ async fn list_route() {
         )],
         Default::default(),
         50,
+        None,
     );
     let app = actix_web::test::init_service(api_server).await;
 
@@ -230,6 +231,7 @@ async fn path_collision_test() {
         ],
         Default::default(),
         50,
+        None,
     );
     let app = actix_web::test::init_service(api_server).await;
 
@@ -257,6 +259,7 @@ async fn setup_service() -> (
         )],
         Default::default(),
         50,
+        None,
     );
     (actix_web::test::init_service(api_server).await, endpoint)
 }

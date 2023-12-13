@@ -19,7 +19,7 @@ pub struct ApiConfig {
     pub app_grpc: AppGrpcOptions,
 
     #[serde(default, skip_serializing_if = "equal_default")]
-    pub sql: SqlOptions,
+    pub pgwire: PgWireOptions,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     // max records to be returned from the endpoints
@@ -40,6 +40,9 @@ pub struct RestApiOptions {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enabled: Option<bool>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_sql: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, JsonSchema, Default)]
@@ -73,12 +76,15 @@ pub struct AppGrpcOptions {
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema, Default)]
 #[serde(deny_unknown_fields)]
-pub struct SqlOptions {
+pub struct PgWireOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub port: Option<u32>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub host: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
 }
 
 pub fn default_app_grpc_port() -> u32 {

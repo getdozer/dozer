@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use actix_web::web::ReqData;
 use actix_web::{web, HttpResponse};
+use datafusion::common::plan_datafusion_err;
+use datafusion::error::DataFusionError;
 use dozer_cache::cache::expression::{QueryExpression, Skip};
 use dozer_cache::cache::CacheRecord;
 use dozer_cache::{CacheReader, Phase};
@@ -14,7 +16,7 @@ use openapiv3::OpenAPI;
 use crate::api_helper::{get_record, get_records, get_records_count};
 use crate::generator::oapi::generator::OpenApiGenerator;
 use crate::sql::datafusion::json::record_batches_to_json_rows;
-use crate::sql::datafusion::SQLExecutor;
+use crate::sql::datafusion::{PlannedStatement, SQLExecutor};
 use crate::CacheEndpoint;
 use crate::{auth::Access, errors::ApiError};
 use dozer_types::grpc_types::health::health_check_response::ServingStatus;
@@ -177,16 +179,30 @@ pub async fn get_phase(
     Ok(web::Json(phase))
 }
 
-pub async fn sql(
+pub(crate) async fn sql(
     // access: Option<ReqData<Access>>, // TODO:
-    cache_endpoints: web::Data<Vec<Arc<CacheEndpoint>>>,
+    sql_executor: web::Data<Option<Arc<SQLExecutor>>>,
     sql: extractor::SQLQueryExtractor,
 ) -> Result<actix_web::HttpResponse, crate::errors::ApiError> {
-    let cache_endpoints = (*cache_endpoints.into_inner()).clone();
-    let sql_executor = SQLExecutor::new(cache_endpoints);
+    let Some(sql_executor) = sql_executor.as_deref() else {
+        return Ok(HttpResponse::NotFound().json(json!({ "error": "SQL endpoint is disabled" })));
+    };
     let query = sql.0 .0;
+    let planned = sql_executor
+        .parse(&query)
+        .await
+        .map_err(ApiError::SQLQueryFailed)?;
+    if planned.len() > 1 {
+        return Err(ApiError::SQLQueryFailed(plan_datafusion_err!(
+            "More than one query supplied"
+        )));
+    }
+    let Some(PlannedStatement::Query(plan)) = planned.first().cloned() else {
+        // This was a transaction statement, which doesn't require a result
+        return Ok(HttpResponse::Ok().json(json!({})));
+    };
     let record_batches = sql_executor
-        .execute(&query)
+        .execute(plan)
         .await
         .map_err(ApiError::SQLQueryFailed)?
         .collect()

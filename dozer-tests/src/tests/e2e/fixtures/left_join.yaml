@@ -33,12 +33,13 @@ connections:
 api:
   rest:
     port: 7505
+    enable_sql: false
   grpc:
     port: 7506
   app_grpc:
     port: 7507
-  sql:
-    port: 7508
+  pgwire:
+    enabled: false
 
 sql: SELECT id INTO table1_endpoint FROM table1 LEFT JOIN table2 ON table1.id = table2.table1_id
 

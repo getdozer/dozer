@@ -1,8 +1,8 @@
-use deltalake::datafusion::common::DFSchema;
-use deltalake::datafusion::datasource::listing::{
+use datafusion::common::DFSchema;
+use datafusion::datasource::listing::{
     ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl,
 };
-use deltalake::datafusion::prelude::SessionContext;
+use datafusion::prelude::SessionContext;
 use dozer_ingestion_connector::dozer_types::arrow_types::from_arrow::{
     map_schema_to_dozer, map_value_to_dozer_field,
 };

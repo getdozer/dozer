@@ -74,6 +74,7 @@ async fn check_status(
         )],
         Default::default(),
         50,
+        None,
     );
     let app = actix_web::test::init_service(api_server).await;
 
@@ -104,6 +105,7 @@ async fn _call_auth_token_api(
         )],
         Default::default(),
         50,
+        None,
     );
     let app = actix_web::test::init_service(api_server).await;
 

@@ -1,4 +1,4 @@
-use deltalake::datafusion::{datasource::listing::ListingTableUrl, error::DataFusionError};
+use datafusion::{datasource::listing::ListingTableUrl, error::DataFusionError};
 use dozer_ingestion_connector::dozer_types::{
     arrow_types::errors::FromArrowError,
     thiserror::{self, Error},

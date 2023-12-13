@@ -21,6 +21,7 @@ fn override_rest_port() {
         host: None,
         cors: None,
         enabled: None,
+        enable_sql: None,
     };
     assert_eq!(api_config.rest, expected_rest_config);
 }
@@ -42,6 +43,7 @@ fn override_rest_host() {
         host: Some("localhost".to_owned()),
         cors: None,
         enabled: None,
+        enable_sql: None,
     };
     assert_eq!(api_config.rest, expected_rest_config);
 }
@@ -63,6 +65,7 @@ fn override_rest_enabled() {
         host: None,
         cors: None,
         enabled: Some(false),
+        enable_sql: None,
     };
     assert_eq!(api_config.rest, expected_rest_config);
 }

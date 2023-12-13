@@ -1,6 +1,7 @@
-use deltalake::datafusion::datasource::file_format::csv::CsvFormat;
-use deltalake::datafusion::datasource::file_format::parquet::ParquetFormat;
-use deltalake::datafusion::datasource::listing::ListingOptions;
+use datafusion::datasource::{
+    file_format::{csv::CsvFormat, parquet::ParquetFormat},
+    listing::ListingOptions,
+};
 use dozer_ingestion_connector::dozer_types::models::ingestion_types::{Table, TableConfig};
 use std::sync::Arc;
 

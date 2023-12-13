@@ -1,8 +1,10 @@
+use std::io::ErrorKind;
 use std::sync::Arc;
 
 use ::datafusion::arrow::datatypes::DECIMAL128_MAX_PRECISION;
 use ::datafusion::error::DataFusionError;
 use async_trait::async_trait;
+use datafusion_expr::{LogicalPlan, LogicalPlanBuilder};
 use dozer_types::arrow::array::{
     Array, BinaryArray, BooleanArray, Date32Array, Date64Array, Decimal128Array, Decimal256Array,
     DurationMicrosecondArray, DurationMillisecondArray, DurationNanosecondArray,
@@ -17,12 +19,13 @@ use dozer_types::arrow::array::{Int64Array, LargeBinaryArray};
 use dozer_types::arrow::datatypes::{DataType, IntervalUnit};
 use dozer_types::arrow::datatypes::{TimeUnit, DECIMAL_DEFAULT_SCALE};
 use dozer_types::log::{debug, info};
-use dozer_types::models::api_config::{default_host, default_sql_port, SqlOptions};
+use dozer_types::models::api_config::{default_host, default_sql_port, PgWireOptions};
 use dozer_types::rust_decimal::Decimal;
+use futures_util::future::try_join_all;
 use futures_util::stream::BoxStream;
 use futures_util::{stream, StreamExt};
 use pgwire::api::portal::Portal;
-use pgwire::api::stmt::NoopQueryParser;
+use pgwire::api::stmt::QueryParser;
 use pgwire::api::store::MemPortalStore;
 use pgwire::messages::data::DataRow;
 use tokio::net::TcpListener;
@@ -30,7 +33,7 @@ use tokio::net::TcpListener;
 use pgwire::api::auth::noop::NoopStartupHandler;
 use pgwire::api::query::{ExtendedQueryHandler, SimpleQueryHandler, StatementOrPortal};
 use pgwire::api::results::{
-    DataRowEncoder, DescribeResponse, FieldFormat, FieldInfo, QueryResponse, Response,
+    DataRowEncoder, DescribeResponse, FieldFormat, FieldInfo, QueryResponse, Response, Tag,
 };
 use pgwire::api::{ClientInfo, MakeHandler, StatelessMakeHandler, Type};
 use pgwire::error::{ErrorInfo, PgWireError, PgWireResult};
@@ -41,14 +44,37 @@ use crate::shutdown::ShutdownReceiver;
 use crate::sql::datafusion::SQLExecutor;
 use crate::CacheEndpoint;
 
+use super::datafusion::PlannedStatement;
 use super::util::Iso8601Duration;
 
 pub struct PgWireServer {
-    config: SqlOptions,
+    config: PgWireOptions,
+}
+
+struct MakeQueryHandler {
+    sql_executor: Arc<SQLExecutor>,
+}
+
+impl MakeQueryHandler {
+    pub async fn try_new(
+        cache_endpoints: Vec<Arc<CacheEndpoint>>,
+    ) -> Result<Self, DataFusionError> {
+        Ok(Self {
+            sql_executor: Arc::new(SQLExecutor::try_new(&cache_endpoints).await?),
+        })
+    }
+}
+
+impl MakeHandler for MakeQueryHandler {
+    type Handler = QueryProcessor;
+
+    fn make(&self) -> Self::Handler {
+        QueryProcessor::new(self.sql_executor.clone())
+    }
 }
 
 impl PgWireServer {
-    pub fn new(config: SqlOptions) -> Self {
+    pub fn new(config: PgWireOptions) -> Self {
         Self { config }
     }
 
@@ -58,10 +84,11 @@ impl PgWireServer {
         cache_endpoints: Vec<Arc<CacheEndpoint>>,
     ) -> std::io::Result<()> {
         let config = self.config.clone();
-        let query_processor = Arc::new(QueryProcessor::new(cache_endpoints));
-        let processor = Arc::new(StatelessMakeHandler::new(query_processor.clone()));
-        // We have not implemented extended query in this server, use placeholder instead
-        let placeholder = Arc::new(StatelessMakeHandler::new(query_processor));
+        let processor = Arc::new(
+            MakeQueryHandler::try_new(cache_endpoints)
+                .await
+                .map_err(|err| std::io::Error::new(ErrorKind::Other, err))?,
+        );
         let authenticator = Arc::new(StatelessMakeHandler::new(Arc::new(NoopStartupHandler)));
 
         let host = config.host.unwrap_or_else(default_host);
@@ -75,14 +102,14 @@ impl PgWireServer {
                     let incoming_socket = accept_result?;
                     let authenticator_ref = authenticator.make();
                     let processor_ref = processor.make();
-                    let placeholder_ref = placeholder.make();
+                    let placeholder_ref = processor.make();
                     tokio::spawn(async move {
                         process_socket(
                             incoming_socket.0,
                             None,
                             authenticator_ref,
-                            processor_ref,
-                            placeholder_ref,
+                            Arc::new(processor_ref),
+                            Arc::new(placeholder_ref),
                         )
                         .await
                     });
@@ -95,36 +122,26 @@ impl PgWireServer {
 }
 
 struct QueryProcessor {
-    sql_executor: SQLExecutor,
-    portal_store: Arc<MemPortalStore<String>>,
-    query_parser: Arc<NoopQueryParser>,
+    sql_executor: Arc<SQLExecutor>,
+    portal_store: Arc<MemPortalStore<Option<PlannedStatement>>>,
 }
 
 impl QueryProcessor {
-    pub fn new(cache_endpoints: Vec<Arc<CacheEndpoint>>) -> Self {
-        let sql_executor = SQLExecutor::new(cache_endpoints);
+    pub fn new(sql_executor: Arc<SQLExecutor>) -> Self {
         Self {
             sql_executor,
             portal_store: Arc::new(MemPortalStore::new()),
-            query_parser: Arc::new(NoopQueryParser::new()),
         }
     }
 
-    async fn execute_query<'a>(&self, query: String) -> PgWireResult<Response<'a>> {
-        debug!("Executing SQL query {:?}", query);
-
+    async fn execute<'a>(&self, plan: LogicalPlan) -> PgWireResult<Response<'a>> {
         fn error_info(err: DataFusionError) -> Box<ErrorInfo> {
             Box::new(generic_error_info(err.to_string()))
         }
-        let result = self.sql_executor.execute(&query).await;
-        if let Err(err) = result {
-            return Ok(Response::Error(error_info(err)));
-        }
 
-        let dataframe = result.unwrap();
+        debug!("Executing query plan {plan:?}");
         let schema = Arc::new(
-            dataframe
-                .schema()
+            plan.schema()
                 .fields()
                 .iter()
                 .map(|field| {
@@ -139,10 +156,16 @@ impl QueryProcessor {
                 })
                 .collect::<Vec<_>>(),
         );
+        let dataframe = match self.sql_executor.execute(plan).await {
+            Ok(df) => df,
+            Err(err) => {
+                return Err(PgWireError::UserError(error_info(err)));
+            }
+        };
 
         let result = dataframe.execute_stream().await;
         if let Err(err) = result {
-            return Ok(Response::Error(error_info(err)));
+            return Err(PgWireError::UserError(error_info(err)));
         }
 
         let recordbatch_stream = result.unwrap();
@@ -174,6 +197,19 @@ impl QueryProcessor {
 
         Ok(Response::Query(QueryResponse::new(schema, data_row_stream)))
     }
+
+    fn pg_schema(&self, stmt: &LogicalPlan) -> Vec<FieldInfo> {
+        let schema = stmt.schema();
+        schema
+            .fields()
+            .iter()
+            .map(|df_field| {
+                let name = df_field.name().to_owned();
+                let datatype = map_data_type(df_field.data_type());
+                FieldInfo::new(name, None, None, datatype, FieldFormat::Text)
+            })
+            .collect()
+    }
 }
 
 #[async_trait]
@@ -182,24 +218,60 @@ impl SimpleQueryHandler for QueryProcessor {
     where
         C: ClientInfo + Unpin + Send + Sync,
     {
-        self.execute_query(query.to_string())
+        let queries = self
+            .sql_executor
+            .parse(query)
             .await
-            .map(|response| vec![response])
+            .map_err(|e| PgWireError::UserError(Box::new(generic_error_info(e.to_string()))))?;
+
+        if queries.is_empty() {
+            return Ok(vec![Response::EmptyQuery]);
+        }
+        try_join_all(queries.into_iter().map(|q| async {
+            match q {
+                super::datafusion::PlannedStatement::Query(plan) => self.execute(plan).await,
+                super::datafusion::PlannedStatement::Statement(name) => {
+                    Ok(Response::Execution(Tag::new_for_execution(name, None)))
+                }
+            }
+        }))
+        .await
+    }
+}
+
+#[async_trait]
+impl QueryParser for SQLExecutor {
+    type Statement = Option<PlannedStatement>;
+
+    async fn parse_sql(&self, sql: &str, _types: &[Type]) -> PgWireResult<Self::Statement> {
+        let mut plans = self
+            .parse(sql)
+            .await
+            .map_err(|e| PgWireError::UserError(Box::new(generic_error_info(e.to_string()))))?;
+        if plans.len() > 1 {
+            return Err(PgWireError::UserError(Box::new(generic_error_info(
+                "Multiple statements found".to_owned(),
+            ))));
+        } else if plans.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(plans.remove(0)))
+        }
     }
 }
 
 #[async_trait]
 impl ExtendedQueryHandler for QueryProcessor {
-    type Statement = String;
+    type Statement = Option<PlannedStatement>;
     type PortalStore = MemPortalStore<Self::Statement>;
-    type QueryParser = NoopQueryParser;
+    type QueryParser = SQLExecutor;
 
     fn portal_store(&self) -> Arc<Self::PortalStore> {
         self.portal_store.clone()
     }
 
     fn query_parser(&self) -> Arc<Self::QueryParser> {
-        self.query_parser.clone()
+        self.sql_executor.clone()
     }
 
     async fn do_query<'a, 'b: 'a, C>(
@@ -211,8 +283,29 @@ impl ExtendedQueryHandler for QueryProcessor {
     where
         C: ClientInfo + Unpin + Send + Sync,
     {
-        let query = portal.statement().statement();
-        self.execute_query(query.to_string()).await
+        let query = match portal.statement().statement() {
+            Some(PlannedStatement::Query(query)) => query,
+            Some(PlannedStatement::Statement(name)) => {
+                return Ok(Response::Execution(Tag::new_for_execution(name, None)))
+            }
+            None => {
+                return Ok(Response::EmptyQuery);
+            }
+        };
+        let _params = query.get_parameter_types().map_err(|e| {
+            PgWireError::UserError(Box::new(ErrorInfo::new(
+                "FATAL".to_owned(),
+                "XXX01".to_owned(),
+                e.to_string(),
+            )))
+        })?;
+
+        let plan = LogicalPlanBuilder::from(query.clone())
+            //.limit(0, Some(max_rows))
+            //.unwrap()
+            .build()
+            .unwrap();
+        self.execute(plan).await
     }
 
     async fn do_describe<C>(
@@ -223,19 +316,46 @@ impl ExtendedQueryHandler for QueryProcessor {
     where
         C: ClientInfo + Unpin + Send + Sync,
     {
-        let _query = match target {
+        match target {
             StatementOrPortal::Statement(stmt) => {
-                let query = stmt.statement();
-                query
+                let Some(PlannedStatement::Query(query)) = stmt.statement() else {
+                    return Ok(DescribeResponse::no_data());
+                };
+                let unknown_type = Type::new(
+                    "unknown".to_owned(),
+                    0,
+                    postgres_types::Kind::Pseudo,
+                    "pg_catalog".to_owned(),
+                );
+                let types = query.get_parameter_types().map_err(|e| {
+                    PgWireError::UserError(Box::new(ErrorInfo::new(
+                        "FATAL".to_owned(),
+                        "XXX01".to_owned(),
+                        e.to_string(),
+                    )))
+                })?;
+
+                let mut types = Vec::from_iter(types);
+                // The id's of types are always of the form `$1`, `$2` etc, so
+                // a simple sort works
+                types.sort();
+
+                let pg_types = types
+                    .into_iter()
+                    .map(|(_, ty)| {
+                        ty.as_ref()
+                            .map_or_else(|| unknown_type.clone(), map_data_type)
+                    })
+                    .collect();
+                return Ok(DescribeResponse::new(Some(pg_types), self.pg_schema(query)));
             }
-            StatementOrPortal::Portal(portal) => {
-                let query = portal.statement().statement();
-                query
-            }
-        };
-        // TODO: proper implementations
-        Ok(DescribeResponse::new(None, Vec::new()))
-        // unimplemented!("Extended Query is not implemented on this server.")
+            StatementOrPortal::Portal(portal) => match portal.statement().statement() {
+                Some(PlannedStatement::Query(query)) => {
+                    Ok(DescribeResponse::new(None, self.pg_schema(query)))
+                }
+                Some(PlannedStatement::Statement(_)) | None => Ok(DescribeResponse::no_data()),
+            },
+        }
     }
 }
 
@@ -243,20 +363,21 @@ fn map_data_type(datafusion_type: &DataType) -> Type {
     match datafusion_type {
         DataType::Null => Type::BOOL,
         DataType::Boolean => Type::BOOL,
-        DataType::Int8 => Type::INT2,
+        DataType::Int8 => Type::CHAR,
         DataType::Int16 => Type::INT2,
         DataType::Int32 => Type::INT4,
         DataType::Int64 => Type::INT8,
         DataType::UInt8 => Type::INT2,
-        DataType::UInt16 => Type::INT4,
-        DataType::UInt32 => Type::INT8,
-        DataType::UInt64 => Type::NUMERIC,
+        DataType::UInt16 => Type::INT2,
+        DataType::UInt32 => Type::INT4,
+        DataType::UInt64 => Type::INT8,
         DataType::Float16 => Type::FLOAT4,
         DataType::Float32 => Type::FLOAT4,
         DataType::Float64 => Type::FLOAT8,
         DataType::Timestamp(_, None) => Type::TIMESTAMP,
         DataType::Timestamp(_, Some(_)) => Type::TIMESTAMPTZ,
         DataType::Date32 => Type::DATE,
+        // This might lose data
         DataType::Date64 => Type::DATE,
         DataType::Time32(_) => Type::TIME,
         DataType::Time64(_) => Type::TIME,
@@ -269,10 +390,41 @@ fn map_data_type(datafusion_type: &DataType) -> Type {
         DataType::LargeUtf8 => Type::VARCHAR,
         DataType::Decimal128(_, _) => Type::NUMERIC,
         DataType::Decimal256(_, _) => Type::NUMERIC,
-        DataType::List(_)
-        | DataType::FixedSizeList(_, _)
-        | DataType::LargeList(_)
-        | DataType::Struct(_)
+        DataType::List(f) | DataType::FixedSizeList(f, _) | DataType::LargeList(f) => {
+            match f.data_type() {
+                DataType::Boolean => Type::BOOL_ARRAY,
+                DataType::Int8 => Type::CHAR_ARRAY,
+                DataType::Int16 => Type::INT2_ARRAY,
+                DataType::Int32 => Type::INT4_ARRAY,
+                DataType::Int64 => Type::INT8_ARRAY,
+                DataType::UInt8 => Type::CHAR_ARRAY,
+                DataType::UInt16 => Type::INT2_ARRAY,
+                DataType::UInt32 => Type::INT4_ARRAY,
+                DataType::UInt64 => Type::INT8_ARRAY,
+                DataType::Float16 => Type::FLOAT4_ARRAY,
+                DataType::Float32 => Type::FLOAT4_ARRAY,
+                DataType::Float64 => Type::FLOAT8_ARRAY,
+                DataType::Timestamp(_, _) => Type::TIMESTAMP_ARRAY,
+                DataType::Date32 => Type::TIMESTAMPTZ_ARRAY,
+                DataType::Date64 => Type::TIMESTAMPTZ_ARRAY,
+                DataType::Time32(_) => Type::TIME_ARRAY,
+                DataType::Time64(_) => Type::TIME_ARRAY,
+                DataType::Duration(_) => Type::INTERVAL_ARRAY,
+                DataType::Interval(_) => Type::INTERVAL_ARRAY,
+                DataType::Binary => Type::BYTEA_ARRAY,
+                DataType::FixedSizeBinary(_) => Type::BYTEA_ARRAY,
+                DataType::LargeBinary => Type::BYTEA_ARRAY,
+                DataType::Utf8 => Type::VARCHAR_ARRAY,
+                DataType::LargeUtf8 => Type::VARCHAR_ARRAY,
+                DataType::List(_) => Type::ANYARRAY,
+                DataType::FixedSizeList(_, _) => Type::ANYARRAY,
+                DataType::LargeList(_) => Type::ANYARRAY,
+                DataType::Decimal128(_, _) => Type::NUMERIC_ARRAY,
+                DataType::Decimal256(_, _) => Type::NUMERIC_ARRAY,
+                _ => unimplemented!(),
+            }
+        }
+        DataType::Struct(_)
         | DataType::Union(_, _)
         | DataType::Dictionary(_, _)
         | DataType::Map(_, _)
@@ -292,6 +444,9 @@ fn encode_field(
     column_data_type: &DataType,
     row_index: usize,
 ) -> Result<(), PgWireError> {
+    if column_data.is_null(row_index) {
+        return encoder.encode_field(&None::<bool>);
+    }
     match column_data_type {
         DataType::Null => encoder.encode_field(&None::<bool>),
         DataType::Boolean => {

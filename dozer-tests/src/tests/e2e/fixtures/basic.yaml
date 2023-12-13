@@ -23,6 +23,12 @@ connections:
         }
     name: ingest
 
+api:
+  rest:
+    enable_sql: false
+  pgwire:
+    enabled: false
+
 sources:
   - name: users
     table_name: users
