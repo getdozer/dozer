@@ -28,6 +28,19 @@ use crate::scalar::string::TrimType;
 use super::cast::CastOperatorType;
 
 #[derive(Clone, Debug)]
+#[cfg(feature = "onnx")]
+use crate::pipeline::errors::PipelineError::OnnxError;
+#[cfg(feature = "onnx")]
+use crate::pipeline::onnx::DozerSession;
+#[cfg(feature = "onnx")]
+use crate::pipeline::onnx::OnnxError::OnnxOrtErr;
+#[cfg(feature = "onnx")]
+use dozer_types::models::udf_config::OnnxConfig;
+
+#[cfg(feature = "wasm")]
+use dozer_types::models::udf_config::WasmConfig;
+
+#[derive(Clone, Debug)]
 pub struct ExpressionBuilder {
     // Must be an aggregation function
     pub aggregations: Vec<Expression>,
@@ -554,6 +567,25 @@ impl ExpressionBuilder {
                     )
                     .await
                 }
+                UdfType::Wasm(config) => {
+                    #[cfg(feature = "wasm")]
+                    {
+                        self.parse_wasm_udf(
+                            function_name.clone(),
+                            config,
+                            sql_function,
+                            schema,
+                            udfs,
+                        )
+                        .await
+                    }
+
+                    #[cfg(not(feature = "wasm"))]
+                    {
+                        let _ = config;
+                        Err(Error::WasmNotEnabled)
+                    }
+                }
             };
         }
 
@@ -973,6 +1005,53 @@ impl ExpressionBuilder {
         )
         .await?;
         Ok(Expression::JavaScriptUdf(udf))
+    }
+
+    #[cfg(feature = "wasm")]
+    async fn parse_wasm_udf(
+        &mut self,
+        name: String,
+        config: &WasmConfig,
+        function: &Function,
+        schema: &Schema,
+        udfs: &[UdfConfig],
+    ) -> Result<Expression, Error> {
+        // First, get the wasm function defined by name.
+        // Then, transfer the wasm function to Expression::WasmUDF
+        use crate::wasm::utils::wasm_validate_input_and_return;
+        use std::path::Path;
+
+        let mut args = vec![];
+        for argument in &function.args {
+            let arg = self
+                .parse_sql_function_arg(false, argument, schema, udfs)
+                .await?;
+            args.push(arg);
+        }
+
+        let session = wasm_validate_input_and_return(
+            schema,
+            name.as_str(),
+            Path::new(&config.path.clone()),
+            &args,
+        )
+        .unwrap();
+
+        let return_type = match session.return_type {
+            wasmtime::ValType::I32 => FieldType::Int,
+            wasmtime::ValType::I64 => FieldType::Int,
+            wasmtime::ValType::F32 => FieldType::Float,
+            wasmtime::ValType::F64 => FieldType::Float,
+            _ => todo!(),
+        };
+
+        Ok(Expression::WasmUDF {
+            name: name.to_string(),
+            module: config.path.clone(),
+            args,
+            return_type,
+            session,
+        })
     }
 
     async fn parse_sql_in_list_operator(

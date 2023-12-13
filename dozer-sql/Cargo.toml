@@ -31,3 +31,4 @@ tokio = { version = "1", features = ["rt", "macros"] }
 [features]
 python = ["dozer-sql-expression/python"]
 onnx = ["dozer-sql-expression/onnx"]
+wasm = ["dozer-sql-expression/wasm"]

@@ -68,7 +68,7 @@ pub struct Config {
     /// Dozer Cloud specific configuration
     pub cloud: Cloud,
 
-    /// UDF specific configuration (eg. !Onnx)
+    /// UDF specific configuration (eg. !Onnx, Wasm)
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub udfs: Vec<UdfConfig>,
 
