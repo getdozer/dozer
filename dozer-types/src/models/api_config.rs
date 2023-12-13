@@ -40,6 +40,9 @@ pub struct RestApiOptions {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enabled: Option<bool>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_sql: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, JsonSchema, Default)]

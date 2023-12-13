@@ -33,6 +33,7 @@ connections:
 api:
   rest:
     port: 7505
+    enable_sql: false
   grpc:
     port: 7506
   app_grpc:

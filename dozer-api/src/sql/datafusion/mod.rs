@@ -541,13 +541,6 @@ impl SQLExecutor {
         Ok(Self { ctx: Arc::new(ctx) })
     }
 
-    #[allow(unused)]
-    pub fn new_empty() -> Self {
-        Self {
-            ctx: Arc::new(SessionContext::new()),
-        }
-    }
-
     pub async fn execute(&self, plan: LogicalPlan) -> Result<DataFrame, DataFusionError> {
         self.ctx.execute_logical_plan(plan).await
     }

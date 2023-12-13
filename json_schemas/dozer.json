@@ -1500,6 +1500,12 @@
             "null"
           ]
         },
+        "enable_sql": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "enabled": {
           "type": [
             "boolean",

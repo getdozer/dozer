@@ -50,6 +50,7 @@ pub struct ApiServer {
     security: Option<ApiSecurity>,
     host: String,
     default_max_num_records: usize,
+    enable_sql: bool,
 }
 
 impl Default for ApiServer {
@@ -61,6 +62,7 @@ impl Default for ApiServer {
             security: None,
             host: "0.0.0.0".to_owned(),
             default_max_num_records: 50,
+            enable_sql: true,
         }
     }
 }
@@ -78,8 +80,10 @@ impl ApiServer {
             security,
             host: rest_config.host.unwrap_or_else(default_host),
             default_max_num_records,
+            enable_sql: rest_config.enable_sql.unwrap_or(true),
         }
     }
+
     fn get_cors(cors: CorsOptions) -> Cors {
         match cors {
             CorsOptions::Permissive => Cors::permissive(),
@@ -96,7 +100,7 @@ impl ApiServer {
         mut cache_endpoints: Vec<Arc<CacheEndpoint>>,
         labels: LabelsAndProgress,
         default_max_num_records: usize,
-        sql_executor: Arc<SQLExecutor>,
+        sql_executor: Option<Arc<SQLExecutor>>,
     ) -> App<
         impl ServiceFactory<
             ServiceRequest,
@@ -193,10 +197,14 @@ impl ApiServer {
 
         let address = format!("{}:{}", self.host, self.port);
         let default_max_num_records = self.default_max_num_records;
-        let sql_executor = SQLExecutor::try_new(&cache_endpoints)
-            .await
-            .map_err(ApiInitError::SQLEngineError)?;
-        let sql_executor = Arc::new(sql_executor);
+        let sql_executor = if self.enable_sql {
+            let sql_executor = SQLExecutor::try_new(&cache_endpoints)
+                .await
+                .map_err(ApiInitError::SQLEngineError)?;
+            Some(Arc::new(sql_executor))
+        } else {
+            None
+        };
         let server = HttpServer::new(move || {
             ApiServer::create_app_entry(
                 security.clone(),

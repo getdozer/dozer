@@ -24,6 +24,8 @@ connections:
     name: ingest
 
 api:
+  rest:
+    enable_sql: false
   pgwire:
     enabled: false
 

@@ -181,9 +181,12 @@ pub async fn get_phase(
 
 pub(crate) async fn sql(
     // access: Option<ReqData<Access>>, // TODO:
-    sql_executor: web::Data<Arc<SQLExecutor>>,
+    sql_executor: web::Data<Option<Arc<SQLExecutor>>>,
     sql: extractor::SQLQueryExtractor,
 ) -> Result<actix_web::HttpResponse, crate::errors::ApiError> {
+    let Some(sql_executor) = sql_executor.as_deref() else {
+        return Ok(HttpResponse::NotFound().json(json!({ "error": "SQL endpoint is disabled" })));
+    };
     let query = sql.0 .0;
     let planned = sql_executor
         .parse(&query)

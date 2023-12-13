@@ -3,7 +3,6 @@ use std::sync::Arc;
 use super::super::{ApiServer, CorsOptions};
 use crate::{
     auth::{Access, Authorizer},
-    sql::datafusion::SQLExecutor,
     test_utils, CacheEndpoint,
 };
 use actix_web::{body::MessageBody, dev::ServiceResponse};
@@ -75,7 +74,7 @@ async fn check_status(
         )],
         Default::default(),
         50,
-        Arc::new(SQLExecutor::new_empty()),
+        None,
     );
     let app = actix_web::test::init_service(api_server).await;
 
@@ -106,7 +105,7 @@ async fn _call_auth_token_api(
         )],
         Default::default(),
         50,
-        Arc::new(SQLExecutor::new_empty()),
+        None,
     );
     let app = actix_web::test::init_service(api_server).await;
 

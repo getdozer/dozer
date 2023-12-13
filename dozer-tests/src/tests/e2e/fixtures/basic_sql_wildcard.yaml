@@ -43,6 +43,7 @@ connections:
 api:
   rest:
     port: 7511
+    enable_sql: false
   grpc:
     port: 7512
   app_grpc:
