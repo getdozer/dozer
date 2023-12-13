@@ -131,6 +131,8 @@ mod mock {
                     storage: Some(Storage::Local(LocalStorage {
                         root: "mock".to_string(),
                     })),
+                    checkpoint_prefix: "mock-checkpoint".to_string(),
+                    log_prefix: "mock-log".to_string(),
                 }))
             } else {
                 err_not_found(&endpoint)

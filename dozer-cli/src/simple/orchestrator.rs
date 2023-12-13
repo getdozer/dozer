@@ -234,6 +234,7 @@ impl SimpleOrchestrator {
             &self.config.udfs,
         )
         .await?;
+        let checkpoint_prefix = executor.checkpoint_prefix().to_string();
         let endpoint_and_logs = executor.endpoint_and_logs().to_vec();
         let dag_executor = executor
             .create_dag_executor(
@@ -245,10 +246,14 @@ impl SimpleOrchestrator {
             .await?;
 
         let app_grpc_config = &self.config.api.app_grpc;
-        let internal_server_future =
-            start_internal_pipeline_server(endpoint_and_logs, app_grpc_config, shutdown.clone())
-                .await
-                .map_err(OrchestrationError::InternalServerFailed)?;
+        let internal_server_future = start_internal_pipeline_server(
+            checkpoint_prefix,
+            endpoint_and_logs,
+            app_grpc_config,
+            shutdown.clone(),
+        )
+        .await
+        .map_err(OrchestrationError::InternalServerFailed)?;
 
         if let Some(api_notifier) = api_notifier {
             api_notifier.send(()).expect("Failed to notify API server");

@@ -3958,6 +3958,7 @@ dependencies = [
 name = "dozer-log"
 version = "0.3.0"
 dependencies = [
+ "async-stream",
  "aws-config",
  "aws-sdk-s3",
  "aws-smithy-http",

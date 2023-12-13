@@ -111,10 +111,13 @@ impl Sink for LogSink {
         Ok(())
     }
 
-    fn persist(&mut self, queue: &Queue) -> Result<(), BoxedError> {
-        self.runtime
-            .block_on(self.log.lock())
-            .persist(queue, self.log.clone(), &self.runtime)?;
+    fn persist(&mut self, epoch: &Epoch, queue: &Queue) -> Result<(), BoxedError> {
+        self.runtime.block_on(self.log.lock()).persist(
+            epoch.common_info.id,
+            queue,
+            self.log.clone(),
+            &self.runtime,
+        )?;
         Ok(())
     }
 

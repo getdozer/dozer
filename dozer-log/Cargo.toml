@@ -7,6 +7,7 @@ edition = "2021"
 
 
 [dependencies]
+async-stream = "0.3.5"
 aws-config = "0.56.1"
 aws-sdk-s3 = "0.34.0"
 aws-smithy-http = "0.56.1"

@@ -13,7 +13,7 @@ use crate::{
 
 async fn create_test_log() -> (TempDir, Arc<Mutex<Log>>, Queue) {
     let (temp_dir, storage) = create_temp_dir_local_storage().await;
-    let log = Log::new(&*storage, "log".to_string(), 0).await.unwrap();
+    let log = Log::new(&*storage, "log".to_string(), None).await.unwrap();
     let queue = Queue::new(storage, 10).0;
     (temp_dir, Arc::new(Mutex::new(log)), queue)
 }
@@ -115,7 +115,7 @@ fn watch_partial() {
     std::thread::spawn(move || {
         runtime_clone
             .block_on(log.lock())
-            .persist(&queue, log.clone(), &runtime_clone)
+            .persist(0, &queue, log.clone(), &runtime_clone)
             .unwrap();
     })
     .join()
@@ -159,7 +159,7 @@ fn watch_out_of_range() {
     std::thread::spawn(move || {
         runtime_clone
             .block_on(log_clone.lock())
-            .persist(&queue, log_clone.clone(), &runtime_clone)
+            .persist(0, &queue, log_clone.clone(), &runtime_clone)
             .unwrap();
     })
     .join()
@@ -200,7 +200,7 @@ fn in_memory_log_should_shrink_after_persist() {
     let handle = std::thread::spawn(move || {
         runtime_clone
             .block_on(log_clone.lock())
-            .persist(&queue, log_clone.clone(), &runtime_clone)
+            .persist(0, &queue, log_clone.clone(), &runtime_clone)
             .unwrap()
     })
     .join()

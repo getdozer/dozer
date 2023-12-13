@@ -23,12 +23,13 @@ pub async fn create_data_storage(
     }
 }
 
-pub async fn load_persisted_log_entries(
+/// Returns persisted log entries and keys to remove.
+async fn load_persisted_log_entries_impl(
     storage: &dyn Storage,
     prefix: String,
-    num_entries_to_keep: usize,
-) -> Result<Vec<PersistedLogEntry>, Error> {
-    // Load first `num_entries_to_keep` objects.
+    last_epoch_id: Option<u64>,
+) -> Result<(Vec<PersistedLogEntry>, Vec<String>), Error> {
+    // Load until `last_epoch_id`.
     let mut result = vec![];
     let mut to_remove = vec![];
     let mut continuation_token = None;
@@ -38,18 +39,19 @@ pub async fn load_persisted_log_entries(
             .await?;
 
         for output in list_output.objects {
-            if result.len() < num_entries_to_keep {
-                let name = AsRef::<Utf8Path>::as_ref(&output.key)
-                    .strip_prefix(&prefix)
-                    .map_err(|_| Error::UnrecognizedLogEntry(output.key.clone()))?;
-                let range = parse_log_entry_name(name.as_str())
-                    .ok_or(Error::UnrecognizedLogEntry(output.key.clone()))?;
+            let name = AsRef::<Utf8Path>::as_ref(&output.key)
+                .strip_prefix(&prefix)
+                .map_err(|_| Error::UnrecognizedLogEntry(output.key.clone()))?;
+            let (epoch_id, range) = parse_log_entry_name(name.as_str())
+                .ok_or(Error::UnrecognizedLogEntry(output.key.clone()))?;
+            if Some(epoch_id) > last_epoch_id {
+                to_remove.push(output.key);
+            } else {
                 result.push(PersistedLogEntry {
                     key: output.key,
+                    epoch_id,
                     range,
                 });
-            } else {
-                to_remove.push(output.key);
             }
         }
 
@@ -59,17 +61,13 @@ pub async fn load_persisted_log_entries(
         }
     }
 
-    // Check if we have expected number of entries.
-    if result.len() != num_entries_to_keep {
-        return Err(Error::NotEnoughLogEntries {
-            expected: num_entries_to_keep,
-            actual: result.len(),
+    // Check if we have expected epoch id.
+    let actual_last_epoch_id = result.last().map(|entry| entry.epoch_id);
+    if actual_last_epoch_id != last_epoch_id {
+        return Err(Error::EpochIdMismatch {
+            expected: last_epoch_id,
+            actual: actual_last_epoch_id,
         });
-    }
-
-    // Remove extra entries. These are persisted in the middle of a checkpointing, but the checkpointing didn't finish.
-    if !to_remove.is_empty() {
-        storage.delete_objects(to_remove).await?;
     }
 
     // Check invariants.
@@ -87,7 +85,32 @@ pub async fn load_persisted_log_entries(
 
     debug!("Loaded {} log entries", result.len());
 
-    Ok(result)
+    Ok((result, to_remove))
+}
+
+pub async fn load_persisted_log_entries(
+    storage: &dyn Storage,
+    prefix: String,
+    last_epoch_id: Option<u64>,
+) -> Result<Vec<PersistedLogEntry>, Error> {
+    let (entries, _) = load_persisted_log_entries_impl(storage, prefix, last_epoch_id).await?;
+    Ok(entries)
+}
+
+pub async fn load_persisted_and_remove_spurious_log_entries(
+    storage: &dyn Storage,
+    prefix: String,
+    last_epoch_id: Option<u64>,
+) -> Result<Vec<PersistedLogEntry>, Error> {
+    let (entries, to_remove) =
+        load_persisted_log_entries_impl(storage, prefix, last_epoch_id).await?;
+
+    // Remove extra entries. These are persisted in the middle of a checkpointing, but the checkpointing didn't finish.
+    if !to_remove.is_empty() {
+        storage.delete_objects(to_remove).await?;
+    }
+
+    Ok(entries)
 }
 
 pub fn persisted_log_entries_end(persisted: &[PersistedLogEntry]) -> Option<usize> {
@@ -97,10 +120,11 @@ pub fn persisted_log_entries_end(persisted: &[PersistedLogEntry]) -> Option<usiz
 pub fn persist(
     queue: &Queue,
     prefix: &str,
+    epoch_id: u64,
     range: Range<usize>,
     ops: &[LogOperation],
 ) -> Result<tokio::sync::oneshot::Receiver<String>, Error> {
-    let name = log_entry_name(&range);
+    let name = log_entry_name(epoch_id, &range);
     let key = AsRef::<Utf8Path>::as_ref(prefix).join(name).to_string();
     let data = bincode::encode_to_vec(ops, bincode::config::legacy())
         .expect("LogOperation must be serializable");
@@ -109,19 +133,21 @@ pub fn persist(
         .map_err(|_| Error::PersistingThreadQuit)
 }
 
-fn parse_log_entry_name(name: &str) -> Option<Range<usize>> {
+fn parse_log_entry_name(name: &str) -> Option<(u64, Range<usize>)> {
     let mut split = name.split('-');
+    let epoch_id = split.next()?;
     let start = split.next()?;
     let end = split.next()?;
     if split.next().is_some() {
         return None;
     }
+    let epoch_id = epoch_id.parse().ok()?;
     let start = start.parse().ok()?;
     let end = end.parse().ok()?;
-    Some(start..end)
+    Some((epoch_id, start..end))
 }
 
-fn log_entry_name(range: &Range<usize>) -> String {
+fn log_entry_name(epoch_id: u64, range: &Range<usize>) -> String {
     // Format with `u64` max number of digits.
-    format!("{:020}-{:020}", range.start, range.end)
+    format!("{:020}-{:020}-{:020}", epoch_id, range.start, range.end)
 }

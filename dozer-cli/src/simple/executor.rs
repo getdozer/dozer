@@ -62,14 +62,8 @@ impl<'a> Executor<'a> {
 
         let mut endpoint_and_logs = vec![];
         for endpoint in api_endpoints {
-            let log_endpoint = create_log_endpoint(
-                contract,
-                &build_path,
-                &endpoint.name,
-                &checkpoint,
-                checkpoint.num_slices(),
-            )
-            .await?;
+            let log_endpoint =
+                create_log_endpoint(contract, &build_path, &endpoint.name, &checkpoint).await?;
             endpoint_and_logs.push((endpoint.clone(), log_endpoint));
         }
 
@@ -82,6 +76,10 @@ impl<'a> Executor<'a> {
             labels,
             udfs,
         })
+    }
+
+    pub fn checkpoint_prefix(&self) -> &str {
+        self.checkpoint.prefix()
     }
 
     pub fn endpoint_and_logs(&self) -> &[(ApiEndpoint, LogEndpoint)] {
@@ -132,7 +130,6 @@ async fn create_log_endpoint(
     build_path: &BuildPath,
     endpoint_name: &str,
     checkpoint: &OptionCheckpoint,
-    num_persisted_entries_to_keep: usize,
 ) -> Result<LogEndpoint, OrchestrationError> {
     let endpoint_path = build_path.get_endpoint_path(endpoint_name);
 
@@ -148,7 +145,7 @@ async fn create_log_endpoint(
     let log = Log::new(
         checkpoint.storage(),
         log_prefix.into(),
-        num_persisted_entries_to_keep,
+        checkpoint.last_epoch_id(),
     )
     .await?;
     let log = Arc::new(Mutex::new(log));

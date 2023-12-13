@@ -47,7 +47,7 @@ impl Sink for DummySink {
         Ok(())
     }
 
-    fn persist(&mut self, _queue: &Queue) -> Result<(), BoxedError> {
+    fn persist(&mut self, _epoch: &Epoch, _queue: &Queue) -> Result<(), BoxedError> {
         Ok(())
     }
 

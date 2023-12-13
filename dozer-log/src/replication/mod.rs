@@ -17,22 +17,28 @@ use tokio::task::JoinHandle;
 
 use crate::storage::{Queue, Storage};
 
-use self::persist::{load_persisted_log_entries, persisted_log_entries_end};
+use self::persist::{load_persisted_and_remove_spurious_log_entries, persisted_log_entries_end};
 
 pub use self::persist::create_data_storage;
 
 mod persist;
 
+pub use persist::load_persisted_log_entries;
+
 #[derive(Debug, Clone, PartialEq, bincode::Decode, bincode::Encode)]
 pub struct PersistedLogEntry {
     pub key: String,
+    pub epoch_id: u64,
     pub range: Range<usize>,
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("`CheckpointFactory` expects {expected} checkpoints but only {actual} found")]
-    NotEnoughLogEntries { expected: usize, actual: usize },
+    #[error("`CheckpointFactory` expects epoch id {expected:?} but only found {actual:?}")]
+    EpochIdMismatch {
+        expected: Option<u64>,
+        actual: Option<u64>,
+    },
     #[error("Storage error: {0}")]
     Storage(#[from] super::storage::Error),
     #[error("Unrecognized log entry: {0}")]
@@ -93,6 +99,10 @@ impl Log {
         self.storage.clone()
     }
 
+    pub fn prefix(&self) -> &str {
+        &self.prefix
+    }
+
     pub fn from_checkpoint(&self) -> Option<&SourceStates> {
         self.from_checkpoint.as_ref()
     }
@@ -100,10 +110,10 @@ impl Log {
     pub async fn new(
         storage: &dyn Storage,
         prefix: String,
-        num_persisted_entries_to_keep: usize,
+        last_epoch_id: Option<u64>,
     ) -> Result<Self, Error> {
         let persisted =
-            load_persisted_log_entries(storage, prefix.clone(), num_persisted_entries_to_keep)
+            load_persisted_and_remove_spurious_log_entries(storage, prefix.clone(), last_epoch_id)
                 .await?;
         let end = persisted_log_entries_end(&persisted);
 
@@ -165,6 +175,7 @@ impl Log {
 
     pub fn persist(
         &mut self,
+        epoch_id: u64,
         queue: &Queue,
         this: Arc<Mutex<Log>>,
         runtime: &Runtime,
@@ -186,7 +197,7 @@ impl Log {
         let start = self.in_memory.start + self.in_memory.next_persist_start;
         let end = self.in_memory.end();
         let range = start..end;
-        let persist_future = persist::persist(queue, &self.prefix, range.clone(), ops)?;
+        let persist_future = persist::persist(queue, &self.prefix, epoch_id, range.clone(), ops)?;
         self.in_memory.next_persist_start = self.in_memory.ops.len();
 
         // Spawn a future that awaits for persisting completion and removes in memory ops.
@@ -216,6 +227,7 @@ impl Log {
             // Add persisted entry and remove in memory ops.
             this.persisted.push(PersistedLogEntry {
                 key,
+                epoch_id,
                 range: range.clone(),
             });
             this.in_memory.start = range.end;

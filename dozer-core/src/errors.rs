@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use crate::checkpoint::serialize::{DeserializationError, SerializationError};
 use crate::node::PortHandle;
+use dozer_log::reader::CheckpointedLogReaderError;
 use dozer_recordstore::RecordStoreError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
@@ -44,8 +45,8 @@ pub enum ExecutionError {
     ObjectStorage(#[from] dozer_log::storage::Error),
     #[error("Checkpoint writer thread panicked")]
     CheckpointWriterThreadPanicked,
-    #[error("Unrecognized checkpoint: {0}")]
-    UnrecognizedCheckpoint(String),
+    #[error("Checkpointed log reader error: {0}")]
+    CheckpointedLogReader(#[from] CheckpointedLogReaderError),
     #[error("Cannot deserialize checkpoint: {0}")]
     CorruptedCheckpoint(#[source] bincode::error::DecodeError),
     #[error("Table {table_name} of source {source_name} cannot restart. You have to clean data from previous runs by running `dozer clean`")]
