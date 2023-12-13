@@ -603,7 +603,7 @@ impl SQLExecutor {
         Ok(PlannedStatement::Query(plan))
     }
 
-    pub async fn parse(&self, mut sql: &str) -> Result<Vec<PlannedStatement>, DataFusionError> {
+    pub async fn parse(&self, sql: &str) -> Result<Vec<PlannedStatement>, DataFusionError> {
         let statements =
             DFParser::parse_sql_with_dialect(sql, &sqlparser::dialect::PostgreSqlDialect {})?;
         try_join_all(
