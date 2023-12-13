@@ -3684,6 +3684,7 @@ dependencies = [
  "tower",
  "tower-http",
  "tracing-actix-web",
+ "unicode-segmentation",
  "uuid",
 ]
 

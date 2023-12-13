@@ -2,11 +2,12 @@ use std::sync::Arc;
 
 use datafusion::arrow::datatypes::{Decimal128Type, Decimal256Type, DecimalType};
 use datafusion::scalar::ScalarValue;
-use datafusion_expr::{Between, BinaryExpr, Expr, Operator, TableProviderFilterPushDown};
+use datafusion_expr::{Between, BinaryExpr, Expr, Like, Operator, TableProviderFilterPushDown};
 use dozer_cache::cache::expression::{
     FilterExpression, Operator as CacheFilterOperator, QueryExpression,
 };
 use dozer_types::log::debug;
+use unicode_segmentation::UnicodeSegmentation;
 
 use crate::api_helper::get_records;
 use crate::CacheEndpoint;
@@ -80,6 +81,44 @@ fn supports_predicate_pushdown(expr: &Expr) -> TableProviderFilterPushDown {
                 (Expr::Column(_), Expr::Literal(v1), Expr::Literal(v2)) if [v1, v2].into_iter().all(is_suitable_for_pushdown)
             )
         }
+
+        Expr::Like(Like {
+            negated: false,
+            expr,
+            pattern,
+            escape_char,
+            case_insensitive,
+        }) => match (&**expr, &**pattern) {
+            (Expr::Column(_), Expr::Literal(ScalarValue::Utf8(Some(pattern)))) => {
+                if pattern == "%" {
+                    true
+                } else if *case_insensitive {
+                    false
+                } else {
+                    let escape_char = escape_char.unwrap_or('\\');
+                    let wildcards = &['%', '_'];
+                    if !pattern.contains(wildcards)
+                        || !has_unescaped_wildcards(pattern, wildcards, escape_char)
+                    {
+                        true
+                    } else if pattern.starts_with('%')
+                        && pattern.ends_with('%')
+                        && pattern.chars().nth(pattern.len() - 1).unwrap() != escape_char
+                        && !has_unescaped_wildcards(
+                            &pattern[1..pattern.len() - 1],
+                            wildcards,
+                            escape_char,
+                        )
+                        && pattern[1..pattern.len()].unicode_words().count() == 1
+                    {
+                        true
+                    } else {
+                        false
+                    }
+                }
+            }
+            _ => false,
+        },
 
         _ => false,
     };
@@ -185,6 +224,37 @@ pub(crate) fn predicate_pushdown<'a>(
             _ => unreachable!(),
         },
 
+        Expr::Like(Like {
+            negated: false,
+            expr,
+            pattern,
+            escape_char,
+            ..
+        }) => match (&**expr, &**pattern) {
+            (Expr::Column(c), Expr::Literal(ScalarValue::Utf8(Some(pattern)))) => {
+                if pattern == "%" {
+                    // no filter
+                } else {
+                    let escape_char = escape_char.unwrap_or('\\');
+                    let wildcards = &['%', '_'];
+                    let pattern = if pattern.starts_with('%') && pattern.ends_with('%') {
+                        pattern[1..pattern.len() - 1].to_string()
+                    } else {
+                        pattern.clone()
+                    };
+
+                    let pattern = unescape_wildcards(pattern, wildcards, escape_char);
+                    let column = c.name.clone();
+                    and_list.push(FilterExpression::Simple(
+                        column,
+                        CacheFilterOperator::Contains,
+                        pattern.into(),
+                    ));
+                }
+            }
+            _ => unreachable!(),
+        },
+
         _ => unreachable!(),
     });
 
@@ -283,4 +353,23 @@ fn serde_json_value_from_scalar_value(value: ScalarValue) -> serde_json::Value {
             _ => unreachable!(),
         }
     }
+}
+
+fn has_unescaped_wildcards(like_pattern: &str, wildcards: &[char], escape_char: char) -> bool {
+    for (i, _) in like_pattern.match_indices(wildcards) {
+        if i == 0 || like_pattern.chars().nth(i - 1).unwrap() != escape_char {
+            return true;
+        }
+    }
+    false
+}
+
+fn unescape_wildcards(like_pattern: String, wildcards: &[char], escape_char: char) -> String {
+    if wildcards.is_empty() {
+        return like_pattern;
+    }
+    let wildcard = wildcards[0];
+    let like_pattern =
+        like_pattern.replace(&format!("{escape_char}{wildcard}"), &format!("{wildcard}"));
+    unescape_wildcards(like_pattern, &wildcards[1..], escape_char)
 }
