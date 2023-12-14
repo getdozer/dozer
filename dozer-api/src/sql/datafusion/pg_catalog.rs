@@ -118,6 +118,7 @@ pub async fn create(ctx: &SessionContext) -> Result<(), DataFusionError> {
         typdefaultbin string,
         typdefault text,
         typacl text,
+        typnamefmt string NOT NULL,
         PRIMARY KEY (oid),
         UNIQUE (typname, typnamespace),
     );
@@ -489,18 +490,9 @@ pub async fn create(ctx: &SessionContext) -> Result<(), DataFusionError> {
             END) AS is_nullable,
         (
             CASE
-                WHEN (t.typtype = 'd') THEN
-                CASE
-                    WHEN ((bt.typelem <> (0)) AND (bt.typlen = '-1')) THEN 'ARRAY'
-                    WHEN (nbt.nspname = 'pg_catalog') THEN format_typname((SELECT typname FROM pg_type WHERE oid = t.typbasetype))
-                    ELSE 'USER-DEFINED'
-                END
-                ELSE
-                CASE
-                    WHEN ((t.typelem <> (0)) AND (t.typlen = '-1')) THEN 'ARRAY'
-                    WHEN (nt.nspname = 'pg_catalog') THEN format_typname((SELECT typname FROM pg_type WHERE oid = a.atttypid))
-                    ELSE 'USER-DEFINED'
-                END
+                WHEN ((t.typelem <> (0)) AND (t.typlen = '-1')) THEN 'ARRAY'
+                WHEN (nt.nspname = 'pg_catalog') THEN t.typnamefmt
+                ELSE 'USER-DEFINED'
             END) AS data_type,
         (NULL::integer) AS character_maximum_length,
         (NULL::integer) AS character_octet_length,
@@ -780,6 +772,7 @@ pub async fn create(ctx: &SessionContext) -> Result<(), DataFusionError> {
             pub len: i16,
             pub category_code: &'static str,
             pub preferred: bool,
+            pub display_name: &'static str, // output format_type(id)
         }
 
         impl SQLType {
@@ -789,6 +782,7 @@ pub async fn create(ctx: &SessionContext) -> Result<(), DataFusionError> {
                 len: i16,
                 category_code: &'static str,
                 preferred: bool,
+                display_name: Option<&'static str>,
             ) -> Self {
                 Self {
                     id,
@@ -796,28 +790,64 @@ pub async fn create(ctx: &SessionContext) -> Result<(), DataFusionError> {
                     len,
                     category_code,
                     preferred,
+                    display_name: display_name.unwrap_or(name),
                 }
             }
         }
 
         let sqltypes = [
-            SQLType::new(oids.next(), "bool", 1i16, "B", true),
-            SQLType::new(oids.next(), "bytea", -1, "U", false),
-            SQLType::new(oids.next(), "char", 1, "Z", false),
-            SQLType::new(oids.next(), "int2", 2, "N", false),
-            SQLType::new(oids.next(), "int4", 4, "N", false),
-            SQLType::new(oids.next(), "int8", 8, "N", false),
-            SQLType::new(oids.next(), "varchar", -1, "S", false),
-            SQLType::new(oids.next(), "text", -1, "S", true),
-            SQLType::new(oids.next(), "float4", 4, "N", false),
-            SQLType::new(oids.next(), "float8", 8, "N", true),
-            SQLType::new(oids.next(), "date", 4, "D", false),
-            SQLType::new(oids.next(), "time", 8, "D", false),
-            SQLType::new(oids.next(), "timestamp", 8, "D", false),
-            SQLType::new(oids.next(), "timestamptz", 8, "D", true),
-            SQLType::new(oids.next(), "interval", 16, "T", true),
-            SQLType::new(oids.next(), "numeric", -1, "N", false),
-            SQLType::new(oids.next(), "unknown", -2, "X", false),
+            SQLType::new(oids.next(), "bool", 1i16, "B", true, Some("boolean")),
+            SQLType::new(oids.next(), "bytea", -1, "U", false, None),
+            SQLType::new(oids.next(), "char", 1, "Z", false, None),
+            SQLType::new(oids.next(), "int2", 2, "N", false, Some("smallint")),
+            SQLType::new(oids.next(), "int4", 4, "N", false, Some("integer")),
+            SQLType::new(oids.next(), "int8", 8, "N", false, Some("bigint")),
+            SQLType::new(
+                oids.next(),
+                "varchar",
+                -1,
+                "S",
+                false,
+                Some("character varying"),
+            ),
+            SQLType::new(oids.next(), "text", -1, "S", true, None),
+            SQLType::new(oids.next(), "float4", 4, "N", false, Some("real")),
+            SQLType::new(
+                oids.next(),
+                "float8",
+                8,
+                "N",
+                true,
+                Some("double precision"),
+            ),
+            SQLType::new(oids.next(), "date", 4, "D", false, None),
+            SQLType::new(
+                oids.next(),
+                "time",
+                8,
+                "D",
+                false,
+                Some("time without time zone"),
+            ),
+            SQLType::new(
+                oids.next(),
+                "timestamp",
+                8,
+                "D",
+                false,
+                Some("timestamp without time zone"),
+            ),
+            SQLType::new(
+                oids.next(),
+                "timestamptz",
+                8,
+                "D",
+                true,
+                Some("timestamp with time zone"),
+            ),
+            SQLType::new(oids.next(), "interval", 16, "T", true, None),
+            SQLType::new(oids.next(), "numeric", -1, "N", false, None),
+            SQLType::new(oids.next(), "unknown", -2, "X", false, None),
         ];
 
         let sqltype_by_name =
@@ -915,7 +945,8 @@ pub async fn create(ctx: &SessionContext) -> Result<(), DataFusionError> {
                        0,       /* typcollation */        
                        null,    /* typdefaultbin */           
                        null,    /* typdefault */           
-                       null     /* typacl */          
+                       null,    /* typacl */
+                       $9     /* typnamefmt */
                 )",
                 vec![
                     sqltype.id.into(),
@@ -926,6 +957,7 @@ pub async fn create(ctx: &SessionContext) -> Result<(), DataFusionError> {
                     pass_by_val.into(),
                     sqltype.category_code.into(),
                     sqltype.preferred.into(),
+                    sqltype.display_name.into(),
                 ],
             )
             .await?;
