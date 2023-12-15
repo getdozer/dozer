@@ -48,7 +48,7 @@ use tokio::select;
 use crate::auth::Authorizer;
 use crate::shutdown::ShutdownReceiver;
 use crate::sql::datafusion::SQLExecutor;
-use crate::CacheEndpoint;
+use crate::{get_api_security, CacheEndpoint};
 
 use super::datafusion::PlannedStatement;
 use super::util::Iso8601Duration;
@@ -100,7 +100,8 @@ impl PgWireServer {
         let host = config.host.unwrap_or_else(default_host);
         let port = config.port.unwrap_or_else(default_sql_port);
         let server_addr = format!("{}:{}", host, port);
-        let jwt_secret = self.api_security.as_ref().map(|security| {
+        let api_security = get_api_security(self.api_security.to_owned());
+        let jwt_secret = api_security.as_ref().map(|security| {
             let ApiSecurity::Jwt(secret) = security.clone();
             secret
         });
