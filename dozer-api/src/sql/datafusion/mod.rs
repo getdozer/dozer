@@ -10,7 +10,6 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use datafusion::arrow::array::{as_string_array, Array};
 use datafusion::arrow::datatypes::DataType;
 use datafusion::catalog::schema::SchemaProvider;
 use datafusion::common::not_impl_err;
@@ -317,52 +316,6 @@ impl ContextProvider for ContextResolver {
                         fun: Arc::new(move |_| {
                             Ok(ColumnarValue::Scalar(ScalarValue::Utf8(Some(
                                 "".to_string(),
-                            ))))
-                        }),
-                    }));
-                }
-                "format_typname" => {
-                    return Some(Arc::new(ScalarUDF {
-                        name: "pg_catalog.format_type".to_owned(),
-                        signature: datafusion_expr::Signature {
-                            type_signature: datafusion_expr::TypeSignature::Exact(vec![
-                                DataType::Utf8,
-                            ]),
-                            volatility: datafusion_expr::Volatility::Immutable,
-                        },
-                        return_type: Arc::new(|_| Ok(Arc::new(DataType::Utf8))),
-                        fun: Arc::new(move |typname| {
-                            let typname = match &typname[0] {
-                                ColumnarValue::Array(array) => {
-                                    let array = as_string_array(array);
-                                    if array.len() == 0 {
-                                        None
-                                    } else {
-                                        Some(array.value(0))
-                                    }
-                                }
-                                _ => unreachable!(),
-                            };
-                            if typname.is_none() {
-                                return Ok(ColumnarValue::Scalar(ScalarValue::Utf8(None)));
-                            }
-                            let typname = match typname.unwrap() {
-                                "int2" => "smallint",
-                                "int4" => "integer",
-                                "int8" => "bigint",
-                                "timestamp" => "timestamp without time zone",
-                                "timestamptz" => "timestamp with time zone",
-                                "bool" => "boolean",
-                                "varchar" => "character varying",
-                                "string" => "character varying",
-                                "float4" => "real",
-                                "float8" => "double precision",
-                                "time" => "time without time zone",
-                                "timetz" => "time with time zone",
-                                typname => typname,
-                            };
-                            Ok(ColumnarValue::Scalar(ScalarValue::Utf8(Some(
-                                typname.to_string(),
                             ))))
                         }),
                     }));
@@ -889,7 +842,7 @@ fn rewrite_sum(statement: &mut ast::Statement) {
     });
 }
 
-// SQL AST rewirte for format_type(arg) to format_typname((SELECT typname FROM pg_type WHERE oid = arg))
+// SQL AST rewirte for format_type(arg) to (SELECT typnamefmt FROM pg_type WHERE oid = arg)
 fn rewrite_format_type(statement: &mut ast::Statement) {
     ast::visit_expressions_mut(statement, |expr: &mut ast::Expr| {
         if let ast::Expr::Function(Function { name, args, .. }) = expr {
@@ -902,8 +855,7 @@ fn rewrite_format_type(statement: &mut ast::Statement) {
                 && args.len() == 1
             {
                 let arg = &args[0];
-                let sql_expr =
-                    format!("format_typname((SELECT typname FROM pg_type WHERE oid = {arg}))");
+                let sql_expr = format!("(SELECT typnamefmt FROM pg_type WHERE oid = {arg})");
                 let result = try_parse_sql_expr(&sql_expr);
                 if let Ok(new_expr) = result {
                     *expr = new_expr;
