@@ -174,7 +174,8 @@ impl SimpleOrchestrator {
 
         let pgwire_config = self.config.api.pgwire.clone();
         let pgwire_handle = if pgwire_config.enabled.unwrap_or(true) {
-            let pgwire_server = sql::pgwire::PgWireServer::new(pgwire_config);
+            let api_security = self.config.api.api_security.clone();
+            let pgwire_server = sql::pgwire::PgWireServer::new(pgwire_config, api_security);
             tokio::spawn(async move {
                 pgwire_server
                     .run(shutdown, cache_endpoints)

@@ -18,28 +18,34 @@ use dozer_types::arrow::array::{
 use dozer_types::arrow::array::{Int64Array, LargeBinaryArray};
 use dozer_types::arrow::datatypes::{DataType, IntervalUnit};
 use dozer_types::arrow::datatypes::{TimeUnit, DECIMAL_DEFAULT_SCALE};
-use dozer_types::log::{debug, info};
+use dozer_types::log::{debug, error, info};
 use dozer_types::models::api_config::{default_host, default_sql_port, PgWireOptions};
+use dozer_types::models::api_security::ApiSecurity;
 use dozer_types::rust_decimal::Decimal;
+use futures_sink::Sink;
 use futures_util::future::try_join_all;
 use futures_util::stream::BoxStream;
-use futures_util::{stream, StreamExt};
+use futures_util::{stream, SinkExt, StreamExt};
+use pgwire::api::auth::{DefaultServerParameterProvider, StartupHandler};
 use pgwire::api::portal::Portal;
 use pgwire::api::stmt::QueryParser;
 use pgwire::api::store::MemPortalStore;
 use pgwire::messages::data::DataRow;
+use pgwire::messages::response::ErrorResponse;
+use pgwire::messages::startup::Authentication;
+use pgwire::messages::{PgWireBackendMessage, PgWireFrontendMessage};
 use tokio::net::TcpListener;
 
-use pgwire::api::auth::noop::NoopStartupHandler;
 use pgwire::api::query::{ExtendedQueryHandler, SimpleQueryHandler, StatementOrPortal};
 use pgwire::api::results::{
     DataRowEncoder, DescribeResponse, FieldFormat, FieldInfo, QueryResponse, Response, Tag,
 };
-use pgwire::api::{ClientInfo, MakeHandler, StatelessMakeHandler, Type};
+use pgwire::api::{ClientInfo, MakeHandler, PgWireConnectionState, Type};
 use pgwire::error::{ErrorInfo, PgWireError, PgWireResult};
 use pgwire::tokio::process_socket;
 use tokio::select;
 
+use crate::auth::Authorizer;
 use crate::shutdown::ShutdownReceiver;
 use crate::sql::datafusion::SQLExecutor;
 use crate::CacheEndpoint;
@@ -49,18 +55,22 @@ use super::util::Iso8601Duration;
 
 pub struct PgWireServer {
     config: PgWireOptions,
+    api_security: Option<ApiSecurity>,
 }
 
 struct MakeQueryHandler {
-    sql_executor: Arc<SQLExecutor>,
+    sql_executor: SQLExecutor,
+    jwt_secret: Option<String>,
 }
 
 impl MakeQueryHandler {
     pub async fn try_new(
         cache_endpoints: Vec<Arc<CacheEndpoint>>,
+        jwt_secret: Option<String>,
     ) -> Result<Self, DataFusionError> {
         Ok(Self {
-            sql_executor: Arc::new(SQLExecutor::try_new(&cache_endpoints).await?),
+            sql_executor: SQLExecutor::try_new(&cache_endpoints).await?,
+            jwt_secret,
         })
     }
 }
@@ -69,13 +79,16 @@ impl MakeHandler for MakeQueryHandler {
     type Handler = QueryProcessor;
 
     fn make(&self) -> Self::Handler {
-        QueryProcessor::new(self.sql_executor.clone())
+        QueryProcessor::new(self.sql_executor.clone(), self.jwt_secret.clone())
     }
 }
 
 impl PgWireServer {
-    pub fn new(config: PgWireOptions) -> Self {
-        Self { config }
+    pub fn new(config: PgWireOptions, api_security: Option<ApiSecurity>) -> Self {
+        Self {
+            config,
+            api_security,
+        }
     }
 
     pub async fn run(
@@ -84,32 +97,39 @@ impl PgWireServer {
         cache_endpoints: Vec<Arc<CacheEndpoint>>,
     ) -> std::io::Result<()> {
         let config = self.config.clone();
-        let processor = Arc::new(
-            MakeQueryHandler::try_new(cache_endpoints)
-                .await
-                .map_err(|err| std::io::Error::new(ErrorKind::Other, err))?,
-        );
-        let authenticator = Arc::new(StatelessMakeHandler::new(Arc::new(NoopStartupHandler)));
-
         let host = config.host.unwrap_or_else(default_host);
         let port = config.port.unwrap_or_else(default_sql_port);
         let server_addr = format!("{}:{}", host, port);
+        let jwt_secret = self.api_security.as_ref().map(|security| {
+            let ApiSecurity::Jwt(secret) = security.clone();
+            secret
+        });
+        info!(
+            "Starting Postgres Wire Protocol Server on {server_addr} with security: {}",
+            jwt_secret.as_ref().map_or("None", |_| "JWT")
+        );
+
+        let processor_factory = Arc::new(
+            MakeQueryHandler::try_new(cache_endpoints, jwt_secret)
+                .await
+                .map_err(|err| std::io::Error::new(ErrorKind::Other, err))?,
+        );
+
         let listener = TcpListener::bind(&server_addr).await?;
-        info!("Starting Postgres Wire Protocol Server on {server_addr}");
         loop {
             select! {
                 accept_result = listener.accept() => {
                     let incoming_socket = accept_result?;
-                    let authenticator_ref = authenticator.make();
-                    let processor_ref = processor.make();
-                    let placeholder_ref = processor.make();
+                    let processor = Arc::new(processor_factory.make());
+                    let authenticator = processor.clone();
+                    let placeholder = processor.clone();
                     tokio::spawn(async move {
                         process_socket(
                             incoming_socket.0,
                             None,
-                            authenticator_ref,
-                            Arc::new(processor_ref),
-                            Arc::new(placeholder_ref),
+                            authenticator,
+                            processor,
+                            placeholder,
                         )
                         .await
                     });
@@ -124,13 +144,15 @@ impl PgWireServer {
 struct QueryProcessor {
     sql_executor: Arc<SQLExecutor>,
     portal_store: Arc<MemPortalStore<Option<PlannedStatement>>>,
+    jwt_secret: Option<String>,
 }
 
 impl QueryProcessor {
-    pub fn new(sql_executor: Arc<SQLExecutor>) -> Self {
+    pub fn new(sql_executor: SQLExecutor, jwt_secret: Option<String>) -> Self {
         Self {
-            sql_executor,
+            sql_executor: Arc::new(sql_executor),
             portal_store: Arc::new(MemPortalStore::new()),
+            jwt_secret,
         }
     }
 
@@ -356,6 +378,74 @@ impl ExtendedQueryHandler for QueryProcessor {
                 Some(PlannedStatement::Statement(_)) | None => Ok(DescribeResponse::no_data()),
             },
         }
+    }
+}
+
+#[async_trait]
+impl StartupHandler for QueryProcessor {
+    async fn on_startup<C>(
+        &self,
+        client: &mut C,
+        message: PgWireFrontendMessage,
+    ) -> PgWireResult<()>
+    where
+        C: ClientInfo + Sink<PgWireBackendMessage> + Unpin + Send,
+        C::Error: std::fmt::Debug,
+        PgWireError: From<<C as Sink<PgWireBackendMessage>>::Error>,
+    {
+        match message {
+            PgWireFrontendMessage::Startup(ref startup) => {
+                pgwire::api::auth::save_startup_parameters_to_metadata(client, startup);
+                if self.jwt_secret.is_none() {
+                    pgwire::api::auth::finish_authentication(
+                        client,
+                        &DefaultServerParameterProvider::default(),
+                    )
+                    .await;
+                } else {
+                    client.set_state(PgWireConnectionState::AuthenticationInProgress);
+                    client
+                        .send(PgWireBackendMessage::Authentication(
+                            Authentication::CleartextPassword,
+                        ))
+                        .await?;
+                }
+            }
+            PgWireFrontendMessage::PasswordMessageFamily(pwd) => {
+                let pwd = pwd.into_password()?;
+                let token = pwd.password();
+                let api_auth = Authorizer::new(self.jwt_secret.as_ref().unwrap(), None, None);
+                let res = api_auth.validate_token(token);
+                match res {
+                    Ok(claims) => {
+                        self.sql_executor
+                            .set_access(claims.access)
+                            .expect("should only be initialized once");
+                        pgwire::api::auth::finish_authentication(
+                            client,
+                            &DefaultServerParameterProvider::default(),
+                        )
+                        .await
+                    }
+                    Err(e) => {
+                        error!("PgWire authentication error: {e}");
+                        let error_info = ErrorInfo::new(
+                            "FATAL".to_owned(),
+                            "28P01".to_owned(),
+                            "Password authentication failed".to_owned(),
+                        );
+                        let error = ErrorResponse::from(error_info);
+
+                        client
+                            .feed(PgWireBackendMessage::ErrorResponse(error))
+                            .await?;
+                        client.close().await?;
+                    }
+                }
+            }
+            _ => {}
+        }
+        Ok(())
     }
 }
 

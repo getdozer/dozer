@@ -47,14 +47,26 @@ use dozer_types::types::Schema as DozerSchema;
 use futures_util::future::try_join_all;
 use futures_util::stream::BoxStream;
 use futures_util::StreamExt;
+use once_cell::sync::OnceCell;
 
 use crate::api_helper::get_records;
+use crate::auth::Access;
 use crate::CacheEndpoint;
 
 use predicate_pushdown::{predicate_pushdown, supports_predicates_pushdown};
 
 pub(crate) struct SQLExecutor {
-    ctx: Arc<SessionContext>,
+    ctx: SessionContext,
+    access: Arc<OnceCell<Access>>,
+}
+
+impl Clone for SQLExecutor {
+    fn clone(&self) -> Self {
+        Self {
+            ctx: SessionContext::new_with_state(self.ctx.state()),
+            access: Default::default(),
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -473,8 +485,9 @@ impl SQLExecutor {
         let ctx = SessionContext::new_with_config(
             SessionConfig::new().with_default_catalog_and_schema("dozer", "public"),
         );
+        let access = Arc::new(OnceCell::<Access>::new());
         for cache_endpoint in cache_endpoints {
-            let data_source = CacheEndpointDataSource::new(cache_endpoint.clone());
+            let data_source = CacheEndpointDataSource::new(cache_endpoint.clone(), access.clone());
             let _provider = ctx
                 .register_table(
                     TableReference::Bare {
@@ -491,7 +504,11 @@ impl SQLExecutor {
 
         pg_catalog::create(&ctx).await?;
 
-        Ok(Self { ctx: Arc::new(ctx) })
+        Ok(Self { ctx, access })
+    }
+
+    pub fn set_access(&self, access: Access) -> Result<(), Access> {
+        self.access.set(access)
     }
 
     pub async fn execute(&self, plan: LogicalPlan) -> Result<DataFrame, DataFusionError> {
@@ -566,10 +583,11 @@ impl SQLExecutor {
 pub struct CacheEndpointDataSource {
     cache_endpoint: Arc<CacheEndpoint>,
     schema: SchemaRef,
+    access: Arc<OnceCell<Access>>,
 }
 
 impl CacheEndpointDataSource {
-    pub fn new(cache_endpoint: Arc<CacheEndpoint>) -> Self {
+    pub fn new(cache_endpoint: Arc<CacheEndpoint>, access: Arc<OnceCell<Access>>) -> Self {
         let schema = {
             let cache_reader = &cache_endpoint.cache_reader();
             let schema = &cache_reader.get_schema().0;
@@ -578,6 +596,7 @@ impl CacheEndpointDataSource {
         Self {
             cache_endpoint,
             schema,
+            access,
         }
     }
 }
@@ -610,6 +629,7 @@ impl TableProvider for CacheEndpointDataSource {
             projection,
             filters.to_vec(),
             limit,
+            self.access.clone(),
         )?))
     }
 
@@ -631,6 +651,7 @@ pub struct CacheEndpointExec {
     projected_schema: SchemaRef,
     filters: Vec<Expr>,
     limit: Option<usize>,
+    access: Arc<OnceCell<Access>>,
 }
 
 impl CacheEndpointExec {
@@ -641,6 +662,7 @@ impl CacheEndpointExec {
         projection: Option<&Vec<usize>>,
         filters: Vec<Expr>,
         limit: Option<usize>,
+        access: Arc<OnceCell<Access>>,
     ) -> Result<Self> {
         let projected_schema = match projection {
             Some(p) => Arc::new(schema.project(p)?),
@@ -653,6 +675,7 @@ impl CacheEndpointExec {
             projection: projection.cloned().map(Into::into),
             filters,
             limit,
+            access,
         })
     }
 }
@@ -695,24 +718,35 @@ impl ExecutionPlan for CacheEndpointExec {
         _partition: usize,
         _ctx: Arc<TaskContext>,
     ) -> Result<SendableRecordBatchStream> {
-        let stream = futures_util::stream::iter({
+        let stream = {
             let cache_reader = &self.cache_endpoint.cache_reader();
             let mut expr = QueryExpression {
                 limit: self.limit,
                 filter: predicate_pushdown(self.filters.iter()),
                 ..Default::default()
             };
-            debug!("Using predicate pushdown {:?}", expr.filter);
-            let records = get_records(
+            let access = self.access.get().cloned();
+            debug!(
+                "Using predicate pushdown {:?} with access {:?}",
+                expr.filter, access
+            );
+            match get_records(
                 cache_reader,
                 &mut expr,
                 &self.cache_endpoint.endpoint.name,
-                None,
-            )
-            .unwrap();
-
-            transpose(cache_reader.get_schema().0.clone(), records)
-        });
+                access,
+            ) {
+                Ok(records) => futures_util::stream::iter(transpose(
+                    cache_reader.get_schema().0.clone(),
+                    records,
+                ))
+                .boxed(),
+                Err(err) => futures_util::stream::once(futures_util::future::ready(Err(
+                    DataFusionError::External(err.into()),
+                )))
+                .boxed(),
+            }
+        };
         Ok(Box::pin(RecordBatchStreamAdapter::new(
             self.projected_schema.clone(),
             match self.projection.clone() {
