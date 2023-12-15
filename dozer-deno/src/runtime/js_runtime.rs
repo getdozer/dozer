@@ -4,7 +4,7 @@ use deno_runtime::{
     deno_broadcast_channel::{deno_broadcast_channel, InMemoryBroadcastChannel},
     deno_cache::{deno_cache, SqliteBackedCache},
     deno_console::deno_console,
-    deno_core::{error::AnyError, extension, JsRuntime, ModuleId, RuntimeOptions},
+    deno_core::{error::AnyError, extension, Extension, JsRuntime, ModuleId, RuntimeOptions},
     deno_crypto::deno_crypto,
     deno_fetch::deno_fetch,
     deno_napi::deno_napi,
@@ -56,8 +56,8 @@ extension!(
 );
 
 /// This is `MainWorker::from_options` with selected list of extensions.
-pub fn new() -> Result<JsRuntime, std::io::Error> {
-    let extensions = {
+pub fn new(extra_extensions: Vec<Extension>) -> Result<JsRuntime, std::io::Error> {
+    let mut extensions = {
         vec![
             deno_webidl::init_ops_and_esm(),
             deno_console::init_ops_and_esm(),
@@ -82,6 +82,7 @@ pub fn new() -> Result<JsRuntime, std::io::Error> {
             runtime::init_ops_and_esm(),
         ]
     };
+    extensions.extend(extra_extensions);
 
     Ok(JsRuntime::new(RuntimeOptions {
         module_loader: Some(Rc::new(TypescriptModuleLoader::new()?)),

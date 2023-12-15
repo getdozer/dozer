@@ -14,6 +14,8 @@ use super::aggregate::AggregateFunctionType;
 use super::cast::CastOperatorType;
 use super::in_list::evaluate_in_list;
 use super::scalar::string::{evaluate_like, get_like_operator_type};
+use dozer_core::checkpoint::serialize::Cursor;
+use dozer_core::dozer_log::storage::Object;
 use dozer_types::types::Record;
 use dozer_types::types::{Field, FieldType, Schema, SourceDefinition};
 
@@ -472,6 +474,203 @@ impl Expression {
                 false,
             )),
             Expression::JavaScriptUdf(udf) => Ok(udf.get_type()),
+        }
+    }
+
+    /// Some functions have a state that needs to be persisted between calls.
+    pub fn serialize_state(&self, object: &mut Object) -> Result<(), Error> {
+        match self {
+            Expression::Literal(_) => Ok(()),
+            Expression::Column { .. } => Ok(()),
+            Expression::UnaryOperator { arg, .. } => arg.serialize_state(object),
+            Expression::BinaryOperator { left, right, .. } => {
+                left.serialize_state(object)?;
+                right.serialize_state(object)
+            }
+            Expression::ScalarFunction { args, .. } => {
+                for arg in args {
+                    arg.serialize_state(object)?;
+                }
+                Ok(())
+            }
+            Expression::GeoFunction { args, .. } => {
+                for arg in args {
+                    arg.serialize_state(object)?;
+                }
+                Ok(())
+            }
+            Expression::ConditionalExpression { args, .. } => {
+                for arg in args {
+                    arg.serialize_state(object)?;
+                }
+                Ok(())
+            }
+            Expression::DateTimeFunction { arg, .. } => arg.serialize_state(object),
+            Expression::AggregateFunction { args, .. } => {
+                for arg in args {
+                    arg.serialize_state(object)?;
+                }
+                Ok(())
+            }
+            Expression::Cast { arg, .. } => arg.serialize_state(object),
+            Expression::Trim { arg, what, .. } => {
+                arg.serialize_state(object)?;
+                if let Some(what) = what {
+                    what.serialize_state(object)?;
+                }
+                Ok(())
+            }
+            Expression::Like { arg, pattern, .. } => {
+                arg.serialize_state(object)?;
+                pattern.serialize_state(object)
+            }
+            Expression::InList { expr, list, .. } => {
+                expr.serialize_state(object)?;
+                for arg in list {
+                    arg.serialize_state(object)?;
+                }
+                Ok(())
+            }
+            Expression::Now { .. } => Ok(()),
+            Expression::Json { args, .. } => {
+                for arg in args {
+                    arg.serialize_state(object)?;
+                }
+                Ok(())
+            }
+            Expression::Case {
+                operand,
+                conditions,
+                results,
+                else_result,
+            } => {
+                if let Some(operand) = operand {
+                    operand.serialize_state(object)?;
+                }
+                for arg in conditions {
+                    arg.serialize_state(object)?;
+                }
+                for arg in results {
+                    arg.serialize_state(object)?;
+                }
+                if let Some(else_result) = else_result {
+                    else_result.serialize_state(object)?;
+                }
+                Ok(())
+            }
+            #[cfg(feature = "python")]
+            Expression::PythonUDF { args, .. } => {
+                for arg in args {
+                    arg.serialize_state(object)?;
+                }
+                Ok(())
+            }
+            #[cfg(feature = "onnx")]
+            Expression::OnnxUDF { args, .. } => {
+                for arg in args {
+                    arg.serialize_state(object)?;
+                }
+                Ok(())
+            }
+            Expression::JavaScriptUdf(udf) => udf.serialize(object).map_err(Into::into),
+        }
+    }
+
+    pub fn deserialize_state(&mut self, cursor: &mut Cursor) -> Result<(), Error> {
+        match self {
+            Expression::Literal(_) => Ok(()),
+            Expression::Column { .. } => Ok(()),
+            Expression::UnaryOperator { arg, .. } => arg.deserialize_state(cursor),
+            Expression::BinaryOperator { left, right, .. } => {
+                left.deserialize_state(cursor)?;
+                right.deserialize_state(cursor)
+            }
+            Expression::ScalarFunction { args, .. } => {
+                for arg in args {
+                    arg.deserialize_state(cursor)?;
+                }
+                Ok(())
+            }
+            Expression::GeoFunction { args, .. } => {
+                for arg in args {
+                    arg.deserialize_state(cursor)?;
+                }
+                Ok(())
+            }
+            Expression::ConditionalExpression { args, .. } => {
+                for arg in args {
+                    arg.deserialize_state(cursor)?;
+                }
+                Ok(())
+            }
+            Expression::DateTimeFunction { arg, .. } => arg.deserialize_state(cursor),
+            Expression::AggregateFunction { args, .. } => {
+                for arg in args {
+                    arg.deserialize_state(cursor)?;
+                }
+                Ok(())
+            }
+            Expression::Cast { arg, .. } => arg.deserialize_state(cursor),
+            Expression::Trim { arg, what, .. } => {
+                arg.deserialize_state(cursor)?;
+                if let Some(what) = what {
+                    what.deserialize_state(cursor)?;
+                }
+                Ok(())
+            }
+            Expression::Like { arg, pattern, .. } => {
+                arg.deserialize_state(cursor)?;
+                pattern.deserialize_state(cursor)
+            }
+            Expression::InList { expr, list, .. } => {
+                expr.deserialize_state(cursor)?;
+                for arg in list {
+                    arg.deserialize_state(cursor)?;
+                }
+                Ok(())
+            }
+            Expression::Now { .. } => Ok(()),
+            Expression::Json { args, .. } => {
+                for arg in args {
+                    arg.deserialize_state(cursor)?;
+                }
+                Ok(())
+            }
+            Expression::Case {
+                operand,
+                conditions,
+                results,
+                else_result,
+            } => {
+                if let Some(operand) = operand {
+                    operand.deserialize_state(cursor)?;
+                }
+                for arg in conditions {
+                    arg.deserialize_state(cursor)?;
+                }
+                for arg in results {
+                    arg.deserialize_state(cursor)?;
+                }
+                if let Some(else_result) = else_result {
+                    else_result.deserialize_state(cursor)?;
+                }
+                Ok(())
+            }
+            #[cfg(feature = "python")]
+            Expression::PythonUDF { args, .. } => {
+                for arg in args {
+                    arg.deserialize_state(cursor)?;
+                }
+                Ok(())
+            }
+            #[cfg(feature = "onnx")]
+            Expression::OnnxUDF { args, .. } => {
+                for arg in args {
+                    arg.deserialize_state(cursor)?;
+                }
+                Ok(())
+            }
+            Expression::JavaScriptUdf(udf) => udf.deserialize(cursor).map_err(Into::into),
         }
     }
 }

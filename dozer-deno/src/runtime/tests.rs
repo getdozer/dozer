@@ -3,7 +3,8 @@ use dozer_types::json_types::json;
 use super::*;
 
 async fn call_function(module: &str, args: Vec<JsonValue>) -> Result<JsonValue, AnyError> {
-    let (mut runtime, functions) = Runtime::new(vec![format!("src/runtime/{module}")]).await?;
+    let (mut runtime, functions) =
+        Runtime::new::<fn() -> Extension>(vec![format!("src/runtime/{module}")], vec![]).await?;
     runtime.call_function(functions[0], args).await
 }
 

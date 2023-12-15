@@ -1,8 +1,15 @@
 use std::{num::NonZeroI32, sync::Arc};
 
-use dozer_deno::deno_runtime::deno_core::error::AnyError;
+use dozer_core::{
+    checkpoint::serialize::{
+        deserialize_vec_u8, serialize_vec_u8, Cursor, DeserializationError, SerializationError,
+    },
+    dozer_log::storage::Object,
+};
+use dozer_deno::deno_runtime::deno_core::{self, error::AnyError, extension, op2};
 use dozer_types::{
-    thiserror,
+    json_types::JsonValue,
+    parking_lot, serde_json, thiserror,
     types::{Field, FieldType, Record, Schema, SourceDefinition},
 };
 use tokio::{runtime::Runtime, sync::Mutex};
@@ -17,6 +24,7 @@ pub struct Udf {
     /// `Arc<Mutex>` to enable `Clone`. Not sure why `Expression` should be `Clone`.
     deno_runtime: Arc<Mutex<dozer_deno::Runtime>>,
     function: NonZeroI32,
+    state: Arc<parking_lot::Mutex<JsonValue>>,
 }
 
 impl PartialEq for Udf {
@@ -32,7 +40,33 @@ pub enum Error {
     CreateRuntime(#[from] dozer_deno::RuntimeError),
     #[error("failed to evaluate udf: {0}")]
     Evaluate(#[source] AnyError),
+    #[error("serialization: {0}")]
+    Serialization(#[from] SerializationError),
+    #[error("deserialization: {0}")]
+    Deserialization(#[from] DeserializationError),
+    #[error("serde json: {0}")]
+    SerdeJson(#[from] serde_json::Error),
 }
+
+#[op2]
+fn set_state(#[state] state: &Arc<parking_lot::Mutex<JsonValue>>, #[serde] new_state: JsonValue) {
+    *state.lock() = new_state;
+}
+
+#[op2]
+#[serde]
+fn get_state(#[state] state: &Arc<parking_lot::Mutex<JsonValue>>) -> JsonValue {
+    state.lock().clone()
+}
+
+extension!(
+    dozer_udf,
+    ops = [set_state, get_state],
+    options = { state: Arc<parking_lot::Mutex<JsonValue>> },
+    state = |state, options| {
+        state.put(options.state);
+    },
+);
 
 impl Udf {
     pub async fn new(
@@ -41,7 +75,11 @@ impl Udf {
         module: String,
         arg: Expression,
     ) -> Result<Self, Error> {
-        let (deno_runtime, functions) = dozer_deno::Runtime::new(vec![module]).await?;
+        let state = Arc::new(parking_lot::Mutex::new(JsonValue::NULL));
+        let state_clone = state.clone();
+        let (deno_runtime, functions) =
+            dozer_deno::Runtime::new(vec![module], vec![move || dozer_udf::init_ops(state)])
+                .await?;
         let function = functions[0];
         Ok(Self {
             function_name,
@@ -49,6 +87,7 @@ impl Udf {
             tokio_runtime,
             deno_runtime: Arc::new(Mutex::new(deno_runtime)),
             function,
+            state: state_clone,
         })
     }
 
@@ -78,6 +117,18 @@ impl Udf {
 
     pub fn to_string(&self, schema: &Schema) -> String {
         format!("{}({})", self.function_name, self.arg.to_string(schema))
+    }
+
+    pub fn serialize(&self, object: &mut Object) -> Result<(), Error> {
+        let bytes = serde_json::to_vec(&*self.state.lock()).expect("must succeed");
+        serialize_vec_u8(&bytes, object)?;
+        Ok(())
+    }
+
+    pub fn deserialize(&mut self, cursor: &mut Cursor) -> Result<(), Error> {
+        let bytes = deserialize_vec_u8(cursor)?;
+        *self.state.lock() = serde_json::from_slice(bytes)?;
+        Ok(())
     }
 }
 

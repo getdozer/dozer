@@ -85,7 +85,7 @@ impl ProcessorFactory for SelectionProcessorFactory {
                 schema.clone(),
                 expression,
                 checkpoint_data,
-            ))),
+            )?)),
             Err(e) => Err(e.into()),
         }
     }

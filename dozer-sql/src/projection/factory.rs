@@ -146,7 +146,7 @@ impl ProcessorFactory for ProjectionProcessorFactory {
             schema.clone(),
             expressions.into_iter().map(|e| e.1).collect(),
             checkpoint_data,
-        )))
+        )?))
     }
 }
 
