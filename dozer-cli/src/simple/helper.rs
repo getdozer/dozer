@@ -10,7 +10,7 @@ use dozer_types::prettytable::{row, Table};
 
 pub fn validate_config(config: &Config) -> Result<(), OrchestrationError> {
     info!(
-        "Home dir: {}",
+        "Data directory: {}",
         get_colored_text(
             &config.home_dir.clone().unwrap_or_else(default_home_dir),
             PURPLE
