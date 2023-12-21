@@ -11,7 +11,7 @@ use dozer_tracing::LabelsAndProgress;
 use dozer_types::models::config::Config;
 use dozer_types::models::telemetry::{TelemetryConfig, TelemetryMetricsConfig};
 use dozer_types::serde::Deserialize;
-use dozer_types::tracing::{error, error_span, info};
+use dozer_types::tracing::{debug, error, error_span, info, warn};
 use futures::stream::{AbortHandle, Abortable};
 use std::cmp::Ordering;
 use std::convert::identity;
@@ -19,7 +19,6 @@ use std::sync::Arc;
 use tokio::runtime::Runtime;
 use tokio::time;
 
-use dozer_types::log::{debug, warn};
 use std::time::Duration;
 use std::{env, process};
 
@@ -136,7 +135,7 @@ fn run() -> Result<(), OrchestrationError> {
     // Now we have access to telemetry configuration. Telemetry must be initialized in tokio runtime.
     let app_id = config_res
         .as_ref()
-        .map(|c| c.cloud.app_id.as_deref().unwrap_or(&c.app_name))
+        .map(|(c, _)| c.cloud.app_id.as_deref().unwrap_or(&c.app_name))
         .ok();
 
     // We always enable telemetry when running live.
@@ -148,7 +147,7 @@ fn run() -> Result<(), OrchestrationError> {
     } else {
         config_res
             .as_ref()
-            .map(|c| c.telemetry.clone())
+            .map(|(c, _)| c.telemetry.clone())
             .unwrap_or_default()
     };
 
@@ -158,7 +157,8 @@ fn run() -> Result<(), OrchestrationError> {
     if let Commands::Cloud(cloud) = &cli.cmd {
         return run_cloud(cloud, runtime, &cli);
     }
-    let config = config_res?;
+    let (config, config_files) = config_res?;
+    info!("Loaded config from: {}", config_files.join(", "));
 
     let dozer = init_dozer(
         runtime.clone(),
@@ -259,7 +259,9 @@ fn run_cloud(
     render_logo();
     let cloud = cloud.clone();
 
-    let config = init_configuration(cli, runtime.clone()).ok();
+    let config = init_configuration(cli, runtime.clone())
+        .ok()
+        .map(|(config, _)| config);
     let mut cloud_client = CloudClient::new(cloud.clone(), config.clone(), runtime.clone());
     match cloud.command.clone() {
         CloudCommands::Deploy(deploy) => cloud_client.deploy(deploy, cli.config_paths.clone()),
@@ -312,27 +314,23 @@ fn parse_and_generate() -> Result<Cli, OrchestrationError> {
     )
 }
 
-fn init_configuration(cli: &Cli, runtime: Arc<Runtime>) -> Result<Config, CliError> {
-    dozer_tracing::init_telemetry_closure(
-        None,
-        &Default::default(),
-        || -> Result<Config, CliError> {
-            let res = runtime.block_on(init_config(
-                cli.config_paths.clone(),
-                cli.config_token.clone(),
-                cli.config_overrides.clone(),
-                cli.ignore_pipe,
-            ));
+fn init_configuration(cli: &Cli, runtime: Arc<Runtime>) -> Result<(Config, Vec<String>), CliError> {
+    dozer_tracing::init_telemetry_closure(None, &Default::default(), || -> Result<_, CliError> {
+        let res = runtime.block_on(init_config(
+            cli.config_paths.clone(),
+            cli.config_token.clone(),
+            cli.config_overrides.clone(),
+            cli.ignore_pipe,
+        ));
 
-            match res {
-                Ok(config) => {
-                    runtime.spawn(check_update());
-                    Ok(config)
-                }
-                Err(e) => Err(e),
+        match res {
+            Ok(config) => {
+                runtime.spawn(check_update());
+                Ok(config)
             }
-        },
-    )
+            Err(e) => Err(e),
+        }
+    })
 }
 
 fn display_error(e: &OrchestrationError) {

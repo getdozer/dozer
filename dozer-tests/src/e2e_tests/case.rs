@@ -37,7 +37,7 @@ pub struct Case {
 impl Case {
     pub fn load_from_case_dir(case_dir: PathBuf, connections_dir: PathBuf) -> Self {
         let dozer_config_path = find_dozer_config_path(&case_dir);
-        let dozer_config = load_config_from_file(vec![dozer_config_path.clone()], false)
+        let (dozer_config, _) = load_config_from_file(vec![dozer_config_path.clone()], false)
             .unwrap_or_else(|e| panic!("Cannot read file: {}: {:?}", &dozer_config_path, e));
         let mut connections = HashMap::new();
         for connection in &dozer_config.connections {

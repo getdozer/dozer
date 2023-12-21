@@ -11,11 +11,11 @@ use dozer_tracing::LabelsAndProgress;
 use dozer_types::models::config::default_cache_max_map_size;
 use dozer_types::prettytable::{row, Table};
 use dozer_types::serde_json;
+use dozer_types::tracing::info;
 use dozer_types::{models::config::Config, serde_yaml};
 use handlebars::Handlebars;
 use std::collections::BTreeMap;
 use std::io::{self, Read};
-use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 
@@ -24,8 +24,8 @@ pub async fn init_config(
     config_token: Option<String>,
     config_overrides: Vec<(String, serde_json::Value)>,
     ignore_pipe: bool,
-) -> Result<Config, CliError> {
-    let mut config = load_config(config_paths, config_token, ignore_pipe).await?;
+) -> Result<(Config, Vec<String>), CliError> {
+    let (mut config, loaded_files) = load_config(config_paths, config_token, ignore_pipe).await?;
 
     config = apply_overrides(&config, config_overrides)?;
 
@@ -35,7 +35,7 @@ pub async fn init_config(
     let page_size = page_size::get() as u64;
     config.cache_max_map_size = Some(cache_max_map_size / page_size * page_size);
 
-    Ok(config)
+    Ok((config, loaded_files))
 }
 
 pub fn get_base_dir() -> Result<Utf8PathBuf, CliError> {
@@ -61,8 +61,10 @@ pub async fn list_sources(
     ignore_pipe: bool,
     filter: Option<String>,
 ) -> Result<(), OrchestrationError> {
-    let config = init_config(config_paths, config_token, config_overrides, ignore_pipe).await?;
+    let (config, loaded_files) =
+        init_config(config_paths, config_token, config_overrides, ignore_pipe).await?;
     let dozer = init_dozer(runtime, config, Default::default())?;
+    info!("Loaded config from: {}", loaded_files.join(", "));
     let connection_map = dozer.list_connectors().await?;
     let mut table_parent = Table::new();
     for (connection_name, (tables, schemas)) in connection_map {
@@ -99,14 +101,17 @@ async fn load_config(
     config_url_or_paths: Vec<String>,
     config_token: Option<String>,
     ignore_pipe: bool,
-) -> Result<Config, CliError> {
+) -> Result<(Config, Vec<String>), CliError> {
     let read_stdin = atty::isnt(Stream::Stdin) && !ignore_pipe;
     let first_config_path = config_url_or_paths.get(0);
     match first_config_path {
         None => Err(ConfigurationFilePathNotProvided),
         Some(path) => {
             if path.starts_with("https://") || path.starts_with("http://") {
-                load_config_from_http_url(path, config_token).await
+                Ok((
+                    load_config_from_http_url(path, config_token).await?,
+                    vec![path.to_owned()],
+                ))
             } else {
                 load_config_from_file(config_url_or_paths, read_stdin)
             }
@@ -131,21 +136,27 @@ async fn load_config_from_http_url(
 pub fn load_config_from_file(
     config_path: Vec<String>,
     read_stdin: bool,
-) -> Result<Config, CliError> {
-    let stdin_path = PathBuf::from("<stdin>");
+) -> Result<(Config, Vec<String>), CliError> {
+    let stdin_path = "<stdin>";
     let input = if read_stdin {
         let mut input = String::new();
         io::stdin()
             .read_to_string(&mut input)
-            .map_err(|e| CannotReadConfig(stdin_path, e))?;
+            .map_err(|e| CannotReadConfig(stdin_path.into(), e))?;
         Some(input)
     } else {
         None
     };
 
-    let config_template = combine_config(config_path.clone(), input)?;
+    let mut loaded_files = Vec::new();
+    if input.is_some() {
+        loaded_files.push(stdin_path.to_owned());
+    }
+
+    let (config_template, files) = combine_config(config_path.clone(), input)?;
+    loaded_files.extend_from_slice(&files);
     match config_template {
-        Some(template) => parse_config(&template),
+        Some(template) => Ok((parse_config(&template)?, loaded_files)),
         None => Err(FailedToFindConfigurationFiles(config_path.join(", "))),
     }
 }
