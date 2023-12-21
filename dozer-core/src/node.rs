@@ -117,7 +117,7 @@ pub trait Sink: Send + Sync + Debug {
         record_store: &ProcessorRecordStore,
         op: ProcessorOperation,
     ) -> Result<(), BoxedError>;
-    fn persist(&mut self, queue: &Queue) -> Result<(), BoxedError>;
+    fn persist(&mut self, epoch: &Epoch, queue: &Queue) -> Result<(), BoxedError>;
 
     fn on_source_snapshotting_done(&mut self, connection_name: String) -> Result<(), BoxedError>;
 }

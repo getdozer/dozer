@@ -37,6 +37,8 @@ message StorageResponse {
     LocalStorage local = 1;
     S3Storage s3 = 2;
   };
+  string checkpoint_prefix = 3;
+  string log_prefix = 4;
 }
 
 message DescribeApplicationResponse {

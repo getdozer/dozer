@@ -36,13 +36,15 @@ pub struct LogEndpoint {
 #[derive(Debug)]
 pub struct InternalPipelineServer {
     id: String,
+    checkpoint_prefix: String,
     endpoints: HashMap<String, LogEndpoint>,
 }
 
 impl InternalPipelineServer {
-    pub fn new(endpoints: HashMap<String, LogEndpoint>) -> Self {
+    pub fn new(checkpoint_prefix: String, endpoints: HashMap<String, LogEndpoint>) -> Self {
         Self {
             id: uuid::Uuid::new_v4().to_string(),
+            checkpoint_prefix,
             endpoints,
         }
     }
@@ -62,9 +64,14 @@ impl InternalPipelineService for InternalPipelineServer {
     ) -> Result<Response<StorageResponse>, Status> {
         let endpoint = request.into_inner().endpoint;
         let log = &find_log_endpoint(&self.endpoints, &endpoint)?.log;
-        let storage = log.lock().await.describe_storage();
+        let log = log.lock().await;
+        let storage = log.describe_storage();
+        let log_prefix = log.prefix().to_string();
+        drop(log);
         Ok(Response::new(StorageResponse {
             storage: Some(storage),
+            checkpoint_prefix: self.checkpoint_prefix.clone(),
+            log_prefix,
         }))
     }
 
@@ -163,6 +170,7 @@ async fn serialize_log_response(response: LogResponseFuture) -> Result<LogRespon
 
 /// TcpIncoming::new requires a tokio runtime, so we mark this function as async.
 pub async fn start_internal_pipeline_server(
+    checkpoint_prefix: String,
     endpoint_and_logs: Vec<(ApiEndpoint, LogEndpoint)>,
     options: &AppGrpcOptions,
     shutdown: ShutdownReceiver,
@@ -171,7 +179,7 @@ pub async fn start_internal_pipeline_server(
         .into_iter()
         .map(|(endpoint, log)| (endpoint.name, log))
         .collect();
-    let server = InternalPipelineServer::new(endpoints);
+    let server = InternalPipelineServer::new(checkpoint_prefix, endpoints);
 
     // Start listening.
     let addr = format!(

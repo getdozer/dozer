@@ -1,7 +1,7 @@
 use crate::errors::ReaderBuilderError;
 use crate::replication::{load_persisted_log_entry, LogOperation};
 use crate::schemas::EndpointSchema;
-use crate::storage::{LocalStorage, S3Storage, Storage};
+use crate::storage::{self, LocalStorage, S3Storage, Storage};
 
 use super::errors::ReaderError;
 use dozer_types::grpc_types::internal::internal_pipeline_service_client::InternalPipelineServiceClient;
@@ -151,14 +151,7 @@ impl LogClient {
             })
             .await?
             .into_inner();
-        let storage: Box<dyn Storage> = match storage.storage.expect("Must not be None") {
-            storage_response::Storage::S3(s3) => {
-                Box::new(S3Storage::new(s3.region.as_str().into(), s3.bucket_name).await?)
-            }
-            storage_response::Storage::Local(local) => {
-                Box::new(LocalStorage::new(local.root).await?)
-            }
-        };
+        let storage = create_storage(storage.storage.expect("Must not be None")).await?;
 
         Ok((
             Self {
@@ -207,6 +200,19 @@ impl LogClient {
                 );
                 Ok(ops)
             }
+        }
+    }
+}
+
+async fn create_storage(
+    storage: storage_response::Storage,
+) -> Result<Box<dyn Storage>, storage::Error> {
+    match storage {
+        storage_response::Storage::S3(s3) => Ok(Box::new(
+            S3Storage::new(s3.region.as_str().into(), s3.bucket_name).await?,
+        )),
+        storage_response::Storage::Local(local) => {
+            Ok(Box::new(LocalStorage::new(local.root).await?))
         }
     }
 }
@@ -277,3 +283,10 @@ async fn log_reader_worker_loop(
         }
     }
 }
+
+mod checkpoint;
+
+pub use checkpoint::{
+    list_record_store_slices, processor_prefix, record_store_key, CheckpointedLogReader,
+    Error as CheckpointedLogReaderError, RecordStoreSliceMeta,
+};

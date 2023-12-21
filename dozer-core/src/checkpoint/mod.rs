@@ -1,7 +1,8 @@
-use std::{collections::HashMap, num::NonZeroUsize, ops::Deref, sync::Arc};
+use std::{collections::HashMap, ops::Deref, sync::Arc};
 
 use dozer_log::{
-    camino::{Utf8Path, Utf8PathBuf},
+    camino::Utf8Path,
+    reader::{list_record_store_slices, processor_prefix, record_store_key},
     replication::create_data_storage,
     storage::{self, Object, Queue, Storage},
     tokio::task::JoinHandle,
@@ -13,6 +14,7 @@ use dozer_types::{
     models::app_config::{DataStorage, RecordStore},
     node::{NodeHandle, OpIdentifier, SourceStates, TableState},
     parking_lot::Mutex,
+    tonic::codegen::tokio_stream::StreamExt,
     types::Field,
 };
 use tempdir::TempDir;
@@ -42,8 +44,6 @@ impl Default for CheckpointFactoryOptions {
 
 #[derive(Debug, Clone)]
 struct Checkpoint {
-    /// The number of slices that the record store is split into.
-    num_slices: NonZeroUsize,
     processor_prefix: String,
     epoch_id: u64,
     source_states: SourceStates,
@@ -74,8 +74,8 @@ impl OptionCheckpoint {
             read_record_store_slices(&*storage, &prefix, options.record_store).await?;
         if let Some(checkpoint) = &checkpoint {
             info!(
-                "Restored record store from {}th checkpoint, last epoch id is {}, processor states are stored in {}",
-                checkpoint.num_slices, checkpoint.epoch_id, checkpoint.processor_prefix
+                "Restored record store from epoch id {}, processor states are stored in {}",
+                checkpoint.epoch_id, checkpoint.processor_prefix
             );
         }
 
@@ -99,16 +99,14 @@ impl OptionCheckpoint {
         &self.record_store
     }
 
-    pub fn num_slices(&self) -> usize {
+    pub fn last_epoch_id(&self) -> Option<u64> {
         self.checkpoint
             .as_ref()
-            .map_or(0, |checkpoint| checkpoint.num_slices.get())
+            .map(|checkpoint| checkpoint.epoch_id)
     }
 
     pub fn next_epoch_id(&self) -> u64 {
-        self.checkpoint
-            .as_ref()
-            .map_or(0, |checkpoint| checkpoint.epoch_id + 1)
+        self.last_epoch_id().map_or(0, |id| id + 1)
     }
 
     /// Returns the checkpointed source state, if any of the table is marked as non-restartable, returns `Err`.
@@ -246,16 +244,6 @@ pub struct CheckpointWriter {
     processor_prefix: String,
 }
 
-fn record_store_prefix(factory_prefix: &str) -> Utf8PathBuf {
-    AsRef::<Utf8Path>::as_ref(factory_prefix).join("record_store")
-}
-
-fn processor_prefix(factory_prefix: &str, epoch_id: &str) -> String {
-    AsRef::<Utf8Path>::as_ref(factory_prefix)
-        .join(epoch_id)
-        .into_string()
-}
-
 fn processor_key(processor_prefix: &str, node_handle: &NodeHandle) -> String {
     AsRef::<Utf8Path>::as_ref(processor_prefix)
         .join(node_handle.to_string())
@@ -274,12 +262,8 @@ impl CheckpointWriter {
         epoch_id: u64,
         source_states: Arc<SourceStates>,
     ) -> Self {
-        // Format with `u64` max number of digits.
-        let epoch_id = format!("{:020}", epoch_id);
-        let record_store_key = record_store_prefix(&factory.prefix)
-            .join(&epoch_id)
-            .into_string();
-        let processor_prefix = processor_prefix(&factory.prefix, &epoch_id);
+        let record_store_key = record_store_key(&factory.prefix, epoch_id).into();
+        let processor_prefix = processor_prefix(&factory.prefix, epoch_id).into();
         Self {
             factory,
             record_store_key,
@@ -333,68 +317,25 @@ async fn read_record_store_slices(
     record_store: RecordStore,
 ) -> Result<(ProcessorRecordStoreDeserializer, Option<Checkpoint>), ExecutionError> {
     let record_store = ProcessorRecordStoreDeserializer::new(record_store)?;
-    let record_store_prefix = record_store_prefix(factory_prefix);
+
+    let stream = list_record_store_slices(storage, factory_prefix);
+    let mut stream = std::pin::pin!(stream);
 
     let mut last_checkpoint: Option<Checkpoint> = None;
-    let mut continuation_token = None;
-    loop {
-        let objects = storage
-            .list_objects(record_store_prefix.to_string(), continuation_token)
-            .await?;
-
-        if let Some(object) = objects.objects.last() {
-            let object_name = AsRef::<Utf8Path>::as_ref(&object.key)
-                .strip_prefix(&record_store_prefix)
-                .map_err(|_| ExecutionError::UnrecognizedCheckpoint(object.key.clone()))?;
-            let epoch_id = object_name
-                .as_str()
-                .parse()
-                .map_err(|_| ExecutionError::UnrecognizedCheckpoint(object.key.clone()))?;
-            info!("Loading {}", object.key);
-            let data = storage.download_object(object.key.clone()).await?;
-            let record_store_slice: RecordStoreSlice =
-                bincode::decode_from_slice(&data, bincode::config::legacy())
-                    .map_err(ExecutionError::CorruptedCheckpoint)?
-                    .0;
-            let processor_prefix = processor_prefix(factory_prefix, object_name.as_str());
-            info!(
-                "Current source states are {:?}",
-                record_store_slice.source_states
-            );
-
-            if let Some(last_checkpoint) = last_checkpoint.as_mut() {
-                last_checkpoint.num_slices = last_checkpoint
-                    .num_slices
-                    .checked_add(objects.objects.len())
-                    .expect("shouldn't overflow");
-                last_checkpoint.epoch_id = epoch_id;
-                last_checkpoint.source_states = record_store_slice.source_states;
-                last_checkpoint.processor_prefix = processor_prefix;
-            } else {
-                last_checkpoint = Some(Checkpoint {
-                    num_slices: NonZeroUsize::new(objects.objects.len())
-                        .expect("have at least one element"),
-                    epoch_id,
-                    source_states: record_store_slice.source_states,
-                    processor_prefix,
-                });
-            }
-        }
-
-        for object in objects.objects {
-            info!("Loading {}", object.key);
-            let data = storage.download_object(object.key).await?;
-            let record_store_slice: RecordStoreSlice =
-                bincode::decode_from_slice(&data, bincode::config::legacy())
-                    .map_err(ExecutionError::CorruptedCheckpoint)?
-                    .0;
-            record_store.deserialize_and_extend(&record_store_slice.data)?;
-        }
-
-        continuation_token = objects.continuation_token;
-        if continuation_token.is_none() {
-            break;
-        }
+    while let Some(meta) = stream.next().await {
+        let meta = meta?;
+        info!("Loading {}", meta.key);
+        let data = storage.download_object(meta.key).await?;
+        let record_store_slice: RecordStoreSlice =
+            bincode::decode_from_slice(&data, bincode::config::legacy())
+                .map_err(ExecutionError::CorruptedCheckpoint)?
+                .0;
+        record_store.deserialize_and_extend(&record_store_slice.data)?;
+        last_checkpoint = Some(Checkpoint {
+            epoch_id: meta.epoch_id,
+            source_states: record_store_slice.source_states,
+            processor_prefix: meta.processor_prefix.into(),
+        });
     }
 
     Ok((record_store, last_checkpoint))
@@ -454,7 +395,6 @@ pub async fn create_checkpoint_factory_for_test(
         .await
         .unwrap();
     let last_checkpoint = checkpoint.checkpoint.as_ref().unwrap();
-    assert_eq!(last_checkpoint.num_slices.get(), 1);
     assert_eq!(last_checkpoint.epoch_id, epoch_id);
     assert_eq!(last_checkpoint.source_states, source_states);
     let (checkpoint_factory, handle) = CheckpointFactory::new(checkpoint, Default::default())

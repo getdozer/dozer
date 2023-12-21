@@ -143,7 +143,7 @@ impl ReceiverLoop for SinkNode {
         }
 
         if let Some(queue) = epoch.common_info.sink_persist_queue.as_ref() {
-            if let Err(e) = self.sink.persist(queue) {
+            if let Err(e) = self.sink.persist(epoch, queue) {
                 self.error_manager.report(e);
             }
         }
