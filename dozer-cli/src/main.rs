@@ -3,7 +3,7 @@ use dozer_api::shutdown;
 use dozer_cli::cli::cloud::CloudCommands;
 use dozer_cli::cli::types::{Cli, Commands, ConnectorCommand, RunCommands, SecurityCommands};
 use dozer_cli::cli::{generate_config_repl, init_config};
-use dozer_cli::cli::{init_dozer, list_sources, LOGO};
+use dozer_cli::cli::{init_dozer, list_sources};
 use dozer_cli::cloud::{cloud_app_context::CloudAppContext, CloudClient, DozerGrpcCloudClient};
 use dozer_cli::errors::{CliError, CloudError, OrchestrationError};
 use dozer_cli::{live, set_ctrl_handler, set_panic_hook};
@@ -27,13 +27,6 @@ fn main() {
         display_error(&e);
         process::exit(1);
     }
-}
-
-fn render_logo() {
-    const VERSION: &str = env!("CARGO_PKG_VERSION");
-
-    println!("{LOGO}");
-    println!("\nDozer Version: {VERSION}\n");
 }
 
 #[derive(Deserialize, Debug)]
@@ -170,26 +163,16 @@ fn run() -> Result<(), OrchestrationError> {
     // run individual servers
     (match cli.cmd {
         Commands::Run(run) => match run.command {
-            Some(RunCommands::Api) => {
-                render_logo();
-                dozer.runtime.block_on(dozer.run_api(shutdown_receiver))
-            }
-            Some(RunCommands::App) => {
-                render_logo();
-                dozer
-                    .runtime
-                    .block_on(dozer.run_apps(shutdown_receiver, None))
-            }
+            Some(RunCommands::Api) => dozer.runtime.block_on(dozer.run_api(shutdown_receiver)),
+            Some(RunCommands::App) => dozer
+                .runtime
+                .block_on(dozer.run_apps(shutdown_receiver, None)),
             Some(RunCommands::Lambda) => {
-                render_logo();
                 dozer.runtime.block_on(dozer.run_lambda(shutdown_receiver))
             }
-            None => {
-                render_logo();
-                dozer
-                    .runtime
-                    .block_on(dozer.run_all(shutdown_receiver, run.locked))
-            }
+            None => dozer
+                .runtime
+                .block_on(dozer.run_all(shutdown_receiver, run.locked)),
         },
         Commands::Security(security) => match security.command {
             SecurityCommands::GenerateToken => {
@@ -235,7 +218,6 @@ fn run() -> Result<(), OrchestrationError> {
             panic!("This should not happen as it is handled in parse_and_generate");
         }
         Commands::Live(live_flags) => {
-            render_logo();
             dozer.runtime.block_on(live::start_live_server(
                 &dozer.runtime,
                 shutdown_receiver,
@@ -256,7 +238,6 @@ fn run_cloud(
     runtime: Arc<Runtime>,
     cli: &Cli,
 ) -> Result<(), OrchestrationError> {
-    render_logo();
     let cloud = cloud.clone();
 
     let config = init_configuration(cli, runtime.clone())
