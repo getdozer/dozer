@@ -297,20 +297,15 @@ fn parse_and_generate() -> Result<Cli, OrchestrationError> {
 
 fn init_configuration(cli: &Cli, runtime: Arc<Runtime>) -> Result<(Config, Vec<String>), CliError> {
     dozer_tracing::init_telemetry_closure(None, &Default::default(), || -> Result<_, CliError> {
-        let res = runtime.block_on(init_config(
+        let config = runtime.block_on(init_config(
             cli.config_paths.clone(),
             cli.config_token.clone(),
             cli.config_overrides.clone(),
             cli.ignore_pipe,
-        ));
+        ))?;
 
-        match res {
-            Ok(config) => {
-                runtime.spawn(check_update());
-                Ok(config)
-            }
-            Err(e) => Err(e),
-        }
+        runtime.spawn(check_update());
+        Ok(config)
     })
 }
 
