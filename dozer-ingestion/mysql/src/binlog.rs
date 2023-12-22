@@ -459,7 +459,7 @@ impl BinlogIngestor<'_, '_, '_> {
                 .handle_message(IngestionMessage::OperationEvent {
                     table_index: table.def.table_index,
                     op: op?,
-                    id: None,
+                    state: None,
                 })
                 .await
                 .is_err()

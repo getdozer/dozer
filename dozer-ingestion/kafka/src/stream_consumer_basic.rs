@@ -88,7 +88,7 @@ impl StreamConsumer for StreamConsumerBasic {
 
         let mut schemas = HashMap::new();
         for (table_index, table) in tables.into_iter().enumerate() {
-            assert!(table.checkpoint.is_none());
+            assert!(table.state.is_none());
 
             let schema = if let Some(url) = schema_registry_url {
                 SchemaRegistryBasic::get_single_schema(&table.name, url).await?
@@ -158,7 +158,7 @@ impl StreamConsumer for StreamConsumerBasic {
                                             lifetime: None,
                                         },
                                     },
-                                    id: None,
+                                    state: None,
                                 })
                                 .await
                                 .is_err()

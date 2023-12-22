@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     helper::{deserialize_duration_secs_f64, f64_schema, serialize_duration_secs_f64},
     models::connection::SchemaExample,
-    node::OpIdentifier,
+    node::RestartableState,
     types::Operation,
 };
 
@@ -24,8 +24,8 @@ pub enum IngestionMessage {
         table_index: usize,
         /// The CDC event.
         op: Operation,
-        /// If this connector supports restarting from a specific CDC event, it should provide an identifier.
-        id: Option<OpIdentifier>,
+        /// If this connector supports restarting from a specific CDC event, it should provide a `RestartableState`.
+        state: Option<RestartableState>,
     },
     /// A connector uses this message kind to notify Dozer that a initial snapshot of the source tables is started
     SnapshottingStarted,

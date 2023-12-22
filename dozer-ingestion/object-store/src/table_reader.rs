@@ -114,7 +114,7 @@ pub async fn read(
                 .send(Ok(Some(IngestionMessage::OperationEvent {
                     table_index,
                     op: evt,
-                    id: None,
+                    state: None,
                 })))
                 .await
                 .is_err()

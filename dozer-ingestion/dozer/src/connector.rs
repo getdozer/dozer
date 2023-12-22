@@ -12,7 +12,7 @@ use dozer_ingestion_connector::{
             default_buffer_size, default_log_batch_size, default_timeout, IngestionMessage,
             NestedDozerConfig, NestedDozerLogOptions,
         },
-        node::OpIdentifier,
+        node::RestartableState,
         serde_json,
         tonic::{async_trait, transport::Channel},
         types::{FieldType, Operation, Record, Schema},
@@ -208,10 +208,11 @@ async fn read_table(
     reader_builder: LogReaderBuilder,
     sender: Sender<IngestionMessage>,
 ) -> Result<(), NestedDozerConnectorError> {
-    let starting_point = table_info
-        .checkpoint
-        .map(|checkpoint| checkpoint.seq_in_tx + 1)
-        .unwrap_or(0);
+    let state = table_info
+        .state
+        .map(|state| decode_state(&state))
+        .transpose()?;
+    let starting_point = state.map(|pos| pos + 1).unwrap_or(0);
     let mut reader = reader_builder.build(starting_point);
     let schema = reader.schema.schema.clone();
     let map = SchemaMapper::new(schema, &table_info.column_names)?;
@@ -243,10 +244,24 @@ async fn read_table(
             .send(IngestionMessage::OperationEvent {
                 table_index,
                 op,
-                id: Some(OpIdentifier::new(0, op_and_pos.pos)),
+                state: Some(encode_state(op_and_pos.pos)),
             })
             .await;
     }
+}
+
+fn encode_state(pos: u64) -> RestartableState {
+    pos.to_be_bytes().to_vec().into()
+}
+
+fn decode_state(state: &RestartableState) -> Result<u64, NestedDozerConnectorError> {
+    Ok(u64::from_be_bytes(
+        state
+            .0
+            .as_slice()
+            .try_into()
+            .map_err(|_| NestedDozerConnectorError::CorruptedState)?,
+    ))
 }
 
 struct SchemaMapper {

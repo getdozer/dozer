@@ -262,12 +262,12 @@ impl Source for ConnectorSource {
                         .iter()
                         .zip(&self.ports)
                         .map(|(table, port)| {
-                            let checkpoint = last_checkpoint.get(port).copied().flatten();
+                            let state = last_checkpoint.get(port).cloned().flatten();
                             TableToIngest {
                                 schema: table.schema.clone(),
                                 name: table.name.clone(),
                                 column_names: table.column_names.clone(),
-                                checkpoint,
+                                state,
                             }
                         })
                         .collect::<Vec<_>>();

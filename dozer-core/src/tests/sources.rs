@@ -3,7 +3,6 @@ use crate::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFacto
 use crate::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::models::ingestion_types::IngestionMessage;
-use dozer_types::node::OpIdentifier;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
 };
@@ -96,15 +95,14 @@ impl Source for GeneratorSource {
         fw: &mut dyn SourceChannelForwarder,
         last_checkpoint: SourceState,
     ) -> Result<(), BoxedError> {
-        let start = last_checkpoint
-            .values()
-            .copied()
-            .next()
-            .flatten()
-            .unwrap_or(OpIdentifier::new(0, 0))
-            .txid;
+        let state = last_checkpoint.values().next().and_then(|state| {
+            state
+                .as_ref()
+                .map(|state| u64::from_be_bytes(state.0.as_slice().try_into().unwrap()))
+        });
+        let start = state.map(|state| state + 1).unwrap_or(0);
 
-        for n in start + 1..(start + self.count + 1) {
+        for n in start..(start + self.count) {
             fw.send(
                 IngestionMessage::OperationEvent {
                     table_index: 0,
@@ -114,7 +112,7 @@ impl Source for GeneratorSource {
                             Field::String(format!("value_{n}")),
                         ]),
                     },
-                    id: Some(OpIdentifier::new(n, 0)),
+                    state: Some(n.to_be_bytes().to_vec().into()),
                 },
                 GENERATOR_SOURCE_OUTPUT_PORT,
             )?;
@@ -237,7 +235,7 @@ impl Source for DualPortGeneratorSource {
                             Field::String(format!("value_{n}")),
                         ]),
                     },
-                    id: Some(OpIdentifier::new(n, 0)),
+                    state: Some(n.to_be_bytes().to_vec().into()),
                 },
                 DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_1,
             )?;
@@ -250,7 +248,7 @@ impl Source for DualPortGeneratorSource {
                             Field::String(format!("value_{n}")),
                         ]),
                     },
-                    id: Some(OpIdentifier::new(n, 0)),
+                    state: Some(n.to_be_bytes().to_vec().into()),
                 },
                 DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_2,
             )?;

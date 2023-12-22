@@ -186,7 +186,7 @@ impl Connector for PostgresConnector {
         let tables = tables
             .into_iter()
             .map(|table| {
-                assert!(table.checkpoint.is_none());
+                assert!(table.state.is_none());
                 ListOrFilterColumns {
                     schema: table.schema,
                     name: table.name,

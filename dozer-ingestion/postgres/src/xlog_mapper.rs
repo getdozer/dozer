@@ -1,13 +1,11 @@
-use dozer_ingestion_connector::dozer_types::{
-    node::OpIdentifier,
-    types::{Field, Operation, Record},
-};
+use dozer_ingestion_connector::dozer_types::types::{Field, Operation, Record};
 use postgres_protocol::message::backend::LogicalReplicationMessage::{
     Begin, Commit, Delete, Insert, Relation, Update,
 };
 use postgres_protocol::message::backend::{
     LogicalReplicationMessage, RelationBody, ReplicaIdentity, TupleData, UpdateBody, XLogDataBody,
 };
+use postgres_protocol::Lsn;
 use postgres_types::Type;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -34,7 +32,7 @@ pub struct TableColumn {
 #[derive(Debug, Clone)]
 pub enum MappedReplicationMessage {
     Begin,
-    Commit(OpIdentifier),
+    Commit(Lsn),
     Operation { table_index: usize, op: Operation },
 }
 
@@ -63,10 +61,7 @@ impl XlogMapper {
                 self.ingest_schema(relation)?;
             }
             Commit(commit) => {
-                return Ok(Some(MappedReplicationMessage::Commit(OpIdentifier::new(
-                    commit.end_lsn(),
-                    0,
-                ))));
+                return Ok(Some(MappedReplicationMessage::Commit(commit.end_lsn())));
             }
             Begin(_begin) => {
                 return Ok(Some(MappedReplicationMessage::Begin));

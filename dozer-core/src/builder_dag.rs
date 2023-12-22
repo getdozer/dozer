@@ -81,7 +81,7 @@ impl BuilderDag {
                             last_checkpoint_by_name
                                 .as_mut()
                                 .and_then(|last_checkpoint| {
-                                    last_checkpoint.remove(&port_name).flatten()
+                                    last_checkpoint.remove(&port_name).flatten().cloned()
                                 }),
                         );
                     }

@@ -4,7 +4,6 @@ use dozer_ingestion_connector::{
         errors::internal::BoxedError,
         log::{info, warn},
         models::ingestion_types::{default_snowflake_poll_interval, SnowflakeConfig},
-        node::OpIdentifier,
         types::FieldType,
     },
     tokio, Connector, Ingestor, SourceSchema, SourceSchemaResult, TableIdentifier, TableInfo,
@@ -13,7 +12,9 @@ use dozer_ingestion_connector::{
 use odbc::create_environment_v3;
 
 use crate::{
-    connection::client::Client, schema_helper::SchemaHelper, stream_consumer::StreamConsumer,
+    connection::client::Client,
+    schema_helper::SchemaHelper,
+    stream_consumer::{decode_state, StreamConsumer},
     SnowflakeError, SnowflakeStreamError,
 };
 
@@ -151,16 +152,17 @@ fn run(
         for (idx, table) in tables.iter().enumerate() {
             // We only check stream status on first iteration
             if iteration == 0 {
-                match table.checkpoint {
-                    None | Some(OpIdentifier { txid: 0, .. }) => {
+                let state = table.state.as_ref().map(decode_state).transpose()?;
+                match state {
+                    None | Some((0, _)) => {
                         info!("[{}][{}] Creating new stream", name, table.name);
                         StreamConsumer::drop_stream(&stream_client, &table.name)?;
                         StreamConsumer::create_stream(&stream_client, &table.name)?;
                     }
-                    Some(OpIdentifier { txid, seq_in_tx }) => {
+                    Some((iteration, index)) => {
                         info!(
                             "[{}][{}] Continuing ingestion from {}/{}",
-                            name, table.name, txid, seq_in_tx
+                            name, table.name, iteration, index
                         );
                         if let Ok(false) =
                             StreamConsumer::is_stream_created(&stream_client, &table.name)

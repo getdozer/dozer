@@ -40,21 +40,13 @@ pub async fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>(runtime:
     let (mut iterator, abort_handle) = spawn_connector(runtime, connector, tables);
 
     // Loop over messages until timeout.
-    let mut last_identifier = None;
     let mut num_operations = 0;
     while let Some(message) = iterator.next_timeout(Duration::from_secs(1)).await {
         // Check message identifier.
         if let IngestionMessage::OperationEvent {
-            table_index,
-            op,
-            id,
+            table_index, op, ..
         } = &message
         {
-            if let Some((last_id, id)) = last_identifier.zip(*id) {
-                assert!(id > last_id);
-            }
-            last_identifier = *id;
-
             num_operations += 1;
             // Check record schema consistency.
             match op {
@@ -147,21 +139,11 @@ pub async fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>(runtim
 
         let mut record_iter = records.iter();
 
-        let mut last_identifier = None;
         while let Some(message) = iterator.next_timeout(Duration::from_secs(1)).await {
             // Filter out non-operation events.
-            let IngestionMessage::OperationEvent {
-                op: operation, id, ..
-            } = message
-            else {
+            let IngestionMessage::OperationEvent { op: operation, .. } = message else {
                 continue;
             };
-
-            // Identifier must be increasing.
-            if let Some((last_id, id)) = last_identifier.zip(id) {
-                assert!(id > last_id);
-            }
-            last_identifier = id;
 
             // Operation must be insert.
             let Operation::Insert { new: actual_record } = operation else {
@@ -230,22 +212,12 @@ pub async fn run_test_suite_basic_cud<T: CudConnectorTest>(runtime: Arc<Runtime>
     let (mut iterator, abort_handle) = spawn_connector(runtime, connector, tables);
 
     // Check data schema consistency.
-    let mut last_identifier = None;
     let mut records = Records::new(actual_primary_index.clone());
     while let Some(message) = iterator.next_timeout(Duration::from_secs(1)).await {
         // Filter out non-operation events.
-        let IngestionMessage::OperationEvent {
-            op: operation, id, ..
-        } = message
-        else {
+        let IngestionMessage::OperationEvent { op: operation, .. } = message else {
             continue;
         };
-
-        // Identifier must be increasing.
-        if let Some((last_id, id)) = last_identifier.zip(id) {
-            assert!(id > last_id);
-        }
-        last_identifier = id;
 
         // Record must match schema.
         match operation {

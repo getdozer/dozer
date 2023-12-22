@@ -40,7 +40,7 @@ impl DeltaLakeReader {
         table: &TableToIngest,
         ingestor: &Ingestor,
     ) -> Result<(), BoxedError> {
-        assert!(table.checkpoint.is_none());
+        assert!(table.state.is_none());
 
         let table_path = table_path(&self.config, &table.name)?;
         let ctx = SessionContext::new();
@@ -75,7 +75,7 @@ impl DeltaLakeReader {
                                 lifetime: None,
                             },
                         },
-                        id: None,
+                        state: None,
                     })
                     .await
                     .unwrap();

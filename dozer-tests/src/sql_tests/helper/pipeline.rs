@@ -133,7 +133,7 @@ impl Source for TestSource {
                 IngestionMessage::OperationEvent {
                     table_index: 0,
                     op,
-                    id: None,
+                    state: None,
                 },
                 *port,
             )

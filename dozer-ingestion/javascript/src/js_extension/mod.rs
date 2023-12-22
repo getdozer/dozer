@@ -120,7 +120,7 @@ async fn send(ingestor: Ingestor, val: JsMessage) -> Result<(), Error> {
             IngestionMessage::OperationEvent {
                 table_index: 0,
                 op,
-                id: None,
+                state: None,
             }
         }
     };
