@@ -10,103 +10,18 @@ use dozer_cli::{live, set_ctrl_handler, set_panic_hook};
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::models::config::Config;
 use dozer_types::models::telemetry::{TelemetryConfig, TelemetryMetricsConfig};
-use dozer_types::serde::Deserialize;
-use dozer_types::tracing::{debug, error, error_span, info, warn};
+use dozer_types::tracing::{error, error_span, info};
 use futures::stream::{AbortHandle, Abortable};
-use std::cmp::Ordering;
 use std::convert::identity;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
-use tokio::time;
 
-use std::time::Duration;
-use std::{env, process};
+use std::process;
 
 fn main() {
     if let Err(e) = run() {
         display_error(&e);
         process::exit(1);
-    }
-}
-
-#[derive(Deserialize, Debug)]
-#[serde(crate = "dozer_types::serde")]
-struct DozerPackage {
-    #[serde(rename(deserialize = "latestVersion"))]
-    pub latest_version: String,
-    #[serde(rename(deserialize = "availableAssets"))]
-    pub _available_assets: Vec<String>,
-    pub link: String,
-}
-
-fn version_to_vector(version: &str) -> Vec<i32> {
-    version.split('.').map(|s| s.parse().unwrap()).collect()
-}
-
-fn compare_versions(v1: Vec<i32>, v2: Vec<i32>) -> bool {
-    for i in 0..v1.len() {
-        match v1.get(i).cmp(&v2.get(i)) {
-            Ordering::Greater => return true,
-            Ordering::Less => return false,
-            Ordering::Equal => continue,
-        }
-    }
-    false
-}
-
-async fn check_update() {
-    const VERSION: &str = env!("CARGO_PKG_VERSION");
-    let dozer_env = std::env::var("DOZER_ENV").unwrap_or("local".to_string());
-    let dozer_dev = std::env::var("DOZER_DEV").unwrap_or("ext".to_string());
-    let query = vec![
-        ("version", VERSION),
-        ("build", std::env::consts::ARCH),
-        ("os", std::env::consts::OS),
-        ("env", &dozer_env),
-        ("dev", &dozer_dev),
-    ];
-
-    let request_url = "https://metadata.dev.getdozer.io/";
-
-    let client = reqwest::Client::new();
-
-    let mut printed = false;
-
-    loop {
-        let response = client
-            .get(&request_url.to_string())
-            .query(&query)
-            .send()
-            .await;
-
-        match response {
-            Ok(r) => {
-                if !printed {
-                    let package: DozerPackage = r.json().await.unwrap();
-                    let current = version_to_vector(VERSION);
-                    let remote = version_to_vector(&package.latest_version);
-
-                    if compare_versions(remote, current) {
-                        info!("A new version of Dozer is available.");
-                        info!(
-                            "You can download v{}, from {}.",
-                            package.latest_version, package.link
-                        );
-                        printed = true;
-                    }
-                }
-            }
-            Err(e) => {
-                // We dont show error if error is connection error, because mostly it happens
-                // when main thread is shutting down before request completes.
-                if !e.is_connect() {
-                    warn!("Unable to     fetch the latest metadata");
-                }
-
-                debug!("Updates check error: {}", e);
-            }
-        }
-        time::sleep(Duration::from_secs(2 * 60 * 60)).await;
     }
 }
 
@@ -297,15 +212,12 @@ fn parse_and_generate() -> Result<Cli, OrchestrationError> {
 
 fn init_configuration(cli: &Cli, runtime: Arc<Runtime>) -> Result<(Config, Vec<String>), CliError> {
     dozer_tracing::init_telemetry_closure(None, &Default::default(), || -> Result<_, CliError> {
-        let config = runtime.block_on(init_config(
+        runtime.block_on(init_config(
             cli.config_paths.clone(),
             cli.config_token.clone(),
             cli.config_overrides.clone(),
             cli.ignore_pipe,
-        ))?;
-
-        runtime.spawn(check_update());
-        Ok(config)
+        ))
     })
 }
 
