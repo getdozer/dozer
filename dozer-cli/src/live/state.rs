@@ -131,7 +131,7 @@ impl LiveState {
 
         let cli = Cli::parse();
 
-        let config = init_config(
+        let (config, _) = init_config(
             cli.config_paths.clone(),
             cli.config_token.clone(),
             cli.config_overrides.clone(),

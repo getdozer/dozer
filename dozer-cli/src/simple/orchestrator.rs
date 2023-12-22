@@ -359,7 +359,7 @@ impl SimpleOrchestrator {
         let home_dir = HomeDir::new(home_dir, cache_dir);
 
         info!(
-            "Initiating app: {}",
+            "Initializing app: {}",
             get_colored_text(&self.config.app_name, PURPLE)
         );
         if force {

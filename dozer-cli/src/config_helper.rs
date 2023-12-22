@@ -12,9 +12,10 @@ use glob::glob;
 pub fn combine_config(
     config_paths: Vec<String>,
     stdin_yaml: Option<String>,
-) -> Result<Option<String>, ConfigCombineError> {
+) -> Result<(Option<String>, Vec<String>), ConfigCombineError> {
     let mut combined_yaml = serde_yaml::Value::Mapping(Mapping::new());
 
+    let mut loaded_files = Vec::new();
     let mut config_found = false;
     for pattern in config_paths {
         let files_glob = glob(&pattern).map_err(WrongPatternOfConfigFilesGlob)?;
@@ -32,8 +33,8 @@ pub fn combine_config(
                     if name.contains(".yml") || name.contains(".yaml") {
                         config_found = true;
                     }
-
                     add_file_content_to_config(&mut combined_yaml, name, content)?;
+                    loaded_files.push(name.to_owned());
                 }
             }
         }
@@ -48,11 +49,10 @@ pub fn combine_config(
 
     if config_found {
         // `serde_yaml::from_value` will return deserialization error, not sure why.
-        serde_yaml::to_string(&combined_yaml)
-            .map_err(CannotSerializeToString)
-            .map(Some)
+        let string = serde_yaml::to_string(&combined_yaml).map_err(CannotSerializeToString)?;
+        Ok((Some(string), loaded_files))
     } else {
-        Ok(None)
+        Ok((None, vec![]))
     }
 }
 

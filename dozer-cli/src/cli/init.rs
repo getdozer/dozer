@@ -196,7 +196,7 @@ pub fn generate_config_repl() -> Result<(), OrchestrationError> {
             }),
         ),
         (
-            format!("question: Home directory ({:}): ", default_home_dir()),
+            format!("question: Data directory ({:}): ", default_home_dir()),
             Box::new(move |(home_dir, config)| {
                 if home_dir.is_empty() {
                     config.home_dir = Some(default_home_dir());
