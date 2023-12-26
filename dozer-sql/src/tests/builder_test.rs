@@ -97,6 +97,7 @@ impl SourceFactory for TestSourceFactory {
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
+        _last_checkpoint: SourceState,
     ) -> Result<Box<dyn Source>, BoxedError> {
         Ok(Box::new(TestSource {}))
     }
@@ -106,12 +107,8 @@ impl SourceFactory for TestSourceFactory {
 pub struct TestSource {}
 
 impl Source for TestSource {
-    fn start(
-        &self,
-        fw: &mut dyn SourceChannelForwarder,
-        _last_checkpoint: SourceState,
-    ) -> Result<(), BoxedError> {
-        for n in 0..10u64 {
+    fn start(&self, fw: &mut dyn SourceChannelForwarder) -> Result<(), BoxedError> {
+        for _ in 0..10 {
             fw.send(
                 IngestionMessage::OperationEvent {
                     table_index: 0,
@@ -125,7 +122,7 @@ impl Source for TestSource {
                             ),
                         ]),
                     },
-                    state: Some(n.to_be_bytes().to_vec().into()),
+                    state: None,
                 },
                 DEFAULT_PORT_HANDLE,
             )

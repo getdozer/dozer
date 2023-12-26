@@ -344,6 +344,7 @@ impl SourceFactory for ErrGeneratorSourceFactory {
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
+        _last_checkpoint: SourceState,
     ) -> Result<Box<dyn Source>, BoxedError> {
         Ok(Box::new(ErrGeneratorSource {
             count: self.count,
@@ -359,11 +360,7 @@ pub(crate) struct ErrGeneratorSource {
 }
 
 impl Source for ErrGeneratorSource {
-    fn start(
-        &self,
-        fw: &mut dyn SourceChannelForwarder,
-        _checkpoint: SourceState,
-    ) -> Result<(), BoxedError> {
+    fn start(&self, fw: &mut dyn SourceChannelForwarder) -> Result<(), BoxedError> {
         for n in 1..(self.count + 1) {
             if n == self.err_at {
                 return Err("Generated Error".to_string().into());

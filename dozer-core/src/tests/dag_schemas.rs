@@ -1,7 +1,7 @@
 use crate::dag_schemas::{DagHaveSchemas, DagSchemas};
 use crate::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, SinkFactory, Source,
-    SourceFactory,
+    SourceFactory, SourceState,
 };
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 
@@ -63,6 +63,7 @@ impl SourceFactory for TestUsersSourceFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
+        _last_checkpoint: SourceState,
     ) -> Result<Box<dyn Source>, BoxedError> {
         todo!()
     }
@@ -109,6 +110,7 @@ impl SourceFactory for TestCountriesSourceFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
+        _last_checkpoint: SourceState,
     ) -> Result<Box<dyn Source>, BoxedError> {
         todo!()
     }
