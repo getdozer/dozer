@@ -3661,6 +3661,7 @@ dependencies = [
  "dozer-ingestion",
  "dozer-lambda",
  "dozer-recordstore",
+ "dozer-sinks",
  "dozer-sql",
  "dozer-storage",
  "dozer-tracing",
@@ -3872,6 +3873,7 @@ dependencies = [
 name = "dozer-ingestion-snowflake"
 version = "0.3.0"
 dependencies = [
+ "base64 0.21.5",
  "dozer-ingestion-connector",
  "genawaiter",
  "include_dir",
@@ -3908,6 +3910,7 @@ dependencies = [
  "futures-util",
  "nonzero_ext",
  "pin-project",
+ "serde_json",
  "tempdir",
  "tokio",
  "tokio-stream",
@@ -3940,6 +3943,28 @@ dependencies = [
  "dozer-storage",
  "dozer-types",
  "tempdir",
+]
+
+[[package]]
+name = "dozer-sinks"
+version = "0.1.0"
+dependencies = [
+ "dozer-sinks-snowflake",
+]
+
+[[package]]
+name = "dozer-sinks-snowflake"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "dozer-api",
+ "dozer-ingestion-snowflake",
+ "dozer-log",
+ "dozer-types",
+ "futures-util",
+ "itertools 0.10.5",
+ "odbc",
+ "regex",
 ]
 
 [[package]]

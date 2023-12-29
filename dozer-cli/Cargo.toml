@@ -20,6 +20,7 @@ dozer-tracing = { path = "../dozer-tracing" }
 dozer-storage = { path = "../dozer-storage" }
 dozer-recordstore = { path = "../dozer-recordstore" }
 dozer-lambda = { path = "../dozer-lambda" }
+dozer-sinks = { path = "../dozer-sinks" }
 
 uuid = { version = "1.6.1", features = ["v4", "serde"] }
 tokio = { version = "1", features = ["full"] }
@@ -58,7 +59,7 @@ name = "dozer"
 path = "src/main.rs"
 
 [features]
-snowflake = ["dozer-ingestion/snowflake"]
+snowflake = ["dozer-ingestion/snowflake", "dozer-sinks/snowflake"]
 mongodb = ["dozer-ingestion/mongodb"]
 onnx = ["dozer-sql/onnx"]
 tokio-console = ["dozer-tracing/tokio-console"]

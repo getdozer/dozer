@@ -88,6 +88,13 @@
         "$ref": "#/definitions/LambdaConfig"
       }
     },
+    "sinks": {
+      "description": "Sinks",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/SinkConfig"
+      }
+    },
     "sources": {
       "description": "sources to ingest data related to particular connection",
       "type": "array",
@@ -598,6 +605,48 @@
         }
       ]
     },
+    "ConnectionParameters": {
+      "type": "object",
+      "required": [
+        "password",
+        "server",
+        "user",
+        "warehouse"
+      ],
+      "properties": {
+        "driver": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "password": {
+          "type": "string"
+        },
+        "port": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "role": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "server": {
+          "type": "string"
+        },
+        "user": {
+          "type": "string"
+        },
+        "warehouse": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
     "CsvConfig": {
       "type": "object",
       "required": [
@@ -679,6 +728,26 @@
           "type": "string"
         }
       }
+    },
+    "Destination": {
+      "type": "object",
+      "required": [
+        "database",
+        "schema",
+        "table"
+      ],
+      "properties": {
+        "database": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "string"
+        },
+        "table": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
     },
     "DozerTelemetryConfig": {
       "type": "object",
@@ -1341,6 +1410,30 @@
       },
       "additionalProperties": false
     },
+    "Options": {
+      "type": "object",
+      "properties": {
+        "batch_interval_seconds": {
+          "type": "number",
+          "format": "double"
+        },
+        "batch_size": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint",
+          "minimum": 0.0
+        },
+        "suspend_warehouse_after_each_batch": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
     "ParquetConfig": {
       "type": "object",
       "required": [
@@ -1663,6 +1756,52 @@
           "items": {
             "type": "string"
           }
+        }
+      },
+      "additionalProperties": false
+    },
+    "SinkConfig": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "Snowflake"
+          ],
+          "properties": {
+            "Snowflake": {
+              "$ref": "#/definitions/Snowflake"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Snowflake": {
+      "type": "object",
+      "required": [
+        "connection",
+        "destination",
+        "endpoint"
+      ],
+      "properties": {
+        "connection": {
+          "$ref": "#/definitions/ConnectionParameters"
+        },
+        "destination": {
+          "$ref": "#/definitions/Destination"
+        },
+        "endpoint": {
+          "type": "string"
+        },
+        "options": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Options"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": false

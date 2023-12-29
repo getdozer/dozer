@@ -2,7 +2,8 @@ use async_stream::try_stream;
 use camino::{Utf8Path, Utf8PathBuf};
 use dozer_types::{
     grpc_types::internal::{
-        internal_pipeline_service_client::InternalPipelineServiceClient, StorageRequest,
+        internal_pipeline_service_client::InternalPipelineServiceClient, BuildRequest,
+        StorageRequest,
     },
     thiserror,
     tonic::{
@@ -15,6 +16,7 @@ use futures_util::{Stream, StreamExt};
 use crate::{
     reader::create_storage,
     replication::{self, load_persisted_log_entries, PersistedLogEntry},
+    schemas::EndpointSchema,
     storage::{self, Storage},
 };
 
@@ -29,6 +31,10 @@ pub enum Error {
     Connect(#[from] transport::Error),
     #[error("describe storage of endpoint {0}: {1}")]
     DescribeStorage(String, #[source] tonic::Status),
+    #[error("describe schema of endpoint {0}: {1}")]
+    DescribeSchema(String, #[source] tonic::Status),
+    #[error("invalid schema of endpoint {0}: {1}")]
+    InvalidSchema(String, #[source] serde_json::Error),
     #[error("storage: {0}")]
     Storage(#[from] storage::Error),
     #[error("unrecognized checkpoint: {0}")]
@@ -75,6 +81,20 @@ impl CheckpointedLogReader {
                 .await?;
 
         Ok((storage, entries))
+    }
+
+    pub async fn get_schema(&mut self, endpoint: String) -> Result<EndpointSchema, Error> {
+        let build = self
+            .client
+            .describe_build(BuildRequest {
+                endpoint: endpoint.clone(),
+            })
+            .await
+            .map_err(|e| Error::DescribeSchema(endpoint.clone(), e))?
+            .into_inner();
+        let schema = serde_json::from_str(&build.schema_string)
+            .map_err(|e| Error::InvalidSchema(endpoint.clone(), e))?;
+        Ok(schema)
     }
 }
 

@@ -143,7 +143,7 @@ fn run(
     let interval = config
         .poll_interval_seconds
         .unwrap_or_else(default_snowflake_poll_interval);
-    let stream_client = Client::new(config, &env);
+    let stream_client = Client::new(config.into(), &env);
 
     let mut consumer = StreamConsumer::new();
     let mut iteration = 0;

@@ -3,7 +3,7 @@ use std::path::Path;
 use super::{
     api_config::ApiConfig, api_endpoint::ApiEndpoint, app_config::AppConfig, cloud::Cloud,
     connection::Connection, equal_default, flags::Flags, lambda_config::LambdaConfig,
-    source::Source, telemetry::TelemetryConfig,
+    sink_config::SinkConfig, source::Source, telemetry::TelemetryConfig,
 };
 use crate::constants::DEFAULT_HOME_DIR;
 use crate::models::udf_config::UdfConfig;
@@ -75,6 +75,10 @@ pub struct Config {
     /// Lambda functions.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub lambdas: Vec<LambdaConfig>,
+
+    /// Sinks
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sinks: Vec<SinkConfig>,
 }
 
 pub fn default_home_dir() -> String {
