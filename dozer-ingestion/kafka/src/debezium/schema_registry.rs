@@ -97,7 +97,7 @@ impl SchemaRegistry {
         let sr_settings = SrSettings::new(schema_registry_url);
         match table_names {
             None => Ok(vec![]),
-            Some(tables) => match tables.get(0) {
+            Some(tables) => match tables.first() {
                 None => Ok(vec![]),
                 Some(table) => {
                     let key_result =

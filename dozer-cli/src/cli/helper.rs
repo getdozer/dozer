@@ -103,7 +103,7 @@ async fn load_config(
     ignore_pipe: bool,
 ) -> Result<(Config, Vec<String>), CliError> {
     let read_stdin = atty::isnt(Stream::Stdin) && !ignore_pipe;
-    let first_config_path = config_url_or_paths.get(0);
+    let first_config_path = config_url_or_paths.first();
     match first_config_path {
         None => Err(ConfigurationFilePathNotProvided),
         Some(path) => {

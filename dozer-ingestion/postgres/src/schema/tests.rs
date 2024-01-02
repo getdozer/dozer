@@ -38,7 +38,7 @@ async fn test_connector_get_tables() {
     let schema_helper = SchemaHelper::new(client.postgres_config.clone(), None);
     let result = schema_helper.get_tables(None).await.unwrap();
 
-    let table = result.get(0).unwrap();
+    let table = result.first().unwrap();
     assert_eq!(table_name, table.name);
     assert!(assert_vec_eq(
         &[
@@ -76,7 +76,7 @@ async fn test_connector_get_schema_with_selected_columns() {
     };
     let result = schema_helper.get_tables(Some(&[table_info])).await.unwrap();
 
-    let table = result.get(0).unwrap();
+    let table = result.first().unwrap();
     assert_eq!(table_name, table.name);
     assert!(assert_vec_eq(
         &["name".to_string(), "id".to_string()],
@@ -109,7 +109,7 @@ async fn test_connector_get_schema_without_selected_columns() {
     };
     let result = schema_helper.get_tables(Some(&[table_info])).await.unwrap();
 
-    let table = result.get(0).unwrap();
+    let table = result.first().unwrap();
     assert_eq!(table_name, table.name.clone());
     assert!(assert_vec_eq(
         &[

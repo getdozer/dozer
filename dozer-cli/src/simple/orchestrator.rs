@@ -327,7 +327,14 @@ impl SimpleOrchestrator {
             match sink {
                 SinkConfig::Snowflake(config) => {
                     #[cfg(not(feature = "snowflake"))]
-                    panic!("Dozer must be compiled with the \"snowflake\" feature to run the Snowflake sink");
+                    {
+                        let _ = shutdown;
+                        let _ = config;
+                        let _ = app_server_url;
+                        futures.push(futures::future::ready(Ok::<(), OrchestrationError>(())));
+
+                        panic!("Dozer must be compiled with the \"snowflake\" feature to run the Snowflake sink");
+                    }
                     #[cfg(feature = "snowflake")]
                     {
                         let mut sink = dozer_sinks::snowflake::SnowflakeSink::new(

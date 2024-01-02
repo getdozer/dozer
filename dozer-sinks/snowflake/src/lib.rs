@@ -336,6 +336,7 @@ impl SnowflakeSink {
         let mut delete = Vec::new();
         let mut insert = Vec::new();
 
+        #[derive(Debug, Clone, Copy)]
         enum OpKind {
             Delete,
             Insert,
@@ -370,6 +371,7 @@ impl SnowflakeSink {
                     OpKind::Update | OpKind::None => (),
                 }
                 previous_op_kind = OpKind::None;
+                let _ = previous_op_kind;
             }};
         }
 

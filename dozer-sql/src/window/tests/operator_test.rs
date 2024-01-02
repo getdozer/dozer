@@ -30,7 +30,7 @@ fn test_hop() {
         )
         .unwrap();
     assert_eq!(result.len(), 5);
-    let window_record = result.get(0).unwrap();
+    let window_record = result.first().unwrap();
 
     let expected_record = ProcessorRecord::appended(
         &record,
@@ -82,7 +82,7 @@ fn test_tumble() {
         )
         .unwrap();
     assert_eq!(result.len(), 1);
-    let window_record = result.get(0).unwrap();
+    let window_record = result.first().unwrap();
 
     let expected_record = ProcessorRecord::appended(
         &record,
