@@ -16,7 +16,6 @@ use dozer_types::chrono::DateTime;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::log::debug;
 use dozer_types::models::ingestion_types::IngestionMessage;
-use dozer_types::node::OpIdentifier;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
@@ -112,7 +111,7 @@ impl Source for TestSource {
         fw: &mut dyn SourceChannelForwarder,
         _last_checkpoint: SourceState,
     ) -> Result<(), BoxedError> {
-        for n in 0..10 {
+        for n in 0..10u64 {
             fw.send(
                 IngestionMessage::OperationEvent {
                     table_index: 0,
@@ -126,7 +125,7 @@ impl Source for TestSource {
                             ),
                         ]),
                     },
-                    id: Some(OpIdentifier::new(n, 0)),
+                    state: Some(n.to_be_bytes().to_vec().into()),
                 },
                 DEFAULT_PORT_HANDLE,
             )

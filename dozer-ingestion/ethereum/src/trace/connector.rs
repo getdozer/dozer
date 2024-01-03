@@ -155,7 +155,7 @@ pub async fn run(
                                 .handle_message(IngestionMessage::OperationEvent {
                                     table_index: 0, // We have only one table
                                     op,
-                                    id: None,
+                                    state: None,
                                 })
                                 .await
                                 .is_err()

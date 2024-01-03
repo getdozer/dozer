@@ -8,6 +8,9 @@ use dozer_log::errors::{ReaderBuilderError, ReaderError};
 
 #[derive(Error, Debug)]
 enum NestedDozerConnectorError {
+    #[error("Failed to parse checkpoint state")]
+    CorruptedState,
+
     #[error("Failed to connect to upstream dozer at {0}: {1:?}")]
     ConnectionError(String, #[source] dozer_types::tonic::transport::Error),
 

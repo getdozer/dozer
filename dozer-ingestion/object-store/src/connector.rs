@@ -132,7 +132,7 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
         let mut handles = vec![];
 
         for (table_index, table_info) in tables.iter().enumerate() {
-            assert!(table_info.checkpoint.is_none());
+            assert!(table_info.state.is_none());
             let table_info = TableInfo {
                 schema: table_info.schema.clone(),
                 name: table_info.name.clone(),

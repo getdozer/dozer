@@ -222,12 +222,12 @@ impl SourceChannelManager {
         request_termination: bool,
     ) -> Result<bool, ExecutionError> {
         match message {
-            IngestionMessage::OperationEvent { op, id, .. } => {
+            IngestionMessage::OperationEvent { op, state, .. } => {
                 let port_name = self.port_names[&port].clone();
                 self.current_op_ids.insert(
                     port_name,
-                    if let Some(id) = id {
-                        TableState::Restartable(id)
+                    if let Some(state) = state {
+                        TableState::Restartable(state)
                     } else {
                         TableState::NonRestartable
                     },

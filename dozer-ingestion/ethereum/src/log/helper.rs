@@ -75,7 +75,7 @@ pub fn decode_event(
         // Topics 0, 1, 2 should be name, buyer, seller in most cases
         let name = log
             .topics
-            .get(0)
+            .first()
             .expect("name is expected")
             .to_owned()
             .to_string();

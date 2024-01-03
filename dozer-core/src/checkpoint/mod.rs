@@ -12,7 +12,7 @@ use dozer_types::{
     bincode,
     log::{error, info},
     models::app_config::{DataStorage, RecordStore},
-    node::{NodeHandle, OpIdentifier, SourceStates, TableState},
+    node::{NodeHandle, RestartableState, SourceStates, TableState},
     parking_lot::Mutex,
     tonic::codegen::tokio_stream::StreamExt,
     types::Field,
@@ -114,7 +114,7 @@ impl OptionCheckpoint {
     pub fn get_source_state(
         &self,
         node_handle: &NodeHandle,
-    ) -> Result<Option<HashMap<String, Option<OpIdentifier>>>, ExecutionError> {
+    ) -> Result<Option<HashMap<String, Option<&RestartableState>>>, ExecutionError> {
         let Some(checkpoint) = self.checkpoint.as_ref() else {
             return Ok(None);
         };
@@ -124,7 +124,7 @@ impl OptionCheckpoint {
 
         let mut result = HashMap::new();
         for (table_name, state) in source_state {
-            let id = match state {
+            let state = match state {
                 TableState::NotStarted => None,
                 TableState::NonRestartable => {
                     return Err(ExecutionError::SourceCannotRestart {
@@ -132,9 +132,9 @@ impl OptionCheckpoint {
                         table_name: table_name.clone(),
                     });
                 }
-                TableState::Restartable(id) => Some(*id),
+                TableState::Restartable(state) => Some(state),
             };
-            result.insert(table_name.clone(), id);
+            result.insert(table_name.clone(), state);
         }
         Ok(Some(result))
     }

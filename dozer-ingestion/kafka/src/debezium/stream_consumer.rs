@@ -94,7 +94,7 @@ impl StreamConsumer for DebeziumStreamConsumer {
         let topics: Vec<&str> = tables
             .iter()
             .map(|t| {
-                assert!(t.checkpoint.is_none());
+                assert!(t.state.is_none());
                 t.name.as_str()
             })
             .collect();
@@ -154,7 +154,7 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                         lifetime: None,
                                     },
                                 },
-                                id: None,
+                                state: None,
                             })
                             .await
                             .is_err()
@@ -176,7 +176,7 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                         lifetime: None,
                                     },
                                 },
-                                id: None,
+                                state: None,
                             })
                             .await
                             .is_err()
@@ -198,7 +198,7 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                         lifetime: None,
                                     },
                                 },
-                                id: None,
+                                state: None,
                             })
                             .await
                             .is_err()

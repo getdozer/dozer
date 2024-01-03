@@ -23,10 +23,10 @@ async fn test_get_schema_of_parquet() {
 
     let connector = ObjectStoreConnector::new(local_storage);
     let (_, schemas) = connector.list_all_schemas().await.unwrap();
-    let schema = schemas.get(0).unwrap();
+    let schema = schemas.first().unwrap();
 
     let fields = schema.schema.fields.clone();
-    assert_eq!(fields.get(0).unwrap().typ, FieldType::Int);
+    assert_eq!(fields.first().unwrap().typ, FieldType::Int);
     assert_eq!(fields.get(1).unwrap().typ, FieldType::Boolean);
     assert_eq!(fields.get(2).unwrap().typ, FieldType::Int);
     assert_eq!(fields.get(3).unwrap().typ, FieldType::Int);
@@ -45,10 +45,10 @@ async fn test_get_schema_of_csv() {
 
     let connector = ObjectStoreConnector::new(local_storage);
     let (_, schemas) = connector.list_all_schemas().await.unwrap();
-    let schema = schemas.get(0).unwrap();
+    let schema = schemas.first().unwrap();
 
     let fields = schema.schema.fields.clone();
-    assert_eq!(fields.get(0).unwrap().typ, FieldType::Int);
+    assert_eq!(fields.first().unwrap().typ, FieldType::Int);
     assert_eq!(fields.get(1).unwrap().typ, FieldType::String);
     assert_eq!(fields.get(2).unwrap().typ, FieldType::String);
     assert_eq!(fields.get(3).unwrap().typ, FieldType::Int);
@@ -213,7 +213,7 @@ fn test_csv_read() {
             test_type_conversion!(values, 7, Field::String(_));
             test_type_conversion!(values, 8, Field::String(_));
 
-            if let Field::Int(id) = values.get(0).unwrap() {
+            if let Field::Int(id) = values.first().unwrap() {
                 if *id == 2 || *id == 12 {
                     test_type_conversion!(values, 9, Field::Float(_));
                 } else {
@@ -269,7 +269,7 @@ fn test_csv_read_marker() {
             test_type_conversion!(values, 7, Field::String(_));
             test_type_conversion!(values, 8, Field::String(_));
 
-            if let Field::Int(id) = values.get(0).unwrap() {
+            if let Field::Int(id) = values.first().unwrap() {
                 if *id == 2 || *id == 12 {
                     test_type_conversion!(values, 9, Field::Float(_));
                 } else {
@@ -325,7 +325,7 @@ fn test_csv_read_only_one_marker() {
             test_type_conversion!(values, 7, Field::String(_));
             test_type_conversion!(values, 8, Field::String(_));
 
-            if let Field::Int(id) = values.get(0).unwrap() {
+            if let Field::Int(id) = values.first().unwrap() {
                 if *id == 2 || *id == 12 {
                     test_type_conversion!(values, 9, Field::Float(_));
                 } else {

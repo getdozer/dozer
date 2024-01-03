@@ -383,7 +383,7 @@ mod tests {
         fields_map.insert("weight".to_string(), weight_struct);
 
         let fields = convert_value_to_schema(value, &schema, &fields_map).unwrap();
-        assert_eq!(*fields.get(0).unwrap(), Field::from(1));
+        assert_eq!(*fields.first().unwrap(), Field::from(1));
         assert_eq!(*fields.get(1).unwrap(), Field::from("Product".to_string()));
         assert_eq!(
             *fields.get(2).unwrap(),
@@ -440,7 +440,7 @@ mod tests {
         fields_map.insert("name".to_string(), name_struct);
 
         let fields = convert_value_to_schema(value, &schema, &fields_map).unwrap();
-        assert_eq!(*fields.get(0).unwrap(), Field::from(1));
+        assert_eq!(*fields.first().unwrap(), Field::from(1));
         assert_eq!(*fields.get(1).unwrap(), Field::Null);
     }
 }

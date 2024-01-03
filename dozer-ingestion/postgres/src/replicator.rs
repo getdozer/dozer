@@ -2,11 +2,12 @@ use dozer_ingestion_connector::dozer_types::bytes;
 use dozer_ingestion_connector::dozer_types::chrono::{TimeZone, Utc};
 use dozer_ingestion_connector::dozer_types::log::{error, info};
 use dozer_ingestion_connector::dozer_types::models::ingestion_types::IngestionMessage;
-use dozer_ingestion_connector::dozer_types::node::OpIdentifier;
+use dozer_ingestion_connector::dozer_types::node::RestartableState;
 use dozer_ingestion_connector::futures::StreamExt;
 use dozer_ingestion_connector::Ingestor;
 use postgres_protocol::message::backend::ReplicationMessage::*;
 use postgres_protocol::message::backend::{LogicalReplicationMessage, ReplicationMessage};
+use postgres_protocol::Lsn;
 use postgres_types::PgLsn;
 use tokio_postgres::Error;
 
@@ -30,9 +31,9 @@ pub struct CDCHandler<'a> {
     pub slot_name: String,
 
     pub start_lsn: PgLsn,
-    pub begin_lsn: u64,
-    pub offset_lsn: u64,
-    pub last_commit_lsn: u64,
+    pub begin_lsn: Lsn,
+    pub offset_lsn: Lsn,
+    pub last_commit_lsn: Lsn,
 
     pub offset: u64,
     pub seq_no: u64,
@@ -59,8 +60,8 @@ impl<'a> CDCHandler<'a> {
             publication_name = self.publication_name
         );
 
-        self.offset_lsn = u64::from(lsn);
-        self.last_commit_lsn = u64::from(lsn);
+        self.offset_lsn = Lsn::from(lsn);
+        self.last_commit_lsn = Lsn::from(lsn);
 
         let mut stream =
             LogicalReplicationStream::new(client, self.slot_name.clone(), lsn, options)
@@ -116,8 +117,8 @@ impl<'a> CDCHandler<'a> {
                 let message = mapper.handle_message(body)?;
 
                 match message {
-                    Some(MappedReplicationMessage::Commit(commit)) => {
-                        self.last_commit_lsn = commit.txid;
+                    Some(MappedReplicationMessage::Commit(lsn)) => {
+                        self.last_commit_lsn = lsn;
                     }
                     Some(MappedReplicationMessage::Begin) => {
                         self.begin_lsn = lsn;
@@ -131,7 +132,7 @@ impl<'a> CDCHandler<'a> {
                                 .handle_message(IngestionMessage::OperationEvent {
                                     table_index,
                                     op,
-                                    id: Some(OpIdentifier::new(self.begin_lsn, self.seq_no)),
+                                    state: Some(encode_state(self.begin_lsn, self.seq_no)),
                                 })
                                 .await
                                 .is_err()
@@ -153,6 +154,13 @@ impl<'a> CDCHandler<'a> {
             None => Err(PostgresConnectorError::ReplicationStreamEndError),
         }
     }
+}
+
+fn encode_state(lsn: Lsn, seq_no: u64) -> RestartableState {
+    let mut state = vec![];
+    state.extend_from_slice(&lsn.to_be_bytes());
+    state.extend_from_slice(&seq_no.to_be_bytes());
+    state.into()
 }
 
 pub struct LogicalReplicationStream {

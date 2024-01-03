@@ -136,7 +136,7 @@ impl<'a> PostgresSnapshotter<'a> {
                 .handle_message(IngestionMessage::OperationEvent {
                     table_index,
                     op: evt,
-                    id: None,
+                    state: None,
                 })
                 .await
                 .is_err()

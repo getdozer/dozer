@@ -17,6 +17,9 @@ mod tests;
 
 #[derive(Error, Debug)]
 pub enum SnowflakeError {
+    #[error("Failed to parse checkpoint state")]
+    CorruptedState,
+
     #[error("Snowflake query error")]
     QueryError(#[source] Box<DiagnosticRecord>),
 

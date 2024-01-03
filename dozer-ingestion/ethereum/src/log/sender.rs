@@ -222,7 +222,7 @@ async fn process_log(details: Arc<EthDetails<'_>>, msg: Log) {
                 .handle_message(IngestionMessage::OperationEvent {
                     table_index,
                     op,
-                    id: None,
+                    state: None,
                 })
                 .await
                 .is_err()
@@ -245,7 +245,7 @@ async fn process_log(details: Arc<EthDetails<'_>>, msg: Log) {
                 .handle_message(IngestionMessage::OperationEvent {
                     table_index,
                     op,
-                    id: None,
+                    state: None,
                 })
                 .await;
         } else {

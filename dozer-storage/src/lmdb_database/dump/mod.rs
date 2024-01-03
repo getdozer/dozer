@@ -167,6 +167,28 @@ async fn restore_slice(reader: &mut (impl AsyncRead + Unpin)) -> Result<Vec<u8>,
     Ok(buf)
 }
 
+pub fn assert_database_equal<T1: Transaction, T2: Transaction>(
+    txn1: &T1,
+    db1: Database,
+    txn2: &T2,
+    db2: Database,
+) {
+    assert_eq!(
+        txn1.stat(db1).unwrap().entries(),
+        txn2.stat(db2).unwrap().entries()
+    );
+    let cursor1 = txn1.open_ro_cursor(db1).unwrap();
+    let cursor2 = txn2.open_ro_cursor(db2).unwrap();
+    let iter1 = RawIterator::new(cursor1, Bound::Unbounded, true).unwrap();
+    let iter2 = RawIterator::new(cursor2, Bound::Unbounded, true).unwrap();
+    for (result1, result2) in iter1.zip(iter2) {
+        let (key1, value1) = result1.unwrap();
+        let (key2, value2) = result2.unwrap();
+        assert_eq!(key1, key2);
+        assert_eq!(value1, value2);
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
     use std::pin::pin;
@@ -290,27 +312,5 @@ pub mod tests {
         // Check the restored database.
         let txn = env.begin_txn().unwrap();
         assert_database_equal(&txn, db, &txn, restore_db);
-    }
-}
-
-pub fn assert_database_equal<T1: Transaction, T2: Transaction>(
-    txn1: &T1,
-    db1: Database,
-    txn2: &T2,
-    db2: Database,
-) {
-    assert_eq!(
-        txn1.stat(db1).unwrap().entries(),
-        txn2.stat(db2).unwrap().entries()
-    );
-    let cursor1 = txn1.open_ro_cursor(db1).unwrap();
-    let cursor2 = txn2.open_ro_cursor(db2).unwrap();
-    let iter1 = RawIterator::new(cursor1, Bound::Unbounded, true).unwrap();
-    let iter2 = RawIterator::new(cursor2, Bound::Unbounded, true).unwrap();
-    for (result1, result2) in iter1.zip(iter2) {
-        let (key1, value1) = result1.unwrap();
-        let (key2, value2) = result2.unwrap();
-        assert_eq!(key1, key2);
-        assert_eq!(value1, value2);
     }
 }

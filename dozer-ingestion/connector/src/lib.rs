@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::node::OpIdentifier;
+use dozer_types::node::RestartableState;
 use dozer_types::serde;
 use dozer_types::serde::{Deserialize, Serialize};
 pub use dozer_types::tonic::async_trait;
@@ -146,8 +146,8 @@ pub struct TableToIngest {
     pub name: String,
     /// The column names to be mapped.
     pub column_names: Vec<String>,
-    /// The checkpoint to start after.
-    pub checkpoint: Option<OpIdentifier>,
+    /// The state to restart after.
+    pub state: Option<RestartableState>,
 }
 
 impl TableToIngest {
@@ -156,7 +156,7 @@ impl TableToIngest {
             schema: table_info.schema,
             name: table_info.name,
             column_names: table_info.column_names,
-            checkpoint: None,
+            state: None,
         }
     }
 }

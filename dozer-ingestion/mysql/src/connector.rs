@@ -196,7 +196,7 @@ impl Connector for MySQLConnector {
         let table_infos = tables
             .into_iter()
             .map(|table| {
-                assert!(table.checkpoint.is_none());
+                assert!(table.state.is_none());
                 TableInfo {
                     schema: table.schema,
                     name: table.name,
@@ -318,7 +318,7 @@ impl MySQLConnector {
                     .handle_message(IngestionMessage::OperationEvent {
                         table_index,
                         op,
-                        id: None,
+                        state: None,
                     })
                     .await
                     .is_err()
@@ -531,7 +531,7 @@ mod tests {
                         Field::Float(1.0.into()),
                     ]),
                 },
-                id: None,
+                state: None,
             },
             IngestionMessage::OperationEvent {
                 table_index: 0,
@@ -542,7 +542,7 @@ mod tests {
                         Field::Float(2.0.into()),
                     ]),
                 },
-                id: None,
+                state: None,
             },
             IngestionMessage::OperationEvent {
                 table_index: 0,
@@ -553,7 +553,7 @@ mod tests {
                         Field::Float(3.0.into()),
                     ]),
                 },
-                id: None,
+                state: None,
             },
             IngestionMessage::SnapshottingDone,
         ];
@@ -619,7 +619,7 @@ mod tests {
                 op: Insert {
                     new: Record::new(vec![Field::Int(4), Field::Float(4.0.into())]),
                 },
-                id: None,
+                state: None,
             },
             IngestionMessage::SnapshottingDone,
             IngestionMessage::SnapshottingStarted,
@@ -628,7 +628,7 @@ mod tests {
                 op: Insert {
                     new: Record::new(vec![Field::Int(1), Field::Json(true.into())]),
                 },
-                id: None,
+                state: None,
             },
             IngestionMessage::SnapshottingDone,
         ];
@@ -648,7 +648,7 @@ mod tests {
                     old: Record::new(vec![Field::Int(4), Field::Float(4.0.into())]),
                     new: Record::new(vec![Field::Int(4), Field::Float(5.0.into())]),
                 },
-                id: None,
+                state: None,
             },
             IngestionMessage::SnapshottingDone,
         ];
@@ -667,7 +667,7 @@ mod tests {
                 op: Delete {
                     old: Record::new(vec![Field::Int(4), Field::Float(5.0.into())]),
                 },
-                id: None,
+                state: None,
             },
             IngestionMessage::SnapshottingDone,
         ];

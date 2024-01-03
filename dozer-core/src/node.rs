@@ -5,7 +5,7 @@ use dozer_recordstore::{ProcessorRecordStore, ProcessorRecordStoreDeserializer};
 
 use dozer_log::storage::{Object, Queue};
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::node::OpIdentifier;
+use dozer_types::node::RestartableState;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::tonic::async_trait;
 use dozer_types::types::Schema;
@@ -54,7 +54,7 @@ pub trait SourceFactory: Send + Sync + Debug {
     ) -> Result<Box<dyn Source>, BoxedError>;
 }
 
-pub type SourceState = HashMap<PortHandle, Option<OpIdentifier>>;
+pub type SourceState = HashMap<PortHandle, Option<RestartableState>>;
 
 pub trait Source: Send + Sync + Debug {
     fn start(

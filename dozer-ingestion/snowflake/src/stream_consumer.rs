@@ -1,7 +1,7 @@
 use dozer_ingestion_connector::{
     dozer_types::{
         models::ingestion_types::IngestionMessage,
-        node::OpIdentifier,
+        node::RestartableState,
         types::{Field, Operation, Record},
     },
     Ingestor,
@@ -126,7 +126,7 @@ impl StreamConsumer {
                     .blocking_handle_message(IngestionMessage::OperationEvent {
                         table_index,
                         op,
-                        id: Some(OpIdentifier::new(iteration, idx as u64)),
+                        state: Some(encode_state(iteration, idx as u64)),
                     })
                     .is_err()
                 {
@@ -140,4 +140,21 @@ impl StreamConsumer {
 
         client.exec(&query)
     }
+}
+
+fn encode_state(iteration: u64, index: u64) -> RestartableState {
+    let mut state = vec![];
+    state.extend_from_slice(&iteration.to_be_bytes());
+    state.extend_from_slice(&index.to_be_bytes());
+    state.into()
+}
+
+pub fn decode_state(state: &RestartableState) -> Result<(u64, u64), SnowflakeError> {
+    if state.0.len() != 16 {
+        return Err(SnowflakeError::CorruptedState);
+    }
+    let state = state.0.as_slice();
+    let iteration = u64::from_be_bytes(state[0..8].try_into().unwrap());
+    let index = u64::from_be_bytes(state[8..16].try_into().unwrap());
+    Ok((iteration, index))
 }

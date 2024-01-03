@@ -459,7 +459,7 @@ impl BinlogIngestor<'_, '_, '_> {
                 .handle_message(IngestionMessage::OperationEvent {
                     table_index: table.def.table_index,
                     op: op?,
-                    id: None,
+                    state: None,
                 })
                 .await
                 .is_err()
@@ -1016,6 +1016,39 @@ impl<'a> BinlogRowsEvent<'a> {
     }
 }
 
+trait ByteSliceExt {
+    fn trim_start(&self) -> &[u8];
+    fn starts_with_case_insensitive(&self, prefix: &[u8]) -> bool;
+}
+
+impl ByteSliceExt for [u8] {
+    fn trim_start(&self) -> &[u8] {
+        for i in 0..self.len() {
+            if !self[i].is_ascii_whitespace() {
+                return &self[i..];
+            }
+        }
+        &[]
+    }
+
+    fn starts_with_case_insensitive(&self, prefix: &[u8]) -> bool {
+        if self.len() < prefix.len() {
+            false
+        } else {
+            self[..prefix.len()].eq_ignore_ascii_case(prefix)
+        }
+    }
+}
+
+fn object_name_to_string(object_name: &sqlparser::ast::ObjectName) -> String {
+    object_name
+        .0
+        .iter()
+        .map(|ident| ident.value.as_str())
+        .collect::<Vec<_>>()
+        .join(".")
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -1185,37 +1218,4 @@ mod tests {
             None::<BinlogValue<'_>>.into_field(&FieldType::Int).unwrap(),
         );
     }
-}
-
-trait ByteSliceExt {
-    fn trim_start(&self) -> &[u8];
-    fn starts_with_case_insensitive(&self, prefix: &[u8]) -> bool;
-}
-
-impl ByteSliceExt for [u8] {
-    fn trim_start(&self) -> &[u8] {
-        for i in 0..self.len() {
-            if !self[i].is_ascii_whitespace() {
-                return &self[i..];
-            }
-        }
-        &[]
-    }
-
-    fn starts_with_case_insensitive(&self, prefix: &[u8]) -> bool {
-        if self.len() < prefix.len() {
-            false
-        } else {
-            self[..prefix.len()].eq_ignore_ascii_case(prefix)
-        }
-    }
-}
-
-fn object_name_to_string(object_name: &sqlparser::ast::ObjectName) -> String {
-    object_name
-        .0
-        .iter()
-        .map(|ident| ident.value.as_str())
-        .collect::<Vec<_>>()
-        .join(".")
 }

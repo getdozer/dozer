@@ -16,7 +16,7 @@ use dozer_log::tokio;
 use dozer_recordstore::{ProcessorRecordStore, ProcessorRecordStoreDeserializer};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::models::ingestion_types::IngestionMessage;
-use dozer_types::node::{NodeHandle, OpIdentifier};
+use dozer_types::node::NodeHandle;
 use dozer_types::tonic::async_trait;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
@@ -378,7 +378,7 @@ impl Source for ErrGeneratorSource {
                             Field::String(format!("value_{n}")),
                         ]),
                     },
-                    id: Some(OpIdentifier::new(n, 0)),
+                    state: Some(n.to_be_bytes().to_vec().into()),
                 },
                 GENERATOR_SOURCE_OUTPUT_PORT,
             )?;

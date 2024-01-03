@@ -127,11 +127,11 @@ mod tests {
         ];
 
         let result = sort_fields(&postgres_table, &expected_order).unwrap();
-        assert_eq!(result.get(0).unwrap().0.name, "first field");
+        assert_eq!(result.first().unwrap().0.name, "first field");
         assert_eq!(result.get(1).unwrap().0.name, "second field");
         assert_eq!(result.get(2).unwrap().0.name, "third field");
 
-        assert!(result.get(0).unwrap().1);
+        assert!(result.first().unwrap().1);
         assert!(!result.get(1).unwrap().1);
         assert!(!result.get(2).unwrap().1);
     }
@@ -153,28 +153,28 @@ mod tests {
 
         let result = sort_schemas(expected_table_order, &mapped_tables).unwrap();
         assert_eq!(
-            result.get(0).unwrap().1.fields().get(0).unwrap().name,
+            result.first().unwrap().1.fields().first().unwrap().name,
             postgres_table.get_field(0).unwrap().name
         );
         assert_eq!(
-            result.get(0).unwrap().1.fields().get(1).unwrap().name,
+            result.first().unwrap().1.fields().get(1).unwrap().name,
             postgres_table.get_field(1).unwrap().name
         );
         assert_eq!(
-            result.get(0).unwrap().1.fields().get(2).unwrap().name,
+            result.first().unwrap().1.fields().get(2).unwrap().name,
             postgres_table.get_field(2).unwrap().name
         );
 
         assert_eq!(
-            result.get(0).unwrap().1.is_index_field(0),
+            result.first().unwrap().1.is_index_field(0),
             postgres_table.is_index_field(0)
         );
         assert_eq!(
-            result.get(0).unwrap().1.is_index_field(1),
+            result.first().unwrap().1.is_index_field(1),
             postgres_table.is_index_field(1)
         );
         assert_eq!(
-            result.get(0).unwrap().1.is_index_field(2),
+            result.first().unwrap().1.is_index_field(2),
             postgres_table.is_index_field(2)
         );
     }
@@ -197,10 +197,10 @@ mod tests {
 
         let result = sort_schemas(expected_table_order, &mapped_tables).unwrap();
         assert_eq!(
-            &result.get(0).unwrap().1.fields().get(0).unwrap().name,
-            columns_order.get(0).unwrap()
+            &result.first().unwrap().1.fields().first().unwrap().name,
+            columns_order.first().unwrap()
         );
-        assert_eq!(result.get(0).unwrap().1.fields().len(), 1);
+        assert_eq!(result.first().unwrap().1.fields().len(), 1);
     }
 
     #[test]
@@ -225,18 +225,18 @@ mod tests {
 
         let result = sort_schemas(expected_table_order, &mapped_tables).unwrap();
         assert_eq!(
-            &result.get(0).unwrap().1.fields().get(0).unwrap().name,
-            columns_order.get(0).unwrap()
+            &result.first().unwrap().1.fields().first().unwrap().name,
+            columns_order.first().unwrap()
         );
         assert_eq!(
-            &result.get(0).unwrap().1.fields().get(1).unwrap().name,
+            &result.first().unwrap().1.fields().get(1).unwrap().name,
             columns_order.get(1).unwrap()
         );
         assert_eq!(
-            &result.get(0).unwrap().1.fields().get(2).unwrap().name,
+            &result.first().unwrap().1.fields().get(2).unwrap().name,
             columns_order.get(2).unwrap()
         );
-        assert_eq!(result.get(0).unwrap().1.fields().len(), 3);
+        assert_eq!(result.first().unwrap().1.fields().len(), 3);
     }
 
     #[test]
@@ -277,20 +277,20 @@ mod tests {
         ];
 
         let result = sort_schemas(expected_table_order, &mapped_tables).unwrap();
-        let first_table_after_sort = result.get(0).unwrap();
+        let first_table_after_sort = result.first().unwrap();
         let second_table_after_sort = result.get(1).unwrap();
 
         assert_eq!(
             first_table_after_sort.0 .1,
-            expected_table_order.get(0).unwrap().name
+            expected_table_order.first().unwrap().name
         );
         assert_eq!(
             second_table_after_sort.0 .1,
             expected_table_order.get(1).unwrap().name
         );
         assert_eq!(
-            &first_table_after_sort.1.fields().get(0).unwrap().name,
-            columns_order_1.get(0).unwrap()
+            &first_table_after_sort.1.fields().first().unwrap().name,
+            columns_order_1.first().unwrap()
         );
         assert_eq!(
             &first_table_after_sort.1.fields().get(1).unwrap().name,
@@ -301,8 +301,8 @@ mod tests {
             columns_order_1.get(2).unwrap()
         );
         assert_eq!(
-            &second_table_after_sort.1.fields().get(0).unwrap().name,
-            columns_order_2.get(0).unwrap()
+            &second_table_after_sort.1.fields().first().unwrap().name,
+            columns_order_2.first().unwrap()
         );
         assert_eq!(
             &second_table_after_sort.1.fields().get(1).unwrap().name,
