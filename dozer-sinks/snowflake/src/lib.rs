@@ -1,10 +1,6 @@
-use std::{thread, time::Duration, usize};
+use std::{collections::HashMap, fmt::Debug, num::NonZeroUsize, thread, time::Duration, usize};
 
 use dozer_api::shutdown::ShutdownReceiver;
-use dozer_ingestion_snowflake::{
-    connection::{client::Client, params::OdbcValue},
-    SnowflakeError,
-};
 use dozer_log::{
     reader::LogClient,
     replication::LogOperation,
@@ -22,7 +18,15 @@ use dozer_types::{
         self,
         snowflake::{self, default_batch_interval, default_batch_size, default_suspend_warehouse},
     },
-    types::{Field, FieldType, Record, Schema},
+    rust_decimal::Decimal,
+    types::{DozerDuration, Field, FieldDefinition, FieldType, Record, Schema},
+};
+use itertools::Itertools;
+use odbc_api::{
+    buffers::{AnyBuffer, BufferDesc},
+    handles::{CData, HasDataType, Statement},
+    parameter::{CElement, VarBinaryBox, VarCharBox},
+    Bit, ConnectionOptions, IntoParameter, Nullable, ParameterCollection,
 };
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 
@@ -65,7 +69,7 @@ impl SnowflakeSink {
         let (query_sender, query_receiver) = channel(1);
         let (result_sender, mut result_receiver) = channel(1);
         thread::spawn({
-            let config = self.config.connection.clone();
+            let config = self.config.clone();
             || snowflake_client(query_receiver, result_sender, config)
         });
 
@@ -73,7 +77,7 @@ impl SnowflakeSink {
             ($queries:expr) => {{
                 let queries = $queries;
                 query_sender
-                    .send(queries.clone())
+                    .send(queries)
                     .await
                     .expect("query executor crashed");
 
@@ -98,39 +102,58 @@ impl SnowflakeSink {
         let suspend_warehouse = options
             .suspend_warehouse_after_each_batch
             .unwrap_or_else(default_suspend_warehouse);
+        let log_reader_batch_size = std::cmp::min(batch_size, 4000);
 
         let mut current_end = 0;
         let mut processed_ops = 0;
         loop {
-            let request = LogRequest {
-                endpoint: endpoint.clone(),
-                start: current_end,
-                end: current_end + batch_size as u64,
-                timeout_in_millis,
-            };
-            let result = try_await!(log_client.get_log(request));
+            let mut ops = Vec::new();
 
-            let ops = match result {
-                Ok(ops) => ops,
-                Err(err) => {
-                    error!("log read error: {err}");
-                    let connection = retry_internal_pipeline_connect(
-                        self.app_server_url.clone(),
-                        endpoint.clone(),
-                    )
-                    .await;
-                    log_client = connection.log_client;
-                    if server_id != connection.server_id {
-                        server_id = connection.server_id;
-                        info!("Pipeline was restarted from scratch. The Snowflake sink for endpoint {endpoint} will restart as well.");
-                        // reset offset
-                        current_end = 0;
-                        // recreate table
-                        execute_queries!(self.ddl_queries(&schema));
-                    }
-                    continue;
+            loop {
+                let start = current_end + ops.len() as u64;
+                let end = start + (log_reader_batch_size - ops.len()) as u64;
+                let requested_ops = end - start;
+                if start == end {
+                    break;
                 }
-            };
+                let request = LogRequest {
+                    endpoint: endpoint.clone(),
+                    start,
+                    end,
+                    timeout_in_millis,
+                };
+                let result = try_await!(log_client.get_log(request));
+
+                let log_batch = match result {
+                    Ok(ops) => ops,
+                    Err(err) => {
+                        error!("log read error: {err}");
+                        let connection = retry_internal_pipeline_connect(
+                            self.app_server_url.clone(),
+                            endpoint.clone(),
+                        )
+                        .await;
+                        log_client = connection.log_client;
+                        if server_id != connection.server_id {
+                            server_id = connection.server_id;
+                            info!("Pipeline was restarted from scratch. The Snowflake sink for endpoint {endpoint} will restart as well.");
+                            // reset offset
+                            current_end = 0;
+                            ops.clear();
+                            // recreate table
+                            execute_queries!(self.ddl_queries(&schema));
+                        }
+                        continue;
+                    }
+                };
+                let received_ops = log_batch.len() as u64;
+
+                ops.extend(log_batch);
+
+                if received_ops < requested_ops || ops.len() >= batch_size {
+                    break;
+                }
+            }
 
             if ops.is_empty() {
                 debug!(
@@ -141,7 +164,8 @@ impl SnowflakeSink {
                     execute_queries!(vec![format!(
                         "ALTER WAREHOUSE {} SUSPEND",
                         ident(&self.config.connection.warehouse)
-                    )]);
+                    )
+                    .into()]);
                 }
                 try_await!(tokio::time::sleep(batch_interval));
                 processed_ops = 0;
@@ -150,29 +174,27 @@ impl SnowflakeSink {
 
             let next_end = current_end + ops.len() as u64;
 
-            let ops = ops
+            let mut ops = ops
                 .into_iter()
                 .filter(|op| matches!(op, LogOperation::Op { .. }))
                 .collect::<Vec<_>>();
 
-            debug!(
-                "Applying {} log operations for endpoint {endpoint} to Snowflake sink",
-                ops.len()
-            );
-            let dml_queries = self.operations_to_dml(&schema, &ops);
-            execute_queries!(dml_queries);
+            for chunk in ops.chunks_mut(batch_size) {
+                let dml_queries = self.operations_to_dml(&schema, chunk);
+                execute_queries!(dml_queries);
 
-            debug!(
-                "Applied {} log operations to Snowflake sink for endpoint {endpoint}",
-                ops.len()
-            );
+                debug!(
+                    "Applied {} log operations to Snowflake sink for endpoint {endpoint}",
+                    chunk.len()
+                );
+            }
 
             processed_ops += next_end - current_end;
             current_end = next_end;
         }
     }
 
-    fn ddl_queries(&self, endpoint_schema: &Schema) -> Vec<String> {
+    fn ddl_queries(&self, endpoint_schema: &Schema) -> Vec<QueryWithParams> {
         let snowflake::Destination {
             database,
             schema,
@@ -217,16 +239,19 @@ impl SnowflakeSink {
                 columns
             }),
         ]
+        .into_iter()
+        .map(|q| QueryWithParams::new(q, QueryParams::None))
+        .collect()
     }
 
     fn operations_to_dml(
         &self,
         endpoint_schema: &Schema,
-        operations: &[LogOperation],
-    ) -> Vec<String> {
+        operations: &mut [LogOperation],
+    ) -> Vec<QueryWithParams> {
         struct QueryBuilder<'a> {
             schema: &'a Schema,
-            pub queries: Vec<String>,
+            pub queries: Vec<QueryWithParams>,
         }
 
         impl<'a> QueryBuilder<'a> {
@@ -237,88 +262,93 @@ impl SnowflakeSink {
                 }
             }
 
-            fn where_clause(&mut self, record: &Record) -> String {
+            fn where_clause(&mut self, record: &Record, params: &mut Vec<OdbcParam>) -> String {
                 let fields = record.values.iter().enumerate();
                 if !self.schema.primary_index.is_empty() {
                     fields
                         .filter(|(i, _)| self.schema.primary_index.contains(i))
-                        .map(|(i, f)| self.format_kv(i, f))
+                        .map(|(i, f)| self.format_kv(i, f, params))
                         .collect::<Vec<_>>()
                 } else {
                     fields
-                        .map(|(i, f)| self.format_kv(i, f))
+                        .map(|(i, f)| self.format_kv(i, f, params))
                         .collect::<Vec<_>>()
                 }
-                .join(", ")
+                .join(" AND ")
             }
 
-            fn format_kv(&mut self, field_index: usize, field_value: &Field) -> String {
-                format!(
-                    "{} = {}",
-                    self.schema.fields[field_index].name,
-                    field_to_query_param(field_value).as_sql()
-                )
+            fn format_kv(
+                &mut self,
+                field_index: usize,
+                field_value: &Field,
+                params: &mut Vec<OdbcParam>,
+            ) -> String {
+                params.push(field_to_query_param(field_value));
+                format!("{} = ?", self.schema.fields[field_index].name)
             }
 
             pub fn delete(&mut self, table: &str, records: &[&Record]) {
                 debug_assert_eq!(records.len(), 1);
+                let mut params = Vec::new();
                 let query = format!(
                     "DELETE FROM {table} WHERE {}",
                     if records.len() == 1 {
-                        self.where_clause(records[0])
+                        self.where_clause(records[0], &mut params)
                     } else {
                         records
                             .iter()
-                            .map(|record| format!("({})", self.where_clause(record)))
+                            .map(|record| format!("({})", self.where_clause(record, &mut params)))
                             .collect::<Vec<_>>()
                             .join(" OR ")
                     }
                 );
-                self.queries.push(query);
+                self.queries.push(QueryWithParams::new(
+                    query,
+                    QueryParams::SingleRowParams(params),
+                ));
             }
 
-            pub fn insert(&mut self, table: &str, records: &[&Record]) {
+            pub fn insert(&mut self, table: &str, records: &mut [&mut Record]) {
+                debug_assert_ne!(records.len(), 0);
                 let query = format!(
-                    "INSERT INTO {table}({}) VALUES{}",
+                    "INSERT INTO {table}({}) VALUES({})",
                     self.schema
                         .fields
                         .iter()
                         .map(|f| f.name.as_str())
-                        .collect::<Vec<_>>()
+                        .collect_vec()
                         .join(", "),
-                    {
-                        records
-                            .iter()
-                            .map(|record| {
-                                format!(
-                                    "({})",
-                                    record
-                                        .values
-                                        .iter()
-                                        .map(|v| field_to_query_param(v).as_sql())
-                                        .collect::<Vec<_>>()
-                                        .join(", ")
-                                )
-                            })
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    }
+                    std::iter::repeat("?")
+                        .take(self.schema.fields.len())
+                        .collect_vec()
+                        .join(", ")
                 );
-                self.queries.push(query);
+                let params = if records.len() == 1 {
+                    QueryParams::SingleRowParams(
+                        records[0].values.iter().map(field_to_query_param).collect(),
+                    )
+                } else {
+                    record_batch_to_param_batch(self.schema, records)
+                };
+                self.queries.push(QueryWithParams::new(query, params));
             }
 
             pub fn update(&mut self, table: &str, old: &Record, new: &Record) {
+                let mut params = Vec::new();
                 let query = format!(
                     "UPDATE {table} SET {} WHERE {}",
                     new.values
                         .iter()
                         .enumerate()
-                        .map(|(i, f)| self.format_kv(i, f))
+                        .map(|(i, f)| self.format_kv(i, f, &mut params))
                         .collect::<Vec<_>>()
                         .join(", "),
-                    self.where_clause(old)
+                    self.where_clause(old, &mut params)
                 );
-                self.queries.push(query);
+                self.queries.push(QueryWithParams::new(
+                    query,
+                    QueryParams::SingleRowParams(params),
+                ));
             }
         }
 
@@ -365,7 +395,7 @@ impl SnowflakeSink {
                         delete.clear();
                     }
                     OpKind::Insert => {
-                        query_builder.insert(&table, &insert);
+                        query_builder.insert(&table, &mut insert);
                         insert.clear();
                     }
                     OpKind::Update | OpKind::None => (),
@@ -453,40 +483,135 @@ async fn retry_internal_pipeline_connect(
     }
 }
 
+struct QueryWithParams {
+    pub query: String,
+    pub params: QueryParams,
+}
+
+enum QueryParams {
+    None,
+    SingleRowParams(Vec<OdbcParam>),
+    ColumnarParams {
+        schema: Vec<BufferDesc>,
+        columns: Vec<AnyBuffer>,
+        num_rows: usize,
+    },
+}
+
+impl QueryWithParams {
+    pub fn new(query: String, params: QueryParams) -> Self {
+        Self { query, params }
+    }
+}
+
+impl From<String> for QueryWithParams {
+    fn from(query: String) -> Self {
+        Self {
+            query,
+            params: QueryParams::None,
+        }
+    }
+}
+
 fn snowflake_client(
-    mut query_receiver: Receiver<Vec<String>>,
-    result_sender: Sender<Result<(), SnowflakeError>>,
-    config: snowflake::ConnectionParameters,
+    mut query_receiver: Receiver<Vec<QueryWithParams>>,
+    result_sender: Sender<Result<(), BoxedError>>,
+    config: sink_config::Snowflake,
 ) {
-    let env = odbc::create_environment_v3_with_os_db_encoding("utf8", "utf8").unwrap();
-    let client = Client::new(config.into(), &env);
-    client
-        .exec("alter session set MULTI_STATEMENT_COUNT = 0")
-        .expect("failed to setup snowflake ODBC session");
+    let env = odbc_api::Environment::new().unwrap();
+    let conn = env
+        .connect_with_connection_string(
+            &connection_string_from_config(config.clone()),
+            ConnectionOptions::default(),
+        )
+        .expect("failed to connect to snowflake");
+
+    conn.execute(
+        &format!("use database {}", ident(&config.destination.database)),
+        (),
+    )
+    .expect("failed to setup snowflake ODBC session");
+
+    macro_rules! try_exec {
+        ($query:expr, $params:expr) => {{
+            let query = $query;
+            let params = $params;
+            debug!("Executing query {:?} with params {:?}", query, params);
+            if let Err(err) = conn.execute(query, params) {
+                error!("Error executing query {:?}: {err:?}", query);
+                let Ok(()) = result_sender.blocking_send(Err(err.into())) else {
+                    break;
+                };
+                continue;
+            }
+        }};
+    }
 
     loop {
         let Some(sql_queries) = query_receiver.blocking_recv() else {
             break;
         };
-        let query = {
-            if sql_queries.len() == 1 {
-                sql_queries.into_iter().last().unwrap()
-            } else {
-                format!("BEGIN; {}; COMMIT", sql_queries.join("; "))
-            }
-        };
-        let result = client.exec(&query);
-
-        if let Err(err) = &result {
-            error!("Error executing query {query:?}: {err:?}")
-        } else {
-            debug!("Executed query {query:?}");
+        let multiple_queries = sql_queries.len() > 1;
+        if multiple_queries {
+            try_exec!("BEGIN", ());
         }
-
-        let Ok(()) = result_sender.blocking_send(result) else {
+        for QueryWithParams { query, params } in sql_queries {
+            match params {
+                QueryParams::None => try_exec!(&query, ()),
+                QueryParams::SingleRowParams(params) => try_exec!(&query, &mut ParamVec(params)),
+                QueryParams::ColumnarParams {
+                    schema,
+                    columns,
+                    num_rows,
+                } => {
+                    debug_assert_ne!(columns.len(), 0);
+                    debug_assert_eq!(columns.len(), schema.len());
+                    try_exec!(&query, &mut ParamBinder::new(columns, num_rows));
+                }
+            }
+        }
+        if multiple_queries {
+            try_exec!("COMMIT", ());
+        }
+        let Ok(()) = result_sender.blocking_send(Ok(())) else {
             break;
         };
     }
+}
+
+fn connection_string_from_config(config: sink_config::Snowflake) -> String {
+    let conn = config.connection;
+    let dest = config.destination;
+    let mut conn_hashmap: HashMap<String, String> = HashMap::new();
+    let driver = match &conn.driver {
+        None => "Snowflake".to_string(),
+        Some(driver) => driver.to_string(),
+    };
+
+    conn_hashmap.insert("Driver".to_string(), driver);
+    conn_hashmap.insert("Server".to_string(), conn.server);
+    conn_hashmap.insert(
+        "Port".to_string(),
+        conn.port.unwrap_or_else(|| "443".to_string()),
+    );
+    conn_hashmap.insert("Uid".to_string(), conn.user);
+    conn_hashmap.insert("Pwd".to_string(), conn.password);
+    conn_hashmap.insert("Warehouse".to_string(), conn.warehouse);
+    conn_hashmap.insert("Schema".to_string(), dest.schema);
+    conn_hashmap.insert("Database".to_string(), dest.database);
+    if let Some(role) = conn.role {
+        conn_hashmap.insert("Role".to_string(), role);
+    }
+
+    let mut parts = vec![];
+    conn_hashmap.keys().for_each(|k| {
+        parts.push(format!("{}={}", k, conn_hashmap.get(k).unwrap()));
+    });
+
+    let connection_string = parts.join(";");
+
+    debug!("Snowflake connection string: {:?}", connection_string);
+    connection_string
 }
 
 fn field_type_to_snowflake_sql_type(field_type: FieldType) -> String {
@@ -510,30 +635,221 @@ fn field_type_to_snowflake_sql_type(field_type: FieldType) -> String {
     .to_string()
 }
 
-fn field_to_query_param(field: &Field) -> OdbcValue {
+fn field_to_query_param(field: &Field) -> OdbcParam {
     match field {
-        Field::UInt(u) => OdbcValue::U64(*u),
-        Field::U128(u) => OdbcValue::String(u.to_string()),
-        Field::Int(i) => OdbcValue::I64(*i),
-        Field::I128(i) => OdbcValue::String(i.to_string()),
-        Field::Float(f) => OdbcValue::F64(f.0),
-        Field::Boolean(b) => OdbcValue::Bool(*b),
-        Field::String(s) => OdbcValue::String(s.clone()),
-        Field::Text(s) => OdbcValue::String(s.clone()),
-        Field::Binary(b) => OdbcValue::Binary(b.clone()),
-        Field::Decimal(d) => OdbcValue::Decimal(d.to_string()),
-        Field::Timestamp(t) => OdbcValue::Timestamp(t.to_string()),
-        Field::Date(d) => OdbcValue::Date(d.to_string()),
-        Field::Json(j) => OdbcValue::String(json_to_string(j)),
-        Field::Point(p) => OdbcValue::Binary(p.to_bytes().to_vec()),
-        Field::Duration(d) => OdbcValue::Timestamp(
-            ("0001-01-01T00:00:00Z"
-                .parse::<chrono::DateTime<chrono::Utc>>()
+        Field::UInt(u) => OdbcParam::U64(*u),
+        Field::U128(u) => OdbcParam::String(u.to_string().into_parameter()),
+        Field::Int(i) => OdbcParam::I64(*i),
+        Field::I128(i) => OdbcParam::String(i.to_string().into_parameter()),
+        Field::Float(f) => OdbcParam::F64(f.0),
+        Field::Boolean(b) => OdbcParam::Bool(Bit::from_bool(*b)),
+        Field::String(s) => OdbcParam::String(s.clone().into_parameter()),
+        Field::Text(s) => OdbcParam::String(s.clone().into_parameter()),
+        Field::Binary(b) => OdbcParam::Binary(b.clone().into_parameter()),
+        Field::Decimal(d) => OdbcParam::Decimal(d.to_string().into_parameter()),
+        Field::Timestamp(t) => OdbcParam::Timestamp(t.to_string().into_parameter()),
+        Field::Date(d) => OdbcParam::Date(d.to_string().into_parameter()),
+        Field::Json(j) => OdbcParam::String(json_to_string(j).into_parameter()),
+        Field::Point(p) => OdbcParam::Binary(p.to_bytes().to_vec().into_parameter()),
+        Field::Duration(d) => OdbcParam::Timestamp(duration_to_timestamp(d).into_parameter()),
+        Field::Null => OdbcParam::Null(Nullable::null()),
+    }
+}
+
+fn duration_to_timestamp(duration: &DozerDuration) -> String {
+    ("0001-01-01T00:00:00Z"
+        .parse::<chrono::DateTime<chrono::Utc>>()
+        .unwrap()
+        + duration.0)
+        .to_string()
+}
+
+fn record_batch_to_param_batch(dozer_schema: &Schema, records: &mut [&mut Record]) -> QueryParams {
+    let num_columns = dozer_schema.fields.len();
+    let num_rows = records.len();
+
+    macro_rules! get_max_len {
+        ($column_index:expr) => {
+            records
+                .iter()
+                .map(|record| match &record.values[$column_index] {
+                    Field::String(value) => value.len(),
+                    Field::Text(value) => value.len(),
+                    Field::Binary(value) => value.len(),
+                    Field::Null => 0,
+                    _ => unimplemented!(),
+                })
+                .max()
                 .unwrap()
-                + d.0)
-                .to_string(),
-        ),
-        Field::Null => OdbcValue::Null,
+        };
+    }
+
+    macro_rules! column_fields {
+        ($index:expr) => {
+            records
+                .iter_mut()
+                .map(move |record| &mut record.values[$index])
+        };
+    }
+
+    // prepare field values for odbc
+    for (i, FieldDefinition { typ, .. }) in dozer_schema.fields.iter().enumerate() {
+        match typ {
+            FieldType::U128
+            | FieldType::I128
+            | FieldType::Decimal
+            | FieldType::Timestamp
+            | FieldType::Date
+            | FieldType::Json
+            | FieldType::Duration
+            | FieldType::Point => {
+                for field in column_fields!(i) {
+                    match field {
+                        Field::U128(value) => *field = Field::String(value.to_string()),
+                        Field::I128(value) => *field = Field::String(value.to_string()),
+                        Field::Decimal(value) => *field = Field::String(value.to_string()),
+                        Field::Timestamp(value) => *field = Field::String(value.to_string()),
+                        Field::Date(value) => *field = Field::String(value.to_string()),
+                        Field::Json(value) => *field = Field::String(json_to_string(value)),
+                        Field::Duration(value) => {
+                            *field = Field::String(duration_to_timestamp(value))
+                        }
+                        Field::Point(value) => *field = Field::Binary(value.to_bytes().to_vec()),
+                        _ => (),
+                    }
+                }
+            }
+            _ => (),
+        }
+    }
+
+    let mut schema = Vec::with_capacity(num_columns);
+    for (i, FieldDefinition { typ, nullable, .. }) in dozer_schema.fields.iter().enumerate() {
+        let nullable = *nullable;
+        let desc = match typ {
+            FieldType::UInt => BufferDesc::I64 { nullable },
+            FieldType::U128 => BufferDesc::Text { max_str_len: 39 },
+            FieldType::Int => BufferDesc::I64 { nullable },
+            FieldType::I128 => BufferDesc::Text { max_str_len: 40 },
+            FieldType::Float => BufferDesc::F64 { nullable },
+            FieldType::Boolean => BufferDesc::Bit { nullable },
+            FieldType::String => BufferDesc::Text {
+                max_str_len: get_max_len!(i),
+            },
+            FieldType::Text => BufferDesc::Text {
+                max_str_len: get_max_len!(i),
+            },
+            FieldType::Binary => BufferDesc::Binary {
+                length: get_max_len!(i),
+            },
+            FieldType::Decimal => BufferDesc::Text {
+                max_str_len: Decimal::MIN.to_string().len(),
+            },
+            FieldType::Timestamp => BufferDesc::Text { max_str_len: 42 },
+            FieldType::Date => BufferDesc::Text { max_str_len: 13 },
+            FieldType::Json => BufferDesc::Text {
+                max_str_len: get_max_len!(i),
+            },
+            FieldType::Point => BufferDesc::Binary { length: 16 },
+            FieldType::Duration => BufferDesc::Text { max_str_len: 42 },
+        };
+        schema.push(desc);
+    }
+
+    let mut columns = schema
+        .iter()
+        .map(|desc| AnyBuffer::from_desc(num_rows, *desc))
+        .collect::<Vec<_>>();
+
+    for (column_index, column) in columns.iter_mut().enumerate() {
+        match column {
+            AnyBuffer::Binary(column) => {
+                for (row_index, field) in column_fields!(column_index).enumerate() {
+                    match field {
+                        Field::Binary(bytes) => column.set_value(row_index, Some(bytes)),
+                        Field::Null => column.set_value(row_index, None),
+                        _ => unreachable!(),
+                    }
+                }
+            }
+            AnyBuffer::Text(column) => {
+                for (row_index, field) in column_fields!(column_index).enumerate() {
+                    let mut set_value =
+                        |string: &String| column.set_value(row_index, Some(string.as_bytes()));
+                    match field {
+                        Field::String(string) => set_value(string),
+                        Field::Text(string) => set_value(string),
+                        Field::Null => column.set_value(row_index, None),
+                        _ => unreachable!(),
+                    }
+                }
+            }
+            AnyBuffer::F64(column) => {
+                for (row_index, field) in column_fields!(column_index).enumerate() {
+                    match field {
+                        Field::Float(value) => column[row_index] = value.0,
+                        _ => unreachable!(),
+                    }
+                }
+            }
+            AnyBuffer::NullableF64(column) => {
+                let mut column = column.writer_n(num_rows);
+                for (row_index, field) in column_fields!(column_index).enumerate() {
+                    match field {
+                        Field::Float(value) => column.set_cell(row_index, Some(value.0)),
+                        Field::Null => column.set_cell(row_index, None),
+                        _ => unreachable!(),
+                    }
+                }
+            }
+            AnyBuffer::I64(column) => {
+                for (row_index, field) in column_fields!(column_index).enumerate() {
+                    match field {
+                        Field::Int(value) => column[row_index] = *value,
+                        Field::UInt(value) => column[row_index] = *value as i64,
+                        _ => unreachable!(),
+                    }
+                }
+            }
+            AnyBuffer::NullableI64(column) => {
+                let mut column = column.writer_n(num_rows);
+                for (row_index, field) in column_fields!(column_index).enumerate() {
+                    match field {
+                        Field::Int(value) => column.set_cell(row_index, Some(*value)),
+                        Field::UInt(value) => column.set_cell(row_index, Some(*value as i64)),
+                        Field::Null => column.set_cell(row_index, None),
+                        _ => unreachable!(),
+                    }
+                }
+            }
+            AnyBuffer::Bit(column) => {
+                for (row_index, field) in column_fields!(column_index).enumerate() {
+                    match field {
+                        Field::Boolean(value) => column[row_index] = Bit::from_bool(*value),
+                        _ => unreachable!(),
+                    }
+                }
+            }
+            AnyBuffer::NullableBit(column) => {
+                let mut column = column.writer_n(num_rows);
+                for (row_index, field) in column_fields!(column_index).enumerate() {
+                    match field {
+                        Field::Boolean(value) => {
+                            column.set_cell(row_index, Some(Bit::from_bool(*value)))
+                        }
+                        Field::Null => column.set_cell(row_index, None),
+                        _ => unreachable!(),
+                    }
+                }
+            }
+            _ => unimplemented!(),
+        }
+    }
+
+    QueryParams::ColumnarParams {
+        schema,
+        columns,
+        num_rows,
     }
 }
 
@@ -544,5 +860,217 @@ fn ident(ident: &str) -> String {
         format!("\"{}\"", ident.replace('"', "\"\""))
     } else {
         ident.to_string()
+    }
+}
+
+struct ParamBinder {
+    columns: Vec<AnyBuffer>,
+    num_rows: usize,
+}
+
+impl ParamBinder {
+    fn new(columns: Vec<AnyBuffer>, num_rows: usize) -> Self {
+        Self { columns, num_rows }
+    }
+}
+
+unsafe impl ParameterCollection for ParamBinder {
+    fn parameter_set_size(&self) -> usize {
+        self.num_rows
+    }
+
+    unsafe fn bind_parameters_to(
+        &mut self,
+        stmt: &mut impl Statement,
+    ) -> Result<(), odbc_api::Error> {
+        for (index, column) in self.columns.iter().enumerate() {
+            if let Err(error) = stmt
+                .bind_input_parameter(index as u16 + 1, column)
+                .into_result(stmt)
+            {
+                stmt.reset_parameters();
+                return Err(error);
+            }
+        }
+        Ok(())
+    }
+}
+
+impl Debug for ParamBinder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ParamBinder")
+            .field("num_columns", &self.columns.len())
+            .field("num_rows", &self.num_rows)
+            .finish()
+    }
+}
+
+pub enum OdbcParam {
+    Binary(VarBinaryBox),
+    String(VarCharBox),
+    Decimal(VarCharBox),
+    Timestamp(VarCharBox),
+    Date(VarCharBox),
+    U8(u8),
+    I8(i8),
+    I16(i16),
+    U16(u16),
+    I32(i32),
+    U32(u32),
+    I64(i64),
+    U64(u64),
+    F32(f32),
+    F64(f64),
+    Bool(Bit),
+    Null(Nullable<Bit>),
+}
+
+macro_rules! odbc_param_dispatch {
+    ($odbc_param:ident.$method:ident()) => {
+        match $odbc_param {
+            Self::Binary(value) => value.$method(),
+            Self::String(value) => value.$method(),
+            Self::Decimal(value) => value.$method(),
+            Self::Timestamp(value) => value.$method(),
+            Self::Date(value) => value.$method(),
+            Self::U8(value) => value.$method(),
+            Self::I8(value) => value.$method(),
+            Self::I16(value) => value.$method(),
+            Self::U16(value) => value.$method(),
+            Self::I32(value) => value.$method(),
+            Self::U32(value) => value.$method(),
+            Self::I64(value) => value.$method(),
+            Self::U64(value) => value.$method(),
+            Self::F32(value) => value.$method(),
+            Self::F64(value) => value.$method(),
+            Self::Bool(value) => value.$method(),
+            Self::Null(value) => value.$method(),
+        }
+    };
+}
+
+unsafe impl CData for OdbcParam {
+    fn cdata_type(&self) -> odbc_api::sys::CDataType {
+        odbc_param_dispatch!(self.cdata_type())
+    }
+
+    fn indicator_ptr(&self) -> *const isize {
+        odbc_param_dispatch!(self.indicator_ptr())
+    }
+
+    fn value_ptr(&self) -> *const std::ffi::c_void {
+        odbc_param_dispatch!(self.value_ptr())
+    }
+
+    fn buffer_length(&self) -> isize {
+        odbc_param_dispatch!(self.buffer_length())
+    }
+}
+
+unsafe impl CElement for OdbcParam {
+    fn assert_completness(&self) {
+        odbc_param_dispatch!(self.assert_completness())
+    }
+}
+
+impl HasDataType for OdbcParam {
+    fn data_type(&self) -> odbc_api::DataType {
+        match self {
+            Self::Binary(_value) => odbc_api::DataType::LongVarbinary {
+                length: NonZeroUsize::new(16777216),
+            },
+            Self::String(_value) => odbc_api::DataType::LongVarchar {
+                length: NonZeroUsize::new(16777216),
+            },
+            Self::Decimal(_value) => odbc_api::DataType::Varchar {
+                length: NonZeroUsize::new(255),
+            },
+            Self::Timestamp(_value) => odbc_api::DataType::Varchar {
+                length: NonZeroUsize::new(255),
+            },
+            Self::Date(_value) => odbc_api::DataType::Varchar {
+                length: NonZeroUsize::new(255),
+            },
+            Self::U8(_value) => odbc_api::DataType::TinyInt,
+            Self::I8(value) => value.data_type(),
+            Self::I16(value) => value.data_type(),
+            Self::U16(_value) => odbc_api::DataType::SmallInt,
+            Self::I32(value) => value.data_type(),
+            Self::U32(_value) => odbc_api::DataType::Integer,
+            Self::I64(value) => value.data_type(),
+            Self::U64(_value) => odbc_api::DataType::BigInt,
+            Self::F32(value) => value.data_type(),
+            Self::F64(value) => value.data_type(),
+            Self::Bool(value) => value.data_type(),
+            Self::Null(value) => value.data_type(),
+        }
+    }
+}
+
+impl Debug for OdbcParam {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fn varchar_to_string(varchar: &VarCharBox) -> String {
+            String::from_utf8_lossy(varchar.as_bytes().unwrap()).into()
+        }
+        match self {
+            Self::Binary(arg0) => f
+                .debug_tuple("Binary")
+                .field(&arg0.as_bytes().unwrap())
+                .finish(),
+            Self::String(arg0) => f
+                .debug_tuple("String")
+                .field(&varchar_to_string(arg0))
+                .finish(),
+            Self::Decimal(arg0) => f
+                .debug_tuple("Decimal")
+                .field(&varchar_to_string(arg0))
+                .finish(),
+            Self::Timestamp(arg0) => f
+                .debug_tuple("Timestamp")
+                .field(&varchar_to_string(arg0))
+                .finish(),
+            Self::Date(arg0) => f
+                .debug_tuple("Date")
+                .field(&varchar_to_string(arg0))
+                .finish(),
+            Self::U8(arg0) => f.debug_tuple("U8").field(arg0).finish(),
+            Self::I8(arg0) => f.debug_tuple("I8").field(arg0).finish(),
+            Self::I16(arg0) => f.debug_tuple("I16").field(arg0).finish(),
+            Self::U16(arg0) => f.debug_tuple("U16").field(arg0).finish(),
+            Self::I32(arg0) => f.debug_tuple("I32").field(arg0).finish(),
+            Self::U32(arg0) => f.debug_tuple("U32").field(arg0).finish(),
+            Self::I64(arg0) => f.debug_tuple("I64").field(arg0).finish(),
+            Self::U64(arg0) => f.debug_tuple("U64").field(arg0).finish(),
+            Self::F32(arg0) => f.debug_tuple("F32").field(arg0).finish(),
+            Self::F64(arg0) => f.debug_tuple("F64").field(arg0).finish(),
+            Self::Bool(arg0) => f.debug_tuple("Bool").field(&arg0.as_bool()).finish(),
+            Self::Null(_arg0) => write!(f, "Null"),
+        }
+    }
+}
+
+#[derive(Debug)]
+struct ParamVec(Vec<OdbcParam>);
+
+unsafe impl ParameterCollection for ParamVec {
+    fn parameter_set_size(&self) -> usize {
+        1
+    }
+
+    unsafe fn bind_parameters_to(
+        &mut self,
+        stmt: &mut impl odbc_api::handles::Statement,
+    ) -> Result<(), odbc_api::Error> {
+        for (index, parameter) in self.0.iter().enumerate() {
+            parameter.assert_completness();
+            if let Err(error) = stmt
+                .bind_input_parameter(index as u16 + 1, parameter)
+                .into_result(stmt)
+            {
+                stmt.reset_parameters();
+                return Err(error);
+            }
+        }
+        Ok(())
     }
 }
