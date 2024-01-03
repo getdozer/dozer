@@ -110,7 +110,12 @@ impl<'a> PostgresIteratorHandler<'a> {
         // - When publication tables changes
 
         // We clear inactive replication slots before starting replication
-        ReplicationSlotHelper::clear_inactive_slots(&mut client, REPLICATION_SLOT_PREFIX).await?;
+        ReplicationSlotHelper::clear_inactive_slots(
+            &mut client,
+            REPLICATION_SLOT_PREFIX,
+            Some(&details.slot_name),
+        )
+        .await?;
 
         if self.lsn.is_none() {
             debug!("\nCreating Slot....");

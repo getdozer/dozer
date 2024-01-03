@@ -65,9 +65,15 @@ impl ReplicationSlotHelper {
     pub async fn clear_inactive_slots(
         client: &mut Client,
         slot_name_prefix: &str,
+        current_slot_name: Option<&str>,
     ) -> Result<(), PostgresConnectorError> {
+        let condition = match current_slot_name {
+            Some(name) => format!("AND slot_name != '{name}'"),
+            None => "".to_string(),
+        };
+
         let inactive_slots_query = format!(
-            r#"SELECT * FROM pg_replication_slots where active = false AND slot_name LIKE '{slot_name_prefix}%';"#
+            r#"SELECT * FROM pg_replication_slots where active = false AND slot_name LIKE '{slot_name_prefix}%' {condition};"#
         );
 
         let slots = client

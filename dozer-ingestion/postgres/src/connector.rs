@@ -1,3 +1,4 @@
+use dozer_ingestion_connector::dozer_types::log::warn;
 use dozer_ingestion_connector::{
     async_trait,
     dozer_types::{errors::internal::BoxedError, log::info, types::FieldType},
@@ -10,6 +11,7 @@ use rand::Rng;
 use tokio_postgres::config::ReplicationMode;
 use tokio_postgres::Config;
 
+use crate::state::LsnWithSlot;
 use crate::{
     connection::validator::validate_connection,
     iterator::PostgresIterator,
@@ -64,22 +66,44 @@ impl PostgresConnector {
     }
 
     fn get_lsn_with_offset_from_seq(
-        conn_name: String,
-        from_seq: Option<(u64, u64)>,
-    ) -> Option<(PgLsn, u64)> {
-        from_seq.map_or_else(
-            || {
-                info!("[{}] Starting replication", conn_name);
-                None
-            },
-            |(lsn, checkpoint)| {
-                info!(
-                    "[{}] Starting replication from checkpoint ({}/{})",
-                    conn_name, lsn, checkpoint
-                );
-                Some((PgLsn::from(lsn), checkpoint))
-            },
-        )
+        conn_name: &str,
+        tables: Vec<TableToIngest>,
+    ) -> Option<LsnWithSlot> {
+        let m: Option<LsnWithSlot> = tables
+            .iter()
+            .filter_map(|table| {
+                if let Some(s) = &table.state {
+                    match LsnWithSlot::try_from(s.clone()) {
+                        Ok(state) => Some(state),
+                        Err(e) => {
+                            warn!(
+                                "[{conn_name}] Failed to parse checkpoint: {error}",
+                                conn_name = conn_name,
+                                error = e
+                            );
+                            None
+                        }
+                    }
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<LsnWithSlot>>()
+            .iter()
+            .max_by_key(|x| x.lsn)
+            .cloned();
+
+        if let Some(x) = &m {
+            info!(
+                "[{conn_name}] Last checkpoint {txid}({seq_in_tx}) in {slot_name}",
+                conn_name = conn_name,
+                txid = x.lsn.0,
+                seq_in_tx = x.lsn.1,
+                slot_name = x.slot_name
+            );
+        }
+
+        m
     }
 }
 
@@ -173,31 +197,37 @@ impl Connector for PostgresConnector {
         ingestor: &Ingestor,
         tables: Vec<TableToIngest>,
     ) -> Result<(), BoxedError> {
-        let client = helper::connect(self.replication_conn_config.clone()).await?;
-        let table_identifiers = tables
-            .iter()
-            .map(|table| TableIdentifier::new(table.schema.clone(), table.name.clone()))
-            .collect::<Vec<_>>();
-        self.create_publication(client, Some(&table_identifiers))
-            .await?;
+        let lsn_with_slot =
+            PostgresConnector::get_lsn_with_offset_from_seq(&self.name, tables.clone());
+        let slot_name = lsn_with_slot
+            .clone()
+            .map_or(self.get_slot_name(), |LsnWithSlot { slot_name, .. }| {
+                slot_name
+            });
+        let lsn = lsn_with_slot.map(|LsnWithSlot { lsn, .. }| lsn);
 
-        let lsn = PostgresConnector::get_lsn_with_offset_from_seq(self.name.clone(), None);
+        if lsn.is_none() {
+            let client = helper::connect(self.replication_conn_config.clone()).await?;
+            let table_identifiers = tables
+                .iter()
+                .map(|table| TableIdentifier::new(table.schema.clone(), table.name.clone()))
+                .collect::<Vec<_>>();
+            self.create_publication(client, Some(&table_identifiers))
+                .await?;
+        }
 
         let tables = tables
             .into_iter()
-            .map(|table| {
-                assert!(table.state.is_none());
-                ListOrFilterColumns {
-                    schema: table.schema,
-                    name: table.name,
-                    columns: Some(table.column_names),
-                }
+            .map(|table| ListOrFilterColumns {
+                schema: table.schema,
+                name: table.name,
+                columns: Some(table.column_names),
             })
             .collect::<Vec<_>>();
         let iterator = PostgresIterator::new(
             self.name.clone(),
             self.get_publication_name(),
-            self.get_slot_name(),
+            slot_name,
             self.schema_helper.get_tables(Some(&tables)).await?,
             self.replication_conn_config.clone(),
             ingestor,
