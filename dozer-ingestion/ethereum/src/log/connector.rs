@@ -71,7 +71,7 @@ impl EthLogConnector {
                     .map(|t| vec![H256::from_str(t).unwrap()])
                     .collect();
                 builder.topics(
-                    topics.get(0).cloned(),
+                    topics.first().cloned(),
                     topics.get(1).cloned(),
                     topics.get(2).cloned(),
                     topics.get(3).cloned(),

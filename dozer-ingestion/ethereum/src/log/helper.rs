@@ -74,8 +74,7 @@ pub fn decode_event(
     if let Some(contract_tuple) = c {
         // Topics 0, 1, 2 should be name, buyer, seller in most cases
         let name = log
-            .topics
-            .get(0)
+            .topics.first()
             .expect("name is expected")
             .to_owned()
             .to_string();

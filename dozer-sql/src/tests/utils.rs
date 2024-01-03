@@ -13,7 +13,7 @@ pub fn get_select(sql: &str) -> Result<Box<Select>, PipelineError> {
 
     let ast = Parser::parse_sql(&dialect, sql).unwrap();
 
-    let statement = ast.get(0).expect("First statement is missing").to_owned();
+    let statement = ast.first().expect("First statement is missing").to_owned();
     if let Statement::Query(query) = statement {
         Ok(get_query_select(&query))
     } else {
