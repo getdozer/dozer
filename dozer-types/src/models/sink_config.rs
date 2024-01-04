@@ -83,14 +83,14 @@ pub mod snowflake {
     }
 
     pub fn default_batch_size() -> usize {
-        100
+        1000000
     }
 
     pub fn default_batch_interval() -> Duration {
-        Duration::from_secs(5)
+        Duration::from_secs(1)
     }
 
     pub fn default_suspend_warehouse() -> bool {
-        false
+        true
     }
 }
