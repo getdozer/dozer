@@ -15,6 +15,7 @@ use dozer_sql::builder::{OutputNodeInfo, QueryContext};
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::log::debug;
 use dozer_types::models::connection::Connection;
+use dozer_types::models::endpoint::AerospikeSinkConfig;
 use dozer_types::models::flags::Flags;
 use dozer_types::models::source::Source;
 use dozer_types::models::udf_config::UdfConfig;
@@ -24,6 +25,7 @@ use tokio::sync::Mutex;
 
 use crate::pipeline::dummy_sink::DummySinkFactory;
 use crate::pipeline::LogSinkFactory;
+use dozer_sink_aerospike::AerospikeSinkFactory;
 
 use super::connector_source::ConnectorSourceFactoryError;
 use super::source_builder::SourceBuilder;
@@ -57,6 +59,7 @@ pub struct EndpointLog {
 pub enum EndpointLogKind {
     Api { log: Arc<Mutex<Log>> },
     Dummy,
+    Aerospike { config: AerospikeSinkConfig },
 }
 
 pub struct PipelineBuilder<'a> {
@@ -284,6 +287,9 @@ impl<'a> PipelineBuilder<'a> {
                     self.labels.clone(),
                 )),
                 EndpointLogKind::Dummy => Box::new(DummySinkFactory),
+                EndpointLogKind::Aerospike { config } => {
+                    Box::new(AerospikeSinkFactory::new(config))
+                }
             };
 
             match table_info {

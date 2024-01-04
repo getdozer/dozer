@@ -313,6 +313,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "aerospike-client-sys"
+version = "0.1.0"
+dependencies = [
+ "bindgen 0.65.1",
+]
+
+[[package]]
 name = "aes"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1495,6 +1502,7 @@ dependencies = [
  "clang-sys",
  "lazy_static",
  "lazycell",
+ "log",
  "peeking_take_while",
  "prettyplease 0.2.15",
  "proc-macro2 1.0.69",
@@ -1503,6 +1511,7 @@ dependencies = [
  "rustc-hash",
  "shlex",
  "syn 2.0.39",
+ "which",
 ]
 
 [[package]]
@@ -3781,6 +3790,7 @@ dependencies = [
  "dozer-ingestion",
  "dozer-lambda",
  "dozer-recordstore",
+ "dozer-sink-aerospike",
  "dozer-sinks",
  "dozer-sql",
  "dozer-storage",
@@ -4068,6 +4078,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "dozer-sink-aerospike"
+version = "0.1.0"
+dependencies = [
+ "aerospike-client-sys",
+ "dozer-core",
+ "dozer-log",
+ "dozer-recordstore",
+ "dozer-types",
+]
+
+[[package]]
 name = "dozer-sinks"
 version = "0.1.0"
 dependencies = [
@@ -4210,7 +4231,7 @@ dependencies = [
  "chrono",
  "geo",
  "ijson",
- "indexmap 1.9.3",
+ "indexmap 2.1.0",
  "indicatif",
  "log",
  "ordered-float 3.9.2",
@@ -5767,7 +5788,6 @@ checksum = "bd070e393353796e801d209ad339e89596eb4c8d430d18ede6a1cced8fafbd99"
 dependencies = [
  "autocfg",
  "hashbrown 0.12.3",
- "serde",
 ]
 
 [[package]]
@@ -7375,7 +7395,7 @@ version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "75e56d5c441965b6425165b7e3223cc933ca469834f4a8b4786817a1f9dc4f13"
 dependencies = [
- "indexmap 1.9.3",
+ "indexmap 2.1.0",
  "serde",
  "serde_json",
 ]

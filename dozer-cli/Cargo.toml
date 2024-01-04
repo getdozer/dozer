@@ -21,6 +21,7 @@ dozer-storage = { path = "../dozer-storage" }
 dozer-recordstore = { path = "../dozer-recordstore" }
 dozer-lambda = { path = "../dozer-lambda" }
 dozer-sinks = { path = "../dozer-sinks" }
+dozer-sink-aerospike = { path = "../dozer-sink-aerospike" }
 
 uuid = { version = "1.6.1", features = ["v4", "serde"] }
 tokio = { version = "1", features = ["full"] }

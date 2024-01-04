@@ -1,0 +1,11 @@
+#include <aerospike/aerospike.h>
+#include <aerospike/aerospike_key.h>
+#include <aerospike/as_record.h>
+#include <aerospike/as_error.h>
+#include <aerospike/as_status.h>
+#include <aerospike/aerospike_batch.h>
+#include <aerospike/as_operations.h>
+#include <aerospike/as_policy.h>
+#include <aerospike/as_nil.h>
+#include <aerospike/as_map.h>
+#include <aerospike/as_orderedmap.h>

@@ -107,6 +107,15 @@ pub struct Endpoint {
 pub enum EndpointKind {
     Api(ApiEndpoint),
     Dummy,
+    Aerospike(AerospikeSinkConfig),
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
+pub struct AerospikeSinkConfig {
+    pub namespace: String,
+    pub hosts: String,
+    #[serde(default)]
+    pub set_name: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]

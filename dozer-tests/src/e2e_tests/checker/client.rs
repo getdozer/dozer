@@ -83,7 +83,7 @@ impl Client {
                     .config
                     .endpoints
                     .iter()
-                    .filter_map(|e| match &e.kind {
+                    .find_map(|e| match &e.kind {
                         EndpointKind::Api(api) => {
                             if &e.table_name == table_name {
                                 Some(api)
@@ -91,9 +91,8 @@ impl Client {
                                 None
                             }
                         }
-                        EndpointKind::Dummy => None,
+                        _ => None,
                     })
-                    .next()
                     .unwrap_or_else(|| panic!("Cannot find endpoint {table_name} in config"))
                     .path
                     .clone();
