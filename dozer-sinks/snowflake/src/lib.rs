@@ -1,11 +1,19 @@
-use std::{collections::HashMap, fmt::Debug, num::NonZeroUsize, thread, time::Duration, usize};
+use std::{
+    collections::HashMap,
+    fmt::Debug,
+    num::NonZeroUsize,
+    sync::Arc,
+    thread,
+    time::{Duration, Instant},
+    usize,
+};
 
 use dozer_api::shutdown::ShutdownReceiver;
 use dozer_log::{
     reader::LogClient,
     replication::LogOperation,
     schemas::EndpointSchema,
-    tokio::{self, select},
+    tokio::{self, runtime::Runtime},
 };
 use dozer_types::{
     errors::internal::BoxedError,
@@ -21,6 +29,7 @@ use dozer_types::{
     rust_decimal::Decimal,
     types::{DozerDuration, Field, FieldDefinition, FieldType, Record, Schema},
 };
+use futures_util::future;
 use itertools::Itertools;
 use odbc_api::{
     buffers::{AnyBuffer, BufferDesc},
@@ -52,7 +61,7 @@ impl SnowflakeSink {
 
         macro_rules! try_await {
             ($future:expr) => {
-                select! {
+                tokio::select! {
                     result = $future => result,
                     _ = shutdown.create_shutdown_future() => return,
                 }
@@ -61,9 +70,7 @@ impl SnowflakeSink {
 
         let endpoint = &self.config.endpoint;
         let LogConnection {
-            mut log_client,
-            endpoint_schema,
-            mut server_id,
+            endpoint_schema, ..
         } = retry_internal_pipeline_connect(self.app_server_url.clone(), endpoint.clone()).await;
 
         let (query_sender, query_receiver) = channel(1);
@@ -98,64 +105,81 @@ impl SnowflakeSink {
         let batch_interval = options
             .batch_interval_seconds
             .unwrap_or_else(default_batch_interval);
-        let timeout_in_millis = 300;
         let suspend_warehouse = options
             .suspend_warehouse_after_each_batch
             .unwrap_or_else(default_suspend_warehouse);
-        let log_reader_batch_size = std::cmp::min(batch_size, 4000);
 
-        let mut current_end = 0;
+        let (log_sender, mut log_receiver) = channel(500);
+        thread::spawn({
+            let app_server_url = self.app_server_url.clone();
+            let endpoint = endpoint.clone();
+            let shutdown = shutdown.clone();
+            move || {
+                log_reader(
+                    app_server_url,
+                    endpoint,
+                    batch_size as u64,
+                    log_sender,
+                    shutdown,
+                )
+            }
+        });
+
         let mut processed_ops = 0;
-        loop {
-            let mut ops = Vec::new();
+        let mut batch_start_time = Instant::now();
+        'main: loop {
+            let batch_time = Instant::now() - batch_start_time;
+            debug!(
+                "Batch cycle.\n  total operations: {};\n  total time: {} hours, {} minutes, {} seconds {} milliseconds\n  rate: {} op/sec",
+                processed_ops,
+                batch_time.as_secs() / 3600,
+                (batch_time.as_secs() % 3600) / 60,
+                batch_time.as_secs() % 60,
+                batch_time.subsec_millis(),
+                processed_ops as f64 / batch_time.as_secs_f64()
+            );
+
+            let mut batch = Vec::new();
 
             loop {
-                let start = current_end + ops.len() as u64;
-                let end = start + (log_reader_batch_size - ops.len()) as u64;
-                let requested_ops = end - start;
-                if start == end {
-                    break;
+                let capacity = 10;
+                let mut results = Vec::with_capacity(capacity);
+                let num_results = try_await!(log_receiver.recv_many(&mut results, capacity));
+                if num_results == 0 {
+                    panic!("log reader crashed");
                 }
-                let request = LogRequest {
-                    endpoint: endpoint.clone(),
-                    start,
-                    end,
-                    timeout_in_millis,
-                };
-                let result = try_await!(log_client.get_log(request));
-
-                let log_batch = match result {
-                    Ok(ops) => ops,
-                    Err(err) => {
-                        error!("log read error: {err}");
-                        let connection = retry_internal_pipeline_connect(
-                            self.app_server_url.clone(),
-                            endpoint.clone(),
-                        )
-                        .await;
-                        log_client = connection.log_client;
-                        if server_id != connection.server_id {
-                            server_id = connection.server_id;
-                            info!("Pipeline was restarted from scratch. The Snowflake sink for endpoint {endpoint} will restart as well.");
-                            // reset offset
-                            current_end = 0;
-                            ops.clear();
-                            // recreate table
-                            execute_queries!(self.ddl_queries(&schema));
+                let mut continue_reading = true;
+                for result in results {
+                    match result {
+                        LogReaderResult::Ops(ops) => {
+                            batch.extend(ops);
+                            continue_reading = true;
                         }
-                        continue;
+                        LogReaderResult::Flush => continue_reading = false,
+                        LogReaderResult::Reset => {
+                            info!("Pipeline was restarted from scratch. The Snowflake sink for endpoint {endpoint} will restart as well.");
+                            execute_queries!(self.ddl_queries(&schema));
+                            batch_start_time = Instant::now();
+                            continue 'main;
+                        }
                     }
-                };
-                let received_ops = log_batch.len() as u64;
-
-                ops.extend(log_batch);
-
-                if received_ops < requested_ops || ops.len() >= batch_size {
+                }
+                if !continue_reading || batch.len() >= batch_size {
                     break;
                 }
             }
 
-            if ops.is_empty() {
+            if batch.is_empty() {
+                let batch_time = Instant::now() - batch_start_time;
+                debug!(
+                    "Batch finished!\n  total operations: {};\n  total time: {} hours, {} minutes, {} seconds {} milliseconds\n  rate: {} op/sec",
+                    processed_ops,
+                    batch_time.as_secs() / 3600,
+                    (batch_time.as_secs() % 3600) / 60,
+                    batch_time.as_secs() % 60,
+                    batch_time.subsec_millis(),
+                    processed_ops as f64 / batch_time.as_secs_f64()
+                );
                 debug!(
                     "No more pending log operations. Sleeping for {} seconds.",
                     batch_interval.as_secs()
@@ -172,14 +196,19 @@ impl SnowflakeSink {
                 continue;
             }
 
-            let next_end = current_end + ops.len() as u64;
+            processed_ops += batch.len();
 
-            let mut ops = ops
+            let mut ops = batch
                 .into_iter()
                 .filter(|op| matches!(op, LogOperation::Op { .. }))
                 .collect::<Vec<_>>();
 
             for chunk in ops.chunks_mut(batch_size) {
+                debug!(
+                    "Applying {} log operations for endpoint {endpoint} to Snowflake sink",
+                    chunk.len()
+                );
+
                 let dml_queries = self.operations_to_dml(&schema, chunk);
                 execute_queries!(dml_queries);
 
@@ -188,9 +217,6 @@ impl SnowflakeSink {
                     chunk.len()
                 );
             }
-
-            processed_ops += next_end - current_end;
-            current_end = next_end;
         }
     }
 
@@ -479,6 +505,100 @@ async fn retry_internal_pipeline_connect(
                 );
                 tokio::time::sleep(RETRY_INTERVAL).await;
             }
+        }
+    }
+}
+
+enum LogReaderResult {
+    Ops(Vec<LogOperation>),
+    Flush,
+    Reset,
+}
+
+fn log_reader(
+    app_server_url: String,
+    endpoint: String,
+    max_batch_size: u64,
+    sender: Sender<LogReaderResult>,
+    shutdown: ShutdownReceiver,
+) {
+    let runtime = Arc::new(Runtime::new().unwrap());
+
+    macro_rules! try_await {
+        ($future:expr) => {{
+            let fut = $future;
+            let shutdown = shutdown.create_shutdown_future();
+            tokio::pin!(fut);
+            tokio::pin!(shutdown);
+            match runtime.block_on(future::select(fut, shutdown)) {
+                future::Either::Left((result, _)) => result,
+                future::Either::Right(((), _)) => return,
+            }
+        }};
+    }
+
+    macro_rules! try_send {
+        ($value:expr) => {
+            if let Err(_) = sender.blocking_send($value) {
+                return;
+            }
+        };
+    }
+
+    let LogConnection {
+        mut log_client,
+        mut server_id,
+        ..
+    } = try_await!(retry_internal_pipeline_connect(
+        app_server_url.clone(),
+        endpoint.clone()
+    ));
+
+    let log_reader_batch_size = std::cmp::min(max_batch_size, 4000);
+    let timeout_in_millis = 300;
+    let mut current_end = 0;
+
+    use LogReaderResult::*;
+
+    loop {
+        let start = current_end;
+        let end = start + log_reader_batch_size;
+        let request = LogRequest {
+            endpoint: endpoint.clone(),
+            start,
+            end,
+            timeout_in_millis,
+        };
+        debug!("sending log read request {request:?}");
+
+        let batch = match try_await!(log_client.get_log(request)) {
+            Ok(ops) => ops,
+            Err(err) => {
+                error!("log read error: {err}");
+                let connection = try_await!(retry_internal_pipeline_connect(
+                    app_server_url.clone(),
+                    endpoint.clone()
+                ));
+                log_client = connection.log_client;
+                if server_id != connection.server_id {
+                    server_id = connection.server_id;
+                    info!("Pipeline was restarted from scratch. The Snowflake sink for endpoint {endpoint} will restart as well.");
+                    // reset offset
+                    current_end = 0;
+                    try_send!(Reset);
+                }
+                continue;
+            }
+        };
+        let batch_len = batch.len() as u64;
+        current_end += batch_len;
+
+        debug!("got {} ops", batch_len);
+
+        try_send!(Ops(batch));
+
+        if batch_len < log_reader_batch_size {
+            try_send!(Flush);
         }
     }
 }
