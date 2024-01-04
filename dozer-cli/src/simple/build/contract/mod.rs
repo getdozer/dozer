@@ -85,7 +85,7 @@ impl Contract {
                 continue;
             };
 
-            let node_index = find_sink(dag_schemas, &api.name)
+            let node_index = find_sink(dag_schemas, &endpoint.table_name)
                 .ok_or(BuildError::MissingEndpoint(api.name.clone()))?;
 
             let (schema, secondary_indexes) =
@@ -169,13 +169,13 @@ impl Contract {
 
 mod service;
 
-/// Sink's `NodeHandle::id` must be `endpoint_name`.
-fn find_sink(dag: &DagSchemas, endpoint_name: &str) -> Option<NodeIndex> {
+/// Sink's `NodeHandle::id` must be `table_name`.
+fn find_sink(dag: &DagSchemas, endpoint_table_name: &str) -> Option<NodeIndex> {
     dag.graph()
         .node_references()
         .find(|(_node_index, node)| {
             if let dozer_core::NodeKind::Sink(_) = &node.kind {
-                node.handle.id == endpoint_name
+                node.handle.id == endpoint_table_name
             } else {
                 false
             }

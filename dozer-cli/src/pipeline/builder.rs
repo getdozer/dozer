@@ -272,6 +272,7 @@ impl<'a> PipelineBuilder<'a> {
             }
         }
 
+        dbg!(&self.endpoint_logs);
         for endpoint_log in self.endpoint_logs {
             let table_info = available_output_tables
                 .get(&endpoint_log.table_name)
@@ -279,34 +280,31 @@ impl<'a> PipelineBuilder<'a> {
                     OrchestrationError::EndpointTableNotFound(endpoint_log.table_name.clone())
                 })?;
 
-            let (snk_factory, sink_name): (Box<dyn SinkFactory>, _) = match endpoint_log.kind {
-                EndpointLogKind::Api { api, log } => (
-                    Box::new(LogSinkFactory::new(
-                        runtime.clone(),
-                        log,
-                        api.name.clone(),
-                        self.labels.clone(),
-                    )),
-                    api.name,
-                ),
-                EndpointLogKind::Dummy => (Box::new(DummySinkFactory), endpoint_log.table_name),
+            let snk_factory: Box<dyn SinkFactory> = match endpoint_log.kind {
+                EndpointLogKind::Api { api, log } => Box::new(LogSinkFactory::new(
+                    runtime.clone(),
+                    log,
+                    api.name.clone(),
+                    self.labels.clone(),
+                )),
+                EndpointLogKind::Dummy => Box::new(DummySinkFactory),
             };
 
             match table_info {
                 OutputTableInfo::Transformed(table_info) => {
-                    pipeline.add_sink(snk_factory, &sink_name, None);
+                    pipeline.add_sink(snk_factory, &endpoint_log.table_name, None);
 
                     pipeline.connect_nodes(
                         &table_info.node,
                         table_info.port,
-                        &sink_name,
+                        &endpoint_log.table_name,
                         DEFAULT_PORT_HANDLE,
                     );
                 }
                 OutputTableInfo::Original(table_info) => {
                     pipeline.add_sink(
                         snk_factory,
-                        &sink_name,
+                        &endpoint_log.table_name,
                         Some(PipelineEntryPoint::new(
                             table_info.table_name.clone(),
                             DEFAULT_PORT_HANDLE,
