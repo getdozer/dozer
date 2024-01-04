@@ -16,6 +16,7 @@ use dozer_types::{
     models::{
         api_config::{default_grpc_port, default_host, default_rest_port},
         config::Config,
+        endpoint::EndpointKind,
         flags::default_dynamic,
     },
     types::{FieldDefinition, FieldType, DATE_FORMAT},
@@ -82,7 +83,17 @@ impl Client {
                     .config
                     .endpoints
                     .iter()
-                    .find(|e| &e.name == endpoint)
+                    .filter_map(|e| match &e.kind {
+                        EndpointKind::Api(api) => {
+                            if &api.name == endpoint {
+                                Some(api)
+                            } else {
+                                None
+                            }
+                        }
+                        EndpointKind::Dummy => None,
+                    })
+                    .next()
                     .unwrap_or_else(|| panic!("Cannot find endpoint {endpoint} in config"))
                     .path
                     .clone();

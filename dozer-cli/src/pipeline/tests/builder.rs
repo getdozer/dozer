@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crate::pipeline::builder::{EndpointLog, EndpointLogKind};
 use crate::pipeline::source_builder::SourceBuilder;
 use crate::pipeline::PipelineBuilder;
 use dozer_api::shutdown;
@@ -67,7 +68,10 @@ fn load_multi_sources() {
         config
             .endpoints
             .into_iter()
-            .map(|endpoint| (endpoint, None))
+            .map(|endpoint| EndpointLog {
+                table_name: endpoint.table_name,
+                kind: EndpointLogKind::Dummy,
+            })
             .collect(),
         Default::default(),
         Flags::default(),

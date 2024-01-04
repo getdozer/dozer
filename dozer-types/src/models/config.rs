@@ -1,9 +1,17 @@
 use std::path::Path;
 
 use super::{
-    api_config::ApiConfig, api_endpoint::ApiEndpoint, app_config::AppConfig, cloud::Cloud,
-    connection::Connection, equal_default, flags::Flags, lambda_config::LambdaConfig,
-    sink_config::SinkConfig, source::Source, telemetry::TelemetryConfig,
+    api_config::ApiConfig,
+    app_config::AppConfig,
+    cloud::Cloud,
+    connection::Connection,
+    endpoint::{Endpoint, EndpointKind},
+    equal_default,
+    flags::Flags,
+    lambda_config::LambdaConfig,
+    sink_config::SinkConfig,
+    source::Source,
+    telemetry::TelemetryConfig,
 };
 use crate::constants::DEFAULT_HOME_DIR;
 use crate::models::udf_config::UdfConfig;
@@ -38,7 +46,7 @@ pub struct Config {
 
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     /// api endpoints to expose
-    pub endpoints: Vec<ApiEndpoint>,
+    pub endpoints: Vec<Endpoint>,
 
     #[serde(default, skip_serializing_if = "equal_default")]
     /// Api server config related: port, host, etc
@@ -115,7 +123,9 @@ impl Config {
         ]);
         let mut endpoints_table = table!();
         for endpoint in &self.endpoints {
-            endpoints_table.add_row(row![endpoint.name, endpoint.table_name, endpoint.path]);
+            if let EndpointKind::Api(api) = &endpoint.kind {
+                endpoints_table.add_row(row![api.name, endpoint.table_name, api.path]);
+            }
         }
         if !self.endpoints.is_empty() {
             table.add_row(row!["endpoints", endpoints_table]);

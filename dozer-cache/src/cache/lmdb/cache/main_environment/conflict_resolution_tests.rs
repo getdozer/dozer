@@ -2,7 +2,7 @@ use crate::cache::index;
 use crate::cache::lmdb::cache::{CacheWriteOptions, MainEnvironment};
 use crate::cache::test_utils::schema_multi_indices;
 use crate::errors::CacheError;
-use dozer_types::models::api_endpoint::{
+use dozer_types::models::endpoint::{
     ConflictResolution, OnDeleteResolutionTypes, OnInsertResolutionTypes, OnUpdateResolutionTypes,
 };
 use dozer_types::types::{Field, Record, Schema};

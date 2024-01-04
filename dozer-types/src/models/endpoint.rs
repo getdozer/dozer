@@ -92,13 +92,27 @@ pub struct LogReaderOptions {
     pub buffer_size: Option<u32>,
 }
 
-#[derive(Debug, Serialize, Deserialize, JsonSchema, Default, Eq, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct Endpoint {
+    /// name of the table in source database; Type: String
+    pub table_name: String,
+
+    /// endpoint kind
+    pub kind: EndpointKind,
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
+#[serde(deny_unknown_fields)]
+pub enum EndpointKind {
+    Api(ApiEndpoint),
+    Dummy,
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct ApiEndpoint {
     pub name: String,
-
-    /// name of the table in source database; Type: String
-    pub table_name: String,
 
     /// path of endpoint - e.g: /stocks
     pub path: String,

@@ -14,7 +14,7 @@ use dozer_cache::{
 use dozer_tracing::{Labels, LabelsAndProgress};
 use dozer_types::grpc_types::internal::internal_pipeline_service_client::InternalPipelineServiceClient;
 use dozer_types::indicatif::ProgressBar;
-use dozer_types::models::api_endpoint::{
+use dozer_types::models::endpoint::{
     default_log_reader_batch_size, default_log_reader_buffer_size,
     default_log_reader_timeout_in_millis, ApiEndpoint, ConflictResolution,
 };

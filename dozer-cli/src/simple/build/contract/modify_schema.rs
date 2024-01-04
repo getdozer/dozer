@@ -1,5 +1,5 @@
 use dozer_types::{
-    models::api_endpoint::{
+    models::endpoint::{
         ApiEndpoint, FullText, SecondaryIndex, SecondaryIndexConfig, SortedInverted,
     },
     types::{FieldDefinition, FieldType, IndexDefinition, Schema, SchemaWithIndex},

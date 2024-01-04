@@ -63,7 +63,7 @@
       "description": "api endpoints to expose",
       "type": "array",
       "items": {
-        "$ref": "#/definitions/ApiEndpoint"
+        "$ref": "#/definitions/Endpoint"
       }
     },
     "flags": {
@@ -173,8 +173,7 @@
       "type": "object",
       "required": [
         "name",
-        "path",
-        "table_name"
+        "path"
       ],
       "properties": {
         "conflict_resolution": {
@@ -191,10 +190,6 @@
         },
         "path": {
           "description": "path of endpoint - e.g: /stocks",
-          "type": "string"
-        },
-        "table_name": {
-          "description": "name of the table in source database; Type: String",
           "type": "string"
         },
         "version": {
@@ -801,6 +796,50 @@
         }
       },
       "additionalProperties": false
+    },
+    "Endpoint": {
+      "type": "object",
+      "required": [
+        "kind",
+        "table_name"
+      ],
+      "properties": {
+        "kind": {
+          "description": "endpoint kind",
+          "allOf": [
+            {
+              "$ref": "#/definitions/EndpointKind"
+            }
+          ]
+        },
+        "table_name": {
+          "description": "name of the table in source database; Type: String",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "EndpointKind": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "Dummy"
+          ]
+        },
+        {
+          "type": "object",
+          "required": [
+            "Api"
+          ],
+          "properties": {
+            "Api": {
+              "$ref": "#/definitions/ApiEndpoint"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
     },
     "EthConfig": {
       "examples": [

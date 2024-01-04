@@ -2,7 +2,7 @@ use super::executor::{run_dag_executor, Executor};
 use super::Contract;
 use crate::errors::OrchestrationError;
 use crate::pipeline::connector_source::ConnectorSourceFactoryError;
-use crate::pipeline::PipelineBuilder;
+use crate::pipeline::{EndpointLog, EndpointLogKind, PipelineBuilder};
 use crate::simple::build;
 use crate::simple::helper::validate_config;
 use crate::utils::{
@@ -25,6 +25,7 @@ use dozer_types::constants::LOCK_FILE;
 use dozer_types::models::api_config::{
     default_app_grpc_host, default_app_grpc_port, AppGrpcOptions,
 };
+use dozer_types::models::endpoint::EndpointKind;
 use dozer_types::models::flags::{default_dynamic, default_push_events};
 use dozer_types::models::lambda_config::LambdaConfig;
 use futures::future::{select, Either};
@@ -103,6 +104,10 @@ impl SimpleOrchestrator {
         let default_max_num_records = get_default_max_num_records(&self.config);
         let mut cache_endpoints = vec![];
         for endpoint in &self.config.endpoints {
+            let EndpointKind::Api(endpoint) = &endpoint.kind else {
+                continue;
+            };
+
             let (cache_endpoint, handle) = select! {
                 // If we're shutting down, the cache endpoint will fail to connect
                 _shutdown_future = shutdown.create_shutdown_future() => return Ok(()),
@@ -418,7 +423,10 @@ impl SimpleOrchestrator {
             .endpoints
             .iter()
             // We're not really going to run the pipeline, so we don't create logs.
-            .map(|endpoint| (endpoint.clone(), None))
+            .map(|endpoint| EndpointLog {
+                table_name: endpoint.table_name.clone(),
+                kind: EndpointLogKind::Dummy,
+            })
             .collect();
         let builder = PipelineBuilder::new(
             &self.config.connections,

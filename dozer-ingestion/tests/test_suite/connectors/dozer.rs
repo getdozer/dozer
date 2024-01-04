@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use dozer_cli::shutdown::{self, ShutdownSender};
 use dozer_cli::simple::SimpleOrchestrator;
+use dozer_ingestion_connector::dozer_types::models::endpoint::{Endpoint, EndpointKind};
 use dozer_ingestion_connector::dozer_types::{
     grpc_types::{
         conversions::field_to_grpc,
@@ -13,7 +14,7 @@ use dozer_ingestion_connector::dozer_types::{
     },
     log::info,
     models::{
-        api_endpoint::ApiEndpoint,
+        endpoint::ApiEndpoint,
         ingestion_types::{
             GrpcConfig, GrpcConfigSchemas, NestedDozerConfig, NestedDozerLogOptions,
         },
@@ -211,14 +212,16 @@ async fn create_nested_dozer_server(
             schema: None,
             refresh_config: Default::default(),
         }],
-        endpoints: vec![ApiEndpoint {
-            name: table_name.to_owned(),
-            path: "/test".to_owned(),
+        endpoints: vec![Endpoint {
             table_name: table_name.clone(),
-            index: Default::default(),
-            conflict_resolution: Default::default(),
-            version: None,
-            log_reader_options: Default::default(),
+            kind: EndpointKind::Api(ApiEndpoint {
+                name: table_name.to_owned(),
+                path: "/test".to_owned(),
+                index: Default::default(),
+                conflict_resolution: Default::default(),
+                version: None,
+                log_reader_options: Default::default(),
+            }),
         }],
         ..Default::default()
     };

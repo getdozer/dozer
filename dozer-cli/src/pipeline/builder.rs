@@ -14,8 +14,8 @@ use dozer_sql::builder::statement_to_pipeline;
 use dozer_sql::builder::{OutputNodeInfo, QueryContext};
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::log::debug;
-use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::connection::Connection;
+use dozer_types::models::endpoint::ApiEndpoint;
 use dozer_types::models::flags::Flags;
 use dozer_types::models::source::Source;
 use dozer_types::models::udf_config::UdfConfig;
@@ -48,14 +48,26 @@ pub struct CalculatedSources {
     pub query_context: Option<QueryContext>,
 }
 
-type OptionLog = Option<Arc<Mutex<Log>>>;
+#[derive(Debug)]
+pub struct EndpointLog {
+    pub table_name: String,
+    pub kind: EndpointLogKind,
+}
+
+#[derive(Debug)]
+pub enum EndpointLogKind {
+    Api {
+        api: ApiEndpoint,
+        log: Arc<Mutex<Log>>,
+    },
+    Dummy,
+}
 
 pub struct PipelineBuilder<'a> {
     connections: &'a [Connection],
     sources: &'a [Source],
     sql: Option<&'a str>,
-    /// `ApiEndpoint` and its log.
-    endpoint_and_logs: Vec<(ApiEndpoint, OptionLog)>,
+    endpoint_logs: Vec<EndpointLog>,
     labels: LabelsAndProgress,
     flags: Flags,
     udfs: &'a [UdfConfig],
@@ -66,7 +78,7 @@ impl<'a> PipelineBuilder<'a> {
         connections: &'a [Connection],
         sources: &'a [Source],
         sql: Option<&'a str>,
-        endpoint_and_logs: Vec<(ApiEndpoint, OptionLog)>,
+        endpoint_logs: Vec<EndpointLog>,
         labels: LabelsAndProgress,
         flags: Flags,
         udfs: &'a [UdfConfig],
@@ -75,7 +87,7 @@ impl<'a> PipelineBuilder<'a> {
             connections,
             sources,
             sql,
-            endpoint_and_logs,
+            endpoint_logs,
             labels,
             flags,
             udfs,
@@ -182,8 +194,8 @@ impl<'a> PipelineBuilder<'a> {
         }
 
         // Add Used Souces if direct from source
-        for (api_endpoint, _) in &self.endpoint_and_logs {
-            let table_name = &api_endpoint.table_name;
+        for endpoint_log in &self.endpoint_logs {
+            let table_name = &endpoint_log.table_name;
 
             // Don't add if the table is a result of SQL
             if !transformed_sources.contains(table_name) {
@@ -252,47 +264,49 @@ impl<'a> PipelineBuilder<'a> {
         for (table_name, table_info) in &available_output_tables {
             if matches!(table_info, OutputTableInfo::Transformed(_))
                 && !self
-                    .endpoint_and_logs
+                    .endpoint_logs
                     .iter()
-                    .any(|(endpoint, _)| &endpoint.table_name == table_name)
+                    .any(|endpoint_log| &endpoint_log.table_name == table_name)
             {
                 return Err(OrchestrationError::OutputTableNotUsed(table_name.clone()));
             }
         }
 
-        for (api_endpoint, log) in self.endpoint_and_logs {
-            let table_name = &api_endpoint.table_name;
-
+        for endpoint_log in self.endpoint_logs {
             let table_info = available_output_tables
-                .get(table_name)
-                .ok_or_else(|| OrchestrationError::EndpointTableNotFound(table_name.clone()))?;
+                .get(&endpoint_log.table_name)
+                .ok_or_else(|| {
+                    OrchestrationError::EndpointTableNotFound(endpoint_log.table_name.clone())
+                })?;
 
-            let snk_factory: Box<dyn SinkFactory> = if let Some(log) = log {
-                Box::new(LogSinkFactory::new(
-                    runtime.clone(),
-                    log,
-                    api_endpoint.name.clone(),
-                    self.labels.clone(),
-                ))
-            } else {
-                Box::new(DummySinkFactory)
+            let (snk_factory, sink_name): (Box<dyn SinkFactory>, _) = match endpoint_log.kind {
+                EndpointLogKind::Api { api, log } => (
+                    Box::new(LogSinkFactory::new(
+                        runtime.clone(),
+                        log,
+                        api.name.clone(),
+                        self.labels.clone(),
+                    )),
+                    api.name,
+                ),
+                EndpointLogKind::Dummy => (Box::new(DummySinkFactory), endpoint_log.table_name),
             };
 
             match table_info {
                 OutputTableInfo::Transformed(table_info) => {
-                    pipeline.add_sink(snk_factory, api_endpoint.name.as_str(), None);
+                    pipeline.add_sink(snk_factory, &sink_name, None);
 
                     pipeline.connect_nodes(
                         &table_info.node,
                         table_info.port,
-                        api_endpoint.name.as_str(),
+                        &sink_name,
                         DEFAULT_PORT_HANDLE,
                     );
                 }
                 OutputTableInfo::Original(table_info) => {
                     pipeline.add_sink(
                         snk_factory,
-                        api_endpoint.name.as_str(),
+                        &sink_name,
                         Some(PipelineEntryPoint::new(
                             table_info.table_name.clone(),
                             DEFAULT_PORT_HANDLE,

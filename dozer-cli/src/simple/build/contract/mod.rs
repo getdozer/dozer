@@ -16,7 +16,10 @@ use dozer_core::{
     },
 };
 use dozer_types::{
-    models::{api_endpoint::ApiEndpoint, connection::Connection},
+    models::{
+        connection::Connection,
+        endpoint::{Endpoint, EndpointKind},
+    },
     node::NodeHandle,
     types::Schema,
 };
@@ -72,29 +75,33 @@ impl Contract {
         version: usize,
         dag_schemas: &DagSchemas,
         connections: &[Connection],
-        endpoints: &[ApiEndpoint],
+        endpoints: &[Endpoint],
         enable_token: bool,
         enable_on_event: bool,
     ) -> Result<Self, BuildError> {
         let mut endpoint_schemas = BTreeMap::new();
         for endpoint in endpoints {
-            let node_index = find_sink(dag_schemas, &endpoint.name)
-                .ok_or(BuildError::MissingEndpoint(endpoint.name.clone()))?;
+            let EndpointKind::Api(api) = &endpoint.kind else {
+                continue;
+            };
+
+            let node_index = find_sink(dag_schemas, &api.name)
+                .ok_or(BuildError::MissingEndpoint(api.name.clone()))?;
 
             let (schema, secondary_indexes) =
-                modify_schema::modify_schema(sink_input_schema(dag_schemas, node_index), endpoint)?;
+                modify_schema::modify_schema(sink_input_schema(dag_schemas, node_index), api)?;
 
             let connections = collect_ancestor_sources(dag_schemas, node_index);
 
             let schema = EndpointSchema {
-                path: endpoint.path.clone(),
+                path: api.path.clone(),
                 schema,
                 secondary_indexes,
                 enable_token,
                 enable_on_event,
                 connections,
             };
-            endpoint_schemas.insert(endpoint.name.clone(), schema);
+            endpoint_schemas.insert(api.name.clone(), schema);
         }
 
         let mut source_types = HashMap::new();

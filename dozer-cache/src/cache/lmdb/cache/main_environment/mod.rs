@@ -18,9 +18,7 @@ use dozer_types::{
 };
 use dozer_types::{
     log::warn,
-    models::api_endpoint::{
-        OnDeleteResolutionTypes, OnInsertResolutionTypes, OnUpdateResolutionTypes,
-    },
+    models::endpoint::{OnDeleteResolutionTypes, OnInsertResolutionTypes, OnUpdateResolutionTypes},
 };
 use tempdir::TempDir;
 
