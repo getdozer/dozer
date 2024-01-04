@@ -44,6 +44,8 @@ sources:
     connection: ny_taxi
 
 endpoints:
-  - name: trips
-    path: /trips
-    table_name: trips_cache
+  - table_name: trips_cache
+    kind: !Api
+      name: trips
+      path: /trips
+    
