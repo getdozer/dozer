@@ -1,0 +1,16 @@
+[package]
+name = "dozer-sinks-snowflake"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+dozer-api = { path = "../../dozer-api" }
+dozer-types = { path = "../../dozer-types" }
+dozer-log = { path = "../../dozer-log" }
+odbc-api = { version = "4.1.0", default-features = false, features = ["odbc_version_3_5", "narrow"] }
+itertools = "0.10.5"
+futures-util = "0.3.28"
+chrono = "0.4.31"
+regex = "1"

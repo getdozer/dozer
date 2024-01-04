@@ -4,6 +4,7 @@ use dozer_ingestion_connector::{
         indexmap::IndexMap,
         log::debug,
         models::ingestion_types::SnowflakeConfig,
+        models::sink_config::snowflake::ConnectionParameters as SnowflakeSinkConfig,
         rust_decimal::Decimal,
         types::*,
     },
@@ -14,16 +15,16 @@ use odbc::odbc_safe::{AutocommitOn, Odbc3};
 use odbc::{ColumnDescriptor, Cursor, DiagnosticRecord, Environment, Executed, HasResult};
 use rand::distributions::Alphanumeric;
 use rand::Rng;
-use std::collections::HashMap;
 use std::fmt::Write;
 use std::ops::Deref;
+use std::{collections::HashMap, vec};
 
 use crate::{
     schema_helper::SchemaHelper, SnowflakeError, SnowflakeSchemaError, SnowflakeStreamError,
 };
 
-use super::helpers::is_network_failure;
 use super::pool::{Conn, Pool};
+use super::{helpers::is_network_failure, params::OdbcValue};
 
 fn convert_decimal(bytes: &[u8], scale: u16) -> Result<Field, SnowflakeSchemaError> {
     let is_negative = bytes[bytes.len() - 4] == 255;
@@ -150,13 +151,28 @@ pub fn convert_data(
     }
 }
 
+pub struct ClientConfig {
+    pub server: String,
+    pub port: Option<String>,
+    pub user: String,
+    pub password: String,
+
+    pub role: Option<String>,
+    pub driver: Option<String>,
+
+    pub warehouse: String,
+
+    pub database: Option<String>,
+    pub schema: Option<String>,
+}
+
 pub struct Client<'env> {
     pool: Pool<'env>,
     name: String,
 }
 
 impl<'env> Client<'env> {
-    pub fn new(config: SnowflakeConfig, env: &'env Environment<Odbc3>) -> Self {
+    pub fn new(config: ClientConfig, env: &'env Environment<Odbc3>) -> Self {
         let mut conn_hashmap: HashMap<String, String> = HashMap::new();
         let driver = match &config.driver {
             None => "Snowflake".to_string(),
@@ -165,13 +181,22 @@ impl<'env> Client<'env> {
 
         conn_hashmap.insert("Driver".to_string(), driver);
         conn_hashmap.insert("Server".to_string(), config.server);
-        conn_hashmap.insert("Port".to_string(), config.port);
+        conn_hashmap.insert(
+            "Port".to_string(),
+            config.port.unwrap_or_else(|| "443".to_string()),
+        );
         conn_hashmap.insert("Uid".to_string(), config.user);
         conn_hashmap.insert("Pwd".to_string(), config.password);
-        conn_hashmap.insert("Schema".to_string(), config.schema);
+        if let Some(schema) = config.schema {
+            conn_hashmap.insert("Schema".to_string(), schema);
+        }
         conn_hashmap.insert("Warehouse".to_string(), config.warehouse);
-        conn_hashmap.insert("Database".to_string(), config.database);
-        conn_hashmap.insert("Role".to_string(), config.role);
+        if let Some(database) = config.database {
+            conn_hashmap.insert("Database".to_string(), database);
+        }
+        if let Some(role) = config.role {
+            conn_hashmap.insert("Role".to_string(), role);
+        }
 
         let mut parts = vec![];
         conn_hashmap.keys().for_each(|k| {
@@ -195,11 +220,19 @@ impl<'env> Client<'env> {
     }
 
     pub fn exec(&self, query: &str) -> Result<(), SnowflakeError> {
-        exec_drop(&self.pool, query).map_err(SnowflakeError::QueryError)
+        exec_drop(&self.pool, query, &[]).map_err(SnowflakeError::QueryError)
+    }
+
+    pub fn exec_with_params(
+        &self,
+        query: &str,
+        params: &[OdbcValue],
+    ) -> Result<(), SnowflakeError> {
+        exec_drop(&self.pool, query, params).map_err(SnowflakeError::QueryError)
     }
 
     pub fn exec_stream_creation(&self, query: String) -> Result<bool, SnowflakeError> {
-        let result = exec_drop(&self.pool, &query);
+        let result = exec_drop(&self.pool, &query, &[]);
         result.map_or_else(
             |e| {
                 if e.get_native_error() == 2203 {
@@ -245,7 +278,7 @@ impl<'env> Client<'env> {
     }
 
     pub fn fetch(&self, query: String) -> Result<ExecIter<'env>, SnowflakeError> {
-        exec_iter(self.pool.clone(), query)
+        exec_iter(self.pool.clone(), query, vec![])
     }
 
     #[allow(clippy::type_complexity)]
@@ -275,7 +308,7 @@ impl<'env> Client<'env> {
             ORDER BY TABLE_NAME, ORDINAL_POSITION"
         );
 
-        let results = exec_iter(self.pool.clone(), query)?;
+        let results = exec_iter(self.pool.clone(), query, vec![])?;
         let mut schemas: IndexMap<String, (usize, Result<Schema, SnowflakeSchemaError>)> =
             IndexMap::new();
         for (idx, result) in results.enumerate() {
@@ -378,7 +411,7 @@ impl<'env> Client<'env> {
     pub fn fetch_keys(&self) -> Result<HashMap<String, Vec<String>>, SnowflakeError> {
         'retry: loop {
             let query = "SHOW PRIMARY KEYS IN SCHEMA".to_string();
-            let results = exec_iter(self.pool.clone(), query)?;
+            let results = exec_iter(self.pool.clone(), query, vec![])?;
             let mut keys: HashMap<String, Vec<String>> = HashMap::new();
             for result in results {
                 let row_data = match result {
@@ -398,6 +431,61 @@ impl<'env> Client<'env> {
                 keys.entry(table_name).or_default().push(column_name);
             }
             break Ok(keys);
+        }
+    }
+}
+
+impl From<SnowflakeConfig> for ClientConfig {
+    fn from(
+        SnowflakeConfig {
+            server,
+            port,
+            user,
+            password,
+            database,
+            schema,
+            warehouse,
+            driver,
+            role,
+            ..
+        }: SnowflakeConfig,
+    ) -> Self {
+        Self {
+            server,
+            port: Some(port),
+            user,
+            password,
+            role: Some(role),
+            driver,
+            warehouse,
+            database: Some(database),
+            schema: Some(schema),
+        }
+    }
+}
+
+impl From<SnowflakeSinkConfig> for ClientConfig {
+    fn from(
+        SnowflakeSinkConfig {
+            server,
+            port,
+            user,
+            password,
+            driver,
+            role,
+            warehouse,
+        }: SnowflakeSinkConfig,
+    ) -> Self {
+        Self {
+            server,
+            port,
+            user,
+            password,
+            role,
+            driver,
+            warehouse,
+            database: None,
+            schema: None,
         }
     }
 }
@@ -446,10 +534,10 @@ fn get_fields_from_cursor(
     Ok(values)
 }
 
-fn exec_drop(pool: &Pool, query: &str) -> Result<(), Box<DiagnosticRecord>> {
+fn exec_drop(pool: &Pool, query: &str, params: &[OdbcValue]) -> Result<(), Box<DiagnosticRecord>> {
     let conn = pool.get_conn()?;
     {
-        let _result = exec_helper(&conn, query)?;
+        let _result = exec_helper(&conn, query, params)?;
     }
     conn.return_();
     Ok(())
@@ -458,7 +546,7 @@ fn exec_drop(pool: &Pool, query: &str) -> Result<(), Box<DiagnosticRecord>> {
 fn exec_first_exists(pool: &Pool, query: &str) -> Result<bool, Box<DiagnosticRecord>> {
     loop {
         let conn = pool.get_conn()?;
-        let result = match exec_helper(&conn, query)? {
+        let result = match exec_helper(&conn, query, &[])? {
             Some(mut data) => retry!(data.fetch())?.is_some(),
             None => false,
         };
@@ -467,7 +555,11 @@ fn exec_first_exists(pool: &Pool, query: &str) -> Result<bool, Box<DiagnosticRec
     }
 }
 
-fn exec_iter(pool: Pool, query: String) -> Result<ExecIter, SnowflakeError> {
+fn exec_iter(
+    pool: Pool,
+    query: String,
+    params: Vec<OdbcValue>,
+) -> Result<ExecIter, SnowflakeError> {
     use genawaiter::{
         rc::{gen, Gen},
         yield_,
@@ -479,12 +571,13 @@ fn exec_iter(pool: Pool, query: String) -> Result<ExecIter, SnowflakeError> {
         'retry: loop {
             let conn = pool.get_conn().map_err(SnowflakeError::QueryError)?;
             {
-                let mut data = match exec_helper(&conn, &add_query_offset(&query, cursor_position)?)
-                    .map_err(SnowflakeError::QueryError)?
-                {
-                    Some(data) => data,
-                    None => break,
-                };
+                let mut data =
+                    match exec_helper(&conn, &add_query_offset(&query, cursor_position)?, &params)
+                        .map_err(SnowflakeError::QueryError)?
+                    {
+                        Some(data) => data,
+                        None => break,
+                    };
                 let cols = data
                     .num_result_cols()
                     .map_err(|e| SnowflakeError::QueryError(e.into()))?;
@@ -575,12 +668,15 @@ impl<'env> Iterator for ExecIter<'env> {
 fn exec_helper<'a>(
     conn: &'a Conn<'_>,
     query: &str,
-) -> Result<
-    Option<odbc::Statement<'a, 'static, Executed, HasResult, AutocommitOn>>,
-    Box<DiagnosticRecord>,
-> {
+    params: &'a [OdbcValue],
+) -> Result<Option<odbc::Statement<'a, 'a, Executed, HasResult, AutocommitOn>>, Box<DiagnosticRecord>>
+{
     loop {
-        let statement = retry!(odbc::Statement::with_parent(conn.deref()))?;
+        let mut statement = retry!(odbc::Statement::with_parent(conn.deref()))?;
+        for (i, param) in params.iter().enumerate() {
+            let parameter_index = i as u16 + 1;
+            statement = param.bind(statement, parameter_index)?
+        }
         let result = retry!(statement.exec_direct(query))?;
         break match result {
             odbc::ResultSetState::Data(data) => Ok(Some(data)),

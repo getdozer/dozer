@@ -27,7 +27,7 @@ async fn test_disabled_connector_and_read_from_stream() {
     };
 
     let env = create_environment_v3().map_err(|e| e.unwrap()).unwrap();
-    let client = Client::new(connection.clone(), &env);
+    let client = Client::new(connection.clone().into(), &env);
 
     let mut rng = rand::thread_rng();
     let table_name = format!("CUSTOMER_TEST_{}", rng.gen::<u32>());
@@ -80,7 +80,7 @@ async fn test_disabled_connector_get_schemas_test() {
     };
     let connector = SnowflakeConnector::new("snowflake".to_string(), connection.clone());
     let env = create_environment_v3().map_err(|e| e.unwrap()).unwrap();
-    let client = Client::new(connection, &env);
+    let client = Client::new(connection.into(), &env);
 
     let mut rng = rand::thread_rng();
     let table_name = format!("SCHEMA_MAPPING_TEST_{}", rng.gen::<u32>());
@@ -172,7 +172,7 @@ async fn test_disabled_connector_is_stream_created() {
     };
 
     let env = create_environment_v3().map_err(|e| e.unwrap()).unwrap();
-    let client = Client::new(connection, &env);
+    let client = Client::new(connection.into(), &env);
 
     let mut rng = rand::thread_rng();
     let table_name = format!("STREAM_EXIST_TEST_{}", rng.gen::<u32>());

@@ -8,7 +8,7 @@ pub fn remove_streams(
     table_name: &str,
 ) -> Result<bool, SnowflakeError> {
     let env = create_environment_v3().unwrap();
-    let client = Client::new(connection, &env);
+    let client = Client::new(connection.into(), &env);
 
     client.drop_stream(&StreamConsumer::get_stream_table_name(
         table_name,

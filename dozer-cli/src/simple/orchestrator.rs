@@ -278,7 +278,12 @@ impl SimpleOrchestrator {
         );
         futures.push(flatten_join_handle(pipeline_future).boxed());
         let dozer_lambda = self.clone();
-        futures.push(async move { dozer_lambda.run_lambda(shutdown).await }.boxed());
+        futures.push({
+            let shutdown = shutdown.clone();
+            async move { dozer_lambda.run_lambda(shutdown).await }.boxed()
+        });
+        let dozer_sinks = self.clone();
+        futures.push(async move { dozer_sinks.run_sinks(shutdown).await }.boxed());
 
         while let Some(result) = futures.next().await {
             result?;
@@ -311,6 +316,46 @@ impl SimpleOrchestrator {
         )
         .await?;
         runtime.run().await;
+        Ok(())
+    }
+
+    pub async fn run_sinks(&self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError> {
+        let mut futures = FuturesUnordered::new();
+        let app_server_url = app_url(&self.config.api.app_grpc);
+        for sink in self.config.sinks.iter() {
+            use dozer_types::models::sink_config::SinkConfig;
+            match sink {
+                SinkConfig::Snowflake(config) => {
+                    #[cfg(not(feature = "snowflake"))]
+                    {
+                        let _ = shutdown;
+                        let _ = config;
+                        let _ = app_server_url;
+                        futures.push(futures::future::ready(Ok::<(), OrchestrationError>(())));
+
+                        panic!("Dozer must be compiled with the \"snowflake\" feature to run the Snowflake sink");
+                    }
+                    #[cfg(feature = "snowflake")]
+                    {
+                        let mut sink = dozer_sinks::snowflake::SnowflakeSink::new(
+                            config.clone(),
+                            app_server_url.clone(),
+                        );
+                        let shutdown = shutdown.clone();
+                        let handle = tokio::spawn(async move {
+                            sink.run(shutdown).await;
+                            Ok::<(), OrchestrationError>(())
+                        });
+                        futures.push(flatten_join_handle(handle))
+                    }
+                }
+            }
+        }
+
+        while let Some(result) = futures.next().await {
+            result?;
+        }
+
         Ok(())
     }
 

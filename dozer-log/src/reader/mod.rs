@@ -164,7 +164,7 @@ impl LogClient {
         ))
     }
 
-    async fn get_log(&mut self, request: LogRequest) -> Result<Vec<LogOperation>, ReaderError> {
+    pub async fn get_log(&mut self, request: LogRequest) -> Result<Vec<LogOperation>, ReaderError> {
         // Send the request.
         let response = call_get_log_once(
             &self.request_sender,

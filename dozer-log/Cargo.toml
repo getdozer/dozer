@@ -23,6 +23,7 @@ tempdir = "0.3.7"
 tokio = { version = "1", features = ["full"] }
 tokio-stream = "0.1.14"
 tokio-util = { version = "0.7.8", features = ["io"] }
+serde_json = { version = "1.0.108", features = ["arbitrary_precision"] }
 
 [dev-dependencies]
 clap = { version = "4.4.1", features = ["derive"] }

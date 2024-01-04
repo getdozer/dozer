@@ -16,7 +16,7 @@ impl SchemaHelper {
         table_names: Option<&[String]>,
     ) -> Result<Vec<Result<(String, SourceSchema), SnowflakeError>>, SnowflakeError> {
         let env = create_environment_v3().map_err(|e| e.unwrap()).unwrap();
-        let client = Client::new(config.clone(), &env);
+        let client = Client::new(config.clone().into(), &env);
 
         let keys = client.fetch_keys()?;
 
