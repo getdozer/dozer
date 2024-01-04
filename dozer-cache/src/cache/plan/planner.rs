@@ -1,6 +1,6 @@
 use crate::cache::expression::{FilterExpression, Operator, SortDirection, SortOptions};
 use crate::errors::PlanError;
-use dozer_types::models::api_endpoint::{FullText, SecondaryIndex, SortedInverted};
+use dozer_types::models::endpoint::{FullText, SecondaryIndex, SortedInverted};
 use dozer_types::types::{Field, FieldDefinition, Schema};
 use dozer_types::types::{FieldType, IndexDefinition};
 use dozer_types::{json_value_to_field, serde_yaml};

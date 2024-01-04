@@ -2,7 +2,7 @@ use dozer_tracing::Labels;
 use dozer_types::serde_json::{json, Value};
 use dozer_types::types::{Field, Record, SchemaWithIndex, SourceDefinition};
 use dozer_types::{
-    models::api_endpoint::{ApiEndpoint, ApiIndex},
+    models::endpoint::{ApiEndpoint, ApiIndex},
     types::{FieldDefinition, FieldType, IndexDefinition, Schema},
 };
 
@@ -63,7 +63,6 @@ pub fn get_endpoint() -> ApiEndpoint {
             primary_key: vec!["film_id".to_string()],
             secondary: Default::default(),
         },
-        table_name: "film".to_string(),
         conflict_resolution: Default::default(),
         log_reader_options: Default::default(),
         version: None,

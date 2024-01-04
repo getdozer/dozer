@@ -59,6 +59,7 @@ sql: |
     ON table3.table3_id = table4.table4_id;
 
 endpoints:
-  - name: wildcard_res
-    table_name: wildcard_res
-    path: /wildcard_res
+  - table_name: wildcard_res
+    kind: !Api
+      name: wildcard_res
+      path: /wildcard_res

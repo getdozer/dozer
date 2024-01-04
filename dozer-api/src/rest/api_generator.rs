@@ -9,7 +9,7 @@ use dozer_cache::cache::CacheRecord;
 use dozer_cache::{CacheReader, Phase};
 use dozer_types::errors::types::CannotConvertF64ToJson;
 use dozer_types::indexmap::IndexMap;
-use dozer_types::models::api_endpoint::ApiEndpoint;
+use dozer_types::models::endpoint::ApiEndpoint;
 use dozer_types::types::{Field, Schema};
 use openapiv3::OpenAPI;
 

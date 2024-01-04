@@ -16,8 +16,8 @@ use dozer_types::{
     log::info,
     models::{
         api_config::{ApiConfig, AppGrpcOptions, GrpcApiOptions, RestApiOptions},
-        api_endpoint::ApiEndpoint,
         api_security::ApiSecurity,
+        endpoint::{ApiEndpoint, Endpoint, EndpointKind},
         flags::Flags,
     },
 };
@@ -27,7 +27,7 @@ use tokio::{runtime::Runtime, sync::RwLock};
 use crate::{
     cli::{init_config, init_dozer, types::Cli},
     errors::OrchestrationError,
-    pipeline::PipelineBuilder,
+    pipeline::{EndpointLog, EndpointLogKind, PipelineBuilder},
     simple::{helper::validate_config, Contract, SimpleOrchestrator},
 };
 
@@ -173,7 +173,13 @@ impl LiveState {
                 .config
                 .endpoints
                 .iter()
-                .map(|c| c.name.clone())
+                .filter_map(|endpoint| {
+                    if let EndpointKind::Api(api) = &endpoint.kind {
+                        Some(api.name.clone())
+                    } else {
+                        None
+                    }
+                })
                 .collect();
 
             let enable_api_security = std::env::var("DOZER_MASTER_SECRET")
@@ -343,7 +349,10 @@ pub async fn create_dag(dozer: &SimpleOrchestrator) -> Result<Dag, Orchestration
         .endpoints
         .iter()
         // We're not really going to run the pipeline, so we don't create logs.
-        .map(|endpoint| (endpoint.clone(), None))
+        .map(|endpoint| EndpointLog {
+            table_name: endpoint.table_name.clone(),
+            kind: EndpointLogKind::Dummy,
+        })
         .collect();
     let builder = PipelineBuilder::new(
         &dozer.config.connections,
@@ -400,11 +409,16 @@ fn get_dozer_run_instance(
             dozer.config.endpoints = vec![];
             let endpoints = context.output_tables_map.keys().collect::<Vec<_>>();
             for endpoint in endpoints {
-                let endpoint = ApiEndpoint {
-                    name: endpoint.to_string(),
+                let endpoint = Endpoint {
                     table_name: endpoint.to_string(),
-                    path: format!("/{}", endpoint),
-                    ..Default::default()
+                    kind: EndpointKind::Api(ApiEndpoint {
+                        name: endpoint.to_string(),
+                        path: format!("/{}", endpoint),
+                        index: Default::default(),
+                        conflict_resolution: Default::default(),
+                        version: Default::default(),
+                        log_reader_options: Default::default(),
+                    }),
                 };
                 dozer.config.endpoints.push(endpoint);
             }
@@ -413,11 +427,16 @@ fn get_dozer_run_instance(
             dozer.config.sql = None;
             dozer.config.endpoints = vec![];
             let endpoint = req.source;
-            dozer.config.endpoints.push(ApiEndpoint {
-                name: endpoint.to_string(),
+            dozer.config.endpoints.push(Endpoint {
                 table_name: endpoint.to_string(),
-                path: format!("/{}", endpoint),
-                ..Default::default()
+                kind: EndpointKind::Api(ApiEndpoint {
+                    name: endpoint.to_string(),
+                    path: format!("/{}", endpoint),
+                    index: Default::default(),
+                    conflict_resolution: Default::default(),
+                    version: Default::default(),
+                    log_reader_options: Default::default(),
+                }),
             });
         }
         None => {}

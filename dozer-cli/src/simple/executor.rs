@@ -5,7 +5,7 @@ use dozer_cache::dozer_log::home_dir::{BuildPath, HomeDir};
 use dozer_cache::dozer_log::replication::Log;
 use dozer_core::checkpoint::{CheckpointOptions, OptionCheckpoint};
 use dozer_tracing::LabelsAndProgress;
-use dozer_types::models::api_endpoint::ApiEndpoint;
+use dozer_types::models::endpoint::{ApiEndpoint, Endpoint, EndpointKind};
 use dozer_types::models::flags::Flags;
 use tokio::runtime::Runtime;
 use tokio::sync::Mutex;
@@ -15,7 +15,7 @@ use std::sync::{atomic::AtomicBool, Arc};
 use dozer_types::models::source::Source;
 use dozer_types::models::udf_config::UdfConfig;
 
-use crate::pipeline::PipelineBuilder;
+use crate::pipeline::{EndpointLog, EndpointLogKind, PipelineBuilder};
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 
 use dozer_types::models::connection::Connection;
@@ -29,10 +29,24 @@ pub struct Executor<'a> {
     sources: &'a [Source],
     sql: Option<&'a str>,
     checkpoint: OptionCheckpoint,
-    /// `ApiEndpoint` and its log.
-    endpoint_and_logs: Vec<(ApiEndpoint, LogEndpoint)>,
+    endpoints: Vec<ExecutorEndpoint>,
     labels: LabelsAndProgress,
     udfs: &'a [UdfConfig],
+}
+
+#[derive(Debug)]
+struct ExecutorEndpoint {
+    table_name: String,
+    kind: ExecutorEndpointKind,
+}
+
+#[derive(Debug)]
+enum ExecutorEndpointKind {
+    Api {
+        api: ApiEndpoint,
+        log_endpoint: LogEndpoint,
+    },
+    Dummy,
 }
 
 impl<'a> Executor<'a> {
@@ -45,7 +59,7 @@ impl<'a> Executor<'a> {
         connections: &'a [Connection],
         sources: &'a [Source],
         sql: Option<&'a str>,
-        api_endpoints: &'a [ApiEndpoint],
+        endpoints: &'a [Endpoint],
         checkpoint_options: CheckpointOptions,
         labels: LabelsAndProgress,
         udfs: &'a [UdfConfig],
@@ -60,11 +74,24 @@ impl<'a> Executor<'a> {
         let checkpoint =
             OptionCheckpoint::new(build_path.data_dir.to_string(), checkpoint_options).await?;
 
-        let mut endpoint_and_logs = vec![];
-        for endpoint in api_endpoints {
-            let log_endpoint =
-                create_log_endpoint(contract, &build_path, &endpoint.name, &checkpoint).await?;
-            endpoint_and_logs.push((endpoint.clone(), log_endpoint));
+        let mut executor_endpoints = vec![];
+        for endpoint in endpoints {
+            let kind = match &endpoint.kind {
+                EndpointKind::Api(api) => {
+                    let log_endpoint =
+                        create_log_endpoint(contract, &build_path, &api.name, &checkpoint).await?;
+                    ExecutorEndpointKind::Api {
+                        api: api.clone(),
+                        log_endpoint,
+                    }
+                }
+                EndpointKind::Dummy => ExecutorEndpointKind::Dummy,
+            };
+
+            executor_endpoints.push(ExecutorEndpoint {
+                table_name: endpoint.table_name.clone(),
+                kind,
+            });
         }
 
         Ok(Executor {
@@ -72,7 +99,7 @@ impl<'a> Executor<'a> {
             sources,
             sql,
             checkpoint,
-            endpoint_and_logs,
+            endpoints: executor_endpoints,
             labels,
             udfs,
         })
@@ -82,8 +109,17 @@ impl<'a> Executor<'a> {
         self.checkpoint.prefix()
     }
 
-    pub fn endpoint_and_logs(&self) -> &[(ApiEndpoint, LogEndpoint)] {
-        &self.endpoint_and_logs
+    pub fn endpoint_and_logs(&self) -> Vec<(ApiEndpoint, LogEndpoint)> {
+        self.endpoints
+            .iter()
+            .filter_map(|endpoint| {
+                if let ExecutorEndpointKind::Api { api, log_endpoint } = &endpoint.kind {
+                    Some((api.clone(), log_endpoint.clone()))
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 
     pub async fn create_dag_executor(
@@ -97,9 +133,21 @@ impl<'a> Executor<'a> {
             self.connections,
             self.sources,
             self.sql,
-            self.endpoint_and_logs
+            self.endpoints
                 .into_iter()
-                .map(|(endpoint, log)| (endpoint, Some(log.log)))
+                .map(|endpoint| {
+                    let kind = match endpoint.kind {
+                        ExecutorEndpointKind::Api { api, log_endpoint } => EndpointLogKind::Api {
+                            api,
+                            log: log_endpoint.log,
+                        },
+                        ExecutorEndpointKind::Dummy => EndpointLogKind::Dummy,
+                    };
+                    EndpointLog {
+                        table_name: endpoint.table_name,
+                        kind,
+                    }
+                })
                 .collect(),
             self.labels.clone(),
             flags,

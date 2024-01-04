@@ -35,6 +35,7 @@ sources:
     connection: ingest
 
 endpoints:
-  - name: users
-    path: /users
-    table_name: users
+  - table_name: users
+    kind: !Api
+      name: users
+      path: /users

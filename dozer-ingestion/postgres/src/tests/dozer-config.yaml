@@ -39,17 +39,9 @@ sources:
       - next_shares
     connection: stocks
 endpoints:
-  - name: stocks
-    path: /stocks
-    # Direct from source
-    table_name: stocks
-    index:
-      primary_key:
-        - id
-  - name: stocks_meta
-    path: /stocks-meta
-    # Direct from source
-    table_name: stocks_meta
-    index:
-      primary_key:
-        - symbol
+  # Direct from source
+  - table_name: stocks
+    kind: !Dummy
+  # Direct from source
+  - table_name: stocks_meta
+    kind: !Dummy

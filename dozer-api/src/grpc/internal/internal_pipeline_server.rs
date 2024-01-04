@@ -12,7 +12,7 @@ use dozer_types::log::info;
 use dozer_types::models::api_config::{
     default_app_grpc_host, default_app_grpc_port, AppGrpcOptions,
 };
-use dozer_types::models::api_endpoint::ApiEndpoint;
+use dozer_types::models::endpoint::ApiEndpoint;
 use dozer_types::tonic::transport::server::TcpIncoming;
 use dozer_types::tonic::transport::Server;
 use dozer_types::tonic::{self, Request, Response, Status, Streaming};

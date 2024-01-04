@@ -21,9 +21,9 @@ members = [
 resolver = "2"
 
 [workspace.dependencies]
-bincode = { version = "2.0.0-rc.3", features = ["derive"]}
-datafusion = { version = "33.0.0"}
-datafusion-expr = { version = "33.0.0"}
+bincode = { version = "2.0.0-rc.3", features = ["derive"] }
+datafusion = { version = "33.0.0" }
+datafusion-expr = { version = "33.0.0" }
 
 [patch.crates-io]
 postgres = { git = "https://github.com/getdozer/rust-postgres" }

@@ -24,9 +24,5 @@ sql: |
   FROM orders;
 
 endpoints:
-  - name: customers
-    path: /customers
-    table_name: customers_data
-    index:
-      primary_key:
-        - C_CUSTKEY
+  - table_name: customers_data
+    kind: !Dummy

@@ -3,9 +3,10 @@ use crate::console_helper::PURPLE;
 use crate::errors::OrchestrationError;
 use dozer_types::log::info;
 use dozer_types::models::api_config::ApiConfig;
-use dozer_types::models::api_endpoint::ApiEndpoint;
 use dozer_types::models::config::default_home_dir;
 use dozer_types::models::config::Config;
+use dozer_types::models::endpoint::Endpoint;
+use dozer_types::models::endpoint::EndpointKind;
 use dozer_types::prettytable::{row, Table};
 
 pub fn validate_config(config: &Config) -> Result<(), OrchestrationError> {
@@ -24,7 +25,7 @@ pub fn validate_config(config: &Config) -> Result<(), OrchestrationError> {
     Ok(())
 }
 
-pub fn validate_endpoints(endpoints: &[ApiEndpoint]) -> Result<(), OrchestrationError> {
+pub fn validate_endpoints(endpoints: &[Endpoint]) -> Result<(), OrchestrationError> {
     if endpoints.is_empty() {
         return Err(OrchestrationError::EmptyEndpoints);
     }
@@ -64,12 +65,14 @@ fn print_api_config(api_config: &ApiConfig) {
     );
 }
 
-pub fn print_api_endpoints(endpoints: &Vec<ApiEndpoint>) {
+pub fn print_api_endpoints(endpoints: &[Endpoint]) {
     let mut table_parent = Table::new();
 
     table_parent.add_row(row!["Path", "Name"]);
     for endpoint in endpoints {
-        table_parent.add_row(row![endpoint.path, endpoint.name]);
+        if let EndpointKind::Api(api) = &endpoint.kind {
+            table_parent.add_row(row![api.path, api.name]);
+        }
     }
     info!(
         "[API] {}\n{}",

@@ -6,7 +6,7 @@ use actix_http::{body::MessageBody, Request};
 use actix_web::dev::{Service, ServiceResponse};
 use actix_web::http::header::ContentType;
 use dozer_cache::Phase;
-use dozer_types::models::api_endpoint::ApiEndpoint;
+use dozer_types::models::endpoint::ApiEndpoint;
 use dozer_types::serde_json::{json, Value};
 use http::StatusCode;
 
@@ -197,15 +197,19 @@ async fn path_collision_test() {
     let first_endpoint = ApiEndpoint {
         name: "films".to_string(),
         path: "/foo".to_string(),
-        table_name: "film".to_string(),
-        ..Default::default()
+        index: Default::default(),
+        conflict_resolution: Default::default(),
+        version: Default::default(),
+        log_reader_options: Default::default(),
     };
 
     let second_endpoint = ApiEndpoint {
         name: "films_second".to_string(),
         path: "/foo/second".to_string(),
-        table_name: "film".to_string(),
-        ..Default::default()
+        index: Default::default(),
+        conflict_resolution: Default::default(),
+        version: Default::default(),
+        log_reader_options: Default::default(),
     };
 
     let api_server = ApiServer::create_app_entry(

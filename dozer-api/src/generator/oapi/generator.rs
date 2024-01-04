@@ -5,7 +5,7 @@ use dozer_types::indexmap::{self, IndexMap};
 use dozer_types::serde_json;
 use dozer_types::serde_json::Map;
 use dozer_types::types::{IndexDefinition, TimeUnit};
-use dozer_types::{models::api_endpoint::ApiEndpoint, types::FieldType};
+use dozer_types::{models::endpoint::ApiEndpoint, types::FieldType};
 use openapiv3::*;
 use serde_json::{json, Value};
 

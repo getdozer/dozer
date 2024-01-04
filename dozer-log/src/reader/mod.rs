@@ -9,7 +9,7 @@ use dozer_types::grpc_types::internal::{
     storage_response, BuildRequest, LogRequest, LogResponse, StorageRequest,
 };
 use dozer_types::log::debug;
-use dozer_types::models::api_endpoint::{
+use dozer_types::models::endpoint::{
     default_log_reader_batch_size, default_log_reader_buffer_size,
     default_log_reader_timeout_in_millis,
 };
