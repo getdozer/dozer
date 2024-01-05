@@ -1,3 +1,4 @@
+use std::num::ParseIntError;
 use std::string::FromUtf8Error;
 
 use dozer_ingestion_connector::dozer_types::{
@@ -206,4 +207,22 @@ pub enum PostgresSchemaError {
 
     #[error("Failed to read date. Error: {0}")]
     DateReadError(#[from] chrono::ParseError),
+
+    #[error(transparent)]
+    DateConversionError(#[from] DateConversionError),
+}
+
+#[derive(Error, Debug)]
+pub enum DateConversionError {
+    #[error("Failed to read error part. Error: {0}")]
+    FailedParseDate(#[from] ParseIntError),
+
+    #[error("Failed to convert date")]
+    InvalidDate,
+
+    #[error("Failed to convert time")]
+    InvalidTime,
+
+    #[error("Ambiguous date result")]
+    AmbiguousTimeResult,
 }
