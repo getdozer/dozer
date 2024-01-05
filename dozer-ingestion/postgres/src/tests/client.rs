@@ -46,7 +46,11 @@ impl TestPostgresClient {
                 id SERIAL PRIMARY KEY,
                 name VARCHAR(255) NOT NULL,
                 description VARCHAR(512),
-                weight DOUBLE PRECISION
+                weight_single REAL,
+                weight_double DOUBLE PRECISION,
+                index2 INT2,
+                index4 INT4,
+                index8 INT8
             );"
         ))
         .await;
@@ -84,15 +88,19 @@ impl TestPostgresClient {
                 buf.write_str(",").unwrap();
             }
             buf.write_fmt(format_args!(
-                "(\'Product {}\',\'Product {} description\',{})",
+                "(\'Product {}\',\'Product {} description\',{}, {}, {}, {}, {})",
                 i + offset,
                 i + offset,
-                Decimal::new((i * 41) as i64, 2)
+                Decimal::new((i * 41) as i64, 2),
+                Decimal::new((i * 41) as i64, 2),
+                i + offset,
+                i + offset,
+                i + offset,
             ))
             .unwrap();
         }
 
-        let query = format!("insert into {table_name}(name, description, weight) values {buf}",);
+        let query = format!("insert into {table_name}(name, description, weight_single, weight_double, index2, index4, index8) values {buf}",);
 
         self.execute_query(&query).await;
     }
