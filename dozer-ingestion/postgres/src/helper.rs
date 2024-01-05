@@ -12,11 +12,83 @@ use postgres_types::{Type, WasNull};
 use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
 use std::error::Error;
+use std::num::ParseIntError;
+
+use dozer_ingestion_connector::dozer_types::chrono::{LocalResult, NaiveTime};
 use std::vec;
 use tokio_postgres::{Column, Row};
 use uuid::Uuid;
 
-use crate::{xlog_mapper::TableColumn, PostgresConnectorError, PostgresSchemaError};
+use crate::DateConversionError::{AmbiguousTimeResult, InvalidDate, InvalidTime};
+use crate::{
+    xlog_mapper::TableColumn, DateConversionError, PostgresConnectorError, PostgresSchemaError,
+};
+
+fn parse_timezone_offset(offset_string: String) -> Result<Option<FixedOffset>, ParseIntError> {
+    let offset_string = format!("{:0<9}", offset_string);
+
+    let sign = &offset_string[0..1];
+    let hour = offset_string[1..3].parse::<i32>()?;
+    let min = offset_string[4..6].parse::<i32>()?;
+    let sec = offset_string[7..9].parse::<i32>()?;
+
+    let secs = (hour * 3600) + (min * 60) + sec;
+
+    if sign == "-" {
+        Ok(FixedOffset::west_opt(secs))
+    } else {
+        Ok(FixedOffset::east_opt(secs))
+    }
+}
+
+fn convert_date(date: String) -> Result<NaiveDateTime, DateConversionError> {
+    let date_string = format!("{:0<26}", date);
+
+    let year: i32 = date_string[0..4].parse()?;
+    let month: u32 = date_string[5..7].parse()?;
+    let day: u32 = date_string[8..10].parse()?;
+    let hour: u32 = date_string[11..13].parse()?;
+    let minute: u32 = date_string[14..16].parse()?;
+    let second: u32 = date_string[17..19].parse()?;
+    let microseconds = if date_string.len() == 19 {
+        0
+    } else {
+        date_string[20..26].parse()?
+    };
+
+    let naive_date = NaiveDate::from_ymd_opt(year, month, day).ok_or(InvalidDate)?;
+    let naive_time =
+        NaiveTime::from_hms_micro_opt(hour, minute, second, microseconds).ok_or(InvalidTime)?;
+
+    Ok(NaiveDateTime::new(naive_date, naive_time))
+}
+
+fn convert_date_with_timezone(date: String) -> Result<DateTime<FixedOffset>, DateConversionError> {
+    let pos_plus = date.rfind('+');
+    let pos_min = date.rfind('-');
+
+    let pos = match (pos_plus, pos_min) {
+        (Some(plus), Some(min)) => {
+            if plus > min {
+                plus
+            } else {
+                min
+            }
+        }
+        (None, Some(pos)) | (Some(pos), None) => pos,
+        (None, None) => 0,
+    };
+
+    let (date, offset_string) = date.split_at(pos);
+
+    let offset = parse_timezone_offset(offset_string.to_string())?.map_or(Utc.fix(), |x| x);
+
+    match convert_date(date.to_string())?.and_local_timezone(offset) {
+        LocalResult::None => Err(InvalidTime),
+        LocalResult::Single(date) => Ok(date),
+        LocalResult::Ambiguous(_, _) => Err(AmbiguousTimeResult),
+    }
+}
 
 pub fn postgres_type_to_field(
     value: Option<&Bytes>,
@@ -49,24 +121,16 @@ pub fn postgres_type_to_field(
         )),
         Type::TIMESTAMP => {
             let date_string = String::from_utf8(v.to_vec())?;
-            let format = if date_string.len() == 19 {
-                "%Y-%m-%d %H:%M:%S"
-            } else {
-                "%Y-%m-%d %H:%M:%S%.f"
-            };
-            let date = NaiveDateTime::parse_from_str(date_string.as_str(), format)?;
+
             Ok(Field::Timestamp(DateTime::from_naive_utc_and_offset(
-                date,
+                convert_date(date_string)?,
                 Utc.fix(),
             )))
         }
         Type::TIMESTAMPTZ => {
-            let date: DateTime<FixedOffset> = DateTime::parse_from_str(
-                String::from_utf8(v.to_vec()).unwrap().as_str(),
-                "%Y-%m-%d %H:%M:%S%.f%#z",
-            )
-            .unwrap();
-            Ok(Field::Timestamp(date))
+            let date_string = String::from_utf8(v.to_vec())?;
+
+            Ok(convert_date_with_timezone(date_string).map(Field::Timestamp)?)
         }
         Type::DATE => {
             let date: NaiveDate = NaiveDate::parse_from_str(
@@ -350,6 +414,32 @@ mod tests {
         );
         test_conversion!(
             "2022-09-16 10:56:30.959787+07",
+            Type::TIMESTAMPTZ,
+            Field::Timestamp(value)
+        );
+
+        let value = DateTime::from_naive_utc_and_offset(
+            NaiveDate::from_ymd_opt(2022, 9, 16)
+                .unwrap()
+                .and_hms_micro_opt(7, 56, 30, 959787)
+                .unwrap(),
+            Utc.fix(),
+        );
+        test_conversion!(
+            "2022-09-16 10:56:30.959787+03",
+            Type::TIMESTAMPTZ,
+            Field::Timestamp(value)
+        );
+
+        let value = DateTime::from_naive_utc_and_offset(
+            NaiveDate::from_ymd_opt(2022, 9, 16)
+                .unwrap()
+                .and_hms_micro_opt(14, 26, 30, 959787)
+                .unwrap(),
+            Utc.fix(),
+        );
+        test_conversion!(
+            "2022-09-16 10:56:30.959787-03:30",
             Type::TIMESTAMPTZ,
             Field::Timestamp(value)
         );
