@@ -24,7 +24,10 @@ use crate::{
     xlog_mapper::TableColumn, DateConversionError, PostgresConnectorError, PostgresSchemaError,
 };
 
+/// This function converts any offset string (+03, +03:00 and etc) to FixedOffset
+///
 fn parse_timezone_offset(offset_string: String) -> Result<Option<FixedOffset>, ParseIntError> {
+    // Fill right side with zeros when offset is not full length
     let offset_string = format!("{:0<9}", offset_string);
 
     let sign = &offset_string[0..1];
@@ -42,6 +45,7 @@ fn parse_timezone_offset(offset_string: String) -> Result<Option<FixedOffset>, P
 }
 
 fn convert_date(date: String) -> Result<NaiveDateTime, DateConversionError> {
+    // Fill right side with zeros when date time is not full
     let date_string = format!("{:0<26}", date);
 
     let year: i32 = date_string[0..4].parse()?;
@@ -64,6 +68,7 @@ fn convert_date(date: String) -> Result<NaiveDateTime, DateConversionError> {
 }
 
 fn convert_date_with_timezone(date: String) -> Result<DateTime<FixedOffset>, DateConversionError> {
+    // Find position of last + or -, which is the start of timezone offset
     let pos_plus = date.rfind('+');
     let pos_min = date.rfind('-');
 
