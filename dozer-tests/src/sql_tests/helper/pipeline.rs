@@ -107,6 +107,7 @@ impl SourceFactory for TestSourceFactory {
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
+        _last_checkpoint: SourceState,
     ) -> Result<Box<dyn Source>, BoxedError> {
         Ok(Box::new(TestSource {
             name_to_port: self.name_to_port.to_owned(),
@@ -122,11 +123,7 @@ pub struct TestSource {
 }
 
 impl Source for TestSource {
-    fn start(
-        &self,
-        fw: &mut dyn SourceChannelForwarder,
-        _last_checkpoint: SourceState,
-    ) -> Result<(), BoxedError> {
+    fn start(&self, fw: &mut dyn SourceChannelForwarder) -> Result<(), BoxedError> {
         while let Ok(Some((schema_name, op))) = self.receiver.recv() {
             let port = self.name_to_port.get(&schema_name).expect("port not found");
             fw.send(

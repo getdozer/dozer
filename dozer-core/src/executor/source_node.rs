@@ -17,7 +17,7 @@ use crate::{
     dag_schemas::EdgeKind,
     errors::ExecutionError,
     forwarder::SourceChannelManager,
-    node::{PortHandle, Source, SourceState},
+    node::{PortHandle, Source},
 };
 
 use super::{execution_dag::ExecutionDag, node::Node, ExecutorOptions};
@@ -35,8 +35,6 @@ pub struct SourceSenderNode {
     node_handle: NodeHandle,
     /// The source.
     source: Box<dyn Source>,
-    /// Last checkpointed output data sequence numbers.
-    last_checkpoint: SourceState,
     /// The forwarder that will be passed to the source for outputting data.
     forwarder: InternalChannelSourceForwarder,
 }
@@ -49,7 +47,7 @@ impl SourceSenderNode {
 
 impl Node for SourceSenderNode {
     fn run(mut self) -> Result<(), ExecutionError> {
-        let result = self.source.start(&mut self.forwarder, self.last_checkpoint);
+        let result = self.source.start(&mut self.forwarder);
         debug!("[{}-sender] Quit", self.node_handle);
         result.map_err(ExecutionError::Source)
     }
@@ -144,11 +142,7 @@ pub async fn create_source_nodes(
         panic!("Must pass in a node")
     };
     let node_handle = node.handle;
-    let NodeKind::Source {
-        source,
-        last_checkpoint,
-    } = node.kind
-    else {
+    let NodeKind::Source(source) = node.kind else {
         panic!("Must pass in a source node");
     };
     let port_names = dag
@@ -171,7 +165,6 @@ pub async fn create_source_nodes(
     let source_sender_node = SourceSenderNode {
         node_handle: node_handle.clone(),
         source,
-        last_checkpoint,
         forwarder,
     };
 

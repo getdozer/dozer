@@ -2,6 +2,7 @@ use crate::checkpoint::create_checkpoint_for_test;
 use crate::executor::DagExecutor;
 use crate::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Source, SourceFactory,
+    SourceState,
 };
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 
@@ -60,6 +61,7 @@ impl SourceFactory for CreateErrSourceFactory {
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
+        _last_checkpoint: SourceState,
     ) -> Result<Box<dyn Source>, BoxedError> {
         if self.panic {
             panic!("Generated error");

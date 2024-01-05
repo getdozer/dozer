@@ -181,14 +181,20 @@ impl SourceFactory for ConnectorSourceFactory {
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
+        mut last_checkpoint: SourceState,
     ) -> Result<Box<dyn Source>, BoxedError> {
+        // Construct the tables to ingest.
         let tables = self
             .tables
             .iter()
-            .map(|table| TableInfo {
-                schema: table.schema_name.clone(),
-                name: table.name.clone(),
-                column_names: table.columns.clone(),
+            .map(|table| {
+                let state = last_checkpoint.remove(&table.port).flatten();
+                TableToIngest {
+                    schema: table.schema_name.clone(),
+                    name: table.name.clone(),
+                    column_names: table.columns.clone(),
+                    state,
+                }
             })
             .collect();
         let ports = self.tables.iter().map(|table| table.port).collect();
@@ -221,7 +227,7 @@ impl SourceFactory for ConnectorSourceFactory {
 
 #[derive(Debug)]
 pub struct ConnectorSource {
-    tables: Vec<TableInfo>,
+    tables: Vec<TableToIngest>,
     ports: Vec<PortHandle>,
     connector: Box<dyn Connector>,
     runtime: Arc<Runtime>,
@@ -235,11 +241,7 @@ pub struct ConnectorSource {
 const SOURCE_OPERATION_COUNTER_NAME: &str = "source_operation";
 
 impl Source for ConnectorSource {
-    fn start(
-        &self,
-        fw: &mut dyn SourceChannelForwarder,
-        last_checkpoint: SourceState,
-    ) -> Result<(), BoxedError> {
+    fn start(&self, fw: &mut dyn SourceChannelForwarder) -> Result<(), BoxedError> {
         thread::scope(|scope| {
             describe_counter!(
                 SOURCE_OPERATION_COUNTER_NAME,
@@ -256,22 +258,6 @@ impl Source for ConnectorSource {
                     let shutdown_future = self.shutdown.create_shutdown_future();
                     let (abort_handle, abort_registration) = AbortHandle::new_pair();
 
-                    // Construct the tables to ingest.
-                    let tables = self
-                        .tables
-                        .iter()
-                        .zip(&self.ports)
-                        .map(|(table, port)| {
-                            let state = last_checkpoint.get(port).cloned().flatten();
-                            TableToIngest {
-                                schema: table.schema.clone(),
-                                name: table.name.clone(),
-                                column_names: table.column_names.clone(),
-                                state,
-                            }
-                        })
-                        .collect::<Vec<_>>();
-
                     // Abort the connector when we shut down
                     // TODO: pass a `CancellationToken` to the connector to allow
                     // it to gracefully shut down.
@@ -281,9 +267,11 @@ impl Source for ConnectorSource {
                         abort_handle.abort();
                         eprintln!("Aborted connector {}", name);
                     });
-                    let result =
-                        Abortable::new(self.connector.start(&ingestor, tables), abort_registration)
-                            .await;
+                    let result = Abortable::new(
+                        self.connector.start(&ingestor, self.tables.clone()),
+                        abort_registration,
+                    )
+                    .await;
                     match result {
                         Ok(Ok(_)) => {}
                         Ok(Err(e)) => {

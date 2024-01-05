@@ -75,8 +75,16 @@ impl SourceFactory for GeneratorSourceFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
+        last_checkpoint: SourceState,
     ) -> Result<Box<dyn Source>, BoxedError> {
+        let state = last_checkpoint.values().next().and_then(|state| {
+            state
+                .as_ref()
+                .map(|state| u64::from_be_bytes(state.0.as_slice().try_into().unwrap()))
+        });
+        let start = state.map(|state| state + 1).unwrap_or(0);
         Ok(Box::new(GeneratorSource {
+            start,
             count: self.count,
             running: self.running.clone(),
         }))
@@ -85,24 +93,14 @@ impl SourceFactory for GeneratorSourceFactory {
 
 #[derive(Debug)]
 pub(crate) struct GeneratorSource {
+    start: u64,
     count: u64,
     running: Arc<AtomicBool>,
 }
 
 impl Source for GeneratorSource {
-    fn start(
-        &self,
-        fw: &mut dyn SourceChannelForwarder,
-        last_checkpoint: SourceState,
-    ) -> Result<(), BoxedError> {
-        let state = last_checkpoint.values().next().and_then(|state| {
-            state
-                .as_ref()
-                .map(|state| u64::from_be_bytes(state.0.as_slice().try_into().unwrap()))
-        });
-        let start = state.map(|state| state + 1).unwrap_or(0);
-
-        for n in start..(start + self.count) {
+    fn start(&self, fw: &mut dyn SourceChannelForwarder) -> Result<(), BoxedError> {
+        for n in self.start..(self.start + self.count) {
             fw.send(
                 IngestionMessage::OperationEvent {
                     table_index: 0,
@@ -205,6 +203,7 @@ impl SourceFactory for DualPortGeneratorSourceFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
+        _last_checkpoint: SourceState,
     ) -> Result<Box<dyn Source>, BoxedError> {
         Ok(Box::new(DualPortGeneratorSource {
             count: self.count,
@@ -220,11 +219,7 @@ pub(crate) struct DualPortGeneratorSource {
 }
 
 impl Source for DualPortGeneratorSource {
-    fn start(
-        &self,
-        fw: &mut dyn SourceChannelForwarder,
-        _last_checkpoint: SourceState,
-    ) -> Result<(), BoxedError> {
+    fn start(&self, fw: &mut dyn SourceChannelForwarder) -> Result<(), BoxedError> {
         for n in 1..(self.count + 1) {
             fw.send(
                 IngestionMessage::OperationEvent {
@@ -285,6 +280,7 @@ impl SourceFactory for ConnectivityTestSourceFactory {
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
+        _last_checkpoint: SourceState,
     ) -> Result<Box<dyn Source>, BoxedError> {
         unimplemented!("This struct is for connectivity test, only output ports are defined")
     }

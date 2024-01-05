@@ -1,5 +1,6 @@
 use crate::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Source, SourceFactory,
+    SourceState,
 };
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use dozer_recordstore::ProcessorRecordStoreDeserializer;
@@ -38,6 +39,7 @@ impl SourceFactory for DynPortsSourceFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
+        _last_checkpoint: SourceState,
     ) -> Result<Box<dyn Source>, BoxedError> {
         todo!()
     }

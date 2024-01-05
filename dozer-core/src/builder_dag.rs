@@ -10,7 +10,7 @@ use crate::{
     checkpoint::OptionCheckpoint,
     dag_schemas::{DagHaveSchemas, DagSchemas, EdgeType},
     errors::ExecutionError,
-    node::{Processor, Sink, Source, SourceState},
+    node::{Processor, Sink, Source},
     NodeKind as DagNodeKind,
 };
 
@@ -26,10 +26,7 @@ pub struct NodeType {
 #[derive(Debug)]
 /// Node kind, source, processor or sink. Source has a checkpoint to start from.
 pub enum NodeKind {
-    Source {
-        source: Box<dyn Source>,
-        last_checkpoint: SourceState,
-    },
+    Source(Box<dyn Source>),
     Processor(Box<dyn Processor>),
     Sink(Box<dyn Sink>),
 }
@@ -91,15 +88,13 @@ impl BuilderDag {
                             output_schemas
                                 .remove(&node_index)
                                 .expect("we collected all output schemas"),
+                            last_checkpoint,
                         )
                         .map_err(ExecutionError::Factory)?;
 
                     NodeType {
                         handle: node.handle,
-                        kind: NodeKind::Source {
-                            source,
-                            last_checkpoint,
-                        },
+                        kind: NodeKind::Source(source),
                     }
                 }
                 DagNodeKind::Processor(processor) => {
