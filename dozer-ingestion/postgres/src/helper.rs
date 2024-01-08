@@ -8,7 +8,7 @@ use dozer_ingestion_connector::dozer_types::{
     rust_decimal, serde_json,
     types::*,
 };
-use postgres_types::{Type, WasNull};
+use postgres_types::{FromSql, Type, WasNull};
 use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
 use std::error::Error;
@@ -217,65 +217,103 @@ fn handle_error(e: tokio_postgres::error::Error) -> Result<Field, PostgresSchema
     }
 }
 
-macro_rules! convert_row_value_to_field {
-    ($a:ident, $b:ident, $c:ty) => {{
-        let value: Result<$c, _> = $a.try_get($b);
-        value.map_or_else(handle_error, |val| Ok(Field::from(val)))
-    }};
+macro_rules! conversion_fn {
+    ($name:ident, $typ:expr) => {
+        fn $name(row: &Row, idx: usize) -> Result<Field, PostgresSchemaError> {
+            row.try_get(idx).map($typ).or_else(handle_error)
+        }
+    };
 }
 
-pub fn value_to_field(
-    row: &Row,
+conversion_fn!(convert_bool, Field::Boolean);
+conversion_fn!(convert_string, Field::String);
+conversion_fn!(convert_timestamp, |v: NaiveDateTime| Field::Timestamp(
+    v.and_utc().fixed_offset()
+));
+conversion_fn!(convert_timestamptz, Field::Timestamp);
+conversion_fn!(convert_date_snapshot, Field::Date);
+conversion_fn!(convert_binary, Field::Binary);
+conversion_fn!(convert_point, |v: GeoPoint| Field::Point(v.x_y().into()));
+conversion_fn!(convert_decimal, Field::Decimal);
+
+#[inline(always)]
+fn convert_int<'a, T: Into<i64> + FromSql<'a>>(
+    row: &'a Row,
     idx: usize,
-    col_type: &Type,
 ) -> Result<Field, PostgresSchemaError> {
+    row.try_get(idx)
+        .map(|v: T| Field::Int(v.into()))
+        .or_else(handle_error)
+}
+
+fn convert_int2(row: &Row, idx: usize) -> Result<Field, PostgresSchemaError> {
+    convert_int::<i16>(row, idx)
+}
+fn convert_int4(row: &Row, idx: usize) -> Result<Field, PostgresSchemaError> {
+    convert_int::<i32>(row, idx)
+}
+fn convert_int8(row: &Row, idx: usize) -> Result<Field, PostgresSchemaError> {
+    convert_int::<i64>(row, idx)
+}
+
+conversion_fn!(convert_float, |v: f32| Field::Float(OrderedFloat(v.into())));
+conversion_fn!(convert_double, |v| Field::Float(OrderedFloat(v)));
+
+fn convert_json(row: &Row, idx: usize) -> Result<Field, PostgresSchemaError> {
+    let value: Result<serde_json::Value, _> = row.try_get(idx);
+    value.map_or_else(handle_error, |val| {
+        Ok(Field::Json(serde_json_to_json_value(val).map_err(|e| {
+            PostgresSchemaError::TypeError(TypeError::DeserializationError(e))
+        })?))
+    })
+}
+fn convert_jsonarray(row: &Row, idx: usize) -> Result<Field, PostgresSchemaError> {
+    let value: Result<Vec<serde_json::Value>, _> = row.try_get(idx);
+    value.map_or_else(handle_error, |val| {
+        let field = val
+            .into_iter()
+            .map(serde_json_to_json_value)
+            .collect::<Result<JsonArray, _>>()
+            .map_err(TypeError::DeserializationError)?;
+        Ok(Field::Json(field.into()))
+    })
+}
+fn convert_textarray(row: &Row, idx: usize) -> Result<Field, PostgresSchemaError> {
+    let value: Result<Vec<String>, _> = row.try_get(idx);
+    value.map_or_else(handle_error, |val| Ok(Field::Json(val.into())))
+}
+
+fn convert_uuid(row: &Row, idx: usize) -> Result<Field, PostgresSchemaError> {
+    let value: Result<Uuid, _> = row.try_get(idx);
+    value.map_or_else(handle_error, |val| Ok(Field::from(val.to_string())))
+}
+
+type ConversionFn = fn(&Row, usize) -> Result<Field, PostgresSchemaError>;
+
+pub fn get_conversion_fn(col_type: &Type) -> Result<ConversionFn, PostgresSchemaError> {
     match col_type {
-        &Type::BOOL => convert_row_value_to_field!(row, idx, bool),
-        &Type::INT2 => convert_row_value_to_field!(row, idx, i16),
-        &Type::INT4 => convert_row_value_to_field!(row, idx, i32),
-        &Type::INT8 => convert_row_value_to_field!(row, idx, i64),
+        &Type::BOOL => Ok(convert_bool),
+        &Type::INT2 => Ok(convert_int2),
+        &Type::INT4 => Ok(convert_int4),
+        &Type::INT8 => Ok(convert_int8),
         &Type::CHAR | &Type::TEXT | &Type::VARCHAR | &Type::BPCHAR | &Type::ANYENUM => {
-            convert_row_value_to_field!(row, idx, String)
+            Ok(convert_string)
         }
-        &Type::FLOAT4 => convert_row_value_to_field!(row, idx, f32),
-        &Type::FLOAT8 => convert_row_value_to_field!(row, idx, f64),
-        &Type::TIMESTAMP => convert_row_value_to_field!(row, idx, NaiveDateTime),
-        &Type::TIMESTAMPTZ => convert_row_value_to_field!(row, idx, DateTime<FixedOffset>),
-        &Type::NUMERIC => convert_row_value_to_field!(row, idx, Decimal),
-        &Type::DATE => convert_row_value_to_field!(row, idx, NaiveDate),
-        &Type::BYTEA => {
-            let value: Result<Vec<u8>, _> = row.try_get(idx);
-            value.map_or_else(handle_error, |v| Ok(Field::Binary(v)))
-        }
-        &Type::JSONB | &Type::JSON => {
-            let value: Result<serde_json::Value, _> = row.try_get(idx);
-            value.map_or_else(handle_error, |val| {
-                Ok(Field::Json(serde_json_to_json_value(val).map_err(|e| {
-                    PostgresSchemaError::TypeError(TypeError::DeserializationError(e))
-                })?))
-            })
-        }
-        &Type::JSONB_ARRAY | &Type::JSON_ARRAY => {
-            let value: Result<Vec<serde_json::Value>, _> = row.try_get(idx);
-            value.map_or_else(handle_error, |val| {
-                let field = val
-                    .into_iter()
-                    .map(serde_json_to_json_value)
-                    .collect::<Result<JsonArray, _>>()
-                    .map_err(TypeError::DeserializationError)?;
-                Ok(Field::Json(field.into()))
-            })
-        }
+        &Type::FLOAT4 => Ok(convert_float),
+        &Type::FLOAT8 => Ok(convert_double),
+        &Type::TIMESTAMP => Ok(convert_timestamp),
+        &Type::TIMESTAMPTZ => Ok(convert_timestamptz),
+        &Type::NUMERIC => Ok(convert_decimal),
+        &Type::DATE => Ok(convert_date_snapshot),
+        &Type::BYTEA => Ok(convert_binary),
+        &Type::JSONB | &Type::JSON => Ok(convert_json),
+        &Type::JSONB_ARRAY | &Type::JSON_ARRAY => Ok(convert_jsonarray),
         &Type::CHAR_ARRAY | &Type::TEXT_ARRAY | &Type::VARCHAR_ARRAY | &Type::BPCHAR_ARRAY => {
-            let value: Result<Vec<String>, _> = row.try_get(idx);
-            value.map_or_else(handle_error, |val| Ok(Field::Json(val.into())))
+            Ok(convert_textarray)
         }
-        &Type::POINT => convert_row_value_to_field!(row, idx, GeoPoint),
+        &Type::POINT => Ok(convert_point),
         // &Type::UUID => convert_row_value_to_field!(row, idx, Uuid),
-        &Type::UUID => {
-            let value: Result<Uuid, _> = row.try_get(idx);
-            value.map_or_else(handle_error, |val| Ok(Field::from(val.to_string())))
-        }
+        &Type::UUID => Ok(convert_uuid),
         _ => {
             if col_type.schema() == "pg_catalog" {
                 Err(PostgresSchemaError::ColumnTypeNotSupported(
@@ -290,28 +328,24 @@ pub fn value_to_field(
     }
 }
 
-pub fn get_values(row: &Row, columns: &[Column]) -> Result<Vec<Field>, PostgresSchemaError> {
-    let mut values: Vec<Field> = vec![];
-    for (idx, col) in columns.iter().enumerate() {
-        let val = value_to_field(row, idx, col.type_());
-        match val {
-            Ok(val) => values.push(val),
-            Err(e) => return Err(e),
-        };
+pub fn get_values(
+    row: &Row,
+    conversion: &[ConversionFn],
+) -> Result<Vec<Field>, PostgresSchemaError> {
+    let mut values: Vec<Field> = Vec::with_capacity(conversion.len());
+    for (idx, fun) in conversion.iter().enumerate() {
+        values.push(fun(row, idx)?)
     }
     Ok(values)
 }
 
 pub fn map_row_to_operation_event(
     row: &Row,
-    columns: &[Column],
+    conversion: &[ConversionFn],
 ) -> Result<Operation, PostgresSchemaError> {
-    match get_values(row, columns) {
-        Ok(values) => Ok(Operation::Insert {
-            new: Record::new(values),
-        }),
-        Err(e) => Err(e),
-    }
+    get_values(row, conversion).map(|values| Operation::Insert {
+        new: Record::new(values),
+    })
 }
 
 pub fn map_schema(columns: &[Column]) -> Result<Schema, PostgresConnectorError> {

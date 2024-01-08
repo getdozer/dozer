@@ -3,21 +3,19 @@ use dozer_ingestion_connector::utils::ListOrFilterColumns;
 use rand::Rng;
 use serial_test::serial;
 use std::collections::HashSet;
-use std::hash::Hash;
 
 use crate::schema::helper::SchemaHelper;
 use crate::test_utils::load_test_connection_config;
 use crate::tests::client::TestPostgresClient;
 use crate::{PostgresConnectorError, PostgresSchemaError};
 
-fn assert_vec_eq<T>(a: &[T], b: &[T]) -> bool
-where
-    T: Eq + Hash,
-{
-    let a: HashSet<_> = a.iter().collect();
-    let b: HashSet<_> = b.iter().collect();
+macro_rules! assert_vec_eq {
+    ($a:expr, $b:expr) => {{
+        let a: HashSet<_> = $a.iter().cloned().collect();
+        let b: HashSet<_> = $b.iter().cloned().collect();
 
-    a == b
+        assert_eq!(a, b)
+    }};
 }
 
 #[tokio::test]
@@ -40,15 +38,19 @@ async fn test_connector_get_tables() {
 
     let table = result.first().unwrap();
     assert_eq!(table_name, table.name);
-    assert!(assert_vec_eq(
+    assert_vec_eq!(
         &[
             "name".to_string(),
             "description".to_string(),
-            "weight".to_string(),
+            "weight_single".to_string(),
+            "weight_double".to_string(),
             "id".to_string(),
+            "index2".to_string(),
+            "index4".to_string(),
+            "index8".to_string(),
         ],
         &table.columns
-    ));
+    );
 
     client.drop_schema(&schema).await;
 }
@@ -78,10 +80,7 @@ async fn test_connector_get_schema_with_selected_columns() {
 
     let table = result.first().unwrap();
     assert_eq!(table_name, table.name);
-    assert!(assert_vec_eq(
-        &["name".to_string(), "id".to_string()],
-        &table.columns
-    ));
+    assert_vec_eq!(&["name".to_string(), "id".to_string()], &table.columns);
 
     client.drop_schema(&schema).await;
 }
@@ -111,15 +110,19 @@ async fn test_connector_get_schema_without_selected_columns() {
 
     let table = result.first().unwrap();
     assert_eq!(table_name, table.name.clone());
-    assert!(assert_vec_eq(
+    assert_vec_eq!(
         &[
             "id".to_string(),
             "name".to_string(),
             "description".to_string(),
-            "weight".to_string(),
+            "weight_single".to_string(),
+            "weight_double".to_string(),
+            "index2".to_string(),
+            "index4".to_string(),
+            "index8".to_string(),
         ],
         &table.columns
-    ));
+    );
 
     client.drop_schema(&schema).await;
 }

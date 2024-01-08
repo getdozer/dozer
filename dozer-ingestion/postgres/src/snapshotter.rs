@@ -14,7 +14,8 @@ use dozer_ingestion_connector::{
 };
 
 use crate::{
-    connection::helper as connection_helper, schema::helper::SchemaHelper, PostgresConnectorError,
+    connection::helper as connection_helper, helper::get_conversion_fn,
+    schema::helper::SchemaHelper, PostgresConnectorError,
 };
 
 use super::helper;
@@ -57,6 +58,10 @@ impl<'a> PostgresSnapshotter<'a> {
             .await
             .map_err(PostgresConnectorError::InvalidQueryError)?;
         let columns = stmt.columns();
+        let conversions: Vec<_> = columns
+            .iter()
+            .map(|col| get_conversion_fn(col.type_()))
+            .collect::<Result<Vec<_>, _>>()?;
 
         let empty_vec: Vec<String> = Vec::new();
         let row_stream = client_plain
@@ -67,7 +72,7 @@ impl<'a> PostgresSnapshotter<'a> {
         while let Some(msg) = row_stream.next().await {
             match msg {
                 Ok(msg) => {
-                    let evt = helper::map_row_to_operation_event(&msg, columns)
+                    let evt = helper::map_row_to_operation_event(&msg, &conversions)
                         .map_err(PostgresConnectorError::PostgresSchemaError)?;
 
                     let Ok(_) = sender.send(Ok((table_index, evt))).await else {
@@ -208,9 +213,7 @@ mod tests {
             schema: None,
         };
 
-        let actual = snapshotter.sync_tables(&input_tables).await;
-
-        assert!(actual.is_ok());
+        snapshotter.sync_tables(&input_tables).await.unwrap();
 
         let mut i = 0;
         while i < 2 {

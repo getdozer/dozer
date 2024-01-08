@@ -3984,6 +3984,7 @@ dependencies = [
  "rustls 0.21.9",
  "rustls-native-certs",
  "serial_test 1.0.0",
+ "tokio",
  "tokio-postgres",
  "tokio-postgres-rustls",
  "uuid",
