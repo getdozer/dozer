@@ -1,11 +1,12 @@
 use dozer_log::{storage::Object, tokio::sync::mpsc::error::SendError};
-use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore, ProcessorRecordStoreDeserializer};
+use dozer_recordstore::{ProcessorRecordStore, ProcessorRecordStoreDeserializer};
 use dozer_types::{
     bincode::{
         self,
         config::{Fixint, LittleEndian, NoLimit},
     },
     thiserror::{self, Error},
+    types::Record,
 };
 
 const CONFIG: bincode::config::Configuration<LittleEndian, Fixint, NoLimit> =
@@ -92,18 +93,16 @@ pub fn deserialize_bincode<T: bincode::Decode>(
 }
 
 pub fn serialize_record(
-    record: &ProcessorRecord,
-    record_store: &ProcessorRecordStore,
+    record: &Record,
+    _record_store: &ProcessorRecordStore,
     object: &mut Object,
 ) -> Result<(), SerializationError> {
-    serialize_vec_u8(&record_store.serialize_record(record)?, object)
+    serialize_bincode(record, object)
 }
 
 pub fn deserialize_record(
     cursor: &mut Cursor,
-    record_store: &ProcessorRecordStoreDeserializer,
-) -> Result<ProcessorRecord, DeserializationError> {
-    record_store
-        .deserialize_record(deserialize_vec_u8(cursor)?)
-        .map_err(Into::into)
+    _record_store: &ProcessorRecordStoreDeserializer,
+) -> Result<Record, DeserializationError> {
+    deserialize_bincode(cursor)
 }

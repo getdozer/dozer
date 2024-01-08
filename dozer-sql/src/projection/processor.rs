@@ -5,7 +5,6 @@ use dozer_sql_expression::execution::Expression;
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::dozer_log::storage::Object;
 use dozer_core::epoch::Epoch;
-use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_recordstore::ProcessorRecordStore;
@@ -85,17 +84,15 @@ impl Processor for ProjectionProcessor {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        record_store: &ProcessorRecordStore,
-        op: ProcessorOperation,
+        _record_store: &ProcessorRecordStore,
+        op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
-        let op = op.load(record_store)?;
         let output_op = match op {
             Operation::Delete { ref old } => self.delete(old)?,
             Operation::Insert { ref new } => self.insert(new)?,
             Operation::Update { ref old, ref new } => self.update(old, new)?,
         };
-        let output_op = ProcessorOperation::new(&output_op, record_store)?;
         fw.send(output_op, DEFAULT_PORT_HANDLE);
         Ok(())
     }

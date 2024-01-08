@@ -6,15 +6,14 @@ use dozer_cache::dozer_log::{
 };
 use dozer_core::{
     epoch::Epoch,
-    executor_operation::ProcessorOperation,
     node::{PortHandle, Sink, SinkFactory},
     DEFAULT_PORT_HANDLE,
 };
 use dozer_recordstore::ProcessorRecordStore;
 use dozer_tracing::LabelsAndProgress;
-use dozer_types::errors::internal::BoxedError;
 use dozer_types::indicatif::ProgressBar;
 use dozer_types::types::Schema;
+use dozer_types::{errors::internal::BoxedError, types::Operation};
 use tokio::{runtime::Runtime, sync::Mutex};
 
 #[derive(Debug)]
@@ -87,14 +86,13 @@ impl Sink for LogSink {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        record_store: &ProcessorRecordStore,
-        op: ProcessorOperation,
+        _record_store: &ProcessorRecordStore,
+        op: Operation,
     ) -> Result<(), BoxedError> {
-        let end = self.runtime.block_on(self.log.lock()).write(
-            dozer_cache::dozer_log::replication::LogOperation::Op {
-                op: op.load(record_store)?,
-            },
-        );
+        let end = self
+            .runtime
+            .block_on(self.log.lock())
+            .write(dozer_cache::dozer_log::replication::LogOperation::Op { op });
         self.pb.set_position(end as u64);
         Ok(())
     }

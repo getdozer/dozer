@@ -2,14 +2,10 @@ use crate::checkpoint::serialize::{
     deserialize_record, deserialize_u64, deserialize_vec_u8, serialize_record, serialize_u64,
     serialize_vec_u8, Cursor, DeserializationError, SerializationError,
 };
-use crate::executor_operation::ProcessorOperation;
 use dozer_log::storage::Object;
-use dozer_recordstore::{
-    ProcessorRecord, ProcessorRecordStore, ProcessorRecordStoreDeserializer, RecordStoreError,
-    StoreRecord,
-};
+use dozer_recordstore::{ProcessorRecordStore, ProcessorRecordStoreDeserializer, RecordStoreError};
 use dozer_types::thiserror::{self, Error};
-use dozer_types::types::Schema;
+use dozer_types::types::{Operation, Record, Schema};
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 
@@ -25,8 +21,8 @@ pub trait RecordWriter: Send + Sync {
     fn write(
         &mut self,
         record_store: &ProcessorRecordStore,
-        op: ProcessorOperation,
-    ) -> Result<ProcessorOperation, RecordWriterError>;
+        op: Operation,
+    ) -> Result<Operation, RecordWriterError>;
     fn serialize(
         &self,
         record_store: &ProcessorRecordStore,
@@ -56,7 +52,7 @@ pub fn create_record_writer(
 #[derive(Debug)]
 pub(crate) struct PrimaryKeyLookupRecordWriter {
     schema: Schema,
-    index: HashMap<Vec<u8>, ProcessorRecord>,
+    index: HashMap<Vec<u8>, Record>,
 }
 
 impl PrimaryKeyLookupRecordWriter {
@@ -91,38 +87,34 @@ impl PrimaryKeyLookupRecordWriter {
 impl RecordWriter for PrimaryKeyLookupRecordWriter {
     fn write(
         &mut self,
-        record_store: &ProcessorRecordStore,
-        op: ProcessorOperation,
-    ) -> Result<ProcessorOperation, RecordWriterError> {
+        _record_store: &ProcessorRecordStore,
+        op: Operation,
+    ) -> Result<Operation, RecordWriterError> {
         match op {
-            ProcessorOperation::Insert { new } => {
-                let new_record = record_store.load_record(&new)?;
-                let new_key = new_record.get_key(&self.schema.primary_index);
+            Operation::Insert { new } => {
+                let new_key = new.get_key(&self.schema.primary_index);
                 self.index.insert(new_key, new.clone());
-                Ok(ProcessorOperation::Insert { new })
+                Ok(Operation::Insert { new })
             }
-            ProcessorOperation::Delete { mut old } => {
-                let old_record = record_store.load_record(&old)?;
-                let old_key = old_record.get_key(&self.schema.primary_index);
+            Operation::Delete { mut old } => {
+                let old_key = old.get_key(&self.schema.primary_index);
                 old = self
                     .index
                     .remove_entry(&old_key)
                     .ok_or(RecordWriterError::RecordNotFound)?
                     .1;
-                Ok(ProcessorOperation::Delete { old })
+                Ok(Operation::Delete { old })
             }
-            ProcessorOperation::Update { mut old, new } => {
-                let old_record = record_store.load_record(&old)?;
-                let old_key = old_record.get_key(&self.schema.primary_index);
+            Operation::Update { mut old, new } => {
+                let old_key = old.get_key(&self.schema.primary_index);
                 old = self
                     .index
                     .remove_entry(&old_key)
                     .ok_or(RecordWriterError::RecordNotFound)?
                     .1;
-                let new_record = record_store.load_record(&new)?;
-                let new_key = new_record.get_key(&self.schema.primary_index);
+                let new_key = new.get_key(&self.schema.primary_index);
                 self.index.insert(new_key, new.clone());
-                Ok(ProcessorOperation::Update { old, new })
+                Ok(Operation::Update { old, new })
             }
         }
     }

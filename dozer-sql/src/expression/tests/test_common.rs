@@ -1,20 +1,19 @@
 use crate::tests::utils::create_test_runtime;
 use crate::{projection::factory::ProjectionProcessorFactory, tests::utils::get_select};
 use dozer_core::channels::ProcessorChannelForwarder;
-use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::ProcessorFactory;
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_recordstore::{ProcessorRecordStoreDeserializer, StoreRecord};
-use dozer_types::types::Record;
+use dozer_recordstore::ProcessorRecordStoreDeserializer;
 use dozer_types::types::{Field, Schema};
+use dozer_types::types::{Operation, Record};
 use std::collections::HashMap;
 
 struct TestChannelForwarder {
-    operations: Vec<ProcessorOperation>,
+    operations: Vec<Operation>,
 }
 
 impl ProcessorChannelForwarder for TestChannelForwarder {
-    fn send(&mut self, op: ProcessorOperation, _port: dozer_core::node::PortHandle) {
+    fn send(&mut self, op: Operation, _port: dozer_core::node::PortHandle) {
         self.operations.push(op);
     }
 }
@@ -54,19 +53,15 @@ pub(crate) fn run_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Field {
 
     let mut fw = TestChannelForwarder { operations: vec![] };
     let rec = Record::new(input);
-    let rec = record_store.create_record(&rec).unwrap();
 
-    let op = ProcessorOperation::Insert { new: rec };
+    let op = Operation::Insert { new: rec };
 
     processor
         .process(DEFAULT_PORT_HANDLE, &record_store, op, &mut fw)
         .unwrap();
 
-    match &fw.operations[0] {
-        ProcessorOperation::Insert { new } => {
-            let mut new = record_store.load_record(new).unwrap();
-            new.values.remove(0)
-        }
+    match &mut fw.operations[0] {
+        Operation::Insert { new } => new.values.remove(0),
         _ => panic!("Unable to find result value"),
     }
 }

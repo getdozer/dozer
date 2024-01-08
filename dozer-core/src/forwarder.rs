@@ -3,7 +3,7 @@ use crate::epoch::{Epoch, EpochManager};
 use crate::error_manager::ErrorManager;
 use crate::errors::ExecutionError;
 use crate::errors::ExecutionError::InvalidPortHandle;
-use crate::executor_operation::{ExecutorOperation, ProcessorOperation};
+use crate::executor_operation::ExecutorOperation;
 use crate::node::PortHandle;
 use crate::record_store::RecordWriter;
 
@@ -12,6 +12,7 @@ use dozer_recordstore::ProcessorRecordStore;
 use dozer_types::log::debug;
 use dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_types::node::{NodeHandle, TableState};
+use dozer_types::types::Operation;
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::Arc;
@@ -28,11 +29,7 @@ pub struct ChannelManager {
 
 impl ChannelManager {
     #[inline]
-    fn send_op(
-        &mut self,
-        mut op: ProcessorOperation,
-        port_id: PortHandle,
-    ) -> Result<(), ExecutionError> {
+    fn send_op(&mut self, mut op: Operation, port_id: PortHandle) -> Result<(), ExecutionError> {
         if let Some(writer) = self.record_writers.get_mut(&port_id) {
             match writer.write(&self.record_store, op) {
                 Ok(new_op) => op = new_op,
@@ -233,10 +230,7 @@ impl SourceChannelManager {
                     },
                 );
 
-                self.manager.send_op(
-                    ProcessorOperation::new(&op, self.epoch_manager.record_store().deref())?,
-                    port,
-                )?;
+                self.manager.send_op(op, port)?;
                 self.num_uncommitted_ops += 1;
                 self.trigger_commit_if_needed(request_termination)
             }
@@ -259,7 +253,7 @@ impl SourceChannelManager {
 }
 
 impl ProcessorChannelForwarder for ChannelManager {
-    fn send(&mut self, op: ProcessorOperation, port: PortHandle) {
+    fn send(&mut self, op: Operation, port: PortHandle) {
         self.send_op(op, port)
             .unwrap_or_else(|e| panic!("Failed to send operation: {e}"))
     }

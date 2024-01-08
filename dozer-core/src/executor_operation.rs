@@ -52,7 +52,7 @@ impl ProcessorOperation {
 
 #[derive(Clone, Debug)]
 pub enum ExecutorOperation {
-    Op { op: ProcessorOperation },
+    Op { op: Operation },
     Commit { epoch: Epoch },
     Terminate,
     SnapshottingDone { connection_name: String },

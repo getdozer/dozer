@@ -1,4 +1,4 @@
-use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore, StoreRecord};
+use dozer_recordstore::ProcessorRecordStore;
 use dozer_types::types::Record;
 use dozer_types::{
     chrono::{DateTime, Duration},
@@ -10,50 +10,38 @@ use crate::window::operator::WindowType;
 #[test]
 fn test_hop() {
     let record_store = ProcessorRecordStore::new(Default::default()).unwrap();
-    let record = record_store
-        .create_record(&Record::new(vec![
-            Field::Int(0),
-            Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
-        ]))
-        .unwrap();
+    let record = Record::new(vec![
+        Field::Int(0),
+        Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
+    ]);
 
     let window = WindowType::Hop {
         column_index: 1,
         hop_size: Duration::minutes(1),
         interval: Duration::minutes(5),
     };
-    let result = window
-        .execute(
-            &record_store,
-            record.clone(),
-            record_store.load_record(&record).unwrap(),
-        )
-        .unwrap();
+    let result = window.execute(&record_store, record.clone()).unwrap();
     assert_eq!(result.len(), 5);
     let window_record = result.first().unwrap();
 
-    let expected_record = ProcessorRecord::appended(
+    let expected_record = Record::appended(
         &record,
-        record_store
-            .create_ref(&[
-                Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:09:00Z").unwrap()),
-                Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:14:00Z").unwrap()),
-            ])
-            .unwrap(),
+        &[
+            Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:09:00Z").unwrap()),
+            Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:14:00Z").unwrap()),
+        ],
     );
 
     assert_eq!(window_record, &expected_record);
 
     let window_record = result.get(1).unwrap();
 
-    let expected_record = ProcessorRecord::appended(
+    let expected_record = Record::appended(
         &record,
-        record_store
-            .create_ref(&[
-                Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:10:00Z").unwrap()),
-                Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:15:00Z").unwrap()),
-            ])
-            .unwrap(),
+        &[
+            Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:10:00Z").unwrap()),
+            Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:15:00Z").unwrap()),
+        ],
     );
 
     assert_eq!(window_record, &expected_record);
@@ -62,36 +50,26 @@ fn test_hop() {
 #[test]
 fn test_tumble() {
     let record_store = ProcessorRecordStore::new(Default::default()).unwrap();
-    let record = record_store
-        .create_record(&Record::new(vec![
-            Field::Int(0),
-            Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
-        ]))
-        .unwrap();
+    let record = Record::new(vec![
+        Field::Int(0),
+        Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
+    ]);
 
     let window = WindowType::Tumble {
         column_index: 1,
         interval: Duration::minutes(5),
     };
 
-    let result = window
-        .execute(
-            &record_store,
-            record.clone(),
-            record_store.load_record(&record).unwrap(),
-        )
-        .unwrap();
+    let result = window.execute(&record_store, record.clone()).unwrap();
     assert_eq!(result.len(), 1);
     let window_record = result.first().unwrap();
 
-    let expected_record = ProcessorRecord::appended(
+    let expected_record = Record::appended(
         &record,
-        record_store
-            .create_ref(&[
-                Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:10:00Z").unwrap()),
-                Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:15:00Z").unwrap()),
-            ])
-            .unwrap(),
+        &[
+            Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:10:00Z").unwrap()),
+            Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:15:00Z").unwrap()),
+        ],
     );
 
     assert_eq!(window_record, &expected_record);
