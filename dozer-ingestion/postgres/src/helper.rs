@@ -339,13 +339,11 @@ pub fn get_values(
     Ok(values)
 }
 
-pub fn map_row_to_operation_event(
+pub fn map_row_to_record(
     row: &Row,
     conversion: &[ConversionFn],
-) -> Result<Operation, PostgresSchemaError> {
-    get_values(row, conversion).map(|values| Operation::Insert {
-        new: Record::new(values),
-    })
+) -> Result<Record, PostgresSchemaError> {
+    get_values(row, conversion).map(Record::new)
 }
 
 pub fn map_schema(columns: &[Column]) -> Result<Schema, PostgresConnectorError> {

@@ -27,6 +27,7 @@ pub struct PostgresConfig {
     pub name: String,
     pub config: Config,
     pub schema: Option<String>,
+    pub batch_size: usize,
 }
 
 #[derive(Debug)]
@@ -36,6 +37,7 @@ pub struct PostgresConnector {
     conn_config: Config,
     schema_helper: SchemaHelper,
     pub schema: Option<String>,
+    batch_size: usize,
 }
 
 #[derive(Debug)]
@@ -62,6 +64,7 @@ impl PostgresConnector {
             replication_conn_config,
             schema_helper: helper,
             schema: config.schema,
+            batch_size: config.batch_size,
         }
     }
 
@@ -233,6 +236,7 @@ impl Connector for PostgresConnector {
             ingestor,
             self.conn_config.clone(),
             self.schema.clone(),
+            self.batch_size,
         );
         iterator.start(lsn).await.map_err(Into::into)
     }

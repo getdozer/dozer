@@ -1534,6 +1534,15 @@
       ],
       "type": "object",
       "properties": {
+        "batch_size": {
+          "description": "The snapshot batch size",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        },
         "connection_url": {
           "description": "The connection url to use",
           "type": [
@@ -1572,7 +1581,7 @@
           "minimum": 0.0
         },
         "schema": {
-          "description": "The connection url to use",
+          "description": "The schema of the tables",
           "type": [
             "string",
             "null"

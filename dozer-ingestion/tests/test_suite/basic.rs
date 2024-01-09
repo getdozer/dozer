@@ -60,6 +60,11 @@ pub async fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>(runtime:
                 Operation::Delete { old } => {
                     assert_record_matches_source_schema(old, &schemas[*table_index], false);
                 }
+                Operation::BatchInsert { new } => {
+                    for op in new {
+                        assert_record_matches_source_schema(op, &schemas[*table_index], true);
+                    }
+                }
             }
         }
     }
@@ -145,25 +150,36 @@ pub async fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>(runtim
                 continue;
             };
 
-            // Operation must be insert.
-            let Operation::Insert { new: actual_record } = operation else {
-                panic!("Expected an insert event, but got {:?}", operation);
+            let mut check = |actual_record| {
+                // Record must match schema.
+                assert_record_matches_schema(&actual_record, actual_schema, false);
+
+                // Record must match expected record.
+                assert_records_match(
+                    &actual_record.values,
+                    &actual_fields,
+                    &actual_primary_index,
+                    record_iter
+                        .next()
+                        .expect("Connector sent more records than expected"),
+                    &fields,
+                    false,
+                );
             };
 
-            // Record must match schema.
-            assert_record_matches_schema(&actual_record, actual_schema, false);
-
-            // Record must match expected record.
-            assert_records_match(
-                &actual_record.values,
-                &actual_fields,
-                &actual_primary_index,
-                record_iter
-                    .next()
-                    .expect("Connector sent more records than expected"),
-                &fields,
-                false,
-            );
+            // Operation must be insert or batch insert.
+            match operation {
+                Operation::Insert { new } => check(new),
+                Operation::BatchInsert { new } => {
+                    for new in new {
+                        check(new);
+                    }
+                }
+                _ => panic!(
+                    "Expected an insert or batch insert event, but got {:?}",
+                    operation
+                ),
+            }
         }
 
         assert!(
@@ -236,6 +252,12 @@ pub async fn run_test_suite_basic_cud<T: CudConnectorTest>(runtime: Arc<Runtime>
             Operation::Delete { old } => {
                 assert_record_matches_schema(&old, &actual_schema, false);
                 records.append_operation(RecordsOperation::Delete { old: old.values });
+            }
+            Operation::BatchInsert { new } => {
+                for new in new {
+                    assert_record_matches_schema(&new, &actual_schema, false);
+                    records.append_operation(RecordsOperation::Insert { new: new.values });
+                }
             }
         }
     }

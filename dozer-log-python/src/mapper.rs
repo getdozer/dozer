@@ -22,6 +22,10 @@ pub fn map_executor_operation(
         LogOperation::Commit { .. } => {
             result.set_item("type", "commit")?;
         }
+        LogOperation::SnapshottingStarted { connection_name } => {
+            result.set_item("type", "snapshotting_started")?;
+            result.set_item("connection_name", connection_name)?;
+        }
         LogOperation::SnapshottingDone { connection_name } => {
             result.set_item("type", "snapshotting_done")?;
             result.set_item("connection_name", connection_name)?;
@@ -47,6 +51,14 @@ fn map_op<'py>(op: Operation, schema: &Schema, py: Python<'py>) -> PyResult<&'py
             result.set_item("type", "update")?;
             result.set_item("old", map_record(old, schema, py)?)?;
             result.set_item("new", map_record(new, schema, py)?)?;
+        }
+        Operation::BatchInsert { new } => {
+            result.set_item("type", "batch_insert")?;
+            let new_py = PyList::empty(py);
+            for record in new {
+                new_py.append(map_record(record, schema, py)?)?;
+            }
+            result.set_item("new", new_py)?;
         }
     }
 

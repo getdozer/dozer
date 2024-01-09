@@ -34,6 +34,8 @@ use tokio::runtime::Runtime;
 pub mod errors;
 pub use dozer_ingestion_connector::*;
 
+const DEFAULT_POSTGRES_SNAPSHOT_BATCH_SIZE: u32 = 100_000;
+
 pub fn get_connector(
     runtime: Arc<Runtime>,
     connection: Connection,
@@ -46,6 +48,7 @@ pub fn get_connector(
                 name: connection.name,
                 config,
                 schema: c.schema,
+                batch_size: c.batch_size.unwrap_or(DEFAULT_POSTGRES_SNAPSHOT_BATCH_SIZE) as usize,
             };
 
             if let Some(dbname) = postgres_config.config.get_dbname() {

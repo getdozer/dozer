@@ -2,7 +2,6 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use dozer_ingestion_connector::dozer_types::log::debug;
-use dozer_ingestion_connector::dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_ingestion_connector::utils::ListOrFilterColumns;
 use dozer_ingestion_connector::Ingestor;
 use postgres_types::PgLsn;
@@ -24,6 +23,7 @@ pub struct Details {
     replication_conn_config: tokio_postgres::Config,
     conn_config: tokio_postgres::Config,
     schema: Option<String>,
+    batch_size: usize,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -49,6 +49,7 @@ impl<'a> PostgresIterator<'a> {
         ingestor: &'a Ingestor,
         conn_config: tokio_postgres::Config,
         schema: Option<String>,
+        batch_size: usize,
     ) -> Self {
         let details = Arc::new(Details {
             name,
@@ -58,6 +59,7 @@ impl<'a> PostgresIterator<'a> {
             replication_conn_config,
             conn_config,
             schema,
+            batch_size,
         });
         PostgresIterator { details, ingestor }
     }
@@ -158,6 +160,7 @@ impl<'a> PostgresIteratorHandler<'a> {
                 conn_config: details.conn_config.to_owned(),
                 ingestor: self.ingestor,
                 schema: details.schema.clone(),
+                batch_size: details.batch_size,
             };
             let tables = details
                 .tables
@@ -169,16 +172,6 @@ impl<'a> PostgresIteratorHandler<'a> {
                 })
                 .collect::<Vec<_>>();
             snapshotter.sync_tables(&tables).await?;
-
-            if self
-                .ingestor
-                .handle_message(IngestionMessage::SnapshottingDone)
-                .await
-                .is_err()
-            {
-                // If receiver is dropped, we can return
-                return Ok(());
-            }
 
             debug!("\nInitialized with tables: {:?}", details.tables);
 

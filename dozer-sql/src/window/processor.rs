@@ -68,6 +68,16 @@ impl Processor for WindowProcessor {
                     fw,
                 )?;
             }
+            Operation::BatchInsert { new } => {
+                for record in new {
+                    self.process(
+                        _from_port,
+                        record_store,
+                        Operation::Insert { new: record },
+                        fw,
+                    )?;
+                }
+            }
         }
         Ok(())
     }

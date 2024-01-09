@@ -572,6 +572,13 @@ impl AggregationProcessor {
                     Ok(r)
                 }
             }
+            Operation::BatchInsert { new } => {
+                let mut result = vec![];
+                for record in new {
+                    result.extend(self.aggregate(Operation::Insert { new: record })?);
+                }
+                Ok(result)
+            }
         }
     }
 

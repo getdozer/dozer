@@ -115,6 +115,9 @@ impl ReceiverLoop for SinkNode {
             Operation::Update { .. } => {
                 labels.push(OPERATION_TYPE_LABEL, "update");
             }
+            Operation::BatchInsert { .. } => {
+                labels.push(OPERATION_TYPE_LABEL, "batch_insert");
+            }
         }
 
         if let Err(e) = self.sink.process(
@@ -152,6 +155,13 @@ impl ReceiverLoop for SinkNode {
     }
 
     fn on_terminate(&mut self) -> Result<(), ExecutionError> {
+        Ok(())
+    }
+
+    fn on_snapshotting_started(&mut self, connection_name: String) -> Result<(), ExecutionError> {
+        if let Err(e) = self.sink.on_source_snapshotting_started(connection_name) {
+            self.error_manager.report(e);
+        }
         Ok(())
     }
 

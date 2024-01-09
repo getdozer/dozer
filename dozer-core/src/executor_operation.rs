@@ -16,6 +16,9 @@ pub enum ProcessorOperation {
         old: ProcessorRecord,
         new: ProcessorRecord,
     },
+    BatchInsert {
+        new: Vec<ProcessorRecord>,
+    },
 }
 
 impl ProcessorOperation {
@@ -30,6 +33,12 @@ impl ProcessorOperation {
             Operation::Update { old, new } => ProcessorOperation::Update {
                 old: record_store.create_record(old)?,
                 new: record_store.create_record(new)?,
+            },
+            Operation::BatchInsert { new } => ProcessorOperation::BatchInsert {
+                new: new
+                    .iter()
+                    .map(|record| record_store.create_record(record))
+                    .collect::<Result<Vec<_>, _>>()?,
             },
         })
     }
@@ -46,6 +55,12 @@ impl ProcessorOperation {
                 old: record_store.load_record(old)?,
                 new: record_store.load_record(new)?,
             },
+            ProcessorOperation::BatchInsert { new } => Operation::BatchInsert {
+                new: new
+                    .iter()
+                    .map(|record| record_store.load_record(record))
+                    .collect::<Result<Vec<_>, _>>()?,
+            },
         })
     }
 }
@@ -55,5 +70,6 @@ pub enum ExecutorOperation {
     Op { op: Operation },
     Commit { epoch: Epoch },
     Terminate,
+    SnapshottingStarted { connection_name: String },
     SnapshottingDone { connection_name: String },
 }

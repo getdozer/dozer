@@ -21,6 +21,7 @@ impl Worker {
         Ok((Self { runtime }, lambdas))
     }
 
+    #[async_recursion::async_recursion]
     pub async fn call_lambda(
         &mut self,
         func: NonZeroI32,
@@ -32,6 +33,18 @@ impl Worker {
             Operation::Insert { new } => ("insert", new.values, None),
             Operation::Update { new, old } => ("update", new.values, Some(old.values)),
             Operation::Delete { old } => ("delete", old.values, None),
+            Operation::BatchInsert { new } => {
+                for op in new {
+                    self.call_lambda(
+                        func,
+                        operation_index,
+                        Operation::Insert { new: op },
+                        field_names.clone(),
+                    )
+                    .await;
+                }
+                return;
+            }
         };
         let arg = json!({
             "type": operation_type,

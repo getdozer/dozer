@@ -67,6 +67,18 @@ impl ChannelManager {
         Ok(())
     }
 
+    pub fn send_snapshotting_started(&self, connection_name: String) -> Result<(), ExecutionError> {
+        for senders in self.senders.values() {
+            for sender in senders {
+                sender.send(ExecutorOperation::SnapshottingStarted {
+                    connection_name: connection_name.clone(),
+                })?;
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn send_snapshotting_done(&self, connection_name: String) -> Result<(), ExecutionError> {
         for senders in self.senders.values() {
             for sender in senders {
@@ -234,15 +246,17 @@ impl SourceChannelManager {
                 self.num_uncommitted_ops += 1;
                 self.trigger_commit_if_needed(request_termination)
             }
+            IngestionMessage::SnapshottingStarted => {
+                self.num_uncommitted_ops += 1;
+                self.manager
+                    .send_snapshotting_started(self.manager.owner.id.clone())?;
+                self.trigger_commit_if_needed(request_termination)
+            }
             IngestionMessage::SnapshottingDone => {
                 self.num_uncommitted_ops += 1;
                 self.manager
                     .send_snapshotting_done(self.manager.owner.id.clone())?;
                 self.commit(request_termination)
-            }
-            IngestionMessage::SnapshottingStarted => {
-                // TODO "implement handle for snapshotting started"
-                Ok(false)
             }
         }
     }

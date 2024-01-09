@@ -24,6 +24,7 @@ pub struct PostgresSnapshotter<'a> {
     pub conn_config: tokio_postgres::Config,
     pub ingestor: &'a Ingestor,
     pub schema: Option<String>,
+    pub batch_size: usize,
 }
 
 impl<'a> PostgresSnapshotter<'a> {
@@ -41,6 +42,7 @@ impl<'a> PostgresSnapshotter<'a> {
         table_name: String,
         table_index: usize,
         conn_config: tokio_postgres::Config,
+        batch_size: usize,
         sender: Sender<Result<(usize, Operation), PostgresConnectorError>>,
     ) -> Result<(), PostgresConnectorError> {
         let mut client_plain = connection_helper::connect(conn_config).await?;
@@ -69,21 +71,37 @@ impl<'a> PostgresSnapshotter<'a> {
             .await
             .map_err(PostgresConnectorError::InvalidQueryError)?;
         tokio::pin!(row_stream);
+
+        let mut batch = Vec::with_capacity(batch_size);
+
         while let Some(msg) = row_stream.next().await {
             match msg {
                 Ok(msg) => {
-                    let evt = helper::map_row_to_operation_event(&msg, &conversions)
+                    let record = helper::map_row_to_record(&msg, &conversions)
                         .map_err(PostgresConnectorError::PostgresSchemaError)?;
+                    batch.push(record);
 
-                    let Ok(_) = sender.send(Ok((table_index, evt))).await else {
-                        // If we can't send, the parent task has quit. There is
-                        // no use in going on, but if there was an error, it was
-                        // handled by the parent.
-                        return Ok(());
-                    };
+                    if batch.len() == batch_size {
+                        let Ok(_) = sender
+                            .send(Ok((table_index, Operation::BatchInsert { new: batch })))
+                            .await
+                        else {
+                            // If we can't send, the parent task has quit. There is
+                            // no use in going on, but if there was an error, it was
+                            // handled by the parent.
+                            return Ok(());
+                        };
+                        batch = Vec::with_capacity(batch_size);
+                    }
                 }
                 Err(e) => return Err(PostgresConnectorError::SyncWithSnapshotError(e.to_string())),
             }
+        }
+
+        if !batch.is_empty() {
+            let _ = sender
+                .send(Ok((table_index, Operation::BatchInsert { new: batch })))
+                .await;
         }
 
         Ok(())
@@ -104,6 +122,7 @@ impl<'a> PostgresSnapshotter<'a> {
             let schema_name = table.schema.clone().unwrap_or("public".to_string());
             let table_name = table.name.clone();
             let conn_config = self.conn_config.clone();
+            let batch_size = self.batch_size;
             let sender = tx.clone();
             joinset.spawn(async move {
                 if let Err(e) = Self::sync_table(
@@ -112,6 +131,7 @@ impl<'a> PostgresSnapshotter<'a> {
                     table_name,
                     table_index,
                     conn_config,
+                    batch_size,
                     sender.clone(),
                 )
                 .await
@@ -211,6 +231,7 @@ mod tests {
             conn_config,
             ingestor: &ingestor,
             schema: None,
+            batch_size: 1000,
         };
 
         snapshotter.sync_tables(&input_tables).await.unwrap();
@@ -258,6 +279,7 @@ mod tests {
             conn_config,
             ingestor: &ingestor,
             schema: None,
+            batch_size: 1000,
         };
 
         let actual = snapshotter.sync_tables(&input_tables).await;
@@ -289,6 +311,7 @@ mod tests {
             conn_config,
             ingestor: &ingestor,
             schema: None,
+            batch_size: 1000,
         };
 
         let actual = snapshotter.sync_tables(&input_tables).await;

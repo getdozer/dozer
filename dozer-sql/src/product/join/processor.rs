@@ -118,6 +118,19 @@ impl Processor for ProductProcessor {
                 old_records.extend(new_records);
                 old_records
             }
+            Operation::BatchInsert { new } => {
+                for record in &new {
+                    self.process(
+                        from_port,
+                        _record_store,
+                        Operation::Insert {
+                            new: record.clone(),
+                        },
+                        fw,
+                    )?;
+                }
+                return Ok(());
+            }
         };
 
         let elapsed = now.elapsed();

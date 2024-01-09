@@ -19,6 +19,7 @@ fn standard() {
         sslmode: None,
         connection_url: None,
         schema: None,
+        batch_size: None,
     };
     let expected = ConnectionConfig::Postgres(postgres_auth);
     assert_eq!(expected, deserializer_result);
@@ -53,6 +54,7 @@ fn standard_with_ssl_mode() {
         sslmode: Some("require".to_string()),
         connection_url: None,
         schema: None,
+        batch_size: None,
     };
     let expected = ConnectionConfig::Postgres(postgres_auth);
     assert_eq!(expected, deserializer_result);
@@ -82,6 +84,7 @@ fn standard_url() {
         sslmode: None,
         connection_url: Some("postgres://postgres:postgres@ep-silent-bread-370191.ap-southeast-1.aws.neon.tech:5432/neondb?sslmode=prefer".to_string()),
         schema: None,
+        batch_size: None,
     };
     let expected = ConnectionConfig::Postgres(postgres_auth);
     assert_eq!(expected, deserializer_result);
@@ -112,6 +115,7 @@ fn standard_url_missing_user() {
         sslmode: None,
         connection_url: Some("postgresql://localhost:5432/stocks?sslmode=prefer".to_string()),
         schema: None,
+        batch_size: None,
     };
     let expected = ConnectionConfig::Postgres(postgres_auth);
     assert_eq!(expected, deserializer_result);
@@ -143,6 +147,7 @@ fn standard_url_missing_password() {
         sslmode: None,
         connection_url: Some("postgresql://localhost:5432/stocks?sslmode=prefer".to_string()),
         schema: None,
+        batch_size: None,
     };
     let expected = ConnectionConfig::Postgres(postgres_auth);
     assert_eq!(expected, deserializer_result);
@@ -174,6 +179,7 @@ fn standard_url_2() {
         sslmode: None,
         connection_url: Some("postgresql://localhost:5432/stocks?sslmode=prefer".to_string()),
         schema: None,
+        batch_size: None,
     };
     let expected = ConnectionConfig::Postgres(postgres_auth);
     assert_eq!(expected, deserializer_result);

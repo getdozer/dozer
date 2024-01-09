@@ -119,6 +119,18 @@ impl Sink for LogSink {
         Ok(())
     }
 
+    fn on_source_snapshotting_started(
+        &mut self,
+        connection_name: String,
+    ) -> Result<(), BoxedError> {
+        let end = self
+            .runtime
+            .block_on(self.log.lock())
+            .write(LogOperation::SnapshottingStarted { connection_name });
+        self.pb.set_position(end as u64);
+        Ok(())
+    }
+
     fn on_source_snapshotting_done(&mut self, connection_name: String) -> Result<(), BoxedError> {
         let end = self
             .runtime
