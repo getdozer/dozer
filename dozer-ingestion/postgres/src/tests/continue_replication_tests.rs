@@ -27,6 +27,7 @@ mod tests {
             name: "test".to_string(),
             config: conn_config.clone(),
             schema: None,
+            batch_size: 1000,
         };
 
         let connector = PostgresConnector::new(postgres_config);
@@ -80,6 +81,7 @@ mod tests {
             name: connector_name,
             config: conn_config.clone(),
             schema: None,
+            batch_size: 1000,
         };
 
         let connector = PostgresConnector::new(postgres_config);

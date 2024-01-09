@@ -81,6 +81,16 @@ impl Processor for TableOperatorProcessor {
                     fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
                 }
             }
+            Operation::BatchInsert { new } => {
+                for record in new {
+                    self.process(
+                        _from_port,
+                        record_store,
+                        Operation::Insert { new: record },
+                        fw,
+                    )?;
+                }
+            }
         }
         Ok(())
     }

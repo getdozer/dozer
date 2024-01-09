@@ -29,6 +29,12 @@ pub fn map_executor_operation<'a, C: Context<'a>>(
             let typ = cx.string("commit");
             result.set(cx, "type", typ)?;
         }
+        LogOperation::SnapshottingStarted { connection_name } => {
+            let typ = cx.string("snapshotting_started");
+            result.set(cx, "type", typ)?;
+            let connection_name = cx.string(&connection_name);
+            result.set(cx, "connection_name", connection_name)?;
+        }
         LogOperation::SnapshottingDone { connection_name } => {
             let typ = cx.string("snapshotting_done");
             result.set(cx, "type", typ)?;
@@ -67,6 +73,16 @@ fn map_operation<'a, C: Context<'a>>(
             result.set(cx, "old", old)?;
             let new = map_record(new, schema, cx)?;
             result.set(cx, "new", new)?;
+        }
+        Operation::BatchInsert { new } => {
+            let typ = cx.string("batch_insert");
+            result.set(cx, "type", typ)?;
+            let new_js = cx.empty_array();
+            for (i, record) in new.into_iter().enumerate() {
+                let record = map_record(record, schema, cx)?;
+                new_js.set(cx, i as u32, record)?;
+            }
+            result.set(cx, "new", new_js)?;
         }
     }
 

@@ -54,9 +54,13 @@ pub struct PostgresConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connection_url: Option<String>,
 
-    /// The connection url to use
+    /// The schema of the tables
     #[serde(skip_serializing_if = "Option::is_none")]
     pub schema: Option<String>,
+
+    /// The snapshot batch size
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub batch_size: Option<u32>,
 }
 
 impl SchemaExample for PostgresConfig {

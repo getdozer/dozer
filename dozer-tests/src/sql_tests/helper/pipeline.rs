@@ -228,6 +228,12 @@ impl TestSink {
                     records_map.insert(get_key(&new), vec![new]);
                 }
             }
+            Operation::BatchInsert { new } => {
+                drop(records_map);
+                for record in new {
+                    self.update_result(_record_store, Operation::Insert { new: record })?;
+                }
+            }
         }
         Ok(())
     }
@@ -248,6 +254,13 @@ impl Sink for TestSink {
     }
 
     fn persist(&mut self, _epoch: &Epoch, _queue: &Queue) -> Result<(), BoxedError> {
+        Ok(())
+    }
+
+    fn on_source_snapshotting_started(
+        &mut self,
+        _connection_name: String,
+    ) -> Result<(), BoxedError> {
         Ok(())
     }
 

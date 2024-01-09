@@ -189,6 +189,29 @@ impl CacheBuilderImpl {
                         );
                     }
                 }
+                Operation::BatchInsert { new } => {
+                    let mut labels = self.building.labels().clone();
+                    labels.push(OPERATION_TYPE_LABEL, "batch_insert");
+                    labels.push(
+                        SNAPSHOTTING_LABEL,
+                        snapshotting_str(!self.building.is_snapshotting_done()?),
+                    );
+                    increment_counter!(CACHE_OPERATION_COUNTER_NAME, labels);
+
+                    for record in new {
+                        let upsert_result = self.building.insert(&record)?;
+                        if let Some((endpoint_name, operations_sender)) = operations_sender {
+                            send_upsert_result(
+                                endpoint_name,
+                                operations_sender,
+                                upsert_result,
+                                &self.building.get_schema().0,
+                                None,
+                                record,
+                            );
+                        }
+                    }
+                }
             },
             LogOperation::Commit {
                 source_states,
@@ -221,6 +244,7 @@ impl CacheBuilderImpl {
                     }
                 }
             }
+            LogOperation::SnapshottingStarted { .. } => {}
             LogOperation::SnapshottingDone { connection_name } => {
                 self.building
                     .set_connection_snapshotting_done(&connection_name)?;

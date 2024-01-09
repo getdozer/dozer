@@ -116,6 +116,15 @@ impl RecordWriter for PrimaryKeyLookupRecordWriter {
                 self.index.insert(new_key, new.clone());
                 Ok(Operation::Update { old, new })
             }
+            Operation::BatchInsert { new } => {
+                let mut new_records = Vec::with_capacity(new.len());
+                for record in new {
+                    let new_key = record.get_key(&self.schema.primary_index);
+                    self.index.insert(new_key, record.clone());
+                    new_records.push(record);
+                }
+                Ok(Operation::BatchInsert { new: new_records })
+            }
         }
     }
 

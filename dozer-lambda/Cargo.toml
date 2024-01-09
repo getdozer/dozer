@@ -9,6 +9,7 @@ edition = "2021"
 dozer-types = { path = "../dozer-types" }
 dozer-log = { path = "../dozer-log" }
 dozer-deno = { path = "../dozer-deno" }
+async-recursion = "1.0.5"
 
 [dev-dependencies]
 env_logger = "0.10.0"

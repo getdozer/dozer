@@ -223,7 +223,9 @@ async fn read_table(
             .map_err(NestedDozerConnectorError::ReaderError)?;
         let op = match op_and_pos.op {
             LogOperation::Op { op } => op,
-            LogOperation::Commit { .. } | LogOperation::SnapshottingDone { .. } => continue,
+            LogOperation::Commit { .. }
+            | LogOperation::SnapshottingStarted { .. }
+            | LogOperation::SnapshottingDone { .. } => continue,
         };
 
         let op = match op {
@@ -236,6 +238,12 @@ async fn read_table(
             Operation::Update { old, new } => Operation::Update {
                 old: map.map_record(old),
                 new: map.map_record(new),
+            },
+            Operation::BatchInsert { new } => Operation::BatchInsert {
+                new: new
+                    .into_iter()
+                    .map(|record| map.map_record(record))
+                    .collect(),
             },
         };
 

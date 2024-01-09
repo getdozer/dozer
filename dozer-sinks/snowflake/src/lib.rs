@@ -457,9 +457,18 @@ impl SnowflakeSink {
                             previous_op_kind = OpKind::Update;
                             query_builder.update(&table, old, new);
                         }
+                        Operation::BatchInsert { new } => {
+                            if !previous_op_kind.is_insert() {
+                                flush!()
+                            }
+                            previous_op_kind = OpKind::Insert;
+                            insert.extend(new);
+                        }
                     }
                 }
-                LogOperation::Commit { .. } | LogOperation::SnapshottingDone { .. } => {
+                LogOperation::Commit { .. }
+                | LogOperation::SnapshottingStarted { .. }
+                | LogOperation::SnapshottingDone { .. } => {
                     unreachable!("should've been filtered out earlier")
                 }
             }

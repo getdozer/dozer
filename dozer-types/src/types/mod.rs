@@ -291,6 +291,7 @@ pub enum Operation {
     Delete { old: Record },
     Insert { new: Record },
     Update { old: Record, new: Record },
+    BatchInsert { new: Vec<Record> },
 }
 
 // Helpful in interacting with external systems during ingestion and querying

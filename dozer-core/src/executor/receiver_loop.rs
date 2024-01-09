@@ -23,6 +23,8 @@ pub trait ReceiverLoop: Name {
     fn on_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError>;
     /// Responds to `terminate`.
     fn on_terminate(&mut self) -> Result<(), ExecutionError>;
+    /// Responds to `SnapshottingStarted`.
+    fn on_snapshotting_started(&mut self, connection_name: String) -> Result<(), ExecutionError>;
     /// Responds to `SnapshottingDone`.
     fn on_snapshotting_done(&mut self, connection_name: String) -> Result<(), ExecutionError>;
 
@@ -75,6 +77,9 @@ pub trait ReceiverLoop: Name {
                         return Ok(());
                     }
                 }
+                ExecutorOperation::SnapshottingStarted { connection_name } => {
+                    self.on_snapshotting_started(connection_name)?;
+                }
                 ExecutorOperation::SnapshottingDone { connection_name } => {
                     self.on_snapshotting_done(connection_name)?;
                 }
@@ -107,6 +112,7 @@ mod tests {
         receivers: Vec<Receiver<ExecutorOperation>>,
         ops: Vec<(usize, Operation)>,
         commits: Vec<Epoch>,
+        snapshotting_started: Vec<String>,
         snapshotting_done: Vec<String>,
         num_terminations: usize,
     }
@@ -147,6 +153,14 @@ mod tests {
             Ok(())
         }
 
+        fn on_snapshotting_started(
+            &mut self,
+            connection_name: String,
+        ) -> Result<(), ExecutionError> {
+            self.snapshotting_started.push(connection_name);
+            Ok(())
+        }
+
         fn on_snapshotting_done(&mut self, connection_name: String) -> Result<(), ExecutionError> {
             self.snapshotting_done.push(connection_name);
             Ok(())
@@ -161,6 +175,7 @@ mod tests {
                     receivers,
                     ops: vec![],
                     commits: vec![],
+                    snapshotting_started: vec![],
                     snapshotting_done: vec![],
                     num_terminations: 0,
                 },

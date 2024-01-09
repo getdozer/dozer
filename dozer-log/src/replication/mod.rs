@@ -325,6 +325,9 @@ pub enum LogOperation {
         source_states: SourceStates,
         decision_instant: SystemTime,
     },
+    SnapshottingStarted {
+        connection_name: String,
+    },
     SnapshottingDone {
         connection_name: String,
     },

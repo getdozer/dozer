@@ -4007,6 +4007,7 @@ dependencies = [
 name = "dozer-lambda"
 version = "0.1.0"
 dependencies = [
+ "async-recursion",
  "dozer-deno",
  "dozer-log",
  "dozer-types",

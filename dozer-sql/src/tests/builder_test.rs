@@ -181,6 +181,13 @@ impl Sink for TestSink {
         Ok(())
     }
 
+    fn on_source_snapshotting_started(
+        &mut self,
+        _connection_name: String,
+    ) -> Result<(), BoxedError> {
+        Ok(())
+    }
+
     fn on_source_snapshotting_done(&mut self, _connection_name: String) -> Result<(), BoxedError> {
         Ok(())
     }

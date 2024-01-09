@@ -81,6 +81,16 @@ impl Processor for SelectionProcessor {
                     }
                 }
             }
+            Operation::BatchInsert { new } => {
+                for record in new {
+                    self.process(
+                        _from_port,
+                        _record_store,
+                        Operation::Insert { new: record },
+                        fw,
+                    )?;
+                }
+            }
         }
         Ok(())
     }

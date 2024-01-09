@@ -248,7 +248,7 @@ impl Source for ConnectorSource {
                 "Number of operation processed by source"
             );
 
-            let mut counter = vec![0; self.tables.len()];
+            let mut counter = vec![(0u64, 0u64); self.tables.len()];
 
             let (ingestor, mut iterator) =
                 Ingestor::initialize_channel(self.ingestion_config.clone());
@@ -310,14 +310,22 @@ impl Source for ConnectorSource {
                             Operation::Update { .. } => {
                                 labels.push(OPERATION_TYPE_LABEL, "update");
                             }
+                            Operation::BatchInsert { .. } => {
+                                labels.push(OPERATION_TYPE_LABEL, "batch_insert");
+                            }
                         }
                         increment_counter!(SOURCE_OPERATION_COUNTER_NAME, labels);
 
                         // Update counter
                         let counter = &mut counter[*table_index];
-                        *counter += 1;
-                        if *counter % 1000 == 0 {
-                            self.bars[*table_index].set_position(*counter);
+                        if let Operation::BatchInsert { new } = &op {
+                            counter.0 += new.len() as u64;
+                        } else {
+                            counter.0 += 1;
+                        }
+                        if counter.0 >> 10 > counter.1 {
+                            counter.1 = counter.0 >> 10;
+                            self.bars[*table_index].set_position(counter.0);
                         }
 
                         // Send message to the pipeline

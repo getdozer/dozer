@@ -92,6 +92,17 @@ impl Processor for ProjectionProcessor {
             Operation::Delete { ref old } => self.delete(old)?,
             Operation::Insert { ref new } => self.insert(new)?,
             Operation::Update { ref old, ref new } => self.update(old, new)?,
+            Operation::BatchInsert { new } => {
+                for record in new {
+                    self.process(
+                        _from_port,
+                        _record_store,
+                        Operation::Insert { new: record },
+                        fw,
+                    )?;
+                }
+                return Ok(());
+            }
         };
         fw.send(output_op, DEFAULT_PORT_HANDLE);
         Ok(())
