@@ -2,7 +2,6 @@ use crate::channels::ProcessorChannelForwarder;
 use crate::checkpoint::create_checkpoint_for_test;
 use crate::epoch::Epoch;
 use crate::executor::DagExecutor;
-use crate::executor_operation::ProcessorOperation;
 use crate::node::{PortHandle, Processor, ProcessorFactory};
 use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::tests::sources::{
@@ -17,7 +16,7 @@ use dozer_recordstore::{ProcessorRecordStore, ProcessorRecordStoreDeserializer};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
 use dozer_types::tonic::async_trait;
-use dozer_types::types::Schema;
+use dozer_types::types::{Operation, Schema};
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -77,7 +76,7 @@ impl Processor for NoopProcessor {
         &mut self,
         _from_port: PortHandle,
         _record_store: &ProcessorRecordStore,
-        op: ProcessorOperation,
+        op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         fw.send(op, DEFAULT_PORT_HANDLE);
@@ -239,7 +238,7 @@ impl Processor for NoopJoinProcessor {
         &mut self,
         _from_port: PortHandle,
         _record_store: &ProcessorRecordStore,
-        op: ProcessorOperation,
+        op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         fw.send(op, DEFAULT_PORT_HANDLE);

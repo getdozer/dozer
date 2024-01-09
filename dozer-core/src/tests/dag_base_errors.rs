@@ -2,7 +2,6 @@ use crate::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::checkpoint::create_checkpoint_for_test;
 use crate::epoch::Epoch;
 use crate::executor::DagExecutor;
-use crate::executor_operation::ProcessorOperation;
 use crate::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Sink, SinkFactory,
     Source, SourceFactory, SourceState,
@@ -93,7 +92,7 @@ impl Processor for ErrorProcessor {
         &mut self,
         _from_port: PortHandle,
         _record_store: &ProcessorRecordStore,
-        op: ProcessorOperation,
+        op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         self.count += 1;
@@ -475,7 +474,7 @@ impl Sink for ErrSink {
         &mut self,
         _from_port: PortHandle,
         _record_store: &ProcessorRecordStore,
-        _op: ProcessorOperation,
+        _op: Operation,
     ) -> Result<(), BoxedError> {
         self.current += 1;
         if self.current == self.err_at {

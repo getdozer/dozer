@@ -5,7 +5,6 @@ use dozer_core::checkpoint::create_checkpoint_for_test;
 use dozer_core::dozer_log::storage::Queue;
 use dozer_core::epoch::Epoch;
 use dozer_core::executor::DagExecutor;
-use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
     SourceState,
@@ -167,10 +166,10 @@ impl Sink for TestSink {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        record_store: &ProcessorRecordStore,
-        op: ProcessorOperation,
+        _record_store: &ProcessorRecordStore,
+        op: Operation,
     ) -> Result<(), BoxedError> {
-        println!("Sink: {:?}", op.load(record_store).unwrap());
+        println!("Sink: {:?}", op);
         Ok(())
     }
 

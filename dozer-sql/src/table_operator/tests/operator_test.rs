@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use dozer_recordstore::{ProcessorRecordStore, StoreRecord};
+use dozer_recordstore::ProcessorRecordStore;
 use dozer_sql_expression::execution::Expression;
 use dozer_types::{
     chrono::DateTime,
@@ -41,7 +41,6 @@ fn test_lifetime() {
         Field::Int(0),
         Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
     ]);
-    let record = record_store.create_record(&record).unwrap();
 
     let mut table_operator = LifetimeTableOperator::new(
         None,

@@ -1,13 +1,12 @@
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::dozer_log::storage::Object;
 use dozer_core::epoch::Epoch;
-use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_recordstore::{ProcessorRecordStore, StoreRecord};
+use dozer_recordstore::ProcessorRecordStore;
 use dozer_tracing::Labels;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::types::Lifetime;
+use dozer_types::types::{Lifetime, Operation};
 use metrics::{
     counter, describe_counter, describe_gauge, describe_histogram, gauge, histogram,
     increment_counter,
@@ -76,8 +75,8 @@ impl Processor for ProductProcessor {
     fn process(
         &mut self,
         from_port: PortHandle,
-        record_store: &ProcessorRecordStore,
-        op: ProcessorOperation,
+        _record_store: &ProcessorRecordStore,
+        op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         let from_branch = match from_port {
@@ -88,37 +87,32 @@ impl Processor for ProductProcessor {
 
         let now = std::time::Instant::now();
         let records = match op {
-            ProcessorOperation::Delete { old } => {
+            Operation::Delete { old } => {
                 if let Some(lifetime) = old.get_lifetime() {
                     self.update_eviction_index(lifetime);
                 }
 
-                let old_decoded = record_store.load_record(&old)?;
-                self.join_operator.delete(from_branch, &old, &old_decoded)
+                self.join_operator.delete(from_branch, &old, &old)
             }
-            ProcessorOperation::Insert { new } => {
+            Operation::Insert { new } => {
                 if let Some(lifetime) = new.get_lifetime() {
                     self.update_eviction_index(lifetime);
                 }
 
-                let new_decoded = record_store.load_record(&new)?;
                 self.join_operator
-                    .insert(from_branch, &new, &new_decoded)
+                    .insert(from_branch, &new, &new)
                     .map_err(PipelineError::JoinError)?
             }
-            ProcessorOperation::Update { old, new } => {
+            Operation::Update { old, new } => {
                 if let Some(lifetime) = old.get_lifetime() {
                     self.update_eviction_index(lifetime);
                 }
 
-                let old_decoded = record_store.load_record(&old)?;
-                let new_decoded = record_store.load_record(&new)?;
-
-                let mut old_records = self.join_operator.delete(from_branch, &old, &old_decoded);
+                let mut old_records = self.join_operator.delete(from_branch, &old, &old);
 
                 let new_records = self
                     .join_operator
-                    .insert(from_branch, &new, &new_decoded)
+                    .insert(from_branch, &new, &new)
                     .map_err(PipelineError::JoinError)?;
 
                 old_records.extend(new_records);
@@ -150,16 +144,10 @@ impl Processor for ProductProcessor {
         for (action, record) in records {
             match action {
                 JoinAction::Insert => {
-                    fw.send(
-                        ProcessorOperation::Insert { new: record },
-                        DEFAULT_PORT_HANDLE,
-                    );
+                    fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
                 }
                 JoinAction::Delete => {
-                    fw.send(
-                        ProcessorOperation::Delete { old: record },
-                        DEFAULT_PORT_HANDLE,
-                    );
+                    fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
                 }
             }
         }
@@ -183,12 +171,12 @@ mod tests {
     use std::collections::HashMap;
 
     use dozer_core::node::ProcessorFactory;
-    use dozer_recordstore::{ProcessorRecord, ProcessorRecordStoreDeserializer, RecordRef};
+    use dozer_recordstore::ProcessorRecordStoreDeserializer;
     use dozer_sql_expression::builder::NameOrAlias;
     use dozer_sql_expression::sqlparser::ast::JoinOperator as SqlJoinOperator;
     use dozer_types::{
         models::app_config::RecordStore,
-        types::{Field, FieldDefinition, Schema},
+        types::{Field, FieldDefinition, Record, Schema},
     };
 
     use crate::product::join::{
@@ -200,11 +188,11 @@ mod tests {
     use super::*;
 
     struct TestChannelForwarder {
-        operations: Vec<ProcessorOperation>,
+        operations: Vec<Operation>,
     }
 
     impl ProcessorChannelForwarder for TestChannelForwarder {
-        fn send(&mut self, op: ProcessorOperation, _port: dozer_core::node::PortHandle) {
+        fn send(&mut self, op: Operation, _port: dozer_core::node::PortHandle) {
             self.operations.push(op);
         }
     }
@@ -300,11 +288,7 @@ mod tests {
             }
         }
 
-        fn do_op(
-            &mut self,
-            operation: ProcessorOperation,
-            side: JoinSide,
-        ) -> Vec<ProcessorOperation> {
+        fn do_op(&mut self, operation: Operation, side: JoinSide) -> Vec<Operation> {
             let port = match side {
                 JoinSide::Left => LEFT_JOIN_PORT,
                 JoinSide::Right => RIGHT_JOIN_PORT,
@@ -317,40 +301,38 @@ mod tests {
             output_ops
         }
 
-        fn insert(
-            &mut self,
-            side: JoinSide,
-            values: &[Field],
-        ) -> (RecordRef, Vec<ProcessorOperation>) {
-            let record_ref = self.record_store.create_ref(values).unwrap();
-            let processor_record = ProcessorRecord::new(Box::new([record_ref.clone()]));
-            let op = ProcessorOperation::Insert {
-                new: processor_record.clone(),
+        fn insert(&mut self, side: JoinSide, values: &[Field]) -> (Record, Vec<Operation>) {
+            let record = Record::new(values.to_vec());
+            let op = Operation::Insert {
+                new: record.clone(),
             };
-            (record_ref, self.do_op(op, side))
+            (record, self.do_op(op, side))
         }
 
         fn update(
             &mut self,
             side: JoinSide,
-            old: RecordRef,
+            old: Record,
             new: &[Field],
-        ) -> (RecordRef, Vec<ProcessorOperation>) {
-            let record_ref = self.record_store.create_ref(new).unwrap();
-            let processor_record = ProcessorRecord::new(Box::new([record_ref.clone()]));
-            let op = ProcessorOperation::Update {
-                old: ProcessorRecord::new(Box::new([old])),
-                new: processor_record.clone(),
+        ) -> (Record, Vec<Operation>) {
+            let record = Record::new(new.to_vec());
+            let op = Operation::Update {
+                old,
+                new: record.clone(),
             };
-            (record_ref, self.do_op(op, side))
+            (record, self.do_op(op, side))
         }
 
-        fn delete(&mut self, side: JoinSide, old: RecordRef) -> Vec<ProcessorOperation> {
-            let op = ProcessorOperation::Delete {
-                old: ProcessorRecord::new(Box::new([old])),
-            };
+        fn delete(&mut self, side: JoinSide, old: Record) -> Vec<Operation> {
+            let op = Operation::Delete { old };
             self.do_op(op, side)
         }
+    }
+
+    fn join_record(left: Record, right: Record) -> Record {
+        let mut values = left.values;
+        values.extend(right.values);
+        Record::new(values)
     }
 
     #[tokio::test]
@@ -363,8 +345,8 @@ mod tests {
         let (right_record, ops) = exec.insert(JoinSide::Right, &[Field::UInt(0), Field::UInt(2)]);
         assert_eq!(
             ops,
-            &[ProcessorOperation::Insert {
-                new: ProcessorRecord::new(Box::new([left_record.clone(), right_record.clone()]))
+            &[Operation::Insert {
+                new: join_record(left_record.clone(), right_record.clone())
             }]
         );
         let (new_left_record, ops) = exec.update(
@@ -375,28 +357,19 @@ mod tests {
         assert_eq!(
             ops,
             &[
-                ProcessorOperation::Delete {
-                    old: ProcessorRecord::new(Box::new([
-                        left_record.clone(),
-                        right_record.clone()
-                    ]))
+                Operation::Delete {
+                    old: join_record(left_record.clone(), right_record.clone())
                 },
-                ProcessorOperation::Insert {
-                    new: ProcessorRecord::new(Box::new([
-                        new_left_record.clone(),
-                        right_record.clone()
-                    ]))
+                Operation::Insert {
+                    new: join_record(new_left_record.clone(), right_record.clone())
                 }
             ]
         );
 
         assert_eq!(
             exec.delete(JoinSide::Right, right_record.clone()),
-            &[ProcessorOperation::Delete {
-                old: ProcessorRecord::new(Box::new([
-                    new_left_record.clone(),
-                    right_record.clone()
-                ]))
+            &[Operation::Delete {
+                old: join_record(new_left_record.clone(), right_record.clone())
             },]
         );
     }
@@ -405,16 +378,13 @@ mod tests {
     async fn test_left_outer_join() {
         let mut exec = Executor::new(JoinType::LeftOuter).await;
 
-        let null_record = exec
-            .record_store
-            .create_ref(&[Field::Null, Field::Null])
-            .unwrap();
+        let null_record = Record::new(vec![Field::Null, Field::Null]);
 
         let (left_record, ops) = exec.insert(JoinSide::Left, &[Field::UInt(0), Field::UInt(1)]);
         assert_eq!(
             ops,
-            &[ProcessorOperation::Insert {
-                new: ProcessorRecord::new(Box::new([left_record.clone(), null_record.clone()]))
+            &[Operation::Insert {
+                new: join_record(left_record.clone(), null_record.clone())
             }]
         );
 
@@ -422,14 +392,11 @@ mod tests {
         assert_eq!(
             ops,
             &[
-                ProcessorOperation::Delete {
-                    old: ProcessorRecord::new(Box::new([left_record.clone(), null_record.clone()])),
+                Operation::Delete {
+                    old: join_record(left_record.clone(), null_record.clone()),
                 },
-                ProcessorOperation::Insert {
-                    new: ProcessorRecord::new(Box::new([
-                        left_record.clone(),
-                        right_record.clone()
-                    ]))
+                Operation::Insert {
+                    new: join_record(left_record.clone(), right_record.clone())
                 }
             ]
         );
@@ -441,17 +408,11 @@ mod tests {
         assert_eq!(
             ops,
             &[
-                ProcessorOperation::Delete {
-                    old: ProcessorRecord::new(Box::new([
-                        left_record.clone(),
-                        right_record.clone()
-                    ]))
+                Operation::Delete {
+                    old: join_record(left_record.clone(), right_record.clone())
                 },
-                ProcessorOperation::Insert {
-                    new: ProcessorRecord::new(Box::new([
-                        new_left_record.clone(),
-                        right_record.clone()
-                    ]))
+                Operation::Insert {
+                    new: join_record(new_left_record.clone(), right_record.clone())
                 }
             ]
         );
@@ -459,17 +420,11 @@ mod tests {
         assert_eq!(
             exec.delete(JoinSide::Right, right_record.clone()),
             &[
-                ProcessorOperation::Delete {
-                    old: ProcessorRecord::new(Box::new([
-                        new_left_record.clone(),
-                        right_record.clone()
-                    ]))
+                Operation::Delete {
+                    old: join_record(new_left_record.clone(), right_record.clone())
                 },
-                ProcessorOperation::Insert {
-                    new: ProcessorRecord::new(Box::new([
-                        new_left_record.clone(),
-                        null_record.clone(),
-                    ]))
+                Operation::Insert {
+                    new: join_record(new_left_record.clone(), null_record.clone(),)
                 },
             ]
         );
@@ -477,11 +432,8 @@ mod tests {
 
         assert_eq!(
             exec.delete(JoinSide::Left, new_left_record.clone()),
-            &[ProcessorOperation::Delete {
-                old: ProcessorRecord::new(Box::new([
-                    new_left_record.clone(),
-                    right_record.clone()
-                ]))
+            &[Operation::Delete {
+                old: join_record(new_left_record.clone(), right_record.clone())
             },]
         );
     }
@@ -490,10 +442,7 @@ mod tests {
     async fn test_right_outer_join() {
         let mut exec = Executor::new(JoinType::RightOuter).await;
 
-        let null_record = exec
-            .record_store
-            .create_ref(&[Field::Null, Field::Null])
-            .unwrap();
+        let null_record = Record::new(vec![Field::Null, Field::Null]);
 
         let (left_record, ops) = exec.insert(JoinSide::Left, &[Field::UInt(0), Field::UInt(1)]);
         assert_eq!(ops, &[]);
@@ -501,8 +450,8 @@ mod tests {
         let (right_record, ops) = exec.insert(JoinSide::Right, &[Field::UInt(0), Field::UInt(2)]);
         assert_eq!(
             ops,
-            &[ProcessorOperation::Insert {
-                new: ProcessorRecord::new(Box::new([left_record.clone(), right_record.clone()]))
+            &[Operation::Insert {
+                new: join_record(left_record.clone(), right_record.clone())
             }]
         );
         let (new_left_record, ops) = exec.update(
@@ -513,29 +462,17 @@ mod tests {
         assert_eq!(
             ops,
             &[
-                ProcessorOperation::Delete {
-                    old: ProcessorRecord::new(Box::new([
-                        left_record.clone(),
-                        right_record.clone()
-                    ]))
+                Operation::Delete {
+                    old: join_record(left_record.clone(), right_record.clone())
                 },
-                ProcessorOperation::Insert {
-                    new: ProcessorRecord::new(Box::new([
-                        null_record.clone(),
-                        right_record.clone()
-                    ]))
+                Operation::Insert {
+                    new: join_record(null_record.clone(), right_record.clone())
                 },
-                ProcessorOperation::Delete {
-                    old: ProcessorRecord::new(Box::new([
-                        null_record.clone(),
-                        right_record.clone()
-                    ]))
+                Operation::Delete {
+                    old: join_record(null_record.clone(), right_record.clone())
                 },
-                ProcessorOperation::Insert {
-                    new: ProcessorRecord::new(Box::new([
-                        new_left_record.clone(),
-                        right_record.clone()
-                    ]))
+                Operation::Insert {
+                    new: join_record(new_left_record.clone(), right_record.clone())
                 }
             ]
         );
@@ -543,17 +480,11 @@ mod tests {
         assert_eq!(
             exec.delete(JoinSide::Left, right_record.clone()),
             &[
-                ProcessorOperation::Delete {
-                    old: ProcessorRecord::new(Box::new([
-                        new_left_record.clone(),
-                        right_record.clone()
-                    ]))
+                Operation::Delete {
+                    old: join_record(new_left_record.clone(), right_record.clone())
                 },
-                ProcessorOperation::Insert {
-                    new: ProcessorRecord::new(Box::new([
-                        null_record.clone(),
-                        right_record.clone(),
-                    ]))
+                Operation::Insert {
+                    new: join_record(null_record.clone(), right_record.clone(),)
                 },
             ]
         );
@@ -561,11 +492,8 @@ mod tests {
 
         assert_eq!(
             exec.delete(JoinSide::Right, new_left_record.clone()),
-            &[ProcessorOperation::Delete {
-                old: ProcessorRecord::new(Box::new([
-                    new_left_record.clone(),
-                    right_record.clone()
-                ]))
+            &[Operation::Delete {
+                old: join_record(new_left_record.clone(), right_record.clone())
             },]
         );
     }

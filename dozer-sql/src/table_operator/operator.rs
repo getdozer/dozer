@@ -1,6 +1,6 @@
 use crate::table_operator::lifetime::LifetimeTableOperator;
-use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore};
-use dozer_types::types::Schema;
+use dozer_recordstore::ProcessorRecordStore;
+use dozer_types::types::{Record, Schema};
 use enum_dispatch::enum_dispatch;
 
 use crate::errors::TableOperatorError;
@@ -11,9 +11,9 @@ pub trait TableOperator: Send + Sync {
     fn execute(
         &mut self,
         record_store: &ProcessorRecordStore,
-        record: &ProcessorRecord,
+        record: &Record,
         schema: &Schema,
-    ) -> Result<Vec<ProcessorRecord>, TableOperatorError>;
+    ) -> Result<Vec<Record>, TableOperatorError>;
     fn get_output_schema(&self, schema: &Schema) -> Result<Schema, TableOperatorError>;
 }
 

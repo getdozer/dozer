@@ -2,11 +2,11 @@ use crate::errors::PipelineError;
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::dozer_log::storage::Object;
 use dozer_core::epoch::Epoch;
-use dozer_core::executor_operation::ProcessorOperation;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_recordstore::{ProcessorRecordStore, StoreRecord};
+use dozer_recordstore::ProcessorRecordStore;
 use dozer_types::errors::internal::BoxedError;
+use dozer_types::types::Operation;
 
 use super::operator::WindowType;
 
@@ -31,48 +31,40 @@ impl Processor for WindowProcessor {
         &mut self,
         _from_port: PortHandle,
         record_store: &ProcessorRecordStore,
-        op: ProcessorOperation,
+        op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         match op {
-            ProcessorOperation::Delete { old } => {
-                let old_decoded = record_store.load_record(&old)?;
+            Operation::Delete { old } => {
                 let records = self
                     .window
-                    .execute(record_store, old, old_decoded)
+                    .execute(record_store, old)
                     .map_err(PipelineError::WindowError)?;
                 for record in records {
-                    fw.send(
-                        ProcessorOperation::Delete { old: record },
-                        DEFAULT_PORT_HANDLE,
-                    );
+                    fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
                 }
             }
-            ProcessorOperation::Insert { new } => {
-                let new_decoded = record_store.load_record(&new)?;
+            Operation::Insert { new } => {
                 let records = self
                     .window
-                    .execute(record_store, new, new_decoded)
+                    .execute(record_store, new)
                     .map_err(PipelineError::WindowError)?;
                 for record in records {
-                    fw.send(
-                        ProcessorOperation::Insert { new: record },
-                        DEFAULT_PORT_HANDLE,
-                    );
+                    fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
                 }
             }
-            ProcessorOperation::Update { old, new } => {
+            Operation::Update { old, new } => {
                 self.process(
                     DEFAULT_PORT_HANDLE,
                     record_store,
-                    ProcessorOperation::Delete { old },
+                    Operation::Delete { old },
                     fw,
                 )?;
 
                 self.process(
                     DEFAULT_PORT_HANDLE,
                     record_store,
-                    ProcessorOperation::Insert { new },
+                    Operation::Insert { new },
                     fw,
                 )?;
             }

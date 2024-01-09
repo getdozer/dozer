@@ -3,7 +3,7 @@ use std::{borrow::Cow, mem::swap, sync::Arc};
 use crossbeam::channel::Receiver;
 use daggy::NodeIndex;
 use dozer_tracing::LabelsAndProgress;
-use dozer_types::node::NodeHandle;
+use dozer_types::{node::NodeHandle, types::Operation};
 use metrics::{describe_counter, describe_histogram, histogram, increment_counter};
 
 use crate::{
@@ -11,7 +11,7 @@ use crate::{
     epoch::{Epoch, EpochManager},
     error_manager::ErrorManager,
     errors::ExecutionError,
-    executor_operation::{ExecutorOperation, ProcessorOperation},
+    executor_operation::ExecutorOperation,
     node::{PortHandle, Sink},
 };
 
@@ -101,18 +101,18 @@ impl ReceiverLoop for SinkNode {
         Cow::Owned(self.port_handles[index].to_string())
     }
 
-    fn on_op(&mut self, index: usize, op: ProcessorOperation) -> Result<(), ExecutionError> {
+    fn on_op(&mut self, index: usize, op: Operation) -> Result<(), ExecutionError> {
         let mut labels = self.labels.labels().clone();
         labels.push("table", self.node_handle.id.clone());
         const OPERATION_TYPE_LABEL: &str = "operation_type";
         match &op {
-            ProcessorOperation::Insert { .. } => {
+            Operation::Insert { .. } => {
                 labels.push(OPERATION_TYPE_LABEL, "insert");
             }
-            ProcessorOperation::Delete { .. } => {
+            Operation::Delete { .. } => {
                 labels.push(OPERATION_TYPE_LABEL, "delete");
             }
-            ProcessorOperation::Update { .. } => {
+            Operation::Update { .. } => {
                 labels.push(OPERATION_TYPE_LABEL, "update");
             }
         }

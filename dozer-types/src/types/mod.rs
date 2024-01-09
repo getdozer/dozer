@@ -201,6 +201,10 @@ impl Record {
         }
     }
 
+    pub fn values(&self) -> &[Field] {
+        &self.values
+    }
+
     pub fn iter(&self) -> core::slice::Iter<'_, Field> {
         self.values.iter()
     }
@@ -218,6 +222,12 @@ impl Record {
             Some(f) => Ok(f),
             _ => Err(TypeError::InvalidFieldIndex(idx)),
         }
+    }
+
+    pub fn appended(existing: &Record, additional: &[Field]) -> Self {
+        let mut values = existing.values.clone();
+        values.extend_from_slice(additional);
+        Self::new(values)
     }
 
     pub fn get_key_fields(&self, schema: &Schema) -> Vec<Field> {
@@ -256,7 +266,7 @@ impl Record {
         self.lifetime = lifetime;
     }
 
-    pub fn get_lifetime(&mut self) -> Option<Lifetime> {
+    pub fn get_lifetime(&self) -> Option<Lifetime> {
         self.lifetime.clone()
     }
 }

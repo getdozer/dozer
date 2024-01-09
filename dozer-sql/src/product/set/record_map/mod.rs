@@ -5,8 +5,11 @@ use dozer_core::{
     },
     dozer_log::storage::Object,
 };
-use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore, ProcessorRecordStoreDeserializer};
-use dozer_types::serde::{Deserialize, Serialize};
+use dozer_recordstore::{ProcessorRecordStore, ProcessorRecordStoreDeserializer};
+use dozer_types::{
+    serde::{Deserialize, Serialize},
+    types::Record,
+};
 use enum_dispatch::enum_dispatch;
 use std::collections::HashMap;
 
@@ -19,14 +22,14 @@ pub enum CountingRecordMapEnum {
 #[enum_dispatch]
 pub trait CountingRecordMap {
     /// Inserts a record, or increases its insertion count if it already exixts in the map.
-    fn insert(&mut self, record: &ProcessorRecord);
+    fn insert(&mut self, record: &Record);
 
     /// Decreases the insertion count of a record, and removes it if the count reaches zero.
-    fn remove(&mut self, record: &ProcessorRecord);
+    fn remove(&mut self, record: &Record);
 
     /// Returns an estimate of the number of times this record has been inserted into the filter.
     /// Depending on the implementation, this number may not be accurate.
-    fn estimate_count(&self, record: &ProcessorRecord) -> u64;
+    fn estimate_count(&self, record: &Record) -> u64;
 
     /// Clears the map, removing all records.
     fn clear(&mut self);
@@ -41,7 +44,7 @@ pub trait CountingRecordMap {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AccurateCountingRecordMap {
-    map: HashMap<ProcessorRecord, u64>,
+    map: HashMap<Record, u64>,
 }
 
 impl AccurateCountingRecordMap {
@@ -68,14 +71,14 @@ impl AccurateCountingRecordMap {
 }
 
 impl CountingRecordMap for AccurateCountingRecordMap {
-    fn insert(&mut self, record: &ProcessorRecord) {
+    fn insert(&mut self, record: &Record) {
         let count = self.map.entry(record.clone()).or_insert(0);
         if *count < u64::max_value() {
             *count += 1;
         }
     }
 
-    fn remove(&mut self, record: &ProcessorRecord) {
+    fn remove(&mut self, record: &Record) {
         if let Some(count) = self.map.get_mut(record) {
             *count -= 1;
             if *count == 0 {
@@ -84,7 +87,7 @@ impl CountingRecordMap for AccurateCountingRecordMap {
         }
     }
 
-    fn estimate_count(&self, record: &ProcessorRecord) -> u64 {
+    fn estimate_count(&self, record: &Record) -> u64 {
         self.map.get(record).copied().unwrap_or(0)
     }
 
@@ -133,15 +136,15 @@ impl ProbabilisticCountingRecordMap {
 }
 
 impl CountingRecordMap for ProbabilisticCountingRecordMap {
-    fn insert(&mut self, record: &ProcessorRecord) {
+    fn insert(&mut self, record: &Record) {
         self.map.insert(record);
     }
 
-    fn remove(&mut self, record: &ProcessorRecord) {
+    fn remove(&mut self, record: &Record) {
         self.map.remove(record);
     }
 
-    fn estimate_count(&self, record: &ProcessorRecord) -> u64 {
+    fn estimate_count(&self, record: &Record) -> u64 {
         self.map.estimate_count(record) as u64
     }
 
@@ -162,7 +165,6 @@ mod bloom;
 
 #[cfg(test)]
 mod tests {
-    use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore, StoreRecord};
     use dozer_types::types::{Field, Record};
 
     use super::{
@@ -171,10 +173,7 @@ mod tests {
     };
 
     fn test_map(mut map: CountingRecordMapEnum) {
-        let record_store = ProcessorRecordStore::new(Default::default()).unwrap();
-        let make_record = |fields: Vec<Field>| -> ProcessorRecord {
-            record_store.create_record(&Record::new(fields)).unwrap()
-        };
+        let make_record = Record::new;
 
         let a = make_record(vec![Field::String('a'.into())]);
         let b = make_record(vec![Field::String('b'.into())]);

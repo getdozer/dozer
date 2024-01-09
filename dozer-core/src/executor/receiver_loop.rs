@@ -1,13 +1,9 @@
 use std::borrow::Cow;
 
 use crossbeam::channel::{Receiver, Select};
-use dozer_types::log::debug;
+use dozer_types::{log::debug, types::Operation};
 
-use crate::{
-    epoch::Epoch,
-    errors::ExecutionError,
-    executor_operation::{ExecutorOperation, ProcessorOperation},
-};
+use crate::{epoch::Epoch, errors::ExecutionError, executor_operation::ExecutorOperation};
 
 use super::{name::Name, InputPortState};
 
@@ -22,7 +18,7 @@ pub trait ReceiverLoop: Name {
     /// Returns the name of the receiver at `index`. Used for logging.
     fn receiver_name(&self, index: usize) -> Cow<str>;
     /// Responds to `op` from the receiver at `index`.
-    fn on_op(&mut self, index: usize, op: ProcessorOperation) -> Result<(), ExecutionError>;
+    fn on_op(&mut self, index: usize, op: Operation) -> Result<(), ExecutionError>;
     /// Responds to `commit` of `epoch`.
     fn on_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError>;
     /// Responds to `terminate`.
@@ -105,13 +101,11 @@ mod tests {
         types::{Field, Record},
     };
 
-    use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore, StoreRecord};
-
     use super::*;
 
     struct TestReceiverLoop {
         receivers: Vec<Receiver<ExecutorOperation>>,
-        ops: Vec<(usize, ProcessorOperation)>,
+        ops: Vec<(usize, Operation)>,
         commits: Vec<Epoch>,
         snapshotting_done: Vec<String>,
         num_terminations: usize,
@@ -138,7 +132,7 @@ mod tests {
             Cow::Owned(format!("receiver_{index}"))
         }
 
-        fn on_op(&mut self, index: usize, op: ProcessorOperation) -> Result<(), ExecutionError> {
+        fn on_op(&mut self, index: usize, op: Operation) -> Result<(), ExecutionError> {
             self.ops.push((index, op));
             Ok(())
         }
@@ -202,13 +196,10 @@ mod tests {
     #[test]
     fn receiver_loop_forwards_op() {
         let (mut test_loop, senders) = TestReceiverLoop::new(2);
-        let record_store = ProcessorRecordStore::new(Default::default()).unwrap();
-        let record: ProcessorRecord = record_store
-            .create_record(&Record::new(vec![Field::Int(1)]))
-            .unwrap();
+        let record = Record::new(vec![Field::Int(1)]);
         senders[0]
             .send(ExecutorOperation::Op {
-                op: ProcessorOperation::Insert {
+                op: Operation::Insert {
                     new: record.clone(),
                 },
             })
@@ -216,10 +207,7 @@ mod tests {
         senders[0].send(ExecutorOperation::Terminate).unwrap();
         senders[1].send(ExecutorOperation::Terminate).unwrap();
         test_loop.receiver_loop(0).unwrap();
-        assert_eq!(
-            test_loop.ops,
-            vec![(0, ProcessorOperation::Insert { new: record })]
-        );
+        assert_eq!(test_loop.ops, vec![(0, Operation::Insert { new: record })]);
     }
 
     #[test]

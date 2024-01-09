@@ -2,7 +2,7 @@ use dozer_core::{
     checkpoint::serialize::{Cursor, SerializationError},
     dozer_log::storage::Object,
 };
-use dozer_recordstore::{ProcessorRecord, ProcessorRecordStore, ProcessorRecordStoreDeserializer};
+use dozer_recordstore::{ProcessorRecordStore, ProcessorRecordStoreDeserializer};
 use dozer_types::types::{Record, Schema, Timestamp};
 
 use crate::errors::JoinError;
@@ -90,10 +90,10 @@ impl JoinOperator {
         &self,
         action: JoinAction,
         join_key: &JoinKey,
-        record: &ProcessorRecord,
+        record: &Record,
         record_branch: JoinBranch,
         default_if_no_match: bool,
-    ) -> Vec<(JoinAction, ProcessorRecord)> {
+    ) -> Vec<(JoinAction, Record)> {
         let table = match record_branch {
             JoinBranch::Left => &self.right,
             JoinBranch::Right => &self.left,
@@ -110,9 +110,9 @@ impl JoinOperator {
         &self,
         action: JoinAction,
         join_key: &JoinKey,
-        record: &ProcessorRecord,
+        record: &Record,
         record_branch: JoinBranch,
-    ) -> Vec<(JoinAction, ProcessorRecord)> {
+    ) -> Vec<(JoinAction, Record)> {
         let (table_to_match, table_of_record) = match record_branch {
             JoinBranch::Left => (&self.right, &self.left),
             JoinBranch::Right => (&self.left, &self.right),
@@ -172,9 +172,9 @@ impl JoinOperator {
         &self,
         action: JoinAction,
         join_key: &JoinKey,
-        record: &ProcessorRecord,
+        record: &Record,
         record_branch: JoinBranch,
-    ) -> Vec<(JoinAction, ProcessorRecord)> {
+    ) -> Vec<(JoinAction, Record)> {
         match (&self.join_type, record_branch) {
             (JoinType::Inner, _) => self.inner_join(action, join_key, record, record_branch, false),
             (JoinType::LeftOuter, JoinBranch::Left) => {
@@ -195,9 +195,9 @@ impl JoinOperator {
     pub fn delete(
         &mut self,
         from: JoinBranch,
-        old: &ProcessorRecord,
+        old: &Record,
         old_decoded: &Record,
-    ) -> Vec<(JoinAction, ProcessorRecord)> {
+    ) -> Vec<(JoinAction, Record)> {
         let join_key = match from {
             JoinBranch::Left => self.left.remove(old_decoded),
             JoinBranch::Right => self.right.remove(old_decoded),
@@ -209,9 +209,9 @@ impl JoinOperator {
     pub fn insert(
         &mut self,
         from: JoinBranch,
-        new: &ProcessorRecord,
+        new: &Record,
         new_decoded: &Record,
-    ) -> JoinResult<Vec<(JoinAction, ProcessorRecord)>> {
+    ) -> JoinResult<Vec<(JoinAction, Record)>> {
         let join_key = match from {
             JoinBranch::Left => self.left.insert(new.clone(), new_decoded)?,
             JoinBranch::Right => self.right.insert(new.clone(), new_decoded)?,
@@ -237,9 +237,9 @@ impl JoinOperator {
 }
 
 fn create_join_records_fn(
-    record: &ProcessorRecord,
+    record: &Record,
     record_branch: JoinBranch,
-) -> impl Fn(&ProcessorRecord) -> ProcessorRecord + '_ {
+) -> impl Fn(&Record) -> Record + '_ {
     let lifetime = record.get_lifetime();
     move |matching_record| {
         let matching_lifetime = matching_record.get_lifetime();
@@ -250,14 +250,14 @@ fn create_join_records_fn(
                 let mut data = Vec::with_capacity(len);
                 data.extend_from_slice(record.values());
                 data.extend_from_slice(matching_record.values());
-                ProcessorRecord::new(data.into_boxed_slice())
+                Record::new(data)
             }
             JoinBranch::Right => {
                 let len = record.values().len() + matching_record.values().len();
                 let mut data = Vec::with_capacity(len);
                 data.extend_from_slice(matching_record.values());
                 data.extend_from_slice(record.values());
-                ProcessorRecord::new(data.into_boxed_slice())
+                Record::new(data)
             }
         };
 

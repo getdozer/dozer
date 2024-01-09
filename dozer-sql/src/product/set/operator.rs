@@ -1,7 +1,7 @@
 use super::record_map::{CountingRecordMap, CountingRecordMapEnum};
 use crate::errors::PipelineError;
-use dozer_recordstore::ProcessorRecord;
 use dozer_sql_expression::sqlparser::ast::{SetOperator, SetQuantifier};
+use dozer_types::types::Record;
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub enum SetAction {
@@ -27,9 +27,9 @@ impl SetOperation {
     pub fn execute(
         &self,
         action: SetAction,
-        record: ProcessorRecord,
+        record: Record,
         record_map: &mut CountingRecordMapEnum,
-    ) -> Result<Vec<(SetAction, ProcessorRecord)>, PipelineError> {
+    ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
         match (self.op, self.quantifier) {
             (SetOperator::Union, SetQuantifier::All) => Ok(vec![(action, record)]),
             (SetOperator::Union, SetQuantifier::None) => {
@@ -42,9 +42,9 @@ impl SetOperation {
     fn execute_union(
         &self,
         action: SetAction,
-        record: ProcessorRecord,
+        record: Record,
         record_map: &mut CountingRecordMapEnum,
-    ) -> Result<Vec<(SetAction, ProcessorRecord)>, PipelineError> {
+    ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
         match action {
             SetAction::Insert => self.union_insert(action, record, record_map),
             SetAction::Delete => self.union_delete(action, record, record_map),
@@ -54,9 +54,9 @@ impl SetOperation {
     fn union_insert(
         &self,
         action: SetAction,
-        record: ProcessorRecord,
+        record: Record,
         record_map: &mut CountingRecordMapEnum,
-    ) -> Result<Vec<(SetAction, ProcessorRecord)>, PipelineError> {
+    ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
         let _count = self.update_map(record.clone(), false, record_map);
         if _count == 1 {
             Ok(vec![(action, record)])
@@ -68,9 +68,9 @@ impl SetOperation {
     fn union_delete(
         &self,
         action: SetAction,
-        record: ProcessorRecord,
+        record: Record,
         record_map: &mut CountingRecordMapEnum,
-    ) -> Result<Vec<(SetAction, ProcessorRecord)>, PipelineError> {
+    ) -> Result<Vec<(SetAction, Record)>, PipelineError> {
         let _count = self.update_map(record.clone(), true, record_map);
         if _count == 0 {
             Ok(vec![(action, record)])
@@ -81,7 +81,7 @@ impl SetOperation {
 
     fn update_map(
         &self,
-        record: ProcessorRecord,
+        record: Record,
         decr: bool,
         record_map: &mut CountingRecordMapEnum,
     ) -> u64 {

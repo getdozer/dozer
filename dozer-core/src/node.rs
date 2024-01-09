@@ -1,6 +1,5 @@
 use crate::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
 use crate::epoch::Epoch;
-use crate::executor_operation::ProcessorOperation;
 use dozer_recordstore::{ProcessorRecordStore, ProcessorRecordStoreDeserializer};
 
 use dozer_log::storage::{Object, Queue};
@@ -8,7 +7,7 @@ use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::RestartableState;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::tonic::async_trait;
-use dozer_types::types::Schema;
+use dozer_types::types::{Operation, Schema};
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 
@@ -87,7 +86,7 @@ pub trait Processor: Send + Sync + Debug {
         &mut self,
         from_port: PortHandle,
         record_store: &ProcessorRecordStore,
-        op: ProcessorOperation,
+        op: Operation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError>;
     fn serialize(
@@ -112,7 +111,7 @@ pub trait Sink: Send + Sync + Debug {
         &mut self,
         from_port: PortHandle,
         record_store: &ProcessorRecordStore,
-        op: ProcessorOperation,
+        op: Operation,
     ) -> Result<(), BoxedError>;
     fn persist(&mut self, epoch: &Epoch, queue: &Queue) -> Result<(), BoxedError>;
 
