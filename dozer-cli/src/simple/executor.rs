@@ -79,7 +79,7 @@ impl<'a> Executor<'a> {
             let kind = match &endpoint.kind {
                 EndpointKind::Api(api) => {
                     let log_endpoint =
-                        create_log_endpoint(contract, &build_path, &api.name, &checkpoint).await?;
+                        create_log_endpoint(contract, &build_path, &endpoint.table_name, &checkpoint).await?;
                     ExecutorEndpointKind::Api {
                         api: api.clone(),
                         log_endpoint,

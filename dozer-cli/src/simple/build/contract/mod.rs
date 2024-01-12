@@ -101,7 +101,7 @@ impl Contract {
                 enable_on_event,
                 connections,
             };
-            endpoint_schemas.insert(api.name.clone(), schema);
+            endpoint_schemas.insert(endpoint.table_name.clone(), schema);
         }
 
         let mut source_types = HashMap::new();
