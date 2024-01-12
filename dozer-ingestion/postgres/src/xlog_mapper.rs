@@ -32,7 +32,7 @@ pub struct TableColumn {
 #[derive(Debug, Clone)]
 pub enum MappedReplicationMessage {
     Begin,
-    Commit(Lsn),
+    Commit((Lsn, i64)),
     Operation { table_index: usize, op: Operation },
 }
 
@@ -61,11 +61,12 @@ impl XlogMapper {
                 self.ingest_schema(relation)?;
             }
             Commit(commit) => {
-                return Ok(Some(MappedReplicationMessage::Commit(commit.end_lsn())));
+                return Ok(Some(MappedReplicationMessage::Commit((
+                    commit.end_lsn(),
+                    commit.timestamp(),
+                ))));
             }
-            Begin(_begin) => {
-                return Ok(Some(MappedReplicationMessage::Begin));
-            }
+            Begin(_begin) => return Ok(Some(MappedReplicationMessage::Begin)),
             Insert(insert) => {
                 let Some(table_columns) = self.tables_columns.get(&insert.rel_id()) else {
                     return Ok(None);
@@ -230,7 +231,7 @@ impl XlogMapper {
         new_values: &[TupleData],
         only_key: bool,
     ) -> Result<Vec<Field>, PostgresConnectorError> {
-        let mut values: Vec<Field> = vec![];
+        let mut values: Vec<Field> = Vec::with_capacity(table.columns.len());
 
         for column in &table.columns {
             if column.flags == 1 || !only_key {

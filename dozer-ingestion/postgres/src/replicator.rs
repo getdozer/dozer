@@ -11,6 +11,9 @@ use postgres_types::PgLsn;
 use tokio_postgres::Error;
 
 use std::pin::Pin;
+
+use dozer_ingestion_connector::dozer_types::types::Field::Timestamp;
+use dozer_ingestion_connector::dozer_types::types::Operation;
 use std::time::SystemTime;
 
 use crate::connection::client::Client;
@@ -37,6 +40,7 @@ pub struct CDCHandler<'a> {
 
     pub offset: u64,
     pub seq_no: u64,
+    pub first: i64,
 }
 
 impl<'a> CDCHandler<'a> {
@@ -84,7 +88,7 @@ impl<'a> CDCHandler<'a> {
                     // Postgres' keep alive feedback function expects time from 2000-01-01 00:00:00
                     let since_the_epoch = SystemTime::now()
                         .duration_since(SystemTime::from(
-                            Utc.with_ymd_and_hms(2020, 1, 1, 0, 0, 0).unwrap(),
+                            Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap(),
                         ))
                         .unwrap()
                         .as_millis();
@@ -117,33 +121,63 @@ impl<'a> CDCHandler<'a> {
                 let message = mapper.handle_message(body)?;
 
                 match message {
-                    Some(MappedReplicationMessage::Commit(lsn)) => {
+                    Some(MappedReplicationMessage::Commit((lsn, _commit_t))) => {
                         self.last_commit_lsn = lsn;
+                        // let c = SystemTime::now()
+                        //     .duration_since(SystemTime::from(
+                        //         Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).unwrap(),
+                        //     ))
+                        //     .unwrap().as_micros();
                     }
                     Some(MappedReplicationMessage::Begin) => {
                         self.begin_lsn = lsn;
                         self.seq_no = 0;
                     }
-                    Some(MappedReplicationMessage::Operation { table_index, op }) => {
-                        self.seq_no += 1;
-                        if (self.begin_lsn != self.offset_lsn || self.offset < self.seq_no)
-                            && self
-                                .ingestor
-                                .handle_message(IngestionMessage::OperationEvent {
-                                    table_index,
-                                    op,
-                                    state: Some(encode_state(
-                                        self.begin_lsn,
-                                        self.seq_no,
-                                        self.slot_name.clone(),
-                                    )),
-                                })
-                                .await
-                                .is_err()
-                        {
-                            // If the ingestion channel is closed, we should stop the replication
-                            return Ok(());
+                    Some(MappedReplicationMessage::Operation { table_index: _, op }) => {
+                        if self.seq_no == 0 || self.seq_no == 1 || (self.seq_no + 1) % 1000 == 0 {
+                            if let Operation::Insert { ref new, .. } = op {
+                                let current_timestamp = Utc::now();
+                                if let Timestamp(timestamp) = new.values.get(3).unwrap() {
+                                    let diff = current_timestamp.timestamp_millis()
+                                        - timestamp.timestamp_millis();
+                                    if self.seq_no == 0 {
+                                        self.first = current_timestamp.timestamp_millis();
+                                        info!("diff for insert first t: {:?} μs", diff);
+                                    } else if self.seq_no == 1 {
+                                        info!("diff for insert second t: {:?} μs", diff);
+                                    } else if (self.seq_no + 1) % 1000 == 0 {
+                                        let rate = 1000 * (self.seq_no + 1) as i64
+                                            / (current_timestamp.timestamp_millis() - self.first);
+                                        info!(
+                                            "diff for insert {}th t: {:?} ms (rate {rate}/s)",
+                                            self.seq_no + 1,
+                                            diff
+                                        );
+                                    }
+                                }
+                            }
                         }
+
+                        self.seq_no += 1;
+                        return Ok(());
+                        // if (self.begin_lsn != self.offset_lsn || self.offset < self.seq_no)
+                        //     && self
+                        //         .ingestor
+                        //         .handle_message(IngestionMessage::OperationEvent {
+                        //             table_index,
+                        //             op,
+                        //             state: Some(encode_state(
+                        //                 self.begin_lsn,
+                        //                 self.seq_no,
+                        //                 self.slot_name.clone(),
+                        //             )),
+                        //         })
+                        //         .await
+                        //         .is_err()
+                        // {
+                        //     // If the ingestion channel is closed, we should stop the replication
+                        //     return Ok(());
+                        // }
                     }
                     None => {}
                 }
@@ -154,7 +188,10 @@ impl<'a> CDCHandler<'a> {
                 error!("Unexpected message: {:?}", msg);
                 Err(PostgresConnectorError::UnexpectedReplicationMessageError)
             }
-            Some(Err(e)) => Err(PostgresConnectorError::ReplicationStreamError(e)),
+            Some(Err(e)) => {
+                error!("{:?}", e);
+                Err(PostgresConnectorError::ReplicationStreamError(e))
+            }
             None => Err(PostgresConnectorError::ReplicationStreamEndError),
         }
     }

@@ -56,9 +56,10 @@ impl Ingestor {
 
     pub async fn handle_message(
         &self,
-        message: IngestionMessage,
+        _message: IngestionMessage,
     ) -> Result<(), SendError<IngestionMessage>> {
-        self.sender.send(message).await
+        Ok(())
+        // self.sender.send(message).await
     }
 
     // FIXME: Fix large error variant

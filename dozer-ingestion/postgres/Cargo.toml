@@ -23,6 +23,7 @@ tokio-postgres-rustls = "0.10.0"
 rustls-native-certs = "0.6.3"
 regex = "1"
 rand = "0.8.5"
+firestorm = { version = "0.4", features=["enable_system_time"]  }
 
 [dev-dependencies]
 serial_test = "1.0.0"

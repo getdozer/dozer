@@ -1979,9 +1979,14 @@ version = "3.2.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ea181bf566f71cb9a5d17a59e1871af638180a18fb0035c92ae62b705207123"
 dependencies = [
+ "atty",
  "bitflags 1.3.2",
+ "clap_derive 3.2.25",
  "clap_lex 0.2.4",
  "indexmap 1.9.3",
+ "once_cell",
+ "strsim",
+ "termcolor",
  "textwrap",
 ]
 
@@ -1992,7 +1997,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2275f18819641850fa26c89acc84d465c1bf91ce57bc2748b28c420473352f64"
 dependencies = [
  "clap_builder",
- "clap_derive",
+ "clap_derive 4.4.7",
 ]
 
 [[package]]
@@ -2005,6 +2010,19 @@ dependencies = [
  "anstyle",
  "clap_lex 0.6.0",
  "strsim",
+]
+
+[[package]]
+name = "clap_derive"
+version = "3.2.25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae6371b8bdc8b7d3959e9cf7b22d4435ef3e79e138688421ec654acf8c81b008"
+dependencies = [
+ "heck",
+ "proc-macro-error 1.0.4",
+ "proc-macro2 1.0.69",
+ "quote 1.0.33",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -3755,7 +3773,7 @@ dependencies = [
  "dozer-storage",
  "dozer-tracing",
  "dozer-types",
- "env_logger",
+ "env_logger 0.10.1",
  "futures",
  "itertools 0.10.5",
  "metrics",
@@ -3862,7 +3880,7 @@ dependencies = [
  "dozer-ingestion-snowflake",
  "dozer-tracing",
  "dozer-utils",
- "env_logger",
+ "env_logger 0.10.1",
  "futures",
  "hex",
  "parquet",
@@ -3977,6 +3995,7 @@ name = "dozer-ingestion-postgres"
 version = "0.3.0"
 dependencies = [
  "dozer-ingestion-connector",
+ "firestorm 0.4.6",
  "postgres-protocol",
  "postgres-types",
  "rand 0.8.5",
@@ -4011,7 +4030,7 @@ dependencies = [
  "dozer-deno",
  "dozer-log",
  "dozer-types",
- "env_logger",
+ "env_logger 0.10.1",
 ]
 
 [[package]]
@@ -4028,7 +4047,7 @@ dependencies = [
  "clap 4.4.8",
  "dozer-types",
  "dyn-clone",
- "env_logger",
+ "env_logger 0.10.1",
  "futures-util",
  "nonzero_ext",
  "pin-project",
@@ -4164,7 +4183,7 @@ dependencies = [
  "dozer-tracing",
  "dozer-types",
  "dozer-utils",
- "env_logger",
+ "env_logger 0.10.1",
  "futures",
  "libtest-mimic",
  "mongodb",
@@ -4489,6 +4508,15 @@ dependencies = [
 
 [[package]]
 name = "env_logger"
+version = "0.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a12e6657c4c97ebab115a42dcee77225f7f482cdd841cf7088c657a42e9e00e7"
+dependencies = [
+ "log",
+]
+
+[[package]]
+name = "env_logger"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "95b3f3e67048839cb0d0781f445682a35113da7121f7c949db0e2be96a4fbece"
@@ -4687,6 +4715,51 @@ name = "finl_unicode"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8fcfdc7a0362c9f4444381a9e697c79d435fe65b52a37466fc2c1184cee9edc6"
+
+[[package]]
+name = "firestorm"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "16faebe6b035dfd70edf3b015f80dac5b0320fb49dd449514568c550498b7dae"
+dependencies = [
+ "firestorm-enabled 0.3.1",
+]
+
+[[package]]
+name = "firestorm"
+version = "0.4.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "31586bda1b136406162e381a3185a506cdfc1631708dd40cba2f6628d8634499"
+dependencies = [
+ "firestorm 0.3.1",
+ "firestorm-enabled 0.4.3",
+]
+
+[[package]]
+name = "firestorm-core"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "947bd1f1216aab1d00644a8baba97082a99b5b5d05e9119a9f1f23ae65fcac13"
+
+[[package]]
+name = "firestorm-enabled"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96acff81dd64a43d84d7ec7cd639de7c453067bda7b51e5fbf45742085f615e2"
+dependencies = [
+ "firestorm-core",
+ "inferno",
+]
+
+[[package]]
+name = "firestorm-enabled"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9163dd4d7d814fd624289584f77f2d2465917eb9bb261c2c50603aa173a3ddd6"
+dependencies = [
+ "firestorm-core",
+ "inferno",
+]
 
 [[package]]
 name = "fix-hidden-lifetime-bug"
@@ -5799,6 +5872,30 @@ name = "indoc"
 version = "1.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bfa799dd5ed20a7e349f3b4639aa80d74549c81716d9ec4f994c9b5815598306"
+
+[[package]]
+name = "inferno"
+version = "0.10.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "de3886428c6400486522cf44b8626e7b94ad794c14390290f2a274dcf728a58f"
+dependencies = [
+ "ahash 0.7.7",
+ "atty",
+ "clap 3.2.25",
+ "crossbeam-channel",
+ "crossbeam-utils",
+ "dashmap 5.5.3",
+ "env_logger 0.9.3",
+ "indexmap 1.9.3",
+ "itoa",
+ "lazy_static",
+ "log",
+ "num-format",
+ "num_cpus",
+ "quick-xml 0.22.0",
+ "rgb",
+ "str_stack",
+]
 
 [[package]]
 name = "inotify"
@@ -7125,6 +7222,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "num-format"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a652d9771a63711fd3c3deb670acfbe5c30a4072e664d7a3bf5a9e1056ac72c3"
+dependencies = [
+ "arrayvec",
+ "itoa",
+]
+
+[[package]]
 name = "num-integer"
 version = "0.1.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7281,7 +7388,7 @@ dependencies = [
  "itertools 0.11.0",
  "parking_lot",
  "percent-encoding",
- "quick-xml",
+ "quick-xml 0.30.0",
  "rand 0.8.5",
  "reqwest",
  "ring 0.16.20",
@@ -8692,6 +8799,15 @@ checksum = "a1d01941d82fa2ab50be1e79e6714289dd7cde78eba4c074bc5a4374f650dfe0"
 
 [[package]]
 name = "quick-xml"
+version = "0.22.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8533f14c8382aaad0d592c812ac3b826162128b65662331e1127b45c3d18536b"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
+name = "quick-xml"
 version = "0.30.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eff6510e86862b57b210fd8cbe8ed3f0d7d600b9c2863cd4549a2e033c66e956"
@@ -9079,6 +9195,15 @@ checksum = "f8dd2a808d456c4a54e300a23e9f5a67e122c3024119acbfd73e3bf664491cb2"
 dependencies = [
  "hmac",
  "subtle",
+]
+
+[[package]]
+name = "rgb"
+version = "0.8.37"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "05aaa8004b64fd573fc9d002f4e632d51ad4f026c2b5ba95fcb6c2f32c2c47d8"
+dependencies = [
+ "bytemuck",
 ]
 
 [[package]]
@@ -10271,6 +10396,12 @@ name = "str-buf"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e08d8363704e6c71fc928674353e6b7c23dcea9d82d7012c8faf2a3a025f8d0"
+
+[[package]]
+name = "str_stack"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9091b6114800a5f2141aee1d1b9d6ca3592ac062dc5decb3764ec5895a47b4eb"
 
 [[package]]
 name = "string_cache"

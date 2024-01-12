@@ -38,3 +38,6 @@ datafusion-physical-plan = { git = "https://github.com/getdozer/arrow-datafusion
 datafusion-sql = { git = "https://github.com/getdozer/arrow-datafusion" }
 datafusion-proto = { git = "https://github.com/getdozer/arrow-datafusion" }
 datafusion-common = { git = "https://github.com/getdozer/arrow-datafusion" }
+
+[profile.dev  ]
+debug = true

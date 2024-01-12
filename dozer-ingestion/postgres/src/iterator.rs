@@ -208,6 +208,7 @@ impl<'a> PostgresIteratorHandler<'a> {
             last_commit_lsn: 0,
             seq_no: 0,
             name: self.details.name.clone(),
+            first: 0,
         };
         replicator.start(tables).await
     }

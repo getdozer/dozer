@@ -92,8 +92,8 @@ impl RecordWriter for PrimaryKeyLookupRecordWriter {
     ) -> Result<Operation, RecordWriterError> {
         match op {
             Operation::Insert { new } => {
-                let new_key = new.get_key(&self.schema.primary_index);
-                self.index.insert(new_key, new.clone());
+                //let new_key = new.get_key(&self.schema.primary_index);
+                //self.index.insert(new_key, new.clone());
                 Ok(Operation::Insert { new })
             }
             Operation::Delete { mut old } => {

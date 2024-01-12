@@ -1,3 +1,6 @@
+use std::sync::atomic::{AtomicI32, Ordering};
+use std::sync::Arc;
+
 use dozer_ingestion_connector::{
     dozer_types::{
         models::ingestion_types::IngestionMessage,
@@ -12,6 +15,9 @@ use dozer_ingestion_connector::{
     utils::ListOrFilterColumns,
     Ingestor, SourceSchema,
 };
+use std::time::Duration;
+
+use crate::snapshotter::tokio::time::interval;
 
 use crate::{
     connection::helper as connection_helper, helper::get_conversion_fn,
@@ -154,8 +160,34 @@ impl<'a> PostgresSnapshotter<'a> {
             return Ok(());
         }
 
+        let counter = Arc::new(AtomicI32::new(0));
+
+        let counter_clone = counter.clone();
+        let mut interval = interval(Duration::from_secs(1));
+        tokio::spawn(async move {
+            let mut sec = 0;
+            let mut last = 0;
+            loop {
+                interval.tick().await;
+                let current_counter = counter_clone.load(Ordering::SeqCst);
+                if current_counter != last {
+                    sec += 1;
+                    let c = current_counter - last;
+                    last = current_counter;
+                    println!("{sec},{c},{throughput}", throughput = c * 60);
+                }
+            }
+        });
+
         while let Some(message) = rx.recv().await {
             let (table_index, evt) = message?;
+            counter.fetch_add(1, Ordering::SeqCst);
+            //
+            // if counter % 100000 == 0 {
+            //     info!("100K rows in {:?}", start.elapsed());
+            //     start = std::time::Instant::now();
+            // }
+
             if self
                 .ingestor
                 .handle_message(IngestionMessage::OperationEvent {
