@@ -152,7 +152,7 @@ async fn test_grpc_common_on_event() {
         .into_inner();
     let operation = rx.recv().await.unwrap().unwrap();
     drop(rx);
-    assert_eq!(operation.endpoint_name, "films".to_string());
+    assert_eq!(operation.table_name, "films".to_string());
     assert_eq!(operation.typ, OperationType::Insert as i32);
     assert_eq!(
         operation.new.unwrap().values[0],

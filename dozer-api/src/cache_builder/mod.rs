@@ -33,7 +33,7 @@ const READ_LOG_RETRY_INTERVAL: Duration = Duration::from_secs(1);
 #[derive(Debug)]
 pub struct CacheBuilder {
     client: InternalPipelineServiceClient<Channel>,
-    endpoint: String,
+    table_name: String,
     cache_manager: Arc<dyn RwCacheManager>,
     serving: Arc<ArcSwap<CacheReader>>,
     labels: Labels,
@@ -52,6 +52,7 @@ impl CacheBuilder {
     pub async fn new(
         cache_manager: Arc<dyn RwCacheManager>,
         app_server_url: String,
+        table_name: String,
         endpoint: &ApiEndpoint,
         labels: LabelsAndProgress,
     ) -> Result<(Self, EndpointSchema), ApiInitError> {
@@ -63,7 +64,7 @@ impl CacheBuilder {
                 error,
             })?;
         let (endpoint_meta, _) =
-            EndpointMeta::load_from_client(&mut client, endpoint.name.clone()).await?;
+            EndpointMeta::load_from_client(&mut client, table_name.clone()).await?;
 
         // Open or create cache.
         let cache_write_options = cache_write_options(endpoint.conflict_resolution);
@@ -74,14 +75,15 @@ impl CacheBuilder {
             cache_write_options,
         )
         .map_err(ApiInitError::OpenOrCreateCache)?;
-        let progress_bar = labels.create_progress_bar(format!("cache: {}", endpoint_meta.name));
+        let progress_bar =
+            labels.create_progress_bar(format!("cache: {}", endpoint_meta.table_name));
 
         let log_reader_options = get_log_reader_options(endpoint);
 
         Ok((
             Self {
                 client,
-                endpoint: endpoint.name.clone(),
+                table_name,
                 cache_manager,
                 serving: Arc::new(ArcSwap::from_pointee(serving)),
                 labels: labels.labels().clone(),
@@ -106,7 +108,7 @@ impl CacheBuilder {
         loop {
             // Connect to the endpoint's log.
             let Some(connect_result) = runtime.block_on(with_cancel(
-                connect_until_success(&mut self.client, &self.endpoint),
+                connect_until_success(&mut self.client, &self.table_name),
                 cancel,
             )) else {
                 return Ok(());

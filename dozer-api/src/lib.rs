@@ -19,6 +19,7 @@ pub use api_helper::get_api_security;
 pub struct CacheEndpoint {
     cache_reader: Arc<ArcSwap<CacheReader>>,
     descriptor: Vec<u8>,
+    table_name: String,
     endpoint: ApiEndpoint,
 }
 
@@ -28,6 +29,7 @@ impl CacheEndpoint {
     pub async fn new(
         runtime: Arc<Runtime>,
         app_server_url: String,
+        table_name: String,
         cache_manager: Arc<dyn RwCacheManager>,
         endpoint: ApiEndpoint,
         cancel: impl Future<Output = ()> + Unpin + Send + 'static,
@@ -35,23 +37,29 @@ impl CacheEndpoint {
         labels: LabelsAndProgress,
     ) -> Result<(Self, JoinHandle<Result<(), CacheError>>), ApiInitError> {
         // Create cache builder.
-        let (cache_builder, endpoint_schema) =
-            CacheBuilder::new(cache_manager, app_server_url, &endpoint, labels).await?;
+        let (cache_builder, endpoint_schema) = CacheBuilder::new(
+            cache_manager,
+            app_server_url,
+            table_name.clone(),
+            &endpoint,
+            labels,
+        )
+        .await?;
         let cache_reader = cache_builder.cache_reader().clone();
 
         // Generate descriptor.
-        let temp_dir = TempDir::new(&endpoint.name).map_err(ApiInitError::CreateTempDir)?;
+        let temp_dir = TempDir::new(&table_name).map_err(ApiInitError::CreateTempDir)?;
         let proto_folder_path = temp_dir.path();
         let descriptor_path = proto_folder_path.join("descriptor.bin");
         let descriptor = generate_all(
             proto_folder_path,
             &descriptor_path,
-            [(endpoint.name.as_str(), &endpoint_schema)],
+            [(table_name.as_str(), &endpoint_schema)],
         )?;
 
         // Start cache builder.
         let handle = {
-            let operations_sender = operations_sender.map(|sender| (endpoint.name.clone(), sender));
+            let operations_sender = operations_sender.map(|sender| (table_name.clone(), sender));
             let runtime_clone = runtime.clone();
             runtime_clone
                 .spawn_blocking(move || cache_builder.run(runtime, cancel, operations_sender))
@@ -61,6 +69,7 @@ impl CacheEndpoint {
             Self {
                 cache_reader,
                 descriptor,
+                table_name,
                 endpoint,
             },
             handle,
@@ -70,16 +79,18 @@ impl CacheEndpoint {
     pub fn open(
         cache_manager: &dyn RwCacheManager,
         descriptor: Vec<u8>,
+        table_name: String,
         endpoint: ApiEndpoint,
     ) -> Result<Self, ApiInitError> {
         let mut labels = Labels::new();
-        labels.push(endpoint.name.clone(), endpoint.name.clone());
+        labels.push(ENDPOINT_LABEL.to_string(), table_name.clone());
         Ok(Self {
             cache_reader: Arc::new(ArcSwap::from_pointee(open_existing_cache_reader(
                 cache_manager,
                 labels,
             )?)),
             descriptor,
+            table_name,
             endpoint,
         })
     }
@@ -90,6 +101,10 @@ impl CacheEndpoint {
 
     pub fn descriptor(&self) -> &[u8] {
         &self.descriptor
+    }
+
+    pub fn table_name(&self) -> &str {
+        &self.table_name
     }
 
     pub fn endpoint(&self) -> &ApiEndpoint {

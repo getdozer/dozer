@@ -8,6 +8,8 @@ use dozer_types::{
 
 use dozer_cache::cache::{CacheRecord, LmdbRwCacheManager, RwCacheManager};
 
+use crate::ENDPOINT_LABEL;
+
 pub fn get_schema() -> SchemaWithIndex {
     let fields = vec![
         FieldDefinition {
@@ -57,7 +59,6 @@ pub fn get_schema() -> SchemaWithIndex {
 
 pub fn get_endpoint() -> ApiEndpoint {
     ApiEndpoint {
-        name: "films".to_string(),
         path: "/films".to_string(),
         index: ApiIndex {
             primary_key: vec!["film_id".to_string()],
@@ -100,12 +101,12 @@ fn get_films() -> Vec<Value> {
 }
 
 pub fn initialize_cache(
-    schema_name: &str,
+    table_name: &str,
     schema: Option<SchemaWithIndex>,
 ) -> Box<LmdbRwCacheManager> {
     let cache_manager = LmdbRwCacheManager::new(Default::default()).unwrap();
     let mut labels = Labels::new();
-    labels.push(schema_name.to_string(), schema_name.to_string());
+    labels.push(ENDPOINT_LABEL.to_string(), table_name.to_string());
     let (schema, secondary_indexes) = schema.unwrap_or_else(get_schema);
     let mut cache = cache_manager
         .create_cache(

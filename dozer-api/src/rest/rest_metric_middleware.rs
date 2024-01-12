@@ -73,7 +73,7 @@ where
             let start_time = std::time::Instant::now();
             let res: Result<ServiceResponse<B>, Error> = fut.await;
             if let Some(endpoint) = cache_data {
-                labels.push("endpoint", endpoint.endpoint.name.clone());
+                labels.push("endpoint", endpoint.table_name.clone());
                 labels.push("api_type", "rest".to_string());
                 histogram!(
                     API_LATENCY_HISTOGRAM_NAME,

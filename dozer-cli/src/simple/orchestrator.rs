@@ -104,7 +104,7 @@ impl SimpleOrchestrator {
         let default_max_num_records = get_default_max_num_records(&self.config);
         let mut cache_endpoints = vec![];
         for endpoint in &self.config.endpoints {
-            let EndpointKind::Api(endpoint) = &endpoint.kind else {
+            let EndpointKind::Api(api) = &endpoint.kind else {
                 continue;
             };
 
@@ -114,15 +114,16 @@ impl SimpleOrchestrator {
                 result = CacheEndpoint::new(
                     self.runtime.clone(),
                     app_server_url.clone(),
+                    endpoint.table_name.clone(),
                     cache_manager.clone(),
-                    endpoint.clone(),
+                    api.clone(),
                     Box::pin(shutdown.create_shutdown_future()),
                     operations_sender.clone(),
                     self.labels.clone(),
 
                 ) => result?
             };
-            let cache_name = endpoint.name.clone();
+            let cache_name = endpoint.table_name.clone();
             futures.push(flatten_join_handle(join_handle_map_err(handle, move |e| {
                 if e.is_map_full() {
                     OrchestrationError::CacheFull(cache_name)
@@ -244,7 +245,7 @@ impl SimpleOrchestrator {
         )
         .await?;
         let checkpoint_prefix = executor.checkpoint_prefix().to_string();
-        let endpoint_and_logs = executor.endpoint_and_logs().to_vec();
+        let table_name_and_logs = executor.table_name_and_logs().to_vec();
         let dag_executor = executor
             .create_dag_executor(
                 &self.runtime,
@@ -257,7 +258,7 @@ impl SimpleOrchestrator {
         let app_grpc_config = &self.config.api.app_grpc;
         let internal_server_future = start_internal_pipeline_server(
             checkpoint_prefix,
-            endpoint_and_logs,
+            table_name_and_logs,
             app_grpc_config,
             shutdown.clone(),
         )

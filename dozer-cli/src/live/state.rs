@@ -173,13 +173,7 @@ impl LiveState {
                 .config
                 .endpoints
                 .iter()
-                .filter_map(|endpoint| {
-                    if let EndpointKind::Api(api) = &endpoint.kind {
-                        Some(api.name.clone())
-                    } else {
-                        None
-                    }
-                })
+                .map(|endpoint| endpoint.table_name.clone())
                 .collect();
 
             let enable_api_security = std::env::var("DOZER_MASTER_SECRET")
@@ -407,13 +401,12 @@ fn get_dozer_run_instance(
             dozer.config.sql = Some(req.sql);
 
             dozer.config.endpoints = vec![];
-            let endpoints = context.output_tables_map.keys().collect::<Vec<_>>();
-            for endpoint in endpoints {
+            let tables = context.output_tables_map.keys().collect::<Vec<_>>();
+            for table in tables {
                 let endpoint = Endpoint {
-                    table_name: endpoint.to_string(),
+                    table_name: table.to_string(),
                     kind: EndpointKind::Api(ApiEndpoint {
-                        name: endpoint.to_string(),
-                        path: format!("/{}", endpoint),
+                        path: format!("/{}", table),
                         index: Default::default(),
                         conflict_resolution: Default::default(),
                         version: Default::default(),
@@ -430,7 +423,6 @@ fn get_dozer_run_instance(
             dozer.config.endpoints.push(Endpoint {
                 table_name: endpoint.to_string(),
                 kind: EndpointKind::Api(ApiEndpoint {
-                    name: endpoint.to_string(),
                     path: format!("/{}", endpoint),
                     index: Default::default(),
                     conflict_resolution: Default::default(),

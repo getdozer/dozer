@@ -5,7 +5,7 @@ use dozer_cache::dozer_log::home_dir::{BuildPath, HomeDir};
 use dozer_cache::dozer_log::replication::Log;
 use dozer_core::checkpoint::{CheckpointOptions, OptionCheckpoint};
 use dozer_tracing::LabelsAndProgress;
-use dozer_types::models::endpoint::{ApiEndpoint, Endpoint, EndpointKind};
+use dozer_types::models::endpoint::{Endpoint, EndpointKind};
 use dozer_types::models::flags::Flags;
 use tokio::runtime::Runtime;
 use tokio::sync::Mutex;
@@ -42,10 +42,7 @@ struct ExecutorEndpoint {
 
 #[derive(Debug)]
 enum ExecutorEndpointKind {
-    Api {
-        api: ApiEndpoint,
-        log_endpoint: LogEndpoint,
-    },
+    Api { log_endpoint: LogEndpoint },
     Dummy,
 }
 
@@ -77,13 +74,15 @@ impl<'a> Executor<'a> {
         let mut executor_endpoints = vec![];
         for endpoint in endpoints {
             let kind = match &endpoint.kind {
-                EndpointKind::Api(api) => {
-                    let log_endpoint =
-                        create_log_endpoint(contract, &build_path, &api.name, &checkpoint).await?;
-                    ExecutorEndpointKind::Api {
-                        api: api.clone(),
-                        log_endpoint,
-                    }
+                EndpointKind::Api(_) => {
+                    let log_endpoint = create_log_endpoint(
+                        contract,
+                        &build_path,
+                        &endpoint.table_name,
+                        &checkpoint,
+                    )
+                    .await?;
+                    ExecutorEndpointKind::Api { log_endpoint }
                 }
                 EndpointKind::Dummy => ExecutorEndpointKind::Dummy,
             };
@@ -109,12 +108,12 @@ impl<'a> Executor<'a> {
         self.checkpoint.prefix()
     }
 
-    pub fn endpoint_and_logs(&self) -> Vec<(ApiEndpoint, LogEndpoint)> {
+    pub fn table_name_and_logs(&self) -> Vec<(String, LogEndpoint)> {
         self.endpoints
             .iter()
             .filter_map(|endpoint| {
-                if let ExecutorEndpointKind::Api { api, log_endpoint } = &endpoint.kind {
-                    Some((api.clone(), log_endpoint.clone()))
+                if let ExecutorEndpointKind::Api { log_endpoint, .. } = &endpoint.kind {
+                    Some((endpoint.table_name.clone(), log_endpoint.clone()))
                 } else {
                     None
                 }
@@ -137,8 +136,7 @@ impl<'a> Executor<'a> {
                 .into_iter()
                 .map(|endpoint| {
                     let kind = match endpoint.kind {
-                        ExecutorEndpointKind::Api { api, log_endpoint } => EndpointLogKind::Api {
-                            api,
+                        ExecutorEndpointKind::Api { log_endpoint, .. } => EndpointLogKind::Api {
                             log: log_endpoint.log,
                         },
                         ExecutorEndpointKind::Dummy => EndpointLogKind::Dummy,
@@ -176,15 +174,15 @@ pub fn run_dag_executor(
 async fn create_log_endpoint(
     contract: &Contract,
     build_path: &BuildPath,
-    endpoint_name: &str,
+    table_name: &str,
     checkpoint: &OptionCheckpoint,
 ) -> Result<LogEndpoint, OrchestrationError> {
-    let endpoint_path = build_path.get_endpoint_path(endpoint_name);
+    let endpoint_path = build_path.get_endpoint_path(table_name);
 
     let schema = contract
         .endpoints
-        .get(endpoint_name)
-        .ok_or_else(|| BuildError::MissingEndpoint(endpoint_name.to_owned()))?;
+        .get(table_name)
+        .ok_or_else(|| BuildError::MissingEndpoint(table_name.to_owned()))?;
     let schema_string =
         dozer_types::serde_json::to_string(schema).map_err(BuildError::SerdeJson)?;
 

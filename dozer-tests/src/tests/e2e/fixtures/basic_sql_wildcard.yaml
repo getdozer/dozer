@@ -61,5 +61,4 @@ sql: |
 endpoints:
   - table_name: wildcard_res
     kind: !Api
-      name: wildcard_res
       path: /wildcard_res

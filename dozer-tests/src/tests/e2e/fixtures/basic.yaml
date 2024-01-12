@@ -37,5 +37,4 @@ sources:
 endpoints:
   - table_name: users
     kind: !Api
-      name: users
       path: /users

@@ -20,7 +20,7 @@ pub fn generate_protos(home_dir: &HomeDir, contract: &Contract) -> Result<(), Bu
         contract
             .endpoints
             .iter()
-            .map(|(endpoint_name, schema)| (endpoint_name.as_str(), schema)),
+            .map(|(table_name, schema)| (table_name.as_str(), schema)),
     )?;
 
     Ok(())

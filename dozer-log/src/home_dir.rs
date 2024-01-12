@@ -172,8 +172,8 @@ pub struct BuildPath {
 }
 
 impl BuildPath {
-    pub fn get_endpoint_path(&self, endpoint_name: &str) -> EndpointPath {
-        let log_dir_relative_to_data_dir = self.log_dir_relative_to_data_dir.join(endpoint_name);
+    pub fn get_endpoint_path(&self, table_name: &str) -> EndpointPath {
+        let log_dir_relative_to_data_dir = self.log_dir_relative_to_data_dir.join(table_name);
         EndpointPath {
             build_id: self.id.clone(),
             log_dir_relative_to_data_dir,

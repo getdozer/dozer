@@ -491,7 +491,7 @@ impl SQLExecutor {
             let _provider = ctx
                 .register_table(
                     TableReference::Bare {
-                        table: cache_endpoint.endpoint().name.clone().into(),
+                        table: cache_endpoint.table_name.to_string().into(),
                     },
                     Arc::new(data_source),
                 )
@@ -733,7 +733,7 @@ impl ExecutionPlan for CacheEndpointExec {
             match get_records(
                 cache_reader,
                 &mut expr,
-                &self.cache_endpoint.endpoint.name,
+                &self.cache_endpoint.table_name,
                 access,
             ) {
                 Ok(records) => futures_util::stream::iter(transpose(

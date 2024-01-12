@@ -37,7 +37,7 @@ message Operation {
   // New record data.
   Record new = 3;
   // Name of the endpoint that this event is from.
-  string endpoint_name = 5;
+  string endpoint = 5;
 }
 
 // A record, can be thought of a row in the database table.

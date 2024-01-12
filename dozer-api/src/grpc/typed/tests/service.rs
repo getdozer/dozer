@@ -36,10 +36,12 @@ pub async fn setup_pipeline() -> (Vec<Arc<CacheEndpoint>>, Receiver<Operation>) 
     let res = env::current_dir().unwrap();
     let descriptor_path = res.join("src/grpc/typed/tests/generated_films.bin");
     let descriptor_bytes = tokio::fs::read(&descriptor_path).await.unwrap();
+    let table_name = "films";
     let endpoint = test_utils::get_endpoint();
     let cache_endpoint = CacheEndpoint::open(
-        &*test_utils::initialize_cache(&endpoint.name, None),
+        &*test_utils::initialize_cache(table_name, None),
         descriptor_bytes,
+        table_name.to_string(),
         endpoint,
     )
     .unwrap();
@@ -65,7 +67,7 @@ pub async fn setup_pipeline() -> (Vec<Arc<CacheEndpoint>>, Receiver<Operation>) 
                     id: 1,
                     version: 1,
                 }),
-                endpoint_name: "films".to_string(),
+                endpoint: table_name.to_string(),
             };
             if sender.send(op).is_err() {
                 break;

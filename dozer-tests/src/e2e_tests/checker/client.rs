@@ -76,7 +76,7 @@ impl Client {
         match expectation {
             Expectation::HealthyService => self.check_healthy_service().await,
             Expectation::Endpoint {
-                endpoint,
+                table_name,
                 expectations,
             } => {
                 let rest_path = self
@@ -85,7 +85,7 @@ impl Client {
                     .iter()
                     .filter_map(|e| match &e.kind {
                         EndpointKind::Api(api) => {
-                            if &api.name == endpoint {
+                            if &e.table_name == table_name {
                                 Some(api)
                             } else {
                                 None
@@ -94,12 +94,12 @@ impl Client {
                         EndpointKind::Dummy => None,
                     })
                     .next()
-                    .unwrap_or_else(|| panic!("Cannot find endpoint {endpoint} in config"))
+                    .unwrap_or_else(|| panic!("Cannot find endpoint {table_name} in config"))
                     .path
                     .clone();
-                self.check_endpoint_existence(endpoint, &rest_path).await;
+                self.check_endpoint_existence(table_name, &rest_path).await;
                 for expectation in expectations {
-                    self.check_endpoint_expectation(endpoint, &rest_path, expectation)
+                    self.check_endpoint_expectation(table_name, &rest_path, expectation)
                         .await;
                 }
             }
@@ -130,7 +130,7 @@ impl Client {
         }
     }
 
-    async fn check_endpoint_existence(&mut self, endpoint: &String, rest_path: &str) {
+    async fn check_endpoint_existence(&mut self, table_name: &String, rest_path: &str) {
         // REST endpoint oapi.
         let response = self
             .rest_client
@@ -139,12 +139,12 @@ impl Client {
             .await
             .unwrap_or_else(|e| {
                 panic!(
-                    "Cannot get oapi response from rest endpoint {endpoint}, path is {rest_path}: {e}"
+                    "Cannot get oapi response from rest endpoint {table_name}, path is {rest_path}: {e}"
                 )
             });
         let status = response.status();
         if !status.is_success() {
-            panic!("REST oapi endpoint {endpoint} responds {status}, path is {rest_path}");
+            panic!("REST oapi endpoint {table_name} responds {status}, path is {rest_path}");
         }
 
         // Common service getEndpoints.
@@ -156,8 +156,8 @@ impl Client {
             .into_inner()
             .endpoints;
         assert!(
-            endpoints.contains(endpoint),
-            "Endpoint {endpoint} is not found in common grpc service"
+            endpoints.contains(table_name),
+            "Endpoint {table_name} is not found in common grpc service"
         );
 
         // TODO: Typed service endpoint.
@@ -165,13 +165,13 @@ impl Client {
 
     async fn check_endpoint_expectation(
         &mut self,
-        endpoint: &str,
+        table_name: &str,
         rest_path: &str,
         expectation: &EndpointExpectation,
     ) {
         match expectation {
             EndpointExpectation::Schema { fields } => {
-                self.check_endpoint_schema(endpoint, rest_path, fields)
+                self.check_endpoint_schema(table_name, rest_path, fields)
                     .await;
             }
         }
@@ -179,7 +179,7 @@ impl Client {
 
     async fn check_endpoint_schema(
         &mut self,
-        endpoint: &str,
+        table_name: &str,
         rest_path: &str,
         fields: &[FieldDefinition],
     ) {
@@ -191,16 +191,16 @@ impl Client {
             .await
             .unwrap_or_else(|e| {
                 panic!(
-                    "Cannot get oapi response from rest endpoint {endpoint}, path is {rest_path}: {e}"
+                    "Cannot get oapi response from rest endpoint {table_name}, path is {rest_path}: {e}"
                 )
             });
         let status = response.status();
         if !status.is_success() {
-            panic!("REST oapi endpoint {endpoint} responds {status}, path is {rest_path}");
+            panic!("REST oapi endpoint {table_name} responds {status}, path is {rest_path}");
         }
         let open_api: OpenAPI = response.json().await.unwrap_or_else(|e| {
             panic!(
-                "Cannot parse oapi response from rest endpoint {endpoint}, path is {rest_path}: {e}"
+                "Cannot parse oapi response from rest endpoint {table_name}, path is {rest_path}: {e}"
             )
         });
         let schema = open_api
@@ -208,19 +208,19 @@ impl Client {
             .as_ref()
             .unwrap_or_else(|| {
                 panic!(
-                    "Cannot find components in oapi response from rest endpoint {endpoint}, path is {rest_path}"
+                    "Cannot find components in oapi response from rest endpoint {table_name}, path is {rest_path}"
                 )
             })
             .schemas
-            .get(endpoint)
+            .get(table_name)
             .unwrap_or_else(|| {
                 panic!(
-                    "Cannot find schema for endpoint {endpoint} in oapi response, path is {rest_path}"
+                    "Cannot find schema for endpoint {table_name} in oapi response, path is {rest_path}"
                 )
             });
         let schema = schema.as_item().unwrap_or_else(|| {
             panic!(
-                "Expecting schema item for endpoint {endpoint} in oapi response, path is {rest_path}"
+                "Expecting schema item for endpoint {table_name} in oapi response, path is {rest_path}"
             )
         });
         let (properties, required) = match &schema.schema_kind {
@@ -229,14 +229,14 @@ impl Client {
             }
             SchemaKind::Any(schema) => (&schema.properties, &schema.required),
             _ => panic!(
-                "Expecting object schema for endpoint {endpoint} in oapi response, path is {rest_path}"
+                "Expecting object schema for endpoint {table_name} in oapi response, path is {rest_path}"
             ),
         };
         assert_eq!(
             properties.len(),
             fields.len(),
             "Check REST schema failed for endpoint {}, expected {} fields, got {}",
-            endpoint,
+            table_name,
             fields.len(),
             properties.len()
         );
@@ -244,12 +244,12 @@ impl Client {
             assert_eq!(
                 property.0, &field.name,
                 "Check REST schema failed for endpoint {}, expected field name {}, got {}",
-                endpoint, field.name, property.0
+                table_name, field.name, property.0
             );
             let schema = property.1.as_item().unwrap_or_else(|| {
                 panic!(
                     "Expecting schema item for endpoint {}, field {} in oapi response, path is {}",
-                    endpoint, field.name, rest_path
+                    table_name, field.name, rest_path
                 )
             });
             match &schema.schema_kind {
@@ -257,7 +257,7 @@ impl Client {
                     assert!(
                         oapi_type_matches(oapi_type, field.typ),
                         "Check REST schema failed for endpoint {}, field {}, expected field type {}, got {:?}",
-                        endpoint,
+                        table_name,
                         field.name,
                         field.typ,
                         oapi_type
@@ -267,7 +267,7 @@ impl Client {
                     assert_eq!(
                         field.typ, FieldType::Json,
                         "Check REST schema failed for endpoint {}, field {}, expected field type {}, got {:?}",
-                        endpoint,
+                        table_name,
                         field.name,
                         field.typ,
                         FieldType::Json
@@ -275,13 +275,13 @@ impl Client {
                 }
                 _ => panic!(
                     "Expecting type schema for endpoint {}, field {} in oapi response, path is {}",
-                    endpoint, field.name, rest_path
+                    table_name, field.name, rest_path
                 ),
             };
             if field.nullable {
-                assert!(!required.contains(&field.name), "Check REST schema failed for endpoint {}, field {} is nullable, but it is required", endpoint, field.name);
+                assert!(!required.contains(&field.name), "Check REST schema failed for endpoint {}, field {} is nullable, but it is required", table_name, field.name);
             } else {
-                assert!(required.contains(&field.name), "Check REST schema failed for endpoint {}, field {} is not nullable, but it is not required", endpoint, field.name);
+                assert!(required.contains(&field.name), "Check REST schema failed for endpoint {}, field {} is not nullable, but it is not required", table_name, field.name);
             }
         }
 
@@ -289,17 +289,17 @@ impl Client {
         let actual_fields = self
             .common_grpc_client
             .get_fields(GetFieldsRequest {
-                endpoint: endpoint.to_string(),
+                endpoint: table_name.to_string(),
             })
             .await
-            .unwrap_or_else(|e| panic!("Cannot get fields of endpoint {endpoint}: {e}"))
+            .unwrap_or_else(|e| panic!("Cannot get fields of endpoint {table_name}: {e}"))
             .into_inner()
             .fields;
         assert_eq!(
             actual_fields.len(),
             fields.len(),
             "Check common gRPC schema failed for endpoint {}, expected {} fields, got {}",
-            endpoint,
+            table_name,
             fields.len(),
             actual_fields.len()
         );
@@ -307,12 +307,12 @@ impl Client {
             assert_eq!(
                 actual_field.name, field.name,
                 "Check common gRPC schema failed for endpoint {}, expected field name {}, got {}",
-                endpoint, field.name, actual_field.name
+                table_name, field.name, actual_field.name
             );
             assert!(
                 grpc_type_matches(actual_field.typ, field.typ),
                 "Check common gRPC schema failed for endpoint {}, field {}, expected field type {}, got {}",
-                endpoint,
+                table_name,
                 field.name,
                 field.typ,
                 actual_field.typ
@@ -321,7 +321,7 @@ impl Client {
                 actual_field.nullable,
                 field.nullable,
                 "Check common gRPC schema failed for endpoint {}, field {}, expected field nullable {}, got {}",
-                endpoint,
+                table_name,
                 field.name,
                 field.nullable,
                 actual_field.nullable

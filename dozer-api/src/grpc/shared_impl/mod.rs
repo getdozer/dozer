@@ -40,17 +40,17 @@ fn parse_query(
 pub fn count(
     reader: &CacheReader,
     query: Option<&str>,
-    endpoint: &str,
+    table_name: &str,
     access: Option<Access>,
 ) -> Result<usize, Status> {
     let mut query = parse_query(query, QueryExpression::with_no_limit)?;
-    Ok(get_records_count(reader, &mut query, endpoint, access)?)
+    Ok(get_records_count(reader, &mut query, table_name, access)?)
 }
 
 pub fn query(
     reader: &CacheReader,
     query: Option<&str>,
-    endpoint: &str,
+    table_name: &str,
     access: Option<Access>,
     default_max_num_records: usize,
 ) -> Result<Vec<CacheRecord>, Status> {
@@ -60,7 +60,7 @@ pub fn query(
     if query.limit.is_none() {
         query.limit = Some(default_max_num_records);
     }
-    let records = get_records(reader, &mut query, endpoint, access)?;
+    let records = get_records(reader, &mut query, table_name, access)?;
     Ok(records)
 }
 
@@ -112,7 +112,7 @@ pub fn on_event<T: Send + 'static>(
                 let event = broadcast_receiver.recv().await;
                 match event {
                     Ok(op) => {
-                        if let Some(filter) = endpoints.get(&op.endpoint_name) {
+                        if let Some(filter) = endpoints.get(&op.endpoint) {
                             if filter::op_satisfies_filter(
                                 &op,
                                 filter.filter.as_ref(),

@@ -172,7 +172,6 @@
     "ApiEndpoint": {
       "type": "object",
       "required": [
-        "name",
         "path"
       ],
       "properties": {
@@ -184,9 +183,6 @@
         },
         "log_reader_options": {
           "$ref": "#/definitions/LogReaderOptions"
-        },
-        "name": {
-          "type": "string"
         },
         "path": {
           "description": "path of endpoint - e.g: /stocks",

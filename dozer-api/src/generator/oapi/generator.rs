@@ -12,15 +12,16 @@ use serde_json::{json, Value};
 pub struct OpenApiGenerator<'a> {
     schema: &'a dozer_types::types::Schema,
     secondary_indexes: &'a [IndexDefinition],
+    table_name: String,
     endpoint: ApiEndpoint,
     server_host: Vec<String>,
 }
 impl<'a> OpenApiGenerator<'a> {
     fn get_singular_name(&self) -> String {
-        self.endpoint.name.to_string()
+        self.table_name.to_string()
     }
     fn get_plural_name(&self) -> String {
-        format!("{}_array", self.endpoint.name)
+        format!("{}_array", self.table_name)
     }
 
     // Generate first secondary_index as an example
@@ -80,18 +81,18 @@ impl<'a> OpenApiGenerator<'a> {
         let responses = Responses {
             responses: indexmap::indexmap! {
                 StatusCode::Code(200) =>
-                ReferenceOr::Item(create_reference_response(format!("Get by id {}", self.endpoint.name), format!("#/components/schemas/{}", self.get_singular_name())))
+                ReferenceOr::Item(create_reference_response(format!("Get by id {}", self.table_name), format!("#/components/schemas/{}", self.get_singular_name())))
             },
             ..Default::default()
         };
         let get_operation = Some(Operation {
-            tags: vec![format!("{}", self.endpoint.name)],
+            tags: vec![format!("{}", self.table_name)],
             summary: Some("Fetch a single document record by primary key".to_owned()),
             description: Some(
                 "Generated API to fetch a single record. Primary key specified will be used for lookup"
                     .to_owned(),
             ),
-            operation_id: Some(format!("{}-by-id", self.endpoint.name)),
+            operation_id: Some(format!("{}-by-id", self.table_name)),
             parameters: vec![ReferenceOr::Item(Parameter::Path {
                 parameter_data: ParameterData {
                     name: "id".to_owned(),
@@ -123,17 +124,17 @@ impl<'a> OpenApiGenerator<'a> {
     fn generate_list_route(&self) -> ReferenceOr<PathItem> {
         let responses = Responses {
             responses: indexmap::indexmap! {
-                StatusCode::Code(200) => ReferenceOr::Item(create_reference_response(format!("A page array of {}", self.endpoint.name.to_owned()), format!("#/components/schemas/{}",self.get_plural_name())))
+                StatusCode::Code(200) => ReferenceOr::Item(create_reference_response(format!("A page array of {}", self.table_name.to_owned()), format!("#/components/schemas/{}",self.get_plural_name())))
             },
             ..Default::default()
         };
         let operation = Some(Operation {
-            tags: vec![format!("{}", self.endpoint.name)],
+            tags: vec![format!("{}", self.table_name)],
             summary: Some("Fetch multiple documents in the default sort order".to_owned()),
             description: Some(
                 "This is used when no filter expression or sort is needed.".to_owned(),
             ),
-            operation_id: Some(format!("list-{}", self.endpoint.name.to_owned())),
+            operation_id: Some(format!("list-{}", self.table_name.to_owned())),
             responses,
             ..Default::default()
         });
@@ -170,10 +171,10 @@ impl<'a> OpenApiGenerator<'a> {
             ..Default::default()
         };
         let operation = Some(Operation {
-            tags: vec![format!("{}", self.endpoint.name)],
+            tags: vec![format!("{}", self.table_name)],
             summary: Some("Count documents based on an expression".to_string()),
             description: Some("Count documents based on an expression".to_string()),
-            operation_id: Some(format!("count-{}", self.endpoint.name)),
+            operation_id: Some(format!("count-{}", self.table_name)),
             request_body: Some(ReferenceOr::Item(request_body)),
             responses,
             ..Default::default()
@@ -194,17 +195,17 @@ impl<'a> OpenApiGenerator<'a> {
         };
         let responses = Responses {
             responses: indexmap::indexmap! {
-                StatusCode::Code(200) => ReferenceOr::Item(create_reference_response(format!("A page array of {}", self.endpoint.name.to_owned()), format!("#/components/schemas/{}", self.get_plural_name()) ))
+                StatusCode::Code(200) => ReferenceOr::Item(create_reference_response(format!("A page array of {}", self.table_name.to_owned()), format!("#/components/schemas/{}", self.get_plural_name()) ))
             },
             ..Default::default()
         };
         let operation = Some(Operation {
-            tags: vec![format!("{}", self.endpoint.name)],
+            tags: vec![format!("{}", self.table_name)],
             summary: Some("Query documents based on an expression".to_owned()),
             description: Some(
                 "Documents can be queried based on a simple or a composite expression".to_owned(),
             ),
-            operation_id: Some(format!("query-{}", self.endpoint.name)),
+            operation_id: Some(format!("query-{}", self.table_name)),
             request_body: Some(ReferenceOr::Item(request_body)),
             responses,
             ..Default::default()
@@ -234,13 +235,13 @@ impl<'a> OpenApiGenerator<'a> {
 
     fn generate_component_schema(&self) -> Components {
         let generated_schema =
-            convert_cache_to_oapi_schema(self.schema.to_owned(), &self.endpoint.name);
+            convert_cache_to_oapi_schema(self.schema.to_owned(), &self.table_name);
 
         let schemas = indexmap::indexmap! {
             self.get_singular_name() => ReferenceOr::Item(generated_schema),
             self.get_plural_name() => ReferenceOr::Item(Schema {
                         schema_data: SchemaData {
-                            description: Some(format!("Array of {}", &self.endpoint.name)),
+                            description: Some(format!("Array of {}", &self.table_name)),
                             ..Default::default()
                         },
                         schema_kind: SchemaKind::Type(Type::Array(ArrayType {
@@ -267,17 +268,17 @@ impl<'a> OpenApiGenerator<'a> {
         OpenAPI {
             openapi: "3.0.0".to_owned(),
             info: Info {
-                title: self.endpoint.name.to_uppercase(),
+                title: self.table_name.to_uppercase(),
                 description: Some(format!(
                     "API documentation for {}. Powered by Dozer Data.",
-                    self.endpoint.name.to_lowercase()
+                    self.table_name.to_lowercase()
                 )),
                 version: "1.0.0".to_owned(),
                 contact: create_contact_info(),
                 ..Default::default()
             },
             tags: vec![Tag {
-                name: self.endpoint.name.to_string(),
+                name: self.table_name.to_string(),
                 ..Default::default()
             }],
             servers: self
@@ -297,12 +298,14 @@ impl<'a> OpenApiGenerator<'a> {
     pub fn new(
         schema: &'a dozer_types::types::Schema,
         secondary_indexes: &'a [IndexDefinition],
+        table_name: String,
         endpoint: ApiEndpoint,
         server_host: Vec<String>,
     ) -> Self {
         Self {
             schema,
             secondary_indexes,
+            table_name,
             endpoint,
             server_host,
         }

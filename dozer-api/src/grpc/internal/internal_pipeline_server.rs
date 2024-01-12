@@ -12,7 +12,6 @@ use dozer_types::log::info;
 use dozer_types::models::api_config::{
     default_app_grpc_host, default_app_grpc_port, AppGrpcOptions,
 };
-use dozer_types::models::endpoint::ApiEndpoint;
 use dozer_types::tonic::transport::server::TcpIncoming;
 use dozer_types::tonic::transport::Server;
 use dozer_types::tonic::{self, Request, Response, Status, Streaming};
@@ -171,14 +170,11 @@ async fn serialize_log_response(response: LogResponseFuture) -> Result<LogRespon
 /// TcpIncoming::new requires a tokio runtime, so we mark this function as async.
 pub async fn start_internal_pipeline_server(
     checkpoint_prefix: String,
-    endpoint_and_logs: Vec<(ApiEndpoint, LogEndpoint)>,
+    table_name_and_logs: Vec<(String, LogEndpoint)>,
     options: &AppGrpcOptions,
     shutdown: ShutdownReceiver,
 ) -> Result<impl Future<Output = Result<(), tonic::transport::Error>>, GrpcError> {
-    let endpoints = endpoint_and_logs
-        .into_iter()
-        .map(|(endpoint, log)| (endpoint.name, log))
-        .collect();
+    let endpoints = table_name_and_logs.into_iter().collect();
     let server = InternalPipelineServer::new(checkpoint_prefix, endpoints);
 
     // Start listening.

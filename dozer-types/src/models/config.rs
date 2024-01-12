@@ -124,7 +124,7 @@ impl Config {
         let mut endpoints_table = table!();
         for endpoint in &self.endpoints {
             if let EndpointKind::Api(api) = &endpoint.kind {
-                endpoints_table.add_row(row![api.name, endpoint.table_name, api.path]);
+                endpoints_table.add_row(row![endpoint.table_name, api.path]);
             }
         }
         if !self.endpoints.is_empty() {

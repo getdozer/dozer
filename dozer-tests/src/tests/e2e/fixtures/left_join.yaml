@@ -46,5 +46,4 @@ sql: SELECT id INTO table1_endpoint FROM table1 LEFT JOIN table2 ON table1.id = 
 endpoints:
   - table_name: table1_endpoint
     kind: !Api
-      name: table1_endpoint
       path: /table1_endpoint

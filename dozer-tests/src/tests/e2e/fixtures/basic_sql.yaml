@@ -46,6 +46,5 @@ sources:
 endpoints:
   - table_name: trips_cache
     kind: !Api
-      name: trips
       path: /trips
     
