@@ -26,6 +26,7 @@ pub struct CacheEndpoint {
 const ENDPOINT_LABEL: &str = "endpoint";
 
 impl CacheEndpoint {
+    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         runtime: Arc<Runtime>,
         app_server_url: String,
