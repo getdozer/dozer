@@ -2,7 +2,7 @@
     "HealthyService",
     {
         "Endpoint": {
-            "endpoint": "eth_stats",
+            "table_name": "eth_stats",
             "expectations": [
                 {
                     "Schema": {
@@ -32,7 +32,7 @@
     },
     {
         "Endpoint": {
-            "endpoint": "eth_logs",
+            "table_name": "eth_logs",
             "expectations": [
                 {
                     "Schema": {

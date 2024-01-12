@@ -2,7 +2,7 @@
     "HealthyService",
     {
         "Endpoint": {
-            "endpoint": "employee",
+            "table_name": "employee",
             "expectations": [
                 {
                     "Schema": {
@@ -180,7 +180,7 @@
     },
     {
         "Endpoint": {
-            "endpoint": "invoice",
+            "table_name": "invoice",
             "expectations": [
                 {
                     "Schema": {
