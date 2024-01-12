@@ -37,7 +37,7 @@ impl CommonService {
     ) -> Self {
         let endpoint_map = endpoints
             .into_iter()
-            .map(|endpoint| (endpoint.endpoint.name.clone(), endpoint))
+            .map(|endpoint| (endpoint.table_name.clone(), endpoint))
             .collect();
         Self {
             endpoint_map,
@@ -74,7 +74,7 @@ impl CommonGrpcService for CommonService {
         let count = shared_impl::count(
             &cache_endpoint.cache_reader(),
             query_request.query.as_deref(),
-            &cache_endpoint.endpoint.name,
+            &cache_endpoint.table_name,
             access,
         )?;
 
@@ -94,7 +94,7 @@ impl CommonGrpcService for CommonService {
         let records = shared_impl::query(
             &cache_reader,
             query_request.query.as_deref(),
-            &cache_endpoint.endpoint.name,
+            &cache_endpoint.table_name,
             access,
             self.default_max_num_records,
         )?;

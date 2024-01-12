@@ -9,7 +9,7 @@ use crate::{cache_alias_and_labels, errors::ApiInitError};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EndpointMeta {
-    pub name: String,
+    pub table_name: String,
     pub log_id: String,
     pub schema: EndpointSchema,
 }
@@ -17,15 +17,15 @@ pub struct EndpointMeta {
 impl EndpointMeta {
     pub async fn load_from_client(
         client: &mut InternalPipelineServiceClient<Channel>,
-        endpoint: String,
+        table_name: String,
     ) -> Result<(Self, LogClient), ApiInitError> {
         // We establish the log stream first to avoid tonic auto-reconnecting without us knowing.
-        let (log_client, schema) = LogClient::new(client, endpoint.clone()).await?;
+        let (log_client, schema) = LogClient::new(client, table_name.clone()).await?;
         let log_id = client.get_id(()).await?.into_inner().id;
 
         Ok((
             Self {
-                name: endpoint,
+                table_name,
                 log_id,
                 schema,
             },
@@ -34,12 +34,12 @@ impl EndpointMeta {
     }
 
     pub fn cache_alias_and_labels(&self, extra_labels: Labels) -> (String, Labels) {
-        let (alias, mut labels) = cache_alias_and_labels(self.name.clone());
+        let (alias, mut labels) = cache_alias_and_labels(self.table_name.clone());
         labels.extend(extra_labels);
         (alias, labels)
     }
 
     pub fn cache_name(&self) -> String {
-        format!("{}_{}", self.log_id, self.name)
+        format!("{}_{}", self.log_id, self.table_name)
     }
 }

@@ -71,7 +71,7 @@ pub fn print_api_endpoints(endpoints: &[Endpoint]) {
     table_parent.add_row(row!["Path", "Name"]);
     for endpoint in endpoints {
         if let EndpointKind::Api(api) = &endpoint.kind {
-            table_parent.add_row(row![api.path, api.name]);
+            table_parent.add_row(row![api.path, endpoint.table_name]);
         }
     }
     info!(

@@ -54,8 +54,8 @@ fn runtime_create_reader(mut cx: FunctionContext) -> JsResult<JsPromise> {
     // Extract `server_addr` from the first argument.
     let server_addr = cx.argument::<JsString>(0)?.value(&mut cx);
 
-    // Extract `endpoint_name` from the second argument.
-    let endpoint_name = cx.argument::<JsString>(1)?.value(&mut cx);
+    // Extract `table_name` from the second argument.
+    let table_name = cx.argument::<JsString>(1)?.value(&mut cx);
 
     // Create the reader.
     let (deferred, promise) = cx.promise();
@@ -64,7 +64,7 @@ fn runtime_create_reader(mut cx: FunctionContext) -> JsResult<JsPromise> {
     runtime.runtime.spawn(async move {
         // Create the builder.
         let reader_builder =
-            LogReaderBuilder::new(server_addr, endpoint_name, Default::default()).await;
+            LogReaderBuilder::new(server_addr, table_name, Default::default()).await;
         match reader_builder {
             Ok(reader) => {
                 // Create the reader and resolve the promise.

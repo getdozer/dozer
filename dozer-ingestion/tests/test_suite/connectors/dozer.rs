@@ -215,7 +215,6 @@ async fn create_nested_dozer_server(
         endpoints: vec![Endpoint {
             table_name: table_name.clone(),
             kind: EndpointKind::Api(ApiEndpoint {
-                name: table_name.to_owned(),
                 path: "/test".to_owned(),
                 index: Default::default(),
                 conflict_resolution: Default::default(),

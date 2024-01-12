@@ -15,7 +15,6 @@ use dozer_sql::builder::{OutputNodeInfo, QueryContext};
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::log::debug;
 use dozer_types::models::connection::Connection;
-use dozer_types::models::endpoint::ApiEndpoint;
 use dozer_types::models::flags::Flags;
 use dozer_types::models::source::Source;
 use dozer_types::models::udf_config::UdfConfig;
@@ -56,10 +55,7 @@ pub struct EndpointLog {
 
 #[derive(Debug)]
 pub enum EndpointLogKind {
-    Api {
-        api: ApiEndpoint,
-        log: Arc<Mutex<Log>>,
-    },
+    Api { log: Arc<Mutex<Log>> },
     Dummy,
 }
 
@@ -281,10 +277,10 @@ impl<'a> PipelineBuilder<'a> {
                 })?;
 
             let snk_factory: Box<dyn SinkFactory> = match endpoint_log.kind {
-                EndpointLogKind::Api { api, log } => Box::new(LogSinkFactory::new(
+                EndpointLogKind::Api { log, .. } => Box::new(LogSinkFactory::new(
                     runtime.clone(),
                     log,
-                    api.name.clone(),
+                    endpoint_log.table_name.clone(),
                     self.labels.clone(),
                 )),
                 EndpointLogKind::Dummy => Box::new(DummySinkFactory),

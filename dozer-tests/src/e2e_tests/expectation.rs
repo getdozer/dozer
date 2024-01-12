@@ -10,7 +10,7 @@ use dozer_types::{
 pub enum Expectation {
     HealthyService,
     Endpoint {
-        endpoint: String,
+        table_name: String,
         expectations: Vec<EndpointExpectation>,
     },
 }

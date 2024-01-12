@@ -131,9 +131,9 @@ impl CacheBuilderImpl {
             LogOperation::Op { op } => match op {
                 Operation::Delete { old } => {
                     if let Some(meta) = self.building.delete(&old)? {
-                        if let Some((endpoint_name, operations_sender)) = operations_sender {
+                        if let Some((table_name, operations_sender)) = operations_sender {
                             let operation = types_helper::map_delete_operation(
-                                endpoint_name.clone(),
+                                table_name.clone(),
                                 CacheRecord::new(meta.id, meta.version, old),
                             );
                             send_and_log_error(operations_sender, operation);
@@ -157,9 +157,9 @@ impl CacheBuilderImpl {
                     );
                     increment_counter!(CACHE_OPERATION_COUNTER_NAME, labels);
 
-                    if let Some((endpoint_name, operations_sender)) = operations_sender {
+                    if let Some((table_name, operations_sender)) = operations_sender {
                         send_upsert_result(
-                            endpoint_name,
+                            table_name,
                             operations_sender,
                             result,
                             &self.building.get_schema().0,
@@ -178,9 +178,9 @@ impl CacheBuilderImpl {
                     );
                     increment_counter!(CACHE_OPERATION_COUNTER_NAME, labels);
 
-                    if let Some((endpoint_name, operations_sender)) = operations_sender {
+                    if let Some((table_name, operations_sender)) = operations_sender {
                         send_upsert_result(
-                            endpoint_name,
+                            table_name,
                             operations_sender,
                             upsert_result,
                             &self.building.get_schema().0,
@@ -200,9 +200,9 @@ impl CacheBuilderImpl {
 
                     for record in new {
                         let upsert_result = self.building.insert(&record)?;
-                        if let Some((endpoint_name, operations_sender)) = operations_sender {
+                        if let Some((table_name, operations_sender)) = operations_sender {
                             send_upsert_result(
-                                endpoint_name,
+                                table_name,
                                 operations_sender,
                                 upsert_result,
                                 &self.building.get_schema().0,
@@ -276,7 +276,7 @@ fn snapshotting_str(snapshotting: bool) -> &'static str {
 }
 
 fn send_upsert_result(
-    endpoint_name: &str,
+    table_name: &str,
     operations_sender: &Sender<GrpcOperation>,
     upsert_result: UpsertResult,
     schema: &Schema,
@@ -286,7 +286,7 @@ fn send_upsert_result(
     match upsert_result {
         UpsertResult::Inserted { meta } => {
             let op = types_helper::map_insert_operation(
-                endpoint_name.to_string(),
+                table_name.to_string(),
                 CacheRecord::new(meta.id, meta.version, new),
             );
             send_and_log_error(operations_sender, op);
@@ -303,7 +303,7 @@ fn send_upsert_result(
                 record
             });
             let op = types_helper::map_update_operation(
-                endpoint_name.to_string(),
+                table_name.to_string(),
                 CacheRecord::new(old_meta.id, old_meta.version, old),
                 CacheRecord::new(new_meta.id, new_meta.version, new),
             );
@@ -365,7 +365,7 @@ mod tests {
 
     fn test_endpoint_meta(log_id: String) -> EndpointMeta {
         EndpointMeta {
-            name: Default::default(),
+            table_name: Default::default(),
             log_id,
             schema: EndpointSchema {
                 path: Default::default(),

@@ -86,10 +86,13 @@ impl Contract {
             };
 
             let node_index = find_sink(dag_schemas, &endpoint.table_name)
-                .ok_or(BuildError::MissingEndpoint(api.name.clone()))?;
+                .ok_or(BuildError::MissingEndpoint(endpoint.table_name.clone()))?;
 
-            let (schema, secondary_indexes) =
-                modify_schema::modify_schema(sink_input_schema(dag_schemas, node_index), api)?;
+            let (schema, secondary_indexes) = modify_schema::modify_schema(
+                &endpoint.table_name,
+                sink_input_schema(dag_schemas, node_index),
+                api,
+            )?;
 
             let connections = collect_ancestor_sources(dag_schemas, node_index);
 
@@ -101,7 +104,7 @@ impl Contract {
                 enable_on_event,
                 connections,
             };
-            endpoint_schemas.insert(api.name.clone(), schema);
+            endpoint_schemas.insert(endpoint.table_name.clone(), schema);
         }
 
         let mut source_types = HashMap::new();

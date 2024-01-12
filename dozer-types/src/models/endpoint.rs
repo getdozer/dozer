@@ -112,8 +112,6 @@ pub enum EndpointKind {
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct ApiEndpoint {
-    pub name: String,
-
     /// path of endpoint - e.g: /stocks
     pub path: String,
 

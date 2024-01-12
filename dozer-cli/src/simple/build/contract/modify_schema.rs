@@ -8,6 +8,7 @@ use dozer_types::{
 use crate::errors::BuildError;
 
 pub fn modify_schema(
+    table_name: &str,
     schema: &Schema,
     api_endpoint: &ApiEndpoint,
 ) -> Result<SchemaWithIndex, BuildError> {
@@ -24,7 +25,7 @@ pub fn modify_schema(
         (false, false) => {
             if !upstream_index.eq(&configured_index) {
                 return Err(BuildError::MismatchPrimaryKey {
-                    endpoint_name: api_endpoint.name.clone(),
+                    table_name: table_name.to_string(),
                     expected: get_field_names(&schema, &upstream_index),
                     actual: get_field_names(&schema, &configured_index),
                 });

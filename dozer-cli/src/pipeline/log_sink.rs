@@ -20,7 +20,7 @@ use tokio::{runtime::Runtime, sync::Mutex};
 pub struct LogSinkFactory {
     runtime: Arc<Runtime>,
     log: Arc<Mutex<Log>>,
-    endpoint_name: String,
+    table_name: String,
     labels: LabelsAndProgress,
 }
 
@@ -28,13 +28,13 @@ impl LogSinkFactory {
     pub fn new(
         runtime: Arc<Runtime>,
         log: Arc<Mutex<Log>>,
-        endpoint_name: String,
+        table_name: String,
         labels: LabelsAndProgress,
     ) -> Self {
         Self {
             runtime,
             log,
-            endpoint_name,
+            table_name,
             labels,
         }
     }
@@ -57,7 +57,7 @@ impl SinkFactory for LogSinkFactory {
         Ok(Box::new(LogSink::new(
             self.runtime.clone(),
             self.log.clone(),
-            self.endpoint_name.clone(),
+            self.table_name.clone(),
             self.labels.clone(),
         )))
     }
@@ -74,10 +74,10 @@ impl LogSink {
     pub fn new(
         runtime: Arc<Runtime>,
         log: Arc<Mutex<Log>>,
-        endpoint_name: String,
+        table_name: String,
         labels: LabelsAndProgress,
     ) -> Self {
-        let pb = labels.create_progress_bar(endpoint_name);
+        let pb = labels.create_progress_bar(table_name);
         Self { runtime, log, pb }
     }
 }

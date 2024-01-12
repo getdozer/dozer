@@ -2,7 +2,7 @@
     "HealthyService",
     {
         "Endpoint": {
-            "endpoint": "actors",
+            "table_name": "actors",
             "expectations": [
                 {
                     "Schema": {
@@ -59,7 +59,7 @@
     },
     {
         "Endpoint": {
-            "endpoint": "films",
+            "table_name": "films",
             "expectations": [
                 {
                     "Schema": {

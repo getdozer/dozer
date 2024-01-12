@@ -30,7 +30,7 @@ api:
 
 sql: |
   SELECT trip_miles, trip_time, puz.Zone as pickup_location, doz.Zone as dropout_location
-  INTO trips_cache
+  INTO trips
   FROM trips
   INNER JOIN zones puz ON trips.PULocationID = puz.LocationID
   INNER JOIN zones doz ON trips.DOLocationID = doz.LocationID
@@ -44,8 +44,7 @@ sources:
     connection: ny_taxi
 
 endpoints:
-  - table_name: trips_cache
+  - table_name: trips
     kind: !Api
-      name: trips
       path: /trips
     

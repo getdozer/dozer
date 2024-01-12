@@ -2,7 +2,7 @@
     "HealthyService",
     {
         "Endpoint": {
-            "endpoint": "movies",
+            "table_name": "movies",
             "expectations": [
                 {
                     "Schema": {

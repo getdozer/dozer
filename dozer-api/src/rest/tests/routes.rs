@@ -12,12 +12,14 @@ use http::StatusCode;
 
 #[test]
 fn test_generate_oapi() {
+    let table_name = "films";
     let (schema, secondary_indexes) = test_utils::get_schema();
     let endpoint = test_utils::get_endpoint();
 
     let oapi_generator = OpenApiGenerator::new(
         &schema,
         &secondary_indexes,
+        table_name.to_string(),
         endpoint,
         vec![format!("http://localhost:{}", "8080")],
     );
@@ -28,13 +30,20 @@ fn test_generate_oapi() {
 
 #[actix_web::test]
 async fn list_route() {
+    let table_name = "films";
     let endpoint = test_utils::get_endpoint();
-    let cache_manager = test_utils::initialize_cache(&endpoint.name, None);
+    let cache_manager = test_utils::initialize_cache(table_name, None);
     let api_server = ApiServer::create_app_entry(
         None,
         CorsOptions::Permissive,
         vec![Arc::new(
-            CacheEndpoint::open(&*cache_manager, Default::default(), endpoint.clone()).unwrap(),
+            CacheEndpoint::open(
+                &*cache_manager,
+                Default::default(),
+                table_name.to_string(),
+                endpoint.clone(),
+            )
+            .unwrap(),
         )],
         Default::default(),
         50,
@@ -194,8 +203,8 @@ async fn get_endpoint_paths_test() {
 
 #[actix_web::test]
 async fn path_collision_test() {
+    let first_table_name = "films";
     let first_endpoint = ApiEndpoint {
-        name: "films".to_string(),
         path: "/foo".to_string(),
         index: Default::default(),
         conflict_resolution: Default::default(),
@@ -203,8 +212,8 @@ async fn path_collision_test() {
         log_reader_options: Default::default(),
     };
 
+    let second_table_name = "films_second";
     let second_endpoint = ApiEndpoint {
-        name: "films_second".to_string(),
         path: "/foo/second".to_string(),
         index: Default::default(),
         conflict_resolution: Default::default(),
@@ -218,16 +227,18 @@ async fn path_collision_test() {
         vec![
             Arc::new(
                 CacheEndpoint::open(
-                    &*test_utils::initialize_cache(&first_endpoint.name, None),
+                    &*test_utils::initialize_cache(first_table_name, None),
                     Default::default(),
+                    first_table_name.to_string(),
                     first_endpoint.clone(),
                 )
                 .unwrap(),
             ),
             Arc::new(
                 CacheEndpoint::open(
-                    &*test_utils::initialize_cache(&second_endpoint.name, None),
+                    &*test_utils::initialize_cache(second_table_name, None),
                     Default::default(),
+                    second_table_name.to_string(),
                     second_endpoint.clone(),
                 )
                 .unwrap(),
@@ -253,13 +264,20 @@ async fn setup_service() -> (
     impl Service<Request, Response = ServiceResponse<impl MessageBody>, Error = actix_web::Error>,
     ApiEndpoint,
 ) {
+    let table_name = "films";
     let endpoint = test_utils::get_endpoint();
-    let cache_manager = test_utils::initialize_cache(&endpoint.name, None);
+    let cache_manager = test_utils::initialize_cache(table_name, None);
     let api_server = ApiServer::create_app_entry(
         None,
         CorsOptions::Permissive,
         vec![Arc::new(
-            CacheEndpoint::open(&*cache_manager, Default::default(), endpoint.clone()).unwrap(),
+            CacheEndpoint::open(
+                &*cache_manager,
+                Default::default(),
+                table_name.to_string(),
+                endpoint.clone(),
+            )
+            .unwrap(),
         )],
         Default::default(),
         50,

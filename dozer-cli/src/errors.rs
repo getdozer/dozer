@@ -214,9 +214,9 @@ pub enum BuildError {
     MissingEndpoint(String),
     #[error("Connection {0} found in DAG but not in config")]
     MissingConnection(String),
-    #[error("Got mismatching primary key for `{endpoint_name}`. Expected: `{expected:?}`, got: `{actual:?}`")]
+    #[error("Got mismatching primary key for `{table_name}`. Expected: `{expected:?}`, got: `{actual:?}`")]
     MismatchPrimaryKey {
-        endpoint_name: String,
+        table_name: String,
         expected: Vec<String>,
         actual: Vec<String>,
     },

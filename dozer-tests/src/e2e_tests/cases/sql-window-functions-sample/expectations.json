@@ -2,7 +2,7 @@
     "HealthyService",
     {
         "Endpoint": {
-            "endpoint": "tumble",
+            "table_name": "tumble",
             "expectations": [
                 {
                     "Schema": {
@@ -39,7 +39,7 @@
     },
     {
         "Endpoint": {
-            "endpoint": "hop",
+            "table_name": "hop",
             "expectations": [
                 {
                     "Schema": {

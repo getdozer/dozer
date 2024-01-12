@@ -73,7 +73,7 @@ impl TypedService {
             .map(|cache_endpoint| {
                 let service_desc = ProtoGenerator::read_schema(
                     cache_endpoint.descriptor(),
-                    &cache_endpoint.endpoint.name,
+                    &cache_endpoint.table_name,
                 )?;
                 Ok::<_, ApiInitError>((
                     service_desc.service.full_name().to_string(),
@@ -130,7 +130,7 @@ impl TypedService {
                     let response = count(
                         request,
                         &self.cache_endpoint.cache_reader(),
-                        &self.cache_endpoint.endpoint.name,
+                        &self.cache_endpoint.table_name,
                         self.response_desc
                             .take()
                             .expect("This future shouldn't be polled twice"),
@@ -161,7 +161,7 @@ impl TypedService {
                     let response = query(
                         request,
                         &self.cache_endpoint.cache_reader(),
-                        &self.cache_endpoint.endpoint.name,
+                        &self.cache_endpoint.table_name,
                         self.response_desc
                             .take()
                             .expect("This future shouldn't be polled twice"),
@@ -199,7 +199,7 @@ impl TypedService {
                         future::ready(on_event(
                             request,
                             self.cache_endpoint.cache_reader().get_schema().0.clone(),
-                            self.cache_endpoint.endpoint.name.clone(),
+                            self.cache_endpoint.table_name.clone(),
                             self.event_desc
                                 .take()
                                 .expect("This future shouldn't be polled twice"),
@@ -316,13 +316,13 @@ fn parse_request(
 fn count(
     request: Request<DynamicMessage>,
     reader: &CacheReader,
-    endpoint: &str,
+    table_name: &str,
     response_desc: CountResponseDesc,
 ) -> Result<Response<TypedResponse>, Status> {
     let mut parts = request.into_parts();
     let (query, access) = parse_request(&mut parts)?;
 
-    let count = shared_impl::count(reader, query.as_deref(), endpoint, access)?;
+    let count = shared_impl::count(reader, query.as_deref(), table_name, access)?;
     let res = count_response_to_typed_response(count, response_desc).map_err(|e| {
         error!("Count API error: {:?}", e);
         Status::internal("Count API error")
@@ -333,7 +333,7 @@ fn count(
 fn query(
     request: Request<DynamicMessage>,
     reader: &CacheReader,
-    endpoint: &str,
+    table_name: &str,
     response_desc: QueryResponseDesc,
     default_max_num_records: usize,
 ) -> Result<Response<TypedResponse>, Status> {
@@ -343,7 +343,7 @@ fn query(
     let records = shared_impl::query(
         reader,
         query.as_deref(),
-        endpoint,
+        table_name,
         access,
         default_max_num_records,
     )?;
@@ -357,7 +357,7 @@ fn query(
 fn on_event(
     request: Request<DynamicMessage>,
     schema: Schema,
-    endpoint_name: String,
+    table_name: String,
     event_desc: EventDesc,
     event_notifier: Option<tokio::sync::broadcast::Receiver<Operation>>,
 ) -> Result<Response<ReceiverStream<Result<TypedResponse, tonic::Status>>>, Status> {
@@ -377,7 +377,7 @@ fn on_event(
     let filter = EndpointFilter::new(schema, filter)?;
 
     shared_impl::on_event(
-        [(endpoint_name, filter)].into_iter().collect(),
+        [(table_name, filter)].into_iter().collect(),
         event_notifier,
         access.cloned(),
         move |op| {

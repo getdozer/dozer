@@ -2,7 +2,7 @@
     "HealthyService",
     {
         "Endpoint": {
-            "endpoint": "pickup",
+            "table_name": "pickup",
             "expectations": [
                 {
                     "Schema": {

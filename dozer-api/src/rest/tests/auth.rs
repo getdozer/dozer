@@ -64,13 +64,20 @@ async fn check_status(
     security: Option<ApiSecurity>,
     token: Option<String>,
 ) -> ServiceResponse<impl MessageBody> {
+    let table_name = "films";
     let endpoint = test_utils::get_endpoint();
-    let cache_manager = test_utils::initialize_cache(&endpoint.name, None);
+    let cache_manager = test_utils::initialize_cache(table_name, None);
     let api_server = ApiServer::create_app_entry(
         security,
         CorsOptions::Permissive,
         vec![Arc::new(
-            CacheEndpoint::open(&*cache_manager, Default::default(), endpoint.clone()).unwrap(),
+            CacheEndpoint::open(
+                &*cache_manager,
+                Default::default(),
+                table_name.to_string(),
+                endpoint.clone(),
+            )
+            .unwrap(),
         )],
         Default::default(),
         50,
@@ -94,14 +101,20 @@ async fn _call_auth_token_api(
     token: Option<String>,
     body: Option<Value>,
 ) -> ServiceResponse<impl MessageBody> {
+    let table_name = "films";
     let endpoint = test_utils::get_endpoint();
-    let schema_name = endpoint.name.clone();
-    let cache_manager = test_utils::initialize_cache(&schema_name, None);
+    let cache_manager = test_utils::initialize_cache(table_name, None);
     let api_server = ApiServer::create_app_entry(
         Some(ApiSecurity::Jwt(secret)),
         CorsOptions::Permissive,
         vec![Arc::new(
-            CacheEndpoint::open(&*cache_manager, Default::default(), endpoint).unwrap(),
+            CacheEndpoint::open(
+                &*cache_manager,
+                Default::default(),
+                table_name.to_string(),
+                endpoint,
+            )
+            .unwrap(),
         )],
         Default::default(),
         50,

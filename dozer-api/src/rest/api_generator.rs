@@ -24,12 +24,17 @@ use dozer_types::json_types::{field_to_json_value, json, JsonValue};
 
 use self::extractor::QueryExpressionExtractor;
 
-fn generate_oapi3(reader: &CacheReader, endpoint: ApiEndpoint) -> Result<OpenAPI, ApiError> {
+fn generate_oapi3(
+    reader: &CacheReader,
+    table_name: String,
+    endpoint: ApiEndpoint,
+) -> Result<OpenAPI, ApiError> {
     let (schema, secondary_indexes) = reader.get_schema();
 
     let oapi_generator = OpenApiGenerator::new(
         schema,
         secondary_indexes,
+        table_name,
         endpoint,
         vec![format!("http://localhost:{}", "8080")],
     );
@@ -43,6 +48,7 @@ pub async fn generate_oapi(
 ) -> Result<HttpResponse, ApiError> {
     generate_oapi3(
         &cache_endpoint.cache_reader(),
+        cache_endpoint.table_name.clone(),
         cache_endpoint.endpoint.clone(),
     )
     .map(|result| HttpResponse::Ok().json(result))
@@ -72,7 +78,7 @@ pub async fn get(
     let record = get_record(
         &cache_endpoint.cache_reader(),
         &key,
-        &cache_endpoint.endpoint.name,
+        &cache_endpoint.table_name,
         access.map(|a| a.into_inner()),
     )?;
 
@@ -106,7 +112,7 @@ pub async fn count(
     get_records_count(
         &cache_endpoint.cache_reader(),
         &mut query_expression,
-        &cache_endpoint.endpoint.name,
+        &cache_endpoint.table_name,
         access.map(|a| a.into_inner()),
     )
     .map(|count| HttpResponse::Ok().json(count))
@@ -139,7 +145,7 @@ fn get_records_map(
     let records = get_records(
         cache_reader,
         exp,
-        &cache_endpoint.endpoint.name,
+        &cache_endpoint.table_name,
         access.map(|a| a.into_inner()),
     )?;
     let schema = &cache_reader.get_schema().0;

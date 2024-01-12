@@ -43,7 +43,7 @@ pub(crate) fn supports_predicates_pushdown(
     let query_result = get_records(
         &cache_endpoint.cache_reader(),
         &mut query_expr,
-        &cache_endpoint.endpoint.name,
+        &cache_endpoint.table_name,
         None,
     );
 

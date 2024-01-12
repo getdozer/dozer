@@ -17,10 +17,10 @@ struct LogReader {
 impl LogReader {
     #[allow(clippy::new_ret_no_self)]
     #[staticmethod]
-    fn new(py: Python, server_addr: String, endpoint_name: String) -> PyResult<&PyAny> {
+    fn new(py: Python, server_addr: String, table_name: String) -> PyResult<&PyAny> {
         pyo3_asyncio::tokio::future_into_py(py, async move {
             let reader_result =
-                LogReaderBuilder::new(server_addr, endpoint_name, Default::default()).await;
+                LogReaderBuilder::new(server_addr, table_name, Default::default()).await;
             let reader = reader_result
                 .map_err(|e| PyException::new_err(e.to_string()))?
                 .build(0);
