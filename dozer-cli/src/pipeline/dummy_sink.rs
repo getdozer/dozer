@@ -8,9 +8,10 @@ use dozer_core::{
 };
 use dozer_recordstore::ProcessorRecordStore;
 use dozer_types::{
+    chrono::Local,
     errors::internal::BoxedError,
     log::{info, warn},
-    types::{Operation, Schema},
+    types::{FieldType, Operation, Schema},
 };
 
 #[derive(Debug)]
@@ -27,15 +28,28 @@ impl SinkFactory for DummySinkFactory {
 
     fn build(
         &self,
-        _input_schemas: HashMap<PortHandle, Schema>,
+        input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Sink>, BoxedError> {
-        Ok(Box::<DummySink>::default())
+        let inserted_at_index = input_schemas
+            .into_values()
+            .next()
+            .and_then(|schema| {
+                schema.fields.into_iter().enumerate().find(|(_, field)| {
+                    field.name == "inserted_at" && field.typ == FieldType::Timestamp
+                })
+            })
+            .map(|(index, _)| index);
+        Ok(Box::new(DummySink {
+            inserted_at_index,
+            ..Default::default()
+        }))
     }
 }
 
 #[derive(Debug, Default)]
 struct DummySink {
     snapshotting_started_instant: HashMap<String, Instant>,
+    inserted_at_index: Option<usize>,
 }
 
 impl Sink for DummySink {
@@ -43,8 +57,19 @@ impl Sink for DummySink {
         &mut self,
         _from_port: PortHandle,
         _record_store: &ProcessorRecordStore,
-        _op: Operation,
+        op: Operation,
     ) -> Result<(), BoxedError> {
+        if let Some(inserted_at_index) = self.inserted_at_index {
+            if let Operation::Insert { new } = op {
+                let value = &new.values[inserted_at_index];
+                if let Some(inserted_at) = value.to_timestamp() {
+                    let latency = Local::now().naive_utc() - inserted_at.naive_utc();
+                    info!("Latency: {}ms", latency.num_milliseconds());
+                } else {
+                    warn!("expecting timestamp, got {:?}", value);
+                }
+            }
+        }
         Ok(())
     }
 
