@@ -69,14 +69,15 @@ impl Processor for WindowProcessor {
                 )?;
             }
             Operation::BatchInsert { new } => {
+                let mut records = vec![];
                 for record in new {
-                    self.process(
-                        _from_port,
-                        record_store,
-                        Operation::Insert { new: record },
-                        fw,
-                    )?;
+                    records.extend(
+                        self.window
+                            .execute(record_store, record)
+                            .map_err(PipelineError::WindowError)?,
+                    );
                 }
+                fw.send(Operation::BatchInsert { new: records }, DEFAULT_PORT_HANDLE);
             }
         }
         Ok(())

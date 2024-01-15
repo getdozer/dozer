@@ -7,7 +7,7 @@ use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_recordstore::ProcessorRecordStore;
 use dozer_sql_expression::execution::Expression;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::types::{Field, Operation, Schema};
+use dozer_types::types::{Field, Operation, Record, Schema};
 
 use crate::errors::PipelineError;
 
@@ -33,6 +33,10 @@ impl SelectionProcessor {
             expression,
         })
     }
+
+    fn filter(&mut self, record: &Record) -> Result<bool, PipelineError> {
+        Ok(self.expression.evaluate(record, &self.input_schema)? == Field::Boolean(true))
+    }
 }
 
 impl Processor for SelectionProcessor {
@@ -49,20 +53,18 @@ impl Processor for SelectionProcessor {
     ) -> Result<(), BoxedError> {
         match op {
             Operation::Delete { ref old } => {
-                if self.expression.evaluate(old, &self.input_schema)? == Field::Boolean(true) {
+                if self.filter(old)? {
                     fw.send(op, DEFAULT_PORT_HANDLE);
                 }
             }
             Operation::Insert { ref new } => {
-                if self.expression.evaluate(new, &self.input_schema)? == Field::Boolean(true) {
+                if self.filter(new)? {
                     fw.send(op, DEFAULT_PORT_HANDLE);
                 }
             }
             Operation::Update { old, new } => {
-                let old_fulfilled =
-                    self.expression.evaluate(&old, &self.input_schema)? == Field::Boolean(true);
-                let new_fulfilled =
-                    self.expression.evaluate(&new, &self.input_schema)? == Field::Boolean(true);
+                let old_fulfilled = self.filter(&old)?;
+                let new_fulfilled = self.filter(&new)?;
                 match (old_fulfilled, new_fulfilled) {
                     (true, true) => {
                         // both records fulfills the WHERE condition, forward the operation
@@ -82,13 +84,16 @@ impl Processor for SelectionProcessor {
                 }
             }
             Operation::BatchInsert { new } => {
-                for record in new {
-                    self.process(
-                        _from_port,
-                        _record_store,
-                        Operation::Insert { new: record },
-                        fw,
-                    )?;
+                let records = new
+                    .into_iter()
+                    .filter_map(|record| {
+                        self.filter(&record)
+                            .map(|fulfilled| if fulfilled { Some(record) } else { None })
+                            .transpose()
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                if !records.is_empty() {
+                    fw.send(Operation::BatchInsert { new: records }, DEFAULT_PORT_HANDLE);
                 }
             }
         }

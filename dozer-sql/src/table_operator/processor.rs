@@ -82,14 +82,15 @@ impl Processor for TableOperatorProcessor {
                 }
             }
             Operation::BatchInsert { new } => {
+                let mut records = vec![];
                 for record in new {
-                    self.process(
-                        _from_port,
-                        record_store,
-                        Operation::Insert { new: record },
-                        fw,
-                    )?;
+                    records.extend(
+                        self.operator
+                            .execute(record_store, &record, &self.input_schema)
+                            .map_err(PipelineError::TableOperatorError)?,
+                    );
                 }
+                fw.send(Operation::BatchInsert { new: records }, DEFAULT_PORT_HANDLE);
             }
         }
         Ok(())
