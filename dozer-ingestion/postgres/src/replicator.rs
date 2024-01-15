@@ -137,27 +137,26 @@ impl<'a> CDCHandler<'a> {
                         if self.seq_no == 0 || self.seq_no == 1 || (self.seq_no + 1) % 1000 == 0 {
                             if let Operation::Insert { ref new, .. } = op {
                                 let current_timestamp = Utc::now();
-                                    if self.seq_no == 0 {
-                                        self.first = current_timestamp.timestamp_millis();
+                                if self.seq_no == 0 {
+                                    self.first = current_timestamp.timestamp_millis();
 
-                                        info!("diff for insert first t", );
-                                    } else if self.seq_no == 1 {
-                                        let timestamp = Utc::now();
-                                        let diff = current_timestamp.timestamp_millis()
-                                            - timestamp.timestamp_millis();
-                                        info!("diff for insert second t: {:?} μs", diff);
-                                    } else if (self.seq_no + 1) % 1000 == 0 {
-                                        let timestamp = Utc::now();
-                                        let diff = current_timestamp.timestamp_millis()
-                                            - self.first;
-                                        let rate = 1000 * (self.seq_no + 1) as i64
-                                            / (current_timestamp.timestamp_millis() - self.first);
-                                        info!(
-                                            "diff for insert {}th t: {:?} ms (rate {rate}/s)",
-                                            self.seq_no + 1,
-                                            diff
-                                        );
-                                    }
+                                    info!("diff for insert first t", );
+                                } else if self.seq_no == 1 {
+                                    let timestamp = Utc::now();
+                                    let diff = current_timestamp.timestamp_millis()
+                                        - timestamp.timestamp_millis();
+                                    info!("diff for insert second t: {:?} μs", diff);
+                                } else if (self.seq_no + 1) % 1000 == 0 {
+                                    let timestamp = Utc::now();
+                                    let diff = current_timestamp.timestamp_millis()
+                                        - self.first;
+                                    let rate = 1000 * (self.seq_no + 1) as i64
+                                        / (current_timestamp.timestamp_millis() - self.first);
+                                    info!(
+                                        "diff for insert {}th t: {:?} ms (rate {rate}/s)",
+                                        self.seq_no + 1,
+                                        diff
+                                    );
                                 }
                             }
                         }
