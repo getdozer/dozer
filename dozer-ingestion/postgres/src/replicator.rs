@@ -167,7 +167,7 @@ impl<'a> CDCHandler<'a> {
                             && self
                                 .ingestor
                                 .handle_message(IngestionMessage::OperationEvent {
-                                    table_index,
+                                    table_index: 0,
                                     op,
                                     state: Some(encode_state(
                                         self.begin_lsn,
