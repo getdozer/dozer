@@ -48,7 +48,7 @@ impl ProjectionProcessor {
         Ok(Operation::Delete { old: output_record })
     }
 
-    fn insert(&mut self, record: &Record) -> Result<Operation, PipelineError> {
+    fn insert(&mut self, record: &Record) -> Result<Record, PipelineError> {
         let mut results = vec![];
 
         for expr in &mut self.expressions {
@@ -57,7 +57,7 @@ impl ProjectionProcessor {
 
         let mut output_record = Record::new(results);
         output_record.set_lifetime(record.lifetime.to_owned());
-        Ok(Operation::Insert { new: output_record })
+        Ok(output_record)
     }
 
     fn update(&mut self, old: &Record, new: &Record) -> Result<Operation, PipelineError> {
@@ -90,18 +90,16 @@ impl Processor for ProjectionProcessor {
     ) -> Result<(), BoxedError> {
         let output_op = match op {
             Operation::Delete { ref old } => self.delete(old)?,
-            Operation::Insert { ref new } => self.insert(new)?,
+            Operation::Insert { ref new } => Operation::Insert {
+                new: self.insert(new)?,
+            },
             Operation::Update { ref old, ref new } => self.update(old, new)?,
             Operation::BatchInsert { new } => {
-                for record in new {
-                    self.process(
-                        _from_port,
-                        _record_store,
-                        Operation::Insert { new: record },
-                        fw,
-                    )?;
-                }
-                return Ok(());
+                let records = new
+                    .iter()
+                    .map(|record| self.insert(record))
+                    .collect::<Result<Vec<_>, _>>()?;
+                Operation::BatchInsert { new: records }
             }
         };
         fw.send(output_op, DEFAULT_PORT_HANDLE);
