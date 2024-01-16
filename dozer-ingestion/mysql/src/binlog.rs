@@ -226,7 +226,6 @@ impl BinlogIngestor<'_, '_, '_> {
                     let query = query_event.query_raw().trim_start();
 
                     if query == b"BEGIN" {
-                        // If receiving side is closed, we can stop ingesting.
                         transaction_position = prev_position;
                         seq_in_transaction = 0;
                     } else if query.starts_with_case_insensitive(b"ALTER")
