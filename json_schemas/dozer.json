@@ -406,6 +406,44 @@
       },
       "additionalProperties": false
     },
+    "Authentication": {
+      "type": "object",
+      "required": [
+        "service_account_key"
+      ],
+      "properties": {
+        "service_account_key": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "BigQuery": {
+      "type": "object",
+      "required": [
+        "auth",
+        "destination"
+      ],
+      "properties": {
+        "auth": {
+          "$ref": "#/definitions/Authentication"
+        },
+        "destination": {
+          "$ref": "#/definitions/Destination"
+        },
+        "options": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Options"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
     "Cloud": {
       "type": "object",
       "properties": {
@@ -751,6 +789,34 @@
     "Destination": {
       "type": "object",
       "required": [
+        "dataset",
+        "dataset_location",
+        "project",
+        "stage_gcs_bucket_name",
+        "table"
+      ],
+      "properties": {
+        "dataset": {
+          "type": "string"
+        },
+        "dataset_location": {
+          "type": "string"
+        },
+        "project": {
+          "type": "string"
+        },
+        "stage_gcs_bucket_name": {
+          "type": "string"
+        },
+        "table": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Destination2": {
+      "type": "object",
+      "required": [
         "database",
         "schema",
         "table"
@@ -871,6 +937,18 @@
           "properties": {
             "Aerospike": {
               "$ref": "#/definitions/AerospikeSinkConfig"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "BigQuery"
+          ],
+          "properties": {
+            "BigQuery": {
+              "$ref": "#/definitions/BigQuery"
             }
           },
           "additionalProperties": false
@@ -1488,6 +1566,24 @@
     "Options": {
       "type": "object",
       "properties": {
+        "batch_size": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint",
+          "minimum": 0.0
+        },
+        "stage_max_size_in_mb": {
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Options2": {
+      "type": "object",
+      "properties": {
         "batch_interval_seconds": {
           "type": "number",
           "format": "double"
@@ -1872,7 +1968,7 @@
           "$ref": "#/definitions/ConnectionParameters"
         },
         "destination": {
-          "$ref": "#/definitions/Destination"
+          "$ref": "#/definitions/Destination2"
         },
         "endpoint": {
           "type": "string"
@@ -1880,7 +1976,7 @@
         "options": {
           "anyOf": [
             {
-              "$ref": "#/definitions/Options"
+              "$ref": "#/definitions/Options2"
             },
             {
               "type": "null"

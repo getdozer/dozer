@@ -10,12 +10,13 @@ use dozer_core::app::PipelineEntryPoint;
 use dozer_core::node::SinkFactory;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_ingestion::{get_connector, get_connector_info_table};
+use dozer_sinks::bigquery::BigQuerySinkFactory;
 use dozer_sql::builder::statement_to_pipeline;
 use dozer_sql::builder::{OutputNodeInfo, QueryContext};
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::log::debug;
 use dozer_types::models::connection::Connection;
-use dozer_types::models::endpoint::AerospikeSinkConfig;
+use dozer_types::models::endpoint::{AerospikeSinkConfig, BigQuery};
 use dozer_types::models::flags::Flags;
 use dozer_types::models::source::Source;
 use dozer_types::models::udf_config::UdfConfig;
@@ -60,6 +61,7 @@ pub enum EndpointLogKind {
     Api { log: Arc<Mutex<Log>> },
     Dummy,
     Aerospike { config: AerospikeSinkConfig },
+    BigQuery(BigQuery),
 }
 
 pub struct PipelineBuilder<'a> {
@@ -290,6 +292,7 @@ impl<'a> PipelineBuilder<'a> {
                 EndpointLogKind::Aerospike { config } => {
                     Box::new(AerospikeSinkFactory::new(config))
                 }
+                EndpointLogKind::BigQuery(config) => Box::new(BigQuerySinkFactory::new(config)),
             };
 
             match table_info {

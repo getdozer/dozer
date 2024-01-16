@@ -4,6 +4,7 @@ use crate::types::{DozerDuration, DozerPoint, TimeUnit, DATE_FORMAT};
 use crate::types::{Field, FieldType};
 use chrono::{DateTime, NaiveDate};
 use ordered_float::OrderedFloat;
+use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 use rust_decimal::Decimal;
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -320,6 +321,24 @@ where
 }
 
 pub fn f64_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+    f64::json_schema(gen)
+}
+
+pub fn serialize_decimal_as_f64<S>(decimal: &Option<Decimal>, s: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    decimal.map(|d| d.to_f64()).flatten().serialize(s)
+}
+
+pub fn deserialize_decimal_as_f64<'a, D>(d: D) -> Result<Option<Decimal>, D::Error>
+where
+    D: Deserializer<'a>,
+{
+    Option::<f64>::deserialize(d).map(|f| f.and_then(Decimal::from_f64))
+}
+
+pub fn f64_opt_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
     f64::json_schema(gen)
 }
 
