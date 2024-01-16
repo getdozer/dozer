@@ -36,7 +36,7 @@ pub struct SourceSenderNode {
     /// The source.
     source: Box<dyn Source>,
     /// The forwarder that will be passed to the source for outputting data.
-    forwarder: InternalChannelSourceForwarder,
+    forwarder: Box<InternalChannelSourceForwarder>,
 }
 
 impl SourceSenderNode {
@@ -46,8 +46,8 @@ impl SourceSenderNode {
 }
 
 impl Node for SourceSenderNode {
-    fn run(mut self) -> Result<(), ExecutionError> {
-        let result = self.source.start(&mut self.forwarder);
+    fn run(self) -> Result<(), ExecutionError> {
+        let result = self.source.start(self.forwarder);
         debug!("[{}-sender] Quit", self.node_handle);
         result.map_err(ExecutionError::Source)
     }
@@ -161,7 +161,7 @@ pub async fn create_source_nodes(
     // let (source_sender, source_receiver) = bounded(1);
 
     // Create source listener.
-    let forwarder = InternalChannelSourceForwarder::new(source_sender);
+    let forwarder = Box::new(InternalChannelSourceForwarder::new(source_sender));
     let source_sender_node = SourceSenderNode {
         node_handle: node_handle.clone(),
         source,

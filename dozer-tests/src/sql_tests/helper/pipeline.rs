@@ -122,7 +122,7 @@ pub struct TestSource {
 }
 
 impl Source for TestSource {
-    fn start(&self, fw: &mut dyn SourceChannelForwarder) -> Result<(), BoxedError> {
+    fn start(&self, mut fw: Box<dyn SourceChannelForwarder>) -> Result<(), BoxedError> {
         while let Ok(Some((schema_name, op))) = self.receiver.recv() {
             let port = self.name_to_port.get(&schema_name).expect("port not found");
             fw.send(

@@ -57,7 +57,7 @@ pub trait SourceFactory: Send + Sync + Debug {
 pub type SourceState = HashMap<PortHandle, Option<RestartableState>>;
 
 pub trait Source: Send + Sync + Debug {
-    fn start(&self, fw: &mut dyn SourceChannelForwarder) -> Result<(), BoxedError>;
+    fn start(&self, fw: Box<dyn SourceChannelForwarder>) -> Result<(), BoxedError>;
 }
 
 #[async_trait]

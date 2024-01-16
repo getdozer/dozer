@@ -99,7 +99,7 @@ pub(crate) struct GeneratorSource {
 }
 
 impl Source for GeneratorSource {
-    fn start(&self, fw: &mut dyn SourceChannelForwarder) -> Result<(), BoxedError> {
+    fn start(&self, mut fw: Box<dyn SourceChannelForwarder>) -> Result<(), BoxedError> {
         for n in self.start..(self.start + self.count) {
             fw.send(
                 IngestionMessage::OperationEvent {
@@ -219,7 +219,7 @@ pub(crate) struct DualPortGeneratorSource {
 }
 
 impl Source for DualPortGeneratorSource {
-    fn start(&self, fw: &mut dyn SourceChannelForwarder) -> Result<(), BoxedError> {
+    fn start(&self, mut fw: Box<dyn SourceChannelForwarder>) -> Result<(), BoxedError> {
         for n in 1..(self.count + 1) {
             fw.send(
                 IngestionMessage::OperationEvent {

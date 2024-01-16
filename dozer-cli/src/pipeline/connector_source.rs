@@ -4,13 +4,12 @@ use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory, SourceState,
 };
 use dozer_ingestion::{
-    get_connector, CdcType, Connector, TableIdentifier, TableInfo, TableToIngest,
+    get_connector, CdcType, Connector, IngestionIterator, TableIdentifier, TableInfo, TableToIngest,
 };
 use dozer_ingestion::{IngestionConfig, Ingestor};
 
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::indicatif::ProgressBar;
 use dozer_types::log::{error, info};
 use dozer_types::models::connection::Connection;
 use dozer_types::models::ingestion_types::IngestionMessage;
@@ -22,7 +21,6 @@ use futures::stream::{AbortHandle, Abortable, Aborted};
 use metrics::{describe_counter, increment_counter};
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::thread;
 use tokio::runtime::Runtime;
 
 #[derive(Debug)]
@@ -205,12 +203,6 @@ impl SourceFactory for ConnectorSourceFactory {
             .take()
             .expect("ConnectorSource was already built");
 
-        let mut bars = vec![];
-        for table in &self.tables {
-            let pb = self.labels.create_progress_bar(table.name.clone());
-            bars.push(pb);
-        }
-
         Ok(Box::new(ConnectorSource {
             tables,
             ports,
@@ -218,7 +210,6 @@ impl SourceFactory for ConnectorSourceFactory {
             runtime: self.runtime.clone(),
             connection_name: self.connection_name.clone(),
             labels: self.labels.clone(),
-            bars,
             shutdown: self.shutdown.clone(),
             ingestion_config: IngestionConfig::default(),
         }))
@@ -233,119 +224,139 @@ pub struct ConnectorSource {
     runtime: Arc<Runtime>,
     connection_name: String,
     labels: LabelsAndProgress,
-    bars: Vec<ProgressBar>,
     shutdown: ShutdownReceiver,
     ingestion_config: IngestionConfig,
 }
 
+impl Source for ConnectorSource {
+    fn start(&self, fw: Box<dyn SourceChannelForwarder>) -> Result<(), BoxedError> {
+        let (ingestor, iterator) = Ingestor::initialize_channel(self.ingestion_config.clone());
+        let connection_name = self.connection_name.clone();
+        let tables = self.tables.clone();
+        let ports = self.ports.clone();
+        let labels = self.labels.clone();
+        let handle = std::thread::spawn(move || {
+            forward_message_to_pipeline(iterator, fw, connection_name, tables, ports, labels);
+        });
+
+        self.runtime.block_on(async move {
+            let ingestor = ingestor;
+            let shutdown_future = self.shutdown.create_shutdown_future();
+            let (abort_handle, abort_registration) = AbortHandle::new_pair();
+
+            // Abort the connector when we shut down
+            // TODO: pass a `CancellationToken` to the connector to allow
+            // it to gracefully shut down.
+            let name = self.connection_name.clone();
+            tokio::spawn(async move {
+                shutdown_future.await;
+                abort_handle.abort();
+                eprintln!("Aborted connector {}", name);
+            });
+            let result = Abortable::new(
+                self.connector.start(&ingestor, self.tables.clone()),
+                abort_registration,
+            )
+            .await;
+            match result {
+                Ok(Ok(_)) => {}
+                Ok(Err(e)) => {
+                    error!("{}", e);
+                    std::panic::panic_any(e)
+                }
+                // Aborted means we are shutting down
+                Err(Aborted) => (),
+            }
+        });
+
+        // If we reach here, it means the forwarding thread has quit and the `ingestor` has been dropped.
+        // `join` will not block.
+        if let Err(e) = handle.join() {
+            std::panic::panic_any(e);
+        }
+
+        Ok(())
+    }
+}
+
 const SOURCE_OPERATION_COUNTER_NAME: &str = "source_operation";
 
-impl Source for ConnectorSource {
-    fn start(&self, fw: &mut dyn SourceChannelForwarder) -> Result<(), BoxedError> {
-        thread::scope(|scope| {
-            describe_counter!(
-                SOURCE_OPERATION_COUNTER_NAME,
-                "Number of operation processed by source"
-            );
+fn forward_message_to_pipeline(
+    mut iterator: IngestionIterator,
+    mut fw: Box<dyn SourceChannelForwarder>,
+    connection_name: String,
+    tables: Vec<TableToIngest>,
+    ports: Vec<PortHandle>,
+    labels: LabelsAndProgress,
+) {
+    let mut bars = vec![];
+    for table in &tables {
+        let pb = labels.create_progress_bar(table.name.clone());
+        bars.push(pb);
+    }
 
-            let mut counter = vec![(0u64, 0u64); self.tables.len()];
+    describe_counter!(
+        SOURCE_OPERATION_COUNTER_NAME,
+        "Number of operation processed by source"
+    );
 
-            let (ingestor, mut iterator) =
-                Ingestor::initialize_channel(self.ingestion_config.clone());
-            let t = scope.spawn(|| {
-                self.runtime.block_on(async move {
-                    let ingestor = ingestor;
-                    let shutdown_future = self.shutdown.create_shutdown_future();
-                    let (abort_handle, abort_registration) = AbortHandle::new_pair();
+    let mut counter = vec![(0u64, 0u64); tables.len()];
+    for message in iterator.by_ref() {
+        let span = span!(Level::TRACE, "pipeline_source_start", connection_name);
+        let _enter = span.enter();
 
-                    // Abort the connector when we shut down
-                    // TODO: pass a `CancellationToken` to the connector to allow
-                    // it to gracefully shut down.
-                    let name = self.connection_name.clone();
-                    tokio::spawn(async move {
-                        shutdown_future.await;
-                        abort_handle.abort();
-                        eprintln!("Aborted connector {}", name);
-                    });
-                    let result = Abortable::new(
-                        self.connector.start(&ingestor, self.tables.clone()),
-                        abort_registration,
-                    )
-                    .await;
-                    match result {
-                        Ok(Ok(_)) => {}
-                        Ok(Err(e)) => {
-                            error!("{}", e);
-                            std::panic::panic_any(e)
-                        }
-                        // Aborted means we are shutting down
-                        Err(Aborted) => (),
+        match &message {
+            IngestionMessage::OperationEvent {
+                table_index, op, ..
+            } => {
+                let port = ports[*table_index];
+                let table_name = &tables[*table_index].name;
+
+                // Update metrics
+                let mut labels = labels.labels().clone();
+                labels.push("connection", connection_name.clone());
+                labels.push("table", table_name.clone());
+                const OPERATION_TYPE_LABEL: &str = "operation_type";
+                match op {
+                    Operation::Delete { .. } => {
+                        labels.push(OPERATION_TYPE_LABEL, "delete");
                     }
-                })
-            });
-
-            for message in iterator.by_ref() {
-                let span = span!(Level::TRACE, "pipeline_source_start", self.connection_name,);
-                let _enter = span.enter();
-
-                match &message {
-                    IngestionMessage::OperationEvent {
-                        table_index, op, ..
-                    } => {
-                        let port = self.ports[*table_index];
-                        let table_name = &self.tables[*table_index].name;
-
-                        // Update metrics
-                        let mut labels = self.labels.labels().clone();
-                        labels.push("connection", self.connection_name.clone());
-                        labels.push("table", table_name.clone());
-                        const OPERATION_TYPE_LABEL: &str = "operation_type";
-                        match op {
-                            Operation::Delete { .. } => {
-                                labels.push(OPERATION_TYPE_LABEL, "delete");
-                            }
-                            Operation::Insert { .. } => {
-                                labels.push(OPERATION_TYPE_LABEL, "insert");
-                            }
-                            Operation::Update { .. } => {
-                                labels.push(OPERATION_TYPE_LABEL, "update");
-                            }
-                            Operation::BatchInsert { .. } => {
-                                labels.push(OPERATION_TYPE_LABEL, "batch_insert");
-                            }
-                        }
-                        increment_counter!(SOURCE_OPERATION_COUNTER_NAME, labels);
-
-                        // Update counter
-                        let counter = &mut counter[*table_index];
-                        if let Operation::BatchInsert { new } = &op {
-                            counter.0 += new.len() as u64;
-                        } else {
-                            counter.0 += 1;
-                        }
-                        if counter.0 >> 10 > counter.1 {
-                            counter.1 = counter.0 >> 10;
-                            self.bars[*table_index].set_position(counter.0);
-                        }
-
-                        // Send message to the pipeline
-                        fw.send(message, port)?;
+                    Operation::Insert { .. } => {
+                        labels.push(OPERATION_TYPE_LABEL, "insert");
                     }
-                    IngestionMessage::SnapshottingDone | IngestionMessage::SnapshottingStarted => {
-                        for port in &self.ports {
-                            fw.send(message.clone(), *port)?;
-                        }
+                    Operation::Update { .. } => {
+                        labels.push(OPERATION_TYPE_LABEL, "update");
+                    }
+                    Operation::BatchInsert { .. } => {
+                        labels.push(OPERATION_TYPE_LABEL, "batch_insert");
+                    }
+                }
+                increment_counter!(SOURCE_OPERATION_COUNTER_NAME, labels);
+
+                // Update counter
+                let counter = &mut counter[*table_index];
+                if let Operation::BatchInsert { new } = &op {
+                    counter.0 += new.len() as u64;
+                } else {
+                    counter.0 += 1;
+                }
+                if counter.0 >> 10 > counter.1 {
+                    counter.1 = counter.0 >> 10;
+                    bars[*table_index].set_position(counter.0);
+                }
+
+                // Send message to the pipeline
+                if fw.send(message, port).is_err() {
+                    break;
+                }
+            }
+            IngestionMessage::SnapshottingDone | IngestionMessage::SnapshottingStarted => {
+                for port in &ports {
+                    if fw.send(message.clone(), *port).is_err() {
+                        break;
                     }
                 }
             }
-
-            // If we reach here, it means the connector thread has quit and the `ingestor` has been dropped.
-            // `join` will not block.
-            if let Err(e) = t.join() {
-                std::panic::panic_any(e);
-            }
-
-            Ok(())
-        })
+        }
     }
 }

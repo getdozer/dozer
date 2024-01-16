@@ -106,7 +106,7 @@ impl SourceFactory for TestSourceFactory {
 pub struct TestSource {}
 
 impl Source for TestSource {
-    fn start(&self, fw: &mut dyn SourceChannelForwarder) -> Result<(), BoxedError> {
+    fn start(&self, mut fw: Box<dyn SourceChannelForwarder>) -> Result<(), BoxedError> {
         for _ in 0..10 {
             fw.send(
                 IngestionMessage::OperationEvent {

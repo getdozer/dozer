@@ -359,7 +359,7 @@ pub(crate) struct ErrGeneratorSource {
 }
 
 impl Source for ErrGeneratorSource {
-    fn start(&self, fw: &mut dyn SourceChannelForwarder) -> Result<(), BoxedError> {
+    fn start(&self, mut fw: Box<dyn SourceChannelForwarder>) -> Result<(), BoxedError> {
         for n in 1..(self.count + 1) {
             if n == self.err_at {
                 return Err("Generated Error".to_string().into());
