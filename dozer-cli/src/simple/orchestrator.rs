@@ -328,7 +328,7 @@ impl SimpleOrchestrator {
     pub async fn run_sinks(&self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError> {
         let mut futures = FuturesUnordered::new();
         let app_server_url = app_url(&self.config.api.app_grpc);
-        for sink in self.config.sinks.iter() {
+        if let Some(sink) = self.config.sinks.first() {
             use dozer_types::models::sink_config::SinkConfig;
             match sink {
                 SinkConfig::Snowflake(config) => {

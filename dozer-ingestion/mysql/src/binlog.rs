@@ -8,6 +8,8 @@ use super::{
     conversion::{IntoField, IntoFields, IntoJsonValue},
     schema::{ColumnDefinition, TableDefinition},
 };
+use crate::state::encode_state;
+use dozer_ingestion_connector::dozer_types::log::debug;
 use dozer_ingestion_connector::{
     dozer_types::{
         json_types::{JsonArray, JsonObject, JsonValue},
@@ -30,6 +32,7 @@ use mysql_common::{
     },
     Row,
 };
+use std::cmp::Ordering;
 use std::{
     collections::{HashMap, HashSet},
     ops::Deref,
@@ -39,6 +42,7 @@ use std::{
 pub struct BinlogPosition {
     pub filename: Vec<u8>,
     pub position: u64,
+    pub seq_no: u64,
 }
 
 pub async fn get_master_binlog_position(
@@ -53,7 +57,11 @@ pub async fn get_master_binlog_position(
         (row.take(0).unwrap(), row.take(1).unwrap())
     };
 
-    Ok(BinlogPosition { filename, position })
+    Ok(BinlogPosition {
+        filename,
+        position,
+        seq_no: 0,
+    })
 }
 
 pub async fn get_binlog_format(conn: &mut Conn) -> Result<String, MySQLConnectorError> {
@@ -75,6 +83,7 @@ pub struct BinlogIngestor<'a, 'd, 'e> {
     server_id: u32,
     conn_pool: &'d Pool,
     conn_url: &'e String,
+    ingestion_start_position: Option<BinlogPosition>,
 }
 
 impl<'a, 'd, 'e> BinlogIngestor<'a, 'd, 'e> {
@@ -88,7 +97,8 @@ impl<'a, 'd, 'e> BinlogIngestor<'a, 'd, 'e> {
         Self {
             ingestor,
             binlog_stream: None,
-            next_position: start_position,
+            next_position: start_position.clone(),
+            ingestion_start_position: Some(start_position),
             stop_position,
             local_stop_position: None,
             server_id,
@@ -142,6 +152,10 @@ impl BinlogIngestor<'_, '_, '_> {
         let mut table_cache = TableManager::new(tables);
         let mut schema_change_tracker = SchemaChangeTracker::new();
 
+        let mut transaction_position = self.next_position.position;
+        let mut prev_position = self.next_position.position;
+        let mut seq_in_transaction = 0;
+
         'binlog_read: while let Some(result) = self.binlog_stream.as_mut().unwrap().next().await {
             match self.local_stop_position {
                 Some(stop_position) if self.next_position.position >= stop_position => {
@@ -193,6 +207,7 @@ impl BinlogIngestor<'_, '_, '_> {
                         self.next_position = BinlogPosition {
                             filename: rotate_event.name_raw().into(),
                             position: rotate_event.position(),
+                            seq_no: 0,
                         };
 
                         self.open_binlog().await?;
@@ -210,15 +225,10 @@ impl BinlogIngestor<'_, '_, '_> {
 
                     let query = query_event.query_raw().trim_start();
 
-                    if query == b"BEGIN"
-                        && self
-                            .ingestor
-                            .handle_message(IngestionMessage::SnapshottingStarted)
-                            .await
-                            .is_err()
-                    {
+                    if query == b"BEGIN" {
                         // If receiving side is closed, we can stop ingesting.
-                        return Ok(());
+                        transaction_position = prev_position;
+                        seq_in_transaction = 0;
                     } else if query.starts_with_case_insensitive(b"ALTER")
                         || query.starts_with_case_insensitive(b"DROP")
                     {
@@ -390,17 +400,7 @@ impl BinlogIngestor<'_, '_, '_> {
                     }
                 }
 
-                XID_EVENT => {
-                    if self
-                        .ingestor
-                        .handle_message(IngestionMessage::SnapshottingDone)
-                        .await
-                        .is_err()
-                    {
-                        // If receiving side is closed, we can stop ingesting.
-                        return Ok(());
-                    }
-                }
+                XID_EVENT => {}
 
                 WRITE_ROWS_EVENT | UPDATE_ROWS_EVENT | DELETE_ROWS_EVENT | WRITE_ROWS_EVENT_V1
                 | UPDATE_ROWS_EVENT_V1 | DELETE_ROWS_EVENT_V1 => {
@@ -434,13 +434,42 @@ impl BinlogIngestor<'_, '_, '_> {
                         }
 
                         let table = table_cache.get_table_details(table_index).unwrap();
-                        self.handle_rows_event(&rows_event, &table, tme).await?;
+                        seq_in_transaction = self
+                            .handle_rows_event(
+                                &rows_event,
+                                &table,
+                                tme,
+                                self.ingestion_start_position.clone(),
+                                BinlogPosition {
+                                    filename: self.next_position.filename.clone(),
+                                    seq_no: seq_in_transaction,
+                                    position: transaction_position,
+                                },
+                            )
+                            .await?;
+
+                        if let Some(start_binlog_position) = &self.ingestion_start_position {
+                            if !Self::operation_already_ingested(
+                                start_binlog_position,
+                                &BinlogPosition {
+                                    filename: self.next_position.filename.clone(),
+                                    seq_no: seq_in_transaction,
+                                    position: transaction_position,
+                                },
+                            ) {
+                                self.ingestion_start_position = None;
+                            }
+                        }
                     }
                 }
 
                 event_type => {
                     trace!("other binlog event {event_type:?}");
                 }
+            }
+
+            if binlog_event.header().log_pos() > 0 {
+                prev_position = binlog_event.header().log_pos().into();
             }
         }
 
@@ -452,26 +481,80 @@ impl BinlogIngestor<'_, '_, '_> {
         rows_event: &BinlogRowsEvent<'_>,
         table: &TableDetails<'_>,
         tme: &TableMapEvent<'a>,
-    ) -> Result<(), MySQLConnectorError> {
-        for op in self.make_rows_operations(rows_event, table, tme) {
+        start_pos: Option<BinlogPosition>,
+        pos: BinlogPosition,
+    ) -> Result<u64, MySQLConnectorError> {
+        let mut seq_no = pos.seq_no;
+        let mut start_pos = start_pos.clone();
+        for (seq_no_in_row, op) in self
+            .make_rows_operations(rows_event, table, tme)
+            .enumerate()
+        {
+            if let Some(start_bin_log) = &start_pos {
+                if Self::operation_already_ingested(start_bin_log, &pos) {
+                    debug!(
+                        "Skipping operation {op:?} with seq_no: {}/{seq_no_in_row}",
+                        pos.position
+                    );
+                    seq_no += 1;
+                    continue;
+                } else {
+                    debug!(
+                        "First ingested operation {op:?} with seq_no: {}/{seq_no_in_row}",
+                        pos.position
+                    );
+                    // No need to check start position in the next transaction
+                    start_pos = None;
+                }
+            }
+
             if self
                 .ingestor
                 .handle_message(IngestionMessage::OperationEvent {
                     table_index: table.def.table_index,
                     op: op?,
-                    state: None,
+                    state: Some(encode_state(&BinlogPosition {
+                        seq_no,
+                        ..pos.clone()
+                    })),
                 })
                 .await
                 .is_err()
             {
                 // If receiving side is closed, we can stop ingesting.
-                return Ok(());
+                return Ok(0);
             }
+
+            seq_no += 1;
         }
 
-        Ok(())
+        Ok(seq_no)
     }
 
+    fn operation_already_ingested(
+        start_binlog_position: &BinlogPosition,
+        operation_binlog_position: &BinlogPosition,
+    ) -> bool {
+        match start_binlog_position
+            .filename
+            .cmp(&operation_binlog_position.filename)
+        {
+            Ordering::Less => false,
+            Ordering::Equal => {
+                match start_binlog_position
+                    .position
+                    .cmp(&operation_binlog_position.position)
+                {
+                    Ordering::Less => false,
+                    Ordering::Equal => {
+                        start_binlog_position.seq_no >= operation_binlog_position.seq_no
+                    }
+                    Ordering::Greater => true,
+                }
+            }
+            Ordering::Greater => true,
+        }
+    }
     fn get_tme(&self, binlog_table_id: u64) -> Result<&TableMapEvent<'_>, MySQLConnectorError> {
         self.binlog_stream
             .as_ref()
@@ -1057,6 +1140,7 @@ mod tests {
         types::{Field, FieldType},
     };
 
+    use crate::binlog::BinlogIngestor;
     use mysql_common::{
         binlog::{
             jsonb::{self, JsonbString, JsonbType, OpaqueValue},
@@ -1217,5 +1301,91 @@ mod tests {
             Field::Null,
             None::<BinlogValue<'_>>.into_field(&FieldType::Int).unwrap(),
         );
+    }
+
+    #[test]
+    fn test_ingestion_continue_condition() {
+        let binlog_id = 18;
+        let start_position = super::BinlogPosition {
+            filename: format!("mysql-bin.0000{binlog_id}").into(),
+            position: 1234,
+            seq_no: 3,
+        };
+
+        // Next operation after last ingested operation
+        let operation_position = super::BinlogPosition {
+            seq_no: start_position.seq_no + 1,
+            ..start_position.clone()
+        };
+
+        assert!(!BinlogIngestor::operation_already_ingested(
+            &start_position,
+            &operation_position
+        ));
+
+        // Same operation as last ingested operation
+        let operation_position = super::BinlogPosition {
+            ..start_position.clone()
+        };
+
+        assert!(BinlogIngestor::operation_already_ingested(
+            &start_position,
+            &operation_position
+        ));
+
+        // Operation before last ingested operation
+        let operation_position = super::BinlogPosition {
+            seq_no: 2,
+            ..start_position.clone()
+        };
+
+        assert!(BinlogIngestor::operation_already_ingested(
+            &start_position,
+            &operation_position
+        ));
+
+        // Operation from previous transaction
+        let operation_position = super::BinlogPosition {
+            position: start_position.position - 1,
+            ..start_position.clone()
+        };
+
+        assert!(BinlogIngestor::operation_already_ingested(
+            &start_position,
+            &operation_position
+        ));
+
+        // Next transaction operation
+        let operation_position = super::BinlogPosition {
+            position: start_position.position + 1,
+            ..start_position.clone()
+        };
+
+        assert!(!BinlogIngestor::operation_already_ingested(
+            &start_position,
+            &operation_position
+        ));
+
+        // Operation from previous binlog
+        let operation_position = super::BinlogPosition {
+            filename: format!("mysql-bin.0000{}", binlog_id - 1).into(),
+            ..start_position.clone()
+        };
+
+        assert!(BinlogIngestor::operation_already_ingested(
+            &start_position,
+            &operation_position
+        ));
+
+        // Operation from next binlog
+        let operation_position = super::BinlogPosition {
+            filename: format!("mysql-bin.0000{}", binlog_id + 1).into(),
+            ..start_position
+        };
+
+        assert!(!BinlogIngestor::operation_already_ingested(
+            &start_position,
+            &operation_position
+        ));
     }
 }

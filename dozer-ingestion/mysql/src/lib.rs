@@ -11,6 +11,7 @@ pub mod connector;
 mod conversion;
 pub(crate) mod helpers;
 mod schema;
+mod state;
 #[cfg(test)]
 mod tests;
 
@@ -96,4 +97,10 @@ pub enum BreakingSchemaChange {
         old_data_type: FieldType,
         new_column_name: FieldType,
     },
+}
+
+#[derive(Error, Debug)]
+pub enum MysqlStateError {
+    #[error("Failed to read binlog position from state. Error: {0}")]
+    TrySliceError(#[from] std::array::TryFromSliceError),
 }

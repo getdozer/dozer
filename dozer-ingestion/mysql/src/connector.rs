@@ -1,4 +1,5 @@
 use crate::MySQLConnectorError;
+use std::collections::HashMap;
 
 use super::{
     binlog::{get_binlog_format, get_master_binlog_position, BinlogIngestor, BinlogPosition},
@@ -7,6 +8,7 @@ use super::{
     helpers::{escape_identifier, qualify_table_name},
     schema::{ColumnDefinition, SchemaHelper, TableDefinition},
 };
+use dozer_ingestion_connector::dozer_types::log::info;
 use dozer_ingestion_connector::{
     async_trait,
     dozer_types::{
@@ -193,20 +195,7 @@ impl Connector for MySQLConnector {
         ingestor: &Ingestor,
         tables: Vec<TableToIngest>,
     ) -> Result<(), BoxedError> {
-        let table_infos = tables
-            .into_iter()
-            .map(|table| {
-                assert!(table.state.is_none());
-                TableInfo {
-                    schema: table.schema,
-                    name: table.name,
-                    column_names: table.column_names,
-                }
-            })
-            .collect();
-        self.replicate(ingestor, table_infos)
-            .await
-            .map_err(Into::into)
+        self.replicate(ingestor, tables).await.map_err(Into::into)
     }
 }
 
@@ -224,16 +213,42 @@ impl MySQLConnector {
     async fn replicate(
         &self,
         ingestor: &Ingestor,
-        table_infos: Vec<TableInfo>,
+        table_infos: Vec<TableToIngest>,
     ) -> Result<(), MySQLConnectorError> {
         let mut table_definitions = self
             .schema_helper()
-            .get_table_definitions(&table_infos)
+            .get_table_definitions(
+                table_infos
+                    .iter()
+                    .map(|table| TableInfo {
+                        schema: table.schema.clone(),
+                        name: table.name.clone(),
+                        column_names: table.column_names.clone(),
+                    })
+                    .collect::<Vec<TableInfo>>()
+                    .as_slice(),
+            )
             .await?;
-        let binlog_positions = self.replicate_tables(ingestor, &table_definitions).await?;
+
+        let binlog_positions_map: HashMap<String, Option<BinlogPosition>> = table_infos
+            .iter()
+            .map(|s| {
+                (
+                    s.name.clone(),
+                    s.state.clone().map(|state| {
+                        crate::binlog::BinlogPosition::try_from(state.clone()).unwrap()
+                    }),
+                )
+            })
+            .collect();
+
+        let binlog_positions = self
+            .replicate_tables(ingestor, &table_definitions, binlog_positions_map)
+            .await?;
 
         let binlog_position = self.sync_with_binlog(ingestor, binlog_positions).await?;
 
+        info!("Ingestion starting at {:?}", binlog_position);
         self.ingest_binlog(ingestor, &mut table_definitions, binlog_position, None)
             .await?;
 
@@ -244,105 +259,105 @@ impl MySQLConnector {
         &self,
         ingestor: &Ingestor,
         table_definitions: &[TableDefinition],
+        binlog_positions_map: HashMap<String, Option<BinlogPosition>>,
     ) -> Result<Vec<(TableDefinition, BinlogPosition)>, MySQLConnectorError> {
         let mut binlog_position_per_table = Vec::new();
 
         let mut conn = self.connect().await?;
 
         for (table_index, td) in table_definitions.iter().enumerate() {
-            conn.query_drop(&format!(
-                "LOCK TABLES {} READ",
-                qualify_table_name(Some(&td.database_name), &td.table_name)
-            ))
-            .await
-            .map_err(MySQLConnectorError::QueryExecutionError)?;
-
-            let row_count = {
-                let mut row: Row = conn
-                    .exec_first(
-                        &format!(
-                            "SELECT COUNT(*) from {}",
-                            qualify_table_name(Some(&td.database_name), &td.table_name)
-                        ),
-                        (),
-                    )
-                    .await
-                    .map_err(MySQLConnectorError::QueryExecutionError)?
-                    .unwrap();
-                let count: u64 = row.take(0).unwrap();
-                count
-            };
-
-            if row_count == 0 {
-                conn.query_drop("UNLOCK TABLES")
+            let position = match binlog_positions_map.get(&td.table_name) {
+                Some(Some(position)) => position.clone(),
+                _ => {
+                    conn.query_drop(&format!(
+                        "LOCK TABLES {} READ",
+                        qualify_table_name(Some(&td.database_name), &td.table_name)
+                    ))
                     .await
                     .map_err(MySQLConnectorError::QueryExecutionError)?;
-                continue;
-            }
 
-            if ingestor
-                .handle_message(IngestionMessage::SnapshottingStarted)
-                .await
-                .is_err()
-            {
-                // If receiving end is closed, we should stop the replication
-                break;
-            }
+                    let row_count = {
+                        let mut row: Row = conn
+                            .exec_first(
+                                &format!(
+                                    "SELECT COUNT(*) from {}",
+                                    qualify_table_name(Some(&td.database_name), &td.table_name)
+                                ),
+                                (),
+                            )
+                            .await
+                            .map_err(MySQLConnectorError::QueryExecutionError)?
+                            .unwrap();
+                        let count: u64 = row.take(0).unwrap();
+                        count
+                    };
 
-            let mut rows = conn.exec_iter(
-                format!(
-                    "SELECT {} from {}",
-                    td.columns
+                    if row_count == 0 {
+                        conn.query_drop("UNLOCK TABLES")
+                            .await
+                            .map_err(MySQLConnectorError::QueryExecutionError)?;
+                        continue;
+                    }
+
+                    if ingestor
+                        .handle_message(IngestionMessage::SnapshottingStarted)
+                        .await
+                        .is_err()
+                    {
+                        // If receiving end is closed, we should stop the replication
+                        break;
+                    }
+
+                    let mut rows = conn.exec_iter(
+                        format!(
+                            "SELECT {} from {}",
+                            td.columns
+                                .iter()
+                                .map(|ColumnDefinition { name, .. }| escape_identifier(name))
+                                .collect::<Vec<String>>()
+                                .join(", "),
+                            qualify_table_name(Some(&td.database_name), &td.table_name)
+                        ),
+                        vec![],
+                    );
+
+                    let field_types: Vec<FieldType> = td
+                        .columns
                         .iter()
-                        .map(|ColumnDefinition { name, .. }| escape_identifier(name))
-                        .collect::<Vec<String>>()
-                        .join(", "),
-                    qualify_table_name(Some(&td.database_name), &td.table_name)
-                ),
-                vec![],
-            );
+                        .map(|ColumnDefinition { typ, .. }| *typ)
+                        .collect();
 
-            let field_types: Vec<FieldType> = td
-                .columns
-                .iter()
-                .map(|ColumnDefinition { typ, .. }| *typ)
-                .collect();
+                    while let Some(result) = rows.next().await {
+                        let row = result.map_err(MySQLConnectorError::QueryResultError)?;
+                        let op: Operation = Operation::Insert {
+                            new: Record::new(row.into_fields(&field_types)?),
+                        };
 
-            while let Some(result) = rows.next().await {
-                let row = result.map_err(MySQLConnectorError::QueryResultError)?;
-                let op: Operation = Operation::Insert {
-                    new: Record::new(row.into_fields(&field_types)?),
-                };
+                        if ingestor
+                            .handle_message(IngestionMessage::OperationEvent {
+                                table_index,
+                                op,
+                                state: None,
+                            })
+                            .await
+                            .is_err()
+                        {
+                            // If receiving end is closed, we should stop the replication
+                            break;
+                        }
+                    }
 
-                if ingestor
-                    .handle_message(IngestionMessage::OperationEvent {
-                        table_index,
-                        op,
-                        state: None,
-                    })
-                    .await
-                    .is_err()
-                {
-                    // If receiving end is closed, we should stop the replication
-                    break;
+                    let binlog_position = get_master_binlog_position(&mut conn).await?;
+
+                    conn.query_drop("UNLOCK TABLES")
+                        .await
+                        .map_err(MySQLConnectorError::QueryExecutionError)?;
+
+                    binlog_position
                 }
-            }
+            };
 
-            let binlog_position = get_master_binlog_position(&mut conn).await?;
-
-            conn.query_drop("UNLOCK TABLES")
-                .await
-                .map_err(MySQLConnectorError::QueryExecutionError)?;
-
-            if ingestor
-                .handle_message(IngestionMessage::SnapshottingDone)
-                .await
-                .is_err()
-            {
-                break;
-            }
-
-            binlog_position_per_table.push((td.clone(), binlog_position));
+            binlog_position_per_table.push((td.clone(), position));
         }
 
         Ok(binlog_position_per_table)
@@ -410,6 +425,7 @@ mod tests {
         connection::Conn,
         tests::{create_test_table, mariadb_test_config, mysql_test_config, TestConfig},
     };
+    use std::collections::HashMap;
 
     use super::MySQLConnector;
     use dozer_ingestion_connector::{
@@ -420,6 +436,7 @@ mod tests {
             },
         },
         tokio, CdcType, Connector, IngestionIterator, Ingestor, SourceSchema, TableIdentifier,
+        TableToIngest,
     };
     use serial_test::serial;
     use std::time::Duration;
@@ -516,7 +533,7 @@ mod tests {
         .unwrap();
 
         let result = connector
-            .replicate_tables(&ingestor, &table_definitions)
+            .replicate_tables(&ingestor, &table_definitions, HashMap::new())
             .await;
         assert!(result.is_ok(), "unexpected error: {result:?}");
 
@@ -599,7 +616,20 @@ mod tests {
                 .build()
                 .unwrap()
                 .block_on(async move {
-                    let _ = connector.replicate(&ingestor, table_infos).await;
+                    let _ = connector
+                        .replicate(
+                            &ingestor,
+                            table_infos
+                                .iter()
+                                .map(|t| TableToIngest {
+                                    schema: t.schema.clone(),
+                                    name: t.name.clone(),
+                                    column_names: t.column_names.clone(),
+                                    state: None,
+                                })
+                                .collect::<Vec<TableToIngest>>(),
+                        )
+                        .await;
                 });
         });
 
