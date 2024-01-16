@@ -12,6 +12,10 @@
   <a href="https://github.com/getdozer/dozer/blob/main/LICENSE.txt" target="_blank"><img src="https://img.shields.io/badge/license-Apache-blue" alt="License"></a>
 </p>
 
+## WARNING
+
+This is the legacy branch where we have support for stateful SQL transformations and embedded cache. These features have been dropped in the latest version of Dozer. Please use the [main branch](https://github.com/getdozer/dozer).
+
 ## Overview
 
 Dozer is a **data platform for building, deploying and maintaining real-time data products.**
