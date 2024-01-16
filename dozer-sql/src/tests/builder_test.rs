@@ -1,6 +1,5 @@
 use dozer_core::app::{App, AppPipeline};
 use dozer_core::appsource::{AppSourceManager, AppSourceMappings};
-use dozer_core::channels::SourceChannelForwarder;
 use dozer_core::checkpoint::create_checkpoint_for_test;
 use dozer_core::dozer_log::storage::Queue;
 use dozer_core::epoch::Epoch;
@@ -16,9 +15,11 @@ use dozer_types::errors::internal::BoxedError;
 use dozer_types::log::debug;
 use dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_types::ordered_float::OrderedFloat;
+use dozer_types::tonic::async_trait;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
 };
+use tokio::sync::mpsc::Sender;
 
 use std::collections::HashMap;
 
@@ -105,27 +106,33 @@ impl SourceFactory for TestSourceFactory {
 #[derive(Debug)]
 pub struct TestSource {}
 
+#[async_trait]
 impl Source for TestSource {
-    fn start(&self, mut fw: Box<dyn SourceChannelForwarder>) -> Result<(), BoxedError> {
+    async fn start(
+        &self,
+        sender: Sender<(PortHandle, IngestionMessage)>,
+    ) -> Result<(), BoxedError> {
         for _ in 0..10 {
-            fw.send(
-                IngestionMessage::OperationEvent {
-                    table_index: 0,
-                    op: Operation::Insert {
-                        new: Record::new(vec![
-                            Field::Int(0),
-                            Field::String("Italy".to_string()),
-                            Field::Float(OrderedFloat(5.5)),
-                            Field::Timestamp(
-                                DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap(),
-                            ),
-                        ]),
+            sender
+                .send((
+                    DEFAULT_PORT_HANDLE,
+                    IngestionMessage::OperationEvent {
+                        table_index: 0,
+                        op: Operation::Insert {
+                            new: Record::new(vec![
+                                Field::Int(0),
+                                Field::String("Italy".to_string()),
+                                Field::Float(OrderedFloat(5.5)),
+                                Field::Timestamp(
+                                    DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap(),
+                                ),
+                            ]),
+                        },
+                        state: None,
                     },
-                    state: None,
-                },
-                DEFAULT_PORT_HANDLE,
-            )
-            .unwrap();
+                ))
+                .await
+                .unwrap();
         }
         Ok(())
     }
@@ -241,17 +248,21 @@ fn test_pipeline_builder() {
 
     let now = std::time::Instant::now();
 
-    runtime.block_on(async move {
+    let runtime_clone = runtime.clone();
+    let handle = runtime.block_on(async move {
         let (_temp_dir, checkpoint) = create_checkpoint_for_test().await;
         DagExecutor::new(dag, checkpoint, Default::default())
             .await
             .unwrap()
-            .start(Arc::new(AtomicBool::new(true)), Default::default())
+            .start(
+                Arc::new(AtomicBool::new(true)),
+                Default::default(),
+                runtime_clone,
+            )
             .await
             .unwrap()
-            .join()
-            .unwrap();
     });
+    handle.join().unwrap();
 
     let elapsed = now.elapsed();
     debug!("Elapsed: {:.2?}", elapsed);

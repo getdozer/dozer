@@ -1,5 +1,3 @@
-use crate::checkpoint::create_checkpoint_for_test;
-use crate::executor::DagExecutor;
 use crate::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Source, SourceFactory,
     SourceState,
@@ -10,7 +8,6 @@ use crate::tests::dag_base_run::NoopProcessorFactory;
 use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 
-use dozer_log::tokio;
 use dozer_recordstore::ProcessorRecordStoreDeserializer;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
@@ -20,6 +17,8 @@ use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+
+use super::run_dag;
 
 #[derive(Debug)]
 struct CreateErrSourceFactory {
@@ -71,9 +70,9 @@ impl SourceFactory for CreateErrSourceFactory {
     }
 }
 
-#[tokio::test]
+#[test]
 #[should_panic]
-async fn test_create_src_err() {
+fn test_create_src_err() {
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
@@ -105,20 +104,12 @@ async fn test_create_src_err() {
     )
     .unwrap();
 
-    let (_temp_dir, checkpoint) = create_checkpoint_for_test().await;
-    DagExecutor::new(dag, checkpoint, Default::default())
-        .await
-        .unwrap()
-        .start(Arc::new(AtomicBool::new(true)), Default::default())
-        .await
-        .unwrap()
-        .join()
-        .unwrap();
+    run_dag(dag).unwrap();
 }
 
-#[tokio::test]
+#[test]
 #[should_panic]
-async fn test_create_src_panic() {
+fn test_create_src_panic() {
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
@@ -150,15 +141,7 @@ async fn test_create_src_panic() {
     )
     .unwrap();
 
-    let (_temp_dir, checkpoint) = create_checkpoint_for_test().await;
-    DagExecutor::new(dag, checkpoint, Default::default())
-        .await
-        .unwrap()
-        .start(Arc::new(AtomicBool::new(true)), Default::default())
-        .await
-        .unwrap()
-        .join()
-        .unwrap();
+    run_dag(dag).unwrap();
 }
 
 #[derive(Debug)]
@@ -223,9 +206,9 @@ impl ProcessorFactory for CreateErrProcessorFactory {
     }
 }
 
-#[tokio::test]
+#[test]
 #[should_panic]
-async fn test_create_proc_err() {
+fn test_create_proc_err() {
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
@@ -260,20 +243,12 @@ async fn test_create_proc_err() {
     )
     .unwrap();
 
-    let (_temp_dir, checkpoint) = create_checkpoint_for_test().await;
-    DagExecutor::new(dag, checkpoint, Default::default())
-        .await
-        .unwrap()
-        .start(Arc::new(AtomicBool::new(true)), Default::default())
-        .await
-        .unwrap()
-        .join()
-        .unwrap();
+    run_dag(dag).unwrap();
 }
 
-#[tokio::test]
+#[test]
 #[should_panic]
-async fn test_create_proc_panic() {
+fn test_create_proc_panic() {
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
@@ -308,13 +283,5 @@ async fn test_create_proc_panic() {
     )
     .unwrap();
 
-    let (_temp_dir, checkpoint) = create_checkpoint_for_test().await;
-    DagExecutor::new(dag, checkpoint, Default::default())
-        .await
-        .unwrap()
-        .start(Arc::new(AtomicBool::new(true)), Default::default())
-        .await
-        .unwrap()
-        .join()
-        .unwrap();
+    run_dag(dag).unwrap();
 }

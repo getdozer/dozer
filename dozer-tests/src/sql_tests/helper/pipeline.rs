@@ -1,7 +1,7 @@
 use ahash::AHasher;
+use async_trait::async_trait;
 use dozer_core::app::{App, AppPipeline};
 use dozer_core::appsource::{AppSourceManager, AppSourceMappings};
-use dozer_core::channels::SourceChannelForwarder;
 use dozer_core::checkpoint::OptionCheckpoint;
 use dozer_core::dozer_log::storage::Queue;
 use dozer_core::epoch::Epoch;
@@ -24,7 +24,7 @@ use dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_types::types::{Operation, Record, Schema, SourceDefinition};
 use std::collections::HashMap;
 use tempdir::TempDir;
-use tokio::runtime::Runtime;
+use tokio::{self, runtime::Runtime};
 
 use std::hash::{Hash, Hasher};
 use std::sync::atomic::AtomicBool;
@@ -121,19 +121,25 @@ pub struct TestSource {
     receiver: Receiver<Option<(String, Operation)>>,
 }
 
+#[async_trait]
 impl Source for TestSource {
-    fn start(&self, mut fw: Box<dyn SourceChannelForwarder>) -> Result<(), BoxedError> {
+    async fn start(
+        &self,
+        sender: tokio::sync::mpsc::Sender<(PortHandle, IngestionMessage)>,
+    ) -> Result<(), BoxedError> {
         while let Ok(Some((schema_name, op))) = self.receiver.recv() {
             let port = self.name_to_port.get(&schema_name).expect("port not found");
-            fw.send(
-                IngestionMessage::OperationEvent {
-                    table_index: 0,
-                    op,
-                    state: None,
-                },
-                *port,
-            )
-            .unwrap();
+            sender
+                .send((
+                    *port,
+                    IngestionMessage::OperationEvent {
+                        table_index: 0,
+                        op,
+                        state: None,
+                    },
+                ))
+                .await
+                .unwrap();
         }
         thread::sleep(Duration::from_millis(200));
 
@@ -276,6 +282,7 @@ pub struct TestPipeline {
     pub sender: Sender<Option<(String, Operation)>>,
     pub ops: Vec<(String, Operation)>,
     pub result: Arc<Mutex<HashMap<Vec<u8>, Vec<Record>>>>,
+    runtime: Arc<Runtime>,
 }
 
 impl TestPipeline {
@@ -301,7 +308,7 @@ impl TestPipeline {
             &mut pipeline,
             Some("results".to_string()),
             vec![],
-            runtime,
+            runtime.clone(),
         )
         .unwrap();
 
@@ -351,10 +358,10 @@ impl TestPipeline {
             schema: Schema::default(),
             dag,
             used_schemas,
-
             sender,
             ops,
             result: output,
+            runtime,
         })
     }
 
@@ -369,7 +376,11 @@ impl TestPipeline {
         let checkpoint = OptionCheckpoint::new(checkpoint_dir, Default::default()).await?;
         let executor = DagExecutor::new(self.dag, checkpoint, Default::default()).await?;
         let join_handle = executor
-            .start(Arc::new(AtomicBool::new(true)), Default::default())
+            .start(
+                Arc::new(AtomicBool::new(true)),
+                Default::default(),
+                self.runtime,
+            )
             .await?;
 
         for (schema_name, op) in &self.ops {

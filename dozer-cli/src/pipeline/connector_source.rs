@@ -1,5 +1,4 @@
 use dozer_api::shutdown::ShutdownReceiver;
-use dozer_core::channels::SourceChannelForwarder;
 use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory, SourceState,
 };
@@ -22,6 +21,8 @@ use metrics::{describe_counter, increment_counter};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
+use tokio::sync::mpsc::Sender;
+use tonic::async_trait;
 
 #[derive(Debug)]
 struct Table {
@@ -49,7 +50,6 @@ pub struct ConnectorSourceFactory {
     tables: Vec<Table>,
     /// Will be moved to `ConnectorSource` in `build`.
     connector: Mutex<Option<Box<dyn Connector>>>,
-    runtime: Arc<Runtime>,
     labels: LabelsAndProgress,
     shutdown: ShutdownReceiver,
 }
@@ -123,7 +123,6 @@ impl ConnectorSourceFactory {
             connection_name,
             tables,
             connector: Mutex::new(Some(connector)),
-            runtime,
             labels,
             shutdown,
         })
@@ -207,7 +206,6 @@ impl SourceFactory for ConnectorSourceFactory {
             tables,
             ports,
             connector,
-            runtime: self.runtime.clone(),
             connection_name: self.connection_name.clone(),
             labels: self.labels.clone(),
             shutdown: self.shutdown.clone(),
@@ -221,57 +219,59 @@ pub struct ConnectorSource {
     tables: Vec<TableToIngest>,
     ports: Vec<PortHandle>,
     connector: Box<dyn Connector>,
-    runtime: Arc<Runtime>,
     connection_name: String,
     labels: LabelsAndProgress,
     shutdown: ShutdownReceiver,
     ingestion_config: IngestionConfig,
 }
 
+#[async_trait]
 impl Source for ConnectorSource {
-    fn start(&self, fw: Box<dyn SourceChannelForwarder>) -> Result<(), BoxedError> {
+    async fn start(
+        &self,
+        sender: Sender<(PortHandle, IngestionMessage)>,
+    ) -> Result<(), BoxedError> {
         let (ingestor, iterator) = Ingestor::initialize_channel(self.ingestion_config.clone());
         let connection_name = self.connection_name.clone();
         let tables = self.tables.clone();
         let ports = self.ports.clone();
         let labels = self.labels.clone();
-        let handle = std::thread::spawn(move || {
-            forward_message_to_pipeline(iterator, fw, connection_name, tables, ports, labels);
+        let handle = tokio::spawn(forward_message_to_pipeline(
+            iterator,
+            sender,
+            connection_name,
+            tables,
+            ports,
+            labels,
+        ));
+
+        let shutdown_future = self.shutdown.create_shutdown_future();
+        let (abort_handle, abort_registration) = AbortHandle::new_pair();
+
+        // Abort the connector when we shut down
+        // TODO: pass a `CancellationToken` to the connector to allow
+        // it to gracefully shut down.
+        let name = self.connection_name.clone();
+        tokio::spawn(async move {
+            shutdown_future.await;
+            abort_handle.abort();
+            eprintln!("Aborted connector {}", name);
         });
+        let result = Abortable::new(
+            self.connector.start(&ingestor, self.tables.clone()),
+            abort_registration,
+        )
+        .await;
+        match result {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => return Err(e),
+            // Aborted means we are shutting down
+            Err(Aborted) => return Ok(()),
+        }
+        drop(ingestor);
 
-        self.runtime.block_on(async move {
-            let ingestor = ingestor;
-            let shutdown_future = self.shutdown.create_shutdown_future();
-            let (abort_handle, abort_registration) = AbortHandle::new_pair();
-
-            // Abort the connector when we shut down
-            // TODO: pass a `CancellationToken` to the connector to allow
-            // it to gracefully shut down.
-            let name = self.connection_name.clone();
-            tokio::spawn(async move {
-                shutdown_future.await;
-                abort_handle.abort();
-                eprintln!("Aborted connector {}", name);
-            });
-            let result = Abortable::new(
-                self.connector.start(&ingestor, self.tables.clone()),
-                abort_registration,
-            )
-            .await;
-            match result {
-                Ok(Ok(_)) => {}
-                Ok(Err(e)) => {
-                    error!("{}", e);
-                    std::panic::panic_any(e)
-                }
-                // Aborted means we are shutting down
-                Err(Aborted) => (),
-            }
-        });
-
-        // If we reach here, it means the forwarding thread has quit and the `ingestor` has been dropped.
-        // `join` will not block.
-        if let Err(e) = handle.join() {
+        // If we reach here, it means the connector has finished ingesting, so we wait for the forwarding task to finish.
+        if let Err(e) = handle.await {
             std::panic::panic_any(e);
         }
 
@@ -281,9 +281,9 @@ impl Source for ConnectorSource {
 
 const SOURCE_OPERATION_COUNTER_NAME: &str = "source_operation";
 
-fn forward_message_to_pipeline(
+async fn forward_message_to_pipeline(
     mut iterator: IngestionIterator,
-    mut fw: Box<dyn SourceChannelForwarder>,
+    sender: Sender<(PortHandle, IngestionMessage)>,
     connection_name: String,
     tables: Vec<TableToIngest>,
     ports: Vec<PortHandle>,
@@ -301,7 +301,7 @@ fn forward_message_to_pipeline(
     );
 
     let mut counter = vec![(0u64, 0u64); tables.len()];
-    for message in iterator.by_ref() {
+    while let Some(message) = iterator.receiver.recv().await {
         let span = span!(Level::TRACE, "pipeline_source_start", connection_name);
         let _enter = span.enter();
 
@@ -346,13 +346,13 @@ fn forward_message_to_pipeline(
                 }
 
                 // Send message to the pipeline
-                if fw.send(message, port).is_err() {
+                if sender.send((port, message)).await.is_err() {
                     break;
                 }
             }
             IngestionMessage::SnapshottingDone | IngestionMessage::SnapshottingStarted => {
                 for port in &ports {
-                    if fw.send(message.clone(), *port).is_err() {
+                    if sender.send((*port, message.clone())).await.is_err() {
                         break;
                     }
                 }
