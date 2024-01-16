@@ -6,17 +6,17 @@ use dozer_cli::cli::{generate_config_repl, init_config};
 use dozer_cli::cli::{init_dozer, list_sources};
 use dozer_cli::cloud::{cloud_app_context::CloudAppContext, CloudClient, DozerGrpcCloudClient};
 use dozer_cli::errors::{CliError, CloudError, OrchestrationError};
-use dozer_cli::{live, set_ctrl_handler, set_panic_hook};
+use dozer_cli::ui;
+use dozer_cli::{set_ctrl_handler, set_panic_hook, ui::live};
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::models::config::Config;
 use dozer_types::models::telemetry::{TelemetryConfig, TelemetryMetricsConfig};
 use dozer_types::tracing::{error, error_span, info};
 use futures::stream::{AbortHandle, Abortable};
 use std::convert::identity;
+use std::process;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
-
-use std::process;
 
 fn main() {
     if let Err(e) = run() {
@@ -47,7 +47,7 @@ fn run() -> Result<(), OrchestrationError> {
         .ok();
 
     // We always enable telemetry when running live.
-    let telemetry_config = if matches!(cli.cmd, Commands::Live(_)) {
+    let telemetry_config = if matches!(cli.cmd, Commands::Live(_) | Commands::Run(_)) {
         TelemetryConfig {
             trace: None,
             metrics: Some(TelemetryMetricsConfig::Prometheus),
@@ -86,9 +86,14 @@ fn run() -> Result<(), OrchestrationError> {
                 dozer.runtime.block_on(dozer.run_lambda(shutdown_receiver))
             }
             Some(RunCommands::Sinks) => dozer.runtime.block_on(dozer.run_sinks(shutdown_receiver)),
-            None => dozer
-                .runtime
-                .block_on(dozer.run_all(shutdown_receiver, run.locked)),
+            None => {
+                dozer.runtime.block_on(ui::app::start_app_ui_server(
+                    &dozer.runtime,
+                    shutdown_receiver,
+                    false,
+                ))?;
+                Ok(())
+            }
         },
         Commands::Security(security) => match security.command {
             SecurityCommands::GenerateToken => {

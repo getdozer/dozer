@@ -1,8 +1,10 @@
 use std::{sync::Arc, time::Duration};
 
-use super::{state::LiveState, LiveError};
+use super::{
+    state::{BroadcastType, LiveState},
+    LiveError,
+};
 
-use crate::live::state::BroadcastType;
 use dozer_api::shutdown::ShutdownReceiver;
 use dozer_types::log::info;
 use notify::{RecursiveMode, Watcher};
