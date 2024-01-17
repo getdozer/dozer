@@ -32,9 +32,13 @@ fn main() {
     cp_r(&source_dir, &build_dir);
 
     let mut make = Command::new("make");
-    make.args(make_flags);
-    make.env("MAKEFLAGS", std::env::var("CARGO_MAKEFLAGS").unwrap());
-    make.current_dir(build_dir);
+    make.args(make_flags)
+        .env("MAKEFLAGS", std::env::var("CARGO_MAKEFLAGS").unwrap())
+        // The Makefile checks whether DEBUG is defined and cargo always sets it
+        // (it's either DEBUG=false or DEBUG=true, but always defined). When DEBUG,
+        // it tries to link against gcov, which we don't want
+        .env_remove("DEBUG")
+        .current_dir(build_dir);
     let out = make.output().unwrap();
     if !out.status.success() {
         panic!(
@@ -51,7 +55,6 @@ fn main() {
     println!("cargo:rustc-link-lib=m");
     println!("cargo:rustc-link-lib=z");
     println!("cargo:rustc-link-lib=pthread");
-    println!("cargo:rustc-link-lib=gcov");
 
     println!("cargo:rerun-if-changed=aerospike_client.h");
     let bindings = bindgen::Builder::default()
