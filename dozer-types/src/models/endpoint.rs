@@ -1,3 +1,5 @@
+use std::num::NonZeroUsize;
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -114,6 +116,8 @@ pub enum EndpointKind {
 pub struct AerospikeSinkConfig {
     pub namespace: String,
     pub hosts: String,
+    #[serde(default)]
+    pub n_threads: Option<NonZeroUsize>,
     #[serde(default)]
     pub set_name: String,
 }

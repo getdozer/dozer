@@ -1,8 +1,12 @@
+use crossbeam_channel::{bounded, Receiver, Sender};
 use std::alloc::{handle_alloc_error, Layout};
 use std::ffi::{c_char, c_void, CStr, CString, NulError};
 use std::fmt::Display;
 use std::mem::{self, MaybeUninit};
+use std::num::NonZeroUsize;
 use std::ptr::{addr_of, NonNull};
+use std::sync::Arc;
+use std::thread::available_parallelism;
 use std::time::Instant;
 use std::{collections::HashMap, fmt::Debug};
 
@@ -202,16 +206,6 @@ impl Drop for Client {
 }
 
 #[derive(Debug)]
-struct AerospikeSink {
-    client: Client,
-    namespace: CString,
-    set_name: CString,
-    primary_index: usize,
-    bin_names: Vec<CString>,
-    snapshotting_started_instant: HashMap<String, Instant>,
-}
-
-#[derive(Debug)]
 pub struct AerospikeSinkFactory {
     config: AerospikeSinkConfig,
 }
@@ -286,14 +280,22 @@ impl SinkFactory for AerospikeSinkFactory {
                 }
             })
             .collect::<Result<_, _>>()?;
-        Ok(Box::new(AerospikeSink {
+        let n_threads = self
+            .config
+            .n_threads
+            .or_else(|| available_parallelism().ok())
+            .unwrap_or_else(|| {
+                warn!("Unable to automatically determine the correct amount of threads to use for Aerospike sink, so defaulting to 1.\nTo override, set `n_threads` in your Aerospike sink config");
+                NonZeroUsize::new(1).unwrap()
+            });
+        Ok(Box::new(AerospikeSink::new(
             client,
-            set_name: CString::new(self.config.set_name.clone())?,
-            namespace: CString::new(self.config.namespace.clone())?,
+            CString::new(self.config.set_name.clone())?,
+            CString::new(self.config.namespace.clone())?,
             primary_index,
             bin_names,
-            snapshotting_started_instant: Default::default(),
-        }))
+            n_threads.into(),
+        )))
     }
 }
 
@@ -333,7 +335,61 @@ impl Drop for AsRecord<'_> {
     }
 }
 
+#[derive(Debug)]
+struct AerospikeSink {
+    sender: Sender<Operation>,
+    snapshotting_started_instant: HashMap<String, Instant>,
+}
+
 impl AerospikeSink {
+    fn new(
+        client: Client,
+        set_name: CString,
+        namespace: CString,
+        primary_index: usize,
+        bin_names: Vec<CString>,
+        n_threads: usize,
+    ) -> Self {
+        let client = Arc::new(client);
+        let mut workers = Vec::with_capacity(n_threads);
+        let (sender, receiver) = bounded(n_threads);
+        for _ in 0..n_threads {
+            workers.push(AerospikeSinkWorker {
+                client: client.clone(),
+                receiver: receiver.clone(),
+                namespace: namespace.clone(),
+                set_name: set_name.clone(),
+                primary_index,
+                bin_names: bin_names.clone(),
+            });
+        }
+        for mut worker in workers {
+            std::thread::spawn(move || worker.run());
+        }
+
+        Self {
+            sender,
+            snapshotting_started_instant: Default::default(),
+        }
+    }
+}
+
+struct AerospikeSinkWorker {
+    client: Arc<Client>,
+    receiver: Receiver<Operation>,
+    namespace: CString,
+    set_name: CString,
+    primary_index: usize,
+    bin_names: Vec<CString>,
+}
+
+impl AerospikeSinkWorker {
+    fn run(&mut self) {
+        while let Ok(op) = self.receiver.recv() {
+            let _ = self.process_impl(op);
+        }
+    }
+
     #[inline]
     fn set_str_key(
         &self,
@@ -820,7 +876,7 @@ impl Sink for AerospikeSink {
         op: dozer_types::types::Operation,
     ) -> Result<(), BoxedError> {
         debug_assert_eq!(from_port, DEFAULT_PORT_HANDLE);
-        self.process_impl(op)?;
+        self.sender.send(op)?;
         Ok(())
     }
 
@@ -957,6 +1013,7 @@ mod tests {
             namespace: "test".into(),
             hosts: "localhost:3000".into(),
             set_name: set.to_owned(),
+            n_threads: Some(1.try_into().unwrap()),
         });
         factory
             .build([(DEFAULT_PORT_HANDLE, schema)].into())
