@@ -142,6 +142,15 @@
         "hosts": {
           "type": "string"
         },
+        "n_threads": {
+          "default": null,
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint",
+          "minimum": 1.0
+        },
         "namespace": {
           "type": "string"
         },
