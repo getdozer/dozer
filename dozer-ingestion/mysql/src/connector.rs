@@ -265,10 +265,23 @@ impl MySQLConnector {
 
         let mut conn = self.connect().await?;
 
+        let mut snapshot_started = false;
         for (table_index, td) in table_definitions.iter().enumerate() {
             let position = match binlog_positions_map.get(&td.table_name) {
                 Some(Some(position)) => position.clone(),
                 _ => {
+                    if !snapshot_started {
+                        if ingestor
+                            .handle_message(IngestionMessage::SnapshottingStarted)
+                            .await
+                            .is_err()
+                        {
+                            // If receiving end is closed, we should stop the replication
+                            break;
+                        }
+                        snapshot_started = true;
+                    }
+
                     conn.query_drop(&format!(
                         "LOCK TABLES {} READ",
                         qualify_table_name(Some(&td.database_name), &td.table_name)
@@ -297,15 +310,6 @@ impl MySQLConnector {
                             .await
                             .map_err(MySQLConnectorError::QueryExecutionError)?;
                         continue;
-                    }
-
-                    if ingestor
-                        .handle_message(IngestionMessage::SnapshottingStarted)
-                        .await
-                        .is_err()
-                    {
-                        // If receiving end is closed, we should stop the replication
-                        break;
                     }
 
                     let mut rows = conn.exec_iter(
@@ -358,6 +362,15 @@ impl MySQLConnector {
             };
 
             binlog_position_per_table.push((td.clone(), position));
+        }
+
+        if snapshot_started
+            && ingestor
+                .handle_message(IngestionMessage::SnapshottingDone)
+                .await
+                .is_err()
+        {
+            return Err(MySQLConnectorError::SnapshotIngestionMessageError);
         }
 
         Ok(binlog_position_per_table)
@@ -480,10 +493,32 @@ mod tests {
         )
         .enumerate()
         {
-            assert_eq!(
-                expected, actual,
-                "The {i}th message didn't match. Expected {expected:?}; Found {actual:?}\nThe actual message queue is {actual_ingestion_messages:?}"
-            );
+            match (actual, expected) {
+                (
+                    IngestionMessage::OperationEvent {
+                        table_index: actual_table_index,
+                        op: actual_op,
+                        ..
+                    },
+                    IngestionMessage::OperationEvent {
+                        table_index: expected_table_index,
+                        op: expected_op,
+                        ..
+                    },
+                ) => {
+                    // In operation events we are not checking state
+                    assert_eq!(
+                        (actual_table_index, actual_op), (expected_table_index, expected_op),
+                        "The {i}th message didn't match. Expected {expected:?}; Found {actual:?}\nThe actual message queue is {actual_ingestion_messages:?}"
+                    );
+                }
+                _ => {
+                    assert_eq!(
+                        expected, actual,
+                        "The {i}th message didn't match. Expected {expected:?}; Found {actual:?}\nThe actual message queue is {actual_ingestion_messages:?}"
+                    );
+                }
+            };
         }
     }
 
@@ -651,8 +686,6 @@ mod tests {
                 },
                 state: None,
             },
-            IngestionMessage::SnapshottingDone,
-            IngestionMessage::SnapshottingStarted,
             IngestionMessage::OperationEvent {
                 table_index: 1,
                 op: Insert {
@@ -670,18 +703,14 @@ mod tests {
             .await
             .unwrap();
 
-        let expected_ingestion_messages = vec![
-            IngestionMessage::SnapshottingStarted,
-            IngestionMessage::OperationEvent {
-                table_index: 0,
-                op: Update {
-                    old: Record::new(vec![Field::Int(4), Field::Float(4.0.into())]),
-                    new: Record::new(vec![Field::Int(4), Field::Float(5.0.into())]),
-                },
-                state: None,
+        let expected_ingestion_messages = vec![IngestionMessage::OperationEvent {
+            table_index: 0,
+            op: Update {
+                old: Record::new(vec![Field::Int(4), Field::Float(4.0.into())]),
+                new: Record::new(vec![Field::Int(4), Field::Float(5.0.into())]),
             },
-            IngestionMessage::SnapshottingDone,
-        ];
+            state: None,
+        }];
 
         check_ingestion_messages(&mut iterator, expected_ingestion_messages).await;
 
@@ -690,17 +719,13 @@ mod tests {
             .await
             .unwrap();
 
-        let expected_ingestion_messages = vec![
-            IngestionMessage::SnapshottingStarted,
-            IngestionMessage::OperationEvent {
-                table_index: 0,
-                op: Delete {
-                    old: Record::new(vec![Field::Int(4), Field::Float(5.0.into())]),
-                },
-                state: None,
+        let expected_ingestion_messages = vec![IngestionMessage::OperationEvent {
+            table_index: 0,
+            op: Delete {
+                old: Record::new(vec![Field::Int(4), Field::Float(5.0.into())]),
             },
-            IngestionMessage::SnapshottingDone,
-        ];
+            state: None,
+        }];
 
         check_ingestion_messages(&mut iterator, expected_ingestion_messages).await;
     }

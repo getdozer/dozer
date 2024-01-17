@@ -52,6 +52,9 @@ pub enum MySQLConnectorError {
 
     #[error("Schema had a breaking change: {0}")]
     BreakingSchemaChange(#[from] BreakingSchemaChange),
+
+    #[error("Failed to send snapshot completed ingestion message")]
+    SnapshotIngestionMessageError,
 }
 
 #[derive(Error, Debug)]
