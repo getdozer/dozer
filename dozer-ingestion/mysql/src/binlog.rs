@@ -152,9 +152,8 @@ impl BinlogIngestor<'_, '_, '_> {
         let mut table_cache = TableManager::new(tables);
         let mut schema_change_tracker = SchemaChangeTracker::new();
 
-        let mut transaction_position = self.next_position.position;
         let mut prev_position = self.next_position.position;
-        let mut seq_in_transaction = 0;
+        let mut transaction_pos = self.next_position.clone();
 
         'binlog_read: while let Some(result) = self.binlog_stream.as_mut().unwrap().next().await {
             match self.local_stop_position {
@@ -226,8 +225,9 @@ impl BinlogIngestor<'_, '_, '_> {
                     let query = query_event.query_raw().trim_start();
 
                     if query == b"BEGIN" {
-                        transaction_position = prev_position;
-                        seq_in_transaction = 0;
+                        transaction_pos.seq_no = 0;
+                        transaction_pos.filename = self.next_position.filename.clone();
+                        transaction_pos.position = prev_position;
                     } else if query.starts_with_case_insensitive(b"ALTER")
                         || query.starts_with_case_insensitive(b"DROP")
                     {
@@ -433,24 +433,18 @@ impl BinlogIngestor<'_, '_, '_> {
                         }
 
                         let table = table_cache.get_table_details(table_index).unwrap();
-                        let mut pos = BinlogPosition {
-                            filename: self.next_position.filename.clone(),
-                            seq_no: seq_in_transaction,
-                            position: transaction_position,
-                        };
 
-                        pos.seq_no = self
-                            .handle_rows_event(
-                                &rows_event,
-                                &table,
-                                tme,
-                                self.ingestion_start_position.clone(),
-                                pos.clone(),
-                            )
-                            .await?;
+                        self.handle_rows_event(
+                            &rows_event,
+                            &table,
+                            tme,
+                            self.ingestion_start_position.clone(),
+                            &mut transaction_pos,
+                        )
+                        .await?;
 
                         if let Some(start_binlog_position) = &self.ingestion_start_position {
-                            if start_binlog_position < &pos {
+                            if start_binlog_position < &transaction_pos {
                                 self.ingestion_start_position = None;
                             }
                         }
@@ -476,22 +470,17 @@ impl BinlogIngestor<'_, '_, '_> {
         table: &TableDetails<'_>,
         tme: &TableMapEvent<'a>,
         start_pos: Option<BinlogPosition>,
-        pos: BinlogPosition,
-    ) -> Result<u64, MySQLConnectorError> {
-        let mut seq_no = pos.seq_no;
+        pos: &mut BinlogPosition,
+    ) -> Result<(), MySQLConnectorError> {
         let mut start_pos = start_pos.clone();
         for (seq_no_in_row, op) in self
             .make_rows_operations(rows_event, table, tme)
             .enumerate()
         {
-            seq_no += 1;
-            let row_position = BinlogPosition {
-                seq_no,
-                ..pos.clone()
-            };
+            pos.seq_no += 1;
 
-            if let Some(start_bin_log) = &start_pos {
-                if start_bin_log >= &row_position {
+            if let Some(start_binlog) = &start_pos {
+                if start_binlog >= &pos {
                     debug!(
                         "Skipping operation {op:?} with seq_no: {}/{seq_no_in_row}",
                         pos.position
@@ -512,17 +501,17 @@ impl BinlogIngestor<'_, '_, '_> {
                 .handle_message(IngestionMessage::OperationEvent {
                     table_index: table.def.table_index,
                     op: op?,
-                    state: Some(encode_state(&row_position)),
+                    state: Some(encode_state(&pos)),
                 })
                 .await
                 .is_err()
             {
                 // If receiving side is closed, we can stop ingesting.
-                return Ok(0);
+                return Ok(());
             }
         }
 
-        Ok(seq_no)
+        Ok(())
     }
 
     fn get_tme(&self, binlog_table_id: u64) -> Result<&TableMapEvent<'_>, MySQLConnectorError> {
