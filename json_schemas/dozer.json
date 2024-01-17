@@ -132,6 +132,25 @@
   },
   "additionalProperties": false,
   "definitions": {
+    "AerospikeSinkConfig": {
+      "type": "object",
+      "required": [
+        "hosts",
+        "namespace"
+      ],
+      "properties": {
+        "hosts": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "set_name": {
+          "default": "",
+          "type": "string"
+        }
+      }
+    },
     "ApiConfig": {
       "type": "object",
       "properties": {
@@ -831,6 +850,18 @@
           "properties": {
             "Api": {
               "$ref": "#/definitions/ApiEndpoint"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Aerospike"
+          ],
+          "properties": {
+            "Aerospike": {
+              "$ref": "#/definitions/AerospikeSinkConfig"
             }
           },
           "additionalProperties": false
