@@ -489,13 +489,18 @@ impl BinlogIngestor<'_, '_, '_> {
             .make_rows_operations(rows_event, table, tme)
             .enumerate()
         {
+            seq_no += 1;
+            let bl = BinlogPosition {
+                seq_no,
+                ..pos.clone()
+            };
+
             if let Some(start_bin_log) = &start_pos {
-                if Self::operation_already_ingested(start_bin_log, &pos) {
+                if Self::operation_already_ingested(start_bin_log, &bl) {
                     debug!(
                         "Skipping operation {op:?} with seq_no: {}/{seq_no_in_row}",
                         pos.position
                     );
-                    seq_no += 1;
                     continue;
                 } else {
                     debug!(
@@ -512,10 +517,7 @@ impl BinlogIngestor<'_, '_, '_> {
                 .handle_message(IngestionMessage::OperationEvent {
                     table_index: table.def.table_index,
                     op: op?,
-                    state: Some(encode_state(&BinlogPosition {
-                        seq_no,
-                        ..pos.clone()
-                    })),
+                    state: Some(encode_state(&bl))
                 })
                 .await
                 .is_err()
@@ -523,8 +525,6 @@ impl BinlogIngestor<'_, '_, '_> {
                 // If receiving side is closed, we can stop ingesting.
                 return Ok(0);
             }
-
-            seq_no += 1;
         }
 
         Ok(seq_no)
