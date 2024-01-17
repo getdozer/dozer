@@ -32,13 +32,13 @@ use mysql_common::{
     },
     Row,
 };
-use std::cmp::Ordering;
+
 use std::{
     collections::{HashMap, HashSet},
     ops::Deref,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BinlogPosition {
     pub filename: Vec<u8>,
     pub position: u64,
@@ -433,29 +433,24 @@ impl BinlogIngestor<'_, '_, '_> {
                         }
 
                         let table = table_cache.get_table_details(table_index).unwrap();
-                        seq_in_transaction = self
+                        let mut pos = BinlogPosition {
+                            filename: self.next_position.filename.clone(),
+                            seq_no: seq_in_transaction,
+                            position: transaction_position,
+                        };
+
+                        pos.seq_no = self
                             .handle_rows_event(
                                 &rows_event,
                                 &table,
                                 tme,
                                 self.ingestion_start_position.clone(),
-                                BinlogPosition {
-                                    filename: self.next_position.filename.clone(),
-                                    seq_no: seq_in_transaction,
-                                    position: transaction_position,
-                                },
+                                pos.clone(),
                             )
                             .await?;
 
                         if let Some(start_binlog_position) = &self.ingestion_start_position {
-                            if !Self::operation_already_ingested(
-                                start_binlog_position,
-                                &BinlogPosition {
-                                    filename: self.next_position.filename.clone(),
-                                    seq_no: seq_in_transaction,
-                                    position: transaction_position,
-                                },
-                            ) {
+                            if start_binlog_position < &pos {
                                 self.ingestion_start_position = None;
                             }
                         }
@@ -490,13 +485,13 @@ impl BinlogIngestor<'_, '_, '_> {
             .enumerate()
         {
             seq_no += 1;
-            let bl = BinlogPosition {
+            let row_position = BinlogPosition {
                 seq_no,
                 ..pos.clone()
             };
 
             if let Some(start_bin_log) = &start_pos {
-                if Self::operation_already_ingested(start_bin_log, &bl) {
+                if start_bin_log >= &row_position {
                     debug!(
                         "Skipping operation {op:?} with seq_no: {}/{seq_no_in_row}",
                         pos.position
@@ -517,7 +512,7 @@ impl BinlogIngestor<'_, '_, '_> {
                 .handle_message(IngestionMessage::OperationEvent {
                     table_index: table.def.table_index,
                     op: op?,
-                    state: Some(encode_state(&bl)),
+                    state: Some(encode_state(&row_position)),
                 })
                 .await
                 .is_err()
@@ -530,30 +525,6 @@ impl BinlogIngestor<'_, '_, '_> {
         Ok(seq_no)
     }
 
-    fn operation_already_ingested(
-        start_binlog_position: &BinlogPosition,
-        operation_binlog_position: &BinlogPosition,
-    ) -> bool {
-        match start_binlog_position
-            .filename
-            .cmp(&operation_binlog_position.filename)
-        {
-            Ordering::Less => false,
-            Ordering::Equal => {
-                match start_binlog_position
-                    .position
-                    .cmp(&operation_binlog_position.position)
-                {
-                    Ordering::Less => false,
-                    Ordering::Equal => {
-                        start_binlog_position.seq_no >= operation_binlog_position.seq_no
-                    }
-                    Ordering::Greater => true,
-                }
-            }
-            Ordering::Greater => true,
-        }
-    }
     fn get_tme(&self, binlog_table_id: u64) -> Result<&TableMapEvent<'_>, MySQLConnectorError> {
         self.binlog_stream
             .as_ref()
@@ -1139,7 +1110,6 @@ mod tests {
         types::{Field, FieldType},
     };
 
-    use crate::binlog::BinlogIngestor;
     use mysql_common::{
         binlog::{
             jsonb::{self, JsonbString, JsonbType, OpaqueValue},
@@ -1317,20 +1287,14 @@ mod tests {
             ..start_position.clone()
         };
 
-        assert!(!BinlogIngestor::operation_already_ingested(
-            &start_position,
-            &operation_position
-        ));
+        assert!(start_position < operation_position);
 
         // Same operation as last ingested operation
         let operation_position = super::BinlogPosition {
             ..start_position.clone()
         };
 
-        assert!(BinlogIngestor::operation_already_ingested(
-            &start_position,
-            &operation_position
-        ));
+        assert_eq!(start_position, operation_position);
 
         // Operation before last ingested operation
         let operation_position = super::BinlogPosition {
@@ -1338,10 +1302,7 @@ mod tests {
             ..start_position.clone()
         };
 
-        assert!(BinlogIngestor::operation_already_ingested(
-            &start_position,
-            &operation_position
-        ));
+        assert!(start_position > operation_position);
 
         // Operation from previous transaction
         let operation_position = super::BinlogPosition {
@@ -1349,10 +1310,7 @@ mod tests {
             ..start_position.clone()
         };
 
-        assert!(BinlogIngestor::operation_already_ingested(
-            &start_position,
-            &operation_position
-        ));
+        assert!(start_position > operation_position);
 
         // Next transaction operation
         let operation_position = super::BinlogPosition {
@@ -1360,10 +1318,7 @@ mod tests {
             ..start_position.clone()
         };
 
-        assert!(!BinlogIngestor::operation_already_ingested(
-            &start_position,
-            &operation_position
-        ));
+        assert!(start_position < operation_position);
 
         // Operation from previous binlog
         let operation_position = super::BinlogPosition {
@@ -1371,10 +1326,7 @@ mod tests {
             ..start_position.clone()
         };
 
-        assert!(BinlogIngestor::operation_already_ingested(
-            &start_position,
-            &operation_position
-        ));
+        assert!(start_position > operation_position);
 
         // Operation from next binlog
         let operation_position = super::BinlogPosition {
@@ -1382,9 +1334,6 @@ mod tests {
             ..start_position
         };
 
-        assert!(!BinlogIngestor::operation_already_ingested(
-            &start_position,
-            &operation_position
-        ));
+        assert!(start_position < operation_position);
     }
 }
