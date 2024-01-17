@@ -152,7 +152,6 @@ impl BinlogIngestor<'_, '_, '_> {
         let mut table_cache = TableManager::new(tables);
         let mut schema_change_tracker = SchemaChangeTracker::new();
 
-        let mut prev_position = self.next_position.position;
         let mut transaction_pos = self.next_position.clone();
 
         'binlog_read: while let Some(result) = self.binlog_stream.as_mut().unwrap().next().await {
@@ -227,7 +226,9 @@ impl BinlogIngestor<'_, '_, '_> {
                     if query == b"BEGIN" {
                         transaction_pos.seq_no = 0;
                         transaction_pos.filename = self.next_position.filename.clone();
-                        transaction_pos.position = prev_position;
+                        transaction_pos.position = (binlog_event.header().log_pos()
+                            - binlog_event.header().event_size())
+                            as u64;
                     } else if query.starts_with_case_insensitive(b"ALTER")
                         || query.starts_with_case_insensitive(b"DROP")
                     {
@@ -454,10 +455,6 @@ impl BinlogIngestor<'_, '_, '_> {
                 event_type => {
                     trace!("other binlog event {event_type:?}");
                 }
-            }
-
-            if binlog_event.header().log_pos() > 0 {
-                prev_position = binlog_event.header().log_pos().into();
             }
         }
 

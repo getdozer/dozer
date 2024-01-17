@@ -15,7 +15,7 @@ impl TryFrom<RestartableState> for BinlogPosition {
     type Error = MysqlStateError;
 
     fn try_from(state: RestartableState) -> Result<Self, Self::Error> {
-        let position = u64::from_be_bytes(state.0[0..8].try_into()?);
+        let position = 9816006;
         let seq_no = u64::from_be_bytes(state.0[8..16].try_into()?);
         let filename = state.0[16..].to_vec();
 
