@@ -32,6 +32,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
+          submodules: 'recursive'
       - name: Generate a changelog
         uses: orhun/git-cliff-action@v1
         id: git-cliff
@@ -75,6 +76,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -176,6 +179,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'
       - name: Installing Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -263,6 +268,8 @@ jobs:
             asset_name: dozer-macos-amd64
     steps:
       - uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'
       - name: Install minimal stable with clippy and rustfmt
         uses: actions-rs/toolchain@v1
         with:
