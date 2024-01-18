@@ -6,14 +6,17 @@ use std::{
     time::Duration,
 };
 
-use crossbeam::channel::{bounded, Receiver, RecvTimeoutError, Sender};
 use daggy::petgraph::{visit::IntoEdgesDirected, Direction};
+use dozer_log::tokio::{
+    runtime::Runtime,
+    sync::mpsc::{channel, Receiver, Sender},
+    time::timeout,
+};
 use dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_types::{log::debug, node::NodeHandle};
 
 use crate::{
     builder_dag::NodeKind,
-    channels::SourceChannelForwarder,
     dag_schemas::EdgeKind,
     errors::ExecutionError,
     forwarder::SourceChannelManager,
@@ -22,43 +25,16 @@ use crate::{
 
 use super::{execution_dag::ExecutionDag, node::Node, ExecutorOptions};
 
-impl SourceChannelForwarder for InternalChannelSourceForwarder {
-    fn send(&mut self, message: IngestionMessage, port: PortHandle) -> Result<(), ExecutionError> {
-        Ok(self.sender.send((port, message))?)
-    }
-}
-
 /// The sender half of a source in the execution DAG.
 #[derive(Debug)]
-pub struct SourceSenderNode {
+pub struct SourceNode {
     /// Node handle in description DAG.
     node_handle: NodeHandle,
     /// The source.
     source: Box<dyn Source>,
-    /// The forwarder that will be passed to the source for outputting data.
-    forwarder: InternalChannelSourceForwarder,
-}
-
-impl SourceSenderNode {
-    pub fn handle(&self) -> &NodeHandle {
-        &self.node_handle
-    }
-}
-
-impl Node for SourceSenderNode {
-    fn run(mut self) -> Result<(), ExecutionError> {
-        let result = self.source.start(&mut self.forwarder);
-        debug!("[{}-sender] Quit", self.node_handle);
-        result.map_err(ExecutionError::Source)
-    }
-}
-
-/// The listener part of a source in the execution DAG.
-#[derive(Debug)]
-pub struct SourceListenerNode {
-    /// Node handle in description DAG.
-    node_handle: NodeHandle,
-    /// Output from corresponding source sender.
+    /// The sender that will be passed to the source for outputting data.
+    sender: Sender<(PortHandle, IngestionMessage)>,
+    /// The receiver for receiving data from source.
     receiver: Receiver<(PortHandle, IngestionMessage)>,
     /// Receiving timeout.
     timeout: Duration,
@@ -66,6 +42,91 @@ pub struct SourceListenerNode {
     running: Arc<AtomicBool>,
     /// This node's output channel manager, for communicating to other sources to coordinate terminate and commit, forwarding data, writing metadata and writing port state.
     channel_manager: SourceChannelManager,
+    /// The runtime to run the source in.
+    runtime: Arc<Runtime>,
+}
+
+impl SourceNode {
+    pub fn handle(&self) -> &NodeHandle {
+        &self.node_handle
+    }
+}
+
+/// Returns if the node should terminate.
+fn send_and_trigger_commit_if_needed(
+    running: &AtomicBool,
+    channel_manager: &mut SourceChannelManager,
+    data: DataKind,
+    node_handle: &NodeHandle,
+) -> Result<bool, ExecutionError> {
+    // If termination was requested the or source quit, we try to terminate.
+    let terminating =
+        data == DataKind::NoDataBecauseOfChannelDisconnection || !running.load(Ordering::SeqCst);
+    // If this commit was not requested with termination at the start, we shouldn't terminate either.
+    let terminating = match data {
+        DataKind::Data((port, message)) => {
+            channel_manager.send_and_trigger_commit_if_needed(message, port, terminating)?
+        }
+        DataKind::NoDataBecauseOfTimeout | DataKind::NoDataBecauseOfChannelDisconnection => {
+            channel_manager.trigger_commit_if_needed(terminating)?
+        }
+    };
+    if terminating {
+        channel_manager.terminate()?;
+        debug!("[{}] Quitting", &node_handle);
+    }
+    Ok(terminating)
+}
+
+impl Node for SourceNode {
+    fn run(mut self) -> Result<(), ExecutionError> {
+        let source = self.source;
+        let sender = self.sender;
+        let mut handle = Some(
+            self.runtime
+                .spawn(async move { source.start(sender).await }),
+        );
+
+        loop {
+            let terminating = match self
+                .runtime
+                .block_on(async { timeout(self.timeout, self.receiver.recv()).await })
+            {
+                Ok(Some(data)) => send_and_trigger_commit_if_needed(
+                    &self.running,
+                    &mut self.channel_manager,
+                    DataKind::Data(data),
+                    &self.node_handle,
+                )?,
+                Err(_) => send_and_trigger_commit_if_needed(
+                    &self.running,
+                    &mut self.channel_manager,
+                    DataKind::NoDataBecauseOfTimeout,
+                    &self.node_handle,
+                )?,
+                Ok(None) => {
+                    if let Some(handle) = handle.take() {
+                        match self.runtime.block_on(handle) {
+                            // Propagate the panic.
+                            Err(e) => std::panic::panic_any(e),
+                            // Propagate error.
+                            Ok(Err(e)) => return Err(ExecutionError::Source(e)),
+                            Ok(Ok(())) => (),
+                        }
+                    }
+                    send_and_trigger_commit_if_needed(
+                        &self.running,
+                        &mut self.channel_manager,
+                        DataKind::NoDataBecauseOfChannelDisconnection,
+                        &self.node_handle,
+                    )?
+                }
+            };
+            if terminating {
+                return Ok(());
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -75,68 +136,13 @@ enum DataKind {
     NoDataBecauseOfChannelDisconnection,
 }
 
-impl SourceListenerNode {
-    /// Returns if the node should terminate.
-    fn send_and_trigger_commit_if_needed(
-        &mut self,
-        data: DataKind,
-    ) -> Result<bool, ExecutionError> {
-        // If termination was requested the or source quit, we try to terminate.
-        let terminating = data == DataKind::NoDataBecauseOfChannelDisconnection
-            || !self.running.load(Ordering::SeqCst);
-        // If this commit was not requested with termination at the start, we shouldn't terminate either.
-        let terminating = match data {
-            DataKind::Data((port, message)) => self
-                .channel_manager
-                .send_and_trigger_commit_if_needed(message, port, terminating)?,
-            DataKind::NoDataBecauseOfTimeout | DataKind::NoDataBecauseOfChannelDisconnection => {
-                self.channel_manager.trigger_commit_if_needed(terminating)?
-            }
-        };
-        if terminating {
-            self.channel_manager.terminate()?;
-            debug!("[{}-listener] Quitting", &self.node_handle);
-        }
-        Ok(terminating)
-    }
-}
-
-impl Node for SourceListenerNode {
-    fn run(mut self) -> Result<(), ExecutionError> {
-        loop {
-            let terminating = match self.receiver.recv_timeout(self.timeout) {
-                Ok(data) => self.send_and_trigger_commit_if_needed(DataKind::Data(data))?,
-                Err(RecvTimeoutError::Timeout) => {
-                    self.send_and_trigger_commit_if_needed(DataKind::NoDataBecauseOfTimeout)?
-                }
-                Err(RecvTimeoutError::Disconnected) => self.send_and_trigger_commit_if_needed(
-                    DataKind::NoDataBecauseOfChannelDisconnection,
-                )?,
-            };
-            if terminating {
-                return Ok(());
-            }
-        }
-    }
-}
-
-#[derive(Debug)]
-struct InternalChannelSourceForwarder {
-    sender: Sender<(PortHandle, IngestionMessage)>,
-}
-
-impl InternalChannelSourceForwarder {
-    pub fn new(sender: Sender<(PortHandle, IngestionMessage)>) -> Self {
-        Self { sender }
-    }
-}
-
-pub async fn create_source_nodes(
+pub async fn create_source_node(
     dag: &mut ExecutionDag,
     node_index: daggy::NodeIndex,
     options: &ExecutorOptions,
     running: Arc<AtomicBool>,
-) -> (SourceSenderNode, SourceListenerNode) {
+    runtime: Arc<Runtime>,
+) -> SourceNode {
     // Get the source node.
     let Some(node) = dag.node_weight_mut(node_index).take() else {
         panic!("Must pass in a node")
@@ -156,19 +162,11 @@ pub async fn create_source_nodes(
         })
         .collect();
 
-    // Create channel between source sender and source listener.
-    let (source_sender, source_receiver) = bounded(options.channel_buffer_sz);
-    // let (source_sender, source_receiver) = bounded(1);
+    // Create channel between source and source node.
+    let (sender, receiver) = channel(options.channel_buffer_sz);
+    // let (sender, receiver) = channel(1);
 
-    // Create source listener.
-    let forwarder = InternalChannelSourceForwarder::new(source_sender);
-    let source_sender_node = SourceSenderNode {
-        node_handle: node_handle.clone(),
-        source,
-        forwarder,
-    };
-
-    // Create source sender node.
+    // Create channel manager.
     let (senders, record_writers) = dag.collect_senders_and_record_writers(node_index).await;
     let channel_manager = SourceChannelManager::new(
         node_handle.clone(),
@@ -180,13 +178,15 @@ pub async fn create_source_nodes(
         dag.epoch_manager().clone(),
         dag.error_manager().clone(),
     );
-    let source_listener_node = SourceListenerNode {
+
+    SourceNode {
         node_handle,
-        receiver: source_receiver,
+        source,
+        sender,
+        receiver,
         timeout: options.commit_time_threshold,
         running,
         channel_manager,
-    };
-
-    (source_sender_node, source_listener_node)
+        runtime,
+    }
 }

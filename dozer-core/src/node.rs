@@ -1,9 +1,11 @@
-use crate::channels::{ProcessorChannelForwarder, SourceChannelForwarder};
+use crate::channels::ProcessorChannelForwarder;
 use crate::epoch::Epoch;
 use dozer_recordstore::{ProcessorRecordStore, ProcessorRecordStoreDeserializer};
 
 use dozer_log::storage::{Object, Queue};
+use dozer_log::tokio::sync::mpsc::Sender;
 use dozer_types::errors::internal::BoxedError;
+use dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_types::node::RestartableState;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::tonic::async_trait;
@@ -56,8 +58,10 @@ pub trait SourceFactory: Send + Sync + Debug {
 
 pub type SourceState = HashMap<PortHandle, Option<RestartableState>>;
 
+#[async_trait]
 pub trait Source: Send + Sync + Debug {
-    fn start(&self, fw: &mut dyn SourceChannelForwarder) -> Result<(), BoxedError>;
+    async fn start(&self, sender: Sender<(PortHandle, IngestionMessage)>)
+        -> Result<(), BoxedError>;
 }
 
 #[async_trait]

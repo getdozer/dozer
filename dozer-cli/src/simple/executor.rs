@@ -167,12 +167,12 @@ impl<'a> Executor<'a> {
 }
 
 pub fn run_dag_executor(
-    runtime: &Runtime,
+    runtime: &Arc<Runtime>,
     dag_executor: DagExecutor,
     running: Arc<AtomicBool>,
     labels: LabelsAndProgress,
 ) -> Result<(), OrchestrationError> {
-    let join_handle = runtime.block_on(dag_executor.start(running, labels))?;
+    let join_handle = runtime.block_on(dag_executor.start(running, labels, runtime.clone()))?;
     join_handle
         .join()
         .map_err(OrchestrationError::ExecutionError)

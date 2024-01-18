@@ -1,7 +1,6 @@
+use super::run_dag;
 use crate::app::{App, AppPipeline, PipelineEntryPoint};
 use crate::appsource::{AppSourceManager, AppSourceMappings};
-use crate::checkpoint::create_checkpoint_for_test;
-use crate::executor::DagExecutor;
 use crate::node::{OutputPortDef, PortHandle, Source, SourceFactory, SourceState};
 use crate::tests::dag_base_run::{
     NoopJoinProcessorFactory, NOOP_JOIN_LEFT_INPUT_PORT, NOOP_JOIN_RIGHT_INPUT_PORT,
@@ -13,7 +12,6 @@ use crate::tests::sources::{
     GENERATOR_SOURCE_OUTPUT_PORT,
 };
 use crate::{Edge, Endpoint, DEFAULT_PORT_HANDLE};
-use dozer_log::tokio;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
 use dozer_types::types::Schema;
@@ -130,8 +128,8 @@ fn test_apps_source_manager_lookup_multiple_ports() {
     assert_eq!(r.port, 2_u16);
 }
 
-#[tokio::test]
-async fn test_app_dag() {
+#[test]
+fn test_app_dag() {
     let latch = Arc::new(AtomicBool::new(true));
 
     let mut asm = AppSourceManager::new();
@@ -295,13 +293,5 @@ async fn test_app_dag() {
 
     assert_eq!(edges.len(), 6);
 
-    let (_temp_dir, checkpoint) = create_checkpoint_for_test().await;
-    DagExecutor::new(dag, checkpoint, Default::default())
-        .await
-        .unwrap()
-        .start(Arc::new(AtomicBool::new(true)), Default::default())
-        .await
-        .unwrap()
-        .join()
-        .unwrap();
+    run_dag(dag).unwrap();
 }

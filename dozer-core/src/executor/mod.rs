@@ -7,6 +7,7 @@ use crate::Dag;
 
 use daggy::petgraph::visit::IntoNodeIdentifiers;
 
+use dozer_log::tokio::runtime::Runtime;
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::serde::{self, Deserialize, Serialize};
 use std::fmt::Debug;
@@ -60,7 +61,7 @@ use processor_node::ProcessorNode;
 use sink_node::SinkNode;
 
 use self::execution_dag::ExecutionDag;
-use self::source_node::{create_source_nodes, SourceListenerNode, SourceSenderNode};
+use self::source_node::{create_source_node, SourceNode};
 
 pub struct DagExecutor {
     builder_dag: BuilderDag,
@@ -98,6 +99,7 @@ impl DagExecutor {
         self,
         running: Arc<AtomicBool>,
         labels: LabelsAndProgress,
+        runtime: Arc<Runtime>,
     ) -> Result<DagExecutorJoinHandle, ExecutionError> {
         // Construct execution dag.
         let mut execution_dag = ExecutionDag::new(
@@ -120,16 +122,15 @@ impl DagExecutor {
                 .expect("We created all nodes");
             match &node.kind {
                 NodeKind::Source { .. } => {
-                    let (source_sender_node, source_listener_node) = create_source_nodes(
+                    let source_node = create_source_node(
                         &mut execution_dag,
                         node_index,
                         &self.options,
                         running.clone(),
+                        runtime.clone(),
                     )
                     .await;
-                    let (sender, receiver) =
-                        start_source(source_sender_node, source_listener_node)?;
-                    join_handles.extend([sender, receiver]);
+                    join_handles.push(start_source(source_node)?);
                 }
                 NodeKind::Processor(_) => {
                     let processor_node = ProcessorNode::new(&mut execution_dag, node_index).await;
@@ -171,14 +172,11 @@ impl DagExecutorJoinHandle {
     }
 }
 
-fn start_source(
-    source_sender: SourceSenderNode,
-    source_listener: SourceListenerNode,
-) -> Result<(JoinHandle<()>, JoinHandle<()>), ExecutionError> {
+fn start_source(source_sender: SourceNode) -> Result<JoinHandle<()>, ExecutionError> {
     let handle = source_sender.handle().clone();
 
-    let sender_handle = Builder::new()
-        .name(format!("{handle}-sender"))
+    let handle = Builder::new()
+        .name(format!("{handle}"))
         .spawn(move || match source_sender.run() {
             Ok(_) => {}
             // Channel disconnection means the source listener has quit.
@@ -194,16 +192,7 @@ fn start_source(
         })
         .map_err(ExecutionError::CannotSpawnWorkerThread)?;
 
-    let listener_handle = Builder::new()
-        .name(format!("{handle}-listener"))
-        .spawn(move || {
-            if let Err(e) = source_listener.run() {
-                std::panic::panic_any(e);
-            }
-        })
-        .map_err(ExecutionError::CannotSpawnWorkerThread)?;
-
-    Ok((sender_handle, listener_handle))
+    Ok(handle)
 }
 
 fn start_processor(processor: ProcessorNode) -> Result<JoinHandle<()>, ExecutionError> {

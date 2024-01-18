@@ -11,7 +11,6 @@ use crate::tests::sources::{
 };
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use dozer_log::storage::Object;
-use dozer_log::tokio;
 use dozer_recordstore::{ProcessorRecordStore, ProcessorRecordStoreDeserializer};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
@@ -23,6 +22,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
+
+use super::{create_test_runtime, run_dag};
 
 #[derive(Debug)]
 pub(crate) struct NoopProcessorFactory {}
@@ -92,8 +93,8 @@ impl Processor for NoopProcessor {
     }
 }
 
-#[tokio::test]
-async fn test_run_dag() {
+#[test]
+fn test_run_dag() {
     let count: u64 = 1_000;
 
     let mut dag = Dag::new();
@@ -125,19 +126,11 @@ async fn test_run_dag() {
     )
     .unwrap();
 
-    let (_temp_dir, checkpoint) = create_checkpoint_for_test().await;
-    DagExecutor::new(dag, checkpoint, Default::default())
-        .await
-        .unwrap()
-        .start(Arc::new(AtomicBool::new(true)), Default::default())
-        .await
-        .unwrap()
-        .join()
-        .unwrap();
+    run_dag(dag).unwrap();
 }
 
-#[tokio::test]
-async fn test_run_dag_and_stop() {
+#[test]
+fn test_run_dag_and_stop() {
     let count: u64 = 1_000_000;
 
     let mut dag = Dag::new();
@@ -170,13 +163,19 @@ async fn test_run_dag_and_stop() {
     .unwrap();
 
     let running = Arc::new(AtomicBool::new(true));
-    let (_temp_dir, checkpoint) = create_checkpoint_for_test().await;
-    let join_handle = DagExecutor::new(dag, checkpoint, Default::default())
-        .await
-        .unwrap()
-        .start(running.clone(), Default::default())
-        .await
-        .unwrap();
+    let running_clone = running.clone();
+    let runtime = create_test_runtime();
+    let runtime_clone = runtime.clone();
+
+    let join_handle = runtime.block_on(async move {
+        let (_temp_dir, checkpoint) = create_checkpoint_for_test().await;
+        DagExecutor::new(dag, checkpoint, Default::default())
+            .await
+            .unwrap()
+            .start(running_clone, Default::default(), runtime_clone)
+            .await
+            .unwrap()
+    });
 
     thread::sleep(Duration::from_millis(1000));
     running.store(false, Ordering::SeqCst);
@@ -254,8 +253,8 @@ impl Processor for NoopJoinProcessor {
     }
 }
 
-#[tokio::test]
-async fn test_run_dag_2_sources_stateless() {
+#[test]
+fn test_run_dag_2_sources_stateless() {
     let count: u64 = 50_000;
 
     let mut dag = Dag::new();
@@ -299,19 +298,11 @@ async fn test_run_dag_2_sources_stateless() {
     )
     .unwrap();
 
-    let (_temp_dir, checkpoint) = create_checkpoint_for_test().await;
-    DagExecutor::new(dag, checkpoint, Default::default())
-        .await
-        .unwrap()
-        .start(Arc::new(AtomicBool::new(true)), Default::default())
-        .await
-        .unwrap()
-        .join()
-        .unwrap();
+    run_dag(dag).unwrap();
 }
 
-#[tokio::test]
-async fn test_run_dag_2_sources_stateful() {
+#[test]
+fn test_run_dag_2_sources_stateful() {
     let count: u64 = 50_000;
 
     let mut dag = Dag::new();
@@ -355,19 +346,11 @@ async fn test_run_dag_2_sources_stateful() {
     )
     .unwrap();
 
-    let (_temp_dir, checkpoint) = create_checkpoint_for_test().await;
-    DagExecutor::new(dag, checkpoint, Default::default())
-        .await
-        .unwrap()
-        .start(Arc::new(AtomicBool::new(true)), Default::default())
-        .await
-        .unwrap()
-        .join()
-        .unwrap();
+    run_dag(dag).unwrap();
 }
 
-#[tokio::test]
-async fn test_run_dag_1_source_2_ports_stateless() {
+#[test]
+fn test_run_dag_1_source_2_ports_stateless() {
     let count: u64 = 50_000;
 
     let mut dag = Dag::new();
@@ -412,13 +395,5 @@ async fn test_run_dag_1_source_2_ports_stateless() {
     )
     .unwrap();
 
-    let (_temp_dir, checkpoint) = create_checkpoint_for_test().await;
-    DagExecutor::new(dag, checkpoint, Default::default())
-        .await
-        .unwrap()
-        .start(Arc::new(AtomicBool::new(true)), Default::default())
-        .await
-        .unwrap()
-        .join()
-        .unwrap();
+    run_dag(dag).unwrap();
 }

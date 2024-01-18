@@ -1,8 +1,9 @@
-use crate::channels::SourceChannelForwarder;
 use crate::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory, SourceState};
 use crate::DEFAULT_PORT_HANDLE;
+use dozer_log::tokio::{self, sync::mpsc::Sender};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::models::ingestion_types::IngestionMessage;
+use dozer_types::tonic::async_trait;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
 };
@@ -10,7 +11,6 @@ use dozer_types::types::{
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::thread;
 
 use std::time::Duration;
 
@@ -98,29 +98,35 @@ pub(crate) struct GeneratorSource {
     running: Arc<AtomicBool>,
 }
 
+#[async_trait]
 impl Source for GeneratorSource {
-    fn start(&self, fw: &mut dyn SourceChannelForwarder) -> Result<(), BoxedError> {
+    async fn start(
+        &self,
+        sender: Sender<(PortHandle, IngestionMessage)>,
+    ) -> Result<(), BoxedError> {
         for n in self.start..(self.start + self.count) {
-            fw.send(
-                IngestionMessage::OperationEvent {
-                    table_index: 0,
-                    op: Operation::Insert {
-                        new: Record::new(vec![
-                            Field::String(format!("key_{n}")),
-                            Field::String(format!("value_{n}")),
-                        ]),
+            sender
+                .send((
+                    GENERATOR_SOURCE_OUTPUT_PORT,
+                    IngestionMessage::OperationEvent {
+                        table_index: 0,
+                        op: Operation::Insert {
+                            new: Record::new(vec![
+                                Field::String(format!("key_{n}")),
+                                Field::String(format!("value_{n}")),
+                            ]),
+                        },
+                        state: Some(n.to_be_bytes().to_vec().into()),
                     },
-                    state: Some(n.to_be_bytes().to_vec().into()),
-                },
-                GENERATOR_SOURCE_OUTPUT_PORT,
-            )?;
+                ))
+                .await?;
         }
 
         loop {
             if !self.running.load(Ordering::Relaxed) {
                 break;
             }
-            thread::sleep(Duration::from_millis(500));
+            tokio::time::sleep(Duration::from_millis(500)).await;
         }
 
         Ok(())
@@ -218,41 +224,49 @@ pub(crate) struct DualPortGeneratorSource {
     running: Arc<AtomicBool>,
 }
 
+#[async_trait]
 impl Source for DualPortGeneratorSource {
-    fn start(&self, fw: &mut dyn SourceChannelForwarder) -> Result<(), BoxedError> {
+    async fn start(
+        &self,
+        sender: Sender<(PortHandle, IngestionMessage)>,
+    ) -> Result<(), BoxedError> {
         for n in 1..(self.count + 1) {
-            fw.send(
-                IngestionMessage::OperationEvent {
-                    table_index: 0,
-                    op: Operation::Insert {
-                        new: Record::new(vec![
-                            Field::String(format!("key_{n}")),
-                            Field::String(format!("value_{n}")),
-                        ]),
+            sender
+                .send((
+                    DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_1,
+                    IngestionMessage::OperationEvent {
+                        table_index: 0,
+                        op: Operation::Insert {
+                            new: Record::new(vec![
+                                Field::String(format!("key_{n}")),
+                                Field::String(format!("value_{n}")),
+                            ]),
+                        },
+                        state: Some(n.to_be_bytes().to_vec().into()),
                     },
-                    state: Some(n.to_be_bytes().to_vec().into()),
-                },
-                DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_1,
-            )?;
-            fw.send(
-                IngestionMessage::OperationEvent {
-                    table_index: 0,
-                    op: Operation::Insert {
-                        new: Record::new(vec![
-                            Field::String(format!("key_{n}")),
-                            Field::String(format!("value_{n}")),
-                        ]),
+                ))
+                .await?;
+            sender
+                .send((
+                    DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_2,
+                    IngestionMessage::OperationEvent {
+                        table_index: 0,
+                        op: Operation::Insert {
+                            new: Record::new(vec![
+                                Field::String(format!("key_{n}")),
+                                Field::String(format!("value_{n}")),
+                            ]),
+                        },
+                        state: Some(n.to_be_bytes().to_vec().into()),
                     },
-                    state: Some(n.to_be_bytes().to_vec().into()),
-                },
-                DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_2,
-            )?;
+                ))
+                .await?;
         }
         loop {
             if !self.running.load(Ordering::Relaxed) {
                 break;
             }
-            thread::sleep(Duration::from_millis(500));
+            tokio::time::sleep(Duration::from_millis(500)).await;
         }
         Ok(())
     }
