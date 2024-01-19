@@ -32,7 +32,7 @@ use dozer_core::{
 };
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::geo::{Coord, Point};
-use dozer_types::log::info;
+use dozer_types::log::{error, info};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::types::DozerPoint;
 use dozer_types::{
@@ -117,6 +117,7 @@ impl Client {
             as_config_init(config.as_mut_ptr());
             config.assume_init()
         };
+        config.policies.batch.base.total_timeout = 10000;
         unsafe {
             // The hosts string will be copied, so pass it as `as_ptr` so the original
             // gets deallocated at the end of this block
@@ -386,7 +387,9 @@ struct AerospikeSinkWorker {
 impl AerospikeSinkWorker {
     fn run(&mut self) {
         while let Ok(op) = self.receiver.recv() {
-            let _ = self.process_impl(op);
+            if let Err(e) = self.process_impl(op) {
+                error!("Error processing operation: {}", e);
+            }
         }
     }
 
