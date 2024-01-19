@@ -57,9 +57,9 @@ fn main() {
     println!("cargo:rustc-link-lib=pthread");
 
     println!("cargo:rerun-if-changed=aerospike_client.h");
+    println!("cargo:rerun-if-changed=aerospike-client-c");
     let bindings = bindgen::Builder::default()
         .header("aerospike_client.h")
-        .parse_callbacks(Box::new(bindgen::CargoCallbacks))
         .allowlist_type("(as|aerospike)_.*")
         .allowlist_type("aerospike")
         .allowlist_function("(as|aerospike)_.*")
