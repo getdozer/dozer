@@ -54,12 +54,8 @@ pub struct ConnectorSourceFactory {
     shutdown: ShutdownReceiver,
 }
 
-fn map_replication_type_to_output_port_type(typ: &CdcType) -> OutputPortType {
-    match typ {
-        CdcType::FullChanges => OutputPortType::Stateless,
-        CdcType::OnlyPK => OutputPortType::StatefulWithPrimaryKeyLookup,
-        CdcType::Nothing => OutputPortType::Stateless,
-    }
+fn map_replication_type_to_output_port_type(_typ: &CdcType) -> OutputPortType {
+    OutputPortType::Stateless
 }
 
 impl ConnectorSourceFactory {
