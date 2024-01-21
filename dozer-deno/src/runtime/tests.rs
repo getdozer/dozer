@@ -24,13 +24,9 @@ async fn test_function_call_exception() {
 
 #[tokio::test]
 async fn test_async_function_call() {
-    let Ok(result) = call_function("fetch.js", vec![])
-        .await
-        .unwrap()
-        .into_array()
-    else {
-        panic!("expected array")
-    };
+    let result = call_function("fetch.js", vec![]).await.unwrap();
+    dbg!(&result);
+    let result = result.into_array().expect("expected array");
     assert!(!result.is_empty());
 }
 
