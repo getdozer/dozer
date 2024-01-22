@@ -13,7 +13,6 @@ use dozer_types::models::telemetry::{TelemetryConfig, TelemetryMetricsConfig};
 use dozer_types::tracing::{error, error_span, info};
 use futures::stream::{AbortHandle, Abortable};
 use std::convert::identity;
-use std::env;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 
@@ -67,17 +66,8 @@ fn run() -> Result<(), OrchestrationError> {
         return run_cloud(cloud, runtime, &cli);
     }
     let (config, config_files) = config_res?;
+    info!("Loaded config from: {}", config_files.join(", "));
 
-    let current_directory = env::current_dir().unwrap();
-    let config_files_with_path: Vec<_> = config_files
-        .iter()
-        .map(|file| current_directory.join(file))
-        .collect();
-
-    info!("Config files used: ");
-    for file in config_files_with_path {
-        info!("  {:?}", file);
-    }
     let dozer = init_dozer(
         runtime.clone(),
         config.clone(),

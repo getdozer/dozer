@@ -15,6 +15,7 @@ use dozer_types::tracing::info;
 use dozer_types::{models::config::Config, serde_yaml};
 use handlebars::Handlebars;
 use std::collections::BTreeMap;
+use std::env;
 use std::io::{self, Read};
 use std::sync::Arc;
 use tokio::runtime::Runtime;
@@ -155,8 +156,14 @@ pub fn load_config_from_file(
 
     let (config_template, files) = combine_config(config_path.clone(), input)?;
     loaded_files.extend_from_slice(&files);
+    let current_directory = env::current_dir().unwrap();
+    let config_files_with_path: Vec<_> = loaded_files
+        .iter()
+        .map(|file| current_directory.join(file).to_string_lossy().to_string())
+        .collect();
+
     match config_template {
-        Some(template) => Ok((parse_config(&template)?, loaded_files)),
+        Some(template) => Ok((parse_config(&template)?, config_files_with_path)),
         None => Err(FailedToFindConfigurationFiles(config_path.join(", "))),
     }
 }
