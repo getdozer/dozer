@@ -12,77 +12,95 @@
   <a href="https://github.com/getdozer/dozer/blob/main/LICENSE.txt" target="_blank"><img src="https://img.shields.io/badge/license-Apache-blue" alt="License"></a>
 </p>
 
-## Overview
+# Overview
 
-Dozer is a **data platform for building, deploying and maintaining real-time data products.**
+Dozer is a high-throughput, low-latency data movement tool that saves you days or even weeks to build ETL pipelines.
 
-It is ideal for companies with multiple databases, data warehouses and data lakes that are in need of combining, aggregating and transforming data in real time, and create customer facing or internal data applications. 
+Compared with Debezium + Kafka + custom code to move data from Postgres to Aerospike:
 
-*Put it simply, Dozer empowers a single developer go from data sources to ready-made APIs in just a few minutes. All with just a with a simple configuration file.*
+![Postgres To Aerospike](./images/postgres_to_aerospike.svg)
 
-## How it works
-Dozer pulls data from various sources like databases, data lakes, and data warehouses using Change Data Capture (CDC) and periodic polling mechanisms. This ensures up-to-date data ingestion in real-time or near-real-time.
+# Quick Start
 
-After capturing data, Dozer offers the possibility of combining, transforming and aggregating it 
-using its own internal real-time transformation engine. It supports Streaming SQL, WebAssembly (coming soon) and TypeScript (coming soon), as well as ONNX for performing AI predictions in real-time. 
+## Installation
 
-After processing, data is stored and indexed in a low-latency datastore (based on [LMDB](https://github.com/LMDB/lmdb)), queryable using REST and gRPC.
+### MacOS (Monterey 12 and above)
 
-## How to use it
+```bash
+brew tap getdozer/dozer
+brew install dozer
+```
 
-### ① Build
-A Dozer application consists of a YAML file that can be run locally using the Dozer Live UI or Dozer CLI. As YAML is edited,
-changes are immediately reflected on Dozer Live UI. 
+### Ubuntu (20.04 and above)
 
-![Screenshot](./images/dozer_live_screen1.png)
+```bash
+export ARCH=amd64 # Change to arm64 for ARM CPUs
+curl -sLO https://github.com/getdozer/dozer/releases/latest/download/dozer-linux-${ARCH}.deb
+sudo dpkg -i dozer-linux-${ARCH}.deb
+```
 
-### ② Test
-Dozer can run the entire infrastructure locally. You can inspect data flowing in in real time or use the built-it API explorer to query data through REST and gRPC. Dozer Live explorer also provides ready-made samples to integrate results into your front-end applications.
+## Usage
 
-![Screenshot](./images/dozer_live_screen2.png)
+Dozer runs with a single configuration file like the following:
 
-### ③ Deploy
-Dozer applications can be self-hosted or deployed in the cloud with a single command. Dozer Cloud (coming soon) provides self-healing and monitoring capabilities, making sure your APIs are always available.
+```yaml
+app_name: dozer-bench
+version: 1
+connections:
+  - name: pgbench
+    config: !Postgres
+      user: user
+      password: postgres
+      host: localhost
+      port: 5432
+      database: bench
 
+endpoints:
+  - table_name: pgbench_accounts
+    kind: !Aerospike
+      namespace: test
+      hosts: localhost
+      set_name: test
+```
 
-## Supported Sources and Tranformation Engines
-Dozer currently supports a variety of source databases, data warehouses and object stores. Whenever possible, Dozer leverages Change Data Capture (CDC) to keep data always fresh. For sources that do not support CDC, periodic polling is used.
+Any string can be used for `app_name`. Any integer can be used for `version`. `connections.config` is a [YAML tag](https://yaml.org/spec/1.2/spec.html#id2761292) that specifies the type of the connection. See all supported [connectors](#connectors) below. `endpoints.kind` is a YAML tag that specifies the type of the sink. See all supported [sinks](#sinks) below.
 
-Dozer transformations can be executed using Dozer's highly cutomizable streaming SQL engine, which provides UDF supports in WASM (coming soon), TypeScript (coming soon) and ONNX.
+This configuration file specifies how to connect to a Postgres database, and moves the data in the `pgbench_accounts` table to an Aerospike database.
 
-Here is an overview of all supported source types and transformation engines:
+Save this file as `dozer-config.yaml` and run the following command:
 
-![Screenshot](./images/supported_sources.png)
+```bash
+dozer run -c dozer-config.yaml
+```
 
+You will immediately see the data flowing from Postgres to Aerospike. As you make changes to the Postgres table, Dozer will automatically pick up the changes and apply them to Aerospike!
 
-## Why Dozer ?
-As teams embark on the journey of implementing real-time data products, they invariably come across a host of challenges that can make the task seem daunting:
+# Connectors
 
-1. **Integration with Various Systems**: Integrating with various data sources can present numerous technical hurdles and interoperability issues.
+| Connector            | Extraction | Resuming | Schema Evolution |
+|----------------------|------------|----------|------------------|
+| Postgres             | ✅          | ✅        | ✅                |
+| MySQL                | ✅          | ✅        | ✅                |
+| Snowflake            | ✅          | ✅        | 🎯               |
+| Kafka                | ✅          | 🚧       | 🎯               |
+| MongoDB              | ✅          | 🎯       | 🎯               |
+| Amazon S3            | ✅          | 🎯       | 🎯               |
+| Google Cloud Storage | ✅          | 🎯       | 🎯               |
 
-2. **Managing Latency**: Ensuring low-latency data access, especially for customer-facing applications, can be a significant challenge.
+✅: Supported, 🚧: In progress, 🎯: Planned
 
-3. **Real-Time Data Transformation**: Managing real-time data transformations, especially when dealing with complex queries or large volumes of data, can be difficult and resource-intensive. 
+# Sinks
 
-4. **Maintaining Data Freshness**: Keeping the data up-to-date in real-time, particularly when it's sourced from multiple locations like databases, data lakes, or warehouses, can be a daunting task.
+| Sink       | Loading | Resuming |
+|------------|---------|----------|
+| Aerospike  | ✅       | 🚧       |
+| BigQuery   | ✅       | 🎯       |
+| SQLite     | 🚧      | 🎯       |
+| Snowflake  | 🚧      | 🎯       |
+| ClickHouse | 🚧      | 🎯       |
 
-4. **Scalability and High Availability**: Building a data application that can efficiently handle high-volume operations and remain reliable under heavy loads requires advanced architecture design and robust infrastructure.
+✅: Supported, 🚧: In progress, 🎯: Planned
 
-To address all the above issues, teams often find themselves stitching together multiple technologies and a significant amount of custom code. This could involve integrating diverse systems like Kafka for real-time data streaming, Redis for low-latency data access and caching, and Spark or Flink for processing and analyzing streaming data.
+# Transformations
 
-![Complex Tools Setup](./images/tools.png)
-
-The complexity of such a setup can become overwhelming. Ensuring that these different technologies communicate effectively, maintaining them, and handling potential failure points requires extensive effort and expertise.
-
-This is where Dozer steps in, aiming to dramatically simplify this process. Dozer is designed as an all-in-one backend solution that integrates the capabilities of these disparate technologies into a single, streamlined tool. By doing so, Dozer offers the capacity to build an end-to-end real-time data product without the need to manage multiple technologies and extensive custom code.
-
-Dozer's goal is to empower a single engineer or a small team of engineers to fully manage the entire lifecycle of a Data Product!
-
-## Getting Started
-
-Follow the links below to get started with Dozer:
-
-- [Installation](https://getdozer.io/docs/installation)
-- [Build a sample application using NY Taxi dataset](https://getdozer.io/docs/getting_started)
-
-For a more comprehensive list of samples check out our [GitHub Samples repo](https://github.com/getdozer/dozer-samples)
+We currently support selections, projections, TTL, window operations (hop, tumble) and UDFs. UDFs can be implemented via JavaScript or ONNX model.
