@@ -7,7 +7,7 @@ use dozer_ingestion_connector::{
         models::connection::Connection,
         serde::{Deserialize, Serialize},
     },
-    Connector, IngestionIterator, Ingestor, TableToIngest,
+    Connector, IngestionIterator, Ingestor, TableInfo,
 };
 use tokio::runtime::Runtime;
 
@@ -49,18 +49,14 @@ pub fn get_connection_iterator(runtime: Arc<Runtime>, config: TestConfig) -> Ing
     let tables = runtime.block_on(list_tables(&*connector));
     let (ingestor, iterator) = Ingestor::initialize_channel(Default::default());
     runtime.clone().spawn_blocking(move || async move {
-        if let Err(e) = runtime.block_on(connector.start(&ingestor, tables)) {
+        if let Err(e) = runtime.block_on(connector.start(&ingestor, tables, None)) {
             error!("Error starting connector: {:?}", e);
         }
     });
     iterator
 }
 
-async fn list_tables(connector: &dyn Connector) -> Vec<TableToIngest> {
+async fn list_tables(connector: &dyn Connector) -> Vec<TableInfo> {
     let tables = connector.list_tables().await.unwrap();
-    let tables = connector.list_columns(tables).await.unwrap();
-    tables
-        .into_iter()
-        .map(TableToIngest::from_scratch)
-        .collect()
+    connector.list_columns(tables).await.unwrap()
 }

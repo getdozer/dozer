@@ -1,7 +1,7 @@
 use super::run_dag;
 use crate::app::{App, AppPipeline, PipelineEntryPoint};
 use crate::appsource::{AppSourceManager, AppSourceMappings};
-use crate::node::{OutputPortDef, PortHandle, Source, SourceFactory, SourceState};
+use crate::node::{OutputPortDef, PortHandle, Source, SourceFactory};
 use crate::tests::dag_base_run::{
     NoopJoinProcessorFactory, NOOP_JOIN_LEFT_INPUT_PORT, NOOP_JOIN_RIGHT_INPUT_PORT,
 };
@@ -13,7 +13,7 @@ use crate::tests::sources::{
 };
 use crate::{Edge, Endpoint, DEFAULT_PORT_HANDLE};
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::node::NodeHandle;
+use dozer_types::node::{NodeHandle, RestartableState};
 use dozer_types::types::Schema;
 
 use std::collections::HashMap;
@@ -38,7 +38,7 @@ impl SourceFactory for NoneSourceFactory {
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _last_checkpoint: SourceState,
+        _last_checkpoint: Option<RestartableState>,
     ) -> Result<Box<dyn Source>, BoxedError> {
         todo!()
     }

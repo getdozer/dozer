@@ -8,7 +8,6 @@ use dozer_core::epoch::Epoch;
 use dozer_core::errors::ExecutionError;
 use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
-    SourceState,
 };
 
 use dozer_core::{Dag, DEFAULT_PORT_HANDLE};
@@ -21,6 +20,7 @@ use dozer_sql::builder::statement_to_pipeline;
 
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::models::ingestion_types::IngestionMessage;
+use dozer_types::node::RestartableState;
 use dozer_types::types::{Operation, Record, Schema, SourceDefinition};
 use std::collections::HashMap;
 use tempdir::TempDir;
@@ -106,7 +106,7 @@ impl SourceFactory for TestSourceFactory {
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _last_checkpoint: SourceState,
+        _last_checkpoint: Option<RestartableState>,
     ) -> Result<Box<dyn Source>, BoxedError> {
         Ok(Box::new(TestSource {
             name_to_port: self.name_to_port.to_owned(),

@@ -4,10 +4,10 @@ use dozer_ingestion_connector::{
         errors::internal::BoxedError,
         log::{info, warn},
         models::ingestion_types::{default_snowflake_poll_interval, SnowflakeConfig},
+        node::RestartableState,
         types::FieldType,
     },
     tokio, Connector, Ingestor, SourceSchema, SourceSchemaResult, TableIdentifier, TableInfo,
-    TableToIngest,
 };
 use odbc::create_environment_v3;
 
@@ -120,13 +120,14 @@ impl Connector for SnowflakeConnector {
     async fn start(
         &self,
         ingestor: &Ingestor,
-        tables: Vec<TableToIngest>,
+        tables: Vec<TableInfo>,
+        last_checkpoint: Option<RestartableState>,
     ) -> Result<(), BoxedError> {
         spawn_blocking({
             let name = self.name.clone();
             let config = self.config.clone();
             let ingestor = ingestor.clone();
-            move || run(name, config, tables, ingestor)
+            move || run(name, config, tables, last_checkpoint, ingestor)
         })
         .await
         .map_err(Into::into)
@@ -136,7 +137,8 @@ impl Connector for SnowflakeConnector {
 fn run(
     name: String,
     config: SnowflakeConfig,
-    tables: Vec<TableToIngest>,
+    tables: Vec<TableInfo>,
+    last_checkpoint: Option<RestartableState>,
     ingestor: Ingestor,
 ) -> Result<(), SnowflakeError> {
     // SNAPSHOT part - run it when stream table doesn't exist
@@ -152,7 +154,7 @@ fn run(
         for (idx, table) in tables.iter().enumerate() {
             // We only check stream status on first iteration
             if iteration == 0 {
-                let state = table.state.as_ref().map(decode_state).transpose()?;
+                let state = last_checkpoint.as_ref().map(decode_state).transpose()?;
                 match state {
                     None | Some((0, _)) => {
                         info!("[{}][{}] Creating new stream", name, table.name);

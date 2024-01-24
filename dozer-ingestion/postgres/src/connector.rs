@@ -1,9 +1,10 @@
 use dozer_ingestion_connector::dozer_types::log::warn;
+use dozer_ingestion_connector::dozer_types::node::RestartableState;
 use dozer_ingestion_connector::{
     async_trait,
     dozer_types::{errors::internal::BoxedError, log::info, types::FieldType},
     utils::ListOrFilterColumns,
-    Connector, Ingestor, SourceSchemaResult, TableIdentifier, TableInfo, TableToIngest,
+    Connector, Ingestor, SourceSchemaResult, TableIdentifier, TableInfo,
 };
 use postgres_types::PgLsn;
 use rand::distributions::Alphanumeric;
@@ -70,31 +71,23 @@ impl PostgresConnector {
 
     fn get_lsn_with_offset_from_seq(
         conn_name: &str,
-        tables: Vec<TableToIngest>,
+        last_checkpoint: Option<RestartableState>,
     ) -> Option<LsnWithSlot> {
-        let m: Option<LsnWithSlot> = tables
-            .iter()
-            .filter_map(|table| {
-                if let Some(s) = &table.state {
-                    match LsnWithSlot::try_from(s.clone()) {
-                        Ok(state) => Some(state),
-                        Err(e) => {
-                            warn!(
-                                "[{conn_name}] Failed to parse checkpoint: {error}",
-                                conn_name = conn_name,
-                                error = e
-                            );
-                            None
-                        }
-                    }
-                } else {
+        let m: Option<LsnWithSlot> = if let Some(s) = last_checkpoint {
+            match LsnWithSlot::try_from(s) {
+                Ok(state) => Some(state),
+                Err(e) => {
+                    warn!(
+                        "[{conn_name}] Failed to parse checkpoint: {error}",
+                        conn_name = conn_name,
+                        error = e
+                    );
                     None
                 }
-            })
-            .collect::<Vec<LsnWithSlot>>()
-            .iter()
-            .max_by_key(|x| x.lsn)
-            .cloned();
+            }
+        } else {
+            None
+        };
 
         if let Some(x) = &m {
             info!(
@@ -198,10 +191,11 @@ impl Connector for PostgresConnector {
     async fn start(
         &self,
         ingestor: &Ingestor,
-        tables: Vec<TableToIngest>,
+        tables: Vec<TableInfo>,
+        last_checkpoint: Option<RestartableState>,
     ) -> Result<(), BoxedError> {
         let lsn_with_slot =
-            PostgresConnector::get_lsn_with_offset_from_seq(&self.name, tables.clone());
+            PostgresConnector::get_lsn_with_offset_from_seq(&self.name, last_checkpoint);
         let slot_name = lsn_with_slot
             .clone()
             .map_or(self.get_slot_name(), |LsnWithSlot { slot_name, .. }| {

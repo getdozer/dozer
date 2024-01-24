@@ -1,6 +1,7 @@
 use dozer_ingestion_connector::dozer_types::errors::internal::BoxedError;
 use dozer_ingestion_connector::dozer_types::log::error;
 use dozer_ingestion_connector::dozer_types::models::ingestion_types::IngestionMessage;
+use dozer_ingestion_connector::dozer_types::node::RestartableState;
 use dozer_ingestion_connector::dozer_types::types::FieldType;
 use dozer_ingestion_connector::futures::future::try_join_all;
 use dozer_ingestion_connector::tokio::sync::mpsc::channel;
@@ -8,7 +9,6 @@ use dozer_ingestion_connector::tokio::task::JoinSet;
 use dozer_ingestion_connector::utils::{ListOrFilterColumns, TableNotFound};
 use dozer_ingestion_connector::{
     async_trait, tokio, Connector, Ingestor, SourceSchemaResult, TableIdentifier, TableInfo,
-    TableToIngest,
 };
 
 use crate::adapters::DozerObjectStore;
@@ -96,8 +96,10 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
     async fn start(
         &self,
         ingestor: &Ingestor,
-        tables: Vec<TableToIngest>,
+        tables: Vec<TableInfo>,
+        last_checkpoint: Option<RestartableState>,
     ) -> Result<(), BoxedError> {
+        assert!(last_checkpoint.is_none());
         let (sender, mut receiver) =
             channel::<Result<Option<IngestionMessage>, ObjectStoreConnectorError>>(100); // todo: increase buffer siz
         let ingestor_clone = ingestor.clone();
@@ -132,7 +134,6 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
         let mut handles = vec![];
 
         for (table_index, table_info) in tables.iter().enumerate() {
-            assert!(table_info.state.is_none());
             let table_info = TableInfo {
                 schema: table_info.schema.clone(),
                 name: table_info.name.clone(),

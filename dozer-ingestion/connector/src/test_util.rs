@@ -8,7 +8,7 @@ use dozer_types::{
 use futures::stream::{AbortHandle, Abortable};
 use tokio::runtime::Runtime;
 
-use crate::{Connector, IngestionIterator, Ingestor, TableInfo, TableToIngest};
+use crate::{Connector, IngestionIterator, Ingestor, TableInfo};
 
 pub fn create_test_runtime() -> Arc<Runtime> {
     Arc::new(
@@ -26,14 +26,10 @@ pub fn spawn_connector(
 ) -> (IngestionIterator, AbortHandle) {
     let (ingestor, iterator) = Ingestor::initialize_channel(Default::default());
     let (abort_handle, abort_registration) = AbortHandle::new_pair();
-    let tables = tables
-        .into_iter()
-        .map(TableToIngest::from_scratch)
-        .collect();
     runtime.clone().spawn_blocking(move || {
         runtime.block_on(async move {
             if let Ok(Err(e)) =
-                Abortable::new(connector.start(&ingestor, tables), abort_registration).await
+                Abortable::new(connector.start(&ingestor, tables, None), abort_registration).await
             {
                 error!("Connector `start` returned error: {e}")
             }

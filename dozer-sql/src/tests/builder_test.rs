@@ -6,7 +6,6 @@ use dozer_core::epoch::Epoch;
 use dozer_core::executor::DagExecutor;
 use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
-    SourceState,
 };
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_recordstore::ProcessorRecordStore;
@@ -14,6 +13,7 @@ use dozer_types::chrono::DateTime;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::log::debug;
 use dozer_types::models::ingestion_types::IngestionMessage;
+use dozer_types::node::RestartableState;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::tonic::async_trait;
 use dozer_types::types::{
@@ -97,7 +97,7 @@ impl SourceFactory for TestSourceFactory {
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _last_checkpoint: SourceState,
+        _last_checkpoint: Option<RestartableState>,
     ) -> Result<Box<dyn Source>, BoxedError> {
         Ok(Box::new(TestSource {}))
     }

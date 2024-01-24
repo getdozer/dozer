@@ -3,6 +3,7 @@ use std::{str::FromStr, sync::Arc};
 
 use super::helper;
 use super::sender::{run, EthDetails};
+use dozer_ingestion_connector::dozer_types::node::RestartableState;
 use dozer_ingestion_connector::utils::TableNotFound;
 use dozer_ingestion_connector::{
     async_trait,
@@ -14,7 +15,6 @@ use dozer_ingestion_connector::{
         types::FieldType,
     },
     CdcType, Connector, Ingestor, SourceSchema, SourceSchemaResult, TableIdentifier, TableInfo,
-    TableToIngest,
 };
 use web3::ethabi::{Contract, Event};
 use web3::types::{Address, BlockNumber, Filter, FilterBuilder, H256, U64};
@@ -237,7 +237,8 @@ impl Connector for EthLogConnector {
     async fn start(
         &self,
         ingestor: &Ingestor,
-        tables: Vec<TableToIngest>,
+        tables: Vec<TableInfo>,
+        _last_checkpoint: Option<RestartableState>,
     ) -> Result<(), BoxedError> {
         // Start a new thread that interfaces with ETH node
         let wss_url = self.config.wss_url.to_owned();

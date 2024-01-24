@@ -102,7 +102,7 @@ mod tests {
 
     use crossbeam::channel::{unbounded, Sender};
     use dozer_types::{
-        node::{NodeHandle, SourceStates},
+        node::{NodeHandle, SourceState, SourceStates},
         types::{Field, Record},
     };
 
@@ -229,8 +229,14 @@ mod tests {
     fn receiver_loop_increases_epoch_id() {
         let (mut test_loop, senders) = TestReceiverLoop::new(2);
         let mut source_states = SourceStates::default();
-        source_states.insert(NodeHandle::new(None, "0".to_string()), Default::default());
-        source_states.insert(NodeHandle::new(None, "1".to_string()), Default::default());
+        source_states.insert(
+            NodeHandle::new(None, "0".to_string()),
+            SourceState::NotStarted,
+        );
+        source_states.insert(
+            NodeHandle::new(None, "1".to_string()),
+            SourceState::NotStarted,
+        );
         let source_states = Arc::new(source_states);
         let decision_instant = SystemTime::now();
         let mut epoch0 = Epoch::new(0, source_states.clone(), None, None, decision_instant);
@@ -272,8 +278,14 @@ mod tests {
     fn receiver_loop_panics_on_inconsistent_commit_epoch() {
         let (mut test_loop, senders) = TestReceiverLoop::new(2);
         let mut source_states = SourceStates::new();
-        source_states.insert(NodeHandle::new(None, "0".to_string()), Default::default());
-        source_states.insert(NodeHandle::new(None, "1".to_string()), Default::default());
+        source_states.insert(
+            NodeHandle::new(None, "0".to_string()),
+            SourceState::NotStarted,
+        );
+        source_states.insert(
+            NodeHandle::new(None, "1".to_string()),
+            SourceState::NotStarted,
+        );
         let source_states = Arc::new(source_states);
         let decision_instant = SystemTime::now();
         let epoch0 = Epoch::new(0, source_states.clone(), None, None, decision_instant);

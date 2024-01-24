@@ -1,6 +1,5 @@
 use crate::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Source, SourceFactory,
-    SourceState,
 };
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 
@@ -10,7 +9,7 @@ use crate::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT
 
 use dozer_recordstore::ProcessorRecordStoreDeserializer;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::node::NodeHandle;
+use dozer_types::node::{NodeHandle, RestartableState};
 use dozer_types::tonic::async_trait;
 use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
 
@@ -60,7 +59,7 @@ impl SourceFactory for CreateErrSourceFactory {
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _last_checkpoint: SourceState,
+        _last_checkpoint: Option<RestartableState>,
     ) -> Result<Box<dyn Source>, BoxedError> {
         if self.panic {
             panic!("Generated error");

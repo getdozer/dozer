@@ -1,5 +1,4 @@
 use crate::MySQLConnectorError;
-use std::collections::HashMap;
 
 use super::{
     binlog::{get_binlog_format, get_master_binlog_position, BinlogIngestor, BinlogPosition},
@@ -8,7 +7,7 @@ use super::{
     helpers::{escape_identifier, qualify_table_name},
     schema::{ColumnDefinition, SchemaHelper, TableDefinition},
 };
-use dozer_ingestion_connector::dozer_types::log::info;
+use dozer_ingestion_connector::dozer_types::{log::info, node::RestartableState};
 use dozer_ingestion_connector::{
     async_trait,
     dozer_types::{
@@ -18,7 +17,6 @@ use dozer_ingestion_connector::{
     },
     utils::TableNotFound,
     CdcType, Connector, Ingestor, SourceSchema, SourceSchemaResult, TableIdentifier, TableInfo,
-    TableToIngest,
 };
 use mysql_async::{Opts, Pool};
 use mysql_common::Row;
@@ -193,9 +191,12 @@ impl Connector for MySQLConnector {
     async fn start(
         &self,
         ingestor: &Ingestor,
-        tables: Vec<TableToIngest>,
+        tables: Vec<TableInfo>,
+        last_checkpoint: Option<RestartableState>,
     ) -> Result<(), BoxedError> {
-        self.replicate(ingestor, tables).await.map_err(Into::into)
+        self.replicate(ingestor, tables, last_checkpoint)
+            .await
+            .map_err(Into::into)
     }
 }
 
@@ -213,7 +214,8 @@ impl MySQLConnector {
     async fn replicate(
         &self,
         ingestor: &Ingestor,
-        table_infos: Vec<TableToIngest>,
+        table_infos: Vec<TableInfo>,
+        last_checkpoint: Option<RestartableState>,
     ) -> Result<(), MySQLConnectorError> {
         let mut table_definitions = self
             .schema_helper()
@@ -230,20 +232,12 @@ impl MySQLConnector {
             )
             .await?;
 
-        let binlog_positions_map: HashMap<String, Option<BinlogPosition>> = table_infos
-            .iter()
-            .map(|s| {
-                (
-                    s.name.clone(),
-                    s.state.clone().map(|state| {
-                        crate::binlog::BinlogPosition::try_from(state.clone()).unwrap()
-                    }),
-                )
-            })
-            .collect();
+        let binlog_position = last_checkpoint
+            .map(|state| crate::binlog::BinlogPosition::try_from(state.clone()))
+            .transpose()?;
 
         let binlog_positions = self
-            .replicate_tables(ingestor, &table_definitions, binlog_positions_map)
+            .replicate_tables(ingestor, &table_definitions, binlog_position)
             .await?;
 
         let binlog_position = self.sync_with_binlog(ingestor, binlog_positions).await?;
@@ -259,7 +253,7 @@ impl MySQLConnector {
         &self,
         ingestor: &Ingestor,
         table_definitions: &[TableDefinition],
-        binlog_positions_map: HashMap<String, Option<BinlogPosition>>,
+        binlog_position: Option<BinlogPosition>,
     ) -> Result<Vec<(TableDefinition, BinlogPosition)>, MySQLConnectorError> {
         let mut binlog_position_per_table = Vec::new();
 
@@ -267,8 +261,8 @@ impl MySQLConnector {
 
         let mut snapshot_started = false;
         for (table_index, td) in table_definitions.iter().enumerate() {
-            let position = match binlog_positions_map.get(&td.table_name) {
-                Some(Some(position)) => position.clone(),
+            let position = match &binlog_position {
+                Some(position) => position.clone(),
                 _ => {
                     if !snapshot_started {
                         if ingestor
@@ -438,7 +432,6 @@ mod tests {
         connection::Conn,
         tests::{create_test_table, mariadb_test_config, mysql_test_config, TestConfig},
     };
-    use std::collections::HashMap;
 
     use super::MySQLConnector;
     use dozer_ingestion_connector::{
@@ -449,7 +442,6 @@ mod tests {
             },
         },
         tokio, CdcType, Connector, IngestionIterator, Ingestor, SourceSchema, TableIdentifier,
-        TableToIngest,
     };
     use serial_test::serial;
     use std::time::Duration;
@@ -568,7 +560,7 @@ mod tests {
         .unwrap();
 
         let result = connector
-            .replicate_tables(&ingestor, &table_definitions, HashMap::new())
+            .replicate_tables(&ingestor, &table_definitions, None)
             .await;
         assert!(result.is_ok(), "unexpected error: {result:?}");
 
@@ -651,20 +643,7 @@ mod tests {
                 .build()
                 .unwrap()
                 .block_on(async move {
-                    let _ = connector
-                        .replicate(
-                            &ingestor,
-                            table_infos
-                                .iter()
-                                .map(|t| TableToIngest {
-                                    schema: t.schema.clone(),
-                                    name: t.name.clone(),
-                                    column_names: t.column_names.clone(),
-                                    state: None,
-                                })
-                                .collect::<Vec<TableToIngest>>(),
-                        )
-                        .await;
+                    let _ = connector.replicate(&ingestor, table_infos, None).await;
                 });
         });
 

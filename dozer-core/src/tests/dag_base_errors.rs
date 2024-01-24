@@ -2,7 +2,7 @@ use crate::channels::ProcessorChannelForwarder;
 use crate::epoch::Epoch;
 use crate::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Sink, SinkFactory,
-    Source, SourceFactory, SourceState,
+    Source, SourceFactory,
 };
 use crate::tests::dag_base_run::NoopProcessorFactory;
 use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
@@ -13,7 +13,7 @@ use dozer_log::tokio::sync::mpsc::Sender;
 use dozer_recordstore::{ProcessorRecordStore, ProcessorRecordStoreDeserializer};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::models::ingestion_types::IngestionMessage;
-use dozer_types::node::NodeHandle;
+use dozer_types::node::{NodeHandle, RestartableState};
 use dozer_types::tonic::async_trait;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
@@ -319,7 +319,7 @@ impl SourceFactory for ErrGeneratorSourceFactory {
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _last_checkpoint: SourceState,
+        _last_checkpoint: Option<RestartableState>,
     ) -> Result<Box<dyn Source>, BoxedError> {
         Ok(Box::new(ErrGeneratorSource {
             count: self.count,

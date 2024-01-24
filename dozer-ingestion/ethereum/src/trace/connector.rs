@@ -4,11 +4,11 @@ use dozer_ingestion_connector::{
         errors::internal::BoxedError,
         log::{error, info, warn},
         models::ingestion_types::{default_batch_size, EthTraceConfig, IngestionMessage},
+        node::RestartableState,
         types::FieldType,
     },
     utils::TableNotFound,
     CdcType, Connector, Ingestor, SourceSchema, SourceSchemaResult, TableIdentifier, TableInfo,
-    TableToIngest,
 };
 
 use super::super::helper as conn_helper;
@@ -101,7 +101,8 @@ impl Connector for EthTraceConnector {
     async fn start(
         &self,
         ingestor: &Ingestor,
-        _tables: Vec<TableToIngest>,
+        _tables: Vec<TableInfo>,
+        _last_checkpoint: Option<RestartableState>,
     ) -> Result<(), BoxedError> {
         let config = self.config.clone();
         let conn_name = self.conn_name.clone();

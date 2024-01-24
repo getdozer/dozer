@@ -23,7 +23,6 @@ use dozer_ingestion_connector::{
     },
     utils::warn_dropped_primary_index,
     CdcType, Connector, Ingestor, SourceSchema, SourceSchemaResult, TableIdentifier, TableInfo,
-    TableToIngest,
 };
 use dozer_log::{
     reader::{LogReaderBuilder, LogReaderOptions},
@@ -126,14 +125,21 @@ impl Connector for NestedDozerConnector {
     async fn start(
         &self,
         ingestor: &Ingestor,
-        tables: Vec<TableToIngest>,
+        tables: Vec<TableInfo>,
+        last_checkpoint: Option<RestartableState>,
     ) -> Result<(), BoxedError> {
         let mut joinset = JoinSet::new();
         let (sender, mut receiver) = channel(100);
 
         for (table_index, table) in tables.into_iter().enumerate() {
             let builder = self.get_reader_builder(table.name.clone()).await?;
-            joinset.spawn(read_table(table_index, table, builder, sender.clone()));
+            joinset.spawn(read_table(
+                table_index,
+                table,
+                last_checkpoint.clone(),
+                builder,
+                sender.clone(),
+            ));
         }
 
         let ingestor = ingestor.clone();
@@ -204,12 +210,12 @@ impl NestedDozerConnector {
 
 async fn read_table(
     table_index: usize,
-    table_info: TableToIngest,
+    table_info: TableInfo,
+    last_checkpoint: Option<RestartableState>,
     reader_builder: LogReaderBuilder,
     sender: Sender<IngestionMessage>,
 ) -> Result<(), NestedDozerConnectorError> {
-    let state = table_info
-        .state
+    let state = last_checkpoint
         .map(|state| decode_state(&state))
         .transpose()?;
     let starting_point = state.map(|pos| pos + 1).unwrap_or(0);

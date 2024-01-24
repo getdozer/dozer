@@ -49,11 +49,8 @@ pub enum ExecutionError {
     CheckpointedLogReader(#[from] CheckpointedLogReaderError),
     #[error("Cannot deserialize checkpoint: {0}")]
     CorruptedCheckpoint(#[source] bincode::error::DecodeError),
-    #[error("Table {table_name} of source {source_name} cannot restart. You have to clean data from previous runs by running `dozer clean`")]
-    SourceCannotRestart {
-        source_name: NodeHandle,
-        table_name: String,
-    },
+    #[error("Source {0} cannot restart. You have to clean data from previous runs by running `dozer clean`")]
+    SourceCannotRestart(NodeHandle),
     #[error("Failed to create checkpoint: {0}")]
     FailedToCreateCheckpoint(BoxedError),
     #[error("Failed to serialize record writer: {0}")]

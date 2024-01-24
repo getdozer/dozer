@@ -1,8 +1,9 @@
-use crate::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory, SourceState};
+use crate::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory};
 use crate::DEFAULT_PORT_HANDLE;
 use dozer_log::tokio::{self, sync::mpsc::Sender};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::models::ingestion_types::IngestionMessage;
+use dozer_types::node::RestartableState;
 use dozer_types::tonic::async_trait;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
@@ -75,13 +76,10 @@ impl SourceFactory for GeneratorSourceFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-        last_checkpoint: SourceState,
+        last_checkpoint: Option<RestartableState>,
     ) -> Result<Box<dyn Source>, BoxedError> {
-        let state = last_checkpoint.values().next().and_then(|state| {
-            state
-                .as_ref()
-                .map(|state| u64::from_be_bytes(state.0.as_slice().try_into().unwrap()))
-        });
+        let state =
+            last_checkpoint.map(|state| u64::from_be_bytes(state.0.as_slice().try_into().unwrap()));
         let start = state.map(|state| state + 1).unwrap_or(0);
         Ok(Box::new(GeneratorSource {
             start,
@@ -209,7 +207,7 @@ impl SourceFactory for DualPortGeneratorSourceFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-        _last_checkpoint: SourceState,
+        _last_checkpoint: Option<RestartableState>,
     ) -> Result<Box<dyn Source>, BoxedError> {
         Ok(Box::new(DualPortGeneratorSource {
             count: self.count,
@@ -294,7 +292,7 @@ impl SourceFactory for ConnectivityTestSourceFactory {
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _last_checkpoint: SourceState,
+        _last_checkpoint: Option<RestartableState>,
     ) -> Result<Box<dyn Source>, BoxedError> {
         unimplemented!("This struct is for connectivity test, only output ports are defined")
     }

@@ -9,7 +9,7 @@ use dozer_ingestion_connector::dozer_types::models::ingestion_types::{
 };
 use dozer_ingestion_connector::futures::future::BoxFuture;
 use dozer_ingestion_connector::futures::{FutureExt, StreamExt};
-use dozer_ingestion_connector::{tokio, Ingestor, TableToIngest};
+use dozer_ingestion_connector::{tokio, Ingestor, TableInfo};
 use web3::transports::WebSocket;
 use web3::types::{Log, H256};
 use web3::Web3;
@@ -27,7 +27,7 @@ pub struct EthDetails<'a> {
     filter: EthFilter,
     ingestor: &'a Ingestor,
     contracts: HashMap<String, ContractTuple>,
-    pub tables: Vec<TableToIngest>,
+    pub tables: Vec<TableInfo>,
     pub schema_map: HashMap<H256, usize>,
     pub conn_name: String,
 }
@@ -39,7 +39,7 @@ impl<'a> EthDetails<'a> {
         filter: EthFilter,
         ingestor: &'a Ingestor,
         contracts: HashMap<String, ContractTuple>,
-        tables: Vec<TableToIngest>,
+        tables: Vec<TableInfo>,
         schema_map: HashMap<H256, usize>,
         conn_name: String,
     ) -> Self {

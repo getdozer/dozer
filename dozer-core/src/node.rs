@@ -52,11 +52,9 @@ pub trait SourceFactory: Send + Sync + Debug {
     fn build(
         &self,
         output_schemas: HashMap<PortHandle, Schema>,
-        last_checkpoint: SourceState,
+        last_checkpoint: Option<RestartableState>,
     ) -> Result<Box<dyn Source>, BoxedError>;
 }
-
-pub type SourceState = HashMap<PortHandle, Option<RestartableState>>;
 
 #[async_trait]
 pub trait Source: Send + Sync + Debug {

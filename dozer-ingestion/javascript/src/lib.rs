@@ -5,11 +5,11 @@ use dozer_ingestion_connector::{
     dozer_types::{
         errors::internal::BoxedError,
         models::ingestion_types::{default_bootstrap_path, JavaScriptConfig},
+        node::RestartableState,
         types::{FieldDefinition, FieldType, Schema, SourceDefinition},
     },
     tokio::runtime::Runtime,
     CdcType, Connector, Ingestor, SourceSchema, SourceSchemaResult, TableIdentifier, TableInfo,
-    TableToIngest,
 };
 use js_extension::JsExtension;
 
@@ -77,7 +77,8 @@ impl Connector for JavaScriptConnector {
     async fn start(
         &self,
         ingestor: &Ingestor,
-        _tables: Vec<TableToIngest>,
+        _tables: Vec<TableInfo>,
+        _last_checkpoint: Option<RestartableState>,
     ) -> Result<(), BoxedError> {
         let js_path = self
             .config

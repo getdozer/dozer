@@ -1,9 +1,7 @@
 use dozer_api::shutdown::ShutdownReceiver;
-use dozer_core::node::{
-    OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory, SourceState,
-};
+use dozer_core::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory};
 use dozer_ingestion::{
-    get_connector, CdcType, Connector, IngestionIterator, TableIdentifier, TableInfo, TableToIngest,
+    get_connector, CdcType, Connector, IngestionIterator, TableIdentifier, TableInfo,
 };
 use dozer_ingestion::{IngestionConfig, Ingestor};
 
@@ -12,6 +10,7 @@ use dozer_types::errors::internal::BoxedError;
 use dozer_types::log::{error, info};
 use dozer_types::models::connection::Connection;
 use dozer_types::models::ingestion_types::IngestionMessage;
+use dozer_types::node::RestartableState;
 use dozer_types::parking_lot::Mutex;
 use dozer_types::thiserror::{self, Error};
 use dozer_types::tracing::{span, Level};
@@ -174,20 +173,16 @@ impl SourceFactory for ConnectorSourceFactory {
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
-        mut last_checkpoint: SourceState,
+        last_checkpoint: Option<RestartableState>,
     ) -> Result<Box<dyn Source>, BoxedError> {
-        // Construct the tables to ingest.
+        // Construct table info.
         let tables = self
             .tables
             .iter()
-            .map(|table| {
-                let state = last_checkpoint.remove(&table.port).flatten();
-                TableToIngest {
-                    schema: table.schema_name.clone(),
-                    name: table.name.clone(),
-                    column_names: table.columns.clone(),
-                    state,
-                }
+            .map(|table| TableInfo {
+                schema: table.schema_name.clone(),
+                name: table.name.clone(),
+                column_names: table.columns.clone(),
             })
             .collect();
         let ports = self.tables.iter().map(|table| table.port).collect();
@@ -200,6 +195,7 @@ impl SourceFactory for ConnectorSourceFactory {
 
         Ok(Box::new(ConnectorSource {
             tables,
+            last_checkpoint,
             ports,
             connector,
             connection_name: self.connection_name.clone(),
@@ -212,7 +208,8 @@ impl SourceFactory for ConnectorSourceFactory {
 
 #[derive(Debug)]
 pub struct ConnectorSource {
-    tables: Vec<TableToIngest>,
+    tables: Vec<TableInfo>,
+    last_checkpoint: Option<RestartableState>,
     ports: Vec<PortHandle>,
     connector: Box<dyn Connector>,
     connection_name: String,
@@ -254,7 +251,8 @@ impl Source for ConnectorSource {
             eprintln!("Aborted connector {}", name);
         });
         let result = Abortable::new(
-            self.connector.start(&ingestor, self.tables.clone()),
+            self.connector
+                .start(&ingestor, self.tables.clone(), self.last_checkpoint.clone()),
             abort_registration,
         )
         .await;
@@ -281,7 +279,7 @@ async fn forward_message_to_pipeline(
     mut iterator: IngestionIterator,
     sender: Sender<(PortHandle, IngestionMessage)>,
     connection_name: String,
-    tables: Vec<TableToIngest>,
+    tables: Vec<TableInfo>,
     ports: Vec<PortHandle>,
     labels: LabelsAndProgress,
 ) {

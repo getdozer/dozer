@@ -77,24 +77,24 @@ impl From<Vec<u8>> for RestartableState {
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, bincode::Encode, bincode::Decode,
 )]
-/// A table's ingestion state.
-pub enum TableState {
-    /// This table hasn't been ingested.
+/// A source's ingestion state.
+pub enum SourceState {
+    /// This source hasn't been ingested.
     NotStarted,
-    /// This table has some data ingested, and it can't be restarted.
+    /// This source has some data ingested, and it can't be restarted.
     NonRestartable,
-    /// This table has some data ingested, and it can be restarted if it's given the state.
+    /// This source has some data ingested, and it can be restarted if it's given the state.
     Restartable(RestartableState),
 }
 
-/// Map from a `Source` node's handle to its tables' states.
+/// Map from a `Source` node's handle to its state.
 ///
 /// This uniquely identifies the state of the Dozer pipeline.
 /// We generate this map on every commit, and it's:
 ///
 /// - Written to `Log` so consumers of log know where the pipeline is when pipeline restarts, and can rollback if some events were not persisted to checkpoints.
 /// - Written to checkpoints so when pipeline is restarted, we know where to tell the source to start from.
-pub type SourceStates = HashMap<NodeHandle, HashMap<String, TableState>>;
+pub type SourceStates = HashMap<NodeHandle, SourceState>;
 
 #[test]
 fn test_handle_to_from_bytes() {

@@ -8,6 +8,7 @@ use dozer_ingestion_connector::{
         errors::{internal::BoxedError, types::DeserializationError},
         json_types::{serde_json_to_json_value, JsonValue},
         models::ingestion_types::IngestionMessage,
+        node::RestartableState,
         thiserror::{self, Error},
         types::{Field, FieldDefinition, FieldType, Operation, Record, SourceDefinition},
     },
@@ -17,7 +18,6 @@ use dozer_ingestion_connector::{
         sync::mpsc::{channel, Sender},
     },
     CdcType, Connector, Ingestor, SourceSchema, SourceSchemaResult, TableIdentifier, TableInfo,
-    TableToIngest,
 };
 use mongodb::{
     change_stream::event::ChangeStreamEvent,
@@ -592,7 +592,8 @@ impl Connector for MongodbConnector {
     async fn start(
         &self,
         ingestor: &Ingestor,
-        tables: Vec<TableToIngest>,
+        tables: Vec<TableInfo>,
+        _last_checkpoint: Option<RestartableState>,
     ) -> Result<(), BoxedError> {
         // Snapshot: find
         //

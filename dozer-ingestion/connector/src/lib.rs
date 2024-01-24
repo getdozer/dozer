@@ -100,7 +100,8 @@ pub trait Connector: Send + Sync + Debug {
     async fn start(
         &self,
         ingestor: &Ingestor,
-        tables: Vec<TableToIngest>,
+        tables: Vec<TableInfo>,
+        last_checkpoint: Option<RestartableState>,
     ) -> Result<(), BoxedError>;
 }
 
@@ -135,28 +136,4 @@ pub struct TableInfo {
     pub name: String,
     /// The column names to be mapped.
     pub column_names: Vec<String>,
-}
-
-#[derive(Debug, Clone)]
-/// `TableInfo` with an optional checkpoint info.
-pub struct TableToIngest {
-    /// The `schema` scope of the table.
-    pub schema: Option<String>,
-    /// The table name, must be unique under the `schema` scope, or global scope if `schema` is `None`.
-    pub name: String,
-    /// The column names to be mapped.
-    pub column_names: Vec<String>,
-    /// The state to restart after.
-    pub state: Option<RestartableState>,
-}
-
-impl TableToIngest {
-    pub fn from_scratch(table_info: TableInfo) -> Self {
-        Self {
-            schema: table_info.schema,
-            name: table_info.name,
-            column_names: table_info.column_names,
-            state: None,
-        }
-    }
 }

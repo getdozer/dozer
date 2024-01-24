@@ -69,26 +69,12 @@ impl BuilderDag {
             let node = node.weight;
             let node = match node.kind {
                 DagNodeKind::Source(source) => {
-                    let mut last_checkpoint_by_name = checkpoint.get_source_state(&node.handle)?;
-                    let mut last_checkpoint = HashMap::new();
-                    for port_def in source.get_output_ports() {
-                        let port_name = source.get_output_port_name(&port_def.handle);
-                        last_checkpoint.insert(
-                            port_def.handle,
-                            last_checkpoint_by_name
-                                .as_mut()
-                                .and_then(|last_checkpoint| {
-                                    last_checkpoint.remove(&port_name).flatten().cloned()
-                                }),
-                        );
-                    }
-
                     let source = source
                         .build(
                             output_schemas
                                 .remove(&node_index)
                                 .expect("we collected all output schemas"),
-                            last_checkpoint,
+                            checkpoint.get_source_state(&node.handle)?.cloned(),
                         )
                         .map_err(ExecutionError::Factory)?;
 

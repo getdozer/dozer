@@ -5,7 +5,7 @@ use dozer_ingestion_connector::dozer_types::log::error;
 use dozer_ingestion_connector::dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
 };
-use dozer_ingestion_connector::{CdcType, SourceSchema, TableToIngest};
+use dozer_ingestion_connector::{CdcType, SourceSchema, TableInfo};
 use web3::ethabi::RawLog;
 use web3::types::Log;
 
@@ -60,7 +60,7 @@ pub fn get_contract_event_schemas(
 pub fn decode_event(
     log: Log,
     contracts: HashMap<String, ContractTuple>,
-    tables: Vec<TableToIngest>,
+    tables: Vec<TableInfo>,
 ) -> Option<(usize, Operation)> {
     let address = format!("{:?}", log.address);
 

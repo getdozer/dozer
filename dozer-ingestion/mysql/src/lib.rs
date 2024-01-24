@@ -55,6 +55,9 @@ pub enum MySQLConnectorError {
 
     #[error("Failed to send snapshot completed ingestion message")]
     SnapshotIngestionMessageError,
+
+    #[error("State error: {0}")]
+    State(#[from] MysqlStateError),
 }
 
 #[derive(Error, Debug)]
