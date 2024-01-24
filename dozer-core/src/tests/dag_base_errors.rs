@@ -439,6 +439,10 @@ impl SinkFactory for ErrSinkFactory {
             panic: self.panic,
         }))
     }
+
+    fn type_name(&self) -> String {
+        "error".to_string()
+    }
 }
 
 #[derive(Debug)]
