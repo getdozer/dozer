@@ -11,7 +11,7 @@ use dozer_ingestion_connector::{
     futures::StreamExt,
     tokio,
     utils::TableNotFound,
-    Ingestor, TableToIngest,
+    Ingestor, TableInfo,
 };
 
 pub struct DeltaLakeReader {
@@ -23,11 +23,7 @@ impl DeltaLakeReader {
         Self { config }
     }
 
-    pub async fn read(
-        &self,
-        table: &[TableToIngest],
-        ingestor: &Ingestor,
-    ) -> Result<(), BoxedError> {
+    pub async fn read(&self, table: &[TableInfo], ingestor: &Ingestor) -> Result<(), BoxedError> {
         for (table_index, table) in table.iter().enumerate() {
             self.read_impl(table_index, table, ingestor).await?;
         }
@@ -37,11 +33,9 @@ impl DeltaLakeReader {
     async fn read_impl(
         &self,
         table_index: usize,
-        table: &TableToIngest,
+        table: &TableInfo,
         ingestor: &Ingestor,
     ) -> Result<(), BoxedError> {
-        assert!(table.state.is_none());
-
         let table_path = table_path(&self.config, &table.name)?;
         let ctx = SessionContext::new();
         let delta_table = deltalake::open_table(table_path).await?;

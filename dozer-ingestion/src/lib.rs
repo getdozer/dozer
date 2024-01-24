@@ -39,6 +39,7 @@ const DEFAULT_POSTGRES_SNAPSHOT_BATCH_SIZE: u32 = 100_000;
 pub fn get_connector(
     runtime: Arc<Runtime>,
     connection: Connection,
+    state: Option<Vec<u8>>,
 ) -> Result<Box<dyn Connector>, ConnectorError> {
     let config = connection.config;
     match config.clone() {
@@ -54,7 +55,7 @@ pub fn get_connector(
             if let Some(dbname) = postgres_config.config.get_dbname() {
                 debug!("Connecting to postgres database - {}", dbname.to_string());
             }
-            Ok(Box::new(PostgresConnector::new(postgres_config)))
+            Ok(Box::new(PostgresConnector::new(postgres_config, state)?))
         }
         #[cfg(feature = "ethereum")]
         ConnectionConfig::Ethereum(eth_config) => match eth_config.provider {

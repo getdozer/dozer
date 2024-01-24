@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::Deref, sync::Arc};
+use std::{ops::Deref, sync::Arc};
 
 use dozer_log::{
     camino::Utf8Path,
@@ -12,7 +12,7 @@ use dozer_types::{
     bincode,
     log::{error, info},
     models::app_config::{DataStorage, RecordStore},
-    node::{NodeHandle, RestartableState, SourceStates, TableState},
+    node::{NodeHandle, OpIdentifier, SourceState, SourceStates},
     parking_lot::Mutex,
     tonic::codegen::tokio_stream::StreamExt,
     types::Field,
@@ -114,29 +114,21 @@ impl OptionCheckpoint {
     pub fn get_source_state(
         &self,
         node_handle: &NodeHandle,
-    ) -> Result<Option<HashMap<String, Option<&RestartableState>>>, ExecutionError> {
+    ) -> Result<Option<(&[u8], OpIdentifier)>, ExecutionError> {
         let Some(checkpoint) = self.checkpoint.as_ref() else {
             return Ok(None);
         };
-        let Some(source_state) = checkpoint.source_states.get(node_handle) else {
+        let Some(state) = checkpoint.source_states.get(node_handle) else {
             return Ok(None);
         };
 
-        let mut result = HashMap::new();
-        for (table_name, state) in source_state {
-            let state = match state {
-                TableState::NotStarted => None,
-                TableState::NonRestartable => {
-                    return Err(ExecutionError::SourceCannotRestart {
-                        source_name: node_handle.clone(),
-                        table_name: table_name.clone(),
-                    });
-                }
-                TableState::Restartable(state) => Some(state),
-            };
-            result.insert(table_name.clone(), state);
+        match state {
+            SourceState::NotStarted => Ok(None),
+            SourceState::NonRestartable => {
+                Err(ExecutionError::SourceCannotRestart(node_handle.clone()))
+            }
+            SourceState::Restartable { state, checkpoint } => Ok(Some((state, *checkpoint))),
         }
-        Ok(Some(result))
     }
 
     pub async fn load_processor_data(
@@ -374,7 +366,7 @@ pub async fn create_checkpoint_factory_for_test(
     let epoch_id = 42;
     let source_states: SourceStates = [(
         NodeHandle::new(Some(1), "id".to_string()),
-        Default::default(),
+        SourceState::NotStarted,
     )]
     .into_iter()
     .collect();

@@ -1,5 +1,4 @@
 use crate::MySQLConnectorError;
-use std::collections::HashMap;
 
 use super::{
     binlog::{get_binlog_format, get_master_binlog_position, BinlogIngestor, BinlogPosition},
@@ -8,7 +7,8 @@ use super::{
     helpers::{escape_identifier, qualify_table_name},
     schema::{ColumnDefinition, SchemaHelper, TableDefinition},
 };
-use dozer_ingestion_connector::dozer_types::log::info;
+use crate::MySQLConnectorError::BinlogQueryError;
+use dozer_ingestion_connector::dozer_types::{log::info, node::OpIdentifier};
 use dozer_ingestion_connector::{
     async_trait,
     dozer_types::{
@@ -18,7 +18,6 @@ use dozer_ingestion_connector::{
     },
     utils::TableNotFound,
     CdcType, Connector, Ingestor, SourceSchema, SourceSchemaResult, TableIdentifier, TableInfo,
-    TableToIngest,
 };
 use mysql_async::{Opts, Pool};
 use mysql_common::Row;
@@ -190,12 +189,19 @@ impl Connector for MySQLConnector {
         Ok(schemas)
     }
 
+    async fn serialize_state(&self) -> Result<Vec<u8>, BoxedError> {
+        Ok(vec![])
+    }
+
     async fn start(
         &self,
         ingestor: &Ingestor,
-        tables: Vec<TableToIngest>,
+        tables: Vec<TableInfo>,
+        last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
-        self.replicate(ingestor, tables).await.map_err(Into::into)
+        self.replicate(ingestor, tables, last_checkpoint)
+            .await
+            .map_err(Into::into)
     }
 }
 
@@ -213,7 +219,8 @@ impl MySQLConnector {
     async fn replicate(
         &self,
         ingestor: &Ingestor,
-        table_infos: Vec<TableToIngest>,
+        table_infos: Vec<TableInfo>,
+        last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), MySQLConnectorError> {
         let mut table_definitions = self
             .schema_helper()
@@ -230,36 +237,66 @@ impl MySQLConnector {
             )
             .await?;
 
-        let binlog_positions_map: HashMap<String, Option<BinlogPosition>> = table_infos
-            .iter()
-            .map(|s| {
-                (
-                    s.name.clone(),
-                    s.state.clone().map(|state| {
-                        crate::binlog::BinlogPosition::try_from(state.clone()).unwrap()
-                    }),
-                )
-            })
-            .collect();
+        let binlog_position = last_checkpoint
+            .map(crate::binlog::BinlogPosition::try_from)
+            .transpose()?;
 
         let binlog_positions = self
-            .replicate_tables(ingestor, &table_definitions, binlog_positions_map)
+            .replicate_tables(ingestor, &table_definitions, binlog_position)
             .await?;
 
         let binlog_position = self.sync_with_binlog(ingestor, binlog_positions).await?;
 
+        let prefix = self.get_prefix(binlog_position.binlog_id).await?;
+
         info!("Ingestion starting at {:?}", binlog_position);
-        self.ingest_binlog(ingestor, &mut table_definitions, binlog_position, None)
-            .await?;
+        self.ingest_binlog(
+            ingestor,
+            &mut table_definitions,
+            binlog_position,
+            None,
+            prefix,
+        )
+        .await?;
 
         Ok(())
+    }
+
+    async fn get_prefix(&self, suffix: u64) -> Result<String, MySQLConnectorError> {
+        let suffix_formatted = format!("{:0>6}", suffix);
+        let mut conn = self.connect().await?;
+        let mut rows = conn.exec_iter("SHOW BINARY LOGS".to_string(), vec![]);
+
+        let mut prefix = None;
+        while let Some(result) = rows.next().await {
+            let binlog_id = result
+                .map_err(MySQLConnectorError::QueryResultError)?
+                .get::<String, _>(0)
+                .ok_or(BinlogQueryError)?;
+
+            let row_binlog_suffix = &binlog_id[binlog_id.len() - 6..];
+
+            if row_binlog_suffix == suffix_formatted {
+                if prefix.is_some() {
+                    return Err(MySQLConnectorError::MultipleBinlogsWithSameSuffix);
+                }
+
+                prefix = Some(binlog_id[..(binlog_id.len() - 7)].to_string());
+            }
+        }
+
+        if let Some(prefix) = prefix {
+            Ok(prefix)
+        } else {
+            Err(MySQLConnectorError::BinlogNotFound)
+        }
     }
 
     async fn replicate_tables(
         &self,
         ingestor: &Ingestor,
         table_definitions: &[TableDefinition],
-        binlog_positions_map: HashMap<String, Option<BinlogPosition>>,
+        binlog_position: Option<BinlogPosition>,
     ) -> Result<Vec<(TableDefinition, BinlogPosition)>, MySQLConnectorError> {
         let mut binlog_position_per_table = Vec::new();
 
@@ -267,8 +304,8 @@ impl MySQLConnector {
 
         let mut snapshot_started = false;
         for (table_index, td) in table_definitions.iter().enumerate() {
-            let position = match binlog_positions_map.get(&td.table_name) {
-                Some(Some(position)) => position.clone(),
+            let position = match &binlog_position {
+                Some(position) => position.clone(),
                 _ => {
                     if !snapshot_started {
                         if ingestor
@@ -351,7 +388,7 @@ impl MySQLConnector {
                         }
                     }
 
-                    let binlog_position = get_master_binlog_position(&mut conn).await?;
+                    let (_prefix, binlog_position) = get_master_binlog_position(&mut conn).await?;
 
                     conn.query_drop("UNLOCK TABLES")
                         .await
@@ -384,7 +421,7 @@ impl MySQLConnector {
         assert!(!binlog_positions.is_empty());
 
         let position = {
-            let mut last_position = None;
+            let mut last_position: Option<BinlogPosition> = None;
             let mut synced_tables = Vec::new();
 
             for (table, position) in binlog_positions.into_iter() {
@@ -393,11 +430,14 @@ impl MySQLConnector {
                 if let Some(start_position) = last_position {
                     let end_position = position.clone();
 
+                    let prefix = self.get_prefix(start_position.binlog_id).await?;
+
                     self.ingest_binlog(
                         ingestor,
                         &mut synced_tables,
                         start_position,
                         Some(end_position),
+                        prefix,
                     )
                     .await?;
                 }
@@ -417,6 +457,7 @@ impl MySQLConnector {
         tables: &mut [TableDefinition],
         start_position: BinlogPosition,
         stop_position: Option<BinlogPosition>,
+        binlog_prefix: String,
     ) -> Result<(), MySQLConnectorError> {
         let server_id = self.server_id.unwrap_or_else(|| rand::thread_rng().gen());
 
@@ -426,6 +467,7 @@ impl MySQLConnector {
             stop_position,
             server_id,
             (&self.conn_pool, &self.conn_url),
+            binlog_prefix,
         );
 
         binlog_ingestor.ingest(tables, self.schema_helper()).await
@@ -438,7 +480,6 @@ mod tests {
         connection::Conn,
         tests::{create_test_table, mariadb_test_config, mysql_test_config, TestConfig},
     };
-    use std::collections::HashMap;
 
     use super::MySQLConnector;
     use dozer_ingestion_connector::{
@@ -449,7 +490,6 @@ mod tests {
             },
         },
         tokio, CdcType, Connector, IngestionIterator, Ingestor, SourceSchema, TableIdentifier,
-        TableToIngest,
     };
     use serial_test::serial;
     use std::time::Duration;
@@ -568,7 +608,7 @@ mod tests {
         .unwrap();
 
         let result = connector
-            .replicate_tables(&ingestor, &table_definitions, HashMap::new())
+            .replicate_tables(&ingestor, &table_definitions, None)
             .await;
         assert!(result.is_ok(), "unexpected error: {result:?}");
 
@@ -651,20 +691,7 @@ mod tests {
                 .build()
                 .unwrap()
                 .block_on(async move {
-                    let _ = connector
-                        .replicate(
-                            &ingestor,
-                            table_infos
-                                .iter()
-                                .map(|t| TableToIngest {
-                                    schema: t.schema.clone(),
-                                    name: t.name.clone(),
-                                    column_names: t.column_names.clone(),
-                                    state: None,
-                                })
-                                .collect::<Vec<TableToIngest>>(),
-                        )
-                        .await;
+                    let _ = connector.replicate(&ingestor, table_infos, None).await;
                 });
         });
 

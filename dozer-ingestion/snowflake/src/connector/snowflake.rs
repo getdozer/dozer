@@ -4,17 +4,15 @@ use dozer_ingestion_connector::{
         errors::internal::BoxedError,
         log::{info, warn},
         models::ingestion_types::{default_snowflake_poll_interval, SnowflakeConfig},
+        node::OpIdentifier,
         types::FieldType,
     },
     tokio, Connector, Ingestor, SourceSchema, SourceSchemaResult, TableIdentifier, TableInfo,
-    TableToIngest,
 };
 use odbc::create_environment_v3;
 
 use crate::{
-    connection::client::Client,
-    schema_helper::SchemaHelper,
-    stream_consumer::{decode_state, StreamConsumer},
+    connection::client::Client, schema_helper::SchemaHelper, stream_consumer::StreamConsumer,
     SnowflakeError, SnowflakeStreamError,
 };
 
@@ -117,16 +115,21 @@ impl Connector for SnowflakeConnector {
             .collect())
     }
 
+    async fn serialize_state(&self) -> Result<Vec<u8>, BoxedError> {
+        Ok(vec![])
+    }
+
     async fn start(
         &self,
         ingestor: &Ingestor,
-        tables: Vec<TableToIngest>,
+        tables: Vec<TableInfo>,
+        last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
         spawn_blocking({
             let name = self.name.clone();
             let config = self.config.clone();
             let ingestor = ingestor.clone();
-            move || run(name, config, tables, ingestor)
+            move || run(name, config, tables, last_checkpoint, ingestor)
         })
         .await
         .map_err(Into::into)
@@ -136,7 +139,8 @@ impl Connector for SnowflakeConnector {
 fn run(
     name: String,
     config: SnowflakeConfig,
-    tables: Vec<TableToIngest>,
+    tables: Vec<TableInfo>,
+    last_checkpoint: Option<OpIdentifier>,
     ingestor: Ingestor,
 ) -> Result<(), SnowflakeError> {
     // SNAPSHOT part - run it when stream table doesn't exist
@@ -152,7 +156,8 @@ fn run(
         for (idx, table) in tables.iter().enumerate() {
             // We only check stream status on first iteration
             if iteration == 0 {
-                let state = table.state.as_ref().map(decode_state).transpose()?;
+                let state =
+                    last_checkpoint.map(|checkpoint| (checkpoint.txid, checkpoint.seq_in_tx));
                 match state {
                     None | Some((0, _)) => {
                         info!("[{}][{}] Creating new stream", name, table.name);

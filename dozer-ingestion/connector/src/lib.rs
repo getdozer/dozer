@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::node::RestartableState;
+use dozer_types::node::OpIdentifier;
 use dozer_types::serde;
 use dozer_types::serde::{Deserialize, Serialize};
 pub use dozer_types::tonic::async_trait;
@@ -96,11 +96,15 @@ pub trait Connector: Send + Sync + Debug {
         Ok((table_infos, schemas))
     }
 
+    /// Serializes any state that's required to re-instantiate this connector. Should not be confused with `last_checkpoint`.
+    async fn serialize_state(&self) -> Result<Vec<u8>, BoxedError>;
+
     /// Starts outputting data from `tables` to `ingestor`. This method should never return unless there is an unrecoverable error.
     async fn start(
         &self,
         ingestor: &Ingestor,
-        tables: Vec<TableToIngest>,
+        tables: Vec<TableInfo>,
+        last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError>;
 }
 
@@ -135,28 +139,4 @@ pub struct TableInfo {
     pub name: String,
     /// The column names to be mapped.
     pub column_names: Vec<String>,
-}
-
-#[derive(Debug, Clone)]
-/// `TableInfo` with an optional checkpoint info.
-pub struct TableToIngest {
-    /// The `schema` scope of the table.
-    pub schema: Option<String>,
-    /// The table name, must be unique under the `schema` scope, or global scope if `schema` is `None`.
-    pub name: String,
-    /// The column names to be mapped.
-    pub column_names: Vec<String>,
-    /// The state to restart after.
-    pub state: Option<RestartableState>,
-}
-
-impl TableToIngest {
-    pub fn from_scratch(table_info: TableInfo) -> Self {
-        Self {
-            schema: table_info.schema,
-            name: table_info.name,
-            column_names: table_info.column_names,
-            state: None,
-        }
-    }
 }

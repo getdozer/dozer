@@ -1,8 +1,9 @@
-use crate::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory, SourceState};
+use crate::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory};
 use crate::DEFAULT_PORT_HANDLE;
 use dozer_log::tokio::{self, sync::mpsc::Sender};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::models::ingestion_types::IngestionMessage;
+use dozer_types::node::OpIdentifier;
 use dozer_types::tonic::async_trait;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
@@ -75,16 +76,9 @@ impl SourceFactory for GeneratorSourceFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-        last_checkpoint: SourceState,
+        _state: Option<Vec<u8>>,
     ) -> Result<Box<dyn Source>, BoxedError> {
-        let state = last_checkpoint.values().next().and_then(|state| {
-            state
-                .as_ref()
-                .map(|state| u64::from_be_bytes(state.0.as_slice().try_into().unwrap()))
-        });
-        let start = state.map(|state| state + 1).unwrap_or(0);
         Ok(Box::new(GeneratorSource {
-            start,
             count: self.count,
             running: self.running.clone(),
         }))
@@ -93,18 +87,25 @@ impl SourceFactory for GeneratorSourceFactory {
 
 #[derive(Debug)]
 pub(crate) struct GeneratorSource {
-    start: u64,
     count: u64,
     running: Arc<AtomicBool>,
 }
 
 #[async_trait]
 impl Source for GeneratorSource {
+    async fn serialize_state(&self) -> Result<Vec<u8>, BoxedError> {
+        Ok(vec![])
+    }
+
     async fn start(
         &self,
         sender: Sender<(PortHandle, IngestionMessage)>,
+        last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
-        for n in self.start..(self.start + self.count) {
+        let start = last_checkpoint
+            .map(|checkpoint| checkpoint.seq_in_tx + 1)
+            .unwrap_or(0);
+        for n in start..(start + self.count) {
             sender
                 .send((
                     GENERATOR_SOURCE_OUTPUT_PORT,
@@ -116,7 +117,7 @@ impl Source for GeneratorSource {
                                 Field::String(format!("value_{n}")),
                             ]),
                         },
-                        state: Some(n.to_be_bytes().to_vec().into()),
+                        state: Some(OpIdentifier::new(0, n)),
                     },
                 ))
                 .await?;
@@ -209,7 +210,7 @@ impl SourceFactory for DualPortGeneratorSourceFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-        _last_checkpoint: SourceState,
+        _state: Option<Vec<u8>>,
     ) -> Result<Box<dyn Source>, BoxedError> {
         Ok(Box::new(DualPortGeneratorSource {
             count: self.count,
@@ -226,9 +227,14 @@ pub(crate) struct DualPortGeneratorSource {
 
 #[async_trait]
 impl Source for DualPortGeneratorSource {
+    async fn serialize_state(&self) -> Result<Vec<u8>, BoxedError> {
+        Ok(vec![])
+    }
+
     async fn start(
         &self,
         sender: Sender<(PortHandle, IngestionMessage)>,
+        _last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
         for n in 1..(self.count + 1) {
             sender
@@ -242,7 +248,7 @@ impl Source for DualPortGeneratorSource {
                                 Field::String(format!("value_{n}")),
                             ]),
                         },
-                        state: Some(n.to_be_bytes().to_vec().into()),
+                        state: Some(OpIdentifier::new(0, n)),
                     },
                 ))
                 .await?;
@@ -257,7 +263,7 @@ impl Source for DualPortGeneratorSource {
                                 Field::String(format!("value_{n}")),
                             ]),
                         },
-                        state: Some(n.to_be_bytes().to_vec().into()),
+                        state: Some(OpIdentifier::new(0, n)),
                     },
                 ))
                 .await?;
@@ -294,7 +300,7 @@ impl SourceFactory for ConnectivityTestSourceFactory {
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _last_checkpoint: SourceState,
+        _state: Option<Vec<u8>>,
     ) -> Result<Box<dyn Source>, BoxedError> {
         unimplemented!("This struct is for connectivity test, only output ports are defined")
     }

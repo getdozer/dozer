@@ -1,28 +1,47 @@
+use dozer_ingestion_connector::dozer_types::node::OpIdentifier;
+
 use crate::binlog::BinlogPosition;
 use crate::MysqlStateError;
-use dozer_ingestion_connector::dozer_types::node::RestartableState;
 
-pub fn encode_state(pos: &BinlogPosition) -> RestartableState {
-    let mut state = vec![];
-    state.extend_from_slice(&pos.position.to_be_bytes());
-    state.extend_from_slice(&pos.seq_no.to_be_bytes());
-    state.extend(pos.clone().filename);
+pub fn encode_state(pos: &BinlogPosition) -> OpIdentifier {
+    let lsn = (pos.binlog_id << 32) | pos.position;
 
-    state.into()
+    OpIdentifier {
+        txid: lsn,
+        seq_in_tx: pos.seq_no,
+    }
 }
 
-impl TryFrom<RestartableState> for BinlogPosition {
+impl TryFrom<OpIdentifier> for BinlogPosition {
     type Error = MysqlStateError;
 
-    fn try_from(state: RestartableState) -> Result<Self, Self::Error> {
-        let position = u64::from_be_bytes(state.0[0..8].try_into()?);
-        let seq_no = u64::from_be_bytes(state.0[8..16].try_into()?);
-        let filename = state.0[16..].to_vec();
+    fn try_from(state: OpIdentifier) -> Result<Self, Self::Error> {
+        let binlog_id = state.txid >> 32;
+        let position = state.txid & 0x00000000ffffffff;
+        let seq_no = state.seq_in_tx;
 
         Ok(BinlogPosition {
+            binlog_id,
             position,
             seq_no,
-            filename,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_decode_encode() {
+        use super::*;
+        let pos = BinlogPosition {
+            binlog_id: 123,
+            position: 456,
+            seq_no: 789,
+        };
+
+        let state = encode_state(&pos);
+        let pos2 = BinlogPosition::try_from(state).unwrap();
+
+        assert_eq!(pos, pos2);
     }
 }

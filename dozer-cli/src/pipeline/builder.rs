@@ -104,7 +104,7 @@ impl<'a> PipelineBuilder<'a> {
 
         let mut connector_map = HashMap::new();
         for connection in self.connections {
-            let connector = get_connector(runtime.clone(), connection.clone())
+            let connector = get_connector(runtime.clone(), connection.clone(), None)
                 .map_err(|e| ConnectorSourceFactoryError::Connector(e.into()))?;
 
             if let Some(info_table) = get_connector_info_table(connection) {

@@ -8,7 +8,6 @@ use dozer_core::epoch::Epoch;
 use dozer_core::errors::ExecutionError;
 use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
-    SourceState,
 };
 
 use dozer_core::{Dag, DEFAULT_PORT_HANDLE};
@@ -21,6 +20,7 @@ use dozer_sql::builder::statement_to_pipeline;
 
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::models::ingestion_types::IngestionMessage;
+use dozer_types::node::OpIdentifier;
 use dozer_types::types::{Operation, Record, Schema, SourceDefinition};
 use std::collections::HashMap;
 use tempdir::TempDir;
@@ -106,7 +106,7 @@ impl SourceFactory for TestSourceFactory {
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _last_checkpoint: SourceState,
+        _state: Option<Vec<u8>>,
     ) -> Result<Box<dyn Source>, BoxedError> {
         Ok(Box::new(TestSource {
             name_to_port: self.name_to_port.to_owned(),
@@ -123,9 +123,14 @@ pub struct TestSource {
 
 #[async_trait]
 impl Source for TestSource {
+    async fn serialize_state(&self) -> Result<Vec<u8>, BoxedError> {
+        Ok(vec![])
+    }
+
     async fn start(
         &self,
         sender: tokio::sync::mpsc::Sender<(PortHandle, IngestionMessage)>,
+        _last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
         while let Ok(Some((schema_name, op))) = self.receiver.recv() {
             let port = self.name_to_port.get(&schema_name).expect("port not found");

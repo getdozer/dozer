@@ -11,7 +11,7 @@ mod tests {
 
     use crate::{
         connection::helper::{self, map_connection_config},
-        connector::{PostgresConfig, PostgresConnector},
+        connector::{create_publication, PostgresConfig, PostgresConnector},
         replication_slot_helper::ReplicationSlotHelper,
         test_utils::{create_slot, load_test_connection_config, retry_drop_active_slot},
         tests::client::TestPostgresClient,
@@ -30,7 +30,7 @@ mod tests {
             batch_size: 1000,
         };
 
-        let connector = PostgresConnector::new(postgres_config);
+        let connector = PostgresConnector::new(postgres_config, None).unwrap();
 
         // let result = connector.can_start_from((1, 0)).unwrap();
         // assert!(!result, "Cannot continue, because slot doesnt exist");
@@ -42,20 +42,21 @@ mod tests {
         let client = helper::connect(replication_conn_config.clone())
             .await
             .unwrap();
-        connector.create_publication(client, None).await.unwrap();
+        create_publication(client, &connector.name, None)
+            .await
+            .unwrap();
 
         // Creating slot
         let mut client = helper::connect(replication_conn_config.clone())
             .await
             .unwrap();
-        let slot_name = connector.get_slot_name();
-        let _parsed_lsn = create_slot(&mut client, &slot_name).await;
+        let _parsed_lsn = create_slot(&mut client, &connector.slot_name).await;
 
         // let result = connector
         //     .can_start_from((u64::from(parsed_lsn), 0))
         //     .unwrap();
 
-        ReplicationSlotHelper::drop_replication_slot(&mut client, &slot_name)
+        ReplicationSlotHelper::drop_replication_slot(&mut client, &connector.slot_name)
             .await
             .unwrap();
         // assert!(
@@ -84,7 +85,7 @@ mod tests {
             batch_size: 1000,
         };
 
-        let connector = PostgresConnector::new(postgres_config);
+        let connector = PostgresConnector::new(postgres_config, None).unwrap();
 
         let mut replication_conn_config = conn_config;
         replication_conn_config.replication_mode(ReplicationMode::Logical);
@@ -97,8 +98,7 @@ mod tests {
             schema: Some("public".to_string()),
             name: table_name.clone(),
         };
-        connector
-            .create_publication(client, Some(&[table_identifier]))
+        create_publication(client, &connector.name, Some(&[table_identifier]))
             .await
             .unwrap();
 
@@ -107,8 +107,7 @@ mod tests {
             .await
             .unwrap();
 
-        let slot_name = connector.get_slot_name();
-        let _parsed_lsn = create_slot(&mut client, &slot_name).await;
+        let _parsed_lsn = create_slot(&mut client, &connector.slot_name).await;
 
         // let config = IngestionConfig::default();
         // let (ingestor, mut iterator) = Ingestor::initialize_channel(config);
@@ -155,9 +154,10 @@ mod tests {
         //     }
         // }
 
-        if let Err(e) = ReplicationSlotHelper::drop_replication_slot(&mut client, &slot_name).await
+        if let Err(e) =
+            ReplicationSlotHelper::drop_replication_slot(&mut client, &connector.slot_name).await
         {
-            retry_drop_active_slot(e, &mut client, &slot_name)
+            retry_drop_active_slot(e, &mut client, &connector.slot_name)
                 .await
                 .unwrap();
         }

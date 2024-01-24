@@ -3,10 +3,11 @@ use crate::schema_helper::SchemaHelper;
 use dozer_ingestion_connector::{
     async_trait,
     dozer_types::{
-        errors::internal::BoxedError, models::ingestion_types::DeltaLakeConfig, types::FieldType,
+        errors::internal::BoxedError, models::ingestion_types::DeltaLakeConfig, node::OpIdentifier,
+        types::FieldType,
     },
     utils::{ListOrFilterColumns, TableNotFound},
-    Connector, Ingestor, SourceSchemaResult, TableIdentifier, TableInfo, TableToIngest,
+    Connector, Ingestor, SourceSchemaResult, TableIdentifier, TableInfo,
 };
 
 #[derive(Debug)]
@@ -108,11 +109,17 @@ impl Connector for DeltaLakeConnector {
         schema_helper.get_schemas(&table_infos).await
     }
 
+    async fn serialize_state(&self) -> Result<Vec<u8>, BoxedError> {
+        Ok(vec![])
+    }
+
     async fn start(
         &self,
         ingestor: &Ingestor,
-        tables: Vec<TableToIngest>,
+        tables: Vec<TableInfo>,
+        last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
+        assert!(last_checkpoint.is_none());
         let reader = DeltaLakeReader::new(self.config.clone());
         reader.read(&tables, ingestor).await
     }

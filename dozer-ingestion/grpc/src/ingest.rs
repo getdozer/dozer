@@ -9,7 +9,7 @@ use dozer_ingestion_connector::{
         tonic::{self, Streaming},
     },
     futures::StreamExt,
-    tokio, Ingestor, TableToIngest,
+    tokio, Ingestor, TableInfo,
 };
 
 use super::adapter::{GrpcIngestMessage, GrpcIngestor, IngestAdapter};
@@ -20,7 +20,7 @@ where
 {
     adapter: Arc<GrpcIngestor<T>>,
     ingestor: &'static Ingestor,
-    tables: Vec<TableToIngest>,
+    tables: Vec<TableInfo>,
 }
 impl<T> IngestorServiceImpl<T>
 where
@@ -29,7 +29,7 @@ where
     pub fn new(
         adapter: GrpcIngestor<T>,
         ingestor: &'static Ingestor,
-        tables: Vec<TableToIngest>,
+        tables: Vec<TableInfo>,
     ) -> Self {
         Self {
             adapter: Arc::new(adapter),

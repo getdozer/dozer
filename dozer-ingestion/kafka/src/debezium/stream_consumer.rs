@@ -4,6 +4,8 @@ use crate::stream_consumer::StreamConsumer;
 use crate::stream_consumer_helper::{is_network_failure, OffsetsMap, StreamConsumerHelper};
 use crate::{KafkaError, KafkaStreamError};
 
+use dozer_ingestion_connector::dozer_types::node::OpIdentifier;
+use dozer_ingestion_connector::TableInfo;
 use dozer_ingestion_connector::{
     async_trait,
     dozer_types::{
@@ -13,7 +15,7 @@ use dozer_ingestion_connector::{
         serde_json::Value,
         types::{Operation, Record},
     },
-    Ingestor, TableToIngest,
+    Ingestor,
 };
 use rdkafka::{ClientConfig, Message};
 
@@ -88,16 +90,12 @@ impl StreamConsumer for DebeziumStreamConsumer {
         &self,
         client_config: ClientConfig,
         ingestor: &Ingestor,
-        tables: Vec<TableToIngest>,
+        tables: Vec<TableInfo>,
+        last_checkpoint: Option<OpIdentifier>,
         _schema_registry_url: &Option<String>,
     ) -> Result<(), KafkaError> {
-        let topics: Vec<&str> = tables
-            .iter()
-            .map(|t| {
-                assert!(t.state.is_none());
-                t.name.as_str()
-            })
-            .collect();
+        assert!(last_checkpoint.is_none());
+        let topics: Vec<&str> = tables.iter().map(|t| t.name.as_str()).collect();
         let mut con = StreamConsumerHelper::start(&client_config, &topics).await?;
         let mut offsets = OffsetsMap::new();
         loop {

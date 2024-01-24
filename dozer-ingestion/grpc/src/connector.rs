@@ -5,6 +5,7 @@ use crate::Error;
 
 use super::adapter::{GrpcIngestor, IngestAdapter};
 use super::ingest::IngestorServiceImpl;
+use dozer_ingestion_connector::dozer_types::node::OpIdentifier;
 use dozer_ingestion_connector::utils::TableNotFound;
 use dozer_ingestion_connector::{
     async_trait, dozer_types,
@@ -19,7 +20,6 @@ use dozer_ingestion_connector::{
         tracing::Level,
     },
     Connector, Ingestor, SourceSchema, SourceSchemaResult, TableIdentifier, TableInfo,
-    TableToIngest,
 };
 use tower_http::trace::{self, TraceLayer};
 
@@ -62,11 +62,7 @@ where
         Ok(schemas_str)
     }
 
-    pub async fn serve(
-        &self,
-        ingestor: &Ingestor,
-        tables: Vec<TableToIngest>,
-    ) -> Result<(), Error> {
+    pub async fn serve(&self, ingestor: &Ingestor, tables: Vec<TableInfo>) -> Result<(), Error> {
         let host = self.config.host.clone().unwrap_or_else(default_ingest_host);
         let port = self.config.port.unwrap_or_else(default_ingest_port);
 
@@ -216,10 +212,15 @@ where
         Ok(result)
     }
 
+    async fn serialize_state(&self) -> Result<Vec<u8>, BoxedError> {
+        Ok(vec![])
+    }
+
     async fn start(
         &self,
         ingestor: &Ingestor,
-        tables: Vec<TableToIngest>,
+        tables: Vec<TableInfo>,
+        _last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
         self.serve(ingestor, tables).await.map_err(Into::into)
     }

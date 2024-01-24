@@ -63,38 +63,71 @@ impl Display for NodeHandle {
 }
 
 #[derive(
-    Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, bincode::Encode, bincode::Decode,
+    Clone,
+    Debug,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Default,
+    Serialize,
+    Deserialize,
+    bincode::Encode,
+    bincode::Decode,
 )]
-/// A table's restartable state, any binary data.
-pub struct RestartableState(pub Vec<u8>);
+/// A identifier made of two `u64`s.
+pub struct OpIdentifier {
+    /// High 64 bits of the identifier.
+    pub txid: u64,
+    /// Low 64 bits of the identifier.
+    pub seq_in_tx: u64,
+}
 
-impl From<Vec<u8>> for RestartableState {
-    fn from(value: Vec<u8>) -> Self {
-        Self(value)
+impl OpIdentifier {
+    pub fn new(txid: u64, seq_in_tx: u64) -> Self {
+        Self { txid, seq_in_tx }
+    }
+
+    pub fn to_bytes(&self) -> [u8; 16] {
+        let mut result = [0_u8; 16];
+        result[0..8].copy_from_slice(&self.txid.to_be_bytes());
+        result[8..16].copy_from_slice(&self.seq_in_tx.to_be_bytes());
+        result
+    }
+
+    pub fn from_bytes(bytes: [u8; 16]) -> Self {
+        let txid = u64::from_be_bytes(bytes[0..8].try_into().unwrap());
+        let seq_in_tx = u64::from_be_bytes(bytes[8..16].try_into().unwrap());
+        Self::new(txid, seq_in_tx)
     }
 }
 
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, bincode::Encode, bincode::Decode,
 )]
-/// A table's ingestion state.
-pub enum TableState {
-    /// This table hasn't been ingested.
+/// A source's ingestion state.
+pub enum SourceState {
+    /// This source hasn't been ingested.
     NotStarted,
-    /// This table has some data ingested, and it can't be restarted.
+    /// This source has some data ingested, and it can't be restarted.
     NonRestartable,
-    /// This table has some data ingested, and it can be restarted if it's given the state.
-    Restartable(RestartableState),
+    /// This source has some data ingested, and it can be restarted if it's given the state.
+    Restartable {
+        state: Vec<u8>,
+        checkpoint: OpIdentifier,
+    },
 }
 
-/// Map from a `Source` node's handle to its tables' states.
+/// Map from a `Source` node's handle to its state.
 ///
 /// This uniquely identifies the state of the Dozer pipeline.
 /// We generate this map on every commit, and it's:
 ///
 /// - Written to `Log` so consumers of log know where the pipeline is when pipeline restarts, and can rollback if some events were not persisted to checkpoints.
 /// - Written to checkpoints so when pipeline is restarted, we know where to tell the source to start from.
-pub type SourceStates = HashMap<NodeHandle, HashMap<String, TableState>>;
+pub type SourceStates = HashMap<NodeHandle, SourceState>;
 
 #[test]
 fn test_handle_to_from_bytes() {

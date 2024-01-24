@@ -1,6 +1,7 @@
 use dozer_ingestion_connector::async_trait;
 use dozer_ingestion_connector::dozer_types::errors::internal::BoxedError;
 use dozer_ingestion_connector::dozer_types::models::ingestion_types::KafkaConfig;
+use dozer_ingestion_connector::dozer_types::node::OpIdentifier;
 use dozer_ingestion_connector::dozer_types::types::FieldType;
 use dozer_ingestion_connector::Connector;
 use dozer_ingestion_connector::Ingestor;
@@ -8,7 +9,6 @@ use dozer_ingestion_connector::SourceSchema;
 use dozer_ingestion_connector::SourceSchemaResult;
 use dozer_ingestion_connector::TableIdentifier;
 use dozer_ingestion_connector::TableInfo;
-use dozer_ingestion_connector::TableToIngest;
 use rdkafka::consumer::BaseConsumer;
 use rdkafka::consumer::Consumer;
 use rdkafka::util::Timeout;
@@ -127,21 +127,33 @@ impl Connector for KafkaConnector {
             .collect())
     }
 
+    async fn serialize_state(&self) -> Result<Vec<u8>, BoxedError> {
+        Ok(vec![])
+    }
+
     async fn start(
         &self,
         ingestor: &Ingestor,
-        tables: Vec<TableToIngest>,
+        tables: Vec<TableInfo>,
+        last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
         let broker = self.config.broker.to_owned();
-        run(broker, tables, ingestor, &self.config.schema_registry_url)
-            .await
-            .map_err(Into::into)
+        run(
+            broker,
+            tables,
+            last_checkpoint,
+            ingestor,
+            &self.config.schema_registry_url,
+        )
+        .await
+        .map_err(Into::into)
     }
 }
 
 async fn run(
     broker: String,
-    tables: Vec<TableToIngest>,
+    tables: Vec<TableInfo>,
+    last_checkpoint: Option<OpIdentifier>,
     ingestor: &Ingestor,
     schema_registry_url: &Option<String>,
 ) -> Result<(), KafkaError> {
@@ -153,6 +165,12 @@ async fn run(
 
     let consumer = StreamConsumerBasic::default();
     consumer
-        .run(client_config, ingestor, tables, schema_registry_url)
+        .run(
+            client_config,
+            ingestor,
+            tables,
+            last_checkpoint,
+            schema_registry_url,
+        )
         .await
 }

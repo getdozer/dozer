@@ -4,11 +4,12 @@ use dozer_ingestion_connector::{
     async_trait,
     dozer_types::{
         models::ingestion_types::IngestionMessage,
+        node::OpIdentifier,
         serde::{Deserialize, Serialize},
         serde_json::{self, Value},
         types::{Field, Operation, Record},
     },
-    Ingestor, TableToIngest,
+    Ingestor, TableInfo,
 };
 use rdkafka::{ClientConfig, Message};
 
@@ -81,15 +82,15 @@ impl StreamConsumer for StreamConsumerBasic {
         &self,
         client_config: ClientConfig,
         ingestor: &Ingestor,
-        tables: Vec<TableToIngest>,
+        tables: Vec<TableInfo>,
+        last_checkpoint: Option<OpIdentifier>,
         schema_registry_url: &Option<String>,
     ) -> Result<(), KafkaError> {
+        assert!(last_checkpoint.is_none());
         let topics: Vec<String> = tables.iter().map(|t| t.name.clone()).collect();
 
         let mut schemas = HashMap::new();
         for (table_index, table) in tables.into_iter().enumerate() {
-            assert!(table.state.is_none());
-
             let schema = if let Some(url) = schema_registry_url {
                 SchemaRegistryBasic::get_single_schema(&table.name, url).await?
             } else {

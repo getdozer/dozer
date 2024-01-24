@@ -1,8 +1,7 @@
 use dozer_recordstore::ProcessorRecordStore;
 use dozer_types::log::info;
-use dozer_types::node::{NodeHandle, SourceStates, TableState};
+use dozer_types::node::{NodeHandle, SourceState, SourceStates};
 use dozer_types::parking_lot::Mutex;
-use std::collections::HashMap;
 use std::ops::DerefMut;
 use std::sync::{Arc, Barrier};
 use std::thread::sleep;
@@ -162,7 +161,7 @@ impl EpochManager {
     /// - `request_commit`: Whether the source wants to commit. The `EpochManager` checks if any source wants to commit and returns `Some` if so.
     pub fn wait_for_epoch_close(
         &self,
-        source_state: (NodeHandle, HashMap<String, TableState>),
+        source_state: (NodeHandle, SourceState),
         request_termination: bool,
         request_commit: bool,
     ) -> ClosedEpoch {
@@ -300,11 +299,9 @@ impl EpochManager {
 }
 
 fn is_restartable(source_states: &SourceStates) -> bool {
-    source_states.values().all(|table_states| {
-        table_states
-            .values()
-            .all(|table_state| table_state != &TableState::NonRestartable)
-    })
+    source_states
+        .values()
+        .all(|source_state| source_state != &SourceState::NonRestartable)
 }
 
 #[cfg(test)]
@@ -336,7 +333,7 @@ mod tests {
         epoch_manager: &EpochManager,
         termination_gen: &(impl Fn(u16) -> bool + Sync),
         commit_gen: &(impl Fn(u16) -> bool + Sync),
-        source_state_gen: &(impl Fn(u16) -> (NodeHandle, HashMap<String, TableState>) + Sync),
+        source_state_gen: &(impl Fn(u16) -> (NodeHandle, SourceState) + Sync),
     ) -> ClosedEpoch {
         scope(|scope| {
             let handles = (0..NUM_THREADS)
@@ -368,10 +365,10 @@ mod tests {
         })
     }
 
-    fn generate_source_state(index: u16) -> (NodeHandle, HashMap<String, TableState>) {
+    fn generate_source_state(index: u16) -> (NodeHandle, SourceState) {
         (
             NodeHandle::new(Some(index), index.to_string()),
-            Default::default(),
+            SourceState::NotStarted,
         )
     }
 
