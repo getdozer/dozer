@@ -94,11 +94,15 @@ pub fn is_network_failure(err: &mysql_async::Error) -> bool {
 }
 
 fn add_query_offset(query: &str, offset: u64) -> String {
-    assert!(query
-        .trim_start()
-        .get(0..7)
-        .map(|s| s.to_uppercase() == "SELECT ")
-        .unwrap_or(false));
+    assert!([(7, "SELECT ".to_string()), (5, "SHOW ".to_string())]
+        .iter()
+        .any(|(len, prefix)| {
+            query
+                .trim_start()
+                .get(0..*len)
+                .map(|s| s.to_uppercase() == *prefix)
+                .unwrap_or(false)
+        }));
 
     if offset == 0 {
         query.into()

@@ -38,9 +38,6 @@ use std::{
     ops::Deref,
 };
 
-// TODO: make this configurable
-const BINLOG_FILENAME_PREFIX: &str = "binlog.";
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BinlogPosition {
     pub binlog_id: u64,
@@ -50,7 +47,7 @@ pub struct BinlogPosition {
 
 pub async fn get_master_binlog_position(
     conn: &mut Conn,
-) -> Result<BinlogPosition, MySQLConnectorError> {
+) -> Result<(String, BinlogPosition), MySQLConnectorError> {
     let (filename, position): (Vec<u8>, u64) = {
         let mut row: Row = conn
             .exec_first("SHOW MASTER STATUS", ())
@@ -60,30 +57,32 @@ pub async fn get_master_binlog_position(
         (row.take(0).unwrap(), row.take(1).unwrap())
     };
 
-    let binlog_id = String::from_utf8(filename.clone())
-        .map_err(|err| {
-            MySQLConnectorError::BinlogError(format!(
-                "Unexpected binlog filename format: {filename:?}: {err}"
-            ))
-        })?
-        .strip_prefix(BINLOG_FILENAME_PREFIX)
-        .ok_or_else(|| {
-            MySQLConnectorError::BinlogError(format!(
-                "Unexpected binlog filename format: {filename:?}"
-            ))
-        })?
-        .parse::<u64>()
-        .map_err(|err| {
-            MySQLConnectorError::BinlogError(format!(
-                "Unexpected binlog filename format: {filename:?}: {err}"
-            ))
-        })?;
+    let binlog_id_with_prefix = String::from_utf8(filename.clone()).map_err(|err| {
+        MySQLConnectorError::BinlogError(format!(
+            "Unexpected binlog filename format: {filename:?}: {err}"
+        ))
+    })?;
 
-    Ok(BinlogPosition {
-        binlog_id,
-        position,
-        seq_no: 0,
-    })
+    let Some((prefix, suffix)) = binlog_id_with_prefix.split_once('.') else {
+        return Err(MySQLConnectorError::BinlogError(format!(
+            "Unexpected binlog filename format: {binlog_id_with_prefix:?}"
+        )));
+    };
+
+    let binlog_id = suffix.parse::<u64>().map_err(|err| {
+        MySQLConnectorError::BinlogError(format!(
+            "Unexpected binlog filename format: {filename:?}: {err}"
+        ))
+    })?;
+
+    Ok((
+        format!("{prefix}."),
+        BinlogPosition {
+            binlog_id,
+            position,
+            seq_no: 0,
+        },
+    ))
 }
 
 pub async fn get_binlog_format(conn: &mut Conn) -> Result<String, MySQLConnectorError> {
@@ -106,6 +105,7 @@ pub struct BinlogIngestor<'a, 'd, 'e> {
     conn_pool: &'d Pool,
     conn_url: &'e String,
     ingestion_start_position: Option<BinlogPosition>,
+    binlog_prefix: String,
 }
 
 impl<'a, 'd, 'e> BinlogIngestor<'a, 'd, 'e> {
@@ -115,6 +115,7 @@ impl<'a, 'd, 'e> BinlogIngestor<'a, 'd, 'e> {
         stop_position: Option<BinlogPosition>,
         server_id: u32,
         (conn_pool, conn_url): (&'d Pool, &'e String),
+        binlog_prefix: String,
     ) -> Self {
         Self {
             ingestor,
@@ -126,6 +127,7 @@ impl<'a, 'd, 'e> BinlogIngestor<'a, 'd, 'e> {
             server_id,
             conn_pool,
             conn_url,
+            binlog_prefix,
         }
     }
 }
@@ -138,10 +140,8 @@ impl BinlogIngestor<'_, '_, '_> {
     }
 
     async fn open_binlog(&mut self) -> Result<(), MySQLConnectorError> {
-        let filename_formatted = format!(
-            "{}{:0>6}",
-            BINLOG_FILENAME_PREFIX, self.next_position.binlog_id
-        );
+        let filename_formatted =
+            format!("{}{:0>6}", self.binlog_prefix, self.next_position.binlog_id);
         let filename = filename_formatted.as_bytes();
         let binlog_stream = self
             .connect()
@@ -229,27 +229,27 @@ impl BinlogIngestor<'_, '_, '_> {
                         };
 
                     let filename = rotate_event.name();
-                    let rotated_binlog_id = filename
-                        .strip_prefix(BINLOG_FILENAME_PREFIX)
-                        .ok_or_else(|| {
-                            MySQLConnectorError::BinlogError(format!(
-                                "Unexpected binlog filename format: {filename:?}"
-                            ))
-                        })?
-                        .parse::<u64>()
-                        .map_err(|err| {
-                            MySQLConnectorError::BinlogError(format!(
-                                "Unexpected binlog filename format: {filename:?}: {err}"
-                            ))
-                        })?;
+                    let Some((prefix, suffix)) = filename.split_once('.') else {
+                        Err(MySQLConnectorError::BinlogError(format!(
+                            "Unexpected binlog filename format: {filename:?}"
+                        )))?
+                    };
+                    let rotated_binlog_id = suffix.parse::<u64>().map_err(|err| {
+                        MySQLConnectorError::BinlogError(format!(
+                            "Unexpected binlog filename format: {filename:?}: {err}"
+                        ))
+                    })?;
 
-                    if rotated_binlog_id != self.next_position.binlog_id {
+                    if rotated_binlog_id != self.next_position.binlog_id
+                        || self.binlog_prefix != prefix
+                    {
                         self.next_position = BinlogPosition {
                             binlog_id: rotated_binlog_id,
                             position: rotate_event.position(),
                             seq_no: 0,
                         };
 
+                        self.binlog_prefix = format!("{prefix}.");
                         self.open_binlog().await?;
                     }
 

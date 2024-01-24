@@ -7,6 +7,7 @@ use super::{
     helpers::{escape_identifier, qualify_table_name},
     schema::{ColumnDefinition, SchemaHelper, TableDefinition},
 };
+use crate::MySQLConnectorError::BinlogQueryError;
 use dozer_ingestion_connector::dozer_types::{log::info, node::OpIdentifier};
 use dozer_ingestion_connector::{
     async_trait,
@@ -246,11 +247,49 @@ impl MySQLConnector {
 
         let binlog_position = self.sync_with_binlog(ingestor, binlog_positions).await?;
 
+        let prefix = self.get_prefix(binlog_position.binlog_id).await?;
+
         info!("Ingestion starting at {:?}", binlog_position);
-        self.ingest_binlog(ingestor, &mut table_definitions, binlog_position, None)
-            .await?;
+        self.ingest_binlog(
+            ingestor,
+            &mut table_definitions,
+            binlog_position,
+            None,
+            prefix,
+        )
+        .await?;
 
         Ok(())
+    }
+
+    async fn get_prefix(&self, suffix: u64) -> Result<String, MySQLConnectorError> {
+        let suffix_formatted = format!("{:0>6}", suffix);
+        let mut conn = self.connect().await?;
+        let mut rows = conn.exec_iter("SHOW BINARY LOGS".to_string(), vec![]);
+
+        let mut prefix = None;
+        while let Some(result) = rows.next().await {
+            let binlog_id = result
+                .map_err(MySQLConnectorError::QueryResultError)?
+                .get::<String, _>(0)
+                .ok_or(BinlogQueryError)?;
+
+            let row_binlog_suffix = &binlog_id[binlog_id.len() - 6..];
+
+            if row_binlog_suffix == suffix_formatted {
+                if prefix.is_some() {
+                    return Err(MySQLConnectorError::MultipleBinlogsWithSameSuffix);
+                }
+
+                prefix = Some(binlog_id[..(binlog_id.len() - 6)].to_string());
+            }
+        }
+
+        if let Some(prefix) = prefix {
+            Ok(prefix)
+        } else {
+            Err(MySQLConnectorError::BinlogNotFound)
+        }
     }
 
     async fn replicate_tables(
@@ -349,7 +388,7 @@ impl MySQLConnector {
                         }
                     }
 
-                    let binlog_position = get_master_binlog_position(&mut conn).await?;
+                    let (_prefix, binlog_position) = get_master_binlog_position(&mut conn).await?;
 
                     conn.query_drop("UNLOCK TABLES")
                         .await
@@ -382,7 +421,7 @@ impl MySQLConnector {
         assert!(!binlog_positions.is_empty());
 
         let position = {
-            let mut last_position = None;
+            let mut last_position: Option<BinlogPosition> = None;
             let mut synced_tables = Vec::new();
 
             for (table, position) in binlog_positions.into_iter() {
@@ -391,11 +430,14 @@ impl MySQLConnector {
                 if let Some(start_position) = last_position {
                     let end_position = position.clone();
 
+                    let prefix = self.get_prefix(start_position.binlog_id).await?;
+
                     self.ingest_binlog(
                         ingestor,
                         &mut synced_tables,
                         start_position,
                         Some(end_position),
+                        prefix,
                     )
                     .await?;
                 }
@@ -415,6 +457,7 @@ impl MySQLConnector {
         tables: &mut [TableDefinition],
         start_position: BinlogPosition,
         stop_position: Option<BinlogPosition>,
+        binlog_prefix: String,
     ) -> Result<(), MySQLConnectorError> {
         let server_id = self.server_id.unwrap_or_else(|| rand::thread_rng().gen());
 
@@ -424,6 +467,7 @@ impl MySQLConnector {
             stop_position,
             server_id,
             (&self.conn_pool, &self.conn_url),
+            binlog_prefix,
         );
 
         binlog_ingestor.ingest(tables, self.schema_helper()).await

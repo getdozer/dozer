@@ -58,6 +58,15 @@ pub enum MySQLConnectorError {
 
     #[error("State error: {0}")]
     State(#[from] MysqlStateError),
+
+    #[error("Binlog not found")]
+    BinlogNotFound,
+
+    #[error("Fetch of binlog query failed")]
+    BinlogQueryError,
+
+    #[error("Multiple binlogs with the same suffix")]
+    MultipleBinlogsWithSameSuffix,
 }
 
 #[derive(Error, Debug)]
