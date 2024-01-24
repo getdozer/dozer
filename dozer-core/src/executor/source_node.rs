@@ -12,8 +12,8 @@ use dozer_log::tokio::{
     sync::mpsc::{channel, Receiver, Sender},
     time::timeout,
 };
-use dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_types::{log::debug, node::NodeHandle};
+use dozer_types::{models::ingestion_types::IngestionMessage, node::OpIdentifier};
 
 use crate::{
     builder_dag::NodeKind,
@@ -34,6 +34,8 @@ pub struct SourceNode {
     source: Box<dyn Source>,
     /// The sender that will be passed to the source for outputting data.
     sender: Sender<(PortHandle, IngestionMessage)>,
+    /// Checkpoint for the source.
+    last_checkpoint: Option<OpIdentifier>,
     /// The receiver for receiving data from source.
     receiver: Receiver<(PortHandle, IngestionMessage)>,
     /// Receiving timeout.
@@ -82,9 +84,10 @@ impl Node for SourceNode {
     fn run(mut self) -> Result<(), ExecutionError> {
         let source = self.source;
         let sender = self.sender;
+        let last_checkpoint = self.last_checkpoint;
         let mut handle = Some(
             self.runtime
-                .spawn(async move { source.start(sender).await }),
+                .spawn(async move { source.start(sender, last_checkpoint).await }),
         );
 
         loop {
@@ -142,13 +145,17 @@ pub async fn create_source_node(
     options: &ExecutorOptions,
     running: Arc<AtomicBool>,
     runtime: Arc<Runtime>,
-) -> SourceNode {
+) -> Result<SourceNode, ExecutionError> {
     // Get the source node.
     let Some(node) = dag.node_weight_mut(node_index).take() else {
         panic!("Must pass in a node")
     };
     let node_handle = node.handle;
-    let NodeKind::Source(source) = node.kind else {
+    let NodeKind::Source {
+        source,
+        last_checkpoint,
+    } = node.kind
+    else {
         panic!("Must pass in a source node");
     };
     let port_names = dag
@@ -168,8 +175,13 @@ pub async fn create_source_node(
 
     // Create channel manager.
     let (senders, record_writers) = dag.collect_senders_and_record_writers(node_index).await;
+    let source_state = source
+        .serialize_state()
+        .await
+        .map_err(ExecutionError::Source)?;
     let channel_manager = SourceChannelManager::new(
         node_handle.clone(),
+        source_state,
         port_names,
         record_writers,
         senders,
@@ -179,14 +191,15 @@ pub async fn create_source_node(
         dag.error_manager().clone(),
     );
 
-    SourceNode {
+    Ok(SourceNode {
         node_handle,
         source,
         sender,
+        last_checkpoint,
         receiver,
         timeout: options.commit_time_threshold,
         running,
         channel_manager,
         runtime,
-    }
+    })
 }

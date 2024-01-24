@@ -8,7 +8,7 @@ use dozer_ingestion_connector::{
         errors::{internal::BoxedError, types::DeserializationError},
         json_types::{serde_json_to_json_value, JsonValue},
         models::ingestion_types::IngestionMessage,
-        node::RestartableState,
+        node::OpIdentifier,
         thiserror::{self, Error},
         types::{Field, FieldDefinition, FieldType, Operation, Record, SourceDefinition},
     },
@@ -589,11 +589,15 @@ impl Connector for MongodbConnector {
         Ok(())
     }
 
+    async fn serialize_state(&self) -> Result<Vec<u8>, BoxedError> {
+        Ok(vec![])
+    }
+
     async fn start(
         &self,
         ingestor: &Ingestor,
         tables: Vec<TableInfo>,
-        _last_checkpoint: Option<RestartableState>,
+        _last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
         // Snapshot: find
         //

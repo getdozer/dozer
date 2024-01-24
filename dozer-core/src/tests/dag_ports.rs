@@ -4,7 +4,6 @@ use crate::node::{
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use dozer_recordstore::ProcessorRecordStoreDeserializer;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::node::RestartableState;
 use dozer_types::tonic::async_trait;
 use dozer_types::{node::NodeHandle, types::Schema};
 use std::collections::HashMap;
@@ -39,7 +38,7 @@ impl SourceFactory for DynPortsSourceFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-        _last_checkpoint: Option<RestartableState>,
+        _state: Option<Vec<u8>>,
     ) -> Result<Box<dyn Source>, BoxedError> {
         todo!()
     }

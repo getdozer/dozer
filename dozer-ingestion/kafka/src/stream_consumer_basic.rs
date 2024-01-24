@@ -4,7 +4,7 @@ use dozer_ingestion_connector::{
     async_trait,
     dozer_types::{
         models::ingestion_types::IngestionMessage,
-        node::RestartableState,
+        node::OpIdentifier,
         serde::{Deserialize, Serialize},
         serde_json::{self, Value},
         types::{Field, Operation, Record},
@@ -83,7 +83,7 @@ impl StreamConsumer for StreamConsumerBasic {
         client_config: ClientConfig,
         ingestor: &Ingestor,
         tables: Vec<TableInfo>,
-        last_checkpoint: Option<RestartableState>,
+        last_checkpoint: Option<OpIdentifier>,
         schema_registry_url: &Option<String>,
     ) -> Result<(), KafkaError> {
         assert!(last_checkpoint.is_none());

@@ -3,7 +3,7 @@ use std::{str::FromStr, sync::Arc};
 
 use super::helper;
 use super::sender::{run, EthDetails};
-use dozer_ingestion_connector::dozer_types::node::RestartableState;
+use dozer_ingestion_connector::dozer_types::node::OpIdentifier;
 use dozer_ingestion_connector::utils::TableNotFound;
 use dozer_ingestion_connector::{
     async_trait,
@@ -234,11 +234,15 @@ impl Connector for EthLogConnector {
         Ok(result)
     }
 
+    async fn serialize_state(&self) -> Result<Vec<u8>, BoxedError> {
+        Ok(vec![])
+    }
+
     async fn start(
         &self,
         ingestor: &Ingestor,
         tables: Vec<TableInfo>,
-        _last_checkpoint: Option<RestartableState>,
+        _last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
         // Start a new thread that interfaces with ETH node
         let wss_url = self.config.wss_url.to_owned();

@@ -13,7 +13,7 @@ use crate::tests::sources::{
 };
 use crate::{Edge, Endpoint, DEFAULT_PORT_HANDLE};
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::node::{NodeHandle, RestartableState};
+use dozer_types::node::NodeHandle;
 use dozer_types::types::Schema;
 
 use std::collections::HashMap;
@@ -38,7 +38,7 @@ impl SourceFactory for NoneSourceFactory {
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _last_checkpoint: Option<RestartableState>,
+        _state: Option<Vec<u8>>,
     ) -> Result<Box<dyn Source>, BoxedError> {
         todo!()
     }

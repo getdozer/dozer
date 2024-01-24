@@ -12,7 +12,7 @@ use dozer_types::{
     bincode,
     log::{error, info},
     models::app_config::{DataStorage, RecordStore},
-    node::{NodeHandle, RestartableState, SourceState, SourceStates},
+    node::{NodeHandle, OpIdentifier, SourceState, SourceStates},
     parking_lot::Mutex,
     tonic::codegen::tokio_stream::StreamExt,
     types::Field,
@@ -114,7 +114,7 @@ impl OptionCheckpoint {
     pub fn get_source_state(
         &self,
         node_handle: &NodeHandle,
-    ) -> Result<Option<&RestartableState>, ExecutionError> {
+    ) -> Result<Option<(&[u8], OpIdentifier)>, ExecutionError> {
         let Some(checkpoint) = self.checkpoint.as_ref() else {
             return Ok(None);
         };
@@ -127,7 +127,7 @@ impl OptionCheckpoint {
             SourceState::NonRestartable => {
                 Err(ExecutionError::SourceCannotRestart(node_handle.clone()))
             }
-            SourceState::Restartable(state) => Ok(Some(state)),
+            SourceState::Restartable { state, checkpoint } => Ok(Some((state, *checkpoint))),
         }
     }
 

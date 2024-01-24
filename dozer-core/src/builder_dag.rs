@@ -4,7 +4,7 @@ use daggy::{
     petgraph::visit::{IntoNodeIdentifiers, IntoNodeReferences},
     NodeIndex,
 };
-use dozer_types::node::NodeHandle;
+use dozer_types::node::{NodeHandle, OpIdentifier};
 
 use crate::{
     checkpoint::OptionCheckpoint,
@@ -26,7 +26,10 @@ pub struct NodeType {
 #[derive(Debug)]
 /// Node kind, source, processor or sink. Source has a checkpoint to start from.
 pub enum NodeKind {
-    Source(Box<dyn Source>),
+    Source {
+        source: Box<dyn Source>,
+        last_checkpoint: Option<OpIdentifier>,
+    },
     Processor(Box<dyn Processor>),
     Sink(Box<dyn Sink>),
 }
@@ -69,18 +72,22 @@ impl BuilderDag {
             let node = node.weight;
             let node = match node.kind {
                 DagNodeKind::Source(source) => {
+                    let source_state = checkpoint.get_source_state(&node.handle)?;
                     let source = source
                         .build(
                             output_schemas
                                 .remove(&node_index)
                                 .expect("we collected all output schemas"),
-                            checkpoint.get_source_state(&node.handle)?.cloned(),
+                            source_state.map(|state| state.0.to_vec()),
                         )
                         .map_err(ExecutionError::Factory)?;
 
                     NodeType {
                         handle: node.handle,
-                        kind: NodeKind::Source(source),
+                        kind: NodeKind::Source {
+                            source,
+                            last_checkpoint: source_state.map(|state| state.1),
+                        },
                     }
                 }
                 DagNodeKind::Processor(processor) => {

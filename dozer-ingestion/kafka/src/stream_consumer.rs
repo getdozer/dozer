@@ -1,7 +1,7 @@
 use crate::KafkaError;
 
 use dozer_ingestion_connector::{
-    async_trait, dozer_types::node::RestartableState, Ingestor, TableInfo,
+    async_trait, dozer_types::node::OpIdentifier, Ingestor, TableInfo,
 };
 use rdkafka::ClientConfig;
 
@@ -12,7 +12,7 @@ pub trait StreamConsumer {
         client_config: ClientConfig,
         ingestor: &Ingestor,
         tables: Vec<TableInfo>,
-        last_checkpoint: Option<RestartableState>,
+        last_checkpoint: Option<OpIdentifier>,
         schema_registry_url: &Option<String>,
     ) -> Result<(), KafkaError>;
 }

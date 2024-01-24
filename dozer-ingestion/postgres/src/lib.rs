@@ -16,7 +16,6 @@ mod replication_slot_helper;
 pub mod replicator;
 mod schema;
 pub mod snapshotter;
-mod state;
 #[cfg(test)]
 pub mod test_utils;
 #[cfg(test)]
@@ -32,6 +31,9 @@ pub enum PostgresConnectorError {
 
     #[error("Invalid SslMode: {0:?}")]
     InvalidSslError(SslMode),
+
+    #[error("Failed to convert slot name from state. Error: {0}")]
+    StringReadError(#[from] FromUtf8Error),
 
     #[error("Query failed in connector: {0}")]
     InvalidQueryError(#[source] tokio_postgres::Error),
@@ -142,15 +144,6 @@ pub enum PostgresConnectorError {
 
     #[error("Unexpected query message")]
     UnexpectedQueryMessageError,
-}
-
-#[derive(Error, Debug)]
-pub enum PostgresStateError {
-    #[error("Failed to read lsn from state. Error: {0}")]
-    TrySliceError(#[from] std::array::TryFromSliceError),
-
-    #[error("Failed to convert slot name from state. Error: {0}")]
-    StringReadError(#[from] FromUtf8Error),
 }
 
 #[derive(Error, Debug)]

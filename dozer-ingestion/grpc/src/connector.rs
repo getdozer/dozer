@@ -5,7 +5,7 @@ use crate::Error;
 
 use super::adapter::{GrpcIngestor, IngestAdapter};
 use super::ingest::IngestorServiceImpl;
-use dozer_ingestion_connector::dozer_types::node::RestartableState;
+use dozer_ingestion_connector::dozer_types::node::OpIdentifier;
 use dozer_ingestion_connector::utils::TableNotFound;
 use dozer_ingestion_connector::{
     async_trait, dozer_types,
@@ -212,11 +212,15 @@ where
         Ok(result)
     }
 
+    async fn serialize_state(&self) -> Result<Vec<u8>, BoxedError> {
+        Ok(vec![])
+    }
+
     async fn start(
         &self,
         ingestor: &Ingestor,
         tables: Vec<TableInfo>,
-        _last_checkpoint: Option<RestartableState>,
+        _last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
         self.serve(ingestor, tables).await.map_err(Into::into)
     }

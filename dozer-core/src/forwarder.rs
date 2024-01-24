@@ -131,6 +131,7 @@ impl ChannelManager {
 pub(crate) struct SourceChannelManager {
     port_names: HashMap<PortHandle, String>,
     manager: ChannelManager,
+    source_level_state: Vec<u8>,
     source_state: SourceState,
     commit_sz: u32,
     num_uncommitted_ops: u32,
@@ -143,6 +144,7 @@ impl SourceChannelManager {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         owner: NodeHandle,
+        source_state: Vec<u8>,
         port_names: HashMap<PortHandle, String>,
         record_writers: HashMap<PortHandle, Box<dyn RecordWriter>>,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
@@ -151,6 +153,7 @@ impl SourceChannelManager {
         epoch_manager: Arc<EpochManager>,
         error_manager: Arc<ErrorManager>,
     ) -> Self {
+        let source_level_state = source_state;
         // FIXME: Read current_op_id from persisted state.
         let source_state = SourceState::NotStarted;
 
@@ -163,6 +166,7 @@ impl SourceChannelManager {
                 error_manager,
             ),
             port_names,
+            source_level_state,
             source_state,
             commit_sz,
             num_uncommitted_ops: 0,
@@ -230,7 +234,10 @@ impl SourceChannelManager {
         match message {
             IngestionMessage::OperationEvent { op, state, .. } => {
                 self.source_state = if let Some(state) = state {
-                    SourceState::Restartable(state)
+                    SourceState::Restartable {
+                        state: self.source_level_state.clone(),
+                        checkpoint: state,
+                    }
                 } else {
                     SourceState::NonRestartable
                 };

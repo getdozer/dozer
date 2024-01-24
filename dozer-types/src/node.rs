@@ -63,14 +63,44 @@ impl Display for NodeHandle {
 }
 
 #[derive(
-    Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, bincode::Encode, bincode::Decode,
+    Clone,
+    Debug,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Default,
+    Serialize,
+    Deserialize,
+    bincode::Encode,
+    bincode::Decode,
 )]
-/// A table's restartable state, any binary data.
-pub struct RestartableState(pub Vec<u8>);
+/// A identifier made of two `u64`s.
+pub struct OpIdentifier {
+    /// High 64 bits of the identifier.
+    pub txid: u64,
+    /// Low 64 bits of the identifier.
+    pub seq_in_tx: u64,
+}
 
-impl From<Vec<u8>> for RestartableState {
-    fn from(value: Vec<u8>) -> Self {
-        Self(value)
+impl OpIdentifier {
+    pub fn new(txid: u64, seq_in_tx: u64) -> Self {
+        Self { txid, seq_in_tx }
+    }
+
+    pub fn to_bytes(&self) -> [u8; 16] {
+        let mut result = [0_u8; 16];
+        result[0..8].copy_from_slice(&self.txid.to_be_bytes());
+        result[8..16].copy_from_slice(&self.seq_in_tx.to_be_bytes());
+        result
+    }
+
+    pub fn from_bytes(bytes: [u8; 16]) -> Self {
+        let txid = u64::from_be_bytes(bytes[0..8].try_into().unwrap());
+        let seq_in_tx = u64::from_be_bytes(bytes[8..16].try_into().unwrap());
+        Self::new(txid, seq_in_tx)
     }
 }
 
@@ -84,7 +114,10 @@ pub enum SourceState {
     /// This source has some data ingested, and it can't be restarted.
     NonRestartable,
     /// This source has some data ingested, and it can be restarted if it's given the state.
-    Restartable(RestartableState),
+    Restartable {
+        state: Vec<u8>,
+        checkpoint: OpIdentifier,
+    },
 }
 
 /// Map from a `Source` node's handle to its state.

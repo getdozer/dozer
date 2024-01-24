@@ -4,7 +4,7 @@ use dozer_ingestion_connector::{
         errors::internal::BoxedError,
         log::{error, info, warn},
         models::ingestion_types::{default_batch_size, EthTraceConfig, IngestionMessage},
-        node::RestartableState,
+        node::OpIdentifier,
         types::FieldType,
     },
     utils::TableNotFound,
@@ -98,11 +98,15 @@ impl Connector for EthTraceConnector {
         ))])
     }
 
+    async fn serialize_state(&self) -> Result<Vec<u8>, BoxedError> {
+        Ok(vec![])
+    }
+
     async fn start(
         &self,
         ingestor: &Ingestor,
         _tables: Vec<TableInfo>,
-        _last_checkpoint: Option<RestartableState>,
+        _last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
         let config = self.config.clone();
         let conn_name = self.conn_name.clone();

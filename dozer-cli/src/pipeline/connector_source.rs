@@ -10,8 +10,7 @@ use dozer_types::errors::internal::BoxedError;
 use dozer_types::log::{error, info};
 use dozer_types::models::connection::Connection;
 use dozer_types::models::ingestion_types::IngestionMessage;
-use dozer_types::node::RestartableState;
-use dozer_types::parking_lot::Mutex;
+use dozer_types::node::OpIdentifier;
 use dozer_types::thiserror::{self, Error};
 use dozer_types::tracing::{span, Level};
 use dozer_types::types::{Operation, Schema, SourceDefinition};
@@ -45,10 +44,9 @@ pub enum ConnectorSourceFactoryError {
 
 #[derive(Debug)]
 pub struct ConnectorSourceFactory {
-    connection_name: String,
+    connection: Connection,
+    runtime: Arc<Runtime>,
     tables: Vec<Table>,
-    /// Will be moved to `ConnectorSource` in `build`.
-    connector: Mutex<Option<Box<dyn Connector>>>,
     labels: LabelsAndProgress,
     shutdown: ShutdownReceiver,
 }
@@ -65,9 +63,7 @@ impl ConnectorSourceFactory {
         labels: LabelsAndProgress,
         shutdown: ShutdownReceiver,
     ) -> Result<Self, ConnectorSourceFactoryError> {
-        let connection_name = connection.name.clone();
-
-        let connector = get_connector(runtime.clone(), connection)
+        let connector = get_connector(runtime.clone(), connection.clone(), None)
             .map_err(|e| ConnectorSourceFactoryError::Connector(e.into()))?;
 
         // Fill column names if not provided.
@@ -115,9 +111,9 @@ impl ConnectorSourceFactory {
         }
 
         Ok(Self {
-            connection_name,
+            connection,
+            runtime,
             tables,
-            connector: Mutex::new(Some(connector)),
             labels,
             shutdown,
         })
@@ -137,7 +133,7 @@ impl SourceFactory for ConnectorSourceFactory {
         // Add source information to the schema.
         for field in &mut schema.fields {
             field.source = SourceDefinition::Table {
-                connection: self.connection_name.clone(),
+                connection: self.connection.name.clone(),
                 name: table_name.clone(),
             };
         }
@@ -173,7 +169,7 @@ impl SourceFactory for ConnectorSourceFactory {
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
-        last_checkpoint: Option<RestartableState>,
+        state: Option<Vec<u8>>,
     ) -> Result<Box<dyn Source>, BoxedError> {
         // Construct table info.
         let tables = self
@@ -187,18 +183,13 @@ impl SourceFactory for ConnectorSourceFactory {
             .collect();
         let ports = self.tables.iter().map(|table| table.port).collect();
 
-        let connector = self
-            .connector
-            .lock()
-            .take()
-            .expect("ConnectorSource was already built");
+        let connector = get_connector(self.runtime.clone(), self.connection.clone(), state)?;
 
         Ok(Box::new(ConnectorSource {
             tables,
-            last_checkpoint,
             ports,
             connector,
-            connection_name: self.connection_name.clone(),
+            connection_name: self.connection.name.clone(),
             labels: self.labels.clone(),
             shutdown: self.shutdown.clone(),
             ingestion_config: IngestionConfig::default(),
@@ -209,7 +200,6 @@ impl SourceFactory for ConnectorSourceFactory {
 #[derive(Debug)]
 pub struct ConnectorSource {
     tables: Vec<TableInfo>,
-    last_checkpoint: Option<RestartableState>,
     ports: Vec<PortHandle>,
     connector: Box<dyn Connector>,
     connection_name: String,
@@ -220,9 +210,14 @@ pub struct ConnectorSource {
 
 #[async_trait]
 impl Source for ConnectorSource {
+    async fn serialize_state(&self) -> Result<Vec<u8>, BoxedError> {
+        self.connector.serialize_state().await
+    }
+
     async fn start(
         &self,
         sender: Sender<(PortHandle, IngestionMessage)>,
+        last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
         let (ingestor, iterator) = Ingestor::initialize_channel(self.ingestion_config.clone());
         let connection_name = self.connection_name.clone();
@@ -252,7 +247,7 @@ impl Source for ConnectorSource {
         });
         let result = Abortable::new(
             self.connector
-                .start(&ingestor, self.tables.clone(), self.last_checkpoint.clone()),
+                .start(&ingestor, self.tables.clone(), last_checkpoint),
             abort_registration,
         )
         .await;

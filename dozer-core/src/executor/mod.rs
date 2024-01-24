@@ -129,7 +129,7 @@ impl DagExecutor {
                         running.clone(),
                         runtime.clone(),
                     )
-                    .await;
+                    .await?;
                     join_handles.push(start_source(source_node)?);
                 }
                 NodeKind::Processor(_) => {

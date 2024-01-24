@@ -6,7 +6,7 @@ use dozer_log::storage::{Object, Queue};
 use dozer_log::tokio::sync::mpsc::Sender;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::models::ingestion_types::IngestionMessage;
-use dozer_types::node::RestartableState;
+use dozer_types::node::OpIdentifier;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::tonic::async_trait;
 use dozer_types::types::{Operation, Schema};
@@ -52,14 +52,19 @@ pub trait SourceFactory: Send + Sync + Debug {
     fn build(
         &self,
         output_schemas: HashMap<PortHandle, Schema>,
-        last_checkpoint: Option<RestartableState>,
+        state: Option<Vec<u8>>,
     ) -> Result<Box<dyn Source>, BoxedError>;
 }
 
 #[async_trait]
 pub trait Source: Send + Sync + Debug {
-    async fn start(&self, sender: Sender<(PortHandle, IngestionMessage)>)
-        -> Result<(), BoxedError>;
+    async fn serialize_state(&self) -> Result<Vec<u8>, BoxedError>;
+
+    async fn start(
+        &self,
+        sender: Sender<(PortHandle, IngestionMessage)>,
+        last_checkpoint: Option<OpIdentifier>,
+    ) -> Result<(), BoxedError>;
 }
 
 #[async_trait]

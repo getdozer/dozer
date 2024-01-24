@@ -7,7 +7,7 @@ use super::{
     helpers::{escape_identifier, qualify_table_name},
     schema::{ColumnDefinition, SchemaHelper, TableDefinition},
 };
-use dozer_ingestion_connector::dozer_types::{log::info, node::RestartableState};
+use dozer_ingestion_connector::dozer_types::{log::info, node::OpIdentifier};
 use dozer_ingestion_connector::{
     async_trait,
     dozer_types::{
@@ -188,11 +188,15 @@ impl Connector for MySQLConnector {
         Ok(schemas)
     }
 
+    async fn serialize_state(&self) -> Result<Vec<u8>, BoxedError> {
+        Ok(vec![])
+    }
+
     async fn start(
         &self,
         ingestor: &Ingestor,
         tables: Vec<TableInfo>,
-        last_checkpoint: Option<RestartableState>,
+        last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
         self.replicate(ingestor, tables, last_checkpoint)
             .await
@@ -215,7 +219,7 @@ impl MySQLConnector {
         &self,
         ingestor: &Ingestor,
         table_infos: Vec<TableInfo>,
-        last_checkpoint: Option<RestartableState>,
+        last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), MySQLConnectorError> {
         let mut table_definitions = self
             .schema_helper()

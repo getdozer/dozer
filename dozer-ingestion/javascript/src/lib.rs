@@ -5,7 +5,7 @@ use dozer_ingestion_connector::{
     dozer_types::{
         errors::internal::BoxedError,
         models::ingestion_types::{default_bootstrap_path, JavaScriptConfig},
-        node::RestartableState,
+        node::OpIdentifier,
         types::{FieldDefinition, FieldType, Schema, SourceDefinition},
     },
     tokio::runtime::Runtime,
@@ -74,11 +74,15 @@ impl Connector for JavaScriptConnector {
         })])
     }
 
+    async fn serialize_state(&self) -> Result<Vec<u8>, BoxedError> {
+        Ok(vec![])
+    }
+
     async fn start(
         &self,
         ingestor: &Ingestor,
         _tables: Vec<TableInfo>,
-        _last_checkpoint: Option<RestartableState>,
+        _last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
         let js_path = self
             .config

@@ -8,7 +8,7 @@ use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use dozer_log::tokio;
 use dozer_recordstore::ProcessorRecordStoreDeserializer;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::node::{NodeHandle, RestartableState};
+use dozer_types::node::NodeHandle;
 use dozer_types::tonic::async_trait;
 use dozer_types::types::{FieldDefinition, FieldType, Schema, SourceDefinition};
 use std::collections::HashMap;
@@ -63,7 +63,7 @@ impl SourceFactory for TestUsersSourceFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-        _last_checkpoint: Option<RestartableState>,
+        _state: Option<Vec<u8>>,
     ) -> Result<Box<dyn Source>, BoxedError> {
         todo!()
     }
@@ -110,7 +110,7 @@ impl SourceFactory for TestCountriesSourceFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
-        _last_checkpoint: Option<RestartableState>,
+        _state: Option<Vec<u8>>,
     ) -> Result<Box<dyn Source>, BoxedError> {
         todo!()
     }

@@ -45,7 +45,8 @@ pub fn get_progress() -> ProgressBar {
 }
 
 pub fn get_connection_iterator(runtime: Arc<Runtime>, config: TestConfig) -> IngestionIterator {
-    let connector = dozer_ingestion::get_connector(runtime.clone(), config.connection).unwrap();
+    let connector =
+        dozer_ingestion::get_connector(runtime.clone(), config.connection, None).unwrap();
     let tables = runtime.block_on(list_tables(&*connector));
     let (ingestor, iterator) = Ingestor::initialize_channel(Default::default());
     runtime.clone().spawn_blocking(move || async move {

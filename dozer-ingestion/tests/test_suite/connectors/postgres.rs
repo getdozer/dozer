@@ -128,12 +128,16 @@ async fn create_postgres_server() -> (Client, PostgresConnectorTest, PostgresCon
         .password(password)
         .dbname(dbname);
 
-    let connector = PostgresConnector::new(PostgresConfig {
-        name: "postgres_connector_test".to_string(),
-        config: config.clone(),
-        schema: None,
-        batch_size: 1000,
-    });
+    let connector = PostgresConnector::new(
+        PostgresConfig {
+            name: "postgres_connector_test".to_string(),
+            config: config.clone(),
+            schema: None,
+            batch_size: 1000,
+        },
+        None,
+    )
+    .unwrap();
 
     let client = connect(config.clone()).await.unwrap();
 

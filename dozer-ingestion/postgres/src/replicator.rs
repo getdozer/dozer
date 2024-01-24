@@ -2,6 +2,7 @@ use dozer_ingestion_connector::dozer_types::bytes;
 use dozer_ingestion_connector::dozer_types::chrono::{TimeZone, Utc};
 use dozer_ingestion_connector::dozer_types::log::{error, info};
 use dozer_ingestion_connector::dozer_types::models::ingestion_types::IngestionMessage;
+use dozer_ingestion_connector::dozer_types::node::OpIdentifier;
 use dozer_ingestion_connector::futures::StreamExt;
 use dozer_ingestion_connector::Ingestor;
 use postgres_protocol::message::backend::ReplicationMessage::*;
@@ -15,7 +16,6 @@ use std::time::SystemTime;
 
 use crate::connection::client::Client;
 use crate::connection::helper::{self, is_network_failure};
-use crate::state::encode_state;
 use crate::xlog_mapper::XlogMapper;
 use crate::PostgresConnectorError;
 
@@ -132,11 +132,7 @@ impl<'a> CDCHandler<'a> {
                                 .handle_message(IngestionMessage::OperationEvent {
                                     table_index,
                                     op,
-                                    state: Some(encode_state(
-                                        self.begin_lsn,
-                                        self.seq_no,
-                                        self.slot_name.clone(),
-                                    )),
+                                    state: Some(OpIdentifier::new(self.begin_lsn, self.seq_no)),
                                 })
                                 .await
                                 .is_err()

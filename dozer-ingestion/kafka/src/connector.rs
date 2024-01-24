@@ -1,7 +1,7 @@
 use dozer_ingestion_connector::async_trait;
 use dozer_ingestion_connector::dozer_types::errors::internal::BoxedError;
 use dozer_ingestion_connector::dozer_types::models::ingestion_types::KafkaConfig;
-use dozer_ingestion_connector::dozer_types::node::RestartableState;
+use dozer_ingestion_connector::dozer_types::node::OpIdentifier;
 use dozer_ingestion_connector::dozer_types::types::FieldType;
 use dozer_ingestion_connector::Connector;
 use dozer_ingestion_connector::Ingestor;
@@ -127,11 +127,15 @@ impl Connector for KafkaConnector {
             .collect())
     }
 
+    async fn serialize_state(&self) -> Result<Vec<u8>, BoxedError> {
+        Ok(vec![])
+    }
+
     async fn start(
         &self,
         ingestor: &Ingestor,
         tables: Vec<TableInfo>,
-        last_checkpoint: Option<RestartableState>,
+        last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
         let broker = self.config.broker.to_owned();
         run(
@@ -149,7 +153,7 @@ impl Connector for KafkaConnector {
 async fn run(
     broker: String,
     tables: Vec<TableInfo>,
-    last_checkpoint: Option<RestartableState>,
+    last_checkpoint: Option<OpIdentifier>,
     ingestor: &Ingestor,
     schema_registry_url: &Option<String>,
 ) -> Result<(), KafkaError> {

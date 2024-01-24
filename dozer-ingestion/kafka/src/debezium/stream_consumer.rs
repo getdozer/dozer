@@ -4,7 +4,7 @@ use crate::stream_consumer::StreamConsumer;
 use crate::stream_consumer_helper::{is_network_failure, OffsetsMap, StreamConsumerHelper};
 use crate::{KafkaError, KafkaStreamError};
 
-use dozer_ingestion_connector::dozer_types::node::RestartableState;
+use dozer_ingestion_connector::dozer_types::node::OpIdentifier;
 use dozer_ingestion_connector::TableInfo;
 use dozer_ingestion_connector::{
     async_trait,
@@ -91,7 +91,7 @@ impl StreamConsumer for DebeziumStreamConsumer {
         client_config: ClientConfig,
         ingestor: &Ingestor,
         tables: Vec<TableInfo>,
-        last_checkpoint: Option<RestartableState>,
+        last_checkpoint: Option<OpIdentifier>,
         _schema_registry_url: &Option<String>,
     ) -> Result<(), KafkaError> {
         assert!(last_checkpoint.is_none());

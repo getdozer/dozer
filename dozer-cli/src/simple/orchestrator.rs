@@ -372,7 +372,8 @@ impl SimpleOrchestrator {
     ) -> Result<HashMap<String, (Vec<TableInfo>, Vec<SourceSchema>)>, OrchestrationError> {
         let mut schema_map = HashMap::new();
         for connection in &self.config.connections {
-            let connector = get_connector(self.runtime.clone(), connection.clone())
+            // We're not really going to start ingestion, so passing `None` as state here is OK.
+            let connector = get_connector(self.runtime.clone(), connection.clone(), None)
                 .map_err(|e| ConnectorSourceFactoryError::Connector(e.into()))?;
             let schema_tuples = connector
                 .list_all_schemas()

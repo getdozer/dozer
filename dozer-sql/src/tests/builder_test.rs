@@ -13,7 +13,7 @@ use dozer_types::chrono::DateTime;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::log::debug;
 use dozer_types::models::ingestion_types::IngestionMessage;
-use dozer_types::node::RestartableState;
+use dozer_types::node::OpIdentifier;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::tonic::async_trait;
 use dozer_types::types::{
@@ -97,7 +97,7 @@ impl SourceFactory for TestSourceFactory {
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _last_checkpoint: Option<RestartableState>,
+        _state: Option<Vec<u8>>,
     ) -> Result<Box<dyn Source>, BoxedError> {
         Ok(Box::new(TestSource {}))
     }
@@ -108,9 +108,14 @@ pub struct TestSource {}
 
 #[async_trait]
 impl Source for TestSource {
+    async fn serialize_state(&self) -> Result<Vec<u8>, BoxedError> {
+        Ok(vec![])
+    }
+
     async fn start(
         &self,
         sender: Sender<(PortHandle, IngestionMessage)>,
+        _last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
         for _ in 0..10 {
             sender
