@@ -76,7 +76,7 @@ pub async fn get_master_binlog_position(
     })?;
 
     Ok((
-        format!("{prefix}."),
+        prefix.to_string(),
         BinlogPosition {
             binlog_id,
             position,
@@ -140,8 +140,10 @@ impl BinlogIngestor<'_, '_, '_> {
     }
 
     async fn open_binlog(&mut self) -> Result<(), MySQLConnectorError> {
-        let filename_formatted =
-            format!("{}{:0>6}", self.binlog_prefix, self.next_position.binlog_id);
+        let filename_formatted = format!(
+            "{}.{:0>6}",
+            self.binlog_prefix, self.next_position.binlog_id
+        );
         let filename = filename_formatted.as_bytes();
         let binlog_stream = self
             .connect()
@@ -249,7 +251,7 @@ impl BinlogIngestor<'_, '_, '_> {
                             seq_no: 0,
                         };
 
-                        self.binlog_prefix = format!("{prefix}.");
+                        self.binlog_prefix = prefix.to_string();
                         self.open_binlog().await?;
                     }
 

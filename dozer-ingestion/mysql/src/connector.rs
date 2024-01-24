@@ -281,7 +281,7 @@ impl MySQLConnector {
                     return Err(MySQLConnectorError::MultipleBinlogsWithSameSuffix);
                 }
 
-                prefix = Some(binlog_id[..(binlog_id.len() - 6)].to_string());
+                prefix = Some(binlog_id[..(binlog_id.len() - 7)].to_string());
             }
         }
 
