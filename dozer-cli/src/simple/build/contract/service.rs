@@ -151,12 +151,15 @@ impl Contract {
                     });
                     pipeline_node_index_to_ui_node_index.insert(node_index, processor_node_index);
                 }
-                NodeKind::Sink => {
+                NodeKind::Sink {
+                    typ
+                } => {
                     // Create sink ui node. Schema comes from endpoint.
                     let schema = self.endpoints[&node.handle.id].schema.clone();
                     let sink_node_index = ui_graph.add_node(UiNodeType {
                         kind: UiNodeKind::Sink {
                             name: node.handle.id.clone(),
+                            typ: typ.clone()
                         },
                         output_schema: Some(map_schema(schema)),
                     });
@@ -217,7 +220,7 @@ enum UiNodeKind {
     Connection { typ: String, name: String },
     Source { name: String },
     Processor { typ: String, name: String },
-    Sink { name: String },
+    Sink { typ:String, name: String },
 }
 
 impl Display for UiNodeKind {
@@ -226,7 +229,7 @@ impl Display for UiNodeKind {
             UiNodeKind::Connection { typ, name } => write!(f, "connection::{typ}::{name}"),
             UiNodeKind::Source { name } => write!(f, "source::source::{name}"),
             UiNodeKind::Processor { typ, name } => write!(f, "processor::{typ}::{name}"),
-            UiNodeKind::Sink { name } => write!(f, "sink::sink::{name}"),
+            UiNodeKind::Sink { typ, name } => write!(f, "sink::{typ}::{name}"),
         }
     }
 }

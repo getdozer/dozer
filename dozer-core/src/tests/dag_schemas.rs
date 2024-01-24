@@ -181,6 +181,10 @@ impl SinkFactory for TestSinkFactory {
     ) -> Result<Box<dyn crate::node::Sink>, BoxedError> {
         todo!()
     }
+
+    fn type_name(&self) -> String {
+        "test".to_owned()
+    }
 }
 
 #[tokio::test]

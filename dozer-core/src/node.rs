@@ -111,6 +111,8 @@ pub trait SinkFactory: Send + Sync + Debug {
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Sink>, BoxedError>;
+    fn type_name(&self) -> String;
+
 }
 
 pub trait Sink: Send + Sync + Debug {

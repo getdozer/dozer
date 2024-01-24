@@ -90,7 +90,7 @@ fn run() -> Result<(), OrchestrationError> {
                 dozer.runtime.block_on(ui::app::start_app_ui_server(
                     &dozer.runtime,
                     shutdown_receiver,
-                    false,
+                    true,
                 ))?;
                 Ok(())
             }
