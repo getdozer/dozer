@@ -237,7 +237,7 @@ impl MySQLConnector {
             .await?;
 
         let binlog_position = last_checkpoint
-            .map(|state| crate::binlog::BinlogPosition::try_from(state.clone()))
+            .map(crate::binlog::BinlogPosition::try_from)
             .transpose()?;
 
         let binlog_positions = self

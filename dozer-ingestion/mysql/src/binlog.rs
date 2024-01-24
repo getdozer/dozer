@@ -38,9 +38,12 @@ use std::{
     ops::Deref,
 };
 
+// TODO: make this configurable
+const BINLOG_FILENAME_PREFIX: &str = "binlog.";
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BinlogPosition {
-    pub filename: Vec<u8>,
+    pub binlog_id: u64,
     pub position: u64,
     pub seq_no: u64,
 }
@@ -48,7 +51,7 @@ pub struct BinlogPosition {
 pub async fn get_master_binlog_position(
     conn: &mut Conn,
 ) -> Result<BinlogPosition, MySQLConnectorError> {
-    let (filename, position) = {
+    let (filename, position): (Vec<u8>, u64) = {
         let mut row: Row = conn
             .exec_first("SHOW MASTER STATUS", ())
             .await
@@ -57,8 +60,27 @@ pub async fn get_master_binlog_position(
         (row.take(0).unwrap(), row.take(1).unwrap())
     };
 
+    let binlog_id = String::from_utf8(filename.clone())
+        .map_err(|err| {
+            MySQLConnectorError::BinlogError(format!(
+                "Unexpected binlog filename format: {filename:?}: {err}"
+            ))
+        })?
+        .strip_prefix(BINLOG_FILENAME_PREFIX)
+        .ok_or_else(|| {
+            MySQLConnectorError::BinlogError(format!(
+                "Unexpected binlog filename format: {filename:?}"
+            ))
+        })?
+        .parse::<u64>()
+        .map_err(|err| {
+            MySQLConnectorError::BinlogError(format!(
+                "Unexpected binlog filename format: {filename:?}: {err}"
+            ))
+        })?;
+
     Ok(BinlogPosition {
-        filename,
+        binlog_id,
         position,
         seq_no: 0,
     })
@@ -116,12 +138,17 @@ impl BinlogIngestor<'_, '_, '_> {
     }
 
     async fn open_binlog(&mut self) -> Result<(), MySQLConnectorError> {
+        let filename_formatted = format!(
+            "{}{:0>6}",
+            BINLOG_FILENAME_PREFIX, self.next_position.binlog_id
+        );
+        let filename = filename_formatted.as_bytes();
         let binlog_stream = self
             .connect()
             .await?
             .get_binlog_stream(
                 mysql_async::BinlogRequest::new(self.server_id)
-                    .with_filename(self.next_position.filename.as_slice())
+                    .with_filename(filename)
                     .with_pos(self.next_position.position),
             )
             .await
@@ -130,7 +157,7 @@ impl BinlogIngestor<'_, '_, '_> {
         self.binlog_stream = Some(binlog_stream);
 
         self.local_stop_position = self.stop_position.as_ref().and_then(|stop_position| {
-            if self.next_position.filename == stop_position.filename {
+            if self.next_position.binlog_id == stop_position.binlog_id {
                 Some(stop_position.position)
             } else {
                 None
@@ -201,9 +228,24 @@ impl BinlogIngestor<'_, '_, '_> {
                             _ => unreachable!(),
                         };
 
-                    if rotate_event.name_raw() != self.next_position.filename.as_slice() {
+                    let filename = rotate_event.name();
+                    let rotated_binlog_id = filename
+                        .strip_prefix(BINLOG_FILENAME_PREFIX)
+                        .ok_or_else(|| {
+                            MySQLConnectorError::BinlogError(format!(
+                                "Unexpected binlog filename format: {filename:?}"
+                            ))
+                        })?
+                        .parse::<u64>()
+                        .map_err(|err| {
+                            MySQLConnectorError::BinlogError(format!(
+                                "Unexpected binlog filename format: {filename:?}: {err}"
+                            ))
+                        })?;
+
+                    if rotated_binlog_id != self.next_position.binlog_id {
                         self.next_position = BinlogPosition {
-                            filename: rotate_event.name_raw().into(),
+                            binlog_id: rotated_binlog_id,
                             position: rotate_event.position(),
                             seq_no: 0,
                         };
@@ -225,7 +267,7 @@ impl BinlogIngestor<'_, '_, '_> {
 
                     if query == b"BEGIN" {
                         transaction_pos.seq_no = 0;
-                        transaction_pos.filename = self.next_position.filename.clone();
+                        transaction_pos.binlog_id = self.next_position.binlog_id;
                         transaction_pos.position = (binlog_event.header().log_pos()
                             - binlog_event.header().event_size())
                             as u64;
@@ -1262,7 +1304,7 @@ mod tests {
     fn test_ingestion_continue_condition() {
         let binlog_id = 18;
         let start_position = super::BinlogPosition {
-            filename: format!("mysql-bin.0000{binlog_id}").into(),
+            binlog_id,
             position: 1234,
             seq_no: 3,
         };
@@ -1308,7 +1350,7 @@ mod tests {
 
         // Operation from previous binlog
         let operation_position = super::BinlogPosition {
-            filename: format!("mysql-bin.0000{}", binlog_id - 1).into(),
+            binlog_id: binlog_id - 1,
             ..start_position.clone()
         };
 
@@ -1316,7 +1358,7 @@ mod tests {
 
         // Operation from next binlog
         let operation_position = super::BinlogPosition {
-            filename: format!("mysql-bin.0000{}", binlog_id + 1).into(),
+            binlog_id: binlog_id + 1,
             ..start_position
         };
 
