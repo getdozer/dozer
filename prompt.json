@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "app_name": "quick-start-app",
+  "home_dir": "./.dozer",
+  "cahce_dir": "./.dozer/cache",
+  "connections": [
+    {
+      "name": "Snowflake",
+      "config": {
+        "server": "<account_name>.<region_id>.snowflakecomputing.com",
+        "port": 443,
+        "user": "bob",
+        "password": "password",
+        "database": "database",
+        "schema": "schema",
+        "warehouse": "warehouse",
+        "driver": "SnowflakeDSIIDriver",
+        "role": "role",
+        "poll_interval_seconds": null
+      },
+      "type": "snowflake"
+    },
+    {
+      "name": "MySQL",
+      "config": {
+        "url": "mysql://<user>:<password>@localhost:3306/<database>",
+        "server_id": 1
+      },
+      "type": "mysql"
+    },
+    {
+      "name": "Postgres",
+      "config": {
+        "user": "postgres",
+        "password": "postgres",
+        "host": "localhost",
+        "port": 5432,
+        "database": "users"
+      },
+      "type": "postgres"
+    },
+    {
+        "name": "S3",
+        "config": {
+            "access_keu_id": "<your_access_key_id>",
+            "secret_access_key": "<your_secret_access_key>",
+            "region": "<your_region>",
+            "bucket_name": "<your_bucket>"
+        },
+        "type": "s3"
+        
+    }
+  ]
+}

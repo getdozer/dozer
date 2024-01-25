@@ -1,4 +1,5 @@
 use crate::errors::{CliError, OrchestrationError};
+
 use dozer_types::constants::{DEFAULT_LAMBDAS_DIRECTORY, DEFAULT_QUERIES_DIRECTORY};
 use dozer_types::log::warn;
 use dozer_types::models::config::{default_cache_dir, default_home_dir, get_cache_dir};
@@ -23,7 +24,6 @@ use rustyline::{
 use rustyline::{error::ReadlineError, Editor};
 use rustyline_derive::{Helper, Highlighter, Hinter, Validator};
 use std::path::{Path, PathBuf};
-
 #[derive(Helper, Highlighter, Hinter, Validator)]
 pub struct InitHelper {}
 
