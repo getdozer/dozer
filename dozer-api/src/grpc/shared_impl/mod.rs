@@ -12,6 +12,8 @@ use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::broadcast::Receiver;
 use tokio_stream::wrappers::ReceiverStream;
 
+use dozer_types::grpc_types::types::EventType;
+
 use crate::api_helper::{get_records, get_records_count};
 use crate::auth::Access;
 
@@ -68,10 +70,26 @@ pub fn query(
 pub struct EndpointFilter {
     schema: Schema,
     filter: Option<FilterExpression>,
+    event_type: EventType,
 }
 
 impl EndpointFilter {
-    pub fn new(schema: Schema, filter: Option<&str>) -> Result<Self, Status> {
+    pub fn convert_event_type(event_type: i32) -> EventType{
+        if event_type==0 {
+            return EventType::All
+        }
+        else if event_type==1 {
+            return EventType::InsertOnly
+        } 
+        else if event_type==2 {
+            return EventType::UpdateOnly
+        }
+        else{
+            return EventType::DeleteOnly
+        }
+    }
+
+    pub fn new(schema: Schema,event_type: i32, filter: Option<&str>) -> Result<Self, Status> {
         let filter = filter
             .and_then(|filter| {
                 if filter.is_empty() {
@@ -82,7 +100,8 @@ impl EndpointFilter {
             })
             .transpose()
             .map_err(from_error)?;
-        Ok(Self { schema, filter })
+        let event_type = EndpointFilter::convert_event_type(event_type);
+        Ok(Self { schema, filter,event_type })
     }
 }
 
@@ -115,6 +134,7 @@ pub fn on_event<T: Send + 'static>(
                         if let Some(filter) = endpoints.get(&op.endpoint) {
                             if filter::op_satisfies_filter(
                                 &op,
+                                filter.event_type,
                                 filter.filter.as_ref(),
                                 &filter.schema,
                             ) && (tx.send(event_mapper(op)).await).is_err()

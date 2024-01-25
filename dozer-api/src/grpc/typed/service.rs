@@ -374,7 +374,17 @@ fn on_event(
                 .ok_or_else(|| Status::new(Code::InvalidArgument, "filter must be a string"))
         })
         .transpose()?;
-    let filter = EndpointFilter::new(schema, filter)?;
+
+        let event_type=query_request.get_field_by_name("type");
+        let event_type=event_type
+            .as_ref()
+            .map(|event_type| {
+                event_type
+                    .as_i32()
+                    .ok_or_else(|| Status::new(Code::InvalidArgument, "event_type must be a i32"))
+            })
+            .transpose()?;
+    let filter = EndpointFilter::new(schema,event_type.unwrap() ,filter)?;
 
     shared_impl::on_event(
         [(table_name, filter)].into_iter().collect(),
