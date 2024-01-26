@@ -34,6 +34,7 @@ use dozer_types::errors::internal::BoxedError;
 use dozer_types::geo::{Coord, Point};
 use dozer_types::log::{error, info};
 use dozer_types::ordered_float::OrderedFloat;
+use dozer_types::tonic::async_trait;
 use dozer_types::types::DozerPoint;
 use dozer_types::{
     errors::types::TypeError,
@@ -217,6 +218,7 @@ impl AerospikeSinkFactory {
     }
 }
 
+#[async_trait]
 impl SinkFactory for AerospikeSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
@@ -227,7 +229,7 @@ impl SinkFactory for AerospikeSinkFactory {
         Ok(())
     }
 
-    fn build(
+    async fn build(
         &self,
         mut input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn dozer_core::node::Sink>, BoxedError> {
@@ -920,6 +922,7 @@ impl Sink for AerospikeSink {
 #[cfg(test)]
 mod tests {
 
+    use dozer_log::tokio;
     use std::time::Duration;
 
     use dozer_recordstore::ProcessorRecordStore;
@@ -944,12 +947,12 @@ mod tests {
     const N_RECORDS: usize = 1000;
     const BATCH_SIZE: usize = 100;
 
-    #[test]
+    #[tokio::test]
     #[ignore]
-    fn test_inserts() {
+    async fn test_inserts() {
         let rs = ProcessorRecordStore::new(dozer_types::models::app_config::RecordStore::InMemory)
             .unwrap();
-        let mut sink = sink("inserts");
+        let mut sink = sink("inserts").await;
         for i in 0..N_RECORDS {
             sink.process(
                 DEFAULT_PORT_HANDLE,
@@ -962,9 +965,9 @@ mod tests {
         }
     }
 
-    #[test]
+    #[tokio::test]
     #[ignore]
-    fn test_inserts_batch() {
+    async fn test_inserts_batch() {
         let mut batches = Vec::with_capacity(N_RECORDS / BATCH_SIZE);
         for i in 0..N_RECORDS / BATCH_SIZE {
             let mut batch = Vec::with_capacity(BATCH_SIZE);
@@ -973,7 +976,7 @@ mod tests {
             }
             batches.push(batch);
         }
-        let mut sink = sink("inserts_batch");
+        let mut sink = sink("inserts_batch").await;
         let rs = ProcessorRecordStore::new(dozer_types::models::app_config::RecordStore::InMemory)
             .unwrap();
         for batch in batches {
@@ -986,7 +989,7 @@ mod tests {
         }
     }
 
-    fn sink(set: &str) -> Box<dyn Sink> {
+    async fn sink(set: &str) -> Box<dyn Sink> {
         let mut schema = Schema::new();
         schema
             .field(f("uint", FieldType::UInt), true)
@@ -1020,6 +1023,7 @@ mod tests {
         });
         factory
             .build([(DEFAULT_PORT_HANDLE, schema)].into())
+            .await
             .unwrap()
     }
 

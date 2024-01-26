@@ -118,6 +118,7 @@ impl BuilderDag {
                                 .remove(&node_index)
                                 .expect("we collected all input schemas"),
                         )
+                        .await
                         .map_err(ExecutionError::Factory)?;
                     NodeType {
                         handle: node.handle,

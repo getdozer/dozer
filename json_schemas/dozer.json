@@ -406,6 +406,93 @@
       },
       "additionalProperties": false
     },
+    "ClickhouseSinkConfig": {
+      "type": "object",
+      "required": [
+        "database",
+        "database_url",
+        "sink_table_name",
+        "user"
+      ],
+      "properties": {
+        "create_table_options": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ClickhouseSinkTableOptions"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "database": {
+          "type": "string"
+        },
+        "database_url": {
+          "type": "string"
+        },
+        "password": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "primary_keys": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "sink_table_name": {
+          "type": "string"
+        },
+        "user": {
+          "type": "string"
+        }
+      }
+    },
+    "ClickhouseSinkTableOptions": {
+      "type": "object",
+      "properties": {
+        "cluster": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "engine": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "order_by": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "partition_by": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sample_by": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
     "Cloud": {
       "type": "object",
       "properties": {
@@ -871,6 +958,18 @@
           "properties": {
             "Aerospike": {
               "$ref": "#/definitions/AerospikeSinkConfig"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Clickhouse"
+          ],
+          "properties": {
+            "Clickhouse": {
+              "$ref": "#/definitions/ClickhouseSinkConfig"
             }
           },
           "additionalProperties": false

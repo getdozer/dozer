@@ -103,10 +103,11 @@ pub trait Processor: Send + Sync + Debug {
     ) -> Result<(), BoxedError>;
 }
 
+#[async_trait]
 pub trait SinkFactory: Send + Sync + Debug {
     fn get_input_ports(&self) -> Vec<PortHandle>;
     fn prepare(&self, input_schemas: HashMap<PortHandle, Schema>) -> Result<(), BoxedError>;
-    fn build(
+    async fn build(
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Sink>, BoxedError>;

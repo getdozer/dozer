@@ -73,7 +73,7 @@ pub enum OrchestrationError {
     CacheFull(String),
     #[error("Internal thread panic: {0}")]
     JoinError(#[source] tokio::task::JoinError),
-    #[error("Connector source factory error: {0}")]
+    #[error("Connector source factory error: {0:?}")]
     ConnectorSourceFactory(#[from] ConnectorSourceFactoryError),
     #[error(transparent)]
     ExecutionError(#[from] ExecutionError),

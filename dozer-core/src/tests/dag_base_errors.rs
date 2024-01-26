@@ -419,6 +419,7 @@ impl ErrSinkFactory {
     }
 }
 
+#[async_trait]
 impl SinkFactory for ErrSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![COUNTING_SINK_INPUT_PORT]
@@ -428,7 +429,7 @@ impl SinkFactory for ErrSinkFactory {
         Ok(())
     }
 
-    fn build(
+    async fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Sink>, BoxedError> {

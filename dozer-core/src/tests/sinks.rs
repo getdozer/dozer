@@ -9,6 +9,7 @@ use dozer_types::types::{Operation, Schema};
 use dozer_types::log::debug;
 use std::collections::HashMap;
 
+use dozer_types::tonic::async_trait;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
@@ -29,6 +30,7 @@ impl CountingSinkFactory {
     }
 }
 
+#[async_trait]
 impl SinkFactory for CountingSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![COUNTING_SINK_INPUT_PORT]
@@ -38,7 +40,7 @@ impl SinkFactory for CountingSinkFactory {
         Ok(())
     }
 
-    fn build(
+    async fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Sink>, BoxedError> {
@@ -104,6 +106,7 @@ impl Sink for CountingSink {
 #[derive(Debug)]
 pub struct ConnectivityTestSinkFactory;
 
+#[async_trait]
 impl SinkFactory for ConnectivityTestSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
@@ -113,7 +116,7 @@ impl SinkFactory for ConnectivityTestSinkFactory {
         unimplemented!("This struct is for connectivity test, only input ports are defined")
     }
 
-    fn build(
+    async fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Sink>, BoxedError> {
@@ -124,6 +127,7 @@ impl SinkFactory for ConnectivityTestSinkFactory {
 #[derive(Debug)]
 pub struct NoInputPortSinkFactory;
 
+#[async_trait]
 impl SinkFactory for NoInputPortSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![]
@@ -133,7 +137,7 @@ impl SinkFactory for NoInputPortSinkFactory {
         unimplemented!("This struct is for connectivity test, only input ports are defined")
     }
 
-    fn build(
+    async fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Sink>, BoxedError> {

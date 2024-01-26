@@ -5,7 +5,9 @@ use dozer_cache::dozer_log::home_dir::{BuildPath, HomeDir};
 use dozer_cache::dozer_log::replication::Log;
 use dozer_core::checkpoint::{CheckpointOptions, OptionCheckpoint};
 use dozer_tracing::LabelsAndProgress;
-use dozer_types::models::endpoint::{AerospikeSinkConfig, Endpoint, EndpointKind};
+use dozer_types::models::endpoint::{
+    AerospikeSinkConfig, ClickhouseSinkConfig, Endpoint, EndpointKind,
+};
 use dozer_types::models::flags::Flags;
 use tokio::runtime::Runtime;
 use tokio::sync::Mutex;
@@ -45,6 +47,7 @@ enum ExecutorEndpointKind {
     Api { log_endpoint: LogEndpoint },
     Dummy,
     Aerospike { config: AerospikeSinkConfig },
+    Clickhouse { config: ClickhouseSinkConfig },
 }
 
 impl<'a> Executor<'a> {
@@ -87,6 +90,9 @@ impl<'a> Executor<'a> {
                 }
                 EndpointKind::Dummy => ExecutorEndpointKind::Dummy,
                 EndpointKind::Aerospike(config) => ExecutorEndpointKind::Aerospike {
+                    config: config.clone(),
+                },
+                EndpointKind::Clickhouse(config) => ExecutorEndpointKind::Clickhouse {
                     config: config.clone(),
                 },
             };
@@ -146,6 +152,9 @@ impl<'a> Executor<'a> {
                         ExecutorEndpointKind::Dummy => EndpointLogKind::Dummy,
                         ExecutorEndpointKind::Aerospike { config } => {
                             EndpointLogKind::Aerospike { config }
+                        }
+                        ExecutorEndpointKind::Clickhouse { config } => {
+                            EndpointLogKind::Clickhouse { config }
                         }
                     };
                     EndpointLog {

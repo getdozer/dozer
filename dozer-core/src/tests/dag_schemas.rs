@@ -165,6 +165,7 @@ impl ProcessorFactory for TestJoinProcessorFactory {
 #[derive(Debug)]
 struct TestSinkFactory {}
 
+#[async_trait]
 impl SinkFactory for TestSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
@@ -174,7 +175,7 @@ impl SinkFactory for TestSinkFactory {
         Ok(())
     }
 
-    fn build(
+    async fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn crate::node::Sink>, BoxedError> {

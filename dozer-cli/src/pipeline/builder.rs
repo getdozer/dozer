@@ -15,7 +15,7 @@ use dozer_sql::builder::{OutputNodeInfo, QueryContext};
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::log::debug;
 use dozer_types::models::connection::Connection;
-use dozer_types::models::endpoint::AerospikeSinkConfig;
+use dozer_types::models::endpoint::{AerospikeSinkConfig, ClickhouseSinkConfig};
 use dozer_types::models::flags::Flags;
 use dozer_types::models::source::Source;
 use dozer_types::models::udf_config::UdfConfig;
@@ -26,6 +26,7 @@ use tokio::sync::Mutex;
 use crate::pipeline::dummy_sink::DummySinkFactory;
 use crate::pipeline::LogSinkFactory;
 use dozer_sink_aerospike::AerospikeSinkFactory;
+use dozer_sink_clickhouse::ClickhouseSinkFactory;
 
 use super::connector_source::ConnectorSourceFactoryError;
 use super::source_builder::SourceBuilder;
@@ -60,6 +61,7 @@ pub enum EndpointLogKind {
     Api { log: Arc<Mutex<Log>> },
     Dummy,
     Aerospike { config: AerospikeSinkConfig },
+    Clickhouse { config: ClickhouseSinkConfig },
 }
 
 pub struct PipelineBuilder<'a> {
@@ -289,6 +291,9 @@ impl<'a> PipelineBuilder<'a> {
                 EndpointLogKind::Dummy => Box::new(DummySinkFactory),
                 EndpointLogKind::Aerospike { config } => {
                     Box::new(AerospikeSinkFactory::new(config))
+                }
+                EndpointLogKind::Clickhouse { config } => {
+                    Box::new(ClickhouseSinkFactory::new(config.clone(), runtime.clone()))
                 }
             };
 
