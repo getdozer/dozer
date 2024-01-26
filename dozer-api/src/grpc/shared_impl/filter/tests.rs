@@ -821,9 +821,11 @@ fn test_op_satisfies_filter() {
         );
     };
 
-    check(OperationType::Insert, None, &new, Some(&filter1), false, EventType::All);
+    check(OperationType::Insert, None, &new, Some(&filter1), false, EventType::DeleteOnly);
     check(OperationType::Insert, None, &new, Some(&filter2), true, EventType::InsertOnly);
-    check(OperationType::Delete, None, &new, Some(&filter1), false, EventType::DeleteOnly);
+    check(OperationType::Insert, None, &new, Some(&filter2), true, EventType::All);
+    check(OperationType::Insert, None, &new, Some(&filter1), false, EventType::UpdateOnly);
+    check(OperationType::Delete, None, &new, Some(&filter1), false, EventType::UpdateOnly);
     check(OperationType::Delete, None, &new, Some(&filter2), true, EventType::DeleteOnly);
     check(
         OperationType::Update,

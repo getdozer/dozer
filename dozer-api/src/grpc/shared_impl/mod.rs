@@ -76,16 +76,16 @@ pub struct EndpointFilter {
 impl EndpointFilter {
     pub fn convert_event_type(event_type: i32) -> EventType{
         if event_type==0 {
-            return EventType::All
+            EventType::All
         }
         else if event_type==1 {
-            return EventType::InsertOnly
+            EventType::InsertOnly
         } 
         else if event_type==2 {
-            return EventType::UpdateOnly
+            EventType::UpdateOnly
         }
         else{
-            return EventType::DeleteOnly
+            EventType::DeleteOnly
         }
     }
 
