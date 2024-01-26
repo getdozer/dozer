@@ -1,5 +1,3 @@
-use super::errors::LiveError;
-use super::WEB_PORT;
 use dozer_types::log::info;
 use std::fs::File;
 use std::io::Read;
@@ -8,14 +6,15 @@ use std::path::Path;
 use std::env;
 use std::fs::remove_dir_all;
 use std::fs::remove_file;
-use std::path::PathBuf;
 
-pub async fn fetch_latest_init_schema() -> Result<() , {
+
+pub async fn fetch_latest_init_schema() -> Result<() ,  Box<dyn std::error::Error>>  {
     let url = "https://dozer-init-template.s3.ap-southeast-1.amazonaws.com/latest";
 
     let (key, existing_key, key_changed) = get_key_from_url(url).await?;
-    let json_file_name = key.as_str() + ".json"; // Assume the JSON file has a .json extension
-
+    //let json_file_name: <&str as Add<&str>>::Output = key.as_str() + ".json"; // Assume the JSON file has a .json extension
+    let json_file_name: &str = key.as_str();
+    let prev_json_file_name = existing_key.as_str();
     if key_changed {
         info!("Downloading latest file: {}", json_file_name);
 
@@ -24,7 +23,7 @@ pub async fn fetch_latest_init_schema() -> Result<() , {
 
         // Delete existing JSON file if present
         if !existing_key.is_empty() {
-            delete_file_if_present(existing_key + ".json")?;
+            delete_file_if_present(prev_json_file_name)?;
         }
 
         get_json_from_url(json_url, json_file_name).await?;
@@ -34,7 +33,7 @@ pub async fn fetch_latest_init_schema() -> Result<() , {
 }
 // This function gets the latest keys from url and compares it with the existing key
 // Returns the latest key, existing key and a boolean indicating if the key has changed
-async fn get_key_from_url(url: &str) -> Result<(String, String, bool) , {
+async fn get_key_from_url(url: &str) -> Result<(String, String, bool), Box<dyn std::error::Error>> {
     let response = reqwest::get(url).await?.error_for_status()?.text().await?;
     let key = response.trim().to_string();
 
@@ -57,7 +56,7 @@ async fn get_key_from_url(url: &str) -> Result<(String, String, bool) , {
 }
 
 
-async fn get_json_from_url(url: &str, file_name: &str) -> Result<(), LiveError> {
+async fn get_json_from_url(url: &str, file_name: &str) -> Result<(),  Box<dyn std::error::Error>>  {
 
     let response = reqwest::get(url).await?.error_for_status()?.text().await?;
     let directory_path = get_directory_path();
@@ -72,7 +71,7 @@ async fn get_json_from_url(url: &str, file_name: &str) -> Result<(), LiveError> 
 
 
 
-fn delete_file_if_present(file_name: &str) -> Result<(), LiveError> {
+fn delete_file_if_present(file_name: &str) -> Result<(), Box<dyn std::error::Error>>  {
     let directory_path = get_directory_path();
     let file_path = Path::new(&directory_path).join("local-ui").join(file_name);
     info!("deleting file {:?}", file_path);
@@ -91,12 +90,4 @@ fn delete_file_if_present(file_name: &str) -> Result<(), LiveError> {
 fn get_directory_path() -> String {
     let home_dir = env::var("HOME").unwrap_or_else(|_| ".".to_string());
     format!("{}/{}", home_dir, ".dozer")
-}
-
-fn get_build_path() -> PathBuf {
-    let directory_path = get_directory_path();
-    Path::new(&directory_path)
-        .join("local-ui")
-        .join("contents")
-        .join("build")
 }

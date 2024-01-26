@@ -1,8 +1,9 @@
 pub mod cloud;
-mod init_downloader;
+pub mod init_downloader;
 mod helper;
 mod init;
 pub mod types;
+init_downloader::fetch_latest_init_schema().await?
 pub use helper::{
     get_base_dir, init_config, init_dozer, list_sources, load_config_from_file, LOGO,
 };
