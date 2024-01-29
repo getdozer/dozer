@@ -51,7 +51,7 @@ fn check_with_event_type(event_type: EventType, op: &Operation) -> bool {
     } else {
         return false;
     }
-    return false;
+    false
 }
 
 fn record_satisfies_filter(record: &Record, filter: &FilterExpression, schema: &Schema) -> bool {
