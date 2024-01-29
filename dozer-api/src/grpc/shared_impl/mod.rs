@@ -98,8 +98,8 @@ impl EndpointFilter {
             .transpose()
             .map_err(from_error)?;
         let event_type = EndpointFilter::convert_event_type(event_type);
-        Ok(Self { 
-            schema, 
+        Ok(Self {
+            schema,
             filter,
             event_type,
         })

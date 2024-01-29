@@ -378,14 +378,14 @@ fn on_event(
         .transpose()?;
 
     let event_type = query_request.get_field_by_name("type");
-    let event_type = event_type
-        .as_ref();
+    let event_type = event_type.as_ref();
 
-    let event_type= event_type.map(|event_type| {
+    let event_type = event_type
+        .map(|event_type| {
             event_type
-            .as_enum_number()
-            .ok_or_else(|| Status::new(Code::InvalidArgument, "event_type must be a i32"))
-       })
+                .as_enum_number()
+                .ok_or_else(|| Status::new(Code::InvalidArgument, "event_type must be a i32"))
+        })
         .transpose()?;
     let filter = EndpointFilter::new(schema, event_type.unwrap(), filter)?;
 
