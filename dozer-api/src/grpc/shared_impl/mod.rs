@@ -77,14 +77,11 @@ impl EndpointFilter {
     pub fn convert_event_type(event_type: i32) -> EventType {
         if event_type == 0 {
             EventType::All
-        }
-        else if event_type == 1 {
+        } else if event_type == 1 {
             EventType::InsertOnly
-        } 
-        else if event_type == 2 {
+        } else if event_type == 2 {
             EventType::UpdateOnly
-        }
-        else {
+        } else {
             EventType::DeleteOnly
         }
     }
@@ -104,7 +101,7 @@ impl EndpointFilter {
         Ok(Self { 
             schema, 
             filter,
-            event_type 
+            event_type,
         })
     }
 }
