@@ -14,21 +14,44 @@ pub fn op_satisfies_filter(
     schema: &Schema,
 ) -> bool {
     if let Some(filter) = filter {
-        if ((op.typ == OperationType::Insert as i32)
-            && ((event_type == EventType::All) || (event_type == EventType::InsertOnly)))
-            || ((op.typ == OperationType::Delete as i32) && (event_type == EventType::DeleteOnly))
-        {
-            record_satisfies_filter(op.new.as_ref().unwrap(), filter, schema)
-        } else if (op.typ == OperationType::Update as i32) && (event_type == EventType::UpdateOnly)
-        {
-            record_satisfies_filter(op.old.as_ref().unwrap(), filter, schema)
-                || record_satisfies_filter(op.new.as_ref().unwrap(), filter, schema)
+        if (op.typ == OperationType::Insert as i32) || (op.typ == OperationType::Delete as i32) {
+            if check_with_event_type(event_type, op) {
+                record_satisfies_filter(op.new.as_ref().unwrap(), filter, schema)
+            } else {
+                false
+            }
+        } else if op.typ == OperationType::Update as i32 {
+            if check_with_event_type(event_type, op) {
+                record_satisfies_filter(op.old.as_ref().unwrap(), filter, schema)
+                    || record_satisfies_filter(op.new.as_ref().unwrap(), filter, schema)
+            } else {
+                false
+            }
         } else {
             false
         }
     } else {
         true
     }
+}
+
+fn check_with_event_type(event_type: EventType, op: &Operation) -> bool {
+    if op.typ == OperationType::Insert as i32 {
+        if (event_type == EventType::All) || (event_type == EventType::InsertOnly) {
+            return true;
+        }
+    } else if op.typ == OperationType::Delete as i32 {
+        if (event_type == EventType::All) || (event_type == EventType::DeleteOnly) {
+            return true;
+        }
+    } else if op.typ == OperationType::Update as i32 {
+        if (event_type == EventType::All) || (event_type == EventType::UpdateOnly) {
+            return true;
+        }
+    } else {
+        return false;
+    }
+    return false;
 }
 
 fn record_satisfies_filter(record: &Record, filter: &FilterExpression, schema: &Schema) -> bool {

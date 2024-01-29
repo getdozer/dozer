@@ -17,6 +17,7 @@ use crate::{
     CacheEndpoint,
 };
 use dozer_cache::CacheReader;
+use dozer_types::grpc_types::types::EventType;
 use dozer_types::tonic::{
     self,
     codegen::{
@@ -353,9 +354,7 @@ fn query(
     })?;
     Ok(Response::new(res))
 }
-// fn print_type_of<T>(_: &T) {
-//     println!("{}", std::any::type_name::<T>())
-// }
+
 fn on_event(
     request: Request<DynamicMessage>,
     schema: Schema,
@@ -384,10 +383,17 @@ fn on_event(
         .map(|event_type| {
             event_type
                 .as_enum_number()
-                .ok_or_else(|| Status::new(Code::InvalidArgument, "event_type must be a i32"))
+                .ok_or_else(|| Status::new(Code::InvalidArgument, "type must be an EventType"))
         })
         .transpose()?;
-    let filter = EndpointFilter::new(schema, event_type.unwrap(), filter)?;
+    let filter = EndpointFilter::new(
+        schema,
+        match event_type {
+            Some(o) => o,
+            None => EventType::All.into(),
+        },
+        filter,
+    )?;
 
     shared_impl::on_event(
         [(table_name, filter)].into_iter().collect(),
