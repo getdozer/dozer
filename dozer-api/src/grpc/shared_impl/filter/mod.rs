@@ -5,7 +5,7 @@ use dozer_types::{
     types::{Field, Schema},
 };
 
-use dozer_types::grpc_types::types::{value,EventType, Operation, OperationType, Record, Value};
+use dozer_types::grpc_types::types::{value, EventType, Operation, OperationType, Record, Value};
 
 pub fn op_satisfies_filter(
     op: &Operation,
@@ -14,9 +14,13 @@ pub fn op_satisfies_filter(
     schema: &Schema,
 ) -> bool {
     if let Some(filter) = filter {
-        if ((op.typ == OperationType::Insert as i32) && ((event_type==EventType::All) || (event_type==EventType::InsertOnly)))  || ((op.typ == OperationType::Delete as i32) && (event_type==EventType::DeleteOnly)) {
+        if ((op.typ == OperationType::Insert as i32)
+            && ((event_type == EventType::All) || (event_type == EventType::InsertOnly)))
+            || ((op.typ == OperationType::Delete as i32) && (event_type == EventType::DeleteOnly))
+        {
             record_satisfies_filter(op.new.as_ref().unwrap(), filter, schema)
-        } else if (op.typ == OperationType::Update as i32) && (event_type==EventType::UpdateOnly) {
+        } else if (op.typ == OperationType::Update as i32) && (event_type == EventType::UpdateOnly)
+        {
             record_satisfies_filter(op.old.as_ref().unwrap(), filter, schema)
                 || record_satisfies_filter(op.new.as_ref().unwrap(), filter, schema)
         } else {

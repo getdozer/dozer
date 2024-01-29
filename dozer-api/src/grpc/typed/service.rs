@@ -353,7 +353,9 @@ fn query(
     })?;
     Ok(Response::new(res))
 }
-
+fn print_type_of<T>(_: &T) {
+    println!("{}", std::any::type_name::<T>())
+}
 fn on_event(
     request: Request<DynamicMessage>,
     schema: Schema,
@@ -375,16 +377,19 @@ fn on_event(
         })
         .transpose()?;
 
-        let event_type=query_request.get_field_by_name("type");
-        let event_type=event_type
-            .as_ref()
-            .map(|event_type| {
-                event_type
-                    .as_i32()
-                    .ok_or_else(|| Status::new(Code::InvalidArgument, "event_type must be a i32"))
-            })
-            .transpose()?;
-    let filter = EndpointFilter::new(schema,event_type.unwrap() ,filter)?;
+    let event_type = query_request.get_field_by_name("type");
+    let event_type = event_type
+        .as_ref();
+
+    print_type_of(&event_type);
+    let event_type= event_type.map(|event_type| {
+            event_type
+                .as_i32()
+                // .unwrap()
+                .ok_or_else(|| Status::new(Code::InvalidArgument, "event_type must be a i32"))
+       })
+        .transpose()?;
+    let filter = EndpointFilter::new(schema, event_type.unwrap(), filter)?;
 
     shared_impl::on_event(
         [(table_name, filter)].into_iter().collect(),

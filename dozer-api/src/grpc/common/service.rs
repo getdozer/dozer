@@ -124,7 +124,7 @@ impl CommonGrpcService for CommonService {
             let schema = cache_endpoint.cache_reader().get_schema().0.clone();
             endpoints.insert(
                 endpoint,
-                EndpointFilter::new(schema,filter.r#type, filter.filter.as_deref())?,
+                EndpointFilter::new(schema, filter.r#type, filter.filter.as_deref())?,
             );
         }
 

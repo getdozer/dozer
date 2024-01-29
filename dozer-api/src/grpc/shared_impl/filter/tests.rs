@@ -1,7 +1,7 @@
-use dozer_cache::cache::test_utils::schema_1;
-use dozer_types::serde_json::json;
-use dozer_types::grpc_types::types::EventType;
 use super::*;
+use dozer_cache::cache::test_utils::schema_1;
+use dozer_types::grpc_types::types::EventType;
+use dozer_types::serde_json::json;
 
 fn test_field_satisfies_op_impl(
     field: value::Value,
@@ -821,12 +821,54 @@ fn test_op_satisfies_filter() {
         );
     };
 
-    check(OperationType::Insert, None, &new, Some(&filter1), false, EventType::DeleteOnly);
-    check(OperationType::Insert, None, &new, Some(&filter2), true, EventType::InsertOnly);
-    check(OperationType::Insert, None, &new, Some(&filter2), true, EventType::All);
-    check(OperationType::Insert, None, &new, Some(&filter1), false, EventType::UpdateOnly);
-    check(OperationType::Delete, None, &new, Some(&filter1), false, EventType::UpdateOnly);
-    check(OperationType::Delete, None, &new, Some(&filter2), true, EventType::DeleteOnly);
+    check(
+        OperationType::Insert,
+        None,
+        &new, 
+        Some(&filter1), 
+        false, 
+        EventType::DeleteOnly
+    );
+    check(
+        OperationType::Insert, 
+        None, 
+        &new, 
+        Some(&filter2), 
+        true, 
+        EventType::InsertOnly
+    );
+    check(
+        OperationType::Insert, 
+        None, 
+        &new, 
+        Some(&filter2), 
+        true, 
+        EventType::All
+    );
+    check(
+        OperationType::Insert, 
+        None, 
+        &new, 
+        Some(&filter1), 
+        false, 
+        EventType::UpdateOnly
+    );
+    check(
+        OperationType::Delete, 
+        None, 
+        &new, 
+        Some(&filter1), 
+        false, 
+        EventType::UpdateOnly
+    );
+    check(
+        OperationType::Delete, 
+        None, 
+        &new, 
+        Some(&filter2), 
+        true, 
+        EventType::DeleteOnly
+    );
     check(
         OperationType::Update,
         Some(&old),
