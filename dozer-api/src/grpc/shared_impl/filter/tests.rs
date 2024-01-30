@@ -1,7 +1,7 @@
-use dozer_cache::cache::test_utils::schema_1;
-use dozer_types::serde_json::json;
-
 use super::*;
+use dozer_cache::cache::test_utils::schema_1;
+use dozer_types::grpc_types::types::EventType;
+use dozer_types::serde_json::json;
 
 fn test_field_satisfies_op_impl(
     field: value::Value,
@@ -804,7 +804,7 @@ fn test_op_satisfies_filter() {
     let filter2 = FilterExpression::Simple("a".into(), Operator::EQ, json!(2));
     let filter3 = FilterExpression::Simple("a".into(), Operator::EQ, json!(3));
 
-    let check = |typ, old: Option<&Record>, new: &Record, filter, expected| {
+    let check = |typ, old: Option<&Record>, new: &Record, filter, expected, event_type| {
         assert_eq!(
             op_satisfies_filter(
                 &Operation {
@@ -813,6 +813,7 @@ fn test_op_satisfies_filter() {
                     new: Some(new.clone()),
                     endpoint: "".into()
                 },
+                event_type,
                 filter,
                 &schema
             ),
@@ -820,16 +821,61 @@ fn test_op_satisfies_filter() {
         );
     };
 
-    check(OperationType::Insert, None, &new, Some(&filter1), false);
-    check(OperationType::Insert, None, &new, Some(&filter2), true);
-    check(OperationType::Delete, None, &new, Some(&filter1), false);
-    check(OperationType::Delete, None, &new, Some(&filter2), true);
+    check(
+        OperationType::Insert,
+        None,
+        &new,
+        Some(&filter1),
+        false,
+        EventType::DeleteOnly,
+    );
+    check(
+        OperationType::Insert,
+        None,
+        &new,
+        Some(&filter2),
+        true,
+        EventType::InsertOnly,
+    );
+    check(
+        OperationType::Insert,
+        None,
+        &new,
+        Some(&filter2),
+        true,
+        EventType::All,
+    );
+    check(
+        OperationType::Insert,
+        None,
+        &new,
+        Some(&filter1),
+        false,
+        EventType::UpdateOnly,
+    );
+    check(
+        OperationType::Delete,
+        None,
+        &new,
+        Some(&filter1),
+        false,
+        EventType::UpdateOnly,
+    );
+    check(
+        OperationType::Delete,
+        None,
+        &new,
+        Some(&filter2),
+        true,
+        EventType::DeleteOnly,
+    );
     check(
         OperationType::Update,
         Some(&old),
         &new,
         Some(&filter1),
         true,
+        EventType::UpdateOnly,
     );
     check(
         OperationType::Update,
@@ -837,6 +883,7 @@ fn test_op_satisfies_filter() {
         &new,
         Some(&filter2),
         true,
+        EventType::UpdateOnly,
     );
     check(
         OperationType::Update,
@@ -844,5 +891,6 @@ fn test_op_satisfies_filter() {
         &new,
         Some(&filter3),
         false,
+        EventType::UpdateOnly,
     );
 }

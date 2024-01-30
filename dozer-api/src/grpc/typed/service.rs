@@ -17,6 +17,7 @@ use crate::{
     CacheEndpoint,
 };
 use dozer_cache::CacheReader;
+use dozer_types::grpc_types::types::EventType;
 use dozer_types::tonic::{
     self,
     codegen::{
@@ -374,7 +375,18 @@ fn on_event(
                 .ok_or_else(|| Status::new(Code::InvalidArgument, "filter must be a string"))
         })
         .transpose()?;
-    let filter = EndpointFilter::new(schema, filter)?;
+
+    let event_type = query_request.get_field_by_name("type");
+    let event_type = event_type.as_ref();
+
+    let event_type = event_type
+        .map(|event_type| {
+            event_type
+                .as_enum_number()
+                .ok_or_else(|| Status::new(Code::InvalidArgument, "type must be an EventType"))
+        })
+        .transpose()?;
+    let filter = EndpointFilter::new(schema, event_type.unwrap_or(EventType::All.into()), filter)?;
 
     shared_impl::on_event(
         [(table_name, filter)].into_iter().collect(),
