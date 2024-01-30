@@ -386,14 +386,7 @@ fn on_event(
                 .ok_or_else(|| Status::new(Code::InvalidArgument, "type must be an EventType"))
         })
         .transpose()?;
-    let filter = EndpointFilter::new(
-        schema,
-        match event_type {
-            Some(o) => o,
-            None => EventType::All.into(),
-        },
-        filter,
-    )?;
+    let filter = EndpointFilter::new(schema, event_type.unwrap_or(EventType::All.into()), filter)?;
 
     shared_impl::on_event(
         [(table_name, filter)].into_iter().collect(),
