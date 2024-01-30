@@ -368,6 +368,7 @@ fn write_dozer_config_for_running_in_docker_compose(
                 todo!("Map dozer host and port")
             }
             ConnectionConfig::JavaScript(_) => {}
+            ConnectionConfig::Webhook(_) => {}
         }
     }
 

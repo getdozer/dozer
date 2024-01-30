@@ -621,6 +621,19 @@
             }
           },
           "additionalProperties": false
+        },
+        {
+          "description": "In yaml, present as tag\" `!Webhook`",
+          "type": "object",
+          "required": [
+            "Webhook"
+          ],
+          "properties": {
+            "Webhook": {
+              "$ref": "#/definitions/WebhookConfig"
+            }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -2170,6 +2183,125 @@
       "enum": [
         "OnCreate",
         "Manual"
+      ]
+    },
+    "WebhookConfig": {
+      "examples": [
+        {
+          "host": "localhost",
+          "port": 50059,
+          "endpoints": [
+            {
+              "path": "/ingest",
+              "verbs": [
+                "POST",
+                "DELETE"
+              ],
+              "schema": {
+                "Inline": "\n        {\n            \"users\": {\n              \"schema\": {\n                \"fields\": [\n                  {\n                    \"name\": \"id\",\n                    \"typ\": \"Int\",\n                    \"nullable\": false\n                  },\n                  {\n                    \"name\": \"name\",\n                    \"typ\": \"String\",\n                    \"nullable\": true\n                  },\n                  {\n                    \"name\": \"json\",\n                    \"typ\": \"Json\",\n                    \"nullable\": true\n                  }\n                ]\n              }\n            }\n          }\n        "
+              }
+            }
+          ]
+        }
+      ],
+      "type": "object",
+      "required": [
+        "endpoints"
+      ],
+      "properties": {
+        "endpoints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/WebhookEndpoint"
+          }
+        },
+        "host": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "port": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        }
+      }
+    },
+    "WebhookConfigSchemas": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "Inline"
+          ],
+          "properties": {
+            "Inline": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Path"
+          ],
+          "properties": {
+            "Path": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "WebhookEndpoint": {
+      "examples": [
+        {
+          "path": "/ingest",
+          "verbs": [
+            "POST",
+            "DELETE"
+          ],
+          "schema": {
+            "Inline": "\n        {\n            \"users\": {\n              \"schema\": {\n                \"fields\": [\n                  {\n                    \"name\": \"id\",\n                    \"typ\": \"Int\",\n                    \"nullable\": false\n                  },\n                  {\n                    \"name\": \"name\",\n                    \"typ\": \"String\",\n                    \"nullable\": true\n                  },\n                  {\n                    \"name\": \"json\",\n                    \"typ\": \"Json\",\n                    \"nullable\": true\n                  }\n                ]\n              }\n            }\n          }\n        "
+          }
+        }
+      ],
+      "type": "object",
+      "required": [
+        "path",
+        "schema",
+        "verbs"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "schema": {
+          "$ref": "#/definitions/WebhookConfigSchemas"
+        },
+        "verbs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/WebhookVerb"
+          }
+        }
+      }
+    },
+    "WebhookVerb": {
+      "examples": [
+        "POST"
+      ],
+      "type": "string",
+      "enum": [
+        "POST",
+        "PUT",
+        "DELETE"
       ]
     },
     "XRayConfig": {

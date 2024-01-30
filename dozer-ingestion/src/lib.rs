@@ -28,6 +28,7 @@ use dozer_ingestion_postgres::{
 };
 #[cfg(feature = "snowflake")]
 use dozer_ingestion_snowflake::connector::SnowflakeConnector;
+use dozer_ingestion_webhook::connector::WebhookConnector;
 use errors::ConnectorError;
 use tokio::runtime::Runtime;
 
@@ -131,6 +132,9 @@ pub fn get_connector(
         }
         ConnectionConfig::Dozer(dozer_config) => {
             Ok(Box::new(NestedDozerConnector::new(dozer_config)))
+        }
+        ConnectionConfig::Webhook(webhook_config) => {
+            Ok(Box::new(WebhookConnector::new(webhook_config)))
         }
         ConnectionConfig::JavaScript(javascript_config) => Ok(Box::new(JavaScriptConnector::new(
             runtime,
