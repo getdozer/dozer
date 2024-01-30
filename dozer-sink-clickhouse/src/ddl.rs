@@ -1,3 +1,4 @@
+use dozer_types::log::warn;
 use dozer_types::models::endpoint::ClickhouseSinkTableOptions;
 use dozer_types::types::{FieldDefinition, FieldType, Schema};
 
@@ -94,7 +95,12 @@ impl ClickhouseDDL {
         };
 
         if field.nullable {
-            format!("Nullable({})", typ)
+            if field.typ != FieldType::Binary {
+                format!("Nullable({})", typ)
+            } else {
+                warn!("Binary field cannot be nullable, ignoring nullable flag");
+                typ.to_string()
+            }
         } else {
             typ.to_string()
         }

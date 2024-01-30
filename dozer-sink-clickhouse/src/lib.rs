@@ -3,7 +3,9 @@ mod schema;
 #[cfg(test)]
 mod tests;
 
-use crate::ClickhouseSinkError::{PrimaryKeyNotFound, UnsupportedOperation};
+use crate::ClickhouseSinkError::{
+    PrimaryKeyNotFound, SchemaFieldNotFoundByIndex, UnsupportedOperation,
+};
 use clickhouse::inserter::Inserter;
 use clickhouse::Client;
 use dozer_core::epoch::Epoch;
@@ -18,7 +20,7 @@ use dozer_types::models::endpoint::ClickhouseSinkConfig;
 
 use dozer_types::serde::Serialize;
 use dozer_types::tonic::async_trait;
-use dozer_types::types::{DozerDuration, DozerPoint, Field, Operation, Schema};
+use dozer_types::types::{DozerDuration, DozerPoint, Field, FieldType, Operation, Record, Schema};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -58,6 +60,9 @@ enum ClickhouseSinkError {
 
     #[error("Expected primary key {0:?} but got {1:?}")]
     PrimaryKeyMismatch(Vec<String>, Vec<String>),
+
+    #[error("Schema field not found by index {0}")]
+    SchemaFieldNotFoundByIndex(usize),
 }
 
 #[derive(Debug)]
@@ -95,7 +100,6 @@ pub enum FieldWrapper {
     OptionalBoolean(Option<bool>),
     OptionalString(Option<String>),
     OptionalText(Option<String>),
-    OptionalBinary(#[serde(with = "serde_bytes")] Option<Vec<u8>>),
     OptionalDecimal(Option<Decimal>),
     OptionalTimestamp(Option<DateTime<FixedOffset>>),
     OptionalDate(Option<NaiveDate>),
@@ -119,7 +123,7 @@ fn convert_field_to_ff(field: Field, nullable: bool) -> FieldWrapper {
             Field::Boolean(v) => FieldWrapper::OptionalBoolean(Some(v)),
             Field::String(v) => FieldWrapper::OptionalString(Some(v)),
             Field::Text(v) => FieldWrapper::OptionalText(Some(v)),
-            Field::Binary(v) => FieldWrapper::OptionalBinary(Some(v)),
+            Field::Binary(v) => FieldWrapper::Binary(v),
             Field::Decimal(v) => FieldWrapper::OptionalDecimal(Some(v)),
             Field::Timestamp(v) => FieldWrapper::OptionalTimestamp(Some(v)),
             Field::Date(v) => FieldWrapper::OptionalDate(Some(v)),
@@ -277,6 +281,24 @@ impl ClickhouseSink {
             Ok::<(), BoxedError>(())
         })
     }
+
+    fn map_fields(&self, record: Record) -> Result<Vec<FieldWrapper>, ClickhouseSinkError> {
+        record
+            .values
+            .into_iter()
+            .enumerate()
+            .map(|(index, mut field)| match self.schema.fields.get(index) {
+                Some(schema_field) => {
+                    if schema_field.r#typ == FieldType::Binary && Field::Null == field {
+                        field = Field::Binary(vec![]);
+                    }
+
+                    Ok(convert_field_to_ff(field.clone(), schema_field.nullable))
+                }
+                None => Err(SchemaFieldNotFoundByIndex(index)),
+            })
+            .collect()
+    }
 }
 
 impl Sink for ClickhouseSink {
@@ -292,17 +314,8 @@ impl Sink for ClickhouseSink {
     ) -> Result<(), BoxedError> {
         match op {
             Operation::Insert { new } => {
+                let values = self.map_fields(new)?;
                 self.runtime.block_on(async {
-                    let values = new
-                        .values
-                        .iter()
-                        .enumerate()
-                        .map(|(index, field)| {
-                            let schema_field = self.schema.fields.get(index).unwrap();
-                            let nullable = schema_field.nullable;
-                            convert_field_to_ff(field.clone(), nullable)
-                        })
-                        .collect::<Vec<FieldWrapper>>();
                     for value in values {
                         self.inserter.write(&value)?;
                     }
@@ -404,26 +417,14 @@ impl Sink for ClickhouseSink {
                 })?;
             }
             Operation::BatchInsert { new } => {
-                self.runtime.block_on(async {
-                    for record in new {
-                        let values = record
-                            .values
-                            .iter()
-                            .enumerate()
-                            .map(|(index, field)| {
-                                let schema_field = self.schema.fields.get(index).unwrap();
-                                let nullable = schema_field.nullable;
-                                convert_field_to_ff(field.clone(), nullable)
-                            })
-                            .collect::<Vec<FieldWrapper>>();
-
-                        for f in values {
+                for record in new {
+                    for f in self.map_fields(record)? {
+                        self.runtime.block_on(async {
                             self.inserter.write(&f)?;
-                        }
+                            Ok::<(), BoxedError>(())
+                        })?;
                     }
-
-                    Ok::<(), BoxedError>(())
-                })?;
+                }
 
                 self.commit_insert()?;
             }
