@@ -5,7 +5,7 @@ use dozer_cache::dozer_log::home_dir::{BuildPath, HomeDir};
 use dozer_cache::dozer_log::replication::Log;
 use dozer_core::checkpoint::{CheckpointOptions, OptionCheckpoint};
 use dozer_tracing::LabelsAndProgress;
-use dozer_types::models::endpoint::{AerospikeSinkConfig, Endpoint, EndpointKind};
+use dozer_types::models::endpoint::{AerospikeSinkConfig, BigQuery, Endpoint, EndpointKind};
 use dozer_types::models::flags::Flags;
 use tokio::runtime::Runtime;
 use tokio::sync::Mutex;
@@ -45,6 +45,7 @@ enum ExecutorEndpointKind {
     Api { log_endpoint: LogEndpoint },
     Dummy,
     Aerospike { config: AerospikeSinkConfig },
+    BigQuery(BigQuery),
 }
 
 impl<'a> Executor<'a> {
@@ -89,6 +90,7 @@ impl<'a> Executor<'a> {
                 EndpointKind::Aerospike(config) => ExecutorEndpointKind::Aerospike {
                     config: config.clone(),
                 },
+                EndpointKind::BigQuery(config) => ExecutorEndpointKind::BigQuery(config.clone()),
             };
 
             executor_endpoints.push(ExecutorEndpoint {
@@ -147,6 +149,7 @@ impl<'a> Executor<'a> {
                         ExecutorEndpointKind::Aerospike { config } => {
                             EndpointLogKind::Aerospike { config }
                         }
+                        ExecutorEndpointKind::BigQuery(config) => EndpointLogKind::BigQuery(config),
                     };
                     EndpointLog {
                         table_name: endpoint.table_name,
