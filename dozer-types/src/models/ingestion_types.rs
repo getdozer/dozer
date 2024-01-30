@@ -543,3 +543,85 @@ pub struct JavaScriptConfig {
 pub fn default_bootstrap_path() -> String {
     String::from("src/js/bootstrap.js")
 }
+
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
+#[schemars(example = "Self::example")]
+pub struct WebhookConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub port: Option<u32>,
+
+    pub endpoints: Vec<WebhookEndpoint>,
+}
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
+#[schemars(example = "Self::example")]
+pub struct WebhookEndpoint {
+    pub path: String,
+    pub verbs: Vec<WebhookVerb>,
+    pub schema: WebhookConfigSchemas,
+}
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
+#[schemars(example = "Self::example")]
+pub enum WebhookVerb {
+    POST,   // insert
+    PUT,    // update
+    DELETE, // delete
+}
+
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
+pub enum WebhookConfigSchemas {
+    Inline(String),
+    Path(String),
+}
+
+impl SchemaExample for WebhookConfig {
+    fn example() -> Self {
+        Self {
+            host: Some("localhost".to_owned()),
+            port: Some(50059),
+            endpoints: vec![WebhookEndpoint::example()],
+        }
+    }
+}
+
+impl SchemaExample for WebhookEndpoint {
+    fn example() -> Self {
+        let user_schema = r#"
+        {
+            "users": {
+              "schema": {
+                "fields": [
+                  {
+                    "name": "id",
+                    "typ": "Int",
+                    "nullable": false
+                  },
+                  {
+                    "name": "name",
+                    "typ": "String",
+                    "nullable": true
+                  },
+                  {
+                    "name": "json",
+                    "typ": "Json",
+                    "nullable": true
+                  }
+                ]
+              }
+            }
+          }
+        "#;
+        Self {
+            path: "/ingest".to_owned(),
+            verbs: vec![WebhookVerb::POST, WebhookVerb::DELETE],
+            schema: WebhookConfigSchemas::Inline(user_schema.to_string()),
+        }
+    }
+}
+impl SchemaExample for WebhookVerb {
+    fn example() -> Self {
+        Self::POST
+    }
+}

@@ -69,9 +69,9 @@ dependencies = [
 
 [[package]]
 name = "actix-http"
-version = "3.4.0"
+version = "3.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a92ef85799cba03f76e4f7c10f533e66d87c9a7e7055f3391f09000ad8351bc9"
+checksum = "129d4c88e98860e1758c5de288d1632b07970a16d59bdf7b8d66053d582bb71f"
 dependencies = [
  "actix-codec",
  "actix-rt",
@@ -104,7 +104,7 @@ dependencies = [
  "tokio",
  "tokio-util 0.7.10",
  "tracing",
- "zstd 0.12.4",
+ "zstd",
 ]
 
 [[package]]
@@ -201,9 +201,9 @@ dependencies = [
 
 [[package]]
 name = "actix-web"
-version = "4.4.0"
+version = "4.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e4a5b5e29603ca8c94a77c65cf874718ceb60292c5a5c3e5f4ace041af462b9"
+checksum = "e43428f3bf11dee6d166b00ec2df4e3aa8cc1606aaa0b7433c146852e2f4e03b"
 dependencies = [
  "actix-codec",
  "actix-http",
@@ -458,9 +458,9 @@ checksum = "4b46cbb362ab8752921c97e041f5e366ee6297bd428a31275b9fcf1e380f7299"
 
 [[package]]
 name = "anstream"
-version = "0.6.4"
+version = "0.6.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ab91ebe16eb252986481c5b62f6098f3b698a45e34b5b98200cf20dd2484a44"
+checksum = "6e2e1ebcb11de5c03c67de28a7df593d32191b44939c482e97702baaaa6ab6a5"
 dependencies = [
  "anstyle",
  "anstyle-parse",
@@ -861,8 +861,8 @@ dependencies = [
  "pin-project-lite",
  "tokio",
  "xz2",
- "zstd 0.13.0",
- "zstd-safe 7.0.0",
+ "zstd",
+ "zstd-safe",
 ]
 
 [[package]]
@@ -2664,7 +2664,7 @@ dependencies = [
  "url",
  "uuid",
  "xz2",
- "zstd 0.13.0",
+ "zstd",
 ]
 
 [[package]]
@@ -3753,7 +3753,7 @@ dependencies = [
  "dozer-storage",
  "dozer-tracing",
  "dozer-types",
- "env_logger",
+ "env_logger 0.10.1",
  "futures",
  "itertools 0.10.5",
  "metrics",
@@ -3859,9 +3859,10 @@ dependencies = [
  "dozer-ingestion-object-store",
  "dozer-ingestion-postgres",
  "dozer-ingestion-snowflake",
+ "dozer-ingestion-webhook",
  "dozer-tracing",
  "dozer-utils",
- "env_logger",
+ "env_logger 0.10.1",
  "futures",
  "hex",
  "parquet",
@@ -4003,6 +4004,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "dozer-ingestion-webhook"
+version = "0.1.0"
+dependencies = [
+ "actix-web",
+ "dozer-ingestion-connector",
+ "env_logger 0.11.1",
+ "reqwest",
+ "tokio",
+]
+
+[[package]]
 name = "dozer-lambda"
 version = "0.1.0"
 dependencies = [
@@ -4010,7 +4022,7 @@ dependencies = [
  "dozer-deno",
  "dozer-log",
  "dozer-types",
- "env_logger",
+ "env_logger 0.10.1",
 ]
 
 [[package]]
@@ -4027,7 +4039,7 @@ dependencies = [
  "clap 4.4.8",
  "dozer-types",
  "dyn-clone",
- "env_logger",
+ "env_logger 0.10.1",
  "futures-util",
  "nonzero_ext",
  "pin-project",
@@ -4175,7 +4187,7 @@ dependencies = [
  "dozer-tracing",
  "dozer-types",
  "dozer-utils",
- "env_logger",
+ "env_logger 0.10.1",
  "futures",
  "libtest-mimic",
  "mongodb",
@@ -4499,6 +4511,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "env_filter"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a009aa4810eb158359dda09d0c87378e4bbb89b5a801f016885a4707ba24f7ea"
+dependencies = [
+ "log",
+ "regex",
+]
+
+[[package]]
 name = "env_logger"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4509,6 +4531,19 @@ dependencies = [
  "log",
  "regex",
  "termcolor",
+]
+
+[[package]]
+name = "env_logger"
+version = "0.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "05e7cf40684ae96ade6232ed84582f40ce0a66efcd43a5117aef610534f8e0b8"
+dependencies = [
+ "anstream",
+ "anstyle",
+ "env_filter",
+ "humantime",
+ "log",
 ]
 
 [[package]]
@@ -7735,7 +7770,7 @@ dependencies = [
  "thrift",
  "tokio",
  "twox-hash",
- "zstd 0.13.0",
+ "zstd",
 ]
 
 [[package]]
@@ -8998,9 +9033,9 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
-version = "0.11.22"
+version = "0.11.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "046cd98826c46c2ac8ddecae268eb5c2e58628688a5fc7a2643704a73faba95b"
+checksum = "37b1ae8d9ac08420c66222fb9096fc5de435c3c48542bc5336c51892cffafb41"
 dependencies = [
  "async-compression",
  "base64 0.21.5",
@@ -12759,30 +12794,11 @@ dependencies = [
 
 [[package]]
 name = "zstd"
-version = "0.12.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a27595e173641171fc74a1232b7b1c7a7cb6e18222c11e9dfb9888fa424c53c"
-dependencies = [
- "zstd-safe 6.0.6",
-]
-
-[[package]]
-name = "zstd"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bffb3309596d527cfcba7dfc6ed6052f1d39dfbd7c867aa2e865e4a449c10110"
 dependencies = [
- "zstd-safe 7.0.0",
-]
-
-[[package]]
-name = "zstd-safe"
-version = "6.0.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee98ffd0b48ee95e6c5168188e44a54550b1564d9d530ee21d5f0eaed1069581"
-dependencies = [
- "libc",
- "zstd-sys",
+ "zstd-safe",
 ]
 
 [[package]]
