@@ -118,53 +118,48 @@ impl ClickhouseSchema {
             .await?;
 
         for field in schema.fields {
-            let clickhouse_column = columns.iter().find(|column| column.name == field.name);
+            let Some(column) = columns.iter().find(|column| column.name == field.name) else {
+                return Err(ClickhouseSinkError::ColumnNotFound(field.name));
+            };
 
-            match clickhouse_column {
-                None => {
-                    return Err(ClickhouseSinkError::ColumnNotFound(field.name));
+            let mut expected_type = match field.typ {
+                FieldType::UInt => "UInt64",
+                FieldType::U128 => "Uint128",
+                FieldType::Int => "Int64",
+                FieldType::I128 => "Int128",
+                FieldType::Float => "Float64",
+                FieldType::Boolean => "Bool",
+                FieldType::String | FieldType::Text => "String",
+                FieldType::Binary => "UInt8",
+                FieldType::Decimal => "Decimal64",
+                FieldType::Timestamp => "DateTime64(9)",
+                FieldType::Date => "Date",
+                FieldType::Json => "Json",
+                FieldType::Point => "Point",
+                FieldType::Duration => {
+                    return Err(ClickhouseSinkError::TypeNotSupported(
+                        field.name,
+                        "Duration".to_string(),
+                    ))
                 }
-                Some(column) => {
-                    let mut expected_type = match field.typ {
-                        FieldType::UInt => "UInt64",
-                        FieldType::U128 => "Uint128",
-                        FieldType::Int => "Int64",
-                        FieldType::I128 => "Int128",
-                        FieldType::Float => "Float64",
-                        FieldType::Boolean => "Bool",
-                        FieldType::String | FieldType::Text => "String",
-                        FieldType::Binary => "UInt8",
-                        FieldType::Decimal => "Decimal64",
-                        FieldType::Timestamp => "DateTime64(9)",
-                        FieldType::Date => "Date",
-                        FieldType::Json => "Json",
-                        FieldType::Point => "Point",
-                        FieldType::Duration => {
-                            return Err(ClickhouseSinkError::TypeNotSupported(
-                                field.name,
-                                "Duration".to_string(),
-                            ))
-                        }
-                    }
-                    .to_string();
+            }
+            .to_string();
 
-                    if field.nullable {
-                        expected_type = format!("Nullable({expected_type})");
-                    }
+            if field.nullable {
+                expected_type = format!("Nullable({expected_type})");
+            }
 
-                    if field.typ == FieldType::Binary {
-                        expected_type = format!("Array({expected_type})");
-                    }
+            if field.typ == FieldType::Binary {
+                expected_type = format!("Array({expected_type})");
+            }
 
-                    let column_type = column.r#type.clone();
-                    if expected_type != column_type {
-                        return Err(ClickhouseSinkError::ColumnTypeMismatch(
-                            field.name,
-                            expected_type.to_string(),
-                            column_type.to_string(),
-                        ));
-                    }
-                }
+            let column_type = column.r#type.clone();
+            if expected_type != column_type {
+                return Err(ClickhouseSinkError::ColumnTypeMismatch(
+                    field.name,
+                    expected_type.to_string(),
+                    column_type.to_string(),
+                ));
             }
         }
 
