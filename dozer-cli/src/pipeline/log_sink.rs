@@ -1,5 +1,6 @@
 use std::{collections::HashMap, fmt::Debug, ops::Deref, sync::Arc};
 
+use dozer_api::async_trait::async_trait;
 use dozer_cache::dozer_log::{
     replication::{Log, LogOperation},
     storage::Queue,
@@ -40,6 +41,7 @@ impl LogSinkFactory {
     }
 }
 
+#[async_trait]
 impl SinkFactory for LogSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
@@ -50,7 +52,7 @@ impl SinkFactory for LogSinkFactory {
         Ok(())
     }
 
-    fn build(
+    async fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Sink>, BoxedError> {

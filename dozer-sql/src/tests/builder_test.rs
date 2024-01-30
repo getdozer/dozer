@@ -154,12 +154,13 @@ impl TestSinkFactory {
     }
 }
 
+#[async_trait]
 impl SinkFactory for TestSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         self.input_ports.clone()
     }
 
-    fn build(
+    async fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Sink>, BoxedError> {

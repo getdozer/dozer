@@ -110,6 +110,7 @@ pub enum EndpointKind {
     Api(ApiEndpoint),
     Dummy,
     Aerospike(AerospikeSinkConfig),
+    Clickhouse(ClickhouseSinkConfig),
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
@@ -120,6 +121,27 @@ pub struct AerospikeSinkConfig {
     pub n_threads: Option<NonZeroUsize>,
     #[serde(default)]
     pub set_name: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
+pub struct ClickhouseSinkConfig {
+    pub database_url: String,
+    pub user: String,
+    #[serde(default)]
+    pub password: Option<String>,
+    pub database: String,
+    pub sink_table_name: String,
+    pub primary_keys: Option<Vec<String>>,
+    pub create_table_options: Option<ClickhouseSinkTableOptions>,
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
+pub struct ClickhouseSinkTableOptions {
+    pub engine: Option<String>,
+    pub partition_by: Option<String>,
+    pub sample_by: Option<String>,
+    pub order_by: Option<Vec<String>>,
+    pub cluster: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
