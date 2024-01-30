@@ -3,7 +3,10 @@ use std::{borrow::Cow, mem::swap, sync::Arc};
 use crossbeam::channel::Receiver;
 use daggy::NodeIndex;
 use dozer_tracing::LabelsAndProgress;
-use dozer_types::{node::NodeHandle, types::Operation};
+use dozer_types::{
+    node::{NodeHandle, OpIdentifier},
+    types::{Operation, OperationWithId},
+};
 use metrics::{describe_counter, describe_histogram, histogram, increment_counter};
 
 use crate::{
@@ -101,11 +104,11 @@ impl ReceiverLoop for SinkNode {
         Cow::Owned(self.port_handles[index].to_string())
     }
 
-    fn on_op(&mut self, index: usize, op: Operation) -> Result<(), ExecutionError> {
+    fn on_op(&mut self, index: usize, op: OperationWithId) -> Result<(), ExecutionError> {
         let mut labels = self.labels.labels().clone();
         labels.push("table", self.node_handle.id.clone());
         const OPERATION_TYPE_LABEL: &str = "operation_type";
-        match &op {
+        match &op.op {
             Operation::Insert { .. } => {
                 labels.push(OPERATION_TYPE_LABEL, "insert");
             }
@@ -165,8 +168,12 @@ impl ReceiverLoop for SinkNode {
         Ok(())
     }
 
-    fn on_snapshotting_done(&mut self, connection_name: String) -> Result<(), ExecutionError> {
-        if let Err(e) = self.sink.on_source_snapshotting_done(connection_name) {
+    fn on_snapshotting_done(
+        &mut self,
+        connection_name: String,
+        id: Option<OpIdentifier>,
+    ) -> Result<(), ExecutionError> {
+        if let Err(e) = self.sink.on_source_snapshotting_done(connection_name, id) {
             self.error_manager.report(e);
         }
         Ok(())

@@ -37,6 +37,10 @@ pub enum ExecutionError {
     RestoreRecordWriter(#[source] DeserializationError),
     #[error("Source error: {0}")]
     Source(#[source] BoxedError),
+    #[error("Sink error: {0}")]
+    Sink(#[source] BoxedError),
+    #[error("State of {0} is not consistent across sinks")]
+    SourceStateConflict(NodeHandle),
     #[error("File system error {0:?}: {1}")]
     FileSystemError(PathBuf, #[source] std::io::Error),
     #[error("Recordstore error: {0}")]

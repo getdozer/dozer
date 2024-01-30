@@ -21,7 +21,7 @@ use dozer_sql::builder::statement_to_pipeline;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_types::node::OpIdentifier;
-use dozer_types::types::{Operation, Record, Schema, SourceDefinition};
+use dozer_types::types::{Operation, OperationWithId, Record, Schema, SourceDefinition};
 use std::collections::HashMap;
 use tempdir::TempDir;
 use tokio::{self, runtime::Runtime};
@@ -140,7 +140,7 @@ impl Source for TestSource {
                     IngestionMessage::OperationEvent {
                         table_index: 0,
                         op,
-                        state: None,
+                        id: None,
                     },
                 ))
                 .await
@@ -256,9 +256,9 @@ impl Sink for TestSink {
         &mut self,
         _from_port: PortHandle,
         record_store: &ProcessorRecordStore,
-        op: Operation,
+        op: OperationWithId,
     ) -> Result<(), BoxedError> {
-        self.update_result(record_store, op)
+        self.update_result(record_store, op.op)
     }
 
     fn commit(&mut self, _epoch_details: &Epoch) -> Result<(), BoxedError> {
@@ -276,8 +276,24 @@ impl Sink for TestSink {
         Ok(())
     }
 
-    fn on_source_snapshotting_done(&mut self, _connection_name: String) -> Result<(), BoxedError> {
+    fn on_source_snapshotting_done(
+        &mut self,
+        _connection_name: String,
+        _id: Option<OpIdentifier>,
+    ) -> Result<(), BoxedError> {
         Ok(())
+    }
+
+    fn set_source_state(&mut self, _source_state: &[u8]) -> Result<(), BoxedError> {
+        Ok(())
+    }
+
+    fn get_source_state(&mut self) -> Result<Option<Vec<u8>>, BoxedError> {
+        Ok(None)
+    }
+
+    fn get_latest_op_id(&mut self) -> Result<Option<OpIdentifier>, BoxedError> {
+        Ok(None)
     }
 }
 

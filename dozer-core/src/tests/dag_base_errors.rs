@@ -16,7 +16,7 @@ use dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_types::node::{NodeHandle, OpIdentifier};
 use dozer_types::tonic::async_trait;
 use dozer_types::types::{
-    Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
+    Field, FieldDefinition, FieldType, Operation, OperationWithId, Record, Schema, SourceDefinition,
 };
 
 use std::collections::HashMap;
@@ -92,7 +92,7 @@ impl Processor for ErrorProcessor {
         &mut self,
         _from_port: PortHandle,
         _record_store: &ProcessorRecordStore,
-        op: Operation,
+        op: OperationWithId,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         self.count += 1;
@@ -361,7 +361,7 @@ impl Source for ErrGeneratorSource {
                                 Field::String(format!("value_{n}")),
                             ]),
                         },
-                        state: Some(OpIdentifier::new(0, n)),
+                        id: Some(OpIdentifier::new(0, n)),
                     },
                 ))
                 .await?;
@@ -456,7 +456,7 @@ impl Sink for ErrSink {
         &mut self,
         _from_port: PortHandle,
         _record_store: &ProcessorRecordStore,
-        _op: Operation,
+        _op: OperationWithId,
     ) -> Result<(), BoxedError> {
         self.current += 1;
         if self.current == self.err_at {
@@ -480,8 +480,24 @@ impl Sink for ErrSink {
         Ok(())
     }
 
-    fn on_source_snapshotting_done(&mut self, _connection_name: String) -> Result<(), BoxedError> {
+    fn on_source_snapshotting_done(
+        &mut self,
+        _connection_name: String,
+        _id: Option<OpIdentifier>,
+    ) -> Result<(), BoxedError> {
         Ok(())
+    }
+
+    fn set_source_state(&mut self, _source_state: &[u8]) -> Result<(), BoxedError> {
+        Ok(())
+    }
+
+    fn get_source_state(&mut self) -> Result<Option<Vec<u8>>, BoxedError> {
+        Ok(None)
+    }
+
+    fn get_latest_op_id(&mut self) -> Result<Option<OpIdentifier>, BoxedError> {
+        Ok(None)
     }
 }
 

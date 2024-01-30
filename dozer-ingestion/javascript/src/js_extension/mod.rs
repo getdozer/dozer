@@ -114,13 +114,13 @@ impl JsExtension {
 async fn send(ingestor: Ingestor, val: JsMessage) -> Result<(), Error> {
     let msg = match val.typ {
         MsgType::SnapshottingStarted => IngestionMessage::SnapshottingStarted,
-        MsgType::SnapshottingDone => IngestionMessage::SnapshottingDone,
+        MsgType::SnapshottingDone => IngestionMessage::SnapshottingDone { id: None },
         MsgType::Insert | MsgType::Delete | MsgType::Update => {
             let op = map_operation(val)?;
             IngestionMessage::OperationEvent {
                 table_index: 0,
                 op,
-                state: None,
+                id: None,
             }
         }
     };

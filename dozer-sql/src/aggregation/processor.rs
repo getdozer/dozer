@@ -12,7 +12,7 @@ use dozer_recordstore::ProcessorRecordStore;
 use dozer_sql_expression::execution::Expression;
 use dozer_types::bincode;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::types::{Field, FieldType, Operation, Record, Schema};
+use dozer_types::types::{Field, FieldType, Operation, OperationWithId, Record, Schema};
 use std::collections::HashMap;
 
 use crate::aggregation::aggregator::{
@@ -604,12 +604,12 @@ impl Processor for AggregationProcessor {
         &mut self,
         _from_port: PortHandle,
         _record_store: &ProcessorRecordStore,
-        op: Operation,
+        op: OperationWithId,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
-        let ops = self.aggregate(op)?;
+        let ops = self.aggregate(op.op)?;
         for output_op in ops {
-            fw.send(output_op, DEFAULT_PORT_HANDLE);
+            fw.send(OperationWithId::without_id(output_op), DEFAULT_PORT_HANDLE);
         }
         Ok(())
     }

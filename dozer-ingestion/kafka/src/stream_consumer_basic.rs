@@ -159,7 +159,7 @@ impl StreamConsumer for StreamConsumerBasic {
                                             lifetime: None,
                                         },
                                     },
-                                    state: None,
+                                    id: None,
                                 })
                                 .await
                                 .is_err()

@@ -17,10 +17,12 @@ use dozer_recordstore::ProcessorRecordStore;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::log::debug;
 use dozer_types::models::endpoint::ClickhouseSinkConfig;
-
+use dozer_types::node::OpIdentifier;
 use dozer_types::serde::Serialize;
 use dozer_types::tonic::async_trait;
-use dozer_types::types::{DozerDuration, DozerPoint, Field, FieldType, Operation, Record, Schema};
+use dozer_types::types::{
+    DozerDuration, DozerPoint, Field, FieldType, Operation, OperationWithId, Record, Schema,
+};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -310,9 +312,9 @@ impl Sink for ClickhouseSink {
         &mut self,
         _from_port: PortHandle,
         _record_store: &ProcessorRecordStore,
-        op: Operation,
+        op: OperationWithId,
     ) -> Result<(), BoxedError> {
-        match op {
+        match op.op {
             Operation::Insert { new } => {
                 let values = self.map_fields(new)?;
                 self.runtime.block_on(async {
@@ -444,7 +446,23 @@ impl Sink for ClickhouseSink {
         Ok(())
     }
 
-    fn on_source_snapshotting_done(&mut self, _connection_name: String) -> Result<(), BoxedError> {
+    fn on_source_snapshotting_done(
+        &mut self,
+        _connection_name: String,
+        _id: Option<OpIdentifier>,
+    ) -> Result<(), BoxedError> {
         Ok(())
+    }
+
+    fn set_source_state(&mut self, _source_state: &[u8]) -> Result<(), BoxedError> {
+        Ok(())
+    }
+
+    fn get_source_state(&mut self) -> Result<Option<Vec<u8>>, BoxedError> {
+        Ok(None)
+    }
+
+    fn get_latest_op_id(&mut self) -> Result<Option<OpIdentifier>, BoxedError> {
+        Ok(None)
     }
 }

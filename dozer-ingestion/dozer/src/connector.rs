@@ -260,7 +260,7 @@ async fn read_table(
             .send(IngestionMessage::OperationEvent {
                 table_index,
                 op,
-                state: Some(OpIdentifier::new(0, op_and_pos.pos)),
+                id: Some(OpIdentifier::new(0, op_and_pos.pos)),
             })
             .await;
     }

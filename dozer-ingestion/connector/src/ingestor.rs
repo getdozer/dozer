@@ -96,7 +96,7 @@ mod tests {
             .handle_message(IngestionMessage::OperationEvent {
                 table_index: 0,
                 op: operation.clone(),
-                state: None,
+                id: None,
             })
             .await
             .unwrap();
@@ -104,12 +104,12 @@ mod tests {
             .handle_message(IngestionMessage::OperationEvent {
                 table_index: 0,
                 op: operation2.clone(),
-                state: None,
+                id: None,
             })
             .await
             .unwrap();
         ingestor
-            .handle_message(IngestionMessage::SnapshottingDone)
+            .handle_message(IngestionMessage::SnapshottingDone { id: None })
             .await
             .unwrap();
 
@@ -121,7 +121,7 @@ mod tests {
                 IngestionMessage::OperationEvent {
                     table_index: 0,
                     op,
-                    state: None
+                    id: None
                 },
                 msg
             );

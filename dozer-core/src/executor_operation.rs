@@ -1,5 +1,8 @@
 use dozer_recordstore::{ProcessorRecord, StoreRecord};
-use dozer_types::types::Operation;
+use dozer_types::{
+    node::OpIdentifier,
+    types::{Operation, OperationWithId},
+};
 
 use crate::{epoch::Epoch, errors::ExecutionError};
 
@@ -67,9 +70,18 @@ impl ProcessorOperation {
 
 #[derive(Clone, Debug)]
 pub enum ExecutorOperation {
-    Op { op: Operation },
-    Commit { epoch: Epoch },
+    Op {
+        op: OperationWithId,
+    },
+    Commit {
+        epoch: Epoch,
+    },
     Terminate,
-    SnapshottingStarted { connection_name: String },
-    SnapshottingDone { connection_name: String },
+    SnapshottingStarted {
+        connection_name: String,
+    },
+    SnapshottingDone {
+        connection_name: String,
+        id: Option<OpIdentifier>,
+    },
 }

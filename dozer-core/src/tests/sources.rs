@@ -117,7 +117,7 @@ impl Source for GeneratorSource {
                                 Field::String(format!("value_{n}")),
                             ]),
                         },
-                        state: Some(OpIdentifier::new(0, n)),
+                        id: Some(OpIdentifier::new(0, n)),
                     },
                 ))
                 .await?;
@@ -248,7 +248,7 @@ impl Source for DualPortGeneratorSource {
                                 Field::String(format!("value_{n}")),
                             ]),
                         },
-                        state: Some(OpIdentifier::new(0, n)),
+                        id: Some(OpIdentifier::new(0, n)),
                     },
                 ))
                 .await?;
@@ -263,7 +263,7 @@ impl Source for DualPortGeneratorSource {
                                 Field::String(format!("value_{n}")),
                             ]),
                         },
-                        state: Some(OpIdentifier::new(0, n)),
+                        id: Some(OpIdentifier::new(0, n)),
                     },
                 ))
                 .await?;

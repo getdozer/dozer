@@ -6,7 +6,7 @@ use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_recordstore::ProcessorRecordStore;
 use dozer_tracing::Labels;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::types::{Lifetime, Operation};
+use dozer_types::types::{Lifetime, Operation, OperationWithId};
 use metrics::{
     counter, describe_counter, describe_gauge, describe_histogram, gauge, histogram,
     increment_counter,
@@ -76,7 +76,7 @@ impl Processor for ProductProcessor {
         &mut self,
         from_port: PortHandle,
         _record_store: &ProcessorRecordStore,
-        op: Operation,
+        op: OperationWithId,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         let from_branch = match from_port {
@@ -86,7 +86,7 @@ impl Processor for ProductProcessor {
         };
 
         let now = std::time::Instant::now();
-        let records = match op {
+        let records = match op.op {
             Operation::Delete { old } => {
                 if let Some(lifetime) = old.get_lifetime() {
                     self.update_eviction_index(lifetime);
@@ -123,9 +123,9 @@ impl Processor for ProductProcessor {
                     self.process(
                         from_port,
                         _record_store,
-                        Operation::Insert {
+                        OperationWithId::without_id(Operation::Insert {
                             new: record.clone(),
-                        },
+                        }),
                         fw,
                     )?;
                 }
@@ -157,10 +157,16 @@ impl Processor for ProductProcessor {
         for (action, record) in records {
             match action {
                 JoinAction::Insert => {
-                    fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
+                    fw.send(
+                        OperationWithId::without_id(Operation::Insert { new: record }),
+                        DEFAULT_PORT_HANDLE,
+                    );
                 }
                 JoinAction::Delete => {
-                    fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
+                    fw.send(
+                        OperationWithId::without_id(Operation::Delete { old: record }),
+                        DEFAULT_PORT_HANDLE,
+                    );
                 }
             }
         }
@@ -201,11 +207,11 @@ mod tests {
     use super::*;
 
     struct TestChannelForwarder {
-        operations: Vec<Operation>,
+        operations: Vec<OperationWithId>,
     }
 
     impl ProcessorChannelForwarder for TestChannelForwarder {
-        fn send(&mut self, op: Operation, _port: dozer_core::node::PortHandle) {
+        fn send(&mut self, op: OperationWithId, _port: dozer_core::node::PortHandle) {
             self.operations.push(op);
         }
     }
@@ -307,11 +313,16 @@ mod tests {
                 JoinSide::Right => RIGHT_JOIN_PORT,
             };
             self.processor
-                .process(port, &self.record_store, operation, &mut self.forwarder)
+                .process(
+                    port,
+                    &self.record_store,
+                    OperationWithId::without_id(operation),
+                    &mut self.forwarder,
+                )
                 .unwrap();
             let output_ops = self.forwarder.operations.clone();
             self.forwarder.operations.clear();
-            output_ops
+            output_ops.into_iter().map(|op| op.op).collect()
         }
 
         fn insert(&mut self, side: JoinSide, values: &[Field]) -> (Record, Vec<Operation>) {

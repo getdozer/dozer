@@ -161,7 +161,7 @@ impl<'a> PostgresSnapshotter<'a> {
                 .handle_message(IngestionMessage::OperationEvent {
                     table_index,
                     op: evt,
-                    state: None,
+                    id: None,
                 })
                 .await
                 .is_err()
@@ -173,7 +173,7 @@ impl<'a> PostgresSnapshotter<'a> {
 
         if self
             .ingestor
-            .handle_message(IngestionMessage::SnapshottingDone)
+            .handle_message(IngestionMessage::SnapshottingDone { id: None })
             .await
             .is_err()
         {

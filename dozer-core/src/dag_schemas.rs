@@ -7,9 +7,10 @@ use daggy::petgraph::visit::{EdgeRef, IntoEdges, IntoEdgesDirected, IntoNodeRefe
 use daggy::petgraph::Direction;
 use daggy::{NodeIndex, Walker};
 use dozer_types::log::{error, info};
+use dozer_types::node::NodeHandle;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::Schema;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 
 use super::node::OutputPortDef;
@@ -102,6 +103,27 @@ impl DagSchemas {
                 Err(e)
             }
         }
+    }
+
+    pub fn collect_ancestor_sources(&self, node_index: NodeIndex) -> HashSet<NodeHandle> {
+        let mut sources = HashSet::new();
+        collect_ancestor_sources_recursive(self, node_index, &mut sources);
+        sources
+    }
+}
+
+fn collect_ancestor_sources_recursive(
+    dag: &DagSchemas,
+    node_index: NodeIndex,
+    sources: &mut HashSet<NodeHandle>,
+) {
+    for edge in dag.graph().edges_directed(node_index, Direction::Incoming) {
+        let source_node_index = edge.source();
+        let source_node = &dag.graph()[source_node_index];
+        if matches!(source_node.kind, NodeKind::Source(_)) {
+            sources.insert(source_node.handle.clone());
+        }
+        collect_ancestor_sources_recursive(dag, source_node_index, sources);
     }
 }
 

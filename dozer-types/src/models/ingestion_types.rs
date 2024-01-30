@@ -25,13 +25,13 @@ pub enum IngestionMessage {
         /// The CDC event.
         op: Operation,
         /// If this connector supports restarting from a specific CDC event, it should provide a `OpIdentifier`.
-        state: Option<OpIdentifier>,
+        id: Option<OpIdentifier>,
     },
     /// A connector uses this message kind to notify Dozer that a initial snapshot of the source tables is started
     SnapshottingStarted,
     /// A connector uses this message kind to notify Dozer that a initial snapshot of the source tables is done,
     /// and the data is up-to-date until next CDC event.
-    SnapshottingDone,
+    SnapshottingDone { id: Option<OpIdentifier> },
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema, Default)]

@@ -12,7 +12,7 @@ use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_recordstore::{ProcessorRecordStore, ProcessorRecordStoreDeserializer};
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::types::{Operation, Record};
+use dozer_types::types::{Operation, OperationWithId, Record};
 use std::fmt::{Debug, Formatter};
 
 pub struct SetProcessor {
@@ -102,20 +102,26 @@ impl Processor for SetProcessor {
         &mut self,
         _from_port: PortHandle,
         _record_store: &ProcessorRecordStore,
-        op: Operation,
+        op: OperationWithId,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
-        match op {
+        match op.op {
             Operation::Delete { old } => {
                 let records = self.delete(old).map_err(PipelineError::ProductError)?;
 
                 for (action, record) in records.into_iter() {
                     match action {
                         SetAction::Insert => {
-                            fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
+                            fw.send(
+                                OperationWithId::without_id(Operation::Insert { new: record }),
+                                DEFAULT_PORT_HANDLE,
+                            );
                         }
                         SetAction::Delete => {
-                            fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
+                            fw.send(
+                                OperationWithId::without_id(Operation::Delete { old: record }),
+                                DEFAULT_PORT_HANDLE,
+                            );
                         }
                     }
                 }
@@ -126,10 +132,16 @@ impl Processor for SetProcessor {
                 for (action, record) in records.into_iter() {
                     match action {
                         SetAction::Insert => {
-                            fw.send(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE);
+                            fw.send(
+                                OperationWithId::without_id(Operation::Insert { new: record }),
+                                DEFAULT_PORT_HANDLE,
+                            );
                         }
                         SetAction::Delete => {
-                            fw.send(Operation::Delete { old: record }, DEFAULT_PORT_HANDLE);
+                            fw.send(
+                                OperationWithId::without_id(Operation::Delete { old: record }),
+                                DEFAULT_PORT_HANDLE,
+                            );
                         }
                     }
                 }
@@ -141,10 +153,16 @@ impl Processor for SetProcessor {
                 for (action, old) in old_records.into_iter() {
                     match action {
                         SetAction::Insert => {
-                            fw.send(Operation::Insert { new: old }, DEFAULT_PORT_HANDLE);
+                            fw.send(
+                                OperationWithId::without_id(Operation::Insert { new: old }),
+                                DEFAULT_PORT_HANDLE,
+                            );
                         }
                         SetAction::Delete => {
-                            fw.send(Operation::Delete { old }, DEFAULT_PORT_HANDLE);
+                            fw.send(
+                                OperationWithId::without_id(Operation::Delete { old }),
+                                DEFAULT_PORT_HANDLE,
+                            );
                         }
                     }
                 }
@@ -152,10 +170,16 @@ impl Processor for SetProcessor {
                 for (action, new) in new_records.into_iter() {
                     match action {
                         SetAction::Insert => {
-                            fw.send(Operation::Insert { new }, DEFAULT_PORT_HANDLE);
+                            fw.send(
+                                OperationWithId::without_id(Operation::Insert { new }),
+                                DEFAULT_PORT_HANDLE,
+                            );
                         }
                         SetAction::Delete => {
-                            fw.send(Operation::Delete { old: new }, DEFAULT_PORT_HANDLE);
+                            fw.send(
+                                OperationWithId::without_id(Operation::Delete { old: new }),
+                                DEFAULT_PORT_HANDLE,
+                            );
                         }
                     }
                 }
@@ -165,7 +189,7 @@ impl Processor for SetProcessor {
                     self.process(
                         _from_port,
                         _record_store,
-                        Operation::Insert { new: record },
+                        OperationWithId::without_id(Operation::Insert { new: record }),
                         fw,
                     )?;
                 }

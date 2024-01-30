@@ -378,7 +378,7 @@ impl MySQLConnector {
                             .handle_message(IngestionMessage::OperationEvent {
                                 table_index,
                                 op,
-                                state: None,
+                                id: None,
                             })
                             .await
                             .is_err()
@@ -403,7 +403,7 @@ impl MySQLConnector {
 
         if snapshot_started
             && ingestor
-                .handle_message(IngestionMessage::SnapshottingDone)
+                .handle_message(IngestionMessage::SnapshottingDone { id: None })
                 .await
                 .is_err()
         {
@@ -623,7 +623,7 @@ mod tests {
                         Field::Float(1.0.into()),
                     ]),
                 },
-                state: None,
+                id: None,
             },
             IngestionMessage::OperationEvent {
                 table_index: 0,
@@ -634,7 +634,7 @@ mod tests {
                         Field::Float(2.0.into()),
                     ]),
                 },
-                state: None,
+                id: None,
             },
             IngestionMessage::OperationEvent {
                 table_index: 0,
@@ -645,9 +645,9 @@ mod tests {
                         Field::Float(3.0.into()),
                     ]),
                 },
-                state: None,
+                id: None,
             },
-            IngestionMessage::SnapshottingDone,
+            IngestionMessage::SnapshottingDone { id: None },
         ];
 
         check_ingestion_messages(&mut iterator, expected_ingestion_messages).await;
@@ -711,16 +711,16 @@ mod tests {
                 op: Insert {
                     new: Record::new(vec![Field::Int(4), Field::Float(4.0.into())]),
                 },
-                state: None,
+                id: None,
             },
             IngestionMessage::OperationEvent {
                 table_index: 1,
                 op: Insert {
                     new: Record::new(vec![Field::Int(1), Field::Json(true.into())]),
                 },
-                state: None,
+                id: None,
             },
-            IngestionMessage::SnapshottingDone,
+            IngestionMessage::SnapshottingDone { id: None },
         ];
 
         check_ingestion_messages(&mut iterator, expected_ingestion_messages).await;
@@ -736,7 +736,7 @@ mod tests {
                 old: Record::new(vec![Field::Int(4), Field::Float(4.0.into())]),
                 new: Record::new(vec![Field::Int(4), Field::Float(5.0.into())]),
             },
-            state: None,
+            id: None,
         }];
 
         check_ingestion_messages(&mut iterator, expected_ingestion_messages).await;
@@ -751,7 +751,7 @@ mod tests {
             op: Delete {
                 old: Record::new(vec![Field::Int(4), Field::Float(5.0.into())]),
             },
-            state: None,
+            id: None,
         }];
 
         check_ingestion_messages(&mut iterator, expected_ingestion_messages).await;
