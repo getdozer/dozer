@@ -67,7 +67,7 @@ pub struct ClickhouseSinkFactory {
 }
 
 #[derive(Debug, Serialize)]
-#[serde(untagged)]
+#[serde(crate = "dozer_types::serde", untagged)]
 pub enum FieldWrapper {
     UInt(u64),
     U128(u128),

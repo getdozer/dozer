@@ -4139,7 +4139,6 @@ dependencies = [
  "dozer-log",
  "dozer-recordstore",
  "dozer-types",
- "serde",
 ]
 
 [[package]]

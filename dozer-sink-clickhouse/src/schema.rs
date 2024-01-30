@@ -3,10 +3,11 @@ use crate::{ddl, ClickhouseSinkError};
 use clickhouse::{Client, Row};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::models::endpoint::ClickhouseSinkConfig;
+use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::{FieldType, Schema};
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Row, Deserialize, Serialize)]
+#[serde(crate = "dozer_types::serde")]
 pub(crate) struct ClickhouseSchemaColumn {
     pub(crate) name: String,
     pub(crate) r#type: String,
@@ -18,6 +19,7 @@ pub(crate) struct ClickhouseSchemaColumn {
 }
 
 #[derive(Debug, Row, Deserialize, Serialize, Clone)]
+#[serde(crate = "dozer_types::serde")]
 pub(crate) struct ClickhouseTable {
     pub(crate) database: String,
     pub(crate) name: String,
@@ -26,6 +28,7 @@ pub(crate) struct ClickhouseTable {
 }
 
 #[derive(Debug, Row, Deserialize, Serialize)]
+#[serde(crate = "dozer_types::serde")]
 pub(crate) struct ClickhouseKeyColumnDef {
     pub(crate) column_name: Option<String>,
     pub(crate) constraint_name: Option<String>,
@@ -132,7 +135,7 @@ impl ClickhouseSchema {
                         FieldType::String | FieldType::Text => "String",
                         FieldType::Binary => "UInt8",
                         FieldType::Decimal => "Decimal64",
-                        FieldType::Timestamp => "Timestamp",
+                        FieldType::Timestamp => "DateTime64(9)",
                         FieldType::Date => "Date",
                         FieldType::Json => "Json",
                         FieldType::Point => "Point",

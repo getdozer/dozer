@@ -11,4 +11,3 @@ dozer-types = { path = "../dozer-types" }
 dozer-log = { path = "../dozer-log" }
 dozer-recordstore = { path = "../dozer-recordstore" }
 clickhouse = { git = "https://github.com/getdozer/clickhouse.rs.git" }
-serde = { version = "1.0.193", features = ["derive"] }

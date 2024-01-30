@@ -17,7 +17,8 @@ members = [
   "dozer-recordstore",
   "dozer-lambda",
   "dozer-sinks",
-  "dozer-sink-aerospike", "dozer-sink-clickhouse",
+  "dozer-sink-aerospike",
+  "dozer-sink-clickhouse",
 ]
 resolver = "2"
 
