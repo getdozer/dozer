@@ -116,7 +116,7 @@ impl CommonGrpcService for CommonService {
         let extensions = parts.1;
         let query_request = parts.2;
         let access = extensions.get::<Access>();
-        
+
         if self.push_events == false {
             Status::invalid_argument("GRPC not implemented error");
         }
