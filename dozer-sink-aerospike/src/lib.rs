@@ -1,4 +1,5 @@
 use crossbeam_channel::{bounded, Receiver, Sender};
+use dozer_types::json_types::{DestructuredJsonRef, JsonValue};
 use dozer_types::node::OpIdentifier;
 use std::alloc::{handle_alloc_error, Layout};
 use std::ffi::{c_char, c_void, CStr, CString, NulError};
@@ -13,19 +14,22 @@ use std::{collections::HashMap, fmt::Debug};
 
 use aerospike_client_sys::{
     aerospike, aerospike_batch_write, aerospike_connect, aerospike_destroy, aerospike_key_put,
-    aerospike_key_remove, aerospike_new, as_batch_record, as_batch_records,
-    as_batch_records_destroy, as_batch_write_record, as_bin_value, as_bytes_new_wrap,
-    as_bytes_type, as_bytes_type_e_AS_BYTES_STRING, as_config, as_config_add_hosts, as_config_init,
-    as_error, as_key, as_key_destroy, as_key_init_int64, as_key_init_rawp, as_key_init_value,
-    as_key_value, as_nil, as_operations, as_operations_add_write, as_operations_add_write_bool,
-    as_operations_add_write_double, as_operations_add_write_geojson_strp,
-    as_operations_add_write_int64, as_operations_add_write_rawp, as_operations_destroy,
-    as_operations_init, as_policy_batch, as_policy_exists_e_AS_POLICY_EXISTS_CREATE,
-    as_policy_exists_e_AS_POLICY_EXISTS_UPDATE, as_policy_remove, as_policy_write, as_record,
-    as_record_destroy, as_record_init, as_record_set_bool, as_record_set_double,
-    as_record_set_geojson_strp, as_record_set_int64, as_record_set_nil, as_record_set_raw_typep,
-    as_record_set_rawp, as_status, as_status_e_AEROSPIKE_OK, as_vector,
-    as_vector_increase_capacity, as_vector_init, AS_BATCH_WRITE, AS_BIN_NAME_MAX_LEN,
+    aerospike_key_remove, aerospike_new, as_arraylist_append, as_arraylist_destroy,
+    as_arraylist_new, as_batch_record, as_batch_records, as_batch_records_destroy,
+    as_batch_write_record, as_bin_value, as_boolean_new, as_bytes_new, as_bytes_new_wrap,
+    as_bytes_set, as_bytes_type, as_bytes_type_e_AS_BYTES_STRING, as_config, as_config_add_hosts,
+    as_config_init, as_double_new, as_error, as_integer_new, as_key, as_key_destroy,
+    as_key_init_int64, as_key_init_rawp, as_key_init_value, as_key_value, as_nil, as_operations,
+    as_operations_add_write, as_operations_add_write_bool, as_operations_add_write_double,
+    as_operations_add_write_geojson_strp, as_operations_add_write_int64,
+    as_operations_add_write_rawp, as_operations_destroy, as_operations_init, as_orderedmap,
+    as_orderedmap_destroy, as_orderedmap_new, as_orderedmap_set, as_policy_batch,
+    as_policy_exists_e_AS_POLICY_EXISTS_CREATE, as_policy_exists_e_AS_POLICY_EXISTS_UPDATE,
+    as_policy_remove, as_policy_write, as_record, as_record_destroy, as_record_init, as_record_set,
+    as_record_set_bool, as_record_set_double, as_record_set_geojson_strp, as_record_set_int64,
+    as_record_set_nil, as_record_set_raw_typep, as_record_set_rawp, as_status,
+    as_status_e_AEROSPIKE_OK, as_val, as_vector, as_vector_increase_capacity, as_vector_init,
+    AS_BATCH_WRITE, AS_BIN_NAME_MAX_LEN,
 };
 use dozer_core::{
     node::{PortHandle, Sink, SinkFactory},
@@ -63,6 +67,8 @@ enum AerospikeSinkError {
     CreateRecordError,
     #[error("Column name \"{}\" exceeds aerospike's maximum bin name length ({})", .0, AS_BIN_NAME_MAX_LEN)]
     BinNameTooLong(String),
+    #[error("Integer out of range. The supplied usigned integer was larger than the maximum representable value for an aerospike integer")]
+    IntegerOutOfRange(u64),
 }
 
 #[derive(Debug, Error)]
@@ -102,6 +108,13 @@ struct Client {
 unsafe impl Send for Client {}
 unsafe impl Sync for Client {}
 
+#[inline(always)]
+unsafe fn check_alloc<T>(ptr: *mut T) -> *mut T {
+    if ptr.is_null() {
+        handle_alloc_error(Layout::new::<T>())
+    }
+    ptr
+}
 #[inline(always)]
 unsafe fn as_try(f: impl Fn(*mut as_error) -> as_status) -> Result<(), AerospikeError> {
     let mut err = MaybeUninit::uninit();
@@ -378,6 +391,76 @@ impl AerospikeSink {
     }
 }
 
+fn convert_json(value: &JsonValue) -> Result<*mut as_bin_value, AerospikeSinkError> {
+    unsafe {
+        Ok(match value.destructure_ref() {
+            DestructuredJsonRef::Null => addr_of!(as_nil) as *mut as_val as *mut as_bin_value,
+            DestructuredJsonRef::Bool(value) => {
+                check_alloc(as_boolean_new(value)) as *mut as_bin_value
+            }
+            DestructuredJsonRef::Number(value) => {
+                if let Some(float) = value.to_f64() {
+                    check_alloc(as_double_new(float)) as *mut as_bin_value
+                } else if let Some(integer) = value.to_i64() {
+                    check_alloc(as_integer_new(integer)) as *mut as_bin_value
+                } else {
+                    // If we can't represent as i64, we have a u64 that's larger than i64::MAX
+                    return Err(AerospikeSinkError::IntegerOutOfRange(
+                        value.to_u64().unwrap(),
+                    ));
+                }
+            }
+            DestructuredJsonRef::String(value) => {
+                let bytes = check_alloc(as_bytes_new(value.len() as u32));
+                as_bytes_set(bytes, 0, value.as_ptr(), value.len() as u32);
+                (*bytes).type_ = as_bytes_type_e_AS_BYTES_STRING;
+                bytes as *mut as_bin_value
+            }
+            DestructuredJsonRef::Array(value) => {
+                let list = check_alloc(as_arraylist_new(value.len() as u32, value.len() as u32));
+                for v in value.iter() {
+                    let as_value = convert_json(v)?;
+                    if as_arraylist_append(list, as_value as *mut as_val)
+                        != as_status_e_AEROSPIKE_OK
+                    {
+                        as_arraylist_destroy(list);
+                        return Err(AerospikeSinkError::CreateRecordError);
+                    }
+                }
+                list as *mut as_bin_value
+            }
+            DestructuredJsonRef::Object(value) => {
+                let map = check_alloc(as_orderedmap_new(value.len() as u32));
+                struct Map(*mut as_orderedmap);
+                impl Drop for Map {
+                    fn drop(&mut self) {
+                        unsafe {
+                            as_orderedmap_destroy(self.0);
+                        }
+                    }
+                }
+                // Make sure the map is deallocated if we encounter any error...
+                let _map_guard = Map(map);
+                for (k, v) in value.iter() {
+                    let as_value = convert_json(v)?;
+                    let key = {
+                        let bytes = check_alloc(as_bytes_new(k.len() as u32));
+                        debug_assert!(as_bytes_set(bytes, 0, k.as_ptr(), k.len() as u32));
+                        (*bytes).type_ = as_bytes_type_e_AS_BYTES_STRING;
+                        bytes as *mut as_val
+                    };
+                    if as_orderedmap_set(map, key, as_value as *mut as_val) != 0 {
+                        return Err(AerospikeSinkError::CreateRecordError);
+                    };
+                }
+                // ...but don't deallocate if we succeed
+                mem::forget(_map_guard);
+                map as *mut as_bin_value
+            }
+        })
+    }
+}
+
 struct AerospikeSinkWorker {
     client: Arc<Client>,
     receiver: Receiver<OperationWithId>,
@@ -568,8 +651,6 @@ impl AerospikeSinkWorker {
                 Field::Date(v) => {
                     Self::rec_set_str(record, name, v.to_string(), allocated_strings);
                 }
-                // FIXME: Not sure how time unit should be used, but I'm pretty sure ignoring it
-                // isn't the proper way
                 Field::Duration(DozerDuration(duration, _)) => {
                     Self::rec_set_str(
                         record,
@@ -595,8 +676,9 @@ impl AerospikeSinkWorker {
                     as_record_set_geojson_strp(record, name, string.as_ptr().cast(), false);
                     allocated_strings.push(string);
                 }
-                Field::Json(_v) => {
-                    todo!();
+                Field::Json(v) => {
+                    let value = convert_json(v)?;
+                    as_record_set(record, name, value);
                 }
             }
         }
@@ -675,8 +757,6 @@ impl AerospikeSinkWorker {
                 Field::Date(v) => {
                     Self::set_operation_str(ops, name, v.to_string(), allocated_strings);
                 }
-                // FIXME: Not sure how time unit should be used, but I'm pretty sure ignoring it
-                // isn't the proper way
                 Field::Duration(DozerDuration(duration, _)) => {
                     Self::set_operation_str(
                         ops,
@@ -704,8 +784,8 @@ impl AerospikeSinkWorker {
                     as_operations_add_write_geojson_strp(ops, name, string.as_ptr().cast(), false);
                     allocated_strings.push(string);
                 }
-                Field::Json(_v) => {
-                    todo!();
+                Field::Json(v) => {
+                    as_operations_add_write(ops, name, convert_json(v)?);
                 }
             }
         }
@@ -1031,7 +1111,8 @@ mod tests {
                     source: dozer_types::types::SourceDefinition::Dynamic,
                 },
                 false,
-            );
+            )
+            .field(f("json", FieldType::Json), false);
         let factory = AerospikeSinkFactory::new(AerospikeSinkConfig {
             namespace: "test".into(),
             hosts: "localhost:3000".into(),
@@ -1067,6 +1148,14 @@ mod tests {
                 dozer_types::types::TimeUnit::Seconds,
             )),
             Field::Null,
+            Field::Json(dozer_types::json_types::json!({
+                i.to_string(): i,
+                i.to_string(): i as f64,
+                "array": vec![i; 5],
+                "object": {
+                    "haha": i
+                }
+            })),
         ])
     }
 }
