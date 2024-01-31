@@ -1,3 +1,4 @@
+use dozer_api::async_trait::async_trait;
 use std::{collections::HashMap, time::Instant};
 
 use dozer_cache::dozer_log::storage::Queue;
@@ -17,6 +18,7 @@ use dozer_types::{
 #[derive(Debug)]
 pub struct DummySinkFactory;
 
+#[async_trait]
 impl SinkFactory for DummySinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
@@ -26,7 +28,7 @@ impl SinkFactory for DummySinkFactory {
         Ok(())
     }
 
-    fn build(
+    async fn build(
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Sink>, BoxedError> {
