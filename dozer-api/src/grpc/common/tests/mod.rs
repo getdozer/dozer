@@ -15,7 +15,7 @@ use super::CommonService;
 
 async fn setup_common_service() -> CommonService {
     let (endpoints, rx1) = setup_pipeline().await;
-    CommonService::new(endpoints, Some(rx1), 50)
+    CommonService::new(endpoints, Some(rx1), 50, true)
 }
 
 async fn count_and_query(

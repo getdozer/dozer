@@ -17,7 +17,7 @@ use dozer_types::grpc_types::{
     health::health_grpc_service_server::HealthGrpcServiceServer,
 };
 use dozer_types::models::api_config::{default_grpc_port, default_host};
-use dozer_types::models::flags::default_dynamic;
+use dozer_types::models::flags::{default_dynamic, default_push_events};
 use dozer_types::tonic::transport::server::TcpIncoming;
 use dozer_types::tonic::transport::Server;
 use dozer_types::tracing::Level;
@@ -104,6 +104,7 @@ impl ApiServer {
             cache_endpoints.clone(),
             operations_receiver.as_ref().map(|r| r.resubscribe()),
             default_max_num_records,
+            self.flags.push_events.unwrap_or(default_push_events()),
         ));
         let common_service = enable_grpc_web(common_service, grpc_web);
 
