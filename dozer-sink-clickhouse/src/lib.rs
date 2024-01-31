@@ -163,6 +163,10 @@ impl ClickhouseSinkFactory {
 
 #[async_trait]
 impl SinkFactory for ClickhouseSinkFactory {
+    fn type_name(&self) -> String {
+        "clickhouse".to_string()
+    }
+
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }

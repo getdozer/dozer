@@ -24,13 +24,13 @@ use dozer_types::{
 use tempdir::TempDir;
 use tokio::{runtime::Runtime, sync::RwLock};
 
+use super::AppUIError;
 use crate::{
     cli::{init_config, init_dozer, types::Cli},
     errors::OrchestrationError,
     pipeline::{EndpointLog, EndpointLogKind, PipelineBuilder},
     simple::{helper::validate_config, Contract, SimpleOrchestrator},
 };
-use super::AppUIError;
 struct DozerAndContract {
     dozer: SimpleOrchestrator,
     contract: Option<Contract>,
@@ -333,6 +333,9 @@ pub async fn create_dag(dozer: &SimpleOrchestrator) -> Result<Dag, Orchestration
                 EndpointKind::Api(_) => EndpointLogKind::Dummy,
                 EndpointKind::Dummy => EndpointLogKind::Dummy,
                 EndpointKind::Aerospike(config) => EndpointLogKind::Aerospike {
+                    config: config.clone(),
+                },
+                EndpointKind::Clickhouse(config) => EndpointLogKind::Clickhouse {
                     config: config.clone(),
                 },
             },

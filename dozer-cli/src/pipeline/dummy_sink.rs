@@ -49,7 +49,7 @@ impl SinkFactory for DummySinkFactory {
     }
 
     fn type_name(&self) -> String {
-       "dummy".to_string()
+        "dummy".to_string()
     }
 }
 
