@@ -118,7 +118,7 @@ impl CommonGrpcService for CommonService {
         let query_request = parts.2;
         let access = extensions.get::<Access>();
         if !self.push_events {
-            unimplemented!("GRPC not implemented.");
+            Status::unimplemented("push_events is disabled in the configuration");
         }
 
         let mut endpoints = HashMap::new();
