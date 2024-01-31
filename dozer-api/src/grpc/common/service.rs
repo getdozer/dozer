@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::auth::Access;
-
 use crate::grpc::shared_impl::{self, EndpointFilter};
 use crate::grpc::types_helper::map_record;
 use crate::CacheEndpoint;
@@ -27,6 +26,7 @@ pub struct CommonService {
     endpoint_map: IndexMap<String, Arc<CacheEndpoint>>,
     event_notifier: Option<tokio::sync::broadcast::Receiver<Operation>>,
     default_max_num_records: usize,
+    push_events: bool,
 }
 
 impl CommonService {
@@ -34,6 +34,7 @@ impl CommonService {
         endpoints: Vec<Arc<CacheEndpoint>>,
         event_notifier: Option<tokio::sync::broadcast::Receiver<Operation>>,
         default_max_num_records: usize,
+        push_events: bool,
     ) -> Self {
         let endpoint_map = endpoints
             .into_iter()
@@ -43,6 +44,7 @@ impl CommonService {
             endpoint_map,
             event_notifier,
             default_max_num_records,
+            push_events,
         }
     }
 
@@ -114,6 +116,10 @@ impl CommonGrpcService for CommonService {
         let extensions = parts.1;
         let query_request = parts.2;
         let access = extensions.get::<Access>();
+        
+        if self.push_events == false {
+            Status::invalid_argument("GRPC not implemented error");
+        }
 
         let mut endpoints = HashMap::new();
         for (endpoint, filter) in query_request.endpoints {

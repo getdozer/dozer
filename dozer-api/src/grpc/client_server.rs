@@ -104,6 +104,7 @@ impl ApiServer {
             cache_endpoints.clone(),
             operations_receiver.as_ref().map(|r| r.resubscribe()),
             default_max_num_records,
+            self.flags.push_events.unwrap_or(true),
         ));
         let common_service = enable_grpc_web(common_service, grpc_web);
 
