@@ -394,11 +394,13 @@ impl SimpleOrchestrator {
                 kind: match endpoint.kind.clone() {
                     EndpointKind::Api(_) => EndpointLogKind::Dummy,
                     EndpointKind::Dummy => EndpointLogKind::Dummy,
-                    EndpointKind::Aerospike(config ) => EndpointLogKind::Aerospike {
-                        config: config.to_owned()
+                    EndpointKind::Aerospike(config) => EndpointLogKind::Aerospike {
+                        config: config.to_owned(),
                     },
-                    
-                }
+                    EndpointKind::Clickhouse(config) => EndpointLogKind::Clickhouse {
+                        config: config.to_owned(),
+                    },
+                },
             })
             .collect();
         let builder = PipelineBuilder::new(
