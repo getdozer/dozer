@@ -1,5 +1,4 @@
 mod errors;
-mod progress;
 mod server;
 mod state;
 mod watcher;
@@ -11,14 +10,10 @@ use dozer_api::shutdown::ShutdownReceiver;
 use dozer_types::{grpc_types::app_ui::ConnectResponse, log::info};
 pub use errors::AppUIError;
 use futures::stream::{AbortHandle, Abortable};
-use std::{process::Stdio, sync::Arc};
-use tokio::process::Command;
+use std::sync::Arc;
 use tokio::runtime::Runtime;
 
 const APP_UI_WEB_PORT: u16 = 62888;
-const GPT_SERVER_PORT: u16 = 62777;
-const DOCKER_DOZER_GPT_IMAGE_NAME: &str = "public.ecr.aws/getdozer/dozer-gpt:latest";
-const DOCKER_CONTAINER_NAME: &str = "dozer-gpt";
 
 pub async fn start_app_ui_server(
     runtime: &Arc<Runtime>,
@@ -53,89 +48,12 @@ pub async fn start_app_ui_server(
         let res: Result<(), AppUIError> =
             match Abortable::new(server::serve(receiver, state2), abort_registration).await {
                 Ok(result) => result.map_err(AppUIError::Transport),
-                Err(_) => stop_and_remove_docker_container(DOCKER_CONTAINER_NAME).await,
+                Err(_) => Ok(()),
             };
 
         res.unwrap();
     });
     watcher::watch(runtime, state.clone(), shutdown).await?;
-
-    Ok(())
-}
-
-async fn start_gpt_server() -> Result<(), AppUIError> {
-    if is_docker_installed().await {
-        return pull_and_start_docker_image(DOCKER_DOZER_GPT_IMAGE_NAME, DOCKER_CONTAINER_NAME)
-            .await;
-    }
-    Err(AppUIError::DockerNotInstalled)
-}
-
-async fn is_docker_installed() -> bool {
-    let output = Command::new("docker")
-        .arg("--version")
-        .stdout(Stdio::piped())
-        .output();
-    match output.await {
-        Ok(output) => output.status.success(),
-        Err(_) => false,
-    }
-}
-
-async fn pull_and_start_docker_image(
-    docker_image: &str,
-    container_name: &str,
-) -> Result<(), AppUIError> {
-    stop_and_remove_docker_container(container_name).await?;
-    // Pull the Docker image
-    let mut child_pull = Command::new("docker")
-        .arg("pull")
-        .arg(docker_image) // Replace with your Docker image name
-        .spawn()?;
-
-    // terminate process on port
-    let pull_status = child_pull.wait().await?;
-
-    if !pull_status.success() {
-        return Err(AppUIError::CannotPullDockerImage(docker_image.to_string()));
-    }
-    info!("Starting docker container with name : {}", container_name);
-    // Run the Docker container
-    let mut child_run = Command::new("docker")
-        .arg("run")
-        .arg("-d") // Run in detached mode
-        .arg("--name")
-        .arg(container_name) // Name for the container
-        .arg("-p")
-        .arg(format!("{}:{}", GPT_SERVER_PORT, GPT_SERVER_PORT)) // Port mapping
-        .arg(docker_image) // Replace with your Docker image name
-        .spawn()?;
-
-    let run_status: std::process::ExitStatus = child_run.wait().await?;
-    if !run_status.success() {
-        return Err(AppUIError::CannotRunDockerImage(docker_image.to_string()));
-    }
-    Ok(())
-}
-
-async fn stop_and_remove_docker_container(container_name: &str) -> Result<(), AppUIError> {
-    info!("Stopping docker container with name : {}", container_name);
-    // Stop the Docker container
-    let mut child_stop = Command::new("docker")
-        .arg("stop")
-        .arg(container_name)
-        .spawn()?;
-
-    let _stop_status = child_stop.wait().await?;
-
-
-    // Remove the Docker container
-    let mut child_rm = Command::new("docker")
-        .arg("rm")
-        .arg(container_name)
-        .spawn()?;
-
-    let _rm_status = child_rm.wait().await?;
 
     Ok(())
 }

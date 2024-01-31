@@ -57,8 +57,7 @@ message Metric {
 }
 message ConnectResponse {
   AppUIResponse app_ui = 1;
-  ProgressResponse progress = 2;
-  BuildResponse build = 3;
+  BuildResponse build = 2;
 }
 
 message BuildResponse {

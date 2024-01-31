@@ -30,8 +30,7 @@ use crate::{
     pipeline::{EndpointLog, EndpointLogKind, PipelineBuilder},
     simple::{helper::validate_config, Contract, SimpleOrchestrator},
 };
-
-use super::{progress::progress_stream, AppUIError};
+use super::AppUIError;
 struct DozerAndContract {
     dozer: SimpleOrchestrator,
     contract: Option<Contract>,
@@ -92,7 +91,6 @@ impl AppUIState {
             let res = match broadcast_type {
                 BroadcastType::Start => ConnectResponse {
                     app_ui: None,
-                    progress: None,
                     build: Some(BuildResponse {
                         status: BuildStatus::BuildStart as i32,
                         message: None,
@@ -100,7 +98,6 @@ impl AppUIState {
                 },
                 BroadcastType::Failed(msg) => ConnectResponse {
                     app_ui: None,
-                    progress: None,
                     build: Some(BuildResponse {
                         status: BuildStatus::BuildFailed as i32,
                         message: Some(msg),
@@ -110,7 +107,6 @@ impl AppUIState {
                     let res = self.get_current().await;
                     ConnectResponse {
                         app_ui: Some(res),
-                        progress: None,
                         build: None,
                     }
                 }
@@ -262,7 +258,6 @@ impl AppUIState {
             .into_iter()
             .collect();
         let (shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
-        let metrics_shutdown = shutdown_receiver.clone();
         let _handle = run(
             dozer.clone(),
             labels.clone(),
@@ -271,14 +266,6 @@ impl AppUIState {
             temp_dir_path,
         )?;
 
-        // Initialize progress
-        let metrics_sender = self.sender.read().await.as_ref().unwrap().clone();
-        let labels_clone = labels.clone();
-        tokio::spawn(async {
-            progress_stream(metrics_sender, metrics_shutdown, labels_clone)
-                .await
-                .unwrap()
-        });
         let mut lock = self.run_thread.write().await;
         if let Some(shutdown_and_tempdir) = lock.take() {
             shutdown_and_tempdir.shutdown.shutdown();
@@ -342,11 +329,11 @@ pub async fn create_dag(dozer: &SimpleOrchestrator) -> Result<Dag, Orchestration
         // We're not really going to run the pipeline, so we don't create logs.
         .map(|endpoint| EndpointLog {
             table_name: endpoint.table_name.clone(),
-            kind: match &endpoint.kind.clone()  {
+            kind: match &endpoint.kind.clone() {
                 EndpointKind::Api(_) => EndpointLogKind::Dummy,
                 EndpointKind::Dummy => EndpointLogKind::Dummy,
                 EndpointKind::Aerospike(config) => EndpointLogKind::Aerospike {
-                    config: config.clone()
+                    config: config.clone(),
                 },
             },
         })

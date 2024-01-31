@@ -154,7 +154,6 @@ impl CodeService for AppUiServer {
             if let Err(e) = tx
                 .send(Ok(ConnectResponse {
                     app_ui: Some(initial_state),
-                    progress: None,
                     build: None,
                 }))
                 .await
