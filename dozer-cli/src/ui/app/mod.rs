@@ -31,9 +31,6 @@ pub async fn start_app_ui_server(
     // Ignore if build fails
     let _ = state.build(runtime.clone()).await;
     let state2: Arc<AppUIState> = state.clone();
-
-    info!("Starting gpt server on port : {}", GPT_SERVER_PORT);
-    start_gpt_server().await?;
     if !disable_ui {
         downloader::fetch_latest_dozer_app_ui_code().await?;
         let react_app_server: dozer_api::actix_web::dev::Server =
