@@ -12,7 +12,8 @@ use dozer_types::{
     chrono::Local,
     errors::internal::BoxedError,
     log::{info, warn},
-    types::{FieldType, Operation, Schema},
+    node::OpIdentifier,
+    types::{FieldType, Operation, OperationWithId, Schema},
 };
 
 #[derive(Debug)]
@@ -59,10 +60,10 @@ impl Sink for DummySink {
         &mut self,
         _from_port: PortHandle,
         _record_store: &ProcessorRecordStore,
-        op: Operation,
+        op: OperationWithId,
     ) -> Result<(), BoxedError> {
         if let Some(inserted_at_index) = self.inserted_at_index {
-            if let Operation::Insert { new } = op {
+            if let Operation::Insert { new } = op.op {
                 let value = &new.values[inserted_at_index];
                 if let Some(inserted_at) = value.to_timestamp() {
                     let latency = Local::now().naive_utc() - inserted_at.naive_utc();
@@ -92,7 +93,11 @@ impl Sink for DummySink {
         Ok(())
     }
 
-    fn on_source_snapshotting_done(&mut self, connection_name: String) -> Result<(), BoxedError> {
+    fn on_source_snapshotting_done(
+        &mut self,
+        connection_name: String,
+        _id: Option<OpIdentifier>,
+    ) -> Result<(), BoxedError> {
         if let Some(started_instant) = self.snapshotting_started_instant.remove(&connection_name) {
             info!(
                 "Snapshotting for connection {} took {:?}",
@@ -106,5 +111,17 @@ impl Sink for DummySink {
             );
         }
         Ok(())
+    }
+
+    fn set_source_state(&mut self, _source_state: &[u8]) -> Result<(), BoxedError> {
+        Ok(())
+    }
+
+    fn get_source_state(&mut self) -> Result<Option<Vec<u8>>, BoxedError> {
+        Ok(None)
+    }
+
+    fn get_latest_op_id(&mut self) -> Result<Option<OpIdentifier>, BoxedError> {
+        Ok(None)
     }
 }

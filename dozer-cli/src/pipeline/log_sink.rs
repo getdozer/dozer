@@ -12,9 +12,9 @@ use dozer_core::{
 };
 use dozer_recordstore::ProcessorRecordStore;
 use dozer_tracing::LabelsAndProgress;
-use dozer_types::indicatif::ProgressBar;
 use dozer_types::types::Schema;
-use dozer_types::{errors::internal::BoxedError, types::Operation};
+use dozer_types::{errors::internal::BoxedError, node::OpIdentifier};
+use dozer_types::{indicatif::ProgressBar, types::OperationWithId};
 use tokio::{runtime::Runtime, sync::Mutex};
 
 #[derive(Debug)]
@@ -89,12 +89,12 @@ impl Sink for LogSink {
         &mut self,
         _from_port: PortHandle,
         _record_store: &ProcessorRecordStore,
-        op: Operation,
+        op: OperationWithId,
     ) -> Result<(), BoxedError> {
         let end = self
             .runtime
             .block_on(self.log.lock())
-            .write(dozer_cache::dozer_log::replication::LogOperation::Op { op });
+            .write(dozer_cache::dozer_log::replication::LogOperation::Op { op: op.op });
         self.pb.set_position(end as u64);
         Ok(())
     }
@@ -133,12 +133,28 @@ impl Sink for LogSink {
         Ok(())
     }
 
-    fn on_source_snapshotting_done(&mut self, connection_name: String) -> Result<(), BoxedError> {
+    fn on_source_snapshotting_done(
+        &mut self,
+        connection_name: String,
+        _id: Option<OpIdentifier>,
+    ) -> Result<(), BoxedError> {
         let end = self
             .runtime
             .block_on(self.log.lock())
             .write(LogOperation::SnapshottingDone { connection_name });
         self.pb.set_position(end as u64);
         Ok(())
+    }
+
+    fn set_source_state(&mut self, _source_state: &[u8]) -> Result<(), BoxedError> {
+        Ok(())
+    }
+
+    fn get_source_state(&mut self) -> Result<Option<Vec<u8>>, BoxedError> {
+        Ok(None)
+    }
+
+    fn get_latest_op_id(&mut self) -> Result<Option<OpIdentifier>, BoxedError> {
+        Ok(None)
     }
 }

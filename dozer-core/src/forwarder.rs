@@ -11,8 +11,8 @@ use crossbeam::channel::Sender;
 use dozer_recordstore::ProcessorRecordStore;
 use dozer_types::log::debug;
 use dozer_types::models::ingestion_types::IngestionMessage;
-use dozer_types::node::{NodeHandle, SourceState};
-use dozer_types::types::Operation;
+use dozer_types::node::{NodeHandle, OpIdentifier, SourceState};
+use dozer_types::types::OperationWithId;
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::Arc;
@@ -29,10 +29,14 @@ pub struct ChannelManager {
 
 impl ChannelManager {
     #[inline]
-    fn send_op(&mut self, mut op: Operation, port_id: PortHandle) -> Result<(), ExecutionError> {
+    fn send_op(
+        &mut self,
+        mut op: OperationWithId,
+        port_id: PortHandle,
+    ) -> Result<(), ExecutionError> {
         if let Some(writer) = self.record_writers.get_mut(&port_id) {
-            match writer.write(&self.record_store, op) {
-                Ok(new_op) => op = new_op,
+            match writer.write(&self.record_store, op.op) {
+                Ok(new_op) => op.op = new_op,
                 Err(e) => {
                     self.error_manager.report(e.into());
                     return Ok(());
@@ -79,11 +83,16 @@ impl ChannelManager {
         Ok(())
     }
 
-    pub fn send_snapshotting_done(&self, connection_name: String) -> Result<(), ExecutionError> {
+    pub fn send_snapshotting_done(
+        &self,
+        connection_name: String,
+        id: Option<OpIdentifier>,
+    ) -> Result<(), ExecutionError> {
         for senders in self.senders.values() {
             for sender in senders {
                 sender.send(ExecutorOperation::SnapshottingDone {
                     connection_name: connection_name.clone(),
+                    id,
                 })?;
             }
         }
@@ -232,17 +241,17 @@ impl SourceChannelManager {
         request_termination: bool,
     ) -> Result<bool, ExecutionError> {
         match message {
-            IngestionMessage::OperationEvent { op, state, .. } => {
-                self.source_state = if let Some(state) = state {
+            IngestionMessage::OperationEvent { op, id, .. } => {
+                self.source_state = if let Some(id) = id {
                     SourceState::Restartable {
                         state: self.source_level_state.clone(),
-                        checkpoint: state,
+                        checkpoint: id,
                     }
                 } else {
                     SourceState::NonRestartable
                 };
 
-                self.manager.send_op(op, port)?;
+                self.manager.send_op(OperationWithId { id, op }, port)?;
                 self.num_uncommitted_ops += 1;
                 self.trigger_commit_if_needed(request_termination)
             }
@@ -252,10 +261,10 @@ impl SourceChannelManager {
                     .send_snapshotting_started(self.manager.owner.id.clone())?;
                 self.trigger_commit_if_needed(request_termination)
             }
-            IngestionMessage::SnapshottingDone => {
+            IngestionMessage::SnapshottingDone { id } => {
                 self.num_uncommitted_ops += 1;
                 self.manager
-                    .send_snapshotting_done(self.manager.owner.id.clone())?;
+                    .send_snapshotting_done(self.manager.owner.id.clone(), id)?;
                 self.commit(request_termination)
             }
         }
@@ -267,7 +276,7 @@ impl SourceChannelManager {
 }
 
 impl ProcessorChannelForwarder for ChannelManager {
-    fn send(&mut self, op: Operation, port: PortHandle) {
+    fn send(&mut self, op: OperationWithId, port: PortHandle) {
         self.send_op(op, port)
             .unwrap_or_else(|e| panic!("Failed to send operation: {e}"))
     }

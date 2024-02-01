@@ -130,13 +130,13 @@ impl WebhookServer {
                     op: Operation::Insert {
                         new: records[0].clone(),
                     },
-                    state: None,
+                    id: None,
                 }
             } else {
                 IngestionMessage::OperationEvent {
                     table_index: table_idx,
                     op: Operation::BatchInsert { new: records },
-                    state: None,
+                    id: None,
                 }
             };
             ingestor
@@ -165,7 +165,7 @@ impl WebhookServer {
                 let op: IngestionMessage = IngestionMessage::OperationEvent {
                     table_index: table_idx,
                     op: Operation::Delete { old: record },
-                    state: None,
+                    id: None,
                 };
                 ingestor.handle_message(op).await.map_err(|e| {
                     actix_web::error::ErrorInternalServerError(format!("Error: {}", e))

@@ -15,7 +15,7 @@ use dozer_recordstore::{ProcessorRecordStore, ProcessorRecordStoreDeserializer};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
 use dozer_types::tonic::async_trait;
-use dozer_types::types::{Operation, Schema};
+use dozer_types::types::{OperationWithId, Schema};
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -77,7 +77,7 @@ impl Processor for NoopProcessor {
         &mut self,
         _from_port: PortHandle,
         _record_store: &ProcessorRecordStore,
-        op: Operation,
+        op: OperationWithId,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         fw.send(op, DEFAULT_PORT_HANDLE);
@@ -237,7 +237,7 @@ impl Processor for NoopJoinProcessor {
         &mut self,
         _from_port: PortHandle,
         _record_store: &ProcessorRecordStore,
-        op: Operation,
+        op: OperationWithId,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         fw.send(op, DEFAULT_PORT_HANDLE);

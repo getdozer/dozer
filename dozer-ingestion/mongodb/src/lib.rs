@@ -631,7 +631,7 @@ impl Connector for MongodbConnector {
                     .handle_message(IngestionMessage::OperationEvent {
                         table_index,
                         op,
-                        state: None,
+                        id: None,
                     })
                     .await
                     .is_err()
@@ -641,7 +641,7 @@ impl Connector for MongodbConnector {
                 }
             }
             if snapshot_ingestor
-                .handle_message(IngestionMessage::SnapshottingDone)
+                .handle_message(IngestionMessage::SnapshottingDone { id: None })
                 .await
                 .is_err()
             {
@@ -678,7 +678,7 @@ impl Connector for MongodbConnector {
                     .handle_message(IngestionMessage::OperationEvent {
                         table_index,
                         op,
-                        state: None,
+                        id: None,
                     })
                     .await
                     .is_err()

@@ -4,7 +4,8 @@ use crate::DEFAULT_PORT_HANDLE;
 use dozer_log::storage::Queue;
 use dozer_recordstore::ProcessorRecordStore;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::types::{Operation, Schema};
+use dozer_types::node::OpIdentifier;
+use dozer_types::types::{OperationWithId, Schema};
 
 use dozer_types::log::debug;
 use std::collections::HashMap;
@@ -74,7 +75,7 @@ impl Sink for CountingSink {
         &mut self,
         _from_port: PortHandle,
         _record_store: &ProcessorRecordStore,
-        _op: Operation,
+        _op: OperationWithId,
     ) -> Result<(), BoxedError> {
         self.current += 1;
         if self.current == self.expected {
@@ -98,8 +99,24 @@ impl Sink for CountingSink {
         Ok(())
     }
 
-    fn on_source_snapshotting_done(&mut self, _connection_name: String) -> Result<(), BoxedError> {
+    fn on_source_snapshotting_done(
+        &mut self,
+        _connection_name: String,
+        _id: Option<OpIdentifier>,
+    ) -> Result<(), BoxedError> {
         Ok(())
+    }
+
+    fn set_source_state(&mut self, _source_state: &[u8]) -> Result<(), BoxedError> {
+        Ok(())
+    }
+
+    fn get_source_state(&mut self) -> Result<Option<Vec<u8>>, BoxedError> {
+        Ok(None)
+    }
+
+    fn get_latest_op_id(&mut self) -> Result<Option<OpIdentifier>, BoxedError> {
+        Ok(None)
     }
 }
 

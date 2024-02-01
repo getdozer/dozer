@@ -17,7 +17,7 @@ use dozer_types::node::OpIdentifier;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::tonic::async_trait;
 use dozer_types::types::{
-    Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
+    Field, FieldDefinition, FieldType, Operation, OperationWithId, Record, Schema, SourceDefinition,
 };
 use tokio::sync::mpsc::Sender;
 
@@ -133,7 +133,7 @@ impl Source for TestSource {
                                 ),
                             ]),
                         },
-                        state: None,
+                        id: None,
                     },
                 ))
                 .await
@@ -180,7 +180,7 @@ impl Sink for TestSink {
         &mut self,
         _from_port: PortHandle,
         _record_store: &ProcessorRecordStore,
-        op: Operation,
+        op: OperationWithId,
     ) -> Result<(), BoxedError> {
         println!("Sink: {:?}", op);
         Ok(())
@@ -201,8 +201,24 @@ impl Sink for TestSink {
         Ok(())
     }
 
-    fn on_source_snapshotting_done(&mut self, _connection_name: String) -> Result<(), BoxedError> {
+    fn on_source_snapshotting_done(
+        &mut self,
+        _connection_name: String,
+        _id: Option<OpIdentifier>,
+    ) -> Result<(), BoxedError> {
         Ok(())
+    }
+
+    fn set_source_state(&mut self, _source_state: &[u8]) -> Result<(), BoxedError> {
+        Ok(())
+    }
+
+    fn get_source_state(&mut self) -> Result<Option<Vec<u8>>, BoxedError> {
+        Ok(None)
+    }
+
+    fn get_latest_op_id(&mut self) -> Result<Option<OpIdentifier>, BoxedError> {
+        Ok(None)
     }
 }
 

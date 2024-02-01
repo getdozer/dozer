@@ -152,7 +152,7 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                         lifetime: None,
                                     },
                                 },
-                                state: None,
+                                id: None,
                             })
                             .await
                             .is_err()
@@ -174,7 +174,7 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                         lifetime: None,
                                     },
                                 },
-                                state: None,
+                                id: None,
                             })
                             .await
                             .is_err()
@@ -196,7 +196,7 @@ impl StreamConsumer for DebeziumStreamConsumer {
                                         lifetime: None,
                                     },
                                 },
-                                state: None,
+                                id: None,
                             })
                             .await
                             .is_err()

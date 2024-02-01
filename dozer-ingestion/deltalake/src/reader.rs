@@ -69,7 +69,7 @@ impl DeltaLakeReader {
                                 lifetime: None,
                             },
                         },
-                        state: None,
+                        id: None,
                     })
                     .await
                     .unwrap();

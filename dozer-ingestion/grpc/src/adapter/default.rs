@@ -88,7 +88,7 @@ pub async fn handle_message(
         .handle_message(IngestionMessage::OperationEvent {
             table_index,
             op,
-            state: None,
+            id: None,
         })
         .await;
     Ok(())

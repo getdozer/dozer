@@ -9,7 +9,7 @@ use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_recordstore::ProcessorRecordStore;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::types::{Operation, Record, Schema};
+use dozer_types::types::{Operation, OperationWithId, Record, Schema};
 
 #[derive(Debug)]
 pub struct ProjectionProcessor {
@@ -85,10 +85,10 @@ impl Processor for ProjectionProcessor {
         &mut self,
         _from_port: PortHandle,
         _record_store: &ProcessorRecordStore,
-        op: Operation,
+        op: OperationWithId,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
-        let output_op = match op {
+        let output_op = match op.op {
             Operation::Delete { ref old } => self.delete(old)?,
             Operation::Insert { ref new } => Operation::Insert {
                 new: self.insert(new)?,
@@ -102,7 +102,13 @@ impl Processor for ProjectionProcessor {
                 Operation::BatchInsert { new: records }
             }
         };
-        fw.send(output_op, DEFAULT_PORT_HANDLE);
+        fw.send(
+            OperationWithId {
+                id: op.id,
+                op: output_op,
+            },
+            DEFAULT_PORT_HANDLE,
+        );
         Ok(())
     }
 

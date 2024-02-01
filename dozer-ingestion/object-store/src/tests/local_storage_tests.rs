@@ -102,7 +102,7 @@ fn test_read_parquet_file() {
     }
 
     let row = iterator.next();
-    if let Some(IngestionMessage::SnapshottingDone) = row {
+    if let Some(IngestionMessage::SnapshottingDone { .. }) = row {
     } else {
         panic!("Unexpected message");
     }
@@ -151,7 +151,7 @@ fn test_read_parquet_file_marker() {
     }
 
     let row = iterator.next();
-    if let Some(IngestionMessage::SnapshottingDone) = row {
+    if let Some(IngestionMessage::SnapshottingDone { .. }) = row {
     } else {
         panic!("Unexpected message");
     }
@@ -172,7 +172,7 @@ fn test_read_parquet_file_no_marker() {
     }
 
     let row = iterator.next();
-    if let Some(IngestionMessage::SnapshottingDone) = row {
+    if let Some(IngestionMessage::SnapshottingDone { .. }) = row {
     } else {
         panic!("Unexpected message");
     }
@@ -228,7 +228,7 @@ fn test_csv_read() {
     }
 
     let row = iterator.next();
-    if let Some(IngestionMessage::SnapshottingDone) = row {
+    if let Some(IngestionMessage::SnapshottingDone { .. }) = row {
     } else {
         panic!("Unexpected message");
     }
@@ -284,7 +284,7 @@ fn test_csv_read_marker() {
     }
 
     let row = iterator.next();
-    if let Some(IngestionMessage::SnapshottingDone) = row {
+    if let Some(IngestionMessage::SnapshottingDone { .. }) = row {
     } else {
         panic!("Unexpected message");
     }
@@ -342,7 +342,7 @@ fn test_csv_read_only_one_marker() {
     // No data to be snapshotted
 
     let row = iterator.next();
-    if let Some(IngestionMessage::SnapshottingDone) = row {
+    if let Some(IngestionMessage::SnapshottingDone { .. }) = row {
     } else {
         panic!("Unexpected message");
     }
@@ -365,7 +365,7 @@ fn test_csv_read_no_marker() {
     // No data to be snapshotted
 
     let row = iterator.next();
-    if let Some(IngestionMessage::SnapshottingDone) = row {
+    if let Some(IngestionMessage::SnapshottingDone { .. }) = row {
     } else {
         panic!("Unexpected message");
     }

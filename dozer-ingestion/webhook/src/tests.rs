@@ -151,7 +151,7 @@ fn ingest_webhook_batch_insert() {
     if let IngestionMessage::OperationEvent {
         table_index: _,
         op,
-        state: _,
+        id: _,
     } = msg
     {
         assert_eq!(
@@ -208,7 +208,7 @@ fn ingest_webhook_delete() {
     if let IngestionMessage::OperationEvent {
         table_index: _,
         op,
-        state: _,
+        id: _,
     } = msg
     {
         if let dozer_ingestion_connector::dozer_types::types::Operation::Delete { old } = op {

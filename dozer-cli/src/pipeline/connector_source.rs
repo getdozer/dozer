@@ -339,7 +339,7 @@ async fn forward_message_to_pipeline(
                     break;
                 }
             }
-            IngestionMessage::SnapshottingDone | IngestionMessage::SnapshottingStarted => {
+            IngestionMessage::SnapshottingDone { .. } | IngestionMessage::SnapshottingStarted => {
                 for port in &ports {
                     if sender.send((*port, message.clone())).await.is_err() {
                         break;

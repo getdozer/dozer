@@ -8,6 +8,7 @@ use std::hash::Hash;
 use std::str::FromStr;
 
 use crate::errors::types::TypeError;
+use crate::node::OpIdentifier;
 use prettytable::{Cell, Row, Table};
 use serde::{self, Deserialize, Serialize};
 
@@ -292,6 +293,18 @@ pub enum Operation {
     Insert { new: Record },
     Update { old: Record, new: Record },
     BatchInsert { new: Vec<Record> },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, bincode::Encode, bincode::Decode)]
+pub struct OperationWithId {
+    pub id: Option<OpIdentifier>,
+    pub op: Operation,
+}
+
+impl OperationWithId {
+    pub fn without_id(op: Operation) -> Self {
+        Self { id: None, op }
+    }
 }
 
 // Helpful in interacting with external systems during ingestion and querying

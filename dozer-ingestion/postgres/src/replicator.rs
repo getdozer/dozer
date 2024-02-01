@@ -132,7 +132,7 @@ impl<'a> CDCHandler<'a> {
                                 .handle_message(IngestionMessage::OperationEvent {
                                     table_index,
                                     op,
-                                    state: Some(OpIdentifier::new(self.begin_lsn, self.seq_no)),
+                                    id: Some(OpIdentifier::new(self.begin_lsn, self.seq_no)),
                                 })
                                 .await
                                 .is_err()

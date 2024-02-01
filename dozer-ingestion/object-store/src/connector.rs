@@ -177,7 +177,7 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
         let updated_state = try_join_all(handles).await.unwrap();
 
         sender
-            .send(Ok(Some(IngestionMessage::SnapshottingDone)))
+            .send(Ok(Some(IngestionMessage::SnapshottingDone { id: None })))
             .await
             .unwrap();
 

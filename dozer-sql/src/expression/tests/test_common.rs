@@ -4,16 +4,16 @@ use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::node::ProcessorFactory;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_recordstore::ProcessorRecordStoreDeserializer;
-use dozer_types::types::{Field, Schema};
+use dozer_types::types::{Field, OperationWithId, Schema};
 use dozer_types::types::{Operation, Record};
 use std::collections::HashMap;
 
 struct TestChannelForwarder {
-    operations: Vec<Operation>,
+    operations: Vec<OperationWithId>,
 }
 
 impl ProcessorChannelForwarder for TestChannelForwarder {
-    fn send(&mut self, op: Operation, _port: dozer_core::node::PortHandle) {
+    fn send(&mut self, op: OperationWithId, _port: dozer_core::node::PortHandle) {
         self.operations.push(op);
     }
 }
@@ -57,10 +57,15 @@ pub(crate) fn run_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Field {
     let op = Operation::Insert { new: rec };
 
     processor
-        .process(DEFAULT_PORT_HANDLE, &record_store, op, &mut fw)
+        .process(
+            DEFAULT_PORT_HANDLE,
+            &record_store,
+            OperationWithId::without_id(op),
+            &mut fw,
+        )
         .unwrap();
 
-    match &mut fw.operations[0] {
+    match &mut fw.operations[0].op {
         Operation::Insert { new } => new.values.remove(0),
         _ => panic!("Unable to find result value"),
     }

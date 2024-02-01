@@ -9,7 +9,7 @@ use dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_types::node::OpIdentifier;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::tonic::async_trait;
-use dozer_types::types::{Operation, Schema};
+use dozer_types::types::{OperationWithId, Schema};
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 
@@ -93,7 +93,7 @@ pub trait Processor: Send + Sync + Debug {
         &mut self,
         from_port: PortHandle,
         record_store: &ProcessorRecordStore,
-        op: Operation,
+        op: OperationWithId,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError>;
     fn serialize(
@@ -119,11 +119,20 @@ pub trait Sink: Send + Sync + Debug {
         &mut self,
         from_port: PortHandle,
         record_store: &ProcessorRecordStore,
-        op: Operation,
+        op: OperationWithId,
     ) -> Result<(), BoxedError>;
     fn persist(&mut self, epoch: &Epoch, queue: &Queue) -> Result<(), BoxedError>;
 
     fn on_source_snapshotting_started(&mut self, connection_name: String)
         -> Result<(), BoxedError>;
-    fn on_source_snapshotting_done(&mut self, connection_name: String) -> Result<(), BoxedError>;
+    fn on_source_snapshotting_done(
+        &mut self,
+        connection_name: String,
+        id: Option<OpIdentifier>,
+    ) -> Result<(), BoxedError>;
+
+    // Pipeline state management.
+    fn set_source_state(&mut self, source_state: &[u8]) -> Result<(), BoxedError>;
+    fn get_source_state(&mut self) -> Result<Option<Vec<u8>>, BoxedError>;
+    fn get_latest_op_id(&mut self) -> Result<Option<OpIdentifier>, BoxedError>;
 }

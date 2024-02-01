@@ -1,4 +1,5 @@
 use crossbeam_channel::{bounded, Receiver, Sender};
+use dozer_types::node::OpIdentifier;
 use std::alloc::{handle_alloc_error, Layout};
 use std::ffi::{c_char, c_void, CStr, CString, NulError};
 use std::fmt::Display;
@@ -32,16 +33,16 @@ use dozer_core::{
 };
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::geo::{Coord, Point};
-use dozer_types::log::{error, info};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::tonic::async_trait;
-use dozer_types::types::DozerPoint;
 use dozer_types::{
     errors::types::TypeError,
-    log::warn,
+    log::{error, info, warn},
     models::endpoint::AerospikeSinkConfig,
     thiserror::{self, Error},
-    types::{DozerDuration, Field, FieldType, Operation, Record, Schema},
+    types::{
+        DozerDuration, DozerPoint, Field, FieldType, Operation, OperationWithId, Record, Schema,
+    },
 };
 
 #[derive(Error, Debug)]
@@ -340,7 +341,7 @@ impl Drop for AsRecord<'_> {
 
 #[derive(Debug)]
 struct AerospikeSink {
-    sender: Sender<Operation>,
+    sender: Sender<OperationWithId>,
     snapshotting_started_instant: HashMap<String, Instant>,
 }
 
@@ -379,7 +380,7 @@ impl AerospikeSink {
 
 struct AerospikeSinkWorker {
     client: Arc<Client>,
-    receiver: Receiver<Operation>,
+    receiver: Receiver<OperationWithId>,
     namespace: CString,
     set_name: CString,
     primary_index: usize,
@@ -711,14 +712,14 @@ impl AerospikeSinkWorker {
         Ok(())
     }
 
-    fn process_impl(&mut self, op: Operation) -> Result<(), AerospikeSinkError> {
+    fn process_impl(&mut self, op: OperationWithId) -> Result<(), AerospikeSinkError> {
         // XXX: We know from the schema how many strings we have to allocate,
         // so we could optimize this to allocate the correct amount ahead
         // of time. Furthermore, we also know (an upper bound of) the total size of the strings we
         // have to allocate, so we could just allocate one large Vec<u8>, and
         // use that for all string allocations, like an arena
         let mut allocated_strings = Vec::new();
-        match op {
+        match op.op {
             Operation::Insert { new } => {
                 // We create the key and record on the stack, because we can
                 // and it saves an allocation. These structs are self-referential
@@ -878,7 +879,7 @@ impl Sink for AerospikeSink {
         &mut self,
         from_port: PortHandle,
         _record_store: &dozer_recordstore::ProcessorRecordStore,
-        op: dozer_types::types::Operation,
+        op: OperationWithId,
     ) -> Result<(), BoxedError> {
         debug_assert_eq!(from_port, DEFAULT_PORT_HANDLE);
         self.sender.send(op)?;
@@ -902,7 +903,11 @@ impl Sink for AerospikeSink {
         Ok(())
     }
 
-    fn on_source_snapshotting_done(&mut self, connection_name: String) -> Result<(), BoxedError> {
+    fn on_source_snapshotting_done(
+        &mut self,
+        connection_name: String,
+        _id: Option<OpIdentifier>,
+    ) -> Result<(), BoxedError> {
         if let Some(started_instant) = self.snapshotting_started_instant.remove(&connection_name) {
             info!(
                 "Snapshotting for connection {} took {:?}",
@@ -916,6 +921,18 @@ impl Sink for AerospikeSink {
             );
         }
         Ok(())
+    }
+
+    fn set_source_state(&mut self, _source_state: &[u8]) -> Result<(), BoxedError> {
+        Ok(())
+    }
+
+    fn get_source_state(&mut self) -> Result<Option<Vec<u8>>, BoxedError> {
+        Ok(None)
+    }
+
+    fn get_latest_op_id(&mut self) -> Result<Option<OpIdentifier>, BoxedError> {
+        Ok(None)
     }
 }
 
@@ -957,9 +974,9 @@ mod tests {
             sink.process(
                 DEFAULT_PORT_HANDLE,
                 &rs,
-                Operation::Insert {
+                OperationWithId::without_id(Operation::Insert {
                     new: record(i as u64),
-                },
+                }),
             )
             .unwrap();
         }
@@ -983,7 +1000,7 @@ mod tests {
             sink.process(
                 DEFAULT_PORT_HANDLE,
                 &rs,
-                Operation::BatchInsert { new: batch },
+                OperationWithId::without_id(Operation::BatchInsert { new: batch }),
             )
             .unwrap()
         }

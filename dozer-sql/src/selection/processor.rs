@@ -7,7 +7,7 @@ use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_recordstore::ProcessorRecordStore;
 use dozer_sql_expression::execution::Expression;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::types::{Field, Operation, Record, Schema};
+use dozer_types::types::{Field, Operation, OperationWithId, Record, Schema};
 
 use crate::errors::PipelineError;
 
@@ -48,10 +48,10 @@ impl Processor for SelectionProcessor {
         &mut self,
         _from_port: PortHandle,
         _record_store: &ProcessorRecordStore,
-        op: Operation,
+        op: OperationWithId,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
-        match op {
+        match op.op {
             Operation::Delete { ref old } => {
                 if self.filter(old)? {
                     fw.send(op, DEFAULT_PORT_HANDLE);
@@ -68,15 +68,33 @@ impl Processor for SelectionProcessor {
                 match (old_fulfilled, new_fulfilled) {
                     (true, true) => {
                         // both records fulfills the WHERE condition, forward the operation
-                        fw.send(Operation::Update { old, new }, DEFAULT_PORT_HANDLE);
+                        fw.send(
+                            OperationWithId {
+                                id: op.id,
+                                op: Operation::Update { old, new },
+                            },
+                            DEFAULT_PORT_HANDLE,
+                        );
                     }
                     (true, false) => {
                         // the old record fulfills the WHERE condition while then new one doesn't, forward a delete operation
-                        fw.send(Operation::Delete { old }, DEFAULT_PORT_HANDLE);
+                        fw.send(
+                            OperationWithId {
+                                id: op.id,
+                                op: Operation::Delete { old },
+                            },
+                            DEFAULT_PORT_HANDLE,
+                        );
                     }
                     (false, true) => {
                         // the old record doesn't fulfill the WHERE condition while then new one does, forward an insert operation
-                        fw.send(Operation::Insert { new }, DEFAULT_PORT_HANDLE);
+                        fw.send(
+                            OperationWithId {
+                                id: op.id,
+                                op: Operation::Insert { new },
+                            },
+                            DEFAULT_PORT_HANDLE,
+                        );
                     }
                     (false, false) => {
                         // both records doesn't fulfill the WHERE condition, don't forward the operation
@@ -93,7 +111,13 @@ impl Processor for SelectionProcessor {
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 if !records.is_empty() {
-                    fw.send(Operation::BatchInsert { new: records }, DEFAULT_PORT_HANDLE);
+                    fw.send(
+                        OperationWithId {
+                            id: op.id,
+                            op: Operation::BatchInsert { new: records },
+                        },
+                        DEFAULT_PORT_HANDLE,
+                    );
                 }
             }
         }

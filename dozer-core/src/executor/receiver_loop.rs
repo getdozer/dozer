@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use crossbeam::channel::{Receiver, Select};
-use dozer_types::{log::debug, types::Operation};
+use dozer_types::{log::debug, node::OpIdentifier, types::OperationWithId};
 
 use crate::{epoch::Epoch, errors::ExecutionError, executor_operation::ExecutorOperation};
 
@@ -18,7 +18,7 @@ pub trait ReceiverLoop: Name {
     /// Returns the name of the receiver at `index`. Used for logging.
     fn receiver_name(&self, index: usize) -> Cow<str>;
     /// Responds to `op` from the receiver at `index`.
-    fn on_op(&mut self, index: usize, op: Operation) -> Result<(), ExecutionError>;
+    fn on_op(&mut self, index: usize, op: OperationWithId) -> Result<(), ExecutionError>;
     /// Responds to `commit` of `epoch`.
     fn on_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError>;
     /// Responds to `terminate`.
@@ -26,7 +26,11 @@ pub trait ReceiverLoop: Name {
     /// Responds to `SnapshottingStarted`.
     fn on_snapshotting_started(&mut self, connection_name: String) -> Result<(), ExecutionError>;
     /// Responds to `SnapshottingDone`.
-    fn on_snapshotting_done(&mut self, connection_name: String) -> Result<(), ExecutionError>;
+    fn on_snapshotting_done(
+        &mut self,
+        connection_name: String,
+        id: Option<OpIdentifier>,
+    ) -> Result<(), ExecutionError>;
 
     /// The loop implementation, calls [`on_op`], [`on_commit`] and [`on_terminate`] at appropriate times.
     fn receiver_loop(&mut self, initial_epoch_id: u64) -> Result<(), ExecutionError> {
@@ -80,8 +84,11 @@ pub trait ReceiverLoop: Name {
                 ExecutorOperation::SnapshottingStarted { connection_name } => {
                     self.on_snapshotting_started(connection_name)?;
                 }
-                ExecutorOperation::SnapshottingDone { connection_name } => {
-                    self.on_snapshotting_done(connection_name)?;
+                ExecutorOperation::SnapshottingDone {
+                    connection_name,
+                    id,
+                } => {
+                    self.on_snapshotting_done(connection_name, id)?;
                 }
             }
         }
@@ -103,17 +110,17 @@ mod tests {
     use crossbeam::channel::{unbounded, Sender};
     use dozer_types::{
         node::{NodeHandle, SourceState, SourceStates},
-        types::{Field, Record},
+        types::{Field, Operation, Record},
     };
 
     use super::*;
 
     struct TestReceiverLoop {
         receivers: Vec<Receiver<ExecutorOperation>>,
-        ops: Vec<(usize, Operation)>,
+        ops: Vec<(usize, OperationWithId)>,
         commits: Vec<Epoch>,
         snapshotting_started: Vec<String>,
-        snapshotting_done: Vec<String>,
+        snapshotting_done: Vec<(String, Option<OpIdentifier>)>,
         num_terminations: usize,
     }
 
@@ -138,7 +145,7 @@ mod tests {
             Cow::Owned(format!("receiver_{index}"))
         }
 
-        fn on_op(&mut self, index: usize, op: Operation) -> Result<(), ExecutionError> {
+        fn on_op(&mut self, index: usize, op: OperationWithId) -> Result<(), ExecutionError> {
             self.ops.push((index, op));
             Ok(())
         }
@@ -161,8 +168,12 @@ mod tests {
             Ok(())
         }
 
-        fn on_snapshotting_done(&mut self, connection_name: String) -> Result<(), ExecutionError> {
-            self.snapshotting_done.push(connection_name);
+        fn on_snapshotting_done(
+            &mut self,
+            connection_name: String,
+            state: Option<OpIdentifier>,
+        ) -> Result<(), ExecutionError> {
+            self.snapshotting_done.push((connection_name, state));
             Ok(())
         }
     }
@@ -200,12 +211,13 @@ mod tests {
         senders[0]
             .send(ExecutorOperation::SnapshottingDone {
                 connection_name: connection_name.clone(),
+                id: None,
             })
             .unwrap();
         senders[0].send(ExecutorOperation::Terminate).unwrap();
         senders[1].send(ExecutorOperation::Terminate).unwrap();
         test_loop.receiver_loop(0).unwrap();
-        assert_eq!(test_loop.snapshotting_done, vec![connection_name])
+        assert_eq!(test_loop.snapshotting_done, vec![(connection_name, None)])
     }
 
     #[test]
@@ -214,15 +226,21 @@ mod tests {
         let record = Record::new(vec![Field::Int(1)]);
         senders[0]
             .send(ExecutorOperation::Op {
-                op: Operation::Insert {
+                op: OperationWithId::without_id(Operation::Insert {
                     new: record.clone(),
-                },
+                }),
             })
             .unwrap();
         senders[0].send(ExecutorOperation::Terminate).unwrap();
         senders[1].send(ExecutorOperation::Terminate).unwrap();
         test_loop.receiver_loop(0).unwrap();
-        assert_eq!(test_loop.ops, vec![(0, Operation::Insert { new: record })]);
+        assert_eq!(
+            test_loop.ops,
+            vec![(
+                0,
+                OperationWithId::without_id(Operation::Insert { new: record })
+            )]
+        );
     }
 
     #[test]

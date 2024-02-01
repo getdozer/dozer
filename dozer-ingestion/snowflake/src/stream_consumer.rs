@@ -126,7 +126,7 @@ impl StreamConsumer {
                     .blocking_handle_message(IngestionMessage::OperationEvent {
                         table_index,
                         op,
-                        state: Some(OpIdentifier::new(iteration, idx as u64)),
+                        id: Some(OpIdentifier::new(iteration, idx as u64)),
                     })
                     .is_err()
                 {
