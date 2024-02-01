@@ -9,4 +9,4 @@ edition = "2021"
 dozer-core = { path = "../dozer-core" }
 dozer-types = { path = "../dozer-types" }
 aerospike-client-sys = { path = "./aerospike-client-sys" }
-crossbeam-channel = "0.5.11"
+itertools = "0.12"

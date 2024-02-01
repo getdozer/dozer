@@ -180,15 +180,31 @@
           "type": "string"
         },
         "key": {
-          "type": "string"
+          "$ref": "#/definitions/DenormKey"
         }
       },
       "additionalProperties": false
     },
+    "AerospikeSet": {
+      "type": "object",
+      "required": [
+        "namespace",
+        "set"
+      ],
+      "properties": {
+        "namespace": {
+          "type": "string"
+        },
+        "set": {
+          "type": "string"
+        }
+      }
+    },
     "AerospikeSinkConfig": {
       "type": "object",
       "required": [
-        "connection"
+        "connection",
+        "metadata_namespace"
       ],
       "properties": {
         "connection": {
@@ -201,6 +217,16 @@
           ],
           "format": "uint64",
           "minimum": 0.0
+        },
+        "metadata_namespace": {
+          "type": "string"
+        },
+        "metadata_set": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "n_threads": {
           "type": [
@@ -249,6 +275,16 @@
         },
         "source_table_name": {
           "type": "string"
+        },
+        "write_denormalized_to": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/AerospikeSet"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": false
@@ -828,6 +864,19 @@
             "source": {
               "type": "string"
             }
+          }
+        }
+      ]
+    },
+    "DenormKey": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
           }
         }
       ]
