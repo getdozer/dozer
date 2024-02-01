@@ -1,8 +1,11 @@
 use crate::errors::{CliError, OrchestrationError};
-
+use super::init_downloader::fetch_latest_init_schema;
 use dozer_types::constants::{DEFAULT_LAMBDAS_DIRECTORY, DEFAULT_QUERIES_DIRECTORY};
 use dozer_types::log::warn;
 use dozer_types::models::config::{default_cache_dir, default_home_dir, get_cache_dir};
+use serde::Deserialize;
+use std::env;
+
 use dozer_types::{
     constants::DEFAULT_CONFIG_PATH,
     log::info,
@@ -14,7 +17,7 @@ use dozer_types::{
         config::Config,
         connection::{Connection, ConnectionConfig, PostgresConfig},
     },
-    serde_yaml,
+    serde_json,
 };
 use rustyline::history::DefaultHistory;
 use rustyline::{
@@ -23,9 +26,44 @@ use rustyline::{
 };
 use rustyline::{error::ReadlineError, Editor};
 use rustyline_derive::{Helper, Highlighter, Hinter, Validator};
+use std::fs::File;
+use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::process;
+
+#[derive(Debug, Deserialize)]
+struct TemplateConfig {
+    version: i32,
+    app_name: String,
+    home_dir: String,
+    cache_dir: String,
+    connections: Vec<ConnectionTemplate>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ConnectionTemplate {
+    name: String,
+    config: ConnectionConfigTemplate,
+    #[serde(rename = "type")]
+    connection_type: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type")]
+enum ConnectionConfigTemplate {
+    Snowflake(SnowflakeConfig),
+    Ethereum(EthConfig),
+    MySQL(MySQLConfig),
+    // Add other connection types as needed
+}
+
 #[derive(Helper, Highlighter, Hinter, Validator)]
 pub struct InitHelper {}
+
+pub fn get_directory_path() -> String {
+    let home_dir = env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    format!("{}/{}", home_dir, ".dozer")
+}
 
 impl Completer for InitHelper {
     type Candidate = Pair;
@@ -70,87 +108,44 @@ impl Completer for InitHelper {
     }
 }
 
-pub fn generate_connection(connection_name: &str) -> Connection {
-    match connection_name {
-        "Snowflake" | "snowflake" | "S" | "s" => {
-            let snowflake_config = SnowflakeConfig {
-                server: "<account_name>.<region_id>.snowflakecomputing.com".to_owned(),
-                port: "443".to_owned(),
-                user: "bob".to_owned(),
-                password: "password".to_owned(),
-                database: "database".to_owned(),
-                schema: "schema".to_owned(),
-                warehouse: "warehouse".to_owned(),
-                driver: Some("SnowflakeDSIIDriver".to_owned()),
-                role: "role".to_owned(),
-                poll_interval_seconds: None,
+pub fn generate_connection(connection_template: &ConnectionTemplate) -> Connection {
+    match &connection_template.connection_type.to_lowercase()[..] {
+        "snowflake" | "s" => {
+            let snowflake_config = match &connection_template.config {
+                ConnectionConfigTemplate::Snowflake(config) => config.clone(),
+                _ => unreachable!(), // Will never be reached if the template is correctly constructed
             };
             let connection: Connection = Connection {
-                name: "snowflake".to_owned(),
+                name: connection_template.name.clone(),
                 config: ConnectionConfig::Snowflake(snowflake_config),
             };
             connection
         }
-        "Ethereum" | "ethereum" | "E" | "e" => {
-            let eth_filter = EthFilter {
-                from_block: Some(0),
-                to_block: None,
-                addresses: vec![],
-                topics: vec![],
-            };
-            let ethereum_config = EthConfig {
-                provider: EthProviderConfig::Log(EthLogConfig {
-                    wss_url: "wss://link".to_owned(),
-                    filter: Some(eth_filter),
-                    contracts: vec![],
-                }),
+        "ethereum" | "e" => {
+            let ethereum_config = match &connection_template.config {
+                ConnectionConfigTemplate::Ethereum(config) => config.clone(),
+                _ => unreachable!(),
             };
             let connection: Connection = Connection {
-                name: "ethereum".to_owned(),
+                name: connection_template.name.clone(),
                 config: ConnectionConfig::Ethereum(ethereum_config),
             };
             connection
         }
-        "MySQL" | "MYSQL" | "mysql" | "Mysql" | "My" => {
-            let mysql_config = MySQLConfig {
-                url: "mysql://<user>:<password>@localhost:3306/<database>".to_owned(),
-                server_id: Some((1).to_owned()),
+        "mysql" | "my" => {
+            let mysql_config = match &connection_template.config {
+                ConnectionConfigTemplate::MySQL(config) => config.clone(),
+                _ => unreachable!(),
             };
             let connection: Connection = Connection {
-                name: "mysql".to_owned(),
+                name: connection_template.name.clone(),
                 config: ConnectionConfig::MySQL(mysql_config),
             };
             connection
         }
-        "S3" | "s3" => {
-            let s3_details = S3Details {
-                access_key_id: "<your_access_key_id>".to_owned(),
-                secret_access_key: "<your_secret_access_key>".to_owned(),
-                region: "<your_region>".to_owned(),
-                bucket_name: "<your_bucket_name>".to_owned(),
-            };
-            let s3_config = S3Storage {
-                details: s3_details,
-                tables: vec![],
-            };
-            let connection: Connection = Connection {
-                name: "s3".to_owned(),
-                config: ConnectionConfig::S3Storage(s3_config),
-            };
-            connection
-        }
-        "MongoDB" | "mongodb" | "MONGODB" | "Mongodb" | "Mo" | "MO" => {
-            let mongo_config = MongodbConfig {
-                connection_string:
-                    "mongodb://<username>:<password>@localhost:27017/<database_name>".to_owned(),
-            };
-            let connection: Connection = Connection {
-                name: "mongodb".to_owned(),
-                config: ConnectionConfig::MongoDB(mongo_config),
-            };
-            connection
-        }
+        // Add other connection types as needed
         _ => {
+            // Default case (e.g., Postgres)
             let postgres_config = PostgresConfig {
                 user: Some("postgres".to_owned()),
                 password: Some("postgres".to_owned()),
@@ -163,33 +158,58 @@ pub fn generate_connection(connection_name: &str) -> Connection {
                 batch_size: None,
             };
             let connection: Connection = Connection {
-                name: "postgres".to_owned(),
+                name: connection_template.name.clone(),
                 config: ConnectionConfig::Postgres(postgres_config),
             };
             connection
         }
     }
 }
+
 type Question = (
     String,
     Box<dyn Fn((String, &mut Config)) -> Result<(), OrchestrationError>>,
 );
+
 pub fn generate_config_repl() -> Result<(), OrchestrationError> {
+    if let Ok(downloaded_file_name) = fetch_latest_init_schema() {
+        // Handle the success case
+        info!("Downloaded file: {}", downloaded_file_name);
+    
+        // Now you can use `downloaded_file_name` in further processing
+    } else {
+        // Handle the error case
+        info!("Error occurred during file download");
+        process::exit(1);
+    }
+
+    // Read the template JSON file
+    let mut template_json = String::new();
+    let template_file_path = "path/to/your/template.json"; // Replace with your actual file path
+    let mut template_file = File::open(template_file_path)
+        .map_err(|e| OrchestrationError::CliError(CliError::FileSystem(template_file_path.into(), e)))?;
+    template_file
+        .read_to_string(&mut template_json)
+        .map_err(|e| OrchestrationError::CliError(CliError::FileSystem(template_file_path.into(), e)))?;
+
+    // Deserialize the JSON into a TemplateConfig struct
+    let template_config: TemplateConfig = serde_json::from_str(&template_json)
+        .map_err(|e| OrchestrationError::CliError(CliError::JsonError(e)))?;
+
     let mut rl = Editor::<InitHelper, DefaultHistory>::new()
         .map_err(|e| OrchestrationError::CliError(CliError::ReadlineError(e)))?;
     rl.set_helper(Some(InitHelper {}));
     let mut default_config = Config {
-        version: 1,
+        version: template_config.version,
         ..Default::default()
     };
-    let default_app_name = "quick-start-app";
     let questions: Vec<Question> = vec![
         (
-            format!("question: App name ({:}): ", default_app_name),
+            format!("question: App name ({:}): ", template_config.app_name),
             Box::new(move |(app_name, config)| {
                 let app_name = app_name.trim();
                 if app_name.is_empty() {
-                    config.app_name = default_app_name.to_string();
+                    config.app_name = template_config.app_name.clone();
                 } else {
                     config.app_name = app_name.to_string();
                 }
@@ -197,11 +217,11 @@ pub fn generate_config_repl() -> Result<(), OrchestrationError> {
             }),
         ),
         (
-            format!("question: Data directory ({:}): ", default_home_dir()),
+            format!("question: Data directory ({:}): ", template_config.home_dir),
             Box::new(move |(home_dir, config)| {
                 if home_dir.is_empty() {
-                    config.home_dir = Some(default_home_dir());
-                    config.cache_dir = Some(default_cache_dir());
+                    config.home_dir = Some(template_config.home_dir.clone());
+                    config.cache_dir = Some(template_config.cache_dir.clone());
                 } else {
                     config.cache_dir = Some(get_cache_dir(&home_dir));
                     config.home_dir = Some(home_dir);
@@ -213,9 +233,16 @@ pub fn generate_config_repl() -> Result<(), OrchestrationError> {
             "question: Connection Type - one of: [P]ostgres, [E]thereum, [S]nowflake, [My]SQL, [S3]Storage, [Mo]ngoDB: "
                 .to_string(),
             Box::new(move |(connection, config)| {
-                let sample_connection = generate_connection(&connection);
-                config.connections.push(sample_connection);
-
+                if let Some(connection_template) = template_config
+                    .connections
+                    .iter()
+                    .find(|&tmpl| tmpl.name.eq_ignore_ascii_case(&connection))
+                {
+                    let sample_connection = generate_connection(connection_template);
+                    config.connections.push(sample_connection);
+                } else {
+                    warn!("Connection type not found in the template.");
+                }
                 Ok(())
             }),
         ),
@@ -263,6 +290,7 @@ pub fn generate_config_repl() -> Result<(), OrchestrationError> {
             }),
         ),
     ];
+
     let result = questions.iter().try_for_each(|(question, func)| {
         let readline = rl.readline(question);
         match readline {

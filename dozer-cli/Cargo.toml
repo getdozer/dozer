@@ -38,6 +38,7 @@ page_size = "0.6.0"
 reqwest = { version = "0.11.20", features = [
   "rustls-tls",
   "cookies",
+  "blocking"
 ], default-features = false }
 glob = "0.3.1"
 atty = "0.2.14"
@@ -50,6 +51,8 @@ webbrowser = "0.8.12"
 tempfile = "3.8"
 actix-files = "0.6.2"
 prometheus-parse = "0.2.4"
+serde = "1.0"
+serde_json = "1.0"
 
 [build-dependencies]
 dozer-types = { path = "../dozer-types" }

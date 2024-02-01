@@ -1,18 +1,15 @@
 use dozer_types::log::info;
 use std::fs::File;
-use std::io::Read;
-use std::io::Write;
+use std::io::{ Read, Write};
 use std::path::Path;
 use std::env;
-use std::fs::remove_dir_all;
-use std::fs::remove_file;
+use std::fs::{remove_dir_all, remove_file};
+use reqwest;
 
-
-pub async fn fetch_latest_init_schema() -> Result<() ,  Box<dyn std::error::Error>>  {
+pub fn fetch_latest_init_schema() -> Result<String, Box<dyn std::error::Error>> {
     let url = "https://dozer-init-template.s3.ap-southeast-1.amazonaws.com/latest";
 
-    let (key, existing_key, key_changed) = get_key_from_url(url).await?;
-    //let json_file_name: <&str as Add<&str>>::Output = key.as_str() + ".json"; // Assume the JSON file has a .json extension
+    let (key, existing_key, key_changed) = get_key_from_url(url)?;
     let json_file_name: &str = key.as_str();
     let prev_json_file_name = existing_key.as_str();
     if key_changed {
@@ -26,20 +23,19 @@ pub async fn fetch_latest_init_schema() -> Result<() ,  Box<dyn std::error::Erro
             delete_file_if_present(prev_json_file_name)?;
         }
 
-        get_json_from_url(json_url, json_file_name).await?;
+        get_json_from_url(json_url, json_file_name)?;
     }
 
-    Ok(())
+    Ok(json_file_name.to_string())
 }
-// This function gets the latest keys from url and compares it with the existing key
-// Returns the latest key, existing key and a boolean indicating if the key has changed
-async fn get_key_from_url(url: &str) -> Result<(String, String, bool), Box<dyn std::error::Error>> {
-    let response = reqwest::get(url).await?.error_for_status()?.text().await?;
+
+fn get_key_from_url(url: &str) -> Result<(String, String, bool), Box<dyn std::error::Error>> {
+    let response = reqwest::blocking::get(url)?.error_for_status()?.text()?;
     let key = response.trim().to_string();
 
     let file_path = get_directory_path() + "/local-ui/init-keys.txt";
     let mut existing_key = String::new();
-    if let Ok(mut file) = std::fs::File::open(&file_path) {
+    if let Ok(mut file) = File::open(&file_path) {
         file.read_to_string(&mut existing_key)?;
     }
     let existing_key = existing_key.trim().to_string();
@@ -47,18 +43,16 @@ async fn get_key_from_url(url: &str) -> Result<(String, String, bool), Box<dyn s
     let key_changed = existing_key != key;
 
     if key_changed {
-        std::fs::create_dir_all(get_directory_path() + "/local-ui/")?;
-        let mut file = std::fs::File::create(&file_path)?;
+        std::fs::create_dir_all(get_directory_path() + "/local-ui")?;
+        let mut file = File::create(&file_path)?;
         file.write_all(key.as_bytes())?;
     }
 
     Ok((key, existing_key, key_changed))
 }
 
-
-async fn get_json_from_url(url: &str, file_name: &str) -> Result<(),  Box<dyn std::error::Error>>  {
-
-    let response = reqwest::get(url).await?.error_for_status()?.text().await?;
+fn get_json_from_url(url: &str, file_name: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let response = reqwest::blocking::get(url)?.error_for_status()?.text()?;
     let directory_path = get_directory_path();
     let file_path = Path::new(&directory_path).join("local-ui").join(file_name);
 
@@ -69,9 +63,7 @@ async fn get_json_from_url(url: &str, file_name: &str) -> Result<(),  Box<dyn st
     Ok(())
 }
 
-
-
-fn delete_file_if_present(file_name: &str) -> Result<(), Box<dyn std::error::Error>>  {
+fn delete_file_if_present(file_name: &str) -> Result<(), Box<dyn std::error::Error>> {
     let directory_path = get_directory_path();
     let file_path = Path::new(&directory_path).join("local-ui").join(file_name);
     info!("deleting file {:?}", file_path);
@@ -85,9 +77,7 @@ fn delete_file_if_present(file_name: &str) -> Result<(), Box<dyn std::error::Err
     Ok(())
 }
 
-
-
-fn get_directory_path() -> String {
+pub fn get_directory_path() -> String {
     let home_dir = env::var("HOME").unwrap_or_else(|_| ".".to_string());
     format!("{}/{}", home_dir, ".dozer")
 }
