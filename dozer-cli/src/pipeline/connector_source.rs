@@ -306,6 +306,7 @@ async fn forward_message_to_pipeline(
                 labels.push("connection", connection_name.clone());
                 labels.push("table", table_name.clone());
                 const OPERATION_TYPE_LABEL: &str = "operation_type";
+                const BATCH_NUM_LABEL: &str = "batch_num";
                 match op {
                     Operation::Delete { .. } => {
                         labels.push(OPERATION_TYPE_LABEL, "delete");
@@ -316,8 +317,10 @@ async fn forward_message_to_pipeline(
                     Operation::Update { .. } => {
                         labels.push(OPERATION_TYPE_LABEL, "update");
                     }
-                    Operation::BatchInsert { .. } => {
+                    Operation::BatchInsert { new } => {
                         labels.push(OPERATION_TYPE_LABEL, "batch_insert");
+                        labels.push(BATCH_NUM_LABEL, new.len().to_string());
+
                     }
                 }
                 increment_counter!(SOURCE_OPERATION_COUNTER_NAME, labels);

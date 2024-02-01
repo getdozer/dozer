@@ -118,8 +118,9 @@ impl ReceiverLoop for SinkNode {
             Operation::Update { .. } => {
                 labels.push(OPERATION_TYPE_LABEL, "update");
             }
-            Operation::BatchInsert { .. } => {
+            Operation::BatchInsert { new } => {
                 labels.push(OPERATION_TYPE_LABEL, "batch_insert");
+                labels.push(BATCH_NUM_LABEL, new.len().to_string());
             }
         }
 
