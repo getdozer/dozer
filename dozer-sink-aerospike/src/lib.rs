@@ -1,4 +1,5 @@
-use crossbeam_channel::{bounded, Receiver, Sender};
+use constants::{META_KEY, META_TXN_ID_BIN};
+use crossbeam_channel::{bounded, unbounded, Receiver, Sender};
 use dozer_types::json_types::{DestructuredJsonRef, JsonValue};
 use dozer_types::models::connection::AerospikeConnection;
 use dozer_types::models::sink::DenormColumn;
@@ -8,33 +9,13 @@ use std::ffi::{c_char, c_void, CStr, CString, NulError};
 use std::fmt::Display;
 use std::mem::{self, MaybeUninit};
 use std::num::NonZeroUsize;
-use std::ptr::{addr_of, null, NonNull};
+use std::ptr::{addr_of, addr_of_mut, null, NonNull};
 use std::sync::Arc;
-use std::thread::available_parallelism;
+use std::thread::{available_parallelism, JoinHandle};
 use std::time::{Duration, Instant};
 use std::{collections::HashMap, fmt::Debug};
 
-use aerospike_client_sys::{
-    aerospike, aerospike_batch_write, aerospike_connect, aerospike_destroy, aerospike_key_put,
-    aerospike_key_remove, aerospike_key_select, aerospike_new, as_arraylist_append,
-    as_arraylist_destroy, as_arraylist_new, as_batch_record, as_batch_records,
-    as_batch_records_destroy, as_batch_write_record, as_bin_value, as_boolean_new, as_bytes_new,
-    as_bytes_new_wrap, as_bytes_set, as_bytes_type, as_bytes_type_e_AS_BYTES_STRING, as_config,
-    as_config_add_hosts, as_config_init, as_double_new, as_error, as_integer_new, as_key,
-    as_key_destroy, as_key_init_int64, as_key_init_rawp, as_key_init_value, as_key_value, as_nil,
-    as_operations, as_operations_add_write, as_operations_add_write_bool,
-    as_operations_add_write_double, as_operations_add_write_geojson_strp,
-    as_operations_add_write_int64, as_operations_add_write_rawp, as_operations_destroy,
-    as_operations_init, as_orderedmap, as_orderedmap_destroy, as_orderedmap_new, as_orderedmap_set,
-    as_policy_batch, as_policy_exists_e_AS_POLICY_EXISTS_CREATE,
-    as_policy_exists_e_AS_POLICY_EXISTS_UPDATE, as_policy_remove, as_policy_write, as_record,
-    as_record_destroy, as_record_get, as_record_init, as_record_set, as_record_set_bool,
-    as_record_set_double, as_record_set_geojson_strp, as_record_set_int64, as_record_set_nil,
-    as_record_set_raw_typep, as_record_set_rawp, as_status,
-    as_status_e_AEROSPIKE_ERR_RECORD_NOT_FOUND, as_status_e_AEROSPIKE_OK, as_val,
-    as_val_val_reserve, as_vector, as_vector_increase_capacity, as_vector_init, AS_BATCH_WRITE,
-    AS_BIN_NAME_MAX_LEN,
-};
+use aerospike_client_sys::*;
 use dozer_core::{
     node::{PortHandle, Sink, SinkFactory},
     DEFAULT_PORT_HANDLE,
@@ -52,6 +33,24 @@ use dozer_types::{
         DozerDuration, DozerPoint, Field, FieldType, Operation, Record, Schema, TableOperation,
     },
 };
+
+mod constants {
+    use std::ffi::CStr;
+
+    // TODO: Replace with cstring literals when they're stablized,
+    // currently planned for Rust 1.77
+    const fn cstr(value: &'static [u8]) -> &'static CStr {
+        // Check that the supplied value is valid (ends with nul byte)
+        assert!(CStr::from_bytes_with_nul(value).is_ok());
+        // Do the conversion again
+        unsafe { CStr::from_bytes_with_nul_unchecked(value) }
+    }
+
+    pub(super) const TXN_ID_BIN: &CStr = cstr(b"__txn_id\0");
+    pub(super) const TXN_SEQ_BIN: &CStr = cstr(b"__txn_seq\0");
+    pub(super) const META_KEY: &CStr = cstr(b"metadata\0");
+    pub(super) const META_TXN_ID_BIN: &CStr = cstr(b"txn_id\0");
+}
 
 #[derive(Error, Debug)]
 enum AerospikeSinkError {
@@ -73,6 +72,10 @@ enum AerospikeSinkError {
     BinNameTooLong(String),
     #[error("Integer out of range. The supplied usigned integer was larger than the maximum representable value for an aerospike integer")]
     IntegerOutOfRange(u64),
+    #[error("Changing the value of a primary key is not supported for Aerospike sink. Old: {old}, new: {new}")]
+    PrimaryKeyChanged { old: Field, new: Field },
+    #[error("Received op with txid `{previous}` before transaction `{this}` was committed")]
+    TransactionCommitMissing { previous: u64, this: u64 },
 }
 
 #[derive(Debug, Error)]
@@ -120,7 +123,7 @@ unsafe fn check_alloc<T>(ptr: *mut T) -> *mut T {
     ptr
 }
 #[inline(always)]
-unsafe fn as_try(mut f: impl FnMut(*mut as_error) -> as_status) -> Result<(), AerospikeError> {
+unsafe fn as_try(f: impl FnOnce(*mut as_error) -> as_status) -> Result<(), AerospikeError> {
     let mut err = MaybeUninit::uninit();
     if f(err.as_mut_ptr()) == as_status_e_AEROSPIKE_OK {
         Ok(())
@@ -167,8 +170,12 @@ impl Client {
         &self,
         key: *const as_key,
         record: *mut as_record,
-        policy: as_policy_write,
+        mut policy: as_policy_write,
+        filter: Option<NonNull<as_exp>>,
     ) -> Result<(), AerospikeError> {
+        if let Some(filter) = filter {
+            policy.base.filter_exp = filter.as_ptr();
+        }
         as_try(|err| {
             aerospike_key_put(
                 self.inner.as_ptr(),
@@ -180,20 +187,48 @@ impl Client {
         })
     }
 
-    unsafe fn insert(&self, key: *const as_key, new: *mut as_record) -> Result<(), AerospikeError> {
+    unsafe fn insert(
+        &self,
+        key: *const as_key,
+        new: *mut as_record,
+        filter: Option<NonNull<as_exp>>,
+    ) -> Result<(), AerospikeError> {
         let mut policy = self.inner.as_ref().config.policies.write;
         policy.exists = as_policy_exists_e_AS_POLICY_EXISTS_CREATE;
-        self.put(key, new, policy)
+        self.put(key, new, policy, filter)
     }
 
-    unsafe fn update(&self, key: *const as_key, new: *mut as_record) -> Result<(), AerospikeError> {
+    unsafe fn update(
+        &self,
+        key: *const as_key,
+        new: *mut as_record,
+        filter: Option<NonNull<as_exp>>,
+    ) -> Result<(), AerospikeError> {
         let mut policy = self.inner.as_ref().config.policies.write;
         policy.exists = as_policy_exists_e_AS_POLICY_EXISTS_UPDATE;
-        self.put(key, new, policy)
+        self.put(key, new, policy, filter)
     }
 
-    unsafe fn delete(&self, key: *const as_key) -> Result<(), AerospikeError> {
-        let policy = self.inner.as_ref().config.policies.remove;
+    unsafe fn upsert(
+        &self,
+        key: *const as_key,
+        new: *mut as_record,
+        filter: Option<NonNull<as_exp>>,
+    ) -> Result<(), AerospikeError> {
+        let mut policy = self.inner.as_ref().config.policies.write;
+        policy.exists = as_policy_exists_e_AS_POLICY_EXISTS_CREATE_OR_REPLACE;
+        self.put(key, new, policy, filter)
+    }
+
+    unsafe fn delete(
+        &self,
+        key: *const as_key,
+        filter: Option<NonNull<as_exp>>,
+    ) -> Result<(), AerospikeError> {
+        let mut policy = self.inner.as_ref().config.policies.remove;
+        if let Some(filter) = filter {
+            policy.base.filter_exp = filter.as_ptr();
+        }
         as_try(|err| {
             aerospike_key_remove(
                 self.inner.as_ptr(),
@@ -204,8 +239,9 @@ impl Client {
         })
     }
 
-    unsafe fn write_batch(&self, batch: *mut as_batch_records) -> Result<(), AerospikeError> {
+    unsafe fn insert_batch(&self, batch: *mut as_batch_records) -> Result<(), AerospikeError> {
         let policy = self.inner.as_ref().config.policies.batch;
+
         as_try(|err| {
             aerospike_batch_write(
                 self.inner.as_ptr(),
@@ -230,6 +266,21 @@ impl Client {
                 key,
                 // This won't write to the mut ptr
                 bins.as_ptr() as *mut *const c_char,
+                record as *mut *mut as_record,
+            )
+        })
+    }
+    unsafe fn get(
+        &self,
+        key: *const as_key,
+        record: &mut *mut as_record,
+    ) -> Result<(), AerospikeError> {
+        as_try(|err| {
+            aerospike_key_get(
+                self.inner.as_ptr(),
+                err,
+                std::ptr::null(),
+                key,
                 record as *mut *mut as_record,
             )
         })
@@ -377,9 +428,18 @@ impl SinkFactory for AerospikeSinkFactory {
                 n_denormalization_cols,
             });
         }
+        let metadata_namespace = CString::new(self.config.metadata_namespace.clone())?;
+        let metadata_set = CString::new(
+            self.config
+                .metadata_set
+                .to_owned()
+                .unwrap_or("__replication_metadata".to_owned()),
+        )?;
         Ok(Box::new(AerospikeSink::new(
             client,
             tables,
+            metadata_namespace,
+            metadata_set,
             n_threads.into(),
         )))
     }
@@ -416,6 +476,10 @@ impl AsRecord<'_> {
     fn as_mut_ptr(&mut self) -> *mut as_record {
         self.0 as *mut as_record
     }
+
+    fn as_ptr(&self) -> *const as_record {
+        &*self.0 as *const as_record
+    }
 }
 
 impl Drop for AsRecord<'_> {
@@ -427,8 +491,80 @@ impl Drop for AsRecord<'_> {
 
 #[derive(Debug)]
 struct AerospikeSink {
-    sender: Sender<TableOperation>,
+    snapshot_sender: Option<Sender<TableOperation>>,
     snapshotting_started_instant: HashMap<String, Instant>,
+    snapshot_workers: Vec<JoinHandle<()>>,
+    replication_worker: AerospikeSinkWorker,
+    meta_sender: Sender<u64>,
+    current_transaction: Option<u64>,
+    n_snapshotting_threads: usize,
+    catch_up_state: CatchingUpState,
+    metadata_namespace: CString,
+    metadata_set: CString,
+    client: Arc<Client>,
+}
+
+type TxnId = u64;
+struct MetadataWriter {
+    client: Arc<Client>,
+    key: NonNull<as_key>,
+    record: NonNull<as_record>,
+    receiver: Receiver<TxnId>,
+}
+
+// NonNull doesn't impl Send
+unsafe impl Send for MetadataWriter {}
+
+impl MetadataWriter {
+    fn new(
+        client: Arc<Client>,
+        namespace: CString,
+        set: CString,
+        receiver: Receiver<TxnId>,
+    ) -> Self {
+        unsafe {
+            let key = NonNull::new(as_key_new(
+                namespace.as_ptr(),
+                set.as_ptr(),
+                META_KEY.as_ptr(),
+            ))
+            .unwrap();
+            let record = NonNull::new(as_record_new(1)).unwrap();
+            Self {
+                client,
+                key,
+                record,
+                receiver,
+            }
+        }
+    }
+
+    fn run(&mut self) {
+        unsafe {
+            while let Ok(txn_id) = self.receiver.recv() {
+                as_record_set_int64(
+                    self.record.as_ptr(),
+                    META_TXN_ID_BIN.as_ptr(),
+                    txn_id as i64,
+                );
+                if let Err(e) = self
+                    .client
+                    .upsert(self.key.as_ptr(), self.record.as_ptr(), None)
+                {
+                    error!("Error writing operation metadata: {e}")
+                }
+            }
+        }
+    }
+}
+
+impl Drop for MetadataWriter {
+    fn drop(&mut self) {
+        unsafe {
+            as_record_destroy(self.record.as_ptr());
+            as_key_destroy(self.key.as_ptr());
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -497,24 +633,41 @@ struct AerospikeTable {
 }
 
 impl AerospikeSink {
-    fn new(client: Client, tables: Vec<AerospikeTable>, n_threads: usize) -> Self {
+    fn new(
+        client: Client,
+        tables: Vec<AerospikeTable>,
+        metadata_namespace: CString,
+        metadata_set: CString,
+        n_threads: usize,
+    ) -> Self {
         let client = Arc::new(client);
-        let mut workers = Vec::with_capacity(n_threads);
-        let (sender, receiver) = bounded(n_threads);
-        for _ in 0..n_threads {
-            workers.push(AerospikeSinkWorker {
-                client: client.clone(),
-                receiver: receiver.clone(),
-                tables: tables.clone(),
-            });
-        }
-        for mut worker in workers {
-            std::thread::spawn(move || worker.run());
-        }
+
+        let (meta_sender, meta_receiver) = unbounded();
+        let worker_instance = AerospikeSinkWorker {
+            client: client.clone(),
+            tables,
+        };
+
+        let mut metadata_writer = MetadataWriter::new(
+            client.clone(),
+            metadata_namespace.clone(),
+            metadata_set.clone(),
+            meta_receiver,
+        );
+        std::thread::spawn(move || metadata_writer.run());
 
         Self {
-            sender,
+            snapshot_sender: None,
             snapshotting_started_instant: Default::default(),
+            snapshot_workers: vec![],
+            replication_worker: worker_instance,
+            meta_sender,
+            current_transaction: None,
+            n_snapshotting_threads: n_threads,
+            catch_up_state: CatchingUpState::new(true),
+            metadata_namespace,
+            metadata_set,
+            client,
         }
     }
 }
@@ -522,6 +675,9 @@ impl AerospikeSink {
 fn convert_json(value: &JsonValue) -> Result<*mut as_bin_value, AerospikeSinkError> {
     unsafe {
         Ok(match value.destructure_ref() {
+            // as_nil is a static, so we can't directly create a mutable pointer to it. We cast
+            // through a const pointer instead. This location will never be written to,
+            // because `free = false`
             DestructuredJsonRef::Null => addr_of!(as_nil) as *mut as_val as *mut as_bin_value,
             DestructuredJsonRef::Bool(value) => {
                 check_alloc(as_boolean_new(value)) as *mut as_bin_value
@@ -589,16 +745,43 @@ fn convert_json(value: &JsonValue) -> Result<*mut as_bin_value, AerospikeSinkErr
     }
 }
 
+#[derive(Clone, Debug)]
 struct AerospikeSinkWorker {
     client: Arc<Client>,
-    receiver: Receiver<TableOperation>,
     tables: Vec<AerospikeTable>,
 }
 
+#[derive(Debug)]
+struct CatchingUpState {
+    is_catching_up: bool,
+    skipped_in_transaction: usize,
+}
+
+impl CatchingUpState {
+    fn new(catching_up: bool) -> Self {
+        Self {
+            is_catching_up: catching_up,
+            skipped_in_transaction: 0,
+        }
+    }
+
+    fn mark_skipped(&mut self) {
+        assert!(self.is_catching_up);
+        self.skipped_in_transaction += 1;
+    }
+
+    fn commit(&mut self) {
+        if self.skipped_in_transaction == 0 {
+            self.is_catching_up = false;
+        }
+        self.skipped_in_transaction = 0;
+    }
+}
+
 impl AerospikeSinkWorker {
-    fn run(&mut self) {
-        while let Ok(op) = self.receiver.recv() {
-            if let Err(e) = self.process_impl(op) {
+    fn snapshot(&mut self, receiver: Receiver<TableOperation>) {
+        while let Ok(op) = receiver.recv() {
+            if let Err(e) = self.process(op, false) {
                 error!("Error processing operation: {}", e);
             }
         }
@@ -741,9 +924,13 @@ impl AerospikeSinkWorker {
         dozer_record: &Record,
         bin_names: &[CString],
         n_extra_cols: u16,
+        op_id: Option<OpIdentifier>,
         allocated_strings: &mut Vec<String>,
     ) -> Result<(), AerospikeSinkError> {
-        as_record_init(record, dozer_record.values.len() as u16 + n_extra_cols);
+        as_record_init(
+            record,
+            dozer_record.values.len() as u16 + n_extra_cols /* denorm */ + 2, /* tx_id and seq */
+        );
         for (def, field) in bin_names.iter().zip(&dozer_record.values) {
             let name = def.as_ptr();
             match field {
@@ -818,6 +1005,11 @@ impl AerospikeSinkWorker {
                     as_record_set(record, name, value);
                 }
             }
+        }
+        if let Some(op_id) = op_id {
+            let OpIdentifier { txid, seq_in_tx } = op_id;
+            as_record_set_int64(record, constants::TXN_ID_BIN.as_ptr(), txid as i64);
+            as_record_set_int64(record, constants::TXN_SEQ_BIN.as_ptr(), seq_in_tx as i64);
         }
         Ok(())
     }
@@ -913,7 +1105,7 @@ impl AerospikeSinkWorker {
                     // Using our string-as-bytes trick does not work, as BYTES_GEOJSON is not
                     // a plain string format. Instead, we just make sure we include a nul-byte
                     // in our regular string, as that is easiest to integration with the other
-                    // string allocations being `String` and not `CString`. We know we won't
+                    // string allocations being `String` and not `CString`. We know we whttps://docs.oracle.com/en/database/oracle/oracle-database/19/ladbi/running-oracle-universal-installer-to-install-oracle-database.html#GUID-DD4800E9-C651-4B08-A6AC-E5ECCC6512B9on't
                     // have any intermediate nul-bytes, as we control the string
                     let string = format!(
                         r#"{{"type": "Point", "coordinates": [{}, {}]}}{}"#,
@@ -929,18 +1121,23 @@ impl AerospikeSinkWorker {
         }
         Ok(())
     }
-
-    fn process_impl(&mut self, op: TableOperation) -> Result<(), AerospikeSinkError> {
+    fn process(
+        &mut self,
+        op: TableOperation,
+        filter_by_opid: bool,
+    ) -> Result<(), AerospikeSinkError> {
         let table = &self.tables[op.port as usize];
-
         if !table.denormalizations.is_empty() {
             if let Operation::BatchInsert { new } = op.op {
                 for rec in new.into_iter() {
-                    self.process_impl(TableOperation {
-                        op: Operation::Insert { new: rec },
-                        id: op.id,
-                        port: op.port,
-                    })?;
+                    self.process(
+                        TableOperation {
+                            op: Operation::Insert { new: rec },
+                            id: op.id,
+                            port: op.port,
+                        },
+                        filter_by_opid,
+                    )?;
                 }
                 return Ok(());
             }
@@ -951,6 +1148,27 @@ impl AerospikeSinkWorker {
         // have to allocate, so we could just allocate one large Vec<u8>, and
         // use that for all string allocations, like an arena
         let mut allocated_strings = Vec::new();
+        let id = op.id;
+
+        let filter = id.filter(|_| filter_by_opid).map(|id| unsafe {
+            NonNull::new(as_exp_build!(as_exp_or(
+                as_exp_cmp_lt(
+                    as_exp_bin_int(constants::TXN_ID_BIN.as_ptr()),
+                    as_exp_int(id.txid as i64)
+                ),
+                as_exp_and(
+                    as_exp_cmp_eq(
+                        as_exp_bin_int(constants::TXN_ID_BIN.as_ptr()),
+                        as_exp_int(id.txid as i64)
+                    ),
+                    as_exp_cmp_lt(
+                        as_exp_bin_int(constants::TXN_SEQ_BIN.as_ptr()),
+                        as_exp_int(id.seq_in_tx as i64)
+                    )
+                )
+            )))
+            .unwrap()
+        });
         match op.op {
             Operation::Insert { new } => {
                 // We create the key and record on the stack, because we can
@@ -976,6 +1194,7 @@ impl AerospikeSinkWorker {
                         &new,
                         &table.bin_names,
                         table.n_denormalization_cols,
+                        id,
                         &mut allocated_strings,
                     )?;
                     let mut record = AsRecord(_record.assume_init_mut());
@@ -1028,7 +1247,8 @@ impl AerospikeSinkWorker {
                         }
                         as_record_destroy(denorm_rec.as_mut_ptr());
                     }
-                    self.client.insert(k.as_ptr(), record.as_mut_ptr())?;
+                    self.client
+                        .insert(k.as_ptr(), record.as_mut_ptr(), filter)?;
                 }
             }
             Operation::Delete { old } => {
@@ -1042,10 +1262,20 @@ impl AerospikeSinkWorker {
                         &mut allocated_strings,
                     )?;
                     let k = Key(key.assume_init_mut());
-                    self.client.delete(k.as_ptr())?;
+                    self.client.delete(k.as_ptr(), filter)?;
                 }
             }
             Operation::Update { old, new } => {
+                {
+                    let old_pk = &old.values[table.primary_index];
+                    let new_pk = &new.values[table.primary_index];
+                    if old_pk != new_pk {
+                        return Err(AerospikeSinkError::PrimaryKeyChanged {
+                            old: old_pk.clone(),
+                            new: new_pk.clone(),
+                        });
+                    }
+                }
                 let mut key = MaybeUninit::uninit();
                 let mut record = MaybeUninit::uninit();
                 unsafe {
@@ -1062,10 +1292,11 @@ impl AerospikeSinkWorker {
                         &new,
                         &table.bin_names,
                         0,
+                        id,
                         &mut allocated_strings,
                     )?;
                     let mut r = AsRecord(record.assume_init_mut());
-                    self.client.update(k.as_ptr(), r.as_mut_ptr())?;
+                    self.client.update(k.as_ptr(), r.as_mut_ptr(), filter)?;
                 }
             }
             Operation::BatchInsert { new } => {
@@ -1099,7 +1330,7 @@ impl AerospikeSinkWorker {
                     }
                 }
                 unsafe {
-                    self.client.write_batch(batch.as_ptr())?;
+                    self.client.insert_batch(batch.as_ptr())?;
                 }
             }
         }
@@ -1178,7 +1409,8 @@ unsafe fn as_batch_write_reserve(records: *mut as_batch_records) -> *mut as_batc
 #[inline(always)]
 unsafe fn as_batch_records_init(records: *mut as_batch_records, capacity: u32) {
     as_vector_init(
-        &mut (*records).list as *mut as_vector,
+        // Can't go through a reference, because this field might not be initialized
+        addr_of_mut!((*records).list),
         mem::size_of::<as_batch_record>() as u32,
         capacity,
     );
@@ -1186,12 +1418,49 @@ unsafe fn as_batch_records_init(records: *mut as_batch_records, capacity: u32) {
 
 impl Sink for AerospikeSink {
     fn commit(&mut self, _epoch_details: &dozer_core::epoch::Epoch) -> Result<(), BoxedError> {
+        if let Some(transaction) = self.current_transaction {
+            self.meta_sender.send(transaction)?;
+        }
+        self.catch_up_state.commit();
         Ok(())
     }
 
     fn process(&mut self, op: TableOperation) -> Result<(), BoxedError> {
         debug_assert_eq!(op.port, DEFAULT_PORT_HANDLE);
-        self.sender.send(op)?;
+        if let Some(snapshot_sender) = &mut self.snapshot_sender {
+            snapshot_sender.send(op)?;
+        } else {
+            let old_current = self.current_transaction;
+            // Set current transaction before any error can be thrown, so we don't
+            // get stuck in an error loop if this error gets ignored by the caller
+            self.current_transaction = op.id.map(|id| id.txid);
+            if let Some(transaction) = old_current {
+                let id = op
+                    .id
+                    .expect("Either all or no operations should contain `OperationId`s");
+                if id.txid != transaction {
+                    return Err(Box::new(AerospikeSinkError::TransactionCommitMissing {
+                        previous: transaction,
+                        this: id.txid,
+                    }));
+                }
+            }
+
+            let filter_by_opid = self.catch_up_state.is_catching_up;
+
+            #[allow(non_upper_case_globals)]
+            match self.replication_worker.process(op, filter_by_opid) {
+                Err(AerospikeSinkError::Aerospike(AerospikeError {
+                    code:
+                        as_status_e_AEROSPIKE_FILTERED_OUT | as_status_e_AEROSPIKE_ERR_RECORD_NOT_FOUND,
+                    message: _,
+                })) if filter_by_opid => {
+                    self.catch_up_state.mark_skipped();
+                }
+                Err(e) => return Err(Box::new(e)),
+                Ok(_) => {}
+            }
+        }
         Ok(())
     }
 
@@ -1207,15 +1476,28 @@ impl Sink for AerospikeSink {
         &mut self,
         connection_name: String,
     ) -> Result<(), BoxedError> {
+        let n_threads = self.n_snapshotting_threads;
         self.snapshotting_started_instant
             .insert(connection_name, Instant::now());
+        let mut workers = Vec::with_capacity(n_threads);
+        let (sender, receiver) = bounded(n_threads);
+
+        for _ in 0..n_threads {
+            let mut worker = self.replication_worker.clone();
+            let receiver = receiver.clone();
+            workers.push(std::thread::spawn(move || worker.snapshot(receiver)));
+        }
+        self.snapshot_workers = workers;
+        self.snapshot_sender = Some(sender);
+        self.catch_up_state = CatchingUpState::new(false);
+
         Ok(())
     }
 
     fn on_source_snapshotting_done(
         &mut self,
         connection_name: String,
-        _id: Option<OpIdentifier>,
+        id: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
         if let Some(started_instant) = self.snapshotting_started_instant.remove(&connection_name) {
             info!(
@@ -1229,6 +1511,15 @@ impl Sink for AerospikeSink {
                 connection_name
             );
         }
+        // Drop the old sender, then wait for all threads to finish
+        let _ = std::mem::take(&mut self.snapshot_sender);
+        for handle in self.snapshot_workers.drain(..) {
+            handle.join().unwrap();
+        }
+        if let Some(id) = id {
+            // Store the transaction id, so we can resume from this point
+            self.meta_sender.send(id.txid)?;
+        }
         Ok(())
     }
 
@@ -1241,7 +1532,38 @@ impl Sink for AerospikeSink {
     }
 
     fn get_latest_op_id(&mut self) -> Result<Option<OpIdentifier>, BoxedError> {
-        Ok(None)
+        let mut _k = MaybeUninit::uninit();
+        let mut _r = std::ptr::null_mut();
+        unsafe {
+            as_key_init_strp(
+                _k.as_mut_ptr(),
+                self.metadata_namespace.as_ptr(),
+                self.metadata_set.as_ptr(),
+                constants::META_KEY.as_ptr(),
+                false,
+            );
+            let key = Key(_k.assume_init_mut());
+            #[allow(non_upper_case_globals)]
+            match self.client.get(key.as_ptr(), &mut _r) {
+                Ok(_) => {}
+                Err(AerospikeError {
+                    code: as_status_e_AEROSPIKE_ERR_RECORD_NOT_FOUND,
+                    message: _,
+                }) => return Ok(None),
+                Err(e) => return Err(e.into()),
+            }
+            let record = AsRecord(_r.as_mut().unwrap());
+            let txid =
+                as_record_get_int64(record.as_ptr(), constants::META_TXN_ID_BIN.as_ptr(), -1);
+            if txid > 0 {
+                Ok(Some(OpIdentifier {
+                    txid: txid as u64,
+                    seq_in_tx: 0,
+                }))
+            } else {
+                Ok(None)
+            }
+        }
     }
 }
 
@@ -1354,6 +1676,8 @@ mod tests {
                     set_name: set.to_owned(),
                     denormalize: vec![],
                 }],
+                metadata_namespace: "test".into(),
+                metadata_set: None,
             },
         );
         factory

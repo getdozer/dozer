@@ -107,7 +107,7 @@ pub trait SinkFactory: Send + Sync + Debug {
     fn type_name(&self) -> String;
 }
 
-pub trait Sink: Send + Sync + Debug {
+pub trait Sink: Send + Debug {
     fn commit(&mut self, epoch_details: &Epoch) -> Result<(), BoxedError>;
     fn process(&mut self, op: TableOperation) -> Result<(), BoxedError>;
     fn persist(&mut self, epoch: &Epoch, queue: &Queue) -> Result<(), BoxedError>;

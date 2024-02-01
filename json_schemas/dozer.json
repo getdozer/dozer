@@ -203,11 +203,22 @@
     "AerospikeSinkConfig": {
       "type": "object",
       "required": [
-        "connection"
+        "connection",
+        "metadata_namespace"
       ],
       "properties": {
         "connection": {
           "type": "string"
+        },
+        "metadata_namespace": {
+          "type": "string"
+        },
+        "metadata_set": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "n_threads": {
           "type": [

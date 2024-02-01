@@ -150,6 +150,9 @@ pub struct AerospikeSinkConfig {
     pub n_threads: Option<NonZeroUsize>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tables: Vec<AerospikeSinkTable>,
+    pub metadata_namespace: String,
+    #[serde(default)]
+    pub metadata_set: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
