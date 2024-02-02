@@ -113,6 +113,14 @@ pub enum EndpointKind {
     Clickhouse(ClickhouseSinkConfig),
 }
 
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, PartialEq, Eq)]
+pub struct AerospikeDenormalizations {
+    pub from_namespace: String,
+    pub from_set: String,
+    pub key: String,
+    pub columns: Vec<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
 pub struct AerospikeSinkConfig {
     pub namespace: String,
@@ -121,6 +129,7 @@ pub struct AerospikeSinkConfig {
     pub n_threads: Option<NonZeroUsize>,
     #[serde(default)]
     pub set_name: String,
+    pub denormalize: Vec<AerospikeDenormalizations>,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]

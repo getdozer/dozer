@@ -132,13 +132,46 @@
   },
   "additionalProperties": false,
   "definitions": {
+    "AerospikeDenormalizations": {
+      "type": "object",
+      "required": [
+        "columns",
+        "from_namespace",
+        "from_set",
+        "key"
+      ],
+      "properties": {
+        "columns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "from_namespace": {
+          "type": "string"
+        },
+        "from_set": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        }
+      }
+    },
     "AerospikeSinkConfig": {
       "type": "object",
       "required": [
+        "denormalize",
         "hosts",
         "namespace"
       ],
       "properties": {
+        "denormalize": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/AerospikeDenormalizations"
+          }
+        },
         "hosts": {
           "type": "string"
         },

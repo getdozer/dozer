@@ -6,30 +6,32 @@ use std::ffi::{c_char, c_void, CStr, CString, NulError};
 use std::fmt::Display;
 use std::mem::{self, MaybeUninit};
 use std::num::NonZeroUsize;
-use std::ptr::{addr_of, NonNull};
+use std::ptr::{addr_of, null, null_mut, NonNull};
 use std::sync::Arc;
 use std::thread::available_parallelism;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use std::{collections::HashMap, fmt::Debug};
 
 use aerospike_client_sys::{
-    aerospike, aerospike_batch_write, aerospike_connect, aerospike_destroy, aerospike_key_put,
-    aerospike_key_remove, aerospike_new, as_arraylist_append, as_arraylist_destroy,
-    as_arraylist_new, as_batch_record, as_batch_records, as_batch_records_destroy,
-    as_batch_write_record, as_bin_value, as_boolean_new, as_bytes_new, as_bytes_new_wrap,
-    as_bytes_set, as_bytes_type, as_bytes_type_e_AS_BYTES_STRING, as_config, as_config_add_hosts,
-    as_config_init, as_double_new, as_error, as_integer_new, as_key, as_key_destroy,
-    as_key_init_int64, as_key_init_rawp, as_key_init_value, as_key_value, as_nil, as_operations,
-    as_operations_add_write, as_operations_add_write_bool, as_operations_add_write_double,
-    as_operations_add_write_geojson_strp, as_operations_add_write_int64,
-    as_operations_add_write_rawp, as_operations_destroy, as_operations_init, as_orderedmap,
-    as_orderedmap_destroy, as_orderedmap_new, as_orderedmap_set, as_policy_batch,
-    as_policy_exists_e_AS_POLICY_EXISTS_CREATE, as_policy_exists_e_AS_POLICY_EXISTS_UPDATE,
-    as_policy_remove, as_policy_write, as_record, as_record_destroy, as_record_init, as_record_set,
-    as_record_set_bool, as_record_set_double, as_record_set_geojson_strp, as_record_set_int64,
-    as_record_set_nil, as_record_set_raw_typep, as_record_set_rawp, as_status,
-    as_status_e_AEROSPIKE_OK, as_val, as_vector, as_vector_increase_capacity, as_vector_init,
-    AS_BATCH_WRITE, AS_BIN_NAME_MAX_LEN,
+    aerospike, aerospike_batch_write, aerospike_connect, aerospike_destroy, aerospike_key_get,
+    aerospike_key_put, aerospike_key_remove, aerospike_key_select, aerospike_new,
+    as_arraylist_append, as_arraylist_destroy, as_arraylist_new, as_batch_record, as_batch_records,
+    as_batch_records_destroy, as_batch_write_record, as_bin_value, as_boolean_new, as_bytes_new,
+    as_bytes_new_wrap, as_bytes_set, as_bytes_type, as_bytes_type_e_AS_BYTES_STRING, as_config,
+    as_config_add_hosts, as_config_init, as_double_new, as_error, as_integer_new, as_key,
+    as_key_destroy, as_key_init_int64, as_key_init_rawp, as_key_init_value, as_key_value, as_nil,
+    as_operations, as_operations_add_write, as_operations_add_write_bool,
+    as_operations_add_write_double, as_operations_add_write_geojson_strp,
+    as_operations_add_write_int64, as_operations_add_write_rawp, as_operations_destroy,
+    as_operations_init, as_orderedmap, as_orderedmap_destroy, as_orderedmap_new, as_orderedmap_set,
+    as_policy_batch, as_policy_exists_e_AS_POLICY_EXISTS_CREATE,
+    as_policy_exists_e_AS_POLICY_EXISTS_UPDATE, as_policy_remove, as_policy_write, as_record,
+    as_record_destroy, as_record_get, as_record_init, as_record_set, as_record_set_bool,
+    as_record_set_double, as_record_set_geojson_strp, as_record_set_int64, as_record_set_nil,
+    as_record_set_raw_typep, as_record_set_rawp, as_status,
+    as_status_e_AEROSPIKE_ERR_RECORD_NOT_FOUND, as_status_e_AEROSPIKE_OK, as_val,
+    as_val_val_reserve, as_vector, as_vector_increase_capacity, as_vector_init, AS_BATCH_WRITE,
+    AS_BIN_NAME_MAX_LEN,
 };
 use dozer_core::{
     node::{PortHandle, Sink, SinkFactory},
@@ -116,7 +118,7 @@ unsafe fn check_alloc<T>(ptr: *mut T) -> *mut T {
     ptr
 }
 #[inline(always)]
-unsafe fn as_try(f: impl Fn(*mut as_error) -> as_status) -> Result<(), AerospikeError> {
+unsafe fn as_try(mut f: impl FnMut(*mut as_error) -> as_status) -> Result<(), AerospikeError> {
     let mut err = MaybeUninit::uninit();
     if f(err.as_mut_ptr()) == as_status_e_AEROSPIKE_OK {
         Ok(())
@@ -208,6 +210,25 @@ impl Client {
                 err,
                 &policy as *const as_policy_batch,
                 batch,
+            )
+        })
+    }
+
+    unsafe fn select(
+        &self,
+        key: *const as_key,
+        bins: &[*const i8],
+        record: &mut *mut as_record,
+    ) -> Result<(), AerospikeError> {
+        as_try(|err| {
+            aerospike_key_select(
+                self.inner.as_ptr(),
+                err,
+                null(),
+                key,
+                // This won't write to the mut ptr
+                bins.as_ptr() as *mut *const i8,
+                record as *mut *mut as_record,
             )
         })
     }
@@ -312,6 +333,18 @@ impl SinkFactory for AerospikeSinkFactory {
             primary_index,
             bin_names,
             n_threads.into(),
+            self.config
+                .denormalize
+                .iter()
+                .map(|denorm| {
+                    Denormalization::new(
+                        &denorm.from_namespace,
+                        &denorm.from_set,
+                        schema.get_field_index(&denorm.key)?.0,
+                        &denorm.columns,
+                    )
+                })
+                .collect::<Result<_, _>>()?,
         )))
     }
 }
@@ -358,6 +391,59 @@ struct AerospikeSink {
     snapshotting_started_instant: HashMap<String, Instant>,
 }
 
+#[derive(Debug)]
+struct Denormalization {
+    namespace: CString,
+    set: CString,
+    key_field: usize,
+    columns: Vec<CString>,
+    column_ptrs: Vec<*const i8>,
+}
+
+// column ptrs
+unsafe impl Send for Denormalization {}
+
+impl Denormalization {
+    fn new(
+        namespace: &str,
+        set: &str,
+        key_field: usize,
+        columns: &[String],
+    ) -> Result<Self, AerospikeSinkError> {
+        let namespace = CString::new(namespace)?;
+        let set = CString::new(set)?;
+
+        let columns: Vec<CString> = columns
+            .iter()
+            .map(|col| CString::new(col.as_str()))
+            .collect::<Result<_, _>>()?;
+        let mut column_ptrs: Vec<_> = columns.iter().map(|col| col.as_ptr()).collect();
+        column_ptrs.push(null());
+        Ok(Self {
+            namespace,
+            set,
+            key_field,
+            columns,
+            column_ptrs,
+        })
+    }
+}
+
+impl Clone for Denormalization {
+    fn clone(&self) -> Self {
+        let columns = self.columns.clone();
+        let mut column_ptrs: Vec<_> = columns.iter().map(|col| col.as_ptr()).collect();
+        column_ptrs.push(null());
+        Self {
+            namespace: self.namespace.clone(),
+            set: self.set.clone(),
+            key_field: self.key_field,
+            columns,
+            column_ptrs,
+        }
+    }
+}
+
 impl AerospikeSink {
     fn new(
         client: Client,
@@ -366,10 +452,15 @@ impl AerospikeSink {
         primary_index: usize,
         bin_names: Vec<CString>,
         n_threads: usize,
+        denormalizations: Vec<Denormalization>,
     ) -> Self {
         let client = Arc::new(client);
         let mut workers = Vec::with_capacity(n_threads);
         let (sender, receiver) = bounded(n_threads);
+        let denorm_cols = denormalizations
+            .iter()
+            .map(|denorm| denorm.columns.len() as u16)
+            .sum();
         for _ in 0..n_threads {
             workers.push(AerospikeSinkWorker {
                 client: client.clone(),
@@ -378,6 +469,8 @@ impl AerospikeSink {
                 set_name: set_name.clone(),
                 primary_index,
                 bin_names: bin_names.clone(),
+                denormalizations: denormalizations.clone(),
+                n_denormalization_cols: denorm_cols,
             });
         }
         for mut worker in workers {
@@ -468,6 +561,8 @@ struct AerospikeSinkWorker {
     set_name: CString,
     primary_index: usize,
     bin_names: Vec<CString>,
+    denormalizations: Vec<Denormalization>,
+    n_denormalization_cols: u16,
 }
 
 impl AerospikeSinkWorker {
@@ -483,6 +578,8 @@ impl AerospikeSinkWorker {
     fn set_str_key(
         &self,
         key: *mut as_key,
+        namespace: &CStr,
+        set: &CStr,
         mut string: String,
         allocated_strings: &mut Vec<String>,
     ) {
@@ -492,8 +589,8 @@ impl AerospikeSinkWorker {
             allocated_strings.push(string);
             as_key_init_value(
                 key,
-                self.namespace.as_ptr(),
-                self.set_name.as_ptr(),
+                namespace.as_ptr(),
+                set.as_ptr(),
                 bytes as *const _ as *const as_key_value,
             );
         }
@@ -502,26 +599,28 @@ impl AerospikeSinkWorker {
     unsafe fn init_key(
         &self,
         key: *mut as_key,
-        record: &Record,
+        namespace: &CStr,
+        set: &CStr,
+        key_field: &Field,
         allocated_strings: &mut Vec<String>,
     ) -> Result<(), AerospikeSinkError> {
-        let key_field = &record.values[self.primary_index];
         unsafe {
             match key_field {
                 Field::UInt(v) => {
-                    as_key_init_int64(
-                        key,
-                        self.namespace.as_ptr(),
-                        self.set_name.as_ptr(),
-                        *v as i64,
-                    );
+                    as_key_init_int64(key, namespace.as_ptr(), set.as_ptr(), *v as i64);
                 }
                 Field::Int(v) => {
-                    as_key_init_int64(key, self.namespace.as_ptr(), self.set_name.as_ptr(), *v);
+                    as_key_init_int64(key, namespace.as_ptr(), set.as_ptr(), *v);
                 }
-                Field::U128(v) => self.set_str_key(key, v.to_string(), allocated_strings),
-                Field::I128(v) => self.set_str_key(key, v.to_string(), allocated_strings),
-                Field::Decimal(v) => self.set_str_key(key, v.to_string(), allocated_strings),
+                Field::U128(v) => {
+                    self.set_str_key(key, namespace, set, v.to_string(), allocated_strings)
+                }
+                Field::I128(v) => {
+                    self.set_str_key(key, namespace, set, v.to_string(), allocated_strings)
+                }
+                Field::Decimal(v) => {
+                    self.set_str_key(key, namespace, set, v.to_string(), allocated_strings)
+                }
                 // For keys, we need to allocate a new CString, because there is no
                 // API to set a key to a string that's not null-terminated. For bin
                 // values, we can. XXX: possible point for optimization
@@ -533,16 +632,16 @@ impl AerospikeSinkWorker {
                     (*bytes).type_ = as_bytes_type_e_AS_BYTES_STRING;
                     as_key_init_value(
                         key,
-                        self.namespace.as_ptr(),
-                        self.set_name.as_ptr(),
+                        namespace.as_ptr(),
+                        set.as_ptr(),
                         bytes as *const _ as *const as_key_value,
                     );
                 }
                 Field::Binary(v) => {
                     as_key_init_rawp(
                         key,
-                        self.namespace.as_ptr(),
-                        self.set_name.as_ptr(),
+                        namespace.as_ptr(),
+                        set.as_ptr(),
                         v.as_ptr(),
                         v.len() as u32,
                         false,
@@ -551,17 +650,23 @@ impl AerospikeSinkWorker {
                 //
                 Field::Timestamp(v) => self.set_str_key(
                     key,
+                    namespace,
+                    set,
                     // Use a delayed formatting to RFC3339 so we don't have to allocate an
                     // intermediate rust String
                     v.to_rfc3339(),
                     allocated_strings,
                 ),
                 // Date's display implementation is RFC3339 compatible
-                Field::Date(v) => self.set_str_key(key, v.to_string(), allocated_strings),
+                Field::Date(v) => {
+                    self.set_str_key(key, namespace, set, v.to_string(), allocated_strings)
+                }
                 // We can ignore the time unit, as we always output a
                 // full-resolution duration
                 Field::Duration(DozerDuration(duration, _)) => self.set_str_key(
                     key,
+                    namespace,
+                    set,
                     format!("PT{},{:09}S", duration.as_secs(), duration.subsec_nanos()),
                     allocated_strings,
                 ),
@@ -604,9 +709,10 @@ impl AerospikeSinkWorker {
         &self,
         record: *mut as_record,
         dozer_record: &Record,
+        n_extra_cols: u16,
         allocated_strings: &mut Vec<String>,
     ) -> Result<(), AerospikeSinkError> {
-        as_record_init(record, dozer_record.values.len() as u16);
+        as_record_init(record, dozer_record.values.len() as u16 + n_extra_cols);
         for (def, field) in self.bin_names.iter().zip(&dozer_record.values) {
             let name = def.as_ptr();
             match field {
@@ -793,6 +899,17 @@ impl AerospikeSinkWorker {
     }
 
     fn process_impl(&mut self, op: OperationWithId) -> Result<(), AerospikeSinkError> {
+        if !self.denormalizations.is_empty() {
+            if let Operation::BatchInsert { new } = op.op {
+                for rec in new.into_iter() {
+                    self.process_impl(OperationWithId {
+                        op: Operation::Insert { new: rec },
+                        id: op.id,
+                    })?;
+                }
+                return Ok(());
+            }
+        }
         // XXX: We know from the schema how many strings we have to allocate,
         // so we could optimize this to allocate the correct amount ahead
         // of time. Furthermore, we also know (an upper bound of) the total size of the strings we
@@ -808,19 +925,86 @@ impl AerospikeSinkWorker {
                 // up, as that would move. We could probably make some kind of smart wrapper
                 // using PhantomPinned and `pin!()`
                 let mut key = MaybeUninit::uninit();
-                let mut record = MaybeUninit::uninit();
+                let mut _record = MaybeUninit::uninit();
+
                 unsafe {
-                    self.init_key(key.as_mut_ptr(), &new, &mut allocated_strings)?;
+                    self.init_key(
+                        key.as_mut_ptr(),
+                        &self.namespace,
+                        &self.set_name,
+                        &new.values[self.primary_index],
+                        &mut allocated_strings,
+                    )?;
                     let k = Key(key.assume_init_mut());
-                    self.init_record(record.as_mut_ptr(), &new, &mut allocated_strings)?;
-                    let mut r = AsRecord(record.assume_init_mut());
-                    self.client.insert(k.as_ptr(), r.as_mut_ptr())?;
+                    self.init_record(
+                        _record.as_mut_ptr(),
+                        &new,
+                        self.n_denormalization_cols,
+                        &mut allocated_strings,
+                    )?;
+                    let mut record = AsRecord(_record.assume_init_mut());
+                    for Denormalization {
+                        key_field,
+                        column_ptrs,
+                        namespace,
+                        set,
+                        columns,
+                    } in &self.denormalizations
+                    {
+                        let mut _key = MaybeUninit::uninit();
+                        self.init_key(
+                            _key.as_mut_ptr(),
+                            namespace,
+                            set,
+                            &new.values[*key_field],
+                            &mut allocated_strings,
+                        )?;
+                        let key = Key(_key.assume_init_mut());
+                        let mut _rec = MaybeUninit::uninit();
+                        as_record_init(_rec.as_mut_ptr(), columns.len() as u16);
+                        let mut denorm_rec = AsRecord(_rec.assume_init_mut());
+                        loop {
+                            #[allow(non_upper_case_globals)]
+                            match self.client.select(
+                                key.as_ptr(),
+                                column_ptrs,
+                                &mut denorm_rec.as_mut_ptr(),
+                            ) {
+                                Ok(()) => break,
+                                // If the record is not found, wait and try again,
+                                // we are probably behind the task responsible for writing it
+                                Err(AerospikeError {
+                                    code: as_status_e_AEROSPIKE_ERR_RECORD_NOT_FOUND,
+                                    message: _,
+                                }) => std::thread::sleep(Duration::from_millis(100)),
+                                Err(e) => return Err(e.into()),
+                            }
+                        }
+                        // The column_ptrs array needs to end with a null ptr, so use
+                        // `columns` for the bound instead
+                        for col in &column_ptrs[..columns.len()] {
+                            let val = as_record_get(denorm_rec.as_mut_ptr(), *col);
+
+                            // Increment ref count, so we can destroy the denorm record
+                            // without dropping the bin values
+                            as_val_val_reserve(val as *mut as_val);
+                            as_record_set(record.as_mut_ptr(), *col, val);
+                        }
+                        as_record_destroy(denorm_rec.as_mut_ptr());
+                    }
+                    self.client.insert(k.as_ptr(), record.as_mut_ptr())?;
                 }
             }
             Operation::Delete { old } => {
                 let mut key = MaybeUninit::uninit();
                 unsafe {
-                    self.init_key(key.as_mut_ptr(), &old, &mut allocated_strings)?;
+                    self.init_key(
+                        key.as_mut_ptr(),
+                        &self.namespace,
+                        &self.set_name,
+                        &old.values[self.primary_index],
+                        &mut allocated_strings,
+                    )?;
                     let k = Key(key.assume_init_mut());
                     self.client.delete(k.as_ptr())?;
                 }
@@ -829,9 +1013,15 @@ impl AerospikeSinkWorker {
                 let mut key = MaybeUninit::uninit();
                 let mut record = MaybeUninit::uninit();
                 unsafe {
-                    self.init_key(key.as_mut_ptr(), &old, &mut allocated_strings)?;
+                    self.init_key(
+                        key.as_mut_ptr(),
+                        &self.namespace,
+                        &self.set_name,
+                        &old.values[self.primary_index],
+                        &mut allocated_strings,
+                    )?;
                     let k = Key(key.assume_init_mut());
-                    self.init_record(record.as_mut_ptr(), &new, &mut allocated_strings)?;
+                    self.init_record(record.as_mut_ptr(), &new, 0, &mut allocated_strings)?;
                     let mut r = AsRecord(record.assume_init_mut());
                     self.client.update(k.as_ptr(), r.as_mut_ptr())?;
                 }
@@ -859,7 +1049,9 @@ impl AerospikeSinkWorker {
                         (*record).ops = ops;
                         self.init_key(
                             &mut (*record).key as *mut as_key,
-                            dozer_record,
+                            &self.namespace,
+                            &self.set_name,
+                            &dozer_record.values[self.primary_index],
                             &mut allocated_strings,
                         )?;
                     }
@@ -1042,7 +1234,7 @@ mod tests {
     }
 
     const N_RECORDS: usize = 1000;
-    const BATCH_SIZE: usize = 100;
+    const BATCH_SIZE: usize = 1000;
 
     #[tokio::test]
     #[ignore]
@@ -1118,6 +1310,7 @@ mod tests {
             hosts: "localhost:3000".into(),
             set_name: set.to_owned(),
             n_threads: Some(1.try_into().unwrap()),
+            denormalize: vec![],
         });
         factory
             .build([(DEFAULT_PORT_HANDLE, schema)].into())
