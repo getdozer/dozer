@@ -37,11 +37,11 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
         todo!()
     }
 
-    async fn validate_connection(&self) -> Result<(), BoxedError> {
+    async fn validate_connection(&mut self) -> Result<(), BoxedError> {
         validate_connection("object_store", None, self.config.clone()).map_err(Into::into)
     }
 
-    async fn list_tables(&self) -> Result<Vec<TableIdentifier>, BoxedError> {
+    async fn list_tables(&mut self) -> Result<Vec<TableIdentifier>, BoxedError> {
         Ok(self
             .config
             .tables()
@@ -50,12 +50,12 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
             .collect())
     }
 
-    async fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), BoxedError> {
+    async fn validate_tables(&mut self, tables: &[TableIdentifier]) -> Result<(), BoxedError> {
         validate_connection("object_store", Some(tables), self.config.clone()).map_err(Into::into)
     }
 
     async fn list_columns(
-        &self,
+        &mut self,
         tables: Vec<TableIdentifier>,
     ) -> Result<Vec<TableInfo>, BoxedError> {
         let schemas = get_schema_from_tables(&self.config, &tables).await;
@@ -79,7 +79,7 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
     }
 
     async fn get_schemas(
-        &self,
+        &mut self,
         table_infos: &[TableInfo],
     ) -> Result<Vec<SourceSchemaResult>, BoxedError> {
         let list_or_filter_columns = table_infos
@@ -98,7 +98,7 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
     }
 
     async fn start(
-        &self,
+        &mut self,
         ingestor: &Ingestor,
         tables: Vec<TableInfo>,
         last_checkpoint: Option<OpIdentifier>,

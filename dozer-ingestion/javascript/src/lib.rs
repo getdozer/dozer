@@ -30,23 +30,23 @@ impl Connector for JavaScriptConnector {
         vec![(String::from("value"), Some(FieldType::Json))]
     }
 
-    async fn validate_connection(&self) -> Result<(), BoxedError> {
+    async fn validate_connection(&mut self) -> Result<(), BoxedError> {
         Ok(())
     }
 
-    async fn list_tables(&self) -> Result<Vec<TableIdentifier>, BoxedError> {
+    async fn list_tables(&mut self) -> Result<Vec<TableIdentifier>, BoxedError> {
         Ok(vec![TableIdentifier {
             schema: None,
             name: "json_records".to_string(),
         }])
     }
 
-    async fn validate_tables(&self, _tables: &[TableIdentifier]) -> Result<(), BoxedError> {
+    async fn validate_tables(&mut self, _tables: &[TableIdentifier]) -> Result<(), BoxedError> {
         Ok(())
     }
 
     async fn list_columns(
-        &self,
+        &mut self,
         _tables: Vec<TableIdentifier>,
     ) -> Result<Vec<TableInfo>, BoxedError> {
         Ok(vec![TableInfo {
@@ -57,7 +57,7 @@ impl Connector for JavaScriptConnector {
     }
 
     async fn get_schemas(
-        &self,
+        &mut self,
         _table_infos: &[TableInfo],
     ) -> Result<Vec<SourceSchemaResult>, BoxedError> {
         Ok(vec![Ok(SourceSchema {
@@ -79,7 +79,7 @@ impl Connector for JavaScriptConnector {
     }
 
     async fn start(
-        &self,
+        &mut self,
         ingestor: &Ingestor,
         _tables: Vec<TableInfo>,
         _last_checkpoint: Option<OpIdentifier>,

@@ -128,7 +128,7 @@ impl Source for TestSource {
     }
 
     async fn start(
-        &self,
+        &mut self,
         sender: tokio::sync::mpsc::Sender<(PortHandle, IngestionMessage)>,
         _last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {

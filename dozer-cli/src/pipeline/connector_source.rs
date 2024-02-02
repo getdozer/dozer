@@ -63,7 +63,7 @@ impl ConnectorSourceFactory {
         labels: LabelsAndProgress,
         shutdown: ShutdownReceiver,
     ) -> Result<Self, ConnectorSourceFactoryError> {
-        let connector = get_connector(runtime.clone(), connection.clone(), None)
+        let mut connector = get_connector(runtime.clone(), connection.clone(), None)
             .map_err(|e| ConnectorSourceFactoryError::Connector(e.into()))?;
 
         // Fill column names if not provided.
@@ -215,7 +215,7 @@ impl Source for ConnectorSource {
     }
 
     async fn start(
-        &self,
+        &mut self,
         sender: Sender<(PortHandle, IngestionMessage)>,
         last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {

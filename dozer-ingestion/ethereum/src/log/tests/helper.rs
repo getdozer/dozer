@@ -47,7 +47,7 @@ pub async fn get_eth_tables(
     contract: Contract<WebSocket>,
 ) -> Result<(EthLogConnector, Vec<TableInfo>), BoxedError> {
     let address = format!("{:?}", contract.address());
-    let eth_connector = EthLogConnector::new(
+    let mut eth_connector = EthLogConnector::new(
         EthLogConfig {
             wss_url,
             filter: Some(EthFilter {

@@ -21,7 +21,7 @@ macro_rules! test_type_conversion {
 async fn test_get_schema_of_parquet() {
     let local_storage = get_local_storage_config("parquet", "");
 
-    let connector = ObjectStoreConnector::new(local_storage);
+    let mut connector = ObjectStoreConnector::new(local_storage);
     let (_, schemas) = connector.list_all_schemas().await.unwrap();
     let schema = schemas.first().unwrap();
 
@@ -43,7 +43,7 @@ async fn test_get_schema_of_parquet() {
 async fn test_get_schema_of_csv() {
     let local_storage = get_local_storage_config("csv", "");
 
-    let connector = ObjectStoreConnector::new(local_storage);
+    let mut connector = ObjectStoreConnector::new(local_storage);
     let (_, schemas) = connector.list_all_schemas().await.unwrap();
     let schema = schemas.first().unwrap();
 

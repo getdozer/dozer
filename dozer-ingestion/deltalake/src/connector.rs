@@ -30,11 +30,11 @@ impl Connector for DeltaLakeConnector {
         todo!()
     }
 
-    async fn validate_connection(&self) -> Result<(), BoxedError> {
+    async fn validate_connection(&mut self) -> Result<(), BoxedError> {
         Ok(())
     }
 
-    async fn list_tables(&self) -> Result<Vec<TableIdentifier>, BoxedError> {
+    async fn list_tables(&mut self) -> Result<Vec<TableIdentifier>, BoxedError> {
         Ok(self
             .config
             .tables
@@ -43,7 +43,7 @@ impl Connector for DeltaLakeConnector {
             .collect())
     }
 
-    async fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), BoxedError> {
+    async fn validate_tables(&mut self, tables: &[TableIdentifier]) -> Result<(), BoxedError> {
         let mut delta_table_names = vec![];
         // Collect delta table names in config, the validate table info
         for delta_table in self.config.tables.iter() {
@@ -62,7 +62,7 @@ impl Connector for DeltaLakeConnector {
     }
 
     async fn list_columns(
-        &self,
+        &mut self,
         tables: Vec<TableIdentifier>,
     ) -> Result<Vec<TableInfo>, BoxedError> {
         let table_infos = tables
@@ -94,7 +94,7 @@ impl Connector for DeltaLakeConnector {
     }
 
     async fn get_schemas(
-        &self,
+        &mut self,
         table_infos: &[TableInfo],
     ) -> Result<Vec<SourceSchemaResult>, BoxedError> {
         let table_infos = table_infos
@@ -114,7 +114,7 @@ impl Connector for DeltaLakeConnector {
     }
 
     async fn start(
-        &self,
+        &mut self,
         ingestor: &Ingestor,
         tables: Vec<TableInfo>,
         last_checkpoint: Option<OpIdentifier>,

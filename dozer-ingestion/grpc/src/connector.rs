@@ -120,12 +120,12 @@ where
         todo!()
     }
 
-    async fn validate_connection(&self) -> Result<(), BoxedError> {
+    async fn validate_connection(&mut self) -> Result<(), BoxedError> {
         self.get_all_schemas()?;
         Ok(())
     }
 
-    async fn list_tables(&self) -> Result<Vec<TableIdentifier>, BoxedError> {
+    async fn list_tables(&mut self) -> Result<Vec<TableIdentifier>, BoxedError> {
         Ok(self
             .get_all_schemas()?
             .into_iter()
@@ -133,7 +133,7 @@ where
             .collect())
     }
 
-    async fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), BoxedError> {
+    async fn validate_tables(&mut self, tables: &[TableIdentifier]) -> Result<(), BoxedError> {
         let schemas = self.get_all_schemas()?;
         for table in tables {
             if !schemas
@@ -151,7 +151,7 @@ where
     }
 
     async fn list_columns(
-        &self,
+        &mut self,
         tables: Vec<TableIdentifier>,
     ) -> Result<Vec<TableInfo>, BoxedError> {
         let schemas = self.get_all_schemas()?;
@@ -184,7 +184,7 @@ where
     }
 
     async fn get_schemas(
-        &self,
+        &mut self,
         table_infos: &[TableInfo],
     ) -> Result<Vec<SourceSchemaResult>, BoxedError> {
         let schemas_str = Self::parse_config(&self.config)?;
@@ -217,7 +217,7 @@ where
     }
 
     async fn start(
-        &self,
+        &mut self,
         ingestor: &Ingestor,
         tables: Vec<TableInfo>,
         _last_checkpoint: Option<OpIdentifier>,

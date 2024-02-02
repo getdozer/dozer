@@ -43,7 +43,7 @@ async fn test_disabled_connector_and_read_from_stream() {
     remove_streams(connection.clone(), TABLE_NAME).unwrap();
 
     let runtime = create_test_runtime();
-    let connector = SnowflakeConnector::new("snowflake".to_string(), connection.clone());
+    let mut connector = SnowflakeConnector::new("snowflake".to_string(), connection.clone());
     let tables = runtime
         .block_on(
             connector.list_columns(vec![TableIdentifier::from_table_name(table_name.clone())]),
@@ -78,7 +78,7 @@ async fn test_disabled_connector_get_schemas_test() {
     let ConnectionConfig::Snowflake(connection) = config else {
         panic!("Snowflake config expected");
     };
-    let connector = SnowflakeConnector::new("snowflake".to_string(), connection.clone());
+    let mut connector = SnowflakeConnector::new("snowflake".to_string(), connection.clone());
     let env = create_environment_v3().map_err(|e| e.unwrap()).unwrap();
     let client = Client::new(connection.into(), &env);
 
@@ -140,7 +140,7 @@ async fn test_disabled_connector_missing_table_validator() {
     let ConnectionConfig::Snowflake(connection) = config else {
         panic!("Snowflake config expected");
     };
-    let connector = SnowflakeConnector::new("snowflake".to_string(), connection.clone());
+    let mut connector = SnowflakeConnector::new("snowflake".to_string(), connection.clone());
 
     let not_existing_table = "not_existing_table".to_string();
     let result = connector

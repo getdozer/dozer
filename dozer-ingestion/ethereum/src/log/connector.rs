@@ -132,7 +132,7 @@ impl Connector for EthLogConnector {
         todo!()
     }
 
-    async fn validate_connection(&self) -> Result<(), BoxedError> {
+    async fn validate_connection(&mut self) -> Result<(), BoxedError> {
         // Return contract parsing error
         for contract in &self.config.contracts {
             serde_json::from_str(&contract.abi)?;
@@ -140,7 +140,7 @@ impl Connector for EthLogConnector {
         Ok(())
     }
 
-    async fn list_tables(&self) -> Result<Vec<TableIdentifier>, BoxedError> {
+    async fn list_tables(&mut self) -> Result<Vec<TableIdentifier>, BoxedError> {
         let event_schema_names = helper::get_contract_event_schemas(&self.contracts)
             .into_iter()
             .map(|(name, _)| TableIdentifier::from_table_name(name));
@@ -149,7 +149,7 @@ impl Connector for EthLogConnector {
         Ok(result)
     }
 
-    async fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), BoxedError> {
+    async fn validate_tables(&mut self, tables: &[TableIdentifier]) -> Result<(), BoxedError> {
         let existing_tables = self.list_tables().await?;
         for table in tables {
             if !existing_tables.contains(table) || table.schema.is_some() {
@@ -164,7 +164,7 @@ impl Connector for EthLogConnector {
     }
 
     async fn list_columns(
-        &self,
+        &mut self,
         tables: Vec<TableIdentifier>,
     ) -> Result<Vec<TableInfo>, BoxedError> {
         let event_schemas = helper::get_contract_event_schemas(&self.contracts);
@@ -203,7 +203,7 @@ impl Connector for EthLogConnector {
     }
 
     async fn get_schemas(
-        &self,
+        &mut self,
         table_infos: &[TableInfo],
     ) -> Result<Vec<SourceSchemaResult>, BoxedError> {
         let mut schemas = vec![(
@@ -239,7 +239,7 @@ impl Connector for EthLogConnector {
     }
 
     async fn start(
-        &self,
+        &mut self,
         ingestor: &Ingestor,
         tables: Vec<TableInfo>,
         _last_checkpoint: Option<OpIdentifier>,
