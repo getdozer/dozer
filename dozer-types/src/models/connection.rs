@@ -16,6 +16,8 @@ use prettytable::Table;
 use tokio_postgres::config::{Host, SslMode};
 use tokio_postgres::Config;
 
+use super::ingestion_types::OracleConfig;
+
 pub trait SchemaExample {
     fn example() -> Self;
 }
@@ -247,6 +249,8 @@ pub enum ConnectionConfig {
 
     /// In yaml, present as tag" `!Webhook`
     Webhook(WebhookConfig),
+
+    Oracle(OracleConfig),
 }
 
 impl ConnectionConfig {
@@ -265,6 +269,7 @@ impl ConnectionConfig {
             ConnectionConfig::Dozer(_) => "dozer".to_string(),
             ConnectionConfig::JavaScript(_) => "javascript".to_string(),
             ConnectionConfig::Webhook(_) => "webhook".to_string(),
+            ConnectionConfig::Oracle(_) => "oracle".to_string(),
         }
     }
 }

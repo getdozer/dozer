@@ -273,7 +273,6 @@ impl<'a> PipelineBuilder<'a> {
             }
         }
 
-        dbg!(&self.endpoint_logs);
         for endpoint_log in self.endpoint_logs {
             let table_info = available_output_tables
                 .get(&endpoint_log.table_name)

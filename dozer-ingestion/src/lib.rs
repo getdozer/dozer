@@ -22,6 +22,7 @@ use dozer_ingestion_kafka::connector::KafkaConnector;
 use dozer_ingestion_mongodb::MongodbConnector;
 use dozer_ingestion_mysql::connector::{mysql_connection_opts_from_url, MySQLConnector};
 use dozer_ingestion_object_store::connector::ObjectStoreConnector;
+use dozer_ingestion_oracle::OracleConnector;
 use dozer_ingestion_postgres::{
     connection::helper::map_connection_config,
     connector::{PostgresConfig, PostgresConnector},
@@ -139,6 +140,10 @@ pub fn get_connector(
         ConnectionConfig::JavaScript(javascript_config) => Ok(Box::new(JavaScriptConnector::new(
             runtime,
             javascript_config,
+        ))),
+        ConnectionConfig::Oracle(oracle_config) => Ok(Box::new(OracleConnector::new(
+            connection.name,
+            oracle_config,
         ))),
     }
 }

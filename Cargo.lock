@@ -3909,6 +3909,7 @@ dependencies = [
  "dozer-ingestion-mongodb",
  "dozer-ingestion-mysql",
  "dozer-ingestion-object-store",
+ "dozer-ingestion-oracle",
  "dozer-ingestion-postgres",
  "dozer-ingestion-snowflake",
  "dozer-ingestion-webhook",
@@ -4022,6 +4023,14 @@ dependencies = [
  "dozer-ingestion-connector",
  "object_store",
  "url",
+]
+
+[[package]]
+name = "dozer-ingestion-oracle"
+version = "0.1.0"
+dependencies = [
+ "dozer-ingestion-connector",
+ "oracle",
 ]
 
 [[package]]
@@ -7620,6 +7629,31 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-stream",
+]
+
+[[package]]
+name = "oracle"
+version = "0.5.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cfe80334af1fbaea016fbef0af77f5fa32452362e29a039389b8c93737585003"
+dependencies = [
+ "cc",
+ "chrono",
+ "lazy_static",
+ "oracle_procmacro",
+ "paste",
+]
+
+[[package]]
+name = "oracle_procmacro"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ad247f3421d57de56a0d0408d3249d4b1048a522be2013656d92f022c3d8af27"
+dependencies = [
+ "darling 0.13.4",
+ "proc-macro2 1.0.78",
+ "quote 1.0.35",
+ "syn 1.0.109",
 ]
 
 [[package]]
