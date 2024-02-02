@@ -68,6 +68,7 @@ impl Sink for DummySink {
     ) -> Result<(), BoxedError> {
         if let Some(inserted_at_index) = self.inserted_at_index {
             if let Operation::Insert { new } = op.op {
+                info!("Received record: {:?}", new);
                 let value = &new.values[inserted_at_index];
                 if let Some(inserted_at) = value.to_timestamp() {
                     let latency = Local::now().naive_utc() - inserted_at.naive_utc();

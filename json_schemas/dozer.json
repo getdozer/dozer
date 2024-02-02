@@ -591,6 +591,12 @@
     "ConnectionConfig": {
       "oneOf": [
         {
+          "type": "string",
+          "enum": [
+            "Aerospike"
+          ]
+        },
+        {
           "description": "In yaml, present as tag: `!Postgres`",
           "type": "object",
           "required": [

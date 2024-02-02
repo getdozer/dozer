@@ -1,0 +1,11 @@
+[package]
+name = "dozer-ingestion-aerospike"
+version = "0.3.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+dozer-ingestion-connector = { path = "../connector" }
+h2 = "0.4.2"
+http = "1"
