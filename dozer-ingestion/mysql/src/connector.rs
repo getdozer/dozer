@@ -97,18 +97,18 @@ impl Connector for MySQLConnector {
         ]
     }
 
-    async fn validate_connection(&self) -> Result<(), BoxedError> {
+    async fn validate_connection(&mut self) -> Result<(), BoxedError> {
         let _ = self.connect().await?;
 
         Ok(())
     }
 
-    async fn list_tables(&self) -> Result<Vec<TableIdentifier>, BoxedError> {
+    async fn list_tables(&mut self) -> Result<Vec<TableIdentifier>, BoxedError> {
         let tables = self.schema_helper().list_tables().await?;
         Ok(tables)
     }
 
-    async fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), BoxedError> {
+    async fn validate_tables(&mut self, tables: &[TableIdentifier]) -> Result<(), BoxedError> {
         let existing_tables = self.list_tables().await?;
         for table in tables {
             if !existing_tables.contains(table) {
@@ -123,7 +123,7 @@ impl Connector for MySQLConnector {
     }
 
     async fn list_columns(
-        &self,
+        &mut self,
         tables: Vec<TableIdentifier>,
     ) -> Result<Vec<TableInfo>, BoxedError> {
         let tables_infos = self.schema_helper().list_columns(tables).await?;
@@ -131,7 +131,7 @@ impl Connector for MySQLConnector {
     }
 
     async fn get_schemas(
-        &self,
+        &mut self,
         table_infos: &[TableInfo],
     ) -> Result<Vec<SourceSchemaResult>, BoxedError> {
         if table_infos.is_empty() {
@@ -194,7 +194,7 @@ impl Connector for MySQLConnector {
     }
 
     async fn start(
-        &self,
+        &mut self,
         ingestor: &Ingestor,
         tables: Vec<TableInfo>,
         last_checkpoint: Option<OpIdentifier>,
@@ -773,7 +773,7 @@ mod tests {
 
     async fn test_connector_schemas(config: TestConfig) {
         // setup
-        let TestCtx { connector, .. } = TestCtx::setup(&config).await;
+        let TestCtx { mut connector, .. } = TestCtx::setup(&config).await;
 
         let mut expected_table_infos = Vec::new();
         expected_table_infos.push(create_test_table("test1", &config).await);

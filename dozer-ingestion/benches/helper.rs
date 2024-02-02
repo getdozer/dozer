@@ -45,9 +45,9 @@ pub fn get_progress() -> ProgressBar {
 }
 
 pub fn get_connection_iterator(runtime: Arc<Runtime>, config: TestConfig) -> IngestionIterator {
-    let connector =
+    let mut connector =
         dozer_ingestion::get_connector(runtime.clone(), config.connection, None).unwrap();
-    let tables = runtime.block_on(list_tables(&*connector));
+    let tables = runtime.block_on(list_tables(&mut *connector));
     let (ingestor, iterator) = Ingestor::initialize_channel(Default::default());
     runtime.clone().spawn_blocking(move || async move {
         if let Err(e) = runtime.block_on(connector.start(&ingestor, tables, None)) {
@@ -57,7 +57,7 @@ pub fn get_connection_iterator(runtime: Arc<Runtime>, config: TestConfig) -> Ing
     iterator
 }
 
-async fn list_tables(connector: &dyn Connector) -> Vec<TableInfo> {
+async fn list_tables(connector: &mut dyn Connector) -> Vec<TableInfo> {
     let tables = connector.list_tables().await.unwrap();
     connector.list_columns(tables).await.unwrap()
 }

@@ -61,7 +61,7 @@ pub trait Source: Send + Sync + Debug {
     async fn serialize_state(&self) -> Result<Vec<u8>, BoxedError>;
 
     async fn start(
-        &self,
+        &mut self,
         sender: Sender<(PortHandle, IngestionMessage)>,
         last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError>;

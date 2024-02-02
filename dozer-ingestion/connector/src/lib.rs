@@ -59,17 +59,17 @@ pub trait Connector: Send + Sync + Debug {
         Self: Sized;
 
     /// Validates the connector's connection level properties.
-    async fn validate_connection(&self) -> Result<(), BoxedError>;
+    async fn validate_connection(&mut self) -> Result<(), BoxedError>;
 
     /// Lists all the table names in the connector.
-    async fn list_tables(&self) -> Result<Vec<TableIdentifier>, BoxedError>;
+    async fn list_tables(&mut self) -> Result<Vec<TableIdentifier>, BoxedError>;
 
     /// Validates the connector's table level properties for each table.
-    async fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), BoxedError>;
+    async fn validate_tables(&mut self, tables: &[TableIdentifier]) -> Result<(), BoxedError>;
 
     /// Lists all the column names for each table.
     async fn list_columns(
-        &self,
+        &mut self,
         tables: Vec<TableIdentifier>,
     ) -> Result<Vec<TableInfo>, BoxedError>;
 
@@ -80,12 +80,14 @@ pub trait Connector: Send + Sync + Debug {
     ///
     /// If it fails at the table or column level, such as a unsupported data type, one of the elements should be `Err`.
     async fn get_schemas(
-        &self,
+        &mut self,
         table_infos: &[TableInfo],
     ) -> Result<Vec<SourceSchemaResult>, BoxedError>;
 
     /// Lists all tables and columns and gets the schema for each table.
-    async fn list_all_schemas(&self) -> Result<(Vec<TableInfo>, Vec<SourceSchema>), BoxedError> {
+    async fn list_all_schemas(
+        &mut self,
+    ) -> Result<(Vec<TableInfo>, Vec<SourceSchema>), BoxedError> {
         let tables = self.list_tables().await?;
         let table_infos = self.list_columns(tables).await?;
         let schemas = self
@@ -101,7 +103,7 @@ pub trait Connector: Send + Sync + Debug {
 
     /// Starts outputting data from `tables` to `ingestor`. This method should never return unless there is an unrecoverable error.
     async fn start(
-        &self,
+        &mut self,
         ingestor: &Ingestor,
         tables: Vec<TableInfo>,
         last_checkpoint: Option<OpIdentifier>,

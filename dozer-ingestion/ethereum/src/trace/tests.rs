@@ -50,7 +50,7 @@ fn test_trace_iterator() {
 
     info!("Initializing with WSS: {}", https_url);
 
-    let connector = EthTraceConnector::new(
+    let mut connector = EthTraceConnector::new(
         EthTraceConfig {
             https_url,
             from_block: 1000000,

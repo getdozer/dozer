@@ -98,7 +98,7 @@ impl Source for GeneratorSource {
     }
 
     async fn start(
-        &self,
+        &mut self,
         sender: Sender<(PortHandle, IngestionMessage)>,
         last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
@@ -232,7 +232,7 @@ impl Source for DualPortGeneratorSource {
     }
 
     async fn start(
-        &self,
+        &mut self,
         sender: Sender<(PortHandle, IngestionMessage)>,
         _last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {

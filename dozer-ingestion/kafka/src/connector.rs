@@ -51,11 +51,11 @@ impl Connector for KafkaConnector {
         todo!()
     }
 
-    async fn validate_connection(&self) -> Result<(), BoxedError> {
+    async fn validate_connection(&mut self) -> Result<(), BoxedError> {
         Ok(())
     }
 
-    async fn list_tables(&self) -> Result<Vec<TableIdentifier>, BoxedError> {
+    async fn list_tables(&mut self) -> Result<Vec<TableIdentifier>, BoxedError> {
         let consumer = ClientConfig::new()
             .set("bootstrap.servers", &self.config.broker.clone())
             .set("api.version.request", "true")
@@ -76,7 +76,7 @@ impl Connector for KafkaConnector {
         Ok(tables)
     }
 
-    async fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), BoxedError> {
+    async fn validate_tables(&mut self, tables: &[TableIdentifier]) -> Result<(), BoxedError> {
         let table_names = tables
             .iter()
             .map(|table| table.name.clone())
@@ -86,7 +86,7 @@ impl Connector for KafkaConnector {
     }
 
     async fn list_columns(
-        &self,
+        &mut self,
         tables: Vec<TableIdentifier>,
     ) -> Result<Vec<TableInfo>, BoxedError> {
         let table_names = tables
@@ -112,7 +112,7 @@ impl Connector for KafkaConnector {
     }
 
     async fn get_schemas(
-        &self,
+        &mut self,
         table_infos: &[TableInfo],
     ) -> Result<Vec<SourceSchemaResult>, BoxedError> {
         let table_names = table_infos
@@ -132,7 +132,7 @@ impl Connector for KafkaConnector {
     }
 
     async fn start(
-        &self,
+        &mut self,
         ingestor: &Ingestor,
         tables: Vec<TableInfo>,
         last_checkpoint: Option<OpIdentifier>,

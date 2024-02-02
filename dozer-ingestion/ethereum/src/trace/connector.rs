@@ -37,17 +37,17 @@ impl Connector for EthTraceConnector {
         todo!()
     }
 
-    async fn validate_connection(&self) -> Result<(), BoxedError> {
+    async fn validate_connection(&mut self) -> Result<(), BoxedError> {
         validate(&self.config).await
     }
 
-    async fn list_tables(&self) -> Result<Vec<TableIdentifier>, BoxedError> {
+    async fn list_tables(&mut self) -> Result<Vec<TableIdentifier>, BoxedError> {
         Ok(vec![TableIdentifier::from_table_name(
             ETH_TRACE_TABLE.to_string(),
         )])
     }
 
-    async fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), BoxedError> {
+    async fn validate_tables(&mut self, tables: &[TableIdentifier]) -> Result<(), BoxedError> {
         for table in tables {
             if table.name != ETH_TRACE_TABLE || table.schema.is_some() {
                 return Err(TableNotFound {
@@ -61,7 +61,7 @@ impl Connector for EthTraceConnector {
     }
 
     async fn list_columns(
-        &self,
+        &mut self,
         tables: Vec<TableIdentifier>,
     ) -> Result<Vec<TableInfo>, BoxedError> {
         let mut result = Vec::new();
@@ -88,7 +88,7 @@ impl Connector for EthTraceConnector {
     }
 
     async fn get_schemas(
-        &self,
+        &mut self,
         _table_infos: &[TableInfo],
     ) -> Result<Vec<SourceSchemaResult>, BoxedError> {
         warn!("TODO: respect table_infos");
@@ -103,7 +103,7 @@ impl Connector for EthTraceConnector {
     }
 
     async fn start(
-        &self,
+        &mut self,
         ingestor: &Ingestor,
         _tables: Vec<TableInfo>,
         _last_checkpoint: Option<OpIdentifier>,

@@ -21,7 +21,7 @@ pub fn create_test_runtime() -> Arc<Runtime> {
 
 pub fn spawn_connector(
     runtime: Arc<Runtime>,
-    connector: impl Connector + 'static,
+    mut connector: impl Connector + 'static,
     tables: Vec<TableInfo>,
 ) -> (IngestionIterator, AbortHandle) {
     let (ingestor, iterator) = Ingestor::initialize_channel(Default::default());
@@ -40,9 +40,9 @@ pub fn spawn_connector(
 
 pub fn spawn_connector_all_tables(
     runtime: Arc<Runtime>,
-    connector: impl Connector + 'static,
+    mut connector: impl Connector + 'static,
 ) -> (IngestionIterator, AbortHandle) {
-    let tables = runtime.block_on(list_all_table(&connector));
+    let tables = runtime.block_on(list_all_table(&mut connector));
     spawn_connector(runtime, connector, tables)
 }
 
@@ -53,7 +53,7 @@ pub fn create_runtime_and_spawn_connector_all_tables(
     spawn_connector_all_tables(runtime.clone(), connector)
 }
 
-async fn list_all_table(connector: &impl Connector) -> Vec<TableInfo> {
+async fn list_all_table(connector: &mut impl Connector) -> Vec<TableInfo> {
     let tables = connector.list_tables().await.unwrap();
     connector.list_columns(tables).await.unwrap()
 }

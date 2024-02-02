@@ -455,7 +455,7 @@ impl MongodbConnector {
 
 #[async_trait]
 impl Connector for MongodbConnector {
-    async fn validate_connection(&self) -> Result<(), BoxedError> {
+    async fn validate_connection(&mut self) -> Result<(), BoxedError> {
         let client = self.client().await?;
         let server_info = self.identify_server(&client).await?;
         if !server_info.replset {
@@ -472,7 +472,7 @@ impl Connector for MongodbConnector {
     }
 
     async fn list_columns(
-        &self,
+        &mut self,
         tables: Vec<TableIdentifier>,
     ) -> Result<Vec<TableInfo>, BoxedError> {
         Ok(tables
@@ -486,7 +486,7 @@ impl Connector for MongodbConnector {
     }
 
     async fn get_schemas(
-        &self,
+        &mut self,
         table_infos: &[TableInfo],
     ) -> Result<Vec<SourceSchemaResult>, BoxedError> {
         let _ = self.client().await?;
@@ -517,7 +517,7 @@ impl Connector for MongodbConnector {
             .collect())
     }
 
-    async fn list_tables(&self) -> Result<Vec<TableIdentifier>, BoxedError> {
+    async fn list_tables(&mut self) -> Result<Vec<TableIdentifier>, BoxedError> {
         let client = self.client().await?;
         let database = self.database(&client);
         let collections = database
@@ -536,7 +536,7 @@ impl Connector for MongodbConnector {
             .collect())
     }
 
-    async fn validate_tables(&self, tables: &[TableIdentifier]) -> Result<(), BoxedError> {
+    async fn validate_tables(&mut self, tables: &[TableIdentifier]) -> Result<(), BoxedError> {
         let options = self.client_options().await?;
         let client = self.client_with_options(options.clone()).await?;
         let database = self.database(&client);
@@ -594,7 +594,7 @@ impl Connector for MongodbConnector {
     }
 
     async fn start(
-        &self,
+        &mut self,
         ingestor: &Ingestor,
         tables: Vec<TableInfo>,
         _last_checkpoint: Option<OpIdentifier>,

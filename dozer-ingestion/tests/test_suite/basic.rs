@@ -20,7 +20,7 @@ use super::{
 };
 
 pub async fn run_test_suite_basic_data_ready<T: DataReadyConnectorTest>(runtime: Arc<Runtime>) {
-    let (_connector_test, connector) = T::new().await;
+    let (_connector_test, mut connector) = T::new().await;
 
     // List tables.
     let tables = connector.list_tables().await.unwrap();
@@ -85,7 +85,7 @@ pub async fn run_test_suite_basic_insert_only<T: InsertOnlyConnectorTest>(runtim
 
         // Create connector.
         let schema_name = None;
-        let Some((_connector_test, connector, (actual_fields, actual_primary_index))) = T::new(
+        let Some((_connector_test, mut connector, (actual_fields, actual_primary_index))) = T::new(
             schema_name.clone(),
             table_name.clone(),
             (fields.clone(), primary_index.clone()),
@@ -197,7 +197,7 @@ pub async fn run_test_suite_basic_cud<T: CudConnectorTest>(runtime: Arc<Runtime>
     // Create connector.
     let schema_name = None;
     let table_name = "test_table".to_string();
-    let (connector_test, connector, (actual_fields, actual_primary_index)) = T::new(
+    let (connector_test, mut connector, (actual_fields, actual_primary_index)) = T::new(
         schema_name.clone(),
         table_name.clone(),
         (fields.clone(), primary_index),

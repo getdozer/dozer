@@ -82,7 +82,7 @@ fn send_and_trigger_commit_if_needed(
 
 impl Node for SourceNode {
     fn run(mut self) -> Result<(), ExecutionError> {
-        let source = self.source;
+        let mut source = self.source;
         let sender = self.sender;
         let last_checkpoint = self.last_checkpoint;
         let mut handle = Some(

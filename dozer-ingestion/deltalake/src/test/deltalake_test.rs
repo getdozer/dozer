@@ -20,7 +20,7 @@ async fn get_schema_from_deltalake() {
         tables: vec![delta_table],
     };
 
-    let connector = DeltaLakeConnector::new(config);
+    let mut connector = DeltaLakeConnector::new(config);
     let (_, schemas) = connector.list_all_schemas().await.unwrap();
     let field = schemas[0].schema.fields[0].clone();
     assert_eq!(&field.name, "value");
