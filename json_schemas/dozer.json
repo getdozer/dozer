@@ -142,7 +142,8 @@
         "columns",
         "from_namespace",
         "from_set",
-        "key"
+        "key",
+        "sets"
       ],
       "properties": {
         "columns": {
@@ -159,6 +160,12 @@
         },
         "key": {
           "type": "string"
+        },
+        "sets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },

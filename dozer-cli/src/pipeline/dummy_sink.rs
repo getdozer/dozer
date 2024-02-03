@@ -1,5 +1,6 @@
 use dozer_api::async_trait::async_trait;
 use std::{collections::HashMap, time::Instant};
+use std::time::Duration;
 
 use dozer_cache::dozer_log::storage::Queue;
 use dozer_core::{
@@ -44,7 +45,9 @@ impl SinkFactory for DummySinkFactory {
             .map(|(index, _)| index);
         Ok(Box::new(DummySink {
             inserted_at_index,
-            ..Default::default()
+            previous_started: Instant::now(),
+            count: 0,
+            snapshotting_started_instant: HashMap::new(),
         }))
     }
 
@@ -53,10 +56,12 @@ impl SinkFactory for DummySinkFactory {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct DummySink {
     snapshotting_started_instant: HashMap<String, Instant>,
     inserted_at_index: Option<usize>,
+    count: usize,
+    previous_started: Instant
 }
 
 impl Sink for DummySink {
@@ -66,6 +71,14 @@ impl Sink for DummySink {
         _record_store: &ProcessorRecordStore,
         op: OperationWithId,
     ) -> Result<(), BoxedError> {
+        if self.count % 1000 == 0 {
+            if self.count > 0 {
+                info!("Rate: {:.0} op/s, Processed {} records. Elapsed {:?}", 1000.0 / self.previous_started.elapsed().as_secs_f64(), self.count, self.previous_started.elapsed(), );
+            }
+            self.previous_started = Instant::now();
+        }
+
+        self.count += 1;
         if let Some(inserted_at_index) = self.inserted_at_index {
             if let Operation::Insert { new } = op.op {
                 info!("Received record: {:?}", new);
