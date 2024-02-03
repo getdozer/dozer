@@ -352,6 +352,10 @@ impl SinkFactory for AerospikeSinkFactory {
                 .collect::<Result<_, _>>()?,
         )))
     }
+
+    fn type_name(&self) -> String {
+        "aerospike".to_string()
+    }
 }
 
 // A wrapper type responsible for cleaning up a key. This doesn't own an as_key

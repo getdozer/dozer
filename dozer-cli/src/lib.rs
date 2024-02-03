@@ -1,8 +1,8 @@
 pub mod cli;
 pub mod errors;
-pub mod live;
 pub mod pipeline;
 pub mod simple;
+pub mod ui;
 use dozer_api::shutdown::ShutdownSender;
 use dozer_core::errors::ExecutionError;
 use dozer_types::log::debug;

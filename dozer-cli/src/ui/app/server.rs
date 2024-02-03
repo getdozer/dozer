@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use dozer_api::{tonic_reflection, tonic_web, tower_http};
 use dozer_types::{
     grpc_types::{
@@ -7,13 +5,13 @@ use dozer_types::{
             api_explorer_service_server::{ApiExplorerService, ApiExplorerServiceServer},
             GetApiTokenRequest, GetApiTokenResponse,
         },
+        app_ui::{
+            code_service_server::{CodeService, CodeServiceServer},
+            ConnectResponse, Label, Labels, RunRequest,
+        },
         contract::{
             contract_service_server::{ContractService, ContractServiceServer},
             CommonRequest, DotResponse, ProtoResponse, SourcesRequest,
-        },
-        live::{
-            code_service_server::{CodeService, CodeServiceServer},
-            ConnectResponse, Label, Labels, RunRequest,
         },
         types::SchemasResponse,
     },
@@ -21,17 +19,18 @@ use dozer_types::{
 };
 use futures::stream::BoxStream;
 use metrics::IntoLabels;
+use std::sync::Arc;
 use tokio::sync::broadcast::Receiver;
 
-use super::state::LiveState;
+use super::state::AppUIState;
 use dozer_types::tracing::Level;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 use tower_http::trace::{self, TraceLayer};
-pub const LIVE_PORT: u16 = 4556;
+pub const APP_UI_PORT: u16 = 4555;
 
 struct ContractServer {
-    state: Arc<LiveState>,
+    state: Arc<AppUIState>,
 }
 
 #[tonic::async_trait]
@@ -101,19 +100,51 @@ impl ContractService for ContractServer {
     }
 }
 
-struct LiveServer {
+struct AppUiServer {
     receiver: Receiver<ConnectResponse>,
-    state: Arc<LiveState>,
+    state: Arc<AppUIState>,
+}
+
+impl AppUiServer {
+    pub async fn new(
+        receiver: Receiver<ConnectResponse>,
+        state: Arc<AppUIState>,
+    ) -> Result<AppUiServer, tonic::transport::Error> {
+        let result = Self { receiver, state };
+        result
+            .start(RunRequest { request: None })
+            .await
+            .expect("Could not start dozer");
+        Ok(result)
+    }
+    async fn start(&self, req: RunRequest) -> Result<Response<Labels>, Status> {
+        let state = self.state.clone();
+        info!("Starting dozer");
+        match state.run(req).await {
+            Ok(labels) => {
+                let labels = labels
+                    .into_labels()
+                    .into_iter()
+                    .map(|label| Label {
+                        key: label.key().to_string(),
+                        value: label.value().to_string(),
+                    })
+                    .collect();
+                Ok(Response::new(Labels { labels }))
+            }
+            Err(e) => Err(Status::internal(e.to_string())),
+        }
+    }
 }
 
 #[tonic::async_trait]
-impl CodeService for LiveServer {
-    type LiveConnectStream = BoxStream<'static, Result<ConnectResponse, Status>>;
+impl CodeService for AppUiServer {
+    type AppUIConnectStream = BoxStream<'static, Result<ConnectResponse, Status>>;
 
-    async fn live_connect(
+    async fn app_ui_connect(
         &self,
         _request: Request<()>,
-    ) -> Result<Response<Self::LiveConnectStream>, Status> {
+    ) -> Result<Response<Self::AppUIConnectStream>, Status> {
         let (tx, rx) = tokio::sync::mpsc::channel(1);
         let mut receiver = self.receiver.resubscribe();
 
@@ -122,8 +153,7 @@ impl CodeService for LiveServer {
             let initial_state = initial_state.get_current().await;
             if let Err(e) = tx
                 .send(Ok(ConnectResponse {
-                    live: Some(initial_state),
-                    progress: None,
+                    app_ui: Some(initial_state),
                     build: None,
                 }))
                 .await
@@ -143,27 +173,12 @@ impl CodeService for LiveServer {
         });
         let stream = ReceiverStream::new(rx);
 
-        Ok(Response::new(Box::pin(stream) as Self::LiveConnectStream))
+        Ok(Response::new(Box::pin(stream) as Self::AppUIConnectStream))
     }
 
     async fn run(&self, request: Request<RunRequest>) -> Result<Response<Labels>, Status> {
         let req = request.into_inner();
-        let state = self.state.clone();
-        info!("Starting dozer");
-        match state.run(req).await {
-            Ok(labels) => {
-                let labels = labels
-                    .into_labels()
-                    .into_iter()
-                    .map(|label| Label {
-                        key: label.key().to_string(),
-                        value: label.value().to_string(),
-                    })
-                    .collect();
-                Ok(Response::new(Labels { labels }))
-            }
-            Err(e) => Err(Status::internal(e.to_string())),
-        }
+        self.start(req).await
     }
 
     async fn stop(&self, _request: Request<()>) -> Result<Response<()>, Status> {
@@ -177,7 +192,7 @@ impl CodeService for LiveServer {
 }
 
 struct ApiExplorerServer {
-    state: Arc<LiveState>,
+    state: Arc<AppUIState>,
 }
 #[tonic::async_trait]
 impl ApiExplorerService for ApiExplorerServer {
@@ -196,18 +211,18 @@ impl ApiExplorerService for ApiExplorerServer {
 }
 pub async fn serve(
     receiver: Receiver<ConnectResponse>,
-    state: Arc<LiveState>,
+    state: Arc<AppUIState>,
 ) -> Result<(), tonic::transport::Error> {
-    let addr = format!("0.0.0.0:{LIVE_PORT}").parse().unwrap();
+    let addr = format!("0.0.0.0:{APP_UI_PORT}").parse().unwrap();
     let contract_server = ContractServer {
         state: state.clone(),
     };
-    let api_explorer_server = ApiExplorerServer {
+    let api_explorer_server: ApiExplorerServer = ApiExplorerServer {
         state: state.clone(),
     };
-    let live_server = LiveServer { receiver, state };
+    let app_ui_server = AppUiServer::new(receiver, state).await?;
     let contract_service = ContractServiceServer::new(contract_server);
-    let code_service = CodeServiceServer::new(live_server);
+    let code_service = CodeServiceServer::new(app_ui_server);
     let api_explorer_service = ApiExplorerServiceServer::new(api_explorer_server);
     // Enable CORS for local development
     let contract_service = tonic_web::enable(contract_service);
@@ -218,7 +233,7 @@ pub async fn serve(
         .register_encoded_file_descriptor_set(
             dozer_types::grpc_types::contract::FILE_DESCRIPTOR_SET,
         )
-        .register_encoded_file_descriptor_set(dozer_types::grpc_types::live::FILE_DESCRIPTOR_SET)
+        .register_encoded_file_descriptor_set(dozer_types::grpc_types::app_ui::FILE_DESCRIPTOR_SET)
         .register_encoded_file_descriptor_set(
             dozer_types::grpc_types::api_explorer::FILE_DESCRIPTOR_SET,
         )

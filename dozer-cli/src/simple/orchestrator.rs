@@ -391,7 +391,16 @@ impl SimpleOrchestrator {
             // We're not really going to run the pipeline, so we don't create logs.
             .map(|endpoint| EndpointLog {
                 table_name: endpoint.table_name.clone(),
-                kind: EndpointLogKind::Dummy,
+                kind: match endpoint.config.clone() {
+                    EndpointKind::Api(_) => EndpointLogKind::Dummy,
+                    EndpointKind::Dummy => EndpointLogKind::Dummy,
+                    EndpointKind::Aerospike(config) => EndpointLogKind::Aerospike {
+                        config: config.to_owned(),
+                    },
+                    EndpointKind::Clickhouse(config) => EndpointLogKind::Clickhouse {
+                        config: config.to_owned(),
+                    },
+                },
             })
             .collect();
         let builder = PipelineBuilder::new(

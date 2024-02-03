@@ -18,7 +18,7 @@ use dozer_core::{
 use dozer_types::{
     models::{
         connection::Connection,
-        endpoint::{Endpoint, EndpointKind},
+        endpoint::{ApiEndpoint, Endpoint, EndpointKind},
     },
     node::NodeHandle,
     types::Schema,
@@ -47,7 +47,9 @@ pub enum NodeKind {
     Processor {
         typ: String,
     },
-    Sink,
+    Sink {
+        typ: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -81,8 +83,15 @@ impl Contract {
     ) -> Result<Self, BuildError> {
         let mut endpoint_schemas = BTreeMap::new();
         for endpoint in endpoints {
-            let EndpointKind::Api(api) = &endpoint.config else {
-                continue;
+            let api: Option<&ApiEndpoint> = match &endpoint.config {
+                EndpointKind::Api(api) => Some(api),
+                _ => None,
+            };
+            let path = match &endpoint.config {
+                EndpointKind::Api(api) => &api.path,
+                EndpointKind::Aerospike(_aerospike) => "aerospike",
+                EndpointKind::Dummy => "dummy",
+                EndpointKind::Clickhouse(_clickhouse) => "clickhouse",
             };
 
             let node_index = find_sink(dag_schemas, &endpoint.table_name)
@@ -101,7 +110,7 @@ impl Contract {
                 .collect();
 
             let schema = EndpointSchema {
-                path: api.path.clone(),
+                path: path.to_string(),
                 schema,
                 secondary_indexes,
                 enable_token,
@@ -146,7 +155,9 @@ impl Contract {
                     dozer_core::NodeKind::Processor(processor) => NodeKind::Processor {
                         typ: processor.type_name(),
                     },
-                    dozer_core::NodeKind::Sink(_) => NodeKind::Sink,
+                    dozer_core::NodeKind::Sink(sink) => NodeKind::Sink {
+                        typ: sink.type_name(),
+                    },
                 };
                 NodeType { handle, kind }
             },
@@ -252,7 +263,7 @@ impl PartialEq<PipelineContract> for PipelineContract {
                             NodeKind::Processor { typ: left_typ },
                             NodeKind::Processor { typ: right_typ },
                         ) => left_typ == right_typ,
-                        (NodeKind::Sink, NodeKind::Sink) => true,
+                        (NodeKind::Sink { typ: _ }, NodeKind::Sink { typ: _ }) => true,
                         _ => false,
                     }
             },
