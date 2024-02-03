@@ -34,6 +34,9 @@ pub struct OracleSinkFactory {
 
 #[async_trait]
 impl SinkFactory for OracleSinkFactory {
+    fn type_name(&self) -> String {
+        "oracle".to_string()
+    }
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
     }

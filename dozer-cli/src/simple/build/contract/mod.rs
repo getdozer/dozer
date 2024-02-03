@@ -92,6 +92,7 @@ impl Contract {
                 EndpointKind::Aerospike(_aerospike) => "aerospike",
                 EndpointKind::Dummy => "dummy",
                 EndpointKind::Clickhouse(_clickhouse) => "clickhouse",
+                EndpointKind::Oracle(_clickhouse) => "oracle",
             };
 
             let node_index = find_sink(dag_schemas, &endpoint.table_name)
