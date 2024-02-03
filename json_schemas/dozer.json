@@ -985,6 +985,18 @@
             }
           },
           "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Oracle"
+          ],
+          "properties": {
+            "Oracle": {
+              "$ref": "#/definitions/OracleSinkConfig"
+            }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -1683,6 +1695,17 @@
           "additionalProperties": false
         }
       ]
+    },
+    "OracleSinkConfig": {
+      "type": "object",
+      "required": [
+        "connection"
+      ],
+      "properties": {
+        "connection": {
+          "type": "string"
+        }
+      }
     },
     "ParquetConfig": {
       "type": "object",

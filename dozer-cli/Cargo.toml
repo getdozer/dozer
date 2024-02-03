@@ -23,6 +23,7 @@ dozer-lambda = { path = "../dozer-lambda" }
 dozer-sinks = { path = "../dozer-sinks" }
 dozer-sink-aerospike = { path = "../dozer-sink-aerospike" }
 dozer-sink-clickhouse = { path = "../dozer-sink-clickhouse" }
+dozer-sink-oracle = { path = "../dozer-sink-oracle" }
 
 uuid = { version = "1.6.1", features = ["v4", "serde"] }
 tokio = { version = "1", features = ["full"] }

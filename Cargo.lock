@@ -3832,6 +3832,7 @@ dependencies = [
  "dozer-recordstore",
  "dozer-sink-aerospike",
  "dozer-sink-clickhouse",
+ "dozer-sink-oracle",
  "dozer-sinks",
  "dozer-sql",
  "dozer-storage",
@@ -4160,6 +4161,17 @@ dependencies = [
  "dozer-log",
  "dozer-recordstore",
  "dozer-types",
+]
+
+[[package]]
+name = "dozer-sink-oracle"
+version = "0.1.0"
+dependencies = [
+ "dozer-core",
+ "dozer-log",
+ "dozer-recordstore",
+ "dozer-types",
+ "oracle",
 ]
 
 [[package]]
