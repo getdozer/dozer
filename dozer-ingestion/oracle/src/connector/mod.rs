@@ -392,7 +392,15 @@ impl Connector {
                 };
 
                 for content in receiver {
-                    match content? {
+                    let content = match content {
+                        Ok(content) => content,
+                        Err(e) => {
+                            println!("Error: {e}");
+                            logs.clear();
+                            break;
+                        }
+                    };
+                    match content {
                         MappedLogManagerContent::Commit(scn) => checkpoint = scn,
                         MappedLogManagerContent::Op { table_index, op } => {
                             if ingestor
