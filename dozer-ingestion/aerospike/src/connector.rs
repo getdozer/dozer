@@ -134,12 +134,14 @@ impl Connector for AerospikeConnector {
             .unwrap();
 
         let mut tables_map = HashMap::new();
-        tables.iter().for_each(|table| {
+        let mut tables_idx = HashMap::new();
+        tables.iter().enumerate().for_each(|(idx, table)| {
             let mut columns_map = HashMap::new();
             table.column_names.iter().enumerate().for_each(|(i, name)| {
                 columns_map.insert(name.clone(), i);
             });
             tables_map.insert(table.name.clone(), columns_map);
+            tables_idx.insert(table.name.clone(), idx);
         });
 
         let listener = TcpListener::bind("127.0.0.1:5928").await.unwrap();
@@ -148,6 +150,8 @@ impl Connector for AerospikeConnector {
             if let Ok((socket, _peer_addr)) = listener.accept().await {
                 let t = tables_map.clone();
                 let i = ingestor.clone();
+                let indexes = tables_idx.clone();
+
                 tokio::spawn(async move {
                     let mut h2 = handshake(socket).await.expect("Connection");
                     // Accept all inbound HTTP/2 streams sent over the
@@ -229,8 +233,9 @@ impl Connector for AerospikeConnector {
                                             }
                                         }
 
+                                        let table_index = indexes.get(table_name.as_str()).unwrap().to_owned();
                                         i.handle_message(IngestionMessage::OperationEvent {
-                                            table_index: 0,
+                                            table_index,
                                             op: Insert {
                                                 new: dozer_types::types::Record::new(fields),
                                             },
