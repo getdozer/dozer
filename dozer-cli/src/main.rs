@@ -85,14 +85,18 @@ fn run() -> Result<(), OrchestrationError> {
             Some(RunCommands::Lambda) => {
                 dozer.runtime.block_on(dozer.run_lambda(shutdown_receiver))
             }
-            Some(RunCommands::Sinks) => dozer.runtime.block_on(dozer.run_sinks(shutdown_receiver)),
-            None => {
+            Some(RunCommands::UI) => {
                 dozer.runtime.block_on(ui::app::start_app_ui_server(
                     &dozer.runtime,
                     shutdown_receiver,
-                    true,
+                    false,
                 ))?;
                 Ok(())
+            }
+            None => {
+                dozer
+                .runtime
+                .block_on(dozer.run_all(shutdown_receiver, run.locked))
             }
         },
         Commands::Security(security) => match security.command {

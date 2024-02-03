@@ -83,11 +83,11 @@ impl Contract {
     ) -> Result<Self, BuildError> {
         let mut endpoint_schemas = BTreeMap::new();
         for endpoint in endpoints {
-            let api: Option<&ApiEndpoint> = match &endpoint.kind {
+            let api: Option<&ApiEndpoint> = match &endpoint.config {
                 EndpointKind::Api(api) => Some(api),
                 _ => None,
             };
-            let path = match &endpoint.kind {
+            let path = match &endpoint.config {
                 EndpointKind::Api(api) => &api.path,
                 EndpointKind::Aerospike(_aerospike) => "aerospike",
                 EndpointKind::Dummy => "dummy",
