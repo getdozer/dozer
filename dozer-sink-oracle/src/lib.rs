@@ -89,7 +89,7 @@ impl SinkFactory for OracleSinkFactory {
         );
         connection.execute(&table, &[])?;
         let insert = format!(
-            "INSERT INTO {table_name} VALUES ({})",
+            "INSERT INTO \"{table_name}\" VALUES ({})",
             (1..=schema.fields.len())
                 .map(|i| format!(":{i}"))
                 .collect::<Vec<_>>()
