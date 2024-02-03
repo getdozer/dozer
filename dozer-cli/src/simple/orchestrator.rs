@@ -400,6 +400,9 @@ impl SimpleOrchestrator {
                     EndpointKind::Clickhouse(config) => EndpointLogKind::Clickhouse {
                         config: config.to_owned(),
                     },
+                    EndpointKind::Oracle(config) => EndpointLogKind::Oracle {
+                        config: config.to_owned(),
+                    },
                 },
             })
             .collect();

@@ -340,6 +340,9 @@ pub async fn create_dag(dozer: &SimpleOrchestrator) -> Result<Dag, Orchestration
                 EndpointKind::Clickhouse(config) => EndpointLogKind::Clickhouse {
                     config: config.clone(),
                 },
+                EndpointKind::Oracle(config) => EndpointLogKind::Oracle {
+                    config: config.clone(),
+                },
             },
         })
         .collect();
