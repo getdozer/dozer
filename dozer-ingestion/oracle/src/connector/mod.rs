@@ -8,7 +8,7 @@ use std::{
 use dozer_ingestion_connector::{
     dozer_types::{
         chrono,
-        log::info,
+        log::{error, info},
         models::ingestion_types::{IngestionMessage, OracleReplicator},
         node::OpIdentifier,
         rust_decimal::{self, Decimal},
@@ -408,7 +408,11 @@ impl Connector {
                         }
                     }
                 }
-                handle.join().unwrap();
+                if let Err(e) = handle.join().unwrap() {
+                    // Perhaps the log was archived.
+                    error!("Log manager couldn't be started: {}", e);
+                    break;
+                }
 
                 if logs.is_empty() {
                     info!("Replicated all logs, retrying after {:?}", poll_interval);
@@ -464,19 +468,60 @@ mod tests {
         use dozer_ingestion_connector::{
             dozer_types::models::ingestion_types::OracleReplicator, IngestionConfig, Ingestor,
         };
+        use dozer_ingestion_connector::{
+            dozer_types::{models::ingestion_types::IngestionMessage, types::Operation},
+            IngestionIterator,
+        };
+        use std::time::Instant;
+
+        fn row_count(message: &IngestionMessage) -> usize {
+            match message {
+                IngestionMessage::OperationEvent { op, .. } => match op {
+                    Operation::BatchInsert { new } => new.len(),
+                    Operation::Insert { .. } => 1,
+                    Operation::Delete { .. } => 1,
+                    Operation::Update { .. } => 1,
+                },
+                _ => 0,
+            }
+        }
+
+        fn estimate_throughput(iterator: IngestionIterator) {
+            let mut tic = None;
+            let mut count = 0;
+            let print_count_interval = 100_000;
+            let mut count_mod_interval = 0;
+            for message in iterator {
+                if tic.is_none() {
+                    tic = Some(Instant::now());
+                }
+
+                count += row_count(&message);
+                let new_count_mod_interval = count / print_count_interval;
+                if new_count_mod_interval > count_mod_interval {
+                    count_mod_interval = new_count_mod_interval;
+                    println!("{} rows in {:?}", count, tic.unwrap().elapsed());
+                }
+            }
+            println!("{} rows in {:?}", count, tic.unwrap().elapsed());
+            println!(
+                "Throughput: {} rows/s",
+                count as f64 / tic.unwrap().elapsed().as_secs_f64()
+            );
+        }
 
         env_logger::init();
 
         let mut connector = super::Connector::new(
             "oracle".into(),
-            "C##DOZER".into(),
+            "DOZER".into(),
             "123",
-            "localhost:1521/ORCLPDB1",
-            1,
+            "database-1.cxtwfj9nkwtu.ap-southeast-1.rds.amazonaws.com:1521/ORCL",
+            100_000,
             OracleReplicator::DozerLogReader,
         )
         .unwrap();
-        let tables = connector.list_tables(&["CHUBEI".into()]).unwrap();
+        let tables = connector.list_tables(&["DOZER".into()]).unwrap();
         let tables = connector.list_columns(tables).unwrap();
         let schemas = connector.get_schemas(&tables).unwrap();
         let schemas = schemas.into_iter().map(Result::unwrap).collect::<Vec<_>>();
@@ -486,31 +531,28 @@ mod tests {
             let tables = tables.clone();
             std::thread::spawn(move || connector.snapshot(&ingestor, tables))
         };
-        for message in iterator {
-            dbg!(message);
-        }
+
+        estimate_throughput(iterator);
         let checkpoint = handle.join().unwrap().unwrap();
 
         let mut connector = super::Connector::new(
             "oracle".into(),
-            "C##DOZER".into(),
+            "DOZER".into(),
             "123",
-            "localhost:1521/ORCLCDB",
+            "database-1.cxtwfj9nkwtu.ap-southeast-1.rds.amazonaws.com:1521/ORCL",
             1,
             OracleReplicator::LogMiner {
                 poll_interval_in_milliseconds: 1000,
             },
         )
         .unwrap();
-        let con_id = connector.get_con_id("ORCLPDB1").unwrap();
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
         let schemas = schemas.into_iter().map(|schema| schema.schema).collect();
         let handle = std::thread::spawn(move || {
-            connector.replicate(&ingestor, tables, schemas, checkpoint, Some(con_id))
+            connector.replicate(&ingestor, tables, schemas, checkpoint, None)
         });
-        for message in iterator {
-            dbg!(message);
-        }
+
+        estimate_throughput(iterator);
         handle.join().unwrap().unwrap();
     }
 }
