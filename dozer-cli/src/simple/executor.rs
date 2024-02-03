@@ -6,7 +6,7 @@ use dozer_cache::dozer_log::replication::Log;
 use dozer_core::checkpoint::{CheckpointOptions, OptionCheckpoint};
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::models::endpoint::{
-    AerospikeSinkConfig, ClickhouseSinkConfig, Endpoint, EndpointKind,
+    AerospikeSinkConfig, ClickhouseSinkConfig, Endpoint, EndpointKind, OracleSinkConfig,
 };
 use dozer_types::models::flags::Flags;
 use tokio::runtime::Runtime;
@@ -48,6 +48,7 @@ enum ExecutorEndpointKind {
     Dummy,
     Aerospike { config: AerospikeSinkConfig },
     Clickhouse { config: ClickhouseSinkConfig },
+    Oracle { config: OracleSinkConfig },
 }
 
 impl<'a> Executor<'a> {
@@ -90,6 +91,9 @@ impl<'a> Executor<'a> {
                 }
                 EndpointKind::Dummy => ExecutorEndpointKind::Dummy,
                 EndpointKind::Aerospike(config) => ExecutorEndpointKind::Aerospike {
+                    config: config.clone(),
+                },
+                EndpointKind::Oracle(config) => ExecutorEndpointKind::Oracle {
                     config: config.clone(),
                 },
                 EndpointKind::Clickhouse(config) => ExecutorEndpointKind::Clickhouse {
@@ -155,6 +159,9 @@ impl<'a> Executor<'a> {
                         }
                         ExecutorEndpointKind::Clickhouse { config } => {
                             EndpointLogKind::Clickhouse { config }
+                        }
+                        ExecutorEndpointKind::Oracle { config } => {
+                            EndpointLogKind::Oracle { config }
                         }
                     };
                     EndpointLog {

@@ -111,6 +111,7 @@ pub enum EndpointKind {
     Dummy,
     Aerospike(AerospikeSinkConfig),
     Clickhouse(ClickhouseSinkConfig),
+    Oracle(OracleSinkConfig),
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, PartialEq, Eq)]
@@ -119,6 +120,11 @@ pub struct AerospikeDenormalizations {
     pub from_set: String,
     pub key: String,
     pub columns: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
+pub struct OracleSinkConfig {
+    pub connection: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]

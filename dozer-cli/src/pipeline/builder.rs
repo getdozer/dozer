@@ -16,6 +16,7 @@ use dozer_tracing::LabelsAndProgress;
 use dozer_types::log::debug;
 use dozer_types::models::connection::Connection;
 use dozer_types::models::connection::ConnectionConfig;
+use dozer_types::models::endpoint::OracleSinkConfig;
 use dozer_types::models::endpoint::{AerospikeSinkConfig, ClickhouseSinkConfig};
 use dozer_types::models::flags::Flags;
 use dozer_types::models::source::Source;
@@ -28,6 +29,7 @@ use crate::pipeline::dummy_sink::DummySinkFactory;
 use crate::pipeline::LogSinkFactory;
 use dozer_sink_aerospike::AerospikeSinkFactory;
 use dozer_sink_clickhouse::ClickhouseSinkFactory;
+use dozer_sink_oracle::OracleSinkFactory;
 
 use super::source_builder::SourceBuilder;
 use crate::errors::OrchestrationError;
@@ -62,6 +64,7 @@ pub enum EndpointLogKind {
     Dummy,
     Aerospike { config: AerospikeSinkConfig },
     Clickhouse { config: ClickhouseSinkConfig },
+    Oracle { config: OracleSinkConfig },
 }
 
 pub struct PipelineBuilder<'a> {
@@ -282,6 +285,25 @@ impl<'a> PipelineBuilder<'a> {
                 }
                 EndpointLogKind::Clickhouse { config } => {
                     Box::new(ClickhouseSinkFactory::new(config.clone(), runtime.clone()))
+                }
+                EndpointLogKind::Oracle { config } => {
+                    let connection = self
+                        .connections
+                        .iter()
+                        .find_map(|conn| match conn {
+                            Connection {
+                                config: ConnectionConfig::Oracle(conn_config),
+                                name,
+                            } if name == &config.connection => Some(conn_config),
+                            _ => None,
+                        })
+                        .ok_or_else(|| {
+                            OrchestrationError::ConnectionNotFound(config.connection.clone())
+                        })?;
+                    Box::new(OracleSinkFactory {
+                        config: connection.clone(),
+                        table: endpoint_log.table_name.clone(),
+                    })
                 }
             };
 
