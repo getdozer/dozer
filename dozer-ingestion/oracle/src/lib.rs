@@ -2,6 +2,7 @@ use dozer_ingestion_connector::{
     async_trait,
     dozer_types::{
         errors::internal::BoxedError,
+        log::info,
         models::ingestion_types::{IngestionMessage, OracleConfig},
         node::OpIdentifier,
         types::FieldType,
@@ -18,9 +19,9 @@ pub struct OracleConnector {
 
 #[derive(Debug, Clone)]
 struct Connectors {
-    _root_connector: connector::Connector,
+    root_connector: connector::Connector,
     pdb_connector: connector::Connector,
-    _con_id: Option<u32>,
+    con_id: Option<u32>,
 }
 
 const DEFAULT_BATCH_SIZE: usize = 100_000;
@@ -53,7 +54,9 @@ impl OracleConnector {
                         &config.password,
                         &root_connect_string,
                         batch_size,
+                        config.replicator,
                     )?;
+
                     let (pdb_connector, con_id) = if let Some(pdb) = pdb {
                         let pdb_connect_string = format!("{}:{}/{}", config.host, config.port, pdb);
                         let pdb_connector = connector::Connector::new(
@@ -62,16 +65,18 @@ impl OracleConnector {
                             &config.password,
                             &pdb_connect_string,
                             batch_size,
+                            config.replicator,
                         )?;
                         let con_id = root_connector.get_con_id(&pdb)?;
                         (pdb_connector, Some(con_id))
                     } else {
                         (root_connector.clone(), None)
                     };
+
                     Ok::<_, connector::Error>(Connectors {
-                        _root_connector: root_connector,
+                        root_connector,
                         pdb_connector,
-                        _con_id: con_id,
+                        con_id,
                     })
                 })
                 .await
@@ -147,25 +152,53 @@ impl Connector for OracleConnector {
         tables: Vec<TableInfo>,
         last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
-        assert!(last_checkpoint.is_none());
-        let ingestor_clone = ingestor.clone();
-        let mut connectors = self.ensure_connection(false).await?;
+        let checkpoint = if let Some(last_checkpoint) = last_checkpoint {
+            last_checkpoint.txid
+        } else {
+            info!("No checkpoint passed, starting snapshotting");
 
-        if ingestor
-            .handle_message(IngestionMessage::SnapshottingStarted)
+            let ingestor_clone = ingestor.clone();
+            let tables = tables.clone();
+            let mut connectors = self.ensure_connection(false).await?;
+
+            if ingestor
+                .handle_message(IngestionMessage::SnapshottingStarted)
+                .await
+                .is_err()
+            {
+                return Ok(());
+            }
+            let scn = tokio::task::spawn_blocking(move || {
+                connectors.pdb_connector.snapshot(&ingestor_clone, tables)
+            })
             .await
-            .is_err()
-        {
-            return Ok(());
-        }
+            .unwrap()?;
+            ingestor
+                .handle_message(IngestionMessage::SnapshottingDone { id: None })
+                .await?;
+            scn
+        };
+
+        info!("Replicating from checkpoint: {}", checkpoint);
+        let ingestor = ingestor.clone();
+        let schemas = self.get_schemas(&tables).await?;
+        let schemas = schemas
+            .into_iter()
+            .map(|schema| schema.map(|schema| schema.schema))
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut connectors = self.ensure_connection(false).await?;
         tokio::task::spawn_blocking(move || {
-            connectors.pdb_connector.snapshot(&ingestor_clone, tables)
+            connectors.root_connector.replicate(
+                &ingestor,
+                tables,
+                schemas,
+                checkpoint,
+                connectors.con_id,
+            )
         })
         .await
         .unwrap()?;
-        ingestor
-            .handle_message(IngestionMessage::SnapshottingDone { id: None })
-            .await?;
+
         Ok(())
     }
 }
