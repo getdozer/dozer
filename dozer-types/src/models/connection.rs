@@ -1,7 +1,7 @@
 use crate::models::ingestion_types::{
-    DeltaLakeConfig, EthConfig, GrpcConfig, JavaScriptConfig, KafkaConfig, LocalStorage,
-    MongodbConfig, MySQLConfig, NestedDozerConfig, S3Storage, SnowflakeConfig, WebhookConfig,
-    SECRET,
+    AerospikeConfig, DeltaLakeConfig, EthConfig, GrpcConfig, JavaScriptConfig, KafkaConfig,
+    LocalStorage, MongodbConfig, MySQLConfig, NestedDozerConfig, S3Storage, SnowflakeConfig,
+    WebhookConfig, SECRET,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

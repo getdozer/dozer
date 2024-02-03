@@ -626,6 +626,11 @@ impl SchemaExample for WebhookVerb {
     }
 }
 
+#[derive(Debug, JsonSchema, Clone, Deserialize, Serialize, Hash, Eq, PartialEq)]
+pub struct AerospikeConfig {
+    pub namespace: String,
+}
+
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
 pub struct OracleConfig {
     pub user: String,

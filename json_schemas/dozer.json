@@ -591,12 +591,6 @@
     "ConnectionConfig": {
       "oneOf": [
         {
-          "type": "string",
-          "enum": [
-            "Aerospike"
-          ]
-        },
-        {
           "description": "In yaml, present as tag: `!Postgres`",
           "type": "object",
           "required": [
@@ -761,6 +755,19 @@
           "properties": {
             "Webhook": {
               "$ref": "#/definitions/WebhookConfig"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "In yaml, present as tag\" `!Aerospike`",
+          "type": "object",
+          "required": [
+            "Aerospike"
+          ],
+          "properties": {
+            "Aerospike": {
+              "$ref": "#/definitions/AerospikeConfig"
             }
           },
           "additionalProperties": false
