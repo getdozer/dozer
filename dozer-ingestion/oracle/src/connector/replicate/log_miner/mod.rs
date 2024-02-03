@@ -30,6 +30,8 @@ impl LogMiner {
         }
     }
 
+    /// Returns `Err` if the log manager can not be started.
+    /// In that case `output` is useless.
     #[allow(clippy::too_many_arguments)]
     pub fn mine(
         &self,
@@ -40,33 +42,21 @@ impl LogMiner {
         schemas: &[Schema],
         con_id: Option<u32>,
         output: SyncSender<Result<MappedLogManagerContent, Error>>,
-    ) {
-        let _guard = match start_log_manager(connection, log, start_scn) {
-            Ok(guard) => guard,
-            Err(err) => {
-                let _ = output.send(Err(err));
-                return;
-            }
-        };
+    ) -> Result<(), Error> {
+        let _guard = start_log_manager(connection, log, start_scn)?;
 
-        let contents = match listing::LogManagerContent::list(connection, con_id) {
-            Ok(contents) => contents,
-            Err(err) => {
-                let _ = output.send(Err(err));
-                return;
-            }
-        };
+        let contents = listing::LogManagerContent::list(connection, con_id)?;
         for content in contents {
             match parse_and_map(&self.parser, content, table_pair_to_index, schemas) {
                 Ok(Some(mapped)) => {
                     if output.send(Ok(mapped)).is_err() {
-                        return;
+                        return Ok(());
                     }
                 }
                 Ok(None) => {}
                 Err(err) => {
                     let _ = output.send(Err(err));
-                    return;
+                    return Ok(());
                 }
             }
         }
@@ -74,6 +64,7 @@ impl LogMiner {
         if let Err(e) = end_log_manager(connection) {
             let _ = output.send(Err(e));
         }
+        Ok(())
     }
 }
 
