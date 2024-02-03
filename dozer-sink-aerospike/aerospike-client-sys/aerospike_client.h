@@ -9,3 +9,6 @@
 #include <aerospike/as_nil.h>
 #include <aerospike/as_map.h>
 #include <aerospike/as_orderedmap.h>
+#include <aerospike/as_arraylist.h>
+#include <aerospike/as_map.h>
+#include <aerospike/as_orderedmap.h>

@@ -9,12 +9,13 @@ use dozer_core::app::AppPipeline;
 use dozer_core::app::PipelineEntryPoint;
 use dozer_core::node::SinkFactory;
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_ingestion::{get_connector, get_connector_info_table};
+
 use dozer_sql::builder::statement_to_pipeline;
 use dozer_sql::builder::{OutputNodeInfo, QueryContext};
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::log::debug;
 use dozer_types::models::connection::Connection;
+use dozer_types::models::connection::ConnectionConfig;
 use dozer_types::models::endpoint::{AerospikeSinkConfig, ClickhouseSinkConfig};
 use dozer_types::models::flags::Flags;
 use dozer_types::models::source::Source;
@@ -28,10 +29,9 @@ use crate::pipeline::LogSinkFactory;
 use dozer_sink_aerospike::AerospikeSinkFactory;
 use dozer_sink_clickhouse::ClickhouseSinkFactory;
 
-use super::connector_source::ConnectorSourceFactoryError;
 use super::source_builder::SourceBuilder;
 use crate::errors::OrchestrationError;
-use dozer_types::log::info;
+
 use OrchestrationError::ExecutionError;
 
 pub enum OutputTableInfo {
@@ -99,46 +99,22 @@ impl<'a> PipelineBuilder<'a> {
     // For not breaking current functionality, current format is to be still supported.
     pub async fn get_grouped_tables(
         &self,
-        runtime: &Arc<Runtime>,
+        _runtime: &Arc<Runtime>,
         original_sources: &[String],
     ) -> Result<HashMap<Connection, Vec<Source>>, OrchestrationError> {
         let mut grouped_connections: HashMap<Connection, Vec<Source>> = HashMap::new();
 
-        let mut connector_map = HashMap::new();
-        for connection in self.connections {
-            let mut connector = get_connector(runtime.clone(), connection.clone(), None)
-                .map_err(|e| ConnectorSourceFactoryError::Connector(e.into()))?;
-
-            if let Some(info_table) = get_connector_info_table(connection) {
-                info!("[{}] Connection parameters\n{info_table}", connection.name);
-            }
-
-            let connector_tables = connector
-                .list_tables()
-                .await
-                .map_err(ConnectorSourceFactoryError::Connector)?;
-
-            // override source name if specified
-            let connector_tables: Vec<Source> = connector_tables
+        let mut connector_map: HashMap<Connection, Vec<Source>> = HashMap::new();
+        for source in self.sources {
+            let connection = self
+                .connections
                 .iter()
-                .map(|table| {
-                    match self.sources.iter().find(|s| {
-                        // TODO: @dario - Replace this line with the actual schema parsed from SQL
-                        s.connection == connection.name && s.table_name == table.name
-                    }) {
-                        Some(source) => source.clone(),
-                        None => Source {
-                            name: table.name.clone(),
-                            table_name: table.name.clone(),
-                            schema: table.schema.clone(),
-                            connection: connection.name.clone(),
-                            ..Default::default()
-                        },
-                    }
-                })
-                .collect();
-
-            connector_map.insert(connection.clone(), connector_tables);
+                .find(|conn| conn.name == source.connection)
+                .ok_or_else(|| OrchestrationError::ConnectionNotFound(source.connection.clone()))?;
+            connector_map
+                .entry(connection.clone())
+                .or_default()
+                .push(source.clone());
         }
 
         for table_name in original_sources {
@@ -289,7 +265,20 @@ impl<'a> PipelineBuilder<'a> {
                 )),
                 EndpointLogKind::Dummy => Box::new(DummySinkFactory),
                 EndpointLogKind::Aerospike { config } => {
-                    Box::new(AerospikeSinkFactory::new(config))
+                    let connection = self
+                        .connections
+                        .iter()
+                        .find_map(|conn| match conn {
+                            Connection {
+                                config: ConnectionConfig::Aerospike(conn_config),
+                                name,
+                            } if name == &config.connection => Some(conn_config),
+                            _ => None,
+                        })
+                        .ok_or_else(|| {
+                            OrchestrationError::ConnectionNotFound(config.connection.clone())
+                        })?;
+                    Box::new(AerospikeSinkFactory::new(connection.clone(), config))
                 }
                 EndpointLogKind::Clickhouse { config } => {
                     Box::new(ClickhouseSinkFactory::new(config.clone(), runtime.clone()))

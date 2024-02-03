@@ -66,7 +66,7 @@ fn load_multi_sources() {
         &config.sources,
         config.sql.as_deref(),
         config
-            .endpoints
+            .sinks
             .into_iter()
             .map(|endpoint| EndpointLog {
                 table_name: endpoint.table_name,

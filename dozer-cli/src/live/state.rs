@@ -171,7 +171,7 @@ impl LiveState {
             let endpoints = dozer
                 .dozer
                 .config
-                .endpoints
+                .sinks
                 .iter()
                 .map(|endpoint| endpoint.table_name.clone())
                 .collect();
@@ -329,7 +329,7 @@ pub async fn create_contract(dozer: SimpleOrchestrator) -> Result<Contract, Orch
         version as usize,
         &schemas,
         &dozer.config.connections,
-        &dozer.config.endpoints,
+        &dozer.config.sinks,
         // We don't care about API generation options here. They are handled in `run_all`.
         false,
         true,
@@ -340,7 +340,7 @@ pub async fn create_contract(dozer: SimpleOrchestrator) -> Result<Contract, Orch
 pub async fn create_dag(dozer: &SimpleOrchestrator) -> Result<Dag, OrchestrationError> {
     let endpoint_and_logs = dozer
         .config
-        .endpoints
+        .sinks
         .iter()
         // We're not really going to run the pipeline, so we don't create logs.
         .map(|endpoint| EndpointLog {
@@ -400,12 +400,12 @@ fn get_dozer_run_instance(
             //overwrite sql
             dozer.config.sql = Some(req.sql);
 
-            dozer.config.endpoints = vec![];
+            dozer.config.sinks = vec![];
             let tables = context.output_tables_map.keys().collect::<Vec<_>>();
             for table in tables {
                 let endpoint = Endpoint {
                     table_name: table.to_string(),
-                    kind: EndpointKind::Api(ApiEndpoint {
+                    config: EndpointKind::Api(ApiEndpoint {
                         path: format!("/{}", table),
                         index: Default::default(),
                         conflict_resolution: Default::default(),
@@ -413,16 +413,16 @@ fn get_dozer_run_instance(
                         log_reader_options: Default::default(),
                     }),
                 };
-                dozer.config.endpoints.push(endpoint);
+                dozer.config.sinks.push(endpoint);
             }
         }
         Some(dozer_types::grpc_types::live::run_request::Request::Source(req)) => {
             dozer.config.sql = None;
-            dozer.config.endpoints = vec![];
+            dozer.config.sinks = vec![];
             let endpoint = req.source;
-            dozer.config.endpoints.push(Endpoint {
+            dozer.config.sinks.push(Endpoint {
                 table_name: endpoint.to_string(),
-                kind: EndpointKind::Api(ApiEndpoint {
+                config: EndpointKind::Api(ApiEndpoint {
                     path: format!("/{}", endpoint),
                     index: Default::default(),
                     conflict_resolution: Default::default(),

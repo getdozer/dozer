@@ -101,7 +101,7 @@ pub struct Endpoint {
     pub table_name: String,
 
     /// endpoint kind
-    pub kind: EndpointKind,
+    pub config: EndpointKind,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
@@ -113,13 +113,22 @@ pub enum EndpointKind {
     Clickhouse(ClickhouseSinkConfig),
 }
 
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, PartialEq, Eq)]
+pub struct AerospikeDenormalizations {
+    pub from_namespace: String,
+    pub from_set: String,
+    pub key: String,
+    pub columns: Vec<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
 pub struct AerospikeSinkConfig {
-    pub namespace: String,
-    pub hosts: String,
+    pub connection: String,
     #[serde(default)]
     pub n_threads: Option<NonZeroUsize>,
     #[serde(default)]
+    pub denormalize: Vec<AerospikeDenormalizations>,
+    pub namespace: String,
     pub set_name: String,
 }
 

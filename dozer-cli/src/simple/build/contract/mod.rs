@@ -81,7 +81,7 @@ impl Contract {
     ) -> Result<Self, BuildError> {
         let mut endpoint_schemas = BTreeMap::new();
         for endpoint in endpoints {
-            let EndpointKind::Api(api) = &endpoint.kind else {
+            let EndpointKind::Api(api) = &endpoint.config else {
                 continue;
             };
 

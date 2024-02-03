@@ -26,4 +26,7 @@ pub enum ConnectorError {
 
     #[error("mongodb feature is not enabled")]
     MongodbFeatureNotEnabled,
+
+    #[error("{0} is not supported as a source connector")]
+    Unsupported(String),
 }

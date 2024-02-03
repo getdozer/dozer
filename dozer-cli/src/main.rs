@@ -85,7 +85,6 @@ fn run() -> Result<(), OrchestrationError> {
             Some(RunCommands::Lambda) => {
                 dozer.runtime.block_on(dozer.run_lambda(shutdown_receiver))
             }
-            Some(RunCommands::Sinks) => dozer.runtime.block_on(dozer.run_sinks(shutdown_receiver)),
             None => dozer
                 .runtime
                 .block_on(dozer.run_all(shutdown_receiver, run.locked)),

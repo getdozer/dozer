@@ -145,6 +145,7 @@ pub fn get_connector(
             connection.name,
             oracle_config,
         ))),
+        ConnectionConfig::Aerospike(_) => Err(ConnectorError::Unsupported("aerospike".to_owned())),
     }
 }
 

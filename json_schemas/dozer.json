@@ -59,13 +59,6 @@
         "$ref": "#/definitions/Connection"
       }
     },
-    "endpoints": {
-      "description": "api endpoints to expose",
-      "type": "array",
-      "items": {
-        "$ref": "#/definitions/Endpoint"
-      }
-    },
     "flags": {
       "description": "flags to enable/disable features",
       "allOf": [
@@ -89,10 +82,10 @@
       }
     },
     "sinks": {
-      "description": "Sinks",
+      "description": "api endpoints to expose",
       "type": "array",
       "items": {
-        "$ref": "#/definitions/SinkConfig"
+        "$ref": "#/definitions/Endpoint"
       }
     },
     "sources": {
@@ -132,15 +125,60 @@
   },
   "additionalProperties": false,
   "definitions": {
-    "AerospikeSinkConfig": {
+    "AerospikeConnection": {
       "type": "object",
       "required": [
-        "hosts",
-        "namespace"
+        "hosts"
       ],
       "properties": {
         "hosts": {
           "type": "string"
+        }
+      }
+    },
+    "AerospikeDenormalizations": {
+      "type": "object",
+      "required": [
+        "columns",
+        "from_namespace",
+        "from_set",
+        "key"
+      ],
+      "properties": {
+        "columns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "from_namespace": {
+          "type": "string"
+        },
+        "from_set": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        }
+      }
+    },
+    "AerospikeSinkConfig": {
+      "type": "object",
+      "required": [
+        "connection",
+        "namespace",
+        "set_name"
+      ],
+      "properties": {
+        "connection": {
+          "type": "string"
+        },
+        "denormalize": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/AerospikeDenormalizations"
+          }
         },
         "n_threads": {
           "default": null,
@@ -155,7 +193,6 @@
           "type": "string"
         },
         "set_name": {
-          "default": "",
           "type": "string"
         }
       }
@@ -733,50 +770,20 @@
             }
           },
           "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Aerospike"
+          ],
+          "properties": {
+            "Aerospike": {
+              "$ref": "#/definitions/AerospikeConnection"
+            }
+          },
+          "additionalProperties": false
         }
       ]
-    },
-    "ConnectionParameters": {
-      "type": "object",
-      "required": [
-        "password",
-        "server",
-        "user",
-        "warehouse"
-      ],
-      "properties": {
-        "driver": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "password": {
-          "type": "string"
-        },
-        "port": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "role": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "server": {
-          "type": "string"
-        },
-        "user": {
-          "type": "string"
-        },
-        "warehouse": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false
     },
     "CsvConfig": {
       "type": "object",
@@ -860,26 +867,6 @@
         }
       }
     },
-    "Destination": {
-      "type": "object",
-      "required": [
-        "database",
-        "schema",
-        "table"
-      ],
-      "properties": {
-        "database": {
-          "type": "string"
-        },
-        "schema": {
-          "type": "string"
-        },
-        "table": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false
-    },
     "DozerTelemetryConfig": {
       "type": "object",
       "properties": {
@@ -936,11 +923,11 @@
     "Endpoint": {
       "type": "object",
       "required": [
-        "kind",
+        "config",
         "table_name"
       ],
       "properties": {
-        "kind": {
+        "config": {
           "description": "endpoint kind",
           "allOf": [
             {
@@ -1609,30 +1596,6 @@
       },
       "additionalProperties": false
     },
-    "Options": {
-      "type": "object",
-      "properties": {
-        "batch_interval_seconds": {
-          "type": "number",
-          "format": "double"
-        },
-        "batch_size": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint",
-          "minimum": 0.0
-        },
-        "suspend_warehouse_after_each_batch": {
-          "type": [
-            "boolean",
-            "null"
-          ]
-        }
-      },
-      "additionalProperties": false
-    },
     "OracleConfig": {
       "type": "object",
       "required": [
@@ -2052,52 +2015,6 @@
           "items": {
             "type": "string"
           }
-        }
-      },
-      "additionalProperties": false
-    },
-    "SinkConfig": {
-      "oneOf": [
-        {
-          "type": "object",
-          "required": [
-            "Snowflake"
-          ],
-          "properties": {
-            "Snowflake": {
-              "$ref": "#/definitions/Snowflake"
-            }
-          },
-          "additionalProperties": false
-        }
-      ]
-    },
-    "Snowflake": {
-      "type": "object",
-      "required": [
-        "connection",
-        "destination",
-        "endpoint"
-      ],
-      "properties": {
-        "connection": {
-          "$ref": "#/definitions/ConnectionParameters"
-        },
-        "destination": {
-          "$ref": "#/definitions/Destination"
-        },
-        "endpoint": {
-          "type": "string"
-        },
-        "options": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/Options"
-            },
-            {
-              "type": "null"
-            }
-          ]
         }
       },
       "additionalProperties": false
