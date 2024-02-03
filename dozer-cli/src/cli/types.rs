@@ -121,7 +121,11 @@ pub enum RunCommands {
         long_about = "Run lambda functions. Lambda functions are JavaScript or Python functions that are called when a new operation is output."
     )]
     Lambda,
-    UI
+    #[command(
+        about = "Open web interface",
+        long_about = "Open web interface. Web interface is used to interact with dozer"
+    )]
+    AppUI,
 }
 
 #[derive(Debug, Args)]
