@@ -1,7 +1,7 @@
 use crate::models::ingestion_types::{
-    AerospikeConfig, DeltaLakeConfig, EthConfig, GrpcConfig, JavaScriptConfig, KafkaConfig,
-    LocalStorage, MongodbConfig, MySQLConfig, NestedDozerConfig, S3Storage, SnowflakeConfig,
-    WebhookConfig, SECRET,
+    DeltaLakeConfig, EthConfig, GrpcConfig, JavaScriptConfig, KafkaConfig, LocalStorage,
+    MongodbConfig, MySQLConfig, NestedDozerConfig, S3Storage, SnowflakeConfig, WebhookConfig,
+    SECRET,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -211,6 +211,8 @@ fn get_sslmode(mode: String) -> Result<SslMode, DeserializationError> {
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone, Hash)]
 pub struct AerospikeConnection {
     pub hosts: String,
+    pub namespace: String,
+    pub sets: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]

@@ -128,11 +128,22 @@
     "AerospikeConnection": {
       "type": "object",
       "required": [
-        "hosts"
+        "hosts",
+        "namespace",
+        "sets"
       ],
       "properties": {
         "hosts": {
           "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "sets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },
@@ -142,8 +153,7 @@
         "columns",
         "from_namespace",
         "from_set",
-        "key",
-        "sets"
+        "key"
       ],
       "properties": {
         "columns": {
@@ -160,12 +170,6 @@
         },
         "key": {
           "type": "string"
-        },
-        "sets": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
         }
       }
     },
@@ -762,19 +766,6 @@
           "properties": {
             "Webhook": {
               "$ref": "#/definitions/WebhookConfig"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "description": "In yaml, present as tag\" `!Aerospike`",
-          "type": "object",
-          "required": [
-            "Aerospike"
-          ],
-          "properties": {
-            "Aerospike": {
-              "$ref": "#/definitions/AerospikeConfig"
             }
           },
           "additionalProperties": false

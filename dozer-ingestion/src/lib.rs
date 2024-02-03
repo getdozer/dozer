@@ -142,7 +142,7 @@ pub fn get_connector(
             runtime,
             javascript_config,
         ))),
-        ConnectionConfig::Aerospike => Ok(Box::new(AerospikeConnector::new())),
+        ConnectionConfig::Aerospike(config) => Ok(Box::new(AerospikeConnector::new(config))),
         ConnectionConfig::Oracle(oracle_config) => Ok(Box::new(OracleConnector::new(
             connection.name,
             oracle_config,

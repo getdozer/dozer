@@ -1,8 +1,7 @@
 use dozer_ingestion_connector::dozer_types::errors::internal::BoxedError;
 use dozer_ingestion_connector::dozer_types::log::{error, info};
-use dozer_ingestion_connector::dozer_types::models::ingestion_types::{
-    AerospikeConfig, IngestionMessage,
-};
+use dozer_ingestion_connector::dozer_types::models::connection::AerospikeConnection;
+use dozer_ingestion_connector::dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_ingestion_connector::dozer_types::node::OpIdentifier;
 use dozer_ingestion_connector::dozer_types::types::Operation::Insert;
 use dozer_ingestion_connector::dozer_types::types::{Field, FieldDefinition, FieldType, Schema};
@@ -39,20 +38,11 @@ pub struct Bin {
 
 #[derive(Debug)]
 pub struct AerospikeConnector {
-    pub config: AerospikeConfig,
-}
-
-impl Default for AerospikeConnector {
-    fn default() -> Self {
-        Self::new(AerospikeConfig {
-            namespace: "Default".to_string(),
-            sets: vec![]
-        })
-    }
+    pub config: AerospikeConnection,
 }
 
 impl AerospikeConnector {
-    pub fn new(config: AerospikeConfig) -> Self {
+    pub fn new(config: AerospikeConnection) -> Self {
         Self { config }
     }
 }
@@ -71,10 +61,15 @@ impl Connector for AerospikeConnector {
     }
 
     async fn list_tables(&mut self) -> Result<Vec<TableIdentifier>, BoxedError> {
-        Ok(self.config.sets.iter().map(|set| TableIdentifier {
-            schema: Some(self.config.namespace.clone()),
-            name: set.to_string(),
-        }).collect())
+        Ok(self
+            .config
+            .sets
+            .iter()
+            .map(|set| TableIdentifier {
+                schema: Some(self.config.namespace.clone()),
+                name: set.to_string(),
+            })
+            .collect())
     }
 
     async fn validate_tables(&mut self, _tables: &[TableIdentifier]) -> Result<(), BoxedError> {
@@ -168,16 +163,17 @@ impl Connector for AerospikeConnector {
                                     if !chunk.is_empty() {
                                         let event_string = String::from_utf8(Vec::from(chunk));
 
-                                        let event =
-                                            match dozer_types::serde_json::from_str::<AerospikeEvent>(
-                                                &event_string.clone().unwrap(),
-                                            ) {
-                                                Ok(event) => event,
-                                                Err(e) => {
-                                                    error!("Error : {:?}", e);
-                                                    continue;
-                                                }
-                                            };
+                                        let event = match dozer_types::serde_json::from_str::<
+                                            AerospikeEvent,
+                                        >(
+                                            &event_string.clone().unwrap()
+                                        ) {
+                                            Ok(event) => event,
+                                            Err(e) => {
+                                                error!("Error : {:?}", e);
+                                                continue;
+                                            }
+                                        };
 
                                         let table_name = event.key.get(1).unwrap().clone().unwrap();
                                         if let Some(columns_map) = t.get(table_name.as_str()) {
@@ -185,12 +181,13 @@ impl Connector for AerospikeConnector {
                                             if let Some(pk) = columns_map.get("PK") {
                                                 fields[*pk] = match event.key.last().unwrap() {
                                                     None => Field::Null,
-                                                    Some(s) => Field::String(s.to_string())
+                                                    Some(s) => Field::String(s.to_string()),
                                                 };
                                             }
 
                                             for bin in event.bins {
-                                                if let Some(i) = columns_map.get(bin.name.as_str()) {
+                                                if let Some(i) = columns_map.get(bin.name.as_str())
+                                                {
                                                     match bin.value {
                                                         Some(value) => {
                                                             match bin.r#type.as_str() {
@@ -224,16 +221,15 @@ impl Connector for AerospikeConnector {
                                                 }
                                             }
 
-                                            i
-                                                .handle_message(IngestionMessage::OperationEvent {
-                                                    table_index: 0,
-                                                    op: Insert {
-                                                        new: dozer_types::types::Record::new(fields),
-                                                    },
-                                                    id: None,
-                                                })
-                                                .await
-                                                .unwrap();
+                                            i.handle_message(IngestionMessage::OperationEvent {
+                                                table_index: 0,
+                                                op: Insert {
+                                                    new: dozer_types::types::Record::new(fields),
+                                                },
+                                                id: None,
+                                            })
+                                            .await
+                                            .unwrap();
                                         } else {
                                             // info!("Not found table: {}", table_name);
                                         }

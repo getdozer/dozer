@@ -1,6 +1,5 @@
 use dozer_api::async_trait::async_trait;
 use std::{collections::HashMap, time::Instant};
-use std::time::Duration;
 
 use dozer_cache::dozer_log::storage::Queue;
 use dozer_core::{
@@ -61,7 +60,7 @@ struct DummySink {
     snapshotting_started_instant: HashMap<String, Instant>,
     inserted_at_index: Option<usize>,
     count: usize,
-    previous_started: Instant
+    previous_started: Instant,
 }
 
 impl Sink for DummySink {
@@ -73,7 +72,12 @@ impl Sink for DummySink {
     ) -> Result<(), BoxedError> {
         if self.count % 1000 == 0 {
             if self.count > 0 {
-                info!("Rate: {:.0} op/s, Processed {} records. Elapsed {:?}", 1000.0 / self.previous_started.elapsed().as_secs_f64(), self.count, self.previous_started.elapsed(), );
+                info!(
+                    "Rate: {:.0} op/s, Processed {} records. Elapsed {:?}",
+                    1000.0 / self.previous_started.elapsed().as_secs_f64(),
+                    self.count,
+                    self.previous_started.elapsed(),
+                );
             }
             self.previous_started = Instant::now();
         }
