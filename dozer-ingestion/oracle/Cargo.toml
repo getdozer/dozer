@@ -8,3 +8,7 @@ edition = "2021"
 [dependencies]
 dozer-ingestion-connector = { path = "../connector" }
 oracle = { version = "0.5.7", features = ["chrono", "stmt_without_lifetime"] }
+regex = "1.10.3"
+
+[dev-dependencies]
+env_logger = "0.11.1"

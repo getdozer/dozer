@@ -1,18 +1,28 @@
 use std::{
     collections::{HashMap, HashSet},
+    num::ParseFloatError,
     sync::Arc,
+    time::Duration,
 };
 
 use dozer_ingestion_connector::{
     dozer_types::{
-        models::ingestion_types::IngestionMessage, rust_decimal, thiserror, types::Operation,
+        chrono,
+        log::info,
+        models::ingestion_types::{IngestionMessage, OracleReplicator},
+        node::OpIdentifier,
+        rust_decimal::{self, Decimal},
+        thiserror,
+        types::{FieldType, Operation, Schema},
     },
     Ingestor, SourceSchema, TableIdentifier, TableInfo,
 };
 use oracle::{
-    sql_type::{Collection, ObjectType, OracleType},
+    sql_type::{Collection, ObjectType},
     Connection,
 };
+
+use replicate::log_miner::MappedLogManagerContent;
 
 #[derive(Debug, Clone)]
 pub struct Connector {
@@ -20,6 +30,7 @@ pub struct Connector {
     connection: Arc<Connection>,
     username: String,
     batch_size: usize,
+    replicator: OracleReplicator,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -42,6 +53,28 @@ pub enum Error {
     ColumnCountMismatch { expected: usize, actual: usize },
     #[error("cannot convert Oracle number to decimal: {0}")]
     NumberToDecimal(#[from] rust_decimal::Error),
+    #[error("insert failed to match: {0}")]
+    InsertFailedToMatch(String),
+    #[error("delete failed to match: {0}")]
+    DeleteFailedToMatch(String),
+    #[error("update failed to match: {0}")]
+    UpdateFailedToMatch(String),
+    #[error("field {0} not found")]
+    FieldNotFound(String),
+    #[error("null value for non-nullable field {0}")]
+    NullValue(String),
+    #[error("cannot parse float: {0}")]
+    ParseFloat(#[from] ParseFloatError),
+    #[error("cannot parse date time from {1}: {0}")]
+    ParseDateTime(#[source] chrono::ParseError, String),
+    #[error("got overflow float number {0}")]
+    FloatOverflow(Decimal),
+    #[error("type mismatch for {field}, expected {expected:?}, actual {actual:?}")]
+    TypeMismatch {
+        field: String,
+        expected: FieldType,
+        actual: FieldType,
+    },
 }
 
 /// `oracle`'s `ToSql` implementation for `&str` uses `NVARCHAR2` type, which Oracle expects to be UTF16 encoded by default.
@@ -50,9 +83,14 @@ pub enum Error {
 macro_rules! str_to_sql {
     ($s:expr) => {
         // `s.len()` is the upper bound of `s.chars().count()`
-        (&$s, &OracleType::Varchar2($s.len() as u32))
+        (
+            &$s,
+            &::oracle::sql_type::OracleType::Varchar2($s.len() as u32),
+        )
     };
 }
+
+pub type Scn = u64;
 
 impl Connector {
     pub fn new(
@@ -61,6 +99,7 @@ impl Connector {
         password: &str,
         connect_string: &str,
         batch_size: usize,
+        replicator: OracleReplicator,
     ) -> Result<Self, Error> {
         let connection = Connection::connect(&username, password, connect_string)?;
 
@@ -69,6 +108,7 @@ impl Connector {
             connection: Arc::new(connection),
             username,
             batch_size,
+            replicator,
         })
     }
 
@@ -206,7 +246,7 @@ impl Connector {
         Ok(result)
     }
 
-    pub fn snapshot(&mut self, ingestor: &Ingestor, tables: Vec<TableInfo>) -> Result<(), Error> {
+    pub fn snapshot(&mut self, ingestor: &Ingestor, tables: Vec<TableInfo>) -> Result<Scn, Error> {
         let schemas = self
             .get_schemas(&tables)?
             .into_iter()
@@ -235,7 +275,7 @@ impl Connector {
                         })
                         .is_err()
                 {
-                    return Ok(());
+                    return self.get_scn_and_commit();
                 }
             }
 
@@ -248,18 +288,144 @@ impl Connector {
                     })
                     .is_err()
             {
-                return Ok(());
+                return self.get_scn_and_commit();
             }
         }
 
+        self.get_scn_and_commit()
+    }
+
+    fn get_scn_and_commit(&mut self) -> Result<Scn, Error> {
+        let sql = "SELECT DBMS_FLASHBACK.GET_SYSTEM_CHANGE_NUMBER() FROM DUAL";
+        let scn = self.connection.query_row_as::<Scn>(sql, &[])?;
         self.connection.commit()?;
-        Ok(())
+        Ok(scn)
+    }
+
+    pub fn replicate(
+        &mut self,
+        ingestor: &Ingestor,
+        tables: Vec<TableInfo>,
+        schemas: Vec<Schema>,
+        checkpoint: Scn,
+        con_id: Option<u32>,
+    ) -> Result<(), Error> {
+        match self.replicator {
+            OracleReplicator::LogMiner {
+                poll_interval_in_milliseconds,
+            } => self.replicate_log_miner(
+                ingestor,
+                tables,
+                schemas,
+                checkpoint,
+                con_id,
+                Duration::from_millis(poll_interval_in_milliseconds),
+            ),
+            OracleReplicator::DozerLogReader => unimplemented!("dozer log reader"),
+        }
+    }
+
+    fn replicate_log_miner(
+        &mut self,
+        ingestor: &Ingestor,
+        tables: Vec<TableInfo>,
+        schemas: Vec<Schema>,
+        mut checkpoint: Scn,
+        con_id: Option<u32>,
+        poll_interval: Duration,
+    ) -> Result<(), Error> {
+        let table_pair_to_index = tables
+            .into_iter()
+            .enumerate()
+            .map(|(index, table)| {
+                let schema = table.schema.unwrap_or_else(|| self.username.clone());
+                ((schema, table.name), index)
+            })
+            .collect::<HashMap<_, _>>();
+
+        loop {
+            let start_scn = checkpoint + 1;
+            let mut logs = replicate::merge::list_and_join_online_log(&self.connection, start_scn)?;
+            if !replicate::log_contains_scn(logs.first(), start_scn) {
+                info!(
+                    "Online log is empty or doesn't contain start scn {}, listing and merging archived logs",
+                    start_scn
+                );
+                logs = replicate::merge::list_and_merge_archived_log(
+                    &self.connection,
+                    start_scn,
+                    logs,
+                )?;
+            }
+
+            if logs.is_empty() {
+                info!("No logs found, retrying after {:?}", poll_interval);
+                std::thread::sleep(poll_interval);
+                continue;
+            }
+
+            while !logs.is_empty() {
+                let log = logs.remove(0);
+                info!(
+                    "Replicating log {} ({}, {}), starting from {}",
+                    log.name, log.first_change, log.next_change, start_scn
+                );
+
+                let (sender, receiver) = std::sync::mpsc::sync_channel(100);
+                let handle = {
+                    let connection = self.connection.clone();
+                    let log = log.clone();
+                    let table_pair_to_index = table_pair_to_index.clone();
+                    let schemas = schemas.clone();
+                    std::thread::spawn(move || {
+                        let miner = replicate::log_miner::LogMiner::new();
+                        miner.mine(
+                            &connection,
+                            &log,
+                            start_scn,
+                            &table_pair_to_index,
+                            &schemas,
+                            con_id,
+                            sender,
+                        )
+                    })
+                };
+
+                for content in receiver {
+                    match content? {
+                        MappedLogManagerContent::Commit(scn) => checkpoint = scn,
+                        MappedLogManagerContent::Op { table_index, op } => {
+                            if ingestor
+                                .blocking_handle_message(IngestionMessage::OperationEvent {
+                                    table_index,
+                                    op,
+                                    id: Some(OpIdentifier::new(checkpoint, 0)),
+                                })
+                                .is_err()
+                            {
+                                return Ok(());
+                            }
+                        }
+                    }
+                }
+                handle.join().unwrap();
+
+                if logs.is_empty() {
+                    info!("Replicated all logs, retrying after {:?}", poll_interval);
+                    std::thread::sleep(poll_interval);
+                } else {
+                    // If there are more logs, we need to start from the next log's first change.
+                    checkpoint = log.next_change - 1;
+                }
+            }
+        }
     }
 }
 
 mod join;
 mod listing;
 mod mapping;
+mod replicate;
 
 const TEMP_DOZER_TYPE_NAME: &str = "TEMP_DOZER_TYPE";
 
@@ -295,7 +461,11 @@ mod tests {
     #[test]
     #[ignore]
     fn test_connector() {
-        use dozer_ingestion_connector::{IngestionConfig, Ingestor};
+        use dozer_ingestion_connector::{
+            dozer_types::models::ingestion_types::OracleReplicator, IngestionConfig, Ingestor,
+        };
+
+        env_logger::init();
 
         let mut connector = super::Connector::new(
             "oracle".into(),
@@ -303,16 +473,41 @@ mod tests {
             "123",
             "localhost:1521/ORCLPDB1",
             1,
+            OracleReplicator::DozerLogReader,
         )
         .unwrap();
-        let _con_id = connector.get_con_id("ORCLPDB1").unwrap();
         let tables = connector.list_tables(&["CHUBEI".into()]).unwrap();
         let tables = connector.list_columns(tables).unwrap();
         let schemas = connector.get_schemas(&tables).unwrap();
         let schemas = schemas.into_iter().map(Result::unwrap).collect::<Vec<_>>();
-        dbg!(schemas);
+        dbg!(&schemas);
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
-        let handle = std::thread::spawn(move || connector.snapshot(&ingestor, tables));
+        let handle = {
+            let tables = tables.clone();
+            std::thread::spawn(move || connector.snapshot(&ingestor, tables))
+        };
+        for message in iterator {
+            dbg!(message);
+        }
+        let checkpoint = handle.join().unwrap().unwrap();
+
+        let mut connector = super::Connector::new(
+            "oracle".into(),
+            "C##DOZER".into(),
+            "123",
+            "localhost:1521/ORCLCDB",
+            1,
+            OracleReplicator::LogMiner {
+                poll_interval_in_milliseconds: 1000,
+            },
+        )
+        .unwrap();
+        let con_id = connector.get_con_id("ORCLPDB1").unwrap();
+        let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
+        let schemas = schemas.into_iter().map(|schema| schema.schema).collect();
+        let handle = std::thread::spawn(move || {
+            connector.replicate(&ingestor, tables, schemas, checkpoint, Some(con_id))
+        });
         for message in iterator {
             dbg!(message);
         }

@@ -45,24 +45,27 @@ fn map_data_type(
         table_name: table_name.to_string(),
         column_name: column_name.to_string(),
     })?;
-    let typ = match data_type {
-        "VARCHAR2" => Ok(FieldType::String),
-        "NVARCHAR2" => unimplemented!("convert NVARCHAR2 to String"),
-        "NUMBER" => Ok(FieldType::Decimal),
-        "FLOAT" => Ok(FieldType::Float),
-        "DATE" => Ok(FieldType::Date),
-        "BINARY_FLOAT" => Ok(FieldType::Float),
-        "BINARY_DOUBLE" => Ok(FieldType::Float),
-        "TIMESTAMP" => Ok(FieldType::Timestamp),
-        "RAW" => Ok(FieldType::Binary),
-        "ROWID" => Ok(FieldType::String),
-        "CHAR" => Ok(FieldType::String),
-        "NCHAR" => unimplemented!("convert NCHAR to String"),
-        "CLOB" => Ok(FieldType::String),
-        "NCLOB" => unimplemented!("convert NCLOB to String"),
-        "BLOB" => Ok(FieldType::Binary),
-        other => Err(DataTypeError::UnsupportedDataType(other.to_string())),
-    }?;
+    let typ = if data_type.starts_with("TIMESTAMP") {
+        FieldType::Timestamp
+    } else {
+        match data_type {
+            "VARCHAR2" => Ok(FieldType::String),
+            "NVARCHAR2" => unimplemented!("convert NVARCHAR2 to String"),
+            "NUMBER" => Ok(FieldType::Decimal),
+            "FLOAT" => Ok(FieldType::Float),
+            "DATE" => Ok(FieldType::Date),
+            "BINARY_FLOAT" => Ok(FieldType::Float),
+            "BINARY_DOUBLE" => Ok(FieldType::Float),
+            "RAW" => Ok(FieldType::Binary),
+            "ROWID" => Ok(FieldType::String),
+            "CHAR" => Ok(FieldType::String),
+            "NCHAR" => unimplemented!("convert NCHAR to String"),
+            "CLOB" => Ok(FieldType::String),
+            "NCLOB" => unimplemented!("convert NCLOB to String"),
+            "BLOB" => Ok(FieldType::Binary),
+            other => Err(DataTypeError::UnsupportedDataType(other.to_string())),
+        }?
+    };
     let nullable = nullable != Some("N");
     Ok(MappedColumn { typ, nullable })
 }
