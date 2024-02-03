@@ -235,5 +235,9 @@ async fn list_endpoint_paths(endpoints: web::Data<Vec<String>>) -> web::Json<Vec
     web::Json(endpoints.get_ref().clone())
 }
 
+// docker run  \
+// -v ~/aerospike_esp/aerospike-esp-outbound.yml /etc/aerospike-esp-outbound/aerospike-esp-outbound.yml \
+// aerospike/aerospike-esp-outbound:2.3.0
+
 #[cfg(test)]
 mod tests;

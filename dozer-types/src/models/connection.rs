@@ -211,6 +211,8 @@ fn get_sslmode(mode: String) -> Result<SslMode, DeserializationError> {
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone, Hash)]
 pub struct AerospikeConnection {
     pub hosts: String,
+    pub namespace: String,
+    pub sets: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]

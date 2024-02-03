@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use dozer_ingestion_aerospike::connector::AerospikeConnector;
 #[cfg(feature = "ethereum")]
 use dozer_ingestion_connector::dozer_types::models::ingestion_types::EthProviderConfig;
 use dozer_ingestion_connector::dozer_types::{
@@ -141,11 +142,11 @@ pub fn get_connector(
             runtime,
             javascript_config,
         ))),
+        ConnectionConfig::Aerospike(config) => Ok(Box::new(AerospikeConnector::new(config))),
         ConnectionConfig::Oracle(oracle_config) => Ok(Box::new(OracleConnector::new(
             connection.name,
             oracle_config,
         ))),
-        ConnectionConfig::Aerospike(_) => Err(ConnectorError::Unsupported("aerospike".to_owned())),
     }
 }
 

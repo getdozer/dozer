@@ -128,11 +128,22 @@
     "AerospikeConnection": {
       "type": "object",
       "required": [
-        "hosts"
+        "hosts",
+        "namespace",
+        "sets"
       ],
       "properties": {
         "hosts": {
           "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "sets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },

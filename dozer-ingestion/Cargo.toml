@@ -19,6 +19,7 @@ dozer-ingestion-mysql = { path = "./mysql" }
 dozer-ingestion-object-store = { path = "./object-store" }
 dozer-ingestion-postgres = { path = "./postgres" }
 dozer-ingestion-snowflake = { path = "./snowflake", optional = true }
+dozer-ingestion-aerospike = { path = "./aerospike" }
 dozer-ingestion-webhook = { path = "./webhook" }
 dozer-ingestion-oracle = { path = "./oracle" }
 

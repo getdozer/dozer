@@ -1316,6 +1316,8 @@ mod tests {
             .field(f("json", FieldType::Json), false);
         let connection_config = AerospikeConnection {
             hosts: "localhost:3000".into(),
+            namespace: "test".into(),
+            sets: vec![set.to_owned()],
         };
         let factory = AerospikeSinkFactory::new(
             connection_config,

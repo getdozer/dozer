@@ -44,7 +44,9 @@ impl SinkFactory for DummySinkFactory {
             .map(|(index, _)| index);
         Ok(Box::new(DummySink {
             inserted_at_index,
-            ..Default::default()
+            previous_started: Instant::now(),
+            count: 0,
+            snapshotting_started_instant: HashMap::new(),
         }))
     }
 
@@ -53,10 +55,12 @@ impl SinkFactory for DummySinkFactory {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct DummySink {
     snapshotting_started_instant: HashMap<String, Instant>,
     inserted_at_index: Option<usize>,
+    count: usize,
+    previous_started: Instant,
 }
 
 impl Sink for DummySink {
@@ -66,8 +70,22 @@ impl Sink for DummySink {
         _record_store: &ProcessorRecordStore,
         op: OperationWithId,
     ) -> Result<(), BoxedError> {
+        if self.count % 1000 == 0 {
+            if self.count > 0 {
+                info!(
+                    "Rate: {:.0} op/s, Processed {} records. Elapsed {:?}",
+                    1000.0 / self.previous_started.elapsed().as_secs_f64(),
+                    self.count,
+                    self.previous_started.elapsed(),
+                );
+            }
+            self.previous_started = Instant::now();
+        }
+
+        self.count += 1;
         if let Some(inserted_at_index) = self.inserted_at_index {
             if let Operation::Insert { new } = op.op {
+                info!("Received record: {:?}", new);
                 let value = &new.values[inserted_at_index];
                 if let Some(inserted_at) = value.to_timestamp() {
                     let latency = Local::now().naive_utc() - inserted_at.naive_utc();
