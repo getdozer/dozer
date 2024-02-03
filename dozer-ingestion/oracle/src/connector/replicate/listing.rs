@@ -13,7 +13,7 @@ pub struct ArchivedLog {
 
 impl ArchivedLog {
     pub fn list(connection: &Connection, start_scn: Scn) -> Result<Vec<ArchivedLog>, Error> {
-        let sql = "SELECT NAME, SEQUENCE#, FIRST_CHANGE#, NEXT_CHANGE# FROM V$ARCHIVED_LOG WHERE NEXT_CHANGE# > :start_scn ORDER BY SEQUENCE# ASC";
+        let sql = "SELECT NAME, SEQUENCE#, FIRST_CHANGE#, NEXT_CHANGE# FROM V$ARCHIVED_LOG WHERE NEXT_CHANGE# > :start_scn AND STATUS = 'A' ORDER BY SEQUENCE# ASC";
         let rows = connection
             .query_as::<(String, u32, Scn, Scn)>(sql, &[&start_scn])
             .unwrap();
