@@ -4,7 +4,6 @@ use dozer_ingestion::{
     get_connector, CdcType, Connector, IngestionIterator, TableIdentifier, TableInfo,
 };
 use dozer_ingestion::{IngestionConfig, Ingestor};
-
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::log::{error, info};
@@ -15,7 +14,8 @@ use dozer_types::thiserror::{self, Error};
 use dozer_types::tracing::{span, Level};
 use dozer_types::types::{Operation, Schema, SourceDefinition};
 use futures::stream::{AbortHandle, Abortable, Aborted};
-use metrics::{describe_counter, increment_counter};
+use metrics::counter;
+use metrics::describe_counter;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
@@ -306,7 +306,6 @@ async fn forward_message_to_pipeline(
                 labels.push("connection", connection_name.clone());
                 labels.push("table", table_name.clone());
                 const OPERATION_TYPE_LABEL: &str = "operation_type";
-                const BATCH_NUM_LABEL: &str = "batch_num";
                 match op {
                     Operation::Delete { .. } => {
                         labels.push(OPERATION_TYPE_LABEL, "delete");
@@ -317,13 +316,16 @@ async fn forward_message_to_pipeline(
                     Operation::Update { .. } => {
                         labels.push(OPERATION_TYPE_LABEL, "update");
                     }
-                    Operation::BatchInsert { new } => {
-                        labels.push(OPERATION_TYPE_LABEL, "batch_insert");
-                        labels.push(BATCH_NUM_LABEL, new.len().to_string());
-
+                    Operation::BatchInsert { .. } => {
+                        labels.push(OPERATION_TYPE_LABEL, "insert");
                     }
                 }
-                increment_counter!(SOURCE_OPERATION_COUNTER_NAME, labels);
+
+                let counter_number: u64 = match op {
+                    Operation::BatchInsert { new } => new.to_owned().len().try_into().unwrap_or(1),
+                    _ => 1,
+                };
+                counter!(SOURCE_OPERATION_COUNTER_NAME, counter_number, labels);
 
                 // Update counter
                 let counter = &mut counter[*table_index];
