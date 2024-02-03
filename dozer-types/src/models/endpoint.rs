@@ -101,7 +101,7 @@ pub struct Endpoint {
     pub table_name: String,
 
     /// endpoint kind
-    pub kind: EndpointKind,
+    pub config: EndpointKind,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
@@ -123,13 +123,13 @@ pub struct AerospikeDenormalizations {
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
 pub struct AerospikeSinkConfig {
-    pub namespace: String,
-    pub hosts: String,
+    pub connection: String,
     #[serde(default)]
     pub n_threads: Option<NonZeroUsize>,
     #[serde(default)]
-    pub set_name: String,
     pub denormalize: Vec<AerospikeDenormalizations>,
+    pub namespace: String,
+    pub set_name: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]

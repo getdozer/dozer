@@ -77,7 +77,7 @@ impl<'a> Executor<'a> {
 
         let mut executor_endpoints = vec![];
         for endpoint in endpoints {
-            let kind = match &endpoint.kind {
+            let kind = match &endpoint.config {
                 EndpointKind::Api(_) => {
                     let log_endpoint = create_log_endpoint(
                         contract,

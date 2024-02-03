@@ -45,7 +45,7 @@ use dozer_types::tracing::error;
 use futures::stream::FuturesUnordered;
 use futures::{FutureExt, StreamExt, TryFutureExt};
 use metrics::{describe_counter, describe_histogram};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 
 use std::sync::Arc;
@@ -103,8 +103,8 @@ impl SimpleOrchestrator {
         );
         let default_max_num_records = get_default_max_num_records(&self.config);
         let mut cache_endpoints = vec![];
-        for endpoint in &self.config.endpoints {
-            let EndpointKind::Api(api) = &endpoint.kind else {
+        for endpoint in &self.config.sinks {
+            let EndpointKind::Api(api) = &endpoint.config else {
                 continue;
             };
 
@@ -238,7 +238,7 @@ impl SimpleOrchestrator {
             &self.config.connections,
             &self.config.sources,
             self.config.sql.as_deref(),
-            &self.config.endpoints,
+            &self.config.sinks,
             get_checkpoint_options(&self.config),
             self.labels.clone(),
             &self.config.udfs,
@@ -288,8 +288,6 @@ impl SimpleOrchestrator {
             let shutdown = shutdown.clone();
             async move { dozer_lambda.run_lambda(shutdown).await }.boxed()
         });
-        let dozer_sinks = self.clone();
-        futures.push(async move { dozer_sinks.run_sinks(shutdown).await }.boxed());
 
         while let Some(result) = futures.next().await {
             result?;
@@ -325,53 +323,18 @@ impl SimpleOrchestrator {
         Ok(())
     }
 
-    pub async fn run_sinks(&self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError> {
-        let mut futures = FuturesUnordered::new();
-        let app_server_url = app_url(&self.config.api.app_grpc);
-        #[cfg_attr(not(feature = "snowflake"), allow(clippy::never_loop))]
-        for sink in self.config.sinks.iter() {
-            use dozer_types::models::sink_config::SinkConfig;
-            match sink {
-                SinkConfig::Snowflake(config) => {
-                    #[cfg(not(feature = "snowflake"))]
-                    {
-                        let _ = shutdown;
-                        let _ = config;
-                        let _ = app_server_url;
-                        futures.push(futures::future::ready(Ok::<(), OrchestrationError>(())));
-
-                        panic!("Dozer must be compiled with the \"snowflake\" feature to run the Snowflake sink");
-                    }
-                    #[cfg(feature = "snowflake")]
-                    {
-                        let mut sink = dozer_sinks::snowflake::SnowflakeSink::new(
-                            config.clone(),
-                            app_server_url.clone(),
-                        );
-                        let shutdown = shutdown.clone();
-                        let handle = tokio::spawn(async move {
-                            sink.run(shutdown).await;
-                            Ok::<(), OrchestrationError>(())
-                        });
-                        futures.push(flatten_join_handle(handle))
-                    }
-                }
-            }
-        }
-
-        while let Some(result) = futures.next().await {
-            result?;
-        }
-
-        Ok(())
-    }
-
     #[allow(clippy::type_complexity)]
     pub async fn list_connectors(
         &self,
+        connections: HashSet<String>,
     ) -> Result<HashMap<String, (Vec<TableInfo>, Vec<SourceSchema>)>, OrchestrationError> {
         let mut schema_map = HashMap::new();
-        for connection in &self.config.connections {
+        for connection in self
+            .config
+            .connections
+            .iter()
+            .filter(|conn| connections.contains(&conn.name))
+        {
             // We're not really going to start ingestion, so passing `None` as state here is OK.
             let mut connector = get_connector(self.runtime.clone(), connection.clone(), None)
                 .map_err(|e| ConnectorSourceFactoryError::Connector(e.into()))?;
@@ -423,7 +386,7 @@ impl SimpleOrchestrator {
         // Calculate schemas.
         let endpoint_and_logs = self
             .config
-            .endpoints
+            .sinks
             .iter()
             // We're not really going to run the pipeline, so we don't create logs.
             .map(|endpoint| EndpointLog {
@@ -457,7 +420,7 @@ impl SimpleOrchestrator {
             version,
             &dag_schemas,
             &self.config.connections,
-            &self.config.endpoints,
+            &self.config.sinks,
             enable_token,
             enable_on_event,
         )?;

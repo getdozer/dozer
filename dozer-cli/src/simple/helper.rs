@@ -19,9 +19,9 @@ pub fn validate_config(config: &Config) -> Result<(), OrchestrationError> {
     );
     print_api_config(&config.api);
 
-    validate_endpoints(&config.endpoints)?;
+    validate_endpoints(&config.sinks)?;
 
-    print_api_endpoints(&config.endpoints);
+    print_api_endpoints(&config.sinks);
     Ok(())
 }
 
@@ -70,7 +70,7 @@ pub fn print_api_endpoints(endpoints: &[Endpoint]) {
 
     table_parent.add_row(row!["Path", "Name"]);
     for endpoint in endpoints {
-        if let EndpointKind::Api(api) = &endpoint.kind {
+        if let EndpointKind::Api(api) = &endpoint.config {
             table_parent.add_row(row![api.path, endpoint.table_name]);
         }
     }

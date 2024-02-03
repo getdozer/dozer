@@ -81,9 +81,9 @@ impl Client {
             } => {
                 let rest_path = self
                     .config
-                    .endpoints
+                    .sinks
                     .iter()
-                    .find_map(|e| match &e.kind {
+                    .find_map(|e| match &e.config {
                         EndpointKind::Api(api) => {
                             if &e.table_name == table_name {
                                 Some(api)

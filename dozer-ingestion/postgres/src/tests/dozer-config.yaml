@@ -38,10 +38,10 @@ sources:
       - nasdaq_symbol
       - next_shares
     connection: stocks
-endpoints:
+sinks:
   # Direct from source
   - table_name: stocks
-    kind: !Dummy
+    config: !Dummy
   # Direct from source
   - table_name: stocks_meta
-    kind: !Dummy
+    config: !Dummy

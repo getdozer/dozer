@@ -212,9 +212,9 @@ async fn create_nested_dozer_server(
             schema: None,
             refresh_config: Default::default(),
         }],
-        endpoints: vec![Endpoint {
+        sinks: vec![Endpoint {
             table_name: table_name.clone(),
-            kind: EndpointKind::Api(ApiEndpoint {
+            config: EndpointKind::Api(ApiEndpoint {
                 path: "/test".to_owned(),
                 index: Default::default(),
                 conflict_resolution: Default::default(),

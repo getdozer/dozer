@@ -121,7 +121,6 @@ pub enum RunCommands {
         long_about = "Run lambda functions. Lambda functions are JavaScript or Python functions that are called when a new operation is output."
     )]
     Lambda,
-    Sinks,
 }
 
 #[derive(Debug, Args)]

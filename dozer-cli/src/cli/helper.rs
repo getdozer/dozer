@@ -14,7 +14,7 @@ use dozer_types::serde_json;
 use dozer_types::tracing::info;
 use dozer_types::{models::config::Config, serde_yaml};
 use handlebars::Handlebars;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::env;
 use std::io::{self, Read};
 use std::sync::Arc;
@@ -64,9 +64,14 @@ pub async fn list_sources(
 ) -> Result<(), OrchestrationError> {
     let (config, loaded_files) =
         init_config(config_paths, config_token, config_overrides, ignore_pipe).await?;
-    let dozer = init_dozer(runtime, config, Default::default())?;
     info!("Loaded config from: {}", loaded_files.join(", "));
-    let connection_map = dozer.list_connectors().await?;
+    let source_connections: HashSet<String> = config
+        .sources
+        .iter()
+        .map(|source| source.connection.clone())
+        .collect();
+    let dozer = init_dozer(runtime, config, Default::default())?;
+    let connection_map = dozer.list_connectors(source_connections).await?;
     let mut table_parent = Table::new();
     for (connection_name, (tables, schemas)) in connection_map {
         let mut first_table_found = false;

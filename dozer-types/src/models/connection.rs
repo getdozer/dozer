@@ -208,6 +208,11 @@ fn get_sslmode(mode: String) -> Result<SslMode, DeserializationError> {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone, Hash)]
+pub struct AerospikeConnection {
+    pub hosts: String,
+}
+
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub enum ConnectionConfig {
@@ -251,6 +256,7 @@ pub enum ConnectionConfig {
     Webhook(WebhookConfig),
 
     Oracle(OracleConfig),
+    Aerospike(AerospikeConnection),
 }
 
 impl ConnectionConfig {
@@ -270,6 +276,7 @@ impl ConnectionConfig {
             ConnectionConfig::JavaScript(_) => "javascript".to_string(),
             ConnectionConfig::Webhook(_) => "webhook".to_string(),
             ConnectionConfig::Oracle(_) => "oracle".to_string(),
+            ConnectionConfig::Aerospike(_) => "aerospike".to_string(),
         }
     }
 }

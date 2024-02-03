@@ -23,6 +23,6 @@ sql: |
   INTO orders_data
   FROM orders;
 
-endpoints:
+sinks:
   - table_name: customers_data
-    kind: !Dummy
+    config: !Dummy

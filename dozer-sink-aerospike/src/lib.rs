@@ -1,21 +1,22 @@
 use crossbeam_channel::{bounded, Receiver, Sender};
 use dozer_types::json_types::{DestructuredJsonRef, JsonValue};
+use dozer_types::models::connection::AerospikeConnection;
 use dozer_types::node::OpIdentifier;
 use std::alloc::{handle_alloc_error, Layout};
 use std::ffi::{c_char, c_void, CStr, CString, NulError};
 use std::fmt::Display;
 use std::mem::{self, MaybeUninit};
 use std::num::NonZeroUsize;
-use std::ptr::{addr_of, null, null_mut, NonNull};
+use std::ptr::{addr_of, null, NonNull};
 use std::sync::Arc;
 use std::thread::available_parallelism;
 use std::time::{Duration, Instant};
 use std::{collections::HashMap, fmt::Debug};
 
 use aerospike_client_sys::{
-    aerospike, aerospike_batch_write, aerospike_connect, aerospike_destroy, aerospike_key_get,
-    aerospike_key_put, aerospike_key_remove, aerospike_key_select, aerospike_new,
-    as_arraylist_append, as_arraylist_destroy, as_arraylist_new, as_batch_record, as_batch_records,
+    aerospike, aerospike_batch_write, aerospike_connect, aerospike_destroy, aerospike_key_put,
+    aerospike_key_remove, aerospike_key_select, aerospike_new, as_arraylist_append,
+    as_arraylist_destroy, as_arraylist_new, as_batch_record, as_batch_records,
     as_batch_records_destroy, as_batch_write_record, as_bin_value, as_boolean_new, as_bytes_new,
     as_bytes_new_wrap, as_bytes_set, as_bytes_type, as_bytes_type_e_AS_BYTES_STRING, as_config,
     as_config_add_hosts, as_config_init, as_double_new, as_error, as_integer_new, as_key,
@@ -244,12 +245,16 @@ impl Drop for Client {
 
 #[derive(Debug)]
 pub struct AerospikeSinkFactory {
+    connection_config: AerospikeConnection,
     config: AerospikeSinkConfig,
 }
 
 impl AerospikeSinkFactory {
-    pub fn new(config: AerospikeSinkConfig) -> Self {
-        Self { config }
+    pub fn new(connection_config: AerospikeConnection, config: AerospikeSinkConfig) -> Self {
+        Self {
+            connection_config,
+            config,
+        }
     }
 }
 
@@ -268,7 +273,7 @@ impl SinkFactory for AerospikeSinkFactory {
         &self,
         mut input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn dozer_core::node::Sink>, BoxedError> {
-        let hosts = CString::new(self.config.hosts.as_str())?;
+        let hosts = CString::new(self.connection_config.hosts.as_str())?;
         let client = Client::new(&hosts).map_err(AerospikeSinkError::from)?;
         debug_assert_eq!(input_schemas.len(), 1);
         let schema = input_schemas.remove(&DEFAULT_PORT_HANDLE).unwrap();
@@ -1305,13 +1310,19 @@ mod tests {
                 false,
             )
             .field(f("json", FieldType::Json), false);
-        let factory = AerospikeSinkFactory::new(AerospikeSinkConfig {
-            namespace: "test".into(),
+        let connection_config = AerospikeConnection {
             hosts: "localhost:3000".into(),
-            set_name: set.to_owned(),
-            n_threads: Some(1.try_into().unwrap()),
-            denormalize: vec![],
-        });
+        };
+        let factory = AerospikeSinkFactory::new(
+            connection_config,
+            AerospikeSinkConfig {
+                connection: "".to_owned(),
+                n_threads: Some(1.try_into().unwrap()),
+                denormalize: vec![],
+                namespace: "test".into(),
+                set_name: set.to_owned(),
+            },
+        );
         factory
             .build([(DEFAULT_PORT_HANDLE, schema)].into())
             .await
