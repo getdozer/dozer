@@ -5,11 +5,11 @@ use dozer_core::{
     DEFAULT_PORT_HANDLE,
 };
 use dozer_types::{
-    chrono,
+    chrono::{self, DateTime, NaiveDate, Utc},
     errors::internal::BoxedError,
     models::ingestion_types::OracleConfig,
     tonic::async_trait,
-    types::{Field, Schema},
+    types::{Field, FieldType, Schema},
 };
 use oracle::{
     sql_type::{OracleType, ToSql},
@@ -21,6 +21,7 @@ struct OracleSink {
     conn: Connection,
     insert_append: String,
     pk: Vec<usize>,
+    field_types: Vec<FieldType>,
     insert: String,
     update: String,
     delete: String,
@@ -128,35 +129,29 @@ impl SinkFactory for OracleSinkFactory {
         );
         let delete = format!("DELETE FROM \"{table_name}\" WHERE {}", pk_select(1));
 
-        dbg!(&insert, &insert_append, &update, &delete);
+        let field_types = schema.fields.into_iter().map(|field| field.typ).collect();
         Ok(Box::new(OracleSink {
             conn: connection,
             insert_append,
             insert,
             update,
             delete,
+            field_types,
             pk: schema.primary_index,
         }))
     }
 }
 
-struct OraField(Option<Field>);
+struct OraField(Field, FieldType);
 impl OraField {
-    fn new(f: Field) -> Self {
-        let f = match f {
-            Field::Null => None,
-            _ => Some(f),
-        };
-        Self(f)
+    fn new(f: Field, typ: FieldType) -> Self {
+        Self(f, typ)
     }
 }
 
 impl ToSql for OraField {
     fn oratype(&self, conn: &Connection) -> oracle::Result<oracle::sql_type::OracleType> {
-        let Some(f) = &self.0 else {
-            return Ok(OracleType::Boolean);
-        };
-        match &f {
+        match &self.0 {
             Field::UInt(v) => v.oratype(conn),
             Field::Int(v) => v.oratype(conn),
             Field::Float(v) => v.oratype(conn),
@@ -166,16 +161,24 @@ impl ToSql for OraField {
             Field::Timestamp(v) => v.oratype(conn),
             Field::Date(v) => v.oratype(conn),
             Field::Duration(_) => Ok(OracleType::IntervalDS(9, 9)),
-            Field::Null => unreachable!("Should not try to convert null to oracle directly"),
+            Field::Null => match self.1 {
+                FieldType::UInt => 0u64.oratype(conn),
+                FieldType::Int => 0i64.oratype(conn),
+                FieldType::Float => 0f64.oratype(conn),
+                FieldType::Boolean => Ok(OracleType::Number(1, 0)),
+                FieldType::String | FieldType::Text => "".oratype(conn),
+                FieldType::Binary => Vec::<u8>::new().oratype(conn),
+                FieldType::Timestamp => DateTime::<Utc>::MAX_UTC.oratype(conn),
+                FieldType::Date => NaiveDate::MAX.oratype(conn),
+                FieldType::Duration => Ok(OracleType::IntervalDS(9, 9)),
+                _ => unimplemented!(),
+            },
             _ => unimplemented!(),
         }
     }
 
     fn to_sql(&self, val: &mut oracle::SqlValue) -> oracle::Result<()> {
-        let Some(f) = &self.0 else {
-            return val.set_null();
-        };
-        match &f {
+        match &self.0 {
             Field::UInt(v) => v.to_sql(val),
             Field::Int(v) => v.to_sql(val),
             Field::Float(v) => v.to_sql(val),
@@ -187,7 +190,7 @@ impl ToSql for OraField {
             Field::Duration(d) => chrono::Duration::from_std(d.0)
                 .map_err(|e| oracle::Error::OutOfRange(e.to_string()))
                 .and_then(|v| v.to_sql(val)),
-            Field::Null => unreachable!("Should not try to convert null to oracle directly"),
+            Field::Null => val.set_null(),
             _ => unimplemented!(),
         }
     }
@@ -212,9 +215,10 @@ impl Sink for OracleSink {
                 let fields = old
                     .values
                     .into_iter()
+                    .zip(&self.field_types)
                     .enumerate()
                     .filter_map(|(i, v)| self.pk.contains(&i).then_some(v))
-                    .map(OraField::new)
+                    .map(|(f, t)| OraField::new(f, *t))
                     .collect::<Vec<_>>();
                 self.conn
                     .statement(&self.delete)
@@ -226,7 +230,8 @@ impl Sink for OracleSink {
                 let fields = new
                     .values
                     .into_iter()
-                    .map(OraField::new)
+                    .zip(&self.field_types)
+                    .map(|(f, t)| OraField::new(f, *t))
                     .collect::<Vec<_>>();
                 self.conn
                     .statement(&self.insert)
@@ -238,14 +243,20 @@ impl Sink for OracleSink {
                 let fields = new
                     .values
                     .into_iter()
-                    .map(OraField::new)
+                    .zip(&self.field_types)
+                    .map(|(f, t)| OraField::new(f, *t))
                     .collect::<Vec<_>>();
 
                 let pk = old
                     .values
                     .iter()
+                    .zip(&self.field_types)
                     .enumerate()
-                    .filter_map(|(i, v)| self.pk.contains(&i).then_some(OraField::new(v.clone())))
+                    .filter_map(|(i, v)| {
+                        self.pk
+                            .contains(&i)
+                            .then_some(OraField::new(v.0.clone(), *v.1))
+                    })
                     .collect::<Vec<_>>();
                 let params = fields
                     .iter()
@@ -264,7 +275,8 @@ impl Sink for OracleSink {
                     let fields = record
                         .values
                         .into_iter()
-                        .map(OraField::new)
+                        .zip(&self.field_types)
+                        .map(|(f, t)| OraField::new(f, *t))
                         .collect::<Vec<_>>();
                     let params = fields.iter().map(|v| v as &dyn ToSql).collect::<Vec<_>>();
                     batch.append_row(&params)?;
