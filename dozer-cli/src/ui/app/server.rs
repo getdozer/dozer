@@ -106,16 +106,8 @@ struct AppUiServer {
 }
 
 impl AppUiServer {
-    pub async fn new(
-        receiver: Receiver<ConnectResponse>,
-        state: Arc<AppUIState>,
-    ) -> Result<AppUiServer, tonic::transport::Error> {
-        let result = Self { receiver, state };
-        result
-            .start(RunRequest { request: None })
-            .await
-            .expect("Could not start dozer");
-        Ok(result)
+    pub fn new(receiver: Receiver<ConnectResponse>, state: Arc<AppUIState>) -> AppUiServer {
+        Self { receiver, state }
     }
     async fn start(&self, req: RunRequest) -> Result<Response<Labels>, Status> {
         let state = self.state.clone();
@@ -220,7 +212,7 @@ pub async fn serve(
     let api_explorer_server: ApiExplorerServer = ApiExplorerServer {
         state: state.clone(),
     };
-    let app_ui_server = AppUiServer::new(receiver, state).await?;
+    let app_ui_server = AppUiServer::new(receiver, state);
     let contract_service = ContractServiceServer::new(contract_server);
     let code_service = CodeServiceServer::new(app_ui_server);
     let api_explorer_service = ApiExplorerServiceServer::new(api_explorer_server);

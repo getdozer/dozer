@@ -155,13 +155,15 @@ impl AppUIState {
     pub async fn get_current(&self) -> AppUiResponse {
         let dozer = self.dozer.read().await;
         let app = dozer.as_ref().map(|dozer| {
-            let connections = dozer
-                .dozer
-                .config
-                .connections
+            let config = &dozer.dozer.config;
+            let connections_in_source: Vec<String> = config
+                .sources
                 .iter()
-                .map(|c| c.name.clone())
+                .map(|source| source.connection.clone())
+                .collect::<std::collections::HashSet<String>>()
+                .into_iter()
                 .collect();
+
             let endpoints = dozer
                 .dozer
                 .config
@@ -178,7 +180,7 @@ impl AppUIState {
                 .is_some();
             AppUi {
                 app_name: dozer.dozer.config.app_name.clone(),
-                connections,
+                connections: connections_in_source,
                 endpoints,
                 enable_api_security,
             }

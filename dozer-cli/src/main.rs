@@ -85,7 +85,7 @@ fn run() -> Result<(), OrchestrationError> {
             Some(RunCommands::Lambda) => {
                 dozer.runtime.block_on(dozer.run_lambda(shutdown_receiver))
             }
-            Some(RunCommands::UI) => {
+            Some(RunCommands::AppUI) => {
                 dozer.runtime.block_on(ui::app::start_app_ui_server(
                     &dozer.runtime,
                     shutdown_receiver,
