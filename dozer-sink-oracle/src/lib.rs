@@ -67,8 +67,8 @@ impl SinkFactory for OracleSinkFactory {
                 // Should this be BINARY_DOUBLE?
                 dozer_types::types::FieldType::Float => "NUMBER",
                 dozer_types::types::FieldType::Boolean => "NUMBER",
-                dozer_types::types::FieldType::String => "NVARCHAR2(2000)",
-                dozer_types::types::FieldType::Text => "NVARCHAR2(2000)",
+                dozer_types::types::FieldType::String => "VARCHAR2(2000)",
+                dozer_types::types::FieldType::Text => "VARCHAR2(2000)",
                 dozer_types::types::FieldType::Binary => "RAW(1000)",
                 dozer_types::types::FieldType::Decimal => unimplemented!(),
                 dozer_types::types::FieldType::Timestamp => "TIMESTAMP(9) WITH TIME ZONE",
