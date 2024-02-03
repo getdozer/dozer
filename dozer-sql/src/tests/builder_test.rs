@@ -170,6 +170,10 @@ impl SinkFactory for TestSinkFactory {
     fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), BoxedError> {
         Ok(())
     }
+
+    fn type_name(&self) -> String {
+        "test".to_string()
+    }
 }
 
 #[derive(Debug)]

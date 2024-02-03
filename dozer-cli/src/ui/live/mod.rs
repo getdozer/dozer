@@ -1,10 +1,15 @@
-mod downloader;
 mod errors;
 mod server;
 pub mod state;
 mod watcher;
 use self::state::LiveState;
-use crate::{cli::types::Live, live::server::LIVE_PORT};
+use crate::{
+    cli::types::Live,
+    ui::{
+        downloader::{self, LIVE_APP_UI_DIR},
+        live::server::LIVE_PORT,
+    },
+};
 use dozer_api::shutdown::ShutdownReceiver;
 use dozer_types::{grpc_types::live::ConnectResponse, log::info};
 use std::sync::Arc;
@@ -13,7 +18,7 @@ pub use errors::LiveError;
 use futures::stream::{AbortHandle, Abortable};
 use tokio::runtime::Runtime;
 
-const WEB_PORT: u16 = 62999;
+const LIVE_WEB_PORT: u16 = 62999;
 pub async fn start_live_server(
     runtime: &Arc<Runtime>,
     shutdown: ShutdownReceiver,
@@ -29,10 +34,10 @@ pub async fn start_live_server(
     downloader::fetch_latest_dozer_explorer_code().await?;
 
     if !live_flags.disable_live_ui {
-        let react_app_server =
-            downloader::start_react_app().map_err(LiveError::CannotStartUiServer)?;
+        let react_app_server = downloader::start_react_app(LIVE_WEB_PORT, LIVE_APP_UI_DIR)
+            .map_err(LiveError::CannotStartUiServer)?;
         tokio::spawn(react_app_server);
-        let browser_url = format!("http://localhost:{}", WEB_PORT);
+        let browser_url = format!("http://localhost:{}", LIVE_WEB_PORT);
 
         if webbrowser::open(&browser_url).is_err() {
             info!("Failed to open browser. ");

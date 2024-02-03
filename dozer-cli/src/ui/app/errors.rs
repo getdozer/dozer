@@ -1,4 +1,5 @@
 use crate::errors::{BuildError, CliError, OrchestrationError};
+use crate::ui::downloader::DownloaderError;
 use dozer_core::errors::ExecutionError;
 use dozer_sql::errors::PipelineError;
 
@@ -7,7 +8,7 @@ use dozer_types::thiserror::Error;
 use zip::result::ZipError;
 
 #[derive(Error, Debug)]
-pub enum LiveError {
+pub enum AppUIError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
     #[error("Notify error: {0}")]
@@ -15,11 +16,22 @@ pub enum LiveError {
     #[error(transparent)]
     CliError(#[from] CliError),
 
+    #[error("Cannot pull docker image: {0}")]
+    CannotPullDockerImage(String),
+    #[error("Cannot run docker image: {0}")]
+    CannotRunDockerImage(String),
+    #[error("Docker not installed")]
+    DockerNotInstalled,
+    #[error("Cannot stop docker container: {0}")]
+    CannotStopDockerContainer(String),
+    #[error("Cannot remove docker container: {0}")]
+    CannotRemoveDockerContainer(String),
+
     #[error("Dozer is not initialized")]
     NotInitialized,
     #[error("Connection {0} not found")]
     ConnectionNotFound(String),
-    #[error("Error in initializing live server: {0}")]
+    #[error("Error in initializing app ui server: {0}")]
     Transport(#[from] tonic::transport::Error),
     #[error("Error in reading or extracting from Zip file: {0}")]
     ZipError(#[from] ZipError),
@@ -36,10 +48,13 @@ pub enum LiveError {
     ExecutionError(#[from] ExecutionError),
     #[error(transparent)]
     OrchestrationError(Box<OrchestrationError>),
+
+    #[error(transparent)]
+    DownloaderError(#[from] DownloaderError),
 }
 
-impl From<OrchestrationError> for LiveError {
+impl From<OrchestrationError> for AppUIError {
     fn from(error: OrchestrationError) -> Self {
-        LiveError::OrchestrationError(Box::new(error))
+        AppUIError::OrchestrationError(Box::new(error))
     }
 }

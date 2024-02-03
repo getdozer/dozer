@@ -63,6 +63,10 @@ impl SinkFactory for LogSinkFactory {
             self.labels.clone(),
         )))
     }
+
+    fn type_name(&self) -> String {
+        "log".to_string()
+    }
 }
 
 #[derive(Debug)]

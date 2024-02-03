@@ -47,6 +47,10 @@ impl SinkFactory for DummySinkFactory {
             ..Default::default()
         }))
     }
+
+    fn type_name(&self) -> String {
+        "dummy".to_string()
+    }
 }
 
 #[derive(Debug, Default)]

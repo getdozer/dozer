@@ -1,4 +1,4 @@
-use std::{borrow::Cow, mem::swap, sync::Arc};
+use std::{borrow::Cow, mem::swap, sync::Arc, usize};
 
 use crossbeam::channel::Receiver;
 use daggy::NodeIndex;
@@ -7,7 +7,7 @@ use dozer_types::{
     node::{NodeHandle, OpIdentifier},
     types::{Operation, OperationWithId},
 };
-use metrics::{describe_counter, describe_histogram, histogram, increment_counter};
+use metrics::{counter, describe_counter, describe_gauge, gauge};
 
 use crate::{
     builder_dag::NodeKind,
@@ -43,7 +43,7 @@ pub struct SinkNode {
 }
 
 const SINK_OPERATION_COUNTER_NAME: &str = "sink_operation";
-const PIPELINE_LATENCY_HISTOGRAM_NAME: &str = "pipeline_latency";
+const PIPELINE_LATENCY_GAUGE_NAME: &str = "pipeline_latency";
 
 impl SinkNode {
     pub fn new(dag: &mut ExecutionDag, node_index: NodeIndex) -> Self {
@@ -61,8 +61,8 @@ impl SinkNode {
             SINK_OPERATION_COUNTER_NAME,
             "Number of operation processed by the sink"
         );
-        describe_histogram!(
-            PIPELINE_LATENCY_HISTOGRAM_NAME,
+        describe_gauge!(
+            PIPELINE_LATENCY_GAUGE_NAME,
             "The pipeline processing latency in seconds"
         );
 
@@ -119,20 +119,23 @@ impl ReceiverLoop for SinkNode {
                 labels.push(OPERATION_TYPE_LABEL, "update");
             }
             Operation::BatchInsert { .. } => {
-                labels.push(OPERATION_TYPE_LABEL, "batch_insert");
+                labels.push(OPERATION_TYPE_LABEL, "insert");
             }
         }
 
         if let Err(e) = self.sink.process(
             self.port_handles[index],
             self.epoch_manager.record_store(),
-            op,
+            op.to_owned(),
         ) {
             self.error_manager.report(e);
         }
 
-        increment_counter!(SINK_OPERATION_COUNTER_NAME, labels);
-
+        let counter_number: u64 = match op.op {
+            Operation::BatchInsert { new } => new.to_owned().len().try_into().unwrap_or(1),
+            _ => 1,
+        };
+        counter!(SINK_OPERATION_COUNTER_NAME, counter_number, labels);
         Ok(())
     }
 
@@ -145,7 +148,7 @@ impl ReceiverLoop for SinkNode {
         if let Ok(duration) = epoch.decision_instant.elapsed() {
             let mut labels = self.labels.labels().clone();
             labels.push("endpoint", self.node_handle.id.clone());
-            histogram!(PIPELINE_LATENCY_HISTOGRAM_NAME, duration, labels);
+            gauge!(PIPELINE_LATENCY_GAUGE_NAME, duration.as_secs_f64(), labels);
         }
 
         if let Some(queue) = epoch.common_info.sink_persist_queue.as_ref() {

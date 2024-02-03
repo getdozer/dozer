@@ -190,6 +190,10 @@ impl SinkFactory for TestSinkFactory {
     ) -> Result<Box<dyn Sink>, BoxedError> {
         Ok(Box::new(TestSink::new(self.output.to_owned())))
     }
+
+    fn type_name(&self) -> String {
+        "test".to_string()
+    }
 }
 
 #[derive(Debug)]

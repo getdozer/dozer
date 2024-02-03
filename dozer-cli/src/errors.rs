@@ -9,7 +9,7 @@ use tonic::Code::NotFound;
 
 use crate::{
     errors::CloudError::{ApplicationNotFound, CloudServiceError},
-    live::LiveError,
+    ui::{app::AppUIError, live::LiveError},
 };
 use dozer_api::{
     errors::{ApiInitError, AuthError, GenerationError, GrpcError},
@@ -99,6 +99,8 @@ pub enum OrchestrationError {
     FailedToReadOrganisationName(#[source] io::Error),
     #[error(transparent)]
     LiveError(#[from] LiveError),
+    #[error(transparent)]
+    AppUIError(#[from] AppUIError),
     #[error("{LOCK_FILE} is out of date")]
     LockedOutdatedLockfile,
     #[error("{LOCK_FILE} does not exist. `--locked` requires a lock file.")]

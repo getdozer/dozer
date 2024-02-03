@@ -10,11 +10,15 @@ use crate::errors::BuildError;
 pub fn modify_schema(
     table_name: &str,
     schema: &Schema,
-    api_endpoint: &ApiEndpoint,
+    api_endpoint: Option<&ApiEndpoint>,
 ) -> Result<SchemaWithIndex, BuildError> {
     let mut schema = schema.clone();
     // Generated Cache index based on api_index
-    let configured_index = create_primary_indexes(&schema.fields, &api_endpoint.index.primary_key)?;
+    let primary_key = match api_endpoint {
+        Some(api_endpoint) => api_endpoint.index.primary_key.clone(),
+        None => vec![],
+    };
+    let configured_index = create_primary_indexes(&schema.fields, &primary_key)?;
     // Generated schema in SQL
     let upstream_index = schema.primary_index.clone();
 
@@ -35,9 +39,11 @@ pub fn modify_schema(
     };
 
     schema.primary_index = index;
-
-    let secondary_indexes =
-        generate_secondary_indexes(&schema.fields, &api_endpoint.index.secondary)?;
+    let secondary_index_config = match api_endpoint {
+        Some(api_endpoint) => api_endpoint.index.secondary.clone(),
+        None => SecondaryIndexConfig::default(),
+    };
+    let secondary_indexes = generate_secondary_indexes(&schema.fields, &secondary_index_config)?;
 
     Ok((schema, secondary_indexes))
 }

@@ -122,7 +122,7 @@ impl CacheBuilderImpl {
 
         const OPERATION_TYPE_LABEL: &str = "operation_type";
         const SNAPSHOTTING_LABEL: &str = "snapshotting";
-
+        const BATCH_NUM_LABEL: &str = "batch_num";
         assert!(op_and_pos.pos == self.next_log_position);
         self.next_log_position += 1;
 
@@ -196,6 +196,8 @@ impl CacheBuilderImpl {
                         SNAPSHOTTING_LABEL,
                         snapshotting_str(!self.building.is_snapshotting_done()?),
                     );
+                    labels.push(BATCH_NUM_LABEL, new.len().to_string());
+
                     increment_counter!(CACHE_OPERATION_COUNTER_NAME, labels);
 
                     for record in new {

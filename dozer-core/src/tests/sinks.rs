@@ -51,6 +51,10 @@ impl SinkFactory for CountingSinkFactory {
             running: self.running.clone(),
         }))
     }
+
+    fn type_name(&self) -> String {
+        "counting".to_string()
+    }
 }
 
 #[derive(Debug)]
@@ -139,6 +143,10 @@ impl SinkFactory for ConnectivityTestSinkFactory {
     ) -> Result<Box<dyn Sink>, BoxedError> {
         unimplemented!("This struct is for connectivity test, only input ports are defined")
     }
+
+    fn type_name(&self) -> String {
+        "connectivity_test".to_string()
+    }
 }
 
 #[derive(Debug)]
@@ -159,5 +167,9 @@ impl SinkFactory for NoInputPortSinkFactory {
         _input_schemas: HashMap<PortHandle, Schema>,
     ) -> Result<Box<dyn Sink>, BoxedError> {
         unimplemented!("This struct is for connectivity test, only input ports are defined")
+    }
+
+    fn type_name(&self) -> String {
+        "no_input_port".to_string()
     }
 }
