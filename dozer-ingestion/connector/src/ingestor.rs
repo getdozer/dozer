@@ -1,7 +1,7 @@
 use dozer_types::models::ingestion_types::IngestionMessage;
-use std::time::Duration;
+use std::{error::Error, fmt::Display, time::Duration};
 use tokio::{
-    sync::mpsc::{channel, error::SendError, Receiver, Sender},
+    sync::mpsc::{channel, Receiver, Sender},
     time::timeout,
 };
 
@@ -45,6 +45,17 @@ pub struct Ingestor {
     pub sender: Sender<IngestionMessage>,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct SendError;
+
+impl Display for SendError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ingestor receiver dropped")
+    }
+}
+
+impl Error for SendError {}
+
 impl Ingestor {
     pub fn initialize_channel(config: IngestionConfig) -> (Ingestor, IngestionIterator) {
         let (sender, receiver) = channel(config.forwarder_channel_cap);
@@ -54,20 +65,12 @@ impl Ingestor {
         (ingestor, iterator)
     }
 
-    pub async fn handle_message(
-        &self,
-        message: IngestionMessage,
-    ) -> Result<(), SendError<IngestionMessage>> {
-        self.sender.send(message).await
+    pub async fn handle_message(&self, message: IngestionMessage) -> Result<(), SendError> {
+        self.sender.send(message).await.map_err(|_| SendError)
     }
 
-    // FIXME: Fix large error variant
-    #[allow(clippy::result_large_err)]
-    pub fn blocking_handle_message(
-        &self,
-        message: IngestionMessage,
-    ) -> Result<(), SendError<IngestionMessage>> {
-        self.sender.blocking_send(message)
+    pub fn blocking_handle_message(&self, message: IngestionMessage) -> Result<(), SendError> {
+        self.sender.blocking_send(message).map_err(|_| SendError)
     }
 }
 

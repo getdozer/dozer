@@ -20,6 +20,7 @@ dozer-ingestion-object-store = { path = "./object-store" }
 dozer-ingestion-postgres = { path = "./postgres" }
 dozer-ingestion-snowflake = { path = "./snowflake", optional = true }
 dozer-ingestion-webhook = { path = "./webhook" }
+dozer-ingestion-oracle = { path = "./oracle" }
 
 tokio = { version = "1", features = ["full"] }
 futures = "0.3.28"

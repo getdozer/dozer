@@ -369,6 +369,10 @@ fn write_dozer_config_for_running_in_docker_compose(
             }
             ConnectionConfig::JavaScript(_) => {}
             ConnectionConfig::Webhook(_) => {}
+            ConnectionConfig::Oracle(oracle) => {
+                oracle.host = connection.name.clone();
+                oracle.port = map_port(oracle.port);
+            }
         }
     }
 

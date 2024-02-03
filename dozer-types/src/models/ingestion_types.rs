@@ -625,3 +625,27 @@ impl SchemaExample for WebhookVerb {
         Self::POST
     }
 }
+
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
+pub struct OracleConfig {
+    pub user: String,
+    pub password: String,
+    pub host: String,
+    pub port: u16,
+    pub sid: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Only needed if using pluggable database
+    pub pdb: Option<String>,
+    /// The schemas to consider when listing tables. If empty, will list all schemas, which can be slow.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub schemas: Vec<String>,
+    /// Batch size during snapshotting
+    pub batch_size: Option<usize>,
+    pub replicator: OracleReplicator,
+}
+
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
+pub enum OracleReplicator {
+    LogMiner { poll_interval_in_milliseconds: u32 },
+    DozerLogReader,
+}

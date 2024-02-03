@@ -721,6 +721,18 @@
             }
           },
           "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Oracle"
+          ],
+          "properties": {
+            "Oracle": {
+              "$ref": "#/definitions/OracleConfig"
+            }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -1620,6 +1632,94 @@
         }
       },
       "additionalProperties": false
+    },
+    "OracleConfig": {
+      "type": "object",
+      "required": [
+        "host",
+        "password",
+        "port",
+        "replicator",
+        "sid",
+        "user"
+      ],
+      "properties": {
+        "batch_size": {
+          "description": "Batch size during snapshotting",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint",
+          "minimum": 0.0
+        },
+        "host": {
+          "type": "string"
+        },
+        "password": {
+          "type": "string"
+        },
+        "pdb": {
+          "description": "Only needed if using pluggable database",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "port": {
+          "type": "integer",
+          "format": "uint16",
+          "minimum": 0.0
+        },
+        "replicator": {
+          "$ref": "#/definitions/OracleReplicator"
+        },
+        "schemas": {
+          "description": "The schemas to consider when listing tables. If empty, will list all schemas, which can be slow.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sid": {
+          "type": "string"
+        },
+        "user": {
+          "type": "string"
+        }
+      }
+    },
+    "OracleReplicator": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "DozerLogReader"
+          ]
+        },
+        {
+          "type": "object",
+          "required": [
+            "LogMiner"
+          ],
+          "properties": {
+            "LogMiner": {
+              "type": "object",
+              "required": [
+                "poll_interval_in_milliseconds"
+              ],
+              "properties": {
+                "poll_interval_in_milliseconds": {
+                  "type": "integer",
+                  "format": "uint32",
+                  "minimum": 0.0
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
     },
     "ParquetConfig": {
       "type": "object",
