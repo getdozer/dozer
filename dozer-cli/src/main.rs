@@ -93,11 +93,9 @@ fn run() -> Result<(), OrchestrationError> {
                 ))?;
                 Ok(())
             }
-            None => {
-                dozer
+            None => dozer
                 .runtime
-                .block_on(dozer.run_all(shutdown_receiver, run.locked))
-            }
+                .block_on(dozer.run_all(shutdown_receiver, run.locked)),
         },
         Commands::Security(security) => match security.command {
             SecurityCommands::GenerateToken => {

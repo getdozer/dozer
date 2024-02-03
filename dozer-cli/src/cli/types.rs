@@ -125,7 +125,7 @@ pub enum RunCommands {
         about = "Open web interface",
         long_about = "Open web interface. Web interface is used to interact with dozer"
     )]
-    AppUI
+    AppUI,
 }
 
 #[derive(Debug, Args)]

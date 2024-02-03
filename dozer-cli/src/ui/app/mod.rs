@@ -15,9 +15,6 @@ use tokio::runtime::Runtime;
 
 const APP_UI_WEB_PORT: u16 = 62888;
 
-
-
-
 pub async fn start_app_ui_server(
     runtime: &Arc<Runtime>,
     shutdown: ShutdownReceiver,
