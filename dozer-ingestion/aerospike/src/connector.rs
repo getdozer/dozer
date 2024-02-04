@@ -13,9 +13,18 @@ use dozer_ingestion_connector::{
 use h2::server::handshake;
 use http::StatusCode;
 use std::collections::HashMap;
+use actix_web::web::Data;
 
 use dozer_ingestion_connector::dozer_types::serde::Deserialize;
 use dozer_ingestion_connector::tokio;
+
+use actix_web::get;
+use actix_web::post;
+use actix_web::HttpRequest;
+use actix_web::Responder;
+use actix_web::HttpServer;
+use actix_web::App;
+use actix_web::web;
 
 #[derive(Deserialize, Debug)]
 #[serde(crate = "dozer_types::serde")]
@@ -45,6 +54,34 @@ impl AerospikeConnector {
     pub fn new(config: AerospikeConnection) -> Self {
         Self { config }
     }
+}
+
+#[get("/")]
+async fn index(_req: HttpRequest) -> impl Responder {
+    info!("Got GET");
+    "Welcome!"
+}
+
+#[post("/")]
+async fn index_post(json: web::Json<AerospikeEvent>, data: web::Data<State>) -> impl Responder {
+    let events = json.into_inner();
+    let state = data.into_inner();
+
+    // for evt in events {
+        process_event(events, state.tables_map.clone(), state.tables_idx.clone(), state.ingestor.clone())
+            .await;
+    // }
+
+    // info!("Request: {:?}", json);
+    // info!("Request: {:?}", req);
+    // info!("Got POST");
+    ""
+}
+
+struct State {
+    tables_map: HashMap<String, HashMap<String, usize>>,
+    tables_idx: HashMap<String, usize>,
+    ingestor: Ingestor
 }
 
 #[async_trait]
@@ -144,96 +181,114 @@ impl Connector for AerospikeConnector {
             tables_idx.insert(table.name.clone(), idx);
         });
 
+        let i = ingestor.clone();
+        HttpServer::new(move || App::new()
+            .app_data(
+                web::Data::new(State {
+                    tables_map: tables_map.clone(),
+                    tables_idx: tables_idx.clone(),
+                    ingestor: i.clone(),
+                })
+            )
+            .service(index).service(index_post))
+            .bind("127.0.0.1:5929").unwrap()
+            .run()
+            .await;
+
         let listener = TcpListener::bind("127.0.0.1:5928").await.unwrap();
 
         let is_batch = self.config.batching;
-        loop {
-            if let Ok((socket, _peer_addr)) = listener.accept().await {
-                let t: HashMap<String, HashMap<String, usize>> = tables_map.clone();
-                let i = ingestor.clone();
-                let indexes = tables_idx.clone();
 
-                tokio::spawn(async move {
-                    let mut h2 = handshake(socket).await.expect("Connection");
-                    // Accept all inbound HTTP/2 streams sent over the
-                    // connection.
-
-                    'looop: while let Some(request) = h2.accept().await {
-                        match request {
-                            Ok((request, mut respond)) => {
-                                let mut body = request.into_body();
-
-                                let mut parts = Vec::new();
-                                while let Some(chunk) = body.data().await.transpose().unwrap() {
-                                    let len = chunk.len();
-                                    if !chunk.is_empty() {
-                                        let event_string = String::from_utf8(Vec::from(chunk));
-                                        if let Ok(event_string) = event_string {
-                                            parts.push(event_string);
-                                        }
-                                    }
-
-                                    let _ = body.flow_control().release_capacity(len);
-                                }
-
-                                if !parts.is_empty() {
-                                    let event_string = parts.join("");
-
-                                    let events = match is_batch {
-                                        true => {
-                                            let events = match dozer_types::serde_json::from_str::<
-                                                Vec<AerospikeEvent>,
-                                            >(
-                                                &event_string.clone()
-                                            ) {
-                                                Ok(events) => events,
-                                                Err(e) => {
-                                                    error!("Error : {:?} {:?}", e, event_string);
-                                                    continue;
-                                                }
-                                            };
-                                            events
-                                        }
-                                        false => {
-                                            let event = match dozer_types::serde_json::from_str::<
-                                                AerospikeEvent,
-                                            >(
-                                                &event_string.clone()
-                                            ) {
-                                                Ok(event) => event,
-                                                Err(e) => {
-                                                    error!("Error : {:?} {:?}", e, event_string);
-                                                    continue;
-                                                }
-                                            };
-                                            vec![event]
-                                        }
-                                    };
-                                    for evt in events {
-                                        process_event(evt, t.clone(), indexes.clone(), i.clone())
-                                            .await
-                                    }
-                                }
-
-                                // info!("Got HTTP/2 request");
-                                // Build a response with no body
-                                let response = http::response::Response::builder()
-                                    .status(StatusCode::OK)
-                                    .body(())
-                                    .unwrap();
-
-                                // Send the response back to the client
-                                respond.send_response(response, true).unwrap();
-                            }
-                            Err(e) => {
-                                error!("Listiner Error: {:?}", e);
-                                break 'looop;
-                            }
-                        }
-                    }
-                });
-            }
-        }
+        Ok(())
+        // loop {
+        //     if let Ok((socket, _peer_addr)) = listener.accept().await {
+        //         let t: HashMap<String, HashMap<String, usize>> = tables_map.clone();
+        //         let i = ingestor.clone();
+        //         let indexes = tables_idx.clone();
+        //
+        //         tokio::spawn(async move {
+        //             let mut h2 = handshake(socket).await.expect("Connection");
+        //             // Accept all inbound HTTP/2 streams sent over the
+        //             // connection.
+        //
+        //             'looop: while let Some(request) = h2.accept().await {
+        //                 match request {
+        //                     Ok((request, mut respond)) => {
+        //
+        //                         // info!("Got HTTP/2 request");
+        //                         let mut body = request.into_body();
+        //
+        //
+        //                         let mut parts = Vec::new();
+        //                         while let Some(chunk) = body.data().await.transpose().unwrap() {
+        //                             let len = chunk.len();
+        //                             if !chunk.is_empty() {
+        //                                 parts.push(chunk.clone());
+        //                             }
+        //
+        //                             let _ = body.flow_control().release_capacity(len);
+        //                         }
+        //
+        //                         // Build a response with no body
+        //                         let response = http::response::Response::builder()
+        //                             .status(StatusCode::OK)
+        //                             .body(())
+        //                             .unwrap();
+        //
+        //                         // Send the response back to the client
+        //                          respond.send_response(response, true).unwrap();
+        //
+        //                         if !parts.is_empty() {
+        //                             let joined_parts = parts.concat();
+        //                             let event_string = String::from_utf8(joined_parts);
+        //                             match event_string {
+        //                                 Ok(event_string) => {
+        //                                     let events = match is_batch {
+        //                                         true => {
+        //                                             dozer_types::serde_json::from_str::<
+        //                                                 Vec<AerospikeEvent>,
+        //                                             >(
+        //                                                 &event_string.clone()
+        //                                             )
+        //                                         }
+        //                                         false => {
+        //                                             dozer_types::serde_json::from_str::<
+        //                                                 AerospikeEvent,
+        //                                             >(
+        //                                                 &event_string.clone()
+        //                                             ).map(|e| vec![e])
+        //                                         }
+        //                                     };
+        //
+        //                                     match events {
+        //                                         Ok(events) => {
+        //                                             for evt in events {
+        //                                                 process_event(evt, t.clone(), indexes.clone(), i.clone())
+        //                                                     .await;
+        //                                             }
+        //                                         },
+        //                                         Err(e) => {
+        //                                             error!("Error parsing event: {:?}", e);
+        //                                             error!("Error event string: {}", event_string);
+        //                                         }
+        //                                     }
+        //                                 },
+        //                                 Err(e) => {
+        //                                     error!("Error parsing event string: {:?}", e);
+        //                                 }
+        //                             }
+        //                         }
+        //
+        //                     }
+        //                     Err(e) => {
+        //                         error!("Listener Error: {:?}", e);
+        //                         break 'looop;
+        //                     }
+        //                 }
+        //             }
+        //         });
+        //     }
+        // }
     }
 }
 

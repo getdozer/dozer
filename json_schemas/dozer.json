@@ -133,6 +133,10 @@
         "sets"
       ],
       "properties": {
+        "batching": {
+          "default": false,
+          "type": "boolean"
+        },
         "hosts": {
           "type": "string"
         },
