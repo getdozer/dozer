@@ -7,6 +7,7 @@ use dozer_core::{
 use dozer_types::{
     chrono::{self, DateTime, NaiveDate, Utc},
     errors::internal::BoxedError,
+    log::info,
     models::ingestion_types::OracleConfig,
     tonic::async_trait,
     types::{Field, FieldType, Schema},
@@ -87,6 +88,7 @@ impl SinkFactory for OracleSinkFactory {
             "CREATE TABLE \"{table_name}\" ({})",
             column_defs.join(",\n")
         );
+        info!("### CREATE TABLE #### \n: {:?}", table);
         connection.execute(&table, &[])?;
         let insert = format!(
             "INSERT INTO \"{table_name}\" VALUES ({})",
