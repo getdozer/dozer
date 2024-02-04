@@ -1,3 +1,4 @@
+use dozer_ingestion_connector::dozer_types::bytes;
 use dozer_ingestion_connector::dozer_types::errors::internal::BoxedError;
 use dozer_ingestion_connector::dozer_types::log::{error, info};
 use dozer_ingestion_connector::dozer_types::models::connection::AerospikeConnection;
@@ -10,7 +11,7 @@ use dozer_ingestion_connector::{
     async_trait, dozer_types, Connector, Ingestor, SourceSchema, SourceSchemaResult,
     TableIdentifier, TableInfo,
 };
-use h2::server::handshake;
+use h2::server::{handshake, SendResponse};
 use http::StatusCode;
 use std::collections::HashMap;
 
@@ -189,6 +190,7 @@ impl Connector for AerospikeConnector {
                                                 Ok(events) => events,
                                                 Err(e) => {
                                                     error!("Error : {:?} {:?}", e, event_string);
+                                                    send_bad_response(respond);
                                                     continue;
                                                 }
                                             };
@@ -203,6 +205,7 @@ impl Connector for AerospikeConnector {
                                                 Ok(event) => event,
                                                 Err(e) => {
                                                     error!("Error : {:?} {:?}", e, event_string);
+                                                    send_bad_response(respond);
                                                     continue;
                                                 }
                                             };
@@ -237,6 +240,15 @@ impl Connector for AerospikeConnector {
     }
 }
 
+fn send_bad_response(mut respond: SendResponse<bytes::Bytes>) {
+    let response = http::response::Response::builder()
+        .status(StatusCode::OK)
+        .body(())
+        .unwrap();
+
+    // Send the response back to the client
+    respond.send_response(response, true).unwrap();
+}
 async fn process_event(
     event: AerospikeEvent,
     tables_map: HashMap<String, HashMap<String, usize>>,
