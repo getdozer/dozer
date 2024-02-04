@@ -1318,6 +1318,7 @@ mod tests {
             hosts: "localhost:3000".into(),
             namespace: "test".into(),
             sets: vec![set.to_owned()],
+            batching: false,
         };
         let factory = AerospikeSinkFactory::new(
             connection_config,

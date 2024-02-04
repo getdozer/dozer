@@ -5,17 +5,21 @@ use dozer_ingestion_connector::dozer_types::models::ingestion_types::IngestionMe
 use dozer_ingestion_connector::dozer_types::node::OpIdentifier;
 use dozer_ingestion_connector::dozer_types::types::Operation::Insert;
 use dozer_ingestion_connector::dozer_types::types::{Field, FieldDefinition, FieldType, Schema};
-use dozer_ingestion_connector::tokio::net::TcpListener;
 use dozer_ingestion_connector::{
     async_trait, dozer_types, Connector, Ingestor, SourceSchema, SourceSchemaResult,
     TableIdentifier, TableInfo,
 };
-use h2::server::handshake;
-use http::StatusCode;
 use std::collections::HashMap;
 
 use dozer_ingestion_connector::dozer_types::serde::Deserialize;
-use dozer_ingestion_connector::tokio;
+
+use actix_web::get;
+use actix_web::post;
+use actix_web::web;
+use actix_web::App;
+use actix_web::HttpRequest;
+use actix_web::HttpServer;
+use actix_web::Responder;
 
 #[derive(Deserialize, Debug)]
 #[serde(crate = "dozer_types::serde")]
@@ -45,6 +49,36 @@ impl AerospikeConnector {
     pub fn new(config: AerospikeConnection) -> Self {
         Self { config }
     }
+}
+
+#[get("/")]
+async fn healthcheck(_req: HttpRequest) -> impl Responder {
+    "OK"
+}
+
+#[post("/")]
+async fn event_request_handler(
+    json: web::Json<AerospikeEvent>,
+    data: web::Data<State>,
+) -> impl Responder {
+    let event = json.into_inner();
+    let state = data.into_inner();
+
+    process_event(
+        event,
+        state.tables_map.clone(),
+        state.tables_idx.clone(),
+        state.ingestor.clone(),
+    )
+    .await;
+
+    "OK"
+}
+
+struct State {
+    tables_map: HashMap<String, HashMap<String, usize>>,
+    tables_idx: HashMap<String, usize>,
+    ingestor: Ingestor,
 }
 
 #[async_trait]
@@ -144,128 +178,85 @@ impl Connector for AerospikeConnector {
             tables_idx.insert(table.name.clone(), idx);
         });
 
-        let listener = TcpListener::bind("127.0.0.1:5928").await.unwrap();
+        let i = ingestor.clone();
+        HttpServer::new(move || {
+            App::new()
+                .app_data(web::Data::new(State {
+                    tables_map: tables_map.clone(),
+                    tables_idx: tables_idx.clone(),
+                    ingestor: i.clone(),
+                }))
+                .service(healthcheck)
+                .service(event_request_handler)
+        })
+        .bind("127.0.0.1:5929")
+        .unwrap()
+        .run()
+        .await
+        .unwrap();
 
-        loop {
-            if let Ok((socket, _peer_addr)) = listener.accept().await {
-                let t = tables_map.clone();
-                let i = ingestor.clone();
-                let indexes = tables_idx.clone();
+        Ok(())
+    }
+}
 
-                tokio::spawn(async move {
-                    let mut h2 = handshake(socket).await.expect("Connection");
-                    // Accept all inbound HTTP/2 streams sent over the
-                    // connection.
+async fn process_event(
+    event: AerospikeEvent,
+    tables_map: HashMap<String, HashMap<String, usize>>,
+    tables_idx: HashMap<String, usize>,
+    ingestor: Ingestor,
+) {
+    let table_name = event.key.get(1).unwrap().clone().unwrap();
+    if let Some(columns_map) = tables_map.get(table_name.as_str()) {
+        let mut fields = vec![Field::Null; columns_map.len()];
+        if let Some(pk) = columns_map.get("PK") {
+            fields[*pk] = match event.key.last().unwrap() {
+                None => Field::Null,
+                Some(s) => Field::String(s.to_string()),
+            };
+        }
 
-                    'looop: while let Some(request) = h2.accept().await {
-                        match request {
-                            Ok((request, mut respond)) => {
-                                let mut body = request.into_body();
-
-                                let mut parts = Vec::new();
-                                while let Some(chunk) = body.data().await.transpose().unwrap() {
-                                    let len = chunk.len();
-                                    if !chunk.is_empty() {
-                                        let event_string = String::from_utf8(Vec::from(chunk));
-                                        if let Ok(event_string) = event_string {
-                                            parts.push(event_string);
-                                        }
-                                    }
-
-                                    let _ = body.flow_control().release_capacity(len);
-                                }
-
-                                if !parts.is_empty() {
-                                    let event_string = parts.join("");
-                                    let event =
-                                        match dozer_types::serde_json::from_str::<AerospikeEvent>(
-                                            &event_string.clone(),
-                                        ) {
-                                            Ok(event) => event,
-                                            Err(e) => {
-                                                error!("Error : {:?} {:?}", e, event_string);
-                                                continue;
-                                            }
-                                        };
-
-                                    let table_name = event.key.get(1).unwrap().clone().unwrap();
-                                    if let Some(columns_map) = t.get(table_name.as_str()) {
-                                        let mut fields = vec![Field::Null; columns_map.len()];
-                                        if let Some(pk) = columns_map.get("PK") {
-                                            fields[*pk] = match event.key.last().unwrap() {
-                                                None => Field::Null,
-                                                Some(s) => Field::String(s.to_string()),
-                                            };
-                                        }
-
-                                        for bin in event.bins {
-                                            if let Some(i) = columns_map.get(bin.name.as_str()) {
-                                                match bin.value {
-                                                    Some(value) => {
-                                                        match bin.r#type.as_str() {
-                                                            "str" => {
-                                                                if let dozer_types::serde_json::Value::String(s) = value {
-                                                                    fields[*i] = Field::String(s);
-                                                                }
-                                                            }
-                                                            "int" => {
-                                                                if let dozer_types::serde_json::Value::Number(n) = value {
-                                                                    fields[*i] = Field::String(n.to_string());
-                                                                }
-                                                            }
-                                                            "float" => {
-                                                                if let dozer_types::serde_json::Value::Number(n) = value {
-                                                                    fields[*i] = Field::String(n.to_string());
-                                                                }
-                                                            }
-                                                            unexpected => {
-                                                                error!(
-                                                                "Unexpected type: {}",
-                                                                unexpected
-                                                            );
-                                                            }
-                                                        }
-                                                    }
-                                                    None => {
-                                                        fields[*i] = Field::Null;
-                                                    }
-                                                }
-                                            }
-                                        }
-
-                                        let table_index = indexes.get(table_name.as_str()).unwrap().to_owned();
-                                        i.handle_message(IngestionMessage::OperationEvent {
-                                            table_index,
-                                            op: Insert {
-                                                new: dozer_types::types::Record::new(fields),
-                                            },
-                                            id: None,
-                                        })
-                                        .await
-                                        .unwrap();
-                                    } else {
-                                        // info!("Not found table: {}", table_name);
-                                    }
-                                }
-
-                                // info!("Got HTTP/2 request");
-                                // Build a response with no body
-                                let response = http::response::Response::builder()
-                                    .status(StatusCode::OK)
-                                    .body(())
-                                    .unwrap();
-
-                                // Send the response back to the client
-                                respond.send_response(response, true).unwrap();
-                            }
-                            Err(e) => {
-                                error!("Listiner Error: {:?}", e);
-                                break 'looop;
+        for bin in event.bins {
+            if let Some(i) = columns_map.get(bin.name.as_str()) {
+                match bin.value {
+                    Some(value) => match bin.r#type.as_str() {
+                        "str" => {
+                            if let dozer_types::serde_json::Value::String(s) = value {
+                                fields[*i] = Field::String(s);
                             }
                         }
+                        "int" => {
+                            if let dozer_types::serde_json::Value::Number(n) = value {
+                                fields[*i] = Field::String(n.to_string());
+                            }
+                        }
+                        "float" => {
+                            if let dozer_types::serde_json::Value::Number(n) = value {
+                                fields[*i] = Field::String(n.to_string());
+                            }
+                        }
+                        unexpected => {
+                            error!("Unexpected type: {}", unexpected);
+                        }
+                    },
+                    None => {
+                        fields[*i] = Field::Null;
                     }
-                });
+                }
             }
         }
+
+        let table_index = tables_idx.get(table_name.as_str()).unwrap().to_owned();
+        ingestor
+            .handle_message(IngestionMessage::OperationEvent {
+                table_index,
+                op: Insert {
+                    new: dozer_types::types::Record::new(fields),
+                },
+                id: None,
+            })
+            .await
+            .unwrap();
+    } else {
+        // info!("Not found table: {}", table_name);
     }
 }
