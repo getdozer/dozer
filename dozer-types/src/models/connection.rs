@@ -213,6 +213,8 @@ pub struct AerospikeConnection {
     pub hosts: String,
     pub namespace: String,
     pub sets: Vec<String>,
+    #[serde(default)]
+    pub batching: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
