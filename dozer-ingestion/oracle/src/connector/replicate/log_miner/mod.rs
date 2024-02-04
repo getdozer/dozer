@@ -42,21 +42,33 @@ impl LogMiner {
         schemas: &[Schema],
         con_id: Option<u32>,
         output: SyncSender<Result<MappedLogManagerContent, Error>>,
-    ) -> Result<(), Error> {
-        let _guard = start_log_manager(connection, log, start_scn)?;
+    ) {
+        let _guard = match start_log_manager(connection, log, start_scn) {
+            Ok(guard) => guard,
+            Err(e) => {
+                let _ = output.send(Err(e));
+                return;
+            }
+        };
 
-        let contents = listing::LogManagerContent::list(connection, con_id)?;
+        let contents = match listing::LogManagerContent::list(connection, con_id) {
+            Ok(contents) => contents,
+            Err(e) => {
+                let _ = output.send(Err(e));
+                return;
+            }
+        };
         for content in contents {
             match parse_and_map(&self.parser, content, table_pair_to_index, schemas) {
                 Ok(Some(mapped)) => {
                     if output.send(Ok(mapped)).is_err() {
-                        return Ok(());
+                        return;
                     }
                 }
                 Ok(None) => {}
                 Err(err) => {
                     let _ = output.send(Err(err));
-                    return Ok(());
+                    return;
                 }
             }
         }
@@ -64,7 +76,6 @@ impl LogMiner {
         if let Err(e) = end_log_manager(connection) {
             let _ = output.send(Err(e));
         }
-        Ok(())
     }
 }
 
