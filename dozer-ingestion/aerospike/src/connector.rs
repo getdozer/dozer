@@ -16,20 +16,36 @@ use std::collections::HashMap;
 use dozer_ingestion_connector::dozer_types::serde::Deserialize;
 
 use actix_web::dev::Server;
-use actix_web::get;
+use actix_web::{get, HttpResponse};
 use actix_web::post;
 use actix_web::web;
 use actix_web::App;
 use actix_web::HttpRequest;
 use actix_web::HttpServer;
-use actix_web::Responder;
+
 use dozer_ingestion_connector::dozer_types::thiserror::{self, Error};
 
 #[derive(Debug, Error)]
 pub enum AerospikeConnectorError {
     #[error("Cannot start server: {0}")]
     CannotStartServer(#[from] std::io::Error),
+
+    #[error("No set name find in key: {0:?}")]
+    NoSetNameFindInKey(Vec<Option<String>>),
+
+    #[error("Set name is none. Key: {0:?}")]
+    SetNameIsNone(Vec<Option<String>>),
+
+    #[error("No PK in key: {0:?}")]
+    NoPkInKey(Vec<Option<String>>),
+
+    #[error("Invalid key value: {0:?}. Key is supposed to have 4 elements.")]
+    InvalidKeyValue(Vec<Option<String>>),
+
+    #[error("PK is none: {0:?}")]
+    PkIsNone(Vec<Option<String>>),
 }
+
 #[derive(Deserialize, Debug)]
 #[serde(crate = "dozer_types::serde")]
 pub struct AerospikeEvent {
@@ -78,27 +94,47 @@ impl AerospikeConnector {
     }
 }
 
+fn map_error(error: AerospikeConnectorError) -> HttpResponse {
+    error!("Aerospike ingestion error: {:?}", error);
+    HttpResponse::InternalServerError().finish()
+}
+
 #[get("/")]
-async fn healthcheck(_req: HttpRequest) -> impl Responder {
-    "OK"
+async fn healthcheck(_req: HttpRequest) -> HttpResponse {
+    HttpResponse::Ok().finish()
 }
 
 #[post("/")]
 async fn event_request_handler(
     json: web::Json<AerospikeEvent>,
     data: web::Data<ServerState>,
-) -> impl Responder {
+) -> HttpResponse {
     let event = json.into_inner();
     let state = data.into_inner();
 
-    process_event(
+    let operation_events = map_event(
         event,
         state.tables_index_map.clone(),
-        state.ingestor.clone(),
     )
-    .await;
+        .await;
 
-    "OK"
+    match operation_event {
+        Ok(None) => HttpResponse::Ok().finish(),
+        Ok(Some(event)) => {
+            state.ingestor
+                .handle_message(event)
+                .await
+                .map_or_else(
+                    |e| {
+                        error!("Aerospike ingestion message send error: {:?}", e);
+                        HttpResponse::InternalServerError().finish()
+                    },
+                    |_| HttpResponse::Ok().finish()
+                )
+        },
+        Err(e) => map_error(e),
+    }
+
 }
 
 #[derive(Clone)]
@@ -153,10 +189,10 @@ impl Connector for AerospikeConnector {
         &mut self,
         table_infos: &[TableInfo],
     ) -> Result<Vec<SourceSchemaResult>, BoxedError> {
-        info!("Table infos: {:?}", table_infos);
         let schemas = table_infos
             .iter()
             .map(|s| {
+                let primary_index = s.column_names.iter().position(|n| n == "PK").map_or(vec![], |i| vec![i]);
                 Ok(SourceSchema {
                     schema: Schema {
                         fields: s
@@ -169,14 +205,13 @@ impl Connector for AerospikeConnector {
                                 source: Default::default(),
                             })
                             .collect(),
-                        primary_index: vec![s.column_names.iter().position(|n| n == "PK").unwrap()],
+                        primary_index,
                     },
                     cdc_type: Default::default(),
                 })
             })
             .collect();
 
-        info!("Schemas {:?}", schemas);
         Ok(schemas)
     }
 
@@ -194,14 +229,12 @@ impl Connector for AerospikeConnector {
             .handle_message(IngestionMessage::TransactionInfo(
                 TransactionInfo::SnapshottingStarted,
             ))
-            .await
-            .unwrap();
+            .await?;
         ingestor
             .handle_message(IngestionMessage::TransactionInfo(
                 TransactionInfo::SnapshottingDone { id: None },
             ))
-            .await
-            .unwrap();
+            .await?;
 
         let tables_index_map: HashMap<String, TableIndexMap> = tables
             .iter()
@@ -235,23 +268,38 @@ impl Connector for AerospikeConnector {
     }
 }
 
-async fn process_event(
+async fn map_event(
     event: AerospikeEvent,
     tables_map: HashMap<String, TableIndexMap>,
-    ingestor: Ingestor,
-) {
-    let table_name = event.key.get(1).unwrap().clone().unwrap();
+) -> Result<Option<Vec<IngestionMessage>>, AerospikeConnectorError> {
+    let key = event.key.clone();
+    if key.len() != 4 {
+        return Err(AerospikeConnectorError::InvalidKeyValue(key.clone()));
+    }
+
+    let set_name = match key.clone().get(1) {
+        None => Err(AerospikeConnectorError::NoSetNameFindInKey(key.clone())),
+        Some(Some(set_name)) => Ok(set_name.clone()),
+        Some(None) => Err(AerospikeConnectorError::SetNameIsNone(key.clone())),
+    }?;
+
     if let Some(TableIndexMap {
         columns_map,
         table_index,
-    }) = tables_map.get(table_name.as_str())
+    }) = tables_map.get(set_name.as_str())
     {
         let mut fields = vec![Field::Null; columns_map.len()];
         if let Some(pk) = columns_map.get("PK") {
-            fields[*pk] = match event.key.last().unwrap() {
-                None => Field::Null,
-                Some(s) => Field::String(s.to_string()),
-            };
+            fields[*pk] = key.clone().last()
+                .map_or_else(
+                    || Err(AerospikeConnectorError::NoPkInKey(key.clone())),
+                    |value| {
+                        value.clone().ok_or(
+                            AerospikeConnectorError::PkIsNone(key.clone()),
+                        )
+                    }
+                )
+                .map(Field::String)?
         }
 
         for bin in event.bins {
@@ -284,21 +332,16 @@ async fn process_event(
             }
         }
 
-        ingestor
-            .handle_message(IngestionMessage::OperationEvent {
-                table_index: *table_index,
-                op: Insert {
-                    new: dozer_types::types::Record::new(fields),
-                },
-                id: None,
-            })
-            .await;
-        let _ = ingestor
-            .handle_message(IngestionMessage::TransactionInfo(TransactionInfo::Commit {
-                id: None,
-            }))
-            .await;
+        Ok(Some(vec![IngestionMessage::OperationEvent {
+            table_index: *table_index,
+            op: Insert {
+                new: dozer_types::types::Record::new(fields),
+            },
+            id: None,
+        }, IngestionMessage::TransactionInfo(TransactionInfo::Commit {
+            id: None,
+        })]))
     } else {
-        // info!("Not found table: {}", table_name);
+        Ok(None)
     }
 }
