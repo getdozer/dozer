@@ -15,6 +15,7 @@ use std::collections::HashMap;
 
 use dozer_ingestion_connector::dozer_types::serde::Deserialize;
 
+use actix_web::dev::Server;
 use actix_web::get;
 use actix_web::post;
 use actix_web::web;
@@ -22,7 +23,13 @@ use actix_web::App;
 use actix_web::HttpRequest;
 use actix_web::HttpServer;
 use actix_web::Responder;
+use dozer_ingestion_connector::dozer_types::thiserror::{self, Error};
 
+#[derive(Debug, Error)]
+pub enum AerospikeConnectorError {
+    #[error("Cannot start server: {0}")]
+    CannotStartServer(#[from] std::io::Error),
+}
 #[derive(Deserialize, Debug)]
 #[serde(crate = "dozer_types::serde")]
 pub struct AerospikeEvent {
@@ -51,6 +58,24 @@ impl AerospikeConnector {
     pub fn new(config: AerospikeConnection) -> Self {
         Self { config }
     }
+
+    fn start_server(&self, server_state: ServerState) -> Result<Server, AerospikeConnectorError> {
+        let address = format!(
+            "{}:{}",
+            self.config.replication.server_address, self.config.replication.server_port
+        );
+
+        info!("Starting aerospike replication server on {}", address);
+
+        Ok(HttpServer::new(move || {
+            App::new()
+                .app_data(web::Data::new(server_state.clone()))
+                .service(healthcheck)
+                .service(event_request_handler)
+        })
+        .bind(address)?
+        .run())
+    }
 }
 
 #[get("/")]
@@ -61,15 +86,14 @@ async fn healthcheck(_req: HttpRequest) -> impl Responder {
 #[post("/")]
 async fn event_request_handler(
     json: web::Json<AerospikeEvent>,
-    data: web::Data<State>,
+    data: web::Data<ServerState>,
 ) -> impl Responder {
     let event = json.into_inner();
     let state = data.into_inner();
 
     process_event(
         event,
-        state.tables_map.clone(),
-        state.tables_idx.clone(),
+        state.tables_index_map.clone(),
         state.ingestor.clone(),
     )
     .await;
@@ -77,9 +101,15 @@ async fn event_request_handler(
     "OK"
 }
 
-struct State {
-    tables_map: HashMap<String, HashMap<String, usize>>,
-    tables_idx: HashMap<String, usize>,
+#[derive(Clone)]
+struct TableIndexMap {
+    table_index: usize,
+    columns_map: HashMap<String, usize>,
+}
+
+#[derive(Clone)]
+struct ServerState {
+    tables_index_map: HashMap<String, TableIndexMap>,
     ingestor: Ingestor,
 }
 
@@ -173,33 +203,33 @@ impl Connector for AerospikeConnector {
             .await
             .unwrap();
 
-        let mut tables_map = HashMap::new();
-        let mut tables_idx = HashMap::new();
-        tables.iter().enumerate().for_each(|(idx, table)| {
-            let mut columns_map = HashMap::new();
-            table.column_names.iter().enumerate().for_each(|(i, name)| {
-                columns_map.insert(name.clone(), i);
-            });
-            tables_map.insert(table.name.clone(), columns_map);
-            tables_idx.insert(table.name.clone(), idx);
-        });
+        let tables_index_map: HashMap<String, TableIndexMap> = tables
+            .iter()
+            .enumerate()
+            .map(|(table_index, table)| {
+                let columns_map: HashMap<String, usize> = table
+                    .column_names
+                    .iter()
+                    .enumerate()
+                    .map(|(i, name)| (name.clone(), i))
+                    .collect();
 
-        let i = ingestor.clone();
-        HttpServer::new(move || {
-            App::new()
-                .app_data(web::Data::new(State {
-                    tables_map: tables_map.clone(),
-                    tables_idx: tables_idx.clone(),
-                    ingestor: i.clone(),
-                }))
-                .service(healthcheck)
-                .service(event_request_handler)
-        })
-        .bind("127.0.0.1:5929")
-        .unwrap()
-        .run()
-        .await
-        .unwrap();
+                (
+                    table.name.clone(),
+                    TableIndexMap {
+                        table_index,
+                        columns_map,
+                    },
+                )
+            })
+            .collect();
+
+        let server_state = ServerState {
+            tables_index_map: tables_index_map.clone(),
+            ingestor: ingestor.clone(),
+        };
+
+        let _server = self.start_server(server_state)?.await;
 
         Ok(())
     }
@@ -207,12 +237,15 @@ impl Connector for AerospikeConnector {
 
 async fn process_event(
     event: AerospikeEvent,
-    tables_map: HashMap<String, HashMap<String, usize>>,
-    tables_idx: HashMap<String, usize>,
+    tables_map: HashMap<String, TableIndexMap>,
     ingestor: Ingestor,
 ) {
     let table_name = event.key.get(1).unwrap().clone().unwrap();
-    if let Some(columns_map) = tables_map.get(table_name.as_str()) {
+    if let Some(TableIndexMap {
+        columns_map,
+        table_index,
+    }) = tables_map.get(table_name.as_str())
+    {
         let mut fields = vec![Field::Null; columns_map.len()];
         if let Some(pk) = columns_map.get("PK") {
             fields[*pk] = match event.key.last().unwrap() {
@@ -251,10 +284,9 @@ async fn process_event(
             }
         }
 
-        let table_index = tables_idx.get(table_name.as_str()).unwrap().to_owned();
-        let _ = ingestor
+        ingestor
             .handle_message(IngestionMessage::OperationEvent {
-                table_index,
+                table_index: *table_index,
                 op: Insert {
                     new: dozer_types::types::Record::new(fields),
                 },

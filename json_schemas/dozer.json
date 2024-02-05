@@ -143,6 +143,17 @@
         "namespace": {
           "type": "string"
         },
+        "replication": {
+          "default": {
+            "server_address": "0.0.0.0",
+            "server_port": 5929
+          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/ReplicationSettings"
+            }
+          ]
+        },
         "sets": {
           "type": "array",
           "items": {
@@ -1864,6 +1875,21 @@
       "enum": [
         "RealTime"
       ]
+    },
+    "ReplicationSettings": {
+      "type": "object",
+      "properties": {
+        "server_address": {
+          "default": "0.0.0.0",
+          "type": "string"
+        },
+        "server_port": {
+          "default": 5929,
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        }
+      }
     },
     "RestApiOptions": {
       "type": "object",

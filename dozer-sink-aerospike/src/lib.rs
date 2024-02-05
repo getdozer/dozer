@@ -1319,6 +1319,7 @@ mod tests {
             namespace: "test".into(),
             sets: vec![set.to_owned()],
             batching: false,
+            ..Default::default()
         };
         let factory = AerospikeSinkFactory::new(
             connection_config,

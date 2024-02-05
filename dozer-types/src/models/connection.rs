@@ -208,13 +208,40 @@ fn get_sslmode(mode: String) -> Result<SslMode, DeserializationError> {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone, Hash)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone, Hash, Default)]
 pub struct AerospikeConnection {
     pub hosts: String,
     pub namespace: String,
     pub sets: Vec<String>,
     #[serde(default)]
     pub batching: bool,
+    #[serde(default)]
+    pub replication: ReplicationSettings,
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone, Hash)]
+pub struct ReplicationSettings {
+    #[serde(default = "default_server_address")]
+    pub server_address: String,
+    #[serde(default = "default_server_port")]
+    pub server_port: u32,
+}
+
+fn default_server_address() -> String {
+    "0.0.0.0".to_string()
+}
+
+fn default_server_port() -> u32 {
+    5929
+}
+
+impl Default for ReplicationSettings {
+    fn default() -> Self {
+        ReplicationSettings {
+            server_address: default_server_address(),
+            server_port: default_server_port(),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
