@@ -16,12 +16,12 @@ use std::collections::HashMap;
 use dozer_ingestion_connector::dozer_types::serde::Deserialize;
 
 use actix_web::dev::Server;
-use actix_web::{get, HttpResponse};
 use actix_web::post;
 use actix_web::web;
 use actix_web::App;
 use actix_web::HttpRequest;
 use actix_web::HttpServer;
+use actix_web::{get, HttpResponse};
 
 use dozer_ingestion_connector::dozer_types::thiserror::{self, Error};
 
@@ -112,29 +112,19 @@ async fn event_request_handler(
     let event = json.into_inner();
     let state = data.into_inner();
 
-    let operation_events = map_event(
-        event,
-        state.tables_index_map.clone(),
-    )
-        .await;
+    let operation_events = map_event(event, state.tables_index_map.clone()).await;
 
     match operation_event {
         Ok(None) => HttpResponse::Ok().finish(),
-        Ok(Some(event)) => {
-            state.ingestor
-                .handle_message(event)
-                .await
-                .map_or_else(
-                    |e| {
-                        error!("Aerospike ingestion message send error: {:?}", e);
-                        HttpResponse::InternalServerError().finish()
-                    },
-                    |_| HttpResponse::Ok().finish()
-                )
-        },
+        Ok(Some(event)) => state.ingestor.handle_message(event).await.map_or_else(
+            |e| {
+                error!("Aerospike ingestion message send error: {:?}", e);
+                HttpResponse::InternalServerError().finish()
+            },
+            |_| HttpResponse::Ok().finish(),
+        ),
         Err(e) => map_error(e),
     }
-
 }
 
 #[derive(Clone)]
@@ -155,7 +145,16 @@ impl Connector for AerospikeConnector {
     where
         Self: Sized,
     {
-        todo!()
+        vec![
+            ("str".into(), Some(FieldType::Decimal)),
+            ("bool".into(), Some(FieldType::Boolean)),
+            ("int".into(), Some(FieldType::Int)),
+            ("float".into(), Some(FieldType::Float)),
+            ("blob".into(), Some(FieldType::Boolean)),
+            ("list".into(), None),
+            ("map".into(), None),
+            ("geojson".into(), None),
+        ]
     }
 
     async fn validate_connection(&mut self) -> Result<(), BoxedError> {
@@ -192,7 +191,11 @@ impl Connector for AerospikeConnector {
         let schemas = table_infos
             .iter()
             .map(|s| {
-                let primary_index = s.column_names.iter().position(|n| n == "PK").map_or(vec![], |i| vec![i]);
+                let primary_index = s
+                    .column_names
+                    .iter()
+                    .position(|n| n == "PK")
+                    .map_or(vec![], |i| vec![i]);
                 Ok(SourceSchema {
                     schema: Schema {
                         fields: s
@@ -290,14 +293,16 @@ async fn map_event(
     {
         let mut fields = vec![Field::Null; columns_map.len()];
         if let Some(pk) = columns_map.get("PK") {
-            fields[*pk] = key.clone().last()
+            fields[*pk] = key
+                .clone()
+                .last()
                 .map_or_else(
                     || Err(AerospikeConnectorError::NoPkInKey(key.clone())),
                     |value| {
-                        value.clone().ok_or(
-                            AerospikeConnectorError::PkIsNone(key.clone()),
-                        )
-                    }
+                        value
+                            .clone()
+                            .ok_or(AerospikeConnectorError::PkIsNone(key.clone()))
+                    },
                 )
                 .map(Field::String)?
         }
