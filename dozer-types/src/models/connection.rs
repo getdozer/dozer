@@ -1,7 +1,7 @@
 use crate::models::ingestion_types::{
-    DeltaLakeConfig, EthConfig, GrpcConfig, JavaScriptConfig, KafkaConfig, LocalStorage,
-    MongodbConfig, MySQLConfig, NestedDozerConfig, S3Storage, SnowflakeConfig, WebhookConfig,
-    SECRET,
+    ConfigSchemas, DeltaLakeConfig, EthConfig, GrpcConfig, JavaScriptConfig, KafkaConfig,
+    LocalStorage, MongodbConfig, MySQLConfig, NestedDozerConfig, S3Storage, SnowflakeConfig,
+    WebhookConfig, SECRET,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -217,6 +217,7 @@ pub struct AerospikeConnection {
     pub batching: bool,
     #[serde(default)]
     pub replication: ReplicationSettings,
+    pub schemas: Option<ConfigSchemas>,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone, Hash)]

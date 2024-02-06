@@ -1,11 +1,11 @@
 use std::fmt::Debug;
-use std::path::Path;
 
 use crate::Error;
 
 use super::adapter::{GrpcIngestor, IngestAdapter};
 use super::ingest::IngestorServiceImpl;
 use dozer_ingestion_connector::dozer_types::node::OpIdentifier;
+use dozer_ingestion_connector::schema_parser::SchemaParser;
 use dozer_ingestion_connector::utils::TableNotFound;
 use dozer_ingestion_connector::{
     async_trait, dozer_types,
@@ -13,9 +13,7 @@ use dozer_ingestion_connector::{
         errors::internal::BoxedError,
         grpc_types::ingest::ingest_service_server::IngestServiceServer,
         log::{info, warn},
-        models::ingestion_types::{
-            default_ingest_host, default_ingest_port, GrpcConfig, GrpcConfigSchemas,
-        },
+        models::ingestion_types::{default_ingest_host, default_ingest_port, GrpcConfig},
         tonic::transport::Server,
         tracing::Level,
     },
@@ -45,30 +43,13 @@ where
         }
     }
 
-    pub fn parse_config(config: &GrpcConfig) -> Result<String, Error>
-    where
-        T: IngestAdapter,
-    {
-        let schemas = &config.schemas;
-        let schemas_str = match schemas {
-            GrpcConfigSchemas::Inline(schemas_str) => schemas_str.clone(),
-            GrpcConfigSchemas::Path(path) => {
-                let path = Path::new(path);
-                std::fs::read_to_string(path)
-                    .map_err(|e| Error::CannotReadFile(path.to_path_buf(), e))?
-            }
-        };
-
-        Ok(schemas_str)
-    }
-
     pub async fn serve(&self, ingestor: &Ingestor, tables: Vec<TableInfo>) -> Result<(), Error> {
         let host = self.config.host.clone().unwrap_or_else(default_ingest_host);
         let port = self.config.port.unwrap_or_else(default_ingest_port);
 
         let addr = format!("{host}:{port}").parse()?;
 
-        let schemas_str = Self::parse_config(&self.config)?;
+        let schemas_str = SchemaParser::parse_config(&self.config.schemas)?;
         let adapter = GrpcIngestor::<T>::new(schemas_str)?;
 
         // Ingestor will live as long as the server
@@ -102,7 +83,7 @@ where
 
 impl<T: IngestAdapter> GrpcConnector<T> {
     fn get_all_schemas(&self) -> Result<Vec<(String, SourceSchema)>, Error> {
-        let schemas_str = Self::parse_config(&self.config)?;
+        let schemas_str = SchemaParser::parse_config(&self.config.schemas)?;
         let adapter = GrpcIngestor::<T>::new(schemas_str)?;
         adapter.get_schemas()
     }
@@ -187,7 +168,7 @@ where
         &mut self,
         table_infos: &[TableInfo],
     ) -> Result<Vec<SourceSchemaResult>, BoxedError> {
-        let schemas_str = Self::parse_config(&self.config)?;
+        let schemas_str = SchemaParser::parse_config(&self.config.schemas)?;
         let adapter = GrpcIngestor::<T>::new(schemas_str)?;
 
         let schemas = adapter.get_schemas()?;

@@ -67,7 +67,7 @@ pub struct GrpcConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub port: Option<u32>,
 
-    pub schemas: GrpcConfigSchemas,
+    pub schemas: ConfigSchemas,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub adapter: Option<String>,
@@ -86,7 +86,7 @@ pub fn default_ingest_port() -> u32 {
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Hash, JsonSchema)]
-pub enum GrpcConfigSchemas {
+pub enum ConfigSchemas {
     Inline(String),
     Path(String),
 }
@@ -464,7 +464,7 @@ impl SchemaExample for GrpcConfig {
         Self {
             host: Some("localhost".to_owned()),
             port: Some(50051),
-            schemas: GrpcConfigSchemas::Path("schema.json".to_owned()),
+            schemas: ConfigSchemas::Path("schema.json".to_owned()),
             adapter: Some("arrow".to_owned()),
         }
     }

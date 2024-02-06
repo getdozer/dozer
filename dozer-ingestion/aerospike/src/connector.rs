@@ -12,6 +12,7 @@ use dozer_ingestion_connector::{
     TableIdentifier, TableInfo,
 };
 use std::collections::HashMap;
+use std::num::TryFromIntError;
 
 use dozer_ingestion_connector::dozer_types::serde::Deserialize;
 
@@ -23,7 +24,18 @@ use actix_web::HttpRequest;
 use actix_web::HttpServer;
 use actix_web::{get, HttpResponse};
 
+use dozer_ingestion_connector::dozer_types::ordered_float::OrderedFloat;
+use dozer_ingestion_connector::dozer_types::prost::Message;
+use dozer_ingestion_connector::dozer_types::rust_decimal::Decimal;
+use dozer_ingestion_connector::dozer_types::serde_json;
+use dozer_ingestion_connector::dozer_types::serde_json::Value;
+
+use base64::prelude::*;
+use dozer_ingestion_connector::dozer_types::chrono::{
+    DateTime, FixedOffset, NaiveDate, NaiveDateTime, Utc,
+};
 use dozer_ingestion_connector::dozer_types::thiserror::{self, Error};
+use dozer_ingestion_connector::schema_parser::SchemaParser;
 
 #[derive(Debug, Error)]
 pub enum AerospikeConnectorError {
@@ -44,6 +56,51 @@ pub enum AerospikeConnectorError {
 
     #[error("PK is none: {0:?}")]
     PkIsNone(Vec<Option<String>>),
+
+    #[error("Unsupported type. Bin type {bin_type:?}, field type: {field_type:?}")]
+    UnsupportedTypeForFieldType {
+        bin_type: String,
+        field_type: FieldType,
+    },
+
+    #[error("Unsupported type: {0}")]
+    UnsupportedType(FieldType),
+
+    #[error("Invalid timestamp: {0}")]
+    InvalidTimestamp(i64),
+
+    #[error("Invalid days: {0}")]
+    InvalidDate(i64),
+
+    #[error("Error decoding base64: {0}")]
+    BytesDecodingError(#[from] base64::DecodeError),
+
+    #[error("Error parsing float: {0}")]
+    FloatParsingError(#[from] std::num::ParseFloatError),
+
+    #[error("Error parsing int: {0}")]
+    IntParsingError(#[from] std::num::ParseIntError),
+
+    #[error("Error casting int: {0}")]
+    IntCastError(#[from] TryFromIntError),
+
+    #[error("Failed days number parsing")]
+    ParsingDaysError,
+
+    #[error("Failed timestamp parsing")]
+    ParsingTimestampFailed,
+
+    #[error("Failed int parsing")]
+    ParsingIntFailed,
+
+    #[error("Failed uint parsing")]
+    ParsingUIntFailed,
+
+    #[error("Failed float parsing")]
+    ParsingFloatFailed,
+
+    #[error("Schema not found: {0}")]
+    SchemaNotFound(String),
 }
 
 #[derive(Deserialize, Debug)]
@@ -127,10 +184,10 @@ async fn event_request_handler(
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct TableIndexMap {
     table_index: usize,
-    columns_map: HashMap<String, usize>,
+    columns_map: HashMap<String, (usize, FieldType)>,
 }
 
 #[derive(Clone)]
@@ -188,34 +245,101 @@ impl Connector for AerospikeConnector {
         &mut self,
         table_infos: &[TableInfo],
     ) -> Result<Vec<SourceSchemaResult>, BoxedError> {
-        let schemas = table_infos
-            .iter()
-            .map(|s| {
-                let primary_index = s
-                    .column_names
-                    .iter()
-                    .position(|n| n == "PK")
-                    .map_or(vec![], |i| vec![i]);
-                Ok(SourceSchema {
-                    schema: Schema {
-                        fields: s
-                            .column_names
-                            .iter()
-                            .map(|name| FieldDefinition {
-                                name: name.clone(),
-                                typ: FieldType::String,
-                                nullable: true,
-                                source: Default::default(),
-                            })
-                            .collect(),
-                        primary_index,
-                    },
-                    cdc_type: Default::default(),
-                })
-            })
-            .collect();
+        let schemas: HashMap<String, SourceSchema> = match self.config.schemas.clone() {
+            Some(schemas) => {
+                let schema = SchemaParser::parse_config(&schemas)?;
+                serde_json::from_str(&schema)?
+            }
+            None => table_infos
+                .iter()
+                .map(|table_info| {
+                    let table_name = table_info.name.clone();
+                    let primary_index = table_info
+                        .column_names
+                        .iter()
+                        .position(|n| n == "PK")
+                        .map_or(vec![], |i| vec![i]);
 
-        Ok(schemas)
+                    (
+                        table_name,
+                        SourceSchema {
+                            schema: Schema {
+                                fields: table_info
+                                    .column_names
+                                    .iter()
+                                    .map(|name| FieldDefinition {
+                                        name: name.clone(),
+                                        typ: FieldType::String,
+                                        nullable: true,
+                                        source: Default::default(),
+                                    })
+                                    .collect(),
+                                primary_index,
+                            },
+                            cdc_type: Default::default(),
+                        },
+                    )
+                })
+                .collect(),
+        };
+
+        Ok(table_infos
+            .iter()
+            .map(|table_info| {
+                let table_name = table_info.name.clone();
+                let schema = schemas
+                    .get(&table_name)
+                    .cloned()
+                    .ok_or(AerospikeConnectorError::SchemaNotFound(table_name.clone()))?;
+
+                let filtered_schema = if table_info.column_names.is_empty() {
+                    schema
+                } else {
+                    let primary_key_field_names: Vec<String> = schema
+                        .schema
+                        .primary_index
+                        .iter()
+                        .map(|idx| {
+                            schema
+                                .schema
+                                .fields
+                                .get(*idx)
+                                .map(|field| field.name.clone())
+                                .expect("Field should be present")
+                        })
+                        .collect();
+
+                    let filtered_fields: Vec<FieldDefinition> = schema
+                        .schema
+                        .fields
+                        .into_iter()
+                        .filter(|field| table_info.column_names.contains(&field.name))
+                        .collect();
+
+                    let new_primary_index = filtered_fields
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(i, field)| {
+                            if primary_key_field_names.contains(&field.name) {
+                                Some(i)
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+
+                    SourceSchema {
+                        schema: Schema {
+                            fields: filtered_fields,
+                            primary_index: new_primary_index,
+                        },
+                        cdc_type: Default::default(),
+                    }
+                };
+
+                Ok(filtered_schema)
+            })
+            .collect())
     }
 
     async fn serialize_state(&self) -> Result<Vec<u8>, BoxedError> {
@@ -228,6 +352,7 @@ impl Connector for AerospikeConnector {
         tables: Vec<TableInfo>,
         _last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
+        let mapped_schema = self.get_schemas(&tables).await?;
         ingestor
             .handle_message(IngestionMessage::TransactionInfo(
                 TransactionInfo::SnapshottingStarted,
@@ -239,19 +364,21 @@ impl Connector for AerospikeConnector {
             ))
             .await?;
 
-        let tables_index_map: HashMap<String, TableIndexMap> = tables
-            .iter()
+        let tables_index_map: HashMap<String, TableIndexMap> = mapped_schema
+            .into_iter()
             .enumerate()
-            .map(|(table_index, table)| {
-                let columns_map: HashMap<String, usize> = table
-                    .column_names
+            .map(|(table_index, schema)| {
+                let columns_map: HashMap<String, (usize, FieldType)> = schema
+                    .expect("Schema should be present")
+                    .schema
+                    .fields
                     .iter()
                     .enumerate()
-                    .map(|(i, name)| (name.clone(), i))
+                    .map(|(i, field)| (field.name.clone(), (i, field.typ)))
                     .collect();
 
                 (
-                    table.name.clone(),
+                    tables[table_index].name.clone(),
                     TableIndexMap {
                         table_index,
                         columns_map,
@@ -292,7 +419,7 @@ async fn map_event(
     }) = tables_map.get(set_name.as_str())
     {
         let mut fields = vec![Field::Null; columns_map.len()];
-        if let Some(pk) = columns_map.get("PK") {
+        if let Some((pk, _)) = columns_map.get("PK") {
             fields[*pk] = key
                 .clone()
                 .last()
@@ -308,32 +435,11 @@ async fn map_event(
         }
 
         for bin in event.bins {
-            if let Some(i) = columns_map.get(bin.name.as_str()) {
-                match bin.value {
-                    Some(value) => match bin.r#type.as_str() {
-                        "str" => {
-                            if let dozer_types::serde_json::Value::String(s) = value {
-                                fields[*i] = Field::String(s);
-                            }
-                        }
-                        "int" => {
-                            if let dozer_types::serde_json::Value::Number(n) = value {
-                                fields[*i] = Field::String(n.to_string());
-                            }
-                        }
-                        "float" => {
-                            if let dozer_types::serde_json::Value::Number(n) = value {
-                                fields[*i] = Field::String(n.to_string());
-                            }
-                        }
-                        unexpected => {
-                            error!("Unexpected type: {}", unexpected);
-                        }
-                    },
-                    None => {
-                        fields[*i] = Field::Null;
-                    }
-                }
+            if let Some((i, typ)) = columns_map.get(bin.name.as_str()) {
+                fields[*i] = match bin.value {
+                    Some(value) => map_value_to_field(bin.r#type.as_str(), value, *typ)?,
+                    None => Field::Null,
+                };
             }
         }
 
@@ -348,5 +454,122 @@ async fn map_event(
         })]))
     } else {
         Ok(None)
+    }
+}
+
+pub(crate) fn map_value_to_field(
+    bin_type: &str,
+    value: Value,
+    typ: FieldType,
+) -> Result<Field, AerospikeConnectorError> {
+    match value {
+        Value::Null => Ok(Field::Null),
+        Value::Bool(b) => match typ {
+            FieldType::UInt => Ok(Field::UInt(b as u64)),
+            FieldType::U128 => Ok(Field::U128(b as u128)),
+            FieldType::Int => Ok(Field::Int(b as i64)),
+            FieldType::I128 => Ok(Field::I128(b as i128)),
+            FieldType::Float => Ok(Field::Float(OrderedFloat(if b { 1.0 } else { 0.0 }))),
+            FieldType::Boolean => Ok(Field::Boolean(b)),
+            FieldType::String => Ok(Field::String(b.to_string())),
+            FieldType::Text => Ok(Field::Text(b.to_string())),
+            FieldType::Binary => Ok(Field::Binary(b.encode_to_vec())),
+            FieldType::Decimal => Ok(Field::Decimal(Decimal::from(b as i8))),
+            typ => Err(AerospikeConnectorError::UnsupportedType(typ)),
+        },
+        Value::Number(v) => {
+            match typ {
+                FieldType::UInt => Ok(Field::UInt(
+                    v.as_u64()
+                        .ok_or(AerospikeConnectorError::ParsingUIntFailed)?,
+                )),
+                FieldType::U128 => Ok(Field::U128(
+                    v.as_u64()
+                        .ok_or(AerospikeConnectorError::ParsingUIntFailed)?
+                        as u128,
+                )),
+                FieldType::Int => Ok(Field::Int(
+                    v.as_i64()
+                        .ok_or(AerospikeConnectorError::ParsingIntFailed)?,
+                )),
+                FieldType::I128 => Ok(Field::I128(
+                    v.as_i64()
+                        .ok_or(AerospikeConnectorError::ParsingIntFailed)?
+                        as i128,
+                )),
+                FieldType::Float => Ok(Field::Float(OrderedFloat(
+                    v.as_f64()
+                        .ok_or(AerospikeConnectorError::ParsingFloatFailed)?,
+                ))),
+                FieldType::Boolean => Ok(Field::Boolean(
+                    v.as_i64()
+                        .ok_or(AerospikeConnectorError::ParsingIntFailed)?
+                        == 1,
+                )),
+                FieldType::String => Ok(Field::String(v.to_string())),
+                FieldType::Text => Ok(Field::Text(v.to_string())),
+                FieldType::Binary => Ok(Field::Binary(v.to_string().as_bytes().to_vec())),
+                FieldType::Timestamp => {
+                    // TODO: decide on the format of the timestamp
+
+                    // Convert the timestamp string into an i64
+                    let timestamp = v
+                        .as_i64()
+                        .ok_or(AerospikeConnectorError::ParsingTimestampFailed)?;
+
+                    // Create a NaiveDateTime from the timestamp
+                    let naive = NaiveDateTime::from_timestamp_opt(timestamp, 0)
+                        .ok_or(AerospikeConnectorError::InvalidTimestamp(timestamp))?;
+
+                    // Create a normal DateTime from the NaiveDateTime
+                    let datetime: DateTime<FixedOffset> =
+                        DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc).fixed_offset();
+                    Ok(Field::Timestamp(datetime))
+                }
+                FieldType::Date => {
+                    let days = v
+                        .as_i64()
+                        .ok_or(AerospikeConnectorError::ParsingDaysError)?;
+
+                    let date = NaiveDate::from_num_days_from_ce_opt(days.try_into()?)
+                        .ok_or(AerospikeConnectorError::InvalidDate(days))?;
+                    Ok(Field::Date(date))
+                }
+                typ => Err(AerospikeConnectorError::UnsupportedType(typ)),
+            }
+        }
+        Value::String(s) => {
+            match typ {
+                FieldType::UInt => Ok(Field::UInt(s.as_str().parse()?)),
+                FieldType::U128 => Ok(Field::U128(s.as_str().parse()?)),
+                FieldType::Int => Ok(Field::Int(s.as_str().parse()?)),
+                FieldType::I128 => Ok(Field::I128(s.as_str().parse()?)),
+                FieldType::Float => Ok(Field::Float(OrderedFloat(s.parse()?))),
+                FieldType::Boolean => Ok(Field::Boolean(s == "true" || s == "1")),
+                FieldType::String => Ok(Field::String(s)),
+                FieldType::Text => Ok(Field::Text(s)),
+                FieldType::Binary => {
+                    let bytes = BASE64_STANDARD.decode(s.as_bytes())?;
+                    Ok(Field::Binary(bytes))
+                }
+                FieldType::Timestamp => {
+                    // TODO: decide on the format of the timestamp
+
+                    Err(AerospikeConnectorError::UnsupportedType(typ))
+                }
+                FieldType::Date => {
+                    // TODO: decide on the format of the date
+
+                    Err(AerospikeConnectorError::UnsupportedType(typ))
+                }
+                typ => Err(AerospikeConnectorError::UnsupportedType(typ)),
+            }
+        }
+        Value::Object(_) | Value::Array(_) => {
+            Err(AerospikeConnectorError::UnsupportedTypeForFieldType {
+                bin_type: bin_type.to_string(),
+                field_type: typ,
+            })
+        }
     }
 }

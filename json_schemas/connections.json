@@ -300,11 +300,11 @@
           "minimum": 0.0
         },
         "schemas": {
-          "$ref": "#/definitions/GrpcConfigSchemas"
+          "$ref": "#/definitions/ConfigSchemas"
         }
       },
       "definitions": {
-        "GrpcConfigSchemas": {
+        "ConfigSchemas": {
           "oneOf": [
             {
               "type": "object",

@@ -154,6 +154,16 @@
             }
           ]
         },
+        "schemas": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ConfigSchemas"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "sets": {
           "type": "array",
           "items": {
@@ -582,6 +592,34 @@
         }
       },
       "additionalProperties": false
+    },
+    "ConfigSchemas": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "Inline"
+          ],
+          "properties": {
+            "Inline": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Path"
+          ],
+          "properties": {
+            "Path": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
     },
     "ConflictResolution": {
       "type": "object",
@@ -1326,37 +1364,9 @@
           "minimum": 0.0
         },
         "schemas": {
-          "$ref": "#/definitions/GrpcConfigSchemas"
+          "$ref": "#/definitions/ConfigSchemas"
         }
       }
-    },
-    "GrpcConfigSchemas": {
-      "oneOf": [
-        {
-          "type": "object",
-          "required": [
-            "Inline"
-          ],
-          "properties": {
-            "Inline": {
-              "type": "string"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "Path"
-          ],
-          "properties": {
-            "Path": {
-              "type": "string"
-            }
-          },
-          "additionalProperties": false
-        }
-      ]
     },
     "JavaScriptConfig": {
       "type": "object",
