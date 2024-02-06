@@ -76,6 +76,23 @@ pub enum Commands {
     Security(Security),
     #[command(about = "Deploy cloud applications")]
     Cloud(Cloud),
+    #[command(about = "Run UI server")]
+    UI(UI),
+}
+
+#[derive(Debug, Args)]
+pub struct UI {
+    #[command(subcommand)]
+    pub command: Option<UICommands>,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum UICommands {
+    #[command(
+        about = "Updates the latest UI code",
+        long_about = "Updates the latest UI code"
+    )]
+    Update,
 }
 
 #[derive(Debug, Args)]
@@ -121,11 +138,6 @@ pub enum RunCommands {
         long_about = "Run lambda functions. Lambda functions are JavaScript or Python functions that are called when a new operation is output."
     )]
     Lambda,
-    #[command(
-        about = "Open web interface",
-        long_about = "Open web interface. Web interface is used to interact with dozer"
-    )]
-    AppUI,
 }
 
 #[derive(Debug, Args)]

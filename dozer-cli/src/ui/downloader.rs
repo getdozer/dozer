@@ -47,15 +47,15 @@ async fn fetch_dozer_ui(url: &str, folder_name: &str) -> Result<(), DownloaderEr
     let prev_zip_file_name = existing_key.as_str();
     if key_changed {
         info!("Downloading latest file: {}", zip_file_name);
-
         let base_url = &format!("{}/", url);
         let zip_url = &(base_url.to_owned() + zip_file_name);
         if !prev_zip_file_name.is_empty() {
             delete_file_if_present(prev_zip_file_name, folder_name)?;
         }
         get_zip_from_url(zip_url, folder_name, zip_file_name).await?;
+    } else {
+        info!("Current file is up to date");
     }
-
     Ok(())
 }
 pub const LOCAL_APP_UI_DIR: &str = "local-app-ui";
@@ -65,6 +65,14 @@ pub async fn fetch_latest_dozer_app_ui_code() -> Result<(), DownloaderError> {
         LOCAL_APP_UI_DIR,
     )
     .await
+}
+
+pub fn validate_if_dozer_app_ui_code_exists() -> bool {
+    let directory_path = get_directory_path();
+    let file_path = Path::new(&directory_path)
+        .join(LOCAL_APP_UI_DIR)
+        .join("contents");
+    file_path.exists()
 }
 
 pub const LIVE_APP_UI_DIR: &str = "live-app-ui";
