@@ -17,8 +17,6 @@ mod lmdb_counter;
 pub use lmdb_counter::LmdbCounter;
 mod lmdb_option;
 pub use lmdb_option::LmdbOption;
-mod rocksdb_map;
-pub use rocksdb_map::RocksdbMap;
 
 #[cfg(test)]
 mod tests;
