@@ -1,5 +1,5 @@
 #![no_main]
-use dozer_recordstore::{ProcessorRecordStore, RecordRef, StoreRecord};
+use dozer_recordstore::{ProcessorRecordStore, StoreRecord};
 use dozer_types::{models::app_config::RecordStore, types::Field};
 use libfuzzer_sys::fuzz_target;
 
