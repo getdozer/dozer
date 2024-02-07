@@ -51,12 +51,10 @@ pub enum Commands {
             directory"
     )]
     Clean,
-    #[command(
-        about = "Build YAML definitions as a dozer pipeline"
-    )]
+    #[command(about = "Build YAML definitions as a dozer pipeline")]
     Build(Build),
     #[command(about = "Run a replication instance with the provided configuration")]
-    Run(Run),
+    Run,
     #[command(about = "Run UI server")]
     UI(UI),
 }
@@ -93,22 +91,6 @@ pub struct Build {
 }
 
 #[derive(Debug, Args)]
-pub struct Run {
-    #[arg(help = format!("Require that {LOCK_FILE} is up-to-date"), long = "locked")]
-    pub locked: bool,
-}
-
-// #[derive(Debug, Subcommand)]
-// pub enum RunCommands {
-//     #[command(
-//         about = "Run app instance",
-//         long_about = "Run app instance. App instance is responsible for ingesting data and \
-//             passing it through pipeline"
-//     )]
-//     App,
-// }
-
-#[derive(Debug, Args)]
 #[command(args_conflicts_with_subcommands = true)]
 pub struct Deploy {
     pub target_url: String,
@@ -116,12 +98,6 @@ pub struct Deploy {
     pub username: Option<String>,
     #[arg(short = 'p')]
     pub password: Option<String>,
-}
-
-#[derive(Debug, Args)]
-pub struct ConnectorCommand {
-    #[arg(short = 'f')]
-    pub filter: Option<String>,
 }
 
 #[cfg(test)]
