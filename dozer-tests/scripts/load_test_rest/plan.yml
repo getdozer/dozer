@@ -1,9 +1,0 @@
----
-base: 'http://localhost:8080'
-iterations: 1000
-concurrency: 50
-
-plan:
-  - name: Default query
-    request:
-      url: /users

@@ -4256,7 +4256,6 @@ dependencies = [
  "lmdb-rkv-sys",
  "page_size",
  "pin-project",
- "rocksdb",
  "tempdir",
  "tokio",
 ]
@@ -4267,25 +4266,17 @@ version = "0.3.0"
 dependencies = [
  "ahash 0.8.6",
  "async-trait",
- "bson",
  "clap 4.4.8",
  "crossbeam",
  "csv",
- "dozer-api",
- "dozer-cache",
- "dozer-cli",
  "dozer-core",
  "dozer-recordstore",
  "dozer-sql",
  "dozer-tracing",
  "dozer-types",
- "dozer-utils",
  "env_logger 0.10.1",
  "futures",
  "libtest-mimic",
- "mongodb",
- "multimap 0.9.1",
- "reqwest",
  "rusqlite",
  "sqllogictest",
  "sqlparser 0.35.0",
@@ -6376,22 +6367,6 @@ dependencies = [
  "bitflags 2.4.1",
  "libc",
  "redox_syscall 0.4.1",
-]
-
-[[package]]
-name = "librocksdb-sys"
-version = "0.11.0+8.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d3386f101bcb4bd252d8e9d2fb41ec3b0862a15a62b478c355b2982efa469e3e"
-dependencies = [
- "bindgen 0.65.1",
- "bzip2-sys",
- "cc",
- "glob",
- "libc",
- "libz-sys",
- "lz4-sys",
- "zstd-sys",
 ]
 
 [[package]]
@@ -9389,16 +9364,6 @@ name = "robust"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cbf4a6aa5f6d6888f39e980649f3ad6b666acdce1d78e95b8a2cb076e687ae30"
-
-[[package]]
-name = "rocksdb"
-version = "0.21.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb6f170a4041d50a0ce04b0d2e14916d6ca863ea2e422689a5b694395d299ffe"
-dependencies = [
- "libc",
- "librocksdb-sys",
-]
 
 [[package]]
 name = "rsa"

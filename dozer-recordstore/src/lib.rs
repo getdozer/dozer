@@ -25,14 +25,11 @@ pub enum RecordStoreError {
     Storage(#[from] dozer_storage::errors::StorageError),
     #[error("In memory record not found {0}")]
     InMemoryRecordNotFound(u64),
-    #[error("Rocksdb record not found: {0}")]
-    RocksdbRecordNotFound(u64),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum RecordRef {
     InMemory(in_memory::RecordRef),
-    Rocksdb(u64),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
@@ -98,30 +95,24 @@ pub trait StoreRecord {
 #[derive(Debug)]
 pub enum ProcessorRecordStore {
     InMemory(in_memory::ProcessorRecordStore),
-    Rocksdb(rocksdb::ProcessorRecordStore),
 }
 
 impl ProcessorRecordStore {
     pub fn new(record_store: RecordStore) -> Result<Self, RecordStoreError> {
         match record_store {
             RecordStore::InMemory => Ok(Self::InMemory(in_memory::ProcessorRecordStore::new()?)),
-            RecordStore::Rocksdb(config) => {
-                Ok(Self::Rocksdb(rocksdb::ProcessorRecordStore::new(config)?))
-            }
         }
     }
 
     pub fn num_records(&self) -> usize {
         match self {
             Self::InMemory(store) => store.num_records(),
-            Self::Rocksdb(store) => store.num_records(),
         }
     }
 
     pub fn serialize_slice(&self, start: usize) -> Result<(Vec<u8>, usize), RecordStoreError> {
         match self {
             Self::InMemory(store) => store.serialize_slice(start),
-            Self::Rocksdb(store) => store.serialize_slice(start),
         }
     }
 
@@ -132,12 +123,10 @@ impl ProcessorRecordStore {
         let ProcessorRecord { values, lifetime } = record;
         let values = values
             .iter()
-            .map(|value| match (value, self) {
-                (RecordRef::InMemory(record_ref), ProcessorRecordStore::InMemory(record_store)) => {
-                    record_store.serialize_ref(record_ref)
-                }
-                (RecordRef::Rocksdb(record_ref), _) => *record_ref,
-                _ => panic!("In memory record ref cannot be serialized by rocksdb record store"),
+            .map(|value| {
+                let ProcessorRecordStore::InMemory(record_store) = self;
+                let RecordRef::InMemory(record_ref) = value;
+                record_store.serialize_ref(record_ref)
             })
             .collect();
         let record = ProcessorRecordForSerialization {
@@ -148,9 +137,8 @@ impl ProcessorRecordStore {
     }
 
     pub fn compact(&self) {
-        if let Self::InMemory(store) = self {
-            store.vacuum();
-        }
+        let Self::InMemory(store) = self;
+        store.vacuum();
     }
 }
 
@@ -158,25 +146,18 @@ impl StoreRecord for ProcessorRecordStore {
     fn create_ref(&self, values: &[Field]) -> Result<RecordRef, RecordStoreError> {
         match self {
             Self::InMemory(store) => Ok(RecordRef::InMemory(store.create_ref(values)?)),
-            Self::Rocksdb(store) => Ok(RecordRef::Rocksdb(store.create_ref(values)?)),
         }
     }
 
     fn load_ref(&self, record_ref: &RecordRef) -> Result<Vec<Field>, RecordStoreError> {
-        match (record_ref, self) {
-            (RecordRef::InMemory(record_ref), _) => Ok(load_in_memory_record_ref(record_ref)),
-            (RecordRef::Rocksdb(record_ref), ProcessorRecordStore::Rocksdb(record_store)) => {
-                Ok(record_store.load_ref(record_ref)?)
-            }
-            _ => panic!("Rocksdb record ref cannot be loaded by in memory record store"),
-        }
+        let RecordRef::InMemory(record_ref) = record_ref;
+        Ok(load_in_memory_record_ref(record_ref))
     }
 }
 
 #[derive(Debug)]
 pub enum ProcessorRecordStoreDeserializer {
     InMemory(in_memory::ProcessorRecordStoreDeserializer),
-    Rocksdb(rocksdb::ProcessorRecordStore),
 }
 
 impl ProcessorRecordStoreDeserializer {
@@ -185,16 +166,12 @@ impl ProcessorRecordStoreDeserializer {
             RecordStore::InMemory => Ok(Self::InMemory(
                 in_memory::ProcessorRecordStoreDeserializer::new()?,
             )),
-            RecordStore::Rocksdb(config) => {
-                Ok(Self::Rocksdb(rocksdb::ProcessorRecordStore::new(config)?))
-            }
         }
     }
 
     pub fn deserialize_and_extend(&self, data: &[u8]) -> Result<(), RecordStoreError> {
         match self {
             Self::InMemory(store) => store.deserialize_and_extend(data),
-            Self::Rocksdb(store) => store.deserialize_and_extend(data),
         }
     }
 
@@ -213,7 +190,6 @@ impl ProcessorRecordStoreDeserializer {
                     let record_ref = record_store.deserialize_ref(value)?;
                     deserialized_values.push(RecordRef::InMemory(record_ref));
                 }
-                Self::Rocksdb(_) => deserialized_values.push(RecordRef::Rocksdb(value)),
             }
         }
         Ok(ProcessorRecord {
@@ -227,7 +203,6 @@ impl ProcessorRecordStoreDeserializer {
             Self::InMemory(record_store) => {
                 ProcessorRecordStore::InMemory(record_store.into_record_store())
             }
-            Self::Rocksdb(record_store) => ProcessorRecordStore::Rocksdb(record_store),
         }
     }
 }
@@ -236,19 +211,12 @@ impl StoreRecord for ProcessorRecordStoreDeserializer {
     fn create_ref(&self, values: &[Field]) -> Result<RecordRef, RecordStoreError> {
         match self {
             Self::InMemory(store) => Ok(RecordRef::InMemory(store.create_ref(values)?)),
-            Self::Rocksdb(store) => Ok(RecordRef::Rocksdb(store.create_ref(values)?)),
         }
     }
 
     fn load_ref(&self, record_ref: &RecordRef) -> Result<Vec<Field>, RecordStoreError> {
-        match (record_ref, self) {
-            (RecordRef::InMemory(record_ref), _) => Ok(load_in_memory_record_ref(record_ref)),
-            (
-                RecordRef::Rocksdb(record_ref),
-                ProcessorRecordStoreDeserializer::Rocksdb(record_store),
-            ) => Ok(record_store.load_ref(record_ref)?),
-            _ => panic!("Rocksdb record ref cannot be loaded by in memory record store"),
-        }
+        let RecordRef::InMemory(record_ref) = record_ref;
+        Ok(load_in_memory_record_ref(record_ref))
     }
 }
 
@@ -257,7 +225,6 @@ fn load_in_memory_record_ref(record_ref: &in_memory::RecordRef) -> Vec<Field> {
 }
 
 mod in_memory;
-mod rocksdb;
 
 #[derive(Debug, bincode::Encode, bincode::Decode)]
 struct ProcessorRecordForSerialization {
@@ -267,7 +234,6 @@ struct ProcessorRecordForSerialization {
 
 #[cfg(test)]
 mod tests {
-    use dozer_types::models::app_config::RocksdbConfig;
     use std::time::Duration;
 
     use dozer_types::types::Timestamp;
@@ -298,7 +264,6 @@ mod tests {
     #[test]
     fn test_record_roundtrip() {
         test_record_roundtrip_impl(RecordStore::InMemory);
-        test_record_roundtrip_impl(RecordStore::Rocksdb(RocksdbConfig::default()));
     }
 
     fn test_record_serialization_roundtrip_impl(record_store_kind: RecordStore) {
@@ -316,7 +281,5 @@ mod tests {
     #[test]
     fn test_record_serialization_roundtrip() {
         test_record_serialization_roundtrip_impl(RecordStore::InMemory);
-        // TODO: enable this test when serialization is implemented for rocksdb
-        // test_record_serialization_roundtrip_impl(RecordStore::Rocksdb);
     }
 }
