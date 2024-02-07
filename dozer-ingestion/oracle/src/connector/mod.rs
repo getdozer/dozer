@@ -524,7 +524,7 @@ mod tests {
         let data_user = "DOZER";
         let host = "database-1.cxtwfj9nkwtu.ap-southeast-1.rds.amazonaws.com";
         let sid = "ORCL";
-        let pid = sid;
+        let pid = None;
 
         let mut connector = super::Connector::new(
             "oracle".into(),
