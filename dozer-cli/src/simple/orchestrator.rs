@@ -313,6 +313,7 @@ impl SimpleOrchestrator {
                 LambdaConfig::JavaScript(module) => module.clone(),
             })
             .collect();
+        //doubt
         let runtime = dozer_lambda::JsRuntime::new(
             app_url(&self.config.api.app_grpc),
             lambda_modules,
