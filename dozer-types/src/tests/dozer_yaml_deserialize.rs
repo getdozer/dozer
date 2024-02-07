@@ -24,7 +24,7 @@ fn error_wrong_reference_connection_name() {
       - email
       - phone
       connection: wrong_connection_name
-    endpoints:
+    sinks:
     - name: users
       path: /users
       sql: select id, email, phone from users where 1=1;
@@ -63,7 +63,7 @@ fn error_missing_field_general() {
       - email
       - phone
       connection: users
-    endpoints:
+    sinks:
     - path: /eth/stats
       sql: select block_number, sum(id) from eth_logs where 1=1 group by block_number;
       index:

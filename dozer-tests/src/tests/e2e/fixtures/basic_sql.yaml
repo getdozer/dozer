@@ -43,8 +43,8 @@ sources:
     table_name: trips
     connection: ny_taxi
 
-endpoints:
+sinks:
   - table_name: trips
-    kind: !Api
+    config: !Api
       path: /trips
     

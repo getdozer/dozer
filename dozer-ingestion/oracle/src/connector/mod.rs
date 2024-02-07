@@ -524,13 +524,12 @@ mod tests {
         let data_user = "DOZER";
         let host = "database-1.cxtwfj9nkwtu.ap-southeast-1.rds.amazonaws.com";
         let sid = "ORCL";
-        let pid = None;
 
         let mut connector = super::Connector::new(
             "oracle".into(),
             replicate_user.into(),
             "123",
-            &format!("{}:{}/{}", host, 1521, pid.unwrap_or(sid)),
+            &format!("{}:{}/{}", host, 1521, sid),
             100_000,
             OracleReplicator::DozerLogReader,
         )
@@ -562,9 +561,8 @@ mod tests {
         .unwrap();
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
         let schemas = schemas.into_iter().map(|schema| schema.schema).collect();
-        let con_id = pid.map(|pid| connector.get_con_id(pid).unwrap());
         let handle = std::thread::spawn(move || {
-            connector.replicate(&ingestor, tables, schemas, checkpoint, con_id)
+            connector.replicate(&ingestor, tables, schemas, checkpoint, None)
         });
 
         estimate_throughput(iterator);
