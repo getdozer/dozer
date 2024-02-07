@@ -107,8 +107,6 @@ pub enum OrchestrationError {
     LockedNoLockFile,
     #[error("Command was aborted")]
     Aborted,
-    #[error("Failed to create lambda runtime: {0}")]
-    CreateLambdaRuntime(#[from] dozer_lambda::Error),
 }
 
 #[derive(Error, Debug)]

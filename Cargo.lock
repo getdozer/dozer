@@ -3826,7 +3826,6 @@ dependencies = [
  "dozer-cache",
  "dozer-core",
  "dozer-ingestion",
- "dozer-lambda",
  "dozer-recordstore",
  "dozer-sink-aerospike",
  "dozer-sink-clickhouse",
@@ -4083,17 +4082,6 @@ dependencies = [
  "env_logger 0.11.1",
  "reqwest",
  "tokio",
-]
-
-[[package]]
-name = "dozer-lambda"
-version = "0.1.0"
-dependencies = [
- "async-recursion",
- "dozer-deno",
- "dozer-log",
- "dozer-types",
- "env_logger 0.10.1",
 ]
 
 [[package]]
