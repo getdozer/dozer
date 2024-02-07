@@ -45,7 +45,7 @@ fn run() -> Result<(), OrchestrationError> {
         .map(|(c, _)| c.cloud.app_id.as_deref().unwrap_or(&c.app_name))
         .ok();
 
-    let telemetry_config = if matches!(cli.cmd, Commands::Run(_)) {
+    let telemetry_config = if matches!(cli.cmd, Commands::Run) {
         TelemetryConfig {
             trace: None,
             metrics: Some(TelemetryMetricsConfig::Prometheus),
@@ -89,18 +89,16 @@ fn run() -> Result<(), OrchestrationError> {
 
     // run individual servers
     (match cli.cmd {
-        Commands::Run(_) => {
-            dozer
-                .runtime
-                .block_on(dozer.run_apps(shutdown_receiver, None))
-        },
+        Commands::Run => dozer
+            .runtime
+            .block_on(dozer.run_apps(shutdown_receiver, None)),
         Commands::Build(build) => {
             let force = build.force.is_some();
 
             dozer
                 .runtime
                 .block_on(dozer.build(force, shutdown_receiver, build.locked))
-        },
+        }
         Commands::Clean => dozer.clean(),
         Commands::UI(_) => {
             panic!("This should not happen as it is handled earlier");
