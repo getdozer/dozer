@@ -24,15 +24,24 @@ pub async fn start_app_ui_server(
     let state = Arc::new(AppUIState::new());
     state.set_sender(sender.clone()).await;
     // Ignore if build fails
-    let _ = state.build(runtime.clone()).await;
+    let res = state.build(runtime.clone()).await;
+    if let Err(e) = res {
+        info!("Failed to build state : {}", e);
+    }
     let state2: Arc<AppUIState> = state.clone();
     if !disable_ui {
-        downloader::fetch_latest_dozer_app_ui_code().await?;
+        info!("Check if latest app ui code is available");
+        let already_exist = downloader::validate_if_dozer_app_ui_code_exists();
+        if !already_exist {
+            info!("There's no ui code folder, fetching latest app ui code");
+            downloader::fetch_latest_dozer_app_ui_code().await?;
+        }
         let react_app_server: dozer_api::actix_web::dev::Server =
             downloader::start_react_app(APP_UI_WEB_PORT, LOCAL_APP_UI_DIR)
                 .map_err(AppUIError::CannotStartUiServer)?;
         tokio::spawn(react_app_server);
         let browser_url: String = format!("http://localhost:{}", APP_UI_WEB_PORT);
+        info!("Starting ui on : {}", browser_url);
         if webbrowser::open(&browser_url).is_err() {
             info!("Failed to open browser. ");
         }
@@ -54,6 +63,5 @@ pub async fn start_app_ui_server(
         res.unwrap();
     });
     watcher::watch(runtime, state.clone(), shutdown).await?;
-
     Ok(())
 }

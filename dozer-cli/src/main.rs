@@ -1,18 +1,22 @@
 use clap::Parser;
 use dozer_api::shutdown;
 use dozer_cli::cli::cloud::CloudCommands;
-use dozer_cli::cli::types::{Cli, Commands, ConnectorCommand, RunCommands, SecurityCommands};
+use dozer_cli::cli::types::{
+    Cli, Commands, ConnectorCommand, RunCommands, SecurityCommands, UICommands,
+};
 use dozer_cli::cli::{generate_config_repl, init_config};
 use dozer_cli::cli::{init_dozer, list_sources};
 use dozer_cli::cloud::{cloud_app_context::CloudAppContext, CloudClient, DozerGrpcCloudClient};
 use dozer_cli::errors::{CliError, CloudError, OrchestrationError};
 use dozer_cli::ui;
+use dozer_cli::ui::app::AppUIError;
 use dozer_cli::{set_ctrl_handler, set_panic_hook, ui::live};
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::models::config::Config;
 use dozer_types::models::telemetry::{TelemetryConfig, TelemetryMetricsConfig};
 use dozer_types::tracing::{error, error_span, info};
 use futures::stream::{AbortHandle, Abortable};
+use futures::TryFutureExt;
 use std::convert::identity;
 use std::process;
 use std::sync::Arc;
@@ -40,6 +44,7 @@ fn run() -> Result<(), OrchestrationError> {
     set_panic_hook();
 
     let config_res = init_configuration(&cli, runtime.clone());
+
     // Now we have access to telemetry configuration. Telemetry must be initialized in tokio runtime.
     let app_id = config_res
         .as_ref()
@@ -60,6 +65,24 @@ fn run() -> Result<(), OrchestrationError> {
     };
 
     let _telemetry = runtime.block_on(async { Telemetry::new(app_id, &telemetry_config) });
+
+    // running UI does not require config to be loaded
+    if let Commands::UI(run) = &cli.cmd {
+        if let Some(UICommands::Update) = run.command {
+            runtime.block_on(
+                ui::downloader::fetch_latest_dozer_app_ui_code()
+                    .map_err(AppUIError::DownloaderError),
+            )?;
+            info!("Run `dozer ui` to see the changes.");
+        } else {
+            runtime.block_on(ui::app::start_app_ui_server(
+                &runtime,
+                shutdown_receiver,
+                false,
+            ))?;
+        }
+        return Ok(());
+    }
 
     // Run Cloud
     if let Commands::Cloud(cloud) = &cli.cmd {
@@ -84,14 +107,6 @@ fn run() -> Result<(), OrchestrationError> {
                 .block_on(dozer.run_apps(shutdown_receiver, None)),
             Some(RunCommands::Lambda) => {
                 dozer.runtime.block_on(dozer.run_lambda(shutdown_receiver))
-            }
-            Some(RunCommands::AppUI) => {
-                dozer.runtime.block_on(ui::app::start_app_ui_server(
-                    &dozer.runtime,
-                    shutdown_receiver,
-                    false,
-                ))?;
-                Ok(())
             }
             None => dozer
                 .runtime
@@ -134,6 +149,9 @@ fn run() -> Result<(), OrchestrationError> {
             .and_then(identity)
         }),
         Commands::Clean => dozer.clean(),
+        Commands::UI(_) => {
+            panic!("This should not happen as it is handled earlier");
+        }
         Commands::Cloud(_) => {
             panic!("This should not happen as it is handled earlier");
         }

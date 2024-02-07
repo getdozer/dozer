@@ -1,3 +1,3 @@
 pub mod app;
-mod downloader;
+pub mod downloader;
 pub mod live;

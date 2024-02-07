@@ -124,7 +124,6 @@ impl AppUIState {
         let mut lock = self.dozer.write().await;
 
         let cli = Cli::parse();
-
         let (config, _) = init_config(
             cli.config_paths.clone(),
             cli.config_token.clone(),
@@ -132,6 +131,7 @@ impl AppUIState {
             cli.ignore_pipe,
         )
         .await?;
+
         let dozer = init_dozer(runtime, config, Default::default())?;
 
         let contract = create_contract(dozer.clone()).await;
