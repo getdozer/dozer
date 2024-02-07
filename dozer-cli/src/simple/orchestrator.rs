@@ -27,7 +27,6 @@ use dozer_types::models::api_config::{
 };
 use dozer_types::models::endpoint::EndpointKind;
 use dozer_types::models::flags::{default_dynamic, default_push_events};
-use dozer_types::models::lambda_config::LambdaConfig;
 use futures::future::{select, Either};
 use tokio::{select, try_join};
 
@@ -283,44 +282,10 @@ impl SimpleOrchestrator {
                 .boxed(),
         );
         futures.push(flatten_join_handle(pipeline_future).boxed());
-        let dozer_lambda = self.clone();
-        futures.push({
-            let shutdown = shutdown.clone();
-            async move { dozer_lambda.run_lambda(shutdown).await }.boxed()
-        });
 
         while let Some(result) = futures.next().await {
             result?;
         }
-        Ok(())
-    }
-
-    pub async fn run_lambda(&self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError> {
-        let result = self.run_lambda_impl();
-        let shutdown = shutdown.create_shutdown_future();
-        select! {
-            () = shutdown => Ok(()),
-            result = result => result,
-        }
-    }
-
-    async fn run_lambda_impl(&self) -> Result<(), OrchestrationError> {
-        let lambda_modules = self
-            .config
-            .lambdas
-            .iter()
-            .map(|lambda| match lambda {
-                LambdaConfig::JavaScript(module) => module.clone(),
-            })
-            .collect();
-        //doubt
-        let runtime = dozer_lambda::JsRuntime::new(
-            app_url(&self.config.api.app_grpc),
-            lambda_modules,
-            Default::default(),
-        )
-        .await?;
-        runtime.run().await;
         Ok(())
     }
 
