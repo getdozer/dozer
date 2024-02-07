@@ -101,12 +101,15 @@ pub enum AerospikeConnectorError {
 
     #[error("Schema not found: {0}")]
     SchemaNotFound(String),
+
+    #[error("Failed parsing timestamp: {0}")]
+    TimestampParsingError(#[from] dozer_ingestion_connector::dozer_types::chrono::ParseError),
 }
 
 #[derive(Deserialize, Debug)]
 #[serde(crate = "dozer_types::serde")]
 pub struct AerospikeEvent {
-    // msg: String,
+    msg: String,
     key: Vec<Option<String>>,
     // gen: u32,
     // exp: u32,
@@ -168,6 +171,11 @@ async fn event_request_handler(
 ) -> HttpResponse {
     let event = json.into_inner();
     let state = data.into_inner();
+
+    // TODO: Handle delete
+    if event.msg != "write" {
+        return HttpResponse::Ok().finish();
+    }
 
     let operation_events = map_event(event, state.tables_index_map.clone()).await;
 
@@ -407,11 +415,9 @@ async fn map_event(
         return Err(AerospikeConnectorError::InvalidKeyValue(key.clone()));
     }
 
-    let set_name = match key.clone().get(1) {
-        None => Err(AerospikeConnectorError::NoSetNameFindInKey(key.clone())),
-        Some(Some(set_name)) => Ok(set_name.clone()),
-        Some(None) => Err(AerospikeConnectorError::SetNameIsNone(key.clone())),
-    }?;
+    let [_, Some(ref set_name), _, Some(ref pk_in_key)] = key.clone()[..] else {
+        return Err(AerospikeConnectorError::InvalidKeyValue(key.clone()));
+    };
 
     if let Some(TableIndexMap {
         columns_map,
@@ -420,18 +426,7 @@ async fn map_event(
     {
         let mut fields = vec![Field::Null; columns_map.len()];
         if let Some((pk, _)) = columns_map.get("PK") {
-            fields[*pk] = key
-                .clone()
-                .last()
-                .map_or_else(
-                    || Err(AerospikeConnectorError::NoPkInKey(key.clone())),
-                    |value| {
-                        value
-                            .clone()
-                            .ok_or(AerospikeConnectorError::PkIsNone(key.clone()))
-                    },
-                )
-                .map(Field::String)?
+            fields[*pk] = Field::String(pk_in_key.clone())
         }
 
         for bin in event.bins {
@@ -548,19 +543,15 @@ pub(crate) fn map_value_to_field(
                 FieldType::Boolean => Ok(Field::Boolean(s == "true" || s == "1")),
                 FieldType::String => Ok(Field::String(s)),
                 FieldType::Text => Ok(Field::Text(s)),
-                FieldType::Binary => {
-                    let bytes = BASE64_STANDARD.decode(s.as_bytes())?;
-                    Ok(Field::Binary(bytes))
-                }
-                FieldType::Timestamp => {
-                    // TODO: decide on the format of the timestamp
-
-                    Err(AerospikeConnectorError::UnsupportedType(typ))
-                }
+                FieldType::Timestamp => Ok(Field::Timestamp(DateTime::parse_from_rfc3339(&s)?)),
                 FieldType::Date => {
                     // TODO: decide on the format of the date
 
                     Err(AerospikeConnectorError::UnsupportedType(typ))
+                }
+                FieldType::Binary => {
+                    let bytes = BASE64_STANDARD.decode(s.as_bytes())?;
+                    Ok(Field::Binary(bytes))
                 }
                 typ => Err(AerospikeConnectorError::UnsupportedType(typ)),
             }
