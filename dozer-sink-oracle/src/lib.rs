@@ -1,4 +1,7 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    time::{Duration, Instant},
+};
 
 use dozer_core::{
     node::{PortHandle, Sink, SinkFactory},
@@ -9,13 +12,26 @@ use dozer_types::{
     errors::internal::BoxedError,
     log::info,
     models::ingestion_types::OracleConfig,
+    thiserror::Error,
     tonic::async_trait,
-    types::{Field, FieldType, Schema},
+    types::{Field, FieldType, Record, Schema},
 };
 use oracle::{
     sql_type::{OracleType, ToSql},
     Connection,
 };
+
+#[derive(Error, Debug)]
+enum Error {
+    #[error("Updating a primary key is not supported. Old: {:?}, new: {:?}", .old, .new)]
+    UpdatedPrimaryKey { old: Vec<Field>, new: Vec<Field> },
+}
+
+#[derive(Debug)]
+struct BatchedOperation {
+    op_kind: OpKind,
+    params: Record,
+}
 
 #[derive(Debug)]
 struct OracleSink {
@@ -23,15 +39,62 @@ struct OracleSink {
     insert_append: String,
     pk: Vec<usize>,
     field_types: Vec<FieldType>,
-    insert: String,
-    update: String,
-    delete: String,
+    merge_statement: String,
+    batch_params: Vec<BatchedOperation>,
+    batch_size: usize,
+    last_commit: Instant,
 }
 
 #[derive(Debug)]
 pub struct OracleSinkFactory {
     pub config: OracleConfig,
     pub table: String,
+}
+
+fn generate_merge_statement(table_name: &str, schema: &Schema) -> String {
+    let field_names = schema.fields.iter().map(|field| &field.name);
+    let mut parameter_index = 1usize..;
+    let input_fields = field_names
+        .clone()
+        .zip(&mut parameter_index)
+        .map(|(name, i)| format!(":{i} \"{name}\""))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let destination_columns = field_names
+        .clone()
+        .map(|name| format!("D.\"{name}\""))
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    let source_values = field_names
+        .clone()
+        .map(|name| format!("S.\"{name}\""))
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    let destination_assign = field_names
+        .clone()
+        .map(|name| format!("D.\"{name}\" = S.\"{name}\""))
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    let pk_select = schema
+        .primary_index
+        .iter()
+        .map(|ix| &schema.fields[*ix].name)
+        .map(|name| format!("D.\"{name}\" = S.\"{name}\""))
+        .collect::<Vec<_>>()
+        .join(" AND ");
+    let opkind_idx = parameter_index.next().unwrap();
+    format!(
+        r#"MERGE INTO "{table_name}" D
+        USING (SELECT {input_fields}, :{opkind_idx} DOZER_OPKIND FROM DUAL) S
+        ON (S.DOZER_OPKIND > 0)
+        WHEN NOT MATCHED THEN INSERT ({destination_columns}) VALUES ({source_values})
+        WHEN MATCHED THEN UPDATE SET {destination_assign} WHERE {pk_select}
+        DELETE WHERE S.DOZER_OPKIND = 2
+        "#
+    )
 }
 
 #[async_trait]
@@ -90,13 +153,7 @@ impl SinkFactory for OracleSinkFactory {
         );
         info!("### CREATE TABLE #### \n: {:?}", table);
         connection.execute(&table, &[])?;
-        let insert = format!(
-            "INSERT INTO \"{table_name}\" VALUES ({})",
-            (1..=schema.fields.len())
-                .map(|i| format!(":{i}"))
-                .collect::<Vec<_>>()
-                .join(", ")
-        );
+
         let insert_append = format!(
             "INSERT /*+ APPEND */ INTO \"{table_name}\" VALUES ({})",
             (1..=schema.fields.len())
@@ -105,51 +162,23 @@ impl SinkFactory for OracleSinkFactory {
                 .join(", ")
         );
 
-        let pk_fields = schema
-            .primary_index
-            .iter()
-            .map(|ix| &schema.fields[*ix].name)
-            .collect::<Vec<_>>();
-        let pk_select = |start_idx: usize| {
-            pk_fields
-                .iter()
-                .enumerate()
-                .map(|(i, field)| format!("\"{field}\" = :{}", start_idx + i))
-                .collect::<Vec<_>>()
-                .join(" AND ")
-        };
-        let update = format!(
-            "UPDATE \"{table_name}\" SET {} WHERE {}",
-            schema
-                .fields
-                .iter()
-                .enumerate()
-                .map(|(i, field)| { format!("\"{}\" = :{}", field.name, i) })
-                .collect::<Vec<_>>()
-                .join(", "),
-            pk_select(schema.fields.len()),
-        );
-        let delete = format!("DELETE FROM \"{table_name}\" WHERE {}", pk_select(1));
-
-        let field_types = schema.fields.into_iter().map(|field| field.typ).collect();
+        let field_types = schema.fields.iter().map(|field| field.typ).collect();
         Ok(Box::new(OracleSink {
             conn: connection,
             insert_append,
-            insert,
-            update,
-            delete,
+            merge_statement: generate_merge_statement(table_name, &schema),
             field_types,
             pk: schema.primary_index,
+            batch_params: Vec::new(),
+            //TODO: make this configurable
+            batch_size: 1000,
+            last_commit: Instant::now(),
         }))
     }
 }
 
+#[derive(Debug)]
 struct OraField(Field, FieldType);
-impl OraField {
-    fn new(f: Field, typ: FieldType) -> Self {
-        Self(f, typ)
-    }
-}
 
 impl ToSql for OraField {
     fn oratype(&self, conn: &Connection) -> oracle::Result<oracle::sql_type::OracleType> {
@@ -198,11 +227,59 @@ impl ToSql for OraField {
     }
 }
 
+#[derive(Debug)]
+enum OpKind {
+    Insert = 0,
+    Update = 1,
+    Delete = 2,
+}
+
+impl OracleSink {
+    fn exec_batch(&mut self) -> oracle::Result<()> {
+        let mut batch = self
+            .conn
+            .batch(&self.merge_statement, self.batch_params.len())
+            .build()?;
+        for params in self.batch_params.drain(..) {
+            for (i, (field, typ)) in params
+                .params
+                .values
+                .into_iter()
+                .zip(&self.field_types)
+                .enumerate()
+            {
+                batch.set(i + 1, &OraField(field, *typ))?;
+            }
+            batch.set(self.field_types.len() + 1, &(params.op_kind as u64))?;
+            batch.append_row(&[])?;
+        }
+        batch.execute()?;
+        Ok(())
+    }
+
+    fn batch(&mut self, kind: OpKind, record: Record) -> oracle::Result<()> {
+        self.batch_params.push(BatchedOperation {
+            op_kind: kind,
+            params: record,
+        });
+        if self.batch_params.len() >= self.batch_size {
+            self.exec_batch()?;
+        }
+        Ok(())
+    }
+}
+
 impl Sink for OracleSink {
     fn commit(
         &mut self,
         _epoch_details: &dozer_core::epoch::Epoch,
     ) -> Result<(), dozer_types::errors::internal::BoxedError> {
+        // TODO: Make the duraton configurable, and move logic to pipeline
+        if self.last_commit.elapsed() > Duration::from_millis(500) {
+            self.last_commit = Instant::now();
+            self.exec_batch()?;
+            self.conn.commit()?;
+        }
         Ok(())
     }
 
@@ -214,77 +291,37 @@ impl Sink for OracleSink {
     ) -> Result<(), dozer_types::errors::internal::BoxedError> {
         match op.op {
             dozer_types::types::Operation::Delete { old } => {
-                let fields = old
-                    .values
-                    .into_iter()
-                    .zip(&self.field_types)
-                    .enumerate()
-                    .filter_map(|(i, v)| self.pk.contains(&i).then_some(v))
-                    .map(|(f, t)| OraField::new(f, *t))
-                    .collect::<Vec<_>>();
-                self.conn
-                    .statement(&self.delete)
-                    .build()?
-                    .execute(&fields.iter().map(|v| v as &dyn ToSql).collect::<Vec<_>>())?;
-                self.conn.commit()?;
+                self.batch(OpKind::Delete, old)?;
             }
             dozer_types::types::Operation::Insert { new } => {
-                let fields = new
-                    .values
-                    .into_iter()
-                    .zip(&self.field_types)
-                    .map(|(f, t)| OraField::new(f, *t))
-                    .collect::<Vec<_>>();
-                self.conn
-                    .statement(&self.insert)
-                    .build()?
-                    .execute(&fields.iter().map(|v| v as &dyn ToSql).collect::<Vec<_>>())?;
-                self.conn.commit()?;
+                self.batch(OpKind::Insert, new)?;
             }
             dozer_types::types::Operation::Update { old, new } => {
-                let fields = new
-                    .values
-                    .into_iter()
-                    .zip(&self.field_types)
-                    .map(|(f, t)| OraField::new(f, *t))
-                    .collect::<Vec<_>>();
+                let old_index = old.get_fields_by_indexes(&self.pk);
+                let new_index = new.get_fields_by_indexes(&self.pk);
+                if old_index != new_index {
+                    return Err(Box::new(Error::UpdatedPrimaryKey {
+                        old: old_index,
+                        new: new_index,
+                    }));
+                }
 
-                let pk = old
-                    .values
-                    .iter()
-                    .zip(&self.field_types)
-                    .enumerate()
-                    .filter_map(|(i, v)| {
-                        self.pk
-                            .contains(&i)
-                            .then_some(OraField::new(v.0.clone(), *v.1))
-                    })
-                    .collect::<Vec<_>>();
-                let params = fields
-                    .iter()
-                    .chain(pk.iter())
-                    .map(|v| v as &dyn ToSql)
-                    .collect::<Vec<_>>();
-                self.conn
-                    .statement(&self.update)
-                    .build()?
-                    .execute(&params)?;
-                self.conn.commit()?;
+                self.batch(OpKind::Update, new)?;
             }
-            dozer_types::types::Operation::BatchInsert { new } => {
-                let mut batch = self.conn.batch(&self.insert_append, 1000).build()?;
-                for record in new {
-                    let fields = record
-                        .values
-                        .into_iter()
-                        .zip(&self.field_types)
-                        .map(|(f, t)| OraField::new(f, *t))
-                        .collect::<Vec<_>>();
-                    let params = fields.iter().map(|v| v as &dyn ToSql).collect::<Vec<_>>();
-                    batch.append_row(&params)?;
+            dozer_types::types::Operation::BatchInsert { mut new } => {
+                let mut batch = self
+                    .conn
+                    .batch(&self.insert_append, self.batch_size)
+                    .build()?;
+                for record in new.drain(..) {
+                    for (i, (field, typ)) in
+                        record.values.into_iter().zip(&self.field_types).enumerate()
+                    {
+                        batch.set(i + 1, &OraField(field, *typ))?;
+                    }
+                    batch.append_row(&[])?;
                 }
                 batch.execute()?;
-                self.conn.commit()?;
             }
         }
         Ok(())
@@ -332,5 +369,55 @@ impl Sink for OracleSink {
     ) -> Result<Option<dozer_types::node::OpIdentifier>, dozer_types::errors::internal::BoxedError>
     {
         Ok(None)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use dozer_types::types::FieldDefinition;
+
+    use super::*;
+
+    fn trim_str(s: impl AsRef<str>) -> String {
+        s.as_ref()
+            .lines()
+            .map(|line| line.trim())
+            .filter(|line| !line.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    #[test]
+    fn test_generate_merge_stmt() {
+        let mut schema = Schema::new();
+        schema
+            .field(f("id"), true)
+            .field(f("name"), true)
+            .field(f("content"), false);
+
+        let stmt = generate_merge_statement("tablename", &schema);
+        assert_eq!(
+            trim_str(stmt),
+            trim_str(
+                r#"
+                MERGE INTO "tablename" D 
+                USING (SELECT :1 "id", :2 "name", :3 "content", :4 DOZER_OPKIND FROM DUAL) S
+                ON (S.DOZER_OPKIND > 0)
+                WHEN NOT MATCHED THEN INSERT (D."id", D."name", D."content") VALUES (S."id", S."name", S."content")
+                WHEN MATCHED THEN UPDATE SET D."id" = S."id", D."name" = S."name", D."content" = S."content"
+                WHERE D."id" = S."id" AND D."name" = S."name"
+                DELETE WHERE S.DOZER_OPKIND = 2
+"#
+            )
+        )
+    }
+
+    fn f(name: &str) -> FieldDefinition {
+        dozer_types::types::FieldDefinition {
+            name: name.to_owned(),
+            typ: FieldType::String,
+            nullable: false,
+            source: dozer_types::types::SourceDefinition::Dynamic,
+        }
     }
 }
