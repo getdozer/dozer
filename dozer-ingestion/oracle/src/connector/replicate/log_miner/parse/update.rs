@@ -15,7 +15,7 @@ pub struct Parser {
 impl Parser {
     pub fn new() -> Self {
         let regex =
-            Regex::new(r#"^update "(\w+)"\."(\w+)"\n *set\n(?s)(.+) *where\n(?s)(.+)$"#).unwrap();
+            Regex::new(r#"^update "(\w+)"\."(\w+)"\n *(?s)(.+) *where\n(?s)(.+)$"#).unwrap();
         Self {
             regex,
             new_row_parser: row::Parser::new(",", "\n"),
@@ -61,32 +61,37 @@ fn test_parse() {
     use super::ParsedValue;
 
     let parser = Parser::new();
-    let sql_redo = r#"update "OE"."PRODUCT_INFORMATION"
-    set
-      "WARRANTY_PERIOD" = 'TO_YMINTERVAL('+05-00')'
+    let sql_redo = r#"update "DOZER"."TRANSACTIONS"
+        "TYPE" = 'REBATE'
     where
-      "PRODUCT_ID" = '1799' and
-      "WARRANTY_PERIOD" = 'TO_YMINTERVAL('+01-00')';
+        "TRANSACTION_ID" = 12001 and
+        "CUSTOMER_ID" = 63147 and
+        "TYPE" = 'Withdrawal' and
+        "AMOUNT" = 9691.34 and
+        "CURRENCY" = 'USD' and
+        "TRANSACTION_DATE" = '28-JAN-24' and
+        "STATUS" = 'Completed' and
+        "DESCRIPTION" = 'Yeah become language inside purpose.';
     "#;
     let (old, new) = parser
         .parse(sql_redo, &("HR".to_string(), "EMPLOYEES".to_string()))
         .unwrap();
-    assert_eq!(old.len(), 2);
-    assert_eq!(new.len(), 2);
+    assert_eq!(old.len(), 8);
+    assert_eq!(new.len(), 8);
     assert_eq!(
-        old.get("PRODUCT_ID").unwrap(),
-        &ParsedValue::String("1799".to_string())
+        old.get("TRANSACTION_ID").unwrap(),
+        &ParsedValue::Number("12001".parse().unwrap())
     );
     assert_eq!(
-        new.get("PRODUCT_ID").unwrap(),
-        &ParsedValue::String("1799".to_string())
+        new.get("TRANSACTION_ID").unwrap(),
+        &ParsedValue::Number("12001".parse().unwrap())
     );
     assert_eq!(
-        old.get("WARRANTY_PERIOD").unwrap(),
-        &ParsedValue::String("TO_YMINTERVAL('+01-00')".to_string())
+        old.get("TYPE").unwrap(),
+        &ParsedValue::String("Withdrawal".to_string())
     );
     assert_eq!(
-        new.get("WARRANTY_PERIOD").unwrap(),
-        &ParsedValue::String("TO_YMINTERVAL('+05-00')".to_string())
+        new.get("TYPE").unwrap(),
+        &ParsedValue::String("REBATE".to_string())
     );
 }
