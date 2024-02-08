@@ -67,7 +67,7 @@ impl Sink for DummySink {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        _record_store: &ProcessorRecordStore,
+        _record_store: &ProcessorRecordStore, //doubt
         op: OperationWithId,
     ) -> Result<(), BoxedError> {
         if self.count % 1000 == 0 {

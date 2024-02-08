@@ -92,7 +92,7 @@ impl Sink for LogSink {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        _record_store: &ProcessorRecordStore,
+        _record_store: &ProcessorRecordStore, //doubt
         op: OperationWithId,
     ) -> Result<(), BoxedError> {
         let end = self
