@@ -7,7 +7,6 @@ use dozer_log::{
     storage::{self, Object, Queue, Storage},
     tokio::task::JoinHandle,
 };
-use dozer_recordstore::{ProcessorRecordStore, ProcessorRecordStoreDeserializer, StoreRecord};
 use dozer_types::{
     bincode,
     log::{error, info},
@@ -25,7 +24,6 @@ use crate::errors::ExecutionError;
 pub struct CheckpointFactory {
     queue: Queue,
     prefix: String,
-    record_store: Arc<ProcessorRecordStore>,
     state: Mutex<CheckpointWriterFactoryState>,
 }
 
@@ -53,7 +51,6 @@ struct Checkpoint {
 pub struct OptionCheckpoint {
     storage: Box<dyn Storage>,
     prefix: String,
-    record_store: ProcessorRecordStoreDeserializer,
     checkpoint: Option<Checkpoint>,
 }
 
@@ -83,7 +80,6 @@ impl OptionCheckpoint {
             storage,
             prefix,
             checkpoint,
-            record_store,
         })
     }
 
@@ -93,10 +89,6 @@ impl OptionCheckpoint {
 
     pub fn prefix(&self) -> &str {
         &self.prefix
-    }
-
-    pub fn record_store(&self) -> &ProcessorRecordStoreDeserializer {
-        &self.record_store
     }
 
     pub fn last_epoch_id(&self) -> Option<u64> {
@@ -176,7 +168,6 @@ impl CheckpointFactory {
             Self {
                 queue,
                 prefix: checkpoint.prefix,
-                record_store: Arc::new(record_store),
                 state,
             },
             worker,
@@ -185,10 +176,6 @@ impl CheckpointFactory {
 
     pub fn queue(&self) -> &Queue {
         &self.queue
-    }
-
-    pub fn record_store(&self) -> &Arc<ProcessorRecordStore> {
-        &self.record_store
     }
 
     fn write_record_store_slice(
@@ -307,9 +294,7 @@ async fn read_record_store_slices(
     storage: &dyn Storage,
     factory_prefix: &str,
     record_store: RecordStore,
-) -> Result<(ProcessorRecordStoreDeserializer, Option<Checkpoint>), ExecutionError> {
-    let record_store = ProcessorRecordStoreDeserializer::new(record_store)?;
-
+) -> Result<Option<Checkpoint>, ExecutionError> {
     let stream = list_record_store_slices(storage, factory_prefix);
     let mut stream = std::pin::pin!(stream);
 

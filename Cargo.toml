@@ -14,7 +14,6 @@ members = [
   "dozer-log-js",
   "dozer-log-python",
   "dozer-utils",
-  "dozer-recordstore",
   "dozer-sinks",
   "dozer-sink-aerospike",
   "dozer-sink-clickhouse", "dozer-sink-oracle",

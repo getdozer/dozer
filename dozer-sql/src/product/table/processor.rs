@@ -3,7 +3,6 @@ use dozer_core::dozer_log::storage::Object;
 use dozer_core::epoch::Epoch;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_recordstore::ProcessorRecordStore;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::OperationWithId;
 
@@ -26,7 +25,6 @@ impl Processor for TableProcessor {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        _record_store: &ProcessorRecordStore,
         op: OperationWithId,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
@@ -34,11 +32,7 @@ impl Processor for TableProcessor {
         Ok(())
     }
 
-    fn serialize(
-        &mut self,
-        _record_store: &ProcessorRecordStore,
-        _object: Object,
-    ) -> Result<(), BoxedError> {
+    fn serialize(&mut self, _object: Object) -> Result<(), BoxedError> {
         Ok(())
     }
 }

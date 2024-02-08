@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use dozer_recordstore::ProcessorRecordStoreDeserializer;
 use dozer_types::{errors::internal::BoxedError, tonic::async_trait, types::Schema};
 
 use crate::{
@@ -38,7 +37,6 @@ impl ProcessorFactory for ConnectivityTestProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _record_store: &ProcessorRecordStoreDeserializer,
         _checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         unimplemented!(
@@ -78,7 +76,6 @@ impl ProcessorFactory for NoInputPortProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _record_store: &ProcessorRecordStoreDeserializer,
         _checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         unimplemented!(

@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use dozer_recordstore::ProcessorRecordStore;
 use dozer_sql_expression::execution::Expression;
 use dozer_types::{
     chrono::DateTime,
@@ -36,7 +35,6 @@ fn test_lifetime() {
         )
         .to_owned();
 
-    let record_store = ProcessorRecordStore::new(Default::default()).unwrap();
     let record = Record::new(vec![
         Field::Int(0),
         Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
@@ -45,25 +43,10 @@ fn test_lifetime() {
     let mut table_operator = LifetimeTableOperator::new(
         None,
         Expression::Column { index: 1 },
-        // Expression::new(
-        //     ExpressionType::BinaryExpression {
-        //         operator: BinaryOperator::Add,
-        //         left: Box::new(Expression::new(ExpressionType::Field("ref".to_string()))),
-        //         right: Box::new(Expression::new(ExpressionType::Literal(
-        //             Literal::Duration(DozerDuration(
-        //                 Duration::from_secs(60),
-        //                 TimeUnit::Seconds,
-        //             )),
-        //         ))),
-        //     },
-        //     "ref".to_string(),
-        // ),
         Duration::from_secs(60),
     );
 
-    let result = table_operator
-        .execute(&record_store, &record, &schema)
-        .unwrap();
+    let result = table_operator.execute(&record, &schema).unwrap();
     assert_eq!(result.len(), 1);
     let lifetime_record = result.first().unwrap();
 

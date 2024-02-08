@@ -22,7 +22,6 @@ use daggy::petgraph::{
     Direction,
 };
 use dozer_log::tokio::sync::Mutex;
-use dozer_recordstore::ProcessorRecordStore;
 use dozer_tracing::LabelsAndProgress;
 
 pub type SharedRecordWriter = Arc<Mutex<Option<Box<dyn RecordWriter>>>>;
@@ -104,12 +103,8 @@ impl ExecutionDag {
                                     )
                                     .await?;
                                 Some(
-                                    create_record_writer(
-                                        edge.schema.clone(),
-                                        checkpoint.record_store(),
-                                        record_writer_data,
-                                    )
-                                    .map_err(ExecutionError::RestoreRecordWriter)?,
+                                    create_record_writer(edge.schema.clone(), record_writer_data)
+                                        .map_err(ExecutionError::RestoreRecordWriter)?,
                                 )
                             }
                             _ => None,
@@ -171,10 +166,6 @@ impl ExecutionDag {
 
     pub fn node_weight_mut(&mut self, node_index: daggy::NodeIndex) -> &mut Option<NodeType> {
         &mut self.graph[node_index]
-    }
-
-    pub fn record_store(&self) -> &Arc<ProcessorRecordStore> {
-        self.epoch_manager.record_store()
     }
 
     pub fn epoch_manager(&self) -> &Arc<EpochManager> {

@@ -1,5 +1,3 @@
-use std::{borrow::Cow, mem::swap, sync::Arc, usize};
-
 use crossbeam::channel::Receiver;
 use daggy::NodeIndex;
 use dozer_tracing::LabelsAndProgress;
@@ -8,10 +6,11 @@ use dozer_types::{
     types::{Operation, OperationWithId},
 };
 use metrics::{counter, describe_counter, describe_gauge, gauge};
+use std::{borrow::Cow, mem::swap, sync::Arc, usize};
 
 use crate::{
     builder_dag::NodeKind,
-    epoch::{Epoch, EpochManager},
+    epoch::Epoch,
     error_manager::ErrorManager,
     errors::ExecutionError,
     executor_operation::ExecutorOperation,
@@ -34,8 +33,6 @@ pub struct SinkNode {
     receivers: Vec<Receiver<ExecutorOperation>>,
     /// The sink.
     sink: Box<dyn Sink>,
-    /// Where all the records from ingested data are stored.
-    epoch_manager: Arc<EpochManager>,
     /// The error manager, for reporting non-fatal errors.
     error_manager: Arc<ErrorManager>,
     /// The metrics labels.
@@ -72,7 +69,6 @@ impl SinkNode {
             port_handles,
             receivers,
             sink,
-            epoch_manager: dag.epoch_manager().clone(),
             error_manager: dag.error_manager().clone(),
             labels: dag.labels().clone(),
         }
@@ -123,11 +119,7 @@ impl ReceiverLoop for SinkNode {
             }
         }
 
-        if let Err(e) = self.sink.process(
-            self.port_handles[index],
-            self.epoch_manager.record_store(),
-            op.to_owned(),
-        ) {
+        if let Err(e) = self.sink.process(self.port_handles[index], op.to_owned()) {
             self.error_manager.report(e);
         }
 
@@ -140,7 +132,6 @@ impl ReceiverLoop for SinkNode {
     }
 
     fn on_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError> {
-        // debug!("[{}] Checkpointing - {}", self.node_handle, epoch);
         if let Err(e) = self.sink.commit(epoch) {
             self.error_manager.report(e);
         }

@@ -8,7 +8,6 @@ use dozer_core::checkpoint::serialize::{deserialize_vec_u8, serialize_vec_u8, Cu
 use dozer_core::dozer_log::storage::Object;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_recordstore::ProcessorRecordStore;
 use dozer_sql_expression::execution::Expression;
 use dozer_types::bincode;
 use dozer_types::errors::internal::BoxedError;
@@ -418,7 +417,6 @@ impl AggregationProcessor {
         having: &mut Expression,
         out_rec: &mut Vec<Field>,
     ) -> Result<bool, PipelineError> {
-        //
         let original_record_len = original_record.values.len();
         Ok(match out_rec.len() {
             0 => false,
@@ -603,7 +601,6 @@ impl Processor for AggregationProcessor {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        _record_store: &ProcessorRecordStore,
         op: OperationWithId,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
@@ -614,11 +611,7 @@ impl Processor for AggregationProcessor {
         Ok(())
     }
 
-    fn serialize(
-        &mut self,
-        _record_store: &ProcessorRecordStore,
-        mut object: Object,
-    ) -> Result<(), BoxedError> {
+    fn serialize(&mut self, mut object: Object) -> Result<(), BoxedError> {
         let state = bincode::encode_to_vec(&self.states, bincode::config::legacy())?;
         serialize_vec_u8(&state, &mut object)?;
         for dimension in &self.dimensions {

@@ -2,7 +2,6 @@ use dozer_core::{
     checkpoint::serialize::{Cursor, SerializationError},
     dozer_log::storage::Object,
 };
-use dozer_recordstore::{ProcessorRecordStore, ProcessorRecordStoreDeserializer};
 use dozer_types::types::{Record, Schema, Timestamp};
 
 use crate::errors::JoinError;
@@ -16,12 +15,6 @@ pub enum JoinBranch {
     Left,
     Right,
 }
-
-// pub trait JoinOperator: Send + Sync {
-//     fn delete(&mut self, from: JoinBranch, old: &ProcessorRecord) -> JoinResult<Vec<Record>>;
-//     fn insert(&mut self, from: JoinBranch, new: &ProcessorRecord) -> JoinResult<Vec<Record>>;
-//     fn update(&mut self, from: JoinBranch, old: &ProcessorRecord, new: &ProcessorRecord) -> JoinResult<Vec<Record>>;
-// }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum JoinType {
@@ -51,7 +44,6 @@ impl JoinOperator {
         join_type: JoinType,
         (left_join_key_indexes, right_join_key_indexes): (Vec<usize>, Vec<usize>),
         (left_schema, right_schema): (&Schema, &Schema),
-        record_store: &ProcessorRecordStoreDeserializer,
         enable_probabilistic_optimizations: bool,
         checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Self, JoinError> {
@@ -60,14 +52,12 @@ impl JoinOperator {
         let left = JoinTable::new(
             left_schema,
             left_join_key_indexes,
-            record_store,
             accurate_keys,
             cursor.as_mut(),
         )?;
         let right = JoinTable::new(
             right_schema,
             right_join_key_indexes,
-            record_store,
             accurate_keys,
             cursor.as_mut(),
         )?;
@@ -225,13 +215,9 @@ impl JoinOperator {
         self.right.evict_index(now);
     }
 
-    pub fn serialize(
-        &self,
-        record_store: &ProcessorRecordStore,
-        mut object: Object,
-    ) -> Result<(), SerializationError> {
-        self.left.serialize(record_store, &mut object)?;
-        self.right.serialize(record_store, &mut object)?;
+    pub fn serialize(&self, mut object: Object) -> Result<(), SerializationError> {
+        self.left.serialize(&mut object)?;
+        self.right.serialize(&mut object)?;
         Ok(())
     }
 }

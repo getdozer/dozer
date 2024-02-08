@@ -14,7 +14,6 @@ path = "src/sql_tests/logic_test.rs"
 [dev-dependencies]
 dozer-types = { path = "../dozer-types" }
 dozer-tracing = { path = "../dozer-tracing" }
-dozer-recordstore = { path = "../dozer-recordstore" }
 dozer-core = { path = "../dozer-core" }
 dozer-sql = { path = "../dozer-sql" }
 

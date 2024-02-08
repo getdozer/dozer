@@ -7,7 +7,6 @@ use dozer_core::{
     node::{PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
-use dozer_recordstore::ProcessorRecordStoreDeserializer;
 use dozer_sql_expression::sqlparser::ast::{SetOperator, SetQuantifier};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::tonic::async_trait;
@@ -79,7 +78,6 @@ impl ProcessorFactory for SetProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-        record_store: &ProcessorRecordStoreDeserializer,
         checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         Ok(Box::new(SetProcessor::new(
@@ -89,7 +87,6 @@ impl ProcessorFactory for SetProcessorFactory {
                 quantifier: self.set_quantifier,
             },
             self.enable_probabilistic_optimizations,
-            record_store,
             checkpoint_data,
         )?))
     }

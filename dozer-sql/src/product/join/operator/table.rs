@@ -13,7 +13,6 @@ use dozer_core::{
     },
     dozer_log::storage::Object,
 };
-use dozer_recordstore::{ProcessorRecordStore, ProcessorRecordStoreDeserializer};
 use dozer_types::{
     chrono,
     types::{Field, Record, Schema, Timestamp},
@@ -42,7 +41,6 @@ impl JoinTable {
     pub fn new(
         schema: &Schema,
         join_key_indexes: Vec<usize>,
-        record_store: &ProcessorRecordStoreDeserializer,
         accurate_keys: bool,
         cursor: Option<&mut Cursor>,
     ) -> Result<Self, JoinError> {
@@ -54,8 +52,8 @@ impl JoinTable {
 
         let (default_record, map, lifetime_map) = if let Some(cursor) = cursor {
             (
-                deserialize_record(cursor, record_store)?,
-                deserialize_join_map(cursor, record_store)?,
+                deserialize_record(cursor)?,
+                deserialize_join_map(cursor)?,
                 deserialize_bincode::<bincode::serde::Compat<_>>(cursor)?.0,
             )
         } else {
@@ -162,13 +160,9 @@ impl JoinTable {
         }
     }
 
-    pub fn serialize(
-        &self,
-        record_store: &ProcessorRecordStore,
-        object: &mut Object,
-    ) -> Result<(), SerializationError> {
-        serialize_record(&self.default_record, record_store, object)?;
-        serialize_join_map(&self.map, record_store, object)?;
+    pub fn serialize(&self, object: &mut Object) -> Result<(), SerializationError> {
+        serialize_record(&self.default_record, object)?;
+        serialize_join_map(&self.map, object)?;
         serialize_bincode(&bincode::serde::Compat(&self.lifetime_map), object)?;
         Ok(())
     }
@@ -231,26 +225,24 @@ fn remove_record_using_primary_key(
 
 fn serialize_join_map(
     join_map: &HashMap<RecordKey, HashMap<u64, Vec<Record>>>,
-    record_store: &ProcessorRecordStore,
     object: &mut Object,
 ) -> Result<(), SerializationError> {
     serialize_u64(join_map.len() as u64, object)?;
     for (key, value) in join_map {
         serialize_bincode(key, object)?;
-        serialize_map(value, record_store, object)?;
+        serialize_map(value, object)?;
     }
     Ok(())
 }
 
 fn deserialize_join_map(
     cursor: &mut Cursor,
-    record_store: &ProcessorRecordStoreDeserializer,
 ) -> Result<HashMap<RecordKey, HashMap<u64, Vec<Record>>>, DeserializationError> {
     let len = deserialize_u64(cursor)? as usize;
     let mut map = HashMap::with_capacity(len);
     for _ in 0..len {
         let key = deserialize_bincode(cursor)?;
-        let value = deserialize_map(cursor, record_store)?;
+        let value = deserialize_map(cursor)?;
         map.insert(key, value);
     }
     Ok(map)
@@ -258,51 +250,40 @@ fn deserialize_join_map(
 
 fn serialize_map(
     map: &HashMap<u64, Vec<Record>>,
-    record_store: &ProcessorRecordStore,
     object: &mut Object,
 ) -> Result<(), SerializationError> {
     serialize_u64(map.len() as u64, object)?;
     for (key, value) in map {
         serialize_u64(*key, object)?;
-        serialize_vec(value, record_store, object)?;
+        serialize_vec(value, object)?;
     }
     Ok(())
 }
 
-fn deserialize_map(
-    cursor: &mut Cursor,
-    record_store: &ProcessorRecordStoreDeserializer,
-) -> Result<HashMap<u64, Vec<Record>>, DeserializationError> {
+fn deserialize_map(cursor: &mut Cursor) -> Result<HashMap<u64, Vec<Record>>, DeserializationError> {
     let len = deserialize_u64(cursor)? as usize;
     let mut map = HashMap::with_capacity(len);
     for _ in 0..len {
         let key = deserialize_u64(cursor)?;
-        let value = deserialize_vec(cursor, record_store)?;
+        let value = deserialize_vec(cursor)?;
         map.insert(key, value);
     }
     Ok(map)
 }
 
-fn serialize_vec(
-    vec: &[Record],
-    record_store: &ProcessorRecordStore,
-    object: &mut Object,
-) -> Result<(), SerializationError> {
+fn serialize_vec(vec: &[Record], object: &mut Object) -> Result<(), SerializationError> {
     serialize_u64(vec.len() as u64, object)?;
     for record in vec {
-        serialize_record(record, record_store, object)?;
+        serialize_record(record, object)?;
     }
     Ok(())
 }
 
-fn deserialize_vec(
-    cursor: &mut Cursor,
-    record_store: &ProcessorRecordStoreDeserializer,
-) -> Result<Vec<Record>, DeserializationError> {
+fn deserialize_vec(cursor: &mut Cursor) -> Result<Vec<Record>, DeserializationError> {
     let len = deserialize_u64(cursor)? as usize;
     let mut vec = Vec::with_capacity(len);
     for _ in 0..len {
-        vec.push(deserialize_record(cursor, record_store)?);
+        vec.push(deserialize_record(cursor)?);
     }
     Ok(vec)
 }
@@ -324,8 +305,7 @@ mod tests {
             }],
             primary_index: vec![0],
         };
-        let record_store = ProcessorRecordStoreDeserializer::new(Default::default()).unwrap();
-        let mut table = JoinTable::new(&schema, vec![0], &record_store, true, None).unwrap();
+        let mut table = JoinTable::new(&schema, vec![0], true, None).unwrap();
 
         let record = Record::new(vec![Field::Int(1)]);
         let join_key = table.get_join_key(&record);

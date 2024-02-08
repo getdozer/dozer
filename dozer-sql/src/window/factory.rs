@@ -4,7 +4,6 @@ use dozer_core::{
     node::{PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
-use dozer_recordstore::ProcessorRecordStoreDeserializer;
 use dozer_types::{errors::internal::BoxedError, tonic::async_trait, types::Schema};
 
 use crate::{
@@ -72,7 +71,6 @@ impl ProcessorFactory for WindowProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
-        _record_store: &ProcessorRecordStoreDeserializer,
         checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         let input_schema = input_schemas

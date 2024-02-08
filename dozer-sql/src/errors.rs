@@ -2,7 +2,6 @@
 
 use dozer_core::checkpoint::serialize::DeserializationError;
 use dozer_core::node::PortHandle;
-use dozer_recordstore::RecordStoreError;
 use dozer_types::chrono::RoundingError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::TypeError;

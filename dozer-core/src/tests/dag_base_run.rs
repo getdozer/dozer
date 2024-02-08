@@ -11,7 +11,6 @@ use crate::tests::sources::{
 };
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use dozer_log::storage::Object;
-use dozer_recordstore::{ProcessorRecordStore, ProcessorRecordStoreDeserializer};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
 use dozer_types::tonic::async_trait;
@@ -54,7 +53,6 @@ impl ProcessorFactory for NoopProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _record_store: &ProcessorRecordStoreDeserializer,
         _checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         Ok(Box::new(NoopProcessor {}))
@@ -76,7 +74,6 @@ impl Processor for NoopProcessor {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        _record_store: &ProcessorRecordStore,
         op: OperationWithId,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
@@ -84,11 +81,7 @@ impl Processor for NoopProcessor {
         Ok(())
     }
 
-    fn serialize(
-        &mut self,
-        _record_store: &ProcessorRecordStore,
-        _object: Object,
-    ) -> Result<(), BoxedError> {
+    fn serialize(&mut self, _object: Object) -> Result<(), BoxedError> {
         Ok(())
     }
 }
@@ -214,7 +207,6 @@ impl ProcessorFactory for NoopJoinProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _record_store: &ProcessorRecordStoreDeserializer,
         _checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         Ok(Box::new(NoopJoinProcessor {}))
@@ -236,7 +228,6 @@ impl Processor for NoopJoinProcessor {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        _record_store: &ProcessorRecordStore,
         op: OperationWithId,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
@@ -244,11 +235,7 @@ impl Processor for NoopJoinProcessor {
         Ok(())
     }
 
-    fn serialize(
-        &mut self,
-        _record_store: &ProcessorRecordStore,
-        _object: Object,
-    ) -> Result<(), BoxedError> {
+    fn serialize(&mut self, _object: Object) -> Result<(), BoxedError> {
         Ok(())
     }
 }

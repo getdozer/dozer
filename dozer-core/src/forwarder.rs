@@ -8,7 +8,6 @@ use crate::node::PortHandle;
 use crate::record_store::RecordWriter;
 
 use crossbeam::channel::Sender;
-use dozer_recordstore::ProcessorRecordStore;
 use dozer_types::log::debug;
 use dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_types::node::{NodeHandle, OpIdentifier, SourceState};
@@ -23,7 +22,6 @@ pub struct ChannelManager {
     owner: NodeHandle,
     record_writers: HashMap<PortHandle, Box<dyn RecordWriter>>,
     senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
-    record_store: Arc<ProcessorRecordStore>,
     error_manager: Arc<ErrorManager>,
 }
 
@@ -35,7 +33,7 @@ impl ChannelManager {
         port_id: PortHandle,
     ) -> Result<(), ExecutionError> {
         if let Some(writer) = self.record_writers.get_mut(&port_id) {
-            match writer.write(&self.record_store, op.op) {
+            match writer.write(op.op) {
                 Ok(new_op) => op.op = new_op,
                 Err(e) => {
                     self.error_manager.report(e.into());
@@ -123,14 +121,12 @@ impl ChannelManager {
         owner: NodeHandle,
         record_writers: HashMap<PortHandle, Box<dyn RecordWriter>>,
         senders: HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
-        record_store: Arc<ProcessorRecordStore>,
         error_manager: Arc<ErrorManager>,
     ) -> Self {
         Self {
             owner,
             record_writers,
             senders,
-            record_store,
             error_manager,
         }
     }
@@ -167,13 +163,7 @@ impl SourceChannelManager {
         let source_state = SourceState::NotStarted;
 
         Self {
-            manager: ChannelManager::new(
-                owner,
-                record_writers,
-                senders,
-                epoch_manager.record_store().clone(),
-                error_manager,
-            ),
+            manager: ChannelManager::new(owner, record_writers, senders, error_manager),
             port_names,
             source_level_state,
             source_state,
@@ -208,7 +198,7 @@ impl SourceChannelManager {
                         let object = checkpoint_writer
                             .create_record_writer_object(&self.manager.owner, port_name)?;
                         record_writer
-                            .serialize(self.epoch_manager.record_store(), object)
+                            .serialize(object)
                             .map_err(ExecutionError::SerializeRecordWriter)?;
                     }
                 }

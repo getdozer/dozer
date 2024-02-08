@@ -1,4 +1,3 @@
-use dozer_recordstore::ProcessorRecordStore;
 use dozer_types::types::Record;
 use dozer_types::{
     chrono::{DateTime, Duration},
@@ -9,7 +8,6 @@ use crate::window::operator::WindowType;
 
 #[test]
 fn test_hop() {
-    let record_store = ProcessorRecordStore::new(Default::default()).unwrap();
     let record = Record::new(vec![
         Field::Int(0),
         Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
@@ -20,7 +18,7 @@ fn test_hop() {
         hop_size: Duration::minutes(1),
         interval: Duration::minutes(5),
     };
-    let result = window.execute(&record_store, record.clone()).unwrap();
+    let result = window.execute(record.clone()).unwrap();
     assert_eq!(result.len(), 5);
     let window_record = result.first().unwrap();
 
@@ -49,7 +47,6 @@ fn test_hop() {
 
 #[test]
 fn test_tumble() {
-    let record_store = ProcessorRecordStore::new(Default::default()).unwrap();
     let record = Record::new(vec![
         Field::Int(0),
         Field::Timestamp(DateTime::parse_from_rfc3339("2020-01-01T00:13:00Z").unwrap()),
@@ -60,7 +57,7 @@ fn test_tumble() {
         interval: Duration::minutes(5),
     };
 
-    let result = window.execute(&record_store, record.clone()).unwrap();
+    let result = window.execute(record.clone()).unwrap();
     assert_eq!(result.len(), 1);
     let window_record = result.first().unwrap();
 

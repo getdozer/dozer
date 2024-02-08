@@ -1,4 +1,3 @@
-use dozer_recordstore::ProcessorRecordStore;
 use dozer_types::log::info;
 use dozer_types::node::{NodeHandle, SourceState, SourceStates};
 use dozer_types::parking_lot::Mutex;
@@ -145,10 +144,6 @@ impl EpochManager {
 
     pub fn epoch_id(&self) -> u64 {
         self.state.lock().kind.epoch_id()
-    }
-
-    pub fn record_store(&self) -> &Arc<ProcessorRecordStore> {
-        self.checkpoint_factory.record_store()
     }
 
     /// Waits for the epoch to close until all sources do so.
@@ -309,7 +304,6 @@ mod tests {
     use std::{collections::HashMap, ops::Deref, thread::scope};
 
     use dozer_log::tokio;
-    use dozer_recordstore::StoreRecord;
     use tempdir::TempDir;
 
     use crate::checkpoint::create_checkpoint_factory_for_test;

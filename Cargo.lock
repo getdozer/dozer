@@ -3826,7 +3826,6 @@ dependencies = [
  "dozer-cache",
  "dozer-core",
  "dozer-ingestion",
- "dozer-recordstore",
  "dozer-sink-aerospike",
  "dozer-sink-clickhouse",
  "dozer-sink-oracle",
@@ -3866,7 +3865,6 @@ dependencies = [
  "crossbeam",
  "daggy",
  "dozer-log",
- "dozer-recordstore",
  "dozer-storage",
  "dozer-tracing",
  "dozer-types",
@@ -4128,16 +4126,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dozer-recordstore"
-version = "0.3.0"
-dependencies = [
- "bincode",
- "dozer-storage",
- "dozer-types",
- "tempdir",
-]
-
-[[package]]
 name = "dozer-sink-aerospike"
 version = "0.1.0"
 dependencies = [
@@ -4145,7 +4133,6 @@ dependencies = [
  "crossbeam-channel",
  "dozer-core",
  "dozer-log",
- "dozer-recordstore",
  "dozer-types",
 ]
 
@@ -4156,7 +4143,6 @@ dependencies = [
  "clickhouse",
  "dozer-core",
  "dozer-log",
- "dozer-recordstore",
  "dozer-types",
 ]
 
@@ -4166,7 +4152,6 @@ version = "0.1.0"
 dependencies = [
  "dozer-core",
  "dozer-log",
- "dozer-recordstore",
  "dozer-types",
  "oracle",
 ]
@@ -4199,7 +4184,6 @@ dependencies = [
  "ahash 0.8.6",
  "bincode",
  "dozer-core",
- "dozer-recordstore",
  "dozer-sql-expression",
  "dozer-storage",
  "dozer-tracing",
@@ -4258,7 +4242,6 @@ dependencies = [
  "crossbeam",
  "csv",
  "dozer-core",
- "dozer-recordstore",
  "dozer-sql",
  "dozer-tracing",
  "dozer-types",

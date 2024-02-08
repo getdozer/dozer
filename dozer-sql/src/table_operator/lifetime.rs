@@ -1,4 +1,3 @@
-use dozer_recordstore::ProcessorRecordStore;
 use dozer_sql_expression::execution::Expression;
 use dozer_types::types::{Field, Lifetime, Record, Schema};
 
@@ -34,13 +33,12 @@ impl TableOperator for LifetimeTableOperator {
 
     fn execute(
         &mut self,
-        record_store: &ProcessorRecordStore,
         record: &Record,
         schema: &Schema,
     ) -> Result<Vec<Record>, TableOperatorError> {
         let mut ttl_records = vec![];
         if let Some(operator) = &mut self.operator {
-            let operator_records = operator.execute(record_store, record, schema)?;
+            let operator_records = operator.execute(record, schema)?;
 
             let schema = operator.get_output_schema(schema)?;
 

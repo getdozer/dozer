@@ -8,7 +8,6 @@ use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_recordstore::ProcessorRecordStore;
 use dozer_types::chrono::DateTime;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::log::debug;
@@ -180,12 +179,7 @@ impl SinkFactory for TestSinkFactory {
 pub struct TestSink {}
 
 impl Sink for TestSink {
-    fn process(
-        &mut self,
-        _from_port: PortHandle,
-        _record_store: &ProcessorRecordStore,
-        op: OperationWithId,
-    ) -> Result<(), BoxedError> {
+    fn process(&mut self, _from_port: PortHandle, op: OperationWithId) -> Result<(), BoxedError> {
         println!("Sink: {:?}", op);
         Ok(())
     }

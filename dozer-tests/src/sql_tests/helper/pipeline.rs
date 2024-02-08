@@ -11,7 +11,6 @@ use dozer_core::node::{
 };
 
 use dozer_core::{Dag, DEFAULT_PORT_HANDLE};
-use dozer_recordstore::ProcessorRecordStore;
 
 use dozer_core::executor::DagExecutor;
 
@@ -148,8 +147,6 @@ impl Source for TestSource {
         }
         thread::sleep(Duration::from_millis(200));
 
-        //self.running
-        //    .store(false, std::sync::atomic::Ordering::Relaxed);
         Ok(())
     }
 }
@@ -206,11 +203,7 @@ impl TestSink {
         Self { output }
     }
 
-    fn update_result(
-        &mut self,
-        _record_store: &ProcessorRecordStore,
-        op: Operation,
-    ) -> Result<(), BoxedError> {
+    fn update_result(&mut self, op: Operation) -> Result<(), BoxedError> {
         let mut records_map = self.output.lock().expect("Unable to lock the result map");
         match op {
             Operation::Insert { new } => {
@@ -247,7 +240,7 @@ impl TestSink {
             Operation::BatchInsert { new } => {
                 drop(records_map);
                 for record in new {
-                    self.update_result(_record_store, Operation::Insert { new: record })?;
+                    self.update_result(Operation::Insert { new: record })?;
                 }
             }
         }
@@ -256,13 +249,8 @@ impl TestSink {
 }
 
 impl Sink for TestSink {
-    fn process(
-        &mut self,
-        _from_port: PortHandle,
-        record_store: &ProcessorRecordStore,
-        op: OperationWithId,
-    ) -> Result<(), BoxedError> {
-        self.update_result(record_store, op.op)
+    fn process(&mut self, _from_port: PortHandle, op: OperationWithId) -> Result<(), BoxedError> {
+        self.update_result(op.op)
     }
 
     fn commit(&mut self, _epoch_details: &Epoch) -> Result<(), BoxedError> {
@@ -377,8 +365,6 @@ impl TestPipeline {
         app.add_pipeline(pipeline);
 
         let dag = app.into_dag()?;
-
-        // dag.print_dot();
 
         Ok(TestPipeline {
             schema: Schema::default(),

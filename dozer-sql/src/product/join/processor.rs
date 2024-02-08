@@ -3,7 +3,6 @@ use dozer_core::dozer_log::storage::Object;
 use dozer_core::epoch::Epoch;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_recordstore::ProcessorRecordStore;
 use dozer_tracing::Labels;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::{Lifetime, Operation, OperationWithId};
@@ -75,7 +74,6 @@ impl Processor for ProductProcessor {
     fn process(
         &mut self,
         from_port: PortHandle,
-        _record_store: &ProcessorRecordStore,
         op: OperationWithId,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
@@ -122,7 +120,6 @@ impl Processor for ProductProcessor {
                 for record in &new {
                     self.process(
                         from_port,
-                        _record_store,
                         OperationWithId::without_id(Operation::Insert {
                             new: record.clone(),
                         }),
@@ -174,14 +171,8 @@ impl Processor for ProductProcessor {
         Ok(())
     }
 
-    fn serialize(
-        &mut self,
-        record_store: &ProcessorRecordStore,
-        object: Object,
-    ) -> Result<(), BoxedError> {
-        self.join_operator
-            .serialize(record_store, object)
-            .map_err(Into::into)
+    fn serialize(&mut self, object: Object) -> Result<(), BoxedError> {
+        self.join_operator.serialize(object).map_err(Into::into)
     }
 }
 
@@ -190,13 +181,9 @@ mod tests {
     use std::collections::HashMap;
 
     use dozer_core::node::ProcessorFactory;
-    use dozer_recordstore::ProcessorRecordStoreDeserializer;
     use dozer_sql_expression::builder::NameOrAlias;
     use dozer_sql_expression::sqlparser::ast::JoinOperator as SqlJoinOperator;
-    use dozer_types::{
-        models::app_config::RecordStore,
-        types::{Field, FieldDefinition, Record, Schema},
-    };
+    use dozer_types::types::{Field, FieldDefinition, Record, Schema};
 
     use crate::product::join::{
         factory::{LEFT_JOIN_PORT, RIGHT_JOIN_PORT},
@@ -254,13 +241,10 @@ mod tests {
     struct Executor {
         processor: Box<dyn Processor>,
         forwarder: TestChannelForwarder,
-        record_store: ProcessorRecordStore,
     }
 
     impl Executor {
         async fn new(kind: JoinType) -> Self {
-            let record_store =
-                ProcessorRecordStoreDeserializer::new(RecordStore::InMemory).unwrap();
             let left_schema = create_schema("left");
             let right_schema = create_schema("right");
 
@@ -292,18 +276,12 @@ mod tests {
             ]
             .into_iter()
             .collect();
-            let processor = factory
-                .build(schemas, HashMap::new(), &record_store, None)
-                .await
-                .unwrap();
-
-            let record_store = record_store.into_record_store();
+            let processor = factory.build(schemas, HashMap::new(), None).await.unwrap();
 
             let forwarder = TestChannelForwarder { operations: vec![] };
             Executor {
                 processor,
                 forwarder,
-                record_store,
             }
         }
 
@@ -315,7 +293,6 @@ mod tests {
             self.processor
                 .process(
                     port,
-                    &self.record_store,
                     OperationWithId::without_id(operation),
                     &mut self.forwarder,
                 )

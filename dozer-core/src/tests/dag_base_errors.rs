@@ -10,7 +10,6 @@ use crate::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use dozer_log::storage::{Object, Queue};
 use dozer_log::tokio::sync::mpsc::Sender;
-use dozer_recordstore::{ProcessorRecordStore, ProcessorRecordStoreDeserializer};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_types::node::{NodeHandle, OpIdentifier};
@@ -61,7 +60,6 @@ impl ProcessorFactory for ErrorProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _record_store: &ProcessorRecordStoreDeserializer,
         _checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         Ok(Box::new(ErrorProcessor {
@@ -91,7 +89,6 @@ impl Processor for ErrorProcessor {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        _record_store: &ProcessorRecordStore,
         op: OperationWithId,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
@@ -108,11 +105,7 @@ impl Processor for ErrorProcessor {
         Ok(())
     }
 
-    fn serialize(
-        &mut self,
-        _record_store: &ProcessorRecordStore,
-        _object: Object,
-    ) -> Result<(), BoxedError> {
+    fn serialize(&mut self, _object: Object) -> Result<(), BoxedError> {
         Ok(())
     }
 }
@@ -456,12 +449,7 @@ impl Sink for ErrSink {
         Ok(())
     }
 
-    fn process(
-        &mut self,
-        _from_port: PortHandle,
-        _record_store: &ProcessorRecordStore,
-        _op: OperationWithId,
-    ) -> Result<(), BoxedError> {
+    fn process(&mut self, _from_port: PortHandle, _op: OperationWithId) -> Result<(), BoxedError> {
         self.current += 1;
         if self.current == self.err_at {
             if self.panic {
