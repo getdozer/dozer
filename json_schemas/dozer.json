@@ -155,6 +155,7 @@
           ]
         },
         "schemas": {
+          "default": null,
           "anyOf": [
             {
               "$ref": "#/definitions/ConfigSchemas"

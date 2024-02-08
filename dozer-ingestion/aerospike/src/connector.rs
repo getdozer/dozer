@@ -410,12 +410,8 @@ async fn map_event(
     event: AerospikeEvent,
     tables_map: HashMap<String, TableIndexMap>,
 ) -> Result<Option<Vec<IngestionMessage>>, AerospikeConnectorError> {
-    let key = event.key.clone();
-    if key.len() != 4 {
-        return Err(AerospikeConnectorError::InvalidKeyValue(key.clone()));
-    }
-
-    let [_, Some(ref set_name), _, Some(ref pk_in_key)] = key.clone()[..] else {
+    let key = event.key;
+    let [_, Some(ref set_name), _, ref pk_in_key] = key.clone()[..] else {
         return Err(AerospikeConnectorError::InvalidKeyValue(key.clone()));
     };
 
@@ -426,7 +422,11 @@ async fn map_event(
     {
         let mut fields = vec![Field::Null; columns_map.len()];
         if let Some((pk, _)) = columns_map.get("PK") {
-            fields[*pk] = Field::String(pk_in_key.clone())
+            if let Some(pk_in_key) = pk_in_key {
+                fields[*pk] = Field::String(pk_in_key.clone());
+            } else {
+                return Err(AerospikeConnectorError::PkIsNone(key.clone()));
+            }
         }
 
         for bin in event.bins {

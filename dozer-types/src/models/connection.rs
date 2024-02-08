@@ -217,6 +217,7 @@ pub struct AerospikeConnection {
     pub batching: bool,
     #[serde(default)]
     pub replication: ReplicationSettings,
+    #[serde(default)]
     pub schemas: Option<ConfigSchemas>,
 }
 
