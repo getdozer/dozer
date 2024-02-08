@@ -8,7 +8,7 @@ use dozer_ingestion_connector::{
         arrow_types::{self, from_arrow::map_record_batch_to_dozer_records},
         bytes::{Buf, Bytes},
         grpc_types::ingest::IngestArrowRequest,
-        models::ingestion_types::IngestionMessage,
+        models::ingestion_types::{IngestionMessage, TransactionInfo},
         serde::{Deserialize, Serialize},
         serde_json,
         types::{Operation, Record, Schema},
@@ -123,6 +123,15 @@ pub async fn handle_message(
             // If receiving end is closed, then we can just ignore the message
             return Ok(());
         }
+    }
+    if ingestor
+        .handle_message(IngestionMessage::TransactionInfo(TransactionInfo::Commit {
+            id: None,
+        }))
+        .await
+        .is_err()
+    {
+        return Ok(());
     }
 
     Ok(())

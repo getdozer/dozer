@@ -8,12 +8,14 @@ use super::{
     schema::{ColumnDefinition, SchemaHelper, TableDefinition},
 };
 use crate::MySQLConnectorError::BinlogQueryError;
-use dozer_ingestion_connector::dozer_types::{log::info, node::OpIdentifier};
 use dozer_ingestion_connector::{
     async_trait,
     dozer_types::{
         errors::internal::BoxedError,
+        log::info,
         models::ingestion_types::IngestionMessage,
+        models::ingestion_types::TransactionInfo,
+        node::OpIdentifier,
         types::{FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition},
     },
     utils::TableNotFound,
@@ -309,7 +311,9 @@ impl MySQLConnector {
                 _ => {
                     if !snapshot_started {
                         if ingestor
-                            .handle_message(IngestionMessage::SnapshottingStarted)
+                            .handle_message(IngestionMessage::TransactionInfo(
+                                TransactionInfo::SnapshottingStarted,
+                            ))
                             .await
                             .is_err()
                         {
@@ -403,7 +407,9 @@ impl MySQLConnector {
 
         if snapshot_started
             && ingestor
-                .handle_message(IngestionMessage::SnapshottingDone { id: None })
+                .handle_message(IngestionMessage::TransactionInfo(TransactionInfo::Commit {
+                    id: None,
+                }))
                 .await
                 .is_err()
         {
@@ -484,7 +490,7 @@ mod tests {
     use super::MySQLConnector;
     use dozer_ingestion_connector::{
         dozer_types::{
-            models::ingestion_types::IngestionMessage,
+            models::ingestion_types::{IngestionMessage, TransactionInfo},
             types::{
                 Field, FieldDefinition, FieldType, Operation::*, Record, Schema, SourceDefinition,
             },
@@ -535,22 +541,10 @@ mod tests {
         {
             match (actual, expected) {
                 (
-                    IngestionMessage::OperationEvent {
-                        table_index: actual_table_index,
-                        op: actual_op,
-                        ..
-                    },
-                    IngestionMessage::OperationEvent {
-                        table_index: expected_table_index,
-                        op: expected_op,
-                        ..
-                    },
+                    IngestionMessage::TransactionInfo(TransactionInfo::Commit { .. }),
+                    IngestionMessage::TransactionInfo(TransactionInfo::Commit { .. }),
                 ) => {
-                    // In operation events we are not checking state
-                    assert_eq!(
-                        (actual_table_index, actual_op), (expected_table_index, expected_op),
-                        "The {i}th message didn't match. Expected {expected:?}; Found {actual:?}\nThe actual message queue is {actual_ingestion_messages:?}"
-                    );
+                    // In commit we are not checking state
                 }
                 _ => {
                     assert_eq!(
@@ -613,7 +607,7 @@ mod tests {
         assert!(result.is_ok(), "unexpected error: {result:?}");
 
         let expected_ingestion_messages = vec![
-            IngestionMessage::SnapshottingStarted,
+            IngestionMessage::TransactionInfo(TransactionInfo::SnapshottingStarted),
             IngestionMessage::OperationEvent {
                 table_index: 0,
                 op: Insert {
@@ -647,7 +641,7 @@ mod tests {
                 },
                 id: None,
             },
-            IngestionMessage::SnapshottingDone { id: None },
+            IngestionMessage::TransactionInfo(TransactionInfo::SnapshottingDone { id: None }),
         ];
 
         check_ingestion_messages(&mut iterator, expected_ingestion_messages).await;
@@ -705,7 +699,7 @@ mod tests {
             .unwrap();
 
         let expected_ingestion_messages = vec![
-            IngestionMessage::SnapshottingStarted,
+            IngestionMessage::TransactionInfo(TransactionInfo::SnapshottingStarted),
             IngestionMessage::OperationEvent {
                 table_index: 0,
                 op: Insert {
@@ -720,7 +714,7 @@ mod tests {
                 },
                 id: None,
             },
-            IngestionMessage::SnapshottingDone { id: None },
+            IngestionMessage::TransactionInfo(TransactionInfo::SnapshottingDone { id: None }),
         ];
 
         check_ingestion_messages(&mut iterator, expected_ingestion_messages).await;
@@ -730,14 +724,17 @@ mod tests {
             .await
             .unwrap();
 
-        let expected_ingestion_messages = vec![IngestionMessage::OperationEvent {
-            table_index: 0,
-            op: Update {
-                old: Record::new(vec![Field::Int(4), Field::Float(4.0.into())]),
-                new: Record::new(vec![Field::Int(4), Field::Float(5.0.into())]),
+        let expected_ingestion_messages = vec![
+            IngestionMessage::OperationEvent {
+                table_index: 0,
+                op: Update {
+                    old: Record::new(vec![Field::Int(4), Field::Float(4.0.into())]),
+                    new: Record::new(vec![Field::Int(4), Field::Float(5.0.into())]),
+                },
+                id: None,
             },
-            id: None,
-        }];
+            IngestionMessage::TransactionInfo(TransactionInfo::Commit { id: None }),
+        ];
 
         check_ingestion_messages(&mut iterator, expected_ingestion_messages).await;
 
@@ -746,13 +743,16 @@ mod tests {
             .await
             .unwrap();
 
-        let expected_ingestion_messages = vec![IngestionMessage::OperationEvent {
-            table_index: 0,
-            op: Delete {
-                old: Record::new(vec![Field::Int(4), Field::Float(5.0.into())]),
+        let expected_ingestion_messages = vec![
+            IngestionMessage::OperationEvent {
+                table_index: 0,
+                op: Delete {
+                    old: Record::new(vec![Field::Int(4), Field::Float(5.0.into())]),
+                },
+                id: None,
             },
-            id: None,
-        }];
+            IngestionMessage::TransactionInfo(TransactionInfo::Commit { id: None }),
+        ];
 
         check_ingestion_messages(&mut iterator, expected_ingestion_messages).await;
     }

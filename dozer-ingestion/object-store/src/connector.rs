@@ -1,6 +1,8 @@
 use dozer_ingestion_connector::dozer_types::errors::internal::BoxedError;
 use dozer_ingestion_connector::dozer_types::log::error;
-use dozer_ingestion_connector::dozer_types::models::ingestion_types::IngestionMessage;
+use dozer_ingestion_connector::dozer_types::models::ingestion_types::{
+    IngestionMessage, TransactionInfo,
+};
 use dozer_ingestion_connector::dozer_types::node::OpIdentifier;
 use dozer_ingestion_connector::dozer_types::types::FieldType;
 use dozer_ingestion_connector::futures::future::try_join_all;
@@ -131,7 +133,9 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
 
         // sender sending out message for pipeline
         sender
-            .send(Ok(Some(IngestionMessage::SnapshottingStarted)))
+            .send(Ok(Some(IngestionMessage::TransactionInfo(
+                TransactionInfo::SnapshottingStarted,
+            ))))
             .await
             .unwrap();
 
@@ -177,7 +181,15 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
         let updated_state = try_join_all(handles).await.unwrap();
 
         sender
-            .send(Ok(Some(IngestionMessage::SnapshottingDone { id: None })))
+            .send(Ok(Some(IngestionMessage::TransactionInfo(
+                TransactionInfo::SnapshottingDone { id: None },
+            ))))
+            .await
+            .unwrap();
+        sender
+            .send(Ok(Some(IngestionMessage::TransactionInfo(
+                TransactionInfo::Commit { id: None },
+            ))))
             .await
             .unwrap();
 

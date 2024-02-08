@@ -1,7 +1,6 @@
 use crate::builder_dag::{BuilderDag, NodeKind};
 use crate::checkpoint::{CheckpointFactoryOptions, OptionCheckpoint};
 use crate::dag_schemas::DagSchemas;
-use crate::epoch::EpochManagerOptions;
 use crate::errors::ExecutionError;
 use crate::Dag;
 
@@ -10,8 +9,8 @@ use daggy::petgraph::visit::IntoNodeIdentifiers;
 use dozer_log::tokio::runtime::Runtime;
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::serde::{self, Deserialize, Serialize};
+use futures::Future;
 use std::fmt::Debug;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::thread::{self, Builder};
@@ -23,7 +22,6 @@ pub struct ExecutorOptions {
     pub channel_buffer_sz: usize,
     pub commit_time_threshold: Duration,
     pub error_threshold: Option<u32>,
-    pub epoch_manager_options: EpochManagerOptions,
     pub checkpoint_factory_options: CheckpointFactoryOptions,
 }
 
@@ -34,7 +32,6 @@ impl Default for ExecutorOptions {
             channel_buffer_sz: 20_000,
             commit_time_threshold: Duration::from_millis(50),
             error_threshold: Some(0),
-            epoch_manager_options: Default::default(),
             checkpoint_factory_options: Default::default(),
         }
     }
@@ -94,9 +91,9 @@ impl DagExecutor {
         Ok(())
     }
 
-    pub async fn start(
+    pub async fn start<F: Send + 'static + Future + Unpin>(
         self,
-        running: Arc<AtomicBool>,
+        shutdown: F,
         labels: LabelsAndProgress,
         runtime: Arc<Runtime>,
     ) -> Result<DagExecutorJoinHandle, ExecutionError> {
@@ -108,29 +105,20 @@ impl DagExecutor {
             self.options.channel_buffer_sz,
             self.options.error_threshold,
             self.options.checkpoint_factory_options.clone(),
-            self.options.epoch_manager_options.clone(),
         )
         .await?;
         let node_indexes = execution_dag.graph().node_identifiers().collect::<Vec<_>>();
 
         // Start the threads.
-        let mut join_handles = Vec::new();
+        let source_node =
+            create_source_node(&mut execution_dag, &self.options, shutdown, runtime.clone()).await;
+        let mut join_handles = vec![start_source(source_node)?];
         for node_index in node_indexes {
-            let node = execution_dag.graph()[node_index]
-                .as_ref()
-                .expect("We created all nodes");
+            let Some(node) = execution_dag.graph()[node_index].as_ref() else {
+                continue;
+            };
             match &node.kind {
-                NodeKind::Source { .. } => {
-                    let source_node = create_source_node(
-                        &mut execution_dag,
-                        node_index,
-                        &self.options,
-                        running.clone(),
-                        runtime.clone(),
-                    )
-                    .await?;
-                    join_handles.push(start_source(source_node)?);
-                }
+                NodeKind::Source { .. } => unreachable!("We already started the source node"),
                 NodeKind::Processor(_) => {
                     let processor_node = ProcessorNode::new(&mut execution_dag, node_index).await;
                     join_handles.push(start_processor(processor_node)?);
@@ -169,15 +157,13 @@ impl DagExecutorJoinHandle {
     }
 }
 
-fn start_source(
-    source_sender: SourceNode,
+fn start_source<F: Send + 'static + Future + Unpin>(
+    source: SourceNode<F>,
 ) -> Result<JoinHandle<Result<(), ExecutionError>>, ExecutionError> {
-    let handle = source_sender.handle().clone();
-
     let handle = Builder::new()
-        .name(format!("{handle}"))
-        .spawn(move || match source_sender.run() {
-            Ok(_) => Ok(()),
+        .name("sources".into())
+        .spawn(move || match source.run() {
+            Ok(()) => Ok(()),
             // Channel disconnection means the source listener has quit.
             // Maybe it quit gracefully so we don't need to propagate the error.
             Err(e) => {

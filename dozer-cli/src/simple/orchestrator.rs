@@ -270,9 +270,9 @@ impl SimpleOrchestrator {
 
         let labels = self.labels.clone();
         let runtime_clone = self.runtime.clone();
-        let running = shutdown.get_running_flag();
+        let shutdown_clone = shutdown.clone();
         let pipeline_future = self.runtime.spawn_blocking(move || {
-            run_dag_executor(&runtime_clone, dag_executor, running, labels)
+            run_dag_executor(&runtime_clone, dag_executor, shutdown_clone, labels)
         });
 
         let mut futures = FuturesUnordered::new();

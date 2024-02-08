@@ -9,7 +9,7 @@ use dozer_ingestion_connector::{
     dozer_types::{
         chrono,
         log::{error, info},
-        models::ingestion_types::{IngestionMessage, OracleReplicator},
+        models::ingestion_types::{IngestionMessage, OracleReplicator, TransactionInfo},
         node::OpIdentifier,
         rust_decimal::{self, Decimal},
         thiserror,
@@ -410,12 +410,22 @@ impl Connector {
                                     }
                                 }
                             }
+                            if ingestor
+                                .blocking_handle_message(IngestionMessage::TransactionInfo(
+                                    TransactionInfo::Commit {
+                                        id: Some(OpIdentifier::new(checkpoint, 0)),
+                                    },
+                                ))
+                                .is_err()
+                            {
+                                return Ok(());
+                            }
                         }
                         MappedLogManagerContent::Op { table_index, op } => {
                             uncommited_messages.push(IngestionMessage::OperationEvent {
                                 table_index,
                                 op,
-                                id: Some(OpIdentifier::new(checkpoint, 0)),
+                                id: None,
                             });
                         }
                     }

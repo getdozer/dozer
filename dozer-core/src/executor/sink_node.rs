@@ -2,6 +2,7 @@ use std::{borrow::Cow, mem::swap, sync::Arc, usize};
 
 use crossbeam::channel::Receiver;
 use daggy::NodeIndex;
+use dozer_recordstore::ProcessorRecordStore;
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::{
     node::{NodeHandle, OpIdentifier},
@@ -11,7 +12,7 @@ use metrics::{counter, describe_counter, describe_gauge, gauge};
 
 use crate::{
     builder_dag::NodeKind,
-    epoch::{Epoch, EpochManager},
+    epoch::Epoch,
     error_manager::ErrorManager,
     errors::ExecutionError,
     executor_operation::ExecutorOperation,
@@ -35,7 +36,7 @@ pub struct SinkNode {
     /// The sink.
     sink: Box<dyn Sink>,
     /// Where all the records from ingested data are stored.
-    epoch_manager: Arc<EpochManager>,
+    record_store: Arc<ProcessorRecordStore>,
     /// The error manager, for reporting non-fatal errors.
     error_manager: Arc<ErrorManager>,
     /// The metrics labels.
@@ -68,11 +69,11 @@ impl SinkNode {
 
         Self {
             node_handle,
-            initial_epoch_id: dag.epoch_manager().epoch_id(),
+            initial_epoch_id: dag.initial_epoch_id(),
             port_handles,
             receivers,
             sink,
-            epoch_manager: dag.epoch_manager().clone(),
+            record_store: dag.record_store().clone(),
             error_manager: dag.error_manager().clone(),
             labels: dag.labels().clone(),
         }
@@ -123,25 +124,25 @@ impl ReceiverLoop for SinkNode {
             }
         }
 
-        if let Err(e) = self.sink.process(
-            self.port_handles[index],
-            self.epoch_manager.record_store(),
-            op.to_owned(),
-        ) {
+        let counter_number: u64 = match &op.op {
+            Operation::BatchInsert { new } => new.len() as u64,
+            _ => 1,
+        };
+
+        if let Err(e) = self
+            .sink
+            .process(self.port_handles[index], &self.record_store, op)
+        {
             self.error_manager.report(e);
         }
 
-        let counter_number: u64 = match op.op {
-            Operation::BatchInsert { new } => new.to_owned().len().try_into().unwrap_or(1),
-            _ => 1,
-        };
         counter!(SINK_OPERATION_COUNTER_NAME, counter_number, labels);
         Ok(())
     }
 
-    fn on_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError> {
+    fn on_commit(&mut self, epoch: Epoch) -> Result<(), ExecutionError> {
         // debug!("[{}] Checkpointing - {}", self.node_handle, epoch);
-        if let Err(e) = self.sink.commit(epoch) {
+        if let Err(e) = self.sink.commit(&epoch) {
             self.error_manager.report(e);
         }
 
@@ -152,7 +153,7 @@ impl ReceiverLoop for SinkNode {
         }
 
         if let Some(queue) = epoch.common_info.sink_persist_queue.as_ref() {
-            if let Err(e) = self.sink.persist(epoch, queue) {
+            if let Err(e) = self.sink.persist(&epoch, queue) {
                 self.error_manager.report(e);
             }
         }

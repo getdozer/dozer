@@ -12,7 +12,7 @@ use dozer_types::models::flags::Flags;
 use tokio::runtime::Runtime;
 use tokio::sync::Mutex;
 
-use std::sync::{atomic::AtomicBool, Arc};
+use std::sync::Arc;
 
 use dozer_types::models::source::Source;
 use dozer_types::models::udf_config::UdfConfig;
@@ -185,10 +185,14 @@ impl<'a> Executor<'a> {
 pub fn run_dag_executor(
     runtime: &Arc<Runtime>,
     dag_executor: DagExecutor,
-    running: Arc<AtomicBool>,
+    shutdown: ShutdownReceiver,
     labels: LabelsAndProgress,
 ) -> Result<(), OrchestrationError> {
-    let join_handle = runtime.block_on(dag_executor.start(running, labels, runtime.clone()))?;
+    let join_handle = runtime.block_on(dag_executor.start(
+        Box::pin(shutdown.create_shutdown_future()),
+        labels,
+        runtime.clone(),
+    ))?;
     join_handle
         .join()
         .map_err(OrchestrationError::ExecutionError)

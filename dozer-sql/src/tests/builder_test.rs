@@ -22,9 +22,7 @@ use dozer_types::types::{
 use tokio::sync::mpsc::Sender;
 
 use std::collections::HashMap;
-
-use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
+use std::future::pending;
 
 use crate::builder::statement_to_pipeline;
 use crate::tests::utils::create_test_runtime;
@@ -280,11 +278,7 @@ fn test_pipeline_builder() {
         DagExecutor::new(dag, checkpoint, Default::default())
             .await
             .unwrap()
-            .start(
-                Arc::new(AtomicBool::new(true)),
-                Default::default(),
-                runtime_clone,
-            )
+            .start(pending::<()>(), Default::default(), runtime_clone)
             .await
             .unwrap()
     });

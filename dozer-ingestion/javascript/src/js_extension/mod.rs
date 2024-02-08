@@ -9,7 +9,7 @@ use dozer_ingestion_connector::{
     dozer_types::{
         errors::{internal::BoxedError, types::DeserializationError},
         json_types::serde_json_to_json_value,
-        models::ingestion_types::IngestionMessage,
+        models::ingestion_types::{IngestionMessage, TransactionInfo},
         serde::{Deserialize, Serialize},
         serde_json,
         thiserror::{self, Error},
@@ -113,8 +113,12 @@ impl JsExtension {
 
 async fn send(ingestor: Ingestor, val: JsMessage) -> Result<(), Error> {
     let msg = match val.typ {
-        MsgType::SnapshottingStarted => IngestionMessage::SnapshottingStarted,
-        MsgType::SnapshottingDone => IngestionMessage::SnapshottingDone { id: None },
+        MsgType::SnapshottingStarted => {
+            IngestionMessage::TransactionInfo(TransactionInfo::SnapshottingStarted)
+        }
+        MsgType::SnapshottingDone => {
+            IngestionMessage::TransactionInfo(TransactionInfo::SnapshottingDone { id: None })
+        }
         MsgType::Insert | MsgType::Delete | MsgType::Update => {
             let op = map_operation(val)?;
             IngestionMessage::OperationEvent {
@@ -127,6 +131,11 @@ async fn send(ingestor: Ingestor, val: JsMessage) -> Result<(), Error> {
 
     // Ignore if the receiver is closed.
     let _ = ingestor.handle_message(msg).await;
+    let _ = ingestor
+        .handle_message(IngestionMessage::TransactionInfo(TransactionInfo::Commit {
+            id: None,
+        }))
+        .await;
     Ok(())
 }
 

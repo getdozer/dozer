@@ -44,8 +44,4 @@ impl Epoch {
     }
 }
 
-mod manager;
-
-pub use manager::{ClosedEpoch, EpochManager, EpochManagerOptions};
-
 use crate::checkpoint::CheckpointWriter;

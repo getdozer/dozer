@@ -9,7 +9,7 @@ use super::{
     schema::{ColumnDefinition, TableDefinition},
 };
 use crate::state::encode_state;
-use dozer_ingestion_connector::dozer_types::log::debug;
+use dozer_ingestion_connector::dozer_types::models::ingestion_types::TransactionInfo;
 use dozer_ingestion_connector::{
     dozer_types::{
         json_types::{JsonArray, JsonObject, JsonValue},
@@ -42,7 +42,6 @@ use std::{
 pub struct BinlogPosition {
     pub binlog_id: u64,
     pub position: u64,
-    pub seq_no: u64,
 }
 
 pub async fn get_master_binlog_position(
@@ -80,7 +79,6 @@ pub async fn get_master_binlog_position(
         BinlogPosition {
             binlog_id,
             position,
-            seq_no: 0,
         },
     ))
 }
@@ -104,7 +102,6 @@ pub struct BinlogIngestor<'a, 'd, 'e> {
     server_id: u32,
     conn_pool: &'d Pool,
     conn_url: &'e String,
-    ingestion_start_position: Option<BinlogPosition>,
     binlog_prefix: String,
 }
 
@@ -121,7 +118,6 @@ impl<'a, 'd, 'e> BinlogIngestor<'a, 'd, 'e> {
             ingestor,
             binlog_stream: None,
             next_position: start_position.clone(),
-            ingestion_start_position: Some(start_position),
             stop_position,
             local_stop_position: None,
             server_id,
@@ -248,7 +244,6 @@ impl BinlogIngestor<'_, '_, '_> {
                         self.next_position = BinlogPosition {
                             binlog_id: rotated_binlog_id,
                             position: rotate_event.position(),
-                            seq_no: 0,
                         };
 
                         self.binlog_prefix = prefix.to_string();
@@ -268,7 +263,6 @@ impl BinlogIngestor<'_, '_, '_> {
                     let query = query_event.query_raw().trim_start();
 
                     if query == b"BEGIN" {
-                        transaction_pos.seq_no = 0;
                         transaction_pos.binlog_id = self.next_position.binlog_id;
                         transaction_pos.position = (binlog_event.header().log_pos()
                             - binlog_event.header().event_size())
@@ -444,7 +438,20 @@ impl BinlogIngestor<'_, '_, '_> {
                     }
                 }
 
-                XID_EVENT => {}
+                XID_EVENT => {
+                    if self
+                        .ingestor
+                        .handle_message(IngestionMessage::TransactionInfo(
+                            TransactionInfo::Commit {
+                                id: Some(encode_state(&transaction_pos)),
+                            },
+                        ))
+                        .await
+                        .is_err()
+                    {
+                        return Ok(());
+                    }
+                }
 
                 WRITE_ROWS_EVENT | UPDATE_ROWS_EVENT | DELETE_ROWS_EVENT | WRITE_ROWS_EVENT_V1
                 | UPDATE_ROWS_EVENT_V1 | DELETE_ROWS_EVENT_V1 => {
@@ -479,20 +486,7 @@ impl BinlogIngestor<'_, '_, '_> {
 
                         let table = table_cache.get_table_details(table_index).unwrap();
 
-                        self.handle_rows_event(
-                            &rows_event,
-                            &table,
-                            tme,
-                            self.ingestion_start_position.clone(),
-                            &mut transaction_pos,
-                        )
-                        .await?;
-
-                        if let Some(start_binlog_position) = &self.ingestion_start_position {
-                            if start_binlog_position < &transaction_pos {
-                                self.ingestion_start_position = None;
-                            }
-                        }
+                        self.handle_rows_event(&rows_event, &table, tme).await?;
                     }
                 }
 
@@ -510,39 +504,14 @@ impl BinlogIngestor<'_, '_, '_> {
         rows_event: &BinlogRowsEvent<'_>,
         table: &TableDetails<'_>,
         tme: &TableMapEvent<'a>,
-        start_pos: Option<BinlogPosition>,
-        pos: &mut BinlogPosition,
     ) -> Result<(), MySQLConnectorError> {
-        let mut start_pos = start_pos.clone();
-        for (seq_no_in_row, op) in self
-            .make_rows_operations(rows_event, table, tme)
-            .enumerate()
-        {
-            pos.seq_no += 1;
-
-            if let Some(start_binlog) = &start_pos {
-                if start_binlog >= &pos {
-                    debug!(
-                        "Skipping operation {op:?} with seq_no: {}/{seq_no_in_row}",
-                        pos.position
-                    );
-                    continue;
-                } else {
-                    debug!(
-                        "First ingested operation {op:?} with seq_no: {}/{seq_no_in_row}",
-                        pos.position
-                    );
-                    // No need to check start position in the next transaction
-                    start_pos = None;
-                }
-            }
-
+        for op in self.make_rows_operations(rows_event, table, tme) {
             if self
                 .ingestor
                 .handle_message(IngestionMessage::OperationEvent {
                     table_index: table.def.table_index,
                     op: op?,
-                    id: Some(encode_state(pos)),
+                    id: Some(encode_state(&self.next_position)),
                 })
                 .await
                 .is_err()
@@ -1308,12 +1277,10 @@ mod tests {
         let start_position = super::BinlogPosition {
             binlog_id,
             position: 1234,
-            seq_no: 3,
         };
 
         // Next operation after last ingested operation
         let operation_position = super::BinlogPosition {
-            seq_no: start_position.seq_no + 1,
             ..start_position.clone()
         };
 
@@ -1328,7 +1295,6 @@ mod tests {
 
         // Operation before last ingested operation
         let operation_position = super::BinlogPosition {
-            seq_no: 2,
             ..start_position.clone()
         };
 
