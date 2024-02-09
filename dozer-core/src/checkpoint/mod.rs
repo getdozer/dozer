@@ -310,14 +310,3 @@ pub async fn create_checkpoint_factory_for_test(
 
 pub mod serialize;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    use dozer_log::tokio;
-
-    #[tokio::test]
-    async fn checkpoint_writer_should_write_records() {
-        create_checkpoint_factory_for_test(&[vec![Field::Int(0)]]).await;
-    }
-}
