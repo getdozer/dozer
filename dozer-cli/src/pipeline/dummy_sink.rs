@@ -1,4 +1,3 @@
-use dozer_api::async_trait::async_trait;
 use std::{collections::HashMap, time::Instant};
 
 use dozer_cache::dozer_log::storage::Queue;
@@ -14,6 +13,8 @@ use dozer_types::{
     node::OpIdentifier,
     types::{FieldType, Operation, OperationWithId, Schema},
 };
+
+use crate::async_trait::async_trait;
 
 #[derive(Debug)]
 pub struct DummySinkFactory;

@@ -18,7 +18,7 @@ use dozer_core::{
 use dozer_types::{
     models::{
         connection::Connection,
-        endpoint::{ApiEndpoint, Endpoint, EndpointKind},
+        endpoint::{Endpoint, EndpointKind},
     },
     node::NodeHandle,
     types::Schema,
@@ -83,12 +83,7 @@ impl Contract {
     ) -> Result<Self, BuildError> {
         let mut endpoint_schemas = BTreeMap::new();
         for endpoint in endpoints {
-            let api: Option<&ApiEndpoint> = match &endpoint.config {
-                EndpointKind::Api(api) => Some(api),
-                _ => None,
-            };
             let path = match &endpoint.config {
-                EndpointKind::Api(api) => &api.path,
                 EndpointKind::Aerospike(_aerospike) => "aerospike",
                 EndpointKind::Dummy => "dummy",
                 EndpointKind::Clickhouse(_clickhouse) => "clickhouse",
@@ -98,11 +93,8 @@ impl Contract {
             let node_index = find_sink(dag_schemas, &endpoint.table_name)
                 .ok_or(BuildError::MissingEndpoint(endpoint.table_name.clone()))?;
 
-            let (schema, secondary_indexes) = modify_schema::modify_schema(
-                &endpoint.table_name,
-                sink_input_schema(dag_schemas, node_index),
-                api,
-            )?;
+            let (schema, secondary_indexes) =
+                modify_schema::modify_schema(sink_input_schema(dag_schemas, node_index))?;
 
             let connections = dag_schemas
                 .collect_ancestor_sources(node_index)

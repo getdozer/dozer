@@ -10,7 +10,7 @@ use crate::{
         live::server::LIVE_PORT,
     },
 };
-use dozer_api::shutdown::ShutdownReceiver;
+use dozer_core::shutdown::ShutdownReceiver;
 use dozer_types::{grpc_types::live::ConnectResponse, log::info};
 use std::sync::Arc;
 mod progress;

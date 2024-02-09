@@ -13,6 +13,8 @@ path = "src/sql_tests/logic_test.rs"
 
 [dev-dependencies]
 dozer-types = { path = "../dozer-types" }
+dozer-utils = { path = "../dozer-utils" }
+dozer-cli = { path = "../dozer-cli" }
 dozer-tracing = { path = "../dozer-tracing" }
 dozer-core = { path = "../dozer-core" }
 dozer-sql = { path = "../dozer-sql" }
@@ -33,6 +35,7 @@ ahash = "0.8.3"
 csv = "1.2"
 url = "2.4.1"
 crossbeam = "0.8.2"
+tonic = "0.10.0"
 
 sqlparser = { git = "https://github.com/getdozer/sqlparser-rs.git" }
 sqllogictest = "0.17.1"

@@ -10,7 +10,6 @@ authors = ["getdozer/dozer-dev"]
 name = "dozer"
 
 [dependencies]
-dozer-api = { path = "../dozer-api" }
 dozer-ingestion = { path = "../dozer-ingestion" }
 dozer-core = { path = "../dozer-core" }
 dozer-cache = { path = "../dozer-cache" }
@@ -18,16 +17,20 @@ dozer-sql = { path = "../dozer-sql" }
 dozer-types = { path = "../dozer-types" }
 dozer-tracing = { path = "../dozer-tracing" }
 dozer-storage = { path = "../dozer-storage" }
-dozer-sinks = { path = "../dozer-sinks" }
 dozer-sink-aerospike = { path = "../dozer-sink-aerospike" }
 dozer-sink-clickhouse = { path = "../dozer-sink-clickhouse" }
 dozer-sink-oracle = { path = "../dozer-sink-oracle" }
 
+actix-web = "4.4.0"
+async-trait = "0.1.74"
 uuid = { version = "1.6.1", features = ["v4", "serde"] }
 tokio = { version = "1", features = ["full"] }
 tempdir = "0.3.7"
 clap = { version = "4.4.1", features = ["derive"] }
+prost-reflect = { version = "0.12.0", features = ["serde", "text-format"] }
 tonic = { version = "0.10.0", features = ["tls", "tls-roots"] }
+tonic-reflection = "0.10.0"
+tonic-web = "0.10.2"
 tokio-stream = "0.1.12"
 include_dir = "0.7.3"
 handlebars = "4.4.0"
@@ -42,6 +45,7 @@ reqwest = { version = "0.11.20", features = [
 glob = "0.3.1"
 atty = "0.2.14"
 tower = "0.4.13"
+tower-http = { version = "0.4", features = ["full"] }
 metrics = "0.21.0"
 zip = "0.5.11"
 notify = "6.0.1"
@@ -60,7 +64,7 @@ name = "dozer"
 path = "src/main.rs"
 
 [features]
-snowflake = ["dozer-ingestion/snowflake", "dozer-sinks/snowflake"]
+snowflake = ["dozer-ingestion/snowflake"]
 mongodb = ["dozer-ingestion/mongodb"]
 onnx = ["dozer-sql/onnx"]
 tokio-console = ["dozer-tracing/tokio-console"]

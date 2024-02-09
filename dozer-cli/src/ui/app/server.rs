@@ -1,17 +1,12 @@
-use dozer_api::{tonic_reflection, tonic_web, tower_http};
 use dozer_types::{
     grpc_types::{
-        api_explorer::{
-            api_explorer_service_server::{ApiExplorerService, ApiExplorerServiceServer},
-            GetApiTokenRequest, GetApiTokenResponse,
-        },
         app_ui::{
             code_service_server::{CodeService, CodeServiceServer},
             ConnectResponse, Label, Labels, RunRequest,
         },
         contract::{
             contract_service_server::{ContractService, ContractServiceServer},
-            CommonRequest, DotResponse, ProtoResponse, SourcesRequest,
+            CommonRequest, DotResponse, SourcesRequest,
         },
         types::SchemasResponse,
     },
@@ -79,19 +74,6 @@ impl ContractService for ContractServer {
     ) -> Result<Response<SchemasResponse>, Status> {
         let state = self.state.clone();
         let res = state.get_graph_schemas().await;
-
-        match res {
-            Ok(res) => Ok(Response::new(res)),
-            Err(e) => Err(Status::internal(e.to_string())),
-        }
-    }
-
-    async fn get_protos(
-        &self,
-        _request: Request<CommonRequest>,
-    ) -> Result<Response<ProtoResponse>, Status> {
-        let state = self.state.clone();
-        let res = state.get_protos().await;
 
         match res {
             Ok(res) => Ok(Response::new(res)),
@@ -183,24 +165,6 @@ impl CodeService for AppUiServer {
     }
 }
 
-struct ApiExplorerServer {
-    state: Arc<AppUIState>,
-}
-#[tonic::async_trait]
-impl ApiExplorerService for ApiExplorerServer {
-    async fn get_api_token(
-        &self,
-        request: Request<GetApiTokenRequest>,
-    ) -> Result<Response<GetApiTokenResponse>, Status> {
-        let state = self.state.clone();
-        let input = request.into_inner();
-        let res = state.get_api_token(input.ttl).await;
-        match res {
-            Ok(res) => Ok(Response::new(GetApiTokenResponse { token: res })),
-            Err(e) => Err(Status::internal(e.to_string())),
-        }
-    }
-}
 pub async fn serve(
     receiver: Receiver<ConnectResponse>,
     state: Arc<AppUIState>,
@@ -209,26 +173,18 @@ pub async fn serve(
     let contract_server = ContractServer {
         state: state.clone(),
     };
-    let api_explorer_server: ApiExplorerServer = ApiExplorerServer {
-        state: state.clone(),
-    };
     let app_ui_server = AppUiServer::new(receiver, state);
     let contract_service = ContractServiceServer::new(contract_server);
     let code_service = CodeServiceServer::new(app_ui_server);
-    let api_explorer_service = ApiExplorerServiceServer::new(api_explorer_server);
     // Enable CORS for local development
     let contract_service = tonic_web::enable(contract_service);
     let code_service = tonic_web::enable(code_service);
-    let api_explorer_service = tonic_web::enable(api_explorer_service);
 
     let reflection_service = tonic_reflection::server::Builder::configure()
         .register_encoded_file_descriptor_set(
             dozer_types::grpc_types::contract::FILE_DESCRIPTOR_SET,
         )
         .register_encoded_file_descriptor_set(dozer_types::grpc_types::app_ui::FILE_DESCRIPTOR_SET)
-        .register_encoded_file_descriptor_set(
-            dozer_types::grpc_types::api_explorer::FILE_DESCRIPTOR_SET,
-        )
         .build()
         .unwrap();
 
@@ -243,7 +199,6 @@ pub async fn serve(
         .concurrency_limit_per_connection(32)
         .add_service(contract_service)
         .add_service(code_service)
-        .add_service(api_explorer_service)
         .add_service(reflection_service)
         .serve(addr)
         .await

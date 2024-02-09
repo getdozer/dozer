@@ -107,7 +107,6 @@ pub struct Endpoint {
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
 #[serde(deny_unknown_fields)]
 pub enum EndpointKind {
-    Api(ApiEndpoint),
     Dummy,
     Aerospike(AerospikeSinkConfig),
     Clickhouse(ClickhouseSinkConfig),
@@ -157,25 +156,6 @@ pub struct ClickhouseSinkTableOptions {
     pub sample_by: Option<String>,
     pub order_by: Option<Vec<String>>,
     pub cluster: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
-#[serde(deny_unknown_fields)]
-pub struct ApiEndpoint {
-    /// path of endpoint - e.g: /stocks
-    pub path: String,
-
-    #[serde(default, skip_serializing_if = "equal_default")]
-    pub index: ApiIndex,
-
-    #[serde(default, skip_serializing_if = "equal_default")]
-    pub conflict_resolution: ConflictResolution,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub version: Option<u32>,
-
-    #[serde(default, skip_serializing_if = "equal_default")]
-    pub log_reader_options: LogReaderOptions,
 }
 
 pub fn default_log_reader_batch_size() -> u32 {

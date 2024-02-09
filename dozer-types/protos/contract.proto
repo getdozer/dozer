@@ -9,7 +9,6 @@ service ContractService {
   rpc Endpoints(CommonRequest) returns (dozer.types.SchemasResponse);
   rpc GenerateDot(CommonRequest) returns (DotResponse);
   rpc GetGraphSchemas(CommonRequest) returns (dozer.types.SchemasResponse);
-  rpc GetProtos(CommonRequest) returns (ProtoResponse);
 }
 
 message CloudVersionId {

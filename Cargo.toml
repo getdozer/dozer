@@ -1,6 +1,5 @@
 [workspace]
 members = [
-  "dozer-api",
   "dozer-ingestion",
   "dozer-types",
   "dozer-storage",
@@ -14,7 +13,6 @@ members = [
   "dozer-log-js",
   "dozer-log-python",
   "dozer-utils",
-  "dozer-sinks",
   "dozer-sink-aerospike",
   "dozer-sink-clickhouse", "dozer-sink-oracle",
 ]

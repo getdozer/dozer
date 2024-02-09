@@ -14,7 +14,6 @@ use dozer_ingestion_connector::dozer_types::{
     },
     log::info,
     models::{
-        endpoint::ApiEndpoint,
         ingestion_types::{ConfigSchemas, GrpcConfig, NestedDozerConfig, NestedDozerLogOptions},
         source::Source,
     },
@@ -212,13 +211,7 @@ async fn create_nested_dozer_server(
         }],
         sinks: vec![Endpoint {
             table_name: table_name.clone(),
-            config: EndpointKind::Api(ApiEndpoint {
-                path: "/test".to_owned(),
-                index: Default::default(),
-                conflict_resolution: Default::default(),
-                version: None,
-                log_reader_options: Default::default(),
-            }),
+            config: EndpointKind::Dummy,
         }],
         ..Default::default()
     };

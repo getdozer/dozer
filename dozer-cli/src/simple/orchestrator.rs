@@ -1,34 +1,23 @@
 use super::executor::{run_dag_executor, Executor};
 use super::Contract;
-use crate::errors::OrchestrationError;
+use crate::errors::{BuildError, OrchestrationError};
 use crate::pipeline::connector_source::ConnectorSourceFactoryError;
 use crate::pipeline::{EndpointLog, EndpointLogKind, PipelineBuilder};
 use crate::simple::build;
 use crate::simple::helper::validate_config;
-use crate::utils::{
-    get_cache_manager_options, get_checkpoint_options, get_default_max_num_records,
-    get_executor_options,
-};
+use crate::utils::{get_checkpoint_options, get_executor_options};
 
-use crate::{flatten_join_handle, join_handle_map_err};
-use dozer_api::auth::{Access, Authorizer};
-use dozer_api::grpc::internal::internal_pipeline_server::start_internal_pipeline_server;
-use dozer_api::shutdown::ShutdownReceiver;
-use dozer_api::{get_api_security, grpc, rest, sql, CacheEndpoint};
-use dozer_cache::cache::LmdbRwCacheManager;
+use crate::flatten_join_handle;
 use dozer_cache::dozer_log::camino::Utf8PathBuf;
-use dozer_cache::dozer_log::home_dir::HomeDir;
+use dozer_cache::dozer_log::home_dir::{BuildId, HomeDir};
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::DagSchemas;
+use dozer_core::shutdown::ShutdownReceiver;
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::constants::LOCK_FILE;
-use dozer_types::models::api_config::{
-    default_app_grpc_host, default_app_grpc_port, AppGrpcOptions,
-};
 use dozer_types::models::endpoint::EndpointKind;
-use dozer_types::models::flags::{default_dynamic, default_push_events};
+use dozer_types::models::flags::default_push_events;
 use futures::future::{select, Either};
-use tokio::{select, try_join};
 
 use crate::console_helper::get_colored_text;
 use crate::console_helper::GREEN;
@@ -42,14 +31,13 @@ use dozer_types::log::info;
 use dozer_types::models::config::{default_cache_dir, default_home_dir, Config};
 use dozer_types::tracing::error;
 use futures::stream::FuturesUnordered;
-use futures::{FutureExt, StreamExt, TryFutureExt};
-use metrics::{describe_counter, describe_histogram};
+use futures::{FutureExt, StreamExt};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 
 use std::sync::Arc;
 use tokio::runtime::Runtime;
-use tokio::sync::{broadcast, oneshot};
+use tokio::sync::oneshot;
 
 #[derive(Clone)]
 pub struct SimpleOrchestrator {
@@ -72,134 +60,6 @@ impl SimpleOrchestrator {
             runtime,
             labels,
         }
-    }
-
-    pub async fn run_api(&self, shutdown: ShutdownReceiver) -> Result<(), OrchestrationError> {
-        describe_histogram!(
-            dozer_api::API_LATENCY_HISTOGRAM_NAME,
-            "The api processing latency in seconds"
-        );
-        describe_counter!(
-            dozer_api::API_REQUEST_COUNTER_NAME,
-            "Number of requests processed by the api"
-        );
-        let mut futures = FuturesUnordered::new();
-
-        // Open `RoCacheEndpoint`s. Streaming operations if necessary.
-        let flags = self.config.flags.clone();
-        let (operations_sender, operations_receiver) =
-            if flags.dynamic.unwrap_or_else(default_dynamic) {
-                let (sender, receiver) = broadcast::channel(1024);
-                (Some(sender), Some(receiver))
-            } else {
-                (None, None)
-            };
-
-        let app_server_url = app_url(&self.config.api.app_grpc);
-        let cache_manager = Arc::new(
-            LmdbRwCacheManager::new(get_cache_manager_options(&self.config))
-                .map_err(OrchestrationError::CacheInitFailed)?,
-        );
-        let default_max_num_records = get_default_max_num_records(&self.config);
-        let mut cache_endpoints = vec![];
-        for endpoint in &self.config.sinks {
-            let EndpointKind::Api(api) = &endpoint.config else {
-                continue;
-            };
-
-            let (cache_endpoint, handle) = select! {
-                // If we're shutting down, the cache endpoint will fail to connect
-                _shutdown_future = shutdown.create_shutdown_future() => return Ok(()),
-                result = CacheEndpoint::new(
-                    self.runtime.clone(),
-                    app_server_url.clone(),
-                    endpoint.table_name.clone(),
-                    cache_manager.clone(),
-                    api.clone(),
-                    Box::pin(shutdown.create_shutdown_future()),
-                    operations_sender.clone(),
-                    self.labels.clone(),
-
-                ) => result?
-            };
-            let cache_name = endpoint.table_name.clone();
-            futures.push(flatten_join_handle(join_handle_map_err(handle, move |e| {
-                if e.is_map_full() {
-                    OrchestrationError::CacheFull(cache_name)
-                } else {
-                    OrchestrationError::CacheBuildFailed(cache_name, e)
-                }
-            })));
-            cache_endpoints.push(Arc::new(cache_endpoint));
-        }
-
-        // Initialize API Server
-        let rest_config = self.config.api.rest.clone();
-        let rest_handle = if rest_config.enabled.unwrap_or(true) {
-            let security = self.config.api.api_security.clone();
-            let cache_endpoints_for_rest = cache_endpoints.clone();
-            let shutdown_for_rest = shutdown.create_shutdown_future();
-            let api_server = rest::ApiServer::new(rest_config, security, default_max_num_records);
-            let api_server = api_server
-                .run(
-                    cache_endpoints_for_rest,
-                    shutdown_for_rest,
-                    self.labels.clone(),
-                )
-                .await
-                .map_err(OrchestrationError::ApiInitFailed)?;
-            tokio::spawn(api_server.map_err(OrchestrationError::RestServeFailed))
-        } else {
-            tokio::spawn(async move { Ok::<(), OrchestrationError>(()) })
-        };
-
-        // Initialize gRPC Server
-        let grpc_config = self.config.api.grpc.clone();
-        let grpc_handle = if grpc_config.enabled.unwrap_or(true) {
-            let api_security = self.config.api.api_security.clone();
-            let grpc_server = grpc::ApiServer::new(grpc_config, api_security, flags);
-            let grpc_server = grpc_server
-                .run(
-                    cache_endpoints.clone(),
-                    shutdown.clone(),
-                    operations_receiver,
-                    self.labels.clone(),
-                    default_max_num_records,
-                )
-                .await
-                .map_err(OrchestrationError::ApiInitFailed)?;
-            tokio::spawn(async move {
-                grpc_server
-                    .await
-                    .map_err(OrchestrationError::GrpcServeFailed)
-            })
-        } else {
-            tokio::spawn(async move { Ok::<(), OrchestrationError>(()) })
-        };
-
-        let pgwire_config = self.config.api.pgwire.clone();
-        let pgwire_handle = if pgwire_config.enabled.unwrap_or(true) {
-            let api_security = self.config.api.api_security.clone();
-            let pgwire_server = sql::pgwire::PgWireServer::new(pgwire_config, api_security);
-            tokio::spawn(async move {
-                pgwire_server
-                    .run(shutdown, cache_endpoints)
-                    .await
-                    .map_err(OrchestrationError::PGWireServerFailed)
-            })
-        } else {
-            tokio::spawn(async move { Ok::<(), OrchestrationError>(()) })
-        };
-
-        futures.push(flatten_join_handle(rest_handle));
-        futures.push(flatten_join_handle(grpc_handle));
-        futures.push(flatten_join_handle(pgwire_handle));
-
-        while let Some(result) = futures.next().await {
-            result?;
-        }
-
-        Ok(())
     }
 
     pub fn home_dir(&self) -> Utf8PathBuf {
@@ -230,10 +90,8 @@ impl SimpleOrchestrator {
         api_notifier: Option<oneshot::Sender<()>>,
     ) -> Result<(), OrchestrationError> {
         let home_dir = HomeDir::new(self.home_dir(), self.cache_dir());
-        let contract = Contract::deserialize(self.lockfile_path().as_std_path())?;
         let executor = Executor::new(
             &home_dir,
-            &contract,
             &self.config.connections,
             &self.config.sources,
             self.config.sql.as_deref(),
@@ -243,8 +101,6 @@ impl SimpleOrchestrator {
             &self.config.udfs,
         )
         .await?;
-        let checkpoint_prefix = executor.checkpoint_prefix().to_string();
-        let table_name_and_logs = executor.table_name_and_logs().to_vec();
         let dag_executor = executor
             .create_dag_executor(
                 &self.runtime,
@@ -253,16 +109,6 @@ impl SimpleOrchestrator {
                 self.config.flags.clone(),
             )
             .await?;
-
-        let app_grpc_config = &self.config.api.app_grpc;
-        let internal_server_future = start_internal_pipeline_server(
-            checkpoint_prefix,
-            table_name_and_logs,
-            app_grpc_config,
-            shutdown.clone(),
-        )
-        .await
-        .map_err(OrchestrationError::InternalServerFailed)?;
 
         if let Some(api_notifier) = api_notifier {
             api_notifier.send(()).expect("Failed to notify API server");
@@ -276,11 +122,6 @@ impl SimpleOrchestrator {
         });
 
         let mut futures = FuturesUnordered::new();
-        futures.push(
-            internal_server_future
-                .map_err(OrchestrationError::GrpcServeFailed)
-                .boxed(),
-        );
         futures.push(flatten_join_handle(pipeline_future).boxed());
 
         while let Some(result) = futures.next().await {
@@ -314,22 +155,6 @@ impl SimpleOrchestrator {
         Ok(schema_map)
     }
 
-    pub fn generate_token(&self, ttl_in_secs: Option<i32>) -> Result<String, OrchestrationError> {
-        if let Some(api_security) = get_api_security(self.config.api.api_security.clone()) {
-            match api_security {
-                dozer_types::models::api_security::ApiSecurity::Jwt(secret) => {
-                    let auth = Authorizer::new(&secret, None, None);
-                    let duration = ttl_in_secs.map(|f| std::time::Duration::from_secs(f as u64));
-                    let token = auth
-                        .generate_token(Access::All, duration)
-                        .map_err(OrchestrationError::GenerateTokenFailed)?;
-                    return Ok(token);
-                }
-            }
-        }
-        Err(OrchestrationError::MissingSecurityConfig)
-    }
-
     pub async fn build(
         &self,
         force: bool,
@@ -358,7 +183,6 @@ impl SimpleOrchestrator {
             .map(|endpoint| EndpointLog {
                 table_name: endpoint.table_name.clone(),
                 kind: match endpoint.config.clone() {
-                    EndpointKind::Api(_) => EndpointLogKind::Dummy,
                     EndpointKind::Dummy => EndpointLogKind::Dummy,
                     EndpointKind::Aerospike(config) => EndpointLogKind::Aerospike {
                         config: config.to_owned(),
@@ -415,8 +239,9 @@ impl SimpleOrchestrator {
             }
         }
 
-        // Run build
-        build::generate_protos(&home_dir, &contract)?;
+        home_dir
+            .create_build_dir_all(BuildId::first())
+            .map_err(|(path, error)| BuildError::FileSystem(path.into(), error))?;
 
         contract.serialize(contract_path.as_std_path())?;
 
@@ -446,8 +271,6 @@ impl SimpleOrchestrator {
         shutdown: ShutdownReceiver,
         locked: bool,
     ) -> Result<(), OrchestrationError> {
-        let dozer_api = self.clone();
-
         let (tx, rx) = oneshot::channel::<()>();
 
         self.build(false, shutdown.clone(), locked).await?;
@@ -464,8 +287,6 @@ impl SimpleOrchestrator {
                     pipeline_future.await.unwrap();
                     unreachable!("we must have panicked");
                 } else {
-                    let api_future = dozer_api.run_api(shutdown);
-                    try_join!(pipeline_future, api_future)?;
                     Ok(())
                 }
             }
@@ -503,12 +324,4 @@ pub fn validate_sql(sql: String, runtime: Arc<Runtime>) -> Result<(), PipelineEr
 
 pub fn lockfile_path(base_directory: Utf8PathBuf) -> Utf8PathBuf {
     base_directory.join(LOCK_FILE)
-}
-
-fn app_url(config: &AppGrpcOptions) -> String {
-    format!(
-        "http://{}:{}",
-        config.host.clone().unwrap_or_else(default_app_grpc_host),
-        config.port.unwrap_or_else(default_app_grpc_port)
-    )
 }

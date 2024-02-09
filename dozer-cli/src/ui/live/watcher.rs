@@ -5,7 +5,7 @@ use super::{
     LiveError,
 };
 
-use dozer_api::shutdown::ShutdownReceiver;
+use dozer_core::shutdown::ShutdownReceiver;
 use dozer_types::log::info;
 use notify::{RecursiveMode, Watcher};
 use notify_debouncer_full::new_debouncer;

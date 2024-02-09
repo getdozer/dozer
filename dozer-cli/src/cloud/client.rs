@@ -10,19 +10,16 @@ use crate::cloud::login::CredentialInfo;
 use crate::cloud::monitor::monitor_app;
 use crate::cloud::token_layer::TokenLayer;
 use crate::cloud::DozerGrpcCloudClient;
-use crate::console_helper::{get_colored_text, PURPLE};
 use crate::errors::OrchestrationError::FailedToReadOrganisationName;
 use crate::errors::{
     map_tonic_error, CliError, CloudContextError, CloudError, CloudLoginError, OrchestrationError,
 };
 use crate::simple::orchestrator::lockfile_path;
 use dozer_types::constants::{DEFAULT_CLOUD_TARGET_URL, LOCK_FILE};
-use dozer_types::grpc_types::api_explorer::api_explorer_service_client::ApiExplorerServiceClient;
-use dozer_types::grpc_types::api_explorer::GetApiTokenRequest;
 use dozer_types::grpc_types::cloud::{
     dozer_cloud_client::DozerCloudClient, CreateSecretRequest, DeleteAppRequest,
-    DeleteSecretRequest, GetEndpointCommandsSamplesRequest, GetSecretRequest, ListAppRequest,
-    ListSecretsRequest, LogMessageRequest, UpdateSecretRequest,
+    DeleteSecretRequest, GetSecretRequest, ListAppRequest, ListSecretsRequest, LogMessageRequest,
+    UpdateSecretRequest,
 };
 use dozer_types::grpc_types::cloud::{
     CreateAppRequest, DeleteVersionRequest, DeploymentInfo, DeploymentStatus, File, GetAppRequest,
@@ -66,15 +63,6 @@ pub async fn get_grpc_cloud_client(
     cloud_config: Option<dozer_types::models::cloud::Cloud>,
 ) -> Result<DozerCloudClient<TokenLayer>, CloudError> {
     let client = DozerCloudClient::new(establish_cloud_service_channel(cloud, cloud_config).await?);
-    Ok(client)
-}
-
-pub async fn get_explorer_client(
-    cloud: &Cloud,
-    cloud_config: Option<dozer_types::models::cloud::Cloud>,
-) -> Result<ApiExplorerServiceClient<TokenLayer>, CloudError> {
-    let client =
-        ApiExplorerServiceClient::new(establish_cloud_service_channel(cloud, cloud_config).await?);
     Ok(client)
 }
 
@@ -549,65 +537,6 @@ impl CloudClient {
 
             Ok::<_, CloudError>(())
         })?;
-        Ok(())
-    }
-
-    pub fn print_api_request_samples(
-        &self,
-        endpoint: Option<String>,
-    ) -> Result<(), OrchestrationError> {
-        let cloud_config = self.get_cloud_config();
-        let app_id = self
-            .get_app_id()
-            .map(|a| a.0)
-            .ok_or_else(|| CloudContextError::AppIdNotFound)?;
-        let cloud = self.cloud.clone();
-        self.runtime.block_on(async move {
-            let mut client = get_grpc_cloud_client(&cloud, cloud_config.clone()).await?;
-            let mut explorer_client = get_explorer_client(&cloud, cloud_config).await?;
-
-            let response = client
-                .get_endpoint_commands_samples(GetEndpointCommandsSamplesRequest {
-                    app_id: app_id.clone(),
-                    endpoint,
-                })
-                .await
-                .map_err(map_tonic_error)?
-                .into_inner();
-
-            let token_response = explorer_client
-                .get_api_token(GetApiTokenRequest {
-                    app_id: Some(app_id),
-                    ttl: Some(3600),
-                })
-                .await?
-                .into_inner();
-
-            let mut rows = vec![];
-            let token = match token_response.token {
-                Some(token) => token,
-                None => {
-                    info!("Replace $DOZER_TOKEN with your API authorization token");
-                    "$DOZER_TOKEN".to_string()
-                }
-            };
-
-            for sample in response.samples {
-                rows.push(get_colored_text(
-                    &format!(
-                        "\n##################### {} command ###########################\n",
-                        sample.r#type
-                    ),
-                    PURPLE,
-                ));
-                rows.push(sample.command.replace("{token}", &token).to_string());
-            }
-
-            info!("{}", rows.join("\n"));
-
-            Ok::<(), CloudError>(())
-        })?;
-
         Ok(())
     }
 }

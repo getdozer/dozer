@@ -1,11 +1,4 @@
 use actix_files::NamedFile;
-use dozer_api::actix_web;
-use dozer_api::actix_web::dev::Server;
-use dozer_api::actix_web::middleware;
-use dozer_api::actix_web::web;
-use dozer_api::actix_web::App;
-use dozer_api::actix_web::HttpRequest;
-use dozer_api::actix_web::HttpServer;
 use dozer_types::log::info;
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
@@ -20,6 +13,14 @@ use std::path::Path;
 use std::path::PathBuf;
 use zip::result::ZipError;
 use zip::ZipArchive;
+
+use crate::actix_web;
+use crate::actix_web::dev::Server;
+use crate::actix_web::middleware;
+use crate::actix_web::web;
+use crate::actix_web::App;
+use crate::actix_web::HttpRequest;
+use crate::actix_web::HttpServer;
 
 #[derive(Error, Debug)]
 pub enum DownloaderError {
