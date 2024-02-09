@@ -129,7 +129,7 @@ impl EpochManager {
         options: EpochManagerOptions,
     ) -> Self {
         debug_assert!(num_sources > 0);
-        let next_record_index_to_persist = checkpoint_factory.record_store().num_records();
+        let next_record_index_to_persist = 0;
         Self {
             num_sources,
             checkpoint_factory,
@@ -201,7 +201,7 @@ impl EpochManager {
         {
             let instant = SystemTime::now();
             let action = if *should_commit {
-                let num_records = self.record_store().num_records();
+                let num_records = 0;
                 if num_records - state.next_record_index_to_persist
                     >= self.options.max_num_records_before_persist
                     || instant
@@ -209,7 +209,6 @@ impl EpochManager {
                         .unwrap_or(Duration::from_secs(0))
                         >= Duration::from_secs(self.options.max_interval_before_persist_in_seconds)
                 {
-                    self.record_store().compact(); // Compact the record store to prepare for persisting.
                     state.next_record_index_to_persist = num_records;
                     state.last_persisted_epoch_decision_instant = instant;
                     info!(
@@ -251,7 +250,6 @@ impl EpochManager {
                         Arc::new(CheckpointWriter::new(
                             self.checkpoint_factory.clone(),
                             *epoch_id,
-                            source_states.clone(),
                         ))
                     });
                     let sink_persist_queue = action
@@ -316,7 +314,7 @@ mod tests {
         num_sources: usize,
         options: EpochManagerOptions,
     ) -> (TempDir, EpochManager) {
-        let (temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test(&[]).await;
+        let (temp_dir, checkpoint_factory, _) = create_checkpoint_factory_for_test().await;
 
         let epoch_manager = EpochManager::new(num_sources, 0, checkpoint_factory, options);
 
@@ -441,7 +439,6 @@ mod tests {
             assert!(common_info.sink_persist_queue.is_none());
 
             // One record, persist.
-            epoch_manager.record_store().create_ref(&[]).unwrap();
             let epoch = epoch_manager.wait_for_epoch_close(source_state.clone(), false, true);
             let common_info = epoch.common_info.unwrap();
             assert!(common_info.checkpoint_writer.is_some());
@@ -477,7 +474,6 @@ mod tests {
             assert!(common_info.sink_persist_queue.is_none());
 
             // One record, persist.
-            epoch_manager.record_store().create_ref(&[]).unwrap();
             let epoch = epoch_manager.wait_for_epoch_close(source_state.clone(), false, true);
             let common_info = epoch.common_info.unwrap();
             assert!(common_info.checkpoint_writer.is_none());
