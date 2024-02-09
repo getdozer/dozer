@@ -282,13 +282,13 @@ mod tests {
     #[test]
     fn test_string() {
         proptest!(
-        ProptestConfig::with_cases(1000),
-        move |(s_val in ".+", s_val1 in ".*", s_val2 in ".*", c_val: char)| {
-            test_like(&s_val, c_val);
-            test_ucase(&s_val, c_val);
-            test_concat(&s_val1, &s_val2, c_val);
-            test_trim(&s_val, c_val);
-    });
+            ProptestConfig::with_cases(1000),
+            move |(s_val in ".+", s_val1 in ".*", s_val2 in ".*", c_val: char)| {
+                test_like(&s_val, c_val);
+                test_ucase(&s_val, c_val);
+                test_concat(&s_val1, &s_val2, c_val);
+                test_trim(&s_val, c_val);
+        });
     }
 
     fn test_like(s_val: &str, c_val: char) {
