@@ -33,7 +33,7 @@ tokio = { version = "1", features = ["full"] }
 prost-reflect = { version = "0.12.0", features = ["serde", "text-format"] }
 tonic-reflection = "0.10.0"
 Inflector = "0.11.4"
-futures-util = "0.3.28"
+futures-util = "0.3.29"
 prost-build = "0.12.0"
 tonic-web = "0.10.2"
 jsonwebtoken = "9.1.0"
