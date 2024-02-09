@@ -407,9 +407,9 @@ impl MySQLConnector {
 
         if snapshot_started
             && ingestor
-                .handle_message(IngestionMessage::TransactionInfo(TransactionInfo::Commit {
-                    id: None,
-                }))
+                .handle_message(IngestionMessage::TransactionInfo(
+                    TransactionInfo::SnapshottingDone { id: None },
+                ))
                 .await
                 .is_err()
         {
@@ -526,12 +526,25 @@ mod tests {
         iterator: &mut IngestionIterator,
         expected_ingestion_messages: Vec<IngestionMessage>,
     ) {
-        let actual_ingestion_messages = take_timeout(
+        let mut actual_ingestion_messages = take_timeout(
             iterator,
             expected_ingestion_messages.len(),
             Duration::from_secs(5),
         )
         .await;
+
+        // We are not checking state.
+        for actual in actual_ingestion_messages.iter_mut() {
+            match actual {
+                IngestionMessage::OperationEvent { id, .. } => {
+                    *id = None;
+                }
+                IngestionMessage::TransactionInfo(TransactionInfo::Commit { id }) => {
+                    *id = None;
+                }
+                _ => {}
+            }
+        }
 
         for (i, (actual, expected)) in std::iter::zip(
             actual_ingestion_messages.iter(),
@@ -539,20 +552,10 @@ mod tests {
         )
         .enumerate()
         {
-            match (actual, expected) {
-                (
-                    IngestionMessage::TransactionInfo(TransactionInfo::Commit { .. }),
-                    IngestionMessage::TransactionInfo(TransactionInfo::Commit { .. }),
-                ) => {
-                    // In commit we are not checking state
-                }
-                _ => {
-                    assert_eq!(
-                        expected, actual,
-                        "The {i}th message didn't match. Expected {expected:?}; Found {actual:?}\nThe actual message queue is {actual_ingestion_messages:?}"
-                    );
-                }
-            };
+            assert_eq!(
+                expected, actual,
+                "The {i}th message didn't match. Expected {expected:?}; Found {actual:?}\nThe actual message queue is {actual_ingestion_messages:?}"
+            );
         }
     }
 

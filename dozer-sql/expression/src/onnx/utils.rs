@@ -11,8 +11,8 @@ use ort::tensor::TensorElementDataType;
 
 pub fn onnx_input_validation(
     schema: &Schema,
-    args: &Vec<Expression>,
-    inputs: &Vec<Input>,
+    args: &[Expression],
+    inputs: &[Input],
 ) -> Result<(), Error> {
     // 1. number of input & input shape check
     if inputs.len() != 1 {

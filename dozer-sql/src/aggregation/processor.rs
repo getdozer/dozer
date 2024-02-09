@@ -156,7 +156,7 @@ impl AggregationProcessor {
         out_rec_delete: &mut Vec<Field>,
         out_rec_insert: &mut Vec<Field>,
         op: AggregatorOperation,
-        measures: &mut Vec<Vec<Expression>>,
+        measures: &mut [Vec<Expression>],
         input_schema: &Schema,
     ) -> Result<Vec<Field>, PipelineError> {
         let mut new_fields: Vec<Field> = Vec::with_capacity(measures.len());
