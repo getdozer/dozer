@@ -8,7 +8,7 @@ pub fn encode_state(pos: &BinlogPosition) -> OpIdentifier {
 
     OpIdentifier {
         txid: lsn,
-        seq_in_tx: pos.seq_no,
+        seq_in_tx: 0,
     }
 }
 
@@ -18,12 +18,10 @@ impl TryFrom<OpIdentifier> for BinlogPosition {
     fn try_from(state: OpIdentifier) -> Result<Self, Self::Error> {
         let binlog_id = state.txid >> 32;
         let position = state.txid & 0x00000000ffffffff;
-        let seq_no = state.seq_in_tx;
 
         Ok(BinlogPosition {
             binlog_id,
             position,
-            seq_no,
         })
     }
 }
@@ -36,7 +34,6 @@ mod tests {
         let pos = BinlogPosition {
             binlog_id: 123,
             position: 456,
-            seq_no: 789,
         };
 
         let state = encode_state(&pos);

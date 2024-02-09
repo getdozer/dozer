@@ -1,6 +1,6 @@
 use dozer_ingestion_connector::{
     dozer_types::{
-        models::ingestion_types::IngestionMessage,
+        models::ingestion_types::{IngestionMessage, TransactionInfo},
         types::{Operation, Schema},
     },
     futures::StreamExt,
@@ -146,7 +146,9 @@ impl<'a> PostgresSnapshotter<'a> {
 
         if self
             .ingestor
-            .handle_message(IngestionMessage::SnapshottingStarted)
+            .handle_message(IngestionMessage::TransactionInfo(
+                TransactionInfo::SnapshottingStarted,
+            ))
             .await
             .is_err()
         {
@@ -173,7 +175,9 @@ impl<'a> PostgresSnapshotter<'a> {
 
         if self
             .ingestor
-            .handle_message(IngestionMessage::SnapshottingDone { id: None })
+            .handle_message(IngestionMessage::TransactionInfo(
+                TransactionInfo::SnapshottingDone { id: None },
+            ))
             .await
             .is_err()
         {

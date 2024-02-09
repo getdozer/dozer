@@ -113,24 +113,24 @@ mod tests {
     #[test]
     fn test_abs() {
         proptest!(ProptestConfig::with_cases(1000), |(i_num in 0i64..100000000i64, f_num in 0f64..100000000f64)| {
-        let row = Record::new(vec![]);
+            let row = Record::new(vec![]);
 
-        let mut v = Box::new(Literal(Field::Int(i_num.neg())));
-        assert_eq!(
-            evaluate_abs(&Schema::default(), &mut v, &row)
-                .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Int(i_num)
-        );
+            let mut v = Box::new(Literal(Field::Int(i_num.neg())));
+            assert_eq!(
+                evaluate_abs(&Schema::default(), &mut v, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Int(i_num)
+            );
 
-        let row = Record::new(vec![]);
+            let row = Record::new(vec![]);
 
-        let mut v = Box::new(Literal(Field::Float(OrderedFloat(f_num.neg()))));
-        assert_eq!(
-            evaluate_abs(&Schema::default(), &mut v, &row)
-                .unwrap_or_else(|e| panic!("{}", e.to_string())),
-            Field::Float(OrderedFloat(f_num))
-        );
-    });
+            let mut v = Box::new(Literal(Field::Float(OrderedFloat(f_num.neg()))));
+            assert_eq!(
+                evaluate_abs(&Schema::default(), &mut v, &row)
+                    .unwrap_or_else(|e| panic!("{}", e.to_string())),
+                Field::Float(OrderedFloat(f_num))
+            );
+        });
     }
 
     #[test]

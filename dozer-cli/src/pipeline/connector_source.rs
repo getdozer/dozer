@@ -344,11 +344,10 @@ async fn forward_message_to_pipeline(
                     break;
                 }
             }
-            IngestionMessage::SnapshottingDone { .. } | IngestionMessage::SnapshottingStarted => {
-                for port in &ports {
-                    if sender.send((*port, message.clone())).await.is_err() {
-                        break;
-                    }
+            IngestionMessage::TransactionInfo(_) => {
+                // For transaction level messages, we can send to any port.
+                if sender.send((ports[0], message)).await.is_err() {
+                    break;
                 }
             }
         }

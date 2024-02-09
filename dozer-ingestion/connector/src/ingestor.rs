@@ -77,7 +77,7 @@ impl Ingestor {
 #[cfg(test)]
 mod tests {
     use super::Ingestor;
-    use dozer_types::models::ingestion_types::IngestionMessage;
+    use dozer_types::models::ingestion_types::{IngestionMessage, TransactionInfo};
     use dozer_types::types::{Operation, Record};
 
     #[tokio::test]
@@ -112,7 +112,9 @@ mod tests {
             .await
             .unwrap();
         ingestor
-            .handle_message(IngestionMessage::SnapshottingDone { id: None })
+            .handle_message(IngestionMessage::TransactionInfo(
+                TransactionInfo::SnapshottingDone { id: None },
+            ))
             .await
             .unwrap();
 

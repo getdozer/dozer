@@ -66,7 +66,7 @@ impl<'a> PostgresIterator<'a> {
 }
 
 impl<'a> PostgresIterator<'a> {
-    pub async fn start(self, lsn: Option<(PgLsn, u64)>) -> Result<(), PostgresConnectorError> {
+    pub async fn start(self, lsn: Option<PgLsn>) -> Result<(), PostgresConnectorError> {
         let state = ReplicationState::Pending;
         let details = self.details.clone();
 
@@ -82,7 +82,7 @@ impl<'a> PostgresIterator<'a> {
 
 pub struct PostgresIteratorHandler<'a> {
     pub details: Arc<Details>,
-    pub lsn: Option<(PgLsn, u64)>,
+    pub lsn: Option<PgLsn>,
     pub state: ReplicationState,
     pub ingestor: &'a Ingestor,
 }
@@ -144,9 +144,10 @@ impl<'a> PostgresIteratorHandler<'a> {
                 ReplicationSlotHelper::create_replication_slot(&mut client, &details.slot_name)
                     .await?;
             if let Some(lsn) = replication_slot_lsn {
-                let parsed_lsn = PgLsn::from_str(&lsn)
-                    .map_err(|_| PostgresConnectorError::LsnParseError(lsn.to_string()))?;
-                self.lsn = Some((parsed_lsn, 0));
+                self.lsn = PgLsn::from_str(&lsn).map_or_else(
+                    |_| Err(PostgresConnectorError::LsnParseError(lsn.to_string())),
+                    |lsn| Ok(Some(lsn)),
+                )?;
             } else {
                 return Err(PostgresConnectorError::LsnNotReturnedFromReplicationSlot);
             }
@@ -188,10 +189,10 @@ impl<'a> PostgresIteratorHandler<'a> {
     }
 
     async fn replicate(&self) -> Result<(), PostgresConnectorError> {
-        let (lsn, offset) = self.lsn.as_ref().map_or(
-            Err(PostgresConnectorError::LSNNotStoredError),
-            |(x, offset)| Ok((x, offset)),
-        )?;
+        let lsn = self
+            .lsn
+            .as_ref()
+            .ok_or(PostgresConnectorError::LSNNotStoredError)?;
 
         let publication_name = self.details.publication_name.clone();
         let slot_name = self.details.slot_name.clone();
@@ -202,11 +203,9 @@ impl<'a> PostgresIteratorHandler<'a> {
             start_lsn: *lsn,
             begin_lsn: 0,
             offset_lsn: 0,
-            offset: *offset,
             publication_name,
             slot_name,
             last_commit_lsn: 0,
-            seq_no: 0,
             name: self.details.name.clone(),
         };
         replicator.start(tables).await

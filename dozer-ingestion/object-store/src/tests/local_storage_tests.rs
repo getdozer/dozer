@@ -1,6 +1,6 @@
 use dozer_ingestion_connector::{
     dozer_types::{
-        models::ingestion_types::IngestionMessage,
+        models::ingestion_types::{IngestionMessage, TransactionInfo},
         types::{Field, FieldType, Operation},
     },
     test_util::create_runtime_and_spawn_connector_all_tables,
@@ -68,7 +68,7 @@ fn test_read_parquet_file() {
     let (mut iterator, _) = create_runtime_and_spawn_connector_all_tables(connector);
 
     let row = iterator.next();
-    if let Some(IngestionMessage::SnapshottingStarted) = row {
+    if let Some(IngestionMessage::TransactionInfo(TransactionInfo::SnapshottingStarted)) = row {
     } else {
         panic!("Unexpected message");
     }
@@ -102,7 +102,7 @@ fn test_read_parquet_file() {
     }
 
     let row = iterator.next();
-    if let Some(IngestionMessage::SnapshottingDone { .. }) = row {
+    if let Some(IngestionMessage::TransactionInfo(TransactionInfo::SnapshottingDone { .. })) = row {
     } else {
         panic!("Unexpected message");
     }
@@ -117,7 +117,7 @@ fn test_read_parquet_file_marker() {
     let (mut iterator, _) = create_runtime_and_spawn_connector_all_tables(connector);
 
     let row = iterator.next();
-    if let Some(IngestionMessage::SnapshottingStarted) = row {
+    if let Some(IngestionMessage::TransactionInfo(TransactionInfo::SnapshottingStarted)) = row {
     } else {
         panic!("Unexpected message");
     }
@@ -151,7 +151,7 @@ fn test_read_parquet_file_marker() {
     }
 
     let row = iterator.next();
-    if let Some(IngestionMessage::SnapshottingDone { .. }) = row {
+    if let Some(IngestionMessage::TransactionInfo(TransactionInfo::SnapshottingDone { .. })) = row {
     } else {
         panic!("Unexpected message");
     }
@@ -166,13 +166,13 @@ fn test_read_parquet_file_no_marker() {
     let (mut iterator, _) = create_runtime_and_spawn_connector_all_tables(connector);
 
     let row = iterator.next();
-    if let Some(IngestionMessage::SnapshottingStarted) = row {
+    if let Some(IngestionMessage::TransactionInfo(TransactionInfo::SnapshottingStarted)) = row {
     } else {
         panic!("Unexpected message");
     }
 
     let row = iterator.next();
-    if let Some(IngestionMessage::SnapshottingDone { .. }) = row {
+    if let Some(IngestionMessage::TransactionInfo(TransactionInfo::SnapshottingDone { .. })) = row {
     } else {
         panic!("Unexpected message");
     }
@@ -187,7 +187,7 @@ fn test_csv_read() {
     let (mut iterator, _) = create_runtime_and_spawn_connector_all_tables(connector);
 
     let row = iterator.next();
-    if let Some(IngestionMessage::SnapshottingStarted) = row {
+    if let Some(IngestionMessage::TransactionInfo(TransactionInfo::SnapshottingStarted)) = row {
     } else {
         panic!("Unexpected message");
     }
@@ -228,7 +228,7 @@ fn test_csv_read() {
     }
 
     let row = iterator.next();
-    if let Some(IngestionMessage::SnapshottingDone { .. }) = row {
+    if let Some(IngestionMessage::TransactionInfo(TransactionInfo::SnapshottingDone { .. })) = row {
     } else {
         panic!("Unexpected message");
     }
@@ -243,7 +243,7 @@ fn test_csv_read_marker() {
     let (mut iterator, _) = create_runtime_and_spawn_connector_all_tables(connector);
 
     let row = iterator.next();
-    if let Some(IngestionMessage::SnapshottingStarted) = row {
+    if let Some(IngestionMessage::TransactionInfo(TransactionInfo::SnapshottingStarted)) = row {
     } else {
         panic!("Unexpected message");
     }
@@ -284,7 +284,7 @@ fn test_csv_read_marker() {
     }
 
     let row = iterator.next();
-    if let Some(IngestionMessage::SnapshottingDone { .. }) = row {
+    if let Some(IngestionMessage::TransactionInfo(TransactionInfo::SnapshottingDone { .. })) = row {
     } else {
         panic!("Unexpected message");
     }
@@ -299,7 +299,7 @@ fn test_csv_read_only_one_marker() {
     let (mut iterator, _) = create_runtime_and_spawn_connector_all_tables(connector);
 
     let row = iterator.next();
-    if let Some(IngestionMessage::SnapshottingStarted) = row {
+    if let Some(IngestionMessage::TransactionInfo(TransactionInfo::SnapshottingStarted)) = row {
     } else {
         panic!("Unexpected message");
     }
@@ -342,7 +342,7 @@ fn test_csv_read_only_one_marker() {
     // No data to be snapshotted
 
     let row = iterator.next();
-    if let Some(IngestionMessage::SnapshottingDone { .. }) = row {
+    if let Some(IngestionMessage::TransactionInfo(TransactionInfo::SnapshottingDone { .. })) = row {
     } else {
         panic!("Unexpected message");
     }
@@ -357,7 +357,7 @@ fn test_csv_read_no_marker() {
     let (mut iterator, _) = create_runtime_and_spawn_connector_all_tables(connector);
 
     let row = iterator.next();
-    if let Some(IngestionMessage::SnapshottingStarted) = row {
+    if let Some(IngestionMessage::TransactionInfo(TransactionInfo::SnapshottingStarted)) = row {
     } else {
         panic!("Unexpected message");
     }
@@ -365,7 +365,7 @@ fn test_csv_read_no_marker() {
     // No data to be snapshotted
 
     let row = iterator.next();
-    if let Some(IngestionMessage::SnapshottingDone { .. }) = row {
+    if let Some(IngestionMessage::TransactionInfo(TransactionInfo::SnapshottingDone { .. })) = row {
     } else {
         panic!("Unexpected message");
     }

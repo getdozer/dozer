@@ -61,7 +61,7 @@ impl CommonService {
         let cache_endpoint = self
             .endpoint_map
             .get(endpoint)
-            .map_or(Err(Status::invalid_argument(endpoint)), Ok)?;
+            .ok_or(Status::invalid_argument(endpoint))?;
         Ok((cache_endpoint, query_request, access))
     }
 }
@@ -159,7 +159,7 @@ impl CommonGrpcService for CommonService {
         let cache_endpoint = self
             .endpoint_map
             .get(&endpoint)
-            .map_or(Err(Status::invalid_argument(&endpoint)), Ok)?;
+            .ok_or(Status::invalid_argument(&endpoint))?;
 
         let cache_reader = cache_endpoint.cache_reader();
         let schema = &cache_reader.get_schema().0;

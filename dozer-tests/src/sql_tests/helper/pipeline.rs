@@ -23,11 +23,11 @@ use dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_types::node::OpIdentifier;
 use dozer_types::types::{Operation, OperationWithId, Record, Schema, SourceDefinition};
 use std::collections::HashMap;
+use std::future::pending;
 use tempdir::TempDir;
 use tokio::{self, runtime::Runtime};
 
 use std::hash::{Hash, Hasher};
-use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -402,11 +402,7 @@ impl TestPipeline {
         let checkpoint = OptionCheckpoint::new(checkpoint_dir, Default::default()).await?;
         let executor = DagExecutor::new(self.dag, checkpoint, Default::default()).await?;
         let join_handle = executor
-            .start(
-                Arc::new(AtomicBool::new(true)),
-                Default::default(),
-                self.runtime,
-            )
+            .start(pending::<()>(), Default::default(), self.runtime)
             .await?;
 
         for (schema_name, op) in &self.ops {
