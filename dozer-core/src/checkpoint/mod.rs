@@ -1,5 +1,5 @@
 use std::sync::Arc;
-
+use dozer_types::types::Field;
 use dozer_log::{
     camino::Utf8Path,
     reader::{list_record_store_slices, processor_prefix},
@@ -270,6 +270,7 @@ pub async fn create_checkpoint_for_test() -> (TempDir, OptionCheckpoint) {
 
 /// This is only meant to be used in tests.
 pub async fn create_checkpoint_factory_for_test(
+    _records: &[Vec<Field>],
 ) -> (TempDir, Arc<CheckpointFactory>, JoinHandle<()>) {
     // Create empty checkpoint storage.
     let temp_dir = TempDir::new("create_checkpoint_factory_for_test").unwrap();
@@ -317,6 +318,6 @@ mod tests {
 
     #[tokio::test]
     async fn checkpoint_writer_should_write_records() {
-        create_checkpoint_factory_for_test().await;
+        create_checkpoint_factory_for_test(&[vec![Field::Int(0)]]).await;
     }
 }
