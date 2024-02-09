@@ -177,17 +177,20 @@ async fn event_request_handler(
         return HttpResponse::Ok().finish();
     }
 
-    let operation_events = map_event(event, state.tables_index_map.clone()).await;
+    let operation_events = map_events(event, state.tables_index_map.clone()).await;
 
-    match operation_event {
+    match operation_events {
         Ok(None) => HttpResponse::Ok().finish(),
-        Ok(Some(event)) => state.ingestor.handle_message(event).await.map_or_else(
-            |e| {
-                error!("Aerospike ingestion message send error: {:?}", e);
-                HttpResponse::InternalServerError().finish()
-            },
-            |_| HttpResponse::Ok().finish(),
-        ),
+        Ok(Some(events)) => {
+            for event in events {
+                if let Err(e) = state.ingestor.handle_message(event).await {
+                    error!("Aerospike ingestion message send error: {:?}", e);
+                    return HttpResponse::InternalServerError().finish();
+                }
+            }
+
+            HttpResponse::Ok().finish()
+        }
         Err(e) => map_error(e),
     }
 }
@@ -406,7 +409,7 @@ impl Connector for AerospikeConnector {
     }
 }
 
-async fn map_event(
+async fn map_events(
     event: AerospikeEvent,
     tables_map: HashMap<String, TableIndexMap>,
 ) -> Result<Option<Vec<IngestionMessage>>, AerospikeConnectorError> {
@@ -438,15 +441,16 @@ async fn map_event(
             }
         }
 
-        Ok(Some(vec![IngestionMessage::OperationEvent {
-            table_index: *table_index,
-            op: Insert {
-                new: dozer_types::types::Record::new(fields),
+        Ok(Some(vec![
+            IngestionMessage::OperationEvent {
+                table_index: *table_index,
+                op: Insert {
+                    new: dozer_types::types::Record::new(fields),
+                },
+                id: None,
             },
-            id: None,
-        }, IngestionMessage::TransactionInfo(TransactionInfo::Commit {
-            id: None,
-        })]))
+            IngestionMessage::TransactionInfo(TransactionInfo::Commit { id: None }),
+        ]))
     } else {
         Ok(None)
     }
