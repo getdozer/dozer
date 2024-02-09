@@ -124,10 +124,7 @@ impl ReceiverLoop for SinkNode {
             _ => 1,
         };
 
-        if let Err(e) = self
-            .sink
-            .process(self.port_handles[index], op)
-        {
+        if let Err(e) = self.sink.process(self.port_handles[index], op) {
             self.error_manager.report(e);
         }
 

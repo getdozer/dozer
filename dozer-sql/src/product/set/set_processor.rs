@@ -37,7 +37,7 @@ impl SetProcessor {
             record_map: if enable_probabilistic_optimizations {
                 ProbabilisticCountingRecordMap::new(cursor.as_mut())?.into()
             } else {
-                AccurateCountingRecordMap::new (cursor.as_mut())?.into()
+                AccurateCountingRecordMap::new(cursor.as_mut())?.into()
             },
         })
     }

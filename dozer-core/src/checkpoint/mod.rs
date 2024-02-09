@@ -1,5 +1,3 @@
-use std::sync::Arc;
-use dozer_types::types::Field;
 use dozer_log::{
     camino::Utf8Path,
     reader::{list_record_store_slices, processor_prefix},
@@ -7,6 +5,7 @@ use dozer_log::{
     storage::{self, Object, Queue, Storage},
     tokio::task::JoinHandle,
 };
+use dozer_types::types::Field;
 use dozer_types::{
     bincode,
     log::info,
@@ -14,6 +13,7 @@ use dozer_types::{
     node::{NodeHandle, OpIdentifier, SourceState, SourceStates},
     tonic::codegen::tokio_stream::StreamExt,
 };
+use std::sync::Arc;
 use tempdir::TempDir;
 
 use crate::errors::ExecutionError;
@@ -309,4 +309,3 @@ pub async fn create_checkpoint_factory_for_test(
 }
 
 pub mod serialize;
-
