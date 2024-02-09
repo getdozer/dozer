@@ -12,7 +12,6 @@ use crate::tests::sources::{
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use dozer_log::storage::Object;
 use dozer_log::tokio::sync::oneshot;
-use dozer_recordstore::{ProcessorRecordStore, ProcessorRecordStoreDeserializer};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
 use dozer_types::tonic::async_trait;

@@ -1,6 +1,5 @@
 use crossbeam::channel::Receiver;
 use daggy::NodeIndex;
-use dozer_recordstore::ProcessorRecordStore;
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::{
     node::{NodeHandle, OpIdentifier},
@@ -127,7 +126,7 @@ impl ReceiverLoop for SinkNode {
 
         if let Err(e) = self
             .sink
-            .process(self.port_handles[index], &self.record_store, op)
+            .process(self.port_handles[index], op)
         {
             self.error_manager.report(e);
         }

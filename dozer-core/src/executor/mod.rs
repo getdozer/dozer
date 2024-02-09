@@ -104,7 +104,6 @@ impl DagExecutor {
             labels,
             self.options.channel_buffer_sz,
             self.options.error_threshold,
-            self.options.checkpoint_factory_options.clone(),
         )
         .await?;
         let node_indexes = execution_dag.graph().node_identifiers().collect::<Vec<_>>();
