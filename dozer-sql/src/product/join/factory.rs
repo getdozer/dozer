@@ -12,7 +12,6 @@ use dozer_sql_expression::{
     },
 };
 
-use dozer_recordstore::ProcessorRecordStoreDeserializer;
 use dozer_types::{
     errors::internal::BoxedError,
     tonic::async_trait,
@@ -111,7 +110,6 @@ impl ProcessorFactory for JoinProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
-        record_store: &ProcessorRecordStoreDeserializer,
         checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         let (join_type, join_constraint) = match &self.join_operator {
@@ -129,11 +127,6 @@ impl ProcessorFactory for JoinProcessorFactory {
                 )
             }
         };
-
-        // let left_name = self
-        //     .left
-        //     .clone()
-        //     .unwrap_or(NameOrAlias("Left".to_owned(), None));
 
         let mut left_schema = input_schemas
             .get(&LEFT_JOIN_PORT)
@@ -162,7 +155,6 @@ impl ProcessorFactory for JoinProcessorFactory {
             join_type,
             (left_join_key_indexes, right_join_key_indexes),
             (&left_schema, &right_schema),
-            record_store,
             self.enable_probabilistic_optimizations,
             checkpoint_data,
         )?;
@@ -325,11 +317,6 @@ pub fn get_field_index(ident: &[Ident], schema: &Schema) -> Result<Option<usize>
                 .map(|(idx, fd)| (idx, fd.clone()));
             index
         }
-        // 3 => {
-        //     let connection_name = comp_ident.get(0).expect("connection_name is expected");
-        //     let table_name = comp_ident.get(1).expect("table_name is expected");
-        //     let field_name = comp_ident.get(2).expect("field_name is expected");
-        // }
         _ => {
             return Err(JoinError::NameSpaceTooLong(
                 ident

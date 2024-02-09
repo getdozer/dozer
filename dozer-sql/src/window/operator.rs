@@ -1,4 +1,3 @@
-use dozer_recordstore::ProcessorRecordStore;
 use dozer_types::{
     chrono::{Duration, DurationRound},
     types::{Field, FieldDefinition, FieldType, Record, Schema, SourceDefinition},
@@ -20,21 +19,17 @@ pub enum WindowType {
 }
 
 impl WindowType {
-    pub fn execute(
-        &self,
-        record_store: &ProcessorRecordStore,
-        record: Record,
-    ) -> Result<Vec<Record>, WindowError> {
+    pub fn execute(&self, record: Record) -> Result<Vec<Record>, WindowError> {
         match self {
             WindowType::Tumble {
                 column_index,
                 interval,
-            } => execute_tumble_window(record_store, record, *column_index, *interval),
+            } => execute_tumble_window(record, *column_index, *interval),
             WindowType::Hop {
                 column_index,
                 hop_size,
                 interval,
-            } => execute_hop_window(record_store, record, *column_index, *hop_size, *interval),
+            } => execute_hop_window(record, *column_index, *hop_size, *interval),
         }
     }
 
@@ -62,7 +57,6 @@ impl WindowType {
 }
 
 fn execute_hop_window(
-    _record_store: &ProcessorRecordStore,
     record: Record,
     column_index: usize,
     hop_size: Duration,
@@ -110,7 +104,6 @@ fn hop(
 }
 
 fn execute_tumble_window(
-    _record_store: &ProcessorRecordStore,
     record: Record,
     column_index: usize,
     interval: Duration,

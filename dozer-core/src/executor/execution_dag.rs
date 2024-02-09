@@ -6,7 +6,7 @@ use std::{
 
 use crate::{
     builder_dag::{BuilderDag, NodeType},
-    checkpoint::{CheckpointFactory, CheckpointFactoryOptions, OptionCheckpoint},
+    checkpoint::OptionCheckpoint,
     dag_schemas::EdgeKind,
     error_manager::ErrorManager,
     errors::ExecutionError,
@@ -21,7 +21,6 @@ use daggy::petgraph::{
     Direction,
 };
 use dozer_log::tokio::sync::Mutex;
-use dozer_recordstore::ProcessorRecordStore;
 use dozer_tracing::LabelsAndProgress;
 
 pub type SharedRecordWriter = Arc<Mutex<Option<Box<dyn RecordWriter>>>>;
@@ -47,7 +46,6 @@ pub struct ExecutionDag {
     /// Nodes will be moved into execution threads.
     graph: daggy::Dag<Option<NodeType>, EdgeType>,
     initial_epoch_id: u64,
-    record_store: Arc<ProcessorRecordStore>,
     error_manager: Arc<ErrorManager>,
     labels: LabelsAndProgress,
 }
@@ -59,7 +57,6 @@ impl ExecutionDag {
         labels: LabelsAndProgress,
         channel_buffer_sz: usize,
         error_threshold: Option<u32>,
-        checkpoint_factory_options: CheckpointFactoryOptions,
     ) -> Result<Self, ExecutionError> {
         // We only create record stored once for every output port. Every `HashMap` in this `Vec` tracks if a node's output ports already have the record store created.
         let mut all_record_writers = vec![
@@ -91,12 +88,8 @@ impl ExecutionDag {
                                     )
                                     .await?;
                                 Some(
-                                    create_record_writer(
-                                        edge.schema.clone(),
-                                        checkpoint.record_store(),
-                                        record_writer_data,
-                                    )
-                                    .map_err(ExecutionError::RestoreRecordWriter)?,
+                                    create_record_writer(edge.schema.clone(), record_writer_data)
+                                        .map_err(ExecutionError::RestoreRecordWriter)?,
                                 )
                             }
                             _ => None,
@@ -124,8 +117,6 @@ impl ExecutionDag {
 
         // Create new graph.
         let initial_epoch_id = checkpoint.next_epoch_id();
-        let (checkpoint_factory, _) =
-            CheckpointFactory::new(checkpoint, checkpoint_factory_options).await?;
         let graph = builder_dag.into_graph().map_owned(
             |_, node| Some(node),
             |edge_index, _| {
@@ -137,7 +128,6 @@ impl ExecutionDag {
         Ok(ExecutionDag {
             graph,
             initial_epoch_id,
-            record_store: checkpoint_factory.record_store().clone(),
             error_manager: Arc::new(if let Some(threshold) = error_threshold {
                 ErrorManager::new_threshold(threshold)
             } else {
@@ -153,10 +143,6 @@ impl ExecutionDag {
 
     pub fn node_weight_mut(&mut self, node_index: daggy::NodeIndex) -> &mut Option<NodeType> {
         &mut self.graph[node_index]
-    }
-
-    pub fn record_store(&self) -> &Arc<ProcessorRecordStore> {
-        &self.record_store
     }
 
     pub fn initial_epoch_id(&self) -> u64 {

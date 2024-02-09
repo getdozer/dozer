@@ -2,7 +2,6 @@
 
 use dozer_core::checkpoint::serialize::DeserializationError;
 use dozer_core::node::PortHandle;
-use dozer_recordstore::RecordStoreError;
 use dozer_types::chrono::RoundingError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::errors::types::TypeError;
@@ -192,9 +191,6 @@ pub enum JoinError {
     #[error("Field type error computing the eviction time in the TTL reference field")]
     EvictionTypeOverflow,
 
-    #[error("Recordstore error: {0}")]
-    RecordStore(#[from] RecordStoreError),
-
     #[error("Deserialization error: {0}")]
     Deserialization(#[from] DeserializationError),
 }
@@ -292,9 +288,6 @@ pub enum WindowError {
 
     #[error("WINDOW functions require alias")]
     NoAlias,
-
-    #[error("RecordStore error")]
-    RecordStore(#[from] RecordStoreError),
 }
 
 #[derive(Error, Debug)]
@@ -322,7 +315,4 @@ pub enum TableOperatorError {
 
     #[error("TTL input must evaluate to timestamp, but it evaluates to {0}")]
     InvalidTtlInputType(Field),
-
-    #[error("Recordstore error")]
-    RecordStore(#[from] RecordStoreError),
 }

@@ -4,7 +4,6 @@ use dozer_core::dozer_log::storage::Object;
 use dozer_core::epoch::Epoch;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_recordstore::ProcessorRecordStore;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::{Operation, OperationWithId};
 
@@ -30,7 +29,6 @@ impl Processor for WindowProcessor {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        record_store: &ProcessorRecordStore,
         op: OperationWithId,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
@@ -38,7 +36,7 @@ impl Processor for WindowProcessor {
             Operation::Delete { old } => {
                 let records = self
                     .window
-                    .execute(record_store, old)
+                    .execute(old)
                     .map_err(PipelineError::WindowError)?;
                 for record in records {
                     fw.send(
@@ -50,7 +48,7 @@ impl Processor for WindowProcessor {
             Operation::Insert { new } => {
                 let records = self
                     .window
-                    .execute(record_store, new)
+                    .execute(new)
                     .map_err(PipelineError::WindowError)?;
                 for record in records {
                     fw.send(
@@ -62,14 +60,12 @@ impl Processor for WindowProcessor {
             Operation::Update { old, new } => {
                 self.process(
                     DEFAULT_PORT_HANDLE,
-                    record_store,
                     OperationWithId::without_id(Operation::Delete { old }),
                     fw,
                 )?;
 
                 self.process(
                     DEFAULT_PORT_HANDLE,
-                    record_store,
                     OperationWithId::without_id(Operation::Insert { new }),
                     fw,
                 )?;
@@ -79,7 +75,7 @@ impl Processor for WindowProcessor {
                 for record in new {
                     records.extend(
                         self.window
-                            .execute(record_store, record)
+                            .execute(record)
                             .map_err(PipelineError::WindowError)?,
                     );
                 }
@@ -92,11 +88,7 @@ impl Processor for WindowProcessor {
         Ok(())
     }
 
-    fn serialize(
-        &mut self,
-        _record_store: &ProcessorRecordStore,
-        _object: Object,
-    ) -> Result<(), BoxedError> {
+    fn serialize(&mut self, _object: Object) -> Result<(), BoxedError> {
         Ok(())
     }
 }

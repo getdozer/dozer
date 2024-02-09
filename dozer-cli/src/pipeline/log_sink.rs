@@ -10,7 +10,6 @@ use dozer_core::{
     node::{PortHandle, Sink, SinkFactory},
     DEFAULT_PORT_HANDLE,
 };
-use dozer_recordstore::ProcessorRecordStore;
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::types::Schema;
 use dozer_types::{errors::internal::BoxedError, node::OpIdentifier};
@@ -89,12 +88,7 @@ impl LogSink {
 }
 
 impl Sink for LogSink {
-    fn process(
-        &mut self,
-        _from_port: PortHandle,
-        _record_store: &ProcessorRecordStore,
-        op: OperationWithId,
-    ) -> Result<(), BoxedError> {
+    fn process(&mut self, _from_port: PortHandle, op: OperationWithId) -> Result<(), BoxedError> {
         let end = self
             .runtime
             .block_on(self.log.lock())

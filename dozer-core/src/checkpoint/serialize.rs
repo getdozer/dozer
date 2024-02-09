@@ -1,5 +1,4 @@
 use dozer_log::{storage::Object, tokio::sync::mpsc::error::SendError};
-use dozer_recordstore::{ProcessorRecordStore, ProcessorRecordStoreDeserializer};
 use dozer_types::{
     bincode::{
         self,
@@ -53,8 +52,6 @@ pub enum DeserializationError {
     NotEnoughData { requested: usize, remaining: usize },
     #[error("bincode error: {0}")]
     Bincode(#[from] bincode::error::DecodeError),
-    #[error("record store error: {0}")]
-    RecordStore(#[from] dozer_recordstore::RecordStoreError),
 }
 
 pub fn serialize_u64(value: u64, object: &mut Object) -> Result<(), SerializationError> {
@@ -92,17 +89,10 @@ pub fn deserialize_bincode<T: bincode::Decode>(
     Ok(bincode::decode_from_slice(data, CONFIG)?.0)
 }
 
-pub fn serialize_record(
-    record: &Record,
-    _record_store: &ProcessorRecordStore,
-    object: &mut Object,
-) -> Result<(), SerializationError> {
+pub fn serialize_record(record: &Record, object: &mut Object) -> Result<(), SerializationError> {
     serialize_bincode(record, object)
 }
 
-pub fn deserialize_record(
-    cursor: &mut Cursor,
-    _record_store: &ProcessorRecordStoreDeserializer,
-) -> Result<Record, DeserializationError> {
+pub fn deserialize_record(cursor: &mut Cursor) -> Result<Record, DeserializationError> {
     deserialize_bincode(cursor)
 }

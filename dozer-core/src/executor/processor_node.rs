@@ -15,7 +15,6 @@ use crate::{
     forwarder::ChannelManager,
     node::{PortHandle, Processor},
 };
-use dozer_recordstore::ProcessorRecordStore;
 
 use super::{execution_dag::ExecutionDag, name::Name, receiver_loop::ReceiverLoop};
 
@@ -34,8 +33,6 @@ pub struct ProcessorNode {
     processor: Box<dyn Processor>,
     /// This node's output channel manager, for forwarding data, writing metadata and writing port state.
     channel_manager: ChannelManager,
-    /// Where all the records from ingested data are stored.
-    record_store: Arc<ProcessorRecordStore>,
     /// The error manager, for reporting non-fatal errors.
     error_manager: Arc<ErrorManager>,
 }
@@ -58,7 +55,6 @@ impl ProcessorNode {
             node_handle.clone(),
             record_writers,
             senders,
-            dag.record_store().clone(),
             dag.error_manager().clone(),
         );
 
@@ -69,7 +65,6 @@ impl ProcessorNode {
             receivers,
             processor,
             channel_manager,
-            record_store: dag.record_store().clone(),
             error_manager: dag.error_manager().clone(),
         }
     }
@@ -101,12 +96,10 @@ impl ReceiverLoop for ProcessorNode {
     }
 
     fn on_op(&mut self, index: usize, op: OperationWithId) -> Result<(), ExecutionError> {
-        if let Err(e) = self.processor.process(
-            self.port_handles[index],
-            &self.record_store,
-            op,
-            &mut self.channel_manager,
-        ) {
+        if let Err(e) =
+            self.processor
+                .process(self.port_handles[index], op, &mut self.channel_manager)
+        {
             self.error_manager.report(e);
         }
         Ok(())
@@ -120,7 +113,7 @@ impl ReceiverLoop for ProcessorNode {
         if let Some(checkpoint_writer) = &epoch.common_info.checkpoint_writer {
             let object = checkpoint_writer.create_processor_object(&self.node_handle)?;
             self.processor
-                .serialize(&self.record_store, object)
+                .serialize(object)
                 .map_err(ExecutionError::FailedToCreateCheckpoint)?;
         }
 

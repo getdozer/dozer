@@ -1,6 +1,5 @@
 use crate::channels::ProcessorChannelForwarder;
 use crate::epoch::Epoch;
-use dozer_recordstore::{ProcessorRecordStore, ProcessorRecordStoreDeserializer};
 
 use dozer_log::storage::{Object, Queue};
 use dozer_log::tokio::sync::mpsc::Sender;
@@ -80,7 +79,6 @@ pub trait ProcessorFactory: Send + Sync + Debug {
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
         output_schemas: HashMap<PortHandle, Schema>,
-        record_store: &ProcessorRecordStoreDeserializer,
         checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Box<dyn Processor>, BoxedError>;
     fn type_name(&self) -> String;
@@ -92,15 +90,10 @@ pub trait Processor: Send + Sync + Debug {
     fn process(
         &mut self,
         from_port: PortHandle,
-        record_store: &ProcessorRecordStore,
         op: OperationWithId,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError>;
-    fn serialize(
-        &mut self,
-        record_store: &ProcessorRecordStore,
-        object: Object,
-    ) -> Result<(), BoxedError>;
+    fn serialize(&mut self, object: Object) -> Result<(), BoxedError>;
 }
 
 #[async_trait]
@@ -116,12 +109,7 @@ pub trait SinkFactory: Send + Sync + Debug {
 
 pub trait Sink: Send + Sync + Debug {
     fn commit(&mut self, epoch_details: &Epoch) -> Result<(), BoxedError>;
-    fn process(
-        &mut self,
-        from_port: PortHandle,
-        record_store: &ProcessorRecordStore,
-        op: OperationWithId,
-    ) -> Result<(), BoxedError>;
+    fn process(&mut self, from_port: PortHandle, op: OperationWithId) -> Result<(), BoxedError>;
     fn persist(&mut self, epoch: &Epoch, queue: &Queue) -> Result<(), BoxedError>;
 
     fn on_source_snapshotting_started(&mut self, connection_name: String)

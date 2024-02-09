@@ -7,7 +7,6 @@ use dozer_core::dozer_log::storage::Object;
 use dozer_core::epoch::Epoch;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_recordstore::ProcessorRecordStore;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::{Operation, OperationWithId, Record, Schema};
 
@@ -84,7 +83,6 @@ impl Processor for ProjectionProcessor {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        _record_store: &ProcessorRecordStore,
         op: OperationWithId,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
@@ -116,11 +114,7 @@ impl Processor for ProjectionProcessor {
         Ok(())
     }
 
-    fn serialize(
-        &mut self,
-        _record_store: &ProcessorRecordStore,
-        mut object: Object,
-    ) -> Result<(), BoxedError> {
+    fn serialize(&mut self, mut object: Object) -> Result<(), BoxedError> {
         for expr in &self.expressions {
             expr.serialize_state(&mut object)?;
         }

@@ -1,14 +1,12 @@
-use std::{borrow::Cow, mem::swap, sync::Arc, usize};
-
 use crossbeam::channel::Receiver;
 use daggy::NodeIndex;
-use dozer_recordstore::ProcessorRecordStore;
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::{
     node::{NodeHandle, OpIdentifier},
     types::{Operation, OperationWithId},
 };
 use metrics::{counter, describe_counter, describe_gauge, gauge};
+use std::{borrow::Cow, mem::swap, sync::Arc, usize};
 
 use crate::{
     builder_dag::NodeKind,
@@ -35,8 +33,6 @@ pub struct SinkNode {
     receivers: Vec<Receiver<ExecutorOperation>>,
     /// The sink.
     sink: Box<dyn Sink>,
-    /// Where all the records from ingested data are stored.
-    record_store: Arc<ProcessorRecordStore>,
     /// The error manager, for reporting non-fatal errors.
     error_manager: Arc<ErrorManager>,
     /// The metrics labels.
@@ -73,7 +69,6 @@ impl SinkNode {
             port_handles,
             receivers,
             sink,
-            record_store: dag.record_store().clone(),
             error_manager: dag.error_manager().clone(),
             labels: dag.labels().clone(),
         }
@@ -129,10 +124,7 @@ impl ReceiverLoop for SinkNode {
             _ => 1,
         };
 
-        if let Err(e) = self
-            .sink
-            .process(self.port_handles[index], &self.record_store, op)
-        {
+        if let Err(e) = self.sink.process(self.port_handles[index], op) {
             self.error_manager.report(e);
         }
 

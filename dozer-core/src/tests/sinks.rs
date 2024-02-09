@@ -2,7 +2,6 @@ use crate::epoch::Epoch;
 use crate::node::{PortHandle, Sink, SinkFactory};
 use crate::DEFAULT_PORT_HANDLE;
 use dozer_log::storage::Queue;
-use dozer_recordstore::ProcessorRecordStore;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::OpIdentifier;
 use dozer_types::types::{OperationWithId, Schema};
@@ -65,22 +64,10 @@ pub(crate) struct CountingSink {
 }
 impl Sink for CountingSink {
     fn commit(&mut self, _epoch_details: &Epoch) -> Result<(), BoxedError> {
-        // if self.current == self.expected {
-        //     info!(
-        //         "Received {} messages. Notifying sender to exit!",
-        //         self.current
-        //     );
-        //     self.running.store(false, Ordering::Relaxed);
-        // }
         Ok(())
     }
 
-    fn process(
-        &mut self,
-        _from_port: PortHandle,
-        _record_store: &ProcessorRecordStore,
-        _op: OperationWithId,
-    ) -> Result<(), BoxedError> {
+    fn process(&mut self, _from_port: PortHandle, _op: OperationWithId) -> Result<(), BoxedError> {
         self.current += 1;
         if self.current == self.expected {
             debug!(

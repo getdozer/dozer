@@ -7,7 +7,6 @@ use dozer_core::{
     node::{PortHandle, Sink, SinkFactory},
     DEFAULT_PORT_HANDLE,
 };
-use dozer_recordstore::ProcessorRecordStore;
 use dozer_types::{
     chrono::Local,
     errors::internal::BoxedError,
@@ -64,12 +63,7 @@ struct DummySink {
 }
 
 impl Sink for DummySink {
-    fn process(
-        &mut self,
-        _from_port: PortHandle,
-        _record_store: &ProcessorRecordStore,
-        op: OperationWithId,
-    ) -> Result<(), BoxedError> {
+    fn process(&mut self, _from_port: PortHandle, op: OperationWithId) -> Result<(), BoxedError> {
         if self.count % 1000 == 0 {
             if self.count > 0 {
                 info!(

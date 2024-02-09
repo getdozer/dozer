@@ -3,7 +3,6 @@ use crate::{projection::factory::ProjectionProcessorFactory, tests::utils::get_s
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::node::ProcessorFactory;
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_recordstore::ProcessorRecordStoreDeserializer;
 use dozer_types::types::{Field, OperationWithId, Schema};
 use dozer_types::types::{Operation, Record};
 use std::collections::HashMap;
@@ -19,8 +18,6 @@ impl ProcessorChannelForwarder for TestChannelForwarder {
 }
 
 pub(crate) fn run_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Field {
-    let record_store = ProcessorRecordStoreDeserializer::new(Default::default()).unwrap();
-
     let select = get_select(sql).unwrap();
     let runtime = create_test_runtime();
     let processor_factory = ProjectionProcessorFactory::_new(
@@ -44,12 +41,9 @@ pub(crate) fn run_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Field {
         .block_on(processor_factory.build(
             HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
             HashMap::new(),
-            &record_store,
             None,
         ))
         .unwrap();
-
-    let record_store = record_store.into_record_store();
 
     let mut fw = TestChannelForwarder { operations: vec![] };
     let rec = Record::new(input);
@@ -59,7 +53,6 @@ pub(crate) fn run_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Field {
     processor
         .process(
             DEFAULT_PORT_HANDLE,
-            &record_store,
             OperationWithId::without_id(op),
             &mut fw,
         )

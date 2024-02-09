@@ -6,7 +6,6 @@ use crate::node::{
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 
 use dozer_log::tokio;
-use dozer_recordstore::ProcessorRecordStoreDeserializer;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
 use dozer_types::tonic::async_trait;
@@ -147,7 +146,6 @@ impl ProcessorFactory for TestJoinProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _record_store: &ProcessorRecordStoreDeserializer,
         _checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         todo!()

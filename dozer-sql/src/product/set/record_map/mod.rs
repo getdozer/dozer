@@ -5,7 +5,6 @@ use dozer_core::{
     },
     dozer_log::storage::Object,
 };
-use dozer_recordstore::{ProcessorRecordStore, ProcessorRecordStoreDeserializer};
 use dozer_types::{
     serde::{Deserialize, Serialize},
     types::Record,
@@ -35,11 +34,7 @@ pub trait CountingRecordMap {
     fn clear(&mut self);
 
     /// Serializes the map to a `Object`. `ProcessorRecord`s should be serialized as an `u64`.
-    fn serialize(
-        &self,
-        record_store: &ProcessorRecordStore,
-        object: &mut Object,
-    ) -> Result<(), SerializationError>;
+    fn serialize(&self, object: &mut Object) -> Result<(), SerializationError>;
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -48,25 +43,21 @@ pub struct AccurateCountingRecordMap {
 }
 
 impl AccurateCountingRecordMap {
-    pub fn new(
-        cursor_and_record_store: Option<(&mut Cursor, &ProcessorRecordStoreDeserializer)>,
-    ) -> Result<Self, DeserializationError> {
-        Ok(
-            if let Some((cursor, record_store)) = cursor_and_record_store {
-                let len = deserialize_u64(cursor)? as usize;
-                let mut map = HashMap::with_capacity(len);
-                for _ in 0..len {
-                    let record = deserialize_record(cursor, record_store)?;
-                    let count = deserialize_u64(cursor)?;
-                    map.insert(record, count);
-                }
-                Self { map }
-            } else {
-                Self {
-                    map: HashMap::new(),
-                }
-            },
-        )
+    pub fn new(cursor_and_record_store: Option<&mut Cursor>) -> Result<Self, DeserializationError> {
+        Ok(if let Some(cursor) = cursor_and_record_store {
+            let len = deserialize_u64(cursor)? as usize;
+            let mut map = HashMap::with_capacity(len);
+            for _ in 0..len {
+                let record = deserialize_record(cursor)?;
+                let count = deserialize_u64(cursor)?;
+                map.insert(record, count);
+            }
+            Self { map }
+        } else {
+            Self {
+                map: HashMap::new(),
+            }
+        })
     }
 }
 
@@ -95,14 +86,10 @@ impl CountingRecordMap for AccurateCountingRecordMap {
         self.map.clear();
     }
 
-    fn serialize(
-        &self,
-        record_store: &ProcessorRecordStore,
-        object: &mut Object,
-    ) -> Result<(), SerializationError> {
+    fn serialize(&self, object: &mut Object) -> Result<(), SerializationError> {
         serialize_u64(self.map.len() as u64, object)?;
         for (key, value) in &self.map {
-            serialize_record(key, record_store, object)?;
+            serialize_record(key, object)?;
             serialize_u64(*value, object)?;
         }
         Ok(())
@@ -152,11 +139,7 @@ impl CountingRecordMap for ProbabilisticCountingRecordMap {
         self.map.clear();
     }
 
-    fn serialize(
-        &self,
-        _record_store: &ProcessorRecordStore,
-        object: &mut Object,
-    ) -> Result<(), SerializationError> {
+    fn serialize(&self, object: &mut Object) -> Result<(), SerializationError> {
         serialize_bincode(&bincode::serde::Compat(&self.map), object)
     }
 }

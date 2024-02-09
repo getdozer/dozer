@@ -206,7 +206,6 @@ pub async fn create_source_node<F>(
             node_handle,
             record_writers,
             senders,
-            dag.record_store().clone(),
             dag.error_manager().clone(),
         );
         sources.push(RunningSource {

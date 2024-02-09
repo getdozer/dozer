@@ -656,7 +656,7 @@ impl AerospikeSinkWorker {
                         false,
                     );
                 }
-                //
+
                 Field::Timestamp(v) => self.set_str_key(
                     key,
                     namespace,
@@ -1156,12 +1156,7 @@ impl Sink for AerospikeSink {
         Ok(())
     }
 
-    fn process(
-        &mut self,
-        from_port: PortHandle,
-        _record_store: &dozer_recordstore::ProcessorRecordStore,
-        op: OperationWithId,
-    ) -> Result<(), BoxedError> {
+    fn process(&mut self, from_port: PortHandle, op: OperationWithId) -> Result<(), BoxedError> {
         debug_assert_eq!(from_port, DEFAULT_PORT_HANDLE);
         self.sender.send(op)?;
         Ok(())
@@ -1223,7 +1218,6 @@ mod tests {
     use dozer_log::tokio;
     use std::time::Duration;
 
-    use dozer_recordstore::ProcessorRecordStore;
     use dozer_types::{
         chrono::{DateTime, NaiveDate},
         ordered_float::OrderedFloat,
@@ -1248,13 +1242,10 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn test_inserts() {
-        let rs = ProcessorRecordStore::new(dozer_types::models::app_config::RecordStore::InMemory)
-            .unwrap();
         let mut sink = sink("inserts").await;
         for i in 0..N_RECORDS {
             sink.process(
                 DEFAULT_PORT_HANDLE,
-                &rs,
                 OperationWithId::without_id(Operation::Insert {
                     new: record(i as u64),
                 }),
@@ -1275,12 +1266,9 @@ mod tests {
             batches.push(batch);
         }
         let mut sink = sink("inserts_batch").await;
-        let rs = ProcessorRecordStore::new(dozer_types::models::app_config::RecordStore::InMemory)
-            .unwrap();
         for batch in batches {
             sink.process(
                 DEFAULT_PORT_HANDLE,
-                &rs,
                 OperationWithId::without_id(Operation::BatchInsert { new: batch }),
             )
             .unwrap()

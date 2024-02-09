@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use crate::checkpoint::serialize::{DeserializationError, SerializationError};
 use crate::node::PortHandle;
 use dozer_log::reader::CheckpointedLogReaderError;
-use dozer_recordstore::RecordStoreError;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
 use dozer_types::thiserror::Error;
@@ -43,8 +42,6 @@ pub enum ExecutionError {
     SourceStateConflict(NodeHandle),
     #[error("File system error {0:?}: {1}")]
     FileSystemError(PathBuf, #[source] std::io::Error),
-    #[error("Recordstore error: {0}")]
-    RecordStore(#[from] RecordStoreError),
     #[error("Object storage error: {0}")]
     ObjectStorage(#[from] dozer_log::storage::Error),
     #[error("Checkpoint writer thread panicked")]

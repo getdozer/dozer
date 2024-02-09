@@ -1,22 +1,19 @@
-use std::{ops::Deref, sync::Arc};
-
 use dozer_log::{
     camino::Utf8Path,
-    reader::{list_record_store_slices, processor_prefix, record_store_key},
+    reader::{list_record_store_slices, processor_prefix},
     replication::create_data_storage,
     storage::{self, Object, Queue, Storage},
     tokio::task::JoinHandle,
 };
-use dozer_recordstore::{ProcessorRecordStore, ProcessorRecordStoreDeserializer, StoreRecord};
+use dozer_types::types::Field;
 use dozer_types::{
     bincode,
-    log::{error, info},
-    models::app_config::{DataStorage, RecordStore},
+    log::info,
+    models::app_config::DataStorage,
     node::{NodeHandle, OpIdentifier, SourceState, SourceStates},
-    parking_lot::Mutex,
     tonic::codegen::tokio_stream::StreamExt,
-    types::Field,
 };
+use std::sync::Arc;
 use tempdir::TempDir;
 
 use crate::errors::ExecutionError;
@@ -25,8 +22,6 @@ use crate::errors::ExecutionError;
 pub struct CheckpointFactory {
     queue: Queue,
     prefix: String,
-    record_store: Arc<ProcessorRecordStore>,
-    state: Mutex<CheckpointWriterFactoryState>,
 }
 
 #[derive(Debug, Clone)]
@@ -53,14 +48,12 @@ struct Checkpoint {
 pub struct OptionCheckpoint {
     storage: Box<dyn Storage>,
     prefix: String,
-    record_store: ProcessorRecordStoreDeserializer,
     checkpoint: Option<Checkpoint>,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct CheckpointOptions {
     pub data_storage: DataStorage,
-    pub record_store: RecordStore,
 }
 
 impl OptionCheckpoint {
@@ -70,8 +63,7 @@ impl OptionCheckpoint {
     ) -> Result<Self, ExecutionError> {
         let (storage, prefix) =
             create_data_storage(options.data_storage, checkpoint_dir.to_string()).await?;
-        let (record_store, checkpoint) =
-            read_record_store_slices(&*storage, &prefix, options.record_store).await?;
+        let checkpoint = read_record_store_slices(&*storage, &prefix).await?;
         if let Some(checkpoint) = &checkpoint {
             info!(
                 "Restored record store from epoch id {}, processor states are stored in {}",
@@ -83,7 +75,6 @@ impl OptionCheckpoint {
             storage,
             prefix,
             checkpoint,
-            record_store,
         })
     }
 
@@ -93,10 +84,6 @@ impl OptionCheckpoint {
 
     pub fn prefix(&self) -> &str {
         &self.prefix
-    }
-
-    pub fn record_store(&self) -> &ProcessorRecordStoreDeserializer {
-        &self.record_store
     }
 
     pub fn last_epoch_id(&self) -> Option<u64> {
@@ -167,17 +154,10 @@ impl CheckpointFactory {
     ) -> Result<(Self, JoinHandle<()>), ExecutionError> {
         let (queue, worker) = Queue::new(checkpoint.storage, options.persist_queue_capacity);
 
-        let record_store = checkpoint.record_store.into_record_store();
-        let state = Mutex::new(CheckpointWriterFactoryState {
-            next_record_index: record_store.num_records(),
-        });
-
         Ok((
             Self {
                 queue,
                 prefix: checkpoint.prefix,
-                record_store: Arc::new(record_store),
-                state,
             },
             worker,
         ))
@@ -186,41 +166,10 @@ impl CheckpointFactory {
     pub fn queue(&self) -> &Queue {
         &self.queue
     }
-
-    pub fn record_store(&self) -> &Arc<ProcessorRecordStore> {
-        &self.record_store
-    }
-
-    fn write_record_store_slice(
-        &self,
-        key: String,
-        source_states: SourceStates,
-    ) -> Result<(), ExecutionError> {
-        let mut state = self.state.lock();
-        let (data, next_record_index) =
-            self.record_store.serialize_slice(state.next_record_index)?;
-        state.next_record_index = next_record_index;
-        drop(state);
-
-        let data = bincode::encode_to_vec(
-            RecordStoreSlice {
-                source_states,
-                data,
-            },
-            bincode::config::legacy(),
-        )
-        .expect("Record store slice should be serializable");
-        self.queue
-            .upload_object(key, data)
-            .map_err(|_| ExecutionError::CheckpointWriterThreadPanicked)?;
-        Ok(())
-    }
 }
 
 #[derive(Debug)]
-struct CheckpointWriterFactoryState {
-    next_record_index: usize,
-}
+struct CheckpointWriterFactoryState {}
 
 #[derive(Debug, bincode::Encode, bincode::Decode)]
 struct RecordStoreSlice {
@@ -231,8 +180,6 @@ struct RecordStoreSlice {
 #[derive(Debug)]
 pub struct CheckpointWriter {
     factory: Arc<CheckpointFactory>,
-    record_store_key: String,
-    source_states: Arc<SourceStates>,
     processor_prefix: String,
 }
 
@@ -249,17 +196,10 @@ fn record_writer_key(processor_prefix: &str, node_handle: &NodeHandle, port_name
 }
 
 impl CheckpointWriter {
-    pub fn new(
-        factory: Arc<CheckpointFactory>,
-        epoch_id: u64,
-        source_states: Arc<SourceStates>,
-    ) -> Self {
-        let record_store_key = record_store_key(&factory.prefix, epoch_id).into();
+    pub fn new(factory: Arc<CheckpointFactory>, epoch_id: u64) -> Self {
         let processor_prefix = processor_prefix(&factory.prefix, epoch_id).into();
         Self {
             factory,
-            record_store_key,
-            source_states,
             processor_prefix,
         }
     }
@@ -286,30 +226,16 @@ impl CheckpointWriter {
         Object::new(self.factory.queue.clone(), key)
             .map_err(|_| ExecutionError::CheckpointWriterThreadPanicked)
     }
-
-    fn drop(&mut self) -> Result<(), ExecutionError> {
-        self.factory.write_record_store_slice(
-            std::mem::take(&mut self.record_store_key),
-            self.source_states.deref().clone(),
-        )
-    }
 }
 
 impl Drop for CheckpointWriter {
-    fn drop(&mut self) {
-        if let Err(e) = self.drop() {
-            error!("Failed to write record store slice: {:?}", e);
-        }
-    }
+    fn drop(&mut self) {}
 }
 
 async fn read_record_store_slices(
     storage: &dyn Storage,
     factory_prefix: &str,
-    record_store: RecordStore,
-) -> Result<(ProcessorRecordStoreDeserializer, Option<Checkpoint>), ExecutionError> {
-    let record_store = ProcessorRecordStoreDeserializer::new(record_store)?;
-
+) -> Result<Option<Checkpoint>, ExecutionError> {
     let stream = list_record_store_slices(storage, factory_prefix);
     let mut stream = std::pin::pin!(stream);
 
@@ -322,7 +248,6 @@ async fn read_record_store_slices(
             bincode::decode_from_slice(&data, bincode::config::legacy())
                 .map_err(ExecutionError::CorruptedCheckpoint)?
                 .0;
-        record_store.deserialize_and_extend(&record_store_slice.data)?;
         last_checkpoint = Some(Checkpoint {
             epoch_id: meta.epoch_id,
             source_states: record_store_slice.source_states,
@@ -330,7 +255,7 @@ async fn read_record_store_slices(
         });
     }
 
-    Ok((record_store, last_checkpoint))
+    Ok(last_checkpoint)
 }
 
 /// This is only meant to be used in tests.
@@ -345,7 +270,7 @@ pub async fn create_checkpoint_for_test() -> (TempDir, OptionCheckpoint) {
 
 /// This is only meant to be used in tests.
 pub async fn create_checkpoint_factory_for_test(
-    records: &[Vec<Field>],
+    _records: &[Vec<Field>],
 ) -> (TempDir, Arc<CheckpointFactory>, JoinHandle<()>) {
     // Create empty checkpoint storage.
     let temp_dir = TempDir::new("create_checkpoint_factory_for_test").unwrap();
@@ -358,11 +283,6 @@ pub async fn create_checkpoint_factory_for_test(
         .unwrap();
     let factory = Arc::new(checkpoint_factory);
 
-    // Write data to checkpoint.
-    for record in records {
-        factory.record_store().create_ref(record).unwrap();
-    }
-    // Writer must be dropped outside tokio context.
     let epoch_id = 42;
     let source_states: SourceStates = [(
         NodeHandle::new(Some(1), "id".to_string()),
@@ -370,16 +290,9 @@ pub async fn create_checkpoint_factory_for_test(
     )]
     .into_iter()
     .collect();
-    let source_states_clone = Arc::new(source_states.clone());
-    std::thread::spawn(move || {
-        drop(CheckpointWriter::new(
-            factory,
-            epoch_id,
-            source_states_clone,
-        ))
-    })
-    .join()
-    .unwrap();
+    std::thread::spawn(move || drop(CheckpointWriter::new(factory, epoch_id)))
+        .join()
+        .unwrap();
     handle.await.unwrap();
 
     // Create a new factory that loads from the checkpoint.
@@ -396,15 +309,3 @@ pub async fn create_checkpoint_factory_for_test(
 }
 
 pub mod serialize;
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    use dozer_log::tokio;
-
-    #[tokio::test]
-    async fn checkpoint_writer_should_write_records() {
-        create_checkpoint_factory_for_test(&[vec![Field::Int(0)]]).await;
-    }
-}

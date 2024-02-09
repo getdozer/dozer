@@ -3,7 +3,6 @@ use dozer_core::dozer_log::storage::Object;
 use dozer_core::epoch::Epoch;
 use dozer_core::node::{PortHandle, Processor};
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_recordstore::ProcessorRecordStore;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::types::{Operation, OperationWithId, Schema};
 
@@ -41,7 +40,6 @@ impl Processor for TableOperatorProcessor {
     fn process(
         &mut self,
         _from_port: PortHandle,
-        record_store: &ProcessorRecordStore,
         op: OperationWithId,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
@@ -49,7 +47,7 @@ impl Processor for TableOperatorProcessor {
             Operation::Delete { ref old } => {
                 let records = self
                     .operator
-                    .execute(record_store, old, &self.input_schema)
+                    .execute(old, &self.input_schema)
                     .map_err(PipelineError::TableOperatorError)?;
                 for record in records {
                     fw.send(
@@ -61,7 +59,7 @@ impl Processor for TableOperatorProcessor {
             Operation::Insert { ref new } => {
                 let records = self
                     .operator
-                    .execute(record_store, new, &self.input_schema)
+                    .execute(new, &self.input_schema)
                     .map_err(PipelineError::TableOperatorError)?;
                 for record in records {
                     fw.send(
@@ -73,7 +71,7 @@ impl Processor for TableOperatorProcessor {
             Operation::Update { ref old, ref new } => {
                 let old_records = self
                     .operator
-                    .execute(record_store, old, &self.input_schema)
+                    .execute(old, &self.input_schema)
                     .map_err(PipelineError::TableOperatorError)?;
                 for record in old_records {
                     fw.send(
@@ -84,7 +82,7 @@ impl Processor for TableOperatorProcessor {
 
                 let new_records = self
                     .operator
-                    .execute(record_store, new, &self.input_schema)
+                    .execute(new, &self.input_schema)
                     .map_err(PipelineError::TableOperatorError)?;
                 for record in new_records {
                     fw.send(
@@ -98,7 +96,7 @@ impl Processor for TableOperatorProcessor {
                 for record in new {
                     records.extend(
                         self.operator
-                            .execute(record_store, &record, &self.input_schema)
+                            .execute(&record, &self.input_schema)
                             .map_err(PipelineError::TableOperatorError)?,
                     );
                 }
@@ -111,11 +109,7 @@ impl Processor for TableOperatorProcessor {
         Ok(())
     }
 
-    fn serialize(
-        &mut self,
-        _record_store: &ProcessorRecordStore,
-        _object: Object,
-    ) -> Result<(), BoxedError> {
+    fn serialize(&mut self, _object: Object) -> Result<(), BoxedError> {
         Ok(())
     }
 }

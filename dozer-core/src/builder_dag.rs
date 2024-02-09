@@ -195,7 +195,7 @@ impl BuilderDag {
                             output_schemas
                                 .remove(&node_index)
                                 .expect("we collected all output schemas"),
-                            checkpoint.record_store(),
+                            // checkpoint.record_store(),
                             checkpoint_data
                                 .remove(&node_index)
                                 .expect("we collected all processor checkpoint data"),

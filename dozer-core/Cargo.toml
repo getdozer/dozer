@@ -11,7 +11,6 @@ dozer-log = { path = "../dozer-log/" }
 dozer-storage = { path = "../dozer-storage/" }
 dozer-types = { path = "../dozer-types/" }
 dozer-tracing = { path = "../dozer-tracing/" }
-dozer-recordstore = { path = "../dozer-recordstore/" }
 bincode = { workspace = true }
 
 uuid = { version = "1.6.1", features = ["v1", "v4", "fast-rng"] }
