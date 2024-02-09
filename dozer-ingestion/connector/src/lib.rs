@@ -8,6 +8,7 @@ pub use dozer_types::tonic::async_trait;
 use dozer_types::types::{FieldType, Schema};
 
 mod ingestor;
+pub mod schema_parser;
 pub mod test_util;
 pub mod utils;
 

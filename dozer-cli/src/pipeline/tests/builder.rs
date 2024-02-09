@@ -5,7 +5,7 @@ use crate::pipeline::source_builder::SourceBuilder;
 use crate::pipeline::PipelineBuilder;
 use dozer_api::shutdown;
 use dozer_types::models::config::Config;
-use dozer_types::models::ingestion_types::{GrpcConfig, GrpcConfigSchemas};
+use dozer_types::models::ingestion_types::{ConfigSchemas, GrpcConfig};
 
 use dozer_types::models::connection::{Connection, ConnectionConfig};
 use dozer_types::models::flags::Flags;
@@ -18,7 +18,7 @@ fn get_default_config() -> Config {
             host: None,
             port: None,
             adapter: None,
-            schemas: GrpcConfigSchemas::Inline(schema_str.to_string()),
+            schemas: ConfigSchemas::Inline(schema_str.to_string()),
         }),
         name: "grpc_conn".to_string(),
     };

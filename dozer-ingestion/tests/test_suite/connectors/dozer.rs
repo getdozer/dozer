@@ -15,9 +15,7 @@ use dozer_ingestion_connector::dozer_types::{
     log::info,
     models::{
         endpoint::ApiEndpoint,
-        ingestion_types::{
-            GrpcConfig, GrpcConfigSchemas, NestedDozerConfig, NestedDozerLogOptions,
-        },
+        ingestion_types::{ConfigSchemas, GrpcConfig, NestedDozerConfig, NestedDozerLogOptions},
         source::Source,
     },
     serde_json,
@@ -191,7 +189,7 @@ async fn create_nested_dozer_server(
     let grpc_config = GrpcConfig {
         host: Some("0.0.0.0".to_owned()),
         port: Some(8085),
-        schemas: GrpcConfigSchemas::Inline(schema_string),
+        schemas: ConfigSchemas::Inline(schema_string),
         adapter: Some("default".to_owned()),
     };
 

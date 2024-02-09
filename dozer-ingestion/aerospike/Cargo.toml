@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 dozer-ingestion-connector = { path = "../connector" }
 actix-web = "4.5.1"
+base64 = "0.21.7"

@@ -12,7 +12,7 @@ use dozer_ingestion_connector::dozer_types::{
     },
     json_types::json as dozer_json,
     models::ingestion_types::IngestionMessage,
-    models::ingestion_types::{GrpcConfig, GrpcConfigSchemas},
+    models::ingestion_types::{ConfigSchemas, GrpcConfig},
     serde_json,
     serde_json::json,
     serde_json::Value,
@@ -38,7 +38,7 @@ fn ingest_grpc<T: IngestAdapter>(
     let grpc_connector = GrpcConnector::<T>::new(
         "grpc".to_string(),
         GrpcConfig {
-            schemas: GrpcConfigSchemas::Inline(schemas.to_string()),
+            schemas: ConfigSchemas::Inline(schemas.to_string()),
             adapter: Some(adapter),
             port: Some(port),
             host: None,

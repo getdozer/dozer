@@ -143,6 +143,28 @@
         "namespace": {
           "type": "string"
         },
+        "replication": {
+          "default": {
+            "server_address": "0.0.0.0",
+            "server_port": 5929
+          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/ReplicationSettings"
+            }
+          ]
+        },
+        "schemas": {
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ConfigSchemas"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "sets": {
           "type": "array",
           "items": {
@@ -571,6 +593,34 @@
         }
       },
       "additionalProperties": false
+    },
+    "ConfigSchemas": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "Inline"
+          ],
+          "properties": {
+            "Inline": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Path"
+          ],
+          "properties": {
+            "Path": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
     },
     "ConflictResolution": {
       "type": "object",
@@ -1315,37 +1365,9 @@
           "minimum": 0.0
         },
         "schemas": {
-          "$ref": "#/definitions/GrpcConfigSchemas"
+          "$ref": "#/definitions/ConfigSchemas"
         }
       }
-    },
-    "GrpcConfigSchemas": {
-      "oneOf": [
-        {
-          "type": "object",
-          "required": [
-            "Inline"
-          ],
-          "properties": {
-            "Inline": {
-              "type": "string"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "Path"
-          ],
-          "properties": {
-            "Path": {
-              "type": "string"
-            }
-          },
-          "additionalProperties": false
-        }
-      ]
     },
     "JavaScriptConfig": {
       "type": "object",
@@ -1864,6 +1886,21 @@
       "enum": [
         "RealTime"
       ]
+    },
+    "ReplicationSettings": {
+      "type": "object",
+      "properties": {
+        "server_address": {
+          "default": "0.0.0.0",
+          "type": "string"
+        },
+        "server_port": {
+          "default": 5929,
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        }
+      }
     },
     "RestApiOptions": {
       "type": "object",

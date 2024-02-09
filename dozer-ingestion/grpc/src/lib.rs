@@ -2,7 +2,7 @@ pub mod connector;
 mod ingest;
 
 mod adapter;
-use std::{net::AddrParseError, path::PathBuf};
+use std::net::AddrParseError;
 
 pub use adapter::{ArrowAdapter, DefaultAdapter, GrpcIngestMessage, GrpcIngestor, IngestAdapter};
 use dozer_ingestion_connector::dozer_types::{
@@ -13,14 +13,15 @@ use dozer_ingestion_connector::dozer_types::{
     tonic::transport,
     types::FieldType,
 };
+use dozer_ingestion_connector::schema_parser::SchemaParserError;
 
 #[cfg(test)]
 mod tests;
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("cannot read file {0:?}: {1}")]
-    CannotReadFile(PathBuf, #[source] std::io::Error),
+    #[error("Schema parser error: {0}")]
+    CannotReadFile(#[from] SchemaParserError),
     #[error("serde json error: {0}")]
     SerdeJson(#[from] serde_json::Error),
     #[error("from arrow error: {0}")]
