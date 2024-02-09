@@ -9,4 +9,4 @@ edition = "2021"
 dozer-core = { version = "0.3.0", path = "../dozer-core" }
 dozer-log = { version = "0.3.0", path = "../dozer-log" }
 dozer-types = { version = "0.3.0", path = "../dozer-types" }
-oracle = "0.5.7"
+oracle = { version = "0.5.7", features = ["chrono"] }

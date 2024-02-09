@@ -1,6 +1,6 @@
 use dozer_ingestion_connector::{
     dozer_types::{
-        models::ingestion_types::IngestionMessage,
+        models::ingestion_types::{IngestionMessage, TransactionInfo},
         node::OpIdentifier,
         types::{Field, Operation, Record},
     },
@@ -131,6 +131,16 @@ impl StreamConsumer {
                     .is_err()
                 {
                     // If receiver is dropped, we can stop processing
+                    return Ok(());
+                }
+                if ingestor
+                    .blocking_handle_message(IngestionMessage::TransactionInfo(
+                        TransactionInfo::Commit {
+                            id: Some(OpIdentifier::new(iteration, idx as u64)),
+                        },
+                    ))
+                    .is_err()
+                {
                     return Ok(());
                 }
             }

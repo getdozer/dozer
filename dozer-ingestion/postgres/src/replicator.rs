@@ -1,7 +1,9 @@
 use dozer_ingestion_connector::dozer_types::bytes;
 use dozer_ingestion_connector::dozer_types::chrono::{TimeZone, Utc};
 use dozer_ingestion_connector::dozer_types::log::{error, info};
-use dozer_ingestion_connector::dozer_types::models::ingestion_types::IngestionMessage;
+use dozer_ingestion_connector::dozer_types::models::ingestion_types::{
+    IngestionMessage, TransactionInfo,
+};
 use dozer_ingestion_connector::dozer_types::node::OpIdentifier;
 use dozer_ingestion_connector::futures::StreamExt;
 use dozer_ingestion_connector::Ingestor;
@@ -34,9 +36,6 @@ pub struct CDCHandler<'a> {
     pub begin_lsn: Lsn,
     pub offset_lsn: Lsn,
     pub last_commit_lsn: Lsn,
-
-    pub offset: u64,
-    pub seq_no: u64,
 }
 
 impl<'a> CDCHandler<'a> {
@@ -119,20 +118,30 @@ impl<'a> CDCHandler<'a> {
                 match message {
                     Some(MappedReplicationMessage::Commit(lsn)) => {
                         self.last_commit_lsn = lsn;
+                        if self
+                            .ingestor
+                            .handle_message(IngestionMessage::TransactionInfo(
+                                TransactionInfo::Commit {
+                                    id: Some(OpIdentifier::new(self.begin_lsn, 0)),
+                                },
+                            ))
+                            .await
+                            .is_err()
+                        {
+                            return Ok(());
+                        }
                     }
                     Some(MappedReplicationMessage::Begin) => {
                         self.begin_lsn = lsn;
-                        self.seq_no = 0;
                     }
                     Some(MappedReplicationMessage::Operation { table_index, op }) => {
-                        self.seq_no += 1;
-                        if (self.begin_lsn != self.offset_lsn || self.offset < self.seq_no)
+                        if self.begin_lsn != self.offset_lsn
                             && self
                                 .ingestor
                                 .handle_message(IngestionMessage::OperationEvent {
                                     table_index,
                                     op,
-                                    id: Some(OpIdentifier::new(self.begin_lsn, self.seq_no)),
+                                    id: Some(OpIdentifier::new(self.begin_lsn, 0)),
                                 })
                                 .await
                                 .is_err()

@@ -20,7 +20,7 @@ pub trait ReceiverLoop: Name {
     /// Responds to `op` from the receiver at `index`.
     fn on_op(&mut self, index: usize, op: OperationWithId) -> Result<(), ExecutionError>;
     /// Responds to `commit` of `epoch`.
-    fn on_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError>;
+    fn on_commit(&mut self, epoch: Epoch) -> Result<(), ExecutionError>;
     /// Responds to `terminate`.
     fn on_terminate(&mut self) -> Result<(), ExecutionError>;
     /// Responds to `SnapshottingStarted`.
@@ -61,7 +61,7 @@ pub trait ReceiverLoop: Name {
                     sel.remove(index);
 
                     if commits_received == receivers.len() {
-                        self.on_commit(&epoch)?;
+                        self.on_commit(epoch)?;
                         epoch_id += 1;
                         commits_received = 0;
                         sel = init_select(&receivers);
@@ -150,8 +150,8 @@ mod tests {
             Ok(())
         }
 
-        fn on_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError> {
-            self.commits.push(epoch.clone());
+        fn on_commit(&mut self, epoch: Epoch) -> Result<(), ExecutionError> {
+            self.commits.push(epoch);
             Ok(())
         }
 

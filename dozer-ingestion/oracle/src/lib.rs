@@ -3,7 +3,7 @@ use dozer_ingestion_connector::{
     dozer_types::{
         errors::internal::BoxedError,
         log::info,
-        models::ingestion_types::{IngestionMessage, OracleConfig},
+        models::ingestion_types::{IngestionMessage, OracleConfig, TransactionInfo},
         node::OpIdentifier,
         types::FieldType,
     },
@@ -162,7 +162,9 @@ impl Connector for OracleConnector {
             let mut connectors = self.ensure_connection(false).await?;
 
             if ingestor
-                .handle_message(IngestionMessage::SnapshottingStarted)
+                .handle_message(IngestionMessage::TransactionInfo(
+                    TransactionInfo::SnapshottingStarted,
+                ))
                 .await
                 .is_err()
             {
@@ -174,7 +176,9 @@ impl Connector for OracleConnector {
             .await
             .unwrap()?;
             ingestor
-                .handle_message(IngestionMessage::SnapshottingDone { id: None })
+                .handle_message(IngestionMessage::TransactionInfo(
+                    TransactionInfo::SnapshottingDone { id: None },
+                ))
                 .await?;
             scn
         };

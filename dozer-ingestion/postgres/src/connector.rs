@@ -173,7 +173,7 @@ impl Connector for PostgresConnector {
         tables: Vec<TableInfo>,
         last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
-        let lsn = last_checkpoint.map(|checkpoint| (checkpoint.txid.into(), checkpoint.seq_in_tx));
+        let lsn = last_checkpoint.map(|checkpoint| checkpoint.txid.into());
 
         if lsn.is_none() {
             let client = helper::connect(self.replication_conn_config.clone()).await?;

@@ -63,12 +63,7 @@ impl ProcessorFactory for SetProcessorFactory {
 
         let output_schema = Schema {
             fields: output_columns,
-            primary_index: input_schemas
-                .get(&0)
-                .map_or(Err(SetError::InvalidInputSchemas), Ok)
-                .unwrap()
-                .to_owned()
-                .primary_index,
+            primary_index: input_schemas[&0].primary_index.clone(),
         };
 
         Ok(output_schema)
@@ -95,18 +90,8 @@ impl ProcessorFactory for SetProcessorFactory {
 fn validate_set_operation_input_schemas(
     input_schemas: &HashMap<PortHandle, Schema>,
 ) -> Result<Vec<FieldDefinition>, PipelineError> {
-    let mut left_columns = input_schemas
-        .get(&0)
-        .map_or(Err(SetError::InvalidInputSchemas), Ok)
-        .unwrap()
-        .to_owned()
-        .fields;
-    let mut right_columns = input_schemas
-        .get(&1)
-        .map_or(Err(SetError::InvalidInputSchemas), Ok)
-        .unwrap()
-        .to_owned()
-        .fields;
+    let mut left_columns = input_schemas[&0].fields.clone();
+    let mut right_columns = input_schemas[&0].fields.clone();
 
     left_columns.sort();
     right_columns.sort();

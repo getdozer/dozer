@@ -1,6 +1,7 @@
-use std::sync::{atomic::AtomicBool, Arc};
+use std::sync::Arc;
 
 use dozer_log::tokio::runtime::{self, Runtime};
+use futures::future::pending;
 
 use crate::{
     checkpoint::create_checkpoint_for_test, errors::ExecutionError, executor::DagExecutor, Dag,
@@ -33,11 +34,7 @@ fn run_dag(dag: Dag) -> Result<(), ExecutionError> {
         let (_temp_dir, checkpoint) = create_checkpoint_for_test().await;
         DagExecutor::new(dag, checkpoint, Default::default())
             .await?
-            .start(
-                Arc::new(AtomicBool::new(true)),
-                Default::default(),
-                runtime_clone,
-            )
+            .start(pending::<()>(), Default::default(), runtime_clone)
             .await
     })?;
     handle.join()

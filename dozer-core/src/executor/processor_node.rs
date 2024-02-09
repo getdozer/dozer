@@ -60,7 +60,7 @@ impl ProcessorNode {
 
         Self {
             node_handle,
-            initial_epoch_id: dag.epoch_manager().epoch_id(),
+            initial_epoch_id: dag.initial_epoch_id(),
             port_handles,
             receivers,
             processor,
@@ -105,8 +105,8 @@ impl ReceiverLoop for ProcessorNode {
         Ok(())
     }
 
-    fn on_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError> {
-        if let Err(e) = self.processor.commit(epoch) {
+    fn on_commit(&mut self, epoch: Epoch) -> Result<(), ExecutionError> {
+        if let Err(e) = self.processor.commit(&epoch) {
             self.error_manager.report(e);
         }
 

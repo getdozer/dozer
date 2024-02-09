@@ -101,7 +101,7 @@ impl OptionCheckpoint {
     pub fn get_source_state(
         &self,
         node_handle: &NodeHandle,
-    ) -> Result<Option<(&[u8], OpIdentifier)>, ExecutionError> {
+    ) -> Result<Option<OpIdentifier>, ExecutionError> {
         let Some(checkpoint) = self.checkpoint.as_ref() else {
             return Ok(None);
         };
@@ -114,7 +114,7 @@ impl OptionCheckpoint {
             SourceState::NonRestartable => {
                 Err(ExecutionError::SourceCannotRestart(node_handle.clone()))
             }
-            SourceState::Restartable { state, checkpoint } => Ok(Some((state, *checkpoint))),
+            SourceState::Restartable(id) => Ok(Some(*id)),
         }
     }
 

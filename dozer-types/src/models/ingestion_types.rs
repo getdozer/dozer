@@ -27,6 +27,15 @@ pub enum IngestionMessage {
         /// If this connector supports restarting from a specific CDC event, it should provide a `OpIdentifier`.
         id: Option<OpIdentifier>,
     },
+    TransactionInfo(TransactionInfo),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum TransactionInfo {
+    Commit {
+        /// If this connector supports restarting from after this commit, it should provide a `OpIdentifier`.
+        id: Option<OpIdentifier>,
+    },
     /// A connector uses this message kind to notify Dozer that a initial snapshot of the source tables is started
     SnapshottingStarted,
     /// A connector uses this message kind to notify Dozer that a initial snapshot of the source tables is done,

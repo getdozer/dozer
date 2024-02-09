@@ -11,13 +11,15 @@ use crate::tests::sources::{
 };
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use dozer_log::storage::Object;
+use dozer_log::tokio::sync::oneshot;
+use dozer_recordstore::{ProcessorRecordStore, ProcessorRecordStoreDeserializer};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
 use dozer_types::tonic::async_trait;
 use dozer_types::types::{OperationWithId, Schema};
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -155,23 +157,22 @@ fn test_run_dag_and_stop() {
     )
     .unwrap();
 
-    let running = Arc::new(AtomicBool::new(true));
-    let running_clone = running.clone();
     let runtime = create_test_runtime();
     let runtime_clone = runtime.clone();
 
+    let (sender, receiver) = oneshot::channel::<()>();
     let join_handle = runtime.block_on(async move {
         let (_temp_dir, checkpoint) = create_checkpoint_for_test().await;
         DagExecutor::new(dag, checkpoint, Default::default())
             .await
             .unwrap()
-            .start(running_clone, Default::default(), runtime_clone)
+            .start(receiver, Default::default(), runtime_clone)
             .await
             .unwrap()
     });
 
     thread::sleep(Duration::from_millis(1000));
-    running.store(false, Ordering::SeqCst);
+    sender.send(()).unwrap();
     join_handle.join().unwrap();
 }
 

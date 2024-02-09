@@ -11,7 +11,7 @@ use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 use dozer_log::storage::{Object, Queue};
 use dozer_log::tokio::sync::mpsc::Sender;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::models::ingestion_types::IngestionMessage;
+use dozer_types::models::ingestion_types::{IngestionMessage, TransactionInfo};
 use dozer_types::node::{NodeHandle, OpIdentifier};
 use dozer_types::tonic::async_trait;
 use dozer_types::types::{
@@ -356,6 +356,14 @@ impl Source for ErrGeneratorSource {
                         },
                         id: Some(OpIdentifier::new(0, n)),
                     },
+                ))
+                .await?;
+            sender
+                .send((
+                    GENERATOR_SOURCE_OUTPUT_PORT,
+                    IngestionMessage::TransactionInfo(TransactionInfo::Commit {
+                        id: Some(OpIdentifier::new(0, n)),
+                    }),
                 ))
                 .await?;
         }

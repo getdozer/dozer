@@ -1,5 +1,6 @@
 use crossbeam::channel::Receiver;
 use daggy::NodeIndex;
+use dozer_recordstore::ProcessorRecordStore;
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::{
     node::{NodeHandle, OpIdentifier},
@@ -65,7 +66,7 @@ impl SinkNode {
 
         Self {
             node_handle,
-            initial_epoch_id: dag.epoch_manager().epoch_id(),
+            initial_epoch_id: dag.initial_epoch_id(),
             port_handles,
             receivers,
             sink,
@@ -119,20 +120,25 @@ impl ReceiverLoop for SinkNode {
             }
         }
 
-        if let Err(e) = self.sink.process(self.port_handles[index], op.to_owned()) {
+        let counter_number: u64 = match &op.op {
+            Operation::BatchInsert { new } => new.len() as u64,
+            _ => 1,
+        };
+
+        if let Err(e) = self
+            .sink
+            .process(self.port_handles[index], &self.record_store, op)
+        {
             self.error_manager.report(e);
         }
 
-        let counter_number: u64 = match op.op {
-            Operation::BatchInsert { new } => new.to_owned().len().try_into().unwrap_or(1),
-            _ => 1,
-        };
         counter!(SINK_OPERATION_COUNTER_NAME, counter_number, labels);
         Ok(())
     }
 
-    fn on_commit(&mut self, epoch: &Epoch) -> Result<(), ExecutionError> {
-        if let Err(e) = self.sink.commit(epoch) {
+    fn on_commit(&mut self, epoch: Epoch) -> Result<(), ExecutionError> {
+        // debug!("[{}] Checkpointing - {}", self.node_handle, epoch);
+        if let Err(e) = self.sink.commit(&epoch) {
             self.error_manager.report(e);
         }
 
@@ -143,7 +149,7 @@ impl ReceiverLoop for SinkNode {
         }
 
         if let Some(queue) = epoch.common_info.sink_persist_queue.as_ref() {
-            if let Err(e) = self.sink.persist(epoch, queue) {
+            if let Err(e) = self.sink.persist(&epoch, queue) {
                 self.error_manager.report(e);
             }
         }

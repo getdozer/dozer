@@ -4,7 +4,7 @@ use dozer_ingestion_connector::{
         self, chrono,
         grpc_types::{self, ingest::IngestRequest},
         json_types::prost_to_json_value,
-        models::ingestion_types::IngestionMessage,
+        models::ingestion_types::{IngestionMessage, TransactionInfo},
         ordered_float::OrderedFloat,
         rust_decimal::Decimal,
         serde_json,
@@ -90,6 +90,11 @@ pub async fn handle_message(
             op,
             id: None,
         })
+        .await;
+    let _ = ingestor
+        .handle_message(IngestionMessage::TransactionInfo(TransactionInfo::Commit {
+            id: None,
+        }))
         .await;
     Ok(())
 }

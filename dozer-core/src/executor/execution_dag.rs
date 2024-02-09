@@ -5,10 +5,9 @@ use std::{
 };
 
 use crate::{
-    builder_dag::{BuilderDag, NodeKind, NodeType},
+    builder_dag::{BuilderDag, NodeType},
     checkpoint::{CheckpointFactory, CheckpointFactoryOptions, OptionCheckpoint},
     dag_schemas::EdgeKind,
-    epoch::{EpochManager, EpochManagerOptions},
     error_manager::ErrorManager,
     errors::ExecutionError,
     executor_operation::ExecutorOperation,
@@ -18,7 +17,7 @@ use crate::{
 };
 use crossbeam::channel::{bounded, Receiver, Sender};
 use daggy::petgraph::{
-    visit::{EdgeRef, IntoEdges, IntoEdgesDirected, IntoNodeIdentifiers},
+    visit::{EdgeRef, IntoEdges, IntoEdgesDirected},
     Direction,
 };
 use dozer_log::tokio::sync::Mutex;
@@ -46,7 +45,8 @@ pub struct EdgeType {
 pub struct ExecutionDag {
     /// Nodes will be moved into execution threads.
     graph: daggy::Dag<Option<NodeType>, EdgeType>,
-    epoch_manager: Arc<EpochManager>,
+    initial_epoch_id: u64,
+    record_store: Arc<ProcessorRecordStore>,
     error_manager: Arc<ErrorManager>,
     labels: LabelsAndProgress,
 }
@@ -59,20 +59,7 @@ impl ExecutionDag {
         channel_buffer_sz: usize,
         error_threshold: Option<u32>,
         checkpoint_factory_options: CheckpointFactoryOptions,
-        epoch_manager_options: EpochManagerOptions,
     ) -> Result<Self, ExecutionError> {
-        // Count number of sources.
-        let num_sources = builder_dag
-            .graph()
-            .node_identifiers()
-            .filter(|node_index| {
-                matches!(
-                    builder_dag.graph()[*node_index].kind,
-                    NodeKind::Source { .. }
-                )
-            })
-            .count();
-
         // We only create record stored once for every output port. Every `HashMap` in this `Vec` tracks if a node's output ports already have the record store created.
         let mut all_record_writers = vec![
             HashMap::<PortHandle, SharedRecordWriter>::new();
@@ -134,12 +121,6 @@ impl ExecutionDag {
         let initial_epoch_id = checkpoint.next_epoch_id();
         let (checkpoint_factory, _) =
             CheckpointFactory::new(checkpoint, checkpoint_factory_options).await?;
-        let epoch_manager = Arc::new(EpochManager::new(
-            num_sources,
-            initial_epoch_id,
-            Arc::new(checkpoint_factory),
-            epoch_manager_options,
-        ));
         let graph = builder_dag.into_graph().map_owned(
             |_, node| Some(node),
             |edge_index, _| {
@@ -150,7 +131,8 @@ impl ExecutionDag {
         );
         Ok(ExecutionDag {
             graph,
-            epoch_manager,
+            initial_epoch_id,
+            record_store: checkpoint_factory.record_store().clone(),
             error_manager: Arc::new(if let Some(threshold) = error_threshold {
                 ErrorManager::new_threshold(threshold)
             } else {
@@ -168,8 +150,8 @@ impl ExecutionDag {
         &mut self.graph[node_index]
     }
 
-    pub fn epoch_manager(&self) -> &Arc<EpochManager> {
-        &self.epoch_manager
+    pub fn initial_epoch_id(&self) -> u64 {
+        self.initial_epoch_id
     }
 
     pub fn error_manager(&self) -> &Arc<ErrorManager> {

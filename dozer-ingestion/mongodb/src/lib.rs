@@ -7,7 +7,7 @@ use dozer_ingestion_connector::{
         self,
         errors::{internal::BoxedError, types::DeserializationError},
         json_types::{serde_json_to_json_value, JsonValue},
-        models::ingestion_types::IngestionMessage,
+        models::ingestion_types::{IngestionMessage, TransactionInfo},
         node::OpIdentifier,
         thiserror::{self, Error},
         types::{Field, FieldDefinition, FieldType, Operation, Record, SourceDefinition},
@@ -618,7 +618,9 @@ impl Connector for MongodbConnector {
         let snapshot_ingestor = ingestor.clone();
         let snapshot_task = tokio::spawn(async move {
             if snapshot_ingestor
-                .handle_message(IngestionMessage::SnapshottingStarted)
+                .handle_message(IngestionMessage::TransactionInfo(
+                    TransactionInfo::SnapshottingStarted,
+                ))
                 .await
                 .is_err()
             {
@@ -641,7 +643,9 @@ impl Connector for MongodbConnector {
                 }
             }
             if snapshot_ingestor
-                .handle_message(IngestionMessage::SnapshottingDone { id: None })
+                .handle_message(IngestionMessage::TransactionInfo(
+                    TransactionInfo::SnapshottingDone { id: None },
+                ))
                 .await
                 .is_err()
             {

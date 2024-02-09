@@ -1,7 +1,6 @@
 use dozer_cache::cache::CacheManagerOptions;
 use dozer_core::{
     checkpoint::{CheckpointFactoryOptions, CheckpointOptions},
-    epoch::EpochManagerOptions,
     executor::ExecutorOptions,
 };
 use dozer_types::{
@@ -9,11 +8,9 @@ use dozer_types::{
     models::{
         app_config::{
             default_app_buffer_size, default_commit_size, default_commit_timeout,
-            default_error_threshold, default_max_interval_before_persist_in_seconds,
-            default_max_num_records_before_persist, default_persist_queue_capacity,
+            default_error_threshold, default_persist_queue_capacity,
         },
         config::{default_cache_dir, default_cache_max_map_size, Config},
-        flags::default_enable_app_checkpoints,
     },
 };
 use std::time::Duration;
@@ -51,20 +48,6 @@ fn get_error_threshold(config: &Config) -> u32 {
         .unwrap_or_else(default_error_threshold)
 }
 
-fn get_max_num_records_before_persist(config: &Config) -> usize {
-    config
-        .app
-        .max_num_records_before_persist
-        .unwrap_or_else(default_max_num_records_before_persist) as usize
-}
-
-fn get_max_interval_before_persist_in_seconds(config: &Config) -> u64 {
-    config
-        .app
-        .max_interval_before_persist_in_seconds
-        .unwrap_or_else(default_max_interval_before_persist_in_seconds)
-}
-
 pub fn get_checkpoint_options(config: &Config) -> CheckpointOptions {
     let app = &config.app;
     CheckpointOptions {
@@ -88,16 +71,6 @@ pub fn get_executor_options(config: &Config) -> ExecutorOptions {
         channel_buffer_sz: get_buffer_size(config) as usize,
         commit_time_threshold: get_commit_time_threshold(config),
         error_threshold: Some(get_error_threshold(config)),
-        epoch_manager_options: EpochManagerOptions {
-            max_num_records_before_persist: get_max_num_records_before_persist(config),
-            max_interval_before_persist_in_seconds: get_max_interval_before_persist_in_seconds(
-                config,
-            ),
-            enable_app_checkpoints: config
-                .flags
-                .enable_app_checkpoints
-                .unwrap_or_else(default_enable_app_checkpoints),
-        },
         checkpoint_factory_options: get_checkpoint_factory_options(config),
     }
 }

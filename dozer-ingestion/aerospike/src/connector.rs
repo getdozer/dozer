@@ -1,7 +1,9 @@
 use dozer_ingestion_connector::dozer_types::errors::internal::BoxedError;
 use dozer_ingestion_connector::dozer_types::log::{error, info};
 use dozer_ingestion_connector::dozer_types::models::connection::AerospikeConnection;
-use dozer_ingestion_connector::dozer_types::models::ingestion_types::IngestionMessage;
+use dozer_ingestion_connector::dozer_types::models::ingestion_types::{
+    IngestionMessage, TransactionInfo,
+};
 use dozer_ingestion_connector::dozer_types::node::OpIdentifier;
 use dozer_ingestion_connector::dozer_types::types::Operation::Insert;
 use dozer_ingestion_connector::dozer_types::types::{Field, FieldDefinition, FieldType, Schema};
@@ -159,11 +161,15 @@ impl Connector for AerospikeConnector {
         _last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
         ingestor
-            .handle_message(IngestionMessage::SnapshottingStarted)
+            .handle_message(IngestionMessage::TransactionInfo(
+                TransactionInfo::SnapshottingStarted,
+            ))
             .await
             .unwrap();
         ingestor
-            .handle_message(IngestionMessage::SnapshottingDone { id: None })
+            .handle_message(IngestionMessage::TransactionInfo(
+                TransactionInfo::SnapshottingDone { id: None },
+            ))
             .await
             .unwrap();
 
@@ -246,7 +252,7 @@ async fn process_event(
         }
 
         let table_index = tables_idx.get(table_name.as_str()).unwrap().to_owned();
-        ingestor
+        let _ = ingestor
             .handle_message(IngestionMessage::OperationEvent {
                 table_index,
                 op: Insert {
@@ -254,8 +260,12 @@ async fn process_event(
                 },
                 id: None,
             })
-            .await
-            .unwrap();
+            .await;
+        let _ = ingestor
+            .handle_message(IngestionMessage::TransactionInfo(TransactionInfo::Commit {
+                id: None,
+            }))
+            .await;
     } else {
         // info!("Not found table: {}", table_name);
     }
