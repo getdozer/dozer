@@ -46,7 +46,7 @@ tower-http = { version = "0.4", features = ["full"] }
 arc-swap = "1.6.0"
 metrics = "0.21.0"
 gethostname = "0.4.3"
-http-body = "0.4.5"
+http-body = "1.0.0-rc"
 bytes = "1.4.0"
 http = "0.2.9"
 pin-project = "1.1.3"

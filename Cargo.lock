@@ -3766,7 +3766,7 @@ dependencies = [
  "gethostname",
  "handlebars",
  "http",
- "http-body 0.4.5",
+ "http-body 1.0.0-rc.2",
  "hyper 0.14.27",
  "jsonwebtoken",
  "metrics",
