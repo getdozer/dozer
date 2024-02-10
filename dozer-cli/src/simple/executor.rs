@@ -1,16 +1,12 @@
-use dozer_api::grpc::internal::internal_pipeline_server::LogEndpoint;
-use dozer_api::shutdown::ShutdownReceiver;
-use dozer_cache::dozer_log::camino::Utf8Path;
-use dozer_cache::dozer_log::home_dir::{BuildPath, HomeDir};
-use dozer_cache::dozer_log::replication::Log;
+use dozer_cache::dozer_log::home_dir::HomeDir;
 use dozer_core::checkpoint::{CheckpointOptions, OptionCheckpoint};
+use dozer_core::shutdown::ShutdownReceiver;
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::models::endpoint::{
     AerospikeSinkConfig, ClickhouseSinkConfig, Endpoint, EndpointKind, OracleSinkConfig,
 };
 use dozer_types::models::flags::Flags;
 use tokio::runtime::Runtime;
-use tokio::sync::Mutex;
 
 use std::sync::Arc;
 
@@ -22,9 +18,7 @@ use dozer_core::executor::{DagExecutor, ExecutorOptions};
 
 use dozer_types::models::connection::Connection;
 
-use crate::errors::{BuildError, OrchestrationError};
-
-use super::Contract;
+use crate::errors::OrchestrationError;
 
 pub struct Executor<'a> {
     connections: &'a [Connection],
@@ -44,7 +38,6 @@ struct ExecutorEndpoint {
 
 #[derive(Debug)]
 enum ExecutorEndpointKind {
-    Api { log_endpoint: LogEndpoint },
     Dummy,
     Aerospike { config: AerospikeSinkConfig },
     Clickhouse { config: ClickhouseSinkConfig },
@@ -57,7 +50,6 @@ impl<'a> Executor<'a> {
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
         home_dir: &'a HomeDir,
-        contract: &Contract,
         connections: &'a [Connection],
         sources: &'a [Source],
         sql: Option<&'a str>,
@@ -79,16 +71,6 @@ impl<'a> Executor<'a> {
         let mut executor_endpoints = vec![];
         for endpoint in endpoints {
             let kind = match &endpoint.config {
-                EndpointKind::Api(_) => {
-                    let log_endpoint = create_log_endpoint(
-                        contract,
-                        &build_path,
-                        &endpoint.table_name,
-                        &checkpoint,
-                    )
-                    .await?;
-                    ExecutorEndpointKind::Api { log_endpoint }
-                }
                 EndpointKind::Dummy => ExecutorEndpointKind::Dummy,
                 EndpointKind::Aerospike(config) => ExecutorEndpointKind::Aerospike {
                     config: config.clone(),
@@ -118,23 +100,6 @@ impl<'a> Executor<'a> {
         })
     }
 
-    pub fn checkpoint_prefix(&self) -> &str {
-        self.checkpoint.prefix()
-    }
-
-    pub fn table_name_and_logs(&self) -> Vec<(String, LogEndpoint)> {
-        self.endpoints
-            .iter()
-            .filter_map(|endpoint| {
-                if let ExecutorEndpointKind::Api { log_endpoint, .. } = &endpoint.kind {
-                    Some((endpoint.table_name.clone(), log_endpoint.clone()))
-                } else {
-                    None
-                }
-            })
-            .collect()
-    }
-
     pub async fn create_dag_executor(
         self,
         runtime: &Arc<Runtime>,
@@ -150,9 +115,6 @@ impl<'a> Executor<'a> {
                 .into_iter()
                 .map(|endpoint| {
                     let kind = match endpoint.kind {
-                        ExecutorEndpointKind::Api { log_endpoint, .. } => EndpointLogKind::Api {
-                            log: log_endpoint.log,
-                        },
                         ExecutorEndpointKind::Dummy => EndpointLogKind::Dummy,
                         ExecutorEndpointKind::Aerospike { config } => {
                             EndpointLogKind::Aerospike { config }
@@ -196,32 +158,4 @@ pub fn run_dag_executor(
     join_handle
         .join()
         .map_err(OrchestrationError::ExecutionError)
-}
-
-async fn create_log_endpoint(
-    contract: &Contract,
-    build_path: &BuildPath,
-    table_name: &str,
-    checkpoint: &OptionCheckpoint,
-) -> Result<LogEndpoint, OrchestrationError> {
-    let endpoint_path = build_path.get_endpoint_path(table_name);
-
-    let schema = contract
-        .endpoints
-        .get(table_name)
-        .ok_or_else(|| BuildError::MissingEndpoint(table_name.to_owned()))?;
-    let schema_string =
-        dozer_types::serde_json::to_string(schema).map_err(BuildError::SerdeJson)?;
-
-    let log_prefix = AsRef::<Utf8Path>::as_ref(checkpoint.prefix())
-        .join(&endpoint_path.log_dir_relative_to_data_dir);
-    let log = Log::new(
-        checkpoint.storage(),
-        log_prefix.into(),
-        checkpoint.last_epoch_id(),
-    )
-    .await?;
-    let log = Arc::new(Mutex::new(log));
-
-    Ok(LogEndpoint { schema_string, log })
 }

@@ -2,22 +2,21 @@ use std::{collections::HashMap, sync::Arc, thread::JoinHandle};
 
 use clap::Parser;
 
-use dozer_api::shutdown::{self, ShutdownReceiver, ShutdownSender};
 use dozer_cache::dozer_log::camino::Utf8Path;
-use dozer_core::{app::AppPipeline, dag_schemas::DagSchemas, Dag};
-use dozer_sql::builder::statement_to_pipeline;
+use dozer_core::shutdown::{self, ShutdownReceiver, ShutdownSender};
+use dozer_core::{dag_schemas::DagSchemas, Dag};
 use dozer_tracing::{Labels, LabelsAndProgress};
 use dozer_types::{
     grpc_types::{
         app_ui::{AppUi, AppUiResponse, BuildResponse, BuildStatus, ConnectResponse, RunRequest},
-        contract::{DotResponse, ProtoResponse},
+        contract::DotResponse,
         types::SchemasResponse,
     },
     log::info,
     models::{
         api_config::{ApiConfig, AppGrpcOptions, GrpcApiOptions, RestApiOptions},
         api_security::ApiSecurity,
-        endpoint::{ApiEndpoint, Endpoint, EndpointKind},
+        endpoint::EndpointKind,
         flags::Flags,
     },
 };
@@ -240,14 +239,6 @@ impl AppUIState {
         })
     }
 
-    pub async fn get_protos(&self) -> Result<ProtoResponse, AppUIError> {
-        let dozer = self.dozer.read().await;
-        let contract = get_contract(&dozer)?;
-        let (protos, libraries) = contract.get_protos()?;
-
-        Ok(ProtoResponse { protos, libraries })
-    }
-
     pub async fn run(&self, request: RunRequest) -> Result<Labels, AppUIError> {
         let dozer = self.dozer.read().await;
         let dozer = &dozer.as_ref().ok_or(AppUIError::NotInitialized)?.dozer;
@@ -289,13 +280,6 @@ impl AppUIState {
         *lock = None;
         Ok(())
     }
-    pub async fn get_api_token(&self, ttl: Option<i32>) -> Result<Option<String>, AppUIError> {
-        let dozer: tokio::sync::RwLockReadGuard<'_, Option<DozerAndContract>> =
-            self.dozer.read().await;
-        let dozer = &dozer.as_ref().ok_or(AppUIError::NotInitialized)?.dozer;
-        let generated_token = dozer.generate_token(ttl).ok();
-        Ok(generated_token)
-    }
 }
 
 fn get_contract(dozer_and_contract: &Option<DozerAndContract>) -> Result<&Contract, AppUIError> {
@@ -332,7 +316,6 @@ pub async fn create_dag(dozer: &SimpleOrchestrator) -> Result<Dag, Orchestration
         .map(|endpoint| EndpointLog {
             table_name: endpoint.table_name.clone(),
             kind: match &endpoint.config.clone() {
-                EndpointKind::Api(_) => EndpointLogKind::Dummy,
                 EndpointKind::Dummy => EndpointLogKind::Dummy,
                 EndpointKind::Aerospike(config) => EndpointLogKind::Aerospike {
                     config: config.clone(),
@@ -386,48 +369,13 @@ fn get_dozer_run_instance(
 ) -> Result<SimpleOrchestrator, AppUIError> {
     match req.request {
         Some(dozer_types::grpc_types::app_ui::run_request::Request::Sql(req)) => {
-            let context = statement_to_pipeline(
-                &req.sql,
-                &mut AppPipeline::new(dozer.config.flags.clone().into()),
-                None,
-                dozer.config.udfs.clone(),
-                dozer.runtime.clone(),
-            )
-            .map_err(AppUIError::PipelineError)?;
-
             //overwrite sql
             dozer.config.sql = Some(req.sql);
-
             dozer.config.sinks = vec![];
-            let tables = context.output_tables_map.keys().collect::<Vec<_>>();
-            for table in tables {
-                let endpoint = Endpoint {
-                    table_name: table.to_string(),
-                    config: EndpointKind::Api(ApiEndpoint {
-                        path: format!("/{}", table),
-                        index: Default::default(),
-                        conflict_resolution: Default::default(),
-                        version: Default::default(),
-                        log_reader_options: Default::default(),
-                    }),
-                };
-                dozer.config.sinks.push(endpoint);
-            }
         }
-        Some(dozer_types::grpc_types::app_ui::run_request::Request::Source(req)) => {
+        Some(dozer_types::grpc_types::app_ui::run_request::Request::Source(_req)) => {
             dozer.config.sql = None;
             dozer.config.sinks = vec![];
-            let endpoint = req.source;
-            dozer.config.sinks.push(Endpoint {
-                table_name: endpoint.to_string(),
-                config: EndpointKind::Api(ApiEndpoint {
-                    path: format!("/{}", endpoint),
-                    index: Default::default(),
-                    conflict_resolution: Default::default(),
-                    version: Default::default(),
-                    log_reader_options: Default::default(),
-                }),
-            });
         }
         None => {}
     };

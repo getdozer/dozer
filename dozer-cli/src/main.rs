@@ -1,5 +1,4 @@
 use clap::Parser;
-use dozer_api::shutdown;
 use dozer_cli::cli::init_config;
 use dozer_cli::cli::init_dozer;
 use dozer_cli::cli::types::{Cli, Commands, UICommands};
@@ -7,6 +6,7 @@ use dozer_cli::errors::{CliError, CloudError, OrchestrationError};
 use dozer_cli::ui;
 use dozer_cli::ui::app::AppUIError;
 use dozer_cli::{set_ctrl_handler, set_panic_hook};
+use dozer_core::shutdown;
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::models::config::Config;
 use dozer_types::models::telemetry::{TelemetryConfig, TelemetryMetricsConfig};

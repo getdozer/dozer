@@ -2,12 +2,12 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use dozer_api::shutdown::ShutdownReceiver;
 use dozer_cache::dozer_log::replication::Log;
 use dozer_core::app::App;
 use dozer_core::app::AppPipeline;
 use dozer_core::app::PipelineEntryPoint;
 use dozer_core::node::SinkFactory;
+use dozer_core::shutdown::ShutdownReceiver;
 use dozer_core::DEFAULT_PORT_HANDLE;
 
 use dozer_sql::builder::statement_to_pipeline;

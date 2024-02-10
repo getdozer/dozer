@@ -1,2 +1,0 @@
-mod auth;
-mod routes;

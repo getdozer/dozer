@@ -1,15 +1,8 @@
 use std::path::Path;
 
 use super::{
-    api_config::ApiConfig,
-    app_config::AppConfig,
-    cloud::Cloud,
-    connection::Connection,
-    endpoint::{Endpoint, EndpointKind},
-    equal_default,
-    flags::Flags,
-    lambda_config::LambdaConfig,
-    source::Source,
+    api_config::ApiConfig, app_config::AppConfig, cloud::Cloud, connection::Connection,
+    endpoint::Endpoint, equal_default, flags::Flags, lambda_config::LambdaConfig, source::Source,
     telemetry::TelemetryConfig,
 };
 use crate::constants::DEFAULT_HOME_DIR;
@@ -116,14 +109,8 @@ impl Config {
                 .collect::<Vec<String>>()
                 .join(", ")
         ]);
-        let mut endpoints_table = table!();
-        for endpoint in &self.sinks {
-            if let EndpointKind::Api(api) = &endpoint.config {
-                endpoints_table.add_row(row![endpoint.table_name, api.path]);
-            }
-        }
         if !self.sinks.is_empty() {
-            table.add_row(row!["endpoints", endpoints_table]);
+            table.add_row(row!["endpoints", table!()]);
         }
 
         table

@@ -10,6 +10,5 @@ mod mongodb;
 #[cfg(feature = "mongodb")]
 pub use self::mongodb::MongodbConnectorTest;
 
-pub use self::dozer::DozerConnectorTest;
 pub use self::object_store::LocalStorageObjectStoreConnectorTest;
 pub use self::postgres::PostgresConnectorTest;

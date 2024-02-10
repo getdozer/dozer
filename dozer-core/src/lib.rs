@@ -15,6 +15,8 @@ pub mod forwarder;
 mod hash_map_to_vec;
 pub mod node;
 pub mod record_store;
+pub mod shutdown;
+pub use tokio;
 
 #[cfg(test)]
 pub mod tests;

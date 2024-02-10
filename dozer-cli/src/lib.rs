@@ -3,11 +3,13 @@ pub mod errors;
 pub mod pipeline;
 pub mod simple;
 pub mod ui;
-use dozer_api::shutdown::ShutdownSender;
 use dozer_core::errors::ExecutionError;
+use dozer_core::shutdown::ShutdownSender;
 use dozer_types::log::debug;
 use errors::OrchestrationError;
 
+pub use actix_web;
+pub use async_trait;
 use std::{
     backtrace::{Backtrace, BacktraceStatus},
     panic, process,
@@ -16,8 +18,11 @@ use std::{
 use tokio::task::JoinHandle;
 pub mod cloud;
 pub mod config_helper;
-pub use dozer_api::shutdown;
 pub mod console_helper;
+pub use dozer_core::shutdown;
+pub use tonic_reflection;
+pub use tonic_web;
+pub use tower_http;
 #[cfg(test)]
 mod tests;
 mod utils;
@@ -38,19 +43,6 @@ async fn flatten_join_handle(
         Ok(Err(err)) => Err(err),
         Err(err) => Err(OrchestrationError::JoinError(err)),
     }
-}
-
-fn join_handle_map_err<E: Send + 'static>(
-    handle: JoinHandle<Result<(), E>>,
-    f: impl FnOnce(E) -> OrchestrationError + Send + 'static,
-) -> JoinHandle<Result<(), OrchestrationError>> {
-    tokio::spawn(async move {
-        match handle.await {
-            Ok(Ok(_)) => Ok(()),
-            Ok(Err(err)) => Err(f(err)),
-            Err(err) => Err(OrchestrationError::JoinError(err)),
-        }
-    })
 }
 
 pub fn set_panic_hook() {

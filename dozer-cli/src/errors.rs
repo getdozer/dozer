@@ -11,10 +11,7 @@ use crate::{
     errors::CloudError::{ApplicationNotFound, CloudServiceError},
     ui::{app::AppUIError, live::LiveError},
 };
-use dozer_api::{
-    errors::{ApiInitError, AuthError, GenerationError, GrpcError},
-    rest::DOZER_SERVER_NAME_HEADER,
-};
+
 use dozer_cache::dozer_log::storage;
 use dozer_cache::errors::CacheError;
 use dozer_core::errors::ExecutionError;
@@ -49,22 +46,16 @@ pub enum OrchestrationError {
     CredentialError(#[from] CloudCredentialError),
     #[error("Failed to build: {0}")]
     BuildFailed(#[from] BuildError),
-    #[error("Failed to generate token: {0}")]
-    GenerateTokenFailed(#[source] AuthError),
     #[error("Missing api config or security input")]
     MissingSecurityConfig,
     #[error(transparent)]
     CloudError(#[from] CloudError),
-    #[error("Failed to initialize api server: {0}")]
-    ApiInitFailed(#[from] ApiInitError),
     #[error("Failed to server REST API: {0}")]
     RestServeFailed(#[source] std::io::Error),
     #[error("Failed to server gRPC API: {0:?}")]
     GrpcServeFailed(#[source] tonic::transport::Error),
     #[error("Failed to server pgwire: {0}")]
     PGWireServerFailed(#[source] std::io::Error),
-    #[error("Failed to initialize internal server: {0}")]
-    InternalServerFailed(#[source] GrpcError),
     #[error("{0}: Failed to initialize cache. Have you run `dozer build`?")]
     CacheInitFailed(#[source] CacheError),
     #[error("Failed to build cache {0} from log: {1}")]
@@ -159,9 +150,6 @@ pub enum CloudError {
     #[error("Reqwest error: {0}")]
     Reqwest(#[from] reqwest::Error),
 
-    #[error("Response header {DOZER_SERVER_NAME_HEADER} is missing")]
-    MissingResponseHeader,
-
     #[error(transparent)]
     CloudContextError(#[from] CloudContextError),
 
@@ -230,8 +218,6 @@ pub enum BuildError {
     FailedToLoadExistingContract(#[source] serde_json::Error),
     #[error("Serde json error: {0}")]
     SerdeJson(#[source] serde_json::Error),
-    #[error("Failed to generate proto files: {0:?}")]
-    FailedToGenerateProtoFiles(#[from] GenerationError),
     #[error("Storage error: {0}")]
     Storage(#[from] storage::Error),
 }

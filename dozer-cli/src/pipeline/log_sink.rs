@@ -1,6 +1,5 @@
 use std::{collections::HashMap, fmt::Debug, ops::Deref, sync::Arc};
 
-use dozer_api::async_trait::async_trait;
 use dozer_cache::dozer_log::{
     replication::{Log, LogOperation},
     storage::Queue,
@@ -15,6 +14,8 @@ use dozer_types::types::Schema;
 use dozer_types::{errors::internal::BoxedError, node::OpIdentifier};
 use dozer_types::{indicatif::ProgressBar, types::OperationWithId};
 use tokio::{runtime::Runtime, sync::Mutex};
+
+use crate::async_trait::async_trait;
 
 #[derive(Debug)]
 pub struct LogSinkFactory {

@@ -1,5 +1,5 @@
-use dozer_api::shutdown::ShutdownReceiver;
 use dozer_core::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory};
+use dozer_core::shutdown::ShutdownReceiver;
 use dozer_ingestion::{
     get_connector, CdcType, Connector, IngestionIterator, TableIdentifier, TableInfo,
 };

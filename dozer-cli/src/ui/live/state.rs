@@ -2,14 +2,13 @@ use std::{collections::HashMap, sync::Arc, thread::JoinHandle};
 
 use clap::Parser;
 
-use dozer_api::shutdown::{self, ShutdownReceiver, ShutdownSender};
 use dozer_cache::dozer_log::camino::Utf8Path;
-use dozer_core::{app::AppPipeline, dag_schemas::DagSchemas, Dag};
-use dozer_sql::builder::statement_to_pipeline;
+use dozer_core::shutdown::{self, ShutdownReceiver, ShutdownSender};
+use dozer_core::{dag_schemas::DagSchemas, Dag};
 use dozer_tracing::{Labels, LabelsAndProgress};
 use dozer_types::{
     grpc_types::{
-        contract::{DotResponse, ProtoResponse},
+        contract::DotResponse,
         live::{BuildResponse, BuildStatus, ConnectResponse, LiveApp, LiveResponse, RunRequest},
         types::SchemasResponse,
     },
@@ -17,7 +16,6 @@ use dozer_types::{
     models::{
         api_config::{ApiConfig, AppGrpcOptions, GrpcApiOptions, RestApiOptions},
         api_security::ApiSecurity,
-        endpoint::{ApiEndpoint, Endpoint, EndpointKind},
         flags::Flags,
     },
 };
@@ -245,14 +243,6 @@ impl LiveState {
         })
     }
 
-    pub async fn get_protos(&self) -> Result<ProtoResponse, LiveError> {
-        let dozer = self.dozer.read().await;
-        let contract = get_contract(&dozer)?;
-        let (protos, libraries) = contract.get_protos()?;
-
-        Ok(ProtoResponse { protos, libraries })
-    }
-
     pub async fn run(&self, request: RunRequest) -> Result<Labels, LiveError> {
         let dozer = self.dozer.read().await;
         let dozer = &dozer.as_ref().ok_or(LiveError::NotInitialized)?.dozer;
@@ -302,13 +292,6 @@ impl LiveState {
         }
         *lock = None;
         Ok(())
-    }
-    pub async fn get_api_token(&self, ttl: Option<i32>) -> Result<Option<String>, LiveError> {
-        let dozer: tokio::sync::RwLockReadGuard<'_, Option<DozerAndContract>> =
-            self.dozer.read().await;
-        let dozer = &dozer.as_ref().ok_or(LiveError::NotInitialized)?.dozer;
-        let generated_token = dozer.generate_token(ttl).ok();
-        Ok(generated_token)
     }
 }
 
@@ -388,48 +371,13 @@ fn get_dozer_run_instance(
 ) -> Result<SimpleOrchestrator, LiveError> {
     match req.request {
         Some(dozer_types::grpc_types::live::run_request::Request::Sql(req)) => {
-            let context = statement_to_pipeline(
-                &req.sql,
-                &mut AppPipeline::new(dozer.config.flags.clone().into()),
-                None,
-                dozer.config.udfs.clone(),
-                dozer.runtime.clone(),
-            )
-            .map_err(LiveError::PipelineError)?;
-
             //overwrite sql
             dozer.config.sql = Some(req.sql);
-
             dozer.config.sinks = vec![];
-            let tables = context.output_tables_map.keys().collect::<Vec<_>>();
-            for table in tables {
-                let endpoint = Endpoint {
-                    table_name: table.to_string(),
-                    config: EndpointKind::Api(ApiEndpoint {
-                        path: format!("/{}", table),
-                        index: Default::default(),
-                        conflict_resolution: Default::default(),
-                        version: Default::default(),
-                        log_reader_options: Default::default(),
-                    }),
-                };
-                dozer.config.sinks.push(endpoint);
-            }
         }
-        Some(dozer_types::grpc_types::live::run_request::Request::Source(req)) => {
+        Some(dozer_types::grpc_types::live::run_request::Request::Source(_req)) => {
             dozer.config.sql = None;
             dozer.config.sinks = vec![];
-            let endpoint = req.source;
-            dozer.config.sinks.push(Endpoint {
-                table_name: endpoint.to_string(),
-                config: EndpointKind::Api(ApiEndpoint {
-                    path: format!("/{}", endpoint),
-                    index: Default::default(),
-                    conflict_resolution: Default::default(),
-                    version: Default::default(),
-                    log_reader_options: Default::default(),
-                }),
-            });
         }
         None => {}
     };

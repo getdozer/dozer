@@ -51,6 +51,4 @@ pub use basic::{
 #[cfg(feature = "mongodb")]
 pub use connectors::MongodbConnectorTest;
 
-pub use connectors::{
-    DozerConnectorTest, LocalStorageObjectStoreConnectorTest, PostgresConnectorTest,
-};
+pub use connectors::{LocalStorageObjectStoreConnectorTest, PostgresConnectorTest};

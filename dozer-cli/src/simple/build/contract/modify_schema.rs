@@ -1,68 +1,26 @@
 use dozer_types::{
-    models::endpoint::{
-        ApiEndpoint, FullText, SecondaryIndex, SecondaryIndexConfig, SortedInverted,
-    },
+    models::endpoint::{FullText, SecondaryIndex, SecondaryIndexConfig, SortedInverted},
     types::{FieldDefinition, FieldType, IndexDefinition, Schema, SchemaWithIndex},
 };
 
 use crate::errors::BuildError;
 
-pub fn modify_schema(
-    table_name: &str,
-    schema: &Schema,
-    api_endpoint: Option<&ApiEndpoint>,
-) -> Result<SchemaWithIndex, BuildError> {
+pub fn modify_schema(schema: &Schema) -> Result<SchemaWithIndex, BuildError> {
     let mut schema = schema.clone();
-    // Generated Cache index based on api_index
-    let primary_key = match api_endpoint {
-        Some(api_endpoint) => api_endpoint.index.primary_key.clone(),
-        None => vec![],
-    };
-    let configured_index = create_primary_indexes(&schema.fields, &primary_key)?;
+
     // Generated schema in SQL
     let upstream_index = schema.primary_index.clone();
-
-    let index = match (configured_index.is_empty(), upstream_index.is_empty()) {
-        (true, true) => vec![],
-        (true, false) => upstream_index,
-        (false, true) => configured_index,
-        (false, false) => {
-            if !upstream_index.eq(&configured_index) {
-                return Err(BuildError::MismatchPrimaryKey {
-                    table_name: table_name.to_string(),
-                    expected: get_field_names(&schema, &upstream_index),
-                    actual: get_field_names(&schema, &configured_index),
-                });
-            }
-            configured_index
-        }
+    let index = if upstream_index.is_empty() {
+        vec![]
+    } else {
+        upstream_index
     };
 
     schema.primary_index = index;
-    let secondary_index_config = match api_endpoint {
-        Some(api_endpoint) => api_endpoint.index.secondary.clone(),
-        None => SecondaryIndexConfig::default(),
-    };
+    let secondary_index_config = SecondaryIndexConfig::default();
     let secondary_indexes = generate_secondary_indexes(&schema.fields, &secondary_index_config)?;
 
     Ok((schema, secondary_indexes))
-}
-
-fn get_field_names(schema: &Schema, indexes: &[usize]) -> Vec<String> {
-    indexes
-        .iter()
-        .map(|idx| schema.fields[*idx].name.to_owned())
-        .collect()
-}
-
-fn create_primary_indexes(
-    field_definitions: &[FieldDefinition],
-    primary_key: &[String],
-) -> Result<Vec<usize>, BuildError> {
-    primary_key
-        .iter()
-        .map(|name| field_index_from_field_name(field_definitions, name))
-        .collect()
 }
 
 fn generate_secondary_indexes(

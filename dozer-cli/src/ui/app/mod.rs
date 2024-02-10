@@ -6,7 +6,7 @@ use crate::ui::{
     app::{server::APP_UI_PORT, state::AppUIState},
     downloader::{self, LOCAL_APP_UI_DIR},
 };
-use dozer_api::shutdown::ShutdownReceiver;
+use dozer_core::shutdown::ShutdownReceiver;
 use dozer_types::{grpc_types::app_ui::ConnectResponse, log::info};
 pub use errors::AppUIError;
 use futures::stream::{AbortHandle, Abortable};
@@ -36,7 +36,7 @@ pub async fn start_app_ui_server(
             info!("There's no ui code folder, fetching latest app ui code");
             downloader::fetch_latest_dozer_app_ui_code().await?;
         }
-        let react_app_server: dozer_api::actix_web::dev::Server =
+        let react_app_server: actix_web::dev::Server =
             downloader::start_react_app(APP_UI_WEB_PORT, LOCAL_APP_UI_DIR)
                 .map_err(AppUIError::CannotStartUiServer)?;
         tokio::spawn(react_app_server);

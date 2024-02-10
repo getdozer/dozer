@@ -271,51 +271,6 @@
       },
       "additionalProperties": false
     },
-    "ApiEndpoint": {
-      "type": "object",
-      "required": [
-        "path"
-      ],
-      "properties": {
-        "conflict_resolution": {
-          "$ref": "#/definitions/ConflictResolution"
-        },
-        "index": {
-          "$ref": "#/definitions/ApiIndex"
-        },
-        "log_reader_options": {
-          "$ref": "#/definitions/LogReaderOptions"
-        },
-        "path": {
-          "description": "path of endpoint - e.g: /stocks",
-          "type": "string"
-        },
-        "version": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint32",
-          "minimum": 0.0
-        }
-      },
-      "additionalProperties": false
-    },
-    "ApiIndex": {
-      "type": "object",
-      "properties": {
-        "primary_key": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "secondary": {
-          "$ref": "#/definitions/SecondaryIndexConfig"
-        }
-      },
-      "additionalProperties": false
-    },
     "ApiInstance": {
       "type": "object",
       "properties": {
@@ -621,21 +576,6 @@
           "additionalProperties": false
         }
       ]
-    },
-    "ConflictResolution": {
-      "type": "object",
-      "properties": {
-        "on_delete": {
-          "$ref": "#/definitions/OnDeleteResolutionTypes"
-        },
-        "on_insert": {
-          "$ref": "#/definitions/OnInsertResolutionTypes"
-        },
-        "on_update": {
-          "$ref": "#/definitions/OnUpdateResolutionTypes"
-        }
-      },
-      "additionalProperties": false
     },
     "Connection": {
       "type": "object",
@@ -1018,18 +958,6 @@
         {
           "type": "object",
           "required": [
-            "Api"
-          ],
-          "properties": {
-            "Api": {
-              "$ref": "#/definitions/ApiEndpoint"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
             "Aerospike"
           ],
           "properties": {
@@ -1278,18 +1206,6 @@
       },
       "additionalProperties": false
     },
-    "FullText": {
-      "type": "object",
-      "required": [
-        "field"
-      ],
-      "properties": {
-        "field": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false
-    },
     "GrpcApiOptions": {
       "type": "object",
       "properties": {
@@ -1495,36 +1411,6 @@
         }
       }
     },
-    "LogReaderOptions": {
-      "type": "object",
-      "properties": {
-        "batch_size": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint32",
-          "minimum": 0.0
-        },
-        "buffer_size": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint32",
-          "minimum": 0.0
-        },
-        "timeout_in_millis": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint32",
-          "minimum": 0.0
-        }
-      },
-      "additionalProperties": false
-    },
     "MongodbConfig": {
       "examples": [
         {
@@ -1608,29 +1494,6 @@
           "minimum": 0.0
         }
       }
-    },
-    "OnDeleteResolutionTypes": {
-      "type": "string",
-      "enum": [
-        "Nothing",
-        "Panic"
-      ]
-    },
-    "OnInsertResolutionTypes": {
-      "type": "string",
-      "enum": [
-        "Nothing",
-        "Update",
-        "Panic"
-      ]
-    },
-    "OnUpdateResolutionTypes": {
-      "type": "string",
-      "enum": [
-        "Nothing",
-        "Upsert",
-        "Panic"
-      ]
     },
     "OnnxConfig": {
       "type": "object",
@@ -2018,52 +1881,6 @@
       },
       "additionalProperties": false
     },
-    "SecondaryIndex": {
-      "oneOf": [
-        {
-          "type": "object",
-          "required": [
-            "SortedInverted"
-          ],
-          "properties": {
-            "SortedInverted": {
-              "$ref": "#/definitions/SortedInverted"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "FullText"
-          ],
-          "properties": {
-            "FullText": {
-              "$ref": "#/definitions/FullText"
-            }
-          },
-          "additionalProperties": false
-        }
-      ]
-    },
-    "SecondaryIndexConfig": {
-      "type": "object",
-      "properties": {
-        "create": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/SecondaryIndex"
-          }
-        },
-        "skip_default": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
-      },
-      "additionalProperties": false
-    },
     "SnowflakeConfig": {
       "examples": [
         {
@@ -2125,21 +1942,6 @@
           "type": "string"
         }
       }
-    },
-    "SortedInverted": {
-      "type": "object",
-      "required": [
-        "fields"
-      ],
-      "properties": {
-        "fields": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
-      },
-      "additionalProperties": false
     },
     "Source": {
       "type": "object",

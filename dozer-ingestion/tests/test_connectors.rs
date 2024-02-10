@@ -51,18 +51,4 @@ async fn test_mongodb_impl(runtime: Arc<Runtime>) {
     run_test_suite_basic_data_ready::<test_suite::MongodbConnectorTest>(runtime).await;
 }
 
-#[test]
-fn test_nested_dozer() {
-    let runtime = create_test_runtime();
-    runtime.block_on(test_nested_dozer_impl(runtime.clone()));
-}
-
-async fn test_nested_dozer_impl(runtime: Arc<Runtime>) {
-    let _ = env_logger::builder().is_test(true).try_init();
-
-    run_test_suite_basic_data_ready::<test_suite::DozerConnectorTest>(runtime.clone()).await;
-    run_test_suite_basic_insert_only::<test_suite::DozerConnectorTest>(runtime.clone()).await;
-    run_test_suite_basic_cud::<test_suite::DozerConnectorTest>(runtime).await;
-}
-
 mod test_suite;
