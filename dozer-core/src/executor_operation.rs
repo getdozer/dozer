@@ -1,11 +1,11 @@
-use dozer_types::{node::OpIdentifier, types::OperationWithId};
+use dozer_types::{node::OpIdentifier, types::TableOperation};
 
 use crate::epoch::Epoch;
 
 #[derive(Clone, Debug)]
 pub enum ExecutorOperation {
     Op {
-        op: OperationWithId,
+        op: TableOperation,
     },
     Commit {
         epoch: Epoch,

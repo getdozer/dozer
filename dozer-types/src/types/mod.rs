@@ -295,15 +295,21 @@ pub enum Operation {
     BatchInsert { new: Vec<Record> },
 }
 
+pub type PortHandle = u16;
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, bincode::Encode, bincode::Decode)]
-pub struct OperationWithId {
+pub struct TableOperation {
     pub id: Option<OpIdentifier>,
     pub op: Operation,
+    /// For outputting an operation, node should fill the output port.
+    /// For received operation, the port is the input port.
+    /// Port mapping is done in forwarders.
+    pub port: PortHandle,
 }
 
-impl OperationWithId {
-    pub fn without_id(op: Operation) -> Self {
-        Self { id: None, op }
+impl TableOperation {
+    pub fn without_id(op: Operation, port: PortHandle) -> Self {
+        Self { id: None, op, port }
     }
 }
 

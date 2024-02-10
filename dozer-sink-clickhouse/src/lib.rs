@@ -20,7 +20,7 @@ use dozer_types::node::OpIdentifier;
 use dozer_types::serde::Serialize;
 use dozer_types::tonic::async_trait;
 use dozer_types::types::{
-    DozerDuration, DozerPoint, Field, FieldType, Operation, OperationWithId, Record, Schema,
+    DozerDuration, DozerPoint, Field, FieldType, Operation, Record, Schema, TableOperation,
 };
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -311,7 +311,7 @@ impl Sink for ClickhouseSink {
         self.commit_insert()
     }
 
-    fn process(&mut self, _from_port: PortHandle, op: OperationWithId) -> Result<(), BoxedError> {
+    fn process(&mut self, op: TableOperation) -> Result<(), BoxedError> {
         match op.op {
             Operation::Insert { new } => {
                 let values = self.map_fields(new)?;

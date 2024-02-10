@@ -6,12 +6,12 @@ use crate::utils::record_hashtable_key::{get_record_hash, RecordKey};
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::checkpoint::serialize::{deserialize_vec_u8, serialize_vec_u8, Cursor};
 use dozer_core::dozer_log::storage::Object;
-use dozer_core::node::{PortHandle, Processor};
+use dozer_core::node::Processor;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_sql_expression::execution::Expression;
 use dozer_types::bincode;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::types::{Field, FieldType, Operation, OperationWithId, Record, Schema};
+use dozer_types::types::{Field, FieldType, Operation, Record, Schema, TableOperation};
 use std::collections::HashMap;
 
 use crate::aggregation::aggregator::{
@@ -600,13 +600,12 @@ impl Processor for AggregationProcessor {
 
     fn process(
         &mut self,
-        _from_port: PortHandle,
-        op: OperationWithId,
+        op: TableOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         let ops = self.aggregate(op.op)?;
         for output_op in ops {
-            fw.send(OperationWithId::without_id(output_op), DEFAULT_PORT_HANDLE);
+            fw.send(TableOperation::without_id(output_op, DEFAULT_PORT_HANDLE));
         }
         Ok(())
     }

@@ -3,18 +3,14 @@ use daggy::NodeIndex;
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::{
     node::{NodeHandle, OpIdentifier},
-    types::{Operation, OperationWithId},
+    types::{Operation, TableOperation},
 };
 use metrics::{counter, describe_counter, describe_gauge, gauge};
 use std::{borrow::Cow, mem::swap, sync::Arc, usize};
 
 use crate::{
-    builder_dag::NodeKind,
-    epoch::Epoch,
-    error_manager::ErrorManager,
-    errors::ExecutionError,
-    executor_operation::ExecutorOperation,
-    node::{PortHandle, Sink},
+    builder_dag::NodeKind, epoch::Epoch, error_manager::ErrorManager, errors::ExecutionError,
+    executor_operation::ExecutorOperation, node::Sink,
 };
 
 use super::execution_dag::ExecutionDag;
@@ -27,8 +23,8 @@ pub struct SinkNode {
     node_handle: NodeHandle,
     /// The epoch id the sink was constructed for.
     initial_epoch_id: u64,
-    /// Input port handles.
-    port_handles: Vec<PortHandle>,
+    /// Input node handles.
+    node_handles: Vec<NodeHandle>,
     /// Input data channels.
     receivers: Vec<Receiver<ExecutorOperation>>,
     /// The sink.
@@ -44,15 +40,16 @@ const PIPELINE_LATENCY_GAUGE_NAME: &str = "pipeline_latency";
 
 impl SinkNode {
     pub fn new(dag: &mut ExecutionDag, node_index: NodeIndex) -> Self {
-        let Some(node) = dag.node_weight_mut(node_index).take() else {
+        let node = dag.node_weight_mut(node_index);
+        let Some(kind) = node.kind.take() else {
             panic!("Must pass in a node")
         };
-        let node_handle = node.handle;
-        let NodeKind::Sink(sink) = node.kind else {
+        let node_handle = node.handle.clone();
+        let NodeKind::Sink(sink) = kind else {
             panic!("Must pass in a sink node");
         };
 
-        let (port_handles, receivers) = dag.collect_receivers(node_index);
+        let (node_handles, receivers) = dag.collect_receivers(node_index);
 
         describe_counter!(
             SINK_OPERATION_COUNTER_NAME,
@@ -66,7 +63,7 @@ impl SinkNode {
         Self {
             node_handle,
             initial_epoch_id: dag.initial_epoch_id(),
-            port_handles,
+            node_handles,
             receivers,
             sink,
             error_manager: dag.error_manager().clone(),
@@ -97,10 +94,10 @@ impl ReceiverLoop for SinkNode {
     }
 
     fn receiver_name(&self, index: usize) -> Cow<str> {
-        Cow::Owned(self.port_handles[index].to_string())
+        Cow::Owned(self.node_handles[index].to_string())
     }
 
-    fn on_op(&mut self, index: usize, op: OperationWithId) -> Result<(), ExecutionError> {
+    fn on_op(&mut self, _index: usize, op: TableOperation) -> Result<(), ExecutionError> {
         let mut labels = self.labels.labels().clone();
         labels.push("table", self.node_handle.id.clone());
         const OPERATION_TYPE_LABEL: &str = "operation_type";
@@ -124,7 +121,7 @@ impl ReceiverLoop for SinkNode {
             _ => 1,
         };
 
-        if let Err(e) = self.sink.process(self.port_handles[index], op) {
+        if let Err(e) = self.sink.process(op) {
             self.error_manager.report(e);
         }
 

@@ -15,7 +15,7 @@ use dozer_log::tokio::sync::oneshot;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
 use dozer_types::tonic::async_trait;
-use dozer_types::types::{OperationWithId, Schema};
+use dozer_types::types::{Schema, TableOperation};
 
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
@@ -74,11 +74,11 @@ impl Processor for NoopProcessor {
 
     fn process(
         &mut self,
-        _from_port: PortHandle,
-        op: OperationWithId,
+        mut op: TableOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
-        fw.send(op, DEFAULT_PORT_HANDLE);
+        op.port = DEFAULT_PORT_HANDLE;
+        fw.send(op);
         Ok(())
     }
 
@@ -227,11 +227,11 @@ impl Processor for NoopJoinProcessor {
 
     fn process(
         &mut self,
-        _from_port: PortHandle,
-        op: OperationWithId,
+        mut op: TableOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
-        fw.send(op, DEFAULT_PORT_HANDLE);
+        op.port = DEFAULT_PORT_HANDLE;
+        fw.send(op);
         Ok(())
     }
 

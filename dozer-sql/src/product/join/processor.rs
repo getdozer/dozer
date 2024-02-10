@@ -1,11 +1,11 @@
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::dozer_log::storage::Object;
 use dozer_core::epoch::Epoch;
-use dozer_core::node::{PortHandle, Processor};
+use dozer_core::node::Processor;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_tracing::Labels;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::types::{Lifetime, Operation, OperationWithId};
+use dozer_types::types::{Lifetime, Operation, TableOperation};
 use metrics::{
     counter, describe_counter, describe_gauge, describe_histogram, gauge, histogram,
     increment_counter,
@@ -73,14 +73,13 @@ impl Processor for ProductProcessor {
 
     fn process(
         &mut self,
-        from_port: PortHandle,
-        op: OperationWithId,
+        op: TableOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
-        let from_branch = match from_port {
+        let from_branch = match op.port {
             0 => JoinBranch::Left,
             1 => JoinBranch::Right,
-            _ => return Err(PipelineError::InvalidPortHandle(from_port).into()),
+            _ => return Err(PipelineError::InvalidPortHandle(op.port).into()),
         };
 
         let now = std::time::Instant::now();
@@ -119,10 +118,12 @@ impl Processor for ProductProcessor {
             Operation::BatchInsert { new } => {
                 for record in &new {
                     self.process(
-                        from_port,
-                        OperationWithId::without_id(Operation::Insert {
-                            new: record.clone(),
-                        }),
+                        TableOperation::without_id(
+                            Operation::Insert {
+                                new: record.clone(),
+                            },
+                            op.port,
+                        ),
                         fw,
                     )?;
                 }
@@ -154,16 +155,16 @@ impl Processor for ProductProcessor {
         for (action, record) in records {
             match action {
                 JoinAction::Insert => {
-                    fw.send(
-                        OperationWithId::without_id(Operation::Insert { new: record }),
+                    fw.send(TableOperation::without_id(
+                        Operation::Insert { new: record },
                         DEFAULT_PORT_HANDLE,
-                    );
+                    ));
                 }
                 JoinAction::Delete => {
-                    fw.send(
-                        OperationWithId::without_id(Operation::Delete { old: record }),
+                    fw.send(TableOperation::without_id(
+                        Operation::Delete { old: record },
                         DEFAULT_PORT_HANDLE,
-                    );
+                    ));
                 }
             }
         }
@@ -194,11 +195,11 @@ mod tests {
     use super::*;
 
     struct TestChannelForwarder {
-        operations: Vec<OperationWithId>,
+        operations: Vec<TableOperation>,
     }
 
     impl ProcessorChannelForwarder for TestChannelForwarder {
-        fn send(&mut self, op: OperationWithId, _port: dozer_core::node::PortHandle) {
+        fn send(&mut self, op: TableOperation) {
             self.operations.push(op);
         }
     }
@@ -292,8 +293,7 @@ mod tests {
             };
             self.processor
                 .process(
-                    port,
-                    OperationWithId::without_id(operation),
+                    TableOperation::without_id(operation, port),
                     &mut self.forwarder,
                 )
                 .unwrap();

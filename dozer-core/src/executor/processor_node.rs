@@ -4,16 +4,13 @@ use std::{borrow::Cow, mem::swap};
 use crossbeam::channel::Receiver;
 use daggy::NodeIndex;
 use dozer_types::node::{NodeHandle, OpIdentifier};
-use dozer_types::types::OperationWithId;
+use dozer_types::types::TableOperation;
 
 use crate::epoch::Epoch;
 use crate::error_manager::ErrorManager;
 use crate::executor_operation::ExecutorOperation;
 use crate::{
-    builder_dag::NodeKind,
-    errors::ExecutionError,
-    forwarder::ChannelManager,
-    node::{PortHandle, Processor},
+    builder_dag::NodeKind, errors::ExecutionError, forwarder::ChannelManager, node::Processor,
 };
 
 use super::{execution_dag::ExecutionDag, name::Name, receiver_loop::ReceiverLoop};
@@ -25,8 +22,8 @@ pub struct ProcessorNode {
     node_handle: NodeHandle,
     /// The epoch id the processor was constructed for.
     initial_epoch_id: u64,
-    /// Input port handles.
-    port_handles: Vec<PortHandle>,
+    /// Input node handles.
+    node_handles: Vec<NodeHandle>,
     /// Input data channels.
     receivers: Vec<Receiver<ExecutorOperation>>,
     /// The processor.
@@ -39,17 +36,19 @@ pub struct ProcessorNode {
 
 impl ProcessorNode {
     pub async fn new(dag: &mut ExecutionDag, node_index: NodeIndex) -> Self {
-        let Some(node) = dag.node_weight_mut(node_index).take() else {
+        let node = dag.node_weight_mut(node_index);
+        let Some(kind) = node.kind.take() else {
             panic!("Must pass in a node")
         };
-        let node_handle = node.handle;
-        let NodeKind::Processor(processor) = node.kind else {
+        let node_handle = node.handle.clone();
+        let NodeKind::Processor(processor) = kind else {
             panic!("Must pass in a processor node");
         };
 
-        let (port_handles, receivers) = dag.collect_receivers(node_index);
+        let (node_handles, receivers) = dag.collect_receivers(node_index);
 
-        let (senders, record_writers) = dag.collect_senders_and_record_writers(node_index).await;
+        let senders = dag.collect_senders(node_index);
+        let record_writers = dag.collect_record_writers(node_index).await;
 
         let channel_manager = ChannelManager::new(
             node_handle.clone(),
@@ -61,7 +60,7 @@ impl ProcessorNode {
         Self {
             node_handle,
             initial_epoch_id: dag.initial_epoch_id(),
-            port_handles,
+            node_handles,
             receivers,
             processor,
             channel_manager,
@@ -92,14 +91,11 @@ impl ReceiverLoop for ProcessorNode {
     }
 
     fn receiver_name(&self, index: usize) -> Cow<str> {
-        Cow::Owned(self.port_handles[index].to_string())
+        Cow::Owned(self.node_handles[index].to_string())
     }
 
-    fn on_op(&mut self, index: usize, op: OperationWithId) -> Result<(), ExecutionError> {
-        if let Err(e) =
-            self.processor
-                .process(self.port_handles[index], op, &mut self.channel_manager)
-        {
+    fn on_op(&mut self, _index: usize, op: TableOperation) -> Result<(), ExecutionError> {
+        if let Err(e) = self.processor.process(op, &mut self.channel_manager) {
             self.error_manager.report(e);
         }
         Ok(())

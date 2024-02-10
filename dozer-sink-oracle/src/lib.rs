@@ -285,8 +285,7 @@ impl Sink for OracleSink {
 
     fn process(
         &mut self,
-        _from_port: dozer_core::node::PortHandle,
-        op: dozer_types::types::OperationWithId,
+        op: dozer_types::types::TableOperation,
     ) -> Result<(), dozer_types::errors::internal::BoxedError> {
         match op.op {
             dozer_types::types::Operation::Delete { old } => {

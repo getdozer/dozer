@@ -2,10 +2,10 @@ use crate::errors::PipelineError;
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::dozer_log::storage::Object;
 use dozer_core::epoch::Epoch;
-use dozer_core::node::{PortHandle, Processor};
+use dozer_core::node::Processor;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::types::{Operation, OperationWithId};
+use dozer_types::types::{Operation, TableOperation};
 
 use super::operator::WindowType;
 
@@ -28,8 +28,7 @@ impl Processor for WindowProcessor {
 
     fn process(
         &mut self,
-        _from_port: PortHandle,
-        op: OperationWithId,
+        op: TableOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         match op.op {
@@ -39,10 +38,10 @@ impl Processor for WindowProcessor {
                     .execute(old)
                     .map_err(PipelineError::WindowError)?;
                 for record in records {
-                    fw.send(
-                        OperationWithId::without_id(Operation::Delete { old: record }),
+                    fw.send(TableOperation::without_id(
+                        Operation::Delete { old: record },
                         DEFAULT_PORT_HANDLE,
-                    );
+                    ));
                 }
             }
             Operation::Insert { new } => {
@@ -51,22 +50,20 @@ impl Processor for WindowProcessor {
                     .execute(new)
                     .map_err(PipelineError::WindowError)?;
                 for record in records {
-                    fw.send(
-                        OperationWithId::without_id(Operation::Insert { new: record }),
+                    fw.send(TableOperation::without_id(
+                        Operation::Insert { new: record },
                         DEFAULT_PORT_HANDLE,
-                    );
+                    ));
                 }
             }
             Operation::Update { old, new } => {
                 self.process(
-                    DEFAULT_PORT_HANDLE,
-                    OperationWithId::without_id(Operation::Delete { old }),
+                    TableOperation::without_id(Operation::Delete { old }, DEFAULT_PORT_HANDLE),
                     fw,
                 )?;
 
                 self.process(
-                    DEFAULT_PORT_HANDLE,
-                    OperationWithId::without_id(Operation::Insert { new }),
+                    TableOperation::without_id(Operation::Insert { new }, DEFAULT_PORT_HANDLE),
                     fw,
                 )?;
             }
@@ -79,10 +76,10 @@ impl Processor for WindowProcessor {
                             .map_err(PipelineError::WindowError)?,
                     );
                 }
-                fw.send(
-                    OperationWithId::without_id(Operation::BatchInsert { new: records }),
+                fw.send(TableOperation::without_id(
+                    Operation::BatchInsert { new: records },
                     DEFAULT_PORT_HANDLE,
-                );
+                ));
             }
         }
         Ok(())

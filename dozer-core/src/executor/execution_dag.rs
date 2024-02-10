@@ -5,12 +5,13 @@ use std::{
 };
 
 use crate::{
-    builder_dag::{BuilderDag, NodeType},
+    builder_dag::{BuilderDag, NodeKind},
     checkpoint::OptionCheckpoint,
     dag_schemas::EdgeKind,
     error_manager::ErrorManager,
     errors::ExecutionError,
     executor_operation::ExecutorOperation,
+    forwarder::SenderWithPortMapping,
     hash_map_to_vec::insert_vec_element,
     node::{OutputPortType, PortHandle},
     record_store::{create_record_writer, RecordWriter},
@@ -22,8 +23,15 @@ use daggy::petgraph::{
 };
 use dozer_log::tokio::sync::Mutex;
 use dozer_tracing::LabelsAndProgress;
+use dozer_types::node::NodeHandle;
 
-pub type SharedRecordWriter = Arc<Mutex<Option<Box<dyn RecordWriter>>>>;
+#[derive(Debug)]
+pub struct NodeType {
+    pub handle: NodeHandle,
+    pub kind: Option<NodeKind>,
+}
+
+type SharedRecordWriter = Arc<Mutex<Option<Box<dyn RecordWriter>>>>;
 
 #[derive(Debug, Clone)]
 pub struct EdgeType {
@@ -31,20 +39,20 @@ pub struct EdgeType {
     pub output_port: PortHandle,
     /// Edge kind.
     pub edge_kind: EdgeKind,
-    /// The sender for data flowing downstream.
+    /// The sender for data flowing downstream. Edges that have same source and target node share the same sender.
     pub sender: Sender<ExecutorOperation>,
     /// The record writer for persisting data for downstream queries, if persistency is needed. Different edges with the same output port share the same record writer.
     pub record_writer: SharedRecordWriter,
     /// Input port handle.
     pub input_port: PortHandle,
-    /// The receiver from receiving data from upstream.
+    /// The receiver from receiving data from upstream. Edges that have same source and target node share the same receiver.
     pub receiver: Receiver<ExecutorOperation>,
 }
 
 #[derive(Debug)]
 pub struct ExecutionDag {
     /// Nodes will be moved into execution threads.
-    graph: daggy::Dag<Option<NodeType>, EdgeType>,
+    graph: daggy::Dag<NodeType, EdgeType>,
     initial_epoch_id: u64,
     error_manager: Arc<ErrorManager>,
     labels: LabelsAndProgress,
@@ -58,21 +66,27 @@ impl ExecutionDag {
         channel_buffer_sz: usize,
         error_threshold: Option<u32>,
     ) -> Result<Self, ExecutionError> {
-        // We only create record stored once for every output port. Every `HashMap` in this `Vec` tracks if a node's output ports already have the record store created.
+        // We only create record writer once for every output port. Every `HashMap` in this `Vec` tracks if a node's output ports already have the record writer created.
         let mut all_record_writers = vec![
             HashMap::<PortHandle, SharedRecordWriter>::new();
             builder_dag.graph().node_count()
         ];
+        // We only create channel once for every pair of nodes.
+        let mut channels = HashMap::<
+            (daggy::NodeIndex, daggy::NodeIndex),
+            (Sender<ExecutorOperation>, Receiver<ExecutorOperation>),
+        >::new();
 
         // Create new edges.
         let mut edges = vec![];
         for builder_dag_edge in builder_dag.graph().raw_edges().iter() {
             let source_node_index = builder_dag_edge.source();
+            let target_node_index = builder_dag_edge.target();
             let edge = &builder_dag_edge.weight;
             let output_port = edge.output_port;
             let edge_kind = edge.edge_kind.clone();
 
-            // Create or get record store.
+            // Create or get record writer.
             let record_writer =
                 match all_record_writers[source_node_index.index()].entry(output_port) {
                     Entry::Vacant(entry) => {
@@ -100,8 +114,15 @@ impl ExecutionDag {
                     Entry::Occupied(entry) => entry.get().clone(),
                 };
 
-            // Create channel.
-            let (sender, receiver) = bounded(channel_buffer_sz);
+            // Create or get channel.
+            let (sender, receiver) = match channels.entry((source_node_index, target_node_index)) {
+                Entry::Vacant(entry) => {
+                    let (sender, receiver) = bounded(channel_buffer_sz);
+                    entry.insert((sender.clone(), receiver.clone()));
+                    (sender, receiver)
+                }
+                Entry::Occupied(entry) => entry.get().clone(),
+            };
 
             // Create edge.
             let edge = EdgeType {
@@ -118,7 +139,10 @@ impl ExecutionDag {
         // Create new graph.
         let initial_epoch_id = checkpoint.next_epoch_id();
         let graph = builder_dag.into_graph().map_owned(
-            |_, node| Some(node),
+            |_, node| NodeType {
+                handle: node.handle,
+                kind: Some(node.kind),
+            },
             |edge_index, _| {
                 edges[edge_index.index()]
                     .take()
@@ -137,11 +161,11 @@ impl ExecutionDag {
         })
     }
 
-    pub fn graph(&self) -> &daggy::Dag<Option<NodeType>, EdgeType> {
+    pub fn graph(&self) -> &daggy::Dag<NodeType, EdgeType> {
         &self.graph
     }
 
-    pub fn node_weight_mut(&mut self, node_index: daggy::NodeIndex) -> &mut Option<NodeType> {
+    pub fn node_weight_mut(&mut self, node_index: daggy::NodeIndex) -> &mut NodeType {
         &mut self.graph[node_index]
     }
 
@@ -157,59 +181,77 @@ impl ExecutionDag {
         &self.labels
     }
 
-    #[allow(clippy::type_complexity)]
-    pub async fn collect_senders_and_record_writers(
+    pub fn collect_senders(&self, node_index: daggy::NodeIndex) -> Vec<SenderWithPortMapping> {
+        // Map from target node index to `SenderWithPortMapping`.
+        let mut senders = HashMap::<daggy::NodeIndex, SenderWithPortMapping>::new();
+        for edge in self.graph.edges(node_index) {
+            match senders.entry(edge.target()) {
+                Entry::Vacant(entry) => {
+                    let port_mapping =
+                        [(edge.weight().output_port, vec![edge.weight().input_port])]
+                            .into_iter()
+                            .collect();
+                    entry.insert(SenderWithPortMapping {
+                        sender: edge.weight().sender.clone(),
+                        port_mapping,
+                    });
+                }
+                Entry::Occupied(mut entry) => {
+                    insert_vec_element(
+                        &mut entry.get_mut().port_mapping,
+                        edge.weight().output_port,
+                        edge.weight().input_port,
+                    );
+                }
+            }
+        }
+        senders.into_values().collect()
+    }
+
+    pub async fn collect_record_writers(
         &mut self,
         node_index: daggy::NodeIndex,
-    ) -> (
-        HashMap<PortHandle, Vec<Sender<ExecutorOperation>>>,
-        HashMap<PortHandle, Box<dyn RecordWriter>>,
-    ) {
+    ) -> HashMap<PortHandle, Box<dyn RecordWriter>> {
         let edge_indexes = self
             .graph
             .edges(node_index)
             .map(|edge| edge.id())
             .collect::<Vec<_>>();
 
-        let mut senders = HashMap::new();
         let mut record_writers = HashMap::new();
         for edge_index in edge_indexes {
             let edge = self
                 .graph
                 .edge_weight_mut(edge_index)
                 .expect("We don't modify graph structure, only modify the edge weight");
-            insert_vec_element(&mut senders, edge.output_port, edge.sender.clone());
+
             if let Entry::Vacant(entry) = record_writers.entry(edge.output_port) {
-                // This interior mutability is to word around `Arc`. Other parts of this function is correctly marked `mut`.
+                // This interior mutability is to work around `Arc`. Other parts of this function is correctly marked `mut`.
                 if let Some(record_writer) = edge.record_writer.lock().await.take() {
                     entry.insert(record_writer);
                 }
             }
         }
 
-        (senders, record_writers)
+        record_writers
     }
 
     pub fn collect_receivers(
-        &mut self,
+        &self,
         node_index: daggy::NodeIndex,
-    ) -> (Vec<PortHandle>, Vec<Receiver<ExecutorOperation>>) {
-        let edge_indexes = self
-            .graph
-            .edges_directed(node_index, Direction::Incoming)
-            .map(|edge| edge.id())
-            .collect::<Vec<_>>();
-
-        let mut input_ports = Vec::new();
-        let mut receivers = Vec::new();
-        for edge_index in edge_indexes {
-            let edge = self
-                .graph
-                .edge_weight_mut(edge_index)
-                .expect("We don't modify graph structure, only modify the edge weight");
-            input_ports.push(edge.input_port);
-            receivers.push(edge.receiver.clone());
+    ) -> (Vec<NodeHandle>, Vec<Receiver<ExecutorOperation>>) {
+        // Map from source node index to source node handle and the receiver to receiver from source.
+        let mut handles_and_receivers =
+            HashMap::<daggy::NodeIndex, (NodeHandle, Receiver<ExecutorOperation>)>::new();
+        for edge in self.graph.edges_directed(node_index, Direction::Incoming) {
+            let source_node_index = edge.source();
+            if let Entry::Vacant(entry) = handles_and_receivers.entry(source_node_index) {
+                entry.insert((
+                    self.graph[source_node_index].handle.clone(),
+                    edge.weight().receiver.clone(),
+                ));
+            }
         }
-        (input_ports, receivers)
+        handles_and_receivers.into_values().unzip()
     }
 }

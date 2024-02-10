@@ -16,7 +16,7 @@ use dozer_types::node::OpIdentifier;
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::tonic::async_trait;
 use dozer_types::types::{
-    Field, FieldDefinition, FieldType, Operation, OperationWithId, Record, Schema, SourceDefinition,
+    Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition, TableOperation,
 };
 use tokio::sync::mpsc::Sender;
 
@@ -177,7 +177,7 @@ impl SinkFactory for TestSinkFactory {
 pub struct TestSink {}
 
 impl Sink for TestSink {
-    fn process(&mut self, _from_port: PortHandle, op: OperationWithId) -> Result<(), BoxedError> {
+    fn process(&mut self, op: TableOperation) -> Result<(), BoxedError> {
         println!("Sink: {:?}", op);
         Ok(())
     }

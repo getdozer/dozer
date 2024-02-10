@@ -13,7 +13,7 @@ use dozer_core::{
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::types::Schema;
 use dozer_types::{errors::internal::BoxedError, node::OpIdentifier};
-use dozer_types::{indicatif::ProgressBar, types::OperationWithId};
+use dozer_types::{indicatif::ProgressBar, types::TableOperation};
 use tokio::{runtime::Runtime, sync::Mutex};
 
 #[derive(Debug)]
@@ -88,7 +88,7 @@ impl LogSink {
 }
 
 impl Sink for LogSink {
-    fn process(&mut self, _from_port: PortHandle, op: OperationWithId) -> Result<(), BoxedError> {
+    fn process(&mut self, op: TableOperation) -> Result<(), BoxedError> {
         let end = self
             .runtime
             .block_on(self.log.lock())
