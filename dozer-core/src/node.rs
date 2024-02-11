@@ -8,11 +8,11 @@ use dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_types::node::OpIdentifier;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::tonic::async_trait;
-use dozer_types::types::{OperationWithId, Schema};
+use dozer_types::types::{Schema, TableOperation};
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 
-pub type PortHandle = u16;
+pub use dozer_types::types::PortHandle;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(crate = "dozer_types::serde")]
@@ -89,8 +89,7 @@ pub trait Processor: Send + Sync + Debug {
     fn commit(&self, epoch_details: &Epoch) -> Result<(), BoxedError>;
     fn process(
         &mut self,
-        from_port: PortHandle,
-        op: OperationWithId,
+        op: TableOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError>;
     fn serialize(&mut self, object: Object) -> Result<(), BoxedError>;
@@ -109,7 +108,7 @@ pub trait SinkFactory: Send + Sync + Debug {
 
 pub trait Sink: Send + Sync + Debug {
     fn commit(&mut self, epoch_details: &Epoch) -> Result<(), BoxedError>;
-    fn process(&mut self, from_port: PortHandle, op: OperationWithId) -> Result<(), BoxedError>;
+    fn process(&mut self, op: TableOperation) -> Result<(), BoxedError>;
     fn persist(&mut self, epoch: &Epoch, queue: &Queue) -> Result<(), BoxedError>;
 
     fn on_source_snapshotting_started(&mut self, connection_name: String)

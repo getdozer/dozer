@@ -20,7 +20,7 @@ use dozer_sql::builder::statement_to_pipeline;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_types::node::OpIdentifier;
-use dozer_types::types::{Operation, OperationWithId, Record, Schema, SourceDefinition};
+use dozer_types::types::{Operation, Record, Schema, SourceDefinition, TableOperation};
 use std::collections::HashMap;
 use std::future::pending;
 use tempdir::TempDir;
@@ -249,7 +249,7 @@ impl TestSink {
 }
 
 impl Sink for TestSink {
-    fn process(&mut self, _from_port: PortHandle, op: OperationWithId) -> Result<(), BoxedError> {
+    fn process(&mut self, op: TableOperation) -> Result<(), BoxedError> {
         self.update_result(op.op)
     }
 

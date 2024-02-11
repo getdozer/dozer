@@ -8,7 +8,6 @@ use daggy::petgraph::visit::IntoNodeIdentifiers;
 
 use dozer_log::tokio::runtime::Runtime;
 use dozer_tracing::LabelsAndProgress;
-use dozer_types::serde::{self, Deserialize, Serialize};
 use futures::Future;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -35,13 +34,6 @@ impl Default for ExecutorOptions {
             checkpoint_factory_options: Default::default(),
         }
     }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(crate = "self::serde")]
-pub(crate) enum InputPortState {
-    Open,
-    Terminated,
 }
 
 mod execution_dag;
@@ -113,10 +105,10 @@ impl DagExecutor {
             create_source_node(&mut execution_dag, &self.options, shutdown, runtime.clone()).await;
         let mut join_handles = vec![start_source(source_node)?];
         for node_index in node_indexes {
-            let Some(node) = execution_dag.graph()[node_index].as_ref() else {
+            let Some(node) = execution_dag.graph()[node_index].kind.as_ref() else {
                 continue;
             };
-            match &node.kind {
+            match &node {
                 NodeKind::Source { .. } => unreachable!("We already started the source node"),
                 NodeKind::Processor(_) => {
                     let processor_node = ProcessorNode::new(&mut execution_dag, node_index).await;

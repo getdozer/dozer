@@ -1,10 +1,10 @@
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::dozer_log::storage::Object;
 use dozer_core::epoch::Epoch;
-use dozer_core::node::{PortHandle, Processor};
+use dozer_core::node::Processor;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::types::OperationWithId;
+use dozer_types::types::TableOperation;
 
 #[derive(Debug)]
 pub struct TableProcessor {
@@ -24,11 +24,11 @@ impl Processor for TableProcessor {
 
     fn process(
         &mut self,
-        _from_port: PortHandle,
-        op: OperationWithId,
+        mut op: TableOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
-        fw.send(op, DEFAULT_PORT_HANDLE);
+        op.port = DEFAULT_PORT_HANDLE;
+        fw.send(op);
         Ok(())
     }
 

@@ -11,7 +11,7 @@ use dozer_types::{
     errors::internal::BoxedError,
     log::{info, warn},
     node::OpIdentifier,
-    types::{FieldType, Operation, OperationWithId, Schema},
+    types::{FieldType, Operation, Schema, TableOperation},
 };
 
 use crate::async_trait::async_trait;
@@ -64,7 +64,7 @@ struct DummySink {
 }
 
 impl Sink for DummySink {
-    fn process(&mut self, _from_port: PortHandle, op: OperationWithId) -> Result<(), BoxedError> {
+    fn process(&mut self, op: TableOperation) -> Result<(), BoxedError> {
         if self.count % 1000 == 0 {
             if self.count > 0 {
                 info!(

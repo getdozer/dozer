@@ -4,7 +4,7 @@ use crate::DEFAULT_PORT_HANDLE;
 use dozer_log::storage::Queue;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::OpIdentifier;
-use dozer_types::types::{OperationWithId, Schema};
+use dozer_types::types::{Schema, TableOperation};
 
 use dozer_types::log::debug;
 use std::collections::HashMap;
@@ -67,7 +67,7 @@ impl Sink for CountingSink {
         Ok(())
     }
 
-    fn process(&mut self, _from_port: PortHandle, _op: OperationWithId) -> Result<(), BoxedError> {
+    fn process(&mut self, _op: TableOperation) -> Result<(), BoxedError> {
         self.current += 1;
         if self.current == self.expected {
             debug!(

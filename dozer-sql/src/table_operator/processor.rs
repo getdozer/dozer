@@ -1,10 +1,10 @@
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::dozer_log::storage::Object;
 use dozer_core::epoch::Epoch;
-use dozer_core::node::{PortHandle, Processor};
+use dozer_core::node::Processor;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::types::{Operation, OperationWithId, Schema};
+use dozer_types::types::{Operation, Schema, TableOperation};
 
 use crate::errors::PipelineError;
 
@@ -39,8 +39,7 @@ impl Processor for TableOperatorProcessor {
 
     fn process(
         &mut self,
-        _from_port: PortHandle,
-        op: OperationWithId,
+        op: TableOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         match op.op {
@@ -50,10 +49,10 @@ impl Processor for TableOperatorProcessor {
                     .execute(old, &self.input_schema)
                     .map_err(PipelineError::TableOperatorError)?;
                 for record in records {
-                    fw.send(
-                        OperationWithId::without_id(Operation::Delete { old: record }),
+                    fw.send(TableOperation::without_id(
+                        Operation::Delete { old: record },
                         DEFAULT_PORT_HANDLE,
-                    );
+                    ));
                 }
             }
             Operation::Insert { ref new } => {
@@ -62,10 +61,10 @@ impl Processor for TableOperatorProcessor {
                     .execute(new, &self.input_schema)
                     .map_err(PipelineError::TableOperatorError)?;
                 for record in records {
-                    fw.send(
-                        OperationWithId::without_id(Operation::Insert { new: record }),
+                    fw.send(TableOperation::without_id(
+                        Operation::Insert { new: record },
                         DEFAULT_PORT_HANDLE,
-                    );
+                    ));
                 }
             }
             Operation::Update { ref old, ref new } => {
@@ -74,10 +73,10 @@ impl Processor for TableOperatorProcessor {
                     .execute(old, &self.input_schema)
                     .map_err(PipelineError::TableOperatorError)?;
                 for record in old_records {
-                    fw.send(
-                        OperationWithId::without_id(Operation::Delete { old: record }),
+                    fw.send(TableOperation::without_id(
+                        Operation::Delete { old: record },
                         DEFAULT_PORT_HANDLE,
-                    );
+                    ));
                 }
 
                 let new_records = self
@@ -85,10 +84,10 @@ impl Processor for TableOperatorProcessor {
                     .execute(new, &self.input_schema)
                     .map_err(PipelineError::TableOperatorError)?;
                 for record in new_records {
-                    fw.send(
-                        OperationWithId::without_id(Operation::Insert { new: record }),
+                    fw.send(TableOperation::without_id(
+                        Operation::Insert { new: record },
                         DEFAULT_PORT_HANDLE,
-                    );
+                    ));
                 }
             }
             Operation::BatchInsert { new } => {
@@ -100,10 +99,10 @@ impl Processor for TableOperatorProcessor {
                             .map_err(PipelineError::TableOperatorError)?,
                     );
                 }
-                fw.send(
-                    OperationWithId::without_id(Operation::BatchInsert { new: records }),
+                fw.send(TableOperation::without_id(
+                    Operation::BatchInsert { new: records },
                     DEFAULT_PORT_HANDLE,
-                );
+                ));
             }
         }
         Ok(())

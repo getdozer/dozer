@@ -2,11 +2,11 @@ use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::checkpoint::serialize::Cursor;
 use dozer_core::dozer_log::storage::Object;
 use dozer_core::epoch::Epoch;
-use dozer_core::node::{PortHandle, Processor};
+use dozer_core::node::Processor;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_sql_expression::execution::Expression;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::types::{Field, Operation, OperationWithId, Record, Schema};
+use dozer_types::types::{Field, Operation, Record, Schema, TableOperation};
 
 use crate::errors::PipelineError;
 
@@ -45,19 +45,20 @@ impl Processor for SelectionProcessor {
 
     fn process(
         &mut self,
-        _from_port: PortHandle,
-        op: OperationWithId,
+        mut op: TableOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         match op.op {
             Operation::Delete { ref old } => {
                 if self.filter(old)? {
-                    fw.send(op, DEFAULT_PORT_HANDLE);
+                    op.port = DEFAULT_PORT_HANDLE;
+                    fw.send(op);
                 }
             }
             Operation::Insert { ref new } => {
                 if self.filter(new)? {
-                    fw.send(op, DEFAULT_PORT_HANDLE);
+                    op.port = DEFAULT_PORT_HANDLE;
+                    fw.send(op);
                 }
             }
             Operation::Update { old, new } => {
@@ -66,33 +67,27 @@ impl Processor for SelectionProcessor {
                 match (old_fulfilled, new_fulfilled) {
                     (true, true) => {
                         // both records fulfills the WHERE condition, forward the operation
-                        fw.send(
-                            OperationWithId {
-                                id: op.id,
-                                op: Operation::Update { old, new },
-                            },
-                            DEFAULT_PORT_HANDLE,
-                        );
+                        fw.send(TableOperation {
+                            id: op.id,
+                            op: Operation::Update { old, new },
+                            port: DEFAULT_PORT_HANDLE,
+                        });
                     }
                     (true, false) => {
                         // the old record fulfills the WHERE condition while then new one doesn't, forward a delete operation
-                        fw.send(
-                            OperationWithId {
-                                id: op.id,
-                                op: Operation::Delete { old },
-                            },
-                            DEFAULT_PORT_HANDLE,
-                        );
+                        fw.send(TableOperation {
+                            id: op.id,
+                            op: Operation::Delete { old },
+                            port: DEFAULT_PORT_HANDLE,
+                        });
                     }
                     (false, true) => {
                         // the old record doesn't fulfill the WHERE condition while then new one does, forward an insert operation
-                        fw.send(
-                            OperationWithId {
-                                id: op.id,
-                                op: Operation::Insert { new },
-                            },
-                            DEFAULT_PORT_HANDLE,
-                        );
+                        fw.send(TableOperation {
+                            id: op.id,
+                            op: Operation::Insert { new },
+                            port: DEFAULT_PORT_HANDLE,
+                        });
                     }
                     (false, false) => {
                         // both records doesn't fulfill the WHERE condition, don't forward the operation
@@ -109,13 +104,11 @@ impl Processor for SelectionProcessor {
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 if !records.is_empty() {
-                    fw.send(
-                        OperationWithId {
-                            id: op.id,
-                            op: Operation::BatchInsert { new: records },
-                        },
-                        DEFAULT_PORT_HANDLE,
-                    );
+                    fw.send(TableOperation {
+                        id: op.id,
+                        op: Operation::BatchInsert { new: records },
+                        port: DEFAULT_PORT_HANDLE,
+                    });
                 }
             }
         }

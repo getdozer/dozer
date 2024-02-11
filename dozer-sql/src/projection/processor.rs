@@ -5,10 +5,10 @@ use dozer_sql_expression::execution::Expression;
 use dozer_core::channels::ProcessorChannelForwarder;
 use dozer_core::dozer_log::storage::Object;
 use dozer_core::epoch::Epoch;
-use dozer_core::node::{PortHandle, Processor};
+use dozer_core::node::Processor;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::types::{Operation, OperationWithId, Record, Schema};
+use dozer_types::types::{Operation, Record, Schema, TableOperation};
 
 #[derive(Debug)]
 pub struct ProjectionProcessor {
@@ -82,8 +82,7 @@ impl ProjectionProcessor {
 impl Processor for ProjectionProcessor {
     fn process(
         &mut self,
-        _from_port: PortHandle,
-        op: OperationWithId,
+        op: TableOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         let output_op = match op.op {
@@ -100,13 +99,11 @@ impl Processor for ProjectionProcessor {
                 Operation::BatchInsert { new: records }
             }
         };
-        fw.send(
-            OperationWithId {
-                id: op.id,
-                op: output_op,
-            },
-            DEFAULT_PORT_HANDLE,
-        );
+        fw.send(TableOperation {
+            id: op.id,
+            op: output_op,
+            port: DEFAULT_PORT_HANDLE,
+        });
         Ok(())
     }
 

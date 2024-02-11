@@ -48,7 +48,7 @@ use dozer_types::{
     models::endpoint::AerospikeSinkConfig,
     thiserror::{self, Error},
     types::{
-        DozerDuration, DozerPoint, Field, FieldType, Operation, OperationWithId, Record, Schema,
+        DozerDuration, DozerPoint, Field, FieldType, Operation, Record, Schema, TableOperation,
     },
 };
 
@@ -396,7 +396,7 @@ impl Drop for AsRecord<'_> {
 
 #[derive(Debug)]
 struct AerospikeSink {
-    sender: Sender<OperationWithId>,
+    sender: Sender<TableOperation>,
     snapshotting_started_instant: HashMap<String, Instant>,
 }
 
@@ -565,7 +565,7 @@ fn convert_json(value: &JsonValue) -> Result<*mut as_bin_value, AerospikeSinkErr
 
 struct AerospikeSinkWorker {
     client: Arc<Client>,
-    receiver: Receiver<OperationWithId>,
+    receiver: Receiver<TableOperation>,
     namespace: CString,
     set_name: CString,
     primary_index: usize,
@@ -907,13 +907,14 @@ impl AerospikeSinkWorker {
         Ok(())
     }
 
-    fn process_impl(&mut self, op: OperationWithId) -> Result<(), AerospikeSinkError> {
+    fn process_impl(&mut self, op: TableOperation) -> Result<(), AerospikeSinkError> {
         if !self.denormalizations.is_empty() {
             if let Operation::BatchInsert { new } = op.op {
                 for rec in new.into_iter() {
-                    self.process_impl(OperationWithId {
+                    self.process_impl(TableOperation {
                         op: Operation::Insert { new: rec },
                         id: op.id,
+                        port: op.port,
                     })?;
                 }
                 return Ok(());
@@ -1156,8 +1157,8 @@ impl Sink for AerospikeSink {
         Ok(())
     }
 
-    fn process(&mut self, from_port: PortHandle, op: OperationWithId) -> Result<(), BoxedError> {
-        debug_assert_eq!(from_port, DEFAULT_PORT_HANDLE);
+    fn process(&mut self, op: TableOperation) -> Result<(), BoxedError> {
+        debug_assert_eq!(op.port, DEFAULT_PORT_HANDLE);
         self.sender.send(op)?;
         Ok(())
     }
@@ -1244,12 +1245,12 @@ mod tests {
     async fn test_inserts() {
         let mut sink = sink("inserts").await;
         for i in 0..N_RECORDS {
-            sink.process(
-                DEFAULT_PORT_HANDLE,
-                OperationWithId::without_id(Operation::Insert {
+            sink.process(TableOperation::without_id(
+                Operation::Insert {
                     new: record(i as u64),
-                }),
-            )
+                },
+                DEFAULT_PORT_HANDLE,
+            ))
             .unwrap();
         }
     }
@@ -1267,10 +1268,10 @@ mod tests {
         }
         let mut sink = sink("inserts_batch").await;
         for batch in batches {
-            sink.process(
+            sink.process(TableOperation::without_id(
+                Operation::BatchInsert { new: batch },
                 DEFAULT_PORT_HANDLE,
-                OperationWithId::without_id(Operation::BatchInsert { new: batch }),
-            )
+            ))
             .unwrap()
         }
     }

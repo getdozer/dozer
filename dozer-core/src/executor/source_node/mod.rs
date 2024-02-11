@@ -6,8 +6,7 @@ use dozer_log::tokio::{
     sync::mpsc::{channel, Receiver, Sender},
 };
 use dozer_types::{
-    log::debug, models::ingestion_types::TransactionInfo, node::OpIdentifier,
-    types::OperationWithId,
+    log::debug, models::ingestion_types::TransactionInfo, node::OpIdentifier, types::TableOperation,
 };
 use dozer_types::{models::ingestion_types::IngestionMessage, node::SourceState};
 use futures::{future::Either, StreamExt};
@@ -96,7 +95,7 @@ impl<F: Future + Unpin> Node for SourceNode<F> {
                             source.state = SourceState::NonRestartable;
                             source
                                 .channel_manager
-                                .send_op(OperationWithId { op, id }, port)?;
+                                .send_op(TableOperation { op, id, port })?;
                         }
                         IngestionMessage::TransactionInfo(info) => match info {
                             TransactionInfo::Commit { id } => {
@@ -168,7 +167,7 @@ fn send_to_all_nodes(
     op: ExecutorOperation,
 ) -> Result<(), ExecutionError> {
     for source in sources {
-        source.channel_manager.send_to_all_ports(op.clone())?;
+        source.channel_manager.send_non_op(op.clone())?;
     }
     Ok(())
 }
@@ -186,22 +185,24 @@ pub async fn create_source_node<F>(
     let node_indices = dag.graph().node_identifiers().collect::<Vec<_>>();
     for node_index in node_indices {
         let node = dag.graph()[node_index]
+            .kind
             .as_ref()
             .expect("Each node should only be visited once");
-        if !matches!(node.kind, NodeKind::Source { .. }) {
+        if !matches!(node, NodeKind::Source { .. }) {
             continue;
         }
-        let node = dag.node_weight_mut(node_index).take().unwrap();
-        let node_handle = node.handle;
+        let node = dag.node_weight_mut(node_index);
+        let node_handle = node.handle.clone();
         let NodeKind::Source {
             source,
             last_checkpoint,
-        } = node.kind
+        } = node.kind.take().unwrap()
         else {
             continue;
         };
 
-        let (senders, record_writers) = dag.collect_senders_and_record_writers(node_index).await;
+        let senders = dag.collect_senders(node_index);
+        let record_writers = dag.collect_record_writers(node_index).await;
         let channel_manager = ChannelManager::new(
             node_handle,
             record_writers,

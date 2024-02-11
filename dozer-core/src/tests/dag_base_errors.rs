@@ -15,7 +15,7 @@ use dozer_types::models::ingestion_types::{IngestionMessage, TransactionInfo};
 use dozer_types::node::{NodeHandle, OpIdentifier};
 use dozer_types::tonic::async_trait;
 use dozer_types::types::{
-    Field, FieldDefinition, FieldType, Operation, OperationWithId, Record, Schema, SourceDefinition,
+    Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition, TableOperation,
 };
 
 use std::collections::HashMap;
@@ -88,8 +88,7 @@ impl Processor for ErrorProcessor {
 
     fn process(
         &mut self,
-        _from_port: PortHandle,
-        op: OperationWithId,
+        mut op: TableOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError> {
         self.count += 1;
@@ -101,7 +100,8 @@ impl Processor for ErrorProcessor {
             }
         }
 
-        fw.send(op, DEFAULT_PORT_HANDLE);
+        op.port = DEFAULT_PORT_HANDLE;
+        fw.send(op);
         Ok(())
     }
 
@@ -457,7 +457,7 @@ impl Sink for ErrSink {
         Ok(())
     }
 
-    fn process(&mut self, _from_port: PortHandle, _op: OperationWithId) -> Result<(), BoxedError> {
+    fn process(&mut self, _op: TableOperation) -> Result<(), BoxedError> {
         self.current += 1;
         if self.current == self.err_at {
             if self.panic {

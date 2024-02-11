@@ -1,11 +1,11 @@
 use std::borrow::Cow;
 
 use crossbeam::channel::{Receiver, Select};
-use dozer_types::{log::debug, node::OpIdentifier, types::OperationWithId};
+use dozer_types::{log::debug, node::OpIdentifier, types::TableOperation};
 
 use crate::{epoch::Epoch, errors::ExecutionError, executor_operation::ExecutorOperation};
 
-use super::{name::Name, InputPortState};
+use super::name::Name;
 
 /// Common code for processor and sink nodes.
 ///
@@ -18,7 +18,7 @@ pub trait ReceiverLoop: Name {
     /// Returns the name of the receiver at `index`. Used for logging.
     fn receiver_name(&self, index: usize) -> Cow<str>;
     /// Responds to `op` from the receiver at `index`.
-    fn on_op(&mut self, index: usize, op: OperationWithId) -> Result<(), ExecutionError>;
+    fn on_op(&mut self, index: usize, op: TableOperation) -> Result<(), ExecutionError>;
     /// Responds to `commit` of `epoch`.
     fn on_commit(&mut self, epoch: Epoch) -> Result<(), ExecutionError>;
     /// Responds to `terminate`.
@@ -39,7 +39,7 @@ pub trait ReceiverLoop: Name {
             !receivers.is_empty(),
             "Processor or sink must have at least 1 incoming edge"
         );
-        let mut port_states = vec![InputPortState::Open; receivers.len()];
+        let mut is_terminated = vec![false; receivers.len()];
 
         let mut commits_received: usize = 0;
         let mut epoch_id = initial_epoch_id;
@@ -68,14 +68,14 @@ pub trait ReceiverLoop: Name {
                     }
                 }
                 ExecutorOperation::Terminate => {
-                    port_states[index] = InputPortState::Terminated;
+                    is_terminated[index] = true;
                     sel.remove(index);
                     debug!(
-                        "[{}] Received Terminate request on port {}",
+                        "[{}] Received Terminate request from {}",
                         self.name(),
                         self.receiver_name(index)
                     );
-                    if port_states.iter().all(|v| v == &InputPortState::Terminated) {
+                    if is_terminated.iter().all(|value| *value) {
                         self.on_terminate()?;
                         debug!("[{}] Quit", self.name());
                         return Ok(());
@@ -113,11 +113,13 @@ mod tests {
         types::{Field, Operation, Record},
     };
 
+    use crate::DEFAULT_PORT_HANDLE;
+
     use super::*;
 
     struct TestReceiverLoop {
         receivers: Vec<Receiver<ExecutorOperation>>,
-        ops: Vec<(usize, OperationWithId)>,
+        ops: Vec<(usize, TableOperation)>,
         commits: Vec<Epoch>,
         snapshotting_started: Vec<String>,
         snapshotting_done: Vec<(String, Option<OpIdentifier>)>,
@@ -145,7 +147,7 @@ mod tests {
             Cow::Owned(format!("receiver_{index}"))
         }
 
-        fn on_op(&mut self, index: usize, op: OperationWithId) -> Result<(), ExecutionError> {
+        fn on_op(&mut self, index: usize, op: TableOperation) -> Result<(), ExecutionError> {
             self.ops.push((index, op));
             Ok(())
         }
@@ -226,9 +228,12 @@ mod tests {
         let record = Record::new(vec![Field::Int(1)]);
         senders[0]
             .send(ExecutorOperation::Op {
-                op: OperationWithId::without_id(Operation::Insert {
-                    new: record.clone(),
-                }),
+                op: TableOperation::without_id(
+                    Operation::Insert {
+                        new: record.clone(),
+                    },
+                    DEFAULT_PORT_HANDLE,
+                ),
             })
             .unwrap();
         senders[0].send(ExecutorOperation::Terminate).unwrap();
@@ -238,7 +243,7 @@ mod tests {
             test_loop.ops,
             vec![(
                 0,
-                OperationWithId::without_id(Operation::Insert { new: record })
+                TableOperation::without_id(Operation::Insert { new: record }, DEFAULT_PORT_HANDLE,)
             )]
         );
     }
