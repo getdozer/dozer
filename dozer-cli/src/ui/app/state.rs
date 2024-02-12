@@ -2,9 +2,9 @@ use std::{collections::HashMap, sync::Arc, thread::JoinHandle};
 
 use clap::Parser;
 
-use dozer_cache::dozer_log::camino::Utf8Path;
 use dozer_core::shutdown::{self, ShutdownReceiver, ShutdownSender};
 use dozer_core::{dag_schemas::DagSchemas, Dag};
+use dozer_log::camino::Utf8Path;
 use dozer_tracing::{Labels, LabelsAndProgress};
 use dozer_types::{
     grpc_types::{

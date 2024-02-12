@@ -1,11 +1,11 @@
 use std::{collections::HashMap, time::Instant};
 
-use dozer_cache::dozer_log::storage::Queue;
 use dozer_core::{
     epoch::Epoch,
     node::{PortHandle, Sink, SinkFactory},
     DEFAULT_PORT_HANDLE,
 };
+use dozer_log::storage::Queue;
 use dozer_types::{
     chrono::Local,
     errors::internal::BoxedError,

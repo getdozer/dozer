@@ -6,7 +6,7 @@ use crate::errors::OrchestrationError;
 use crate::simple::SimpleOrchestrator as Dozer;
 
 use atty::Stream;
-use dozer_cache::dozer_log::camino::Utf8PathBuf;
+use dozer_log::camino::Utf8PathBuf;
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::models::config::default_cache_max_map_size;
 use dozer_types::prettytable::{row, Table};

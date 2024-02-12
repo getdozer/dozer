@@ -1,6 +1,6 @@
-use dozer_cache::dozer_log::home_dir::HomeDir;
 use dozer_core::checkpoint::{CheckpointOptions, OptionCheckpoint};
 use dozer_core::shutdown::ShutdownReceiver;
+use dozer_log::home_dir::HomeDir;
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::models::endpoint::{
     AerospikeSinkConfig, ClickhouseSinkConfig, Endpoint, EndpointKind, OracleSinkConfig,

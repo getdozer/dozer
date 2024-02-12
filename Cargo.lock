@@ -3543,31 +3543,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
 
 [[package]]
-name = "dozer-cache"
-version = "0.3.0"
-dependencies = [
- "ahash 0.8.6",
- "bincode",
- "clap 4.4.8",
- "criterion",
- "dozer-log",
- "dozer-storage",
- "dozer-tracing",
- "dozer-types",
- "env_logger 0.10.1",
- "futures",
- "itertools 0.10.5",
- "metrics",
- "rand 0.8.5",
- "rayon",
- "roaring",
- "tempdir",
- "tokio",
- "unicode-segmentation",
- "uuid",
-]
-
-[[package]]
 name = "dozer-cli"
 version = "0.3.0"
 dependencies = [
@@ -3576,9 +3551,9 @@ dependencies = [
  "async-trait",
  "atty",
  "clap 4.4.8",
- "dozer-cache",
  "dozer-core",
  "dozer-ingestion",
+ "dozer-log",
  "dozer-sink-aerospike",
  "dozer-sink-clickhouse",
  "dozer-sink-oracle",

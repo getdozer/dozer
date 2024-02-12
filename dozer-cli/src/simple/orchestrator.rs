@@ -8,11 +8,11 @@ use crate::simple::helper::validate_config;
 use crate::utils::{get_checkpoint_options, get_executor_options};
 
 use crate::flatten_join_handle;
-use dozer_cache::dozer_log::camino::Utf8PathBuf;
-use dozer_cache::dozer_log::home_dir::{BuildId, HomeDir};
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::DagSchemas;
 use dozer_core::shutdown::ShutdownReceiver;
+use dozer_log::camino::Utf8PathBuf;
+use dozer_log::home_dir::{BuildId, HomeDir};
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::constants::LOCK_FILE;
 use dozer_types::models::endpoint::EndpointKind;
