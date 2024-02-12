@@ -9,3 +9,4 @@ edition = "2021"
 dozer-ingestion-connector = { path = "../connector" }
 actix-web = "4.5.1"
 base64 = "0.21.7"
+aerospike-client-sys = { path = "../../dozer-sink-aerospike/aerospike-client-sys" }
