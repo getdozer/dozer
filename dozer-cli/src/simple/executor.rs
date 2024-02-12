@@ -2,10 +2,8 @@ use dozer_core::checkpoint::{CheckpointOptions, OptionCheckpoint};
 use dozer_core::shutdown::ShutdownReceiver;
 use dozer_log::home_dir::HomeDir;
 use dozer_tracing::LabelsAndProgress;
-use dozer_types::models::endpoint::{
-    AerospikeSinkConfig, ClickhouseSinkConfig, Endpoint, EndpointKind, OracleSinkConfig,
-};
 use dozer_types::models::flags::Flags;
+use dozer_types::models::sink::Sink;
 use tokio::runtime::Runtime;
 
 use std::sync::Arc;
@@ -13,7 +11,7 @@ use std::sync::Arc;
 use dozer_types::models::source::Source;
 use dozer_types::models::udf_config::UdfConfig;
 
-use crate::pipeline::{EndpointLog, EndpointLogKind, PipelineBuilder};
+use crate::pipeline::PipelineBuilder;
 use dozer_core::executor::{DagExecutor, ExecutorOptions};
 
 use dozer_types::models::connection::Connection;
@@ -25,23 +23,9 @@ pub struct Executor<'a> {
     sources: &'a [Source],
     sql: Option<&'a str>,
     checkpoint: OptionCheckpoint,
-    endpoints: Vec<ExecutorEndpoint>,
+    sinks: &'a [Sink],
     labels: LabelsAndProgress,
     udfs: &'a [UdfConfig],
-}
-
-#[derive(Debug)]
-struct ExecutorEndpoint {
-    table_name: String,
-    kind: ExecutorEndpointKind,
-}
-
-#[derive(Debug)]
-enum ExecutorEndpointKind {
-    Dummy,
-    Aerospike { config: AerospikeSinkConfig },
-    Clickhouse { config: ClickhouseSinkConfig },
-    Oracle { config: OracleSinkConfig },
 }
 
 impl<'a> Executor<'a> {
@@ -53,7 +37,7 @@ impl<'a> Executor<'a> {
         connections: &'a [Connection],
         sources: &'a [Source],
         sql: Option<&'a str>,
-        endpoints: &'a [Endpoint],
+        sinks: &'a [Sink],
         checkpoint_options: CheckpointOptions,
         labels: LabelsAndProgress,
         udfs: &'a [UdfConfig],
@@ -68,33 +52,12 @@ impl<'a> Executor<'a> {
         let checkpoint =
             OptionCheckpoint::new(build_path.data_dir.to_string(), checkpoint_options).await?;
 
-        let mut executor_endpoints = vec![];
-        for endpoint in endpoints {
-            let kind = match &endpoint.config {
-                EndpointKind::Dummy => ExecutorEndpointKind::Dummy,
-                EndpointKind::Aerospike(config) => ExecutorEndpointKind::Aerospike {
-                    config: config.clone(),
-                },
-                EndpointKind::Oracle(config) => ExecutorEndpointKind::Oracle {
-                    config: config.clone(),
-                },
-                EndpointKind::Clickhouse(config) => ExecutorEndpointKind::Clickhouse {
-                    config: config.clone(),
-                },
-            };
-
-            executor_endpoints.push(ExecutorEndpoint {
-                table_name: endpoint.table_name.clone(),
-                kind,
-            });
-        }
-
         Ok(Executor {
             connections,
             sources,
             sql,
             checkpoint,
-            endpoints: executor_endpoints,
+            sinks,
             labels,
             udfs,
         })
@@ -111,27 +74,7 @@ impl<'a> Executor<'a> {
             self.connections,
             self.sources,
             self.sql,
-            self.endpoints
-                .into_iter()
-                .map(|endpoint| {
-                    let kind = match endpoint.kind {
-                        ExecutorEndpointKind::Dummy => EndpointLogKind::Dummy,
-                        ExecutorEndpointKind::Aerospike { config } => {
-                            EndpointLogKind::Aerospike { config }
-                        }
-                        ExecutorEndpointKind::Clickhouse { config } => {
-                            EndpointLogKind::Clickhouse { config }
-                        }
-                        ExecutorEndpointKind::Oracle { config } => {
-                            EndpointLogKind::Oracle { config }
-                        }
-                    };
-                    EndpointLog {
-                        table_name: endpoint.table_name,
-                        kind,
-                    }
-                })
-                .collect(),
+            self.sinks,
             self.labels.clone(),
             flags,
             self.udfs,

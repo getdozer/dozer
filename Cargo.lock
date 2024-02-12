@@ -1853,7 +1853,7 @@ checksum = "c688fc74432808e3eb684cae8830a86be1d66a2bd58e1f248ed0960a590baf6f"
 dependencies = [
  "glob",
  "libc",
- "libloading 0.7.4",
+ "libloading",
 ]
 
 [[package]]
@@ -3106,7 +3106,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c9e0cec067666532325b57fb1bf437e13da86760f87394d833df91988546bf80"
 dependencies = [
  "deno_core",
- "libloading 0.7.4",
+ "libloading",
 ]
 
 [[package]]
@@ -3627,11 +3627,9 @@ dependencies = [
  "bytes",
  "chrono",
  "criterion",
- "dozer-cli",
  "dozer-ingestion-aerospike",
  "dozer-ingestion-connector",
  "dozer-ingestion-deltalake",
- "dozer-ingestion-dozer",
  "dozer-ingestion-ethereum",
  "dozer-ingestion-grpc",
  "dozer-ingestion-javascript",
@@ -3682,14 +3680,6 @@ dependencies = [
  "deltalake",
  "dozer-ingestion-connector",
  "dozer-ingestion-object-store",
-]
-
-[[package]]
-name = "dozer-ingestion-dozer"
-version = "0.3.0"
-dependencies = [
- "dozer-ingestion-connector",
- "dozer-log",
 ]
 
 [[package]]
@@ -3839,24 +3829,6 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tokio-util 0.7.10",
-]
-
-[[package]]
-name = "dozer-log-js"
-version = "0.3.0"
-dependencies = [
- "dozer-log",
- "dozer-types",
- "neon",
-]
-
-[[package]]
-name = "dozer-log-python"
-version = "0.3.0"
-dependencies = [
- "dozer-log",
- "dozer-types",
- "pyo3-asyncio",
 ]
 
 [[package]]
@@ -5910,16 +5882,6 @@ dependencies = [
 
 [[package]]
 name = "libloading"
-version = "0.6.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "351a32417a12d5f7e82c368a66781e307834dae04c6ce0cd4456d52989229883"
-dependencies = [
- "cfg-if",
- "winapi",
-]
-
-[[package]]
-name = "libloading"
 version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b67380fd3b2fbe7527a606e18729d21c6f3951633d0500574c4dc22d2d638b9f"
@@ -6535,47 +6497,6 @@ name = "ndk-context"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "27b02d87554356db9e9a873add8782d4ea6e3e58ea071a9adb9a2e8ddb884a8b"
-
-[[package]]
-name = "neon"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "28e15415261d880aed48122e917a45e87bb82cf0260bb6db48bbab44b7464373"
-dependencies = [
- "neon-build",
- "neon-macros",
- "neon-runtime",
- "semver 0.9.0",
- "smallvec",
-]
-
-[[package]]
-name = "neon-build"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8bac98a702e71804af3dacfde41edde4a16076a7bbe889ae61e56e18c5b1c811"
-
-[[package]]
-name = "neon-macros"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b7288eac8b54af7913c60e0eb0e2a7683020dffa342ab3fd15e28f035ba897cf"
-dependencies = [
- "quote 1.0.35",
- "syn 1.0.109",
- "syn-mid",
-]
-
-[[package]]
-name = "neon-runtime"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4676720fa8bb32c64c3d9f49c47a47289239ec46b4bdb66d0913cc512cb0daca"
-dependencies = [
- "cfg-if",
- "libloading 0.6.7",
- "smallvec",
-]
 
 [[package]]
 name = "netif"
@@ -8125,19 +8046,6 @@ dependencies = [
  "pyo3-ffi",
  "pyo3-macros",
  "unindent",
-]
-
-[[package]]
-name = "pyo3-asyncio"
-version = "0.18.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d3564762e37035cfc486228e10b0528460fa026d681b5763873c693aa0d5c260"
-dependencies = [
- "futures",
- "once_cell",
- "pin-project-lite",
- "pyo3",
- "tokio",
 ]
 
 [[package]]

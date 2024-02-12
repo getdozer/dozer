@@ -2,7 +2,7 @@ use crate::ClickhouseSinkError::SinkTableDoesNotExist;
 use crate::{ddl, ClickhouseSinkError};
 use clickhouse::{Client, Row};
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::models::endpoint::ClickhouseSinkConfig;
+use dozer_types::models::sink::ClickhouseSinkConfig;
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::types::{FieldType, Schema};
 

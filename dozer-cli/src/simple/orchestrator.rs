@@ -2,7 +2,7 @@ use super::executor::{run_dag_executor, Executor};
 use super::Contract;
 use crate::errors::{BuildError, OrchestrationError};
 use crate::pipeline::connector_source::ConnectorSourceFactoryError;
-use crate::pipeline::{EndpointLog, EndpointLogKind, PipelineBuilder};
+use crate::pipeline::PipelineBuilder;
 use crate::simple::build;
 use crate::simple::helper::validate_config;
 use crate::utils::{get_checkpoint_options, get_executor_options};
@@ -15,8 +15,6 @@ use dozer_log::camino::Utf8PathBuf;
 use dozer_log::home_dir::{BuildId, HomeDir};
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::constants::LOCK_FILE;
-use dozer_types::models::endpoint::EndpointKind;
-use dozer_types::models::flags::default_push_events;
 use futures::future::{select, Either};
 
 use crate::console_helper::get_colored_text;
@@ -174,33 +172,11 @@ impl SimpleOrchestrator {
         }
         validate_config(&self.config)?;
 
-        // Calculate schemas.
-        let endpoint_and_logs = self
-            .config
-            .sinks
-            .iter()
-            // We're not really going to run the pipeline, so we don't create logs.
-            .map(|endpoint| EndpointLog {
-                table_name: endpoint.table_name.clone(),
-                kind: match endpoint.config.clone() {
-                    EndpointKind::Dummy => EndpointLogKind::Dummy,
-                    EndpointKind::Aerospike(config) => EndpointLogKind::Aerospike {
-                        config: config.to_owned(),
-                    },
-                    EndpointKind::Clickhouse(config) => EndpointLogKind::Clickhouse {
-                        config: config.to_owned(),
-                    },
-                    EndpointKind::Oracle(config) => EndpointLogKind::Oracle {
-                        config: config.to_owned(),
-                    },
-                },
-            })
-            .collect();
         let builder = PipelineBuilder::new(
             &self.config.connections,
             &self.config.sources,
             self.config.sql.as_deref(),
-            endpoint_and_logs,
+            &self.config.sinks,
             self.labels.clone(),
             self.config.flags.clone(),
             &self.config.udfs,
@@ -210,22 +186,9 @@ impl SimpleOrchestrator {
         let dag_schemas = DagSchemas::new(dag).await?;
 
         // Get current contract.
-        let enable_token = self.config.api.api_security.is_some();
-        let enable_on_event = self
-            .config
-            .flags
-            .push_events
-            .unwrap_or_else(default_push_events);
         let version = self.config.version as usize;
 
-        let contract = build::Contract::new(
-            version,
-            &dag_schemas,
-            &self.config.connections,
-            &self.config.sinks,
-            enable_token,
-            enable_on_event,
-        )?;
+        let contract = build::Contract::new(version, &dag_schemas, &self.config.connections)?;
 
         let contract_path = self.lockfile_path();
         if locked {

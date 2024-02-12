@@ -2,7 +2,7 @@ use std::path::Path;
 
 use super::{
     api_config::ApiConfig, app_config::AppConfig, cloud::Cloud, connection::Connection,
-    endpoint::Endpoint, equal_default, flags::Flags, lambda_config::LambdaConfig, source::Source,
+    equal_default, flags::Flags, lambda_config::LambdaConfig, sink::Sink, source::Source,
     telemetry::TelemetryConfig,
 };
 use crate::constants::DEFAULT_HOME_DIR;
@@ -37,8 +37,8 @@ pub struct Config {
     pub sources: Vec<Source>,
 
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    /// api endpoints to expose
-    pub sinks: Vec<Endpoint>,
+    /// sinks to output data to
+    pub sinks: Vec<Sink>,
 
     #[serde(default, skip_serializing_if = "equal_default")]
     /// Api server config related: port, host, etc

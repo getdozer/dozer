@@ -16,7 +16,6 @@ use dozer_types::{
     models::{
         api_config::{ApiConfig, AppGrpcOptions, GrpcApiOptions, RestApiOptions},
         api_security::ApiSecurity,
-        endpoint::EndpointKind,
         flags::Flags,
     },
 };
@@ -27,7 +26,7 @@ use super::AppUIError;
 use crate::{
     cli::{init_config, init_dozer, types::Cli},
     errors::OrchestrationError,
-    pipeline::{EndpointLog, EndpointLogKind, PipelineBuilder},
+    pipeline::PipelineBuilder,
     simple::{helper::validate_config, Contract, SimpleOrchestrator},
 };
 struct DozerAndContract {
@@ -163,14 +162,6 @@ impl AppUIState {
                 .into_iter()
                 .collect();
 
-            let endpoints = dozer
-                .dozer
-                .config
-                .sinks
-                .iter()
-                .map(|endpoint| endpoint.table_name.clone())
-                .collect();
-
             let enable_api_security = std::env::var("DOZER_MASTER_SECRET")
                 .ok()
                 .map(ApiSecurity::Jwt)
@@ -180,7 +171,7 @@ impl AppUIState {
             AppUi {
                 app_name: dozer.dozer.config.app_name.clone(),
                 connections: connections_in_source,
-                endpoints,
+                endpoints: vec![],
                 enable_api_security,
             }
         });
@@ -192,14 +183,21 @@ impl AppUIState {
         }
     }
 
-    pub async fn get_endpoints_schemas(&self) -> Result<SchemasResponse, AppUIError> {
+    pub async fn get_sink_table_schemas(
+        &self,
+        sink_name: String,
+    ) -> Result<SchemasResponse, AppUIError> {
         self.create_contract_if_missing().await?;
         let dozer = self.dozer.read().await;
         let contract = get_contract(&dozer)?;
-        Ok(SchemasResponse {
-            schemas: contract.get_endpoints_schemas(),
-            errors: HashMap::new(),
-        })
+
+        contract
+            .get_sink_table_schemas(&sink_name)
+            .ok_or(AppUIError::SinkNotFound(sink_name))
+            .map(|schemas| SchemasResponse {
+                schemas,
+                errors: HashMap::new(),
+            })
     }
     pub async fn get_source_schemas(
         &self,
@@ -295,45 +293,16 @@ pub async fn create_contract(dozer: SimpleOrchestrator) -> Result<Contract, Orch
     let dag = create_dag(&dozer).await?;
     let version = dozer.config.version;
     let schemas = DagSchemas::new(dag).await?;
-    let contract = Contract::new(
-        version as usize,
-        &schemas,
-        &dozer.config.connections,
-        &dozer.config.sinks,
-        // We don't care about API generation options here. They are handled in `run_all`.
-        false,
-        true,
-    )?;
+    let contract = Contract::new(version as usize, &schemas, &dozer.config.connections)?;
     Ok(contract)
 }
 
 pub async fn create_dag(dozer: &SimpleOrchestrator) -> Result<Dag, OrchestrationError> {
-    let endpoint_and_logs = dozer
-        .config
-        .sinks
-        .iter()
-        // We're not really going to run the pipeline, so we don't create logs.
-        .map(|endpoint| EndpointLog {
-            table_name: endpoint.table_name.clone(),
-            kind: match &endpoint.config.clone() {
-                EndpointKind::Dummy => EndpointLogKind::Dummy,
-                EndpointKind::Aerospike(config) => EndpointLogKind::Aerospike {
-                    config: config.clone(),
-                },
-                EndpointKind::Clickhouse(config) => EndpointLogKind::Clickhouse {
-                    config: config.clone(),
-                },
-                EndpointKind::Oracle(config) => EndpointLogKind::Oracle {
-                    config: config.clone(),
-                },
-            },
-        })
-        .collect();
     let builder = PipelineBuilder::new(
         &dozer.config.connections,
         &dozer.config.sources,
         dozer.config.sql.as_deref(),
-        endpoint_and_logs,
+        &dozer.config.sinks,
         Default::default(),
         Flags::default(),
         &dozer.config.udfs,

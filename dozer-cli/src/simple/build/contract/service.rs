@@ -39,11 +39,29 @@ impl Contract {
         None
     }
 
-    pub fn get_endpoints_schemas(&self) -> HashMap<String, Schema> {
-        self.endpoints
-            .iter()
-            .map(|(name, endpoint)| (name.clone(), map_schema(endpoint.schema.clone())))
-            .collect()
+    pub fn get_sink_table_schemas(&self, sink_name: &str) -> Option<HashMap<String, Schema>> {
+        // Find the sink node.
+        for (node_index, node) in self.pipeline.0.node_references() {
+            if let NodeKind::Sink { port_names, .. } = &node.kind {
+                if node.handle.id == sink_name {
+                    let mut result = HashMap::new();
+                    for edge in self
+                        .pipeline
+                        .0
+                        .edges_directed(node_index, Direction::Incoming)
+                    {
+                        let edge = edge.weight();
+                        let name = port_names
+                            .get(&edge.to_port)
+                            .expect("Every port name must have been added")
+                            .clone();
+                        let schema = edge.schema.clone();
+                        result.insert(name, map_schema(schema));
+                    }
+                }
+            }
+        }
+        None
     }
 
     pub fn get_graph_schemas(&self) -> HashMap<String, Schema> {
@@ -67,6 +85,7 @@ impl Contract {
         let mut ui_graph = UiGraph::new();
         let mut pipeline_node_index_to_ui_node_index = HashMap::new();
         let mut pipeline_source_to_ui_node_index = HashMap::new();
+        let mut pipeline_sink_table_to_ui_node_index = HashMap::new();
 
         // Create nodes.
         for (node_index, node) in self.pipeline.0.node_references() {
@@ -126,17 +145,34 @@ impl Contract {
                     });
                     pipeline_node_index_to_ui_node_index.insert(node_index, processor_node_index);
                 }
-                NodeKind::Sink { typ } => {
-                    // Create sink ui node. Schema comes from endpoint.
-                    let schema = self.endpoints[&node.handle.id].schema.clone();
+                NodeKind::Sink { typ, port_names } => {
+                    // Create sink ui node.
                     let sink_node_index = ui_graph.add_node(UiNodeType {
                         kind: UiNodeKind::Sink {
                             name: node.handle.id.clone(),
                             typ: typ.clone(),
                         },
-                        output_schema: Some(map_schema(schema)),
+                        output_schema: None,
                     });
                     pipeline_node_index_to_ui_node_index.insert(node_index, sink_node_index);
+
+                    // Create sink table ui node. Schema comes from sink's ingoing edge.
+                    for edge in self
+                        .pipeline
+                        .0
+                        .edges_directed(node_index, Direction::Incoming)
+                    {
+                        let edge = edge.weight();
+                        let schema = edge.schema.clone();
+                        let sink_table_node_index = ui_graph.add_node(UiNodeType {
+                            kind: UiNodeKind::SinkTable {
+                                name: port_names[&edge.to_port].clone(),
+                            },
+                            output_schema: Some(map_schema(schema)),
+                        });
+                        pipeline_sink_table_to_ui_node_index
+                            .insert((node_index, edge.to_port), sink_table_node_index);
+                    }
                 }
             }
         }
@@ -149,8 +185,7 @@ impl Contract {
             let to_ui_node_index = pipeline_node_index_to_ui_node_index[&to_node_index];
 
             let from_node = &self.pipeline.0[from_node_index];
-            let kind = &from_node.kind;
-            match &kind {
+            let from_ui_node_index = match &from_node.kind {
                 NodeKind::Source { .. } => {
                     let ui_source_node_index = pipeline_source_to_ui_node_index
                         [&(from_node_index, edge.weight().from_port)];
@@ -158,18 +193,29 @@ impl Contract {
                     ui_graph
                         .add_edge(from_ui_node_index, ui_source_node_index, UiEdgeType)
                         .unwrap();
-                    // Connect ui source node to target node.
-                    ui_graph
-                        .add_edge(ui_source_node_index, to_ui_node_index, UiEdgeType)
-                        .unwrap();
+                    ui_source_node_index
                 }
-                _ => {
-                    // Connect ui node to target node.
+                _ => pipeline_node_index_to_ui_node_index[&from_node_index],
+            };
+
+            let to_node = &self.pipeline.0[to_node_index];
+            let to_ui_node_index = match &to_node.kind {
+                NodeKind::Sink { .. } => {
+                    let ui_sink_table_node_index = pipeline_sink_table_to_ui_node_index
+                        [&(to_node_index, edge.weight().to_port)];
+                    // Connect ui sink table node to ui sink node.
                     ui_graph
-                        .add_edge(from_ui_node_index, to_ui_node_index, UiEdgeType)
+                        .add_edge(ui_sink_table_node_index, to_ui_node_index, UiEdgeType)
                         .unwrap();
+                    ui_sink_table_node_index
                 }
-            }
+                _ => pipeline_node_index_to_ui_node_index[&to_node_index],
+            };
+
+            // Connect ui node.
+            ui_graph
+                .add_edge(from_ui_node_index, to_ui_node_index, UiEdgeType)
+                .unwrap();
         }
 
         remove_from_processor(&ui_graph)
@@ -194,6 +240,7 @@ enum UiNodeKind {
     Source { name: String },
     Processor { typ: String, name: String },
     Sink { typ: String, name: String },
+    SinkTable { name: String },
 }
 
 impl Display for UiNodeKind {
@@ -203,6 +250,7 @@ impl Display for UiNodeKind {
             UiNodeKind::Source { name } => write!(f, "source::source::{name}"),
             UiNodeKind::Processor { typ, name } => write!(f, "processor::{typ}::{name}"),
             UiNodeKind::Sink { typ, name } => write!(f, "sink::{typ}::{name}"),
+            UiNodeKind::SinkTable { name } => write!(f, "sink::table::{name}"),
         }
     }
 }

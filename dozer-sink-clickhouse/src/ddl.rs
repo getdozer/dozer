@@ -1,5 +1,5 @@
 use dozer_types::log::warn;
-use dozer_types::models::endpoint::ClickhouseSinkTableOptions;
+use dozer_types::models::sink::ClickhouseSinkTableOptions;
 use dozer_types::types::{FieldDefinition, FieldType, Schema};
 
 pub struct ClickhouseDDL {}

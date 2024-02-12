@@ -36,6 +36,10 @@ impl SinkFactory for CountingSinkFactory {
         vec![COUNTING_SINK_INPUT_PORT]
     }
 
+    fn get_input_port_name(&self, _port: &PortHandle) -> String {
+        "counting".to_string()
+    }
+
     fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), BoxedError> {
         Ok(())
     }
@@ -120,6 +124,10 @@ impl SinkFactory for ConnectivityTestSinkFactory {
         vec![DEFAULT_PORT_HANDLE]
     }
 
+    fn get_input_port_name(&self, _port: &PortHandle) -> String {
+        "test".to_string()
+    }
+
     fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), BoxedError> {
         unimplemented!("This struct is for connectivity test, only input ports are defined")
     }
@@ -143,6 +151,10 @@ pub struct NoInputPortSinkFactory;
 impl SinkFactory for NoInputPortSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![]
+    }
+
+    fn get_input_port_name(&self, _port: &PortHandle) -> String {
+        panic!("No input ports defined")
     }
 
     fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), BoxedError> {

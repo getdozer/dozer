@@ -70,12 +70,12 @@ pub enum OrchestrationError {
     ConnectionNotFound(String),
     #[error("Pipeline validation failed")]
     PipelineValidationError,
-    #[error("Output table {0} not used in any endpoint")]
+    #[error("Output table {0} not used in any sink")]
     OutputTableNotUsed(String),
-    #[error("Table name specified in endpoint not found: {0:?}")]
-    EndpointTableNotFound(String),
-    #[error("No endpoints initialized in the config provided")]
-    EmptyEndpoints,
+    #[error("Table name specified in sink not found: {0:?}")]
+    SinkTableNotFound(String),
+    #[error("No sinks initialized in the config provided")]
+    EmptySinks,
     #[error(transparent)]
     CloudContextError(#[from] CloudContextError),
     #[error("Failed to read organisation name. Error: {0}")]

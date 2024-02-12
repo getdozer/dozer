@@ -1,4 +1,4 @@
-use crate::models::endpoint::{FullText, SecondaryIndex, SecondaryIndexConfig, SortedInverted};
+use crate::models::sink::{FullText, SecondaryIndex, SecondaryIndexConfig, SortedInverted};
 
 #[test]
 fn standard() {

@@ -1,6 +1,7 @@
 use crossbeam_channel::{bounded, Receiver, Sender};
 use dozer_types::json_types::{DestructuredJsonRef, JsonValue};
 use dozer_types::models::connection::AerospikeConnection;
+use dozer_types::models::sink::DenormColumn;
 use dozer_types::node::OpIdentifier;
 use std::alloc::{handle_alloc_error, Layout};
 use std::ffi::{c_char, c_void, CStr, CString, NulError};
@@ -45,7 +46,7 @@ use dozer_types::tonic::async_trait;
 use dozer_types::{
     errors::types::TypeError,
     log::{error, info, warn},
-    models::endpoint::AerospikeSinkConfig,
+    models::sink::AerospikeSinkConfig,
     thiserror::{self, Error},
     types::{
         DozerDuration, DozerPoint, Field, FieldType, Operation, Record, Schema, TableOperation,
@@ -261,11 +262,15 @@ impl AerospikeSinkFactory {
 #[async_trait]
 impl SinkFactory for AerospikeSinkFactory {
     fn get_input_ports(&self) -> Vec<PortHandle> {
-        vec![DEFAULT_PORT_HANDLE]
+        (0..self.config.tables.len() as PortHandle).collect()
+    }
+
+    fn get_input_port_name(&self, port: &PortHandle) -> String {
+        self.config.tables[*port as usize].source_table_name.clone()
     }
 
     fn prepare(&self, input_schemas: HashMap<PortHandle, Schema>) -> Result<(), BoxedError> {
-        debug_assert!(input_schemas.len() == 1);
+        debug_assert!(input_schemas.len() == self.config.tables.len());
         Ok(())
     }
 
@@ -275,54 +280,6 @@ impl SinkFactory for AerospikeSinkFactory {
     ) -> Result<Box<dyn dozer_core::node::Sink>, BoxedError> {
         let hosts = CString::new(self.connection_config.hosts.as_str())?;
         let client = Client::new(&hosts).map_err(AerospikeSinkError::from)?;
-        debug_assert_eq!(input_schemas.len(), 1);
-        let schema = input_schemas.remove(&DEFAULT_PORT_HANDLE).unwrap();
-        let primary_index = match schema.primary_index.len() {
-            1 => schema.primary_index[0],
-            0 => return Err(AerospikeSinkError::NoPrimaryKey.into()),
-            _ => return Err(AerospikeSinkError::CompositePrimaryKey.into()),
-        };
-        match schema.fields[primary_index].typ {
-            // These are definitely OK as the primary key
-            dozer_types::types::FieldType::UInt
-            | dozer_types::types::FieldType::U128
-            | dozer_types::types::FieldType::Int
-            | dozer_types::types::FieldType::I128
-            | dozer_types::types::FieldType::String
-            | dozer_types::types::FieldType::Text
-            | dozer_types::types::FieldType::Duration
-            | dozer_types::types::FieldType::Binary => {}
-
-            // These are OK because we convert them to strings, so warn about
-            // them to make sure the user is aware
-            typ @ (dozer_types::types::FieldType::Decimal |
-            dozer_types::types::FieldType::Timestamp |
-            dozer_types::types::FieldType::Date) => warn!("Using a {typ} column as a primary key for Aerospike sink. This is only allowed because this type is converted to a String. Cast to another type explicitly to silence this warning."),
-
-            // These are not OK as keys, so error out
-            typ @ (dozer_types::types::FieldType::Float|
-            dozer_types::types::FieldType::Boolean |
-            dozer_types::types::FieldType::Json |
-            dozer_types::types::FieldType::Point ) =>  {
-                    return Err(Box::new(AerospikeSinkError::UnsupportedPrimaryKeyType(typ)));
-                }
-        }
-        for field in &schema.fields {
-            if field.name.len() > AS_BIN_NAME_MAX_LEN as usize {
-                return Err(AerospikeSinkError::BinNameTooLong(field.name.to_owned()).into());
-            }
-        }
-        let bin_names = schema
-            .fields
-            .iter()
-            .map(|field| {
-                if field.name.len() <= AS_BIN_NAME_MAX_LEN as usize {
-                    CString::new(field.name.clone()).map_err(AerospikeSinkError::NulError)
-                } else {
-                    Err(AerospikeSinkError::BinNameTooLong(field.name.to_owned()))
-                }
-            })
-            .collect::<Result<_, _>>()?;
         let n_threads = self
             .config
             .n_threads
@@ -331,14 +288,58 @@ impl SinkFactory for AerospikeSinkFactory {
                 warn!("Unable to automatically determine the correct amount of threads to use for Aerospike sink, so defaulting to 1.\nTo override, set `n_threads` in your Aerospike sink config");
                 NonZeroUsize::new(1).unwrap()
             });
-        Ok(Box::new(AerospikeSink::new(
-            client,
-            CString::new(self.config.set_name.clone())?,
-            CString::new(self.config.namespace.clone())?,
-            primary_index,
-            bin_names,
-            n_threads.into(),
-            self.config
+
+        let mut tables = vec![];
+        for (port, table) in self.config.tables.iter().enumerate() {
+            let schema = input_schemas.remove(&(port as PortHandle)).unwrap();
+            let primary_index = match schema.primary_index.len() {
+                1 => schema.primary_index[0],
+                0 => return Err(AerospikeSinkError::NoPrimaryKey.into()),
+                _ => return Err(AerospikeSinkError::CompositePrimaryKey.into()),
+            };
+            match schema.fields[primary_index].typ {
+                // These are definitely OK as the primary key
+                dozer_types::types::FieldType::UInt
+                | dozer_types::types::FieldType::U128
+                | dozer_types::types::FieldType::Int
+                | dozer_types::types::FieldType::I128
+                | dozer_types::types::FieldType::String
+                | dozer_types::types::FieldType::Text
+                | dozer_types::types::FieldType::Duration
+                | dozer_types::types::FieldType::Binary => {}
+
+                // These are OK because we convert them to strings, so warn about
+                // them to make sure the user is aware
+                typ @ (dozer_types::types::FieldType::Decimal |
+                dozer_types::types::FieldType::Timestamp |
+                dozer_types::types::FieldType::Date) => warn!("Using a {typ} column as a primary key for Aerospike sink. This is only allowed because this type is converted to a String. Cast to another type explicitly to silence this warning."),
+
+                // These are not OK as keys, so error out
+                typ @ (dozer_types::types::FieldType::Float|
+                dozer_types::types::FieldType::Boolean |
+                dozer_types::types::FieldType::Json |
+                dozer_types::types::FieldType::Point ) =>  {
+                        return Err(Box::new(AerospikeSinkError::UnsupportedPrimaryKeyType(typ)));
+                    }
+            }
+            for field in &schema.fields {
+                if field.name.len() > AS_BIN_NAME_MAX_LEN as usize {
+                    return Err(AerospikeSinkError::BinNameTooLong(field.name.to_owned()).into());
+                }
+            }
+            let bin_names = schema
+                .fields
+                .iter()
+                .map(|field| {
+                    if field.name.len() <= AS_BIN_NAME_MAX_LEN as usize {
+                        CString::new(field.name.clone()).map_err(AerospikeSinkError::NulError)
+                    } else {
+                        Err(AerospikeSinkError::BinNameTooLong(field.name.to_owned()))
+                    }
+                })
+                .collect::<Result<_, _>>()?;
+
+            let denormalizations = table
                 .denormalize
                 .iter()
                 .map(|denorm| {
@@ -347,10 +348,8 @@ impl SinkFactory for AerospikeSinkFactory {
                         .iter()
                         .cloned()
                         .map(|col| match col {
-                            dozer_types::models::endpoint::DenormColumn::Direct(name) => {
-                                (name.clone(), name)
-                            }
-                            dozer_types::models::endpoint::DenormColumn::Renamed {
+                            DenormColumn::Direct(name) => (name.clone(), name),
+                            DenormColumn::Renamed {
                                 source,
                                 destination,
                             } => (source, destination),
@@ -363,7 +362,25 @@ impl SinkFactory for AerospikeSinkFactory {
                         &columns,
                     )
                 })
-                .collect::<Result<_, _>>()?,
+                .collect::<Result<Vec<_>, _>>()?;
+            let n_denormalization_cols = denormalizations
+                .iter()
+                .map(|denorm| denorm.columns.len() as u16)
+                .sum();
+
+            tables.push(AerospikeTable {
+                namespace: CString::new(table.namespace.clone())?,
+                set_name: CString::new(table.set_name.clone())?,
+                primary_index,
+                bin_names,
+                denormalizations,
+                n_denormalization_cols,
+            });
+        }
+        Ok(Box::new(AerospikeSink::new(
+            client,
+            tables,
+            n_threads.into(),
         )))
     }
 
@@ -469,33 +486,26 @@ impl Clone for Denormalization {
     }
 }
 
+#[derive(Debug, Clone)]
+struct AerospikeTable {
+    namespace: CString,
+    set_name: CString,
+    primary_index: usize,
+    bin_names: Vec<CString>,
+    denormalizations: Vec<Denormalization>,
+    n_denormalization_cols: u16,
+}
+
 impl AerospikeSink {
-    fn new(
-        client: Client,
-        set_name: CString,
-        namespace: CString,
-        primary_index: usize,
-        bin_names: Vec<CString>,
-        n_threads: usize,
-        denormalizations: Vec<Denormalization>,
-    ) -> Self {
+    fn new(client: Client, tables: Vec<AerospikeTable>, n_threads: usize) -> Self {
         let client = Arc::new(client);
         let mut workers = Vec::with_capacity(n_threads);
         let (sender, receiver) = bounded(n_threads);
-        let denorm_cols = denormalizations
-            .iter()
-            .map(|denorm| denorm.columns.len() as u16)
-            .sum();
         for _ in 0..n_threads {
             workers.push(AerospikeSinkWorker {
                 client: client.clone(),
                 receiver: receiver.clone(),
-                namespace: namespace.clone(),
-                set_name: set_name.clone(),
-                primary_index,
-                bin_names: bin_names.clone(),
-                denormalizations: denormalizations.clone(),
-                n_denormalization_cols: denorm_cols,
+                tables: tables.clone(),
             });
         }
         for mut worker in workers {
@@ -582,12 +592,7 @@ fn convert_json(value: &JsonValue) -> Result<*mut as_bin_value, AerospikeSinkErr
 struct AerospikeSinkWorker {
     client: Arc<Client>,
     receiver: Receiver<TableOperation>,
-    namespace: CString,
-    set_name: CString,
-    primary_index: usize,
-    bin_names: Vec<CString>,
-    denormalizations: Vec<Denormalization>,
-    n_denormalization_cols: u16,
+    tables: Vec<AerospikeTable>,
 }
 
 impl AerospikeSinkWorker {
@@ -734,11 +739,12 @@ impl AerospikeSinkWorker {
         &self,
         record: *mut as_record,
         dozer_record: &Record,
+        bin_names: &[CString],
         n_extra_cols: u16,
         allocated_strings: &mut Vec<String>,
     ) -> Result<(), AerospikeSinkError> {
         as_record_init(record, dozer_record.values.len() as u16 + n_extra_cols);
-        for (def, field) in self.bin_names.iter().zip(&dozer_record.values) {
+        for (def, field) in bin_names.iter().zip(&dozer_record.values) {
             let name = def.as_ptr();
             match field {
                 Field::UInt(v) => {
@@ -838,9 +844,10 @@ impl AerospikeSinkWorker {
         &self,
         ops: *mut as_operations,
         dozer_record: &Record,
+        bin_names: &[CString],
         allocated_strings: &mut Vec<String>,
     ) -> Result<(), AerospikeSinkError> {
-        for (def, field) in self.bin_names.iter().zip(&dozer_record.values) {
+        for (def, field) in bin_names.iter().zip(&dozer_record.values) {
             let name = def.as_ptr();
             // This is almost the same as the implementation for keys,
             // the key difference being that we don't have to allocate a new
@@ -924,7 +931,9 @@ impl AerospikeSinkWorker {
     }
 
     fn process_impl(&mut self, op: TableOperation) -> Result<(), AerospikeSinkError> {
-        if !self.denormalizations.is_empty() {
+        let table = &self.tables[op.port as usize];
+
+        if !table.denormalizations.is_empty() {
             if let Operation::BatchInsert { new } = op.op {
                 for rec in new.into_iter() {
                     self.process_impl(TableOperation {
@@ -956,16 +965,17 @@ impl AerospikeSinkWorker {
                 unsafe {
                     self.init_key(
                         key.as_mut_ptr(),
-                        &self.namespace,
-                        &self.set_name,
-                        &new.values[self.primary_index],
+                        &table.namespace,
+                        &table.set_name,
+                        &new.values[table.primary_index],
                         &mut allocated_strings,
                     )?;
                     let k = Key(key.assume_init_mut());
                     self.init_record(
                         _record.as_mut_ptr(),
                         &new,
-                        self.n_denormalization_cols,
+                        &table.bin_names,
+                        table.n_denormalization_cols,
                         &mut allocated_strings,
                     )?;
                     let mut record = AsRecord(_record.assume_init_mut());
@@ -975,7 +985,7 @@ impl AerospikeSinkWorker {
                         namespace,
                         set,
                         columns,
-                    } in &self.denormalizations
+                    } in &table.denormalizations
                     {
                         let mut _key = MaybeUninit::uninit();
                         self.init_key(
@@ -1026,9 +1036,9 @@ impl AerospikeSinkWorker {
                 unsafe {
                     self.init_key(
                         key.as_mut_ptr(),
-                        &self.namespace,
-                        &self.set_name,
-                        &old.values[self.primary_index],
+                        &table.namespace,
+                        &table.set_name,
+                        &old.values[table.primary_index],
                         &mut allocated_strings,
                     )?;
                     let k = Key(key.assume_init_mut());
@@ -1041,13 +1051,19 @@ impl AerospikeSinkWorker {
                 unsafe {
                     self.init_key(
                         key.as_mut_ptr(),
-                        &self.namespace,
-                        &self.set_name,
-                        &old.values[self.primary_index],
+                        &table.namespace,
+                        &table.set_name,
+                        &old.values[table.primary_index],
                         &mut allocated_strings,
                     )?;
                     let k = Key(key.assume_init_mut());
-                    self.init_record(record.as_mut_ptr(), &new, 0, &mut allocated_strings)?;
+                    self.init_record(
+                        record.as_mut_ptr(),
+                        &new,
+                        &table.bin_names,
+                        0,
+                        &mut allocated_strings,
+                    )?;
                     let mut r = AsRecord(record.assume_init_mut());
                     self.client.update(k.as_ptr(), r.as_mut_ptr())?;
                 }
@@ -1071,13 +1087,13 @@ impl AerospikeSinkWorker {
                         if ops.is_null() {
                             return Err(AerospikeSinkError::CreateRecordError);
                         }
-                        self.init_ops(ops, dozer_record, &mut allocated_strings)?;
+                        self.init_ops(ops, dozer_record, &table.bin_names, &mut allocated_strings)?;
                         (*record).ops = ops;
                         self.init_key(
                             &mut (*record).key as *mut as_key,
-                            &self.namespace,
-                            &self.set_name,
-                            &dozer_record.values[self.primary_index],
+                            &table.namespace,
+                            &table.set_name,
+                            &dozer_record.values[table.primary_index],
                             &mut allocated_strings,
                         )?;
                     }
@@ -1237,6 +1253,7 @@ mod tests {
 
     use dozer_types::{
         chrono::{DateTime, NaiveDate},
+        models::sink::AerospikeSinkTable,
         ordered_float::OrderedFloat,
         rust_decimal::Decimal,
         types::FieldDefinition,
@@ -1331,9 +1348,12 @@ mod tests {
             AerospikeSinkConfig {
                 connection: "".to_owned(),
                 n_threads: Some(1.try_into().unwrap()),
-                denormalize: vec![],
-                namespace: "test".into(),
-                set_name: set.to_owned(),
+                tables: vec![AerospikeSinkTable {
+                    source_table_name: "test".into(),
+                    namespace: "test".into(),
+                    set_name: set.to_owned(),
+                    denormalize: vec![],
+                }],
             },
         );
         factory

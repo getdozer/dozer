@@ -2,7 +2,7 @@ use crate::schema::ClickhouseSchema;
 use crate::ClickhouseSinkError;
 use clickhouse::Client;
 use dozer_log::tokio;
-use dozer_types::models::endpoint::ClickhouseSinkConfig;
+use dozer_types::models::sink::ClickhouseSinkConfig;
 use dozer_types::types::{FieldDefinition, FieldType, Schema};
 
 fn get_client() -> Client {
@@ -14,6 +14,7 @@ fn get_client() -> Client {
 
 fn get_sink_config() -> ClickhouseSinkConfig {
     ClickhouseSinkConfig {
+        source_table_name: "source_table".to_string(),
         sink_table_name: "sink_table".to_string(),
         create_table_options: None,
         primary_keys: Some(vec!["id".to_string()]),

@@ -96,21 +96,25 @@ pub struct LogReaderOptions {
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
 #[serde(deny_unknown_fields)]
-pub struct Endpoint {
-    /// name of the table in source database; Type: String
-    pub table_name: String,
-
-    /// endpoint kind
-    pub config: EndpointKind,
+pub struct Sink {
+    pub name: String,
+    pub config: SinkConfig,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
 #[serde(deny_unknown_fields)]
-pub enum EndpointKind {
-    Dummy,
+#[allow(clippy::large_enum_variant)]
+pub enum SinkConfig {
+    Dummy(DummySinkConfig),
     Aerospike(AerospikeSinkConfig),
     Clickhouse(ClickhouseSinkConfig),
     Oracle(OracleSinkConfig),
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct DummySinkConfig {
+    pub table_name: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, PartialEq, Eq)]
@@ -121,6 +125,7 @@ pub enum DenormColumn {
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct AerospikeDenormalizations {
     pub from_namespace: String,
     pub from_set: String,
@@ -128,41 +133,54 @@ pub struct AerospikeDenormalizations {
     pub columns: Vec<DenormColumn>,
 }
 
-#[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
-pub struct OracleSinkConfig {
-    pub connection: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
-pub struct AerospikeSinkConfig {
-    pub connection: String,
-    #[serde(default)]
-    pub n_threads: Option<NonZeroUsize>,
-    #[serde(default)]
-    pub denormalize: Vec<AerospikeDenormalizations>,
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct AerospikeSinkTable {
+    pub source_table_name: String,
     pub namespace: String,
     pub set_name: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub denormalize: Vec<AerospikeDenormalizations>,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct AerospikeSinkConfig {
+    pub connection: String,
+    pub n_threads: Option<NonZeroUsize>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tables: Vec<AerospikeSinkTable>,
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct ClickhouseSinkConfig {
     pub database_url: String,
     pub user: String,
     #[serde(default)]
     pub password: Option<String>,
     pub database: String,
+    pub source_table_name: String,
     pub sink_table_name: String,
     pub primary_keys: Option<Vec<String>>,
     pub create_table_options: Option<ClickhouseSinkTableOptions>,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct ClickhouseSinkTableOptions {
     pub engine: Option<String>,
     pub partition_by: Option<String>,
     pub sample_by: Option<String>,
     pub order_by: Option<Vec<String>>,
     pub cluster: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct OracleSinkConfig {
+    pub connection: String,
+    pub table_name: String,
 }
 
 pub fn default_log_reader_batch_size() -> u32 {

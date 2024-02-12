@@ -2,7 +2,7 @@ use dozer_types::{
     grpc_types::{
         contract::{
             contract_service_server::{ContractService, ContractServiceServer},
-            CommonRequest, DotResponse, SourcesRequest,
+            CommonRequest, DotResponse, SinkTablesRequest, SourcesRequest,
         },
         live::{
             code_service_server::{CodeService, CodeServiceServer},
@@ -44,13 +44,12 @@ impl ContractService for ContractServer {
         }
     }
 
-    async fn endpoints(
+    async fn sink_tables(
         &self,
-        _request: Request<CommonRequest>,
+        request: Request<SinkTablesRequest>,
     ) -> Result<Response<SchemasResponse>, Status> {
-        let state = self.state.clone();
-        let res = state.get_endpoints_schemas().await;
-
+        let req = request.into_inner();
+        let res = self.state.get_sink_table_schemas(req.sink_name).await;
         match res {
             Ok(res) => Ok(Response::new(res)),
             Err(e) => Err(Status::internal(e.to_string())),

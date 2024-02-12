@@ -37,13 +37,13 @@ impl AppPipeline {
         &mut self,
         proc: Box<dyn ProcessorFactory>,
         id: &str,
-        entry_point: Vec<PipelineEntryPoint>,
+        entry_points: Vec<PipelineEntryPoint>,
     ) {
         let handle = NodeHandle::new(None, id.to_string());
         self.processors.push((handle.clone(), proc));
 
-        for p in entry_point {
-            self.entry_points.push((handle.clone(), p));
+        for entry_point in entry_points {
+            self.entry_points.push((handle.clone(), entry_point));
         }
     }
 
@@ -51,13 +51,13 @@ impl AppPipeline {
         &mut self,
         sink: Box<dyn SinkFactory>,
         id: &str,
-        entry_point: Option<PipelineEntryPoint>,
+        entry_points: Vec<PipelineEntryPoint>,
     ) {
         let handle = NodeHandle::new(None, id.to_string());
         self.sinks.push((handle.clone(), sink));
 
-        if let Some(entry_point) = entry_point {
-            self.entry_points.push((handle, entry_point));
+        for entry_point in entry_points {
+            self.entry_points.push((handle.clone(), entry_point));
         }
     }
 

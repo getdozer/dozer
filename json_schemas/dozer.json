@@ -82,10 +82,10 @@
       }
     },
     "sinks": {
-      "description": "api endpoints to expose",
+      "description": "sinks to output data to",
       "type": "array",
       "items": {
-        "$ref": "#/definitions/Endpoint"
+        "$ref": "#/definitions/Sink"
       }
     },
     "sources": {
@@ -197,28 +197,19 @@
         "key": {
           "type": "string"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "AerospikeSinkConfig": {
       "type": "object",
       "required": [
-        "connection",
-        "namespace",
-        "set_name"
+        "connection"
       ],
       "properties": {
         "connection": {
           "type": "string"
         },
-        "denormalize": {
-          "default": [],
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/AerospikeDenormalizations"
-          }
-        },
         "n_threads": {
-          "default": null,
           "type": [
             "integer",
             "null"
@@ -226,13 +217,40 @@
           "format": "uint",
           "minimum": 1.0
         },
+        "tables": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/AerospikeSinkTable"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "AerospikeSinkTable": {
+      "type": "object",
+      "required": [
+        "namespace",
+        "set_name",
+        "source_table_name"
+      ],
+      "properties": {
+        "denormalize": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/AerospikeDenormalizations"
+          }
+        },
         "namespace": {
           "type": "string"
         },
         "set_name": {
           "type": "string"
+        },
+        "source_table_name": {
+          "type": "string"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ApiConfig": {
       "type": "object",
@@ -441,6 +459,7 @@
         "database",
         "database_url",
         "sink_table_name",
+        "source_table_name",
         "user"
       ],
       "properties": {
@@ -479,10 +498,14 @@
         "sink_table_name": {
           "type": "string"
         },
+        "source_table_name": {
+          "type": "string"
+        },
         "user": {
           "type": "string"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ClickhouseSinkTableOptions": {
       "type": "object",
@@ -520,7 +543,8 @@
             "null"
           ]
         }
-      }
+      },
+      "additionalProperties": false
     },
     "Cloud": {
       "type": "object",
@@ -726,19 +750,6 @@
           "additionalProperties": false
         },
         {
-          "description": "In yaml, present as tag\" `!Dozer`",
-          "type": "object",
-          "required": [
-            "Dozer"
-          ],
-          "properties": {
-            "Dozer": {
-              "$ref": "#/definitions/NestedDozerConfig"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
           "description": "In yaml, present as tag\" `!JavaScript`",
           "type": "object",
           "required": [
@@ -920,6 +931,18 @@
       },
       "additionalProperties": false
     },
+    "DummySinkConfig": {
+      "type": "object",
+      "required": [
+        "table_name"
+      ],
+      "properties": {
+        "table_name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
     "EnableProbabilisticOptimizations": {
       "type": "object",
       "properties": {
@@ -946,74 +969,6 @@
         }
       },
       "additionalProperties": false
-    },
-    "Endpoint": {
-      "type": "object",
-      "required": [
-        "config",
-        "table_name"
-      ],
-      "properties": {
-        "config": {
-          "description": "endpoint kind",
-          "allOf": [
-            {
-              "$ref": "#/definitions/EndpointKind"
-            }
-          ]
-        },
-        "table_name": {
-          "description": "name of the table in source database; Type: String",
-          "type": "string"
-        }
-      },
-      "additionalProperties": false
-    },
-    "EndpointKind": {
-      "oneOf": [
-        {
-          "type": "string",
-          "enum": [
-            "Dummy"
-          ]
-        },
-        {
-          "type": "object",
-          "required": [
-            "Aerospike"
-          ],
-          "properties": {
-            "Aerospike": {
-              "$ref": "#/definitions/AerospikeSinkConfig"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "Clickhouse"
-          ],
-          "properties": {
-            "Clickhouse": {
-              "$ref": "#/definitions/ClickhouseSinkConfig"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "Oracle"
-          ],
-          "properties": {
-            "Oracle": {
-              "$ref": "#/definitions/OracleSinkConfig"
-            }
-          },
-          "additionalProperties": false
-        }
-      ]
     },
     "EthConfig": {
       "examples": [
@@ -1474,49 +1429,6 @@
         }
       }
     },
-    "NestedDozerConfig": {
-      "type": "object",
-      "required": [
-        "url"
-      ],
-      "properties": {
-        "log_options": {
-          "$ref": "#/definitions/NestedDozerLogOptions"
-        },
-        "url": {
-          "type": "string"
-        }
-      }
-    },
-    "NestedDozerLogOptions": {
-      "type": "object",
-      "properties": {
-        "batch_size": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint32",
-          "minimum": 0.0
-        },
-        "buffer_size": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint32",
-          "minimum": 0.0
-        },
-        "timeout_in_millis": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint32",
-          "minimum": 0.0
-        }
-      }
-    },
     "OnnxConfig": {
       "type": "object",
       "required": [
@@ -1621,13 +1533,18 @@
     "OracleSinkConfig": {
       "type": "object",
       "required": [
-        "connection"
+        "connection",
+        "table_name"
       ],
       "properties": {
         "connection": {
           "type": "string"
+        },
+        "table_name": {
+          "type": "string"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ParquetConfig": {
       "type": "object",
@@ -1902,6 +1819,74 @@
         }
       },
       "additionalProperties": false
+    },
+    "Sink": {
+      "type": "object",
+      "required": [
+        "config",
+        "name"
+      ],
+      "properties": {
+        "config": {
+          "$ref": "#/definitions/SinkConfig"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "SinkConfig": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "Dummy"
+          ],
+          "properties": {
+            "Dummy": {
+              "$ref": "#/definitions/DummySinkConfig"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Aerospike"
+          ],
+          "properties": {
+            "Aerospike": {
+              "$ref": "#/definitions/AerospikeSinkConfig"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Clickhouse"
+          ],
+          "properties": {
+            "Clickhouse": {
+              "$ref": "#/definitions/ClickhouseSinkConfig"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Oracle"
+          ],
+          "properties": {
+            "Oracle": {
+              "$ref": "#/definitions/OracleSinkConfig"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
     },
     "SnowflakeConfig": {
       "examples": [

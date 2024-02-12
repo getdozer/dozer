@@ -6,7 +6,7 @@ import "types.proto";
 
 service ContractService {
   rpc Sources(SourcesRequest) returns (dozer.types.SchemasResponse);
-  rpc Endpoints(CommonRequest) returns (dozer.types.SchemasResponse);
+  rpc SinkTables(SinkTablesRequest) returns (dozer.types.SchemasResponse);
   rpc GenerateDot(CommonRequest) returns (DotResponse);
   rpc GetGraphSchemas(CommonRequest) returns (dozer.types.SchemasResponse);
 }
@@ -20,6 +20,12 @@ message SourcesRequest {
   // Only used in cloud context.
   optional CloudVersionId cloud_id = 1;
   string connection_name = 2;
+}
+
+message SinkTablesRequest {
+  // Only used in cloud context.
+  optional CloudVersionId cloud_id = 1;
+  string sink_name = 2;
 }
   
 message CommonRequest {
