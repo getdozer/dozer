@@ -4,7 +4,6 @@ use std::{
     path::Path,
 };
 
-use dozer_cache::dozer_log::schemas::EndpointSchema;
 use dozer_core::{
     dag_schemas::DagSchemas,
     daggy::{self, NodeIndex},
@@ -15,6 +14,7 @@ use dozer_core::{
         Direction,
     },
 };
+use dozer_log::schemas::EndpointSchema;
 use dozer_types::{
     models::{
         connection::Connection,

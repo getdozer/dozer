@@ -12,7 +12,7 @@ name = "dozer"
 [dependencies]
 dozer-ingestion = { path = "../dozer-ingestion" }
 dozer-core = { path = "../dozer-core" }
-dozer-cache = { path = "../dozer-cache" }
+dozer-log = { path = "../dozer-log" }
 dozer-sql = { path = "../dozer-sql" }
 dozer-types = { path = "../dozer-types" }
 dozer-tracing = { path = "../dozer-tracing" }

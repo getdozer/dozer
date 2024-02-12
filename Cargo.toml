@@ -6,7 +6,6 @@ members = [
   "dozer-core",
   "dozer-cli",
   "dozer-sql",
-  "dozer-cache",
   "dozer-tracing",
   "dozer-tests",
   "dozer-log",

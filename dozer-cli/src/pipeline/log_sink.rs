@@ -1,13 +1,13 @@
 use std::{collections::HashMap, fmt::Debug, ops::Deref, sync::Arc};
 
-use dozer_cache::dozer_log::{
-    replication::{Log, LogOperation},
-    storage::Queue,
-};
 use dozer_core::{
     epoch::Epoch,
     node::{PortHandle, Sink, SinkFactory},
     DEFAULT_PORT_HANDLE,
+};
+use dozer_log::{
+    replication::{Log, LogOperation},
+    storage::Queue,
 };
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::types::Schema;
@@ -93,7 +93,7 @@ impl Sink for LogSink {
         let end = self
             .runtime
             .block_on(self.log.lock())
-            .write(dozer_cache::dozer_log::replication::LogOperation::Op { op: op.op });
+            .write(dozer_log::replication::LogOperation::Op { op: op.op });
         self.pb.set_position(end as u64);
         Ok(())
     }

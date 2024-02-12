@@ -12,8 +12,6 @@ use crate::{
     ui::{app::AppUIError, live::LiveError},
 };
 
-use dozer_cache::dozer_log::storage;
-use dozer_cache::errors::CacheError;
 use dozer_core::errors::ExecutionError;
 use dozer_sql::errors::PipelineError;
 use dozer_types::{constants::LOCK_FILE, thiserror::Error};
@@ -38,8 +36,6 @@ pub enum OrchestrationError {
     FileSystem(PathBuf, std::io::Error),
     #[error("Failed to find any build")]
     NoBuildFound,
-    #[error("Failed to create log: {0}")]
-    CreateLog(#[from] dozer_cache::dozer_log::replication::Error),
     #[error("Failed to login: {0}")]
     CloudLoginFailed(#[from] CloudLoginError),
     #[error("Credential Error: {0}")]
@@ -56,10 +52,6 @@ pub enum OrchestrationError {
     GrpcServeFailed(#[source] tonic::transport::Error),
     #[error("Failed to server pgwire: {0}")]
     PGWireServerFailed(#[source] std::io::Error),
-    #[error("{0}: Failed to initialize cache. Have you run `dozer build`?")]
-    CacheInitFailed(#[source] CacheError),
-    #[error("Failed to build cache {0} from log: {1}")]
-    CacheBuildFailed(String, #[source] CacheError),
     #[error("Cache {0} has reached its maximum size. Try to increase `cache_max_map_size` in the config.")]
     CacheFull(String),
     #[error("Internal thread panic: {0}")]
@@ -218,8 +210,6 @@ pub enum BuildError {
     FailedToLoadExistingContract(#[source] serde_json::Error),
     #[error("Serde json error: {0}")]
     SerdeJson(#[source] serde_json::Error),
-    #[error("Storage error: {0}")]
-    Storage(#[from] storage::Error),
 }
 
 #[derive(Debug, Error)]
