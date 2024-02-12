@@ -477,14 +477,12 @@ impl Connector for AerospikeConnector {
         tables: Vec<TableInfo>,
         _last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
-
-        
         let hosts = CString::new(self.config.hosts.as_str())?;
-        let client = Client::new(&hosts).map_err(|e| Box::new(e))?;
+        let client = Client::new(&hosts).map_err(Box::new)?;
         unsafe {
             let mut response: *mut i8 = std::ptr::null_mut();
             let request = CString::new("info")?;
-            client.info(&request, &mut response).map_err(|e| Box::new(e))?;
+            client.info(&request, &mut response).map_err(Box::new)?;
         }
 
         let mapped_schema = self.get_schemas(&tables).await?;
