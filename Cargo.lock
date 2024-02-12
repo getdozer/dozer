@@ -3558,7 +3558,6 @@ dependencies = [
  "dozer-sink-clickhouse",
  "dozer-sink-oracle",
  "dozer-sql",
- "dozer-storage",
  "dozer-tracing",
  "dozer-types",
  "futures",
@@ -3597,7 +3596,6 @@ dependencies = [
  "crossbeam",
  "daggy",
  "dozer-log",
- "dozer-storage",
  "dozer-tracing",
  "dozer-types",
  "futures",
@@ -3900,7 +3898,6 @@ dependencies = [
  "bincode",
  "dozer-core",
  "dozer-sql-expression",
- "dozer-storage",
  "dozer-tracing",
  "dozer-types",
  "enum_dispatch",
@@ -3931,19 +3928,6 @@ dependencies = [
  "ort",
  "proptest",
  "sqlparser 0.35.0",
- "tokio",
-]
-
-[[package]]
-name = "dozer-storage"
-version = "0.3.0"
-dependencies = [
- "dozer-types",
- "lmdb-rkv",
- "lmdb-rkv-sys",
- "page_size",
- "pin-project",
- "tempdir",
  "tokio",
 ]
 
@@ -6025,29 +6009,6 @@ name = "linux-raw-sys"
 version = "0.4.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "969488b55f8ac402214f3f5fd243ebb7206cf82de60d3172994707a4bcc2b829"
-
-[[package]]
-name = "lmdb-rkv"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "447a296f7aca299cfbb50f4e4f3d49451549af655fb7215d7f8c0c3d64bad42b"
-dependencies = [
- "bitflags 1.3.2",
- "byteorder",
- "libc",
- "lmdb-rkv-sys",
-]
-
-[[package]]
-name = "lmdb-rkv-sys"
-version = "0.11.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61b9ce6b3be08acefa3003c57b7565377432a89ec24476bbe72e11d101f852fe"
-dependencies = [
- "cc",
- "libc",
- "pkg-config",
-]
 
 [[package]]
 name = "local-channel"

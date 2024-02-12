@@ -16,7 +16,6 @@ dozer-log = { path = "../dozer-log" }
 dozer-sql = { path = "../dozer-sql" }
 dozer-types = { path = "../dozer-types" }
 dozer-tracing = { path = "../dozer-tracing" }
-dozer-storage = { path = "../dozer-storage" }
 dozer-sink-aerospike = { path = "../dozer-sink-aerospike" }
 dozer-sink-clickhouse = { path = "../dozer-sink-clickhouse" }
 dozer-sink-oracle = { path = "../dozer-sink-oracle" }
