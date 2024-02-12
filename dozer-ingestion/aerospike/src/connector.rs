@@ -16,6 +16,7 @@ use dozer_ingestion_connector::{
     TableIdentifier, TableInfo,
 };
 use std::collections::HashMap;
+use std::ffi::CString;
 use std::num::TryFromIntError;
 
 use dozer_ingestion_connector::dozer_types::serde::Deserialize;
@@ -40,6 +41,8 @@ use dozer_ingestion_connector::dozer_types::chrono::{
 };
 use dozer_ingestion_connector::dozer_types::thiserror::{self, Error};
 use dozer_ingestion_connector::schema_parser::SchemaParser;
+
+use dozer_sink_aerospike::Client;
 
 #[derive(Debug, Error)]
 pub enum AerospikeConnectorError {
@@ -474,6 +477,16 @@ impl Connector for AerospikeConnector {
         tables: Vec<TableInfo>,
         _last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
+
+        
+        let hosts = CString::new(self.config.hosts.as_str())?;
+        let client = Client::new(&hosts).map_err(|e| Box::new(e))?;
+        unsafe {
+            let mut response: *mut i8 = std::ptr::null_mut();
+            let request = CString::new("info")?;
+            client.info(&request, &mut response).map_err(|e| Box::new(e))?;
+        }
+
         let mapped_schema = self.get_schemas(&tables).await?;
         ingestor
             .handle_message(IngestionMessage::TransactionInfo(

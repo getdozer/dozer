@@ -3251,9 +3251,9 @@ name = "dozer-ingestion-aerospike"
 version = "0.4.0"
 dependencies = [
  "actix-web",
- "aerospike-client-sys",
  "base64 0.21.7",
  "dozer-ingestion-connector",
+ "dozer-sink-aerospike",
 ]
 
 [[package]]
