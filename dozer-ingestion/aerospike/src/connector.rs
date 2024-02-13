@@ -434,7 +434,7 @@ async fn map_events(
 
         if let Some((pk, _)) = columns_map.get("inserted_at") {
             // Create a NaiveDateTime from the timestamp
-            let naive = NaiveDateTime::from_timestamp_opt(event.lut as i64, 0)
+            let naive = NaiveDateTime::from_timestamp_millis(event.lut as i64)
                 .ok_or(AerospikeConnectorError::InvalidTimestamp(event.lut as i64))?;
 
             // Create a normal DateTime from the NaiveDateTime
