@@ -130,7 +130,8 @@
         "replication": {
           "default": {
             "server_address": "0.0.0.0",
-            "server_port": 5929
+            "server_port": 5929,
+            "datacenter": "esp"
           },
           "allOf": [
             {
@@ -1596,6 +1597,10 @@
     "ReplicationSettings": {
       "type": "object",
       "properties": {
+        "datacenter": {
+          "default": "esp",
+          "type": "string"
+        },
         "server_address": {
           "default": "0.0.0.0",
           "type": "string"

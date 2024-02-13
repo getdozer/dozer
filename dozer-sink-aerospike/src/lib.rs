@@ -243,13 +243,16 @@ impl Client {
         response: &mut *mut i8,
     ) -> Result<(), AerospikeError> {
         as_try(|err| {
-            aerospike_info_any(
+            let res = aerospike_info_any(
                 self.inner.as_ptr(),
                 err,
                 null(),
                 request.as_ptr(),
                 response as *mut *mut i8,
-            )
+            );
+            let response_string = CStr::from_ptr(*response);
+            println!("response: [{:?}] {:?}", res, response_string);
+            res
         })
     }
 }

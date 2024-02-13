@@ -480,8 +480,12 @@ impl Connector for AerospikeConnector {
         let hosts = CString::new(self.config.hosts.as_str())?;
         let client = Client::new(&hosts).map_err(Box::new)?;
         unsafe {
+            let dc_name = self.config.replication.datacenter.clone();
+            let namespace = self.config.namespace.clone();
+            let request = CString::new(format!(
+                "set-config:context=xdr;dc={dc_name};namespace={namespace};action=add;rewind=all"
+            ))?;
             let mut response: *mut i8 = std::ptr::null_mut();
-            let request = CString::new("info")?;
             client.info(&request, &mut response).map_err(Box::new)?;
         }
 
