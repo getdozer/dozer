@@ -49,6 +49,7 @@ impl SinkFactory for DummySinkFactory {
             snapshotting_started_instant: HashMap::new(),
             stop_after: std::env::var("STOP_AFTER").map_or(None, |s| s.parse().ok()),
             first_received: None,
+            total_latency: 0
         }))
     }
 
@@ -65,6 +66,7 @@ struct DummySink {
     previous_started: Instant,
     first_received: Option<Instant>,
     stop_after: Option<i64>,
+    total_latency: u64
 }
 
 impl Sink for DummySink {
@@ -97,6 +99,10 @@ impl Sink for DummySink {
                         self.count,
                         first_received.elapsed(),
                     );
+
+                    if self.total_latency > 0 {
+                        info!("Average latency: {}ms", self.total_latency / stop_after as u64);
+                    }
                     std::process::exit(0);
                 }
             }
@@ -104,10 +110,11 @@ impl Sink for DummySink {
 
         if let Some(inserted_at_index) = self.inserted_at_index {
             if let Operation::Insert { new } = op.op {
-                info!("Received record: {:?}", new);
+                // info!("Received record: {:?}", new);
                 let value = &new.values[inserted_at_index];
                 if let Some(inserted_at) = value.to_timestamp() {
                     let latency = Local::now().naive_utc() - inserted_at.naive_utc();
+                    self.total_latency += latency.num_milliseconds() as u64;
                     info!("Latency: {}ms", latency.num_milliseconds());
                 } else {
                     warn!("expecting timestamp, got {:?}", value);
