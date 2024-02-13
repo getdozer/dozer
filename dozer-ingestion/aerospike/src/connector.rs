@@ -280,7 +280,11 @@ impl Connector for AerospikeConnector {
                                     .iter()
                                     .map(|name| FieldDefinition {
                                         name: name.clone(),
-                                        typ: if name == "inserted_at" { FieldType::Timestamp } else { FieldType::String },
+                                        typ: if name == "inserted_at" {
+                                            FieldType::Timestamp
+                                        } else {
+                                            FieldType::String
+                                        },
                                         nullable: true,
                                         source: Default::default(),
                                     })
@@ -442,7 +446,6 @@ async fn map_events(
                 DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc).fixed_offset();
 
             fields[*pk] = Field::Timestamp(datetime);
-
         }
 
         for bin in event.bins {

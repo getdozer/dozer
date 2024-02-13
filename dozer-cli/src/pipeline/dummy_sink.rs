@@ -6,6 +6,7 @@ use dozer_core::{
     DEFAULT_PORT_HANDLE,
 };
 use dozer_log::storage::Queue;
+use dozer_types::log::debug;
 use dozer_types::{
     chrono::Local,
     errors::internal::BoxedError,
@@ -49,7 +50,7 @@ impl SinkFactory for DummySinkFactory {
             snapshotting_started_instant: HashMap::new(),
             stop_after: std::env::var("STOP_AFTER").map_or(None, |s| s.parse().ok()),
             first_received: None,
-            total_latency: 0
+            total_latency: 0,
         }))
     }
 
@@ -66,7 +67,7 @@ struct DummySink {
     previous_started: Instant,
     first_received: Option<Instant>,
     stop_after: Option<i64>,
-    total_latency: u64
+    total_latency: u64,
 }
 
 impl Sink for DummySink {
@@ -101,7 +102,10 @@ impl Sink for DummySink {
                     );
 
                     if self.total_latency > 0 {
-                        info!("Average latency: {}ms", self.total_latency / stop_after as u64);
+                        info!(
+                            "Average latency: {}ms",
+                            self.total_latency / stop_after as u64
+                        );
                     }
                     std::process::exit(0);
                 }
@@ -110,7 +114,7 @@ impl Sink for DummySink {
 
         if let Some(inserted_at_index) = self.inserted_at_index {
             if let Operation::Insert { new } = op.op {
-                // info!("Received record: {:?}", new);
+                debug!("Received record: {:?}", new);
                 let value = &new.values[inserted_at_index];
                 if let Some(inserted_at) = value.to_timestamp() {
                     let latency = Local::now().naive_utc() - inserted_at.naive_utc();
