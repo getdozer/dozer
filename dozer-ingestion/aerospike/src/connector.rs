@@ -113,7 +113,7 @@ pub struct AerospikeEvent {
     key: Vec<Option<String>>,
     // gen: u32,
     // exp: u32,
-    // lut: u64,
+    lut: u64,
     bins: Vec<Bin>,
 }
 
@@ -280,7 +280,7 @@ impl Connector for AerospikeConnector {
                                     .iter()
                                     .map(|name| FieldDefinition {
                                         name: name.clone(),
-                                        typ: FieldType::String,
+                                        typ: if name == "inserted_at" { FieldType::UInt } else { FieldType::String },
                                         nullable: true,
                                         source: Default::default(),
                                     })
@@ -430,6 +430,10 @@ async fn map_events(
             } else {
                 return Err(AerospikeConnectorError::PkIsNone(key.clone()));
             }
+        }
+
+        if let Some((pk, _)) = columns_map.get("inserted_at") {
+            fields[*pk] = Field::UInt(event.lut);
         }
 
         for bin in event.bins {
