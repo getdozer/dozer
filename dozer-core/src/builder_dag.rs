@@ -168,21 +168,26 @@ impl BuilderDag {
                         .serialize_state()
                         .await
                         .map_err(ExecutionError::Source)?;
+                    let mut checkpoint = None;
                     for sink in source_id_to_sinks.remove(&node.handle).unwrap_or_default() {
                         let sink = &mut graph[sink];
+                        let sink_handle = &sink.handle;
                         let NodeKind::Sink(sink) = &mut sink.kind else {
                             unreachable!()
                         };
                         sink.set_source_state(&state)
                             .map_err(ExecutionError::Sink)?;
+                        if let Some(sink_checkpoint) = source_op_ids.remove(sink_handle) {
+                            checkpoint =
+                                Some(checkpoint.unwrap_or(sink_checkpoint).min(sink_checkpoint));
+                        }
                     }
 
-                    let last_checkpoint = source_op_ids.remove(&node.handle);
                     NodeType {
                         handle: node.handle,
                         kind: NodeKind::Source {
                             source,
-                            last_checkpoint,
+                            last_checkpoint: checkpoint,
                         },
                     }
                 }
