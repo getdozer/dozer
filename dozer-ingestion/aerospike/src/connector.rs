@@ -280,7 +280,7 @@ impl Connector for AerospikeConnector {
                                     .iter()
                                     .map(|name| FieldDefinition {
                                         name: name.clone(),
-                                        typ: if name == "inserted_at" { FieldType::UInt } else { FieldType::String },
+                                        typ: if name == "inserted_at" { FieldType::Timestamp } else { FieldType::String },
                                         nullable: true,
                                         source: Default::default(),
                                     })
@@ -433,7 +433,16 @@ async fn map_events(
         }
 
         if let Some((pk, _)) = columns_map.get("inserted_at") {
-            fields[*pk] = Field::UInt(event.lut);
+            // Create a NaiveDateTime from the timestamp
+            let naive = NaiveDateTime::from_timestamp_opt(event.lut as i64, 0)
+                .ok_or(AerospikeConnectorError::InvalidTimestamp(event.lut as i64))?;
+
+            // Create a normal DateTime from the NaiveDateTime
+            let datetime: DateTime<FixedOffset> =
+                DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc).fixed_offset();
+
+            fields[*pk] = Field::Timestamp(datetime);
+
         }
 
         for bin in event.bins {
