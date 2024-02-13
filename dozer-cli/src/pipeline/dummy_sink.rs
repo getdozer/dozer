@@ -47,6 +47,8 @@ impl SinkFactory for DummySinkFactory {
             previous_started: Instant::now(),
             count: 0,
             snapshotting_started_instant: HashMap::new(),
+            stop_after: std::env::var("STOP_AFTER").map_or(None, |s| s.parse().ok()),
+            first_received: None,
         }))
     }
 
@@ -61,10 +63,15 @@ struct DummySink {
     inserted_at_index: Option<usize>,
     count: usize,
     previous_started: Instant,
+    first_received: Option<Instant>,
+    stop_after: Option<i64>,
 }
 
 impl Sink for DummySink {
     fn process(&mut self, op: TableOperation) -> Result<(), BoxedError> {
+        if self.count == 0 {
+            self.first_received = Some(Instant::now());
+        }
         if self.count % 1000 == 0 {
             if self.count > 0 {
                 info!(
@@ -78,6 +85,23 @@ impl Sink for DummySink {
         }
 
         self.count += 1;
+
+        if let Some(stop_after) = self.stop_after {
+            if self.count >= stop_after as usize {
+                if let Some(first_received) = self.first_received {
+                    info!("Stopping after {} records", stop_after);
+
+                    info!(
+                        "Rate: {:.0} op/s, Processed {} records. Elapsed {:?}",
+                        stop_after as f64 / first_received.elapsed().as_secs_f64(),
+                        self.count,
+                        first_received.elapsed(),
+                    );
+                    std::process::exit(0);
+                }
+            }
+        }
+
         if let Some(inserted_at_index) = self.inserted_at_index {
             if let Operation::Insert { new } = op.op {
                 info!("Received record: {:?}", new);
