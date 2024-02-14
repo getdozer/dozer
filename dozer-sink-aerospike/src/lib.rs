@@ -342,11 +342,25 @@ impl SinkFactory for AerospikeSinkFactory {
                 .denormalize
                 .iter()
                 .map(|denorm| {
+                    let columns: Vec<_> = denorm
+                        .columns
+                        .iter()
+                        .cloned()
+                        .map(|col| match col {
+                            dozer_types::models::endpoint::DenormColumn::Direct(name) => {
+                                (name.clone(), name)
+                            }
+                            dozer_types::models::endpoint::DenormColumn::Renamed {
+                                source,
+                                destination,
+                            } => (source, destination),
+                        })
+                        .collect();
                     Denormalization::new(
                         &denorm.from_namespace,
                         &denorm.from_set,
                         schema.get_field_index(&denorm.key)?.0,
-                        &denorm.columns,
+                        &columns,
                     )
                 })
                 .collect::<Result<_, _>>()?,
@@ -405,8 +419,8 @@ struct Denormalization {
     namespace: CString,
     set: CString,
     key_field: usize,
-    columns: Vec<CString>,
-    column_ptrs: Vec<*const i8>,
+    columns: Vec<(CString, CString)>,
+    source_column_ptrs: Vec<*const i8>,
 }
 
 // column ptrs
@@ -417,23 +431,24 @@ impl Denormalization {
         namespace: &str,
         set: &str,
         key_field: usize,
-        columns: &[String],
+        columns: &[(String, String)],
     ) -> Result<Self, AerospikeSinkError> {
         let namespace = CString::new(namespace)?;
         let set = CString::new(set)?;
 
-        let columns: Vec<CString> = columns
+        let columns = columns
             .iter()
-            .map(|col| CString::new(col.as_str()))
-            .collect::<Result<_, _>>()?;
-        let mut column_ptrs: Vec<_> = columns.iter().map(|col| col.as_ptr()).collect();
-        column_ptrs.push(null());
+            .map(|(src, dst)| Ok((CString::new(src.as_str())?, CString::new(dst.as_str())?)))
+            .collect::<Result<Vec<_>, NulError>>()?;
+        let mut source_column_ptrs: Vec<_> =
+            columns.iter().map(|(src, _dst)| src.as_ptr()).collect();
+        source_column_ptrs.push(null());
         Ok(Self {
             namespace,
             set,
             key_field,
             columns,
-            column_ptrs,
+            source_column_ptrs,
         })
     }
 }
@@ -441,14 +456,15 @@ impl Denormalization {
 impl Clone for Denormalization {
     fn clone(&self) -> Self {
         let columns = self.columns.clone();
-        let mut column_ptrs: Vec<_> = columns.iter().map(|col| col.as_ptr()).collect();
-        column_ptrs.push(null());
+        let mut source_column_ptrs: Vec<_> =
+            columns.iter().map(|(src, _dst)| src.as_ptr()).collect();
+        source_column_ptrs.push(null());
         Self {
             namespace: self.namespace.clone(),
             set: self.set.clone(),
             key_field: self.key_field,
             columns,
-            column_ptrs,
+            source_column_ptrs,
         }
     }
 }
@@ -955,7 +971,7 @@ impl AerospikeSinkWorker {
                     let mut record = AsRecord(_record.assume_init_mut());
                     for Denormalization {
                         key_field,
-                        column_ptrs,
+                        source_column_ptrs,
                         namespace,
                         set,
                         columns,
@@ -977,7 +993,7 @@ impl AerospikeSinkWorker {
                             #[allow(non_upper_case_globals)]
                             match self.client.select(
                                 key.as_ptr(),
-                                column_ptrs,
+                                source_column_ptrs,
                                 &mut denorm_rec.as_mut_ptr(),
                             ) {
                                 Ok(()) => break,
@@ -992,13 +1008,13 @@ impl AerospikeSinkWorker {
                         }
                         // The column_ptrs array needs to end with a null ptr, so use
                         // `columns` for the bound instead
-                        for col in &column_ptrs[..columns.len()] {
-                            let val = as_record_get(denorm_rec.as_mut_ptr(), *col);
+                        for (src, dst) in columns {
+                            let val = as_record_get(denorm_rec.as_mut_ptr(), src.as_ptr());
 
                             // Increment ref count, so we can destroy the denorm record
                             // without dropping the bin values
                             as_val_val_reserve(val as *mut as_val);
-                            as_record_set(record.as_mut_ptr(), *col, val);
+                            as_record_set(record.as_mut_ptr(), dst.as_ptr(), val);
                         }
                         as_record_destroy(denorm_rec.as_mut_ptr());
                     }
