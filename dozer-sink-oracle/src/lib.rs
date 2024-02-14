@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    time::{Duration, Instant},
-};
+use std::collections::HashMap;
 
 use dozer_core::{
     node::{PortHandle, Sink, SinkFactory},
@@ -10,7 +7,7 @@ use dozer_core::{
 use dozer_types::{
     chrono::{self, DateTime, NaiveDate, Utc},
     errors::internal::BoxedError,
-    log::info,
+    log::{debug, info},
     models::ingestion_types::OracleConfig,
     thiserror::Error,
     tonic::async_trait,
@@ -42,7 +39,6 @@ struct OracleSink {
     merge_statement: String,
     batch_params: Vec<BatchedOperation>,
     batch_size: usize,
-    last_commit: Instant,
 }
 
 #[derive(Debug)]
@@ -171,8 +167,7 @@ impl SinkFactory for OracleSinkFactory {
             pk: schema.primary_index,
             batch_params: Vec::new(),
             //TODO: make this configurable
-            batch_size: 1000,
-            last_commit: Instant::now(),
+            batch_size: 10000,
         }))
     }
 }
@@ -236,6 +231,7 @@ enum OpKind {
 
 impl OracleSink {
     fn exec_batch(&mut self) -> oracle::Result<()> {
+        debug!("Executing batch of size {}", self.batch_params.len());
         let mut batch = self
             .conn
             .batch(&self.merge_statement, self.batch_params.len())
@@ -274,12 +270,12 @@ impl Sink for OracleSink {
         &mut self,
         _epoch_details: &dozer_core::epoch::Epoch,
     ) -> Result<(), dozer_types::errors::internal::BoxedError> {
-        // TODO: Make the duraton configurable, and move logic to pipeline
-        if self.last_commit.elapsed() > Duration::from_millis(500) {
-            self.last_commit = Instant::now();
-            self.exec_batch()?;
-            self.conn.commit()?;
-        }
+        Ok(())
+    }
+
+    fn flush_batch(&mut self) -> Result<(), BoxedError> {
+        self.exec_batch()?;
+        self.conn.commit()?;
         Ok(())
     }
 
