@@ -185,7 +185,7 @@
         "columns": {
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/definitions/DenormColumn"
           }
         },
         "from_namespace": {
@@ -871,6 +871,28 @@
           "type": "string"
         }
       }
+    },
+    "DenormColumn": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "required": [
+            "destination",
+            "source"
+          ],
+          "properties": {
+            "destination": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            }
+          }
+        }
+      ]
     },
     "DozerTelemetryConfig": {
       "type": "object",
