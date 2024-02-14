@@ -87,7 +87,13 @@ impl Sink for DummySink {
             self.previous_started = Instant::now();
         }
 
-        self.count += 1;
+        let count = match op.op {
+            Operation::Delete { .. } => 1,
+            Operation::Insert { .. } => 1,
+            Operation::Update { .. } => 1,
+            Operation::BatchInsert { ref new } => new.len()
+        };
+        self.count += count;
 
         if let Some(stop_after) = self.stop_after {
             if self.count >= stop_after as usize {
