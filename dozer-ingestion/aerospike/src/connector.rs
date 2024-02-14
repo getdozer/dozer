@@ -113,7 +113,7 @@ pub struct AerospikeEvent {
     key: Vec<Option<String>>,
     // gen: u32,
     // exp: u32,
-    // lut: u64,
+    lut: u64,
     bins: Vec<Bin>,
 }
 
@@ -280,7 +280,11 @@ impl Connector for AerospikeConnector {
                                     .iter()
                                     .map(|name| FieldDefinition {
                                         name: name.clone(),
-                                        typ: FieldType::String,
+                                        typ: if name == "inserted_at" {
+                                            FieldType::Timestamp
+                                        } else {
+                                            FieldType::String
+                                        },
                                         nullable: true,
                                         source: Default::default(),
                                     })
@@ -430,6 +434,18 @@ async fn map_events(
             } else {
                 return Err(AerospikeConnectorError::PkIsNone(key.clone()));
             }
+        }
+
+        if let Some((index, _)) = columns_map.get("inserted_at") {
+            // Create a NaiveDateTime from the timestamp
+            let naive = NaiveDateTime::from_timestamp_millis(event.lut as i64)
+                .ok_or(AerospikeConnectorError::InvalidTimestamp(event.lut as i64))?;
+
+            // Create a normal DateTime from the NaiveDateTime
+            let datetime: DateTime<FixedOffset> =
+                DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc).fixed_offset();
+
+            fields[*index] = Field::Timestamp(datetime);
         }
 
         for bin in event.bins {
