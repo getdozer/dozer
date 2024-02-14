@@ -6,8 +6,10 @@ use dozer_ingestion_connector::dozer_types::models::ingestion_types::{
     IngestionMessage, TransactionInfo,
 };
 use dozer_ingestion_connector::dozer_types::node::{NodeHandle, OpIdentifier, SourceState};
-use dozer_ingestion_connector::dozer_types::types::Operation::Insert;
-use dozer_ingestion_connector::dozer_types::types::{Field, FieldDefinition, FieldType, Schema};
+use dozer_ingestion_connector::dozer_types::types::Operation::{BatchInsert, Insert};
+use dozer_ingestion_connector::dozer_types::types::{
+    Field, FieldDefinition, FieldType, Record, Schema,
+};
 use dozer_ingestion_connector::tokio::sync::broadcast::error::RecvError;
 use dozer_ingestion_connector::tokio::sync::broadcast::Receiver;
 use dozer_ingestion_connector::tokio::sync::{mpsc, oneshot};
@@ -168,7 +170,9 @@ impl AerospikeConnector {
             App::new()
                 .app_data(web::Data::new(server_state.clone()))
                 .service(healthcheck)
+                .service(healthcheck_batch)
                 .service(event_request_handler)
+                .service(batch_event_request_handler)
         })
         .bind(address)?
         .run())
@@ -309,6 +313,11 @@ async fn healthcheck(_req: HttpRequest) -> HttpResponse {
     HttpResponse::Ok().finish()
 }
 
+#[get("/batch")]
+async fn healthcheck_batch(_req: HttpRequest) -> HttpResponse {
+    HttpResponse::Ok().finish()
+}
+
 #[post("/")]
 async fn event_request_handler(
     json: web::Json<AerospikeEvent>,
@@ -343,6 +352,41 @@ async fn event_request_handler(
         }
         Err(e) => map_error(e),
     }
+}
+
+#[post("/batch")]
+async fn batch_event_request_handler(
+    json: web::Json<Vec<AerospikeEvent>>,
+    data: web::Data<ServerState>,
+) -> HttpResponse {
+    let events = json.into_inner();
+    let state = data.into_inner();
+
+    let mut mapped_events: HashMap<usize, Vec<Record>> = HashMap::new();
+    for event in events {
+        match map_record(event, state.tables_index_map.clone()).await {
+            Ok(Some((table_index, record))) => {
+                mapped_events.entry(table_index).or_default().push(record);
+            }
+            Ok(None) => {}
+            Err(e) => return map_error(e),
+        }
+    }
+
+    for (table_index, records) in mapped_events {
+        let event = IngestionMessage::OperationEvent {
+            table_index,
+            op: BatchInsert { new: records },
+            id: None,
+        };
+
+        if let Err(e) = state.ingestor.handle_message(event).await {
+            error!("Aerospike ingestion message send error: {:?}", e);
+            return HttpResponse::InternalServerError().finish();
+        }
+    }
+
+    HttpResponse::Ok().finish()
 }
 
 #[derive(Clone, Debug)]
@@ -604,7 +648,7 @@ impl Connector for AerospikeConnector {
     }
 }
 
-async fn map_events(
+async fn map_record(
     event: AerospikeEvent,
     tables_map: &HashMap<String, TableIndexMap>,
 ) -> Result<Option<IngestionMessage>, AerospikeConnectorError> {
@@ -684,6 +728,21 @@ async fn map_events(
         },
         id: Some(OpIdentifier::new(event.lut, 0)),
     }))
+}
+
+async fn map_events(
+    event: AerospikeEvent,
+    tables_map: HashMap<String, TableIndexMap>,
+) -> Result<Option<IngestionMessage>, AerospikeConnectorError> {
+    let record = map_record(event, tables_map.clone()).await?;
+    match record {
+        Some((table_index, record)) => Ok(Some(IngestionMessage::OperationEvent {
+            table_index,
+            op: Insert { new: record },
+            id: None,
+        })),
+        None => Ok(None),
+    }
 }
 
 pub(crate) fn map_value_to_field(
