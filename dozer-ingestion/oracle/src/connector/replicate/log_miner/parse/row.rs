@@ -14,7 +14,7 @@ pub struct Parser {
 impl Parser {
     pub fn new(delimiter: &str, end: &str) -> Self {
         let regex = Regex::new(&format!(
-            "\"(\\w+)\" (= (.+)|IS NULL)({}\\n|{})",
+            "\"(\\w+)\" (= (.+)|IS NULL)({} *\\n|{})",
             delimiter, end
         ))
         .unwrap();
