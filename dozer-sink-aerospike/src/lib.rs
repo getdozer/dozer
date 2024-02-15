@@ -74,8 +74,6 @@ enum AerospikeSinkError {
     IntegerOutOfRange(u64),
     #[error("Changing the value of a primary key is not supported for Aerospike sink. Old: {old}, new: {new}")]
     PrimaryKeyChanged { old: Field, new: Field },
-    #[error("Received op with txid `{previous}` before transaction `{this}` was committed")]
-    TransactionCommitMissing { previous: u64, this: u64 },
 }
 
 #[derive(Debug, Error)]
@@ -1418,7 +1416,7 @@ unsafe fn as_batch_records_init(records: *mut as_batch_records, capacity: u32) {
 
 impl Sink for AerospikeSink {
     fn commit(&mut self, _epoch_details: &dozer_core::epoch::Epoch) -> Result<(), BoxedError> {
-        if let Some(transaction) = self.current_transaction {
+        if let Some(transaction) = self.current_transaction.take() {
             self.meta_sender.send(transaction)?;
         }
         self.catch_up_state.commit();
@@ -1430,21 +1428,9 @@ impl Sink for AerospikeSink {
         if let Some(snapshot_sender) = &mut self.snapshot_sender {
             snapshot_sender.send(op)?;
         } else {
-            let old_current = self.current_transaction;
             // Set current transaction before any error can be thrown, so we don't
             // get stuck in an error loop if this error gets ignored by the caller
             self.current_transaction = op.id.map(|id| id.txid);
-            if let Some(transaction) = old_current {
-                let id = op
-                    .id
-                    .expect("Either all or no operations should contain `OperationId`s");
-                if id.txid != transaction {
-                    return Err(Box::new(AerospikeSinkError::TransactionCommitMissing {
-                        previous: transaction,
-                        this: id.txid,
-                    }));
-                }
-            }
 
             let filter_by_opid = self.catch_up_state.is_catching_up;
 
