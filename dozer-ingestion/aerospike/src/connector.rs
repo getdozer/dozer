@@ -619,7 +619,7 @@ async fn map_events(
         op: Insert {
             new: dozer_types::types::Record::new(fields),
         },
-        id: None,
+        id: Some(OpIdentifier::new(event.lut, 0)),
     }))
 }
 
