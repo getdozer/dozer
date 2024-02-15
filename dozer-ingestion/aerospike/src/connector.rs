@@ -53,10 +53,10 @@ pub enum AerospikeConnectorError {
     SetNameIsNone(Option<String>, Option<String>, Option<String>),
 
     #[error("PK is none: {0:?}, {1:?}, {2:?}")]
-    PkIsNone(Option<String>, String, Option<JsonValue>),
+    PkIsNone(Option<serde_json::Value>, String, Option<serde_json::Value>),
 
     #[error("Invalid key value: {0:?}. Key is supposed to have 4 elements.")]
-    InvalidKeyValue(Vec<Option<JsonValue>>),
+    InvalidKeyValue(Vec<Option<serde_json::Value>>),
 
     #[error("Unsupported type. Bin type {bin_type:?}, field type: {field_type:?}")]
     UnsupportedTypeForFieldType {
@@ -111,7 +111,7 @@ pub enum AerospikeConnectorError {
 #[serde(crate = "dozer_types::serde")]
 pub struct AerospikeEvent {
     msg: String,
-    key: Vec<Option<JsonValue>>,
+    key: Vec<Option<serde_json::Value>>,
     // gen: u32,
     // exp: u32,
     lut: u64,
@@ -392,6 +392,8 @@ impl Connector for AerospikeConnector {
                                         name: name.clone(),
                                         typ: if name == "inserted_at" {
                                             FieldType::Timestamp
+                                        } else if name == "PK" {
+                                            FieldType::UInt
                                         } else {
                                             FieldType::String
                                         },
@@ -562,30 +564,30 @@ async fn map_events(
     };
 
     let table_name = match set_name {
-        JsonValue::String(s) => {
-            fields[*pk] = s.clone();
-        }
-        _ => todo!("Throw error when set name is not a string")
+        Some(serde_json::Value::String(s)) => s.clone(),
+        _ => return Err(AerospikeConnectorError::SetNameIsNone(key)),
     };
 
     let Some(TableIndexMap {
         columns_map,
         table_index,
-    }) = tables_map.get(set_name.as_str())
+    }) = tables_map.get(&table_name)
     {
         let mut fields = vec![Field::Null; columns_map.len()];
         if let Some((pk, _)) = columns_map.get("PK") {
             if let Some(pk_in_key) = pk_in_key {
                 match pk_in_key {
-                    JsonValue::String(s) => {
+                    serde_json::Value::String(s) => {
                         fields[*pk] = Field::String(s.clone());
-                    },
-                    JsonValue::Number(n) => {
-                        fields[*pk] = Field::UInt128(n.clone());
                     }
-                    _ => todo!("Throw error when key is not a string or number")
+                    serde_json::Value::Number(n) => {
+                        fields[*pk] = Field::UInt(
+                            n.as_u64()
+                                .ok_or(AerospikeConnectorError::ParsingUIntFailed)?,
+                        );
+                    }
+                    _ => todo!("Throw error when key is not a string or number"),
                 }
-
             } else {
                 return Err(AerospikeConnectorError::PkIsNone(key0, set_name, key2));
             }
