@@ -15,7 +15,8 @@ pub struct Parser {
 impl Parser {
     pub fn new() -> Self {
         let regex =
-            Regex::new(r#"^update "(\w+)"\."(\w+)"\n *(?s)(.+) *where\n(?s)(.+)$"#).unwrap();
+            Regex::new(r#"^update "(\w+)"\."(\w+)"\n *set *\n *(?s)(.+) *where *\n(?s)(.+)$"#)
+                .unwrap();
         Self {
             regex,
             new_row_parser: row::Parser::new(",", "\n"),
@@ -62,9 +63,10 @@ fn test_parse() {
 
     let parser = Parser::new();
     let sql_redo = r#"update "DOZER"."TRANSACTIONS"
+    set
         "TYPE" = 'REBATE'
-    where
-        "TRANSACTION_ID" = 12001 and
+    where 
+        "TRANSACTION_ID" = 12001 and 
         "CUSTOMER_ID" = 63147 and
         "TYPE" = 'Withdrawal' and
         "AMOUNT" = 9691.34 and
