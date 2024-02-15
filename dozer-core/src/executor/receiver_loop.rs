@@ -95,7 +95,7 @@ pub trait ReceiverLoop: Name {
     }
 }
 
-fn init_select(receivers: &Vec<Receiver<ExecutorOperation>>) -> Select {
+pub(crate) fn init_select(receivers: &Vec<Receiver<ExecutorOperation>>) -> Select {
     let mut sel = Select::new();
     for r in receivers {
         sel.recv(r);

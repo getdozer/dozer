@@ -123,4 +123,10 @@ pub trait Sink: Send + Sync + Debug {
     fn set_source_state(&mut self, source_state: &[u8]) -> Result<(), BoxedError>;
     fn get_source_state(&mut self) -> Result<Option<Vec<u8>>, BoxedError>;
     fn get_latest_op_id(&mut self) -> Result<Option<OpIdentifier>, BoxedError>;
+
+    /// If the Sink batches operations, flush the batch to the store when this method is called.
+    /// This method is guaranteed to only be called on commit boundaries
+    fn flush_batch(&mut self) -> Result<(), BoxedError> {
+        Ok(())
+    }
 }
