@@ -108,7 +108,7 @@ impl DagExecutor {
             let Some(node) = execution_dag.graph()[node_index].kind.as_ref() else {
                 continue;
             };
-            match &node {
+            match node {
                 NodeKind::Source { .. } => unreachable!("We already started the source node"),
                 NodeKind::Processor(_) => {
                     let processor_node = ProcessorNode::new(&mut execution_dag, node_index).await;
