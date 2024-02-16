@@ -177,7 +177,12 @@ impl Connector for OracleConnector {
             .unwrap()?;
             ingestor
                 .handle_message(IngestionMessage::TransactionInfo(
-                    TransactionInfo::SnapshottingDone { id: None },
+                    TransactionInfo::SnapshottingDone {
+                        id: Some(OpIdentifier {
+                            txid: scn,
+                            seq_in_tx: 0,
+                        }),
+                    },
                 ))
                 .await?;
             scn
