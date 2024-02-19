@@ -14,9 +14,10 @@ pub struct Parser {
 
 impl Parser {
     pub fn new() -> Self {
-        let regex =
-            Regex::new(r#"^update "(\w+)"\."(\w+)"\n *set *\n *(?s)(.+) *where *\n(?s)(.+)$"#)
-                .unwrap();
+        let regex = Regex::new(
+            r#"^update "((?:C##)?\w+)"\."(\w+)"\n *set *\n *(?s)(.+) *where *\n(?s)(.+)$"#,
+        )
+        .unwrap();
         Self {
             regex,
             new_row_parser: row::Parser::new(",", "\n"),

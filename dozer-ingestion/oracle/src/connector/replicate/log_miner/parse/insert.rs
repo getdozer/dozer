@@ -13,7 +13,8 @@ pub struct Parser {
 
 impl Parser {
     pub fn new() -> Self {
-        let regex = Regex::new(r#"^insert into "(\w+)"\."(\w+)"\n *values\n(?s)(.+)$"#).unwrap();
+        let regex =
+            Regex::new(r#"^insert into "((?:C##)?\w+)"\."(\w+)"\n *values\n(?s)(.+)$"#).unwrap();
         Self {
             regex,
             row_parser: row::Parser::new(",", ";"),

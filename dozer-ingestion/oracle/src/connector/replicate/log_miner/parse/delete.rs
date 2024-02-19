@@ -13,7 +13,8 @@ pub struct Parser {
 
 impl Parser {
     pub fn new() -> Self {
-        let regex = Regex::new(r#"^delete from "(\w+)"\."(\w+)"\n *where\n(?s)(.+)$"#).unwrap();
+        let regex =
+            Regex::new(r#"^delete from "((?:C##)?\w+)"\."(\w+)"\n *where\n(?s)(.+)$"#).unwrap();
         Self {
             regex,
             row_parser: row::Parser::new(" and", ";"),
