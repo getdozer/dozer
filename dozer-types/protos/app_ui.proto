@@ -21,7 +21,7 @@ message Label {
 message AppUI {
   string app_name = 1;
   repeated string connections = 2;  
-  repeated string endpoints = 3;
+  repeated string sink_names = 3;
   bool enable_api_security = 4;
 }
 

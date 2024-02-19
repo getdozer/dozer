@@ -58,6 +58,7 @@ impl Contract {
                         let schema = edge.schema.clone();
                         result.insert(name, map_schema(schema));
                     }
+                    return Some(result);
                 }
             }
         }

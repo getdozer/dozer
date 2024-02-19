@@ -161,6 +161,8 @@ impl AppUIState {
                 .collect::<std::collections::HashSet<String>>()
                 .into_iter()
                 .collect();
+            let sink_names: Vec<String> =
+                config.sinks.iter().map(|sink| sink.name.clone()).collect();
 
             let enable_api_security = std::env::var("DOZER_MASTER_SECRET")
                 .ok()
@@ -171,7 +173,7 @@ impl AppUIState {
             AppUi {
                 app_name: dozer.dozer.config.app_name.clone(),
                 connections: connections_in_source,
-                endpoints: vec![],
+                sink_names,
                 enable_api_security,
             }
         });
