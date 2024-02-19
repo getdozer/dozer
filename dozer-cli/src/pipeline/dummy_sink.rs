@@ -44,7 +44,7 @@ impl SinkFactory for DummySinkFactory {
             .next()
             .and_then(|schema| {
                 schema.fields.into_iter().enumerate().find(|(_, field)| {
-                    field.name == "inserted_at" && field.typ == FieldType::Timestamp
+                    field.name.to_lowercase() == "inserted_at" && field.typ == FieldType::Timestamp
                 })
             })
             .map(|(index, _)| index);

@@ -6,7 +6,7 @@ use dozer_ingestion_connector::dozer_types::models::ingestion_types::{
     IngestionMessage, TransactionInfo,
 };
 use dozer_ingestion_connector::dozer_types::node::{NodeHandle, OpIdentifier, SourceState};
-use dozer_ingestion_connector::dozer_types::types::Operation::{BatchInsert, Insert};
+use dozer_ingestion_connector::dozer_types::types::Operation::Insert;
 use dozer_ingestion_connector::dozer_types::types::{
     Field, FieldDefinition, FieldType, Record, Schema,
 };
@@ -362,31 +362,33 @@ async fn batch_event_request_handler(
     let events = json.into_inner();
     let state = data.into_inner();
 
-    let mut mapped_events: HashMap<usize, Vec<Record>> = HashMap::new();
     for event in events {
-        match map_record(event, state.tables_index_map.clone()).await {
-            Ok(Some((table_index, record))) => {
-                mapped_events.entry(table_index).or_default().push(record);
+        match map_events(event, state.tables_index_map.clone()).await {
+            Ok(Some(message)) => {
+                if let Err(e) = state.ingestor.handle_message(message).await {
+                    error!("Aerospike ingestion message send error: {:?}", e);
+                    return HttpResponse::InternalServerError().finish();
+                }
             }
             Ok(None) => {}
             Err(e) => return map_error(e),
         }
     }
 
-    for (table_index, records) in mapped_events {
-        let event = IngestionMessage::OperationEvent {
-            table_index,
-            op: BatchInsert { new: records },
+    let transaction_ingestion_result = state
+        .ingestor
+        .handle_message(IngestionMessage::TransactionInfo(TransactionInfo::Commit {
             id: None,
-        };
+        }))
+        .await;
 
-        if let Err(e) = state.ingestor.handle_message(event).await {
+    match transaction_ingestion_result {
+        Ok(_) => HttpResponse::Ok().finish(),
+        Err(e) => {
             error!("Aerospike ingestion message send error: {:?}", e);
-            return HttpResponse::InternalServerError().finish();
+            HttpResponse::InternalServerError().finish()
         }
     }
-
-    HttpResponse::Ok().finish()
 }
 
 #[derive(Clone, Debug)]
