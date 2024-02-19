@@ -157,6 +157,10 @@ impl SinkFactory for TestSinkFactory {
         self.input_ports.clone()
     }
 
+    fn get_input_port_name(&self, _port: &PortHandle) -> String {
+        "test".to_string()
+    }
+
     async fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
@@ -250,7 +254,7 @@ fn test_pipeline_builder() {
     pipeline.add_sink(
         Box::new(TestSinkFactory::new(vec![DEFAULT_PORT_HANDLE])),
         "sink",
-        None,
+        vec![],
     );
     pipeline.connect_nodes(
         &table_info.node,

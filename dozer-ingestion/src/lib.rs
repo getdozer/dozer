@@ -12,7 +12,6 @@ use dozer_ingestion_connector::dozer_types::{
     prettytable::Table,
 };
 use dozer_ingestion_deltalake::DeltaLakeConnector;
-use dozer_ingestion_dozer::NestedDozerConnector;
 #[cfg(feature = "ethereum")]
 use dozer_ingestion_ethereum::{EthLogConnector, EthTraceConnector};
 use dozer_ingestion_grpc::{connector::GrpcConnector, ArrowAdapter, DefaultAdapter};
@@ -131,9 +130,6 @@ pub fn get_connector(
                 opts,
                 mysql_config.server_id,
             )))
-        }
-        ConnectionConfig::Dozer(dozer_config) => {
-            Ok(Box::new(NestedDozerConnector::new(dozer_config)))
         }
         ConnectionConfig::Webhook(webhook_config) => {
             Ok(Box::new(WebhookConnector::new(webhook_config)))

@@ -426,6 +426,10 @@ impl SinkFactory for ErrSinkFactory {
         vec![COUNTING_SINK_INPUT_PORT]
     }
 
+    fn get_input_port_name(&self, _port: &PortHandle) -> String {
+        "error".to_string()
+    }
+
     fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), BoxedError> {
         Ok(())
     }

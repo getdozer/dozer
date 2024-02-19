@@ -1,28 +1,12 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    fs::OpenOptions,
-    path::Path,
-};
+use std::{collections::HashMap, fs::OpenOptions, path::Path};
 
 use dozer_core::{
     dag_schemas::DagSchemas,
-    daggy::{self, NodeIndex},
+    daggy,
     node::PortHandle,
-    petgraph::{
-        algo::is_isomorphic_matching,
-        visit::{IntoEdgesDirected, IntoNodeReferences},
-        Direction,
-    },
+    petgraph::{algo::is_isomorphic_matching, visit::IntoNodeReferences},
 };
-use dozer_log::schemas::EndpointSchema;
-use dozer_types::{
-    models::{
-        connection::Connection,
-        endpoint::{Endpoint, EndpointKind},
-    },
-    node::NodeHandle,
-    types::Schema,
-};
+use dozer_types::{models::connection::Connection, node::NodeHandle, types::Schema};
 use dozer_types::{
     serde::{de::DeserializeOwned, Deserialize, Serialize},
     serde_json,
@@ -49,6 +33,7 @@ pub enum NodeKind {
     },
     Sink {
         typ: String,
+        port_names: HashMap<PortHandle, String>,
     },
 }
 
@@ -69,7 +54,6 @@ pub struct PipelineContract(daggy::Dag<NodeType, EdgeType>);
 pub struct Contract {
     pub version: usize,
     pub pipeline: PipelineContract,
-    pub endpoints: BTreeMap<String, EndpointSchema>,
 }
 
 impl Contract {
@@ -77,42 +61,7 @@ impl Contract {
         version: usize,
         dag_schemas: &DagSchemas,
         connections: &[Connection],
-        endpoints: &[Endpoint],
-        enable_token: bool,
-        enable_on_event: bool,
     ) -> Result<Self, BuildError> {
-        let mut endpoint_schemas = BTreeMap::new();
-        for endpoint in endpoints {
-            let path = match &endpoint.config {
-                EndpointKind::Aerospike(_aerospike) => "aerospike",
-                EndpointKind::Dummy => "dummy",
-                EndpointKind::Clickhouse(_clickhouse) => "clickhouse",
-                EndpointKind::Oracle(_clickhouse) => "oracle",
-            };
-
-            let node_index = find_sink(dag_schemas, &endpoint.table_name)
-                .ok_or(BuildError::MissingEndpoint(endpoint.table_name.clone()))?;
-
-            let (schema, secondary_indexes) =
-                modify_schema::modify_schema(sink_input_schema(dag_schemas, node_index))?;
-
-            let connections = dag_schemas
-                .collect_ancestor_sources(node_index)
-                .into_iter()
-                .map(|handle| handle.id)
-                .collect();
-
-            let schema = EndpointSchema {
-                path: path.to_string(),
-                schema,
-                secondary_indexes,
-                enable_token,
-                enable_on_event,
-                connections,
-            };
-            endpoint_schemas.insert(endpoint.table_name.clone(), schema);
-        }
-
         let mut source_types = HashMap::new();
         for (node_index, node) in dag_schemas.graph().node_references() {
             if let dozer_core::NodeKind::Source(_) = &node.kind {
@@ -148,9 +97,18 @@ impl Contract {
                     dozer_core::NodeKind::Processor(processor) => NodeKind::Processor {
                         typ: processor.type_name(),
                     },
-                    dozer_core::NodeKind::Sink(sink) => NodeKind::Sink {
-                        typ: sink.type_name(),
-                    },
+                    dozer_core::NodeKind::Sink(sink) => {
+                        let typ = sink.type_name();
+                        let port_names = sink
+                            .get_input_ports()
+                            .iter()
+                            .map(|port| {
+                                let port_name = sink.get_input_port_name(port);
+                                (*port, port_name)
+                            })
+                            .collect();
+                        NodeKind::Sink { typ, port_names }
+                    }
                 };
                 NodeType { handle, kind }
             },
@@ -164,7 +122,6 @@ impl Contract {
         Ok(Self {
             version,
             pipeline: PipelineContract(pipeline),
-            endpoints: endpoint_schemas,
         })
     }
 
@@ -179,29 +136,6 @@ impl Contract {
 }
 
 mod service;
-
-/// Sink's `NodeHandle::id` must be `table_name`.
-fn find_sink(dag: &DagSchemas, endpoint_table_name: &str) -> Option<NodeIndex> {
-    dag.graph()
-        .node_references()
-        .find(|(_node_index, node)| {
-            if let dozer_core::NodeKind::Sink(_) = &node.kind {
-                node.handle.id == endpoint_table_name
-            } else {
-                false
-            }
-        })
-        .map(|(node_index, _)| node_index)
-}
-
-fn sink_input_schema(dag: &DagSchemas, node_index: NodeIndex) -> &Schema {
-    let edge = dag
-        .graph()
-        .edges_directed(node_index, Direction::Incoming)
-        .next()
-        .expect("Sink must have one incoming edge");
-    &edge.weight().schema
-}
 
 fn serde_json_to_path(path: impl AsRef<Path>, value: &impl Serialize) -> Result<(), BuildError> {
     let file = OpenOptions::new()
@@ -256,7 +190,16 @@ impl PartialEq<PipelineContract> for PipelineContract {
                             NodeKind::Processor { typ: left_typ },
                             NodeKind::Processor { typ: right_typ },
                         ) => left_typ == right_typ,
-                        (NodeKind::Sink { typ: _ }, NodeKind::Sink { typ: _ }) => true,
+                        (
+                            NodeKind::Sink {
+                                typ: left_typ,
+                                port_names: left_port_names,
+                            },
+                            NodeKind::Sink {
+                                typ: right_type,
+                                port_names: right_port_names,
+                            },
+                        ) => left_typ == right_type && left_port_names == right_port_names,
                         _ => false,
                     }
             },
@@ -264,5 +207,3 @@ impl PartialEq<PipelineContract> for PipelineContract {
         )
     }
 }
-
-mod modify_schema;

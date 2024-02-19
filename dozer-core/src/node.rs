@@ -98,6 +98,7 @@ pub trait Processor: Send + Sync + Debug {
 #[async_trait]
 pub trait SinkFactory: Send + Sync + Debug {
     fn get_input_ports(&self) -> Vec<PortHandle>;
+    fn get_input_port_name(&self, port: &PortHandle) -> String;
     fn prepare(&self, input_schemas: HashMap<PortHandle, Schema>) -> Result<(), BoxedError>;
     async fn build(
         &self,

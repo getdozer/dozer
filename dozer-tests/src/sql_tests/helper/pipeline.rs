@@ -177,6 +177,10 @@ impl SinkFactory for TestSinkFactory {
         self.input_ports.clone()
     }
 
+    fn get_input_port_name(&self, _port: &PortHandle) -> String {
+        "test".to_string()
+    }
+
     fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), BoxedError> {
         Ok(())
     }
@@ -352,7 +356,11 @@ impl TestPipeline {
         .unwrap();
 
         let output = Arc::new(Mutex::new(HashMap::new()));
-        pipeline.add_sink(Box::new(TestSinkFactory::new(output.clone())), "sink", None);
+        pipeline.add_sink(
+            Box::new(TestSinkFactory::new(output.clone())),
+            "sink",
+            vec![],
+        );
 
         pipeline.connect_nodes(
             &output_table.node,

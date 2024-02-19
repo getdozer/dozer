@@ -1,6 +1,6 @@
 use crate::errors::ReaderBuilderError;
 use crate::replication::{load_persisted_log_entry, LogOperation};
-use crate::schemas::EndpointSchema;
+use crate::schemas::SinkSchema;
 use crate::storage::{self, LocalStorage, S3Storage, Storage};
 
 use super::errors::ReaderError;
@@ -9,7 +9,7 @@ use dozer_types::grpc_types::internal::{
     storage_response, BuildRequest, LogRequest, LogResponse, StorageRequest,
 };
 use dozer_types::log::debug;
-use dozer_types::models::endpoint::{
+use dozer_types::models::sink::{
     default_log_reader_batch_size, default_log_reader_buffer_size,
     default_log_reader_timeout_in_millis,
 };
@@ -42,7 +42,7 @@ impl Default for LogReaderOptions {
 #[derive(Debug)]
 pub struct LogReaderBuilder {
     /// Schema of this endpoint.
-    pub schema: EndpointSchema,
+    pub schema: SinkSchema,
     pub options: LogReaderOptions,
     client: LogClient,
 }
@@ -50,7 +50,7 @@ pub struct LogReaderBuilder {
 #[derive(Debug)]
 pub struct LogReader {
     /// Schema of this endpoint.
-    pub schema: EndpointSchema,
+    pub schema: SinkSchema,
     op_receiver: Receiver<OpAndPos>,
     worker: Option<JoinHandle<Result<(), ReaderError>>>,
 }
@@ -91,7 +91,7 @@ pub struct OpAndPos {
 
 impl LogReader {
     pub fn new(
-        schema: EndpointSchema,
+        schema: SinkSchema,
         client: LogClient,
         options: LogReaderOptions,
         start: u64,
@@ -134,7 +134,7 @@ impl LogClient {
     pub async fn new(
         client: &mut InternalPipelineServiceClient<Channel>,
         endpoint: String,
-    ) -> Result<(Self, EndpointSchema), ReaderBuilderError> {
+    ) -> Result<(Self, SinkSchema), ReaderBuilderError> {
         let build = client
             .describe_build(BuildRequest {
                 endpoint: endpoint.clone(),

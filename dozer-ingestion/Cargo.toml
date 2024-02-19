@@ -9,7 +9,6 @@ authors = ["getdozer/dozer-dev"]
 [dependencies]
 dozer-ingestion-connector = { path = "./connector" }
 dozer-ingestion-deltalake = { path = "./deltalake" }
-dozer-ingestion-dozer = { path = "./dozer" }
 dozer-ingestion-ethereum = { path = "./ethereum", optional = true }
 dozer-ingestion-grpc = { path = "./grpc" }
 dozer-ingestion-javascript = { path = "./javascript" }
@@ -40,7 +39,6 @@ parquet = "48.0.0"
 env_logger = "0.10.0"
 hex = "0.4.3"
 dozer-utils = { path = "../dozer-utils" }
-dozer-cli = { path = "../dozer-cli" }
 
 [features]
 snowflake = ["dep:dozer-ingestion-snowflake"]

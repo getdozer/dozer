@@ -15,7 +15,7 @@ use dozer_log::storage::Queue;
 use dozer_log::tokio::runtime::Runtime;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::log::debug;
-use dozer_types::models::endpoint::ClickhouseSinkConfig;
+use dozer_types::models::sink::ClickhouseSinkConfig;
 use dozer_types::node::OpIdentifier;
 use dozer_types::serde::Serialize;
 use dozer_types::tonic::async_trait;
@@ -168,6 +168,10 @@ impl SinkFactory for ClickhouseSinkFactory {
 
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
+    }
+
+    fn get_input_port_name(&self, _port: &PortHandle) -> String {
+        self.config.source_table_name.clone()
     }
 
     fn prepare(&self, input_schemas: HashMap<PortHandle, Schema>) -> Result<(), BoxedError> {

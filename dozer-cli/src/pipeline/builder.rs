@@ -8,24 +8,22 @@ use dozer_core::app::PipelineEntryPoint;
 use dozer_core::node::SinkFactory;
 use dozer_core::shutdown::ShutdownReceiver;
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_log::replication::Log;
 use dozer_sql::builder::statement_to_pipeline;
 use dozer_sql::builder::{OutputNodeInfo, QueryContext};
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::log::debug;
 use dozer_types::models::connection::Connection;
 use dozer_types::models::connection::ConnectionConfig;
-use dozer_types::models::endpoint::OracleSinkConfig;
-use dozer_types::models::endpoint::{AerospikeSinkConfig, ClickhouseSinkConfig};
 use dozer_types::models::flags::Flags;
+use dozer_types::models::sink::Sink;
+use dozer_types::models::sink::SinkConfig;
 use dozer_types::models::source::Source;
 use dozer_types::models::udf_config::UdfConfig;
+use dozer_types::types::PortHandle;
 use std::hash::Hash;
 use tokio::runtime::Runtime;
-use tokio::sync::Mutex;
 
 use crate::pipeline::dummy_sink::DummySinkFactory;
-use crate::pipeline::LogSinkFactory;
 use dozer_sink_aerospike::AerospikeSinkFactory;
 use dozer_sink_clickhouse::ClickhouseSinkFactory;
 use dozer_sink_oracle::OracleSinkFactory;
@@ -51,26 +49,11 @@ pub struct CalculatedSources {
     pub query_context: Option<QueryContext>,
 }
 
-#[derive(Debug)]
-pub struct EndpointLog {
-    pub table_name: String,
-    pub kind: EndpointLogKind,
-}
-
-#[derive(Debug)]
-pub enum EndpointLogKind {
-    Api { log: Arc<Mutex<Log>> },
-    Dummy,
-    Aerospike { config: AerospikeSinkConfig },
-    Clickhouse { config: ClickhouseSinkConfig },
-    Oracle { config: OracleSinkConfig },
-}
-
 pub struct PipelineBuilder<'a> {
     connections: &'a [Connection],
     sources: &'a [Source],
     sql: Option<&'a str>,
-    endpoint_logs: Vec<EndpointLog>,
+    sinks: &'a [Sink],
     labels: LabelsAndProgress,
     flags: Flags,
     udfs: &'a [UdfConfig],
@@ -81,7 +64,7 @@ impl<'a> PipelineBuilder<'a> {
         connections: &'a [Connection],
         sources: &'a [Source],
         sql: Option<&'a str>,
-        endpoint_logs: Vec<EndpointLog>,
+        sinks: &'a [Sink],
         labels: LabelsAndProgress,
         flags: Flags,
         udfs: &'a [UdfConfig],
@@ -90,7 +73,7 @@ impl<'a> PipelineBuilder<'a> {
             connections,
             sources,
             sql,
-            endpoint_logs,
+            sinks,
             labels,
             flags,
             udfs,
@@ -173,12 +156,12 @@ impl<'a> PipelineBuilder<'a> {
         }
 
         // Add Used Souces if direct from source
-        for endpoint_log in &self.endpoint_logs {
-            let table_name = &endpoint_log.table_name;
-
-            // Don't add if the table is a result of SQL
-            if !transformed_sources.contains(table_name) {
-                original_sources.push(table_name.clone());
+        for sink in self.sinks {
+            for table_name in table_names(sink) {
+                // Don't add if the table is a result of SQL
+                if !transformed_sources.contains(table_name) {
+                    original_sources.push(table_name.to_string());
+                }
             }
         }
         dedup(&mut original_sources);
@@ -242,31 +225,28 @@ impl<'a> PipelineBuilder<'a> {
         // Check if all output tables are used.
         for (table_name, table_info) in &available_output_tables {
             if matches!(table_info, OutputTableInfo::Transformed(_))
-                && !self
-                    .endpoint_logs
-                    .iter()
-                    .any(|endpoint_log| &endpoint_log.table_name == table_name)
+                && !is_table_used(table_name, self.sinks)
             {
                 return Err(OrchestrationError::OutputTableNotUsed(table_name.clone()));
             }
         }
 
-        for endpoint_log in self.endpoint_logs {
-            let table_info = available_output_tables
-                .get(&endpoint_log.table_name)
-                .ok_or_else(|| {
-                    OrchestrationError::EndpointTableNotFound(endpoint_log.table_name.clone())
-                })?;
+        let get_table_info = |table_name: &String| {
+            available_output_tables
+                .get(table_name)
+                .ok_or_else(|| OrchestrationError::SinkTableNotFound(table_name.clone()))
+        };
 
-            let snk_factory: Box<dyn SinkFactory> = match endpoint_log.kind {
-                EndpointLogKind::Api { log, .. } => Box::new(LogSinkFactory::new(
-                    runtime.clone(),
-                    log,
-                    endpoint_log.table_name.clone(),
-                    self.labels.clone(),
-                )),
-                EndpointLogKind::Dummy => Box::new(DummySinkFactory),
-                EndpointLogKind::Aerospike { config } => {
+        for sink in self.sinks {
+            let id = &sink.name;
+            match &sink.config {
+                SinkConfig::Dummy(config) => add_sink_to_pipeline(
+                    &mut pipeline,
+                    Box::new(DummySinkFactory),
+                    id,
+                    vec![(get_table_info(&config.table_name)?, DEFAULT_PORT_HANDLE)],
+                ),
+                SinkConfig::Aerospike(config) => {
                     let connection = self
                         .connections
                         .iter()
@@ -280,12 +260,33 @@ impl<'a> PipelineBuilder<'a> {
                         .ok_or_else(|| {
                             OrchestrationError::ConnectionNotFound(config.connection.clone())
                         })?;
-                    Box::new(AerospikeSinkFactory::new(connection.clone(), config))
+                    let sink_factory = Box::new(AerospikeSinkFactory::new(
+                        connection.clone(),
+                        config.clone(),
+                    ));
+                    let table_infos = config
+                        .tables
+                        .iter()
+                        .enumerate()
+                        .map(|(port, table)| {
+                            let table_info = get_table_info(&table.source_table_name)?;
+                            Ok((table_info, port as PortHandle))
+                        })
+                        .collect::<Result<Vec<_>, OrchestrationError>>()?;
+                    add_sink_to_pipeline(&mut pipeline, sink_factory, id, table_infos);
                 }
-                EndpointLogKind::Clickhouse { config } => {
-                    Box::new(ClickhouseSinkFactory::new(config.clone(), runtime.clone()))
+                SinkConfig::Clickhouse(config) => {
+                    let sink =
+                        Box::new(ClickhouseSinkFactory::new(config.clone(), runtime.clone()));
+                    let table_info = get_table_info(&config.source_table_name)?;
+                    add_sink_to_pipeline(
+                        &mut pipeline,
+                        sink,
+                        id,
+                        vec![(table_info, DEFAULT_PORT_HANDLE)],
+                    );
                 }
-                EndpointLogKind::Oracle { config } => {
+                SinkConfig::Oracle(config) => {
                     let connection = self
                         .connections
                         .iter()
@@ -299,32 +300,16 @@ impl<'a> PipelineBuilder<'a> {
                         .ok_or_else(|| {
                             OrchestrationError::ConnectionNotFound(config.connection.clone())
                         })?;
-                    Box::new(OracleSinkFactory {
+                    let sink = Box::new(OracleSinkFactory {
                         config: connection.clone(),
-                        table: endpoint_log.table_name.clone(),
-                    })
-                }
-            };
-
-            match table_info {
-                OutputTableInfo::Transformed(table_info) => {
-                    pipeline.add_sink(snk_factory, &endpoint_log.table_name, None);
-
-                    pipeline.connect_nodes(
-                        &table_info.node,
-                        table_info.port,
-                        &endpoint_log.table_name,
-                        DEFAULT_PORT_HANDLE,
-                    );
-                }
-                OutputTableInfo::Original(table_info) => {
-                    pipeline.add_sink(
-                        snk_factory,
-                        &endpoint_log.table_name,
-                        Some(PipelineEntryPoint::new(
-                            table_info.table_name.clone(),
-                            DEFAULT_PORT_HANDLE,
-                        )),
+                        table: config.table_name.clone(),
+                    });
+                    let table_info = get_table_info(&config.table_name)?;
+                    add_sink_to_pipeline(
+                        &mut pipeline,
+                        sink,
+                        id,
+                        vec![(table_info, DEFAULT_PORT_HANDLE)],
                     );
                 }
             }
@@ -351,4 +336,52 @@ impl<'a> PipelineBuilder<'a> {
 fn dedup<T: Eq + Hash + Clone>(v: &mut Vec<T>) {
     let mut uniques = HashSet::new();
     v.retain(|e| uniques.insert(e.clone()));
+}
+
+fn table_names(sink: &Sink) -> Vec<&String> {
+    match &sink.config {
+        SinkConfig::Dummy(sink) => vec![&sink.table_name],
+        SinkConfig::Aerospike(sink) => sink
+            .tables
+            .iter()
+            .map(|table| &table.source_table_name)
+            .collect(),
+        SinkConfig::Clickhouse(sink) => vec![&sink.source_table_name],
+        SinkConfig::Oracle(sink) => vec![&sink.table_name],
+    }
+}
+
+fn is_table_used(table_name: &str, sinks: &[Sink]) -> bool {
+    sinks.iter().any(|sink| {
+        table_names(sink)
+            .iter()
+            .any(|sink_table_name| sink_table_name == &table_name)
+    })
+}
+
+fn add_sink_to_pipeline(
+    pipeline: &mut AppPipeline,
+    sink: Box<dyn SinkFactory>,
+    id: &str,
+    table_infos: Vec<(&OutputTableInfo, PortHandle)>,
+) {
+    let mut connections = vec![];
+    let mut entry_points = vec![];
+
+    for (table_info, port) in table_infos {
+        match table_info {
+            OutputTableInfo::Original(table_info) => {
+                entry_points.push(PipelineEntryPoint::new(table_info.table_name.clone(), port))
+            }
+            OutputTableInfo::Transformed(table_info) => {
+                connections.push((table_info, port));
+            }
+        }
+    }
+
+    pipeline.add_sink(sink, id, entry_points);
+
+    for (table_info, port) in connections {
+        pipeline.connect_nodes(&table_info.node, table_info.port, id, port);
+    }
 }

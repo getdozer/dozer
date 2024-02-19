@@ -1,5 +1,4 @@
 mod arrow;
-mod dozer;
 mod object_store;
 mod postgres;
 mod sql;

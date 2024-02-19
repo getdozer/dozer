@@ -20,6 +20,8 @@ pub enum LiveError {
     NotInitialized,
     #[error("Connection {0} not found")]
     ConnectionNotFound(String),
+    #[error("Sink {0} not found")]
+    SinkNotFound(String),
     #[error("Error in initializing live server: {0}")]
     Transport(#[from] tonic::transport::Error),
     #[error("Error in reading or extracting from Zip file: {0}")]

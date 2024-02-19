@@ -16,7 +16,7 @@ use futures_util::{Stream, StreamExt};
 use crate::{
     reader::create_storage,
     replication::{self, load_persisted_log_entries, PersistedLogEntry},
-    schemas::EndpointSchema,
+    schemas::SinkSchema,
     storage::{self, Storage},
 };
 
@@ -83,7 +83,7 @@ impl CheckpointedLogReader {
         Ok((storage, entries))
     }
 
-    pub async fn get_schema(&mut self, endpoint: String) -> Result<EndpointSchema, Error> {
+    pub async fn get_schema(&mut self, endpoint: String) -> Result<SinkSchema, Error> {
         let build = self
             .client
             .describe_build(BuildRequest {

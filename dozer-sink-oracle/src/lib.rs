@@ -98,8 +98,13 @@ impl SinkFactory for OracleSinkFactory {
     fn type_name(&self) -> String {
         "oracle".to_string()
     }
+
     fn get_input_ports(&self) -> Vec<PortHandle> {
         vec![DEFAULT_PORT_HANDLE]
+    }
+
+    fn get_input_port_name(&self, _port: &PortHandle) -> String {
+        self.table.clone()
     }
 
     fn prepare(&self, _input_schemas: HashMap<PortHandle, Schema>) -> Result<(), BoxedError> {

@@ -40,8 +40,10 @@ sources:
     connection: stocks
 sinks:
   # Direct from source
-  - table_name: stocks
+  - name: stocks
     config: !Dummy
+      table_name: stocks
   # Direct from source
-  - table_name: stocks_meta
+  - name: stocks_meta
     config: !Dummy
+      table_name: stocks_meta

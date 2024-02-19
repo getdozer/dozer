@@ -182,7 +182,7 @@ fn test_app_dag() {
     p1.add_sink(
         Box::new(CountingSinkFactory::new(20_000, latch.clone())),
         "sink",
-        None,
+        vec![],
     );
     p1.connect_nodes(
         "join",
@@ -205,7 +205,7 @@ fn test_app_dag() {
     p2.add_sink(
         Box::new(CountingSinkFactory::new(20_000, latch)),
         "sink",
-        None,
+        vec![],
     );
     p2.connect_nodes(
         "join",
