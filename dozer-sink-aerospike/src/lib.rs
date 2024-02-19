@@ -752,27 +752,32 @@ struct AerospikeSinkWorker {
 #[derive(Debug)]
 struct CatchingUpState {
     is_catching_up: bool,
-    skipped_in_transaction: usize,
+    skipped_in_txn: usize,
+    ops_in_txn: usize,
 }
 
 impl CatchingUpState {
     fn new(catching_up: bool) -> Self {
         Self {
             is_catching_up: catching_up,
-            skipped_in_transaction: 0,
+            skipped_in_txn: 0,
+            ops_in_txn: 0,
         }
     }
 
-    fn mark_skipped(&mut self) {
-        assert!(self.is_catching_up);
-        self.skipped_in_transaction += 1;
+    fn on_op(&mut self, skipped: bool) {
+        self.ops_in_txn += 1;
+        if skipped {
+            self.skipped_in_txn += 1;
+        }
     }
 
     fn commit(&mut self) {
-        if self.skipped_in_transaction == 0 {
+        if self.ops_in_txn > 0 && self.skipped_in_txn == 0 {
             self.is_catching_up = false;
         }
-        self.skipped_in_transaction = 0;
+        self.ops_in_txn = 0;
+        self.skipped_in_txn = 0;
     }
 }
 
@@ -1441,10 +1446,12 @@ impl Sink for AerospikeSink {
                         as_status_e_AEROSPIKE_FILTERED_OUT | as_status_e_AEROSPIKE_ERR_RECORD_NOT_FOUND,
                     message: _,
                 })) if filter_by_opid => {
-                    self.catch_up_state.mark_skipped();
+                    self.catch_up_state.on_op(true);
                 }
                 Err(e) => return Err(Box::new(e)),
-                Ok(_) => {}
+                Ok(_) => {
+                    self.catch_up_state.on_op(false);
+                }
             }
         }
         Ok(())
