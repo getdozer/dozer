@@ -55,6 +55,7 @@ impl SinkFactory for DummySinkFactory {
             stop_after: std::env::var("STOP_AFTER").map_or(None, |s| s.parse().ok()),
             first_received: None,
             total_latency: 0,
+            previous_op_count: 0,
         }))
     }
 
@@ -69,6 +70,7 @@ struct DummySink {
     inserted_at_index: Option<usize>,
     count: usize,
     previous_started: Instant,
+    previous_op_count: usize,
     first_received: Option<Instant>,
     stop_after: Option<i64>,
     total_latency: u64,
@@ -79,16 +81,18 @@ impl Sink for DummySink {
         if self.count == 0 {
             self.first_received = Some(Instant::now());
         }
-        if self.count % 1000 == 0 {
+        let diff = self.count - self.previous_op_count;
+        if diff > 1000 {
             if self.count > 0 {
                 info!(
                     "Rate: {:.0} op/s, Processed {} records. Elapsed {:?}",
-                    1000.0 / self.previous_started.elapsed().as_secs_f64(),
+                    diff as f64 / self.previous_started.elapsed().as_secs_f64(),
                     self.count,
                     self.previous_started.elapsed(),
                 );
             }
             self.previous_started = Instant::now();
+            self.previous_op_count = self.count;
         }
 
         self.count += match op.op {
