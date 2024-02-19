@@ -410,11 +410,9 @@ impl Connector {
                     match content {
                         MappedLogManagerContent::Commit(scn) => {
                             checkpoint = scn;
-                            if !uncommited_messages.is_empty() {
-                                for message in std::mem::take(&mut uncommited_messages) {
-                                    if ingestor.blocking_handle_message(message).is_err() {
-                                        return Ok(());
-                                    }
+                            for message in uncommited_messages.drain(..) {
+                                if ingestor.blocking_handle_message(message).is_err() {
+                                    return Ok(());
                                 }
                             }
                             if ingestor
@@ -428,11 +426,19 @@ impl Connector {
                                 return Ok(());
                             }
                         }
-                        MappedLogManagerContent::Op { table_index, op } => {
+                        MappedLogManagerContent::Op {
+                            table_index,
+                            op,
+                            scn,
+                        } => {
+                            let txn_seq = uncommited_messages.len();
                             uncommited_messages.push(IngestionMessage::OperationEvent {
                                 table_index,
                                 op,
-                                id: None,
+                                id: Some(OpIdentifier {
+                                    txid: scn,
+                                    seq_in_tx: txn_seq as u64,
+                                }),
                             });
                         }
                     }

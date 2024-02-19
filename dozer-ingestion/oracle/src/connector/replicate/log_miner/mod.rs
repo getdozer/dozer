@@ -13,6 +13,7 @@ use super::listing::ArchivedLog;
 pub enum MappedLogManagerContent {
     Commit(Scn),
     Op {
+        scn: Scn,
         table_index: usize,
         op: dozer_types::types::Operation,
     },
@@ -146,7 +147,11 @@ fn parse_and_map(
                     new: map_row(new, schema)?,
                 },
             };
-            MappedLogManagerContent::Op { table_index, op }
+            MappedLogManagerContent::Op {
+                table_index,
+                op,
+                scn: parsed.scn,
+            }
         }
     }))
 }
