@@ -161,7 +161,8 @@ impl AppUIState {
                 .collect::<std::collections::HashSet<String>>()
                 .into_iter()
                 .collect();
-            let sink_names: Vec<String> = config.sinks.iter().map(|sink| sink.name.clone()).collect();
+            let sink_names: Vec<String> =
+                config.sinks.iter().map(|sink| sink.name.clone()).collect();
 
             let enable_api_security = std::env::var("DOZER_MASTER_SECRET")
                 .ok()
