@@ -124,7 +124,13 @@ impl Sink for DummySink {
         }
 
         if let Some(inserted_at_index) = self.inserted_at_index {
-            if let Operation::Insert { new } = op.op {
+            let records = match op.op {
+                Operation::BatchInsert { ref new } => new,
+                Operation::Insert { ref new } => std::slice::from_ref(new),
+                _ => &[],
+            };
+
+            for new in records {
                 debug!("Received record: {:?}", new);
                 let value = &new.values[inserted_at_index];
                 if let Some(inserted_at) = value.to_timestamp() {
