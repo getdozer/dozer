@@ -219,7 +219,7 @@ impl Client {
     unsafe fn select(
         &self,
         key: *const as_key,
-        bins: &[*const i8],
+        bins: &[*const c_char],
         record: &mut *mut as_record,
     ) -> Result<(), AerospikeError> {
         as_try(|err| {
@@ -229,7 +229,7 @@ impl Client {
                 null(),
                 key,
                 // This won't write to the mut ptr
-                bins.as_ptr() as *mut *const i8,
+                bins.as_ptr() as *mut *const c_char,
                 record as *mut *mut as_record,
             )
         })
@@ -437,7 +437,7 @@ struct Denormalization {
     set: CString,
     key_field: usize,
     columns: Vec<(CString, CString)>,
-    source_column_ptrs: Vec<*const i8>,
+    source_column_ptrs: Vec<*const c_char>,
 }
 
 // column ptrs
