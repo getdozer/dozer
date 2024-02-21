@@ -42,7 +42,7 @@ impl IngestionIterator {
 ///
 /// `IngestionMessage` is the message type that is sent over the channel.
 pub struct Ingestor {
-    pub sender: Sender<IngestionMessage>,
+    sender: Sender<IngestionMessage>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -71,6 +71,10 @@ impl Ingestor {
 
     pub fn blocking_handle_message(&self, message: IngestionMessage) -> Result<(), SendError> {
         self.sender.blocking_send(message).map_err(|_| SendError)
+    }
+
+    pub fn is_closed(&self) -> bool {
+        self.sender.is_closed()
     }
 }
 
