@@ -30,8 +30,6 @@ impl LogMiner {
         }
     }
 
-    /// Returns `Err` if the log manager can not be started.
-    /// In that case `output` is useless.
     #[allow(clippy::too_many_arguments)]
     pub fn mine(
         &self,
@@ -43,7 +41,7 @@ impl LogMiner {
         con_id: Option<u32>,
         output: SyncSender<Result<MappedLogManagerContent, Error>>,
     ) {
-        let _guard = match start_log_manager(connection, log, start_scn) {
+        let _guard = match start_log_manager(connection, log) {
             Ok(guard) => guard,
             Err(e) => {
                 let _ = output.send(Err(e));
@@ -51,7 +49,7 @@ impl LogMiner {
             }
         };
 
-        let contents = match listing::LogManagerContent::list(connection, con_id) {
+        let contents = match listing::LogManagerContent::list(connection, start_scn, con_id) {
             Ok(contents) => contents,
             Err(e) => {
                 let _ = output.send(Err(e));
@@ -86,7 +84,6 @@ mod parse;
 fn start_log_manager<'a>(
     connection: &'a Connection,
     log: &ArchivedLog,
-    start_scn: Scn,
 ) -> Result<LogManagerGuard<'a>, Error> {
     let sql =
         "BEGIN DBMS_LOGMNR.ADD_LOGFILE(LOGFILENAME => :name, OPTIONS => DBMS_LOGMNR.NEW); END;";
@@ -94,7 +91,6 @@ fn start_log_manager<'a>(
     let sql = "
     BEGIN
         DBMS_LOGMNR.START_LOGMNR(
-            STARTSCN => :start_scn,
             OPTIONS =>
                 DBMS_LOGMNR.DICT_FROM_ONLINE_CATALOG +
                 DBMS_LOGMNR.COMMITTED_DATA_ONLY +
@@ -102,7 +98,7 @@ fn start_log_manager<'a>(
                 DBMS_LOGMNR.NO_ROWID_IN_STMT
         );
     END;";
-    connection.execute(sql, &[&start_scn])?;
+    connection.execute(sql, &[])?;
     Ok(LogManagerGuard { connection })
 }
 

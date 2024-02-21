@@ -334,6 +334,7 @@ impl Connector {
         con_id: Option<u32>,
         poll_interval: Duration,
     ) -> Result<(), Error> {
+        let miner = replicate::log_miner::LogMiner::new();
         let table_pair_to_index = tables
             .into_iter()
             .enumerate()
@@ -344,7 +345,7 @@ impl Connector {
             .collect::<HashMap<_, _>>();
 
         loop {
-            let start_scn = checkpoint + 1;
+            let mut start_scn = checkpoint + 1;
             let mut logs = replicate::merge::list_and_join_online_log(&self.connection, start_scn)?;
             if !replicate::log_contains_scn(logs.first(), start_scn) {
                 info!(
@@ -373,12 +374,12 @@ impl Connector {
 
                 let (sender, receiver) = std::sync::mpsc::sync_channel(100);
                 let handle = {
+                    let miner = miner.clone();
                     let connection = self.connection.clone();
                     let log = log.clone();
                     let table_pair_to_index = table_pair_to_index.clone();
                     let schemas = schemas.clone();
                     std::thread::spawn(move || {
-                        let miner = replicate::log_miner::LogMiner::new();
                         miner.mine(
                             &connection,
                             &log,
@@ -437,7 +438,7 @@ impl Connector {
                     std::thread::sleep(poll_interval);
                 } else {
                     // If there are more logs, we need to start from the next log's first change.
-                    checkpoint = log.next_change - 1;
+                    start_scn = log.next_change;
                 }
             }
         }
