@@ -9,32 +9,40 @@ pub struct TableColumn {
     pub column_name: String,
     pub data_type: Option<String>,
     pub nullable: Option<String>,
+    pub precision: Option<i64>,
+    pub scale: Option<i64>,
 }
 
 impl TableColumn {
     pub fn list(connection: &Connection, schemas: &[String]) -> Result<Vec<TableColumn>, Error> {
         assert!(!schemas.is_empty());
         let sql = "
-        SELECT OWNER, TABLE_NAME, COLUMN_NAME, DATA_TYPE, NULLABLE
+        SELECT OWNER, TABLE_NAME, COLUMN_NAME, DATA_TYPE, NULLABLE, DATA_PRECISION, DATA_SCALE
         FROM ALL_TAB_COLUMNS
         WHERE OWNER IN (SELECT COLUMN_VALUE FROM TABLE(:2))
         ";
         let schemas = super::string_collection(connection, schemas)?;
-        let rows = connection
-            .query_as::<(String, String, String, Option<String>, Option<String>)>(
-                sql,
-                &[&schemas],
-            )?;
+        let rows = connection.query_as::<(
+            String,
+            String,
+            String,
+            Option<String>,
+            Option<String>,
+            Option<i64>,
+            Option<i64>,
+        )>(sql, &[&schemas])?;
 
         let mut columns = Vec::new();
         for row in rows {
-            let (owner, table_name, column_name, data_type, nullable) = row?;
+            let (owner, table_name, column_name, data_type, nullable, precision, scale) = row?;
             let column = TableColumn {
                 owner,
                 table_name,
                 column_name,
                 data_type,
                 nullable,
+                precision,
+                scale,
             };
             columns.push(column);
         }

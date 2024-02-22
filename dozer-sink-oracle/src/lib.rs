@@ -246,10 +246,10 @@ impl OracleSinkFactory {
         for field in &schema.fields {
             let name = &field.name;
             let col_type = match field.typ {
-                dozer_types::types::FieldType::UInt => "NUMBER",
-                dozer_types::types::FieldType::U128 => unimplemented!(),
-                dozer_types::types::FieldType::Int => "NUMBER",
-                dozer_types::types::FieldType::I128 => unimplemented!(),
+                dozer_types::types::FieldType::UInt => "INTEGER",
+                dozer_types::types::FieldType::U128 => "INTEGER",
+                dozer_types::types::FieldType::Int => "INTEGER",
+                dozer_types::types::FieldType::I128 => "INTEGER",
                 // Should this be BINARY_DOUBLE?
                 dozer_types::types::FieldType::Float => "NUMBER",
                 dozer_types::types::FieldType::Boolean => "NUMBER",
@@ -326,8 +326,9 @@ fn generate_merge_statement(table_name: &str, schema: &Schema) -> String {
 
     let opkind_idx = parameter_index.next().unwrap();
     let opid_select = format!(
-        r#"COALESCE(S."{TXN_ID_COL}" > D."{TXN_ID_COL}" OR (S."{TXN_ID_COL}" = D."{TXN_ID_COL}" AND S."{TXN_SEQ_COL}" > D."{TXN_SEQ_COL}"), TRUE) = TRUE"#
+        r#"(S."{TXN_ID_COL}" > D."{TXN_ID_COL}" OR (S."{TXN_ID_COL}" = D."{TXN_ID_COL}" AND S."{TXN_SEQ_COL}" > D."{TXN_SEQ_COL}"))"#
     );
+
     // Match on PK and txn_id.
     // If the record does not exist and the op is INSERT, do the INSERT
     // If the record exists, but the txid is higher than the operation's txid,

@@ -51,7 +51,12 @@ fn map_data_type(
         match data_type {
             "VARCHAR2" => Ok(FieldType::String),
             "NVARCHAR2" => unimplemented!("convert NVARCHAR2 to String"),
-            "NUMBER" => Ok(FieldType::Decimal),
+            "INTEGER" => Ok(FieldType::I128),
+            "NUMBER" => match (precision, scale) {
+                (Some(precision), Some(0)) if precision >= 22 => Ok(FieldType::UInt),
+                (None, Some(0)) => Ok(FieldType::UInt),
+                _ => Ok(FieldType::Decimal),
+            },
             "FLOAT" => Ok(FieldType::Float),
             "DATE" => Ok(FieldType::Date),
             "BINARY_FLOAT" => Ok(FieldType::Float),
@@ -89,6 +94,14 @@ pub fn map_row(schema: &Schema, row: Row) -> Result<Record, Error> {
 
 fn map_field(index: usize, field: &FieldDefinition, row: &Row) -> Result<Field, Error> {
     Ok(match (field.typ, field.nullable) {
+        (FieldType::Int, true) => row
+            .get::<_, Option<i64>>(index)?
+            .map_or(Field::Null, Field::Int),
+        (FieldType::Int, false) => Field::Int(row.get(index)?),
+        (FieldType::UInt, true) => row
+            .get::<_, Option<u64>>(index)?
+            .map_or(Field::Null, Field::UInt),
+        (FieldType::UInt, false) => Field::UInt(row.get(index)?),
         (FieldType::Float, true) => row
             .get::<_, Option<f64>>(index)?
             .map_or(Field::Null, |value| Field::Float(OrderedFloat(value))),
@@ -153,6 +166,8 @@ fn map_columns(schema: &str, table_name: &str, columns: Vec<Column>) -> ColumnMa
                 &column.name,
                 column.data_type.as_deref(),
                 column.nullable.as_deref(),
+                column.precision,
+                column.scale,
             );
             (
                 column.name,
