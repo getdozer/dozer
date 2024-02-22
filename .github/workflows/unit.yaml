@@ -21,9 +21,7 @@ jobs:
   # Run unit tests
   unit:
     timeout-minutes: 60
-    runs-on:
-      group: Org Larger Runners
-      labels: ubuntu-latest-16-cores
+    runs-on: ubuntu-latest
     services:
       postgres:
         image: debezium/postgres:13
