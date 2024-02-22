@@ -10,7 +10,7 @@ pub struct LogManagerContent {
     pub operation_code: u8,
     pub seg_owner: Option<String>,
     pub table_name: Option<String>,
-    pub sql_redo: String,
+    pub sql_redo: Option<String>,
 }
 
 impl LogManagerContent {
@@ -25,7 +25,7 @@ impl LogManagerContent {
             u8,
             Option<String>,
             Option<String>,
-            String,
+            Option<String>,
         );
         let rows = if let Some(con_id) = con_id {
             let sql = "SELECT COMMIT_SCN, COMMIT_TIMESTAMP, OPERATION_CODE, SEG_OWNER, TABLE_NAME, SQL_REDO FROM V$LOGMNR_CONTENTS WHERE COMMIT_SCN >= :start_scn AND SRC_CON_ID = :con_id";

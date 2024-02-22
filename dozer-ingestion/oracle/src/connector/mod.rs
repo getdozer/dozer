@@ -400,6 +400,9 @@ impl Connector {
                     let content = match content {
                         Ok(content) => content,
                         Err(e) => {
+                            if ingestor.is_closed() {
+                                return Ok(());
+                            }
                             error!("Error during log mining: {}. Retrying.", e);
                             break 'replicate_logs;
                         }

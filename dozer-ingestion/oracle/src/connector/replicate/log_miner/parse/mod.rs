@@ -88,18 +88,23 @@ impl Parser {
         };
 
         let op = match content.operation_code {
-            OP_CODE_INSERT => {
-                ParsedOperation::Insert(self.insert_parser.parse(&content.sql_redo, &table_pair)?)
-            }
-            OP_CODE_DELETE => {
-                ParsedOperation::Delete(self.delete_parser.parse(&content.sql_redo, &table_pair)?)
-            }
+            OP_CODE_INSERT => ParsedOperation::Insert(self.insert_parser.parse(
+                &content.sql_redo.expect("insert must have redo"),
+                &table_pair,
+            )?),
+            OP_CODE_DELETE => ParsedOperation::Delete(self.delete_parser.parse(
+                &content.sql_redo.expect("delete must have redo"),
+                &table_pair,
+            )?),
             OP_CODE_UPDATE => {
-                let (old, new) = self.update_parser.parse(&content.sql_redo, &table_pair)?;
+                let (old, new) = self.update_parser.parse(
+                    &content.sql_redo.expect("update must have redo"),
+                    &table_pair,
+                )?;
                 ParsedOperation::Update { old, new }
             }
             OP_CODE_DDL => {
-                warn!("Ignoring DDL operation: {}", content.sql_redo);
+                warn!("Ignoring DDL operation: {:?}", content.sql_redo);
                 return Ok(None);
             }
             _ => {
