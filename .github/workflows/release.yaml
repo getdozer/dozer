@@ -68,7 +68,7 @@ jobs:
 
   release-linux-aarch64:
     name: Release Linux binary for aarch64
-    runs-on: ubuntu-20-16-cores
+    runs-on: ubuntu-20.04
     needs: prepare
     env:
       CARGO_TARGET: aarch64-unknown-linux-gnu
@@ -256,9 +256,9 @@ jobs:
     needs: prepare
     strategy:
       matrix:
-        os: [ubuntu-20-16-cores]
+        os: [ubuntu-20.04]
         include:
-          - os: ubuntu-20-16-cores
+          - os: ubuntu-20.04
             file_name: dozer
             target: x86_64-unknown-linux-gnu
             asset_name: dozer-linux-amd64
@@ -286,19 +286,19 @@ jobs:
         uses: swatinem/rust-cache@v2
 
       - name: Install cargo-deb
-        if: matrix.os == 'ubuntu-20-16-cores'
+        if: matrix.os == 'ubuntu-20.04'
         run: cargo install cargo-deb
 
       - name: Compile deb file
-        if: matrix.os == 'ubuntu-20-16-cores'
+        if: matrix.os == 'ubuntu-20.04'
         run: cargo-deb -p dozer-cli  --output ./deb/${{matrix.asset_name}}.deb
 
       - name: Build package
-        if: matrix.os != 'ubuntu-20-16-cores'
+        if: matrix.os != 'ubuntu-20.04'
         run: cargo build --release --bin ${{ matrix.file_name }}
 
       - name: Build package for ubuntu (with kafka & snowflake)
-        if: matrix.os == 'ubuntu-20-16-cores'
+        if: matrix.os == 'ubuntu-20.04'
         run: cargo build --release --bin  ${{ matrix.file_name }} --features "kafka snowflake"
 
       - name: Prepare release assets
@@ -340,7 +340,7 @@ jobs:
           echo "ARTIFACT_URL=https://${{ env.BUCKET_NAME }}.s3.ap-southeast-1.amazonaws.com/${{ env.VERSION }}/${{ env.RELEASE_NAME }}" >> $GITHUB_ENV
 
       - name: configure aws credentials
-        if: matrix.os == 'ubuntu-20-16-cores'
+        if: matrix.os == 'ubuntu-20.04'
         uses: aws-actions/configure-aws-credentials@v1
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
@@ -349,19 +349,19 @@ jobs:
 
       - name: Upload release to S3
         id: upload_s3
-        if: matrix.os == 'ubuntu-20-16-cores'
+        if: matrix.os == 'ubuntu-20.04'
         run: |
           aws s3 cp $RELEASE_NAME s3://${{ env.BUCKET_NAME }}/$VERSION/$RELEASE_NAME
 
       - name: Upload release deb to S3
         id: upload_s3_deb
-        if: matrix.os == 'ubuntu-20-16-cores'
+        if: matrix.os == 'ubuntu-20.04'
         run: |
           aws s3 cp deb/$DEB_NAME s3://${{ env.BUCKET_NAME }}/$VERSION/$DEB_NAME
 
       - name: Build, tag, and push image to Amazon ECR
         id: build_push_ecr
-        if: matrix.os == 'ubuntu-20-16-cores'
+        if: matrix.os == 'ubuntu-20.04'
         env:
           IMAGE_TAG: ${{ needs.prepare.outputs.version }}
         run: |
@@ -370,7 +370,7 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY --all-tags
 
       - name: Update latest image if releasing
-        if: (needs.prepare.outputs.prerelease == 'false') && (matrix.os == 'ubuntu-20-16-cores')
+        if: (needs.prepare.outputs.prerelease == 'false') && (matrix.os == 'ubuntu-20.04')
         env:
           IMAGE_TAG: ${{ needs.prepare.outputs.version }}
         run: |
@@ -378,14 +378,14 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
       - name: Log in to Docker Hub
-        if: (github.event_name == 'release') && (needs.prepare.outputs.prerelease == 'false') && (matrix.os == 'ubuntu-20-16-cores')
+        if: (github.event_name == 'release') && (needs.prepare.outputs.prerelease == 'false') && (matrix.os == 'ubuntu-20.04')
         uses: docker/login-action@v1
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push Docker image to Docker Hub
-        if: (github.event_name == 'release') && (needs.prepare.outputs.prerelease == 'false') && (matrix.os == 'ubuntu-20-16-cores')
+        if: (github.event_name == 'release') && (needs.prepare.outputs.prerelease == 'false') && (matrix.os == 'ubuntu-20.04')
         env:
           IMAGE_TAG: ${{ needs.prepare.outputs.version }}
         uses: docker/build-push-action@v2
@@ -396,7 +396,7 @@ jobs:
           tags: ${{ env.DOCKERHUB_REGISTRY }}/${{ env.DOCKERHUB_REPOSITORY }}:latest,${{ env.DOCKERHUB_REGISTRY }}/${{ env.DOCKERHUB_REPOSITORY }}:${{ env.IMAGE_TAG }}
 
       - name: Release notification
-        if: ${{ env.VERSION != 'dev' && matrix.os == 'ubuntu-20-16-cores'}}
+        if: ${{ env.VERSION != 'dev' && matrix.os == 'ubuntu-20.04'}}
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_RELEASE_HOOK }}
           DISCORD_EMBEDS: '[ {
