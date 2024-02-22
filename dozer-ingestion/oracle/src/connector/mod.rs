@@ -360,6 +360,9 @@ impl Connector {
             }
 
             if logs.is_empty() {
+                if ingestor.is_closed() {
+                    return Ok(());
+                }
                 info!("No logs found, retrying after {:?}", poll_interval);
                 std::thread::sleep(poll_interval);
                 continue;
@@ -434,6 +437,9 @@ impl Connector {
                 handle.join().unwrap();
 
                 if logs.is_empty() {
+                    if ingestor.is_closed() {
+                        return Ok(());
+                    }
                     info!("Replicated all logs, retrying after {:?}", poll_interval);
                     std::thread::sleep(poll_interval);
                 } else {
