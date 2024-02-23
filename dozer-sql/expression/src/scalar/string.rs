@@ -272,6 +272,36 @@ pub(crate) fn evaluate_to_char(
     Ok(Field::String(output))
 }
 
+pub(crate) fn evaluate_chr(
+    schema: &Schema,
+    arg: &mut Expression,
+    record: &Record,
+) -> Result<Field, Error> {
+    let value = arg.evaluate(record, schema)?;
+    match value {
+        Field::UInt(u) => Ok(Field::String((((u % 256) as u8) as char).to_string())),
+        Field::U128(u) => Ok(Field::String((((u % 256) as u8) as char).to_string())),
+        Field::Int(i) => Ok(Field::String((((i % 256) as u8) as char).to_string())),
+        Field::I128(i) => Ok(Field::String((((i % 256) as u8) as char).to_string())),
+        Field::Float(_)
+        | Field::Decimal(_)
+        | Field::Boolean(_)
+        | Field::String(_)
+        | Field::Text(_)
+        | Field::Date(_)
+        | Field::Timestamp(_)
+        | Field::Binary(_)
+        | Field::Json(_)
+        | Field::Point(_)
+        | Field::Duration(_)
+        | Field::Null => Err(Error::InvalidFunctionArgument {
+            function_name: ScalarFunctionType::Chr.to_string(),
+            argument_index: 0,
+            argument: value,
+        }),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -283,11 +313,12 @@ mod tests {
     fn test_string() {
         proptest!(
             ProptestConfig::with_cases(1000),
-            move |(s_val in ".+", s_val1 in ".*", s_val2 in ".*", c_val: char)| {
+            move |(s_val in ".+", s_val1 in ".*", s_val2 in ".*", c_val: char, i_val: i64) | {
                 test_like(&s_val, c_val);
                 test_ucase(&s_val, c_val);
                 test_concat(&s_val1, &s_val2, c_val);
                 test_trim(&s_val, c_val);
+                test_chr(i_val)
         });
     }
 
@@ -588,5 +619,16 @@ mod tests {
                 Field::String(s_val1.trim_matches(c_val).to_string())
             );
         }
+    }
+
+    fn test_chr(val: i64) {
+        let row = Record::new(vec![]);
+
+        // Field::String
+        let mut value = Box::new(Literal(Field::Int(val)));
+        assert_eq!(
+            evaluate_chr(&Schema::default(), &mut value, &row).unwrap(),
+            Field::String((((val % 256) as u8) as char).to_string())
+        );
     }
 }

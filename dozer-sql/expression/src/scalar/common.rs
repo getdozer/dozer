@@ -10,6 +10,8 @@ use dozer_types::types::Record;
 use dozer_types::types::{Field, FieldType, Schema};
 use std::fmt::{Display, Formatter};
 
+use super::string::evaluate_chr;
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
 pub enum ScalarFunctionType {
     Abs,
@@ -18,6 +20,7 @@ pub enum ScalarFunctionType {
     Concat,
     Length,
     ToChar,
+    Chr,
 }
 
 impl Display for ScalarFunctionType {
@@ -29,6 +32,7 @@ impl Display for ScalarFunctionType {
             ScalarFunctionType::Concat => f.write_str("CONCAT"),
             ScalarFunctionType::Length => f.write_str("LENGTH"),
             ScalarFunctionType::ToChar => f.write_str("TO_CHAR"),
+            ScalarFunctionType::Chr => f.write_str("CHR"),
         }
     }
 }
@@ -73,6 +77,7 @@ pub(crate) fn get_scalar_function_type(
                 Ok(validate_two_arguments(args, schema, ScalarFunctionType::ToChar)?.0)
             }
         }
+        ScalarFunctionType::Chr => validate_one_argument(args, schema, ScalarFunctionType::Chr),
     }
 }
 
@@ -85,6 +90,8 @@ impl ScalarFunctionType {
             "concat" => Some(ScalarFunctionType::Concat),
             "length" => Some(ScalarFunctionType::Length),
             "to_char" => Some(ScalarFunctionType::ToChar),
+            "chr" => Some(ScalarFunctionType::Chr),
+
             _ => None,
         }
     }
@@ -118,6 +125,10 @@ impl ScalarFunctionType {
                 validate_num_arguments(2..3, args.len(), ScalarFunctionType::ToChar)?;
                 let (arg0, arg1) = args.split_at_mut(1);
                 evaluate_to_char(schema, &mut arg0[0], &mut arg1[0], record)
+            }
+            ScalarFunctionType::Chr => {
+                validate_num_arguments(1..2, args.len(), ScalarFunctionType::Chr)?;
+                evaluate_chr(schema, &mut args[0], record)
             }
         }
     }
