@@ -518,8 +518,8 @@ impl OracleSink {
             .conn
             .batch(&self.merge_statement, self.batch_params.len())
             .build()?;
-        let mut bind_idx = 1..;
         for params in self.batch_params.drain(..) {
+            let mut bind_idx = 1..;
             for ((field, typ), i) in params
                 .params
                 .values
