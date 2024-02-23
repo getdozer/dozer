@@ -1,3 +1,4 @@
+use dozer_ingestion_connector::dozer_types::log::debug;
 use oracle::Connection;
 
 use super::Error;
@@ -74,6 +75,7 @@ impl ConstraintColumn {
         WHERE OWNER IN (SELECT COLUMN_VALUE FROM TABLE(:2))
         ";
         let schemas = super::string_collection(connection, schemas)?;
+        debug!("{}, {}", sql, schemas);
         let rows =
             connection.query_as::<(String, String, String, Option<String>)>(sql, &[&schemas])?;
 
@@ -112,6 +114,7 @@ impl Constraint {
             CONSTRAINT_TYPE = 'P'
         ";
         let schemas = super::string_collection(connection, schemas)?;
+        debug!("{}, {}", sql, schemas);
         let rows = connection.query_as::<(Option<String>, Option<String>)>(sql, &[&schemas])?;
 
         let mut constraints = Vec::new();

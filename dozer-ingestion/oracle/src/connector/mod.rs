@@ -8,7 +8,7 @@ use std::{
 use dozer_ingestion_connector::{
     dozer_types::{
         chrono,
-        log::{error, info},
+        log::{debug, error, info},
         models::ingestion_types::{IngestionMessage, OracleReplicator, TransactionInfo},
         node::OpIdentifier,
         rust_decimal::{self, Decimal},
@@ -129,6 +129,7 @@ impl Connector {
     pub fn list_tables(&mut self, schemas: &[String]) -> Result<Vec<TableIdentifier>, Error> {
         let rows = if schemas.is_empty() {
             let sql = "SELECT OWNER, TABLE_NAME FROM ALL_TABLES";
+            debug!("{}", sql);
             self.connection.query_as::<(String, String)>(sql, &[])?
         } else {
             let sql = "
@@ -137,6 +138,7 @@ impl Connector {
             WHERE OWNER IN (SELECT COLUMN_VALUE FROM TABLE(:2))
             ";
             let owners = string_collection(&self.connection, schemas)?;
+            debug!("{}, {}", sql, owners);
             self.connection
                 .query_as::<(String, String)>(sql, &[&owners])?
         };
@@ -256,8 +258,9 @@ impl Connector {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()?;
 
-        self.connection
-            .execute("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE", &[])?;
+        let sql = "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE";
+        debug!("{}", sql);
+        self.connection.execute(sql, &[])?;
 
         for (table_index, (table, schema)) in tables.into_iter().zip(schemas).enumerate() {
             let columns = table.column_names.join(", ");
@@ -474,6 +477,7 @@ fn temp_varray_of_vchar2(
         "CREATE OR REPLACE TYPE {} AS VARRAY({}) OF VARCHAR2({})",
         TEMP_DOZER_TYPE_NAME, num_strings, max_num_chars
     );
+    debug!("{}", sql);
     connection.execute(&sql, &[])?;
     connection
         .object_type(TEMP_DOZER_TYPE_NAME)

@@ -1,4 +1,7 @@
-use dozer_ingestion_connector::dozer_types::chrono::{DateTime, Utc};
+use dozer_ingestion_connector::dozer_types::{
+    chrono::{DateTime, Utc},
+    log::debug,
+};
 use oracle::Connection;
 
 use crate::connector::{Error, Scn};
@@ -29,9 +32,11 @@ impl LogManagerContent {
         );
         let rows = if let Some(con_id) = con_id {
             let sql = "SELECT COMMIT_SCN, COMMIT_TIMESTAMP, OPERATION_CODE, SEG_OWNER, TABLE_NAME, SQL_REDO FROM V$LOGMNR_CONTENTS WHERE COMMIT_SCN >= :start_scn AND SRC_CON_ID = :con_id";
+            debug!("{}, {}, {}", sql, start_scn, con_id);
             connection.query_as::<Row>(sql, &[&start_scn, &con_id])
         } else {
             let sql = "SELECT COMMIT_SCN, COMMIT_TIMESTAMP, OPERATION_CODE, SEG_OWNER, TABLE_NAME, SQL_REDO FROM V$LOGMNR_CONTENTS WHERE COMMIT_SCN >= :start_scn";
+            debug!("{}, {}", sql, start_scn);
             connection.query_as::<Row>(sql, &[&start_scn])
         }?;
 

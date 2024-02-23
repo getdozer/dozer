@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::mpsc::SyncSender};
 
-use dozer_ingestion_connector::dozer_types::{self, types::Schema};
+use dozer_ingestion_connector::dozer_types::{self, log::debug, types::Schema};
 use oracle::Connection;
 
 use crate::connector::{Error, Scn};
@@ -87,6 +87,7 @@ fn start_log_manager<'a>(
 ) -> Result<LogManagerGuard<'a>, Error> {
     let sql =
         "BEGIN DBMS_LOGMNR.ADD_LOGFILE(LOGFILENAME => :name, OPTIONS => DBMS_LOGMNR.NEW); END;";
+    debug!("{}, {}", sql, log.name);
     connection.execute(sql, &[&str_to_sql!(log.name)])?;
     let sql = "
     BEGIN
@@ -98,12 +99,15 @@ fn start_log_manager<'a>(
                 DBMS_LOGMNR.NO_ROWID_IN_STMT
         );
     END;";
+    debug!("{}", sql);
     connection.execute(sql, &[])?;
     Ok(LogManagerGuard { connection })
 }
 
 fn end_log_manager(connection: &Connection) -> Result<(), Error> {
-    connection.execute("BEGIN DBMS_LOGMNR.END_LOGMNR; END;", &[])?;
+    let sql = "BEGIN DBMS_LOGMNR.END_LOGMNR; END;";
+    debug!("{}", sql);
+    connection.execute(sql, &[])?;
     Ok(())
 }
 
