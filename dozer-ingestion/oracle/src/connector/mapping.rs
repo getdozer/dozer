@@ -39,6 +39,8 @@ fn map_data_type(
     column_name: &str,
     data_type: Option<&str>,
     nullable: Option<&str>,
+    precision: Option<i64>,
+    scale: Option<i64>,
 ) -> Result<MappedColumn, DataTypeError> {
     let data_type = data_type.ok_or_else(|| DataTypeError::ColumnDataTypeIsNull {
         schema: schema.to_string(),
