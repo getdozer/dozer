@@ -1,17 +1,90 @@
-use std::collections::HashMap;
-
 use dozer_ingestion_connector::dozer_types::{
     chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime, ParseError, Utc},
     ordered_float::OrderedFloat,
     rust_decimal::prelude::ToPrimitive,
-    types::{Field, FieldType, Record, Schema},
+    types::{Field, FieldType, Operation, Record, Schema},
 };
 
 use crate::connector::Error;
 
-use super::parse::ParsedValue;
+use super::{
+    parse::{ParsedOperation, ParsedOperationKind, ParsedRow, ParsedTransaction, ParsedValue},
+    Transaction,
+};
 
-pub fn map_row(mut row: HashMap<String, ParsedValue>, schema: &Schema) -> Result<Record, Error> {
+#[derive(Debug, Clone)]
+pub struct Mapper {
+    schemas: Vec<Schema>,
+}
+
+impl Mapper {
+    pub fn new(schemas: Vec<Schema>) -> Self {
+        Self { schemas }
+    }
+
+    pub fn process<'a>(
+        &'a self,
+        iterator: impl Iterator<Item = Result<ParsedTransaction, Error>> + 'a,
+    ) -> impl Iterator<Item = Result<Transaction, Error>> + 'a {
+        Processor {
+            iterator,
+            mapper: self,
+        }
+    }
+
+    fn map(&self, operation: ParsedOperation) -> Result<(usize, Operation), Error> {
+        let schema = &self.schemas[operation.table_index];
+        Ok((
+            operation.table_index,
+            match operation.kind {
+                ParsedOperationKind::Insert(row) => Operation::Insert {
+                    new: map_row(row, schema)?,
+                },
+                ParsedOperationKind::Delete(row) => Operation::Delete {
+                    old: map_row(row, schema)?,
+                },
+                ParsedOperationKind::Update { old, new } => Operation::Update {
+                    old: map_row(old, schema)?,
+                    new: map_row(new, schema)?,
+                },
+            },
+        ))
+    }
+}
+
+#[derive(Debug)]
+struct Processor<'a, I: Iterator<Item = Result<ParsedTransaction, Error>>> {
+    iterator: I,
+    mapper: &'a Mapper,
+}
+
+impl<'a, I: Iterator<Item = Result<ParsedTransaction, Error>>> Iterator for Processor<'a, I> {
+    type Item = Result<Transaction, Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let transaction = match self.iterator.next() {
+            Some(Ok(transaction)) => transaction,
+            Some(Err(err)) => return Some(Err(err)),
+            None => return None,
+        };
+
+        let mut operations = vec![];
+        for operation in transaction.operations {
+            match self.mapper.map(operation) {
+                Ok(operation) => operations.push(operation),
+                Err(err) => return Some(Err(err)),
+            }
+        }
+
+        Some(Ok(Transaction {
+            commit_scn: transaction.commit_scn,
+            commit_timestamp: transaction.commit_timestamp,
+            operations,
+        }))
+    }
+}
+
+fn map_row(mut row: ParsedRow, schema: &Schema) -> Result<Record, Error> {
     let mut values = vec![];
     for field in &schema.fields {
         let value = row
