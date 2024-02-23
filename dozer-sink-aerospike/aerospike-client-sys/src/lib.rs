@@ -17,7 +17,7 @@ macro_rules! as_exp_build {
 #[macro_export]
 macro_rules! as_exp_build_inner {
     ($v:expr, as_exp_bin_int($bin_name:expr $(,)?)) => {{
-        let bin_name: *const i8 = $bin_name;
+        let bin_name: *const std::ffi::c_char = $bin_name;
         $v.push($crate::as_exp_entry {
             op: $crate::as_exp_ops__AS_EXP_CODE_BIN,
             count: 3,

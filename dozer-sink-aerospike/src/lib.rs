@@ -16,10 +16,7 @@ use std::time::{Duration, Instant};
 use std::{collections::HashMap, fmt::Debug};
 
 use aerospike_client_sys::*;
-use dozer_core::{
-    node::{PortHandle, Sink, SinkFactory},
-    DEFAULT_PORT_HANDLE,
-};
+use dozer_core::node::{PortHandle, Sink, SinkFactory};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::geo::{Coord, Point};
 use dozer_types::ordered_float::OrderedFloat;
@@ -1429,7 +1426,6 @@ impl Sink for AerospikeSink {
     }
 
     fn process(&mut self, op: TableOperation) -> Result<(), BoxedError> {
-        debug_assert_eq!(op.port, DEFAULT_PORT_HANDLE);
         if let Some(snapshot_sender) = &mut self.snapshot_sender {
             snapshot_sender.send(op)?;
         } else {
@@ -1563,6 +1559,7 @@ impl Sink for AerospikeSink {
 #[cfg(test)]
 mod tests {
 
+    use dozer_core::DEFAULT_PORT_HANDLE;
     use dozer_log::tokio;
     use std::time::Duration;
 
