@@ -19,6 +19,11 @@ RUN curl -LO https://sfc-repo.snowflakecomputing.com/odbc/linux/2.25.7/snowflake
 RUN dpkg -i snowflake-odbc-2.25.7.x86_64.deb
 RUN rm snowflake-odbc-2.25.7.x86_64.deb
 
+RUN curl -LO https://download.oracle.com/otn_software/linux/instantclient/1922000/instantclient-basic-linux.x64-19.22.0.0.0dbru.zip
+RUN unzip instantclient-basic-linux.x64-19.22.0.0.0dbru.zip -d /usr/local/instantclient_19_22
+ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/local/instantclient_19_22"
+RUN ldconfig
+
 # INSTALL DOZER 
 RUN echo "Installing dozer binary"
 
