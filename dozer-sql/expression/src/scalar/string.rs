@@ -415,6 +415,58 @@ pub(crate) fn evaluate_substr(
     Ok(Field::String(result))
 }
 
+pub fn validate_replace(args: &[Expression], schema: &Schema) -> Result<ExpressionType, Error> {
+    if args.len() != 3 {
+        return Err(Error::InvalidFunctionArgument {
+            function_name: ScalarFunctionType::Replace.to_string(),
+            argument_index: 0,
+            argument: Field::Null,
+        });
+    }
+
+    let mut ret_type = FieldType::String;
+    for exp in args {
+        let r = validate_arg_type(
+            exp,
+            vec![FieldType::String, FieldType::Text],
+            schema,
+            ScalarFunctionType::Replace,
+            0,
+        )?;
+        if matches!(r.return_type, FieldType::Text) {
+            ret_type = FieldType::Text;
+        }
+    }
+
+    Ok(ExpressionType::new(
+        ret_type,
+        false,
+        dozer_types::types::SourceDefinition::Dynamic,
+        false,
+    ))
+}
+
+pub(crate) fn evaluate_replace(
+    schema: &Schema,
+    arg: &mut Expression,
+    search: &mut Expression,
+    replace: &mut Expression,
+    record: &Record,
+) -> Result<Field, Error> {
+    let arg_field = arg.evaluate(record, schema)?;
+    let arg_value = arg_field.to_string();
+
+    let search_field = search.evaluate(record, schema)?;
+    let search_value = search_field.to_string();
+
+    let replace_field = replace.evaluate(record, schema)?;
+    let replace_value = replace_field.to_string();
+
+    let result = arg_value.replace(search_value.as_str(), replace_value.as_str());
+
+    Ok(Field::String(result))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

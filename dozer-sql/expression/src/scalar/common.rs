@@ -11,7 +11,9 @@ use dozer_types::types::Record;
 use dozer_types::types::{Field, FieldType, Schema};
 use std::fmt::{Display, Formatter};
 
-use super::string::{evaluate_chr, evaluate_substr, validate_substr};
+use super::string::{
+    evaluate_chr, evaluate_replace, evaluate_substr, validate_replace, validate_substr,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
 pub enum ScalarFunctionType {
@@ -24,6 +26,7 @@ pub enum ScalarFunctionType {
     Chr,
     Substr,
     Nvl,
+    Replace,
 }
 
 impl Display for ScalarFunctionType {
@@ -38,6 +41,7 @@ impl Display for ScalarFunctionType {
             ScalarFunctionType::Chr => f.write_str("CHR"),
             ScalarFunctionType::Substr => f.write_str("SUBSTR"),
             ScalarFunctionType::Nvl => f.write_str("NVL"),
+            ScalarFunctionType::Replace => f.write_str("REPLACE"),
         }
     }
 }
@@ -87,6 +91,7 @@ pub(crate) fn get_scalar_function_type(
         ScalarFunctionType::Nvl => {
             Ok(validate_two_arguments(args, schema, ScalarFunctionType::Nvl)?.0)
         }
+        ScalarFunctionType::Replace => validate_replace(args, schema),
     }
 }
 
@@ -101,6 +106,7 @@ impl ScalarFunctionType {
             "to_char" => Some(ScalarFunctionType::ToChar),
             "chr" => Some(ScalarFunctionType::Chr),
             "substr" => Some(ScalarFunctionType::Substr),
+            "replace" => Some(ScalarFunctionType::Replace),
             "nvl" => Some(ScalarFunctionType::Nvl),
             _ => None,
         }
@@ -154,6 +160,16 @@ impl ScalarFunctionType {
             ScalarFunctionType::Nvl => {
                 validate_two_arguments(args, schema, ScalarFunctionType::Nvl)?;
                 evaluate_nvl(schema, &mut args[0].clone(), &mut args[1].clone(), record)
+            }
+            ScalarFunctionType::Replace => {
+                validate_replace(args, schema)?;
+                evaluate_replace(
+                    schema,
+                    &mut args[0].clone(),
+                    &mut args[1].clone(),
+                    &mut args[2].clone(),
+                    record,
+                )
             }
         }
     }
