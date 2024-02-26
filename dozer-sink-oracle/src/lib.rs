@@ -327,8 +327,7 @@ fn generate_merge_statement(table_name: &str, schema: &Schema) -> String {
     let opkind_idx = parameter_index.next().unwrap();
 
     let opid_select = format!(
-        r#"(S."{TXN_ID_COL}" IS NULL
-        OR D."{TXN_ID_COL}" IS NULL
+        r#"(D."{TXN_ID_COL}" IS NULL
         OR S."{TXN_ID_COL}" > D."{TXN_ID_COL}"
         OR (S."{TXN_ID_COL}" = D."{TXN_ID_COL}" AND S."{TXN_SEQ_COL}" > D."{TXN_SEQ_COL}"))"#
     );
@@ -714,12 +713,10 @@ mod tests {
                 ON (D."id" = S."id" AND D."name" = S."name")
                 WHEN NOT MATCHED THEN INSERT (D."id", D."name", D."content", D."__txn_id", D."__txn_seq") VALUES (S."id", S."name", S."content", S."__txn_id", S."__txn_seq") WHERE S.DOZER_OPKIND = 0
                 WHEN MATCHED THEN UPDATE SET D."content" = S."content", D."__txn_id" = S."__txn_id", D."__txn_seq" = S."__txn_seq"
-                WHERE S.DOZER_OPKIND = 1 AND (S."__txn_id" IS NULL
-                    OR D."__txn_id" IS NULL
+                WHERE S.DOZER_OPKIND = 1 AND (D."__txn_id" IS NULL
                     OR S."__txn_id" > D."__txn_id"
                     OR (S."__txn_id" = D."__txn_id" AND S."__txn_seq" > D."__txn_seq"))
-                DELETE WHERE S.DOZER_OPKIND = 2 AND (S."__txn_id" IS NULL
-                    OR D."__txn_id" IS NULL
+                DELETE WHERE S.DOZER_OPKIND = 2 AND (D."__txn_id" IS NULL
                     OR S."__txn_id" > D."__txn_id"
                     OR (S."__txn_id" = D."__txn_id" AND S."__txn_seq" > D."__txn_seq"))
 "#
