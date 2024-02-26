@@ -62,10 +62,9 @@ impl<'a, I: Iterator<Item = Result<ParsedTransaction, Error>>> Iterator for Proc
     type Item = Result<Transaction, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let transaction = match self.iterator.next() {
-            Some(Ok(transaction)) => transaction,
-            Some(Err(err)) => return Some(Err(err)),
-            None => return None,
+        let transaction = match self.iterator.next()? {
+            Ok(transaction) => transaction,
+            Err(err) => return Some(Err(err)),
         };
 
         let mut operations = vec![];
