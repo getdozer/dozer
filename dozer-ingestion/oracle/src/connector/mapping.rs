@@ -55,8 +55,8 @@ fn map_data_type(
             "NVARCHAR2" => unimplemented!("convert NVARCHAR2 to String"),
             "INTEGER" => Ok(FieldType::I128),
             "NUMBER" => match (precision, scale) {
-                (Some(precision), Some(0)) if precision >= 22 => Ok(FieldType::Int),
-                (None, Some(0)) => Ok(FieldType::UInt),
+                (Some(precision), Some(0)) if precision <= 22 => Ok(FieldType::Int),
+                (_, Some(0)) => Ok(FieldType::I128),
                 _ => Ok(FieldType::Decimal),
             },
             "FLOAT" => Ok(FieldType::Float),
