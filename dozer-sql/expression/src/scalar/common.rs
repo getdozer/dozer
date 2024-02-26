@@ -1,6 +1,7 @@
 use crate::arg_utils::{validate_num_arguments, validate_one_argument, validate_two_arguments};
 use crate::error::Error;
 use crate::execution::{Expression, ExpressionType};
+use crate::scalar::field::evaluate_nvl;
 use crate::scalar::number::{evaluate_abs, evaluate_round};
 use crate::scalar::string::{
     evaluate_concat, evaluate_length, evaluate_to_char, evaluate_ucase, validate_concat,
@@ -22,6 +23,7 @@ pub enum ScalarFunctionType {
     ToChar,
     Chr,
     Substr,
+    Nvl,
 }
 
 impl Display for ScalarFunctionType {
@@ -35,6 +37,7 @@ impl Display for ScalarFunctionType {
             ScalarFunctionType::ToChar => f.write_str("TO_CHAR"),
             ScalarFunctionType::Chr => f.write_str("CHR"),
             ScalarFunctionType::Substr => f.write_str("SUBSTR"),
+            ScalarFunctionType::Nvl => f.write_str("NVL"),
         }
     }
 }
@@ -81,6 +84,9 @@ pub(crate) fn get_scalar_function_type(
         }
         ScalarFunctionType::Chr => validate_one_argument(args, schema, ScalarFunctionType::Chr),
         ScalarFunctionType::Substr => validate_substr(args, schema),
+        ScalarFunctionType::Nvl => {
+            Ok(validate_two_arguments(args, schema, ScalarFunctionType::Nvl)?.0)
+        }
     }
 }
 
@@ -94,7 +100,8 @@ impl ScalarFunctionType {
             "length" => Some(ScalarFunctionType::Length),
             "to_char" => Some(ScalarFunctionType::ToChar),
             "chr" => Some(ScalarFunctionType::Chr),
-
+            "substr" => Some(ScalarFunctionType::Substr),
+            "nvl" => Some(ScalarFunctionType::Nvl),
             _ => None,
         }
     }
@@ -130,20 +137,23 @@ impl ScalarFunctionType {
                 evaluate_to_char(schema, &mut arg0[0], &mut arg1[0], record)
             }
             ScalarFunctionType::Chr => {
-                validate_num_arguments(1..2, args.len(), ScalarFunctionType::Chr)?;
+                validate_one_argument(args, schema, ScalarFunctionType::Chr)?;
                 evaluate_chr(schema, &mut args[0], record)
             }
             ScalarFunctionType::Substr => {
-                let (mut arg0, mut arg1, mut arg2) = if let Some(arg) = args.get(2) {
-                    (
-                        args[0].clone(),
-                        args[1].clone(),
-                        Some(Box::new(arg.clone())),
-                    )
-                } else {
-                    (args[0].clone(), args[1].clone(), None)
-                };
-                evaluate_substr(schema, &mut arg0, &mut arg1, &mut arg2, record)
+                validate_num_arguments(2..3, args.len(), ScalarFunctionType::Substr)?;
+                let mut arg2 = args.get(2).map(|arg| Box::new(arg.clone()));
+                evaluate_substr(
+                    schema,
+                    &mut args[0].clone(),
+                    &mut args[1].clone(),
+                    &mut arg2,
+                    record,
+                )
+            }
+            ScalarFunctionType::Nvl => {
+                validate_two_arguments(args, schema, ScalarFunctionType::Nvl)?;
+                evaluate_nvl(schema, &mut args[0].clone(), &mut args[1].clone(), record)
             }
         }
     }

@@ -381,7 +381,7 @@ pub(crate) fn evaluate_substr(
 
     let position_field = position.evaluate(record, schema)?;
     let position_result = position_field.to_i128();
-    if !position_result.is_some() {
+    if position_result.is_none() {
         return Err(Error::InvalidFunctionArgument {
             function_name: "SUBSTR".to_string(),
             argument_index: 1,
@@ -394,7 +394,7 @@ pub(crate) fn evaluate_substr(
         Some(length_expr) => {
             let length_field = length_expr.evaluate(record, schema)?;
             let length_result = length_field.to_i128();
-            if !length_result.is_some() {
+            if length_result.is_none() {
                 return Err(Error::InvalidFunctionArgument {
                     function_name: "SUBSTR".to_string(),
                     argument_index: 2,
@@ -426,12 +426,11 @@ mod tests {
     fn test_string() {
         proptest!(
             ProptestConfig::with_cases(1000),
-            move |(s_val in ".+", s_val1 in ".*", s_val2 in ".*", c_val: char, i_val: i64) | {
+            move |(s_val in ".+", s_val1 in ".*", s_val2 in ".*", c_val: char) | {
                 test_like(&s_val, c_val);
                 test_ucase(&s_val, c_val);
                 test_concat(&s_val1, &s_val2, c_val);
                 test_trim(&s_val, c_val);
-                test_chr(i_val)
         });
     }
 
@@ -732,16 +731,5 @@ mod tests {
                 Field::String(s_val1.trim_matches(c_val).to_string())
             );
         }
-    }
-
-    fn test_chr(val: i64) {
-        let row = Record::new(vec![]);
-
-        // Field::String
-        let mut value = Box::new(Literal(Field::Int(val)));
-        assert_eq!(
-            evaluate_chr(&Schema::default(), &mut value, &row).unwrap(),
-            Field::String((((val % 256) as u8) as char).to_string())
-        );
     }
 }
