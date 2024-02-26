@@ -23,6 +23,7 @@ impl TableColumn {
         WHERE OWNER IN (SELECT COLUMN_VALUE FROM TABLE(:2))
         ";
         let schemas = super::string_collection(connection, schemas)?;
+        debug!("{}, {}", sql, schemas);
         let rows = connection.query_as::<(
             String,
             String,
