@@ -246,10 +246,10 @@ impl OracleSinkFactory {
         for field in &schema.fields {
             let name = &field.name;
             let col_type = match field.typ {
-                dozer_types::types::FieldType::UInt => "NUMBER",
-                dozer_types::types::FieldType::U128 => unimplemented!(),
-                dozer_types::types::FieldType::Int => "NUMBER",
-                dozer_types::types::FieldType::I128 => unimplemented!(),
+                dozer_types::types::FieldType::UInt => "INTEGER",
+                dozer_types::types::FieldType::U128 => "INTEGER",
+                dozer_types::types::FieldType::Int => "INTEGER",
+                dozer_types::types::FieldType::I128 => "INTEGER",
                 // Should this be BINARY_DOUBLE?
                 dozer_types::types::FieldType::Float => "NUMBER",
                 dozer_types::types::FieldType::Boolean => "NUMBER",
@@ -325,9 +325,13 @@ fn generate_merge_statement(table_name: &str, schema: &Schema) -> String {
     }
 
     let opkind_idx = parameter_index.next().unwrap();
+
     let opid_select = format!(
-        r#"COALESCE(S."{TXN_ID_COL}" > D."{TXN_ID_COL}" OR (S."{TXN_ID_COL}" = D."{TXN_ID_COL}" AND S."{TXN_SEQ_COL}" > D."{TXN_SEQ_COL}"), TRUE) = TRUE"#
+        r#"(D."{TXN_ID_COL}" IS NULL
+        OR S."{TXN_ID_COL}" > D."{TXN_ID_COL}"
+        OR (S."{TXN_ID_COL}" = D."{TXN_ID_COL}" AND S."{TXN_SEQ_COL}" > D."{TXN_SEQ_COL}"))"#
     );
+
     // Match on PK and txn_id.
     // If the record does not exist and the op is INSERT, do the INSERT
     // If the record exists, but the txid is higher than the operation's txid,
@@ -513,8 +517,8 @@ impl OracleSink {
             .conn
             .batch(&self.merge_statement, self.batch_params.len())
             .build()?;
-        let mut bind_idx = 1..;
         for params in self.batch_params.drain(..) {
+            let mut bind_idx = 1..;
             for ((field, typ), i) in params
                 .params
                 .values
@@ -709,8 +713,12 @@ mod tests {
                 ON (D."id" = S."id" AND D."name" = S."name")
                 WHEN NOT MATCHED THEN INSERT (D."id", D."name", D."content", D."__txn_id", D."__txn_seq") VALUES (S."id", S."name", S."content", S."__txn_id", S."__txn_seq") WHERE S.DOZER_OPKIND = 0
                 WHEN MATCHED THEN UPDATE SET D."content" = S."content", D."__txn_id" = S."__txn_id", D."__txn_seq" = S."__txn_seq"
-                WHERE S.DOZER_OPKIND = 1 AND COALESCE(S."__txn_id" > D."__txn_id" OR (S."__txn_id" = D."__txn_id" AND S."__txn_seq" > D."__txn_seq"), TRUE) = TRUE
-                DELETE WHERE S.DOZER_OPKIND = 2 AND COALESCE(S."__txn_id" > D."__txn_id" OR (S."__txn_id" = D."__txn_id" AND S."__txn_seq" > D."__txn_seq"), TRUE) = TRUE
+                WHERE S.DOZER_OPKIND = 1 AND (D."__txn_id" IS NULL
+                    OR S."__txn_id" > D."__txn_id"
+                    OR (S."__txn_id" = D."__txn_id" AND S."__txn_seq" > D."__txn_seq"))
+                DELETE WHERE S.DOZER_OPKIND = 2 AND (D."__txn_id" IS NULL
+                    OR S."__txn_id" > D."__txn_id"
+                    OR (S."__txn_id" = D."__txn_id" AND S."__txn_seq" > D."__txn_seq"))
 "#
             )
         )

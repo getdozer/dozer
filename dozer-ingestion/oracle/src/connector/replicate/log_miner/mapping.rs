@@ -42,6 +42,16 @@ fn map_value(
         ))),
         (ParsedValue::String(string), FieldType::Decimal, _) => Ok(Field::Decimal(string.parse()?)),
         (ParsedValue::Number(number), FieldType::Decimal, _) => Ok(Field::Decimal(number)),
+        (ParsedValue::Number(number), FieldType::Int, _) => Ok(Field::Int(
+            number
+                .to_i64()
+                .ok_or_else(|| Error::ParseIntFailed(number))?,
+        )),
+        (ParsedValue::Number(number), FieldType::UInt, _) => Ok(Field::UInt(
+            number
+                .to_u64()
+                .ok_or_else(|| Error::ParseUIntFailed(number))?,
+        )),
         (ParsedValue::String(string), FieldType::String, _) => Ok(Field::String(string)),
         (ParsedValue::Number(_), FieldType::String, _) => Err(Error::TypeMismatch {
             field: name.to_string(),
