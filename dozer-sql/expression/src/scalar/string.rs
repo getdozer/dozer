@@ -4,7 +4,7 @@ use std::fmt::{Display, Formatter};
 
 use crate::execution::{Expression, ExpressionType};
 
-use crate::arg_utils::validate_arg_type;
+use crate::arg_utils::{validate_arg_type, validate_num_arguments};
 use crate::scalar::common::ScalarFunctionType;
 
 use dozer_types::types::Record;
@@ -300,6 +300,119 @@ pub(crate) fn evaluate_chr(
             argument: value,
         }),
     }
+}
+
+pub fn validate_substr(args: &[Expression], schema: &Schema) -> Result<ExpressionType, Error> {
+    validate_num_arguments(2..4, args.len(), ScalarFunctionType::Substr)?;
+
+    if args.len() == 2 {
+        validate_arg_type(
+            &args[0],
+            vec![FieldType::String, FieldType::Text],
+            schema,
+            ScalarFunctionType::Substr,
+            0,
+        )?;
+        validate_arg_type(
+            &args[1],
+            vec![
+                FieldType::UInt,
+                FieldType::U128,
+                FieldType::Int,
+                FieldType::I128,
+            ],
+            schema,
+            ScalarFunctionType::Substr,
+            1,
+        )?;
+    } else {
+        validate_arg_type(
+            &args[0],
+            vec![FieldType::String, FieldType::Text],
+            schema,
+            ScalarFunctionType::Substr,
+            0,
+        )?;
+        validate_arg_type(
+            &args[1],
+            vec![
+                FieldType::UInt,
+                FieldType::U128,
+                FieldType::Int,
+                FieldType::I128,
+            ],
+            schema,
+            ScalarFunctionType::Substr,
+            1,
+        )?;
+        validate_arg_type(
+            &args[2],
+            vec![
+                FieldType::UInt,
+                FieldType::U128,
+                FieldType::Int,
+                FieldType::I128,
+            ],
+            schema,
+            ScalarFunctionType::Substr,
+            2,
+        )?;
+    }
+
+    let ret_type = FieldType::String;
+
+    Ok(ExpressionType::new(
+        ret_type,
+        false,
+        dozer_types::types::SourceDefinition::Dynamic,
+        false,
+    ))
+}
+
+pub(crate) fn evaluate_substr(
+    schema: &Schema,
+    arg: &mut Expression,
+    position: &mut Expression,
+    length: &mut Option<Box<Expression>>,
+    record: &Record,
+) -> Result<Field, Error> {
+    let arg_field = arg.evaluate(record, schema)?;
+    let arg_value = arg_field.to_string();
+
+    let position_field = position.evaluate(record, schema)?;
+    let position_result = position_field.to_i128();
+    if !position_result.is_some() {
+        return Err(Error::InvalidFunctionArgument {
+            function_name: "SUBSTR".to_string(),
+            argument_index: 1,
+            argument: position_field,
+        });
+    }
+    let position_value = position_result.unwrap();
+
+    let length_value = match length {
+        Some(length_expr) => {
+            let length_field = length_expr.evaluate(record, schema)?;
+            let length_result = length_field.to_i128();
+            if !length_result.is_some() {
+                return Err(Error::InvalidFunctionArgument {
+                    function_name: "SUBSTR".to_string(),
+                    argument_index: 2,
+                    argument: length_field,
+                });
+            }
+            length_result.unwrap()
+        }
+        None => arg_value.len() as i128,
+    };
+
+    let result = arg_value
+        .chars()
+        .skip(position_value as usize - 1)
+        .take(length_value as usize)
+        .collect::<String>();
+
+    Ok(Field::String(result))
 }
 
 #[cfg(test)]

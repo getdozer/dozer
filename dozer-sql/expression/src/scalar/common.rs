@@ -10,7 +10,7 @@ use dozer_types::types::Record;
 use dozer_types::types::{Field, FieldType, Schema};
 use std::fmt::{Display, Formatter};
 
-use super::string::evaluate_chr;
+use super::string::{evaluate_chr, evaluate_substr, validate_substr};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
 pub enum ScalarFunctionType {
@@ -21,6 +21,7 @@ pub enum ScalarFunctionType {
     Length,
     ToChar,
     Chr,
+    Substr,
 }
 
 impl Display for ScalarFunctionType {
@@ -33,6 +34,7 @@ impl Display for ScalarFunctionType {
             ScalarFunctionType::Length => f.write_str("LENGTH"),
             ScalarFunctionType::ToChar => f.write_str("TO_CHAR"),
             ScalarFunctionType::Chr => f.write_str("CHR"),
+            ScalarFunctionType::Substr => f.write_str("SUBSTR"),
         }
     }
 }
@@ -78,6 +80,7 @@ pub(crate) fn get_scalar_function_type(
             }
         }
         ScalarFunctionType::Chr => validate_one_argument(args, schema, ScalarFunctionType::Chr),
+        ScalarFunctionType::Substr => validate_substr(args, schema),
     }
 }
 
@@ -129,6 +132,18 @@ impl ScalarFunctionType {
             ScalarFunctionType::Chr => {
                 validate_num_arguments(1..2, args.len(), ScalarFunctionType::Chr)?;
                 evaluate_chr(schema, &mut args[0], record)
+            }
+            ScalarFunctionType::Substr => {
+                let (mut arg0, mut arg1, mut arg2) = if let Some(arg) = args.get(2) {
+                    (
+                        args[0].clone(),
+                        args[1].clone(),
+                        Some(Box::new(arg.clone())),
+                    )
+                } else {
+                    (args[0].clone(), args[1].clone(), None)
+                };
+                evaluate_substr(schema, &mut arg0, &mut arg1, &mut arg2, record)
             }
         }
     }
