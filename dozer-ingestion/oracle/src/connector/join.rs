@@ -8,6 +8,8 @@ pub struct Column {
     pub data_type: Option<String>,
     pub nullable: Option<String>,
     pub is_primary_key: bool,
+    pub precision: Option<i64>,
+    pub scale: Option<i64>,
 }
 
 pub fn join_columns_constraints(
@@ -47,6 +49,8 @@ pub fn join_columns_constraints(
             data_type: table_column.data_type,
             nullable: table_column.nullable,
             is_primary_key,
+            precision: table_column.precision,
+            scale: table_column.scale,
         };
         let table_pair = (column_triple.0, column_triple.1);
         table_to_columns.entry(table_pair).or_default().push(column);

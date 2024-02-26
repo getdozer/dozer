@@ -6,7 +6,8 @@ RUN apt-get update \
       odbcinst \
       unixodbc \
       curl \
-      unzip
+      unzip \
+      libaio1
 
 # INSTALL PROTOBUF
 RUN curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v3.18.1/protoc-3.18.1-linux-x86_64.zip 

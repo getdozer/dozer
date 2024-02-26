@@ -69,6 +69,10 @@ pub enum Error {
     ParseDateTime(#[source] chrono::ParseError, String),
     #[error("got overflow float number {0}")]
     FloatOverflow(Decimal),
+    #[error("got error when parsing uint {0}")]
+    ParseUIntFailed(Decimal),
+    #[error("got error when parsing int {0}")]
+    ParseIntFailed(Decimal),
     #[error("type mismatch for {field}, expected {expected:?}, actual {actual:?}")]
     TypeMismatch {
         field: String,
