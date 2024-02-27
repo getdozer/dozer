@@ -13,8 +13,9 @@ use crate::{
     },
 };
 
-use super::from_builder::{
-    insert_table_operator_processor_to_pipeline, is_an_entry_point, is_table_operator,
+use super::{
+    common::is_an_entry_point,
+    table_operator::{insert_table_operator_processor_to_pipeline, is_table_operator},
     ConnectionInfo,
 };
 
@@ -25,7 +26,7 @@ enum JoinSource {
     Join(ConnectionInfo),
 }
 
-pub(crate) fn insert_join_to_pipeline(
+pub fn insert_join_to_pipeline(
     from: &TableWithJoins,
     pipeline: &mut AppPipeline,
     pipeline_idx: usize,
