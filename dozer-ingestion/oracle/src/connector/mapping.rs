@@ -14,7 +14,6 @@ use dozer_ingestion_connector::{
 use oracle::Row;
 
 use super::{join::Column, Error};
-use crate::info;
 
 #[derive(Debug, Clone, Copy)]
 pub struct MappedColumn {
