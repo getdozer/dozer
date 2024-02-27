@@ -35,10 +35,7 @@ use aerospike_client_sys::{
     as_val_val_reserve, as_vector, as_vector_increase_capacity, as_vector_init, AS_BATCH_WRITE,
     AS_BIN_NAME_MAX_LEN,
 };
-use dozer_core::{
-    node::{PortHandle, Sink, SinkFactory},
-    DEFAULT_PORT_HANDLE,
-};
+use dozer_core::node::{PortHandle, Sink, SinkFactory};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::geo::{Coord, Point};
 use dozer_types::ordered_float::OrderedFloat;
@@ -1190,7 +1187,6 @@ impl Sink for AerospikeSink {
     }
 
     fn process(&mut self, op: TableOperation) -> Result<(), BoxedError> {
-        debug_assert_eq!(op.port, DEFAULT_PORT_HANDLE);
         self.sender.send(op)?;
         Ok(())
     }
@@ -1248,6 +1244,7 @@ impl Sink for AerospikeSink {
 #[cfg(test)]
 mod tests {
 
+    use dozer_core::DEFAULT_PORT_HANDLE;
     use dozer_log::tokio;
     use std::time::Duration;
 
