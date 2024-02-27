@@ -36,7 +36,6 @@ use aerospike_client_sys::{
     AS_BIN_NAME_MAX_LEN,
 };
 use dozer_core::node::{PortHandle, Sink, SinkFactory};
-pub const DEFAULT_PORT_HANDLE: u16 = 0xffff_u16;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::geo::{Coord, Point};
 use dozer_types::ordered_float::OrderedFloat;
@@ -1245,6 +1244,7 @@ impl Sink for AerospikeSink {
 #[cfg(test)]
 mod tests {
 
+    use dozer_core::DEFAULT_PORT_HANDLE;
     use dozer_log::tokio;
     use std::time::Duration;
 
