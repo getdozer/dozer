@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 use std::sync::Arc;
 
+use crate::builder::string_from_sql_object_name;
 use crate::errors::PipelineError;
-use crate::pipeline_builder::from_builder::string_from_sql_object_name;
 use dozer_sql_expression::builder::ExpressionBuilder;
 use dozer_sql_expression::execution::Expression;
 use dozer_sql_expression::sqlparser::ast::{Expr, Ident, Select, SelectItem};

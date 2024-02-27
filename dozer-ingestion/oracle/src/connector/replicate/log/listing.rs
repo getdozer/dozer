@@ -1,4 +1,4 @@
-use dozer_ingestion_connector::dozer_types::log::warn;
+use dozer_ingestion_connector::dozer_types::log::{debug, warn};
 use oracle::Connection;
 
 use crate::connector::{Error, Scn};
@@ -14,6 +14,7 @@ pub struct ArchivedLog {
 impl ArchivedLog {
     pub fn list(connection: &Connection, start_scn: Scn) -> Result<Vec<ArchivedLog>, Error> {
         let sql = "SELECT NAME, SEQUENCE#, FIRST_CHANGE#, NEXT_CHANGE# FROM V$ARCHIVED_LOG WHERE NEXT_CHANGE# > :start_scn AND STATUS = 'A' ORDER BY SEQUENCE# ASC";
+        debug!("{}, {}", sql, start_scn);
         let rows = connection
             .query_as::<(String, u32, Scn, Scn)>(sql, &[&start_scn])
             .unwrap();
@@ -47,6 +48,7 @@ pub struct Log {
 impl Log {
     pub fn list(connection: &Connection, start_scn: Scn) -> Result<Vec<Log>, Error> {
         let sql = "SELECT GROUP#, SEQUENCE#, FIRST_CHANGE#, NEXT_CHANGE# FROM V$LOG WHERE NEXT_CHANGE# > :start_scn ORDER BY SEQUENCE# ASC";
+        debug!("{}, {}", sql, start_scn);
         let rows = connection
             .query_as::<(u32, u32, Scn, Scn)>(sql, &[&start_scn])
             .unwrap();
@@ -78,6 +80,7 @@ pub struct LogFile {
 impl LogFile {
     pub fn list(connection: &Connection) -> Result<Vec<LogFile>, Error> {
         let sql = "SELECT GROUP#, MEMBER FROM V$LOGFILE WHERE STATUS IS NULL";
+        debug!("{}", sql);
         let rows = connection.query_as::<(u32, String)>(sql, &[]).unwrap();
 
         let mut result = vec![];

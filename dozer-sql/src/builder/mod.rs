@@ -3,13 +3,10 @@ use crate::builder::PipelineError::InvalidQuery;
 use crate::errors::PipelineError;
 use crate::selection::factory::SelectionProcessorFactory;
 use dozer_core::app::AppPipeline;
-use dozer_core::app::PipelineEntryPoint;
 use dozer_core::node::PortHandle;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_sql_expression::builder::{ExpressionBuilder, NameOrAlias};
-use dozer_sql_expression::sqlparser::ast::{
-    Join, SetOperator, SetQuantifier, TableFactor, TableWithJoins,
-};
+use dozer_sql_expression::sqlparser::ast::{SetOperator, SetQuantifier, TableFactor};
 use dozer_types::models::udf_config::UdfConfig;
 
 use dozer_sql_expression::sqlparser::{
@@ -23,7 +20,6 @@ use std::sync::Arc;
 use tokio::runtime::Runtime;
 
 use super::errors::UnsupportedSqlError;
-use super::pipeline_builder::from_builder::insert_from_to_pipeline;
 
 use super::product::set::set_factory::SetProcessorFactory;
 
@@ -33,21 +29,14 @@ pub struct OutputNodeInfo {
     pub node: String,
     // Port to connect in dag
     pub port: PortHandle,
-    // If this table is originally from a source or created in transforms
-    pub is_derived: bool,
     // TODO add:indexes to the tables
 }
 
-pub struct TableInfo {
-    pub name: NameOrAlias,
-    pub override_name: Option<String>,
-    pub is_derived: bool,
-}
 /// The struct contains some contexts during query to pipeline.
 #[derive(Debug, Clone)]
 pub struct QueryContext {
     // Internal tables map, used to store the tables that are created by the queries
-    pub pipeline_map: HashMap<(usize, String), OutputNodeInfo>,
+    pipeline_map: HashMap<(usize, String), OutputNodeInfo>,
 
     // Output tables map that are marked with "INTO" used to store the tables, these can be exposed to sinks.
     pub output_tables_map: HashMap<String, OutputNodeInfo>,
@@ -56,20 +45,20 @@ pub struct QueryContext {
     pub used_sources: Vec<String>,
 
     // Internal tables map, used to store the tables that are created by the queries
-    pub processors_list: HashSet<String>,
+    processors_list: HashSet<String>,
 
     // Processors counter
-    pub processor_counter: usize,
+    processor_counter: usize,
 
     // Udf related configs
-    pub udfs: Vec<UdfConfig>,
+    udfs: Vec<UdfConfig>,
 
     // The tokio runtime
-    pub runtime: Arc<Runtime>,
+    runtime: Arc<Runtime>,
 }
 
 impl QueryContext {
-    pub fn get_next_processor_id(&mut self) -> usize {
+    fn get_next_processor_id(&mut self) -> usize {
         self.processor_counter += 1;
         self.processor_counter
     }
@@ -87,11 +76,6 @@ impl QueryContext {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct IndexedTableWithJoins {
-    pub relation: (NameOrAlias, TableFactor),
-    pub joins: Vec<(NameOrAlias, Join)>,
-}
 pub fn statement_to_pipeline(
     sql: &str,
     pipeline: &mut AppPipeline,
@@ -112,7 +96,6 @@ pub fn statement_to_pipeline(
                 query_to_pipeline(
                     &TableInfo {
                         name: query_name.clone(),
-                        is_derived: false,
                         override_name: override_name.clone(),
                     },
                     query,
@@ -132,6 +115,11 @@ pub fn statement_to_pipeline(
     }
 
     Ok(ctx)
+}
+
+struct TableInfo {
+    name: NameOrAlias,
+    override_name: Option<String>,
 }
 
 fn query_to_pipeline(
@@ -182,7 +170,6 @@ fn query_to_pipeline(
             query_to_pipeline(
                 &TableInfo {
                     name: NameOrAlias(table_name.clone(), Some(table_name)),
-                    is_derived: true,
                     override_name: None,
                 },
                 &table.query,
@@ -213,7 +200,6 @@ fn query_to_pipeline(
             query_to_pipeline(
                 &TableInfo {
                     name: NameOrAlias(query_name, None),
-                    is_derived: true,
                     override_name: None,
                 },
                 &query,
@@ -270,17 +256,8 @@ fn select_to_pipeline(
         ));
     }
 
-    // let input_tables = get_input_tables(&select.from[0], pipeline, query_ctx, pipeline_idx)?;
-    //
-    // let (input_nodes, output_node, mut used_sources) = add_from_to_pipeline(
-    //     pipeline,
-    //     &input_tables,
-    //     &mut query_ctx.pipeline_map,
-    //     pipeline_idx,
-    // )?;
-
     let connection_info =
-        insert_from_to_pipeline(&select.from[0], pipeline, pipeline_idx, query_ctx)?;
+        from::insert_from_to_pipeline(&select.from[0], pipeline, pipeline_idx, query_ctx)?;
 
     let input_nodes = connection_info.input_nodes;
     let output_node = connection_info.output_node;
@@ -360,7 +337,6 @@ fn select_to_pipeline(
         OutputNodeInfo {
             node: gen_agg_name.clone(),
             port: DEFAULT_PORT_HANDLE,
-            is_derived: table_info.is_derived,
         },
     );
 
@@ -384,7 +360,6 @@ fn select_to_pipeline(
             OutputNodeInfo {
                 node: gen_agg_name.clone(),
                 port: DEFAULT_PORT_HANDLE,
-                is_derived: false,
             },
         );
     }
@@ -408,13 +383,11 @@ fn set_to_pipeline(
     let left_table_info = TableInfo {
         name: NameOrAlias(gen_left_set_name.clone(), None),
         override_name: None,
-        is_derived: false,
     };
     let gen_right_set_name = format!("set_right_{}", query_ctx.get_next_processor_id());
     let right_table_info = TableInfo {
         name: NameOrAlias(gen_right_set_name.clone(), None),
         override_name: None,
-        is_derived: false,
     };
 
     let _left_pipeline_name = match *left_select {
@@ -548,79 +521,13 @@ fn set_to_pipeline(
         OutputNodeInfo {
             node: gen_set_name.clone(),
             port: DEFAULT_PORT_HANDLE,
-            is_derived: table_info.is_derived,
         },
     );
 
     Ok(gen_set_name)
 }
 
-/// Returns a vector of input port handles and relative table name
-///
-/// # Errors
-///
-/// This function will return an error if it's not possible to get an input name.
-pub fn get_input_tables(
-    from: &TableWithJoins,
-    pipeline: &mut AppPipeline,
-    query_ctx: &mut QueryContext,
-    pipeline_idx: usize,
-) -> Result<IndexedTableWithJoins, PipelineError> {
-    let name = get_from_source(&from.relation, pipeline, query_ctx, pipeline_idx)?;
-    let mut joins = vec![];
-
-    for join in from.joins.iter() {
-        let input_name = get_from_source(&join.relation, pipeline, query_ctx, pipeline_idx)?;
-        joins.push((input_name.clone(), join.clone()));
-    }
-
-    Ok(IndexedTableWithJoins {
-        relation: (name, from.relation.clone()),
-        joins,
-    })
-}
-
-pub fn get_input_names(input_tables: &IndexedTableWithJoins) -> Vec<NameOrAlias> {
-    let mut input_names = vec![];
-    input_names.push(input_tables.relation.0.clone());
-
-    for join in &input_tables.joins {
-        input_names.push(join.0.clone());
-    }
-    input_names
-}
-
-pub fn get_entry_points(
-    input_tables: &IndexedTableWithJoins,
-    pipeline_map: &mut HashMap<(usize, String), OutputNodeInfo>,
-    pipeline_idx: usize,
-) -> Result<Vec<PipelineEntryPoint>, PipelineError> {
-    let mut endpoints = vec![];
-
-    let input_names = get_input_names(input_tables);
-
-    for (input_port, table) in input_names.iter().enumerate() {
-        let name = table.0.clone();
-        if !pipeline_map.contains_key(&(pipeline_idx, name.clone())) {
-            endpoints.push(PipelineEntryPoint::new(name, input_port as PortHandle));
-        }
-    }
-
-    Ok(endpoints)
-}
-
-pub fn is_an_entry_point(
-    name: &str,
-    pipeline_map: &mut HashMap<(usize, String), OutputNodeInfo>,
-    pipeline_idx: usize,
-) -> bool {
-    if !pipeline_map.contains_key(&(pipeline_idx, name.to_owned())) {
-        return true;
-    }
-    false
-}
-
-pub fn get_from_source(
+fn get_from_source(
     relation: &TableFactor,
     pipeline: &mut AppPipeline,
     query_ctx: &mut QueryContext,
@@ -654,7 +561,6 @@ pub fn get_from_source(
             query_to_pipeline(
                 &TableInfo {
                     name: name_or.clone(),
-                    is_derived: true,
                     override_name: None,
                 },
                 subquery,
@@ -673,217 +579,19 @@ pub fn get_from_source(
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::statement_to_pipeline;
-    use crate::{errors::PipelineError, tests::utils::create_test_runtime};
-    use dozer_core::app::AppPipeline;
-    #[test]
-    #[should_panic]
-    fn disallow_zero_outgoing_ndes() {
-        let sql = "select * from film";
-        let runtime = create_test_runtime();
-        statement_to_pipeline(
-            sql,
-            &mut AppPipeline::new_with_default_flags(),
-            None,
-            vec![],
-            runtime,
-        )
-        .unwrap();
-    }
-
-    #[test]
-    fn test_duplicate_into_clause() {
-        let sql = "select * into table1 from film1 ; select * into table1 from film2";
-        let runtime = create_test_runtime();
-        let result = statement_to_pipeline(
-            sql,
-            &mut AppPipeline::new_with_default_flags(),
-            None,
-            vec![],
-            runtime,
-        );
-        assert!(matches!(
-            result,
-            Err(PipelineError::DuplicateIntoClause(dup_table)) if dup_table == "table1"
-        ));
-    }
-
-    #[test]
-    fn parse_sql_pipeline() {
-        let sql = r#"
-                SELECT
-                    a.name as "Genre",
-                    SUM(amount) as "Gross Revenue(in $)"
-                INTO gross_revenue_stats
-                FROM
-                (
-                    SELECT
-                        c.name,
-                        f.title,
-                        p.amount
-                    FROM film f
-                    LEFT JOIN film_category fc
-                        ON fc.film_id = f.film_id
-                    LEFT JOIN category c
-                        ON fc.category_id = c.category_id
-                    LEFT JOIN inventory i
-                        ON i.film_id = f.film_id
-                    LEFT JOIN rental r
-                        ON r.inventory_id = i.inventory_id
-                    LEFT JOIN payment p
-                        ON p.rental_id = r.rental_id
-                    WHERE p.amount IS NOT NULL
-                ) a
-                GROUP BY name;
-
-                SELECT
-                f.name, f.title, p.amount
-                INTO film_amounts
-                FROM film f
-                LEFT JOIN film_category fc;
-
-                WITH tbl as (select id from a)
-                select id
-                into cte_table
-                from tbl;
-
-                WITH tbl as (select id from  a),
-                tbl2 as (select id from tbl)
-                select id
-                into nested_cte_table
-                from tbl2;
-
-                WITH cte_table1 as (select id_dt1 from (select id_t1 from table_1) as derived_table_1),
-                cte_table2 as (select id_ct1 from cte_table1)
-                select id_ct2
-                into nested_derived_table
-                from cte_table2;
-
-                with tbl as (select id, ticker from stocks)
-                select tbl.id
-                into nested_stocks_table
-                from  stocks join tbl on tbl.id = stocks.id;
-            "#;
-
-        let runtime = create_test_runtime();
-        let context = statement_to_pipeline(
-            sql,
-            &mut AppPipeline::new_with_default_flags(),
-            None,
-            vec![],
-            runtime,
-        )
-        .unwrap();
-
-        // Should create as many output tables as into statements
-        let mut output_keys = context.output_tables_map.keys().collect::<Vec<_>>();
-        output_keys.sort();
-        let mut expected_keys = vec![
-            "gross_revenue_stats",
-            "film_amounts",
-            "cte_table",
-            "nested_cte_table",
-            "nested_derived_table",
-            "nested_stocks_table",
-        ];
-        expected_keys.sort();
-        assert_eq!(output_keys, expected_keys);
-    }
-
-    #[test]
-    fn test_missing_into_in_simple_from_clause() {
-        let sql = r#"SELECT a FROM B "#;
-        let runtime = create_test_runtime();
-        let result = statement_to_pipeline(
-            sql,
-            &mut AppPipeline::new_with_default_flags(),
-            None,
-            vec![],
-            runtime,
-        );
-        //check if the result is an error
-        assert!(matches!(result, Err(PipelineError::MissingIntoClause)))
-    }
-
-    #[test]
-    fn test_correct_into_clause() {
-        let sql = r#"SELECT a INTO C FROM B"#;
-        let runtime = create_test_runtime();
-        let result = statement_to_pipeline(
-            sql,
-            &mut AppPipeline::new_with_default_flags(),
-            None,
-            vec![],
-            runtime,
-        );
-        //check if the result is ok
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_missing_into_in_nested_from_clause() {
-        let sql = r#"SELECT a FROM (SELECT a from b)"#;
-        let runtime = create_test_runtime();
-        let result = statement_to_pipeline(
-            sql,
-            &mut AppPipeline::new_with_default_flags(),
-            None,
-            vec![],
-            runtime,
-        );
-        //check if the result is an error
-        assert!(matches!(result, Err(PipelineError::MissingIntoClause)))
-    }
-
-    #[test]
-    fn test_correct_into_in_nested_from() {
-        let sql = r#"SELECT a INTO c FROM (SELECT a from b)"#;
-        let runtime = create_test_runtime();
-        let result = statement_to_pipeline(
-            sql,
-            &mut AppPipeline::new_with_default_flags(),
-            None,
-            vec![],
-            runtime,
-        );
-        //check if the result is ok
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_missing_into_in_with_clause() {
-        let sql = r#"WITH tbl as (select a from B)
-    select B
-    from tbl;"#;
-        let runtime = create_test_runtime();
-        let result = statement_to_pipeline(
-            sql,
-            &mut AppPipeline::new_with_default_flags(),
-            None,
-            vec![],
-            runtime,
-        );
-        //check if the result is an error
-        assert!(matches!(result, Err(PipelineError::MissingIntoClause)))
-    }
-
-    #[test]
-    fn test_correct_into_in_with_clause() {
-        let sql = r#"WITH tbl as (select a from B)
-    select B
-    into C
-    from tbl;"#;
-        let runtime = create_test_runtime();
-        let result = statement_to_pipeline(
-            sql,
-            &mut AppPipeline::new_with_default_flags(),
-            None,
-            vec![],
-            runtime,
-        );
-        //check if the result is ok
-        assert!(result.is_ok());
-    }
+#[derive(Clone, Debug)]
+struct ConnectionInfo {
+    input_nodes: Vec<(String, String, PortHandle)>,
+    output_node: (String, PortHandle),
 }
+
+mod common;
+mod from;
+mod join;
+mod table_operator;
+
+pub use common::string_from_sql_object_name;
+pub use table_operator::{TableOperatorArg, TableOperatorDescriptor};
+
+#[cfg(test)]
+mod tests;

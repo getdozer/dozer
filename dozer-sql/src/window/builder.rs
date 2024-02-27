@@ -1,6 +1,6 @@
 use dozer_sql_expression::{
     builder::ExpressionBuilder,
-    sqlparser::ast::{Expr, FunctionArg, FunctionArgExpr, Ident, ObjectName, Value},
+    sqlparser::ast::{Expr, FunctionArg, FunctionArgExpr, Ident, Value},
 };
 use dozer_types::{
     chrono::Duration,
@@ -8,8 +8,8 @@ use dozer_types::{
 };
 
 use crate::{
+    builder::{TableOperatorArg, TableOperatorDescriptor},
     errors::{JoinError, PipelineError, WindowError},
-    pipeline_builder::from_builder::{TableOperatorArg, TableOperatorDescriptor},
 };
 
 use super::operator::WindowType;
@@ -192,14 +192,6 @@ fn parse_duration_string(duration_string: &str) -> Result<Duration, WindowError>
         "DAY" | "DAYS" => Ok(Duration::days(duration_value)),
         _ => Err(WindowError::WindowInvalidInterval(duration_string)),
     }
-}
-
-pub fn string_from_sql_object_name(name: &ObjectName) -> String {
-    name.0
-        .iter()
-        .map(ExpressionBuilder::normalize_ident)
-        .collect::<Vec<String>>()
-        .join(".")
 }
 
 pub fn get_field_index(ident: &[Ident], schema: &Schema) -> Result<Option<usize>, PipelineError> {

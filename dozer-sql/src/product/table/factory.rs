@@ -10,8 +10,10 @@ use dozer_sql_expression::{
 };
 use dozer_types::{errors::internal::BoxedError, tonic::async_trait, types::Schema};
 
-use crate::errors::{PipelineError, ProductError};
-use crate::window::builder::string_from_sql_object_name;
+use crate::{
+    builder::string_from_sql_object_name,
+    errors::{PipelineError, ProductError},
+};
 
 use super::processor::TableProcessor;
 

@@ -206,7 +206,7 @@ impl Connector for OracleConnector {
             )
         })
         .await
-        .unwrap()?;
+        .unwrap();
 
         Ok(())
     }

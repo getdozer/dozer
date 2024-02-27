@@ -8,7 +8,7 @@ use std::{
 use dozer_ingestion_connector::{
     dozer_types::{
         chrono,
-        log::{error, info},
+        log::{debug, error},
         models::ingestion_types::{IngestionMessage, OracleReplicator, TransactionInfo},
         node::OpIdentifier,
         rust_decimal::{self, Decimal},
@@ -21,8 +21,6 @@ use oracle::{
     sql_type::{Collection, ObjectType},
     Connection,
 };
-
-use replicate::log_miner::MappedLogManagerContent;
 
 #[derive(Debug, Clone)]
 pub struct Connector {
@@ -129,6 +127,7 @@ impl Connector {
     pub fn list_tables(&mut self, schemas: &[String]) -> Result<Vec<TableIdentifier>, Error> {
         let rows = if schemas.is_empty() {
             let sql = "SELECT OWNER, TABLE_NAME FROM ALL_TABLES";
+            debug!("{}", sql);
             self.connection.query_as::<(String, String)>(sql, &[])?
         } else {
             let sql = "
@@ -137,6 +136,7 @@ impl Connector {
             WHERE OWNER IN (SELECT COLUMN_VALUE FROM TABLE(:2))
             ";
             let owners = string_collection(&self.connection, schemas)?;
+            debug!("{}, {}", sql, owners);
             self.connection
                 .query_as::<(String, String)>(sql, &[&owners])?
         };
@@ -256,8 +256,9 @@ impl Connector {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()?;
 
-        self.connection
-            .execute("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE", &[])?;
+        let sql = "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE";
+        debug!("{}", sql);
+        self.connection.execute(sql, &[])?;
 
         for (table_index, (table, schema)) in tables.into_iter().zip(schemas).enumerate() {
             let columns = table.column_names.join(", ");
@@ -313,7 +314,7 @@ impl Connector {
         schemas: Vec<Schema>,
         checkpoint: Scn,
         con_id: Option<u32>,
-    ) -> Result<(), Error> {
+    ) {
         match self.replicator {
             OracleReplicator::LogMiner {
                 poll_interval_in_milliseconds,
@@ -334,11 +335,11 @@ impl Connector {
         ingestor: &Ingestor,
         tables: Vec<TableInfo>,
         schemas: Vec<Schema>,
-        mut checkpoint: Scn,
+        checkpoint: Scn,
         con_id: Option<u32>,
         poll_interval: Duration,
-    ) -> Result<(), Error> {
-        let miner = replicate::log_miner::LogMiner::new();
+    ) {
+        let start_scn = checkpoint + 1;
         let table_pair_to_index = tables
             .into_iter()
             .enumerate()
@@ -347,114 +348,59 @@ impl Connector {
                 ((schema, table.name), index)
             })
             .collect::<HashMap<_, _>>();
+        let processor = replicate::Processor::new(start_scn, table_pair_to_index, schemas);
 
-        loop {
-            let mut start_scn = checkpoint + 1;
-            let mut logs = replicate::merge::list_and_join_online_log(&self.connection, start_scn)?;
-            if !replicate::log_contains_scn(logs.first(), start_scn) {
-                info!(
-                    "Online log is empty or doesn't contain start scn {}, listing and merging archived logs",
-                    start_scn
-                );
-                logs = replicate::merge::list_and_merge_archived_log(
-                    &self.connection,
+        let (sender, receiver) = std::sync::mpsc::sync_channel(100);
+        let handle = {
+            let connection = self.connection.clone();
+            let ingestor = ingestor.clone();
+            std::thread::spawn(move || {
+                replicate::log_miner_loop(
+                    &connection,
                     start_scn,
-                    logs,
-                )?;
-            }
+                    con_id,
+                    poll_interval,
+                    sender,
+                    &ingestor,
+                )
+            })
+        };
 
-            if logs.is_empty() {
-                if ingestor.is_closed() {
-                    return Ok(());
+        for transaction in processor.process(receiver) {
+            let transaction = match transaction {
+                Ok(transaction) => transaction,
+                Err(e) => {
+                    error!("Error during transaction processing: {e}");
+                    continue;
                 }
-                info!("No logs found, retrying after {:?}", poll_interval);
-                std::thread::sleep(poll_interval);
-                continue;
-            }
+            };
 
-            'replicate_logs: while !logs.is_empty() {
-                let log = logs.remove(0);
-                info!(
-                    "Replicating log {} ({}, {}), starting from {}",
-                    log.name, log.first_change, log.next_change, start_scn
-                );
-
-                let (sender, receiver) = std::sync::mpsc::sync_channel(100);
-                let handle = {
-                    let miner = miner.clone();
-                    let connection = self.connection.clone();
-                    let log = log.clone();
-                    let table_pair_to_index = table_pair_to_index.clone();
-                    let schemas = schemas.clone();
-                    std::thread::spawn(move || {
-                        miner.mine(
-                            &connection,
-                            &log,
-                            start_scn,
-                            &table_pair_to_index,
-                            &schemas,
-                            con_id,
-                            sender,
-                        )
+            for (table_index, op) in transaction.operations {
+                if ingestor
+                    .blocking_handle_message(IngestionMessage::OperationEvent {
+                        table_index,
+                        op,
+                        id: None,
                     })
-                };
-
-                let mut uncommited_messages = vec![];
-                for content in receiver {
-                    let content = match content {
-                        Ok(content) => content,
-                        Err(e) => {
-                            if ingestor.is_closed() {
-                                return Ok(());
-                            }
-                            error!("Error during log mining: {}. Retrying.", e);
-                            break 'replicate_logs;
-                        }
-                    };
-                    match content {
-                        MappedLogManagerContent::Commit(scn) => {
-                            checkpoint = scn;
-                            if !uncommited_messages.is_empty() {
-                                for message in std::mem::take(&mut uncommited_messages) {
-                                    if ingestor.blocking_handle_message(message).is_err() {
-                                        return Ok(());
-                                    }
-                                }
-                            }
-                            if ingestor
-                                .blocking_handle_message(IngestionMessage::TransactionInfo(
-                                    TransactionInfo::Commit {
-                                        id: Some(OpIdentifier::new(checkpoint, 0)),
-                                    },
-                                ))
-                                .is_err()
-                            {
-                                return Ok(());
-                            }
-                        }
-                        MappedLogManagerContent::Op { table_index, op } => {
-                            uncommited_messages.push(IngestionMessage::OperationEvent {
-                                table_index,
-                                op,
-                                id: None,
-                            });
-                        }
-                    }
+                    .is_err()
+                {
+                    return;
                 }
-                handle.join().unwrap();
+            }
 
-                if logs.is_empty() {
-                    if ingestor.is_closed() {
-                        return Ok(());
-                    }
-                    info!("Replicated all logs, retrying after {:?}", poll_interval);
-                    std::thread::sleep(poll_interval);
-                } else {
-                    // If there are more logs, we need to start from the next log's first change.
-                    start_scn = log.next_change;
-                }
+            if ingestor
+                .blocking_handle_message(IngestionMessage::TransactionInfo(
+                    TransactionInfo::Commit {
+                        id: Some(OpIdentifier::new(transaction.commit_scn, 0)),
+                    },
+                ))
+                .is_err()
+            {
+                return;
             }
         }
+
+        handle.join().unwrap();
     }
 }
 
@@ -474,6 +420,7 @@ fn temp_varray_of_vchar2(
         "CREATE OR REPLACE TYPE {} AS VARRAY({}) OF VARCHAR2({})",
         TEMP_DOZER_TYPE_NAME, num_strings, max_num_chars
     );
+    debug!("{}", sql);
     connection.execute(&sql, &[])?;
     connection
         .object_type(TEMP_DOZER_TYPE_NAME)
@@ -590,6 +537,6 @@ mod tests {
         });
 
         estimate_throughput(iterator);
-        handle.join().unwrap().unwrap();
+        handle.join().unwrap();
     }
 }

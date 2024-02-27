@@ -14,8 +14,8 @@ use dozer_types::{models::udf_config::UdfConfig, tonic::async_trait};
 use tokio::runtime::Runtime;
 
 use crate::{
+    builder::{TableOperatorArg, TableOperatorDescriptor},
     errors::{PipelineError, TableOperatorError},
-    pipeline_builder::from_builder::{TableOperatorArg, TableOperatorDescriptor},
 };
 
 use super::{
