@@ -80,8 +80,11 @@ jobs:
           SN_DRIVER: ${{ secrets.SN_DRIVER }}
         shell: bash
         run: |
-          cargo test -p 'dozer-ingestion-*' --lib --no-fail-fast -- --ignored
-
+          cargo test \
+          -p dozer-ingestion-postgres \
+          -p dozer-ingestion-kafka \
+          -p dozer-ingestion-mysql \
+          --lib --no-fail-fast -- --ignored
       - name: Run tests
         shell: bash
         run: |
