@@ -7,8 +7,8 @@ use dozer_core::{
 use dozer_types::{errors::internal::BoxedError, tonic::async_trait, types::Schema};
 
 use crate::{
+    builder::TableOperatorDescriptor,
     errors::{PipelineError, WindowError},
-    pipeline_builder::from_builder::TableOperatorDescriptor,
 };
 
 use super::{builder::window_from_table_operator, processor::WindowProcessor};
