@@ -66,9 +66,6 @@ jobs:
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         
-      - name: MongoDB in GitHub Actions
-        uses: supercharge/mongodb-github-action@1.8.0
-
       - uses: ./.github/workflows/setup-snowflake-and-kafka
 
       - uses: ./.github/workflows/setup-mysql-and-mariadb
@@ -83,7 +80,7 @@ jobs:
           SN_DRIVER: ${{ secrets.SN_DRIVER }}
         shell: bash
         run: |
-          cargo test test_connector_ --lib --features snowflake,ethereum,kafka,python  --no-fail-fast -- --ignored
+          cargo test -p 'dozer-ingestion-*' --lib --no-fail-fast -- --ignored
 
       - name: Run tests
         shell: bash
