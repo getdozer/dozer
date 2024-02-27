@@ -51,7 +51,6 @@ fn map_data_type(
     let typ = if data_type.starts_with("TIMESTAMP") {
         FieldType::Timestamp
     } else {
-        info!("{:?} {:?} {:?}", data_type, precision, scale);
         match data_type {
             "VARCHAR2" => Ok(FieldType::String),
             "NVARCHAR2" => unimplemented!("convert NVARCHAR2 to String"),
