@@ -20,8 +20,6 @@ use oracle::{
     Connection,
 };
 
-const TXN_ID_COL: &str = "__txn_id";
-const TXN_SEQ_COL: &str = "__txn_seq";
 const METADATA_TABLE: &str = "__replication_metadata";
 const META_TXN_ID_COL: &str = "txn_id";
 const META_TABLE_COL: &str = "table";
