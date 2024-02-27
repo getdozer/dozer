@@ -76,7 +76,11 @@ fn test_planner_with_aggregator() {
     let statement = get_select(sql).unwrap();
 
     runtime
-        .block_on(projection_planner.plan(*statement))
+        .block_on(projection_planner.plan(
+            statement.projection,
+            statement.group_by,
+            statement.having,
+        ))
         .unwrap();
 
     let mut processor = AggregationProcessor::new(

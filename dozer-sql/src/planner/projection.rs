@@ -5,7 +5,7 @@ use crate::builder::string_from_sql_object_name;
 use crate::errors::PipelineError;
 use dozer_sql_expression::builder::ExpressionBuilder;
 use dozer_sql_expression::execution::Expression;
-use dozer_sql_expression::sqlparser::ast::{Expr, Ident, Select, SelectItem};
+use dozer_sql_expression::sqlparser::ast::{Expr, Ident, SelectItem};
 use dozer_types::models::udf_config::UdfConfig;
 use dozer_types::types::{FieldDefinition, Schema};
 use tokio::runtime::Runtime;
@@ -208,15 +208,20 @@ impl<'a> CommonPlanner<'_> {
         Ok(())
     }
 
-    pub async fn plan(&mut self, select: Select) -> Result<(), PipelineError> {
-        for expr in select.clone().projection {
+    pub async fn plan(
+        &mut self,
+        projection: Vec<SelectItem>,
+        group_by: Vec<Expr>,
+        having: Option<Expr>,
+    ) -> Result<(), PipelineError> {
+        for expr in projection {
             self.add_select_item(expr).await?;
         }
-        if !select.group_by.is_empty() {
-            self.add_groupby_items(select.group_by).await?;
+        if !group_by.is_empty() {
+            self.add_groupby_items(group_by).await?;
         }
 
-        if let Some(having) = select.having {
+        if let Some(having) = having {
             self.add_having_item(having).await?;
         }
 
