@@ -11,6 +11,7 @@ use dozer_types::types::Record;
 use dozer_types::types::{Field, FieldType, Schema};
 use std::fmt::{Display, Formatter};
 
+use super::field::{evaluate_decode, validate_decode};
 use super::string::{
     evaluate_chr, evaluate_replace, evaluate_substr, validate_replace, validate_substr,
 };
@@ -27,6 +28,7 @@ pub enum ScalarFunctionType {
     Substr,
     Nvl,
     Replace,
+    Decode,
 }
 
 impl Display for ScalarFunctionType {
@@ -42,6 +44,7 @@ impl Display for ScalarFunctionType {
             ScalarFunctionType::Substr => f.write_str("SUBSTR"),
             ScalarFunctionType::Nvl => f.write_str("NVL"),
             ScalarFunctionType::Replace => f.write_str("REPLACE"),
+            ScalarFunctionType::Decode => f.write_str("DECODE"),
         }
     }
 }
@@ -92,6 +95,7 @@ pub(crate) fn get_scalar_function_type(
             Ok(validate_two_arguments(args, schema, ScalarFunctionType::Nvl)?.0)
         }
         ScalarFunctionType::Replace => validate_replace(args, schema),
+        ScalarFunctionType::Decode => validate_decode(args, schema),
     }
 }
 
@@ -170,6 +174,24 @@ impl ScalarFunctionType {
                     &mut args[2].clone(),
                     record,
                 )
+            }
+            ScalarFunctionType::Decode => {
+                validate_decode(args, schema)?;
+
+                let (arg0, results) = args.split_at_mut(1);
+                let (results, default) = if results.len() % 2 == 0 {
+                    results.split_at_mut(results.len() - 1)
+                } else {
+                    results.split_at_mut(results.len())
+                };
+
+                let default = if default.len() == 0 {
+                    None
+                } else {
+                    Some(default[0].clone())
+                };
+
+                evaluate_decode(schema, &mut arg0[0], results, default, record)
             }
         }
     }
