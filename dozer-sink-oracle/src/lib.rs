@@ -281,11 +281,7 @@ impl OracleSinkFactory {
 }
 
 fn generate_merge_statement(table_name: &str, schema: &Schema) -> String {
-    let field_names = schema
-        .fields
-        .iter()
-        .map(|field| field.name.as_str())
-        .chain([TXN_ID_COL, TXN_SEQ_COL]);
+    let field_names = schema.fields.iter().map(|field| &field.name);
 
     let mut parameter_index = 1usize..;
     let input_fields = field_names
