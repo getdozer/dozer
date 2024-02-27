@@ -201,9 +201,9 @@ impl OracleSinkFactory {
                     OracleType::Varchar2(_) | OracleType::NVarchar2(_),
                 ) => {}
                 (FieldType::U128 | FieldType::I128, OracleType::Number(precision, 0))
-                    if precision >= 20 => {}
+                    if precision >= 39 => {}
                 (FieldType::UInt | FieldType::Int, OracleType::Number(precision, 0))
-                    if precision < 20 => {}
+                    if precision >= 20 => {}
                 (FieldType::Float, OracleType::Number(38, 0) | OracleType::BinaryDouble) => {}
                 (FieldType::Boolean, OracleType::Number(_, 0)) => {}
                 (FieldType::Binary, OracleType::Raw(_)) => {}
@@ -247,10 +247,10 @@ impl OracleSinkFactory {
         for field in &schema.fields {
             let name = &field.name;
             let col_type = match field.typ {
-                dozer_types::types::FieldType::UInt => "NUMBER(19)",
-                dozer_types::types::FieldType::U128 => "INTEGER",
-                dozer_types::types::FieldType::Int => "NUMBER(19)",
-                dozer_types::types::FieldType::I128 => "INTEGER",
+                dozer_types::types::FieldType::UInt => "NUMBER(20)",
+                dozer_types::types::FieldType::U128 => "NUMBER(39)",
+                dozer_types::types::FieldType::Int => "NUMBER(20)",
+                dozer_types::types::FieldType::I128 => "NUMBER(39)",
                 // Should this be BINARY_DOUBLE?
                 dozer_types::types::FieldType::Float => "NUMBER",
                 dozer_types::types::FieldType::Boolean => "NUMBER",
