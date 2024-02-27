@@ -246,9 +246,9 @@ impl OracleSinkFactory {
             let name = &field.name;
             let col_type = match field.typ {
                 dozer_types::types::FieldType::UInt => "NUMBER(20)",
-                dozer_types::types::FieldType::U128 => "NUMBER(39)",
+                dozer_types::types::FieldType::U128 => unimplemented!(),
                 dozer_types::types::FieldType::Int => "NUMBER(20)",
-                dozer_types::types::FieldType::I128 => "NUMBER(39)",
+                dozer_types::types::FieldType::I128 => unimplemented!(),
                 // Should this be BINARY_DOUBLE?
                 dozer_types::types::FieldType::Float => "NUMBER",
                 dozer_types::types::FieldType::Boolean => "NUMBER",
