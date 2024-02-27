@@ -1190,7 +1190,6 @@ impl Sink for AerospikeSink {
     }
 
     fn process(&mut self, op: TableOperation) -> Result<(), BoxedError> {
-        debug_assert_eq!(op.port, DEFAULT_PORT_HANDLE);
         self.sender.send(op)?;
         Ok(())
     }
