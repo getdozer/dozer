@@ -5,7 +5,7 @@ use dozer_core::{
     node::{PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
-use dozer_sql_expression::sqlparser::ast::Select;
+use dozer_sql_expression::sqlparser::ast::{Expr, SelectItem};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::models::udf_config::UdfConfig;
 use dozer_types::parking_lot::Mutex;
@@ -18,8 +18,9 @@ use tokio::runtime::Runtime;
 #[derive(Debug)]
 pub struct AggregationProcessorFactory {
     id: String,
-    projection: Select,
-    _stateful: bool,
+    projection: Vec<SelectItem>,
+    group_by: Vec<Expr>,
+    having: Option<Expr>,
     enable_probabilistic_optimizations: bool,
     udfs: Vec<UdfConfig>,
     runtime: Arc<Runtime>,
@@ -31,8 +32,9 @@ pub struct AggregationProcessorFactory {
 impl AggregationProcessorFactory {
     pub fn new(
         id: String,
-        projection: Select,
-        stateful: bool,
+        projection: Vec<SelectItem>,
+        group_by: Vec<Expr>,
+        having: Option<Expr>,
         enable_probabilistic_optimizations: bool,
         udfs: Vec<UdfConfig>,
         runtime: Arc<Runtime>,
@@ -40,7 +42,8 @@ impl AggregationProcessorFactory {
         Self {
             id,
             projection,
-            _stateful: stateful,
+            group_by,
+            having,
             enable_probabilistic_optimizations,
             udfs,
             runtime,
@@ -51,7 +54,13 @@ impl AggregationProcessorFactory {
     async fn get_planner(&self, input_schema: Schema) -> Result<CommonPlanner, PipelineError> {
         let mut projection_planner =
             CommonPlanner::new(input_schema, self.udfs.as_slice(), self.runtime.clone());
-        projection_planner.plan(self.projection.clone()).await?;
+        projection_planner
+            .plan(
+                self.projection.clone(),
+                self.group_by.clone(),
+                self.having.clone(),
+            )
+            .await?;
         Ok(projection_planner)
     }
 }

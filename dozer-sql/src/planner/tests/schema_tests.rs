@@ -49,7 +49,11 @@ fn test_schema_index_partial_group_by() {
     let statement = get_select(sql).unwrap();
 
     runtime
-        .block_on(projection_planner.plan(*statement))
+        .block_on(projection_planner.plan(
+            statement.projection,
+            statement.group_by,
+            statement.having,
+        ))
         .unwrap();
 
     assert!(projection_planner
@@ -105,7 +109,11 @@ fn test_schema_index_full_group_by() {
     let statement = get_select(sql).unwrap();
 
     runtime
-        .block_on(projection_planner.plan(*statement))
+        .block_on(projection_planner.plan(
+            statement.projection,
+            statement.group_by,
+            statement.having,
+        ))
         .unwrap();
 
     assert_eq!(

@@ -253,13 +253,12 @@ fn test_pipeline_builder() {
 
     pipeline.add_sink(
         Box::new(TestSinkFactory::new(vec![DEFAULT_PORT_HANDLE])),
-        "sink",
-        vec![],
+        "sink".to_string(),
     );
     pipeline.connect_nodes(
-        &table_info.node,
+        table_info.node.clone(),
         table_info.port,
-        "sink",
+        "sink".to_string(),
         DEFAULT_PORT_HANDLE,
     );
 

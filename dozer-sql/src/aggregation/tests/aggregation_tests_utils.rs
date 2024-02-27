@@ -28,7 +28,11 @@ pub(crate) fn init_processor(
     let statement = get_select(sql).unwrap();
 
     runtime
-        .block_on(projection_planner.plan(*statement))
+        .block_on(projection_planner.plan(
+            statement.projection,
+            statement.group_by,
+            statement.having,
+        ))
         .unwrap();
 
     let processor = AggregationProcessor::new(

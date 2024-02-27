@@ -171,46 +171,46 @@ fn test_app_dag() {
     let mut app = App::new(asm);
 
     let mut p1 = AppPipeline::new_with_default_flags();
-    p1.add_processor(
-        Box::new(NoopJoinProcessorFactory {}),
-        "join",
-        vec![
-            PipelineEntryPoint::new("users_postgres".to_string(), NOOP_JOIN_LEFT_INPUT_PORT),
-            PipelineEntryPoint::new("transactions".to_string(), NOOP_JOIN_RIGHT_INPUT_PORT),
-        ],
+    p1.add_processor(Box::new(NoopJoinProcessorFactory {}), "join".to_string());
+    p1.add_entry_point(
+        "join".to_string(),
+        PipelineEntryPoint::new("users_postgres".to_string(), NOOP_JOIN_LEFT_INPUT_PORT),
+    );
+    p1.add_entry_point(
+        "join".to_string(),
+        PipelineEntryPoint::new("transactions".to_string(), NOOP_JOIN_RIGHT_INPUT_PORT),
     );
     p1.add_sink(
         Box::new(CountingSinkFactory::new(20_000, latch.clone())),
-        "sink",
-        vec![],
+        "sink".to_string(),
     );
     p1.connect_nodes(
-        "join",
+        "join".to_string(),
         DEFAULT_PORT_HANDLE,
-        "sink",
+        "sink".to_string(),
         COUNTING_SINK_INPUT_PORT,
     );
 
     app.add_pipeline(p1);
 
     let mut p2 = AppPipeline::new_with_default_flags();
-    p2.add_processor(
-        Box::new(NoopJoinProcessorFactory {}),
-        "join",
-        vec![
-            PipelineEntryPoint::new("users_snowflake".to_string(), NOOP_JOIN_LEFT_INPUT_PORT),
-            PipelineEntryPoint::new("transactions".to_string(), NOOP_JOIN_RIGHT_INPUT_PORT),
-        ],
+    p2.add_processor(Box::new(NoopJoinProcessorFactory {}), "join".to_string());
+    p2.add_entry_point(
+        "join".to_string(),
+        PipelineEntryPoint::new("users_snowflake".to_string(), NOOP_JOIN_LEFT_INPUT_PORT),
+    );
+    p2.add_entry_point(
+        "join".to_string(),
+        PipelineEntryPoint::new("transactions".to_string(), NOOP_JOIN_RIGHT_INPUT_PORT),
     );
     p2.add_sink(
         Box::new(CountingSinkFactory::new(20_000, latch)),
-        "sink",
-        vec![],
+        "sink".to_string(),
     );
     p2.connect_nodes(
-        "join",
+        "join".to_string(),
         DEFAULT_PORT_HANDLE,
-        "sink",
+        "sink".to_string(),
         COUNTING_SINK_INPUT_PORT,
     );
 
