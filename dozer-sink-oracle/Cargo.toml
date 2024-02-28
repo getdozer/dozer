@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-dozer-core = { version = "0.3.0", path = "../dozer-core" }
-dozer-log = { version = "0.3.0", path = "../dozer-log" }
-dozer-types = { version = "0.3.0", path = "../dozer-types" }
+dozer-core = { path = "../dozer-core" }
+dozer-log = { path = "../dozer-log" }
+dozer-types = { path = "../dozer-types" }
 oracle = { version = "0.5.7", features = ["chrono"] }
