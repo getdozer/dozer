@@ -478,11 +478,12 @@ mod tests {
     fn test_string() {
         proptest!(
             ProptestConfig::with_cases(1000),
-            move |(s_val in ".+", s_val1 in ".*", s_val2 in ".*", c_val: char) | {
+            move |(s_val in ".+", s_val1 in ".*", s_val2 in ".*", c_val: char, i_val: i64) | {
                 test_like(&s_val, c_val);
                 test_ucase(&s_val, c_val);
                 test_concat(&s_val1, &s_val2, c_val);
                 test_trim(&s_val, c_val);
+                test_chr(i_val);
         });
     }
 
@@ -783,5 +784,58 @@ mod tests {
                 Field::String(s_val1.trim_matches(c_val).to_string())
             );
         }
+    }
+
+    fn test_chr(val: i64) {
+        let row = Record::new(vec![]);
+
+        // Field::String
+        let mut value = Box::new(Literal(Field::Int(val)));
+        assert_eq!(
+            evaluate_chr(&Schema::default(), &mut value, &row).unwrap(),
+            Field::String((((val % 256) as u8) as char).to_string())
+        );
+    }
+
+    #[test]
+    fn test_substr() {
+        let row = Record::new(vec![]);
+
+        let mut value = Box::new(Literal(Field::String("ABCDEFG".to_owned())));
+        let mut position = Box::new(Literal(Field::Int(3)));
+        let mut length = Some(Box::new(Literal(Field::Int(4))));
+        let result = Field::String("CDEF".to_owned());
+
+        assert_eq!(
+            evaluate_substr(
+                &Schema::default(),
+                &mut value,
+                &mut position,
+                &mut length,
+                &row
+            )
+            .unwrap(),
+            result
+        );
+    }
+
+    #[test]
+    fn test_replace() {
+        let row = Record::new(vec![]);
+        let mut value = Box::new(Literal(Field::String("JACK AND JUE".to_owned())));
+        let mut search = Box::new(Literal(Field::String("J".to_owned())));
+        let mut replace = Box::new(Literal(Field::String("BL".to_owned())));
+
+        assert_eq!(
+            evaluate_replace(
+                &Schema::default(),
+                &mut value,
+                &mut search,
+                &mut replace,
+                &row
+            )
+            .unwrap(),
+            Field::String("BLACK AND BLUE".to_owned())
+        );
     }
 }
