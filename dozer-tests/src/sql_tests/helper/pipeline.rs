@@ -358,14 +358,13 @@ impl TestPipeline {
         let output = Arc::new(Mutex::new(HashMap::new()));
         pipeline.add_sink(
             Box::new(TestSinkFactory::new(output.clone())),
-            "sink",
-            vec![],
+            "sink".to_string(),
         );
 
         pipeline.connect_nodes(
-            &output_table.node,
+            output_table.node.clone(),
             output_table.port,
-            "sink",
+            "sink".to_string(),
             DEFAULT_PORT_HANDLE,
         );
         let used_schemas = pipeline.get_entry_points_sources_names();

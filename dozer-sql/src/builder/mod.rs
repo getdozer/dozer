@@ -90,18 +90,17 @@ pub fn statement_to_pipeline(
         .map_err(|err| PipelineError::InternalError(Box::new(err)))?;
     let query_name = NameOrAlias(format!("query_{}", ctx.get_next_processor_id()), None);
 
-    for (idx, statement) in ast.iter().enumerate() {
+    for (idx, statement) in ast.into_iter().enumerate() {
         match statement {
             Statement::Query(query) => {
                 query_to_pipeline(
-                    &TableInfo {
+                    TableInfo {
                         name: query_name.clone(),
                         override_name: override_name.clone(),
                     },
-                    query,
+                    *query,
                     pipeline,
                     &mut ctx,
-                    false,
                     idx,
                     is_top_select,
                 )?;
@@ -123,11 +122,10 @@ struct TableInfo {
 }
 
 fn query_to_pipeline(
-    table_info: &TableInfo,
-    query: &Query,
+    table_info: TableInfo,
+    query: Query,
     pipeline: &mut AppPipeline,
     query_ctx: &mut QueryContext,
-    stateful: bool,
     pipeline_idx: usize,
     is_top_select: bool,
 ) -> Result<(), PipelineError> {
@@ -145,14 +143,14 @@ fn query_to_pipeline(
     }
 
     // Attach the first pipeline if there is with clause
-    if let Some(with) = &query.with {
+    if let Some(with) = query.with {
         if with.recursive {
             return Err(PipelineError::UnsupportedSqlError(
                 UnsupportedSqlError::Recursive,
             ));
         }
 
-        for table in &with.cte_tables {
+        for table in with.cte_tables {
             if table.from.is_some() {
                 return Err(PipelineError::UnsupportedSqlError(
                     UnsupportedSqlError::CteFromError,
@@ -168,28 +166,26 @@ fn query_to_pipeline(
                 )));
             }
             query_to_pipeline(
-                &TableInfo {
+                TableInfo {
                     name: NameOrAlias(table_name.clone(), Some(table_name)),
                     override_name: None,
                 },
-                &table.query,
+                *table.query,
                 pipeline,
                 query_ctx,
-                true,
                 pipeline_idx,
                 false, //Inside a with clause, so not top select
             )?;
         }
     };
 
-    match *query.body.clone() {
+    match *query.body {
         SetExpr::Select(select) => {
             select_to_pipeline(
                 table_info,
                 *select,
                 pipeline,
                 query_ctx,
-                stateful,
                 pipeline_idx,
                 is_top_select,
             )?;
@@ -198,14 +194,13 @@ fn query_to_pipeline(
             let query_name = format!("subquery_{}", query_ctx.get_next_processor_id());
             let mut ctx = QueryContext::new(query_ctx.udfs.clone(), query_ctx.runtime.clone());
             query_to_pipeline(
-                &TableInfo {
+                TableInfo {
                     name: NameOrAlias(query_name, None),
                     override_name: None,
                 },
-                &query,
+                *query,
                 pipeline,
                 &mut ctx,
-                stateful,
                 pipeline_idx,
                 false, //Inside a subquery, so not top select
             )?
@@ -224,7 +219,6 @@ fn query_to_pipeline(
                     set_quantifier,
                     pipeline,
                     query_ctx,
-                    stateful,
                     pipeline_idx,
                     is_top_select,
                 )?;
@@ -241,23 +235,21 @@ fn query_to_pipeline(
 }
 
 fn select_to_pipeline(
-    table_info: &TableInfo,
+    table_info: TableInfo,
     select: Select,
     pipeline: &mut AppPipeline,
     query_ctx: &mut QueryContext,
-    stateful: bool,
     pipeline_idx: usize,
     is_top_select: bool,
 ) -> Result<String, PipelineError> {
     // FROM clause
-    if select.from.len() != 1 {
+    let Some(from) = select.from.into_iter().next() else {
         return Err(PipelineError::UnsupportedSqlError(
             UnsupportedSqlError::FromCommaSyntax,
         ));
-    }
+    };
 
-    let connection_info =
-        from::insert_from_to_pipeline(&select.from[0], pipeline, pipeline_idx, query_ctx)?;
+    let connection_info = from::insert_from_to_pipeline(from, pipeline, pipeline_idx, query_ctx)?;
 
     let input_nodes = connection_info.input_nodes;
     let output_node = connection_info.output_node;
@@ -267,16 +259,16 @@ fn select_to_pipeline(
     let gen_selection_name = format!("select--{}", query_ctx.get_next_processor_id());
     let (gen_product_name, product_output_port) = output_node;
 
-    for (source_name, processor_name, processor_port) in input_nodes.iter() {
+    for (source_name, processor_name, processor_port) in input_nodes {
         if let Some(table_info) = query_ctx
             .pipeline_map
             .get(&(pipeline_idx, source_name.clone()))
         {
             pipeline.connect_nodes(
-                &table_info.node,
+                table_info.node.clone(),
                 table_info.port,
                 processor_name,
-                *processor_port as PortHandle,
+                processor_port,
             );
             // If not present in pipeline_map, insert into used_sources as this is coming from source
         } else {
@@ -286,8 +278,9 @@ fn select_to_pipeline(
 
     let aggregation = AggregationProcessorFactory::new(
         gen_agg_name.clone(),
-        select.clone(),
-        stateful,
+        select.projection,
+        select.group_by,
+        select.having,
         pipeline
             .flags()
             .enable_probabilistic_optimizations
@@ -297,37 +290,37 @@ fn select_to_pipeline(
         query_ctx.runtime.clone(),
     );
 
-    pipeline.add_processor(Box::new(aggregation), &gen_agg_name, vec![]);
+    pipeline.add_processor(Box::new(aggregation), gen_agg_name.clone());
 
     // Where clause
     if let Some(selection) = select.selection {
         let selection = SelectionProcessorFactory::new(
-            gen_selection_name.to_owned(),
+            gen_selection_name.clone(),
             selection,
             query_ctx.udfs.clone(),
             query_ctx.runtime.clone(),
         );
 
-        pipeline.add_processor(Box::new(selection), &gen_selection_name, vec![]);
+        pipeline.add_processor(Box::new(selection), gen_selection_name.clone());
 
         pipeline.connect_nodes(
-            &gen_product_name,
+            gen_product_name,
             product_output_port,
-            &gen_selection_name,
+            gen_selection_name.clone(),
             DEFAULT_PORT_HANDLE,
         );
 
         pipeline.connect_nodes(
-            &gen_selection_name,
+            gen_selection_name,
             DEFAULT_PORT_HANDLE,
-            &gen_agg_name,
+            gen_agg_name.clone(),
             DEFAULT_PORT_HANDLE,
         );
     } else {
         pipeline.connect_nodes(
-            &gen_product_name,
+            gen_product_name,
             product_output_port,
-            &gen_agg_name,
+            gen_agg_name.clone(),
             DEFAULT_PORT_HANDLE,
         );
     }
@@ -369,13 +362,12 @@ fn select_to_pipeline(
 
 #[allow(clippy::too_many_arguments)]
 fn set_to_pipeline(
-    table_info: &TableInfo,
+    table_info: TableInfo,
     left_select: Box<SetExpr>,
     right_select: Box<SetExpr>,
     set_quantifier: SetQuantifier,
     pipeline: &mut AppPipeline,
     query_ctx: &mut QueryContext,
-    stateful: bool,
     pipeline_idx: usize,
     is_top_select: bool,
 ) -> Result<String, PipelineError> {
@@ -392,11 +384,10 @@ fn set_to_pipeline(
 
     let _left_pipeline_name = match *left_select {
         SetExpr::Select(select) => select_to_pipeline(
-            &left_table_info,
+            left_table_info,
             *select,
             pipeline,
             query_ctx,
-            stateful,
             pipeline_idx,
             is_top_select,
         )?,
@@ -406,13 +397,12 @@ fn set_to_pipeline(
             left,
             right,
         } => set_to_pipeline(
-            &left_table_info,
+            left_table_info,
             left,
             right,
             set_quantifier,
             pipeline,
             query_ctx,
-            stateful,
             pipeline_idx,
             is_top_select,
         )?,
@@ -425,11 +415,10 @@ fn set_to_pipeline(
 
     let _right_pipeline_name = match *right_select {
         SetExpr::Select(select) => select_to_pipeline(
-            &right_table_info,
+            right_table_info,
             *select,
             pipeline,
             query_ctx,
-            stateful,
             pipeline_idx,
             is_top_select,
         )?,
@@ -439,13 +428,12 @@ fn set_to_pipeline(
             left,
             right,
         } => set_to_pipeline(
-            &right_table_info,
+            right_table_info,
             left,
             right,
             set_quantifier,
             pipeline,
             query_ctx,
-            stateful,
             pipeline_idx,
             is_top_select,
         )?,
@@ -458,29 +446,15 @@ fn set_to_pipeline(
 
     let mut gen_set_name = format!("set_{}", query_ctx.get_next_processor_id());
 
-    let left_pipeline_output_node = match query_ctx
+    let left_pipeline_output_node = query_ctx
         .pipeline_map
         .get(&(pipeline_idx, gen_left_set_name))
-    {
-        Some(pipeline) => pipeline,
-        None => {
-            return Err(PipelineError::InvalidQuery(
-                "Invalid UNION left Query".to_string(),
-            ))
-        }
-    };
+        .ok_or_else(|| PipelineError::InvalidQuery("Invalid UNION left Query".to_string()))?;
 
-    let right_pipeline_output_node = match query_ctx
+    let right_pipeline_output_node = query_ctx
         .pipeline_map
         .get(&(pipeline_idx, gen_right_set_name))
-    {
-        Some(pipeline) => pipeline,
-        None => {
-            return Err(PipelineError::InvalidQuery(
-                "Invalid UNION Right Query".to_string(),
-            ))
-        }
-    };
+        .ok_or_else(|| PipelineError::InvalidQuery("Invalid UNION right Query".to_string()))?;
 
     if table_info.override_name.is_some() {
         gen_set_name = table_info.override_name.to_owned().unwrap();
@@ -496,20 +470,20 @@ fn set_to_pipeline(
             .unwrap_or(false),
     );
 
-    pipeline.add_processor(Box::new(set_proc_fac), &gen_set_name, vec![]);
+    pipeline.add_processor(Box::new(set_proc_fac), gen_set_name.clone());
 
     pipeline.connect_nodes(
-        &left_pipeline_output_node.node,
+        left_pipeline_output_node.node.clone(),
         left_pipeline_output_node.port,
-        &gen_set_name,
-        0 as PortHandle,
+        gen_set_name.clone(),
+        0,
     );
 
     pipeline.connect_nodes(
-        &right_pipeline_output_node.node,
+        right_pipeline_output_node.node.clone(),
         right_pipeline_output_node.port,
-        &gen_set_name,
-        1 as PortHandle,
+        gen_set_name.clone(),
+        1,
     );
 
     for (_, table_name) in query_ctx.pipeline_map.keys() {
@@ -528,7 +502,7 @@ fn set_to_pipeline(
 }
 
 fn get_from_source(
-    relation: &TableFactor,
+    relation: TableFactor,
     pipeline: &mut AppPipeline,
     query_ctx: &mut QueryContext,
     pipeline_idx: usize,
@@ -559,14 +533,13 @@ fn get_from_source(
             let is_top_select = false; //inside FROM clause, so not top select
             let name_or = NameOrAlias(name, alias_name);
             query_to_pipeline(
-                &TableInfo {
+                TableInfo {
                     name: name_or.clone(),
                     override_name: None,
                 },
-                subquery,
+                *subquery,
                 pipeline,
                 query_ctx,
-                false,
                 pipeline_idx,
                 is_top_select,
             )?;

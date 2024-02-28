@@ -365,23 +365,24 @@ fn add_sink_to_pipeline(
     id: &str,
     table_infos: Vec<(&OutputTableInfo, PortHandle)>,
 ) {
-    let mut connections = vec![];
-    let mut entry_points = vec![];
+    pipeline.add_sink(sink, id.to_string());
 
     for (table_info, port) in table_infos {
         match table_info {
             OutputTableInfo::Original(table_info) => {
-                entry_points.push(PipelineEntryPoint::new(table_info.table_name.clone(), port))
+                pipeline.add_entry_point(
+                    id.to_string(),
+                    PipelineEntryPoint::new(table_info.table_name.clone(), port),
+                );
             }
             OutputTableInfo::Transformed(table_info) => {
-                connections.push((table_info, port));
+                pipeline.connect_nodes(
+                    table_info.node.clone(),
+                    table_info.port,
+                    id.to_string(),
+                    port,
+                );
             }
         }
-    }
-
-    pipeline.add_sink(sink, id, entry_points);
-
-    for (table_info, port) in connections {
-        pipeline.connect_nodes(&table_info.node, table_info.port, id, port);
     }
 }

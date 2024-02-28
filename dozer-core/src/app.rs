@@ -33,44 +33,33 @@ pub struct AppPipeline {
 }
 
 impl AppPipeline {
-    pub fn add_processor(
-        &mut self,
-        proc: Box<dyn ProcessorFactory>,
-        id: &str,
-        entry_points: Vec<PipelineEntryPoint>,
-    ) {
-        let handle = NodeHandle::new(None, id.to_string());
-        self.processors.push((handle.clone(), proc));
-
-        for entry_point in entry_points {
-            self.entry_points.push((handle.clone(), entry_point));
-        }
+    fn create_handle(id: String) -> NodeHandle {
+        NodeHandle::new(None, id)
     }
 
-    pub fn add_sink(
-        &mut self,
-        sink: Box<dyn SinkFactory>,
-        id: &str,
-        entry_points: Vec<PipelineEntryPoint>,
-    ) {
-        let handle = NodeHandle::new(None, id.to_string());
-        self.sinks.push((handle.clone(), sink));
+    pub fn add_processor(&mut self, proc: Box<dyn ProcessorFactory>, id: String) {
+        self.processors.push((Self::create_handle(id), proc));
+    }
 
-        for entry_point in entry_points {
-            self.entry_points.push((handle.clone(), entry_point));
-        }
+    pub fn add_sink(&mut self, sink: Box<dyn SinkFactory>, id: String) {
+        self.sinks.push((Self::create_handle(id), sink));
+    }
+
+    pub fn add_entry_point(&mut self, id: String, entry_point: PipelineEntryPoint) {
+        self.entry_points
+            .push((Self::create_handle(id), entry_point));
     }
 
     pub fn connect_nodes(
         &mut self,
-        from: &str,
+        from: String,
         from_port: PortHandle,
-        to: &str,
+        to: String,
         to_port: PortHandle,
     ) {
         let edge = Edge::new(
-            Endpoint::new(NodeHandle::new(None, from.to_string()), from_port),
-            Endpoint::new(NodeHandle::new(None, to.to_string()), to_port),
+            Endpoint::new(NodeHandle::new(None, from), from_port),
+            Endpoint::new(NodeHandle::new(None, to), to_port),
         );
         self.edges.push(edge);
     }

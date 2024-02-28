@@ -1,4 +1,9 @@
-use dozer_sql_expression::{builder::ExpressionBuilder, sqlparser::ast::ObjectName};
+use dozer_sql_expression::{
+    builder::{ExpressionBuilder, NameOrAlias},
+    sqlparser::ast::{ObjectName, TableFactor},
+};
+
+use crate::errors::{PipelineError, ProductError};
 
 use super::QueryContext;
 
@@ -27,6 +32,42 @@ pub fn is_a_pipeline_output(
         return true;
     }
     false
+}
+
+pub fn get_name_or_alias(relation: &TableFactor) -> Result<NameOrAlias, PipelineError> {
+    match relation {
+        TableFactor::Table { name, alias, .. } => {
+            let table_name = string_from_sql_object_name(name);
+            if let Some(table_alias) = alias {
+                let alias = table_alias.name.value.clone();
+                return Ok(NameOrAlias(table_name, Some(alias)));
+            }
+            Ok(NameOrAlias(table_name, None))
+        }
+        TableFactor::Derived { alias, .. } => {
+            if let Some(table_alias) = alias {
+                let alias = table_alias.name.value.clone();
+                return Ok(NameOrAlias("dozer_derived".to_string(), Some(alias)));
+            }
+            Ok(NameOrAlias("dozer_derived".to_string(), None))
+        }
+        TableFactor::TableFunction { .. } => Err(PipelineError::ProductError(
+            ProductError::UnsupportedTableFunction,
+        )),
+        TableFactor::UNNEST { .. } => {
+            Err(PipelineError::ProductError(ProductError::UnsupportedUnnest))
+        }
+        TableFactor::NestedJoin { alias, .. } => {
+            if let Some(table_alias) = alias {
+                let alias = table_alias.name.value.clone();
+                return Ok(NameOrAlias("dozer_nested".to_string(), Some(alias)));
+            }
+            Ok(NameOrAlias("dozer_nested".to_string(), None))
+        }
+        TableFactor::Pivot { .. } => {
+            Err(PipelineError::ProductError(ProductError::UnsupportedPivot))
+        }
+    }
 }
 
 pub fn string_from_sql_object_name(name: &ObjectName) -> String {
