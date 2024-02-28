@@ -406,13 +406,12 @@ pub(crate) fn evaluate_substr(
         None => arg_value.len() as i128,
     };
 
-    let result = arg_value
-        .chars()
-        .skip(position_value as usize - 1)
-        .take(length_value as usize)
-        .collect::<String>();
+    let mut iter = arg_value.char_indices();
+    let (start, _) = iter.nth(position_value.try_into().unwrap()).unwrap();
+    let (end, _) = iter.nth(length_value.try_into().unwrap()).unwrap();
+    let result = &arg_value[start..end];
 
-    Ok(Field::String(result))
+    Ok(Field::String(result.to_owned()))
 }
 
 pub fn validate_replace(args: &[Expression], schema: &Schema) -> Result<ExpressionType, Error> {
@@ -803,6 +802,23 @@ mod tests {
 
         let mut value = Box::new(Literal(Field::String("ABCDEFG".to_owned())));
         let mut position = Box::new(Literal(Field::Int(3)));
+        let mut length = Some(Box::new(Literal(Field::Int(4))));
+        let result = Field::String("CDEF".to_owned());
+
+        assert_eq!(
+            evaluate_substr(
+                &Schema::default(),
+                &mut value,
+                &mut position,
+                &mut length,
+                &row
+            )
+            .unwrap(),
+            result
+        );
+
+        let mut value = Box::new(Literal(Field::String("ABCDEFG".to_owned())));
+        let mut position = Box::new(Literal(Field::Int(-5)));
         let mut length = Some(Box::new(Literal(Field::Int(4))));
         let result = Field::String("CDEF".to_owned());
 

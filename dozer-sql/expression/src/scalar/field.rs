@@ -60,3 +60,50 @@ pub(crate) fn evaluate_decode(
         Ok(Field::Null)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use dozer_types::types::{Field, Record, Schema};
+
+    use crate::{execution::Expression, scalar::field::evaluate_decode};
+
+    #[test]
+    fn test_decode() {
+        let row = Record::new(vec![]);
+        let mut value = Box::new(Expression::Literal(Field::Int(2)));
+        let mut results = [
+            Expression::Literal(Field::Int(1)),
+            Expression::Literal(Field::String("Southlake".to_owned())),
+            Expression::Literal(Field::Int(2)),
+            Expression::Literal(Field::String("San Francisco".to_owned())),
+            Expression::Literal(Field::Int(3)),
+            Expression::Literal(Field::String("New Jersey".to_owned())),
+            Expression::Literal(Field::Int(4)),
+            Expression::Literal(Field::String("Seattle".to_owned())),
+        ];
+        let default = Some(Expression::Literal(Field::String(
+            "Non domestic".to_owned(),
+        )));
+        let result = Field::String("San Francisco".to_owned());
+
+        assert_eq!(
+            evaluate_decode(
+                &Schema::default(),
+                &mut value,
+                &mut results,
+                default.clone(),
+                &row
+            )
+            .unwrap(),
+            result
+        );
+
+        let mut value = Box::new(Expression::Literal(Field::Int(5)));
+        let result = Field::String("Non domestic".to_owned());
+
+        assert_eq!(
+            evaluate_decode(&Schema::default(), &mut value, &mut results, default, &row).unwrap(),
+            result
+        );
+    }
+}
