@@ -1,6 +1,7 @@
 use crate::tests::utils::create_test_runtime;
 use crate::{projection::factory::ProjectionProcessorFactory, tests::utils::get_select};
 use dozer_core::channels::ProcessorChannelForwarder;
+use dozer_core::event::EventHub;
 use dozer_core::node::ProcessorFactory;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::types::{Field, Schema, TableOperation};
@@ -41,7 +42,7 @@ pub(crate) fn run_fct(sql: &str, schema: Schema, input: Vec<Field>) -> Field {
         .block_on(processor_factory.build(
             HashMap::from([(DEFAULT_PORT_HANDLE, schema)]),
             HashMap::new(),
-            None,
+            EventHub::new(1),
         ))
         .unwrap();
 

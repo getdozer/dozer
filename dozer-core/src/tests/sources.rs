@@ -1,6 +1,6 @@
+use crate::event::EventHub;
 use crate::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory};
 use crate::DEFAULT_PORT_HANDLE;
-use dozer_log::tokio::{self, sync::mpsc::Sender};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::models::ingestion_types::{IngestionMessage, TransactionInfo};
 use dozer_types::node::OpIdentifier;
@@ -8,6 +8,7 @@ use dozer_types::tonic::async_trait;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
 };
+use tokio::{self, sync::mpsc::Sender};
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -76,6 +77,7 @@ impl SourceFactory for GeneratorSourceFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
+        _event_hub: EventHub,
         _state: Option<Vec<u8>>,
     ) -> Result<Box<dyn Source>, BoxedError> {
         Ok(Box::new(GeneratorSource {
@@ -218,6 +220,7 @@ impl SourceFactory for DualPortGeneratorSourceFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
+        _event_hub: EventHub,
         _state: Option<Vec<u8>>,
     ) -> Result<Box<dyn Source>, BoxedError> {
         Ok(Box::new(DualPortGeneratorSource {
@@ -316,6 +319,7 @@ impl SourceFactory for ConnectivityTestSourceFactory {
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
+        _event_hub: EventHub,
         _state: Option<Vec<u8>>,
     ) -> Result<Box<dyn Source>, BoxedError> {
         unimplemented!("This struct is for connectivity test, only output ports are defined")

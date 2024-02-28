@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use dozer_core::{
+    event::EventHub,
     node::{PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
@@ -110,7 +111,7 @@ impl ProcessorFactory for JoinProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
-        checkpoint_data: Option<Vec<u8>>,
+        _event_hub: EventHub,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         let (join_type, join_constraint) = match &self.join_operator {
             SqlJoinOperator::Inner(constraint) => (JoinType::Inner, constraint),
@@ -156,7 +157,6 @@ impl ProcessorFactory for JoinProcessorFactory {
             (left_join_key_indexes, right_join_key_indexes),
             (&left_schema, &right_schema),
             self.enable_probabilistic_optimizations,
-            checkpoint_data,
         )?;
 
         Ok(Box::new(ProductProcessor::new(

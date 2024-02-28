@@ -4,7 +4,6 @@ use clap::Parser;
 
 use dozer_core::shutdown::{self, ShutdownReceiver, ShutdownSender};
 use dozer_core::{dag_schemas::DagSchemas, Dag};
-use dozer_log::camino::Utf8Path;
 use dozer_tracing::{Labels, LabelsAndProgress};
 use dozer_types::{
     grpc_types::{
@@ -356,7 +355,6 @@ fn get_dozer_run_instance(
     dozer.config.flags.enable_app_checkpoints = Some(false);
 
     dozer.config.home_dir = Some(temp_dir.to_string());
-    dozer.config.cache_dir = Some(AsRef::<Utf8Path>::as_ref(temp_dir).join("cache").into());
 
     dozer.labels = LabelsAndProgress::new(labels, false);
 

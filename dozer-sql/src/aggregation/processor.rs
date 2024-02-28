@@ -4,8 +4,6 @@ use crate::aggregation::aggregator::Aggregator;
 use crate::errors::PipelineError;
 use crate::utils::record_hashtable_key::{get_record_hash, RecordKey};
 use dozer_core::channels::ProcessorChannelForwarder;
-use dozer_core::checkpoint::serialize::{deserialize_vec_u8, serialize_vec_u8, Cursor};
-use dozer_core::dozer_log::storage::Object;
 use dozer_core::node::Processor;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_sql_expression::execution::Expression;
@@ -72,14 +70,13 @@ enum AggregatorOperation {
 impl AggregationProcessor {
     pub fn new(
         id: String,
-        mut dimensions: Vec<Expression>,
+        dimensions: Vec<Expression>,
         measures: Vec<Expression>,
-        mut projections: Vec<Expression>,
-        mut having: Option<Expression>,
+        projections: Vec<Expression>,
+        having: Option<Expression>,
         input_schema: Schema,
         aggregation_schema: Schema,
         enable_probabilistic_optimizations: bool,
-        checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Self, BoxedError> {
         let mut aggr_types = Vec::new();
         let mut aggr_measures = Vec::new();
@@ -98,36 +95,13 @@ impl AggregationProcessor {
 
         let accurate_keys = !enable_probabilistic_optimizations;
 
-        let states = if let Some(data) = checkpoint_data {
-            let mut cursor = Cursor::new(&data);
-            let data = deserialize_vec_u8(&mut cursor)?;
-            let state = bincode::decode_from_slice(data, bincode::config::legacy())?.0;
-            for dimension in &mut dimensions {
-                dimension.deserialize_state(&mut cursor)?;
-            }
-            for measures in &mut aggr_measures {
-                for measure in measures {
-                    measure.deserialize_state(&mut cursor)?;
-                }
-            }
-            for projection in &mut projections {
-                projection.deserialize_state(&mut cursor)?;
-            }
-            if let Some(having) = &mut having {
-                having.deserialize_state(&mut cursor)?;
-            }
-            state
-        } else {
-            HashMap::new()
-        };
-
         Ok(Self {
             _id: id,
             dimensions,
             projections,
             input_schema,
             aggregation_schema,
-            states,
+            states: Default::default(),
             measures: aggr_measures,
             having,
             measures_types: aggr_types,
@@ -606,26 +580,6 @@ impl Processor for AggregationProcessor {
         let ops = self.aggregate(op.op)?;
         for output_op in ops {
             fw.send(TableOperation::without_id(output_op, DEFAULT_PORT_HANDLE));
-        }
-        Ok(())
-    }
-
-    fn serialize(&mut self, mut object: Object) -> Result<(), BoxedError> {
-        let state = bincode::encode_to_vec(&self.states, bincode::config::legacy())?;
-        serialize_vec_u8(&state, &mut object)?;
-        for dimension in &self.dimensions {
-            dimension.serialize_state(&mut object)?;
-        }
-        for measures in &self.measures {
-            for measure in measures {
-                measure.serialize_state(&mut object)?;
-            }
-        }
-        for projection in &self.projections {
-            projection.serialize_state(&mut object)?;
-        }
-        if let Some(having) = &self.having {
-            having.serialize_state(&mut object)?;
         }
         Ok(())
     }

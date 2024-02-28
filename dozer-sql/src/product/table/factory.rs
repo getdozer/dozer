@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use dozer_core::{
+    event::EventHub,
     node::{PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
@@ -58,11 +59,8 @@ impl ProcessorFactory for TableProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
-        checkpoint_data: Option<Vec<u8>>,
+        _event_hub: EventHub,
     ) -> Result<Box<dyn Processor>, BoxedError> {
-        Ok(Box::new(TableProcessor::new(
-            self.id.clone(),
-            checkpoint_data,
-        )))
+        Ok(Box::new(TableProcessor::new(self.id.clone())))
     }
 }

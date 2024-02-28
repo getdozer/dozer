@@ -1,7 +1,7 @@
 use crate::epoch::Epoch;
+use crate::event::EventHub;
 use crate::node::{PortHandle, Sink, SinkFactory};
 use crate::DEFAULT_PORT_HANDLE;
-use dozer_log::storage::Queue;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::OpIdentifier;
 use dozer_types::types::{Schema, TableOperation};
@@ -47,6 +47,7 @@ impl SinkFactory for CountingSinkFactory {
     async fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
+        _event_hub: EventHub,
     ) -> Result<Box<dyn Sink>, BoxedError> {
         Ok(Box::new(CountingSink {
             expected: self.expected,
@@ -80,10 +81,6 @@ impl Sink for CountingSink {
             );
             self.running.store(false, Ordering::Relaxed);
         }
-        Ok(())
-    }
-
-    fn persist(&mut self, _epoch: &Epoch, _queue: &Queue) -> Result<(), BoxedError> {
         Ok(())
     }
 
@@ -135,6 +132,7 @@ impl SinkFactory for ConnectivityTestSinkFactory {
     async fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
+        _event_hub: EventHub,
     ) -> Result<Box<dyn Sink>, BoxedError> {
         unimplemented!("This struct is for connectivity test, only input ports are defined")
     }
@@ -164,6 +162,7 @@ impl SinkFactory for NoInputPortSinkFactory {
     async fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
+        _event_hub: EventHub,
     ) -> Result<Box<dyn Sink>, BoxedError> {
         unimplemented!("This struct is for connectivity test, only input ports are defined")
     }

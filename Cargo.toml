@@ -7,7 +7,6 @@ members = [
   "dozer-sql",
   "dozer-tracing",
   "dozer-tests",
-  "dozer-log",
   "dozer-utils",
   "dozer-sink-aerospike",
   "dozer-sink-clickhouse",

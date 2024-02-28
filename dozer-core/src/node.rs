@@ -1,8 +1,7 @@
 use crate::channels::ProcessorChannelForwarder;
 use crate::epoch::Epoch;
+use crate::event::EventHub;
 
-use dozer_log::storage::{Object, Queue};
-use dozer_log::tokio::sync::mpsc::Sender;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_types::node::OpIdentifier;
@@ -11,6 +10,7 @@ use dozer_types::tonic::async_trait;
 use dozer_types::types::{Schema, TableOperation};
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
+use tokio::sync::mpsc::Sender;
 
 pub use dozer_types::types::PortHandle;
 
@@ -51,6 +51,7 @@ pub trait SourceFactory: Send + Sync + Debug {
     fn build(
         &self,
         output_schemas: HashMap<PortHandle, Schema>,
+        event_hub: EventHub,
         state: Option<Vec<u8>>,
     ) -> Result<Box<dyn Source>, BoxedError>;
 }
@@ -79,7 +80,7 @@ pub trait ProcessorFactory: Send + Sync + Debug {
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
         output_schemas: HashMap<PortHandle, Schema>,
-        checkpoint_data: Option<Vec<u8>>,
+        event_hub: EventHub,
     ) -> Result<Box<dyn Processor>, BoxedError>;
     fn type_name(&self) -> String;
     fn id(&self) -> String;
@@ -92,7 +93,6 @@ pub trait Processor: Send + Sync + Debug {
         op: TableOperation,
         fw: &mut dyn ProcessorChannelForwarder,
     ) -> Result<(), BoxedError>;
-    fn serialize(&mut self, object: Object) -> Result<(), BoxedError>;
 }
 
 #[async_trait]
@@ -103,6 +103,7 @@ pub trait SinkFactory: Send + Sync + Debug {
     async fn build(
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
+        event_hub: EventHub,
     ) -> Result<Box<dyn Sink>, BoxedError>;
     fn type_name(&self) -> String;
 }
@@ -110,7 +111,6 @@ pub trait SinkFactory: Send + Sync + Debug {
 pub trait Sink: Send + Sync + Debug {
     fn commit(&mut self, epoch_details: &Epoch) -> Result<(), BoxedError>;
     fn process(&mut self, op: TableOperation) -> Result<(), BoxedError>;
-    fn persist(&mut self, epoch: &Epoch, queue: &Queue) -> Result<(), BoxedError>;
 
     fn on_source_snapshotting_started(&mut self, connection_name: String)
         -> Result<(), BoxedError>;

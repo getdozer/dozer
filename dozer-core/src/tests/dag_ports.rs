@@ -1,3 +1,4 @@
+use crate::event::EventHub;
 use crate::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Source, SourceFactory,
 };
@@ -37,6 +38,7 @@ impl SourceFactory for DynPortsSourceFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
+        _event_hub: EventHub,
         _state: Option<Vec<u8>>,
     ) -> Result<Box<dyn Source>, BoxedError> {
         todo!()
@@ -80,7 +82,7 @@ impl ProcessorFactory for DynPortsProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _checkpoint_data: Option<Vec<u8>>,
+        _event_hub: EventHub,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         todo!()
     }

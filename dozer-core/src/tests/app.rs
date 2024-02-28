@@ -1,6 +1,7 @@
 use super::run_dag;
 use crate::app::{App, AppPipeline, PipelineEntryPoint};
 use crate::appsource::{AppSourceManager, AppSourceMappings};
+use crate::event::EventHub;
 use crate::node::{OutputPortDef, PortHandle, Source, SourceFactory};
 use crate::tests::dag_base_run::{
     NoopJoinProcessorFactory, NOOP_JOIN_LEFT_INPUT_PORT, NOOP_JOIN_RIGHT_INPUT_PORT,
@@ -38,6 +39,7 @@ impl SourceFactory for NoneSourceFactory {
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
+        _event_hub: EventHub,
         _state: Option<Vec<u8>>,
     ) -> Result<Box<dyn Source>, BoxedError> {
         todo!()

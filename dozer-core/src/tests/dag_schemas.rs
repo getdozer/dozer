@@ -1,11 +1,11 @@
 use crate::dag_schemas::{DagHaveSchemas, DagSchemas};
+use crate::event::EventHub;
 use crate::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, SinkFactory, Source,
     SourceFactory,
 };
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
 
-use dozer_log::tokio;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
 use dozer_types::tonic::async_trait;
@@ -62,6 +62,7 @@ impl SourceFactory for TestUsersSourceFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
+        _event_hub: EventHub,
         _state: Option<Vec<u8>>,
     ) -> Result<Box<dyn Source>, BoxedError> {
         todo!()
@@ -109,6 +110,7 @@ impl SourceFactory for TestCountriesSourceFactory {
     fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
+        _event_hub: EventHub,
         _state: Option<Vec<u8>>,
     ) -> Result<Box<dyn Source>, BoxedError> {
         todo!()
@@ -146,7 +148,7 @@ impl ProcessorFactory for TestJoinProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _checkpoint_data: Option<Vec<u8>>,
+        _event_hub: EventHub,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         todo!()
     }
@@ -180,6 +182,7 @@ impl SinkFactory for TestSinkFactory {
     async fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
+        _event_hub: EventHub,
     ) -> Result<Box<dyn crate::node::Sink>, BoxedError> {
         todo!()
     }

@@ -1,5 +1,4 @@
 use dozer_core::channels::ProcessorChannelForwarder;
-use dozer_core::dozer_log::storage::Object;
 use dozer_core::epoch::Epoch;
 use dozer_core::node::Processor;
 use dozer_core::DEFAULT_PORT_HANDLE;
@@ -171,17 +170,13 @@ impl Processor for ProductProcessor {
 
         Ok(())
     }
-
-    fn serialize(&mut self, object: Object) -> Result<(), BoxedError> {
-        self.join_operator.serialize(object).map_err(Into::into)
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
 
-    use dozer_core::node::ProcessorFactory;
+    use dozer_core::{event::EventHub, node::ProcessorFactory};
     use dozer_sql_expression::builder::NameOrAlias;
     use dozer_sql_expression::sqlparser::ast::JoinOperator as SqlJoinOperator;
     use dozer_types::types::{Field, FieldDefinition, Record, Schema};
@@ -277,7 +272,10 @@ mod tests {
             ]
             .into_iter()
             .collect();
-            let processor = factory.build(schemas, HashMap::new(), None).await.unwrap();
+            let processor = factory
+                .build(schemas, HashMap::new(), EventHub::new(1))
+                .await
+                .unwrap();
 
             let forwarder = TestChannelForwarder { operations: vec![] };
             Executor {

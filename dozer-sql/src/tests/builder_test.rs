@@ -1,8 +1,7 @@
 use dozer_core::app::{App, AppPipeline};
 use dozer_core::appsource::{AppSourceManager, AppSourceMappings};
-use dozer_core::checkpoint::create_checkpoint_for_test;
-use dozer_core::dozer_log::storage::Queue;
 use dozer_core::epoch::Epoch;
+use dozer_core::event::EventHub;
 use dozer_core::executor::DagExecutor;
 use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
@@ -94,6 +93,7 @@ impl SourceFactory for TestSourceFactory {
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
+        _event_hub: EventHub,
         _state: Option<Vec<u8>>,
     ) -> Result<Box<dyn Source>, BoxedError> {
         Ok(Box::new(TestSource {}))
@@ -164,6 +164,7 @@ impl SinkFactory for TestSinkFactory {
     async fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
+        _event_hub: EventHub,
     ) -> Result<Box<dyn Sink>, BoxedError> {
         Ok(Box::new(TestSink {}))
     }
@@ -187,10 +188,6 @@ impl Sink for TestSink {
     }
 
     fn commit(&mut self, _epoch_details: &Epoch) -> Result<(), BoxedError> {
-        Ok(())
-    }
-
-    fn persist(&mut self, _epoch: &Epoch, _queue: &Queue) -> Result<(), BoxedError> {
         Ok(())
     }
 
@@ -271,8 +268,7 @@ fn test_pipeline_builder() {
 
     let runtime_clone = runtime.clone();
     let handle = runtime.block_on(async move {
-        let (_temp_dir, checkpoint) = create_checkpoint_for_test().await;
-        DagExecutor::new(dag, checkpoint, Default::default())
+        DagExecutor::new(dag, Default::default())
             .await
             .unwrap()
             .start(pending::<()>(), Default::default(), runtime_clone)

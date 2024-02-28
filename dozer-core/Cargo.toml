@@ -7,7 +7,6 @@ authors = ["getdozer/dozer-dev"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-dozer-log = { path = "../dozer-log/" }
 dozer-types = { path = "../dozer-types/" }
 dozer-tracing = { path = "../dozer-tracing/" }
 bincode = { workspace = true }
@@ -19,7 +18,6 @@ daggy = { git = "https://github.com/getdozer/daggy", branch = "feat/try_map", fe
 ] }
 metrics = "0.21.0"
 futures-util = "0.3.28"
-tempdir = "0.3.7"
 async-stream = "0.3.5"
 futures = "0.3.30"
 tokio = { version = "1", features = ["full"] }

@@ -29,7 +29,6 @@ rusqlite = { version = "0.29.0", features = [
     "hooks",
 ] }
 async-trait = "0.1.74"
-tempdir = "0.3.7"
 walkdir = "2.4.0"
 ahash = "0.8.3"
 csv = "1.2"
