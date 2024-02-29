@@ -6,10 +6,10 @@ use std::{
 
 use crate::{
     builder_dag::{BuilderDag, NodeKind},
-    checkpoint::OptionCheckpoint,
     dag_schemas::EdgeKind,
     error_manager::ErrorManager,
     errors::ExecutionError,
+    event::EventHub,
     executor_operation::ExecutorOperation,
     forwarder::SenderWithPortMapping,
     hash_map_to_vec::insert_vec_element,
@@ -21,9 +21,9 @@ use daggy::petgraph::{
     visit::{EdgeRef, IntoEdges, IntoEdgesDirected},
     Direction,
 };
-use dozer_log::tokio::sync::Mutex;
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::node::NodeHandle;
+use tokio::sync::Mutex;
 
 #[derive(Debug)]
 pub struct NodeType {
@@ -56,12 +56,12 @@ pub struct ExecutionDag {
     initial_epoch_id: u64,
     error_manager: Arc<ErrorManager>,
     labels: LabelsAndProgress,
+    event_hub: EventHub,
 }
 
 impl ExecutionDag {
-    pub async fn new(
+    pub fn new(
         builder_dag: BuilderDag,
-        checkpoint: OptionCheckpoint,
         labels: LabelsAndProgress,
         channel_buffer_sz: usize,
         error_threshold: Option<u32>,
@@ -93,19 +93,11 @@ impl ExecutionDag {
                         let record_writer = match &edge_kind {
                             EdgeKind::FromSource {
                                 port_type: OutputPortType::StatefulWithPrimaryKeyLookup,
-                                port_name,
-                            } => {
-                                let record_writer_data = checkpoint
-                                    .load_record_writer_data(
-                                        &builder_dag.graph()[source_node_index].handle,
-                                        port_name,
-                                    )
-                                    .await?;
-                                Some(
-                                    create_record_writer(edge.schema.clone(), record_writer_data)
-                                        .map_err(ExecutionError::RestoreRecordWriter)?,
-                                )
-                            }
+                                ..
+                            } => Some(
+                                create_record_writer(edge.schema.clone())
+                                    .map_err(ExecutionError::RestoreRecordWriter)?,
+                            ),
                             _ => None,
                         };
                         let record_writer = Arc::new(Mutex::new(record_writer));
@@ -137,8 +129,8 @@ impl ExecutionDag {
         }
 
         // Create new graph.
-        let initial_epoch_id = checkpoint.next_epoch_id();
-        let graph = builder_dag.into_graph().map_owned(
+        let (graph, event_hub) = builder_dag.into_graph_and_event_hub();
+        let graph = graph.map_owned(
             |_, node| NodeType {
                 handle: node.handle,
                 kind: Some(node.kind),
@@ -151,13 +143,14 @@ impl ExecutionDag {
         );
         Ok(ExecutionDag {
             graph,
-            initial_epoch_id,
+            initial_epoch_id: 0,
             error_manager: Arc::new(if let Some(threshold) = error_threshold {
                 ErrorManager::new_threshold(threshold)
             } else {
                 ErrorManager::new_unlimited()
             }),
             labels,
+            event_hub,
         })
     }
 
@@ -179,6 +172,10 @@ impl ExecutionDag {
 
     pub fn labels(&self) -> &LabelsAndProgress {
         &self.labels
+    }
+
+    pub fn event_hub(&self) -> &EventHub {
+        &self.event_hub
     }
 
     pub fn collect_senders(&self, node_index: daggy::NodeIndex) -> Vec<SenderWithPortMapping> {

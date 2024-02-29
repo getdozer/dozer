@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use super::{
     api_config::ApiConfig, app_config::AppConfig, cloud::Cloud, connection::Connection,
     equal_default, flags::Flags, lambda_config::LambdaConfig, sink::Sink, source::Source,
@@ -23,10 +21,6 @@ pub struct Config {
     #[serde(skip_serializing_if = "Option::is_none")]
     ///directory for all process; Default: ./.dozer
     pub home_dir: Option<String>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    ///directory for cache. Default: ./.dozer/cache
-    pub cache_dir: Option<String>,
 
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     /// connections to databases: Eg: Postgres, Snowflake, etc
@@ -52,10 +46,6 @@ pub struct Config {
     /// flags to enable/disable features
     pub flags: Flags,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    /// Cache lmdb max map size
-    pub cache_max_map_size: Option<u64>,
-
     #[serde(default, skip_serializing_if = "equal_default")]
     /// App runtime config: behaviour of pipeline and log
     pub app: AppConfig,
@@ -79,21 +69,6 @@ pub struct Config {
 
 pub fn default_home_dir() -> String {
     DEFAULT_HOME_DIR.to_owned()
-}
-
-pub fn get_cache_dir(home_dir: &str) -> String {
-    AsRef::<Path>::as_ref(home_dir)
-        .join("cache")
-        .to_str()
-        .unwrap()
-        .to_string()
-}
-pub fn default_cache_dir() -> String {
-    get_cache_dir(DEFAULT_HOME_DIR)
-}
-
-pub fn default_cache_max_map_size() -> u64 {
-    1024 * 1024 * 1024
 }
 
 impl Config {

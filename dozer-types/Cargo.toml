@@ -32,6 +32,7 @@ prost = "0.12.2"
 arrow = { version = "48.0.1" }
 arrow-cast = { version = "48.0.1" }
 arrow-schema = { version = "48.0.1", features = ["serde"] }
+tokio = { version = "1", features = ["sync"] }
 tokio-postgres = { version = "0.7.7", features = [
     "with-chrono-0_4",
     "with-geo-types-0_7",

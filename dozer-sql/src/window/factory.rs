@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use dozer_core::{
+    event::EventHub,
     node::{PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
@@ -71,7 +72,7 @@ impl ProcessorFactory for WindowProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
-        checkpoint_data: Option<Vec<u8>>,
+        _event_hub: EventHub,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         let input_schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
@@ -83,11 +84,7 @@ impl ProcessorFactory for WindowProcessorFactory {
         match window_from_table_operator(&self.table, &input_schema)
             .map_err(PipelineError::WindowError)?
         {
-            Some(window) => Ok(Box::new(WindowProcessor::new(
-                self.id.clone(),
-                window,
-                checkpoint_data,
-            ))),
+            Some(window) => Ok(Box::new(WindowProcessor::new(self.id.clone(), window))),
             None => Err(PipelineError::WindowError(WindowError::InvalidWindow()).into()),
         }
     }

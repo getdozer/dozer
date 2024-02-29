@@ -1,4 +1,5 @@
 use crossbeam_channel::{bounded, Receiver, Sender};
+use dozer_core::event::EventHub;
 use dozer_types::json_types::{DestructuredJsonRef, JsonValue};
 use dozer_types::models::connection::AerospikeConnection;
 use dozer_types::models::sink::DenormColumn;
@@ -274,6 +275,7 @@ impl SinkFactory for AerospikeSinkFactory {
     async fn build(
         &self,
         mut input_schemas: HashMap<PortHandle, Schema>,
+        _event_hub: EventHub,
     ) -> Result<Box<dyn dozer_core::node::Sink>, BoxedError> {
         let hosts = CString::new(self.connection_config.hosts.as_str())?;
         let client = Client::new(&hosts).map_err(AerospikeSinkError::from)?;
@@ -1191,14 +1193,6 @@ impl Sink for AerospikeSink {
         Ok(())
     }
 
-    fn persist(
-        &mut self,
-        _epoch: &dozer_core::epoch::Epoch,
-        _queue: &dozer_log::storage::Queue,
-    ) -> Result<(), BoxedError> {
-        Ok(())
-    }
-
     fn on_source_snapshotting_started(
         &mut self,
         connection_name: String,
@@ -1244,8 +1238,7 @@ impl Sink for AerospikeSink {
 #[cfg(test)]
 mod tests {
 
-    use dozer_core::DEFAULT_PORT_HANDLE;
-    use dozer_log::tokio;
+    use dozer_core::{tokio, DEFAULT_PORT_HANDLE};
     use std::time::Duration;
 
     use dozer_types::{
@@ -1354,7 +1347,7 @@ mod tests {
             },
         );
         factory
-            .build([(DEFAULT_PORT_HANDLE, schema)].into())
+            .build([(DEFAULT_PORT_HANDLE, schema)].into(), EventHub::new(1))
             .await
             .unwrap()
     }

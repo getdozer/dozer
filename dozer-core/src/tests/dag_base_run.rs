@@ -1,6 +1,6 @@
 use crate::channels::ProcessorChannelForwarder;
-use crate::checkpoint::create_checkpoint_for_test;
 use crate::epoch::Epoch;
+use crate::event::EventHub;
 use crate::executor::DagExecutor;
 use crate::node::{PortHandle, Processor, ProcessorFactory};
 use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
@@ -10,12 +10,11 @@ use crate::tests::sources::{
     GENERATOR_SOURCE_OUTPUT_PORT,
 };
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
-use dozer_log::storage::Object;
-use dozer_log::tokio::sync::oneshot;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::node::NodeHandle;
 use dozer_types::tonic::async_trait;
 use dozer_types::types::{Schema, TableOperation};
+use tokio::sync::oneshot;
 
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
@@ -54,7 +53,7 @@ impl ProcessorFactory for NoopProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _checkpoint_data: Option<Vec<u8>>,
+        _event_hub: EventHub,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         Ok(Box::new(NoopProcessor {}))
     }
@@ -79,10 +78,6 @@ impl Processor for NoopProcessor {
     ) -> Result<(), BoxedError> {
         op.port = DEFAULT_PORT_HANDLE;
         fw.send(op);
-        Ok(())
-    }
-
-    fn serialize(&mut self, _object: Object) -> Result<(), BoxedError> {
         Ok(())
     }
 }
@@ -161,8 +156,7 @@ fn test_run_dag_and_stop() {
 
     let (sender, receiver) = oneshot::channel::<()>();
     let join_handle = runtime.block_on(async move {
-        let (_temp_dir, checkpoint) = create_checkpoint_for_test().await;
-        DagExecutor::new(dag, checkpoint, Default::default())
+        DagExecutor::new(dag, Default::default())
             .await
             .unwrap()
             .start(receiver, Default::default(), runtime_clone)
@@ -207,7 +201,7 @@ impl ProcessorFactory for NoopJoinProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _checkpoint_data: Option<Vec<u8>>,
+        _event_hub: EventHub,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         Ok(Box::new(NoopJoinProcessor {}))
     }
@@ -232,10 +226,6 @@ impl Processor for NoopJoinProcessor {
     ) -> Result<(), BoxedError> {
         op.port = DEFAULT_PORT_HANDLE;
         fw.send(op);
-        Ok(())
-    }
-
-    fn serialize(&mut self, _object: Object) -> Result<(), BoxedError> {
         Ok(())
     }
 }

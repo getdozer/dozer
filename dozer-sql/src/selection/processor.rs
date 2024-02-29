@@ -1,6 +1,4 @@
 use dozer_core::channels::ProcessorChannelForwarder;
-use dozer_core::checkpoint::serialize::Cursor;
-use dozer_core::dozer_log::storage::Object;
 use dozer_core::epoch::Epoch;
 use dozer_core::node::Processor;
 use dozer_core::DEFAULT_PORT_HANDLE;
@@ -17,16 +15,7 @@ pub struct SelectionProcessor {
 }
 
 impl SelectionProcessor {
-    pub fn new(
-        input_schema: Schema,
-        mut expression: Expression,
-        checkpoint_data: Option<Vec<u8>>,
-    ) -> Result<Self, PipelineError> {
-        if let Some(data) = checkpoint_data {
-            let mut cursor = Cursor::new(&data);
-            expression.deserialize_state(&mut cursor)?;
-        }
-
+    pub fn new(input_schema: Schema, expression: Expression) -> Result<Self, PipelineError> {
         Ok(Self {
             input_schema,
             expression,
@@ -112,11 +101,6 @@ impl Processor for SelectionProcessor {
                 }
             }
         }
-        Ok(())
-    }
-
-    fn serialize(&mut self, mut object: Object) -> Result<(), BoxedError> {
-        self.expression.serialize_state(&mut object)?;
         Ok(())
     }
 }

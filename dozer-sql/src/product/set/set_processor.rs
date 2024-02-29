@@ -1,12 +1,9 @@
 use super::operator::{SetAction, SetOperation};
 use super::record_map::{
-    AccurateCountingRecordMap, CountingRecordMap, CountingRecordMapEnum,
-    ProbabilisticCountingRecordMap,
+    AccurateCountingRecordMap, CountingRecordMapEnum, ProbabilisticCountingRecordMap,
 };
 use crate::errors::{PipelineError, ProductError, SetError};
 use dozer_core::channels::ProcessorChannelForwarder;
-use dozer_core::checkpoint::serialize::Cursor;
-use dozer_core::dozer_log::storage::Object;
 use dozer_core::epoch::Epoch;
 use dozer_core::node::Processor;
 use dozer_core::DEFAULT_PORT_HANDLE;
@@ -28,16 +25,14 @@ impl SetProcessor {
         id: String,
         operator: SetOperation,
         enable_probabilistic_optimizations: bool,
-        checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Self, SetError> {
-        let mut cursor = checkpoint_data.as_deref().map(Cursor::new);
         Ok(Self {
             _id: id,
             operator,
             record_map: if enable_probabilistic_optimizations {
-                ProbabilisticCountingRecordMap::new(cursor.as_mut())?.into()
+                ProbabilisticCountingRecordMap::new()?.into()
             } else {
-                AccurateCountingRecordMap::new(cursor.as_mut())?.into()
+                AccurateCountingRecordMap::new()?.into()
             },
         })
     }
@@ -187,9 +182,5 @@ impl Processor for SetProcessor {
             }
         }
         Ok(())
-    }
-
-    fn serialize(&mut self, mut object: Object) -> Result<(), BoxedError> {
-        self.record_map.serialize(&mut object).map_err(Into::into)
     }
 }

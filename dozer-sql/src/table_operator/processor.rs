@@ -1,5 +1,4 @@
 use dozer_core::channels::ProcessorChannelForwarder;
-use dozer_core::dozer_log::storage::Object;
 use dozer_core::epoch::Epoch;
 use dozer_core::node::Processor;
 use dozer_core::DEFAULT_PORT_HANDLE;
@@ -18,12 +17,7 @@ pub struct TableOperatorProcessor {
 }
 
 impl TableOperatorProcessor {
-    pub fn new(
-        id: String,
-        operator: TableOperatorType,
-        input_schema: Schema,
-        _checkpoint_data: Option<Vec<u8>>,
-    ) -> Self {
+    pub fn new(id: String, operator: TableOperatorType, input_schema: Schema) -> Self {
         Self {
             _id: id,
             operator,
@@ -105,10 +99,6 @@ impl Processor for TableOperatorProcessor {
                 ));
             }
         }
-        Ok(())
-    }
-
-    fn serialize(&mut self, _object: Object) -> Result<(), BoxedError> {
         Ok(())
     }
 }

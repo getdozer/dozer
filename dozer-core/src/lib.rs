@@ -4,9 +4,7 @@ mod builder_dag;
 pub mod channels;
 mod dag_impl;
 pub use dag_impl::*;
-pub mod checkpoint;
 pub mod dag_schemas;
-pub mod epoch;
 mod error_manager;
 pub mod errors;
 pub mod executor;
@@ -22,4 +20,4 @@ pub use tokio;
 pub mod tests;
 
 pub use daggy::{self, petgraph};
-pub use dozer_log;
+pub use dozer_types::{epoch, event};

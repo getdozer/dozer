@@ -1,6 +1,5 @@
 use crate::errors::PipelineError;
 use dozer_core::channels::ProcessorChannelForwarder;
-use dozer_core::dozer_log::storage::Object;
 use dozer_core::epoch::Epoch;
 use dozer_core::node::Processor;
 use dozer_core::DEFAULT_PORT_HANDLE;
@@ -16,7 +15,7 @@ pub struct WindowProcessor {
 }
 
 impl WindowProcessor {
-    pub fn new(id: String, window: WindowType, _checkpoint_data: Option<Vec<u8>>) -> Self {
+    pub fn new(id: String, window: WindowType) -> Self {
         Self { _id: id, window }
     }
 }
@@ -82,10 +81,6 @@ impl Processor for WindowProcessor {
                 ));
             }
         }
-        Ok(())
-    }
-
-    fn serialize(&mut self, _object: Object) -> Result<(), BoxedError> {
         Ok(())
     }
 }

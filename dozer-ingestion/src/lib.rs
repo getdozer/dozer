@@ -4,6 +4,7 @@ use dozer_ingestion_aerospike::connector::AerospikeConnector;
 #[cfg(feature = "ethereum")]
 use dozer_ingestion_connector::dozer_types::models::ingestion_types::EthProviderConfig;
 use dozer_ingestion_connector::dozer_types::{
+    event::EventHub,
     log::debug,
     models::{
         connection::{Connection, ConnectionConfig},
@@ -40,6 +41,7 @@ const DEFAULT_POSTGRES_SNAPSHOT_BATCH_SIZE: u32 = 100_000;
 
 pub fn get_connector(
     runtime: Arc<Runtime>,
+    event_hub: EventHub,
     connection: Connection,
     state: Option<Vec<u8>>,
 ) -> Result<Box<dyn Connector>, ConnectorError> {
@@ -138,7 +140,10 @@ pub fn get_connector(
             runtime,
             javascript_config,
         ))),
-        ConnectionConfig::Aerospike(config) => Ok(Box::new(AerospikeConnector::new(config))),
+        ConnectionConfig::Aerospike(config) => Ok(Box::new(AerospikeConnector::new(
+            config,
+            event_hub.receiver,
+        ))),
         ConnectionConfig::Oracle(oracle_config) => Ok(Box::new(OracleConnector::new(
             connection.name,
             oracle_config,

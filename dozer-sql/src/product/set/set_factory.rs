@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use crate::errors::PipelineError;
 use crate::errors::SetError;
 
+use dozer_core::event::EventHub;
 use dozer_core::{
     node::{PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
@@ -73,7 +74,7 @@ impl ProcessorFactory for SetProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-        checkpoint_data: Option<Vec<u8>>,
+        _event_hub: EventHub,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         Ok(Box::new(SetProcessor::new(
             self.id.clone(),
@@ -82,7 +83,6 @@ impl ProcessorFactory for SetProcessorFactory {
                 quantifier: self.set_quantifier,
             },
             self.enable_probabilistic_optimizations,
-            checkpoint_data,
         )?))
     }
 }

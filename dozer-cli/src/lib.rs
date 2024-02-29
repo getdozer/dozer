@@ -1,5 +1,6 @@
 pub mod cli;
 pub mod errors;
+mod home_dir;
 pub mod pipeline;
 pub mod simple;
 pub mod ui;

@@ -12,7 +12,6 @@ name = "dozer"
 [dependencies]
 dozer-ingestion = { path = "../dozer-ingestion" }
 dozer-core = { path = "../dozer-core" }
-dozer-log = { path = "../dozer-log" }
 dozer-sql = { path = "../dozer-sql" }
 dozer-types = { path = "../dozer-types" }
 dozer-tracing = { path = "../dozer-tracing" }
@@ -53,6 +52,7 @@ webbrowser = "0.8.12"
 tempfile = "3.8"
 actix-files = "0.6.2"
 prometheus-parse = "0.2.4"
+camino = "1.1.6"
 
 [build-dependencies]
 dozer-types = { path = "../dozer-types" }

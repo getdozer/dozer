@@ -1,6 +1,7 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use dozer_core::{
+    event::EventHub,
     node::{PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
@@ -105,7 +106,7 @@ impl ProcessorFactory for TableOperatorProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
         _output_schemas: HashMap<PortHandle, dozer_types::types::Schema>,
-        checkpoint_data: Option<Vec<u8>>,
+        _event_hub: EventHub,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         let input_schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
@@ -121,7 +122,6 @@ impl ProcessorFactory for TableOperatorProcessorFactory {
                 self.id.clone(),
                 operator,
                 input_schema,
-                checkpoint_data,
             ))),
             None => Err(
                 PipelineError::TableOperatorError(TableOperatorError::InternalError(

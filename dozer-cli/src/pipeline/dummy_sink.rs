@@ -2,10 +2,10 @@ use std::{collections::HashMap, time::Instant};
 
 use dozer_core::{
     epoch::Epoch,
+    event::EventHub,
     node::{PortHandle, Sink, SinkFactory},
     DEFAULT_PORT_HANDLE,
 };
-use dozer_log::storage::Queue;
 use dozer_types::log::debug;
 use dozer_types::{
     chrono::Local,
@@ -37,6 +37,7 @@ impl SinkFactory for DummySinkFactory {
     async fn build(
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
+        _event_hub: EventHub,
     ) -> Result<Box<dyn Sink>, BoxedError> {
         let inserted_at_index = input_schemas
             .into_values()
@@ -146,10 +147,6 @@ impl Sink for DummySink {
     }
 
     fn commit(&mut self, _epoch_details: &Epoch) -> Result<(), BoxedError> {
-        Ok(())
-    }
-
-    fn persist(&mut self, _epoch: &Epoch, _queue: &Queue) -> Result<(), BoxedError> {
         Ok(())
     }
 

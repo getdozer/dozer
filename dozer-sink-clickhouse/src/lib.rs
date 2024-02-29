@@ -9,10 +9,10 @@ use crate::ClickhouseSinkError::{
 use clickhouse::inserter::Inserter;
 use clickhouse::Client;
 use dozer_core::epoch::Epoch;
+use dozer_core::event::EventHub;
 use dozer_core::node::{PortHandle, Sink, SinkFactory};
+use dozer_core::tokio::runtime::Runtime;
 use dozer_core::DEFAULT_PORT_HANDLE;
-use dozer_log::storage::Queue;
-use dozer_log::tokio::runtime::Runtime;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::log::debug;
 use dozer_types::models::sink::ClickhouseSinkConfig;
@@ -182,6 +182,7 @@ impl SinkFactory for ClickhouseSinkFactory {
     async fn build(
         &self,
         mut input_schemas: HashMap<PortHandle, Schema>,
+        _event_hub: EventHub,
     ) -> Result<Box<dyn Sink>, BoxedError> {
         let schema = input_schemas.remove(&DEFAULT_PORT_HANDLE).unwrap();
         let mut client = Client::default()
@@ -434,10 +435,6 @@ impl Sink for ClickhouseSink {
             }
         }
 
-        Ok(())
-    }
-
-    fn persist(&mut self, _epoch: &Epoch, _queue: &Queue) -> Result<(), BoxedError> {
         Ok(())
     }
 

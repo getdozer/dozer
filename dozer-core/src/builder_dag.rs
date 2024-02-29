@@ -3,19 +3,16 @@ use std::{
     fmt::Debug,
 };
 
-use daggy::{
-    petgraph::visit::{IntoNodeIdentifiers, IntoNodeReferences},
-    NodeIndex,
-};
+use daggy::{petgraph::visit::IntoNodeIdentifiers, NodeIndex};
 use dozer_types::{
     log::warn,
     node::{NodeHandle, OpIdentifier},
 };
 
 use crate::{
-    checkpoint::OptionCheckpoint,
     dag_schemas::{DagHaveSchemas, DagSchemas, EdgeType},
     errors::ExecutionError,
+    event::EventHub,
     node::{Processor, Sink, SinkFactory, Source},
     NodeKind as DagNodeKind,
 };
@@ -46,12 +43,13 @@ pub enum NodeKind {
 #[derive(Debug)]
 pub struct BuilderDag {
     graph: daggy::Dag<NodeType, EdgeType>,
+    event_hub: EventHub,
 }
 
 impl BuilderDag {
     pub async fn new(
-        checkpoint: &OptionCheckpoint,
         dag_schemas: DagSchemas,
+        event_hub_capacity: usize,
     ) -> Result<Self, ExecutionError> {
         // Collect input output schemas.
         let mut input_schemas = HashMap::new();
@@ -59,15 +57,6 @@ impl BuilderDag {
         for node_index in dag_schemas.graph().node_identifiers() {
             input_schemas.insert(node_index, dag_schemas.get_node_input_schemas(node_index));
             output_schemas.insert(node_index, dag_schemas.get_node_output_schemas(node_index));
-        }
-
-        // Load processor checkpoint data.
-        let mut checkpoint_data = HashMap::new();
-        for (node_index, node) in dag_schemas.graph().node_references() {
-            if let DagNodeKind::Processor(_) = &node.kind {
-                let processor_data = checkpoint.load_processor_data(&node.handle).await?;
-                checkpoint_data.insert(node_index, processor_data);
-            }
         }
 
         // Collect sources that may affect a node.
@@ -85,6 +74,7 @@ impl BuilderDag {
             .collect::<Vec<_>>();
 
         // Build the sinks and load checkpoint.
+        let event_hub = EventHub::new(event_hub_capacity);
         let mut graph = daggy::Dag::new();
         let mut source_states = HashMap::new();
         let mut source_op_ids = HashMap::new();
@@ -104,6 +94,7 @@ impl BuilderDag {
                         input_schemas
                             .remove(&node_index)
                             .expect("we collected all input schemas"),
+                        event_hub.clone(),
                     )
                     .await
                     .map_err(ExecutionError::Factory)?;
@@ -159,6 +150,7 @@ impl BuilderDag {
                             output_schemas
                                 .remove(&node_index)
                                 .expect("we collected all output schemas"),
+                            event_hub.clone(),
                             source_states.remove(&node.handle),
                         )
                         .map_err(ExecutionError::Factory)?;
@@ -195,10 +187,7 @@ impl BuilderDag {
                             output_schemas
                                 .remove(&node_index)
                                 .expect("we collected all output schemas"),
-                            // checkpoint.record_store(),
-                            checkpoint_data
-                                .remove(&node_index)
-                                .expect("we collected all processor checkpoint data"),
+                            event_hub.clone(),
                         )
                         .await
                         .map_err(ExecutionError::Factory)?;
@@ -224,15 +213,15 @@ impl BuilderDag {
                 .expect("we know there's no loop");
         }
 
-        Ok(BuilderDag { graph })
+        Ok(BuilderDag { graph, event_hub })
     }
 
     pub fn graph(&self) -> &daggy::Dag<NodeType, EdgeType> {
         &self.graph
     }
 
-    pub fn into_graph(self) -> daggy::Dag<NodeType, EdgeType> {
-        self.graph
+    pub fn into_graph_and_event_hub(self) -> (daggy::Dag<NodeType, EdgeType>, EventHub) {
+        (self.graph, self.event_hub)
     }
 }
 

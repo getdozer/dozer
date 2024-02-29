@@ -2,10 +2,9 @@ use ahash::AHasher;
 use async_trait::async_trait;
 use dozer_core::app::{App, AppPipeline};
 use dozer_core::appsource::{AppSourceManager, AppSourceMappings};
-use dozer_core::checkpoint::OptionCheckpoint;
-use dozer_core::dozer_log::storage::Queue;
 use dozer_core::epoch::Epoch;
 use dozer_core::errors::ExecutionError;
+use dozer_core::event::EventHub;
 use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
 };
@@ -23,7 +22,6 @@ use dozer_types::node::OpIdentifier;
 use dozer_types::types::{Operation, Record, Schema, SourceDefinition, TableOperation};
 use std::collections::HashMap;
 use std::future::pending;
-use tempdir::TempDir;
 use tokio::{self, runtime::Runtime};
 
 use std::hash::{Hash, Hasher};
@@ -105,6 +103,7 @@ impl SourceFactory for TestSourceFactory {
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
+        _event_hub: EventHub,
         _state: Option<Vec<u8>>,
     ) -> Result<Box<dyn Source>, BoxedError> {
         Ok(Box::new(TestSource {
@@ -188,6 +187,7 @@ impl SinkFactory for TestSinkFactory {
     async fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
+        _event_hub: EventHub,
     ) -> Result<Box<dyn Sink>, BoxedError> {
         Ok(Box::new(TestSink::new(self.output.to_owned())))
     }
@@ -258,10 +258,6 @@ impl Sink for TestSink {
     }
 
     fn commit(&mut self, _epoch_details: &Epoch) -> Result<(), BoxedError> {
-        Ok(())
-    }
-
-    fn persist(&mut self, _epoch: &Epoch, _queue: &Queue) -> Result<(), BoxedError> {
         Ok(())
     }
 
@@ -385,15 +381,7 @@ impl TestPipeline {
     }
 
     pub async fn run(self) -> Result<Vec<Vec<String>>, ExecutionError> {
-        let temp_dir = TempDir::new("test")
-            .map_err(|e| ExecutionError::FileSystemError("tempdir".into(), e))?;
-        let checkpoint_dir = temp_dir
-            .path()
-            .to_str()
-            .expect("Path should always be utf8")
-            .to_string();
-        let checkpoint = OptionCheckpoint::new(checkpoint_dir, Default::default()).await?;
-        let executor = DagExecutor::new(self.dag, checkpoint, Default::default()).await?;
+        let executor = DagExecutor::new(self.dag, Default::default()).await?;
         let join_handle = executor
             .start(pending::<()>(), Default::default(), self.runtime)
             .await?;

@@ -2,6 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use crate::errors::PipelineError;
 use dozer_core::{
+    event::EventHub,
     node::{PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
@@ -69,7 +70,7 @@ impl ProcessorFactory for SelectionProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-        checkpoint_data: Option<Vec<u8>>,
+        _event_hub: EventHub,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         let schema = input_schemas
             .get(&DEFAULT_PORT_HANDLE)
@@ -82,7 +83,6 @@ impl ProcessorFactory for SelectionProcessorFactory {
             Ok(expression) => Ok(Box::new(SelectionProcessor::new(
                 schema.clone(),
                 expression,
-                checkpoint_data,
             )?)),
             Err(e) => Err(e.into()),
         }

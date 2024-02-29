@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use dozer_ingestion::dozer_types::event::EventHub;
 use dozer_ingestion_connector::{
     dozer_types::{
         indicatif::{ProgressBar, ProgressStyle},
@@ -46,7 +47,8 @@ pub fn get_progress() -> ProgressBar {
 
 pub fn get_connection_iterator(runtime: Arc<Runtime>, config: TestConfig) -> IngestionIterator {
     let mut connector =
-        dozer_ingestion::get_connector(runtime.clone(), config.connection, None).unwrap();
+        dozer_ingestion::get_connector(runtime.clone(), EventHub::new(1), config.connection, None)
+            .unwrap();
     let tables = runtime.block_on(list_tables(&mut *connector));
     let (ingestor, iterator) = Ingestor::initialize_channel(Default::default());
     runtime.clone().spawn_blocking(move || async move {

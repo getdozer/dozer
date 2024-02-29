@@ -1,10 +1,9 @@
 #![allow(clippy::enum_variant_names)]
 
-use dozer_core::checkpoint::serialize::DeserializationError;
 use dozer_core::node::PortHandle;
 use dozer_types::chrono::RoundingError;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::errors::types::TypeError;
+use dozer_types::errors::types::{DeserializationError, TypeError};
 
 use dozer_types::thiserror;
 use dozer_types::thiserror::Error;
