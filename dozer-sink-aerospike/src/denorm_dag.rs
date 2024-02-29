@@ -5,7 +5,7 @@ use std::ptr::{addr_of_mut, NonNull};
 
 use aerospike_client_sys::*;
 use dozer_core::daggy::petgraph::Direction;
-use dozer_core::daggy::{self, EdgeIndex, NodeIndex};
+use dozer_core::daggy::{self, NodeIndex};
 use dozer_core::petgraph::visit::{
     EdgeRef, IntoEdgesDirected, IntoNeighborsDirected, IntoNodeReferences,
 };
@@ -14,6 +14,7 @@ use dozer_types::models::sink::{AerospikeSet, AerospikeSinkTable};
 use dozer_types::thiserror;
 use dozer_types::types::{Field, Record, Schema, TableOperation};
 use itertools::Itertools;
+use smallvec::SmallVec;
 
 use crate::aerospike::{
     as_batch_read_reserve, as_batch_records_create, as_batch_remove_reserve,
@@ -25,6 +26,7 @@ use crate::AerospikeSinkError;
 #[derive(Debug, Clone)]
 struct CachedRecord {
     dirty: bool,
+    version: usize,
     record: Option<Vec<Field>>,
 }
 
@@ -41,40 +43,77 @@ struct Node {
     namespace: CString,
     set: CString,
     schema: Schema,
-    batch: IndexMap<Vec<Field>, CachedRecord>,
+    batch: IndexMap<Vec<Field>, SmallVec<[CachedRecord; 2]>>,
     bins: BinNames,
     denormalize_to: Option<(CString, CString)>,
 }
 
 impl Node {
-    fn insert(&mut self, key: Vec<Field>, value: Option<Vec<Field>>) -> usize {
-        self.batch
-            .insert_full(
-                key,
-                CachedRecord {
-                    dirty: true,
-                    record: value,
-                },
-            )
-            .0
+    fn insert(&mut self, key: Vec<Field>, value: Option<Vec<Field>>, version: usize) -> usize {
+        self.insert_impl(key, value, version, true)
     }
 
-    fn get_index_or_insert(&mut self, key: Vec<Field>, value: Option<Vec<Field>>) -> usize {
+    fn insert_impl(
+        &mut self,
+        key: Vec<Field>,
+        value: Option<Vec<Field>>,
+        version: usize,
+        replace: bool,
+    ) -> usize {
         let entry = self.batch.entry(key);
-        let index = entry.index();
-        entry.or_insert(CachedRecord {
+        let idx = entry.index();
+        let versions = entry.or_default();
+        let record = CachedRecord {
             dirty: true,
+            version,
             record: value,
-        });
-        index
+        };
+        // This is basically partition_by, but that does a binary search, while
+        // a linear search should in general be a better bet here
+        let insert_point = versions
+            .iter()
+            .position(|cur| cur.version >= version)
+            .unwrap_or(versions.len());
+        // If the version already exists, replace it
+        if versions
+            .get(insert_point)
+            .is_some_and(|rec| rec.version == version)
+        {
+            if replace {
+                versions[insert_point] = record;
+            }
+        } else {
+            versions.insert(insert_point, record);
+        }
+        idx
     }
+
+    fn get_index_or_insert(
+        &mut self,
+        key: Vec<Field>,
+        value: Option<Vec<Field>>,
+        version: usize,
+    ) -> usize {
+        self.insert_impl(key, value, version, false)
+    }
+
+    fn get(&self, key: &[Field], version: usize) -> Option<&CachedRecord> {
+        let versions = self.batch.get(key)?;
+        // Find the last version thats <= version
+        versions.iter().filter(|v| v.version <= version).last()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
+struct LookupSource {
+    index: usize,
+    version: usize,
 }
 
 #[derive(Debug, Clone)]
 struct Edge {
     bins: BinNames,
     key_fields: Vec<usize>,
-    keys: HashMap<usize, Vec<Field>>,
     field_indices: Vec<usize>,
 }
 
@@ -101,10 +140,10 @@ pub(crate) enum Error {
 
 #[derive(Debug)]
 pub(crate) struct DenormalizationState {
-    layers: Vec<Vec<NodeIndex>>,
     dag: DenormDag,
     current_transaction: Option<u64>,
     base_tables: Vec<(NodeIndex, Vec<CString>)>,
+    transaction_counter: usize,
 }
 
 #[derive(Debug, PartialEq)]
@@ -129,7 +168,6 @@ impl DenormalizationState {
     pub(crate) fn new(tables: &[(AerospikeSinkTable, Schema)]) -> Result<Self, Error> {
         assert!(!tables.is_empty());
         let dag = Self::build_dag(tables)?;
-        let layers = Self::build_layers(dag.clone())?;
         let base_tables: Vec<_> = dag
             .node_references()
             // Filter out non-base-tables
@@ -142,10 +180,10 @@ impl DenormalizationState {
             })
             .collect();
         Ok(Self {
-            layers,
             dag,
             current_transaction: None,
             base_tables,
+            transaction_counter: 0,
         })
     }
 
@@ -239,7 +277,6 @@ impl DenormalizationState {
                     Edge {
                         key_fields: key_idx,
                         bins: bin_names,
-                        keys: HashMap::new(),
                         field_indices: bin_indices,
                     },
                 )
@@ -253,29 +290,6 @@ impl DenormalizationState {
         }
 
         Ok(dag)
-    }
-
-    fn build_layers(mut dag: DenormDag) -> Result<Vec<Vec<NodeIndex>>, Error> {
-        let mut layers = Vec::new();
-
-        while dag.node_count() > 0 {
-            // Find all the nodes without incoming edges
-            let roots: Vec<_> = dag
-                .graph()
-                .node_indices()
-                .filter(|index| {
-                    dag.edges_directed(*index, Direction::Incoming)
-                        .next()
-                        .is_none()
-                })
-                .collect();
-            for root in &roots {
-                dag.remove_node(*root);
-            }
-            layers.push(roots);
-        }
-
-        Ok(layers)
     }
 }
 
@@ -299,6 +313,7 @@ impl RecordBatch {
         self.inner.as_ptr()
     }
 
+    #[inline(always)]
     pub(crate) unsafe fn inner(&self) -> &as_batch_records {
         self.inner.as_ref()
     }
@@ -370,15 +385,16 @@ impl RecordBatch {
         set: &CStr,
         key: &[Field],
     ) -> Result<(), AerospikeSinkError> {
-        let remove_rec = self.reserve_read();
+        let read_rec = self.reserve_read();
         unsafe {
             init_key(
-                addr_of_mut!((*remove_rec).key),
+                addr_of_mut!((*read_rec).key),
                 namespace,
                 set,
                 key,
                 &mut self.allocated_strings,
             )?;
+            (*read_rec).read_all_bins = true;
         }
         Ok(())
     }
@@ -390,26 +406,21 @@ impl Drop for RecordBatch {
     }
 }
 
+#[derive(Clone)]
+struct BatchLookup {
+    base_table: usize,
+    index: usize,
+    version: usize,
+    key: Option<Vec<Field>>,
+    batch_read_index: Option<usize>,
+}
+
 impl DenormalizationState {
     fn do_insert(&mut self, node_id: NodeIndex, new: Record) {
         let node = self.dag.node_weight_mut(node_id).unwrap();
         let idx = new.get_key_fields(&node.schema);
 
-        let batch_idx = node.insert(idx, Some(new.values.clone()));
-        // Queue a lookup for all the outgoing edges
-        let mut edges = self
-            .dag
-            .neighbors_directed(node_id, Direction::Outgoing)
-            .detach();
-        while let Some(edge) = edges.next_edge(self.dag.graph()) {
-            let edge_weight = self.dag.edge_weight_mut(edge).unwrap();
-            let key = edge_weight
-                .key_fields
-                .iter()
-                .map(|i| new.values[*i].clone())
-                .collect();
-            edge_weight.keys.insert(batch_idx, key);
-        }
+        node.insert(idx, Some(new.values.clone()), self.transaction_counter);
     }
 
     pub(crate) fn process(&mut self, op: TableOperation) -> Result<(), AerospikeSinkError> {
@@ -420,7 +431,7 @@ impl DenormalizationState {
                 let node = self.dag.node_weight_mut(node_id).unwrap();
                 let schema = &node.schema;
                 let idx = old.get_key_fields(schema);
-                node.insert(idx, None);
+                node.insert(idx, None, self.transaction_counter);
             }
             dozer_types::types::Operation::Insert { new } => {
                 self.do_insert(node_id, new);
@@ -436,7 +447,7 @@ impl DenormalizationState {
                         new: new_pk.clone(),
                     });
                 }
-                node.insert(new_pk, Some(new.values));
+                node.insert(new_pk, Some(new.values), self.transaction_counter);
             }
             dozer_types::types::Operation::BatchInsert { new } => {
                 for value in new {
@@ -445,28 +456,6 @@ impl DenormalizationState {
             }
         }
         Ok(())
-    }
-
-    fn build_read_batch(&self, layer: &[NodeIndex]) -> Result<RecordBatch, AerospikeSinkError> {
-        let batch_size: u32 = layer
-            .iter()
-            .flat_map(|node| self.dag.edges_directed(*node, Direction::Incoming))
-            .map(|edge| edge.weight().keys.len())
-            .sum::<usize>()
-            .try_into()
-            .unwrap();
-        let mut batch = RecordBatch::new(batch_size, batch_size);
-
-        for node_id in layer {
-            let node = self.dag.node_weight(*node_id).unwrap();
-            for input in self.dag.edges_directed(*node_id, Direction::Incoming) {
-                let edge = self.dag.edge_weight(input.id()).unwrap();
-                for key in edge.keys.values() {
-                    batch.add_read_all(&node.namespace, &node.set, key)?;
-                }
-            }
-        }
-        Ok(batch)
     }
 
     pub(crate) fn persist(&mut self, client: &Client) -> Result<(), AerospikeSinkError> {
@@ -480,11 +469,12 @@ impl DenormalizationState {
         let mut write_batch = RecordBatch::new(batch_size, batch_size);
 
         for node in self.dag.node_weights_mut() {
-            for (key, dirty_record) in node
-                .batch
-                .drain(..)
-                .filter_map(|(i, rec)| rec.dirty.then_some((i, rec.record)))
-            {
+            // Only write if the last version is dirty (the newest version was changed by this
+            // batch)
+            for (key, dirty_record) in node.batch.drain(..).filter_map(|(key, mut rec)| {
+                let last_version = rec.pop()?;
+                last_version.dirty.then_some((key, last_version.record))
+            }) {
                 if let Some(dirty_record) = dirty_record {
                     write_batch.add_write(
                         &node.namespace,
@@ -498,12 +488,11 @@ impl DenormalizationState {
                 }
             }
         }
-        for edge in self.dag.edge_weights_mut() {
-            edge.keys.clear();
-        }
+
         unsafe {
             client.write_batch(write_batch.as_mut_ptr())?;
         }
+        self.transaction_counter = 0;
         Ok(())
     }
 
@@ -511,141 +500,166 @@ impl DenormalizationState {
         &mut self,
         client: &Client,
     ) -> Result<Vec<DenormalizedTable>, AerospikeSinkError> {
-        for layer in &self.layers {
-            let mut batch = self.build_read_batch(layer)?;
-            unsafe {
-                client.batch_get(batch.as_mut_ptr())?;
-            }
-            let mut idx = 0;
-            // Do the get and update the cache
-            let record_list = unsafe { &batch.inner().list };
-            for node_id in layer {
-                let mut edges = self
-                    .dag
-                    .neighbors_directed(*node_id, Direction::Incoming)
-                    .detach();
-                while let Some(input) = edges.next_edge(self.dag.graph()) {
-                    let keys = &self.dag.edge_weight(input).unwrap().keys;
-                    let mut vals = Vec::with_capacity(keys.len());
-                    for key in keys.values() {
+        let mut lookups = Vec::new();
+        for (base_table_idx, (nid, _)) in self.base_tables.iter().enumerate() {
+            let node = self.dag.node_weight(*nid).unwrap();
+            let node_keys = node
+                .batch
+                .iter()
+                .enumerate()
+                .filter_map(|(i, (k, v))| Some((i, k, v.last()?)))
+                .filter(|(_, _, v)| v.dirty)
+                .map(|(i, k, v)| BatchLookup {
+                    base_table: base_table_idx,
+                    index: i,
+                    version: v.version,
+                    key: Some(k.clone()),
+                    batch_read_index: None,
+                })
+                .collect_vec();
+            let n_cols = node.schema.fields.len();
+            lookups.push((*nid, (0..n_cols).collect_vec(), node_keys));
+        }
+        let mut results: Vec<DenormalizedTable> = self
+            .base_tables
+            .iter()
+            .zip(lookups.iter())
+            .map(|((nid, bin_names), (_, _, keys))| {
+                let node = self.dag.node_weight(*nid).unwrap();
+                let (namespace, set) = node.denormalize_to.clone().unwrap();
+                DenormalizedTable {
+                    bin_names: bin_names.clone(),
+                    namespace,
+                    set,
+                    records: keys
+                        .iter()
+                        .map(|key| {
+                            (
+                                key.key.clone().unwrap(),
+                                Vec::with_capacity(bin_names.len()),
+                            )
+                        })
+                        .collect(),
+                }
+            })
+            .collect();
+
+        let mut batch = RecordBatch::new(0, 0);
+        while !lookups.is_empty() {
+            let mut new_lookups = Vec::new();
+            let batch_size: usize = lookups.iter().map(|(_, _, keys)| keys.len()).sum();
+            let mut new_batch = RecordBatch::new(batch_size as u32, batch_size as u32);
+            let mut batch_idx = 0;
+            for (nid, fields, node_lookups) in lookups {
+                let node = self.dag.node_weight_mut(nid).unwrap();
+                for lookup in node_lookups.iter().cloned() {
+                    let BatchLookup {
+                        base_table,
+                        index,
+                        version,
+                        key,
+                        batch_read_index,
+                    } = lookup;
+                    // Update the node, if we retrieved from the remote
+                    if let Some(batch_read_index) = batch_read_index {
                         unsafe {
-                            debug_assert!(idx < record_list.size as usize);
-                            let record = as_vector_get(record_list as *const as_vector, idx)
-                                as *const as_batch_read_record;
-                            let result = (*record).result;
-                            let node = self.dag.node_weight(*node_id).unwrap();
+                            let rec = as_vector_get(
+                                &batch.inner().list as *const as_vector,
+                                batch_read_index,
+                            ) as *const as_batch_read_record;
+                            let result = (*rec).result;
                             if result == as_status_e_AEROSPIKE_ERR_RECORD_NOT_FOUND {
-                                vals.push((key.clone(), None));
+                                node.insert(key.clone().unwrap(), None, 0);
                             } else if result == as_status_e_AEROSPIKE_OK {
-                                vals.push((
-                                    key.clone(),
-                                    Some(parse_record(
-                                        &(*record).record,
-                                        &node.schema,
-                                        &node.bins,
-                                    )?),
-                                ));
+                                dbg!(&key);
+                                node.insert(
+                                    key.clone().unwrap(),
+                                    Some(parse_record(&(*rec).record, &node.schema, &node.bins)?),
+                                    0,
+                                );
                             } else {
                                 return Err(AerospikeError::from_code(result).into());
                             }
-                            idx += 1;
                         }
                     }
-                    for (key, val) in vals {
-                        self.dag
-                            .node_weight_mut(*node_id)
-                            .unwrap()
-                            .get_index_or_insert(key, val);
+                    // Look up in node and add to new batch. If it wasn't in there, we looked
+                    // it up remotely, so this is always `Some`
+                    let record = key.as_ref().map(|key| node.get(key, version).unwrap());
+                    let base_fields = &mut results[base_table].records[index].1;
+                    if let Some(record) = record.and_then(|record| record.record.as_ref()) {
+                        let denorm_fields = fields.iter().copied().map(|i| record[i].clone());
+                        base_fields.extend(denorm_fields);
+                    } else {
+                        base_fields.extend(std::iter::repeat(Field::Null).take(fields.len()));
                     }
                 }
-                // Update the outgoing edges with the keys from this layer
-                let mut edges = self
-                    .dag
-                    .neighbors_directed(*node_id, Direction::Outgoing)
-                    .detach();
-                while let Some(edge_id) = edges.next_edge(self.dag.graph()) {
-                    let node = self.dag.node_weight(*node_id).unwrap();
-                    let edge = self.dag.edge_weight(edge_id).unwrap();
-                    let mut keys_to_add = Vec::with_capacity(node.batch.len());
-                    for (i, v) in node.batch.values().enumerate() {
-                        if let Some(v) = &v.record {
-                            let key_values =
-                                edge.key_fields.iter().map(|i| v[*i].clone()).collect();
-                            keys_to_add.push((i, key_values))
-                        }
-                    }
-                    self.dag
-                        .edge_weight_mut(edge_id)
-                        .unwrap()
-                        .keys
-                        .extend(keys_to_add);
-                }
-            }
-        }
+                let node = self.dag.node_weight(nid).unwrap();
 
-        let mut ret = Vec::new();
-        // Run through the graph again, now that all the data is in the caches
-        for (nid, bin_names) in self.base_tables.iter().cloned() {
-            let mut node_batch = self.dag.node_weight(nid).unwrap().batch.clone();
-            for (primary_table_index, primary_table_fields) in node_batch
-                .values_mut()
-                .flat_map(|v| &mut v.record)
-                .enumerate()
-            {
                 for edge in self.dag.edges_directed(nid, Direction::Outgoing) {
-                    self.recurse_dag_lookup(
-                        primary_table_fields,
-                        edge.id(),
-                        primary_table_index,
-                        false,
-                    );
+                    let mut new_node_lookups = Vec::with_capacity(node_lookups.len());
+                    let key_fields = &edge.weight().key_fields;
+                    let target_node = self.dag.node_weight(edge.target()).unwrap();
+                    for lookup in &node_lookups {
+                        let BatchLookup {
+                            base_table,
+                            index,
+                            version,
+                            key,
+                            batch_read_index: _,
+                        } = lookup;
+                        let (new_key, new_batch_read_index) = if let Some(record) = key
+                            .as_ref()
+                            .and_then(|key| node.get(key, *version).unwrap().record.as_ref())
+                        {
+                            let new_key: Vec<Field> = key_fields
+                                .iter()
+                                .copied()
+                                .map(|i| record[i].clone())
+                                .collect();
+                            let batch_id = if target_node.get(&new_key, *version).is_none() {
+                                new_batch.add_read_all(
+                                    &target_node.namespace,
+                                    &target_node.set,
+                                    &new_key,
+                                )?;
+                                let idx = batch_idx;
+                                batch_idx += 1;
+                                Some(idx)
+                            } else {
+                                None
+                            };
+                            (Some(new_key), batch_id)
+                        } else {
+                            (None, None)
+                        };
+                        new_node_lookups.push(BatchLookup {
+                            base_table: *base_table,
+                            index: *index,
+                            version: *version,
+                            key: new_key,
+                            batch_read_index: new_batch_read_index,
+                        });
+                    }
+                    new_lookups.push((
+                        edge.target(),
+                        edge.weight().field_indices.clone(),
+                        new_node_lookups,
+                    ));
                 }
             }
-            let node = self.dag.node_weight(nid).unwrap();
-            let (namespace, set) = node.denormalize_to.clone().unwrap();
-            let table = DenormalizedTable {
-                namespace,
-                set,
-                bin_names,
-                records: node_batch
-                    .into_iter()
-                    .filter_map(|(key, rec)| rec.dirty.then_some((key, rec.record?)))
-                    .collect(),
-            };
-            ret.push(table);
+            lookups = new_lookups;
+            batch = new_batch;
+            if batch_idx > 0 {
+                unsafe {
+                    client.batch_get(batch.as_mut_ptr())?;
+                }
+            }
         }
-
-        Ok(ret)
+        Ok(results)
     }
 
-    fn recurse_dag_lookup(
-        &self,
-        primary_table_fields: &mut Vec<Field>,
-        edge_id: EdgeIndex,
-        base_id: usize,
-        mut fill_null: bool,
-    ) {
-        let edge = self.dag.edge_weight(edge_id).unwrap();
-        let tgt_id = self.dag.edge_endpoints(edge_id).unwrap().1;
-        let tgt = self.dag.node_weight(tgt_id).unwrap();
-        let key = &edge.keys[&base_id];
-        let (tgt_table_index, _tgt_key, tgt_values) = tgt.batch.get_full(key).unwrap();
-        if let (Some(lookup_fields), false) = (tgt_values.deref(), fill_null) {
-            primary_table_fields
-                .extend(edge.field_indices.iter().map(|i| lookup_fields[*i].clone()))
-        } else {
-            fill_null = true;
-            primary_table_fields.extend(std::iter::repeat(Field::Null).take(edge.bins.len()));
-        }
-
-        for new_edge in self.dag.edges_directed(tgt_id, Direction::Outgoing) {
-            self.recurse_dag_lookup(
-                primary_table_fields,
-                new_edge.id(),
-                tgt_table_index,
-                fill_null,
-            )
-        }
+    pub(crate) fn commit(&mut self) {
+        self.transaction_counter += 1;
     }
 }
 
@@ -669,7 +683,8 @@ mod tests {
     use super::DenormalizationState;
 
     #[test]
-    fn test_name() {
+    #[ignore]
+    fn test_denorm() {
         let mut customer_schema = Schema::new();
         customer_schema
             .field(
@@ -859,6 +874,88 @@ mod tests {
                         Field::String("+1234567".into())
                     ]
                 )],
+                namespace: CString::new("test").unwrap(),
+                set: CString::new("transactions_denorm").unwrap()
+            }]
+        );
+        state.persist(&client).unwrap();
+        state
+            .process(TableOperation {
+                id: None,
+                op: Operation::Insert {
+                    new: Record::new(vec![
+                        Field::UInt(2),
+                        Field::UInt(101),
+                        Field::Decimal(Decimal::new(321, 2)),
+                    ]),
+                },
+                port: 2,
+            })
+            .unwrap();
+        state.commit();
+        state
+            .process(TableOperation {
+                id: None,
+                op: Operation::Update {
+                    old: dozer_types::types::Record::new(vec![
+                        Field::String("1001".into()),
+                        Field::String("+1234567".into()),
+                    ]),
+                    new: dozer_types::types::Record::new(vec![
+                        Field::String("1001".into()),
+                        Field::String("+7654321".into()),
+                    ]),
+                },
+                port: 0,
+            })
+            .unwrap();
+        state
+            .process(TableOperation {
+                id: None,
+                op: Operation::Insert {
+                    new: Record::new(vec![
+                        Field::UInt(3),
+                        Field::UInt(101),
+                        Field::Decimal(Decimal::new(123, 2)),
+                    ]),
+                },
+                port: 2,
+            })
+            .unwrap();
+        state.commit();
+        let res = state.perform_denorm(&client).unwrap();
+        assert_eq!(
+            res,
+            vec![DenormalizedTable {
+                bin_names: vec![
+                    CString::new("id").unwrap(),
+                    CString::new("account_id").unwrap(),
+                    CString::new("amount").unwrap(),
+                    CString::new("transaction_limit").unwrap(),
+                    CString::new("phone_number").unwrap(),
+                ],
+                records: vec![
+                    (
+                        vec![Field::UInt(2)],
+                        vec![
+                            Field::UInt(2),
+                            Field::UInt(101),
+                            Field::Decimal(Decimal::new(321, 2)),
+                            Field::Null,
+                            Field::String("+1234567".into())
+                        ]
+                    ),
+                    (
+                        vec![Field::UInt(3)],
+                        vec![
+                            Field::UInt(3),
+                            Field::UInt(101),
+                            Field::Decimal(Decimal::new(123, 2)),
+                            Field::Null,
+                            Field::String("+7654321".into())
+                        ]
+                    )
+                ],
                 namespace: CString::new("test").unwrap(),
                 set: CString::new("transactions_denorm").unwrap()
             }]

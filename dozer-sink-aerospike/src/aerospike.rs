@@ -148,6 +148,8 @@ impl Client {
             config.assume_init()
         };
         config.policies.batch.base.total_timeout = 10000;
+        config.policies.write.key = as_policy_key_e_AS_POLICY_KEY_SEND;
+        config.policies.batch_write.key = as_policy_key_e_AS_POLICY_KEY_SEND;
         unsafe {
             // The hosts string will be copied, so pass it as `as_ptr` so the original
             // gets deallocated at the end of this block
@@ -291,6 +293,7 @@ impl Client {
         &self,
         batch: *mut as_batch_records,
     ) -> Result<(), AerospikeError> {
+        dbg!("Batch get {} records", (*batch).list.size);
         as_try(|err| aerospike_batch_read(self.inner.as_ptr(), err, std::ptr::null(), batch))
     }
 
@@ -458,17 +461,7 @@ unsafe fn init_key_single(
             // API to set a key to a string that's not null-terminated. For bin
             // values, we can. XXX: possible point for optimization
             Field::Text(string) | Field::String(string) => {
-                // Casting to mut is safe. The pointer only needs to be mut so it
-                // can be deallocated if the `free` parameter is true
-                let bytes =
-                    as_bytes_new_wrap(string.as_ptr() as *mut u8, string.len() as u32, false);
-                (*bytes).type_ = as_bytes_type_e_AS_BYTES_STRING;
-                as_key_init_value(
-                    key,
-                    namespace.as_ptr(),
-                    set.as_ptr(),
-                    bytes as *const _ as *const as_key_value,
-                );
+                set_str_key(key, namespace, set, string.clone(), allocated_strings);
             }
             Field::Binary(v) => {
                 as_key_init_rawp(
@@ -826,7 +819,7 @@ pub(crate) fn parse_record(
             }
         };
         if !field.nullable && v == Field::Null {
-            dbg!(&field.name);
+            &field.name;
             return Err(Error::NotNullNotFound);
         }
         values.push(v);

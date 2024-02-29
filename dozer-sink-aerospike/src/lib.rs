@@ -304,6 +304,7 @@ impl AerospikeSink {
             client: client.clone(),
             state,
             metadata_writer,
+            last_committed_transaction: None,
         };
 
         Self {
@@ -322,6 +323,7 @@ struct AerospikeSinkWorker {
     client: Arc<Client>,
     state: DenormalizationState,
     metadata_writer: MetadataWriter,
+    last_committed_transaction: Option<u64>,
 }
 
 impl AerospikeSinkWorker {
@@ -331,6 +333,13 @@ impl AerospikeSinkWorker {
     }
 
     fn commit(&mut self, txid: Option<u64>) -> Result<(), AerospikeSinkError> {
+        self.state.commit();
+        self.last_committed_transaction = txid;
+        Ok(())
+    }
+
+    fn flush_batch(&mut self) -> Result<(), AerospikeSinkError> {
+        let txid = self.last_committed_transaction.take();
         let denormalized_tables = self.state.perform_denorm(&self.client)?;
         let batch_size_est: usize = denormalized_tables
             .iter()
@@ -367,6 +376,11 @@ impl AerospikeSinkWorker {
 }
 
 impl Sink for AerospikeSink {
+    fn flush_batch(&mut self) -> Result<(), BoxedError> {
+        self.replication_worker.flush_batch()?;
+        Ok(())
+    }
+
     fn commit(&mut self, _epoch_details: &dozer_core::epoch::Epoch) -> Result<(), BoxedError> {
         self.replication_worker
             .commit(self.current_transaction.take())?;
