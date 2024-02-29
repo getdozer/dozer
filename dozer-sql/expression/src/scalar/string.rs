@@ -281,8 +281,28 @@ pub(crate) fn evaluate_chr(
     match value {
         Field::UInt(u) => Ok(Field::String((((u % 256) as u8) as char).to_string())),
         Field::U128(u) => Ok(Field::String((((u % 256) as u8) as char).to_string())),
-        Field::Int(i) => Ok(Field::String((((i % 256) as u8) as char).to_string())),
-        Field::I128(i) => Ok(Field::String((((i % 256) as u8) as char).to_string())),
+        Field::Int(i) => {
+            if i >= 0 {
+                Ok(Field::String((((i % 256) as u8) as char).to_string()))
+            } else {
+                return Err(Error::InvalidFunctionArgument {
+                    function_name: ScalarFunctionType::Chr.to_string(),
+                    argument_index: 0,
+                    argument: value,
+                });
+            }
+        }
+        Field::I128(i) => {
+            if i >= 0 {
+                Ok(Field::String((((i % 256) as u8) as char).to_string()))
+            } else {
+                return Err(Error::InvalidFunctionArgument {
+                    function_name: ScalarFunctionType::Chr.to_string(),
+                    argument_index: 0,
+                    argument: value,
+                });
+            }
+        }
         Field::Float(_)
         | Field::Decimal(_)
         | Field::Boolean(_)
