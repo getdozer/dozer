@@ -285,22 +285,22 @@ pub(crate) fn evaluate_chr(
             if i >= 0 {
                 Ok(Field::String((((i % 256) as u8) as char).to_string()))
             } else {
-                return Err(Error::InvalidFunctionArgument {
+                Err(Error::InvalidFunctionArgument {
                     function_name: ScalarFunctionType::Chr.to_string(),
                     argument_index: 0,
                     argument: value,
-                });
+                })
             }
         }
         Field::I128(i) => {
             if i >= 0 {
                 Ok(Field::String((((i % 256) as u8) as char).to_string()))
             } else {
-                return Err(Error::InvalidFunctionArgument {
+                Err(Error::InvalidFunctionArgument {
                     function_name: ScalarFunctionType::Chr.to_string(),
                     argument_index: 0,
                     argument: value,
-                });
+                })
             }
         }
         Field::Float(_)
@@ -400,7 +400,7 @@ pub(crate) fn evaluate_substr(
     let arg_value = arg_field.to_string();
 
     let position_field = position.evaluate(record, schema)?;
-    let position_result = position_field.to_i128();
+    let position_result = position_field.to_uint();
     if position_result.is_none() {
         return Err(Error::InvalidFunctionArgument {
             function_name: "SUBSTR".to_string(),
