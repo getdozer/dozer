@@ -5,11 +5,12 @@ use dozer_ingestion_connector::dozer_types::models::connection::AerospikeConnect
 use dozer_ingestion_connector::dozer_types::models::ingestion_types::{
     IngestionMessage, TransactionInfo,
 };
-use dozer_ingestion_connector::dozer_types::node::OpIdentifier;
+use dozer_ingestion_connector::dozer_types::node::{NodeHandle, OpIdentifier, SourceState};
 use dozer_ingestion_connector::dozer_types::types::Operation::Insert;
 use dozer_ingestion_connector::dozer_types::types::{Field, FieldDefinition, FieldType, Schema};
 use dozer_ingestion_connector::tokio::sync::broadcast::error::RecvError;
 use dozer_ingestion_connector::tokio::sync::broadcast::Receiver;
+use dozer_ingestion_connector::tokio::sync::{mpsc, oneshot};
 use dozer_ingestion_connector::{
     async_trait, dozer_types, tokio, Connector, Ingestor, SourceSchema, SourceSchemaResult,
     TableIdentifier, TableInfo,
@@ -45,20 +46,14 @@ pub enum AerospikeConnectorError {
     #[error("Cannot start server: {0}")]
     CannotStartServer(#[from] std::io::Error),
 
-    #[error("No set name find in key: {0:?}")]
-    NoSetNameFindInKey(Vec<Option<String>>),
+    #[error("Set name is none. Key: {0:?}, {1:?}, {2:?}")]
+    SetNameIsNone(Option<String>, Option<String>, Option<String>),
 
-    #[error("Set name is none. Key: {0:?}")]
-    SetNameIsNone(Vec<Option<String>>),
-
-    #[error("No PK in key: {0:?}")]
-    NoPkInKey(Vec<Option<String>>),
+    #[error("PK is none: {0:?}, {1:?}, {2:?}")]
+    PkIsNone(Option<String>, String, Option<String>),
 
     #[error("Invalid key value: {0:?}. Key is supposed to have 4 elements.")]
     InvalidKeyValue(Vec<Option<String>>),
-
-    #[error("PK is none: {0:?}")]
-    PkIsNone(Vec<Option<String>>),
 
     #[error("Unsupported type. Bin type {bin_type:?}, field type: {field_type:?}")]
     UnsupportedTypeForFieldType {
@@ -131,35 +126,24 @@ pub struct Bin {
 #[derive(Debug)]
 pub struct AerospikeConnector {
     pub config: AerospikeConnection,
+    node_handle: NodeHandle,
     event_receiver: Receiver<Event>,
 }
 
 impl AerospikeConnector {
-    pub fn new(config: AerospikeConnection, event_receiver: Receiver<Event>) -> Self {
+    pub fn new(
+        config: AerospikeConnection,
+        node_handle: NodeHandle,
+        event_receiver: Receiver<Event>,
+    ) -> Self {
         Self {
             config,
+            node_handle,
             event_receiver,
         }
     }
 
     fn start_server(&self, server_state: ServerState) -> Result<Server, AerospikeConnectorError> {
-        let mut receiver = self.event_receiver.resubscribe();
-        tokio::spawn(async move {
-            loop {
-                match receiver.recv().await {
-                    Ok(event) => {
-                        dbg!(event);
-                    }
-                    Err(RecvError::Closed) => {
-                        break;
-                    }
-                    Err(RecvError::Lagged(_)) => {
-                        // do nothing
-                    }
-                }
-            }
-        });
-
         let address = format!(
             "{}:{}",
             self.config.replication.server_address, self.config.replication.server_port
@@ -175,6 +159,102 @@ impl AerospikeConnector {
         })
         .bind(address)?
         .run())
+    }
+}
+
+#[derive(Debug)]
+struct PendingMessage {
+    message: IngestionMessage,
+    sender: oneshot::Sender<()>,
+}
+
+#[derive(Debug)]
+struct PendingOperationId {
+    operation_id: u64,
+    sender: oneshot::Sender<()>,
+}
+
+/// This loop assigns an operation id to each request and sends it to the ingestor.
+async fn ingestor_loop(
+    mut message_receiver: mpsc::UnboundedReceiver<PendingMessage>,
+    ingestor: Ingestor,
+    operation_id_sender: mpsc::UnboundedSender<PendingOperationId>,
+) {
+    let mut operation_id = 0;
+    while let Some(message) = message_receiver.recv().await {
+        let pending_operation_id = PendingOperationId {
+            operation_id,
+            sender: message.sender,
+        };
+
+        // Propagate panic in the pipeline event processor loop.
+        operation_id_sender.send(pending_operation_id).unwrap();
+
+        // Ignore the error, because the server can be down.
+        let _ = ingestor.handle_message(message.message).await;
+        let _ = ingestor
+            .handle_message(IngestionMessage::TransactionInfo(TransactionInfo::Commit {
+                id: Some(OpIdentifier::new(0, operation_id)),
+            }))
+            .await;
+
+        operation_id += 1;
+    }
+}
+
+/// This loop triggers the pending operation id that's before the event's payload.
+async fn pipeline_event_processor(
+    node_handle: NodeHandle,
+    mut operation_id_receiver: mpsc::UnboundedReceiver<PendingOperationId>,
+    mut event_receiver: Receiver<Event>,
+) {
+    let mut operation_id_from_pipeline = None;
+    let mut pending_operation_id: Option<PendingOperationId> = None;
+    loop {
+        if operation_id_from_pipeline
+            < pending_operation_id
+                .as_ref()
+                .map(|operation_id| operation_id.operation_id)
+        {
+            // We have pending operation id, wait for pipeline event.
+            let event = match event_receiver.recv().await {
+                Ok(event) => event,
+                Err(RecvError::Closed) => {
+                    // Pipeline is down.
+                    return;
+                }
+                Err(RecvError::Lagged(_)) => {
+                    // Ignore lagged events.
+                    continue;
+                }
+            };
+            if let Some(operation_id) = get_operation_id_from_event(&event, &node_handle) {
+                operation_id_from_pipeline = Some(operation_id);
+            }
+        } else if let Some(pending) = pending_operation_id.take() {
+            // This operation id is already confirmed by the pipeline.
+            let _ = pending.sender.send(());
+        } else {
+            // Wait for the next operation id.
+            let Some(pending) = operation_id_receiver.recv().await else {
+                // Ingestor is down.
+                return;
+            };
+            pending_operation_id = Some(pending);
+        }
+    }
+}
+
+fn get_operation_id_from_event(event: &Event, node_handle: &NodeHandle) -> Option<u64> {
+    match event {
+        Event::SinkFlushed { epoch, .. } => epoch
+            .common_info
+            .source_states
+            .get(node_handle)
+            .and_then(|state| match state {
+                SourceState::Restartable(id) => Some(id.seq_in_tx),
+                _ => None,
+            }),
     }
 }
 
@@ -201,19 +281,22 @@ async fn event_request_handler(
         return HttpResponse::Ok().finish();
     }
 
-    let operation_events = map_events(event, state.tables_index_map.clone()).await;
+    let operation_events = map_events(event, &state.tables_index_map).await;
 
     match operation_events {
         Ok(None) => HttpResponse::Ok().finish(),
-        Ok(Some(events)) => {
-            for event in events {
-                if let Err(e) = state.ingestor.handle_message(event).await {
-                    error!("Aerospike ingestion message send error: {:?}", e);
-                    return HttpResponse::InternalServerError().finish();
-                }
+        Ok(Some(message)) => {
+            let (sender, receiver) = oneshot::channel::<()>();
+            if let Err(e) = state.sender.send(PendingMessage { message, sender }) {
+                error!("Ingestor is down: {:?}", e);
+                return HttpResponse::InternalServerError().finish();
             }
-
-            HttpResponse::Ok().finish()
+            if let Err(e) = receiver.await {
+                error!("Pipeline event processor is down: {:?}", e);
+                HttpResponse::InternalServerError().finish()
+            } else {
+                HttpResponse::Ok().finish()
+            }
         }
         Err(e) => map_error(e),
     }
@@ -228,7 +311,7 @@ struct TableIndexMap {
 #[derive(Clone)]
 struct ServerState {
     tables_index_map: HashMap<String, TableIndexMap>,
-    ingestor: Ingestor,
+    sender: mpsc::UnboundedSender<PendingMessage>,
 }
 
 #[async_trait]
@@ -426,9 +509,20 @@ impl Connector for AerospikeConnector {
             })
             .collect();
 
+        let (message_sender, message_receiver) = mpsc::unbounded_channel();
+        let (operation_id_sender, operation_id_receiver) = mpsc::unbounded_channel();
+        let ingestor = ingestor.clone();
+        tokio::spawn(async move {
+            ingestor_loop(message_receiver, ingestor, operation_id_sender).await
+        });
+        let node_handle = self.node_handle.clone();
+        let event_receiver = self.event_receiver.resubscribe();
+        tokio::spawn(async move {
+            pipeline_event_processor(node_handle, operation_id_receiver, event_receiver).await
+        });
         let server_state = ServerState {
             tables_index_map: tables_index_map.clone(),
-            ingestor: ingestor.clone(),
+            sender: message_sender,
         };
 
         let _server = self.start_server(server_state)?.await;
@@ -439,61 +533,64 @@ impl Connector for AerospikeConnector {
 
 async fn map_events(
     event: AerospikeEvent,
-    tables_map: HashMap<String, TableIndexMap>,
-) -> Result<Option<Vec<IngestionMessage>>, AerospikeConnectorError> {
-    let key = event.key;
-    let [_, Some(ref set_name), _, ref pk_in_key] = key.clone()[..] else {
-        return Err(AerospikeConnectorError::InvalidKeyValue(key.clone()));
+    tables_map: &HashMap<String, TableIndexMap>,
+) -> Result<Option<IngestionMessage>, AerospikeConnectorError> {
+    let key: [Option<String>; 4] = match event.key.try_into() {
+        Ok(key) => key,
+        Err(key) => return Err(AerospikeConnectorError::InvalidKeyValue(key)),
+    };
+    let [key0, set_name, key2, pk_in_key] = key;
+    let Some(set_name) = set_name else {
+        return Err(AerospikeConnectorError::SetNameIsNone(
+            key0, key2, pk_in_key,
+        ));
     };
 
-    if let Some(TableIndexMap {
+    let Some(TableIndexMap {
         columns_map,
         table_index,
     }) = tables_map.get(set_name.as_str())
-    {
-        let mut fields = vec![Field::Null; columns_map.len()];
-        if let Some((pk, _)) = columns_map.get("PK") {
-            if let Some(pk_in_key) = pk_in_key {
-                fields[*pk] = Field::String(pk_in_key.clone());
-            } else {
-                return Err(AerospikeConnectorError::PkIsNone(key.clone()));
-            }
+    else {
+        return Ok(None);
+    };
+
+    let mut fields = vec![Field::Null; columns_map.len()];
+    if let Some((pk, _)) = columns_map.get("PK") {
+        if let Some(pk_in_key) = pk_in_key {
+            fields[*pk] = Field::String(pk_in_key);
+        } else {
+            return Err(AerospikeConnectorError::PkIsNone(key0, set_name, key2));
         }
-
-        if let Some((index, _)) = columns_map.get("inserted_at") {
-            // Create a NaiveDateTime from the timestamp
-            let naive = NaiveDateTime::from_timestamp_millis(event.lut as i64)
-                .ok_or(AerospikeConnectorError::InvalidTimestamp(event.lut as i64))?;
-
-            // Create a normal DateTime from the NaiveDateTime
-            let datetime: DateTime<FixedOffset> =
-                DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc).fixed_offset();
-
-            fields[*index] = Field::Timestamp(datetime);
-        }
-
-        for bin in event.bins {
-            if let Some((i, typ)) = columns_map.get(bin.name.as_str()) {
-                fields[*i] = match bin.value {
-                    Some(value) => map_value_to_field(bin.r#type.as_str(), value, *typ)?,
-                    None => Field::Null,
-                };
-            }
-        }
-
-        Ok(Some(vec![
-            IngestionMessage::OperationEvent {
-                table_index: *table_index,
-                op: Insert {
-                    new: dozer_types::types::Record::new(fields),
-                },
-                id: None,
-            },
-            IngestionMessage::TransactionInfo(TransactionInfo::Commit { id: None }),
-        ]))
-    } else {
-        Ok(None)
     }
+
+    if let Some((index, _)) = columns_map.get("inserted_at") {
+        // Create a NaiveDateTime from the timestamp
+        let naive = NaiveDateTime::from_timestamp_millis(event.lut as i64)
+            .ok_or(AerospikeConnectorError::InvalidTimestamp(event.lut as i64))?;
+
+        // Create a normal DateTime from the NaiveDateTime
+        let datetime: DateTime<FixedOffset> =
+            DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc).fixed_offset();
+
+        fields[*index] = Field::Timestamp(datetime);
+    }
+
+    for bin in event.bins {
+        if let Some((i, typ)) = columns_map.get(bin.name.as_str()) {
+            fields[*i] = match bin.value {
+                Some(value) => map_value_to_field(bin.r#type.as_str(), value, *typ)?,
+                None => Field::Null,
+            };
+        }
+    }
+
+    Ok(Some(IngestionMessage::OperationEvent {
+        table_index: *table_index,
+        op: Insert {
+            new: dozer_types::types::Record::new(fields),
+        },
+        id: None,
+    }))
 }
 
 pub(crate) fn map_value_to_field(
