@@ -28,22 +28,6 @@
       "description": "name of the app",
       "type": "string"
     },
-    "cache_dir": {
-      "description": "directory for cache. Default: ./.dozer/cache",
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "cache_max_map_size": {
-      "description": "Cache lmdb max map size",
-      "type": [
-        "integer",
-        "null"
-      ],
-      "format": "uint64",
-      "minimum": 0.0
-    },
     "cloud": {
       "description": "Dozer Cloud specific configuration",
       "allOf": [
@@ -348,32 +332,6 @@
           "format": "uint32",
           "minimum": 0.0
         },
-        "commit_size": {
-          "description": "Commit size",
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint32",
-          "minimum": 0.0
-        },
-        "commit_timeout": {
-          "description": "Commit timeout",
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint64",
-          "minimum": 0.0
-        },
-        "data_storage": {
-          "description": "The storage to use for the log.",
-          "allOf": [
-            {
-              "$ref": "#/definitions/DataStorage"
-            }
-          ]
-        },
         "error_threshold": {
           "description": "How many errors we can tolerate before bringing down the app.",
           "type": [
@@ -383,40 +341,14 @@
           "format": "uint32",
           "minimum": 0.0
         },
-        "max_interval_before_persist_in_seconds": {
-          "description": "The maximum time in seconds before a new checkpoint is created. If there're no new records, no checkpoint will be created.",
+        "event_hub_capacity": {
+          "description": "The event hub's queue capacity. Events that are not processed will be dropped.",
           "type": [
             "integer",
             "null"
           ],
-          "format": "uint64",
+          "format": "uint",
           "minimum": 0.0
-        },
-        "max_num_records_before_persist": {
-          "description": "The maximum unpersisted number of records in the processor record store. A checkpoint will be created when this number is reached.",
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint64",
-          "minimum": 0.0
-        },
-        "persist_queue_capacity": {
-          "description": "Maximum number of pending persisting requests.",
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint32",
-          "minimum": 0.0
-        },
-        "record_store": {
-          "description": "The record store to use for the processors.",
-          "allOf": [
-            {
-              "$ref": "#/definitions/RecordStore"
-            }
-          ]
         }
       },
       "additionalProperties": false
@@ -821,28 +753,6 @@
           "type": "string"
         }
       }
-    },
-    "DataStorage": {
-      "oneOf": [
-        {
-          "type": "string",
-          "enum": [
-            "Local"
-          ]
-        },
-        {
-          "type": "object",
-          "required": [
-            "S3"
-          ],
-          "properties": {
-            "S3": {
-              "$ref": "#/definitions/S3Storage2"
-            }
-          },
-          "additionalProperties": false
-        }
-      ]
     },
     "DeltaLakeConfig": {
       "examples": [
@@ -1677,12 +1587,6 @@
       },
       "additionalProperties": false
     },
-    "RecordStore": {
-      "type": "string",
-      "enum": [
-        "InMemory"
-      ]
-    },
     "RefreshConfig": {
       "type": "string",
       "enum": [
@@ -1803,22 +1707,6 @@
           }
         }
       }
-    },
-    "S3Storage2": {
-      "type": "object",
-      "required": [
-        "bucket_name",
-        "region"
-      ],
-      "properties": {
-        "bucket_name": {
-          "type": "string"
-        },
-        "region": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false
     },
     "Sink": {
       "type": "object",

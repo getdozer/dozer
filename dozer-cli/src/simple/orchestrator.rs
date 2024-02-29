@@ -1,18 +1,19 @@
 use super::executor::{run_dag_executor, Executor};
 use super::Contract;
 use crate::errors::{BuildError, OrchestrationError};
+use crate::home_dir::{BuildId, HomeDir};
 use crate::pipeline::connector_source::ConnectorSourceFactoryError;
 use crate::pipeline::PipelineBuilder;
 use crate::simple::build;
 use crate::simple::helper::validate_config;
-use crate::utils::{get_checkpoint_options, get_executor_options};
+use crate::utils::get_executor_options;
 
 use crate::flatten_join_handle;
+use camino::Utf8PathBuf;
 use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::DagSchemas;
+use dozer_core::event::EventHub;
 use dozer_core::shutdown::ShutdownReceiver;
-use dozer_log::camino::Utf8PathBuf;
-use dozer_log::home_dir::{BuildId, HomeDir};
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::constants::LOCK_FILE;
 use futures::future::{select, Either};
@@ -26,7 +27,7 @@ use dozer_ingestion::{get_connector, SourceSchema, TableInfo};
 use dozer_sql::builder::statement_to_pipeline;
 use dozer_sql::errors::PipelineError;
 use dozer_types::log::info;
-use dozer_types::models::config::{default_cache_dir, default_home_dir, Config};
+use dozer_types::models::config::{default_home_dir, Config};
 use dozer_types::tracing::error;
 use futures::stream::FuturesUnordered;
 use futures::{FutureExt, StreamExt};
@@ -69,15 +70,6 @@ impl SimpleOrchestrator {
         )
     }
 
-    pub fn cache_dir(&self) -> Utf8PathBuf {
-        self.base_directory.join(
-            self.config
-                .cache_dir
-                .clone()
-                .unwrap_or_else(default_cache_dir),
-        )
-    }
-
     pub fn lockfile_path(&self) -> Utf8PathBuf {
         lockfile_path(self.base_directory.clone())
     }
@@ -87,14 +79,11 @@ impl SimpleOrchestrator {
         shutdown: ShutdownReceiver,
         api_notifier: Option<oneshot::Sender<()>>,
     ) -> Result<(), OrchestrationError> {
-        let home_dir = HomeDir::new(self.home_dir(), self.cache_dir());
         let executor = Executor::new(
-            &home_dir,
             &self.config.connections,
             &self.config.sources,
             self.config.sql.as_deref(),
             &self.config.sinks,
-            get_checkpoint_options(&self.config),
             self.labels.clone(),
             &self.config.udfs,
         )
@@ -141,8 +130,13 @@ impl SimpleOrchestrator {
             .filter(|conn| connections.contains(&conn.name))
         {
             // We're not really going to start ingestion, so passing `None` as state here is OK.
-            let mut connector = get_connector(self.runtime.clone(), connection.clone(), None)
-                .map_err(|e| ConnectorSourceFactoryError::Connector(e.into()))?;
+            let mut connector = get_connector(
+                self.runtime.clone(),
+                EventHub::new(1),
+                connection.clone(),
+                None,
+            )
+            .map_err(|e| ConnectorSourceFactoryError::Connector(e.into()))?;
             let schema_tuples = connector
                 .list_all_schemas()
                 .await
@@ -160,8 +154,7 @@ impl SimpleOrchestrator {
         locked: bool,
     ) -> Result<(), OrchestrationError> {
         let home_dir = self.home_dir();
-        let cache_dir = self.cache_dir();
-        let home_dir = HomeDir::new(home_dir, cache_dir);
+        let home_dir = HomeDir::new(home_dir);
 
         info!(
             "Initializing app: {}",
@@ -214,12 +207,6 @@ impl SimpleOrchestrator {
     // Cleaning the entire folder as there will be inconsistencies
     // between pipeline, cache and generated proto files.
     pub fn clean(&self) -> Result<(), OrchestrationError> {
-        let cache_dir = self.cache_dir();
-        if cache_dir.exists() {
-            fs::remove_dir_all(&cache_dir)
-                .map_err(|e| ExecutionError::FileSystemError(cache_dir.into_std_path_buf(), e))?;
-        };
-
         let home_dir = self.home_dir();
         if home_dir.exists() {
             fs::remove_dir_all(&home_dir)

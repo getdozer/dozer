@@ -7,6 +7,5 @@ edition = "2021"
 
 [dependencies]
 dozer-core = { path = "../dozer-core" }
-dozer-log = { path = "../dozer-log" }
 dozer-types = { path = "../dozer-types" }
 oracle = { version = "0.5.7", features = ["chrono"] }

@@ -1,15 +1,15 @@
 use std::{fmt::Debug, future::Future, pin::pin, sync::Arc, time::SystemTime};
 
 use daggy::petgraph::visit::IntoNodeIdentifiers;
-use dozer_log::tokio::{
-    runtime::Runtime,
-    sync::mpsc::{channel, Receiver, Sender},
-};
 use dozer_types::{
     log::debug, models::ingestion_types::TransactionInfo, node::OpIdentifier, types::TableOperation,
 };
 use dozer_types::{models::ingestion_types::IngestionMessage, node::SourceState};
 use futures::{future::Either, StreamExt};
+use tokio::{
+    runtime::Runtime,
+    sync::mpsc::{channel, Receiver, Sender},
+};
 
 use crate::{
     builder_dag::NodeKind,
@@ -116,13 +116,8 @@ impl<F: Future + Unpin> Node for SourceNode<F> {
                                         })
                                         .collect(),
                                 );
-                                let epoch = Epoch::new(
-                                    self.epoch_id,
-                                    source_states,
-                                    None,
-                                    None,
-                                    SystemTime::now(),
-                                );
+                                let epoch =
+                                    Epoch::new(self.epoch_id, source_states, SystemTime::now());
                                 send_to_all_nodes(
                                     &self.sources,
                                     ExecutorOperation::Commit { epoch },

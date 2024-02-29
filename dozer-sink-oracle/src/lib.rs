@@ -2,6 +2,7 @@ use dozer_types::thiserror;
 use std::collections::HashMap;
 
 use dozer_core::{
+    event::EventHub,
     node::{PortHandle, Sink, SinkFactory},
     DEFAULT_PORT_HANDLE,
 };
@@ -356,6 +357,7 @@ impl SinkFactory for OracleSinkFactory {
     async fn build(
         &self,
         mut input_schemas: HashMap<PortHandle, Schema>,
+        _event_hub: EventHub,
     ) -> Result<Box<dyn dozer_core::node::Sink>, BoxedError> {
         let config = &self.config;
         let root_connect_string = format!(
@@ -590,14 +592,6 @@ impl Sink for OracleSink {
                 batch.execute()?;
             }
         }
-        Ok(())
-    }
-
-    fn persist(
-        &mut self,
-        _epoch: &dozer_core::epoch::Epoch,
-        _queue: &dozer_log::storage::Queue,
-    ) -> Result<(), dozer_types::errors::internal::BoxedError> {
         Ok(())
     }
 

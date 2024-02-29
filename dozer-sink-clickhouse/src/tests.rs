@@ -1,7 +1,7 @@
 use crate::schema::ClickhouseSchema;
 use crate::ClickhouseSinkError;
 use clickhouse::Client;
-use dozer_log::tokio;
+use dozer_core::tokio;
 use dozer_types::models::sink::ClickhouseSinkConfig;
 use dozer_types::types::{FieldDefinition, FieldType, Schema};
 

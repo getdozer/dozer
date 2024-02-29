@@ -106,13 +106,6 @@ impl ReceiverLoop for ProcessorNode {
             self.error_manager.report(e);
         }
 
-        if let Some(checkpoint_writer) = &epoch.common_info.checkpoint_writer {
-            let object = checkpoint_writer.create_processor_object(&self.node_handle)?;
-            self.processor
-                .serialize(object)
-                .map_err(ExecutionError::FailedToCreateCheckpoint)?;
-        }
-
         self.channel_manager.send_commit(epoch)
     }
 

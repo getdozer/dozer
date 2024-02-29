@@ -1,5 +1,6 @@
 use crate::channels::ProcessorChannelForwarder;
 use crate::epoch::Epoch;
+use crate::event::EventHub;
 use crate::node::{
     OutputPortDef, OutputPortType, PortHandle, Processor, ProcessorFactory, Sink, SinkFactory,
     Source, SourceFactory,
@@ -8,8 +9,6 @@ use crate::tests::dag_base_run::NoopProcessorFactory;
 use crate::tests::sinks::{CountingSinkFactory, COUNTING_SINK_INPUT_PORT};
 use crate::tests::sources::{GeneratorSourceFactory, GENERATOR_SOURCE_OUTPUT_PORT};
 use crate::{Dag, Endpoint, DEFAULT_PORT_HANDLE};
-use dozer_log::storage::{Object, Queue};
-use dozer_log::tokio::sync::mpsc::Sender;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::models::ingestion_types::{IngestionMessage, TransactionInfo};
 use dozer_types::node::{NodeHandle, OpIdentifier};
@@ -17,6 +16,7 @@ use dozer_types::tonic::async_trait;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition, TableOperation,
 };
+use tokio::sync::mpsc::Sender;
 
 use std::collections::HashMap;
 use std::panic;
@@ -60,7 +60,7 @@ impl ProcessorFactory for ErrorProcessorFactory {
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-        _checkpoint_data: Option<Vec<u8>>,
+        _event_hub: EventHub,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         Ok(Box::new(ErrorProcessor {
             err_on: self.err_on,
@@ -102,10 +102,6 @@ impl Processor for ErrorProcessor {
 
         op.port = DEFAULT_PORT_HANDLE;
         fw.send(op);
-        Ok(())
-    }
-
-    fn serialize(&mut self, _object: Object) -> Result<(), BoxedError> {
         Ok(())
     }
 }
@@ -312,6 +308,7 @@ impl SourceFactory for ErrGeneratorSourceFactory {
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
+        _event_hub: EventHub,
         _state: Option<Vec<u8>>,
     ) -> Result<Box<dyn Source>, BoxedError> {
         Ok(Box::new(ErrGeneratorSource {
@@ -437,6 +434,7 @@ impl SinkFactory for ErrSinkFactory {
     async fn build(
         &self,
         _input_schemas: HashMap<PortHandle, Schema>,
+        _event_hub: EventHub,
     ) -> Result<Box<dyn Sink>, BoxedError> {
         Ok(Box::new(ErrSink {
             err_at: self.err_at,
@@ -470,10 +468,6 @@ impl Sink for ErrSink {
                 return Err("Generated error".to_string().into());
             }
         }
-        Ok(())
-    }
-
-    fn persist(&mut self, _epoch: &Epoch, _queue: &Queue) -> Result<(), BoxedError> {
         Ok(())
     }
 

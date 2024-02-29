@@ -6,9 +6,8 @@ use crate::errors::OrchestrationError;
 use crate::simple::SimpleOrchestrator as Dozer;
 
 use atty::Stream;
-use dozer_log::camino::Utf8PathBuf;
+use camino::Utf8PathBuf;
 use dozer_tracing::LabelsAndProgress;
-use dozer_types::models::config::default_cache_max_map_size;
 use dozer_types::prettytable::{row, Table};
 use dozer_types::serde_json;
 use dozer_types::tracing::info;
@@ -29,12 +28,6 @@ pub async fn init_config(
     let (mut config, loaded_files) = load_config(config_paths, config_token, ignore_pipe).await?;
 
     config = apply_overrides(&config, config_overrides)?;
-
-    let cache_max_map_size = config
-        .cache_max_map_size
-        .unwrap_or_else(default_cache_max_map_size);
-    let page_size = page_size::get() as u64;
-    config.cache_max_map_size = Some(cache_max_map_size / page_size * page_size);
 
     Ok((config, loaded_files))
 }

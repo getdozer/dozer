@@ -1,3 +1,4 @@
+use dozer_core::event::EventHub;
 use dozer_core::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory};
 use dozer_core::shutdown::ShutdownReceiver;
 use dozer_ingestion::{
@@ -63,8 +64,9 @@ impl ConnectorSourceFactory {
         labels: LabelsAndProgress,
         shutdown: ShutdownReceiver,
     ) -> Result<Self, ConnectorSourceFactoryError> {
-        let mut connector = get_connector(runtime.clone(), connection.clone(), None)
-            .map_err(|e| ConnectorSourceFactoryError::Connector(e.into()))?;
+        let mut connector =
+            get_connector(runtime.clone(), EventHub::new(1), connection.clone(), None)
+                .map_err(|e| ConnectorSourceFactoryError::Connector(e.into()))?;
 
         // Fill column names if not provided.
         let table_identifiers = table_and_ports
@@ -169,6 +171,7 @@ impl SourceFactory for ConnectorSourceFactory {
     fn build(
         &self,
         _output_schemas: HashMap<PortHandle, Schema>,
+        event_hub: EventHub,
         state: Option<Vec<u8>>,
     ) -> Result<Box<dyn Source>, BoxedError> {
         // Construct table info.
@@ -183,7 +186,12 @@ impl SourceFactory for ConnectorSourceFactory {
             .collect();
         let ports = self.tables.iter().map(|table| table.port).collect();
 
-        let connector = get_connector(self.runtime.clone(), self.connection.clone(), state)?;
+        let connector = get_connector(
+            self.runtime.clone(),
+            event_hub,
+            self.connection.clone(),
+            state,
+        )?;
 
         Ok(Box::new(ConnectorSource {
             tables,

@@ -14,10 +14,12 @@ use std::{
     time::{Duration, Instant},
     usize,
 };
+use tokio::sync::broadcast;
 
 use crate::{
     builder_dag::NodeKind, epoch::Epoch, error_manager::ErrorManager, errors::ExecutionError,
-    executor::receiver_loop::init_select, executor_operation::ExecutorOperation, node::Sink,
+    event::Event, executor::receiver_loop::init_select, executor_operation::ExecutorOperation,
+    node::Sink,
 };
 
 use super::execution_dag::ExecutionDag;
@@ -100,6 +102,8 @@ pub struct SinkNode {
     flush_on_next_commit: bool,
     flush_scheduler_sender: Sender<Duration>,
     should_flush_receiver: Receiver<()>,
+
+    event_sender: broadcast::Sender<Event>,
 }
 
 const SINK_OPERATION_COUNTER_NAME: &str = "sink_operation";
@@ -150,6 +154,7 @@ impl SinkNode {
             flush_on_next_commit: false,
             flush_scheduler_sender: schedule_sender,
             should_flush_receiver,
+            event_sender: dag.event_hub().sender.clone(),
         }
     }
 
@@ -307,15 +312,16 @@ impl ReceiverLoop for SinkNode {
             gauge!(PIPELINE_LATENCY_GAUGE_NAME, duration.as_secs_f64(), labels);
         }
 
-        if let Some(queue) = epoch.common_info.sink_persist_queue.as_ref() {
-            if let Err(e) = self.sink.persist(&epoch, queue) {
-                self.error_manager.report(e);
-            }
-        }
         if self.flush_on_next_commit {
             self.flush()?;
             self.flush_on_next_commit = false;
         }
+
+        let _ = self.event_sender.send(Event::SinkCommitted {
+            node: self.node_handle.clone(),
+            epoch,
+        });
+
         Ok(())
     }
 

@@ -8,5 +8,4 @@ edition = "2021"
 [dependencies]
 dozer-core = { path = "../dozer-core" }
 dozer-types = { path = "../dozer-types" }
-dozer-log = { path = "../dozer-log" }
 clickhouse = { git = "https://github.com/getdozer/clickhouse.rs.git" }

@@ -1,6 +1,6 @@
 use async_stream::stream;
-use dozer_log::tokio::sync::mpsc::Receiver;
 use futures::{future::select_all, Stream};
+use tokio::sync::mpsc::Receiver;
 
 /// A convenient way of getting a self-referential struct.
 async fn receive_or_drop<T>(

@@ -1,7 +1,7 @@
 use crate::errors::{CliError, OrchestrationError};
 use dozer_types::constants::{DEFAULT_LAMBDAS_DIRECTORY, DEFAULT_QUERIES_DIRECTORY};
 use dozer_types::log::warn;
-use dozer_types::models::config::{default_cache_dir, default_home_dir, get_cache_dir};
+use dozer_types::models::config::default_home_dir;
 use dozer_types::{
     constants::DEFAULT_CONFIG_PATH,
     log::info,
@@ -201,9 +201,7 @@ pub fn generate_config_repl() -> Result<(), OrchestrationError> {
             Box::new(move |(home_dir, config)| {
                 if home_dir.is_empty() {
                     config.home_dir = Some(default_home_dir());
-                    config.cache_dir = Some(default_cache_dir());
                 } else {
-                    config.cache_dir = Some(get_cache_dir(&home_dir));
                     config.home_dir = Some(home_dir);
                 }
                 Ok(())

@@ -1,7 +1,3 @@
-use dozer_core::{
-    checkpoint::serialize::{Cursor, SerializationError},
-    dozer_log::storage::Object,
-};
 use dozer_types::types::{Record, Schema, Timestamp};
 
 use crate::errors::JoinError;
@@ -45,22 +41,10 @@ impl JoinOperator {
         (left_join_key_indexes, right_join_key_indexes): (Vec<usize>, Vec<usize>),
         (left_schema, right_schema): (&Schema, &Schema),
         enable_probabilistic_optimizations: bool,
-        checkpoint_data: Option<Vec<u8>>,
     ) -> Result<Self, JoinError> {
         let accurate_keys = !enable_probabilistic_optimizations;
-        let mut cursor = checkpoint_data.as_deref().map(Cursor::new);
-        let left = JoinTable::new(
-            left_schema,
-            left_join_key_indexes,
-            accurate_keys,
-            cursor.as_mut(),
-        )?;
-        let right = JoinTable::new(
-            right_schema,
-            right_join_key_indexes,
-            accurate_keys,
-            cursor.as_mut(),
-        )?;
+        let left = JoinTable::new(left_schema, left_join_key_indexes, accurate_keys)?;
+        let right = JoinTable::new(right_schema, right_join_key_indexes, accurate_keys)?;
         Ok(Self {
             join_type,
             left,
@@ -213,12 +197,6 @@ impl JoinOperator {
     pub fn evict_index(&mut self, now: &Timestamp) {
         self.left.evict_index(now);
         self.right.evict_index(now);
-    }
-
-    pub fn serialize(&self, mut object: Object) -> Result<(), SerializationError> {
-        self.left.serialize(&mut object)?;
-        self.right.serialize(&mut object)?;
-        Ok(())
     }
 }
 

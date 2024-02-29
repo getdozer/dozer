@@ -1,11 +1,9 @@
 use std::sync::Arc;
 
-use dozer_log::tokio::runtime::{self, Runtime};
 use futures::future::pending;
+use tokio::runtime::{self, Runtime};
 
-use crate::{
-    checkpoint::create_checkpoint_for_test, errors::ExecutionError, executor::DagExecutor, Dag,
-};
+use crate::{errors::ExecutionError, executor::DagExecutor, Dag};
 
 mod app;
 mod checkpoint_ns;
@@ -31,8 +29,7 @@ fn run_dag(dag: Dag) -> Result<(), ExecutionError> {
     let runtime = create_test_runtime();
     let runtime_clone = runtime.clone();
     let handle = runtime.block_on(async move {
-        let (_temp_dir, checkpoint) = create_checkpoint_for_test().await;
-        DagExecutor::new(dag, checkpoint, Default::default())
+        DagExecutor::new(dag, Default::default())
             .await?
             .start(pending::<()>(), Default::default(), runtime_clone)
             .await

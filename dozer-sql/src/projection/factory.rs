@@ -1,6 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use dozer_core::{
+    event::EventHub,
     node::{PortHandle, Processor, ProcessorFactory},
     DEFAULT_PORT_HANDLE,
 };
@@ -127,7 +128,7 @@ impl ProcessorFactory for ProjectionProcessorFactory {
         &self,
         input_schemas: HashMap<PortHandle, Schema>,
         _output_schemas: HashMap<PortHandle, Schema>,
-        checkpoint_data: Option<Vec<u8>>,
+        _event_hub: EventHub,
     ) -> Result<Box<dyn Processor>, BoxedError> {
         let schema = match input_schemas.get(&DEFAULT_PORT_HANDLE) {
             Some(schema) => Ok(schema),
@@ -143,7 +144,6 @@ impl ProcessorFactory for ProjectionProcessorFactory {
         Ok(Box::new(ProjectionProcessor::new(
             schema.clone(),
             expressions.into_iter().map(|e| e.1).collect(),
-            checkpoint_data,
         )?))
     }
 }

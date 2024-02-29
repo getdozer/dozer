@@ -1,12 +1,10 @@
 use crate::builder_dag::{BuilderDag, NodeKind};
-use crate::checkpoint::{CheckpointFactoryOptions, OptionCheckpoint};
 use crate::dag_schemas::DagSchemas;
 use crate::errors::ExecutionError;
 use crate::Dag;
 
 use daggy::petgraph::visit::IntoNodeIdentifiers;
 
-use dozer_log::tokio::runtime::Runtime;
 use dozer_tracing::LabelsAndProgress;
 use futures::Future;
 use std::fmt::Debug;
@@ -14,24 +12,21 @@ use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::thread::{self, Builder};
 use std::time::Duration;
+use tokio::runtime::Runtime;
 
 #[derive(Debug, Clone)]
 pub struct ExecutorOptions {
-    pub commit_sz: u32,
     pub channel_buffer_sz: usize,
-    pub commit_time_threshold: Duration,
+    pub event_hub_capacity: usize,
     pub error_threshold: Option<u32>,
-    pub checkpoint_factory_options: CheckpointFactoryOptions,
 }
 
 impl Default for ExecutorOptions {
     fn default() -> Self {
         Self {
-            commit_sz: 10_000,
             channel_buffer_sz: 20_000,
-            commit_time_threshold: Duration::from_millis(50),
+            event_hub_capacity: 100,
             error_threshold: Some(0),
-            checkpoint_factory_options: Default::default(),
         }
     }
 }
@@ -53,7 +48,6 @@ use self::source_node::{create_source_node, SourceNode};
 
 pub struct DagExecutor {
     builder_dag: BuilderDag,
-    checkpoint: OptionCheckpoint,
     options: ExecutorOptions,
 }
 
@@ -62,18 +56,13 @@ pub struct DagExecutorJoinHandle {
 }
 
 impl DagExecutor {
-    pub async fn new(
-        dag: Dag,
-        checkpoint: OptionCheckpoint,
-        options: ExecutorOptions,
-    ) -> Result<Self, ExecutionError> {
+    pub async fn new(dag: Dag, options: ExecutorOptions) -> Result<Self, ExecutionError> {
         let dag_schemas = DagSchemas::new(dag).await?;
 
-        let builder_dag = BuilderDag::new(&checkpoint, dag_schemas).await?;
+        let builder_dag = BuilderDag::new(dag_schemas, options.event_hub_capacity).await?;
 
         Ok(Self {
             builder_dag,
-            checkpoint,
             options,
         })
     }
@@ -92,12 +81,10 @@ impl DagExecutor {
         // Construct execution dag.
         let mut execution_dag = ExecutionDag::new(
             self.builder_dag,
-            self.checkpoint,
             labels,
             self.options.channel_buffer_sz,
             self.options.error_threshold,
-        )
-        .await?;
+        )?;
         let node_indexes = execution_dag.graph().node_identifiers().collect::<Vec<_>>();
 
         // Start the threads.

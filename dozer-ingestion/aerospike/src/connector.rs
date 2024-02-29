@@ -1,4 +1,5 @@
 use dozer_ingestion_connector::dozer_types::errors::internal::BoxedError;
+use dozer_ingestion_connector::dozer_types::event::Event;
 use dozer_ingestion_connector::dozer_types::log::{error, info};
 use dozer_ingestion_connector::dozer_types::models::connection::AerospikeConnection;
 use dozer_ingestion_connector::dozer_types::models::ingestion_types::{
@@ -7,8 +8,10 @@ use dozer_ingestion_connector::dozer_types::models::ingestion_types::{
 use dozer_ingestion_connector::dozer_types::node::OpIdentifier;
 use dozer_ingestion_connector::dozer_types::types::Operation::Insert;
 use dozer_ingestion_connector::dozer_types::types::{Field, FieldDefinition, FieldType, Schema};
+use dozer_ingestion_connector::tokio::sync::broadcast::error::RecvError;
+use dozer_ingestion_connector::tokio::sync::broadcast::Receiver;
 use dozer_ingestion_connector::{
-    async_trait, dozer_types, Connector, Ingestor, SourceSchema, SourceSchemaResult,
+    async_trait, dozer_types, tokio, Connector, Ingestor, SourceSchema, SourceSchemaResult,
     TableIdentifier, TableInfo,
 };
 use std::collections::HashMap;
@@ -128,14 +131,35 @@ pub struct Bin {
 #[derive(Debug)]
 pub struct AerospikeConnector {
     pub config: AerospikeConnection,
+    event_receiver: Receiver<Event>,
 }
 
 impl AerospikeConnector {
-    pub fn new(config: AerospikeConnection) -> Self {
-        Self { config }
+    pub fn new(config: AerospikeConnection, event_receiver: Receiver<Event>) -> Self {
+        Self {
+            config,
+            event_receiver,
+        }
     }
 
     fn start_server(&self, server_state: ServerState) -> Result<Server, AerospikeConnectorError> {
+        let mut receiver = self.event_receiver.resubscribe();
+        tokio::spawn(async move {
+            loop {
+                match receiver.recv().await {
+                    Ok(event) => {
+                        dbg!(event);
+                    }
+                    Err(RecvError::Closed) => {
+                        break;
+                    }
+                    Err(RecvError::Lagged(_)) => {
+                        // do nothing
+                    }
+                }
+            }
+        });
+
         let address = format!(
             "{}:{}",
             self.config.replication.server_address, self.config.replication.server_port
