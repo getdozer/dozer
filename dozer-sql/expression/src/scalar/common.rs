@@ -185,7 +185,7 @@ impl ScalarFunctionType {
                     results.split_at_mut(results.len())
                 };
 
-                let default = if default.len() == 0 {
+                let default = if default.is_empty() {
                     None
                 } else {
                     Some(default[0].clone())
