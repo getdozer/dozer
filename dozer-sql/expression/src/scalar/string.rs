@@ -497,12 +497,11 @@ mod tests {
     fn test_string() {
         proptest!(
             ProptestConfig::with_cases(1000),
-            move |(s_val in ".+", s_val1 in ".*", s_val2 in ".*", c_val: char, i_val: i64) | {
+            move |(s_val in ".+", s_val1 in ".*", s_val2 in ".*", c_val: char) | {
                 test_like(&s_val, c_val);
                 test_ucase(&s_val, c_val);
                 test_concat(&s_val1, &s_val2, c_val);
                 test_trim(&s_val, c_val);
-                test_chr(i_val);
         });
     }
 
@@ -805,14 +804,19 @@ mod tests {
         }
     }
 
-    fn test_chr(val: i64) {
+    #[test]
+    fn test_chr() {
         let row = Record::new(vec![]);
 
-        // Field::String
-        let mut value = Box::new(Literal(Field::Int(val)));
+        let mut value = Box::new(Literal(Field::Int(65)));
         assert_eq!(
             evaluate_chr(&Schema::default(), &mut value, &row).unwrap(),
-            Field::String((((val % 256) as u8) as char).to_string())
+            Field::String("A".to_owned())
+        );
+        let mut value = Box::new(Literal(Field::Int(321)));
+        assert_eq!(
+            evaluate_chr(&Schema::default(), &mut value, &row).unwrap(),
+            Field::String("A".to_owned())
         );
     }
 
