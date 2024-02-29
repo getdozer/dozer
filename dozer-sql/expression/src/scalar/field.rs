@@ -50,7 +50,7 @@ pub(crate) fn evaluate_decode(
         let result = &mut results[i];
         let result_field = result.evaluate(record, schema)?;
         if arg_field == result_field {
-            return Ok(results[i + 1].evaluate(record, schema)?);
+            return results[i + 1].evaluate(record, schema);
         }
         i += 2;
     }
