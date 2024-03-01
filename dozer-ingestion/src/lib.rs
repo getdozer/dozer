@@ -10,6 +10,7 @@ use dozer_ingestion_connector::dozer_types::{
         connection::{Connection, ConnectionConfig},
         ingestion_types::default_grpc_adapter,
     },
+    node::NodeHandle,
     prettytable::Table,
 };
 use dozer_ingestion_deltalake::DeltaLakeConnector;
@@ -142,6 +143,7 @@ pub fn get_connector(
         ))),
         ConnectionConfig::Aerospike(config) => Ok(Box::new(AerospikeConnector::new(
             config,
+            NodeHandle::new(None, connection.name),
             event_hub.receiver,
         ))),
         ConnectionConfig::Oracle(oracle_config) => Ok(Box::new(OracleConnector::new(
