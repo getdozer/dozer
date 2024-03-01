@@ -4,7 +4,7 @@ use crate::{epoch::Epoch, node::NodeHandle};
 
 #[derive(Debug, Clone)]
 pub enum Event {
-    SinkCommitted { node: NodeHandle, epoch: Epoch },
+    SinkFlushed { node: NodeHandle, epoch: Epoch },
 }
 
 #[derive(Debug)]
