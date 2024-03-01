@@ -4,9 +4,10 @@ use std::fmt::{Display, Formatter};
 
 use crate::execution::{Expression, ExpressionType};
 
-use crate::arg_utils::validate_arg_type;
+use crate::arg_utils::{validate_arg_type, validate_num_arguments};
 use crate::scalar::common::ScalarFunctionType;
 
+use dozer_types::log;
 use dozer_types::types::Record;
 use dozer_types::types::{Field, FieldType, Schema};
 use like::{Escape, Like};
@@ -272,6 +273,230 @@ pub(crate) fn evaluate_to_char(
     Ok(Field::String(output))
 }
 
+pub(crate) fn evaluate_chr(
+    schema: &Schema,
+    arg: &mut Expression,
+    record: &Record,
+) -> Result<Field, Error> {
+    let value = arg.evaluate(record, schema)?;
+    match value {
+        Field::UInt(u) => Ok(Field::String((((u % 256) as u8) as char).to_string())),
+        Field::U128(u) => Ok(Field::String((((u % 256) as u8) as char).to_string())),
+        Field::Int(i) => {
+            if (0..256).contains(&i) {
+                Ok(Field::String(((i as u8) as char).to_string()))
+            } else if i > 255 {
+                log::warn!(
+                    "Values greater than 255 are not supported in CHR function: {}",
+                    i
+                );
+                Ok(Field::String((((i % 256) as u8) as char).to_string()))
+            } else {
+                Err(Error::InvalidFunctionArgument {
+                    function_name: ScalarFunctionType::Chr.to_string(),
+                    argument_index: 0,
+                    argument: value,
+                })
+            }
+        }
+        Field::I128(i) => {
+            if i >= 0 {
+                Ok(Field::String((((i % 256) as u8) as char).to_string()))
+            } else {
+                Err(Error::InvalidFunctionArgument {
+                    function_name: ScalarFunctionType::Chr.to_string(),
+                    argument_index: 0,
+                    argument: value,
+                })
+            }
+        }
+        Field::Float(_)
+        | Field::Decimal(_)
+        | Field::Boolean(_)
+        | Field::String(_)
+        | Field::Text(_)
+        | Field::Date(_)
+        | Field::Timestamp(_)
+        | Field::Binary(_)
+        | Field::Json(_)
+        | Field::Point(_)
+        | Field::Duration(_)
+        | Field::Null => Err(Error::InvalidFunctionArgument {
+            function_name: ScalarFunctionType::Chr.to_string(),
+            argument_index: 0,
+            argument: value,
+        }),
+    }
+}
+
+pub fn validate_substr(args: &[Expression], schema: &Schema) -> Result<ExpressionType, Error> {
+    validate_num_arguments(2..4, args.len(), ScalarFunctionType::Substr)?;
+
+    if args.len() == 2 {
+        validate_arg_type(
+            &args[0],
+            vec![FieldType::String, FieldType::Text],
+            schema,
+            ScalarFunctionType::Substr,
+            0,
+        )?;
+        validate_arg_type(
+            &args[1],
+            vec![
+                FieldType::UInt,
+                FieldType::U128,
+                FieldType::Int,
+                FieldType::I128,
+            ],
+            schema,
+            ScalarFunctionType::Substr,
+            1,
+        )?;
+    } else {
+        validate_arg_type(
+            &args[0],
+            vec![FieldType::String, FieldType::Text],
+            schema,
+            ScalarFunctionType::Substr,
+            0,
+        )?;
+        validate_arg_type(
+            &args[1],
+            vec![
+                FieldType::UInt,
+                FieldType::U128,
+                FieldType::Int,
+                FieldType::I128,
+            ],
+            schema,
+            ScalarFunctionType::Substr,
+            1,
+        )?;
+        validate_arg_type(
+            &args[2],
+            vec![
+                FieldType::UInt,
+                FieldType::U128,
+                FieldType::Int,
+                FieldType::I128,
+            ],
+            schema,
+            ScalarFunctionType::Substr,
+            2,
+        )?;
+    }
+
+    let ret_type = FieldType::String;
+
+    Ok(ExpressionType::new(
+        ret_type,
+        false,
+        dozer_types::types::SourceDefinition::Dynamic,
+        false,
+    ))
+}
+
+pub(crate) fn evaluate_substr(
+    schema: &Schema,
+    arg: &mut Expression,
+    position: &mut Expression,
+    length: &mut Option<Box<Expression>>,
+    record: &Record,
+) -> Result<Field, Error> {
+    let arg_field = arg.evaluate(record, schema)?;
+    let arg_value = arg_field.to_string();
+
+    let position_field = position.evaluate(record, schema)?;
+    let position_result = position_field.to_uint();
+    if position_result.is_none() {
+        return Err(Error::InvalidFunctionArgument {
+            function_name: "SUBSTR".to_string(),
+            argument_index: 1,
+            argument: position_field,
+        });
+    }
+    let position_value = position_result.unwrap();
+
+    let length_value = match length {
+        Some(length_expr) => {
+            let length_field = length_expr.evaluate(record, schema)?;
+            let length_result = length_field.to_i128();
+            if length_result.is_none() {
+                return Err(Error::InvalidFunctionArgument {
+                    function_name: "SUBSTR".to_string(),
+                    argument_index: 2,
+                    argument: length_field,
+                });
+            }
+            length_result.unwrap()
+        }
+        None => arg_value.len() as i128,
+    };
+
+    let mut iter = arg_value.char_indices();
+    let (start, _) = iter
+        .nth(position_value as usize)
+        .unwrap_or((arg_value.len(), ' '));
+    let (end, _) = iter
+        .nth(length_value as usize)
+        .unwrap_or((arg_value.len(), ' '));
+    let result = &arg_value[start..end];
+
+    Ok(Field::String(result.to_owned()))
+}
+
+pub fn validate_replace(args: &[Expression], schema: &Schema) -> Result<ExpressionType, Error> {
+    if args.len() != 3 {
+        return Err(Error::InvalidFunctionArgument {
+            function_name: ScalarFunctionType::Replace.to_string(),
+            argument_index: 0,
+            argument: Field::Null,
+        });
+    }
+
+    let mut ret_type = FieldType::String;
+    for exp in args {
+        let r = validate_arg_type(
+            exp,
+            vec![FieldType::String, FieldType::Text],
+            schema,
+            ScalarFunctionType::Replace,
+            0,
+        )?;
+        if matches!(r.return_type, FieldType::Text) {
+            ret_type = FieldType::Text;
+        }
+    }
+
+    Ok(ExpressionType::new(
+        ret_type,
+        false,
+        dozer_types::types::SourceDefinition::Dynamic,
+        false,
+    ))
+}
+
+pub(crate) fn evaluate_replace(
+    schema: &Schema,
+    arg: &mut Expression,
+    search: &mut Expression,
+    replace: &mut Expression,
+    record: &Record,
+) -> Result<Field, Error> {
+    let arg_field = arg.evaluate(record, schema)?;
+    let arg_value = arg_field.to_string();
+
+    let search_field = search.evaluate(record, schema)?;
+    let search_value = search_field.to_string();
+
+    let replace_field = replace.evaluate(record, schema)?;
+    let replace_value = replace_field.to_string();
+
+    let result = arg_value.replace(search_value.as_str(), replace_value.as_str());
+
+    Ok(Field::String(result))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -283,7 +508,7 @@ mod tests {
     fn test_string() {
         proptest!(
             ProptestConfig::with_cases(1000),
-            move |(s_val in ".+", s_val1 in ".*", s_val2 in ".*", c_val: char)| {
+            move |(s_val in ".+", s_val1 in ".*", s_val2 in ".*", c_val: char) | {
                 test_like(&s_val, c_val);
                 test_ucase(&s_val, c_val);
                 test_concat(&s_val1, &s_val2, c_val);
@@ -588,5 +813,80 @@ mod tests {
                 Field::String(s_val1.trim_matches(c_val).to_string())
             );
         }
+    }
+
+    #[test]
+    fn test_chr() {
+        let row = Record::new(vec![]);
+
+        let mut value = Box::new(Literal(Field::Int(65)));
+        assert_eq!(
+            evaluate_chr(&Schema::default(), &mut value, &row).unwrap(),
+            Field::String("A".to_owned())
+        );
+        let mut value = Box::new(Literal(Field::Int(321)));
+        assert_eq!(
+            evaluate_chr(&Schema::default(), &mut value, &row).unwrap(),
+            Field::String("A".to_owned())
+        );
+    }
+
+    #[test]
+    fn test_substr() {
+        let row = Record::new(vec![]);
+
+        let mut value = Box::new(Literal(Field::String("ABCDEFG".to_owned())));
+        let mut position = Box::new(Literal(Field::Int(3)));
+        let mut length = Some(Box::new(Literal(Field::Int(4))));
+        let result = Field::String("CDEF".to_owned());
+
+        assert_eq!(
+            evaluate_substr(
+                &Schema::default(),
+                &mut value,
+                &mut position,
+                &mut length,
+                &row
+            )
+            .unwrap(),
+            result
+        );
+
+        let mut value = Box::new(Literal(Field::String("ABCDEFG".to_owned())));
+        let mut position = Box::new(Literal(Field::Int(-5)));
+        let mut length = Some(Box::new(Literal(Field::Int(4))));
+        let result = Field::String("CDEF".to_owned());
+
+        assert_eq!(
+            evaluate_substr(
+                &Schema::default(),
+                &mut value,
+                &mut position,
+                &mut length,
+                &row
+            )
+            .unwrap(),
+            result
+        );
+    }
+
+    #[test]
+    fn test_replace() {
+        let row = Record::new(vec![]);
+        let mut value = Box::new(Literal(Field::String("JACK AND JUE".to_owned())));
+        let mut search = Box::new(Literal(Field::String("J".to_owned())));
+        let mut replace = Box::new(Literal(Field::String("BL".to_owned())));
+
+        assert_eq!(
+            evaluate_replace(
+                &Schema::default(),
+                &mut value,
+                &mut search,
+                &mut replace,
+                &row
+            )
+            .unwrap(),
+            Field::String("BLACK AND BLUE".to_owned())
+        );
     }
 }
