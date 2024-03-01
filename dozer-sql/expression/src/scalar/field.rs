@@ -47,9 +47,10 @@ pub(crate) fn evaluate_decode(
     let arg_field = arg.evaluate(record, schema)?;
 
     for chunk in results.chunks_exact_mut(2) {
-        let coded = &mut chunk[0].clone();
-        let decoded = &mut chunk[1];
+        let coded = &mut chunk[0];
         let coded_field = coded.evaluate(record, schema)?;
+        let decoded = &mut chunk[1];
+
         if coded_field == arg_field {
             return decoded.evaluate(record, schema);
         }
