@@ -101,10 +101,10 @@ impl BuilderDag {
 
                 let state = sink.get_source_state().map_err(ExecutionError::Sink)?;
                 if let Some(state) = state {
-                    match source_states.entry(handle.clone()) {
+                    match source_states.entry(source.clone()) {
                         Entry::Occupied(entry) => {
                             if entry.get() != &state {
-                                return Err(ExecutionError::SourceStateConflict(handle));
+                                return Err(ExecutionError::SourceStateConflict(source));
                             }
                         }
                         Entry::Vacant(entry) => {
@@ -115,7 +115,7 @@ impl BuilderDag {
 
                 let op_id = sink.get_latest_op_id().map_err(ExecutionError::Sink)?;
                 if let Some(op_id) = op_id {
-                    match source_op_ids.entry(handle.clone()) {
+                    match source_op_ids.entry(source.clone()) {
                         Entry::Occupied(mut entry) => {
                             *entry.get_mut() = op_id.min(*entry.get());
                         }
