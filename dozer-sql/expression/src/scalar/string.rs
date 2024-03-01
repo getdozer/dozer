@@ -7,6 +7,7 @@ use crate::execution::{Expression, ExpressionType};
 use crate::arg_utils::{validate_arg_type, validate_num_arguments};
 use crate::scalar::common::ScalarFunctionType;
 
+use dozer_types::log;
 use dozer_types::types::Record;
 use dozer_types::types::{Field, FieldType, Schema};
 use like::{Escape, Like};
@@ -282,7 +283,13 @@ pub(crate) fn evaluate_chr(
         Field::UInt(u) => Ok(Field::String((((u % 256) as u8) as char).to_string())),
         Field::U128(u) => Ok(Field::String((((u % 256) as u8) as char).to_string())),
         Field::Int(i) => {
-            if i >= 0 {
+            if (0..256).contains(&i) {
+                Ok(Field::String(((i as u8) as char).to_string()))
+            } else if i > 255 {
+                log::warn!(
+                    "Values greater than 255 are not supported in CHR function: {}",
+                    i
+                );
                 Ok(Field::String((((i % 256) as u8) as char).to_string()))
             } else {
                 Err(Error::InvalidFunctionArgument {
