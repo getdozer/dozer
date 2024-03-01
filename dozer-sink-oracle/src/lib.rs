@@ -1,4 +1,7 @@
-use dozer_types::thiserror;
+use dozer_types::{
+    thiserror,
+    types::{FieldDefinition, Operation, SourceDefinition, TableOperation},
+};
 use std::collections::HashMap;
 
 use dozer_core::{
@@ -246,22 +249,22 @@ impl OracleSinkFactory {
         for field in &schema.fields {
             let name = &field.name;
             let col_type = match field.typ {
-                dozer_types::types::FieldType::UInt => "NUMBER(20)",
-                dozer_types::types::FieldType::U128 => unimplemented!(),
-                dozer_types::types::FieldType::Int => "NUMBER(20)",
-                dozer_types::types::FieldType::I128 => unimplemented!(),
+                FieldType::UInt => "NUMBER(20)",
+                FieldType::U128 => unimplemented!(),
+                FieldType::Int => "NUMBER(20)",
+                FieldType::I128 => unimplemented!(),
                 // Should this be BINARY_DOUBLE?
-                dozer_types::types::FieldType::Float => "NUMBER",
-                dozer_types::types::FieldType::Boolean => "NUMBER",
-                dozer_types::types::FieldType::String => "VARCHAR2(2000)",
-                dozer_types::types::FieldType::Text => "VARCHAR2(2000)",
-                dozer_types::types::FieldType::Binary => "RAW(1000)",
-                dozer_types::types::FieldType::Decimal => unimplemented!(),
-                dozer_types::types::FieldType::Timestamp => "TIMESTAMP(9) WITH TIME ZONE",
-                dozer_types::types::FieldType::Date => "TIMESTAMP(0)",
-                dozer_types::types::FieldType::Json => unimplemented!(),
-                dozer_types::types::FieldType::Point => unimplemented!("Oracle Point"),
-                dozer_types::types::FieldType::Duration => unimplemented!(),
+                FieldType::Float => "NUMBER",
+                FieldType::Boolean => "NUMBER",
+                FieldType::String => "VARCHAR2(2000)",
+                FieldType::Text => "VARCHAR2(2000)",
+                FieldType::Binary => "RAW(1000)",
+                FieldType::Decimal => unimplemented!(),
+                FieldType::Timestamp => "TIMESTAMP(9) WITH TIME ZONE",
+                FieldType::Date => "TIMESTAMP(0)",
+                FieldType::Json => unimplemented!(),
+                FieldType::Point => unimplemented!("Oracle Point"),
+                FieldType::Duration => unimplemented!(),
             };
             column_defs.push(format!(
                 "\"{name}\" {col_type}{}",
@@ -378,20 +381,20 @@ impl SinkFactory for OracleSinkFactory {
             METADATA_TABLE,
             Schema::new()
                 .field(
-                    dozer_types::types::FieldDefinition {
+                    FieldDefinition {
                         name: META_TABLE_COL.to_owned(),
                         typ: FieldType::String,
                         nullable: false,
-                        source: dozer_types::types::SourceDefinition::Dynamic,
+                        source: SourceDefinition::Dynamic,
                     },
                     true,
                 )
                 .field(
-                    dozer_types::types::FieldDefinition {
+                    FieldDefinition {
                         name: META_TXN_ID_COL.to_owned(),
                         typ: FieldType::UInt,
                         nullable: false,
-                        source: dozer_types::types::SourceDefinition::Dynamic,
+                        source: SourceDefinition::Dynamic,
                     },
                     false,
                 ),
@@ -436,6 +439,7 @@ impl ToSql for OraField {
             Field::Boolean(_) => Ok(OracleType::Number(1, 0)),
             Field::String(v) | Field::Text(v) => v.oratype(conn),
             Field::Binary(v) => v.oratype(conn),
+            Field::Decimal(_) => Ok(OracleType::Number(29, 10)),
             Field::Timestamp(v) => v.oratype(conn),
             Field::Date(v) => v.oratype(conn),
             Field::Duration(_) => Ok(OracleType::IntervalDS(9, 9)),
@@ -446,6 +450,7 @@ impl ToSql for OraField {
                 FieldType::Boolean => Ok(OracleType::Number(1, 0)),
                 FieldType::String | FieldType::Text => "".oratype(conn),
                 FieldType::Binary => Vec::<u8>::new().oratype(conn),
+                FieldType::Decimal => Ok(OracleType::Number(29, 10)),
                 FieldType::Timestamp => DateTime::<Utc>::MAX_UTC.oratype(conn),
                 FieldType::Date => NaiveDate::MAX.oratype(conn),
                 FieldType::Duration => Ok(OracleType::IntervalDS(9, 9)),
@@ -464,6 +469,7 @@ impl ToSql for OraField {
             Field::String(v) | Field::Text(v) => v.to_sql(val),
             Field::Binary(v) => v.to_sql(val),
             Field::Timestamp(v) => v.to_sql(val),
+            Field::Decimal(v) => v.to_string().to_sql(val),
             Field::Date(v) => v.to_sql(val),
             Field::Duration(d) => chrono::Duration::from_std(d.0)
                 .map_err(|e| oracle::Error::OutOfRange(e.to_string()))
@@ -550,17 +556,17 @@ impl Sink for OracleSink {
 
     fn process(
         &mut self,
-        op: dozer_types::types::TableOperation,
+        op: TableOperation,
     ) -> Result<(), dozer_types::errors::internal::BoxedError> {
         self.latest_txid = op.id.map(|id| id.txid);
         match op.op {
-            dozer_types::types::Operation::Delete { old } => {
+            Operation::Delete { old } => {
                 self.batch(op.id, OpKind::Delete, old)?;
             }
-            dozer_types::types::Operation::Insert { new } => {
+            Operation::Insert { new } => {
                 self.batch(op.id, OpKind::Insert, new)?;
             }
-            dozer_types::types::Operation::Update { old, new } => {
+            Operation::Update { old, new } => {
                 let old_index = old.get_fields_by_indexes(&self.pk);
                 let new_index = new.get_fields_by_indexes(&self.pk);
                 if old_index != new_index {
@@ -572,7 +578,7 @@ impl Sink for OracleSink {
 
                 self.batch(op.id, OpKind::Update, new)?;
             }
-            dozer_types::types::Operation::BatchInsert { mut new } => {
+            Operation::BatchInsert { mut new } => {
                 let mut batch = self
                     .conn
                     .batch(&self.insert_append, self.batch_size)
@@ -639,8 +645,6 @@ impl Sink for OracleSink {
 
 #[cfg(test)]
 mod tests {
-    use dozer_types::types::FieldDefinition;
-
     use super::*;
 
     fn trim_str(s: impl AsRef<str>) -> String {
@@ -682,11 +686,11 @@ mod tests {
     }
 
     fn f(name: &str) -> FieldDefinition {
-        dozer_types::types::FieldDefinition {
+        FieldDefinition {
             name: name.to_owned(),
             typ: FieldType::String,
             nullable: false,
-            source: dozer_types::types::SourceDefinition::Dynamic,
+            source: SourceDefinition::Dynamic,
         }
     }
 }
