@@ -427,8 +427,12 @@ pub(crate) fn evaluate_substr(
     };
 
     let mut iter = arg_value.char_indices();
-    let (start, _) = iter.nth(position_value.try_into().unwrap()).unwrap();
-    let (end, _) = iter.nth(length_value.try_into().unwrap()).unwrap();
+    let (start, _) = iter
+        .nth(position_value as usize)
+        .unwrap_or((arg_value.len(), ' '));
+    let (end, _) = iter
+        .nth(length_value as usize)
+        .unwrap_or((arg_value.len(), ' '));
     let result = &arg_value[start..end];
 
     Ok(Field::String(result.to_owned()))

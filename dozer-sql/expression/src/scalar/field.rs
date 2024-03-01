@@ -45,15 +45,16 @@ pub(crate) fn evaluate_decode(
     record: &Record,
 ) -> Result<Field, Error> {
     let arg_field = arg.evaluate(record, schema)?;
-    let mut i = 0;
-    while i < results.len() {
-        let result = &mut results[i];
-        let result_field = result.evaluate(record, schema)?;
-        if arg_field == result_field {
-            return results[i + 1].evaluate(record, schema);
+
+    for chunk in results.chunks_exact_mut(2) {
+        let coded = &mut chunk[0].clone();
+        let decoded = &mut chunk[1];
+        let coded_field = coded.evaluate(record, schema)?;
+        if coded_field == arg_field {
+            return decoded.evaluate(record, schema);
         }
-        i += 2;
     }
+
     if let Some(mut default) = default {
         default.evaluate(record, schema)
     } else {
