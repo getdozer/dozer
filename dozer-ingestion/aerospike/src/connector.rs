@@ -1,6 +1,6 @@
 use dozer_ingestion_connector::dozer_types::errors::internal::BoxedError;
 use dozer_ingestion_connector::dozer_types::event::Event;
-use dozer_ingestion_connector::dozer_types::log::{debug, error, info, warn};
+use dozer_ingestion_connector::dozer_types::log::{error, info, trace, warn};
 use dozer_ingestion_connector::dozer_types::models::connection::AerospikeConnection;
 use dozer_ingestion_connector::dozer_types::models::ingestion_types::{
     IngestionMessage, TransactionInfo,
@@ -112,6 +112,9 @@ pub enum AerospikeConnectorError {
 
     #[error("Failed parsing timestamp: {0}")]
     TimestampParsingError(#[from] dozer_ingestion_connector::dozer_types::chrono::ParseError),
+
+    #[error("Key is neither string or int")]
+    KeyNotSupported(Value),
 }
 
 #[derive(Deserialize, Debug)]
@@ -314,7 +317,7 @@ async fn event_request_handler(
     let event = json.into_inner();
     let state = data.into_inner();
 
-    debug!("Event data: {:?}", event);
+    trace!("Event data: {:?}", event);
     // TODO: Handle delete
     if event.msg != "write" {
         return HttpResponse::Ok().finish();
@@ -322,7 +325,7 @@ async fn event_request_handler(
 
     let operation_events = map_events(event, &state.tables_index_map).await;
 
-    debug!("Mapped events {:?}", operation_events);
+    trace!("Mapped events {:?}", operation_events);
     match operation_events {
         Ok(None) => HttpResponse::Ok().finish(),
         Ok(Some(message)) => {
@@ -646,7 +649,7 @@ async fn map_events(
                             .ok_or(AerospikeConnectorError::ParsingUIntFailed)?,
                     );
                 }
-                _ => todo!("Throw error when key is not a string or number"),
+                v => return Err(AerospikeConnectorError::KeyNotSupported(v)),
             }
         } else {
             return Err(AerospikeConnectorError::PkIsNone(key0, table_name, key2));
