@@ -3253,6 +3253,7 @@ dependencies = [
  "actix-web",
  "base64 0.21.7",
  "dozer-ingestion-connector",
+ "dozer-sink-aerospike",
 ]
 
 [[package]]

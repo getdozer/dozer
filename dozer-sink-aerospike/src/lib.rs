@@ -16,9 +16,9 @@ use std::time::{Duration, Instant};
 use std::{collections::HashMap, fmt::Debug};
 
 use aerospike_client_sys::{
-    aerospike, aerospike_batch_write, aerospike_connect, aerospike_destroy, aerospike_key_put,
-    aerospike_key_remove, aerospike_key_select, aerospike_new, as_arraylist_append,
-    as_arraylist_destroy, as_arraylist_new, as_batch_record, as_batch_records,
+    aerospike, aerospike_batch_write, aerospike_connect, aerospike_destroy, aerospike_info_any,
+    aerospike_key_put, aerospike_key_remove, aerospike_key_select, aerospike_new,
+    as_arraylist_append, as_arraylist_destroy, as_arraylist_new, as_batch_record, as_batch_records,
     as_batch_records_destroy, as_batch_write_record, as_bin_value, as_boolean_new, as_bytes_new,
     as_bytes_new_wrap, as_bytes_set, as_bytes_type, as_bytes_type_e_AS_BYTES_STRING, as_config,
     as_config_add_hosts, as_config_init, as_double_new, as_error, as_integer_new, as_key,
@@ -36,6 +36,7 @@ use aerospike_client_sys::{
     as_val_val_reserve, as_vector, as_vector_increase_capacity, as_vector_init, AS_BATCH_WRITE,
     AS_BIN_NAME_MAX_LEN,
 };
+
 use dozer_core::node::{PortHandle, Sink, SinkFactory};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::geo::{Coord, Point};
@@ -74,7 +75,7 @@ enum AerospikeSinkError {
 }
 
 #[derive(Debug, Error)]
-struct AerospikeError {
+pub struct AerospikeError {
     code: i32,
     message: String,
 }
@@ -102,7 +103,7 @@ impl Display for AerospikeError {
 
 // Client should never be `Clone`, because of the custom Drop impl
 #[derive(Debug)]
-struct Client {
+pub struct Client {
     inner: NonNull<aerospike>,
 }
 
@@ -128,7 +129,7 @@ unsafe fn as_try(mut f: impl FnMut(*mut as_error) -> as_status) -> Result<(), Ae
 }
 
 impl Client {
-    fn new(hosts: &CStr) -> Result<Self, AerospikeError> {
+    pub fn new(hosts: &CStr) -> Result<Self, AerospikeError> {
         let mut config = unsafe {
             let mut config = MaybeUninit::uninit();
             as_config_init(config.as_mut_ptr());
@@ -229,6 +230,25 @@ impl Client {
                 // This won't write to the mut ptr
                 bins.as_ptr() as *mut *const c_char,
                 record as *mut *mut as_record,
+            )
+        })
+    }
+
+    /// # Safety
+    ///
+    /// This function sends a raw info request to the aerospike server
+    pub unsafe fn info(
+        &self,
+        request: &CStr,
+        response: &mut *mut i8,
+    ) -> Result<(), AerospikeError> {
+        as_try(|err| {
+            aerospike_info_any(
+                self.inner.as_ptr(),
+                err,
+                null(),
+                request.as_ptr(),
+                response as *mut *mut i8,
             )
         })
     }
