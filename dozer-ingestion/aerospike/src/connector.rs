@@ -41,6 +41,7 @@ use base64::prelude::*;
 use dozer_ingestion_connector::dozer_types::chrono::{
     DateTime, FixedOffset, NaiveDate, NaiveDateTime, Utc,
 };
+
 use dozer_ingestion_connector::dozer_types::thiserror::{self, Error};
 use dozer_ingestion_connector::schema_parser::SchemaParser;
 
@@ -52,7 +53,11 @@ pub enum AerospikeConnectorError {
     CannotStartServer(#[from] std::io::Error),
 
     #[error("Set name is none. Key: {0:?}, {1:?}, {2:?}")]
-    SetNameIsNone(Option<String>, Option<String>, Option<String>),
+    SetNameIsNone(
+        Option<serde_json::Value>,
+        Option<serde_json::Value>,
+        Option<serde_json::Value>,
+    ),
 
     #[error("PK is none: {0:?}, {1:?}, {2:?}")]
     PkIsNone(Option<serde_json::Value>, String, Option<serde_json::Value>),
@@ -600,7 +605,7 @@ async fn map_events(
     event: AerospikeEvent,
     tables_map: &HashMap<String, TableIndexMap>,
 ) -> Result<Option<IngestionMessage>, AerospikeConnectorError> {
-    let key: [Option<String>; 4] = match event.key.try_into() {
+    let key: [Option<serde_json::Value>; 4] = match event.key.try_into() {
         Ok(key) => key,
         Err(key) => return Err(AerospikeConnectorError::InvalidKeyValue(key)),
     };
@@ -612,34 +617,41 @@ async fn map_events(
     };
 
     let table_name = match set_name {
-        Some(serde_json::Value::String(s)) => s.clone(),
-        _ => return Err(AerospikeConnectorError::SetNameIsNone(key)),
+        serde_json::Value::String(s) => s.clone(),
+        _ => {
+            return Err(AerospikeConnectorError::SetNameIsNone(
+                key0, key2, pk_in_key,
+            ))
+        }
     };
 
     let Some(TableIndexMap {
         columns_map,
         table_index,
     }) = tables_map.get(&table_name)
-    {
-        let mut fields = vec![Field::Null; columns_map.len()];
-        if let Some((pk, _)) = columns_map.get("PK") {
-            if let Some(pk_in_key) = pk_in_key {
-                match pk_in_key {
-                    serde_json::Value::String(s) => {
-                        fields[*pk] = Field::String(s.clone());
-                    }
-                    serde_json::Value::Number(n) => {
-                        fields[*pk] = Field::UInt(
-                            n.as_u64()
-                                .ok_or(AerospikeConnectorError::ParsingUIntFailed)?,
-                        );
-                    }
-                    _ => todo!("Throw error when key is not a string or number"),
+    else {
+        return Ok(None);
+    };
+
+    let mut fields = vec![Field::Null; columns_map.len()];
+    if let Some((pk, _)) = columns_map.get("PK") {
+        if let Some(pk_in_key) = pk_in_key {
+            match pk_in_key {
+                serde_json::Value::String(s) => {
+                    fields[*pk] = Field::String(s.clone());
                 }
-            } else {
-                return Err(AerospikeConnectorError::PkIsNone(key0, set_name, key2));
+                serde_json::Value::Number(n) => {
+                    fields[*pk] = Field::UInt(
+                        n.as_u64()
+                            .ok_or(AerospikeConnectorError::ParsingUIntFailed)?,
+                    );
+                }
+                _ => todo!("Throw error when key is not a string or number"),
             }
+        } else {
+            return Err(AerospikeConnectorError::PkIsNone(key0, table_name, key2));
         }
+    }
 
     if let Some((index, _)) = columns_map.get("inserted_at") {
         // Create a NaiveDateTime from the timestamp
