@@ -1,6 +1,6 @@
 use dozer_ingestion_connector::dozer_types::errors::internal::BoxedError;
 use dozer_ingestion_connector::dozer_types::event::Event;
-use dozer_ingestion_connector::dozer_types::log::{error, info};
+use dozer_ingestion_connector::dozer_types::log::{debug, error, info, warn};
 use dozer_ingestion_connector::dozer_types::models::connection::AerospikeConnection;
 use dozer_ingestion_connector::dozer_types::models::ingestion_types::{
     IngestionMessage, TransactionInfo,
@@ -16,7 +16,10 @@ use dozer_ingestion_connector::{
     TableIdentifier, TableInfo,
 };
 use std::collections::HashMap;
+use std::ffi::{CStr, CString};
 use std::num::TryFromIntError;
+
+use std::time::Duration;
 
 use dozer_ingestion_connector::dozer_types::serde::Deserialize;
 
@@ -38,8 +41,11 @@ use base64::prelude::*;
 use dozer_ingestion_connector::dozer_types::chrono::{
     DateTime, FixedOffset, NaiveDate, NaiveDateTime, Utc,
 };
+
 use dozer_ingestion_connector::dozer_types::thiserror::{self, Error};
 use dozer_ingestion_connector::schema_parser::SchemaParser;
+
+use dozer_sink_aerospike::Client;
 
 #[derive(Debug, Error)]
 pub enum AerospikeConnectorError {
@@ -47,13 +53,17 @@ pub enum AerospikeConnectorError {
     CannotStartServer(#[from] std::io::Error),
 
     #[error("Set name is none. Key: {0:?}, {1:?}, {2:?}")]
-    SetNameIsNone(Option<String>, Option<String>, Option<String>),
+    SetNameIsNone(
+        Option<serde_json::Value>,
+        Option<serde_json::Value>,
+        Option<serde_json::Value>,
+    ),
 
     #[error("PK is none: {0:?}, {1:?}, {2:?}")]
-    PkIsNone(Option<String>, String, Option<String>),
+    PkIsNone(Option<serde_json::Value>, String, Option<serde_json::Value>),
 
     #[error("Invalid key value: {0:?}. Key is supposed to have 4 elements.")]
-    InvalidKeyValue(Vec<Option<String>>),
+    InvalidKeyValue(Vec<Option<serde_json::Value>>),
 
     #[error("Unsupported type. Bin type {bin_type:?}, field type: {field_type:?}")]
     UnsupportedTypeForFieldType {
@@ -108,7 +118,7 @@ pub enum AerospikeConnectorError {
 #[serde(crate = "dozer_types::serde")]
 pub struct AerospikeEvent {
     msg: String,
-    key: Vec<Option<String>>,
+    key: Vec<Option<serde_json::Value>>,
     // gen: u32,
     // exp: u32,
     lut: u64,
@@ -159,6 +169,34 @@ impl AerospikeConnector {
         })
         .bind(address)?
         .run())
+    }
+
+    async fn rewind(
+        &self,
+        client: &Client,
+        dc_name: &str,
+        namespace: &str,
+    ) -> Result<bool, BoxedError> {
+        unsafe {
+            let request = CString::new(format!(
+                "set-config:context=xdr;dc={dc_name};namespace={namespace};action=add;rewind=all"
+            ))?;
+
+            // Wait until the replication configuration is set.
+            // It may take some time, so retrying until rewind returns ok.
+            let mut response: *mut i8 = std::ptr::null_mut();
+            client.info(&request, &mut response).map_err(Box::new)?;
+
+            let string = CStr::from_ptr(response);
+
+            let parts: Vec<&str> = string.to_str()?.trim().split('\t').collect();
+
+            if let Some(status) = parts.get(1) {
+                Ok(status.replace('\n', "") == *"ok")
+            } else {
+                Ok(false)
+            }
+        }
     }
 }
 
@@ -276,6 +314,7 @@ async fn event_request_handler(
     let event = json.into_inner();
     let state = data.into_inner();
 
+    debug!("Event data: {:?}", event);
     // TODO: Handle delete
     if event.msg != "write" {
         return HttpResponse::Ok().finish();
@@ -283,6 +322,7 @@ async fn event_request_handler(
 
     let operation_events = map_events(event, &state.tables_index_map).await;
 
+    debug!("Mapped events {:?}", operation_events);
     match operation_events {
         Ok(None) => HttpResponse::Ok().finish(),
         Ok(Some(message)) => {
@@ -389,6 +429,8 @@ impl Connector for AerospikeConnector {
                                         name: name.clone(),
                                         typ: if name == "inserted_at" {
                                             FieldType::Timestamp
+                                        } else if name == "PK" {
+                                            FieldType::UInt
                                         } else {
                                             FieldType::String
                                         },
@@ -472,8 +514,36 @@ impl Connector for AerospikeConnector {
         &mut self,
         ingestor: &Ingestor,
         tables: Vec<TableInfo>,
-        _last_checkpoint: Option<OpIdentifier>,
+        last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
+        let hosts = CString::new(self.config.hosts.as_str())?;
+        let client = Client::new(&hosts).map_err(Box::new)?;
+
+        if last_checkpoint.is_none() {
+            let dc_name = self.config.replication.datacenter.clone();
+            let namespace = self.config.namespace.clone();
+
+            // To read data snapshot we need to rewind xdr stream.
+            // Before rewinding we need to remove xdr configuration and then add it again.
+            unsafe {
+                let request = CString::new(format!(
+                    "set-config:context=xdr;dc={dc_name};namespace={namespace};action=remove"
+                ))?;
+                let mut response: *mut i8 = std::ptr::null_mut();
+                client.info(&request, &mut response).map_err(Box::new)?;
+            }
+
+            loop {
+                if self.rewind(&client, &dc_name, &namespace).await? {
+                    info!("Aerospike replication configuration set successfully");
+                    break;
+                } else {
+                    warn!("Aerospike replication configuration set failed");
+                    tokio::time::sleep(Duration::from_secs(3)).await;
+                }
+            }
+        }
+
         let mapped_schema = self.get_schemas(&tables).await?;
         ingestor
             .handle_message(IngestionMessage::TransactionInfo(
@@ -535,7 +605,7 @@ async fn map_events(
     event: AerospikeEvent,
     tables_map: &HashMap<String, TableIndexMap>,
 ) -> Result<Option<IngestionMessage>, AerospikeConnectorError> {
-    let key: [Option<String>; 4] = match event.key.try_into() {
+    let key: [Option<serde_json::Value>; 4] = match event.key.try_into() {
         Ok(key) => key,
         Err(key) => return Err(AerospikeConnectorError::InvalidKeyValue(key)),
     };
@@ -546,10 +616,19 @@ async fn map_events(
         ));
     };
 
+    let table_name = match set_name {
+        serde_json::Value::String(s) => s.clone(),
+        _ => {
+            return Err(AerospikeConnectorError::SetNameIsNone(
+                key0, key2, pk_in_key,
+            ))
+        }
+    };
+
     let Some(TableIndexMap {
         columns_map,
         table_index,
-    }) = tables_map.get(set_name.as_str())
+    }) = tables_map.get(&table_name)
     else {
         return Ok(None);
     };
@@ -557,9 +636,20 @@ async fn map_events(
     let mut fields = vec![Field::Null; columns_map.len()];
     if let Some((pk, _)) = columns_map.get("PK") {
         if let Some(pk_in_key) = pk_in_key {
-            fields[*pk] = Field::String(pk_in_key);
+            match pk_in_key {
+                serde_json::Value::String(s) => {
+                    fields[*pk] = Field::String(s.clone());
+                }
+                serde_json::Value::Number(n) => {
+                    fields[*pk] = Field::UInt(
+                        n.as_u64()
+                            .ok_or(AerospikeConnectorError::ParsingUIntFailed)?,
+                    );
+                }
+                _ => todo!("Throw error when key is not a string or number"),
+            }
         } else {
-            return Err(AerospikeConnectorError::PkIsNone(key0, set_name, key2));
+            return Err(AerospikeConnectorError::PkIsNone(key0, table_name, key2));
         }
     }
 
@@ -589,7 +679,7 @@ async fn map_events(
         op: Insert {
             new: dozer_types::types::Record::new(fields),
         },
-        id: None,
+        id: Some(OpIdentifier::new(event.lut, 0)),
     }))
 }
 

@@ -226,6 +226,8 @@ pub struct ReplicationSettings {
     pub server_address: String,
     #[serde(default = "default_server_port")]
     pub server_port: u32,
+    #[serde(default = "default_datacenter")]
+    pub datacenter: String,
 }
 
 fn default_server_address() -> String {
@@ -236,11 +238,16 @@ fn default_server_port() -> u32 {
     5929
 }
 
+fn default_datacenter() -> String {
+    "esp".to_string()
+}
+
 impl Default for ReplicationSettings {
     fn default() -> Self {
         ReplicationSettings {
             server_address: default_server_address(),
             server_port: default_server_port(),
+            datacenter: default_datacenter(),
         }
     }
 }
