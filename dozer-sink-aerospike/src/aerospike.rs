@@ -48,7 +48,7 @@ impl BinNames {
             .collect()
     }
 
-    pub(crate) fn len(&self) -> usize {
+    pub(crate) fn _len(&self) -> usize {
         self.storage.len()
     }
 
@@ -819,7 +819,6 @@ pub(crate) fn parse_record(
             }
         };
         if !field.nullable && v == Field::Null {
-            &field.name;
             return Err(Error::NotNullNotFound);
         }
         values.push(v);

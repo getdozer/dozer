@@ -70,6 +70,11 @@ enum AerospikeSinkError {
     PrimaryKeyChanged { old: Vec<Field>, new: Vec<Field> },
     #[error("Denormalization error: {0}")]
     DenormError(#[from] denorm_dag::Error),
+    #[error("Inconsistent txid. Denormalized: {denorm:?}, lookup {lookup:?}")]
+    InconsistentTxids {
+        denorm: Option<u64>,
+        lookup: Option<u64>,
+    },
 }
 
 #[derive(Debug)]
@@ -173,7 +178,7 @@ impl SinkFactory for AerospikeSinkFactory {
             denorm_state,
             metadata_namespace,
             metadata_set,
-        )))
+        )?))
     }
 
     fn type_name(&self) -> String {
@@ -230,17 +235,19 @@ struct AerospikeSink {
 type TxnId = u64;
 
 #[derive(Debug)]
-struct MetadataWriter {
+struct AerospikeMetadata {
     client: Arc<Client>,
     key: NonNull<as_key>,
     record: NonNull<as_record>,
+    last_base_transaction: Option<u64>,
+    last_lookup_transaction: Option<u64>,
 }
 
 // NonNull doesn't impl Send
-unsafe impl Send for MetadataWriter {}
+unsafe impl Send for AerospikeMetadata {}
 
-impl MetadataWriter {
-    fn new(client: Arc<Client>, namespace: CString, set: CString) -> Self {
+impl AerospikeMetadata {
+    fn new(client: Arc<Client>, namespace: CString, set: CString) -> Result<Self, AerospikeError> {
         unsafe {
             let key = NonNull::new(as_key_new(
                 namespace.as_ptr(),
@@ -248,12 +255,39 @@ impl MetadataWriter {
                 constants::META_KEY.as_ptr(),
             ))
             .unwrap();
-            let record = NonNull::new(as_record_new(1)).unwrap();
-            Self {
+            let mut record = std::ptr::null_mut();
+            #[allow(non_upper_case_globals)]
+            let (base, lookup) = match client.get(key.as_ptr(), &mut record) {
+                Ok(()) => {
+                    let lookup =
+                        as_record_get_integer(record, constants::META_LOOKUP_TXN_ID_BIN.as_ptr());
+                    let base =
+                        as_record_get_integer(record, constants::META_BASE_TXN_ID_BIN.as_ptr());
+                    let base = if base.is_null() {
+                        None
+                    } else {
+                        Some((*base).value.try_into().unwrap())
+                    };
+                    let lookup = if lookup.is_null() {
+                        None
+                    } else {
+                        Some((*lookup).value.try_into().unwrap())
+                    };
+                    (base, lookup)
+                }
+                Err(AerospikeError {
+                    code: as_status_e_AEROSPIKE_ERR_RECORD_NOT_FOUND,
+                    message: _,
+                }) => (None, None),
+                Err(e) => return Err(e),
+            };
+            Ok(Self {
                 client,
                 key,
-                record,
-            }
+                record: NonNull::new(record).unwrap(),
+                last_base_transaction: base,
+                last_lookup_transaction: lookup,
+            })
         }
     }
 
@@ -265,17 +299,21 @@ impl MetadataWriter {
         }
         Ok(())
     }
+
     fn write_base(&mut self, txid: TxnId) -> Result<(), AerospikeSinkError> {
+        self.last_base_transaction = Some(txid);
         self.write(txid, constants::META_BASE_TXN_ID_BIN)?;
         Ok(())
     }
+
     fn write_lookup(&mut self, txid: TxnId) -> Result<(), AerospikeSinkError> {
+        self.last_lookup_transaction = Some(txid);
         self.write(txid, constants::META_LOOKUP_TXN_ID_BIN)?;
         Ok(())
     }
 }
 
-impl Drop for MetadataWriter {
+impl Drop for AerospikeMetadata {
     fn drop(&mut self) {
         unsafe {
             as_record_destroy(self.record.as_ptr());
@@ -291,14 +329,14 @@ impl AerospikeSink {
         state: DenormalizationState,
         metadata_namespace: CString,
         metadata_set: CString,
-    ) -> Self {
+    ) -> Result<Self, AerospikeSinkError> {
         let client = Arc::new(client);
 
-        let metadata_writer = MetadataWriter::new(
+        let metadata_writer = AerospikeMetadata::new(
             client.clone(),
             metadata_namespace.clone(),
             metadata_set.clone(),
-        );
+        )?;
 
         let worker_instance = AerospikeSinkWorker {
             client: client.clone(),
@@ -307,14 +345,14 @@ impl AerospikeSink {
             last_committed_transaction: None,
         };
 
-        Self {
+        Ok(Self {
             config,
             replication_worker: worker_instance,
             current_transaction: None,
             metadata_namespace,
             metadata_set,
             client,
-        }
+        })
     }
 }
 
@@ -322,8 +360,8 @@ impl AerospikeSink {
 struct AerospikeSinkWorker {
     client: Arc<Client>,
     state: DenormalizationState,
-    metadata_writer: MetadataWriter,
     last_committed_transaction: Option<u64>,
+    metadata_writer: AerospikeMetadata,
 }
 
 impl AerospikeSinkWorker {
@@ -333,6 +371,45 @@ impl AerospikeSinkWorker {
     }
 
     fn commit(&mut self, txid: Option<u64>) -> Result<(), AerospikeSinkError> {
+        match (
+            txid,
+            self.metadata_writer.last_base_transaction,
+            self.metadata_writer.last_lookup_transaction,
+        ) {
+                (Some(current), Some(last_denorm), Some(last_lookup)) => {
+                    if current <= last_lookup {
+                        // We're not caught up so just clear state
+                        self.state.clear();
+                        return Ok(());
+                    }
+                    if current <= last_denorm {
+                        // Catching up between lookup and denorm. Only need to write lookup.
+                        self.state.persist(&self.client)?;
+                        self.metadata_writer.write_lookup(current)?;
+                        return Ok(());
+                    }
+                    // Else, we're in the normal state and we do the full denorm
+
+                },
+                (None, Some(_), None) => {
+                    // We are re-snapshotting, because we went down between writing
+                    // the base table and writing the lookup tables during the first
+                    // transaction after initial snapshotting. Only write the lookup
+                    // tables
+                    self.state.persist(&self.client)?;
+                    return Ok(());
+                }
+                // First transaction. No need to do anything special
+                (Some(_) | None, None, None) => {}
+                // Base should always be ahead of lookup
+                (_, denorm @ None, lookup @ Some(_)) |
+                    // If lookup is None, we should be snapshotting and thus have no txid
+                    (Some(_), denorm @ Some(_), lookup @ None)|
+                    // If we previously had txid's we should always continue to have txid's
+                    ( None, denorm @ Some(_), lookup @ Some(_)) => {
+                        return Err(AerospikeSinkError::InconsistentTxids { denorm, lookup })
+                    }
+            }
         self.state.commit();
         self.last_committed_transaction = txid;
         Ok(())
@@ -613,12 +690,12 @@ mod tests {
             )),
             Field::Null,
             Field::Json(dozer_types::json_types::json!({
-                i.to_string(): i,
-                i.to_string(): i as f64,
+            i.to_string(): i,
+            i.to_string(): i as f64,
                 "array": vec![i; 5],
                 "object": {
-                    "haha": i
-                }
+                "haha": i
+            }
             })),
         ])
     }

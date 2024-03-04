@@ -49,8 +49,13 @@ struct Node {
 }
 
 impl Node {
-    fn insert(&mut self, key: Vec<Field>, value: Option<Vec<Field>>, version: usize) -> usize {
-        self.insert_impl(key, value, version, true)
+    fn insert_local(
+        &mut self,
+        key: Vec<Field>,
+        value: Option<Vec<Field>>,
+        version: usize,
+    ) -> usize {
+        self.insert_impl(key, value, version, true, true)
     }
 
     fn insert_impl(
@@ -59,12 +64,13 @@ impl Node {
         value: Option<Vec<Field>>,
         version: usize,
         replace: bool,
+        dirty: bool,
     ) -> usize {
         let entry = self.batch.entry(key);
         let idx = entry.index();
         let versions = entry.or_default();
         let record = CachedRecord {
-            dirty: true,
+            dirty,
             version,
             record: value,
         };
@@ -88,13 +94,8 @@ impl Node {
         idx
     }
 
-    fn get_index_or_insert(
-        &mut self,
-        key: Vec<Field>,
-        value: Option<Vec<Field>>,
-        version: usize,
-    ) -> usize {
-        self.insert_impl(key, value, version, false)
+    fn insert_remote(&mut self, key: Vec<Field>, value: Option<Vec<Field>>) -> usize {
+        self.insert_impl(key, value, 0, false, false)
     }
 
     fn get(&self, key: &[Field], version: usize) -> Option<&CachedRecord> {
@@ -420,7 +421,7 @@ impl DenormalizationState {
         let node = self.dag.node_weight_mut(node_id).unwrap();
         let idx = new.get_key_fields(&node.schema);
 
-        node.insert(idx, Some(new.values.clone()), self.transaction_counter);
+        node.insert_local(idx, Some(new.values.clone()), self.transaction_counter);
     }
 
     pub(crate) fn process(&mut self, op: TableOperation) -> Result<(), AerospikeSinkError> {
@@ -431,7 +432,7 @@ impl DenormalizationState {
                 let node = self.dag.node_weight_mut(node_id).unwrap();
                 let schema = &node.schema;
                 let idx = old.get_key_fields(schema);
-                node.insert(idx, None, self.transaction_counter);
+                node.insert_local(idx, None, self.transaction_counter);
             }
             dozer_types::types::Operation::Insert { new } => {
                 self.do_insert(node_id, new);
@@ -447,7 +448,7 @@ impl DenormalizationState {
                         new: new_pk.clone(),
                     });
                 }
-                node.insert(new_pk, Some(new.values), self.transaction_counter);
+                node.insert_local(new_pk, Some(new.values), self.transaction_counter);
             }
             dozer_types::types::Operation::BatchInsert { new } => {
                 for value in new {
@@ -458,6 +459,11 @@ impl DenormalizationState {
         Ok(())
     }
 
+    pub(crate) fn clear(&mut self) {
+        for node in self.dag.node_weights_mut() {
+            node.batch.clear();
+        }
+    }
     pub(crate) fn persist(&mut self, client: &Client) -> Result<(), AerospikeSinkError> {
         let batch_size_upper_bound: usize = self
             .dag
@@ -569,13 +575,11 @@ impl DenormalizationState {
                             ) as *const as_batch_read_record;
                             let result = (*rec).result;
                             if result == as_status_e_AEROSPIKE_ERR_RECORD_NOT_FOUND {
-                                node.insert(key.clone().unwrap(), None, 0);
+                                node.insert_remote(key.clone().unwrap(), None);
                             } else if result == as_status_e_AEROSPIKE_OK {
-                                dbg!(&key);
-                                node.insert(
+                                node.insert_remote(
                                     key.clone().unwrap(),
                                     Some(parse_record(&(*rec).record, &node.schema, &node.bins)?),
-                                    0,
                                 );
                             } else {
                                 return Err(AerospikeError::from_code(result).into());
@@ -878,6 +882,7 @@ mod tests {
                 set: CString::new("transactions_denorm").unwrap()
             }]
         );
+        state.commit();
         state.persist(&client).unwrap();
         state
             .process(TableOperation {
