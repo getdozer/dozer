@@ -397,6 +397,7 @@ impl SinkFactory for AerospikeSinkFactory {
             });
         }
         Ok(Box::new(AerospikeSink::new(
+            self.config.clone(),
             client,
             tables,
             n_threads.into(),
@@ -448,6 +449,7 @@ impl Drop for AsRecord<'_> {
 struct AerospikeSink {
     sender: Sender<TableOperation>,
     snapshotting_started_instant: HashMap<String, Instant>,
+    config: AerospikeSinkConfig,
 }
 
 #[derive(Debug)]
@@ -516,7 +518,12 @@ struct AerospikeTable {
 }
 
 impl AerospikeSink {
-    fn new(client: Client, tables: Vec<AerospikeTable>, n_threads: usize) -> Self {
+    fn new(
+        config: AerospikeSinkConfig,
+        client: Client,
+        tables: Vec<AerospikeTable>,
+        n_threads: usize,
+    ) -> Self {
         let client = Arc::new(client);
         let mut workers = Vec::with_capacity(n_threads);
         let (sender, receiver) = bounded(n_threads);
@@ -532,6 +539,7 @@ impl AerospikeSink {
         }
 
         Self {
+            config,
             sender,
             snapshotting_started_instant: Default::default(),
         }
@@ -1253,6 +1261,14 @@ impl Sink for AerospikeSink {
     fn get_latest_op_id(&mut self) -> Result<Option<OpIdentifier>, BoxedError> {
         Ok(None)
     }
+
+    fn max_batch_duration_ms(&self) -> Option<u64> {
+        self.config.max_batch_duration_ms
+    }
+
+    fn preferred_batch_size(&self) -> Option<u64> {
+        self.config.preferred_batch_size
+    }
 }
 
 #[cfg(test)]
@@ -1364,6 +1380,8 @@ mod tests {
                     set_name: set.to_owned(),
                     denormalize: vec![],
                 }],
+                max_batch_duration_ms: None,
+                preferred_batch_size: None,
             },
         );
         factory

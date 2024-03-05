@@ -150,6 +150,8 @@ pub struct AerospikeSinkConfig {
     pub n_threads: Option<NonZeroUsize>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tables: Vec<AerospikeSinkTable>,
+    pub max_batch_duration_ms: Option<u64>,
+    pub preferred_batch_size: Option<u64>,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
