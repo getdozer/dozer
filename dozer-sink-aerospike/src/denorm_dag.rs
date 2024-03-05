@@ -137,6 +137,13 @@ pub(crate) enum Error {
     InvalidName(#[from] NulError),
     #[error("Non-nullible lookup value not found")]
     NotNullNotFound,
+    #[error("The primary key for lookup set \"{lookup_namespace}\".\"{lookup_set}\" does not match the denormalization key specified by the denormalizing set \"{denorm_namespace}\".\"{denorm_set}\"")]
+    MismatchedKeys {
+        lookup_namespace: String,
+        lookup_set: String,
+        denorm_namespace: String,
+        denorm_set: String,
+    },
 }
 
 #[derive(Debug)]
@@ -225,6 +232,7 @@ impl DenormalizationState {
         }
         for (table, schema) in tables {
             let to_idx = node_by_name[&(table.namespace.clone(), table.set_name.clone())];
+
             for denorm in &table.denormalize {
                 let from_idx = node_by_name
                     .get(&(denorm.from_namespace.clone(), denorm.from_set.clone()))
@@ -254,6 +262,24 @@ impl DenormalizationState {
                         })
                         .collect::<Result<Vec<_>, _>>()?,
                 };
+                let mismatch_err = || Error::MismatchedKeys {
+                    lookup_namespace: denorm.from_namespace.clone(),
+                    lookup_set: denorm.from_set.clone(),
+                    denorm_namespace: table.namespace.clone(),
+                    denorm_set: table.set_name.clone(),
+                };
+                if key_idx.len() != from_schema.primary_index.len() {
+                    return Err(mismatch_err());
+                }
+                for (denorm_idx, lookup_idx) in key_idx.iter().zip(&from_schema.primary_index) {
+                    let denorm_field = &schema.fields[*denorm_idx];
+                    let lookup_field = &from_schema.fields[*lookup_idx];
+                    if denorm_field.typ != lookup_field.typ
+                        || denorm_field.nullable != lookup_field.nullable
+                    {
+                        return Err(mismatch_err());
+                    }
+                }
 
                 let bin_names = BinNames::new(denorm.columns.iter().map(|col| {
                     let (_, dst) = col.to_src_dst();
@@ -777,6 +803,7 @@ mod tests {
                     set_name: "customers".into(),
                     denormalize: vec![],
                     write_denormalized_to: None,
+                    primary_key: vec![],
                 },
                 customer_schema,
             ),
@@ -792,6 +819,7 @@ mod tests {
                         columns: vec![DenormColumn::Direct("phone_number".into())],
                     }],
                     write_denormalized_to: None,
+                    primary_key: vec![],
                 },
                 account_schema,
             ),
@@ -810,6 +838,7 @@ mod tests {
                         namespace: "test".into(),
                         set: "transactions_denorm".into(),
                     }),
+                    primary_key: vec![],
                 },
                 transaction_schema,
             ),

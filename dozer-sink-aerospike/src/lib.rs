@@ -7,6 +7,7 @@ use dozer_types::log::error;
 use dozer_types::models::connection::AerospikeConnection;
 use dozer_types::node::OpIdentifier;
 use dozer_types::thiserror;
+use itertools::Itertools;
 
 use std::collections::HashMap;
 use std::ffi::{CStr, CString, NulError};
@@ -121,8 +122,20 @@ impl SinkFactory for AerospikeSinkFactory {
             .iter()
             .cloned()
             .enumerate()
-            .map(|(i, table)| (table, input_schemas.remove(&(i as PortHandle)).unwrap()))
-            .collect();
+            .map(|(i, table)| -> Result<_, TypeError> {
+                let mut schema = input_schemas.remove(&(i as PortHandle)).unwrap();
+                if !table.primary_key.is_empty() {
+                    let fields = table
+                        .primary_key
+                        .iter()
+                        .map(|key| schema.get_field_index(key))
+                        .map_ok(|(i, _)| i)
+                        .try_collect()?;
+                    schema.primary_index = fields;
+                }
+                Ok((table, schema))
+            })
+            .try_collect()?;
         // Validate schemas
         for (_, schema) in tables.iter() {
             if schema.primary_index.is_empty() {
@@ -653,6 +666,7 @@ mod tests {
                     set_name: set.to_owned(),
                     denormalize: vec![],
                     write_denormalized_to: None,
+                    primary_key: vec![],
                 }],
                 max_batch_duration_ms: None,
                 preferred_batch_size: None,

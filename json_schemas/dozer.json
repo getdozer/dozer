@@ -270,6 +270,13 @@
         "namespace": {
           "type": "string"
         },
+        "primary_key": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "set_name": {
           "type": "string"
         },
