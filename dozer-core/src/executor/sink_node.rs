@@ -25,15 +25,14 @@ use crate::{
 use super::execution_dag::ExecutionDag;
 use super::{name::Name, receiver_loop::ReceiverLoop};
 
-// TODO: make configurable
-const SCHEDULE_LOOP_INTERVAL: Duration = Duration::from_millis(5);
-const MAX_FLUSH_INTERVAL: Duration = Duration::from_millis(100);
+const DEFAULT_FLUSH_INTERVAL: Duration = Duration::from_millis(20);
 
 struct FlushScheduler {
     receiver: Receiver<Duration>,
     sender: Sender<()>,
     next_schedule: Option<Duration>,
     next_schedule_from: Instant,
+    loop_interval: Duration,
 }
 
 impl FlushScheduler {
@@ -74,7 +73,7 @@ impl FlushScheduler {
                 self.next_schedule = None;
             } else {
                 let time_to_next_schedule = schedule - self.next_schedule_from.elapsed();
-                std::thread::sleep(SCHEDULE_LOOP_INTERVAL.min(time_to_next_schedule));
+                std::thread::sleep(self.loop_interval.min(time_to_next_schedule));
             }
         }
     }
@@ -98,8 +97,11 @@ pub struct SinkNode {
     /// The metrics labels.
     labels: LabelsAndProgress,
 
+    max_flush_interval: Duration,
+
+    ops_since_flush: u64,
     last_op_if_commit: Option<Epoch>,
-    flush_on_next_commit: bool,
+    flush_scheduled_on_next_commit: bool,
     flush_scheduler_sender: Sender<Duration>,
     should_flush_receiver: Receiver<()>,
 
@@ -131,6 +133,9 @@ impl SinkNode {
             "The pipeline processing latency in seconds"
         );
 
+        let max_flush_interval = sink
+            .max_batch_duration_ms()
+            .map_or(DEFAULT_FLUSH_INTERVAL, Duration::from_millis);
         let (schedule_sender, schedule_receiver) = crossbeam::channel::bounded(10);
         let (should_flush_sender, should_flush_receiver) = crossbeam::channel::bounded(0);
         let mut scheduler = FlushScheduler {
@@ -138,6 +143,7 @@ impl SinkNode {
             sender: should_flush_sender,
             next_schedule: None,
             next_schedule_from: Instant::now(),
+            loop_interval: max_flush_interval / 5,
         };
 
         std::thread::spawn(move || scheduler.run());
@@ -151,10 +157,12 @@ impl SinkNode {
             error_manager: dag.error_manager().clone(),
             labels: dag.labels().clone(),
             last_op_if_commit: None,
-            flush_on_next_commit: false,
+            flush_scheduled_on_next_commit: false,
             flush_scheduler_sender: schedule_sender,
             should_flush_receiver,
             event_sender: dag.event_hub().sender.clone(),
+            max_flush_interval,
+            ops_since_flush: 0,
         }
     }
 
@@ -166,8 +174,9 @@ impl SinkNode {
         if let Err(e) = self.sink.flush_batch() {
             self.error_manager.report(e);
         }
+        self.ops_since_flush = 0;
         self.flush_scheduler_sender
-            .send(MAX_FLUSH_INTERVAL)
+            .send(self.max_flush_interval)
             .unwrap();
         let _ = self.event_sender.send(Event::SinkFlushed {
             node: self.node_handle.clone(),
@@ -211,7 +220,7 @@ impl ReceiverLoop for SinkNode {
         let mut epoch_id = initial_epoch_id;
 
         self.flush_scheduler_sender
-            .send(MAX_FLUSH_INTERVAL)
+            .send(self.max_flush_interval)
             .unwrap();
         let mut sel = init_select(&receivers);
         loop {
@@ -219,7 +228,7 @@ impl ReceiverLoop for SinkNode {
                 if let Some(epoch) = self.last_op_if_commit.take() {
                     self.flush(epoch)?;
                 } else {
-                    self.flush_on_next_commit = true;
+                    self.flush_scheduled_on_next_commit = true;
                 }
             }
             let index = sel.ready();
@@ -294,6 +303,7 @@ impl ReceiverLoop for SinkNode {
             Operation::BatchInsert { new } => new.len() as u64,
             _ => 1,
         };
+        self.ops_since_flush += counter_number;
 
         if let Err(e) = self.sink.process(op) {
             self.error_manager.report(e);
@@ -316,9 +326,14 @@ impl ReceiverLoop for SinkNode {
             gauge!(PIPELINE_LATENCY_GAUGE_NAME, duration.as_secs_f64(), labels);
         }
 
-        if self.flush_on_next_commit {
+        if self
+            .sink
+            .preferred_batch_size()
+            .is_some_and(|batch_size| self.ops_since_flush >= batch_size)
+            || self.flush_scheduled_on_next_commit
+        {
             self.flush(epoch)?;
-            self.flush_on_next_commit = false;
+            self.flush_scheduled_on_next_commit = false;
         }
 
         Ok(())

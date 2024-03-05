@@ -194,6 +194,14 @@
         "connection": {
           "type": "string"
         },
+        "max_batch_duration_ms": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
+        },
         "n_threads": {
           "type": [
             "integer",
@@ -201,6 +209,14 @@
           ],
           "format": "uint",
           "minimum": 1.0
+        },
+        "preferred_batch_size": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
         },
         "tables": {
           "type": "array",
