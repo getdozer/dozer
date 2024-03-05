@@ -294,6 +294,10 @@ impl AerospikeMetadata {
                 }) => (None, None),
                 Err(e) => return Err(e),
             };
+            // Not found, so allocate a new record
+            if record.is_null() {
+                record = as_record_new(2);
+            }
             Ok(Self {
                 client,
                 key,
