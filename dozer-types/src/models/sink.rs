@@ -181,6 +181,8 @@ pub struct ClickhouseSinkTableOptions {
 pub struct OracleSinkConfig {
     pub connection: String,
     pub table_name: String,
+    #[serde(default)]
+    pub owner: Option<String>,
 }
 
 pub fn default_log_reader_batch_size() -> u32 {

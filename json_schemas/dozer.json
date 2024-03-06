@@ -1451,6 +1451,13 @@
         "connection": {
           "type": "string"
         },
+        "owner": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "table_name": {
           "type": "string"
         }
