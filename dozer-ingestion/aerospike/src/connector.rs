@@ -167,6 +167,7 @@ impl AerospikeConnector {
         Ok(HttpServer::new(move || {
             App::new()
                 .app_data(web::JsonConfig::default().error_handler(|err, _req| {
+                    error!("Error parsing json: {:?}", err);
                     actix_web::error::InternalError::from_response(
                         "",
                         HttpResponse::BadRequest()
