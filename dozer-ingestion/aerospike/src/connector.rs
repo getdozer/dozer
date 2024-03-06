@@ -379,12 +379,15 @@ async fn batch_event_request_handler(
 
     let mut mapped_messages = vec![];
     trace!("Aerospike events {:?}", events);
+    info!("Events counts: {}", events.len());
     for event in events {
         mapped_messages.push(map_events(event, &state.tables_index_map).await);
     }
 
+    info!("Mapped events count {}", mapped_messages.len());
     let last_idx = mapped_messages.len() - 1;
     for (idx, mapped_message) in mapped_messages.into_iter().enumerate() {
+        info!("Left in batch {}", last_idx - idx);
         match mapped_message {
             Ok(Some(message)) => {
                 trace!("Mapped message {:?}", message);
