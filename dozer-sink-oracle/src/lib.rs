@@ -565,6 +565,7 @@ enum OpKind {
 impl OracleSink {
     fn exec_batch(&mut self) -> oracle::Result<()> {
         debug!("Executing batch of size {}", self.batch_params.len());
+        let started = std::time::Instant::now();
         let mut batch = self
             .conn
             .batch(&self.merge_statement, self.batch_params.len())
@@ -587,6 +588,7 @@ impl OracleSink {
             batch.append_row(&[])?;
         }
         batch.execute()?;
+        info!("Execution took {:?}", started.elapsed());
         Ok(())
     }
 

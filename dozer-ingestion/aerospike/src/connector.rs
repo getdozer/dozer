@@ -166,6 +166,15 @@ impl AerospikeConnector {
 
         Ok(HttpServer::new(move || {
             App::new()
+                .app_data(web::JsonConfig::default().error_handler(|err, _req| {
+                    actix_web::error::InternalError::from_response(
+                        "",
+                        HttpResponse::BadRequest()
+                            .content_type("application/json")
+                            .body(format!(r#"{{"error":"{}"}}"#, err)),
+                    )
+                    .into()
+                }))
                 .app_data(web::Data::new(server_state.clone()))
                 .service(healthcheck)
                 .service(healthcheck_batch)
