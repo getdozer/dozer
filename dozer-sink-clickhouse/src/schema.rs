@@ -3,9 +3,10 @@ use crate::errors::ClickhouseSinkError::{self, SinkTableDoesNotExist};
 use clickhouse_rs::types::Complex;
 use clickhouse_rs::{Block, ClientHandle};
 use dozer_types::errors::internal::BoxedError;
+use dozer_types::log::warn;
 use dozer_types::models::sink::ClickhouseSinkConfig;
 use dozer_types::serde::{Deserialize, Serialize};
-use dozer_types::types::{FieldType, Schema};
+use dozer_types::types::{FieldDefinition, FieldType, Schema};
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(crate = "dozer_types::serde")]
@@ -112,28 +113,7 @@ impl ClickhouseSchema {
                 return Err(ClickhouseSinkError::ColumnNotFound(field.name.clone()));
             };
 
-            let mut expected_type = match field.typ {
-                FieldType::UInt => "UInt64",
-                FieldType::U128 => "Uint128",
-                FieldType::Int => "Int64",
-                FieldType::I128 => "Int128",
-                FieldType::Float => "Float64",
-                FieldType::Boolean => "Bool",
-                FieldType::String | FieldType::Text => "String",
-                FieldType::Binary => "UInt8",
-                FieldType::Decimal => "Decimal64",
-                FieldType::Timestamp => "DateTime64(9)",
-                FieldType::Date => "Date",
-                FieldType::Json => "Json",
-                FieldType::Point => "Point",
-                FieldType::Duration => {
-                    return Err(ClickhouseSinkError::TypeNotSupported(
-                        field.name.clone(),
-                        "Duration".to_string(),
-                    ))
-                }
-            }
-            .to_string();
+            let mut expected_type = map_field_to_type(field);
 
             if field.nullable {
                 expected_type = format!("Nullable({expected_type})");
@@ -201,5 +181,36 @@ impl ClickhouseSchema {
         }
 
         Ok(keys)
+    }
+}
+
+pub fn map_field_to_type(field: &FieldDefinition) -> String {
+    let typ = match field.typ {
+        FieldType::UInt => "UInt64",
+        FieldType::U128 => "UInt128",
+        FieldType::Int => "Int64",
+        FieldType::I128 => "Int128",
+        FieldType::Float => "Float64",
+        FieldType::Boolean => "Boolean",
+        FieldType::String => "String",
+        FieldType::Text => "String",
+        FieldType::Binary => "Array(UInt8)",
+        FieldType::Decimal => "Decimal",
+        FieldType::Timestamp => "DateTime64(3)",
+        FieldType::Date => "Date",
+        FieldType::Json => "JSON",
+        FieldType::Point => "Point",
+        FieldType::Duration => unimplemented!(),
+    };
+
+    if field.nullable {
+        if field.typ != FieldType::Binary {
+            format!("Nullable({})", typ)
+        } else {
+            warn!("Binary field cannot be nullable, ignoring nullable flag");
+            typ.to_string()
+        }
+    } else {
+        typ.to_string()
     }
 }
