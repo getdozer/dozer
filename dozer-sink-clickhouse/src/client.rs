@@ -45,7 +45,7 @@ impl ClickhouseClient {
     pub async fn drop_table(&self, datasource_name: &str) -> Result<(), QueryError> {
         let mut client = self.pool.get_handle().await?;
         let ddl = format!("DROP TABLE IF EXISTS {}", datasource_name);
-        println!("#{ddl}");
+        info!("#{ddl}");
         client.execute(ddl).await?;
         Ok(())
     }
