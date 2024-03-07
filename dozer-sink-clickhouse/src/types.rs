@@ -13,6 +13,7 @@ use either::Either;
 
 use clickhouse_rs::types::{FromSql, Value, ValueRef};
 
+pub const DECIMAL_SCALE: u8 = 4;
 pub struct ValueWrapper(pub Value);
 
 impl<'a> FromSql<'a> for ValueWrapper {
@@ -263,10 +264,13 @@ pub async fn insert_multi(
                     nullable,
                     b,
                     Decimal,
-                    f64,
+                    clickhouse_rs::types::Decimal,
                     column_values,
                     n,
-                    |f: &rust_decimal::Decimal| -> Option<f64> { f.to_f64() }
+                    |f: &rust_decimal::Decimal| -> Option<clickhouse_rs::types::Decimal> {
+                        f.to_f64()
+                            .map(|f| clickhouse_rs::types::Decimal::of(f, DECIMAL_SCALE))
+                    }
                 )
             }
             FieldType::Timestamp => {
