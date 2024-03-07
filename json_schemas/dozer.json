@@ -412,7 +412,7 @@
         "create_table_options": {
           "anyOf": [
             {
-              "$ref": "#/definitions/ClickhouseSinkTableOptions"
+              "$ref": "#/definitions/ClickhouseTableOptions"
             },
             {
               "type": "null"
@@ -440,15 +440,6 @@
           "format": "uint16",
           "minimum": 0.0
         },
-        "primary_keys": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "string"
-          }
-        },
         "scheme": {
           "default": "tcp",
           "type": "string"
@@ -466,7 +457,7 @@
       },
       "additionalProperties": false
     },
-    "ClickhouseSinkTableOptions": {
+    "ClickhouseTableOptions": {
       "type": "object",
       "properties": {
         "cluster": {
@@ -495,6 +486,15 @@
             "string",
             "null"
           ]
+        },
+        "primary_keys": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
         },
         "sample_by": {
           "type": [

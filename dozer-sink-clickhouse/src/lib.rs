@@ -1,9 +1,9 @@
-mod client;
-mod ddl;
-mod errors;
-mod schema;
+pub mod client;
+pub mod ddl;
+pub mod errors;
+pub mod schema;
 mod sink;
 pub use sink::ClickhouseSinkFactory;
 #[cfg(test)]
 mod tests;
-mod types;
+pub mod types;

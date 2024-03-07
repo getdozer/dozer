@@ -3,7 +3,6 @@ use crate::errors::ClickhouseSinkError::{self, SinkTableDoesNotExist};
 use crate::types::DECIMAL_SCALE;
 use clickhouse_rs::types::Complex;
 use clickhouse_rs::{Block, ClientHandle};
-use dozer_types::errors::internal::BoxedError;
 use dozer_types::log::warn;
 use dozer_types::models::sink::ClickhouseSinkConfig;
 use dozer_types::serde::{Deserialize, Serialize};
@@ -49,37 +48,6 @@ impl ClickhouseSchema {
         } else {
             Self::fetch_sink_table_info(client, &config.sink_table_name).await
         }
-    }
-
-    pub async fn get_primary_keys(
-        client: ClickhouseClient,
-        config: &ClickhouseSinkConfig,
-    ) -> Result<Vec<String>, BoxedError> {
-        let handle = client.get_client_handle().await?;
-        let existing_pk =
-            Self::fetch_primary_keys(handle, &config.sink_table_name, &config.database).await?;
-
-        if let Some(expected_pk) = &config.primary_keys {
-            if expected_pk.len() != existing_pk.len() {
-                return Err(ClickhouseSinkError::PrimaryKeyMismatch(
-                    expected_pk.clone(),
-                    existing_pk.clone(),
-                )
-                .into());
-            }
-
-            for pk in expected_pk {
-                if !existing_pk.iter().any(|existing_pk| existing_pk == pk) {
-                    return Err(ClickhouseSinkError::PrimaryKeyMismatch(
-                        expected_pk.clone(),
-                        existing_pk.clone(),
-                    )
-                    .into());
-                }
-            }
-        }
-
-        Ok(existing_pk)
     }
 
     pub async fn compare_with_dozer_schema(

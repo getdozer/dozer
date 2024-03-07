@@ -171,8 +171,7 @@ pub struct ClickhouseSinkConfig {
     pub database: String,
     pub source_table_name: String,
     pub sink_table_name: String,
-    pub primary_keys: Option<Vec<String>>,
-    pub create_table_options: Option<ClickhouseSinkTableOptions>,
+    pub create_table_options: Option<ClickhouseTableOptions>,
 }
 
 impl ClickhouseSinkConfig {
@@ -195,8 +194,9 @@ impl ClickhouseSinkConfig {
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
 #[serde(deny_unknown_fields)]
-pub struct ClickhouseSinkTableOptions {
+pub struct ClickhouseTableOptions {
     pub engine: Option<String>,
+    pub primary_keys: Option<Vec<String>>,
     pub partition_by: Option<String>,
     pub sample_by: Option<String>,
     pub order_by: Option<Vec<String>>,

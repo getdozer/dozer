@@ -14,7 +14,6 @@ fn get_sink_config() -> ClickhouseSinkConfig {
         sink_table_name: "sink_table".to_string(),
         scheme: "tcp".to_string(),
         create_table_options: None,
-        primary_keys: Some(vec!["id".to_string()]),
         user: "default".to_string(),
         password: None,
         database: "default".to_string(),
