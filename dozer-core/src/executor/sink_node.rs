@@ -207,9 +207,16 @@ impl ReceiverLoop for SinkNode {
         Cow::Owned(self.node_handles[index].to_string())
     }
 
-    fn receiver_loop(&mut self, initial_epoch_id: u64) -> Result<(), ExecutionError> {
+    fn receiver_loop(mut self, initial_epoch_id: u64) -> Result<(), ExecutionError> {
         // This is just copied from ReceiverLoop
         let receivers = self.receivers();
+        let should_flush_receiver = {
+            // Take the receiver. This is fine, as long as we exclusively use the
+            // returned receiver and not the one in `self`.
+            let (_, mut tmp_recv) = crossbeam::channel::bounded(0);
+            swap(&mut self.should_flush_receiver, &mut tmp_recv);
+            tmp_recv
+        };
         debug_assert!(
             !receivers.is_empty(),
             "Processor or sink must have at least 1 incoming edge"
@@ -223,15 +230,17 @@ impl ReceiverLoop for SinkNode {
             .send(self.max_flush_interval)
             .unwrap();
         let mut sel = init_select(&receivers);
+        let flush_idx = sel.recv(&should_flush_receiver);
         loop {
-            if self.should_flush_receiver.try_recv().is_ok() {
+            let index = sel.ready();
+            if index == flush_idx {
+                should_flush_receiver.recv().unwrap();
                 if let Some(epoch) = self.last_op_if_commit.take() {
                     self.flush(epoch)?;
                 } else {
                     self.flush_scheduled_on_next_commit = true;
                 }
             }
-            let index = sel.ready();
             let op = receivers[index]
                 .recv()
                 .map_err(|_| ExecutionError::CannotReceiveFromChannel)?;
