@@ -166,9 +166,21 @@ impl AerospikeConnector {
 
         Ok(HttpServer::new(move || {
             App::new()
+                .app_data(web::JsonConfig::default().error_handler(|err, _req| {
+                    error!("Error parsing json: {:?}", err);
+                    actix_web::error::InternalError::from_response(
+                        "",
+                        HttpResponse::BadRequest()
+                            .content_type("application/json")
+                            .body(format!(r#"{{"error":"{}"}}"#, err)),
+                    )
+                    .into()
+                }))
                 .app_data(web::Data::new(server_state.clone()))
                 .service(healthcheck)
+                .service(healthcheck_batch)
                 .service(event_request_handler)
+                .service(batch_event_request_handler)
         })
         .bind(address)?
         .run())
@@ -205,7 +217,7 @@ impl AerospikeConnector {
 
 #[derive(Debug)]
 struct PendingMessage {
-    message: IngestionMessage,
+    messages: Vec<IngestionMessage>,
     sender: oneshot::Sender<()>,
 }
 
@@ -232,7 +244,9 @@ async fn ingestor_loop(
         operation_id_sender.send(pending_operation_id).unwrap();
 
         // Ignore the error, because the server can be down.
-        let _ = ingestor.handle_message(message.message).await;
+        for message in message.messages {
+            let _ = ingestor.handle_message(message).await;
+        }
         let _ = ingestor
             .handle_message(IngestionMessage::TransactionInfo(TransactionInfo::Commit {
                 id: Some(OpIdentifier::new(0, operation_id)),
@@ -309,6 +323,11 @@ async fn healthcheck(_req: HttpRequest) -> HttpResponse {
     HttpResponse::Ok().finish()
 }
 
+#[get("/batch")]
+async fn healthcheck_batch(_req: HttpRequest) -> HttpResponse {
+    HttpResponse::Ok().finish()
+}
+
 #[post("/")]
 async fn event_request_handler(
     json: web::Json<AerospikeEvent>,
@@ -323,14 +342,17 @@ async fn event_request_handler(
         return HttpResponse::Ok().finish();
     }
 
-    let operation_events = map_events(event, &state.tables_index_map).await;
+    let message = map_record(event, &state.tables_index_map).await;
 
-    trace!("Mapped events {:?}", operation_events);
-    match operation_events {
+    trace!("Mapped message {:?}", message);
+    match message {
         Ok(None) => HttpResponse::Ok().finish(),
         Ok(Some(message)) => {
             let (sender, receiver) = oneshot::channel::<()>();
-            if let Err(e) = state.sender.send(PendingMessage { message, sender }) {
+            if let Err(e) = state.sender.send(PendingMessage {
+                messages: vec![message],
+                sender,
+            }) {
                 error!("Ingestor is down: {:?}", e);
                 return HttpResponse::InternalServerError().finish();
             }
@@ -343,6 +365,41 @@ async fn event_request_handler(
         }
         Err(e) => map_error(e),
     }
+}
+
+#[post("/batch")]
+async fn batch_event_request_handler(
+    json: web::Json<Vec<AerospikeEvent>>,
+    data: web::Data<ServerState>,
+) -> HttpResponse {
+    let events = json.into_inner();
+    let state = data.into_inner();
+
+    let mut messages = vec![];
+    trace!("Aerospike events {:?}", events);
+    info!("Events counts: {}", events.len());
+    for event in events {
+        match map_record(event, &state.tables_index_map).await {
+            Ok(None) => {}
+            Ok(Some(message)) => messages.push(message),
+            Err(e) => return map_error(e),
+        }
+    }
+
+    trace!("Mapped messages {:?}", messages);
+    info!("Mapped messages count {}", messages.len());
+    let (sender, receiver) = oneshot::channel::<()>();
+    if let Err(e) = state.sender.send(PendingMessage { messages, sender }) {
+        error!("Ingestor is down: {:?}", e);
+        return HttpResponse::InternalServerError().finish();
+    }
+
+    if let Err(e) = receiver.await {
+        error!("Pipeline event processor is down: {:?}", e);
+        return HttpResponse::InternalServerError().finish();
+    }
+
+    HttpResponse::Ok().finish()
 }
 
 #[derive(Clone, Debug)]
@@ -604,7 +661,7 @@ impl Connector for AerospikeConnector {
     }
 }
 
-async fn map_events(
+async fn map_record(
     event: AerospikeEvent,
     tables_map: &HashMap<String, TableIndexMap>,
 ) -> Result<Option<IngestionMessage>, AerospikeConnectorError> {
