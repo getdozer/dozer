@@ -240,6 +240,7 @@ impl ReceiverLoop for SinkNode {
                 } else {
                     self.flush_scheduled_on_next_commit = true;
                 }
+                continue;
             }
             let op = receivers[index]
                 .recv()
