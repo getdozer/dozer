@@ -124,13 +124,38 @@ pub enum DenormColumn {
     Renamed { source: String, destination: String },
 }
 
+impl DenormColumn {
+    pub fn to_src_dst(&self) -> (&str, &str) {
+        match self {
+            DenormColumn::Direct(name) => (name, name),
+            DenormColumn::Renamed {
+                source,
+                destination,
+            } => (source, destination),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum DenormKey {
+    Simple(String),
+    Composite(Vec<String>),
+}
+
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct AerospikeDenormalizations {
     pub from_namespace: String,
     pub from_set: String,
-    pub key: String,
+    pub key: DenormKey,
     pub columns: Vec<DenormColumn>,
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, PartialEq, Eq)]
+pub struct AerospikeSet {
+    pub namespace: String,
+    pub set: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, PartialEq, Eq)]
@@ -141,6 +166,9 @@ pub struct AerospikeSinkTable {
     pub set_name: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub denormalize: Vec<AerospikeDenormalizations>,
+    pub write_denormalized_to: Option<AerospikeSet>,
+    #[serde(default)]
+    pub primary_key: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
@@ -152,6 +180,9 @@ pub struct AerospikeSinkConfig {
     pub tables: Vec<AerospikeSinkTable>,
     pub max_batch_duration_ms: Option<u64>,
     pub preferred_batch_size: Option<u64>,
+    pub metadata_namespace: String,
+    #[serde(default)]
+    pub metadata_set: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]

@@ -375,17 +375,17 @@ impl Connector {
                 }
             };
 
-            for (table_index, op) in transaction.operations {
+            for (seq, (table_index, op)) in transaction.operations.into_iter().enumerate() {
                 if ingestor
                     .blocking_handle_message(IngestionMessage::OperationEvent {
                         table_index,
                         op,
-                        id: None,
+                        id: Some(OpIdentifier::new(transaction.commit_scn, seq as u64)),
                     })
                     .is_err()
                 {
                     return;
-                }
+                };
             }
 
             if ingestor

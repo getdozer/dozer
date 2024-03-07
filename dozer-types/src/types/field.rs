@@ -819,7 +819,7 @@ impl Display for Field {
                 let (x, y) = p.0.x_y();
                 write!(f, "POINT({}, {})", x.0, y.0)
             }
-            Field::Duration(d) => write!(f, "{:?}", d.0),
+            Field::Duration(d) => write!(f, "PT{},{:09}S", d.0.as_secs(), d.0.subsec_nanos()),
             Field::Null => write!(f, ""),
         }
     }
