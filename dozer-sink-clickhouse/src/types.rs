@@ -1,3 +1,4 @@
+#![allow(clippy::redundant_closure_call)]
 use crate::errors::QueryError;
 
 use chrono_tz::{Tz, UTC};
@@ -294,7 +295,7 @@ pub async fn insert_multi(
                     NaiveDate,
                     column_values,
                     n,
-                    |f: &NaiveDate| -> Option<NaiveDate> { Some(f.clone()) }
+                    |f: &NaiveDate| -> Option<NaiveDate> { Some(*f) }
                 )
             }
             FieldType::Json => {
