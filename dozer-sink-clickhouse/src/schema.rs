@@ -17,19 +17,19 @@ pub struct ClickhouseSchemaColumn {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(crate = "dozer_types::serde")]
-pub(crate) struct ClickhouseTable {
-    pub(crate) database: String,
-    pub(crate) name: String,
-    pub(crate) engine: String,
-    pub(crate) engine_full: String,
+pub struct ClickhouseTable {
+    pub database: String,
+    pub name: String,
+    pub engine: String,
+    pub engine_full: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(crate = "dozer_types::serde")]
-pub(crate) struct ClickhouseKeyColumnDef {
-    pub(crate) column_name: Option<String>,
-    pub(crate) constraint_name: Option<String>,
-    pub(crate) constraint_schema: String,
+pub struct ClickhouseKeyColumnDef {
+    pub column_name: Option<String>,
+    pub constraint_name: Option<String>,
+    pub constraint_schema: String,
 }
 
 pub struct ClickhouseSchema {}
@@ -115,6 +115,7 @@ impl ClickhouseSchema {
         })
     }
 
+    #[allow(dead_code)]
     async fn fetch_primary_keys(
         mut handle: ClientHandle,
         sink_table_name: &str,
