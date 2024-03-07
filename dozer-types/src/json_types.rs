@@ -36,7 +36,7 @@ pub fn json_to_string(value: &JsonValue) -> String {
     serde_value.to_string()
 }
 
-pub(crate) fn json_to_bytes(value: &JsonValue) -> Vec<u8> {
+pub fn json_to_bytes(value: &JsonValue) -> Vec<u8> {
     rmp_serde::to_vec(value).unwrap()
 }
 
