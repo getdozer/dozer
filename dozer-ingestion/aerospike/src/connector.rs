@@ -376,8 +376,7 @@ async fn batch_event_request_handler(
     let state = data.into_inner();
 
     let mut messages = vec![];
-    trace!("Aerospike events {:?}", events);
-    info!("Events counts: {}", events.len());
+    trace!("Aerospike events (count {:?}) {:?}", events.len(), events);
     for event in events {
         match map_record(event, &state.tables_index_map).await {
             Ok(None) => {}
@@ -386,8 +385,7 @@ async fn batch_event_request_handler(
         }
     }
 
-    trace!("Mapped messages {:?}", messages);
-    info!("Mapped messages count {}", messages.len());
+    trace!("Mapped {:?} messages {:?}", messages.len(), messages);
     let (sender, receiver) = oneshot::channel::<()>();
     if let Err(e) = state.sender.send(PendingMessage { messages, sender }) {
         error!("Ingestor is down: {:?}", e);
