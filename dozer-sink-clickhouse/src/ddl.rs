@@ -82,7 +82,7 @@ pub fn map_field_to_type(field: &FieldDefinition) -> String {
         FieldType::String => "String",
         FieldType::Text => "String",
         FieldType::Binary => "Array(UInt8)",
-        FieldType::Decimal => "Decimal",
+        FieldType::Decimal => "Decimal64",
         FieldType::Timestamp => "DateTime64(3)",
         FieldType::Date => "Date",
         FieldType::Json => "JSON",
