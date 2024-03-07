@@ -300,10 +300,7 @@ impl<'a> PipelineBuilder<'a> {
                         .ok_or_else(|| {
                             OrchestrationError::ConnectionNotFound(config.connection.clone())
                         })?;
-                    let sink = Box::new(OracleSinkFactory {
-                        config: connection.clone(),
-                        table: config.table_name.clone(),
-                    });
+                    let sink = Box::new(OracleSinkFactory::new(connection.clone(), config.clone()));
                     let table_info = get_table_info(&config.table_name)?;
                     add_sink_to_pipeline(
                         &mut pipeline,
