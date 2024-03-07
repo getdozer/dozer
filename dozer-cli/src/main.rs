@@ -9,7 +9,7 @@ use dozer_cli::{set_ctrl_handler, set_panic_hook};
 use dozer_core::shutdown;
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::models::config::Config;
-use dozer_types::models::telemetry::{TelemetryConfig, TelemetryMetricsConfig};
+use dozer_types::models::telemetry::TelemetryConfig;
 use dozer_types::tracing::{error, error_span, info};
 use futures::TryFutureExt;
 use std::process;
@@ -45,17 +45,10 @@ fn run() -> Result<(), OrchestrationError> {
         .map(|(c, _)| c.cloud.app_id.as_deref().unwrap_or(&c.app_name))
         .ok();
 
-    let telemetry_config = if matches!(cli.cmd, Commands::Run) {
-        TelemetryConfig {
-            trace: None,
-            metrics: Some(TelemetryMetricsConfig::Prometheus),
-        }
-    } else {
-        config_res
-            .as_ref()
-            .map(|(c, _)| c.telemetry.clone())
-            .unwrap_or_default()
-    };
+    let telemetry_config = config_res
+        .as_ref()
+        .map(|(c, _)| c.telemetry.clone())
+        .unwrap_or_default();
 
     let _telemetry = runtime.block_on(async { Telemetry::new(app_id, &telemetry_config) });
 

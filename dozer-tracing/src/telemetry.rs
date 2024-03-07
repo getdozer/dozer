@@ -63,7 +63,7 @@ fn create_subscriber(
     let app_name = app_name.unwrap_or("dozer");
 
     let fmt_filter = EnvFilter::try_from_default_env()
-        .or_else(|_| EnvFilter::try_new("info"))
+        .or_else(|_| EnvFilter::try_new("info,clickhouse_rs=error"))
         .unwrap();
 
     // `console_subscriber` can only be added once.
@@ -78,6 +78,7 @@ fn create_subscriber(
 
     let trace_filter = EnvFilter::try_from_env("DOZER_TRACE_FILTER")
         .unwrap_or_else(|_| EnvFilter::try_new("dozer=trace").unwrap());
+
     let layers = match &telemetry_config.trace {
         None => (None, None),
         Some(TelemetryTraceConfig::Dozer(config)) => (

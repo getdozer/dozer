@@ -4,6 +4,7 @@ use super::types::ValueWrapper;
 use crate::errors::QueryError;
 use crate::types::{insert_multi, map_value_wrapper_to_field};
 use clickhouse_rs::{ClientHandle, Pool};
+use dozer_types::log::{debug, info};
 use dozer_types::models::sink::ClickhouseSinkConfig;
 use dozer_types::types::{Field, FieldDefinition};
 use serde::Serialize;
@@ -42,14 +43,17 @@ impl ClickhouseClient {
     }
 
     pub fn construct_url(config: ClickhouseSinkConfig) -> String {
-        format!(
-            "{}://{}:{}@{}/{}",
-            config.scheme,
-            config.user,
-            config.password.as_deref().unwrap_or(""),
-            config.database_url,
-            config.database
-        )
+        let user_password = match &config.password {
+            Some(password) => format!("{}:{}", config.user, password),
+            None => config.user,
+        };
+
+        let url = format!(
+            "{}://{}@{}:{}/{}",
+            config.scheme, user_password, config.host, config.port, config.database
+        );
+        debug!("{url}");
+        url
     }
 
     pub fn get_log_query(log_comment: &str) -> String {
@@ -90,7 +94,8 @@ impl ClickhouseClient {
     ) -> Result<(), QueryError> {
         let mut client = self.pool.get_handle().await?;
         let ddl = get_create_table_query(datasource_name, fields, None, None);
-        println!("#{ddl}");
+        info!("Creating Clickhouse Sink Table");
+        info!("{ddl}");
         client.execute(ddl).await?;
         Ok(())
     }

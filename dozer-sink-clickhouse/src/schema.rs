@@ -1,5 +1,4 @@
 use crate::client::ClickhouseClient;
-use crate::ddl;
 use crate::errors::ClickhouseSinkError::{self, SinkTableDoesNotExist};
 use clickhouse_rs::types::Complex;
 use clickhouse_rs::{Block, ClientHandle};
@@ -80,11 +79,13 @@ impl ClickhouseSchema {
 
         Ok(existing_pk)
     }
-    async fn compare_with_dozer_schema(
-        mut client: ClientHandle,
-        schema: Schema,
-        table: ClickhouseTable,
+
+    pub async fn compare_with_dozer_schema(
+        client: ClickhouseClient,
+        schema: &Schema,
+        table: &ClickhouseTable,
     ) -> Result<(), ClickhouseSinkError> {
+        let mut client = client.get_client_handle().await?;
         let block: Block<Complex> = client
             .query(&format!(
                 "DESCRIBE TABLE {database}.{table_name}",
@@ -106,9 +107,9 @@ impl ClickhouseSchema {
             })
             .collect();
 
-        for field in schema.fields {
+        for field in &schema.fields {
             let Some(column) = columns.iter().find(|column| column.name == field.name) else {
-                return Err(ClickhouseSinkError::ColumnNotFound(field.name));
+                return Err(ClickhouseSinkError::ColumnNotFound(field.name.clone()));
             };
 
             let mut expected_type = match field.typ {
@@ -127,7 +128,7 @@ impl ClickhouseSchema {
                 FieldType::Point => "Point",
                 FieldType::Duration => {
                     return Err(ClickhouseSinkError::TypeNotSupported(
-                        field.name,
+                        field.name.clone(),
                         "Duration".to_string(),
                     ))
                 }
@@ -145,7 +146,7 @@ impl ClickhouseSchema {
             let column_type = column.type_.clone();
             if expected_type != column_type {
                 return Err(ClickhouseSinkError::ColumnTypeMismatch(
-                    field.name,
+                    field.name.clone(),
                     expected_type.to_string(),
                     column_type.to_string(),
                 ));
@@ -161,7 +162,7 @@ impl ClickhouseSchema {
     ) -> Result<ClickhouseTable, ClickhouseSinkError> {
         let block = handle
             .query(format!(
-                "SELECT database, name, engine, engine_full FROM system.tables WHERE name = {}",
+                "SELECT database, name, engine, engine_full FROM system.tables WHERE name = '{}'",
                 sink_table_name
             ))
             .fetch_all()
@@ -185,7 +186,7 @@ impl ClickhouseSchema {
                 r#"
                 SELECT column_name, constraint_name, constraint_schema 
                 FROM INFORMATION_SCHEMA.key_column_usage 
-                WHERE table_name = {} AND constraint_schema = {} and column_name is NOT NULL"#,
+                WHERE table_name = '{}' AND constraint_schema = '{}' and column_name is NOT NULL"#,
                 sink_table_name, schema
             ))
             .fetch_all()

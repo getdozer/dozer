@@ -157,7 +157,11 @@ pub struct AerospikeSinkConfig {
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct ClickhouseSinkConfig {
-    pub database_url: String,
+    #[serde(default = "ClickhouseSinkConfig::default_host")]
+    pub host: String,
+    #[serde(default = "ClickhouseSinkConfig::default_port")]
+    pub port: u16,
+    #[serde(default = "ClickhouseSinkConfig::default_user")]
     pub user: String,
     #[serde(default)]
     pub password: Option<String>,
@@ -175,9 +179,17 @@ impl ClickhouseSinkConfig {
     fn default_database() -> String {
         "default".to_string()
     }
-
     fn default_scheme() -> String {
         "tcp".to_string()
+    }
+    fn default_host() -> String {
+        "0.0.0.0".to_string()
+    }
+    fn default_port() -> u16 {
+        9000
+    }
+    fn default_user() -> String {
+        "default".to_string()
     }
 }
 

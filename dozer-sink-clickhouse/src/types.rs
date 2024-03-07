@@ -138,10 +138,7 @@ fn convert_to_fixed_offset(datetime_tz: DateTime<Tz>) -> Option<DateTime<FixedOf
 }
 
 fn type_mismatch_error(expected_type: &str, field_name: &str) -> QueryError {
-    QueryError::CustomError(format!(
-        "Unexpected field type for {}, expected {}",
-        field_name, expected_type
-    ))
+    QueryError::TypeMismatch(expected_type.to_string(), field_name.to_string())
 }
 
 macro_rules! handle_type {

@@ -1,9 +1,4 @@
-use clickhouse_rs::types::SqlType;
-use dozer_types::{
-    thiserror::{self, Error},
-    types::FieldDefinition,
-};
-pub const BATCH_SIZE: usize = 100;
+use dozer_types::thiserror::{self, Error};
 
 #[derive(Error, Debug)]
 pub enum ClickhouseSinkError {
@@ -31,9 +26,6 @@ pub enum ClickhouseSinkError {
     #[error("Expected primary key {0:?} but got {1:?}")]
     PrimaryKeyMismatch(Vec<String>, Vec<String>),
 
-    #[error("Schema field not found by index {0}")]
-    SchemaFieldNotFoundByIndex(usize),
-
     #[error("QueryError: {0:?}")]
     QueryError(#[from] QueryError),
 }
@@ -43,11 +35,8 @@ pub enum QueryError {
     #[error("Clickhouse error: {0:?}")]
     DataFetchError(#[from] clickhouse_rs::errors::Error),
 
-    #[error("Unsupported type: {0:?}")]
-    UnsupportedType(SqlType),
-
-    #[error("Schema has type {0:?} but value is of type {1:?}")]
-    TypeMismatch(FieldDefinition, SqlType),
+    #[error("Unexpected field type for {0:?}, expected {0}")]
+    TypeMismatch(String, String),
 
     #[error("{0:?}")]
     CustomError(String),

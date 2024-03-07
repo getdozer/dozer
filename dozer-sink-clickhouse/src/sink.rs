@@ -65,6 +65,8 @@ impl SinkFactory for ClickhouseSinkFactory {
         }
         let table = ClickhouseSchema::get_clickhouse_table(client.clone(), &self.config).await?;
 
+        ClickhouseSchema::compare_with_dozer_schema(client.clone(), &schema, &table).await?;
+
         let primary_key_field_names =
             ClickhouseSchema::get_primary_keys(client.clone(), &self.config).await?;
 
