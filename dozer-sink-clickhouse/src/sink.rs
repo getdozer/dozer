@@ -17,6 +17,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
+const BATCH_SIZE: usize = 100;
 #[derive(Debug)]
 pub struct ClickhouseSinkFactory {
     runtime: Arc<Runtime>,
@@ -102,6 +103,7 @@ pub(crate) struct ClickhouseSink {
     pub(crate) sink_table_name: String,
     pub(crate) table: ClickhouseTable,
     pub(crate) primary_key_fields_indexes: Vec<usize>,
+    batch: Vec<Vec<Field>>,
 }
 
 impl Debug for ClickhouseSink {
@@ -134,22 +136,32 @@ impl ClickhouseSink {
             sink_table_name: config.sink_table_name,
             table,
             primary_key_fields_indexes,
+            batch: Vec::new(),
         }
     }
 
-    fn insert_values(&self, values: &[Field]) -> Result<(), BoxedError> {
+    fn insert_values(&mut self, values: &[Field]) -> Result<(), BoxedError> {
+        // add values to batch instead of inserting immediately
+        self.batch.push(values.to_vec());
+        Ok(())
+    }
+
+    fn commit_batch(&mut self) -> Result<(), BoxedError> {
         self.runtime.block_on(async {
             self.client
-                .insert(&self.sink_table_name, &self.schema.fields, values)
+                .insert_multi(&self.sink_table_name, &self.schema.fields, &self.batch)
                 .await?;
+
             Ok::<(), BoxedError>(())
         })?;
+        self.batch.clear();
         Ok(())
     }
 }
 
 impl Sink for ClickhouseSink {
     fn commit(&mut self, _epoch_details: &Epoch) -> Result<(), BoxedError> {
+        self.commit_batch()?;
         Ok(())
     }
 
@@ -163,6 +175,10 @@ impl Sink for ClickhouseSink {
                     self.insert_values(&values)?;
                 } else {
                     self.insert_values(&new.values)?;
+                }
+
+                if self.batch.len() > BATCH_SIZE - 1 {
+                    self.commit_batch()?;
                 }
             }
             Operation::Delete { old } => {
@@ -191,6 +207,7 @@ impl Sink for ClickhouseSink {
                     values.push(Field::Int(1));
                     self.insert_values(&values)?;
                 }
+                self.commit_batch()?;
             }
         }
 

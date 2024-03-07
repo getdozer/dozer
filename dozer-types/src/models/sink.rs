@@ -154,7 +154,7 @@ pub struct AerospikeSinkConfig {
     pub preferred_batch_size: Option<u64>,
 }
 
-#[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone, Default)]
 #[serde(deny_unknown_fields)]
 pub struct ClickhouseSinkConfig {
     #[serde(default = "ClickhouseSinkConfig::default_host")]
