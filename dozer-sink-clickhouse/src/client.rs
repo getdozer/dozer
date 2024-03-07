@@ -16,6 +16,7 @@ pub struct SqlResult {
 #[derive(Clone)]
 pub struct ClickhouseClient {
     pool: Pool,
+    config: ClickhouseSinkConfig,
 }
 #[derive(Debug, Clone, Serialize)]
 pub struct QueryId(pub String);
@@ -37,15 +38,15 @@ pub struct ClickhouseOptionsWrapper(ClickhouseSinkConfig);
 
 impl ClickhouseClient {
     pub fn new(config: ClickhouseSinkConfig) -> Self {
-        let url = Self::construct_url(config);
+        let url = Self::construct_url(&config);
         let pool = Pool::new(url);
-        Self { pool }
+        Self { pool, config }
     }
 
-    pub fn construct_url(config: ClickhouseSinkConfig) -> String {
+    pub fn construct_url(config: &ClickhouseSinkConfig) -> String {
         let user_password = match &config.password {
             Some(password) => format!("{}:{}", config.user, password),
-            None => config.user,
+            None => config.user.to_string(),
         };
 
         let url = format!(
@@ -93,7 +94,7 @@ impl ClickhouseClient {
         fields: &[FieldDefinition],
     ) -> Result<(), QueryError> {
         let mut client = self.pool.get_handle().await?;
-        let ddl = get_create_table_query(datasource_name, fields, None, None);
+        let ddl = get_create_table_query(datasource_name, fields, self.config.clone());
         info!("Creating Clickhouse Sink Table");
         info!("{ddl}");
         client.execute(ddl).await?;

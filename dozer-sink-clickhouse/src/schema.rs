@@ -112,17 +112,7 @@ impl ClickhouseSchema {
             let Some(column) = columns.iter().find(|column| column.name == field.name) else {
                 return Err(ClickhouseSinkError::ColumnNotFound(field.name.clone()));
             };
-
-            let mut expected_type = map_field_to_type(field);
-
-            if field.nullable {
-                expected_type = format!("Nullable({expected_type})");
-            }
-
-            if field.typ == FieldType::Binary {
-                expected_type = format!("Array({expected_type})");
-            }
-
+            let expected_type = map_field_to_type(field);
             let column_type = column.type_.clone();
             if expected_type != column_type {
                 return Err(ClickhouseSinkError::ColumnTypeMismatch(
@@ -185,7 +175,7 @@ impl ClickhouseSchema {
 }
 
 pub fn map_field_to_type(field: &FieldDefinition) -> String {
-    let typ = match field.typ {
+    let typ: &str = match field.typ {
         FieldType::UInt => "UInt64",
         FieldType::U128 => "UInt128",
         FieldType::Int => "Int64",
@@ -195,7 +185,7 @@ pub fn map_field_to_type(field: &FieldDefinition) -> String {
         FieldType::String => "String",
         FieldType::Text => "String",
         FieldType::Binary => "Array(UInt8)",
-        FieldType::Decimal => "Decimal",
+        FieldType::Decimal => "Decimal(10, 0)",
         FieldType::Timestamp => "DateTime64(3)",
         FieldType::Date => "Date",
         FieldType::Json => "JSON",

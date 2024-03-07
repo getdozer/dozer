@@ -17,9 +17,6 @@ pub enum ClickhouseSinkError {
     #[error("Primary key not found")]
     PrimaryKeyNotFound,
 
-    #[error("Type {1} is not supported for column {0}")]
-    TypeNotSupported(String, String),
-
     #[error("Sink table does not exist and create_table_options is not set")]
     SinkTableDoesNotExist,
 
