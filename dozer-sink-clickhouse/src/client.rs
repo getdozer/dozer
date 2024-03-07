@@ -4,6 +4,7 @@ use super::types::ValueWrapper;
 use crate::errors::QueryError;
 use crate::types::{insert_multi, map_value_wrapper_to_field};
 use clickhouse_rs::{ClientHandle, Pool};
+use dozer_types::models::sink::ClickhouseSinkConfig;
 use dozer_types::types::{Field, FieldDefinition};
 use serde::Serialize;
 
@@ -31,19 +32,24 @@ pub struct QueryLog {
     pub result_bytes: u64,
     pub memory_usage: u64,
 }
+pub struct ClickhouseOptionsWrapper(ClickhouseSinkConfig);
 
 impl ClickhouseClient {
-    pub fn root() -> Self {
-        let pool = Pool::new("tcp://default@localhost:9000/default");
-
+    pub fn new(config: ClickhouseSinkConfig) -> Self {
+        let url = Self::construct_url(config);
+        let pool = Pool::new(url);
         Self { pool }
     }
 
-    pub fn new(app_id: i32) -> Self {
-        let pool = Pool::new(
-            format!("tcp://default@localhost:9000/db_{app_id}", app_id = app_id).as_str(),
-        );
-        Self { pool }
+    pub fn construct_url(config: ClickhouseSinkConfig) -> String {
+        format!(
+            "{}://{}:{}@{}/{}",
+            config.scheme,
+            config.user,
+            config.password.as_deref().unwrap_or(""),
+            config.database_url,
+            config.database
+        )
     }
 
     pub fn get_log_query(log_comment: &str) -> String {

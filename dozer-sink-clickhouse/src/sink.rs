@@ -55,7 +55,7 @@ impl SinkFactory for ClickhouseSinkFactory {
     ) -> Result<Box<dyn Sink>, BoxedError> {
         let schema = input_schemas.remove(&DEFAULT_PORT_HANDLE).unwrap();
 
-        let client = ClickhouseClient::root();
+        let client = ClickhouseClient::new(self.config.clone());
 
         let config = &self.config;
         if self.config.create_table_options.is_some() {

@@ -405,7 +405,6 @@
     "ClickhouseSinkConfig": {
       "type": "object",
       "required": [
-        "database",
         "database_url",
         "sink_table_name",
         "source_table_name",
@@ -423,6 +422,7 @@
           ]
         },
         "database": {
+          "default": "default",
           "type": "string"
         },
         "database_url": {
@@ -443,6 +443,10 @@
           "items": {
             "type": "string"
           }
+        },
+        "scheme": {
+          "default": "tcp",
+          "type": "string"
         },
         "sink_table_name": {
           "type": "string"

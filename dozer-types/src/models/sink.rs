@@ -161,11 +161,24 @@ pub struct ClickhouseSinkConfig {
     pub user: String,
     #[serde(default)]
     pub password: Option<String>,
+    #[serde(default = "ClickhouseSinkConfig::default_scheme")]
+    pub scheme: String,
+    #[serde(default = "ClickhouseSinkConfig::default_database")]
     pub database: String,
     pub source_table_name: String,
     pub sink_table_name: String,
     pub primary_keys: Option<Vec<String>>,
     pub create_table_options: Option<ClickhouseSinkTableOptions>,
+}
+
+impl ClickhouseSinkConfig {
+    fn default_database() -> String {
+        "default".to_string()
+    }
+
+    fn default_scheme() -> String {
+        "tcp".to_string()
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
