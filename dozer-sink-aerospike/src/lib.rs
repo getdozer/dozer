@@ -438,10 +438,10 @@ impl AerospikeSinkWorker {
             .map(|table| table.records.len())
             .sum();
         // Write denormed tables
-        let mut batch = RecordBatch::new(batch_size_est as u32, batch_size_est as u32);
-
+        let mut batch = RecordBatch::new(batch_size_est as u32, None);
         for table in denormalized_tables {
-            for (key, record) in table.records {
+            for record in table.records {
+                let key = table.pk.iter().map(|i| record[*i].clone()).collect_vec();
                 batch.add_write(
                     &table.namespace,
                     &table.set,
@@ -674,6 +674,7 @@ mod tests {
                     denormalize: vec![],
                     write_denormalized_to: None,
                     primary_key: vec![],
+                    aggregate_by_pk: false,
                 }],
                 max_batch_duration_ms: None,
                 preferred_batch_size: None,

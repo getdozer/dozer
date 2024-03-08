@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 use std::ffi::{CStr, CString, NulError};
-use std::ops::Deref;
 use std::ptr::{addr_of_mut, NonNull};
 
 use aerospike_client_sys::*;
 use dozer_core::daggy::petgraph::Direction;
-use dozer_core::daggy::{self, NodeIndex};
+use dozer_core::daggy::{self, EdgeIndex, NodeIndex};
 use dozer_core::petgraph::visit::{
     EdgeRef, IntoEdgesDirected, IntoNeighborsDirected, IntoNodeReferences,
 };
@@ -14,15 +13,18 @@ use dozer_types::indexmap::IndexMap;
 use dozer_types::models::sink::{AerospikeSet, AerospikeSinkTable};
 use dozer_types::thiserror;
 use dozer_types::types::{Field, Record, Schema, TableOperation};
-use itertools::Itertools;
+use itertools::{Either, Itertools};
 use smallvec::SmallVec;
 
 use crate::aerospike::{
     as_batch_read_reserve, as_batch_records_create, as_batch_remove_reserve,
     as_batch_write_reserve, as_vector_get, check_alloc, init_batch_write_operations, init_key,
-    parse_record, AerospikeError, AsOperations, BinNames, Client,
+    new_record_map, parse_record, parse_record_many, AerospikeError, AsOperations, BinNames,
+    Client,
 };
 use crate::AerospikeSinkError;
+
+const MANY_LIST_BIN: &CStr = unsafe { CStr::from_bytes_with_nul_unchecked("data\0".as_bytes()) };
 
 #[derive(Debug, Clone)]
 struct CachedRecord {
@@ -31,25 +33,321 @@ struct CachedRecord {
     record: Option<Vec<Field>>,
 }
 
-impl Deref for CachedRecord {
-    type Target = Option<Vec<Field>>;
+#[derive(Debug, Clone, Default)]
+struct OneToOneBatch(IndexMap<Vec<Field>, SmallVec<[CachedRecord; 2]>>);
 
-    fn deref(&self) -> &Self::Target {
-        &self.record
+#[derive(Debug, Clone)]
+enum ManyOp {
+    Add(Vec<Field>),
+    Remove(Vec<Field>),
+}
+
+#[derive(Debug, Clone)]
+struct ManyRecord {
+    version: usize,
+    ops: Vec<ManyOp>,
+}
+
+#[derive(Debug, Clone, Default)]
+struct OneToManyEntry {
+    base: Option<Vec<Vec<Field>>>,
+    ops: Vec<ManyRecord>,
+}
+
+#[derive(Debug, Clone, Default)]
+struct OneToManyBatch(IndexMap<Vec<Field>, OneToManyEntry>);
+
+impl OneToManyBatch {
+    fn insert_point(
+        &mut self,
+        key: Vec<Field>,
+        version: usize,
+    ) -> (&mut OneToManyEntry, usize, usize) {
+        let entry = self.0.entry(key);
+        let idx = entry.index();
+        let entry = entry.or_default();
+        let insert_point = entry
+            .ops
+            .iter()
+            .position(|rec| rec.version >= version)
+            .unwrap_or(entry.ops.len());
+        (entry, idx, insert_point)
+    }
+
+    fn insert_local(&mut self, key: Vec<Field>, value: Vec<Field>, version: usize) -> usize {
+        let (entry, idx, insert_point) = self.insert_point(key, version);
+        match entry.ops.get_mut(insert_point) {
+            Some(entry) if entry.version == version => {
+                entry.ops.push(ManyOp::Add(value));
+            }
+            _ => {
+                entry.ops.insert(
+                    insert_point,
+                    ManyRecord {
+                        version,
+                        ops: vec![ManyOp::Add(value)],
+                    },
+                );
+            }
+        }
+        idx
+    }
+
+    fn remove_local(&mut self, key: Vec<Field>, old_value: &[Field], version: usize) -> usize {
+        let (entry, idx, insert_point) = self.insert_point(key, version);
+        match entry.ops.get_mut(insert_point) {
+            Some(entry) if entry.version == version => {
+                if let Some(added) = entry
+                    .ops
+                    .iter()
+                    .position(|entry| matches!(entry, ManyOp::Add(value) if value == old_value))
+                {
+                    let _ = entry.ops.swap_remove(added);
+                } else {
+                    entry.ops.push(ManyOp::Remove(old_value.to_vec()));
+                }
+            }
+            _ => entry.ops.insert(
+                insert_point,
+                ManyRecord {
+                    version,
+                    ops: vec![ManyOp::Remove(old_value.to_vec())],
+                },
+            ),
+        };
+        idx
+    }
+
+    fn replace_local(
+        &mut self,
+        key: Vec<Field>,
+        old_value: Vec<Field>,
+        new_value: Vec<Field>,
+        version: usize,
+    ) -> usize {
+        let (entry, idx, insert_point) = self.insert_point(key, version);
+        match entry.ops.get_mut(insert_point) {
+            Some(entry) if entry.version == version => {
+                if let Some(added) = entry
+                    .ops
+                    .iter_mut()
+                    .find(|entry| matches!(entry, ManyOp::Add(value) if value == &old_value))
+                {
+                    *added = ManyOp::Add(new_value);
+                } else {
+                    entry.ops.push(ManyOp::Remove(old_value));
+                    entry.ops.push(ManyOp::Add(new_value));
+                }
+            }
+            _ => entry.ops.insert(
+                insert_point,
+                ManyRecord {
+                    version,
+                    ops: vec![ManyOp::Remove(old_value), ManyOp::Add(new_value)],
+                },
+            ),
+        };
+        idx
+    }
+
+    fn insert_remote(&mut self, index: usize, value: Vec<Vec<Field>>) {
+        let (_, record) = self.0.get_index_mut(index).unwrap();
+        record.base = Some(value);
+    }
+
+    fn get(&self, key: &[Field], version: usize) -> Option<impl Iterator<Item = Vec<Field>>> {
+        let entry = self.0.get(key)?;
+
+        Self::get_inner(entry, version)
+    }
+    fn get_index(&self, index: usize, version: usize) -> Option<impl Iterator<Item = Vec<Field>>> {
+        let (_, entry) = self.0.get_index(index)?;
+
+        Self::get_inner(entry, version)
+    }
+
+    fn get_inner(entry: &OneToManyEntry, version: usize) -> Option<std::vec::IntoIter<Vec<Field>>> {
+        let mut recs = entry.base.clone()?;
+        for version in entry.ops.iter().take_while(|ops| ops.version <= version) {
+            for op in &version.ops {
+                match op {
+                    ManyOp::Add(rec) => recs.push(rec.clone()),
+                    ManyOp::Remove(to_remove) => {
+                        if let Some(to_remove) = recs.iter().position(|rec| rec == to_remove) {
+                            recs.swap_remove(to_remove);
+                        }
+                    }
+                }
+            }
+        }
+        if recs.is_empty() {
+            None
+        } else {
+            Some(recs.into_iter())
+        }
+    }
+
+    fn write(
+        &mut self,
+        record_batch: &mut RecordBatch,
+        schema: &AerospikeSchema,
+    ) -> Result<(), AerospikeSinkError> {
+        for (k, v) in self.0.drain(..) {
+            // We should always have a base, otherwise we can't do idempotent writes
+            let mut record = v.base.unwrap();
+            // Apply ops
+            for version in v.ops {
+                for op in version.ops {
+                    match op {
+                        ManyOp::Add(rec) => {
+                            record.push(rec);
+                        }
+                        ManyOp::Remove(rec) => {
+                            if let Some(pos) = record.iter().position(|r| r == &rec) {
+                                record.swap_remove(pos);
+                            }
+                        }
+                    }
+                }
+            }
+            record_batch.add_write_list(
+                &schema.namespace,
+                &schema.set,
+                &k,
+                schema.bins.names(),
+                &record,
+            )?;
+        }
+        Ok(())
     }
 }
 
 #[derive(Debug, Clone)]
-struct Node {
-    namespace: CString,
-    set: CString,
-    schema: Schema,
-    batch: IndexMap<Vec<Field>, SmallVec<[CachedRecord; 2]>>,
-    bins: BinNames,
-    denormalize_to: Option<(CString, CString)>,
+enum CachedBatch {
+    One(OneToOneBatch),
+    Many(OneToManyBatch),
+}
+struct DirtyRecord<'a> {
+    idx: usize,
+    key: &'a [Field],
+    version: usize,
 }
 
-impl Node {
+impl CachedBatch {
+    fn iter_dirty(&self) -> impl Iterator<Item = DirtyRecord> {
+        match self {
+            Self::One(batch) => batch
+                .0
+                .iter()
+                .enumerate()
+                .filter_map(|(i, (k, v))| Some((i, k, v.last()?)))
+                .filter(|(_, _, v)| v.dirty)
+                .map(|(i, k, v)| DirtyRecord {
+                    idx: i,
+                    key: k,
+                    version: v.version,
+                }),
+            Self::Many(_) => unimplemented!(),
+        }
+    }
+
+    fn remove_local(&mut self, key: Vec<Field>, old_value: &[Field], version: usize) -> usize {
+        match self {
+            Self::One(batch) => batch.insert_local(key, None, version),
+            Self::Many(batch) => batch.remove_local(key, old_value, version),
+        }
+    }
+
+    fn insert_local(&mut self, key: Vec<Field>, value: Vec<Field>, version: usize) -> usize {
+        match self {
+            Self::One(batch) => batch.insert_local(key, Some(value), version),
+            Self::Many(batch) => batch.insert_local(key, value, version),
+        }
+    }
+
+    fn replace_local(
+        &mut self,
+        key: Vec<Field>,
+        old_value: Vec<Field>,
+        new_value: Vec<Field>,
+        version: usize,
+    ) -> usize {
+        match self {
+            Self::One(batch) => batch.insert_impl(key, Some(new_value), version, true, true),
+            Self::Many(batch) => batch.replace_local(key, old_value, new_value, version),
+        }
+    }
+
+    fn clear(&mut self) {
+        match self {
+            Self::One(batch) => batch.clear(),
+            Self::Many(batch) => batch.0.clear(),
+        }
+    }
+
+    fn len(&self) -> usize {
+        match self {
+            Self::One(batch) => batch.len(),
+            Self::Many(batch) => batch.0.len(),
+        }
+    }
+
+    fn write(
+        &mut self,
+        record_batch: &mut RecordBatch,
+        schema: &AerospikeSchema,
+    ) -> Result<(), AerospikeSinkError> {
+        match self {
+            Self::One(batch) => batch.write(record_batch, schema),
+            Self::Many(batch) => batch.write(record_batch, schema),
+        }
+    }
+
+    fn get<'a>(
+        &'a self,
+        key: &[Field],
+        version: usize,
+    ) -> Option<impl Iterator<Item = Vec<Field>> + 'a> {
+        match self {
+            Self::One(batch) => {
+                let record = batch.get(key, version)?.record.clone()?;
+                Some(Either::Left(std::iter::once(record)))
+            }
+            Self::Many(batch) => Some(Either::Right(batch.get(key, version)?)),
+        }
+    }
+
+    fn get_index(
+        &self,
+        index: usize,
+        version: usize,
+    ) -> Option<impl Iterator<Item = Vec<Field>> + '_> {
+        match self {
+            Self::One(batch) => {
+                let record = batch.get_index(index, version)?.record.clone()?;
+                Some(Either::Left(std::iter::once(record)))
+            }
+            Self::Many(batch) => Some(Either::Right(batch.get_index(index, version)?)),
+        }
+    }
+
+    fn should_update_at(&mut self, key: Vec<Field>, version: usize) -> (bool, usize) {
+        match self {
+            Self::One(batch) => {
+                let (index, exists) = batch.index_or_default(key, version);
+                (!exists, index)
+            }
+            // For a many batch, we always need the base from the remote
+            Self::Many(batch) => {
+                let entry = batch.0.entry(key);
+                let idx = entry.index();
+                (entry.or_default().base.is_none(), idx)
+            }
+        }
+    }
+}
+
+impl OneToOneBatch {
     fn insert_local(
         &mut self,
         key: Vec<Field>,
@@ -67,7 +365,7 @@ impl Node {
         replace: bool,
         dirty: bool,
     ) -> usize {
-        let entry = self.batch.entry(key);
+        let entry = self.0.entry(key);
         let idx = entry.index();
         let versions = entry.or_default();
         let record = CachedRecord {
@@ -95,15 +393,85 @@ impl Node {
         idx
     }
 
-    fn insert_remote(&mut self, key: Vec<Field>, value: Option<Vec<Field>>) -> usize {
-        self.insert_impl(key, value, 0, false, false)
+    fn insert_remote(&mut self, index: usize, value: Option<Vec<Field>>) {
+        let (_, versions) = self.0.get_index_mut(index).unwrap();
+        versions.insert(
+            0,
+            CachedRecord {
+                dirty: false,
+                version: 0,
+                record: value,
+            },
+        );
     }
 
-    fn get(&self, key: &[Field], version: usize) -> Option<&CachedRecord> {
-        let versions = self.batch.get(key)?;
+    fn get<'a>(&'a self, key: &[Field], version: usize) -> Option<&'a CachedRecord> {
+        let versions = self.0.get(key)?;
         // Find the last version thats <= version
-        versions.iter().filter(|v| v.version <= version).last()
+        versions.iter().take_while(|v| v.version <= version).last()
     }
+
+    fn get_index(&self, index: usize, version: usize) -> Option<&CachedRecord> {
+        let (_, versions) = self.0.get_index(index)?;
+        // Find the last version thats <= version
+        versions.iter().take_while(|v| v.version <= version).last()
+    }
+
+    /// Returns the index at which the entry for the given key exists,
+    /// or was created and whether it existed
+    fn index_or_default(&mut self, key: Vec<Field>, version: usize) -> (usize, bool) {
+        let entry = self.0.entry(key);
+        let idx = entry.index();
+        let versions = entry.or_default();
+        (idx, versions.first().is_some_and(|v| v.version <= version))
+    }
+
+    fn clear(&mut self) {
+        self.0.clear()
+    }
+
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    fn write(
+        &mut self,
+        batch: &mut RecordBatch,
+        schema: &AerospikeSchema,
+    ) -> Result<(), AerospikeSinkError> {
+        for (key, dirty_record) in self.0.drain(..).filter_map(|(key, mut rec)| {
+            let last_version = rec.pop()?;
+            last_version.dirty.then_some((key, last_version.record))
+        }) {
+            if let Some(dirty_record) = dirty_record {
+                batch.add_write(
+                    &schema.namespace,
+                    &schema.set,
+                    schema.bins.names(),
+                    &key,
+                    &dirty_record,
+                )?;
+            } else {
+                batch.add_remove(&schema.namespace, &schema.set, &key)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone)]
+struct AerospikeSchema {
+    namespace: CString,
+    set: CString,
+    bins: BinNames,
+}
+
+#[derive(Debug, Clone)]
+struct Node {
+    schema: Schema,
+    batch: CachedBatch,
+    as_schema: AerospikeSchema,
+    denormalize_to: Option<(CString, CString, Vec<String>)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
@@ -151,7 +519,7 @@ pub(crate) enum Error {
 pub(crate) struct DenormalizationState {
     dag: DenormDag,
     current_transaction: Option<u64>,
-    base_tables: Vec<(NodeIndex, Vec<CString>)>,
+    base_tables: Vec<(NodeIndex, Vec<CString>, Vec<usize>)>,
     transaction_counter: usize,
 }
 
@@ -160,7 +528,8 @@ pub(crate) struct DenormalizedTable {
     pub(crate) bin_names: Vec<CString>,
     pub(crate) namespace: CString,
     pub(crate) set: CString,
-    pub(crate) records: Vec<(Vec<Field>, Vec<Field>)>,
+    pub(crate) records: Vec<Vec<Field>>,
+    pub(crate) pk: Vec<usize>,
 }
 type DenormDag = daggy::Dag<Node, Edge>;
 
@@ -174,20 +543,38 @@ fn bin_names_recursive(dag: &DenormDag, nid: NodeIndex, bins: &mut Vec<CString>)
 }
 
 impl DenormalizationState {
+    fn node(&self, index: NodeIndex) -> &Node {
+        self.dag.node_weight(index).unwrap()
+    }
+
+    fn edge(&self, index: EdgeIndex) -> &Edge {
+        self.dag.edge_weight(index).unwrap()
+    }
+}
+
+impl DenormalizationState {
     pub(crate) fn new(tables: &[(AerospikeSinkTable, Schema)]) -> Result<Self, Error> {
         assert!(!tables.is_empty());
         let dag = Self::build_dag(tables)?;
         let base_tables: Vec<_> = dag
             .node_references()
             // Filter out non-base-tables
-            .filter_map(|(i, node)| node.denormalize_to.is_some().then_some(i))
+            .filter_map(|(i, node)| node.denormalize_to.as_ref().map(|(_, _, pk)| (i, pk)))
             // Find all added bin names using a depth-first search
-            .map(|id| {
-                let mut bin_names = dag.node_weight(id).unwrap().bins.names().to_vec();
+            .map(|(id, pk)| -> Result<_, Error> {
+                let mut bin_names = dag.node_weight(id).unwrap().as_schema.bins.names().to_vec();
                 bin_names_recursive(&dag, id, &mut bin_names);
-                (id, bin_names)
+                let mut primary_key = Vec::new();
+                for key in pk {
+                    let idx = bin_names
+                        .iter()
+                        .position(|bin| bin.to_str().is_ok_and(|bin| bin == key))
+                        .ok_or_else(|| Error::FieldNotFound(key.clone()))?;
+                    primary_key.push(idx);
+                }
+                Ok((id, bin_names, primary_key))
             })
-            .collect();
+            .try_collect()?;
         Ok(Self {
             dag,
             current_transaction: None,
@@ -200,24 +587,35 @@ impl DenormalizationState {
         let mut dag: daggy::Dag<Node, Edge> = daggy::Dag::new();
         let mut node_by_name = HashMap::new();
         for (table, schema) in tables.iter() {
-            let bin_names = BinNames::new(schema.fields.iter().map(|field| &field.name))?;
+            let bin_names = BinNames::new(schema.fields.iter().map(|field| field.name.as_str()))?;
             let denormalize_to = table
                 .write_denormalized_to
                 .as_ref()
                 .map(|to| -> Result<_, Error> {
-                    let AerospikeSet { namespace, set } = to;
+                    let AerospikeSet {
+                        namespace,
+                        set,
+                        primary_key,
+                    } = to;
                     Ok((
                         CString::new(namespace.as_str())?,
                         CString::new(set.as_str())?,
+                        primary_key.clone(),
                     ))
                 })
                 .transpose()?;
             let idx = dag.add_node(Node {
-                namespace: CString::new(table.namespace.as_str())?,
-                set: CString::new(table.set_name.as_str())?,
+                as_schema: AerospikeSchema {
+                    namespace: CString::new(table.namespace.as_str())?,
+                    set: CString::new(table.set_name.as_str())?,
+                    bins: bin_names,
+                },
                 schema: schema.clone(),
-                batch: IndexMap::new(),
-                bins: bin_names,
+                batch: if table.aggregate_by_pk {
+                    CachedBatch::Many(OneToManyBatch::default())
+                } else {
+                    CachedBatch::One(OneToOneBatch::default())
+                },
                 denormalize_to,
             });
 
@@ -325,14 +723,16 @@ pub(crate) struct RecordBatch {
     inner: NonNull<as_batch_records>,
     allocated_strings: Vec<String>,
     operations: Vec<AsOperations>,
+    read_ops: usize,
 }
 
 impl RecordBatch {
-    pub(crate) fn new(capacity: u32, n_strings_estimate: u32) -> Self {
+    pub(crate) fn new(capacity: u32, allocated_strings: Option<Vec<String>>) -> Self {
         let ptr = unsafe { NonNull::new(as_batch_records_create(capacity)).unwrap() };
         Self {
+            read_ops: 0,
             inner: ptr,
-            allocated_strings: Vec::with_capacity(n_strings_estimate as usize),
+            allocated_strings: allocated_strings.unwrap_or_default(),
             operations: Vec::with_capacity(capacity as usize),
         }
     }
@@ -366,6 +766,10 @@ impl RecordBatch {
         key: &[Field],
         values: &[Field],
     ) -> Result<(), AerospikeSinkError> {
+        assert_eq!(
+            self.read_ops, 0,
+            "No mixed read-write aerospike batches allowed"
+        );
         let write_rec = self.reserve_write();
         unsafe {
             init_key(
@@ -388,12 +792,54 @@ impl RecordBatch {
         Ok(())
     }
 
+    pub(crate) fn add_write_list(
+        &mut self,
+        namespace: &CStr,
+        set: &CStr,
+        key: &[Field],
+        bin_names: &[CString],
+        values: &[Vec<Field>],
+    ) -> Result<(), AerospikeSinkError> {
+        assert_eq!(
+            self.read_ops, 0,
+            "No mixed read-write aerospike batches allowed"
+        );
+        let write_rec = self.reserve_write();
+        unsafe {
+            init_key(
+                addr_of_mut!((*write_rec).key),
+                namespace,
+                set,
+                key,
+                &mut self.allocated_strings,
+            )?;
+            let mut ops = AsOperations::new(1);
+            let list = as_arraylist_new(values.len().try_into().unwrap(), 0);
+            for record in values {
+                let map = new_record_map(record, bin_names, &mut self.allocated_strings)?;
+                as_arraylist_append(list, map as *mut as_val);
+            }
+            as_operations_add_write(
+                ops.as_mut_ptr(),
+                MANY_LIST_BIN.as_ptr(),
+                list as *mut as_bin_value,
+            );
+            (*write_rec).ops = ops.as_mut_ptr();
+            self.operations.push(ops);
+        }
+        Ok(())
+    }
+
     fn add_remove(
         &mut self,
         namespace: &CStr,
         set: &CStr,
         key: &[Field],
     ) -> Result<(), AerospikeSinkError> {
+        assert_eq!(
+            self.read_ops, 0,
+            "No mixed read-write aerospike batches allowed"
+        );
         let remove_rec = self.reserve_remove();
         unsafe {
             init_key(
@@ -412,7 +858,8 @@ impl RecordBatch {
         namespace: &CStr,
         set: &CStr,
         key: &[Field],
-    ) -> Result<(), AerospikeSinkError> {
+    ) -> Result<usize, AerospikeSinkError> {
+        let idx = self.read_ops;
         let read_rec = self.reserve_read();
         unsafe {
             init_key(
@@ -424,7 +871,8 @@ impl RecordBatch {
             )?;
             (*read_rec).read_all_bins = true;
         }
-        Ok(())
+        self.read_ops += 1;
+        Ok(idx)
     }
 }
 
@@ -436,10 +884,9 @@ impl Drop for RecordBatch {
 
 #[derive(Clone)]
 struct BatchLookup {
-    base_table: usize,
-    index: usize,
+    node: NodeIndex,
+    batch_idx: usize,
     version: usize,
-    key: Option<Vec<Field>>,
     batch_read_index: Option<usize>,
 }
 
@@ -448,7 +895,8 @@ impl DenormalizationState {
         let node = self.dag.node_weight_mut(node_id).unwrap();
         let idx = new.get_key_fields(&node.schema);
 
-        node.insert_local(idx, Some(new.values.clone()), self.transaction_counter);
+        node.batch
+            .insert_local(idx, new.values, self.transaction_counter);
     }
 
     pub(crate) fn process(&mut self, op: TableOperation) -> Result<(), AerospikeSinkError> {
@@ -459,7 +907,8 @@ impl DenormalizationState {
                 let node = self.dag.node_weight_mut(node_id).unwrap();
                 let schema = &node.schema;
                 let idx = old.get_key_fields(schema);
-                node.insert_local(idx, None, self.transaction_counter);
+                node.batch
+                    .remove_local(idx, &old.values, self.transaction_counter);
             }
             dozer_types::types::Operation::Insert { new } => {
                 self.do_insert(node_id, new);
@@ -475,7 +924,8 @@ impl DenormalizationState {
                         new: new_pk.clone(),
                     });
                 }
-                node.insert_local(new_pk, Some(new.values), self.transaction_counter);
+                node.batch
+                    .replace_local(new_pk, old.values, new.values, self.transaction_counter);
             }
             dozer_types::types::Operation::BatchInsert { new } => {
                 for value in new {
@@ -499,27 +949,12 @@ impl DenormalizationState {
             .sum();
 
         let batch_size: u32 = batch_size_upper_bound.try_into().unwrap();
-        let mut write_batch = RecordBatch::new(batch_size, batch_size);
+        let mut write_batch = RecordBatch::new(batch_size, None);
 
         for node in self.dag.node_weights_mut() {
             // Only write if the last version is dirty (the newest version was changed by this
             // batch)
-            for (key, dirty_record) in node.batch.drain(..).filter_map(|(key, mut rec)| {
-                let last_version = rec.pop()?;
-                last_version.dirty.then_some((key, last_version.record))
-            }) {
-                if let Some(dirty_record) = dirty_record {
-                    write_batch.add_write(
-                        &node.namespace,
-                        &node.set,
-                        node.bins.names(),
-                        &key,
-                        &dirty_record,
-                    )?;
-                } else {
-                    write_batch.add_remove(&node.namespace, &node.set, &key)?;
-                }
-            }
+            node.batch.write(&mut write_batch, &node.as_schema)?;
         }
 
         unsafe {
@@ -534,159 +969,198 @@ impl DenormalizationState {
         client: &Client,
     ) -> Result<Vec<DenormalizedTable>, AerospikeSinkError> {
         let mut lookups = Vec::new();
-        for (base_table_idx, (nid, _)) in self.base_tables.iter().enumerate() {
-            let node = self.dag.node_weight(*nid).unwrap();
-            let node_keys = node
-                .batch
-                .iter()
-                .enumerate()
-                .filter_map(|(i, (k, v))| Some((i, k, v.last()?)))
-                .filter(|(_, _, v)| v.dirty)
-                .map(|(i, k, v)| BatchLookup {
-                    base_table: base_table_idx,
-                    index: i,
-                    version: v.version,
-                    key: Some(k.clone()),
+        for (nid, _, _) in &self.base_tables {
+            let node = self.node(*nid);
+            let node_keys = node.batch.iter_dirty().map(
+                |DirtyRecord {
+                     idx,
+                     key: _,
+                     version,
+                 }| BatchLookup {
+                    version,
+                    node: *nid,
+                    batch_idx: idx,
                     batch_read_index: None,
-                })
-                .collect_vec();
-            let n_cols = node.schema.fields.len();
-            lookups.push((*nid, (0..n_cols).collect_vec(), node_keys));
+                },
+            );
+            lookups.extend(node_keys);
         }
-        let mut results: Vec<DenormalizedTable> = self
-            .base_tables
-            .iter()
-            .zip(lookups.iter())
-            .map(|((nid, bin_names), (_, _, keys))| {
-                let node = self.dag.node_weight(*nid).unwrap();
-                let (namespace, set) = node.denormalize_to.clone().unwrap();
-                DenormalizedTable {
-                    bin_names: bin_names.clone(),
-                    namespace,
-                    set,
-                    records: keys
-                        .iter()
-                        .map(|key| {
-                            (
-                                key.key.clone().unwrap(),
-                                Vec::with_capacity(bin_names.len()),
-                            )
-                        })
-                        .collect(),
-                }
-            })
-            .collect();
 
-        let mut batch = RecordBatch::new(0, 0);
+        let mut batch = RecordBatch::new(0, None);
         while !lookups.is_empty() {
-            let mut new_lookups = Vec::new();
-            let batch_size: usize = lookups.iter().map(|(_, _, keys)| keys.len()).sum();
-            let mut new_batch = RecordBatch::new(batch_size as u32, batch_size as u32);
-            let mut batch_idx = 0;
-            for (nid, fields, node_lookups) in lookups {
-                let node = self.dag.node_weight_mut(nid).unwrap();
-                for lookup in node_lookups.iter().cloned() {
-                    let BatchLookup {
-                        base_table,
-                        index,
-                        version,
-                        key,
-                        batch_read_index,
-                    } = lookup;
-                    // Update the node, if we retrieved from the remote
-                    if let Some(batch_read_index) = batch_read_index {
-                        unsafe {
-                            let rec = as_vector_get(
-                                &batch.inner().list as *const as_vector,
-                                batch_read_index,
-                            ) as *const as_batch_read_record;
-                            let result = (*rec).result;
-                            if result == as_status_e_AEROSPIKE_ERR_RECORD_NOT_FOUND {
-                                node.insert_remote(key.clone().unwrap(), None);
-                            } else if result == as_status_e_AEROSPIKE_OK {
-                                node.insert_remote(
-                                    key.clone().unwrap(),
-                                    Some(parse_record(&(*rec).record, &node.schema, &node.bins)?),
-                                );
-                            } else {
-                                return Err(AerospikeError::from_code(result).into());
-                            }
+            unsafe {
+                client.batch_get(batch.as_mut_ptr())?;
+            }
+            let mut new_lookups = Vec::with_capacity(lookups.len());
+            let mut new_batch = RecordBatch::new(lookups.len().try_into().unwrap(), None);
+            for BatchLookup {
+                node: nid,
+                batch_idx,
+                version,
+                batch_read_index,
+            } in lookups
+            {
+                // Update the node's local batch
+                if let Some(batch_read_index) = batch_read_index {
+                    let node = self.dag.node_weight_mut(nid).unwrap();
+                    unsafe {
+                        let rec = as_vector_get(
+                            &batch.inner().list as *const as_vector,
+                            batch_read_index,
+                        ) as *const as_batch_read_record;
+                        let result = (*rec).result;
+                        let rec = if result == as_status_e_AEROSPIKE_ERR_RECORD_NOT_FOUND {
+                            None
+                        } else if result == as_status_e_AEROSPIKE_OK {
+                            Some(rec)
+                        } else {
+                            return Err(AerospikeError::from_code(result).into());
+                        };
+                        match &mut node.batch {
+                            CachedBatch::One(batch) => batch.insert_remote(
+                                batch_idx,
+                                rec.map(|rec| -> Result<_, Error> {
+                                    parse_record(&(*rec).record, &node.schema, &node.as_schema.bins)
+                                })
+                                .transpose()?,
+                            ),
+                            CachedBatch::Many(batch) => batch.insert_remote(
+                                batch_idx,
+                                rec.map(|rec| -> Result<_, Error> {
+                                    parse_record_many(
+                                        &(*rec).record,
+                                        &node.schema,
+                                        MANY_LIST_BIN,
+                                        &node.as_schema.bins,
+                                    )
+                                })
+                                .transpose()?
+                                .unwrap_or_default(),
+                            ),
                         }
                     }
-                    // Look up in node and add to new batch. If it wasn't in there, we looked
-                    // it up remotely, so this is always `Some`
-                    let record = key.as_ref().map(|key| node.get(key, version).unwrap());
-                    let base_fields = &mut results[base_table].records[index].1;
-                    if let Some(record) = record.and_then(|record| record.record.as_ref()) {
-                        let denorm_fields = fields.iter().copied().map(|i| record[i].clone());
-                        base_fields.extend(denorm_fields);
-                    } else {
-                        base_fields.extend(std::iter::repeat(Field::Null).take(fields.len()));
-                    }
                 }
-                let node = self.dag.node_weight(nid).unwrap();
-
-                for edge in self.dag.edges_directed(nid, Direction::Outgoing) {
-                    let mut new_node_lookups = Vec::with_capacity(node_lookups.len());
-                    let key_fields = &edge.weight().key_fields;
-                    let target_node = self.dag.node_weight(edge.target()).unwrap();
-                    for lookup in &node_lookups {
-                        let BatchLookup {
-                            base_table,
-                            index,
-                            version,
-                            key,
-                            batch_read_index: _,
-                        } = lookup;
-                        let (new_key, new_batch_read_index) = if let Some(record) = key
-                            .as_ref()
-                            .and_then(|key| node.get(key, *version).unwrap().record.as_ref())
-                        {
-                            let new_key: Vec<Field> = key_fields
-                                .iter()
-                                .copied()
-                                .map(|i| record[i].clone())
-                                .collect();
-                            let batch_id = if target_node.get(&new_key, *version).is_none() {
-                                new_batch.add_read_all(
-                                    &target_node.namespace,
-                                    &target_node.set,
-                                    &new_key,
-                                )?;
-                                let idx = batch_idx;
-                                batch_idx += 1;
-                                Some(idx)
-                            } else {
-                                None
-                            };
-                            (Some(new_key), batch_id)
+                let Some(values) = self.node(nid).batch.get_index(batch_idx, version) else {
+                    continue;
+                };
+                let values = values.collect_vec();
+                let mut edges = self
+                    .dag
+                    .neighbors_directed(nid, Direction::Outgoing)
+                    .detach();
+                while let Some((edge, target)) = edges.next(self.dag.graph()) {
+                    for value in &values {
+                        let key = self
+                            .edge(edge)
+                            .key_fields
+                            .iter()
+                            .copied()
+                            .map(|i| value[i].clone())
+                            .collect_vec();
+                        let (should_update, batch_idx) = self
+                            .dag
+                            .node_weight_mut(target)
+                            .unwrap()
+                            .batch
+                            .should_update_at(key.clone(), version);
+                        let target_schema = &self.node(target).as_schema;
+                        let batch_read_index = if should_update {
+                            Some(new_batch.add_read_all(
+                                &target_schema.namespace,
+                                &target_schema.set,
+                                &key,
+                            )?)
                         } else {
-                            (None, None)
+                            None
                         };
-                        new_node_lookups.push(BatchLookup {
-                            base_table: *base_table,
-                            index: *index,
-                            version: *version,
-                            key: new_key,
-                            batch_read_index: new_batch_read_index,
-                        });
+
+                        new_lookups.push(BatchLookup {
+                            node: target,
+                            batch_idx,
+                            version,
+                            batch_read_index,
+                        })
                     }
-                    new_lookups.push((
-                        edge.target(),
-                        edge.weight().field_indices.clone(),
-                        new_node_lookups,
-                    ));
                 }
             }
             lookups = new_lookups;
             batch = new_batch;
-            if batch_idx > 0 {
-                unsafe {
-                    client.batch_get(batch.as_mut_ptr())?;
-                }
-            }
         }
-        Ok(results)
+
+        let mut res = Vec::new();
+        // Recursively collect results
+        for (nid, bin_names, pk) in &self.base_tables {
+            let mut results = Vec::new();
+            let node = self.node(*nid);
+            for DirtyRecord {
+                idx: _,
+                key,
+                version,
+            } in node.batch.iter_dirty()
+            {
+                let field_indices = (0..node.schema.fields.len()).collect_vec();
+                results.append(&mut self.recurse_lookup(&field_indices, *nid, key, version))
+            }
+            let (namespace, set, _) = node.denormalize_to.clone().unwrap();
+            res.push(DenormalizedTable {
+                bin_names: bin_names.clone(),
+                namespace,
+                set,
+                records: results,
+                pk: pk.clone(),
+            })
+        }
+        Ok(res)
+    }
+
+    fn recurse_lookup(
+        &self,
+        field_indices: &[usize],
+        node_id: NodeIndex,
+        key: &[Field],
+        version: usize,
+    ) -> Vec<Vec<Field>> {
+        let node = self.node(node_id);
+        let records = {
+            match node.batch.get(key, version) {
+                Some(t) => Either::Right(t),
+                None => Either::Left(std::iter::once(vec![Field::Null; node.schema.fields.len()])),
+            }
+        };
+
+        let mut result = Vec::new();
+        for record in records {
+            let mut results_per_edge = Vec::new();
+            for edge in self.dag.edges_directed(node_id, Direction::Outgoing) {
+                let key = edge
+                    .weight()
+                    .key_fields
+                    .iter()
+                    .map(|i| record[*i].clone())
+                    .collect_vec();
+                let edge_results =
+                    self.recurse_lookup(&edge.weight().field_indices, edge.target(), &key, version);
+                results_per_edge.push(edge_results);
+            }
+
+            let mut record_result = vec![field_indices
+                .iter()
+                .map(|i| record[*i].clone())
+                .collect_vec()];
+            for edge_result in results_per_edge {
+                let mut new_record_result = Vec::new();
+                for record in record_result {
+                    for additional_fields in &edge_result {
+                        let mut new_record = record.clone();
+                        new_record.extend_from_slice(additional_fields);
+                        new_record_result.push(new_record);
+                    }
+                }
+                record_result = new_record_result;
+            }
+            result.append(&mut record_result);
+        }
+        result
     }
 
     pub(crate) fn commit(&mut self) {
@@ -713,88 +1187,48 @@ mod tests {
 
     use super::DenormalizationState;
 
-    #[test]
-    #[ignore]
-    fn test_denorm() {
-        let mut customer_schema = Schema::new();
-        customer_schema
-            .field(
-                FieldDefinition::new(
-                    "id".into(),
-                    FieldType::String,
-                    false,
-                    SourceDefinition::Dynamic,
-                ),
+    macro_rules! schema_row {
+        ($schema:expr, $f:literal: $t:ident PRIMARY_KEY) => {
+            $schema.field(
+                FieldDefinition::new($f.into(), FieldType::$t, true, SourceDefinition::Dynamic),
                 true,
-            )
-            .field(
-                FieldDefinition::new(
-                    "phone_number".into(),
-                    FieldType::String,
-                    false,
-                    SourceDefinition::Dynamic,
-                ),
-                false,
             );
+        };
 
-        let mut account_schema = Schema::new();
-        account_schema
-            .field(
-                FieldDefinition::new(
-                    "id".into(),
-                    FieldType::UInt,
-                    false,
-                    SourceDefinition::Dynamic,
-                ),
-                true,
-            )
-            .field(
-                FieldDefinition::new(
-                    "customer_id".into(),
-                    FieldType::String,
-                    false,
-                    SourceDefinition::Dynamic,
-                ),
-                false,
-            )
-            .field(
-                FieldDefinition::new(
-                    "transaction_limit".into(),
-                    FieldType::UInt,
-                    true,
-                    SourceDefinition::Dynamic,
-                ),
+        ($schema:expr, $f:literal: $t:ident) => {
+            $schema.field(
+                FieldDefinition::new($f.into(), FieldType::$t, true, SourceDefinition::Dynamic),
                 false,
             );
-        let mut transaction_schema = Schema::new();
-        transaction_schema
-            .field(
-                FieldDefinition::new(
-                    "id".into(),
-                    FieldType::UInt,
-                    false,
-                    SourceDefinition::Dynamic,
-                ),
-                true,
-            )
-            .field(
-                FieldDefinition::new(
-                    "account_id".into(),
-                    FieldType::UInt,
-                    false,
-                    SourceDefinition::Dynamic,
-                ),
-                false,
-            )
-            .field(
-                FieldDefinition::new(
-                    "amount".into(),
-                    FieldType::Decimal,
-                    false,
-                    SourceDefinition::Dynamic,
-                ),
-                false,
-            );
+        };
+    }
+    macro_rules! schema {
+        ($($f:literal: $t:ident $($pk:ident)?),+) => {{
+            let mut schema = Schema::new();
+            $(schema_row!(schema, $f: $t $($pk)?));+;
+            schema
+        }};
+    }
+
+    #[test]
+    fn test_denorm() {
+        let customer_schema = schema! {
+            "id": String PRIMARY_KEY,
+            "phone_number": String
+        };
+
+        // account to many customer mapping
+        let account_owners_schema = schema! {
+            "account_id": UInt PRIMARY_KEY,
+            "customer_id": String,
+            "transaction_limit": UInt
+        };
+
+        let transaction_schema = schema! {
+            "id": UInt PRIMARY_KEY,
+            "account_id": UInt,
+            "amount": Decimal
+        };
 
         let tables = vec![
             (
@@ -804,7 +1238,8 @@ mod tests {
                     set_name: "customers".into(),
                     denormalize: vec![],
                     write_denormalized_to: None,
-                    primary_key: vec![],
+                    primary_key: vec!["id".into()],
+                    aggregate_by_pk: true,
                 },
                 customer_schema,
             ),
@@ -820,9 +1255,10 @@ mod tests {
                         columns: vec![DenormColumn::Direct("phone_number".into())],
                     }],
                     write_denormalized_to: None,
-                    primary_key: vec![],
+                    primary_key: vec!["account_id".into()],
+                    aggregate_by_pk: false,
                 },
-                account_schema,
+                account_owners_schema,
             ),
             (
                 AerospikeSinkTable {
@@ -838,8 +1274,10 @@ mod tests {
                     write_denormalized_to: Some(AerospikeSet {
                         namespace: "test".into(),
                         set: "transactions_denorm".into(),
+                        primary_key: vec!["id".into(), "phone_number".into()],
                     }),
-                    primary_key: vec![],
+                    primary_key: vec!["id".into()],
+                    aggregate_by_pk: false,
                 },
                 transaction_schema,
             ),
@@ -898,18 +1336,16 @@ mod tests {
                     CString::new("transaction_limit").unwrap(),
                     CString::new("phone_number").unwrap(),
                 ],
-                records: vec![(
-                    vec![Field::UInt(1)],
-                    vec![
-                        Field::UInt(1),
-                        Field::UInt(101),
-                        Field::Decimal(Decimal::new(123, 2)),
-                        Field::Null,
-                        Field::String("+1234567".into())
-                    ]
-                )],
+                records: vec![vec![
+                    Field::UInt(1),
+                    Field::UInt(101),
+                    Field::Decimal(Decimal::new(123, 2)),
+                    Field::Null,
+                    Field::String("+1234567".into())
+                ]],
                 namespace: CString::new("test").unwrap(),
-                set: CString::new("transactions_denorm").unwrap()
+                set: CString::new("transactions_denorm").unwrap(),
+                pk: vec![0, 4],
             }]
         );
         state.commit();
@@ -957,6 +1393,18 @@ mod tests {
                 port: 2,
             })
             .unwrap();
+        state
+            .process(TableOperation {
+                id: None,
+                op: Operation::Insert {
+                    new: dozer_types::types::Record::new(vec![
+                        Field::String("1001".into()),
+                        Field::String("+2 123".into()),
+                    ]),
+                },
+                port: 0,
+            })
+            .unwrap();
         state.commit();
         let res = state.perform_denorm(&client).unwrap();
         assert_eq!(
@@ -970,29 +1418,31 @@ mod tests {
                     CString::new("phone_number").unwrap(),
                 ],
                 records: vec![
-                    (
-                        vec![Field::UInt(2)],
-                        vec![
-                            Field::UInt(2),
-                            Field::UInt(101),
-                            Field::Decimal(Decimal::new(321, 2)),
-                            Field::Null,
-                            Field::String("+1234567".into())
-                        ]
-                    ),
-                    (
-                        vec![Field::UInt(3)],
-                        vec![
-                            Field::UInt(3),
-                            Field::UInt(101),
-                            Field::Decimal(Decimal::new(123, 2)),
-                            Field::Null,
-                            Field::String("+7654321".into())
-                        ]
-                    )
+                    vec![
+                        Field::UInt(2),
+                        Field::UInt(101),
+                        Field::Decimal(Decimal::new(321, 2)),
+                        Field::Null,
+                        Field::String("+1234567".into())
+                    ],
+                    vec![
+                        Field::UInt(3),
+                        Field::UInt(101),
+                        Field::Decimal(Decimal::new(123, 2)),
+                        Field::Null,
+                        Field::String("+7654321".into())
+                    ],
+                    vec![
+                        Field::UInt(3),
+                        Field::UInt(101),
+                        Field::Decimal(Decimal::new(123, 2)),
+                        Field::Null,
+                        Field::String("+2 123".into())
+                    ]
                 ],
                 namespace: CString::new("test").unwrap(),
-                set: CString::new("transactions_denorm").unwrap()
+                set: CString::new("transactions_denorm").unwrap(),
+                pk: vec![0, 4],
             }]
         );
     }
