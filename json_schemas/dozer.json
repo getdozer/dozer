@@ -191,11 +191,18 @@
       "type": "object",
       "required": [
         "namespace",
+        "primary_key",
         "set"
       ],
       "properties": {
         "namespace": {
           "type": "string"
+        },
+        "primary_key": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "set": {
           "type": "string"
@@ -263,6 +270,10 @@
         "source_table_name"
       ],
       "properties": {
+        "aggregate_by_pk": {
+          "default": false,
+          "type": "boolean"
+        },
         "denormalize": {
           "type": "array",
           "items": {
