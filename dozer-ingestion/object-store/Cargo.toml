@@ -9,4 +9,4 @@ edition = "2021"
 dozer-ingestion-connector = { path = "../connector" }
 object_store = { version = "0.7.1", features = ["aws"] }
 url = "2.4.1"
-datafusion = { workspace = true }
+datafusion = { version = "33.0.0" }

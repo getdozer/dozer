@@ -13,16 +13,19 @@ use dozer_ingestion_connector::dozer_types::{
     node::NodeHandle,
     prettytable::Table,
 };
+#[cfg(feature = "datafusion")]
 use dozer_ingestion_deltalake::DeltaLakeConnector;
 #[cfg(feature = "ethereum")]
 use dozer_ingestion_ethereum::{EthLogConnector, EthTraceConnector};
 use dozer_ingestion_grpc::{connector::GrpcConnector, ArrowAdapter, DefaultAdapter};
+#[cfg(feature = "javascript")]
 use dozer_ingestion_javascript::JavaScriptConnector;
 #[cfg(feature = "kafka")]
 use dozer_ingestion_kafka::connector::KafkaConnector;
 #[cfg(feature = "mongodb")]
 use dozer_ingestion_mongodb::MongodbConnector;
 use dozer_ingestion_mysql::connector::{mysql_connection_opts_from_url, MySQLConnector};
+#[cfg(feature = "datafusion")]
 use dozer_ingestion_object_store::connector::ObjectStoreConnector;
 use dozer_ingestion_oracle::OracleConnector;
 use dozer_ingestion_postgres::{
@@ -40,6 +43,7 @@ pub use dozer_ingestion_connector::*;
 
 const DEFAULT_POSTGRES_SNAPSHOT_BATCH_SIZE: u32 = 100_000;
 
+#[allow(unused_variables)]
 pub fn get_connector(
     runtime: Arc<Runtime>,
     event_hub: EventHub,
@@ -110,15 +114,24 @@ pub fn get_connector(
         ConnectionConfig::Kafka(kafka_config) => Ok(Box::new(KafkaConnector::new(kafka_config))),
         #[cfg(not(feature = "kafka"))]
         ConnectionConfig::Kafka(_) => Err(ConnectorError::KafkaFeatureNotEnabled),
+        #[cfg(feature = "datafusion")]
         ConnectionConfig::S3Storage(object_store_config) => {
             Ok(Box::new(ObjectStoreConnector::new(object_store_config)))
         }
+        #[cfg(feature = "datafusion")]
         ConnectionConfig::LocalStorage(object_store_config) => {
             Ok(Box::new(ObjectStoreConnector::new(object_store_config)))
         }
+        #[cfg(feature = "datafusion")]
         ConnectionConfig::DeltaLake(delta_lake_config) => {
             Ok(Box::new(DeltaLakeConnector::new(delta_lake_config)))
         }
+        #[cfg(not(feature = "datafusion"))]
+        ConnectionConfig::DeltaLake(_) => Err(ConnectorError::DatafusionFeatureNotEnabled),
+        #[cfg(not(feature = "datafusion"))]
+        ConnectionConfig::LocalStorage(_) => Err(ConnectorError::DatafusionFeatureNotEnabled),
+        #[cfg(not(feature = "datafusion"))]
+        ConnectionConfig::S3Storage(_) => Err(ConnectorError::DatafusionFeatureNotEnabled),
         #[cfg(feature = "mongodb")]
         ConnectionConfig::MongoDB(mongodb_config) => {
             let connection_string = mongodb_config.connection_string;
@@ -137,6 +150,9 @@ pub fn get_connector(
         ConnectionConfig::Webhook(webhook_config) => {
             Ok(Box::new(WebhookConnector::new(webhook_config)))
         }
+        #[cfg(not(feature = "javascript"))]
+        ConnectionConfig::JavaScript(_) => Err(ConnectorError::JavascrtiptFeatureNotEnabled),
+        #[cfg(feature = "javascript")]
         ConnectionConfig::JavaScript(javascript_config) => Ok(Box::new(JavaScriptConnector::new(
             runtime,
             javascript_config,

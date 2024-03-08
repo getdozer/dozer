@@ -8,14 +8,14 @@ authors = ["getdozer/dozer-dev"]
 
 [dependencies]
 dozer-ingestion-connector = { path = "./connector" }
-dozer-ingestion-deltalake = { path = "./deltalake" }
+dozer-ingestion-deltalake = { path = "./deltalake", optional = true }
 dozer-ingestion-ethereum = { path = "./ethereum", optional = true }
 dozer-ingestion-grpc = { path = "./grpc" }
-dozer-ingestion-javascript = { path = "./javascript" }
+dozer-ingestion-javascript = { path = "./javascript", optional = true }
 dozer-ingestion-kafka = { path = "./kafka", optional = true }
 dozer-ingestion-mongodb = { path = "./mongodb", optional = true }
 dozer-ingestion-mysql = { path = "./mysql" }
-dozer-ingestion-object-store = { path = "./object-store" }
+dozer-ingestion-object-store = { path = "./object-store", optional = true }
 dozer-ingestion-postgres = { path = "./postgres" }
 dozer-ingestion-snowflake = { path = "./snowflake", optional = true }
 dozer-ingestion-aerospike = { path = "./aerospike" }
@@ -45,6 +45,12 @@ snowflake = ["dep:dozer-ingestion-snowflake"]
 ethereum = ["dep:dozer-ingestion-ethereum"]
 kafka = ["dep:dozer-ingestion-kafka"]
 mongodb = ["dep:dozer-ingestion-mongodb"]
+datafusion = [
+  "dep:dozer-ingestion-deltalake",
+  "dep:dozer-ingestion-object-store",
+]
+javascript = ["dep:dozer-ingestion-javascript"]
+
 
 [[bench]]
 name = "connectors"
