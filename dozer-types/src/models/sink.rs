@@ -185,24 +185,49 @@ pub struct AerospikeSinkConfig {
     pub metadata_set: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone, Default)]
 #[serde(deny_unknown_fields)]
 pub struct ClickhouseSinkConfig {
-    pub database_url: String,
+    #[serde(default = "ClickhouseSinkConfig::default_host")]
+    pub host: String,
+    #[serde(default = "ClickhouseSinkConfig::default_port")]
+    pub port: u16,
+    #[serde(default = "ClickhouseSinkConfig::default_user")]
     pub user: String,
     #[serde(default)]
     pub password: Option<String>,
+    #[serde(default = "ClickhouseSinkConfig::default_scheme")]
+    pub scheme: String,
+    #[serde(default = "ClickhouseSinkConfig::default_database")]
     pub database: String,
     pub source_table_name: String,
     pub sink_table_name: String,
-    pub primary_keys: Option<Vec<String>>,
-    pub create_table_options: Option<ClickhouseSinkTableOptions>,
+    pub create_table_options: Option<ClickhouseTableOptions>,
+}
+
+impl ClickhouseSinkConfig {
+    fn default_database() -> String {
+        "default".to_string()
+    }
+    fn default_scheme() -> String {
+        "tcp".to_string()
+    }
+    fn default_host() -> String {
+        "0.0.0.0".to_string()
+    }
+    fn default_port() -> u16 {
+        9000
+    }
+    fn default_user() -> String {
+        "default".to_string()
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
 #[serde(deny_unknown_fields)]
-pub struct ClickhouseSinkTableOptions {
+pub struct ClickhouseTableOptions {
     pub engine: Option<String>,
+    pub primary_keys: Option<Vec<String>>,
     pub partition_by: Option<String>,
     pub sample_by: Option<String>,
     pub order_by: Option<Vec<String>>,

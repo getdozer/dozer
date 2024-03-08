@@ -448,17 +448,14 @@
     "ClickhouseSinkConfig": {
       "type": "object",
       "required": [
-        "database",
-        "database_url",
         "sink_table_name",
-        "source_table_name",
-        "user"
+        "source_table_name"
       ],
       "properties": {
         "create_table_options": {
           "anyOf": [
             {
-              "$ref": "#/definitions/ClickhouseSinkTableOptions"
+              "$ref": "#/definitions/ClickhouseTableOptions"
             },
             {
               "type": "null"
@@ -466,9 +463,11 @@
           ]
         },
         "database": {
+          "default": "default",
           "type": "string"
         },
-        "database_url": {
+        "host": {
+          "default": "0.0.0.0",
           "type": "string"
         },
         "password": {
@@ -478,14 +477,15 @@
             "null"
           ]
         },
-        "primary_keys": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "string"
-          }
+        "port": {
+          "default": 9000,
+          "type": "integer",
+          "format": "uint16",
+          "minimum": 0.0
+        },
+        "scheme": {
+          "default": "tcp",
+          "type": "string"
         },
         "sink_table_name": {
           "type": "string"
@@ -494,12 +494,13 @@
           "type": "string"
         },
         "user": {
+          "default": "default",
           "type": "string"
         }
       },
       "additionalProperties": false
     },
-    "ClickhouseSinkTableOptions": {
+    "ClickhouseTableOptions": {
       "type": "object",
       "properties": {
         "cluster": {
@@ -528,6 +529,15 @@
             "string",
             "null"
           ]
+        },
+        "primary_keys": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
         },
         "sample_by": {
           "type": [
