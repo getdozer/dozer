@@ -1,6 +1,6 @@
 use dozer_ingestion_connector::dozer_types::errors::internal::BoxedError;
 use dozer_ingestion_connector::dozer_types::event::Event;
-use dozer_ingestion_connector::dozer_types::log::{error, info, trace, warn};
+use dozer_ingestion_connector::dozer_types::log::{debug, error, info, trace, warn};
 use dozer_ingestion_connector::dozer_types::models::connection::AerospikeConnection;
 use dozer_ingestion_connector::dozer_types::models::ingestion_types::{
     IngestionMessage, TransactionInfo,
@@ -336,7 +336,7 @@ async fn event_request_handler(
     let event = json.into_inner();
     let state = data.into_inner();
 
-    trace!("Event data: {:?}", event);
+    trace!(target: "aerospike_http_server", "Event data: {:?}", event);
     // TODO: Handle delete
     if event.msg != "write" {
         return HttpResponse::Ok().finish();
@@ -344,7 +344,7 @@ async fn event_request_handler(
 
     let message = map_record(event, &state.tables_index_map).await;
 
-    trace!("Mapped message {:?}", message);
+    trace!(target: "aerospike_http_server", "Mapped message {:?}", message);
     match message {
         Ok(None) => HttpResponse::Ok().finish(),
         Ok(Some(message)) => {
@@ -376,8 +376,9 @@ async fn batch_event_request_handler(
     let state = data.into_inner();
 
     let mut messages = vec![];
-    trace!("Aerospike events {:?}", events);
-    info!("Events counts: {}", events.len());
+    debug!(target: "aerospike_http_server", "Aerospike events count {:?}", events.len());
+    trace!(target: "aerospike_http_server", "Aerospike events {:?}", events);
+
     for event in events {
         match map_record(event, &state.tables_index_map).await {
             Ok(None) => {}
@@ -386,8 +387,9 @@ async fn batch_event_request_handler(
         }
     }
 
-    trace!("Mapped messages {:?}", messages);
-    info!("Mapped messages count {}", messages.len());
+    debug!(target: "aerospike_http_server", "Mapped {:?} messages", messages.len());
+    trace!(target: "aerospike_http_server", "Mapped messages {:?}", messages);
+
     let (sender, receiver) = oneshot::channel::<()>();
     if let Err(e) = state.sender.send(PendingMessage { messages, sender }) {
         error!("Ingestor is down: {:?}", e);
