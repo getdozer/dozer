@@ -100,6 +100,10 @@ pub enum Error {
     #[error("ONNX UDF is not enabled")]
     OnnxNotEnabled,
 
+    #[error("Javascript is not enabled")]
+    JavaScriptNotEnabled,
+
+    #[cfg(feature = "javasscript")]
     #[error("JavaScript UDF error: {0}")]
     JavaScript(#[from] crate::javascript::Error),
 

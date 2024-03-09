@@ -6,12 +6,13 @@ use test_suite::{
 };
 use tokio::runtime::Runtime;
 
+#[cfg(feature = "datafusion")]
 #[test]
 fn test_local_storage() {
     let runtime = create_test_runtime();
     runtime.block_on(test_local_storage_impl(runtime.clone()));
 }
-
+#[cfg(feature = "datafusion")]
 async fn test_local_storage_impl(runtime: Arc<Runtime>) {
     let _ = env_logger::builder().is_test(true).try_init();
 

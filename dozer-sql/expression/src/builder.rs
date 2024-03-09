@@ -27,6 +27,7 @@ use crate::scalar::string::TrimType;
 
 use super::cast::CastOperatorType;
 
+#[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub struct ExpressionBuilder {
     // Must be an aggregation function
@@ -544,15 +545,25 @@ impl ExpressionBuilder {
                         Err(Error::OnnxNotEnabled)
                     }
                 }
+
                 UdfType::JavaScript(config) => {
-                    self.parse_javascript_udf(
-                        function_name.clone(),
-                        config,
-                        sql_function,
-                        schema,
-                        udfs,
-                    )
-                    .await
+                    #[cfg(feature = "javasscript")]
+                    {
+                        self.parse_javascript_udf(
+                            function_name.clone(),
+                            config,
+                            sql_function,
+                            schema,
+                            udfs,
+                        )
+                        .await
+                    }
+
+                    #[cfg(not(feature = "javascript"))]
+                    {
+                        let _ = config;
+                        Err(Error::OnnxNotEnabled)
+                    }
                 }
             };
         }
@@ -947,6 +958,7 @@ impl ExpressionBuilder {
         })
     }
 
+    #[cfg(feature = "javascript")]
     async fn parse_javascript_udf(
         &mut self,
         name: String,

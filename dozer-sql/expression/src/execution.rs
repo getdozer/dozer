@@ -96,6 +96,7 @@ pub enum Expression {
         session: crate::onnx::DozerSession,
         args: Vec<Expression>,
     },
+    #[cfg(feature = "javascript")]
     JavaScriptUdf(crate::javascript::Udf),
 }
 
@@ -275,6 +276,7 @@ impl Expression {
                         .as_str()
                     + ")"
             }
+            #[cfg(feature = "javascript")]
             Expression::JavaScriptUdf(udf) => udf.to_string(schema),
         }
     }
@@ -363,6 +365,7 @@ impl Expression {
                 results,
                 else_result,
             } => evaluate_case(schema, operand, conditions, results, else_result, record),
+            #[cfg(feature = "javascript")]
             Expression::JavaScriptUdf(udf) => udf.evaluate(record, schema),
         }
     }
@@ -471,6 +474,7 @@ impl Expression {
                 SourceDefinition::Dynamic,
                 false,
             )),
+            #[cfg(feature = "javascript")]
             Expression::JavaScriptUdf(udf) => Ok(udf.get_type()),
         }
     }
