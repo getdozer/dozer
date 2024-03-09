@@ -958,7 +958,7 @@ impl ExpressionBuilder {
         })
     }
 
-    #[cfg(feature = "datafusion")]
+    #[cfg(feature = "javascript")]
     async fn parse_javascript_udf(
         &mut self,
         name: String,
