@@ -51,6 +51,8 @@ pub enum Error {
     },
     #[error("Empty coalesce arguments")]
     EmptyCoalesceArguments,
+    #[error("Empty LEAST arguments")]
+    EmptyLeastArguments,
     #[error(
         "Invalid argument type for function {function_name}: type: {actual}, expected types: {expected:?}, index: {argument_index}"
     )]
