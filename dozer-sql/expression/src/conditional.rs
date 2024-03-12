@@ -1,3 +1,4 @@
+use crate::cast::CastOperatorType;
 use crate::error::Error;
 use crate::execution::{Expression, ExpressionType};
 use dozer_types::types::Record;
@@ -8,6 +9,7 @@ use std::fmt::{Display, Formatter};
 pub enum ConditionalExpressionType {
     Coalesce,
     NullIf,
+    Least,
 }
 
 pub(crate) fn get_conditional_expr_type(
@@ -17,6 +19,7 @@ pub(crate) fn get_conditional_expr_type(
 ) -> Result<ExpressionType, Error> {
     match function {
         ConditionalExpressionType::Coalesce => validate_coalesce(args, schema),
+        ConditionalExpressionType::Least => validate_least(args, schema),
         ConditionalExpressionType::NullIf => todo!(),
     }
 }
@@ -38,6 +41,7 @@ impl ConditionalExpressionType {
     ) -> Result<Field, Error> {
         match self {
             ConditionalExpressionType::Coalesce => evaluate_coalesce(schema, args, record),
+            ConditionalExpressionType::Least => evaluate_least(schema, args, record),
             ConditionalExpressionType::NullIf => todo!(),
         }
     }
@@ -81,10 +85,46 @@ pub(crate) fn evaluate_coalesce(
     Ok(Field::Null)
 }
 
+pub(crate) fn validate_least(
+    args: &[Expression],
+    schema: &Schema,
+) -> Result<ExpressionType, Error> {
+    if args.is_empty() {
+        return Err(Error::EmptyLeastArguments);
+    }
+
+    let return_types = args
+        .iter()
+        .map(|expr| Ok(expr.get_type(schema)?.return_type))
+        .collect::<Result<Vec<FieldType>, Error>>()?;
+    let return_type = return_types[0];
+
+    Ok(ExpressionType::new(
+        return_type,
+        false,
+        dozer_types::types::SourceDefinition::Dynamic,
+        false,
+    ))
+}
+
+pub(crate) fn evaluate_least(
+    schema: &Schema,
+    args: &mut [Expression],
+    record: &Record,
+) -> Result<Field, Error> {
+    let typ = args[0].get_type(schema)?;
+    let cast = CastOperatorType(typ.return_type);
+    args.iter_mut()
+        .map(|arg| cast.evaluate(schema, arg, record))
+        .reduce(|left, right| Ok(left?.min(right?)))
+        .unwrap()
+}
+
 impl Display for ConditionalExpressionType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             ConditionalExpressionType::Coalesce => f.write_str("COALESCE"),
+            ConditionalExpressionType::Least => f.write_str("LEAST"),
             ConditionalExpressionType::NullIf => f.write_str("NULLIF"),
         }
     }
@@ -335,5 +375,42 @@ mod tests {
 
         let res = evaluate_coalesce(&schema, args, row).unwrap();
         assert_eq!(res, _result);
+    }
+
+    fn check_least(fields: Vec<Field>, expected: Field) {
+        let schema = Schema::default();
+        let row = Record::new(vec![]);
+        let mut args: Vec<_> = fields.into_iter().map(Expression::Literal).collect();
+        assert_eq!(evaluate_least(&schema, &mut args, &row).unwrap(), expected);
+    }
+
+    #[test]
+    fn test_least() {
+        check_least(vec![Field::Int(41), Field::Int(42)], Field::Int(41));
+        check_least(
+            vec![
+                Field::Float(OrderedFloat(4.1)),
+                Field::Float(OrderedFloat(4.2)),
+            ],
+            Field::Float(OrderedFloat(4.1)),
+        );
+
+        check_least(
+            vec![Field::String("BCD".into()), Field::String("ABC".into())],
+            Field::String("ABC".into()),
+        );
+    }
+
+    #[test]
+    fn test_least_mixed_types() {
+        check_least(
+            vec![
+                Field::Float(OrderedFloat(1.2)),
+                Field::UInt(1),
+                Field::Int(-2),
+                Field::String("-3.24".to_owned()),
+            ],
+            Field::Float(OrderedFloat(-3.24)),
+        )
     }
 }
