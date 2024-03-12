@@ -25,8 +25,9 @@ use oracle::{
     Connection,
 };
 
-const TXN_ID_COL: &str = "__txn_id";
-const TXN_SEQ_COL: &str = "__txn_seq";
+const TXN_ID_COL: &str = "txn_id";
+const TXN_SEQ_COL: &str = "txn_seq";
+const OPKIND_COL: &str = "DOZER_OPKIND";
 const METADATA_TABLE: &str = "__replication_metadata";
 const META_TXN_ID_COL: &str = "txn_id";
 const META_TABLE_COL: &str = "table";
@@ -96,6 +97,7 @@ struct OracleSink {
     update_metadata: String,
     select_metadata: String,
     latest_txid: Option<u64>,
+    insert_statement: String,
 }
 
 #[derive(Debug)]
@@ -265,6 +267,7 @@ impl OracleSinkFactory {
         &self,
         connection: &Connection,
         table: &Table,
+        temp_table: Option<&Table>,
         schema: &Schema,
     ) -> Result<(), Error> {
         if self.validate_table(connection, table, schema)? {
@@ -297,9 +300,15 @@ impl OracleSinkFactory {
                 if field.nullable { "" } else { " NOT NULL" }
             ));
         }
-        let table = format!("CREATE TABLE {table} ({})", column_defs.join(",\n"));
-        info!("### CREATE TABLE #### \n: {:?}", table);
-        connection.execute(&table, &[])?;
+        let table_query = format!("CREATE TABLE {table} ({})", column_defs.join(",\n"));
+        info!("### CREATE TABLE #### \n: {:?}", table_query);
+        connection.execute(&table_query, &[])?;
+
+        if let Some(temp_table) = temp_table {
+            let temp_table_query = format!("CREATE GLOBAL TEMPORARY TABLE {temp_table} ({},\n {OPKIND_COL} NUMBER(1)) ON COMMIT DELETE ROWS", column_defs.join(",\n"));
+            info!("### CREATE TEMPORARY TABLE #### \n: {:?}", temp_table_query);
+            connection.execute(&temp_table_query, &[])?;
+        }
 
         Ok(())
     }
@@ -348,21 +357,51 @@ impl OracleSinkFactory {
 
         Ok(())
     }
+
+    fn create_pk(
+        &self,
+        connection: &Connection,
+        table: &Table,
+        schema: &Schema,
+    ) -> Result<(), Error> {
+        let mut columns = schema
+            .primary_index
+            .iter()
+            .map(|ix| schema.fields[*ix].name.clone())
+            .collect::<Vec<_>>();
+
+        columns.iter_mut().for_each(|col| {
+            *col = col.to_uppercase();
+        });
+
+        let index_name =
+            format!("{}_{}_{}_PK", table.owner, table.name, columns.join("_")).replace('#', "");
+
+        let query = "SELECT index_name FROM all_indexes WHERE table_name = :1 AND owner = :2";
+        info!("Index check query {query}");
+
+        let mut index_exist = connection.query(query, &[&table.name, &table.owner])?;
+        if index_exist.next().is_some() {
+            info!("Index {index_name} already exist");
+        } else {
+            let query = format!(
+                "ALTER TABLE {table} ADD CONSTRAINT {index_name} PRIMARY KEY ({})",
+                columns.join(", ")
+            );
+            info!("### CREATE PK #### \n: {index_name}. Query: {query}");
+            connection.execute(&query, &[])?;
+        }
+
+        Ok(())
+    }
 }
-fn generate_merge_statement(table: &Table, schema: &Schema) -> String {
+fn generate_merge_statement(table: &Table, temp_table: &Table, schema: &Schema) -> String {
     let field_names = schema
         .fields
         .iter()
         .map(|field| field.name.as_str())
         .chain([TXN_ID_COL, TXN_SEQ_COL]);
 
-    let mut parameter_index = 1usize..;
-    let input_fields = field_names
-        .clone()
-        .zip(&mut parameter_index)
-        .map(|(name, i)| format!(":{i} \"{name}\""))
-        .collect::<Vec<_>>()
-        .join(", ");
     let destination_columns = field_names
         .clone()
         .map(|name| format!("D.\"{name}\""))
@@ -394,8 +433,6 @@ fn generate_merge_statement(table: &Table, schema: &Schema) -> String {
         pk_select = "1 = 1".to_owned();
     }
 
-    let opkind_idx = parameter_index.next().unwrap();
-
     let opid_select = format!(
         r#"(D."{TXN_ID_COL}" IS NULL
         OR S."{TXN_ID_COL}" > D."{TXN_ID_COL}"
@@ -408,11 +445,45 @@ fn generate_merge_statement(table: &Table, schema: &Schema) -> String {
     // do nothing (if the op is INSERT,
     format!(
         r#"MERGE INTO {table} D
-        USING (SELECT {input_fields}, :{opkind_idx} DOZER_OPKIND FROM DUAL) S
+        USING {temp_table} S
         ON ({pk_select})
         WHEN NOT MATCHED THEN INSERT ({destination_columns}) VALUES ({source_values}) WHERE S.DOZER_OPKIND = 0
         WHEN MATCHED THEN UPDATE SET {destination_assign} WHERE S.DOZER_OPKIND = 1 AND {opid_select}
         DELETE WHERE S.DOZER_OPKIND = 2 AND {opid_select}
+        "#
+    )
+}
+
+fn generate_insert_statement(table: &Table, schema: &Schema) -> String {
+    let field_names = schema
+        .fields
+        .iter()
+        .map(|field| field.name.as_str())
+        .chain([TXN_ID_COL, TXN_SEQ_COL, OPKIND_COL]);
+
+    let destination_columns = field_names
+        .clone()
+        .map(|name| format!("\"{name}\""))
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    let mut parameter_index = 1usize..;
+    let input_fields = field_names
+        .clone()
+        .zip(&mut parameter_index)
+        .map(|(name, i)| format!(":{i} \"{name}\""))
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    // Match on PK and txn_id.
+    // If the record does not exist and the op is INSERT, do the INSERT
+    // If the record exists, but the txid is higher than the operation's txid,
+    // do nothing (if the op is INSERT,
+    format!(
+        r#"INSERT INTO {table} ({destination_columns})
+        SELECT *
+        FROM
+        (SELECT {input_fields} FROM DUAL)
         "#
     )
 }
@@ -477,8 +548,19 @@ impl SinkFactory for OracleSinkFactory {
             false,
         );
 
-        self.validate_or_create_table(&connection, &self.table, &amended_schema)?;
+        let temp_table = Table {
+            owner: self.table.owner.clone(),
+            name: format!("{}_TEMP", &self.table.name),
+        };
+
+        self.validate_or_create_table(
+            &connection,
+            &self.table,
+            Some(&temp_table),
+            &amended_schema,
+        )?;
         self.create_index(&connection, &self.table, &amended_schema)?;
+        self.create_pk(&connection, &temp_table, &amended_schema)?;
         let meta_table = Table {
             owner: self.table.owner.clone(),
             name: METADATA_TABLE.to_owned(),
@@ -486,6 +568,7 @@ impl SinkFactory for OracleSinkFactory {
         self.validate_or_create_table(
             &connection,
             &meta_table,
+            None,
             Schema::new()
                 .field(
                     FieldDefinition {
@@ -518,10 +601,12 @@ impl SinkFactory for OracleSinkFactory {
         );
 
         let field_types = schema.fields.iter().map(|field| field.typ).collect();
+
         Ok(Box::new(OracleSink {
             conn: connection,
             insert_append,
-            merge_statement: generate_merge_statement(&self.table, &schema),
+            merge_statement: generate_merge_statement(&self.table, &temp_table, &schema),
+            insert_statement: generate_insert_statement(&temp_table, &schema),
             field_types,
             pk: schema.primary_index,
             batch_params: Vec::new(),
@@ -599,9 +684,10 @@ impl OracleSink {
     fn exec_batch(&mut self) -> oracle::Result<()> {
         debug!(target: "oracle_sink", "Executing batch of size {}", self.batch_params.len());
         let started = std::time::Instant::now();
+
         let mut batch = self
             .conn
-            .batch(&self.merge_statement, self.batch_params.len())
+            .batch(&self.insert_statement, self.batch_params.len())
             .build()?;
         for params in self.batch_params.drain(..) {
             let mut bind_idx = 1..;
@@ -621,6 +707,11 @@ impl OracleSink {
             batch.append_row(&[])?;
         }
         batch.execute()?;
+
+        self.conn.execute(&self.merge_statement, &[])?;
+
+        self.conn.commit()?;
+
         debug!(target: "oracle_sink", "Execution took {:?}", started.elapsed());
         Ok(())
     }
@@ -786,7 +877,13 @@ mod tests {
             owner: "owner".to_owned(),
             name: "tablename".to_owned(),
         };
-        let stmt = generate_merge_statement(&table, &schema);
+
+        let temp_table = Table {
+            owner: "owner".to_owned(),
+            name: "tablename_temp".to_owned(),
+        };
+
+        let stmt = generate_merge_statement(&table, &temp_table, &schema);
         assert_eq!(
             trim_str(stmt),
             trim_str(
