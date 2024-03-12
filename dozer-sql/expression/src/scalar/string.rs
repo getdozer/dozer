@@ -407,42 +407,54 @@ pub(crate) fn evaluate_substr(
     let arg_value = arg_field.to_string();
 
     let position_field = position.evaluate(record, schema)?;
-    let position_result = position_field.to_uint();
-    if position_result.is_none() {
-        return Err(Error::InvalidFunctionArgument {
+    let position_value = position_field
+        .to_int()
+        .ok_or_else(|| Error::InvalidFunctionArgument {
             function_name: "SUBSTR".to_string(),
             argument_index: 1,
             argument: position_field,
-        });
-    }
-    let position_value = position_result.unwrap();
+        })?;
+    // 0 is treated as 1
+    let position_value_normalized = if position_value == 0 {
+        1
+    } else {
+        position_value
+    };
 
     let length_value = match length {
         Some(length_expr) => {
             let length_field = length_expr.evaluate(record, schema)?;
-            let length_result = length_field.to_i128();
-            if length_result.is_none() {
-                return Err(Error::InvalidFunctionArgument {
+            let length = length_field
+                .to_int()
+                .ok_or_else(|| Error::InvalidFunctionArgument {
                     function_name: "SUBSTR".to_string(),
                     argument_index: 2,
                     argument: length_field,
-                });
+                })?;
+            if length < 1 {
+                return Ok(Field::Null);
             }
-            length_result.unwrap()
+            length as usize
         }
-        None => arg_value.len() as i128,
+        None => arg_value.len(),
     };
 
-    let mut iter = arg_value.char_indices();
-    let (start, _) = iter
-        .nth(position_value as usize)
-        .unwrap_or((arg_value.len(), ' '));
-    let (end, _) = iter
-        .nth(length_value as usize)
-        .unwrap_or((arg_value.len(), ' '));
-    let result = &arg_value[start..end];
+    let start = if position_value_normalized >= 1 {
+        arg_value
+            .char_indices()
+            .nth(position_value_normalized as usize - 1)
+            .map_or(arg_value.len(), |(i, _)| i)
+    } else {
+        arg_value
+            .char_indices()
+            .nth_back((-position_value_normalized) as usize - 1)
+            .map_or(0, |(i, _)| i)
+    };
 
-    Ok(Field::String(result.to_owned()))
+    let remainder = &arg_value[start..];
+    Ok(Field::String(
+        remainder.chars().take(length_value).collect(),
+    ))
 }
 
 pub fn validate_replace(args: &[Expression], schema: &Schema) -> Result<ExpressionType, Error> {
