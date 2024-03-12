@@ -1,3 +1,4 @@
+use crate::cast::CastOperatorType;
 use crate::error::Error;
 use crate::execution::{Expression, ExpressionType};
 use dozer_types::types::Record;
@@ -94,8 +95,8 @@ pub(crate) fn validate_least(
 
     let return_types = args
         .iter()
-        .map(|expr| expr.get_type(schema).unwrap().return_type)
-        .collect::<Vec<FieldType>>();
+        .map(|expr| Ok(expr.get_type(schema)?.return_type))
+        .collect::<Result<Vec<FieldType>, Error>>()?;
     let return_type = return_types[0];
 
     Ok(ExpressionType::new(
@@ -111,17 +112,12 @@ pub(crate) fn evaluate_least(
     args: &mut [Expression],
     record: &Record,
 ) -> Result<Field, Error> {
-    let mut least_value = args[0].evaluate(record, schema)?;
-
-    for expr in &mut args[1..] {
-        let field = expr.evaluate(record, schema)?;
-        if field != Field::Null && field < least_value {
-            least_value = field;
-        }
-    }
-
-    // Null is returned only if all arguments are null.
-    Ok(least_value)
+    let typ = args[0].get_type(schema)?;
+    let cast = CastOperatorType(typ.return_type);
+    args.iter_mut()
+        .map(|arg| cast.evaluate(schema, arg, record))
+        .reduce(|left, right| Ok(left?.min(right?)))
+        .unwrap()
 }
 
 impl Display for ConditionalExpressionType {
@@ -141,12 +137,9 @@ mod tests {
     use super::*;
 
     use dozer_types::{
-        chrono::DateTime,
         ordered_float::OrderedFloat,
-        rust_decimal::Decimal,
         types::{FieldDefinition, SourceDefinition},
     };
-    use num_traits::FromPrimitive;
     use proptest::prelude::*;
 
     #[test]
@@ -384,72 +377,40 @@ mod tests {
         assert_eq!(res, _result);
     }
 
-    #[test]
-    fn test_least() {
+    fn check_least(fields: Vec<Field>, expected: Field) {
         let schema = Schema::default();
         let row = Record::new(vec![]);
+        let mut args: Vec<_> = fields.into_iter().map(Expression::Literal).collect();
+        assert_eq!(evaluate_least(&schema, &mut args, &row).unwrap(), expected);
+    }
 
-        let mut uint1 = Expression::Literal(Field::UInt(1024));
-        let uint2 = Expression::Literal(Field::UInt(1337));
-        let mut int1 = Expression::Literal(Field::Int(41));
-        let int2 = Expression::Literal(Field::Int(42));
-        let mut float1 = Expression::Literal(Field::Float(OrderedFloat(4.1)));
-        let float2 = Expression::Literal(Field::Float(OrderedFloat(4.2)));
-        let mut dec1 = Expression::Literal(Field::Decimal(Decimal::from_f64(4.1).unwrap()));
-        let dec2 = Expression::Literal(Field::Decimal(Decimal::from_f64(4.2).unwrap()));
-        let mut str1 = Expression::Literal(Field::String("fortytwo".to_string()));
-        let str2 = Expression::Literal(Field::String("leet".to_string()));
-        let mut t1 = Expression::Literal(Field::Timestamp(
-            DateTime::parse_from_rfc3339("2024-01-01T00:13:00Z").unwrap(),
-        ));
-        let t2 = Expression::Literal(Field::Timestamp(
-            DateTime::parse_from_rfc3339("2024-01-01T00:14:10Z").unwrap(),
-        ));
+    #[test]
+    fn test_least() {
+        check_least(vec![Field::Int(41), Field::Int(42)], Field::Int(41));
+        check_least(
+            vec![
+                Field::Float(OrderedFloat(4.1)),
+                Field::Float(OrderedFloat(4.2)),
+            ],
+            Field::Float(OrderedFloat(4.1)),
+        );
 
-        let mut dt1 = Expression::Literal(Field::Date(
-            DateTime::parse_from_rfc3339("2024-01-01T00:13:00Z")
-                .unwrap()
-                .date_naive(),
-        ));
-        let dt2 = Expression::Literal(Field::Date(
-            DateTime::parse_from_rfc3339("2024-01-01T00:12:10Z")
-                .unwrap()
-                .date_naive(),
-        ));
+        check_least(
+            vec![Field::String("BCD".into()), Field::String("ABC".into())],
+            Field::String("ABC".into()),
+        );
+    }
 
-        let mut args = vec![uint1.clone(), uint2.clone()];
-        let expected = uint1.evaluate(&row, &schema).unwrap();
-        let result = evaluate_least(&schema, &mut args, &row).unwrap();
-        assert_eq!(result, expected);
-
-        let mut args = vec![int2.clone(), int1.clone()];
-        let expected = int1.evaluate(&row, &schema).unwrap();
-        let result = evaluate_least(&schema, &mut args, &row).unwrap();
-        assert_eq!(result, expected);
-
-        let mut args = vec![float1.clone(), float2.clone()];
-        let expected = float1.evaluate(&row, &schema).unwrap();
-        let result = evaluate_least(&schema, &mut args, &row).unwrap();
-        assert_eq!(result, expected);
-
-        let mut args = vec![dec1.clone(), dec2.clone()];
-        let expected = dec1.evaluate(&row, &schema).unwrap();
-        let result = evaluate_least(&schema, &mut args, &row).unwrap();
-        assert_eq!(result, expected);
-
-        let mut args = vec![str1.clone(), str2.clone()];
-        let expected = str1.evaluate(&row, &schema).unwrap();
-        let result = evaluate_least(&schema, &mut args, &row).unwrap();
-        assert_eq!(result, expected);
-
-        let mut args = vec![t1.clone(), t2.clone()];
-        let expected = t1.evaluate(&row, &schema).unwrap();
-        let result = evaluate_least(&schema, &mut args, &row).unwrap();
-        assert_eq!(result, expected);
-
-        let mut args = vec![dt1.clone(), dt2.clone()];
-        let expected = dt1.evaluate(&row, &schema).unwrap();
-        let result = evaluate_least(&schema, &mut args, &row).unwrap();
-        assert_eq!(result, expected);
+    #[test]
+    fn test_least_mixed_types() {
+        check_least(
+            vec![
+                Field::Float(OrderedFloat(1.2)),
+                Field::UInt(1),
+                Field::Int(-2),
+                Field::String("-3.24".to_owned()),
+            ],
+            Field::Float(OrderedFloat(-3.24)),
+        )
     }
 }
