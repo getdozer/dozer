@@ -10,6 +10,7 @@ use dozer_core::petgraph::visit::{
     EdgeRef, IntoEdgesDirected, IntoNeighborsDirected, IntoNodeReferences,
 };
 use dozer_types::indexmap::IndexMap;
+use dozer_types::log::info;
 use dozer_types::models::sink::{AerospikeSet, AerospikeSinkTable};
 use dozer_types::thiserror;
 use dozer_types::types::{Field, Record, Schema, TableOperation};
@@ -498,6 +499,7 @@ impl DenormalizationState {
             .sum();
 
         let batch_size: u32 = batch_size_upper_bound.try_into().unwrap();
+        info!("Writing denorm batch of size {}", batch_size);
         let mut write_batch = RecordBatch::new(batch_size, batch_size);
 
         for node in self.dag.node_weights_mut() {

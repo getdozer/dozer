@@ -506,7 +506,7 @@ impl Connector for AerospikeConnector {
                                         } else {
                                             FieldType::String
                                         },
-                                        nullable: true,
+                                        nullable: name != "PK",
                                         source: Default::default(),
                                     })
                                     .collect(),
@@ -713,10 +713,7 @@ async fn map_record(
                     fields[*pk] = Field::String(s.clone());
                 }
                 serde_json::Value::Number(n) => {
-                    fields[*pk] = Field::UInt(
-                        n.as_u64()
-                            .ok_or(AerospikeConnectorError::ParsingUIntFailed)?,
-                    );
+                    fields[*pk] = Field::String(n.as_str().to_string());
                 }
                 v => return Err(AerospikeConnectorError::KeyNotSupported(v)),
             }

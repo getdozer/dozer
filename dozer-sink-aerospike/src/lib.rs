@@ -3,7 +3,7 @@ pub use crate::aerospike::Client;
 use aerospike_client_sys::*;
 use denorm_dag::DenormalizationState;
 use dozer_core::event::EventHub;
-use dozer_types::log::error;
+use dozer_types::log::{error, info};
 use dozer_types::models::connection::AerospikeConnection;
 use dozer_types::node::OpIdentifier;
 use dozer_types::thiserror;
@@ -239,7 +239,6 @@ impl Drop for AsRecord<'_> {
 struct AerospikeSink {
     config: AerospikeSinkConfig,
     replication_worker: AerospikeSinkWorker,
-    current_transaction: Option<u64>,
     metadata_namespace: CString,
     metadata_set: CString,
     client: Arc<Client>,
@@ -365,7 +364,6 @@ impl AerospikeSink {
         Ok(Self {
             config,
             replication_worker: worker_instance,
-            current_transaction: None,
             metadata_namespace,
             metadata_set,
             client,
@@ -441,6 +439,8 @@ impl AerospikeSinkWorker {
             .sum();
         // Write denormed tables
         let mut batch = RecordBatch::new(batch_size_est as u32, batch_size_est as u32);
+
+        info!("Sink batch size {batch_size_est}");
         for table in denormalized_tables {
             for (key, record) in table.records {
                 batch.add_write(
@@ -475,17 +475,21 @@ impl Sink for AerospikeSink {
         Ok(())
     }
 
-    fn commit(&mut self, _epoch_details: &dozer_core::epoch::Epoch) -> Result<(), BoxedError> {
-        self.replication_worker
-            .commit(self.current_transaction.take())?;
+    fn commit(&mut self, epoch_details: &dozer_core::epoch::Epoch) -> Result<(), BoxedError> {
+        debug_assert_eq!(epoch_details.common_info.source_states.len(), 1);
+        let txid = epoch_details
+            .common_info
+            .source_states
+            .iter()
+            .next()
+            .and_then(|(_, state)| state.op_id())
+            .map(|op_id| op_id.txid);
+
+        self.replication_worker.commit(txid)?;
         Ok(())
     }
 
     fn process(&mut self, op: TableOperation) -> Result<(), BoxedError> {
-        // Set current transaction before any error can be thrown, so we don't
-        // get stuck in an error loop if this error gets ignored by the caller
-        self.current_transaction = op.id.map(|id| id.txid);
-
         self.replication_worker.process(op)?;
         Ok(())
     }

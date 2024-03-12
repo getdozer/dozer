@@ -1,5 +1,6 @@
 use std::{sync::mpsc::SyncSender, time::Duration};
 
+use dozer_ingestion_connector::dozer_types::log::debug;
 use dozer_ingestion_connector::{
     dozer_types::{
         chrono::{DateTime, Utc},
@@ -72,7 +73,7 @@ fn log_reader_loop(
     let mut last_rba: Option<LastRba> = None;
 
     loop {
-        info!("Listing logs starting from SCN {}", start_scn);
+        debug!(target: "oracle_replication", "Listing logs starting from SCN {}", start_scn);
         let mut logs = match list_logs(connection, start_scn) {
             Ok(logs) => logs,
             Err(e) => {
@@ -95,7 +96,7 @@ fn log_reader_loop(
 
         'replicate_logs: while !logs.is_empty() {
             let log = logs.remove(0);
-            info!(
+            debug!(target: "oracle_replication",
                 "Reading log {} ({}) ({}, {}), starting from {:?}",
                 log.name, log.sequence, log.first_change, log.next_change, last_rba
             );
@@ -145,7 +146,7 @@ fn log_reader_loop(
                 if ingestor.is_closed() {
                     return;
                 }
-                info!("Read all logs, retrying after {:?}", poll_interval);
+                debug!(target: "oracle_replication", "Read all logs, retrying after {:?}", poll_interval);
                 std::thread::sleep(poll_interval);
             } else {
                 // If there are more logs, we need to start from the next log's first change.
