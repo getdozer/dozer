@@ -103,7 +103,7 @@ pub enum Error {
     #[error("Javascript is not enabled")]
     JavaScriptNotEnabled,
 
-    #[cfg(feature = "javasscript")]
+    #[cfg(feature = "javascript")]
     #[error("JavaScript UDF error: {0}")]
     JavaScript(#[from] crate::javascript::Error),
 

@@ -51,6 +51,6 @@ pub use basic::{
 #[cfg(feature = "mongodb")]
 pub use connectors::MongodbConnectorTest;
 
-pub use connectors::PostgresConnectorTest;
 #[cfg(feature = "datafusion")]
-pub use LocalStorageObjectStoreConnectorTest;
+pub use connectors::LocalStorageObjectStoreConnectorTest;
+pub use connectors::PostgresConnectorTest;

@@ -547,7 +547,7 @@ impl ExpressionBuilder {
                 }
 
                 UdfType::JavaScript(config) => {
-                    #[cfg(feature = "javasscript")]
+                    #[cfg(feature = "javascript")]
                     {
                         self.parse_javascript_udf(
                             function_name.clone(),
@@ -562,7 +562,7 @@ impl ExpressionBuilder {
                     #[cfg(not(feature = "javascript"))]
                     {
                         let _ = config;
-                        Err(Error::OnnxNotEnabled)
+                        Err(Error::JavaScriptNotEnabled)
                     }
                 }
             };
