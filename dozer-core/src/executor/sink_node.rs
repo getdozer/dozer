@@ -65,13 +65,14 @@ impl FlushScheduler {
                 continue;
             };
 
-            if self.next_schedule_from.elapsed() > schedule {
+            let elapsed = self.next_schedule_from.elapsed();
+            if elapsed >= schedule {
                 let Ok(_) = self.sender.send(()) else {
                     return;
                 };
                 self.next_schedule = None;
             } else {
-                let time_to_next_schedule = schedule - self.next_schedule_from.elapsed();
+                let time_to_next_schedule = schedule - elapsed;
                 std::thread::sleep(self.loop_interval.min(time_to_next_schedule));
             }
         }
