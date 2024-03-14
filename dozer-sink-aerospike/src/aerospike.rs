@@ -310,7 +310,7 @@ impl Client {
         &self,
         batch: *mut as_batch_records,
     ) -> Result<(), AerospikeError> {
-        info!("Batch get {} records", (*batch).list.size);
+        dbg!("Batch get {} records", (*batch).list.size);
         as_try(|err| aerospike_batch_read(self.inner.as_ptr(), err, std::ptr::null(), batch))
     }
 
