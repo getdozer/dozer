@@ -82,7 +82,7 @@ impl ClickhouseClient {
             https://www.propeldata.com/blog/how-to-check-your-clickhouse-version
         */
 
-        let query = Query::new(&query).id(query_id.map_or("".to_string(), |q| q.to_string()));
+        let query = Query::new(query).id(query_id.map_or("".to_string(), |q| q.to_string()));
         /*
         let query = query_id.map_or(query.to_string(), |id| {
             format!("{0} settings log_comment = '{1}'", query, id)
