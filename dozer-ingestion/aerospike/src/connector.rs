@@ -703,7 +703,10 @@ async fn map_record(
                     fields[*pk] = Field::String(s.clone());
                 }
                 serde_json::Value::Number(n) => {
-                    fields[*pk] = Field::String(n.as_str().to_string());
+                    fields[*pk] = Field::UInt(
+                        n.as_u64()
+                            .ok_or(AerospikeConnectorError::ParsingUIntFailed)?,
+                    );
                 }
                 v => return Err(AerospikeConnectorError::KeyNotSupported(v)),
             }
