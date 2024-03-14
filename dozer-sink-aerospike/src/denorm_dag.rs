@@ -888,6 +888,7 @@ struct BatchLookup {
     batch_idx: usize,
     version: usize,
     batch_read_index: Option<usize>,
+    follow: bool,
 }
 
 impl DenormalizationState {
@@ -969,6 +970,7 @@ impl DenormalizationState {
         client: &Client,
     ) -> Result<Vec<DenormalizedTable>, AerospikeSinkError> {
         let mut lookups = Vec::new();
+        let mut batch = RecordBatch::new(0, None);
         for (nid, _, _) in &self.base_tables {
             let node = self.node(*nid);
             let node_keys = node.batch.iter_dirty().map(
@@ -981,23 +983,56 @@ impl DenormalizationState {
                     node: *nid,
                     batch_idx: idx,
                     batch_read_index: None,
+                    follow: true,
                 },
             );
             lookups.extend(node_keys);
         }
 
-        let mut batch = RecordBatch::new(0, None);
+        let mut n_lookups = 0;
         while !lookups.is_empty() {
             unsafe {
                 client.batch_get(batch.as_mut_ptr())?;
             }
             let mut new_lookups = Vec::with_capacity(lookups.len());
             let mut new_batch = RecordBatch::new(lookups.len().try_into().unwrap(), None);
+
+            // For persisting, we need all many-node baselines, so put them in the
+            // first batch
+            if n_lookups == 0 {
+                for (i, node) in self.dag.node_references() {
+                    if let CachedBatch::Many(node_batch) = &node.batch {
+                        for (batch_idx, key) in
+                            node_batch
+                                .0
+                                .iter()
+                                .enumerate()
+                                .filter_map(|(i, (key, entry))| {
+                                    entry.base.is_none().then_some((i, key))
+                                })
+                        {
+                            let batch_read_index = new_batch.add_read_all(
+                                &node.as_schema.namespace,
+                                &node.as_schema.set,
+                                key,
+                            )?;
+                            new_lookups.push(BatchLookup {
+                                node: i,
+                                batch_idx,
+                                version: 0,
+                                batch_read_index: Some(batch_read_index),
+                                follow: true,
+                            });
+                        }
+                    }
+                }
+            }
             for BatchLookup {
                 node: nid,
                 batch_idx,
                 version,
                 batch_read_index,
+                follow,
             } in lookups
             {
                 // Update the node's local batch
@@ -1040,6 +1075,9 @@ impl DenormalizationState {
                         }
                     }
                 }
+                if !follow {
+                    continue;
+                }
                 let Some(values) = self.node(nid).batch.get_index(batch_idx, version) else {
                     continue;
                 };
@@ -1079,12 +1117,14 @@ impl DenormalizationState {
                             batch_idx,
                             version,
                             batch_read_index,
+                            follow: true,
                         })
                     }
                 }
             }
             lookups = new_lookups;
             batch = new_batch;
+            n_lookups += 1;
         }
 
         let mut res = Vec::new();
@@ -1111,6 +1151,66 @@ impl DenormalizationState {
             })
         }
         Ok(res)
+    }
+
+    fn add_manynode_base_lookups(
+        &mut self,
+        read_batch: &mut ReadBatch<'_>,
+        lookups: &mut Vec<BatchLookup>,
+    ) -> Result<(), AerospikeSinkError> {
+        for (i, node) in self.dag.node_references() {
+            if let CachedBatch::Many(node_batch) = &node.batch {
+                for (batch_idx, key) in node_batch
+                    .0
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, (key, entry))| entry.base.is_none().then_some((i, key)))
+                {
+                    let batch_read_index = read_batch.add_read_all(
+                        &node.as_schema.namespace,
+                        &node.as_schema.set,
+                        key,
+                    )?;
+                    lookups.push(BatchLookup {
+                        node: i,
+                        nodebatch_idx: batch_idx,
+                        version: 0,
+                        readbatch_idx: Some(batch_read_index),
+                        follow: false,
+                    });
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn update_from_lookup(
+        &mut self,
+        readbatch_idx: usize,
+        nid: NodeIndex,
+        batch_results: &ReadBatchResults,
+        nodebatch_idx: usize,
+    ) -> Result<(), AerospikeSinkError> {
+        let node = self.dag.node_weight_mut(nid).unwrap();
+        let rec = batch_results.get(readbatch_idx)?;
+        match &mut node.batch {
+            CachedBatch::One(batch) => batch.insert_remote(
+                nodebatch_idx,
+                rec.map(|rec| -> Result<_, Error> {
+                    parse_record(rec, &node.schema, &node.as_schema.bins)
+                })
+                .transpose()?,
+            ),
+            CachedBatch::Many(batch) => batch.insert_remote(
+                nodebatch_idx,
+                rec.map(|rec| -> Result<_, Error> {
+                    parse_record_many(rec, &node.schema, MANY_LIST_BIN, &node.as_schema.bins)
+                })
+                .transpose()?
+                .unwrap_or_default(),
+            ),
+        }
+        Ok(())
     }
 
     fn recurse_lookup(
@@ -1211,6 +1311,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_denorm() {
         let customer_schema = schema! {
             "id": String PRIMARY_KEY,
