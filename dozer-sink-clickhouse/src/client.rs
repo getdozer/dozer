@@ -56,11 +56,14 @@ impl ClickhouseClient {
         datasource_name: &str,
         fields: &[FieldDefinition],
         table_options: Option<ClickhouseTableOptions>,
+        query_id: Option<String>,
     ) -> Result<(), QueryError> {
         let mut client = self.pool.get_handle().await?;
         let ddl = get_create_table_query(datasource_name, fields, table_options);
         info!("Creating Clickhouse Table");
         info!("{ddl}");
+        let query_id = query_id.unwrap_or("".to_string());
+        let ddl = Query::new(ddl).id(query_id);
         client.execute(ddl).await?;
         Ok(())
     }
@@ -72,15 +75,19 @@ impl ClickhouseClient {
         query_id: Option<String>,
     ) -> Result<SqlResult, QueryError> {
         let mut client = self.pool.get_handle().await?;
-        // TODO: Include query_id in RowBinary protocol.
-        // https://github.com/suharev7/clickhouse-rs/issues/176
-        // https://github.com/ClickHouse/ClickHouse/blob/master/src/Client/Connection.cpp
-        // https://www.propeldata.com/blog/how-to-check-your-clickhouse-version
+        /*
+            TODO: Include query_id in RowBinary protocol.
+            https://github.com/suharev7/clickhouse-rs/issues/176
+            https://github.com/ClickHouse/ClickHouse/blob/master/src/Client/Connection.cpp
+            https://www.propeldata.com/blog/how-to-check-your-clickhouse-version
+        */
 
         let query = Query::new(&query).id(query_id.map_or("".to_string(), |q| q.to_string()));
-        // let query = query_id.map_or(query.to_string(), |id| {
-        //     format!("{0} settings log_comment = '{1}'", query, id)
-        // });
+        /*
+        let query = query_id.map_or(query.to_string(), |id| {
+            format!("{0} settings log_comment = '{1}'", query, id)
+        });
+        */
 
         let block = client.query(query).fetch_all().await?;
 

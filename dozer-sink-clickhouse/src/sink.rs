@@ -58,6 +58,7 @@ impl ClickhouseSinkFactory {
                 &repl_metadata.table_name,
                 &repl_metadata.schema.fields,
                 Some(create_table_options),
+                None,
             )
             .await?;
 
@@ -105,6 +106,7 @@ impl SinkFactory for ClickhouseSinkFactory {
                     &config.sink_table_name,
                     &schema.fields,
                     self.config.create_table_options.clone(),
+                    None,
                 )
                 .await?;
         }

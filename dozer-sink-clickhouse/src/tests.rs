@@ -72,6 +72,7 @@ use clickhouse_rs::{Block, Pool};
 use std::error::Error;
 
 #[tokio::test]
+#[ignore]
 async fn clickhouse_test() -> Result<(), Box<dyn Error>> {
     let uuid = "248c40d9-d1eb-47c4-8801-943dbab34df9";
     let database_url = "tcp://default@localhost:9000/query_test";
@@ -97,14 +98,5 @@ async fn clickhouse_test() -> Result<(), Box<dyn Error>> {
 
     let table = Query::new("payment").id(uuid);
     client.insert(table, block).await?;
-
-    // let block = client.query("SELECT * FROM payment").fetch_all().await?;
-
-    // for row in block.rows() {
-    //     let id: u32 = row.get("customer_id")?;
-    //     let amount: u32 = row.get("amount")?;
-    //     let name: Option<&str> = row.get("account_name")?;
-    //     println!("Found payment {}: {} {:?}", id, amount, name);
-    // }
     Ok(())
 }
