@@ -25,8 +25,8 @@ use oracle::{
     Connection,
 };
 
-const TXN_ID_COL: &str = "txn_id";
-const TXN_SEQ_COL: &str = "txn_seq";
+const TXN_ID_COL: &str = "__txn_id";
+const TXN_SEQ_COL: &str = "__txn_seq";
 const OPKIND_COL: &str = "DOZER_OPKIND";
 const METADATA_TABLE: &str = "__replication_metadata";
 const META_TXN_ID_COL: &str = "txn_id";
@@ -889,7 +889,7 @@ mod tests {
             trim_str(
                 r#"
                 MERGE INTO "owner"."tablename" D 
-                USING (SELECT :1 "id", :2 "name", :3 "content", :4 "__txn_id", :5 "__txn_seq", :6 DOZER_OPKIND FROM DUAL) S
+                USING "owner"."tablename_temp" S
                 ON (D."id" = S."id" AND D."name" = S."name")
                 WHEN NOT MATCHED THEN INSERT (D."id", D."name", D."content", D."__txn_id", D."__txn_seq") VALUES (S."id", S."name", S."content", S."__txn_id", S."__txn_seq") WHERE S.DOZER_OPKIND = 0
                 WHEN MATCHED THEN UPDATE SET D."content" = S."content", D."__txn_id" = S."__txn_id", D."__txn_seq" = S."__txn_seq"
