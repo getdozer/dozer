@@ -180,6 +180,7 @@ impl ClickhouseSink {
                         Field::String(self.sink_table_name.clone()),
                         Field::UInt(txid),
                     ],
+                    None,
                 )
                 .await?;
         }
@@ -196,7 +197,12 @@ impl ClickhouseSink {
         self.runtime.block_on(async {
             //Insert batch
             self.client
-                .insert_multi(&self.sink_table_name, &self.schema.fields, &self.batch)
+                .insert_multi(
+                    &self.sink_table_name,
+                    &self.schema.fields,
+                    &self.batch,
+                    None,
+                )
                 .await?;
 
             self.insert_metadata().await?;
