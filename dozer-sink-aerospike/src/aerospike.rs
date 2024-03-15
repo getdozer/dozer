@@ -10,7 +10,7 @@ use std::{
 use itertools::Itertools;
 
 use aerospike_client_sys::*;
-use dozer_types::log::{debug, info};
+use dozer_types::log::debug;
 use dozer_types::{
     chrono::{DateTime, NaiveDate},
     geo::{Coord, Point},
@@ -258,6 +258,8 @@ impl Client {
         &self,
         batch: *mut as_batch_records,
     ) -> Result<(), AerospikeError> {
+        debug!(target: "aerospike_sink", "Writing batch of size {}", batch.as_ref().unwrap().list.size);
+
         let started = Instant::now();
         let policy = self.inner.as_ref().config.policies.batch;
         as_try(|err| {
@@ -323,7 +325,6 @@ impl Client {
         request: &CStr,
         response: &mut *mut i8,
     ) -> Result<(), AerospikeError> {
-        info!("Info");
         as_try(|err| {
             aerospike_info_any(
                 self.inner.as_ptr(),
