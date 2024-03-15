@@ -3,7 +3,7 @@ pub use crate::aerospike::Client;
 use aerospike_client_sys::*;
 use denorm_dag::DenormalizationState;
 use dozer_core::event::EventHub;
-use dozer_types::log::{debug, error};
+use dozer_types::log::error;
 use dozer_types::models::connection::AerospikeConnection;
 use dozer_types::node::OpIdentifier;
 use dozer_types::thiserror;
@@ -440,7 +440,6 @@ impl AerospikeSinkWorker {
         // Write denormed tables
         let mut batch = RecordBatch::new(batch_size_est as u32, batch_size_est as u32);
 
-        debug!(target: "aerospike_sink", "Sink batch size {batch_size_est}");
         for table in denormalized_tables {
             for (key, record) in table.records {
                 batch.add_write(
