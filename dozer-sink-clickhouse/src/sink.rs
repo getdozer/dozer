@@ -58,6 +58,7 @@ impl ClickhouseSinkFactory {
                 &repl_metadata.table_name,
                 &repl_metadata.schema.fields,
                 Some(create_table_options),
+                None,
             )
             .await?;
 
@@ -105,6 +106,7 @@ impl SinkFactory for ClickhouseSinkFactory {
                     &config.sink_table_name,
                     &schema.fields,
                     self.config.create_table_options.clone(),
+                    None,
                 )
                 .await?;
         }
@@ -180,6 +182,7 @@ impl ClickhouseSink {
                         Field::String(self.sink_table_name.clone()),
                         Field::UInt(txid),
                     ],
+                    None,
                 )
                 .await?;
         }
@@ -196,7 +199,12 @@ impl ClickhouseSink {
         self.runtime.block_on(async {
             //Insert batch
             self.client
-                .insert_multi(&self.sink_table_name, &self.schema.fields, &self.batch)
+                .insert_multi(
+                    &self.sink_table_name,
+                    &self.schema.fields,
+                    &self.batch,
+                    None,
+                )
                 .await?;
 
             self.insert_metadata().await?;

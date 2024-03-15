@@ -12,7 +12,7 @@ use dozer_types::serde_json;
 use dozer_types::types::{Field, FieldDefinition, FieldType};
 use either::Either;
 
-use clickhouse_rs::types::{FromSql, Value, ValueRef};
+use clickhouse_rs::types::{FromSql, Query, Value, ValueRef};
 
 pub const DECIMAL_SCALE: u8 = 4;
 pub struct ValueWrapper(pub Value);
@@ -212,7 +212,8 @@ pub async fn insert_multi(
     mut client: ClientHandle,
     table_name: &str,
     fields: &[FieldDefinition],
-    values: &[Vec<Field>], // Now expects a Vec of Vec of Field
+    values: &[Vec<Field>],
+    query_id: Option<String>,
 ) -> Result<(), QueryError> {
     let mut b = Block::<clickhouse_rs::Simple>::new();
 
@@ -320,8 +321,12 @@ pub async fn insert_multi(
         }
     }
 
+    let query_id = query_id.unwrap_or("".to_string());
+
+    let table = Query::new(table_name).id(query_id);
+
     // Insert the block into the table
-    client.insert(table_name, b).await?;
+    client.insert(table, b).await?;
 
     Ok(())
 }

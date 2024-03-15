@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 dozer-core = { path = "../dozer-core" }
 dozer-types = { path = "../dozer-types" }
-clickhouse-rs = { git = "https://github.com/suharev7/clickhouse-rs" }
+clickhouse-rs = { git = "https://github.com/getdozer/clickhouse-rs" }
 either = "1.10.0"
 chrono-tz = "0.8.6"
 serde = "1.0.197"

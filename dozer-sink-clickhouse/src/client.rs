@@ -3,6 +3,7 @@ use super::ddl::get_create_table_query;
 use super::types::ValueWrapper;
 use crate::errors::QueryError;
 use crate::types::{insert_multi, map_value_wrapper_to_field};
+use clickhouse_rs::types::Query;
 use clickhouse_rs::{ClientHandle, Pool};
 use dozer_types::log::{debug, info};
 use dozer_types::models::sink::{ClickhouseSinkConfig, ClickhouseTableOptions};
@@ -55,11 +56,14 @@ impl ClickhouseClient {
         datasource_name: &str,
         fields: &[FieldDefinition],
         table_options: Option<ClickhouseTableOptions>,
+        query_id: Option<String>,
     ) -> Result<(), QueryError> {
         let mut client = self.pool.get_handle().await?;
         let ddl = get_create_table_query(datasource_name, fields, table_options);
         info!("Creating Clickhouse Table");
         info!("{ddl}");
+        let query_id = query_id.unwrap_or("".to_string());
+        let ddl = Query::new(ddl).id(query_id);
         client.execute(ddl).await?;
         Ok(())
     }
@@ -71,14 +75,21 @@ impl ClickhouseClient {
         query_id: Option<String>,
     ) -> Result<SqlResult, QueryError> {
         let mut client = self.pool.get_handle().await?;
-        // TODO: query_id doesnt work
-        // https://github.com/suharev7/clickhouse-rs/issues/176
-        // let query = Query::new(sql).id(query_id.to_string())
+        /*
+            TODO: Include query_id in RowBinary protocol.
+            https://github.com/suharev7/clickhouse-rs/issues/176
+            https://github.com/ClickHouse/ClickHouse/blob/master/src/Client/Connection.cpp
+            https://www.propeldata.com/blog/how-to-check-your-clickhouse-version
+        */
+
+        let query = Query::new(query).id(query_id.map_or("".to_string(), |q| q.to_string()));
+        /*
         let query = query_id.map_or(query.to_string(), |id| {
             format!("{0} settings log_comment = '{1}'", query, id)
         });
+        */
 
-        let block = client.query(&query).fetch_all().await?;
+        let block = client.query(query).fetch_all().await?;
 
         let mut rows: Vec<Vec<Field>> = vec![];
         for row in block.rows() {
@@ -107,9 +118,10 @@ impl ClickhouseClient {
         table_name: &str,
         fields: &[FieldDefinition],
         values: &[Field],
+        query_id: Option<String>,
     ) -> Result<(), QueryError> {
         let client = self.pool.get_handle().await?;
-        insert_multi(client, table_name, fields, &[values.to_vec()]).await
+        insert_multi(client, table_name, fields, &[values.to_vec()], query_id).await
     }
 
     pub async fn insert_multi(
@@ -117,8 +129,9 @@ impl ClickhouseClient {
         table_name: &str,
         fields: &[FieldDefinition],
         values: &[Vec<Field>],
+        query_id: Option<String>,
     ) -> Result<(), QueryError> {
         let client = self.pool.get_handle().await?;
-        insert_multi(client, table_name, fields, values).await
+        insert_multi(client, table_name, fields, values, query_id).await
     }
 }
