@@ -58,6 +58,11 @@
         "null"
       ]
     },
+    "id": {
+      "description": "Unique application Id",
+      "default": "",
+      "type": "string"
+    },
     "lambdas": {
       "description": "Lambda functions.",
       "type": "array",
