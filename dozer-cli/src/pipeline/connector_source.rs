@@ -5,6 +5,10 @@ use dozer_ingestion::{
     get_connector, CdcType, Connector, IngestionIterator, TableIdentifier, TableInfo,
 };
 use dozer_ingestion::{IngestionConfig, Ingestor};
+use dozer_tracing::metrics::{
+    CONNECTION_LABEL, DOZER_METER_NAME, OPERATION_TYPE_LABEL, SOURCE_OPERATION_COUNTER_NAME,
+    TABLE_LABEL,
+};
 use dozer_tracing::LabelsAndProgress;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::log::{error, info};
@@ -15,8 +19,6 @@ use dozer_types::thiserror::{self, Error};
 use dozer_types::tracing::{span, Level};
 use dozer_types::types::{Operation, Schema, SourceDefinition};
 use futures::stream::{AbortHandle, Abortable, Aborted};
-use metrics::counter;
-use metrics::describe_counter;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
@@ -276,8 +278,6 @@ impl Source for ConnectorSource {
     }
 }
 
-const SOURCE_OPERATION_COUNTER_NAME: &str = "source_operation";
-
 async fn forward_message_to_pipeline(
     mut iterator: IngestionIterator,
     sender: Sender<(PortHandle, IngestionMessage)>,
@@ -292,10 +292,12 @@ async fn forward_message_to_pipeline(
         bars.push(pb);
     }
 
-    describe_counter!(
-        SOURCE_OPERATION_COUNTER_NAME,
-        "Number of operation processed by source"
-    );
+    let meter = dozer_tracing::global::meter(DOZER_METER_NAME);
+
+    let source_counter = meter
+        .u64_counter(SOURCE_OPERATION_COUNTER_NAME)
+        .with_description("Number of operation processed by source")
+        .init();
 
     let mut counter = vec![(0u64, 0u64); tables.len()];
     while let Some(message) = iterator.receiver.recv().await {
@@ -310,30 +312,32 @@ async fn forward_message_to_pipeline(
                 let table_name = &tables[*table_index].name;
 
                 // Update metrics
-                let mut labels = labels.labels().clone();
-                labels.push("connection", connection_name.clone());
-                labels.push("table", table_name.clone());
-                const OPERATION_TYPE_LABEL: &str = "operation_type";
-                match op {
-                    Operation::Delete { .. } => {
-                        labels.push(OPERATION_TYPE_LABEL, "delete");
-                    }
-                    Operation::Insert { .. } => {
-                        labels.push(OPERATION_TYPE_LABEL, "insert");
-                    }
-                    Operation::Update { .. } => {
-                        labels.push(OPERATION_TYPE_LABEL, "update");
-                    }
-                    Operation::BatchInsert { .. } => {
-                        labels.push(OPERATION_TYPE_LABEL, "insert");
-                    }
-                }
+
+                let mut labels = labels.attrs();
+                labels.push(dozer_tracing::KeyValue::new(
+                    CONNECTION_LABEL,
+                    connection_name.clone(),
+                ));
+
+                labels.push(dozer_tracing::KeyValue::new(
+                    TABLE_LABEL,
+                    table_name.clone(),
+                ));
+
+                let op_str = match op {
+                    Operation::Insert { .. } => "insert",
+                    Operation::Delete { .. } => "delete",
+                    Operation::Update { .. } => "update",
+                    Operation::BatchInsert { .. } => "insert",
+                };
+                labels.push(dozer_tracing::KeyValue::new(OPERATION_TYPE_LABEL, op_str));
 
                 let counter_number: u64 = match op {
                     Operation::BatchInsert { new } => new.to_owned().len().try_into().unwrap_or(1),
                     _ => 1,
                 };
-                counter!(SOURCE_OPERATION_COUNTER_NAME, counter_number, labels);
+
+                source_counter.add(counter_number, &labels);
 
                 // Update counter
                 let counter = &mut counter[*table_index];

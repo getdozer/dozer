@@ -898,32 +898,6 @@
         }
       ]
     },
-    "DozerTelemetryConfig": {
-      "type": "object",
-      "properties": {
-        "adapter": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "endpoint": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "sample_percent": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint32",
-          "minimum": 0.0
-        }
-      },
-      "additionalProperties": false
-    },
     "DummySinkConfig": {
       "type": "object",
       "required": [
@@ -1677,6 +1651,16 @@
       },
       "additionalProperties": false
     },
+    "PrometheusConfig": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "default": "0.0.0.0:8089",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
     "RefreshConfig": {
       "type": "string",
       "enum": [
@@ -2023,6 +2007,12 @@
     "TelemetryConfig": {
       "type": "object",
       "properties": {
+        "application_id": {
+          "default": 0,
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0.0
+        },
         "metrics": {
           "anyOf": [
             {
@@ -2047,25 +2037,23 @@
       "additionalProperties": false
     },
     "TelemetryMetricsConfig": {
-      "type": "string",
-      "enum": [
-        "Prometheus"
-      ]
-    },
-    "TelemetryTraceConfig": {
       "oneOf": [
         {
           "type": "object",
           "required": [
-            "Dozer"
+            "Prometheus"
           ],
           "properties": {
-            "Dozer": {
-              "$ref": "#/definitions/DozerTelemetryConfig"
+            "Prometheus": {
+              "$ref": "#/definitions/PrometheusConfig"
             }
           },
           "additionalProperties": false
-        },
+        }
+      ]
+    },
+    "TelemetryTraceConfig": {
+      "oneOf": [
         {
           "type": "object",
           "required": [

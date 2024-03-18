@@ -9,7 +9,7 @@ use tonic::Code::NotFound;
 
 use crate::{
     errors::CloudError::{ApplicationNotFound, CloudServiceError},
-    ui::{app::AppUIError, live::LiveError},
+    ui::app::AppUIError,
 };
 
 use dozer_core::errors::ExecutionError;
@@ -80,8 +80,6 @@ pub enum OrchestrationError {
     CloudContextError(#[from] CloudContextError),
     #[error("Failed to read organisation name. Error: {0}")]
     FailedToReadOrganisationName(#[source] io::Error),
-    #[error(transparent)]
-    LiveError(#[from] LiveError),
     #[error(transparent)]
     AppUIError(#[from] AppUIError),
     #[error("{LOCK_FILE} is out of date")]

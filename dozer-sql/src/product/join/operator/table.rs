@@ -52,10 +52,6 @@ impl JoinTable {
         })
     }
 
-    pub fn lookup_size(&self) -> usize {
-        self.map.len()
-    }
-
     pub fn get_matching_records<'a>(
         &'a self,
         join_key: &JoinKey,

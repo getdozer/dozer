@@ -1,74 +1,9 @@
-use std::{
-    borrow::Cow,
-    fmt::{self, Display, Formatter},
-};
+use std::borrow::Cow;
 
 use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressDrawTarget, ProgressStyle};
-use metrics::{IntoLabels, Label, SharedString};
+use opentelemetry::KeyValue;
 
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct Labels(Vec<Label>);
-
-impl IntoLabels for Labels {
-    fn into_labels(self) -> Vec<Label> {
-        self.0
-    }
-}
-
-impl Display for Labels {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        if let Some((last, labels)) = self.0.split_last() {
-            for label in labels {
-                write!(f, "{}_{}", label.key(), label.value())?;
-                write!(f, "_")?;
-            }
-            write!(f, "{}_{}", last.key(), last.value())?;
-        }
-        Ok(())
-    }
-}
-
-impl Labels {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn empty() -> Self {
-        Self::default()
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = (&str, &str)> {
-        self.0.iter().map(|label| (label.key(), label.value()))
-    }
-
-    pub fn extend(&mut self, other: Self) {
-        self.0.extend(other.0)
-    }
-
-    pub fn push(&mut self, key: impl Into<SharedString>, value: impl Into<SharedString>) {
-        self.0.push(Label::new(key, value))
-    }
-
-    pub fn to_non_empty_string(&self) -> Cow<'static, str> {
-        if self.0.is_empty() {
-            Cow::Borrowed("empty")
-        } else {
-            Cow::Owned(self.to_string())
-        }
-    }
-}
-
-impl<Key: Into<SharedString>, Value: Into<SharedString>> FromIterator<(Key, Value)> for Labels {
-    fn from_iter<T: IntoIterator<Item = (Key, Value)>>(iter: T) -> Self {
-        let mut labels = Self::new();
-        for (key, value) in iter {
-            labels.push(key, value);
-        }
-        labels
-    }
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 /// Dozer components make themselves observable through two means:
 ///
 /// - Using `metrics` to emit metrics.
@@ -77,23 +12,26 @@ impl<Key: Into<SharedString>, Value: Into<SharedString>> FromIterator<(Key, Valu
 /// Here we define a struct that holds both the metrics labels and the multi progress bar.
 /// All components should include labels in this struct and create progress bar from the multi progress bar.
 pub struct LabelsAndProgress {
-    labels: Labels,
+    application_id: String,
     progress: MultiProgress,
 }
 
 impl LabelsAndProgress {
-    pub fn new(labels: Labels, enable_progress: bool) -> Self {
+    pub fn new(application_id: String, enable_progress: bool) -> Self {
         let progress_draw_target = if enable_progress && atty::is(atty::Stream::Stderr) {
             ProgressDrawTarget::stderr()
         } else {
             ProgressDrawTarget::hidden()
         };
         let progress = MultiProgress::with_draw_target(progress_draw_target);
-        Self { labels, progress }
+        Self {
+            application_id,
+            progress,
+        }
     }
 
-    pub fn labels(&self) -> &Labels {
-        &self.labels
+    pub fn attrs(&self) -> Vec<KeyValue> {
+        vec![KeyValue::new("application_id", self.application_id.clone())]
     }
 
     pub fn create_progress_bar(&self, msg: impl Into<Cow<'static, str>>) -> ProgressBar {
@@ -116,11 +54,5 @@ impl LabelsAndProgress {
         );
         progress.set_message(msg);
         progress
-    }
-}
-
-impl Default for LabelsAndProgress {
-    fn default() -> Self {
-        Self::new(Labels::default(), false)
     }
 }

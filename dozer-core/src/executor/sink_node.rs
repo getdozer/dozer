@@ -1,12 +1,18 @@
 use crossbeam::channel::{Receiver, Sender, TryRecvError};
 use daggy::NodeIndex;
-use dozer_tracing::LabelsAndProgress;
+use dozer_tracing::{
+    metrics::{
+        DOZER_METER_NAME, ENDPOINT_LABEL, OPERATION_TYPE_LABEL, PIPELINE_LATENCY_GAUGE_NAME,
+        SINK_OPERATION_COUNTER_NAME, TABLE_LABEL,
+    },
+    opentelemetry_metrics::{Counter, Gauge},
+    LabelsAndProgress,
+};
 use dozer_types::{
     log::debug,
     node::{NodeHandle, OpIdentifier},
     types::{Operation, TableOperation},
 };
-use metrics::{counter, describe_counter, describe_gauge, gauge};
 use std::{
     borrow::Cow,
     mem::swap,
@@ -106,10 +112,15 @@ pub struct SinkNode {
     should_flush_receiver: Receiver<()>,
 
     event_sender: broadcast::Sender<Event>,
+    metrics: SinkMetrics,
 }
 
-const SINK_OPERATION_COUNTER_NAME: &str = "sink_operation";
-const PIPELINE_LATENCY_GAUGE_NAME: &str = "pipeline_latency";
+#[derive(Debug)]
+
+pub struct SinkMetrics {
+    sink_counter: Counter<u64>,
+    latency_gauge: Gauge<f64>,
+}
 
 impl SinkNode {
     pub fn new(dag: &mut ExecutionDag, node_index: NodeIndex) -> Self {
@@ -124,14 +135,9 @@ impl SinkNode {
 
         let (node_handles, receivers) = dag.collect_receivers(node_index);
 
-        describe_counter!(
-            SINK_OPERATION_COUNTER_NAME,
-            "Number of operation processed by the sink"
-        );
-        describe_gauge!(
-            PIPELINE_LATENCY_GAUGE_NAME,
-            "The pipeline processing latency in seconds"
-        );
+        let meter = dozer_tracing::global::meter(DOZER_METER_NAME);
+        let sink_counter = meter.u64_counter(SINK_OPERATION_COUNTER_NAME).init();
+        let latency_gauge = meter.f64_gauge(PIPELINE_LATENCY_GAUGE_NAME).init();
 
         let max_flush_interval = sink
             .max_batch_duration_ms()
@@ -163,6 +169,10 @@ impl SinkNode {
             event_sender: dag.event_hub().sender.clone(),
             max_flush_interval,
             ops_since_flush: 0,
+            metrics: SinkMetrics {
+                sink_counter,
+                latency_gauge,
+            },
         }
     }
 
@@ -340,24 +350,20 @@ impl ReceiverLoop for SinkNode {
 
     fn on_op(&mut self, _index: usize, op: TableOperation) -> Result<(), ExecutionError> {
         self.last_op_if_commit = None;
-        let mut labels = self.labels.labels().clone();
-        labels.push("table", self.node_handle.id.clone());
-        const OPERATION_TYPE_LABEL: &str = "operation_type";
-        match &op.op {
-            Operation::Insert { .. } => {
-                labels.push(OPERATION_TYPE_LABEL, "insert");
-            }
-            Operation::Delete { .. } => {
-                labels.push(OPERATION_TYPE_LABEL, "delete");
-            }
-            Operation::Update { .. } => {
-                labels.push(OPERATION_TYPE_LABEL, "update");
-            }
-            Operation::BatchInsert { .. } => {
-                labels.push(OPERATION_TYPE_LABEL, "insert");
-            }
-        }
+        let mut labels = self.labels.attrs();
 
+        labels.push(dozer_tracing::KeyValue::new(
+            TABLE_LABEL,
+            self.node_handle.id.clone(),
+        ));
+
+        let op_str = match &op.op {
+            Operation::Insert { .. } => "insert",
+            Operation::Delete { .. } => "delete",
+            Operation::Update { .. } => "update",
+            Operation::BatchInsert { .. } => "insert",
+        };
+        labels.push(dozer_tracing::KeyValue::new(OPERATION_TYPE_LABEL, op_str));
         let counter_number: u64 = match &op.op {
             Operation::BatchInsert { new } => new.len() as u64,
             _ => 1,
@@ -368,7 +374,7 @@ impl ReceiverLoop for SinkNode {
             self.error_manager.report(e);
         }
 
-        counter!(SINK_OPERATION_COUNTER_NAME, counter_number, labels);
+        self.metrics.sink_counter.add(counter_number, &labels);
         Ok(())
     }
 
@@ -380,9 +386,15 @@ impl ReceiverLoop for SinkNode {
         self.last_op_if_commit = Some(epoch.clone());
 
         if let Ok(duration) = epoch.decision_instant.elapsed() {
-            let mut labels = self.labels.labels().clone();
-            labels.push("endpoint", self.node_handle.id.clone());
-            gauge!(PIPELINE_LATENCY_GAUGE_NAME, duration.as_secs_f64(), labels);
+            let mut labels = self.labels.attrs().clone();
+            labels.push(dozer_tracing::KeyValue::new(
+                ENDPOINT_LABEL,
+                self.node_handle.id.clone(),
+            ));
+
+            self.metrics
+                .latency_gauge
+                .record(duration.as_secs_f64(), &labels);
         }
 
         if self

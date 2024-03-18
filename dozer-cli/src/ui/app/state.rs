@@ -4,7 +4,7 @@ use clap::Parser;
 
 use dozer_core::shutdown::{self, ShutdownReceiver, ShutdownSender};
 use dozer_core::{dag_schemas::DagSchemas, Dag};
-use dozer_tracing::{Labels, LabelsAndProgress};
+use dozer_tracing::LabelsAndProgress;
 use dozer_types::{
     grpc_types::{
         app_ui::{AppUi, AppUiResponse, BuildResponse, BuildStatus, ConnectResponse, RunRequest},
@@ -238,7 +238,7 @@ impl AppUIState {
         })
     }
 
-    pub async fn run(&self, request: RunRequest) -> Result<Labels, AppUIError> {
+    pub async fn run(&self, request: RunRequest) -> Result<String, AppUIError> {
         let dozer = self.dozer.read().await;
         let dozer = &dozer.as_ref().ok_or(AppUIError::NotInitialized)?.dozer;
         // kill if a handle already exists
@@ -246,13 +246,11 @@ impl AppUIState {
         let temp_dir = TempDir::new("dozer_app_local")?;
         let temp_dir_path = temp_dir.path().to_str().unwrap();
 
-        let labels: Labels = [("dozer_app_local_id", uuid::Uuid::new_v4().to_string())]
-            .into_iter()
-            .collect();
+        let application_id = uuid::Uuid::new_v4().to_string();
         let (shutdown_sender, shutdown_receiver) = shutdown::new(&dozer.runtime);
         let _handle = run(
             dozer.clone(),
-            labels.clone(),
+            application_id.clone(),
             request,
             shutdown_receiver,
             temp_dir_path,
@@ -267,7 +265,7 @@ impl AppUIState {
             _temp_dir: temp_dir,
         };
         *lock = Some(shutdown_and_tempdir);
-        Ok(labels)
+        Ok(application_id)
     }
 
     pub async fn stop(&self) -> Result<(), AppUIError> {
@@ -314,12 +312,12 @@ pub async fn create_dag(dozer: &SimpleOrchestrator) -> Result<Dag, Orchestration
 
 fn run(
     dozer: SimpleOrchestrator,
-    labels: Labels,
+    application_id: String,
     request: RunRequest,
     shutdown_receiver: ShutdownReceiver,
     temp_dir: &str,
 ) -> Result<JoinHandle<()>, OrchestrationError> {
-    let dozer = get_dozer_run_instance(dozer, labels, request, temp_dir)?;
+    let dozer = get_dozer_run_instance(dozer, application_id, request, temp_dir)?;
 
     validate_config(&dozer.config)?;
     let runtime = dozer.runtime.clone();
@@ -333,7 +331,7 @@ fn run(
 
 fn get_dozer_run_instance(
     mut dozer: SimpleOrchestrator,
-    labels: Labels,
+    application_id: String,
     req: RunRequest,
     temp_dir: &str,
 ) -> Result<SimpleOrchestrator, AppUIError> {
@@ -356,7 +354,7 @@ fn get_dozer_run_instance(
 
     dozer.config.home_dir = Some(temp_dir.to_string());
 
-    dozer.labels = LabelsAndProgress::new(labels, false);
+    dozer.labels = LabelsAndProgress::new(application_id, false);
 
     Ok(dozer)
 }
