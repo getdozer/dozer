@@ -12,9 +12,7 @@ use tempdir::TempDir;
 
 use crate::test_suite::{DataReadyConnectorTest, FieldsAndPk, InsertOnlyConnectorTest};
 
-use super::super::arrow::{
-    record_batch_with_all_supported_data_types, records_to_arrow, schema_to_arrow,
-};
+use super::arrow::{record_batch_with_all_supported_data_types, records_to_arrow, schema_to_arrow};
 
 pub struct LocalStorageObjectStoreConnectorTest {
     _temp_dir: TempDir,

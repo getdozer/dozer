@@ -1,4 +1,3 @@
-mod arrow;
 #[cfg(feature = "datafusion")]
 mod object_store;
 mod postgres;
