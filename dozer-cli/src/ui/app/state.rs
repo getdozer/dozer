@@ -4,7 +4,7 @@ use clap::Parser;
 
 use dozer_core::shutdown::{self, ShutdownReceiver, ShutdownSender};
 use dozer_core::{dag_schemas::DagSchemas, Dag};
-use dozer_tracing::LabelsAndProgress;
+use dozer_tracing::DozerMonitorContext;
 use dozer_types::{
     grpc_types::{
         app_ui::{AppUi, AppUiResponse, BuildResponse, BuildStatus, ConnectResponse, RunRequest},
@@ -354,7 +354,7 @@ fn get_dozer_run_instance(
 
     dozer.config.home_dir = Some(temp_dir.to_string());
 
-    dozer.labels = LabelsAndProgress::new(application_id, false);
+    dozer.labels = DozerMonitorContext::new(application_id, false);
 
     Ok(dozer)
 }

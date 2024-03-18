@@ -6,7 +6,7 @@ use dozer_tracing::{
         SINK_OPERATION_COUNTER_NAME, TABLE_LABEL,
     },
     opentelemetry_metrics::{Counter, Gauge},
-    LabelsAndProgress,
+    DozerMonitorContext,
 };
 use dozer_types::{
     log::debug,
@@ -101,7 +101,7 @@ pub struct SinkNode {
     /// The error manager, for reporting non-fatal errors.
     error_manager: Arc<ErrorManager>,
     /// The metrics labels.
-    labels: LabelsAndProgress,
+    labels: DozerMonitorContext,
 
     max_flush_interval: Duration,
 

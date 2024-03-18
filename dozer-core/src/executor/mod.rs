@@ -5,7 +5,7 @@ use crate::Dag;
 
 use daggy::petgraph::visit::IntoNodeIdentifiers;
 
-use dozer_tracing::LabelsAndProgress;
+use dozer_tracing::DozerMonitorContext;
 use futures::Future;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -75,7 +75,7 @@ impl DagExecutor {
     pub async fn start<F: Send + 'static + Future + Unpin>(
         self,
         shutdown: F,
-        labels: LabelsAndProgress,
+        labels: DozerMonitorContext,
         runtime: Arc<Runtime>,
     ) -> Result<DagExecutorJoinHandle, ExecutionError> {
         // Construct execution dag.

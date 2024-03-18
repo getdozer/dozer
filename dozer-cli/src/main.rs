@@ -7,7 +7,7 @@ use dozer_cli::ui;
 use dozer_cli::ui::app::AppUIError;
 use dozer_cli::{set_ctrl_handler, set_panic_hook};
 use dozer_core::shutdown;
-use dozer_tracing::LabelsAndProgress;
+use dozer_tracing::DozerMonitorContext;
 use dozer_types::models::config::Config;
 use dozer_types::tracing::{error, error_span, info};
 use futures::TryFutureExt;
@@ -78,7 +78,7 @@ fn run() -> Result<(), OrchestrationError> {
     let dozer = init_dozer(
         runtime.clone(),
         config.clone(),
-        LabelsAndProgress::new(Default::default(), cli.enable_progress),
+        DozerMonitorContext::new(Default::default(), cli.enable_progress),
     )
     .map_err(OrchestrationError::CliError)?;
 

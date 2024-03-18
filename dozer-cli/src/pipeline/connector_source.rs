@@ -9,7 +9,7 @@ use dozer_tracing::metrics::{
     CONNECTION_LABEL, DOZER_METER_NAME, OPERATION_TYPE_LABEL, SOURCE_OPERATION_COUNTER_NAME,
     TABLE_LABEL,
 };
-use dozer_tracing::LabelsAndProgress;
+use dozer_tracing::DozerMonitorContext;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::log::{error, info};
 use dozer_types::models::connection::Connection;
@@ -50,7 +50,7 @@ pub struct ConnectorSourceFactory {
     connection: Connection,
     runtime: Arc<Runtime>,
     tables: Vec<Table>,
-    labels: LabelsAndProgress,
+    labels: DozerMonitorContext,
     shutdown: ShutdownReceiver,
 }
 
@@ -63,7 +63,7 @@ impl ConnectorSourceFactory {
         mut table_and_ports: Vec<(TableInfo, PortHandle)>,
         connection: Connection,
         runtime: Arc<Runtime>,
-        labels: LabelsAndProgress,
+        labels: DozerMonitorContext,
         shutdown: ShutdownReceiver,
     ) -> Result<Self, ConnectorSourceFactoryError> {
         let mut connector =
@@ -213,7 +213,7 @@ pub struct ConnectorSource {
     ports: Vec<PortHandle>,
     connector: Box<dyn Connector>,
     connection_name: String,
-    labels: LabelsAndProgress,
+    labels: DozerMonitorContext,
     shutdown: ShutdownReceiver,
     ingestion_config: IngestionConfig,
 }
@@ -284,7 +284,7 @@ async fn forward_message_to_pipeline(
     connection_name: String,
     tables: Vec<TableInfo>,
     ports: Vec<PortHandle>,
-    labels: LabelsAndProgress,
+    labels: DozerMonitorContext,
 ) {
     let mut bars = vec![];
     for table in &tables {

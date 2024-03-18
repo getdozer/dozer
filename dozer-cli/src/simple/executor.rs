@@ -1,5 +1,5 @@
 use dozer_core::shutdown::ShutdownReceiver;
-use dozer_tracing::LabelsAndProgress;
+use dozer_tracing::DozerMonitorContext;
 use dozer_types::models::flags::Flags;
 use dozer_types::models::sink::Sink;
 use tokio::runtime::Runtime;
@@ -21,7 +21,7 @@ pub struct Executor<'a> {
     sources: &'a [Source],
     sql: Option<&'a str>,
     sinks: &'a [Sink],
-    labels: LabelsAndProgress,
+    labels: DozerMonitorContext,
     udfs: &'a [UdfConfig],
 }
 
@@ -34,7 +34,7 @@ impl<'a> Executor<'a> {
         sources: &'a [Source],
         sql: Option<&'a str>,
         sinks: &'a [Sink],
-        labels: LabelsAndProgress,
+        labels: DozerMonitorContext,
         udfs: &'a [UdfConfig],
     ) -> Result<Executor<'a>, OrchestrationError> {
         Ok(Executor {
@@ -75,7 +75,7 @@ pub fn run_dag_executor(
     runtime: &Arc<Runtime>,
     dag_executor: DagExecutor,
     shutdown: ShutdownReceiver,
-    labels: LabelsAndProgress,
+    labels: DozerMonitorContext,
 ) -> Result<(), OrchestrationError> {
     let join_handle = runtime.block_on(dag_executor.start(
         Box::pin(shutdown.create_shutdown_future()),
