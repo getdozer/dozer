@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 use std::ffi::{CStr, CString, NulError};
-use std::ptr::{addr_of_mut, NonNull};
 
-use aerospike_client_sys::*;
 use dozer_core::daggy::petgraph::Direction;
 use dozer_core::daggy::{self, EdgeIndex, NodeIndex};
 use dozer_core::petgraph::visit::{
@@ -17,10 +15,7 @@ use itertools::{Either, Itertools};
 use smallvec::SmallVec;
 
 use crate::aerospike::{
-    as_batch_read_reserve, as_batch_records_create, as_batch_remove_reserve,
-    as_batch_write_reserve, as_vector_get, check_alloc, init_batch_write_operations, init_key,
-    new_record_map, parse_record, parse_record_many, AerospikeError, AsOperations, BinNames,
-    Client,
+    parse_record, parse_record_many, BinNames, Client, ReadBatch, ReadBatchResults, WriteBatch,
 };
 use crate::AerospikeSinkError;
 
@@ -189,7 +184,7 @@ impl OneToManyBatch {
 
     fn write(
         &mut self,
-        record_batch: &mut RecordBatch,
+        record_batch: &mut WriteBatch,
         schema: &AerospikeSchema,
     ) -> Result<(), AerospikeSinkError> {
         for (k, v) in self.0.drain(..) {
@@ -213,6 +208,7 @@ impl OneToManyBatch {
             record_batch.add_write_list(
                 &schema.namespace,
                 &schema.set,
+                MANY_LIST_BIN,
                 &k,
                 schema.bins.names(),
                 &record,
@@ -294,7 +290,7 @@ impl CachedBatch {
 
     fn write(
         &mut self,
-        record_batch: &mut RecordBatch,
+        record_batch: &mut WriteBatch,
         schema: &AerospikeSchema,
     ) -> Result<(), AerospikeSinkError> {
         match self {
@@ -436,7 +432,7 @@ impl OneToOneBatch {
 
     fn write(
         &mut self,
-        batch: &mut RecordBatch,
+        batch: &mut WriteBatch,
         schema: &AerospikeSchema,
     ) -> Result<(), AerospikeSinkError> {
         for (key, dirty_record) in self.0.drain(..).filter_map(|(key, mut rec)| {
@@ -719,175 +715,12 @@ impl DenormalizationState {
     }
 }
 
-pub(crate) struct RecordBatch {
-    inner: NonNull<as_batch_records>,
-    allocated_strings: Vec<String>,
-    operations: Vec<AsOperations>,
-    read_ops: usize,
-}
-
-impl RecordBatch {
-    pub(crate) fn new(capacity: u32, allocated_strings: Option<Vec<String>>) -> Self {
-        let ptr = unsafe { NonNull::new(as_batch_records_create(capacity)).unwrap() };
-        Self {
-            read_ops: 0,
-            inner: ptr,
-            allocated_strings: allocated_strings.unwrap_or_default(),
-            operations: Vec::with_capacity(capacity as usize),
-        }
-    }
-
-    pub(crate) unsafe fn as_mut_ptr(&mut self) -> *mut as_batch_records {
-        self.inner.as_ptr()
-    }
-
-    #[inline(always)]
-    pub(crate) unsafe fn inner(&self) -> &as_batch_records {
-        self.inner.as_ref()
-    }
-
-    pub(crate) fn reserve_read(&mut self) -> *mut as_batch_read_record {
-        unsafe { check_alloc(as_batch_read_reserve(self.as_mut_ptr())) }
-    }
-
-    pub(crate) fn reserve_write(&mut self) -> *mut as_batch_write_record {
-        unsafe { check_alloc(as_batch_write_reserve(self.as_mut_ptr())) }
-    }
-
-    pub(crate) fn reserve_remove(&mut self) -> *mut as_batch_remove_record {
-        unsafe { check_alloc(as_batch_remove_reserve(self.as_mut_ptr())) }
-    }
-
-    pub(crate) fn add_write(
-        &mut self,
-        namespace: &CStr,
-        set: &CStr,
-        bin_names: &[CString],
-        key: &[Field],
-        values: &[Field],
-    ) -> Result<(), AerospikeSinkError> {
-        assert_eq!(
-            self.read_ops, 0,
-            "No mixed read-write aerospike batches allowed"
-        );
-        let write_rec = self.reserve_write();
-        unsafe {
-            init_key(
-                addr_of_mut!((*write_rec).key),
-                namespace,
-                set,
-                key,
-                &mut self.allocated_strings,
-            )?;
-            let mut ops = AsOperations::new(values.len().try_into().unwrap());
-            init_batch_write_operations(
-                ops.as_mut_ptr(),
-                values,
-                bin_names,
-                &mut self.allocated_strings,
-            )?;
-            (*write_rec).ops = ops.as_mut_ptr();
-            self.operations.push(ops);
-        }
-        Ok(())
-    }
-
-    pub(crate) fn add_write_list(
-        &mut self,
-        namespace: &CStr,
-        set: &CStr,
-        key: &[Field],
-        bin_names: &[CString],
-        values: &[Vec<Field>],
-    ) -> Result<(), AerospikeSinkError> {
-        assert_eq!(
-            self.read_ops, 0,
-            "No mixed read-write aerospike batches allowed"
-        );
-        let write_rec = self.reserve_write();
-        unsafe {
-            init_key(
-                addr_of_mut!((*write_rec).key),
-                namespace,
-                set,
-                key,
-                &mut self.allocated_strings,
-            )?;
-            let mut ops = AsOperations::new(1);
-            let list = as_arraylist_new(values.len().try_into().unwrap(), 0);
-            for record in values {
-                let map = new_record_map(record, bin_names, &mut self.allocated_strings)?;
-                as_arraylist_append(list, map as *mut as_val);
-            }
-            as_operations_add_write(
-                ops.as_mut_ptr(),
-                MANY_LIST_BIN.as_ptr(),
-                list as *mut as_bin_value,
-            );
-            (*write_rec).ops = ops.as_mut_ptr();
-            self.operations.push(ops);
-        }
-        Ok(())
-    }
-
-    fn add_remove(
-        &mut self,
-        namespace: &CStr,
-        set: &CStr,
-        key: &[Field],
-    ) -> Result<(), AerospikeSinkError> {
-        assert_eq!(
-            self.read_ops, 0,
-            "No mixed read-write aerospike batches allowed"
-        );
-        let remove_rec = self.reserve_remove();
-        unsafe {
-            init_key(
-                addr_of_mut!((*remove_rec).key),
-                namespace,
-                set,
-                key,
-                &mut self.allocated_strings,
-            )?;
-        }
-        Ok(())
-    }
-
-    fn add_read_all(
-        &mut self,
-        namespace: &CStr,
-        set: &CStr,
-        key: &[Field],
-    ) -> Result<usize, AerospikeSinkError> {
-        let idx = self.read_ops;
-        let read_rec = self.reserve_read();
-        unsafe {
-            init_key(
-                addr_of_mut!((*read_rec).key),
-                namespace,
-                set,
-                key,
-                &mut self.allocated_strings,
-            )?;
-            (*read_rec).read_all_bins = true;
-        }
-        self.read_ops += 1;
-        Ok(idx)
-    }
-}
-
-impl Drop for RecordBatch {
-    fn drop(&mut self) {
-        unsafe { as_batch_records_destroy(self.inner.as_ptr()) }
-    }
-}
-
 #[derive(Clone)]
 struct BatchLookup {
     node: NodeIndex,
-    batch_idx: usize,
+    nodebatch_idx: usize,
     version: usize,
-    batch_read_index: Option<usize>,
+    readbatch_idx: Option<usize>,
     follow: bool,
 }
 
@@ -943,6 +776,18 @@ impl DenormalizationState {
         }
     }
     pub(crate) fn persist(&mut self, client: &Client) -> Result<(), AerospikeSinkError> {
+        let mut read_batch = ReadBatch::new(client, 0, None);
+        let mut lookups = Vec::new();
+        self.add_manynode_base_lookups(&mut read_batch, &mut lookups)?;
+        let read_results = read_batch.execute()?;
+        for lookup in lookups {
+            self.update_from_lookup(
+                lookup.readbatch_idx.unwrap(),
+                lookup.node,
+                &read_results,
+                lookup.nodebatch_idx,
+            )?;
+        }
         let batch_size_upper_bound: usize = self
             .dag
             .node_references()
@@ -950,7 +795,7 @@ impl DenormalizationState {
             .sum();
 
         let batch_size: u32 = batch_size_upper_bound.try_into().unwrap();
-        let mut write_batch = RecordBatch::new(batch_size, None);
+        let mut write_batch = WriteBatch::new(client, batch_size, None);
 
         for node in self.dag.node_weights_mut() {
             // Only write if the last version is dirty (the newest version was changed by this
@@ -958,9 +803,7 @@ impl DenormalizationState {
             node.batch.write(&mut write_batch, &node.as_schema)?;
         }
 
-        unsafe {
-            client.write_batch(write_batch.as_mut_ptr())?;
-        }
+        write_batch.execute()?;
         self.transaction_counter = 0;
         Ok(())
     }
@@ -970,7 +813,6 @@ impl DenormalizationState {
         client: &Client,
     ) -> Result<Vec<DenormalizedTable>, AerospikeSinkError> {
         let mut lookups = Vec::new();
-        let mut batch = RecordBatch::new(0, None);
         for (nid, _, _) in &self.base_tables {
             let node = self.node(*nid);
             let node_keys = node.batch.iter_dirty().map(
@@ -981,8 +823,8 @@ impl DenormalizationState {
                  }| BatchLookup {
                     version,
                     node: *nid,
-                    batch_idx: idx,
-                    batch_read_index: None,
+                    nodebatch_idx: idx,
+                    readbatch_idx: None,
                     follow: true,
                 },
             );
@@ -990,95 +832,33 @@ impl DenormalizationState {
         }
 
         let mut n_lookups = 0;
+        let mut batch = ReadBatch::new(client, 0, None);
         while !lookups.is_empty() {
-            unsafe {
-                client.batch_get(batch.as_mut_ptr())?;
-            }
+            let batch_results = batch.execute()?;
             let mut new_lookups = Vec::with_capacity(lookups.len());
-            let mut new_batch = RecordBatch::new(lookups.len().try_into().unwrap(), None);
+            let mut new_batch = ReadBatch::new(client, lookups.len().try_into().unwrap(), None);
 
             // For persisting, we need all many-node baselines, so put them in the
             // first batch
             if n_lookups == 0 {
-                for (i, node) in self.dag.node_references() {
-                    if let CachedBatch::Many(node_batch) = &node.batch {
-                        for (batch_idx, key) in
-                            node_batch
-                                .0
-                                .iter()
-                                .enumerate()
-                                .filter_map(|(i, (key, entry))| {
-                                    entry.base.is_none().then_some((i, key))
-                                })
-                        {
-                            let batch_read_index = new_batch.add_read_all(
-                                &node.as_schema.namespace,
-                                &node.as_schema.set,
-                                key,
-                            )?;
-                            new_lookups.push(BatchLookup {
-                                node: i,
-                                batch_idx,
-                                version: 0,
-                                batch_read_index: Some(batch_read_index),
-                                follow: true,
-                            });
-                        }
-                    }
-                }
+                self.add_manynode_base_lookups(&mut new_batch, &mut new_lookups)?;
             }
             for BatchLookup {
                 node: nid,
-                batch_idx,
+                nodebatch_idx,
                 version,
-                batch_read_index,
+                readbatch_idx,
                 follow,
             } in lookups
             {
                 // Update the node's local batch
-                if let Some(batch_read_index) = batch_read_index {
-                    let node = self.dag.node_weight_mut(nid).unwrap();
-                    unsafe {
-                        let rec = as_vector_get(
-                            &batch.inner().list as *const as_vector,
-                            batch_read_index,
-                        ) as *const as_batch_read_record;
-                        let result = (*rec).result;
-                        let rec = if result == as_status_e_AEROSPIKE_ERR_RECORD_NOT_FOUND {
-                            None
-                        } else if result == as_status_e_AEROSPIKE_OK {
-                            Some(rec)
-                        } else {
-                            return Err(AerospikeError::from_code(result).into());
-                        };
-                        match &mut node.batch {
-                            CachedBatch::One(batch) => batch.insert_remote(
-                                batch_idx,
-                                rec.map(|rec| -> Result<_, Error> {
-                                    parse_record(&(*rec).record, &node.schema, &node.as_schema.bins)
-                                })
-                                .transpose()?,
-                            ),
-                            CachedBatch::Many(batch) => batch.insert_remote(
-                                batch_idx,
-                                rec.map(|rec| -> Result<_, Error> {
-                                    parse_record_many(
-                                        &(*rec).record,
-                                        &node.schema,
-                                        MANY_LIST_BIN,
-                                        &node.as_schema.bins,
-                                    )
-                                })
-                                .transpose()?
-                                .unwrap_or_default(),
-                            ),
-                        }
-                    }
+                if let Some(readbatch_idx) = readbatch_idx {
+                    self.update_from_lookup(readbatch_idx, nid, &batch_results, nodebatch_idx)?;
                 }
                 if !follow {
                     continue;
                 }
-                let Some(values) = self.node(nid).batch.get_index(batch_idx, version) else {
+                let Some(values) = self.node(nid).batch.get_index(nodebatch_idx, version) else {
                     continue;
                 };
                 let values = values.collect_vec();
@@ -1114,9 +894,9 @@ impl DenormalizationState {
 
                         new_lookups.push(BatchLookup {
                             node: target,
-                            batch_idx,
+                            nodebatch_idx: batch_idx,
                             version,
-                            batch_read_index,
+                            readbatch_idx: batch_read_index,
                             follow: true,
                         })
                     }

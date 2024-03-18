@@ -15,8 +15,7 @@ use std::mem::MaybeUninit;
 use std::ptr::NonNull;
 use std::sync::Arc;
 
-use crate::aerospike::AerospikeError;
-use crate::denorm_dag::RecordBatch;
+use crate::aerospike::{AerospikeError, WriteBatch};
 
 mod aerospike;
 mod denorm_dag;
@@ -251,7 +250,7 @@ struct AerospikeMetadata {
     client: Arc<Client>,
     key: NonNull<as_key>,
     record: NonNull<as_record>,
-    last_base_transaction: Option<u64>,
+    last_denorm_transaction: Option<u64>,
     last_lookup_transaction: Option<u64>,
 }
 
@@ -301,7 +300,7 @@ impl AerospikeMetadata {
                 client,
                 key,
                 record: NonNull::new(record).unwrap(),
-                last_base_transaction: base,
+                last_denorm_transaction: base,
                 last_lookup_transaction: lookup,
             })
         }
@@ -316,8 +315,8 @@ impl AerospikeMetadata {
         Ok(())
     }
 
-    fn write_base(&mut self, txid: TxnId) -> Result<(), AerospikeSinkError> {
-        self.last_base_transaction = Some(txid);
+    fn write_denorm(&mut self, txid: TxnId) -> Result<(), AerospikeSinkError> {
+        self.last_denorm_transaction = Some(txid);
         self.write(txid, constants::META_BASE_TXN_ID_BIN)?;
         Ok(())
     }
@@ -388,7 +387,7 @@ impl AerospikeSinkWorker {
     fn commit(&mut self, txid: Option<u64>) -> Result<(), AerospikeSinkError> {
         match (
             txid,
-            self.metadata_writer.last_base_transaction,
+            self.metadata_writer.last_denorm_transaction,
             self.metadata_writer.last_lookup_transaction,
         ) {
                 (Some(current), Some(last_denorm), Some(last_lookup)) => {
@@ -438,7 +437,7 @@ impl AerospikeSinkWorker {
             .map(|table| table.records.len())
             .sum();
         // Write denormed tables
-        let mut batch = RecordBatch::new(batch_size_est as u32, None);
+        let mut batch = WriteBatch::new(&self.client, batch_size_est as u32, None);
         for table in denormalized_tables {
             for record in table.records {
                 let key = table.pk.iter().map(|i| record[*i].clone()).collect_vec();
@@ -452,11 +451,11 @@ impl AerospikeSinkWorker {
             }
         }
 
-        unsafe { self.client.write_batch(batch.as_mut_ptr())? };
+        batch.execute()?;
 
         // Write denormed txid
         if let Some(txid) = txid {
-            self.metadata_writer.write_base(txid)?;
+            self.metadata_writer.write_denorm(txid)?;
         }
 
         self.state.persist(&self.client)?;

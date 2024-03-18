@@ -4,7 +4,7 @@ use std::{
     ffi::{c_char, c_void, CStr, CString, NulError},
     fmt::Display,
     mem::MaybeUninit,
-    ptr::{addr_of, NonNull},
+    ptr::{addr_of, addr_of_mut, NonNull},
     slice,
 };
 
@@ -991,4 +991,225 @@ unsafe fn as_list_get_map(list: *const as_list, i: u32) -> *const as_map {
 #[inline(always)]
 unsafe fn as_map_get(map: *const as_map, key: *const as_val) -> *mut as_val {
     as_util_hook!(get, std::ptr::null_mut(), map, key)
+}
+
+pub(crate) struct ReadBatchResults {
+    recs: AsBatchRecords,
+}
+
+impl ReadBatchResults {
+    fn vector(&self) -> *const as_vector {
+        &self.recs.as_ref().list
+    }
+
+    pub(crate) fn get(&self, idx: usize) -> Result<Option<&as_record>, AerospikeError> {
+        let rec = unsafe {
+            assert!(idx < (*self.vector()).size as usize);
+            let rec = as_vector_get(self.vector(), idx) as *const as_batch_read_record;
+            rec.as_ref().unwrap()
+        };
+
+        #[allow(non_upper_case_globals)]
+        match rec.result {
+            as_status_e_AEROSPIKE_OK => Ok(Some(&rec.record)),
+            as_status_e_AEROSPIKE_ERR_RECORD_NOT_FOUND => Ok(None),
+            other => Err(AerospikeError::from_code(other)),
+        }
+    }
+}
+
+pub(crate) struct ReadBatch<'a> {
+    client: &'a Client,
+    inner: Option<AsBatchRecords>,
+    allocated_strings: Vec<String>,
+    read_ops: usize,
+}
+
+impl<'a> ReadBatch<'a> {
+    fn reserve_read(&mut self) -> *mut as_batch_read_record {
+        unsafe { check_alloc(as_batch_read_reserve(self.inner.as_mut().unwrap().as_ptr())) }
+    }
+
+    pub(crate) fn add_read_all(
+        &mut self,
+        namespace: &CStr,
+        set: &CStr,
+        key: &[Field],
+    ) -> Result<usize, AerospikeSinkError> {
+        let idx = self.read_ops;
+        let read_rec = self.reserve_read();
+        unsafe {
+            init_key(
+                addr_of_mut!((*read_rec).key),
+                namespace,
+                set,
+                key,
+                &mut self.allocated_strings,
+            )?;
+            (*read_rec).read_all_bins = true;
+        }
+        self.read_ops += 1;
+        Ok(idx)
+    }
+
+    pub(crate) fn execute(mut self) -> Result<ReadBatchResults, AerospikeError> {
+        unsafe { self.client.batch_get(self.inner.as_mut().unwrap().as_ptr()) }?;
+
+        Ok(ReadBatchResults {
+            recs: self.inner.take().unwrap(),
+        })
+    }
+
+    pub(crate) fn new(
+        client: &'a Client,
+        capacity: u32,
+        allocated_strings: Option<Vec<String>>,
+    ) -> Self {
+        Self {
+            client,
+            inner: Some(AsBatchRecords::new(capacity)),
+            allocated_strings: allocated_strings.unwrap_or_default(),
+            read_ops: 0,
+        }
+    }
+}
+
+struct AsBatchRecords(NonNull<as_batch_records>);
+
+impl AsBatchRecords {
+    fn new(capacity: u32) -> Self {
+        unsafe { Self(NonNull::new(as_batch_records_create(capacity)).unwrap()) }
+    }
+
+    fn as_ref(&self) -> &as_batch_records {
+        unsafe { self.0.as_ref() }
+    }
+
+    fn as_ptr(&mut self) -> *mut as_batch_records {
+        self.0.as_ptr()
+    }
+}
+
+pub(crate) struct WriteBatch<'a> {
+    client: &'a Client,
+    inner: Option<AsBatchRecords>,
+    allocated_strings: Vec<String>,
+    operations: Vec<AsOperations>,
+}
+
+impl<'a> WriteBatch<'a> {
+    pub(crate) fn new(
+        client: &'a Client,
+        capacity: u32,
+        allocated_strings: Option<Vec<String>>,
+    ) -> Self {
+        Self {
+            client,
+            inner: Some(AsBatchRecords::new(capacity)),
+            allocated_strings: allocated_strings.unwrap_or_default(),
+            operations: Vec::with_capacity(capacity as usize),
+        }
+    }
+
+    fn batch_ptr(&mut self) -> *mut as_batch_records {
+        self.inner.as_mut().unwrap().as_ptr()
+    }
+
+    pub(crate) fn reserve_write(&mut self) -> *mut as_batch_write_record {
+        unsafe { check_alloc(as_batch_write_reserve(self.batch_ptr())) }
+    }
+
+    pub(crate) fn reserve_remove(&mut self) -> *mut as_batch_remove_record {
+        unsafe { check_alloc(as_batch_remove_reserve(self.batch_ptr())) }
+    }
+
+    pub(crate) fn add_write(
+        &mut self,
+        namespace: &CStr,
+        set: &CStr,
+        bin_names: &[CString],
+        key: &[Field],
+        values: &[Field],
+    ) -> Result<(), AerospikeSinkError> {
+        let write_rec = self.reserve_write();
+        unsafe {
+            init_key(
+                addr_of_mut!((*write_rec).key),
+                namespace,
+                set,
+                key,
+                &mut self.allocated_strings,
+            )?;
+            let mut ops = AsOperations::new(values.len().try_into().unwrap());
+            init_batch_write_operations(
+                ops.as_mut_ptr(),
+                values,
+                bin_names,
+                &mut self.allocated_strings,
+            )?;
+            (*write_rec).ops = ops.as_mut_ptr();
+            self.operations.push(ops);
+        }
+        Ok(())
+    }
+
+    pub(crate) fn add_write_list(
+        &mut self,
+        namespace: &CStr,
+        set: &CStr,
+        bin: &CStr,
+        key: &[Field],
+        bin_names: &[CString],
+        values: &[Vec<Field>],
+    ) -> Result<(), AerospikeSinkError> {
+        let write_rec = self.reserve_write();
+        unsafe {
+            init_key(
+                addr_of_mut!((*write_rec).key),
+                namespace,
+                set,
+                key,
+                &mut self.allocated_strings,
+            )?;
+            let mut ops = AsOperations::new(1);
+            let list = as_arraylist_new(values.len().try_into().unwrap(), 0);
+            for record in values {
+                let map = new_record_map(record, bin_names, &mut self.allocated_strings)?;
+                as_arraylist_append(list, map as *mut as_val);
+            }
+            as_operations_add_write(ops.as_mut_ptr(), bin.as_ptr(), list as *mut as_bin_value);
+            (*write_rec).ops = ops.as_mut_ptr();
+            self.operations.push(ops);
+        }
+        Ok(())
+    }
+
+    pub(crate) fn add_remove(
+        &mut self,
+        namespace: &CStr,
+        set: &CStr,
+        key: &[Field],
+    ) -> Result<(), AerospikeSinkError> {
+        let remove_rec = self.reserve_remove();
+        unsafe {
+            init_key(
+                addr_of_mut!((*remove_rec).key),
+                namespace,
+                set,
+                key,
+                &mut self.allocated_strings,
+            )?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn execute(mut self) -> Result<(), AerospikeError> {
+        unsafe { self.client.write_batch(self.inner.take().unwrap().as_ptr()) }
+    }
+}
+
+impl Drop for AsBatchRecords {
+    fn drop(&mut self) {
+        unsafe { as_batch_records_destroy(self.0.as_ptr()) }
+    }
 }
