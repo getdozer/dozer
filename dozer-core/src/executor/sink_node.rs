@@ -137,8 +137,14 @@ impl SinkNode {
         let (node_handles, receivers) = dag.collect_receivers(node_index);
 
         let meter = dozer_tracing::global::meter(DOZER_METER_NAME);
-        let sink_counter = meter.u64_counter(SINK_OPERATION_COUNTER_NAME).init();
-        let latency_gauge = meter.f64_gauge(PIPELINE_LATENCY_GAUGE_NAME).init();
+        let sink_counter = meter
+            .u64_counter(SINK_OPERATION_COUNTER_NAME)
+            .with_description("No of operations in the sink node")
+            .init();
+        let latency_gauge = meter
+            .f64_gauge(PIPELINE_LATENCY_GAUGE_NAME)
+            .with_description("Mesasures latency between commits")
+            .init();
 
         let max_flush_interval = sink
             .max_batch_duration_ms()
