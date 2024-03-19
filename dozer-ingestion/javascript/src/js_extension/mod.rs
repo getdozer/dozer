@@ -1,10 +1,8 @@
 use std::{future::Future, sync::Arc};
 
-use dozer_deno::deno_runtime::{
-    deno_core::{self, anyhow::Error, extension, op2, ModuleSpecifier},
-    permissions::PermissionsContainer,
-    worker::{MainWorker, WorkerOptions},
-};
+use deno_core::*;
+
+use dozer_deno::JsWorker;
 use dozer_ingestion_connector::{
     dozer_types::{
         errors::{internal::BoxedError, types::DeserializationError},
@@ -41,7 +39,7 @@ pub struct JsMessage {
 fn ingest(
     #[state] ingestor: &Ingestor,
     #[serde] val: JsMessage,
-) -> impl Future<Output = Result<(), Error>> {
+) -> impl Future<Output = Result<(), anyhow::Error>> {
     send(ingestor.clone(), val)
 }
 
@@ -89,20 +87,9 @@ impl JsExtension {
             .spawn_blocking(move || {
                 let local_set = LocalSet::new();
                 local_set.block_on(&self.runtime, async move {
-                    let mut worker = MainWorker::bootstrap_from_options(
-                        self.module_specifier.clone(),
-                        PermissionsContainer::allow_all(),
-                        WorkerOptions {
-                            module_loader: std::rc::Rc::new(
-                                dozer_deno::TypescriptModuleLoader::new()?,
-                            ),
-                            extensions: vec![dozer_extension::init_ops(self.ingestor)],
-                            ..Default::default()
-                        },
-                    );
-
+                    let mut worker = JsWorker::new(vec![dozer_extension::init_ops(self.ingestor)])?;
                     worker.execute_main_module(&self.module_specifier).await?;
-                    worker.run_event_loop(false).await
+                    worker.js_runtime.run_event_loop(Default::default()).await
                 })
             })
             .await
@@ -111,7 +98,7 @@ impl JsExtension {
     }
 }
 
-async fn send(ingestor: Ingestor, val: JsMessage) -> Result<(), Error> {
+async fn send(ingestor: Ingestor, val: JsMessage) -> Result<(), anyhow::Error> {
     let msg = match val.typ {
         MsgType::SnapshottingStarted => {
             IngestionMessage::TransactionInfo(TransactionInfo::SnapshottingStarted)

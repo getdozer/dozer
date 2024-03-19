@@ -3,6 +3,7 @@ name = "dozer-ingestion"
 version = "0.4.0"
 edition = "2021"
 authors = ["getdozer/dozer-dev"]
+license = "AGPL-3.0-or-later"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -31,11 +32,11 @@ chrono = "0.4.26"
 bytes = "1.4.0"
 
 [dev-dependencies]
-criterion = { version = "0.4.0", features = ["html_reports"] }
+criterion = { version = "0.5.1", features = ["html_reports"] }
 serial_test = "2.0.0"
 dozer-tracing = { path = "../dozer-tracing" }
-tempdir = "0.3.7"
-parquet = "48.0.0"
+tempfile = "3.10.1"
+parquet = "50.0.0"
 env_logger = "0.10.0"
 hex = "0.4.3"
 dozer-utils = { path = "../dozer-utils" }

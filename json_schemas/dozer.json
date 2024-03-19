@@ -28,14 +28,6 @@
       "description": "name of the app",
       "type": "string"
     },
-    "cloud": {
-      "description": "Dozer Cloud specific configuration",
-      "allOf": [
-        {
-          "$ref": "#/definitions/Cloud"
-        }
-      ]
-    },
     "company_id": {
       "description": "Unique application Id",
       "default": "",
@@ -343,35 +335,6 @@
       },
       "additionalProperties": false
     },
-    "ApiInstance": {
-      "type": "object",
-      "properties": {
-        "instance_type": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "instances_count": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint32",
-          "minimum": 0.0
-        },
-        "volume_size": {
-          "description": "The size of the volume in GB",
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint32",
-          "minimum": 0.0
-        }
-      },
-      "additionalProperties": false
-    },
     "ApiSecurity": {
       "description": "The security model option for the API",
       "oneOf": [
@@ -439,18 +402,6 @@
           ],
           "format": "uint32",
           "minimum": 0.0
-        }
-      },
-      "additionalProperties": false
-    },
-    "AppInstance": {
-      "type": "object",
-      "properties": {
-        "instance_type": {
-          "type": [
-            "string",
-            "null"
-          ]
         }
       },
       "additionalProperties": false
@@ -554,33 +505,6 @@
             "string",
             "null"
           ]
-        }
-      },
-      "additionalProperties": false
-    },
-    "Cloud": {
-      "type": "object",
-      "properties": {
-        "api": {
-          "$ref": "#/definitions/ApiInstance"
-        },
-        "app": {
-          "$ref": "#/definitions/AppInstance"
-        },
-        "app_id": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "profile": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "update_current_version_strategy": {
-          "$ref": "#/definitions/UpdateCurrentVersionStrategy"
         }
       },
       "additionalProperties": false
@@ -2126,13 +2050,6 @@
           },
           "additionalProperties": false
         }
-      ]
-    },
-    "UpdateCurrentVersionStrategy": {
-      "type": "string",
-      "enum": [
-        "OnCreate",
-        "Manual"
       ]
     },
     "WebhookConfig": {

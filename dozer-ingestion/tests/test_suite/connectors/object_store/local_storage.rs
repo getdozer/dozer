@@ -8,13 +8,11 @@ use dozer_ingestion_connector::{
         types::Field,
     },
 };
-use tempdir::TempDir;
+use tempfile::TempDir;
 
 use crate::test_suite::{DataReadyConnectorTest, FieldsAndPk, InsertOnlyConnectorTest};
 
-use super::super::arrow::{
-    record_batch_with_all_supported_data_types, records_to_arrow, schema_to_arrow,
-};
+use super::arrow::{record_batch_with_all_supported_data_types, records_to_arrow, schema_to_arrow};
 
 pub struct LocalStorageObjectStoreConnectorTest {
     _temp_dir: TempDir,
@@ -70,7 +68,7 @@ fn create_connector(
     table_name: String,
     record_batch: &arrow::record_batch::RecordBatch,
 ) -> (TempDir, ObjectStoreConnector<LocalStorage>) {
-    let temp_dir = TempDir::new("local").expect("Failed to create temp dir");
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
     let path = temp_dir.path().join(&table_name);
     std::fs::create_dir_all(&path).expect("Failed to create dir");
 

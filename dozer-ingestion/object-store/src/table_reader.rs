@@ -86,7 +86,7 @@ pub async fn read(
         };
 
         let batch_schema = batch.schema();
-        let dozer_schema = map_schema_to_dozer(&batch_schema)?;
+        let dozer_schema = map_schema_to_dozer(batch_schema.as_ref())?;
 
         for row in 0..batch.num_rows() {
             let fields = batch

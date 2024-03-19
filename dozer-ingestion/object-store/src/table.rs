@@ -64,10 +64,7 @@ impl<C: TableConfig, O: DozerObjectStore> ObjectStoreTable<C, O> {
         let mut update_state = self.update_state.clone();
 
         // List objects in the S3 bucket with the specified prefix
-        let mut stream = store
-            .list(Some(&Path::from(params.folder.clone())))
-            .await
-            .unwrap();
+        let mut stream = store.list(Some(&Path::from(params.folder.clone())));
 
         let mut new_files = vec![];
         let mut new_marker_files = vec![];
@@ -212,10 +209,7 @@ impl<C: TableConfig, O: DozerObjectStore> ObjectStoreTable<C, O> {
 
         loop {
             // List objects in the S3 bucket with the specified prefix
-            let mut stream = store
-                .list(Some(&Path::from(source_folder.to_owned())))
-                .await
-                .unwrap();
+            let mut stream = store.list(Some(&Path::from(source_folder.to_owned())));
 
             let mut new_files = vec![];
             let mut new_marker_files = vec![];

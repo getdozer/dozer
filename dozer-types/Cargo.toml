@@ -3,6 +3,7 @@ name = "dozer-types"
 version = "0.4.0"
 authors = ["getdozer/dozer-dev"]
 edition = "2021"
+license = "AGPL-3.0-or-later"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -26,12 +27,12 @@ prettytable-rs = "0.10.0"
 indicatif = "0.17.7"
 geo = { version = "0.26.0", features = ["use-serde"] }
 pyo3 = { version = "0.18.1", optional = true }
-tonic = { version = "0.10.0" }
+tonic = { version = "0.11.0" }
 prost-types = "0.12.0"
 prost = "0.12.2"
-arrow = { version = "48.0.1" }
-arrow-cast = { version = "48.0.1" }
-arrow-schema = { version = "48.0.1", features = ["serde"] }
+arrow = { version = "50.0.0" }
+arrow-cast = { version = "50.0.0" }
+arrow-schema = { version = "50.0.0", features = ["serde"] }
 tokio = { version = "1", features = ["sync"] }
 tokio-postgres = { version = "0.7.7", features = [
     "with-chrono-0_4",

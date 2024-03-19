@@ -1,12 +1,10 @@
 use std::ops::Deref;
 
-use deno_runtime::{
-    deno_core::{
-        anyhow::{bail, Context as _},
-        error::AnyError,
-    },
-    deno_napi::v8::{self, HandleScope, Local},
+use deno_core::{
+    anyhow::{bail, Context as _},
+    error::AnyError,
 };
+use deno_napi::v8::{self, HandleScope, Local};
 use dozer_types::json_types::{DestructuredJson, JsonObject, JsonValue};
 
 pub fn to_v8<'s>(

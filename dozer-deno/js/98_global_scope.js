@@ -7,7 +7,6 @@ const {
   SymbolFor,
 } = primordials;
 
-import * as util from "ext:runtime/06_util.js";
 import * as location from "ext:deno_web/12_location.js";
 import * as event from "ext:deno_web/02_event.js";
 import * as timers from "ext:deno_web/02_timers.js";
@@ -31,113 +30,117 @@ import * as formData from "ext:deno_fetch/21_formdata.js";
 import * as request from "ext:deno_fetch/23_request.js";
 import * as response from "ext:deno_fetch/23_response.js";
 import * as fetch from "ext:deno_fetch/26_fetch.js";
+import * as eventSource from "ext:deno_fetch/27_eventsource.js";
 import * as messagePort from "ext:deno_web/13_message_port.js";
 import * as webidl from "ext:deno_webidl/00_webidl.js";
-import DOMException from "ext:deno_web/01_dom_exception.js";
+import { DOMException } from "ext:deno_web/01_dom_exception.js";
 import * as abortSignal from "ext:deno_web/03_abort_signal.js";
+import * as imageData from "ext:deno_web/16_image_data.js";
 import * as globalInterfaces from "ext:deno_web/04_global_interfaces.js";
 import * as webStorage from "ext:deno_webstorage/01_webstorage.js";
 
 // https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope
 const windowOrWorkerGlobalScope = {
-  AbortController: util.nonEnumerable(abortSignal.AbortController),
-  AbortSignal: util.nonEnumerable(abortSignal.AbortSignal),
-  Blob: util.nonEnumerable(file.Blob),
-  ByteLengthQueuingStrategy: util.nonEnumerable(
+  AbortController: core.propNonEnumerable(abortSignal.AbortController),
+  AbortSignal: core.propNonEnumerable(abortSignal.AbortSignal),
+  Blob: core.propNonEnumerable(file.Blob),
+  ByteLengthQueuingStrategy: core.propNonEnumerable(
     streams.ByteLengthQueuingStrategy,
   ),
-  CloseEvent: util.nonEnumerable(event.CloseEvent),
-  CompressionStream: util.nonEnumerable(compression.CompressionStream),
-  CountQueuingStrategy: util.nonEnumerable(
+  CloseEvent: core.propNonEnumerable(event.CloseEvent),
+  CompressionStream: core.propNonEnumerable(compression.CompressionStream),
+  CountQueuingStrategy: core.propNonEnumerable(
     streams.CountQueuingStrategy,
   ),
-  CryptoKey: util.nonEnumerable(crypto.CryptoKey),
-  CustomEvent: util.nonEnumerable(event.CustomEvent),
-  DecompressionStream: util.nonEnumerable(compression.DecompressionStream),
-  DOMException: util.nonEnumerable(DOMException),
-  ErrorEvent: util.nonEnumerable(event.ErrorEvent),
-  Event: util.nonEnumerable(event.Event),
-  EventTarget: util.nonEnumerable(event.EventTarget),
-  File: util.nonEnumerable(file.File),
-  FileReader: util.nonEnumerable(fileReader.FileReader),
-  FormData: util.nonEnumerable(formData.FormData),
-  Headers: util.nonEnumerable(headers.Headers),
-  MessageEvent: util.nonEnumerable(event.MessageEvent),
-  Performance: util.nonEnumerable(performance.Performance),
-  PerformanceEntry: util.nonEnumerable(performance.PerformanceEntry),
-  PerformanceMark: util.nonEnumerable(performance.PerformanceMark),
-  PerformanceMeasure: util.nonEnumerable(performance.PerformanceMeasure),
-  PromiseRejectionEvent: util.nonEnumerable(event.PromiseRejectionEvent),
-  ProgressEvent: util.nonEnumerable(event.ProgressEvent),
-  ReadableStream: util.nonEnumerable(streams.ReadableStream),
-  ReadableStreamDefaultReader: util.nonEnumerable(
+  CryptoKey: core.propNonEnumerable(crypto.CryptoKey),
+  CustomEvent: core.propNonEnumerable(event.CustomEvent),
+  DecompressionStream: core.propNonEnumerable(compression.DecompressionStream),
+  DOMException: core.propNonEnumerable(DOMException),
+  ErrorEvent: core.propNonEnumerable(event.ErrorEvent),
+  Event: core.propNonEnumerable(event.Event),
+  EventTarget: core.propNonEnumerable(event.EventTarget),
+  File: core.propNonEnumerable(file.File),
+  FileReader: core.propNonEnumerable(fileReader.FileReader),
+  FormData: core.propNonEnumerable(formData.FormData),
+  Headers: core.propNonEnumerable(headers.Headers),
+  ImageData: core.propNonEnumerable(imageData.ImageData),
+  MessageEvent: core.propNonEnumerable(event.MessageEvent),
+  Performance: core.propNonEnumerable(performance.Performance),
+  PerformanceEntry: core.propNonEnumerable(performance.PerformanceEntry),
+  PerformanceMark: core.propNonEnumerable(performance.PerformanceMark),
+  PerformanceMeasure: core.propNonEnumerable(performance.PerformanceMeasure),
+  PromiseRejectionEvent: core.propNonEnumerable(event.PromiseRejectionEvent),
+  ProgressEvent: core.propNonEnumerable(event.ProgressEvent),
+  ReadableStream: core.propNonEnumerable(streams.ReadableStream),
+  ReadableStreamDefaultReader: core.propNonEnumerable(
     streams.ReadableStreamDefaultReader,
   ),
-  Request: util.nonEnumerable(request.Request),
-  Response: util.nonEnumerable(response.Response),
-  TextDecoder: util.nonEnumerable(encoding.TextDecoder),
-  TextEncoder: util.nonEnumerable(encoding.TextEncoder),
-  TextDecoderStream: util.nonEnumerable(encoding.TextDecoderStream),
-  TextEncoderStream: util.nonEnumerable(encoding.TextEncoderStream),
-  TransformStream: util.nonEnumerable(streams.TransformStream),
-  URL: util.nonEnumerable(url.URL),
-  URLPattern: util.nonEnumerable(urlPattern.URLPattern),
-  URLSearchParams: util.nonEnumerable(url.URLSearchParams),
-  WebSocket: util.nonEnumerable(webSocket.WebSocket),
-  MessageChannel: util.nonEnumerable(messagePort.MessageChannel),
-  MessagePort: util.nonEnumerable(messagePort.MessagePort),
-  WritableStream: util.nonEnumerable(streams.WritableStream),
-  WritableStreamDefaultWriter: util.nonEnumerable(
+  Request: core.propNonEnumerable(request.Request),
+  Response: core.propNonEnumerable(response.Response),
+  TextDecoder: core.propNonEnumerable(encoding.TextDecoder),
+  TextEncoder: core.propNonEnumerable(encoding.TextEncoder),
+  TextDecoderStream: core.propNonEnumerable(encoding.TextDecoderStream),
+  TextEncoderStream: core.propNonEnumerable(encoding.TextEncoderStream),
+  TransformStream: core.propNonEnumerable(streams.TransformStream),
+  URL: core.propNonEnumerable(url.URL),
+  URLPattern: core.propNonEnumerable(urlPattern.URLPattern),
+  URLSearchParams: core.propNonEnumerable(url.URLSearchParams),
+  WebSocket: core.propNonEnumerable(webSocket.WebSocket),
+  MessageChannel: core.propNonEnumerable(messagePort.MessageChannel),
+  MessagePort: core.propNonEnumerable(messagePort.MessagePort),
+  WritableStream: core.propNonEnumerable(streams.WritableStream),
+  WritableStreamDefaultWriter: core.propNonEnumerable(
     streams.WritableStreamDefaultWriter,
   ),
-  WritableStreamDefaultController: util.nonEnumerable(
+  WritableStreamDefaultController: core.propNonEnumerable(
     streams.WritableStreamDefaultController,
   ),
-  ReadableByteStreamController: util.nonEnumerable(
+  ReadableByteStreamController: core.propNonEnumerable(
     streams.ReadableByteStreamController,
   ),
-  ReadableStreamBYOBReader: util.nonEnumerable(
+  ReadableStreamBYOBReader: core.propNonEnumerable(
     streams.ReadableStreamBYOBReader,
   ),
-  ReadableStreamBYOBRequest: util.nonEnumerable(
+  ReadableStreamBYOBRequest: core.propNonEnumerable(
     streams.ReadableStreamBYOBRequest,
   ),
-  ReadableStreamDefaultController: util.nonEnumerable(
+  ReadableStreamDefaultController: core.propNonEnumerable(
     streams.ReadableStreamDefaultController,
   ),
-  TransformStreamDefaultController: util.nonEnumerable(
+  TransformStreamDefaultController: core.propNonEnumerable(
     streams.TransformStreamDefaultController,
   ),
-  atob: util.writable(base64.atob),
-  btoa: util.writable(base64.btoa),
-  clearInterval: util.writable(timers.clearInterval),
-  clearTimeout: util.writable(timers.clearTimeout),
+  atob: core.propWritable(base64.atob),
+  btoa: core.propWritable(base64.btoa),
+  clearInterval: core.propWritable(timers.clearInterval),
+  clearTimeout: core.propWritable(timers.clearTimeout),
   caches: {
     enumerable: true,
     configurable: true,
     get: caches.cacheStorage,
   },
-  CacheStorage: util.nonEnumerable(caches.CacheStorage),
-  Cache: util.nonEnumerable(caches.Cache),
-  console: util.nonEnumerable(
+  CacheStorage: core.propNonEnumerable(caches.CacheStorage),
+  Cache: core.propNonEnumerable(caches.Cache),
+  console: core.propNonEnumerable(
     new console.Console((msg, level) => core.print(msg, level > 1)),
   ),
-  crypto: util.readOnly(crypto.crypto),
-  Crypto: util.nonEnumerable(crypto.Crypto),
-  SubtleCrypto: util.nonEnumerable(crypto.SubtleCrypto),
-  fetch: util.writable(fetch.fetch),
-  performance: util.writable(performance.performance),
-  reportError: util.writable(event.reportError),
-  setInterval: util.writable(timers.setInterval),
-  setTimeout: util.writable(timers.setTimeout),
-  structuredClone: util.writable(messagePort.structuredClone),
+  crypto: core.propReadOnly(crypto.crypto),
+  Crypto: core.propNonEnumerable(crypto.Crypto),
+  SubtleCrypto: core.propNonEnumerable(crypto.SubtleCrypto),
+  fetch: core.propWritable(fetch.fetch),
+  EventSource: core.propWritable(eventSource.EventSource),
+  performance: core.propWritable(performance.performance),
+  reportError: core.propWritable(event.reportError),
+  setInterval: core.propWritable(timers.setInterval),
+  setTimeout: core.propWritable(timers.setTimeout),
+  structuredClone: core.propWritable(messagePort.structuredClone),
   // Branding as a WebIDL object
-  [webidl.brand]: util.nonEnumerable(webidl.brand),
+  [webidl.brand]: core.propNonEnumerable(webidl.brand),
 };
 
 const unstableWindowOrWorkerGlobalScope = {
-  BroadcastChannel: util.nonEnumerable(broadcastChannel.BroadcastChannel),
-  WebSocketStream: util.nonEnumerable(webSocketStream.WebSocketStream),
+  BroadcastChannel: core.propNonEnumerable(broadcastChannel.BroadcastChannel),
+  WebSocketStream: core.propNonEnumerable(webSocketStream.WebSocketStream),
 };
 
 class Navigator {
@@ -254,13 +257,13 @@ const mainRuntimeGlobalProperties = {
   Location: location.locationConstructorDescriptor,
   location: location.locationDescriptor,
   Window: globalInterfaces.windowConstructorDescriptor,
-  window: util.getterOnly(() => globalThis),
-  self: util.getterOnly(() => globalThis),
-  Navigator: util.nonEnumerable(Navigator),
-  navigator: util.getterOnly(() => navigator),
-  localStorage: util.getterOnly(webStorage.localStorage),
-  sessionStorage: util.getterOnly(webStorage.sessionStorage),
-  Storage: util.nonEnumerable(webStorage.Storage),
+  window: core.propGetterOnly(() => globalThis),
+  self: core.propGetterOnly(() => globalThis),
+  Navigator: core.propNonEnumerable(Navigator),
+  navigator: core.propGetterOnly(() => navigator),
+  localStorage: core.propGetterOnly(webStorage.localStorage),
+  sessionStorage: core.propGetterOnly(webStorage.sessionStorage),
+  Storage: core.propNonEnumerable(webStorage.Storage),
 };
 
 const workerRuntimeGlobalProperties = {
@@ -269,9 +272,9 @@ const workerRuntimeGlobalProperties = {
   WorkerGlobalScope: globalInterfaces.workerGlobalScopeConstructorDescriptor,
   DedicatedWorkerGlobalScope:
     globalInterfaces.dedicatedWorkerGlobalScopeConstructorDescriptor,
-  WorkerNavigator: util.nonEnumerable(WorkerNavigator),
-  navigator: util.getterOnly(() => workerNavigator),
-  self: util.getterOnly(() => globalThis),
+  WorkerNavigator: core.propNonEnumerable(WorkerNavigator),
+  navigator: core.propGetterOnly(() => workerNavigator),
+  self: core.propGetterOnly(() => globalThis),
 };
 
 export {

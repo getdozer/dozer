@@ -5,7 +5,7 @@ use dozer_ingestion_postgres::{
     tokio_postgres,
 };
 use dozer_utils::{process::run_docker_compose, Cleanup};
-use tempdir::TempDir;
+use tempfile::TempDir;
 
 use crate::test_suite::{
     records::Operation, CudConnectorTest, DataReadyConnectorTest, FieldsAndPk,
@@ -114,7 +114,10 @@ async fn create_postgres_server() -> (Client, PostgresConnectorTest, PostgresCon
     let password = "postgres";
     let dbname = "dozer-test";
 
-    let temp_dir = TempDir::new("postgres").expect("Failed to create temp dir");
+    let temp_dir = tempfile::Builder::new()
+        .prefix("postgres")
+        .tempdir()
+        .expect("Failed to create temp dir");
     let docker_compose_path = temp_dir.path().join("docker-compose.yaml");
     std::fs::write(&docker_compose_path, DOCKER_COMPOSE_YAML)
         .expect("Failed to write docker compose file");

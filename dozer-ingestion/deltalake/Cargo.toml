@@ -2,6 +2,7 @@
 name = "dozer-ingestion-deltalake"
 version = "0.4.0"
 edition = "2021"
+license = "AGPL-3.0-or-later"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -10,8 +11,6 @@ dozer-ingestion-connector = { path = "../connector" }
 dozer-ingestion-object-store = { path = "../object-store" }
 
 [dependencies.deltalake]
-git = "https://github.com/delta-io/delta-rs"
-rev = "72505449e9538371fe5fda35d545dbd662facd07"
-version = "0.17"
+version = "0.17.1"
 default-features = false
 features = ["datafusion"]

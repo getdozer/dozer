@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressDrawTarget, ProgressStyle};
 use opentelemetry::KeyValue;
-
+use std::io::{stderr, IsTerminal};
 #[derive(Debug, Clone, Default)]
 /// Dozer components make themselves observable through two means:
 ///
@@ -19,7 +19,7 @@ pub struct DozerMonitorContext {
 
 impl DozerMonitorContext {
     pub fn new(application_id: String, company_id: String, enable_progress: bool) -> Self {
-        let progress_draw_target = if enable_progress && atty::is(atty::Stream::Stderr) {
+        let progress_draw_target = if enable_progress && stderr().is_terminal() {
             ProgressDrawTarget::stderr()
         } else {
             ProgressDrawTarget::hidden()

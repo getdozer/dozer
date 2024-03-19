@@ -3,6 +3,7 @@ name = "dozer-tracing"
 version = "0.4.0"
 edition = "2021"
 authors = ["getdozer/dozer-dev"]
+license = "AGPL-3.0-or-later"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -16,7 +17,6 @@ tracing-subscriber = { version = "0.3.17", features = [
 
 tracing-opentelemetry = "0.23.0"
 tokio = { version = "1", features = ["full"] }
-atty = "0.2.14"
 opentelemetry = { version = "0.22.0", features = ["metrics", "otel_unstable"] }
 opentelemetry-otlp = "0.15.0"
 opentelemetry-aws = "0.10.0"

@@ -4,6 +4,7 @@ version = "0.4.0"
 edition = "2021"
 default-run = "dozer"
 authors = ["getdozer/dozer-dev"]
+license = "AGPL-3.0-or-later"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [package.metadata.deb]
@@ -23,33 +24,31 @@ actix-web = "4.4.0"
 async-trait = "0.1.74"
 uuid = { version = "1.6.1", features = ["v4", "serde"] }
 tokio = { version = "1", features = ["full"] }
-tempdir = "0.3.7"
+tempfile = "3.10.1"
 clap = { version = "4.4.1", features = ["derive"] }
 prost-reflect = { version = "0.12.0", features = ["serde", "text-format"] }
-tonic = { version = "0.10.0", features = ["tls", "tls-roots"] }
-tonic-reflection = "0.10.0"
-tonic-web = "0.10.2"
+tonic = { version = "0.11.0", features = ["tls", "tls-roots"] }
+tonic-reflection = "0.11.0"
+tonic-web = "0.11.0"
 tokio-stream = "0.1.12"
 include_dir = "0.7.3"
 handlebars = "4.4.0"
-rustyline = "12.0.0"
-rustyline-derive = "0.9.0"
+rustyline = "13.0.0"
+rustyline-derive = "0.10.0"
 futures = "0.3.28"
 page_size = "0.6.0"
-reqwest = { version = "0.11.23", features = [
+reqwest = { version = "0.11.20", features = [
   "rustls-tls",
   "cookies",
   "json",
 ], default-features = false }
 glob = "0.3.1"
-atty = "0.2.14"
 tower = "0.4.13"
 tower-http = { version = "0.4", features = ["full"] }
-zip = "0.5.11"
+zip = { version = "0.6.6", default-features = false, features = ["deflate"] }
 notify = "6.0.1"
 notify-debouncer-full = "0.2.0"
 webbrowser = "0.8.12"
-tempfile = "3.8"
 actix-files = "0.6.2"
 prometheus-parse = "0.2.4"
 camino = "1.1.6"

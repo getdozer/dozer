@@ -106,6 +106,7 @@ impl ScalarFunctionType {
             "round" => Some(ScalarFunctionType::Round),
             "ucase" => Some(ScalarFunctionType::Ucase),
             "concat" => Some(ScalarFunctionType::Concat),
+            "decode" => Some(ScalarFunctionType::Decode),
             "length" => Some(ScalarFunctionType::Length),
             "to_char" => Some(ScalarFunctionType::ToChar),
             "chr" => Some(ScalarFunctionType::Chr),

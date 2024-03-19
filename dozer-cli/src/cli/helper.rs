@@ -5,7 +5,6 @@ use crate::errors::ConfigCombineError::CannotReadConfig;
 use crate::errors::OrchestrationError;
 use crate::simple::SimpleOrchestrator as Dozer;
 
-use atty::Stream;
 use camino::Utf8PathBuf;
 use dozer_tracing::DozerMonitorContext;
 use dozer_types::prettytable::{row, Table};
@@ -15,7 +14,7 @@ use dozer_types::{models::config::Config, serde_yaml};
 use handlebars::Handlebars;
 use std::collections::{BTreeMap, HashSet};
 use std::env;
-use std::io::{self, Read};
+use std::io::{self, stdin, IsTerminal, Read};
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 
@@ -101,7 +100,7 @@ async fn load_config(
     config_token: Option<String>,
     ignore_pipe: bool,
 ) -> Result<(Config, Vec<String>), CliError> {
-    let read_stdin = atty::isnt(Stream::Stdin) && !ignore_pipe;
+    let read_stdin = !stdin().is_terminal() && !ignore_pipe;
     let first_config_path = config_url_or_paths.first();
     match first_config_path {
         None => Err(ConfigurationFilePathNotProvided),

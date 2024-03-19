@@ -39,10 +39,7 @@ fn run() -> Result<(), OrchestrationError> {
     let config_res = init_configuration(&cli, runtime.clone());
 
     // Now we have access to telemetry configuration. Telemetry must be initialized in tokio runtime.
-    let app_id = config_res
-        .as_ref()
-        .map(|(c, _)| c.cloud.app_id.as_deref().unwrap_or(&c.app_name))
-        .ok();
+    let app_id = config_res.as_ref().map(|(c, _)| c.app_name.as_str()).ok();
 
     let telemetry_config = config_res
         .as_ref()

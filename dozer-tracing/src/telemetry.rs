@@ -1,3 +1,4 @@
+use std::io::{stdout, IsTerminal};
 use std::time::Duration;
 
 use dozer_types::log::{debug, error};
@@ -143,7 +144,7 @@ fn create_subscriber(
             ))
         });
 
-    let stdout_is_tty = atty::is(atty::Stream::Stdout);
+    let stdout_is_tty = stdout().is_terminal();
     let subscriber = tracing_subscriber::registry();
     #[cfg(feature = "tokio-console")]
     let subscriber = subscriber.with(console_layer);
