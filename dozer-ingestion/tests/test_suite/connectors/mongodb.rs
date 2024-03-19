@@ -8,7 +8,7 @@ use dozer_ingestion_mongodb::{
     MongodbConnector,
 };
 use dozer_utils::{process::run_docker_compose, Cleanup};
-use tempdir::TempDir;
+use tempfile::TempDir;
 
 use crate::test_suite::DataReadyConnectorTest;
 
@@ -71,7 +71,7 @@ async fn create_collection_with_all_supported_data_types(database: &mongodb::Dat
 async fn create_mongodb_server() -> (mongodb::Database, MongodbConnectorTest, MongodbConnector) {
     let database = "testdb".to_owned();
 
-    let temp_dir = TempDir::new("mongodb").expect("Failed to create temp dir");
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
     let docker_compose_path = temp_dir.path().join("docker-compose.yaml");
     std::fs::write(&docker_compose_path, DOCKER_COMPOSE_YAML)
         .expect("Failed to write docker compose file");

@@ -1,10 +1,12 @@
 use std::{future::Future, sync::Arc};
 
+use deno_core::*;
 use dozer_deno::deno_runtime::{
-    deno_core::{self, anyhow::Error, extension, op2, ModuleSpecifier},
+    deno_core::{anyhow::Error, extension, ModuleSpecifier},
     permissions::PermissionsContainer,
     worker::{MainWorker, WorkerOptions},
 };
+
 use dozer_ingestion_connector::{
     dozer_types::{
         errors::{internal::BoxedError, types::DeserializationError},

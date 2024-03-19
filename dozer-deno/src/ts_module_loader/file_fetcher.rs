@@ -1,7 +1,7 @@
 use std::{collections::HashMap, future::Future, pin::Pin, sync::Arc};
 
 use deno_ast::MediaType;
-use deno_cache_dir::HttpCache;
+use deno_cache_dir::{GlobalToLocalCopy, HttpCache};
 use deno_runtime::{
     colors,
     deno_core::{
@@ -218,15 +218,17 @@ impl FileFetcher {
         }
 
         let cache_key = self.http_cache.cache_item_key(specifier)?; // compute this once
-        let Some(metadata) = self.http_cache.read_metadata(&cache_key)? else {
+        let Some(headers) = self.http_cache.read_headers(&cache_key)? else {
             return Ok(None);
         };
-        let headers = metadata.headers;
         if let Some(redirect_to) = headers.get("location") {
             let redirect = deno_core::resolve_import(redirect_to, specifier.as_str())?;
             return self.fetch_cached(&redirect, redirect_limit - 1);
         }
-        let Some(bytes) = self.http_cache.read_file_bytes(&cache_key)? else {
+        let Some(bytes) =
+            self.http_cache
+                .read_file_bytes(&cache_key, None, GlobalToLocalCopy::Allow)?
+        else {
             return Ok(None);
         };
         let file = self.build_remote_file(specifier, bytes, &headers)?;
@@ -320,8 +322,8 @@ impl FileFetcher {
             .http_cache
             .cache_item_key(specifier)
             .ok()
-            .and_then(|key| self.http_cache.read_metadata(&key).ok().flatten())
-            .and_then(|metadata| metadata.headers.get("etag").cloned());
+            .and_then(|key| self.http_cache.read_headers(&key).ok().flatten())
+            .and_then(|headers| headers.get("etag").cloned());
         let specifier = specifier.clone();
         let client = self.http_client.clone();
         let file_fetcher = self.clone();

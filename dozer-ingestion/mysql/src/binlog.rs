@@ -21,16 +21,16 @@ use dozer_ingestion_connector::{
     futures::StreamExt,
     Ingestor,
 };
-use mysql_async::{binlog::EventFlags, BinlogStream, Pool};
-use mysql_common::{
+use mysql_async::{
     binlog::{
         self,
         events::{RowsEventRows, TableMapEvent},
         jsonb::{Array, ComplexValue, Object, StorageFormat},
         row::BinlogRow,
         value::BinlogValue,
+        EventFlags,
     },
-    Row,
+    BinlogStream, Pool, Row,
 };
 
 use std::{
@@ -144,11 +144,7 @@ impl BinlogIngestor<'_, '_, '_> {
         let binlog_stream = self
             .connect()
             .await?
-            .get_binlog_stream(
-                mysql_async::BinlogRequest::new(self.server_id)
-                    .with_filename(filename)
-                    .with_pos(self.next_position.position),
-            )
+            .get_binlog_stream(self.server_id, filename, self.next_position.position)
             .await
             .map_err(MySQLConnectorError::BinlogOpenError)?;
 
@@ -217,7 +213,7 @@ impl BinlogIngestor<'_, '_, '_> {
                 }
             };
 
-            use mysql_common::binlog::{consts::EventType::*, events::EventData::*};
+            use mysql_async::binlog::{events::EventData::*, EventType::*};
             match event_type {
                 ROTATE_EVENT => {
                     let rotate_event =
@@ -1005,7 +1001,7 @@ macro_rules! rows_event_apply {
         event.$($op:tt)*
     ) => {
         {
-            use mysql_common::binlog::events::RowsEventData::*;
+            use mysql_async::binlog::events::RowsEventData::*;
             match $event_data {
                 WriteRowsEvent(event) => event.$($op)*,
                 UpdateRowsEvent(event) => event.$($op)*,
@@ -1109,21 +1105,21 @@ mod tests {
         types::{Field, FieldType},
     };
 
-    use mysql_common::{
+    use mysql_async::{
         binlog::{
             jsonb::{self, JsonbString, JsonbType, OpaqueValue},
             value::BinlogValue,
         },
-        constants::ColumnType,
-        io::ParseBuf,
+        consts::ColumnType,
         Value,
     };
+    use mysql_common::io::ParseBuf;
 
     use crate::conversion::IntoField;
 
     #[test]
     fn test_field_conversion() {
-        use jsonb::Value::*;
+        use jsonb::Value as JValue;
 
         assert_eq!(
             Field::UInt(0),
@@ -1134,70 +1130,72 @@ mod tests {
 
         assert_eq!(
             Field::Json(json!(null)),
-            Some(BinlogValue::Jsonb(Null))
+            Some(BinlogValue::Jsonb(JValue::Null))
                 .into_field(&FieldType::Json)
                 .unwrap()
         );
 
         assert_eq!(
             Field::Json(json!(2.0)),
-            Some(BinlogValue::Jsonb(I16(2)))
+            Some(BinlogValue::Jsonb(JValue::I16(2)))
                 .into_field(&FieldType::Json)
                 .unwrap()
         );
 
         assert_eq!(
             Field::Json(json!(3.0)),
-            Some(BinlogValue::Jsonb(I32(3)))
+            Some(BinlogValue::Jsonb(JValue::I32(3)))
                 .into_field(&FieldType::Json)
                 .unwrap()
         );
 
         assert_eq!(
             Field::Json(json!(4.0)),
-            Some(BinlogValue::Jsonb(U16(4)))
+            Some(BinlogValue::Jsonb(JValue::U16(4)))
                 .into_field(&FieldType::Json)
                 .unwrap()
         );
 
         assert_eq!(
             Field::Json(json!(5.0)),
-            Some(BinlogValue::Jsonb(U32(5)))
+            Some(BinlogValue::Jsonb(JValue::U32(5)))
                 .into_field(&FieldType::Json)
                 .unwrap()
         );
 
         assert_eq!(
             Field::Json(json!(6.0)),
-            Some(BinlogValue::Jsonb(I64(6)))
+            Some(BinlogValue::Jsonb(JValue::I64(6)))
                 .into_field(&FieldType::Json)
                 .unwrap()
         );
 
         assert_eq!(
             Field::Json(json!(7.0)),
-            Some(BinlogValue::Jsonb(U64(7)))
+            Some(BinlogValue::Jsonb(JValue::U64(7)))
                 .into_field(&FieldType::Json)
                 .unwrap()
         );
 
         assert_eq!(
             Field::Json(json!(8.0)),
-            Some(BinlogValue::Jsonb(F64(8.0)))
+            Some(BinlogValue::Jsonb(JValue::F64(8.0)))
                 .into_field(&FieldType::Json)
                 .unwrap()
         );
 
         assert_eq!(
             Field::Json(json!("9")),
-            Some(BinlogValue::Jsonb(String(JsonbString::new(vec![b'9']))))
-                .into_field(&FieldType::Json)
-                .unwrap()
+            Some(BinlogValue::Jsonb(JValue::String(JsonbString::new(vec![
+                b'9'
+            ]))))
+            .into_field(&FieldType::Json)
+            .unwrap()
         );
 
         assert_eq!(
             Field::Json(json!([10.0])),
-            Some(BinlogValue::Jsonb(SmallArray(
+            Some(BinlogValue::Jsonb(JValue::SmallArray(
                 ParseBuf(&[1, 0, 7, 0, JsonbType::JSONB_TYPE_INT16 as u8, 10, 0])
                     .parse(())
                     .unwrap(),
@@ -1208,7 +1206,7 @@ mod tests {
 
         assert_eq!(
             Field::Json(json!([])),
-            Some(BinlogValue::Jsonb(LargeArray(
+            Some(BinlogValue::Jsonb(JValue::LargeArray(
                 ParseBuf(&[0, 0, 0, 0, 8, 0, 0, 0]).parse(()).unwrap(),
             )))
             .into_field(&FieldType::Json)
@@ -1217,7 +1215,7 @@ mod tests {
 
         assert_eq!(
             Field::Json(json!({"k": 12.0})),
-            Some(BinlogValue::Jsonb(SmallObject(
+            Some(BinlogValue::Jsonb(JValue::SmallObject(
                 ParseBuf(&[
                     1,
                     0,
@@ -1241,7 +1239,7 @@ mod tests {
 
         assert_eq!(
             Field::Json(json!({})),
-            Some(BinlogValue::Jsonb(LargeObject(
+            Some(BinlogValue::Jsonb(JValue::LargeObject(
                 ParseBuf(&[0, 0, 0, 0, 8, 0, 0, 0]).parse(()).unwrap(),
             )))
             .into_field(&FieldType::Json)
@@ -1250,7 +1248,7 @@ mod tests {
 
         assert_eq!(
             Field::Json(json!({"value_type": ColumnType::MYSQL_TYPE_TINY as u8, "data": "a"})),
-            Some(BinlogValue::Jsonb(Opaque(OpaqueValue::new(
+            Some(BinlogValue::Jsonb(JValue::Opaque(OpaqueValue::new(
                 ColumnType::MYSQL_TYPE_TINY,
                 vec![b'a']
             ))))
@@ -1260,7 +1258,7 @@ mod tests {
 
         assert_eq!(
             Field::Json(json!(true)),
-            Some(BinlogValue::Jsonb(Bool(true)))
+            Some(BinlogValue::Jsonb(JValue::Bool(true)))
                 .into_field(&FieldType::Json)
                 .unwrap()
         );

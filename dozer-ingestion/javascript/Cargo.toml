@@ -2,12 +2,14 @@
 name = "dozer-ingestion-javascript"
 version = "0.4.0"
 edition = "2021"
+license = "AGPL-3.0-or-later"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 dozer-ingestion-connector = { path = "../connector" }
 dozer-deno = { path = "../../dozer-deno" }
+deno_core = { workspace = true }
 
 [dev-dependencies]
 camino = "1.1.6"

@@ -3,19 +3,14 @@ const ops = core.ops;
 const internals = globalThis.__bootstrap.internals;
 const primordials = globalThis.__bootstrap.primordials;
 const {
-    ArrayPrototypeIndexOf,
-    ArrayPrototypePush,
     ArrayPrototypeShift,
-    ArrayPrototypeSplice,
     DateNow,
     ErrorPrototype,
     ObjectDefineProperties,
     ObjectPrototypeIsPrototypeOf,
     ObjectSetPrototypeOf,
-    SafeWeakMap,
     WeakMapPrototypeDelete,
     WeakMapPrototypeGet,
-    WeakMapPrototypeSet,
 } = primordials;
 import * as event from "ext:deno_web/02_event.js";
 import * as timers from "ext:deno_web/02_timers.js";
@@ -48,40 +43,61 @@ function formatException(error) {
 }
 
 function runtimeStart() {
-    core.setMacrotaskCallback(timers.handleTimerMacrotask);
-    core.setMacrotaskCallback(promiseRejectMacrotaskCallback);
+    //core.setMacrotaskCallback(timers.handleTimerMacrotask);
+    //core.setMacrotaskCallback(promiseRejectMacrotaskCallback);
     core.setWasmStreamingCallback(fetch.handleWasmStreaming);
     core.setReportExceptionCallback(event.reportException);
     ops.op_set_format_exception_callback(formatException);
 }
 
-const pendingRejections = [];
-const pendingRejectionsReasons = new SafeWeakMap();
+core.setUnhandledPromiseRejectionHandler(processUnhandledPromiseRejection);
+core.setHandledPromiseRejectionHandler(processRejectionHandled);
 
-function promiseRejectCallback(type, promise, reason) {
-    switch (type) {
-        case 0: {
-            ops.op_store_pending_promise_rejection(promise, reason);
-            ArrayPrototypePush(pendingRejections, promise);
-            WeakMapPrototypeSet(pendingRejectionsReasons, promise, reason);
-            break;
-        }
-        case 1: {
-            ops.op_remove_pending_promise_rejection(promise);
-            const index = ArrayPrototypeIndexOf(pendingRejections, promise);
-            if (index > -1) {
-                ArrayPrototypeSplice(pendingRejections, index, 1);
-                WeakMapPrototypeDelete(pendingRejectionsReasons, promise);
-            }
-            break;
-        }
-        default:
-            return false;
-    }
+// Notification that the core received an unhandled promise rejection that is about to
+// terminate the runtime. If we can handle it, attempt to do so.
+function processUnhandledPromiseRejection(promise, reason) {
+  const rejectionEvent = new event.PromiseRejectionEvent(
+    "unhandledrejection",
+    {
+      cancelable: true,
+      promise,
+      reason,
+    },
+  );
 
-    return !!globalThis_.onunhandledrejection ||
-        event.listenerCount(globalThis_, "unhandledrejection") > 0 ||
-        typeof internals.nodeProcessUnhandledRejectionCallback !== "undefined";
+  // Note that the handler may throw, causing a recursive "error" event
+  globalThis_.dispatchEvent(rejectionEvent);
+
+  // If event was not yet prevented, try handing it off to Node compat layer
+  // (if it was initialized)
+  if (
+    !rejectionEvent.defaultPrevented &&
+    typeof internals.nodeProcessUnhandledRejectionCallback !== "undefined"
+  ) {
+    internals.nodeProcessUnhandledRejectionCallback(rejectionEvent);
+  }
+
+  // If event was not prevented (or "unhandledrejection" listeners didn't
+  // throw) we will let Rust side handle it.
+  if (rejectionEvent.defaultPrevented) {
+    return true;
+  }
+
+  return false;
+}
+
+function processRejectionHandled(promise, reason) {
+  const rejectionHandledEvent = new event.PromiseRejectionEvent(
+    "rejectionhandled",
+    { promise, reason },
+  );
+
+  // Note that the handler may throw, causing a recursive "error" event
+  globalThis_.dispatchEvent(rejectionHandledEvent);
+
+  if (typeof internals.nodeProcessRejectionHandledCallback !== "undefined") {
+    internals.nodeProcessRejectionHandledCallback(rejectionHandledEvent);
+  }
 }
 
 function promiseRejectMacrotaskCallback() {
@@ -161,7 +177,5 @@ event.defineEventHandler(globalThis, "load");
 event.defineEventHandler(globalThis, "beforeunload");
 event.defineEventHandler(globalThis, "unload");
 event.defineEventHandler(globalThis, "unhandledrejection");
-
-core.setPromiseRejectCallback(promiseRejectCallback);
 
 runtimeStart();

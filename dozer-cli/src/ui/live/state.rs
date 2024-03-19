@@ -18,7 +18,7 @@ use dozer_types::{
         flags::Flags,
     },
 };
-use tempdir::TempDir;
+use tempfile::TempDir;
 use tokio::{runtime::Runtime, sync::RwLock};
 
 use crate::{
@@ -247,7 +247,7 @@ impl LiveState {
         let dozer = &dozer.as_ref().ok_or(LiveError::NotInitialized)?.dozer;
         // kill if a handle already exists
         self.stop().await?;
-        let temp_dir = TempDir::new("live")?;
+        let temp_dir = tempfile::Builder::new().prefix("live").tempdir()?;
         let temp_dir_path = temp_dir.path().to_str().unwrap();
 
         let labels: Labels = [("live_run_id", uuid::Uuid::new_v4().to_string())]

@@ -8,7 +8,7 @@ use dozer_ingestion_connector::{
         types::Field,
     },
 };
-use tempdir::TempDir;
+use tempfile::TempDir;
 
 use crate::test_suite::{DataReadyConnectorTest, FieldsAndPk, InsertOnlyConnectorTest};
 
@@ -68,7 +68,7 @@ fn create_connector(
     table_name: String,
     record_batch: &arrow::record_batch::RecordBatch,
 ) -> (TempDir, ObjectStoreConnector<LocalStorage>) {
-    let temp_dir = TempDir::new("local").expect("Failed to create temp dir");
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
     let path = temp_dir.path().join(&table_name);
     std::fs::create_dir_all(&path).expect("Failed to create dir");
 

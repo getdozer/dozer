@@ -172,7 +172,14 @@ impl Worker {
         };
         let promise = Global::new(&mut scope, promise);
         drop(scope);
-        let result = runtime.resolve_value(promise).await?;
+        let result = runtime.resolve(promise);
+        runtime
+            .run_event_loop(deno_runtime::deno_core::PollEventLoopOptions {
+                wait_for_inspector: false,
+                pump_v8_message_loop: true,
+            })
+            .await?;
+        let result = result.await?;
         let scope = &mut runtime.handle_scope();
         let result = Local::new(scope, result);
         from_v8(scope, result)
@@ -206,7 +213,7 @@ impl Worker {
             ModuleSpecifier::from_file_path(path).expect("we just canonicalized it");
         info!("loading module {}", module_specifier);
         let module_id = runtime
-            .load_side_module(&module_specifier, None)
+            .load_side_es_module(&module_specifier)
             .await
             .map_err(|e| Error::LoadModule(module.clone(), e))?;
         js_runtime::evaluate_module(runtime, module_id)

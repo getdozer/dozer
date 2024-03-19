@@ -16,20 +16,14 @@ resolver = "2"
 
 [workspace.dependencies]
 bincode = { version = "2.0.0-rc.3", features = ["derive"] }
+deno_core = { version = "0.270", features = ["lazy_eval_snapshot"] }
 
 [patch.crates-io]
-postgres = { git = "https://github.com/getdozer/rust-postgres" }
-postgres-protocol = { git = "https://github.com/getdozer/rust-postgres" }
-postgres-types = { git = "https://github.com/getdozer/rust-postgres" }
-tokio-postgres = { git = "https://github.com/getdozer/rust-postgres" }
+postgres = { git = "https://github.com/MaterializeInc/rust-postgres" }
+postgres-protocol = { git = "https://github.com/MaterializeInc/rust-postgres" }
+postgres-types = { git = "https://github.com/MaterializeInc/rust-postgres" }
+tokio-postgres = { git = "https://github.com/MaterializeInc/rust-postgres" }
 
-datafusion = { git = "https://github.com/getdozer/arrow-datafusion" }
-datafusion-expr = { git = "https://github.com/getdozer/arrow-datafusion" }
-datafusion-physical-expr = { git = "https://github.com/getdozer/arrow-datafusion" }
-datafusion-physical-plan = { git = "https://github.com/getdozer/arrow-datafusion" }
-datafusion-sql = { git = "https://github.com/getdozer/arrow-datafusion" }
-datafusion-proto = { git = "https://github.com/getdozer/arrow-datafusion" }
-datafusion-common = { git = "https://github.com/getdozer/arrow-datafusion" }
 clickhouse-rs = { git = "https://github.com/getdozer/clickhouse-rs" }
 clickhouse-rs-cityhash-sys = { git = "https://github.com/getdozer/clickhouse-rs" }
 

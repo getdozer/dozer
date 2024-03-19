@@ -6,11 +6,11 @@
 
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::pin::Pin;
 use std::rc::Rc;
 use std::sync::Arc;
 
 use deno_runtime::deno_core::{self, anyhow, futures};
+use deno_runtime::deno_core::{ModuleLoadResponse, RequestedModuleType};
 
 use anyhow::bail;
 use anyhow::Error;
@@ -21,7 +21,6 @@ use deno_core::error::AnyError;
 use deno_core::resolve_import;
 use deno_core::ModuleLoader;
 use deno_core::ModuleSource;
-use deno_core::ModuleSourceFuture;
 use deno_core::ModuleSpecifier;
 use deno_core::ModuleType;
 use deno_core::ResolutionKind;
@@ -34,7 +33,7 @@ use self::cache::RealDenoCacheEnv;
 use self::file_fetcher::FileFetcher;
 use self::http_util::HttpClient;
 
-use tempdir::TempDir;
+use tempfile::TempDir;
 
 #[derive(Clone)]
 struct SourceMapStore(Rc<RefCell<HashMap<String, Vec<u8>>>>);
@@ -57,7 +56,9 @@ pub struct TypescriptModuleLoader {
 
 impl TypescriptModuleLoader {
     pub fn new() -> Result<Self, std::io::Error> {
-        let temp_dir = TempDir::new("dozer-deno-cache")?;
+        let temp_dir = tempfile::Builder::new()
+            .prefix("dozer-deno-cache")
+            .tempdir()?;
         Ok(Self {
             source_maps: SourceMapStore(Rc::new(RefCell::new(HashMap::new()))),
             file_fetcher: FileFetcher::new(
@@ -89,7 +90,8 @@ impl ModuleLoader for TypescriptModuleLoader {
         module_specifier: &ModuleSpecifier,
         _maybe_referrer: Option<&ModuleSpecifier>,
         _is_dyn_import: bool,
-    ) -> Pin<Box<ModuleSourceFuture>> {
+        _requested_module_type: RequestedModuleType,
+    ) -> ModuleLoadResponse {
         let source_maps = self.source_maps.clone();
         async fn load(
             source_maps: SourceMapStore,
@@ -120,7 +122,7 @@ impl ModuleLoader for TypescriptModuleLoader {
                 .to_string();
             let code = if should_transpile {
                 let parsed = deno_ast::parse_module(ParseParams {
-                    specifier: module_specifier.to_string(),
+                    specifier: module_specifier.clone(),
                     text_info: SourceTextInfo::from_string(code),
                     media_type,
                     capture_tokens: false,
@@ -144,17 +146,19 @@ impl ModuleLoader for TypescriptModuleLoader {
             };
             Ok(ModuleSource::new(
                 module_type,
-                code.into(),
+                deno_core::ModuleSourceCode::String(code.into()),
                 &module_specifier,
             ))
         }
 
-        load(
-            source_maps,
-            self.file_fetcher.clone(),
-            module_specifier.clone(),
+        ModuleLoadResponse::Async(
+            load(
+                source_maps,
+                self.file_fetcher.clone(),
+                module_specifier.clone(),
+            )
+            .boxed_local(),
         )
-        .boxed_local()
     }
 }
 

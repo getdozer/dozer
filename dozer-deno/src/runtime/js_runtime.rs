@@ -4,7 +4,10 @@ use deno_runtime::{
     deno_broadcast_channel::{deno_broadcast_channel, InMemoryBroadcastChannel},
     deno_cache::{deno_cache, SqliteBackedCache},
     deno_console::deno_console,
-    deno_core::{error::AnyError, extension, Extension, JsRuntime, ModuleId, RuntimeOptions},
+    deno_core::{
+        error::AnyError, extension, Extension, JsRuntime, ModuleId, PollEventLoopOptions,
+        RuntimeOptions,
+    },
     deno_crypto::deno_crypto,
     deno_fetch::deno_fetch,
     deno_napi::deno_napi,
@@ -49,7 +52,6 @@ extension!(
     esm_entry_point = "ext:runtime/99_main.js",
     esm = [
         dir "js",
-        "06_util.js",
         "98_global_scope.js",
         "99_main.js",
     ],
@@ -66,7 +68,12 @@ pub fn new(extra_extensions: Vec<Extension>) -> Result<JsRuntime, std::io::Error
                 Default::default(),
                 Default::default(),
             ),
-            deno_fetch::init_ops_and_esm::<PermissionsContainer>(Default::default()),
+            deno_fetch::init_ops_and_esm::<PermissionsContainer>(
+                deno_runtime::deno_fetch::Options {
+                    file_fetch_handler: Rc::new(deno_runtime::deno_fetch::FsFetchHandler),
+                    ..Default::default()
+                },
+            ),
             deno_cache::init_ops_and_esm::<SqliteBackedCache>(Default::default()),
             deno_websocket::init_ops_and_esm::<PermissionsContainer>(
                 user_agent(),
@@ -78,6 +85,7 @@ pub fn new(extra_extensions: Vec<Extension>) -> Result<JsRuntime, std::io::Error
             deno_broadcast_channel::init_ops_and_esm::<InMemoryBroadcastChannel>(Default::default()),
             deno_tls::init_ops_and_esm(),
             deno_napi::init_ops_and_esm::<PermissionsContainer>(),
+            //ops::bootstrap::deno_bootstrap::init_ops_and_esm(Some(Default::default())),
             dozer_permissions_worker::init_ops_and_esm(PermissionsContainer::allow_all()),
             runtime::init_ops_and_esm(),
         ]
@@ -98,13 +106,12 @@ pub async fn evaluate_module(runtime: &mut JsRuntime, id: ModuleId) -> Result<()
         biased;
 
         maybe_result = &mut receiver => {
-            maybe_result.expect("Module evaluation result not provided.")
+            maybe_result
         }
 
-        event_loop_result = runtime.run_event_loop(false) => {
+        event_loop_result = runtime.run_event_loop(PollEventLoopOptions { wait_for_inspector: false, pump_v8_message_loop: true }) => {
             event_loop_result?;
-            let maybe_result = receiver.await;
-            maybe_result.expect("Module evaluation result not provided.")
+            receiver.await
         }
     }
 }
