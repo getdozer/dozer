@@ -5,18 +5,19 @@ use dozer_ingestion::{
     get_connector, CdcType, Connector, IngestionIterator, TableIdentifier, TableInfo,
 };
 use dozer_ingestion::{IngestionConfig, Ingestor};
-use dozer_tracing::LabelsAndProgress;
+use dozer_tracing::constants::{
+    ConnectorEntityType, CONNECTION_LABEL, DOZER_METER_NAME, OPERATION_TYPE_LABEL,
+    SOURCE_OPERATION_COUNTER_NAME, TABLE_LABEL,
+};
+use dozer_tracing::{emit_event, DozerMonitorContext};
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::log::{error, info};
 use dozer_types::models::connection::Connection;
 use dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_types::node::OpIdentifier;
 use dozer_types::thiserror::{self, Error};
-use dozer_types::tracing::{span, Level};
+use dozer_types::tracing::info;
 use dozer_types::types::{Operation, Schema, SourceDefinition};
 use futures::stream::{AbortHandle, Abortable, Aborted};
-use metrics::counter;
-use metrics::describe_counter;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
@@ -48,7 +49,7 @@ pub struct ConnectorSourceFactory {
     connection: Connection,
     runtime: Arc<Runtime>,
     tables: Vec<Table>,
-    labels: LabelsAndProgress,
+    labels: DozerMonitorContext,
     shutdown: ShutdownReceiver,
 }
 
@@ -61,7 +62,7 @@ impl ConnectorSourceFactory {
         mut table_and_ports: Vec<(TableInfo, PortHandle)>,
         connection: Connection,
         runtime: Arc<Runtime>,
-        labels: LabelsAndProgress,
+        labels: DozerMonitorContext,
         shutdown: ShutdownReceiver,
     ) -> Result<Self, ConnectorSourceFactoryError> {
         let mut connector =
@@ -211,7 +212,7 @@ pub struct ConnectorSource {
     ports: Vec<PortHandle>,
     connector: Box<dyn Connector>,
     connection_name: String,
-    labels: LabelsAndProgress,
+    labels: DozerMonitorContext,
     shutdown: ShutdownReceiver,
     ingestion_config: IngestionConfig,
 }
@@ -235,7 +236,7 @@ impl Source for ConnectorSource {
         let handle = tokio::spawn(forward_message_to_pipeline(
             iterator,
             sender,
-            connection_name,
+            connection_name.clone(),
             tables,
             ports,
             labels,
@@ -243,6 +244,7 @@ impl Source for ConnectorSource {
 
         let shutdown_future = self.shutdown.create_shutdown_future();
         let (abort_handle, abort_registration) = AbortHandle::new_pair();
+        let labels = self.labels.clone();
 
         // Abort the connector when we shut down
         // TODO: pass a `CancellationToken` to the connector to allow
@@ -253,22 +255,47 @@ impl Source for ConnectorSource {
             abort_handle.abort();
             eprintln!("Aborted connector {}", name);
         });
+
+        emit_event(
+            &connection_name,
+            &ConnectorEntityType::Connector,
+            &labels,
+            "source_started",
+        );
+
         let result = Abortable::new(
             self.connector
                 .start(&ingestor, self.tables.clone(), last_checkpoint),
             abort_registration,
         )
         .await;
+
         match result {
             Ok(Ok(())) => {}
             Ok(Err(e)) => return Err(e),
             // Aborted means we are shutting down
-            Err(Aborted) => return Ok(()),
+            Err(Aborted) => {
+                emit_event(
+                    &connection_name,
+                    &ConnectorEntityType::Connector,
+                    &labels,
+                    "source_aborted",
+                );
+
+                return Ok(());
+            }
         }
         drop(ingestor);
 
         // If we reach here, it means the connector has finished ingesting, so we wait for the forwarding task to finish.
         if let Err(e) = handle.await {
+            emit_event(
+                &connection_name,
+                &ConnectorEntityType::Connector,
+                &labels,
+                "source_error",
+            );
+
             std::panic::panic_any(e);
         }
 
@@ -276,15 +303,13 @@ impl Source for ConnectorSource {
     }
 }
 
-const SOURCE_OPERATION_COUNTER_NAME: &str = "source_operation";
-
 async fn forward_message_to_pipeline(
     mut iterator: IngestionIterator,
     sender: Sender<(PortHandle, IngestionMessage)>,
     connection_name: String,
     tables: Vec<TableInfo>,
     ports: Vec<PortHandle>,
-    labels: LabelsAndProgress,
+    labels: DozerMonitorContext,
 ) {
     let mut bars = vec![];
     for table in &tables {
@@ -292,16 +317,15 @@ async fn forward_message_to_pipeline(
         bars.push(pb);
     }
 
-    describe_counter!(
-        SOURCE_OPERATION_COUNTER_NAME,
-        "Number of operation processed by source"
-    );
+    let meter = dozer_tracing::global::meter(DOZER_METER_NAME);
+
+    let source_counter = meter
+        .u64_counter(SOURCE_OPERATION_COUNTER_NAME)
+        .with_description("Number of operation processed by source")
+        .init();
 
     let mut counter = vec![(0u64, 0u64); tables.len()];
     while let Some(message) = iterator.receiver.recv().await {
-        let span = span!(Level::TRACE, "pipeline_source_start", connection_name);
-        let _enter = span.enter();
-
         match &message {
             IngestionMessage::OperationEvent {
                 table_index, op, ..
@@ -310,30 +334,32 @@ async fn forward_message_to_pipeline(
                 let table_name = &tables[*table_index].name;
 
                 // Update metrics
-                let mut labels = labels.labels().clone();
-                labels.push("connection", connection_name.clone());
-                labels.push("table", table_name.clone());
-                const OPERATION_TYPE_LABEL: &str = "operation_type";
-                match op {
-                    Operation::Delete { .. } => {
-                        labels.push(OPERATION_TYPE_LABEL, "delete");
-                    }
-                    Operation::Insert { .. } => {
-                        labels.push(OPERATION_TYPE_LABEL, "insert");
-                    }
-                    Operation::Update { .. } => {
-                        labels.push(OPERATION_TYPE_LABEL, "update");
-                    }
-                    Operation::BatchInsert { .. } => {
-                        labels.push(OPERATION_TYPE_LABEL, "insert");
-                    }
-                }
+
+                let mut labels = labels.attrs();
+                labels.push(dozer_tracing::KeyValue::new(
+                    CONNECTION_LABEL,
+                    connection_name.clone(),
+                ));
+
+                labels.push(dozer_tracing::KeyValue::new(
+                    TABLE_LABEL,
+                    table_name.clone(),
+                ));
+
+                let op_str = match op {
+                    Operation::Insert { .. } => "insert",
+                    Operation::Delete { .. } => "delete",
+                    Operation::Update { .. } => "update",
+                    Operation::BatchInsert { .. } => "insert",
+                };
+                labels.push(dozer_tracing::KeyValue::new(OPERATION_TYPE_LABEL, op_str));
 
                 let counter_number: u64 = match op {
                     Operation::BatchInsert { new } => new.to_owned().len().try_into().unwrap_or(1),
                     _ => 1,
                 };
-                counter!(SOURCE_OPERATION_COUNTER_NAME, counter_number, labels);
+
+                source_counter.add(counter_number, &labels);
 
                 // Update counter
                 let counter = &mut counter[*table_index];

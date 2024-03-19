@@ -5,11 +5,12 @@ use serde::{Deserialize, Serialize};
 pub struct TelemetryConfig {
     pub trace: Option<TelemetryTraceConfig>,
     pub metrics: Option<TelemetryMetricsConfig>,
+    #[serde(default)]
+    pub application_id: usize,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq, Clone)]
 pub enum TelemetryTraceConfig {
-    Dozer(DozerTelemetryConfig),
     XRay(XRayConfig),
 }
 
@@ -33,16 +34,20 @@ pub struct XRayConfig {
     pub timeout_in_seconds: u64,
 }
 
-pub fn default_ingest_address() -> String {
-    "0.0.0.0:7006".to_string()
-}
-
-pub fn default_sample_ratio() -> u32 {
-    10
+#[derive(Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq, Clone)]
+#[serde(deny_unknown_fields)]
+pub enum TelemetryMetricsConfig {
+    Prometheus(PrometheusConfig),
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq, Clone)]
 #[serde(deny_unknown_fields)]
-pub enum TelemetryMetricsConfig {
-    Prometheus,
+pub struct PrometheusConfig {
+    #[serde(default = "PrometheusConfig::default_address")]
+    pub address: String,
+}
+impl PrometheusConfig {
+    pub fn default_address() -> String {
+        "0.0.0.0:8089".to_string()
+    }
 }

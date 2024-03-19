@@ -7,9 +7,8 @@ use dozer_cli::ui;
 use dozer_cli::ui::app::AppUIError;
 use dozer_cli::{set_ctrl_handler, set_panic_hook};
 use dozer_core::shutdown;
-use dozer_tracing::LabelsAndProgress;
+use dozer_tracing::DozerMonitorContext;
 use dozer_types::models::config::Config;
-use dozer_types::models::telemetry::TelemetryConfig;
 use dozer_types::tracing::{error, error_span, info};
 use futures::TryFutureExt;
 use std::process;
@@ -47,7 +46,10 @@ fn run() -> Result<(), OrchestrationError> {
         .map(|(c, _)| c.telemetry.clone())
         .unwrap_or_default();
 
-    let _telemetry = runtime.block_on(async { Telemetry::new(app_id, &telemetry_config) });
+    runtime.block_on(async {
+        let t = dozer_tracing::Telemetry::new(app_id, &telemetry_config);
+        let _r = tokio::spawn(async move { t.serve().await });
+    });
 
     // running UI does not require config to be loaded
     if let Commands::UI(run) = &cli.cmd {
@@ -73,7 +75,11 @@ fn run() -> Result<(), OrchestrationError> {
     let dozer = init_dozer(
         runtime.clone(),
         config.clone(),
-        LabelsAndProgress::new(Default::default(), cli.enable_progress),
+        DozerMonitorContext::new(
+            config.id.clone(),
+            config.company_id.clone(),
+            cli.enable_progress,
+        ),
     )
     .map_err(OrchestrationError::CliError)?;
 
@@ -135,20 +141,5 @@ fn display_error(e: &OrchestrationError) {
         error!("{}", description);
     } else {
         error!("{}", e);
-    }
-}
-
-struct Telemetry();
-
-impl Telemetry {
-    fn new(app_name: Option<&str>, config: &TelemetryConfig) -> Self {
-        dozer_tracing::init_telemetry(app_name, config);
-        Self()
-    }
-}
-
-impl Drop for Telemetry {
-    fn drop(&mut self) {
-        dozer_tracing::shutdown_telemetry();
     }
 }

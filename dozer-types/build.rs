@@ -28,10 +28,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .compile(&["protos/contract.proto"], &["protos"])?;
     tonic_build::configure()
         .protoc_arg("--experimental_allow_proto3_optional")
-        .file_descriptor_set_path(out_dir.join("live.bin"))
-        .compile(&["protos/live.proto"], &["protos"])?;
-    tonic_build::configure()
-        .protoc_arg("--experimental_allow_proto3_optional")
         .file_descriptor_set_path(out_dir.join("app_ui.bin"))
         .compile(&["protos/app_ui.proto"], &["protos"])?;
     tonic_build::configure()

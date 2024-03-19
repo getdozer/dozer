@@ -5,17 +5,12 @@ import "google/protobuf/empty.proto";
 
 service CodeService {  
   rpc AppUIConnect(google.protobuf.Empty) returns (stream ConnectResponse);
-  rpc Run(RunRequest) returns (Labels);
+  rpc Run(RunRequest) returns (RunResponse);
   rpc Stop(google.protobuf.Empty) returns (google.protobuf.Empty);
 }
 
-message Labels {
-  repeated Label labels = 1;
-}
-
-message Label {
-  string key = 1;
-  string value = 2;
+message RunResponse {
+  string application_id = 1;
 }
 
 message AppUI {

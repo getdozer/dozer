@@ -2,7 +2,7 @@ use dozer_types::{
     grpc_types::{
         app_ui::{
             code_service_server::{CodeService, CodeServiceServer},
-            ConnectResponse, Label, Labels, RunRequest,
+            ConnectResponse, RunRequest, RunResponse,
         },
         contract::{
             contract_service_server::{ContractService, ContractServiceServer},
@@ -13,7 +13,6 @@ use dozer_types::{
     log::info,
 };
 use futures::stream::BoxStream;
-use metrics::IntoLabels;
 use std::sync::Arc;
 use tokio::sync::broadcast::Receiver;
 
@@ -90,21 +89,11 @@ impl AppUiServer {
     pub fn new(receiver: Receiver<ConnectResponse>, state: Arc<AppUIState>) -> AppUiServer {
         Self { receiver, state }
     }
-    async fn start(&self, req: RunRequest) -> Result<Response<Labels>, Status> {
+    async fn start(&self, req: RunRequest) -> Result<Response<RunResponse>, Status> {
         let state = self.state.clone();
         info!("Starting dozer");
         match state.run(req).await {
-            Ok(labels) => {
-                let labels = labels
-                    .into_labels()
-                    .into_iter()
-                    .map(|label| Label {
-                        key: label.key().to_string(),
-                        value: label.value().to_string(),
-                    })
-                    .collect();
-                Ok(Response::new(Labels { labels }))
-            }
+            Ok(application_id) => Ok(Response::new(RunResponse { application_id })),
             Err(e) => Err(Status::internal(e.to_string())),
         }
     }
@@ -149,7 +138,7 @@ impl CodeService for AppUiServer {
         Ok(Response::new(Box::pin(stream) as Self::AppUIConnectStream))
     }
 
-    async fn run(&self, request: Request<RunRequest>) -> Result<Response<Labels>, Status> {
+    async fn run(&self, request: Request<RunRequest>) -> Result<Response<RunResponse>, Status> {
         let req = request.into_inner();
         self.start(req).await
     }

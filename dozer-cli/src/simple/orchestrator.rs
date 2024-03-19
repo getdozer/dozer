@@ -14,7 +14,7 @@ use dozer_core::app::AppPipeline;
 use dozer_core::dag_schemas::DagSchemas;
 use dozer_core::event::EventHub;
 use dozer_core::shutdown::ShutdownReceiver;
-use dozer_tracing::LabelsAndProgress;
+use dozer_tracing::DozerMonitorContext;
 use dozer_types::constants::LOCK_FILE;
 use futures::future::{select, Either};
 
@@ -43,7 +43,7 @@ pub struct SimpleOrchestrator {
     pub base_directory: Utf8PathBuf,
     pub config: Config,
     pub runtime: Arc<Runtime>,
-    pub labels: LabelsAndProgress,
+    pub labels: DozerMonitorContext,
 }
 
 impl SimpleOrchestrator {
@@ -51,7 +51,7 @@ impl SimpleOrchestrator {
         base_directory: Utf8PathBuf,
         config: Config,
         runtime: Arc<Runtime>,
-        labels: LabelsAndProgress,
+        labels: DozerMonitorContext,
     ) -> Self {
         Self {
             base_directory,

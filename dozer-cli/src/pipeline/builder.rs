@@ -10,7 +10,7 @@ use dozer_core::shutdown::ShutdownReceiver;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_sql::builder::statement_to_pipeline;
 use dozer_sql::builder::{OutputNodeInfo, QueryContext};
-use dozer_tracing::LabelsAndProgress;
+use dozer_tracing::DozerMonitorContext;
 use dozer_types::log::debug;
 use dozer_types::models::connection::Connection;
 use dozer_types::models::connection::ConnectionConfig;
@@ -54,7 +54,7 @@ pub struct PipelineBuilder<'a> {
     sources: &'a [Source],
     sql: Option<&'a str>,
     sinks: &'a [Sink],
-    labels: LabelsAndProgress,
+    labels: DozerMonitorContext,
     flags: Flags,
     udfs: &'a [UdfConfig],
 }
@@ -65,7 +65,7 @@ impl<'a> PipelineBuilder<'a> {
         sources: &'a [Source],
         sql: Option<&'a str>,
         sinks: &'a [Sink],
-        labels: LabelsAndProgress,
+        labels: DozerMonitorContext,
         flags: Flags,
         udfs: &'a [UdfConfig],
     ) -> Self {

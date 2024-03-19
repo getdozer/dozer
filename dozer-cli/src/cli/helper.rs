@@ -6,7 +6,7 @@ use crate::errors::OrchestrationError;
 use crate::simple::SimpleOrchestrator as Dozer;
 
 use camino::Utf8PathBuf;
-use dozer_tracing::LabelsAndProgress;
+use dozer_tracing::DozerMonitorContext;
 use dozer_types::prettytable::{row, Table};
 use dozer_types::serde_json;
 use dozer_types::tracing::info;
@@ -40,7 +40,7 @@ pub fn get_base_dir() -> Result<Utf8PathBuf, CliError> {
 pub fn init_dozer(
     runtime: Arc<Runtime>,
     config: Config,
-    labels: LabelsAndProgress,
+    labels: DozerMonitorContext,
 ) -> Result<Dozer, CliError> {
     let base_directory = get_base_dir()?;
     Ok(Dozer::new(base_directory, config, runtime, labels))

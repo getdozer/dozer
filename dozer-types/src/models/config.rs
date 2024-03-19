@@ -15,6 +15,14 @@ use serde::{Deserialize, Serialize};
 pub struct Config {
     pub version: u32,
 
+    /// Unique application Id
+    #[serde(default)]
+    pub id: String,
+
+    /// Unique application Id
+    #[serde(default)]
+    pub company_id: String,
+
     /// name of the app
     pub app_name: String,
 

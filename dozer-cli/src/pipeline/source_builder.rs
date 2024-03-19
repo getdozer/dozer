@@ -4,7 +4,7 @@ use dozer_core::appsource::{AppSourceManager, AppSourceMappings};
 use dozer_core::shutdown::ShutdownReceiver;
 use dozer_ingestion::TableInfo;
 
-use dozer_tracing::LabelsAndProgress;
+use dozer_tracing::DozerMonitorContext;
 use dozer_types::models::connection::Connection;
 use dozer_types::models::source::Source;
 use std::collections::HashMap;
@@ -13,7 +13,7 @@ use tokio::runtime::Runtime;
 
 pub struct SourceBuilder {
     grouped_connections: HashMap<Connection, Vec<Source>>,
-    labels: LabelsAndProgress,
+    labels: DozerMonitorContext,
 }
 
 const SOURCE_PORTS_RANGE_START: u16 = 1000;
@@ -21,7 +21,7 @@ const SOURCE_PORTS_RANGE_START: u16 = 1000;
 impl SourceBuilder {
     pub fn new(
         grouped_connections: HashMap<Connection, Vec<Source>>,
-        labels: LabelsAndProgress,
+        labels: DozerMonitorContext,
     ) -> Self {
         Self {
             grouped_connections,

@@ -21,7 +21,7 @@ use daggy::petgraph::{
     visit::{EdgeRef, IntoEdges, IntoEdgesDirected},
     Direction,
 };
-use dozer_tracing::LabelsAndProgress;
+use dozer_tracing::DozerMonitorContext;
 use dozer_types::node::NodeHandle;
 use tokio::sync::Mutex;
 
@@ -55,14 +55,14 @@ pub struct ExecutionDag {
     graph: daggy::Dag<NodeType, EdgeType>,
     initial_epoch_id: u64,
     error_manager: Arc<ErrorManager>,
-    labels: LabelsAndProgress,
+    labels: DozerMonitorContext,
     event_hub: EventHub,
 }
 
 impl ExecutionDag {
     pub fn new(
         builder_dag: BuilderDag,
-        labels: LabelsAndProgress,
+        labels: DozerMonitorContext,
         channel_buffer_sz: usize,
         error_threshold: Option<u32>,
     ) -> Result<Self, ExecutionError> {
@@ -170,7 +170,7 @@ impl ExecutionDag {
         &self.error_manager
     }
 
-    pub fn labels(&self) -> &LabelsAndProgress {
+    pub fn labels(&self) -> &DozerMonitorContext {
         &self.labels
     }
 
