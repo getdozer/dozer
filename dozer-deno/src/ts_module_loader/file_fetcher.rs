@@ -1,33 +1,31 @@
+use dozer_types::log::{self, debug};
 use std::{collections::HashMap, future::Future, pin::Pin, sync::Arc};
+use tokio::fs;
 
 use deno_ast::MediaType;
 use deno_cache_dir::{GlobalToLocalCopy, HttpCache};
-use deno_runtime::{
-    colors,
-    deno_core::{
-        self,
-        error::{custom_error, generic_error, uri_error, AnyError},
-        futures::{self, FutureExt as _},
-        parking_lot::Mutex,
-        ModuleSpecifier,
-    },
-    deno_fetch::{
-        data_url::DataUrl,
-        reqwest::{
-            header::{HeaderValue, ACCEPT, IF_NONE_MATCH},
-            StatusCode, Url,
-        },
-    },
-    deno_web::BlobStore,
-    permissions::PermissionsContainer,
+use deno_core::{
+    self,
+    error::{custom_error, generic_error, uri_error, AnyError},
+    futures::{self, FutureExt as _},
+    parking_lot::Mutex,
+    ModuleSpecifier,
 };
-use dozer_types::log::{self, debug};
-use tokio::fs;
+use deno_fetch::{
+    data_url::DataUrl,
+    reqwest::{
+        header::{HeaderValue, ACCEPT, IF_NONE_MATCH},
+        StatusCode, Url,
+    },
+};
+use deno_terminal::colors;
+use deno_web::BlobStore;
 
 use super::{
     http_util::{resolve_redirect_from_response, HeadersMap, HttpClient},
     text_encoding,
 };
+use crate::runtime::permissions::PermissionsContainer;
 
 pub const SUPPORTED_SCHEMES: [&str; 5] = ["data", "blob", "file", "http", "https"];
 

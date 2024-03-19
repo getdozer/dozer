@@ -4,14 +4,12 @@
 
 use std::{collections::HashMap, fs::canonicalize, num::NonZeroI32, thread::JoinHandle};
 
-use deno_runtime::{
-    deno_core::{
-        anyhow::{bail, Context as _},
-        error::AnyError,
-        Extension, JsRuntime, ModuleSpecifier,
-    },
-    deno_napi::v8::{self, undefined, Function, Global, Local},
+use deno_core::{
+    anyhow::{bail, Context as _},
+    error::AnyError,
+    Extension, JsRuntime, ModuleSpecifier,
 };
+use deno_napi::v8::{self, undefined, Function, Global, Local};
 use dozer_types::{
     json_types::JsonValue,
     log::{error, info},
@@ -20,6 +18,13 @@ use dozer_types::{
 use tokio::sync::{mpsc, oneshot};
 
 use self::conversion::{from_v8, to_v8};
+
+mod conversion;
+mod js_runtime;
+pub use js_runtime::JsWorker;
+pub(crate) mod permissions;
+#[cfg(test)]
+mod tests;
 
 #[derive(Debug)]
 pub struct Runtime {
@@ -125,7 +130,7 @@ impl Runtime {
 
 struct Worker {
     tokio_runtime: tokio::runtime::Runtime,
-    js_runtime: JsRuntime,
+    js_runtime: JsWorker,
     functions: HashMap<NonZeroI32, Global<Function>>,
 }
 
@@ -135,17 +140,17 @@ impl Worker {
             .enable_all()
             .build()
             .map_err(Error::CreateJsRuntime)?;
-        let mut js_runtime = js_runtime::new(extensions).map_err(Error::CreateJsRuntime)?;
+        let mut js_worker = JsWorker::new(extensions).map_err(Error::CreateJsRuntime)?;
 
         let mut functions = HashMap::with_capacity(modules.len());
         for module in modules {
-            let (id, fun) = tokio_runtime.block_on(Self::load_function(&mut js_runtime, module))?;
+            let (id, fun) = tokio_runtime.block_on(Self::load_function(&mut js_worker, module))?;
             functions.insert(id, fun);
         }
 
         Ok(Self {
             tokio_runtime,
-            js_runtime,
+            js_runtime: js_worker,
             functions,
         })
     }
@@ -174,7 +179,7 @@ impl Worker {
         drop(scope);
         let result = runtime.resolve(promise);
         runtime
-            .run_event_loop(deno_runtime::deno_core::PollEventLoopOptions {
+            .run_event_loop(deno_core::PollEventLoopOptions {
                 wait_for_inspector: false,
                 pump_v8_message_loop: true,
             })
@@ -186,7 +191,7 @@ impl Worker {
     }
 
     fn run(&mut self, mut work_receiver: mpsc::Receiver<Work>) {
-        let runtime = &mut self.js_runtime;
+        let worker = &mut self.js_runtime;
         let functions = &self.functions;
         self.tokio_runtime.block_on(async {
             while let Some(work) = work_receiver.recv().await {
@@ -197,32 +202,35 @@ impl Worker {
                         return_sender,
                     } => {
                         // Ignore error if receiver is closed.
-                        let _ = return_sender
-                            .send(Self::call_function(runtime, id, args, functions).await);
+                        let _ = return_sender.send(
+                            Self::call_function(&mut worker.js_runtime, id, args, functions).await,
+                        );
                     }
                 }
             }
         })
     }
     async fn load_function(
-        runtime: &mut JsRuntime,
+        worker: &mut JsWorker,
         module: String,
     ) -> Result<(NonZeroI32, Global<Function>), Error> {
         let path = canonicalize(&module).map_err(|e| Error::CanonicalizePath(module.clone(), e))?;
         let module_specifier =
             ModuleSpecifier::from_file_path(path).expect("we just canonicalized it");
         info!("loading module {}", module_specifier);
-        let module_id = runtime
-            .load_side_es_module(&module_specifier)
+        let module_id = worker
+            .preload_side_module(&module_specifier)
             .await
             .map_err(|e| Error::LoadModule(module.clone(), e))?;
-        js_runtime::evaluate_module(runtime, module_id)
+        worker
+            .evaluate_module(module_id)
             .await
             .map_err(|e| Error::EvaluateModule(module.clone(), e))?;
-        let namespace = runtime
+        let namespace = worker
+            .js_runtime
             .get_module_namespace(module_id)
             .map_err(|e| Error::GetModuleNamespace(module.clone(), e))?;
-        let scope = &mut runtime.handle_scope();
+        let scope = &mut worker.js_runtime.handle_scope();
         let namespace = v8::Local::new(scope, namespace);
         let default_key = v8::String::new_external_onebyte_static(scope, b"default")
             .unwrap()
@@ -246,8 +254,3 @@ enum Work {
         return_sender: oneshot::Sender<Result<JsonValue, AnyError>>,
     },
 }
-
-mod conversion;
-mod js_runtime;
-#[cfg(test)]
-mod tests;

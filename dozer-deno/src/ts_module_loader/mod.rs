@@ -9,9 +9,10 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use deno_runtime::deno_core::{self, anyhow, futures};
-use deno_runtime::deno_core::{ModuleLoadResponse, RequestedModuleType};
+use deno_core::{self, anyhow, futures};
+use deno_core::{ModuleLoadResponse, RequestedModuleType};
 
+use crate::runtime::permissions::PermissionsContainer;
 use anyhow::bail;
 use anyhow::Error;
 use deno_ast::MediaType;
@@ -25,7 +26,6 @@ use deno_core::ModuleSpecifier;
 use deno_core::ModuleType;
 use deno_core::ResolutionKind;
 use deno_core::SourceMapGetter;
-use deno_runtime::permissions::PermissionsContainer;
 use futures::FutureExt;
 
 use self::cache::GlobalHttpCache;
@@ -122,7 +122,7 @@ impl ModuleLoader for TypescriptModuleLoader {
                 .to_string();
             let code = if should_transpile {
                 let parsed = deno_ast::parse_module(ParseParams {
-                    specifier: module_specifier.clone(),
+                    specifier: module_specifier.to_string(),
                     text_info: SourceTextInfo::from_string(code),
                     media_type,
                     capture_tokens: false,

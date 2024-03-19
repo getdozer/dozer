@@ -73,32 +73,25 @@ skip = [
     "bigdecimal",
     "sourcemap@6",
     # deno
-    "notify@5",
-    # deno
     "libloading@0.7",
-    # deno
-    "errno@0.2",
-    # deno
-    "deno_unsync@0.1",
+    # deno pins reqwest 0.11.20, which should be fixed once reqwest 0.12 is released
+    "idna@0.3"
 ]
 # Similarly to `skip` allows you to skip certain crates during duplicate
 # detection. Unlike skip, it also includes the entire tree of transitive
 # dependencies starting at the specified crate, up to a certain depth, which is
 # by default infinite.
 skip-tree = [
+    # mongodb uses a couple old versions of crates
     "mongodb@2.8.2",
     # dozer-tracing is updated in a separate PR
     "dozer-tracing",
-    # reqwest is pinned by deno. This should be fixed once reqwest 0.12 is released
-    "reqwest@0.11.20",
     # snowflake source. Let's get rid of this dependency
     "genawaiter@0.99",
     # Uses old version of proc macro crates through num_enum. Let's send a PR to update"
     "rdkafka",
     # Used by sourcemap. Let's send a PR to update
     "base64-simd@0.7",
-    # deno
-    "nix@0.26",
 ]
 
 # This section is considered when running `cargo deny check sources`.

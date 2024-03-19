@@ -1,14 +1,12 @@
 use std::{collections::HashMap, sync::Arc};
 
-use deno_runtime::{
-    deno_core::error::{generic_error, AnyError},
-    deno_fetch::{
-        create_http_client,
-        reqwest::{self, header::LOCATION, Response, Url},
-        CreateHttpClientOptions,
-    },
-    deno_tls::RootCertStoreProvider,
+use deno_core::error::{generic_error, AnyError};
+use deno_fetch::{
+    create_http_client,
+    reqwest::{self, header::LOCATION, Response, Url},
+    CreateHttpClientOptions,
 };
+use deno_tls::RootCertStoreProvider;
 use dozer_types::log;
 
 use crate::user_agent;
