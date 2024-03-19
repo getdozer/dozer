@@ -32,20 +32,20 @@ impl Mapper {
         }
     }
 
-    fn map(&self, operation: ParsedOperation) -> Result<(usize, Operation), Error> {
+    fn map(&self, operation: ParsedOperation, commit_transaction: DateTime<Utc>) -> Result<(usize, Operation), Error> {
         let schema = &self.schemas[operation.table_index];
         Ok((
             operation.table_index,
             match operation.kind {
                 ParsedOperationKind::Insert(row) => Operation::Insert {
-                    new: map_row(row, schema)?,
+                    new: map_row(row, schema, &commit_transaction)?,
                 },
                 ParsedOperationKind::Delete(row) => Operation::Delete {
-                    old: map_row(row, schema)?,
+                    old: map_row(row, schema, &commit_transaction)?,
                 },
                 ParsedOperationKind::Update { old, new } => Operation::Update {
-                    old: map_row(old, schema)?,
-                    new: map_row(new, schema)?,
+                    old: map_row(old, schema, &commit_transaction)?,
+                    new: map_row(new, schema, &commit_transaction)?,
                 },
             },
         ))
@@ -69,7 +69,7 @@ impl<'a, I: Iterator<Item = Result<ParsedTransaction, Error>>> Iterator for Proc
 
         let mut operations = vec![];
         for operation in transaction.operations {
-            match self.mapper.map(operation) {
+            match self.mapper.map(operation, transaction.commit_timestamp) {
                 Ok(operation) => operations.push(operation),
                 Err(err) => return Some(Err(err)),
             }
@@ -83,9 +83,17 @@ impl<'a, I: Iterator<Item = Result<ParsedTransaction, Error>>> Iterator for Proc
     }
 }
 
-fn map_row(mut row: ParsedRow, schema: &Schema) -> Result<Record, Error> {
+fn map_row(mut row: ParsedRow, schema: &Schema, commit_transaction: &DateTime<Utc>) -> Result<Record, Error> {
     let mut values = vec![];
     for field in &schema.fields {
+        if field.name == "miner_timestamp" {
+            values.push(Field::Timestamp(commit_transaction.clone().with_timezone(&FixedOffset::east(0))));
+            continue;
+        }
+        if field.name == "ingested_at" {
+            values.push(Field::Timestamp(dozer_ingestion_connector::dozer_types::chrono::offset::Utc::now().with_timezone(&FixedOffset::east(0))));
+            continue;
+        }
         let value = row
             .remove(&field.name)
             .ok_or_else(|| Error::FieldNotFound(field.name.clone()))?;
