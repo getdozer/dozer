@@ -5,18 +5,17 @@ use dozer_ingestion::{
     get_connector, CdcType, Connector, IngestionIterator, TableIdentifier, TableInfo,
 };
 use dozer_ingestion::{IngestionConfig, Ingestor};
-use dozer_tracing::metrics::{
-    CONNECTION_LABEL, DOZER_METER_NAME, OPERATION_TYPE_LABEL, SOURCE_OPERATION_COUNTER_NAME,
-    TABLE_LABEL,
+use dozer_tracing::constants::{
+    ConnectorEntityType, CONNECTION_LABEL, DOZER_METER_NAME, OPERATION_TYPE_LABEL,
+    SOURCE_OPERATION_COUNTER_NAME, TABLE_LABEL,
 };
-use dozer_tracing::DozerMonitorContext;
+use dozer_tracing::{emit_event, DozerMonitorContext};
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::log::{error, info};
 use dozer_types::models::connection::Connection;
 use dozer_types::models::ingestion_types::IngestionMessage;
 use dozer_types::node::OpIdentifier;
 use dozer_types::thiserror::{self, Error};
-use dozer_types::tracing::{span, Level};
+use dozer_types::tracing::info;
 use dozer_types::types::{Operation, Schema, SourceDefinition};
 use futures::stream::{AbortHandle, Abortable, Aborted};
 use std::collections::HashMap;
@@ -237,7 +236,7 @@ impl Source for ConnectorSource {
         let handle = tokio::spawn(forward_message_to_pipeline(
             iterator,
             sender,
-            connection_name,
+            connection_name.clone(),
             tables,
             ports,
             labels,
@@ -245,6 +244,7 @@ impl Source for ConnectorSource {
 
         let shutdown_future = self.shutdown.create_shutdown_future();
         let (abort_handle, abort_registration) = AbortHandle::new_pair();
+        let labels = self.labels.clone();
 
         // Abort the connector when we shut down
         // TODO: pass a `CancellationToken` to the connector to allow
@@ -255,22 +255,47 @@ impl Source for ConnectorSource {
             abort_handle.abort();
             eprintln!("Aborted connector {}", name);
         });
+
+        emit_event(
+            &connection_name,
+            &ConnectorEntityType::Connector,
+            &labels,
+            "source_started",
+        );
+
         let result = Abortable::new(
             self.connector
                 .start(&ingestor, self.tables.clone(), last_checkpoint),
             abort_registration,
         )
         .await;
+
         match result {
             Ok(Ok(())) => {}
             Ok(Err(e)) => return Err(e),
             // Aborted means we are shutting down
-            Err(Aborted) => return Ok(()),
+            Err(Aborted) => {
+                emit_event(
+                    &connection_name,
+                    &ConnectorEntityType::Connector,
+                    &labels,
+                    "source_aborted",
+                );
+
+                return Ok(());
+            }
         }
         drop(ingestor);
 
         // If we reach here, it means the connector has finished ingesting, so we wait for the forwarding task to finish.
         if let Err(e) = handle.await {
+            emit_event(
+                &connection_name,
+                &ConnectorEntityType::Connector,
+                &labels,
+                "source_error",
+            );
+
             std::panic::panic_any(e);
         }
 
@@ -301,9 +326,6 @@ async fn forward_message_to_pipeline(
 
     let mut counter = vec![(0u64, 0u64); tables.len()];
     while let Some(message) = iterator.receiver.recv().await {
-        let span = span!(Level::TRACE, "pipeline_source_start", connection_name);
-        let _enter = span.enter();
-
         match &message {
             IngestionMessage::OperationEvent {
                 table_index, op, ..

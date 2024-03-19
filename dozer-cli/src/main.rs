@@ -78,7 +78,11 @@ fn run() -> Result<(), OrchestrationError> {
     let dozer = init_dozer(
         runtime.clone(),
         config.clone(),
-        DozerMonitorContext::new(Default::default(), cli.enable_progress),
+        DozerMonitorContext::new(
+            config.id.clone(),
+            config.company_id.clone(),
+            cli.enable_progress,
+        ),
     )
     .map_err(OrchestrationError::CliError)?;
 

@@ -12,12 +12,13 @@ use opentelemetry::KeyValue;
 /// Here we define a struct that holds both the metrics labels and the multi progress bar.
 /// All components should include labels in this struct and create progress bar from the multi progress bar.
 pub struct DozerMonitorContext {
-    application_id: String,
+    pub application_id: String,
+    pub company_id: String,
     progress: MultiProgress,
 }
 
 impl DozerMonitorContext {
-    pub fn new(application_id: String, enable_progress: bool) -> Self {
+    pub fn new(application_id: String, company_id: String, enable_progress: bool) -> Self {
         let progress_draw_target = if enable_progress && atty::is(atty::Stream::Stderr) {
             ProgressDrawTarget::stderr()
         } else {
@@ -26,12 +27,16 @@ impl DozerMonitorContext {
         let progress = MultiProgress::with_draw_target(progress_draw_target);
         Self {
             application_id,
+            company_id,
             progress,
         }
     }
 
     pub fn attrs(&self) -> Vec<KeyValue> {
-        vec![KeyValue::new("application_id", self.application_id.clone())]
+        vec![
+            KeyValue::new("application_id", self.application_id.clone()),
+            KeyValue::new("company_id", self.company_id.clone()),
+        ]
     }
 
     pub fn create_progress_bar(&self, msg: impl Into<Cow<'static, str>>) -> ProgressBar {

@@ -354,7 +354,7 @@ fn get_dozer_run_instance(
 
     dozer.config.home_dir = Some(temp_dir.to_string());
 
-    dozer.labels = DozerMonitorContext::new(application_id, false);
+    dozer.labels = DozerMonitorContext::new(application_id, Default::default(), false);
 
     Ok(dozer)
 }

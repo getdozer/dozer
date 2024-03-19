@@ -5,7 +5,6 @@ use dozer_types::models::telemetry::{
     TelemetryConfig, TelemetryMetricsConfig, TelemetryTraceConfig, XRayConfig,
 };
 use dozer_types::tracing::{self, Metadata, Subscriber};
-use opentelemetry::metrics::noop::NoopMeterProvider;
 use opentelemetry::{global, KeyValue};
 use opentelemetry_aws::trace::XrayIdGenerator;
 use opentelemetry_otlp::{ExportConfig, WithExportConfig};
@@ -77,7 +76,6 @@ pub fn init_telemetry(
             Err(_) => None,
         }
     } else {
-        global::set_meter_provider(NoopMeterProvider::new());
         None
     }
 }
@@ -85,9 +83,6 @@ pub fn init_telemetry(
 // Cleanly shutdown telemetry
 pub fn shutdown_telemetry() {
     global::shutdown_tracer_provider();
-
-    // shutdown
-    global::set_meter_provider(NoopMeterProvider::new())
 }
 
 pub fn init_metrics_provider() -> Result<Registry, Box<dyn std::error::Error + Send + Sync>> {

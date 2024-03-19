@@ -36,6 +36,11 @@
         }
       ]
     },
+    "company_id": {
+      "description": "Unique application Id",
+      "default": "",
+      "type": "string"
+    },
     "connections": {
       "description": "connections to databases: Eg: Postgres, Snowflake, etc",
       "type": "array",
@@ -134,9 +139,9 @@
         },
         "replication": {
           "default": {
+            "datacenter": "esp",
             "server_address": "0.0.0.0",
-            "server_port": 5929,
-            "datacenter": "esp"
+            "server_port": 5929
           },
           "allOf": [
             {
@@ -834,8 +839,8 @@
         {
           "tables": [
             {
-              "path": "",
-              "name": ""
+              "name": "",
+              "path": ""
             }
           ]
         }
@@ -947,11 +952,11 @@
         {
           "provider": {
             "Log": {
-              "wss_url": "",
               "filter": {
                 "from_block": 0,
                 "to_block": null
-              }
+              },
+              "wss_url": ""
             }
           }
         }
@@ -1196,12 +1201,12 @@
     "GrpcConfig": {
       "examples": [
         {
+          "adapter": "arrow",
           "host": "localhost",
           "port": 50051,
           "schemas": {
             "Path": "schema.json"
-          },
-          "adapter": "arrow"
+          }
         }
       ],
       "type": "object",
@@ -1334,8 +1339,8 @@
             {
               "config": {
                 "CSV": {
-                  "path": "path/to/table",
-                  "extension": ".csv"
+                  "extension": ".csv",
+                  "path": "path/to/table"
                 }
               },
               "name": "table_name"
@@ -1379,8 +1384,8 @@
     "MySQLConfig": {
       "examples": [
         {
-          "url": "mysql://root:1234@localhost:3306/db_name",
-          "server_id": 1
+          "server_id": 1,
+          "url": "mysql://root:1234@localhost:3306/db_name"
         }
       ],
       "type": "object",
@@ -1576,12 +1581,12 @@
       "description": "Configuration for a Postgres connection",
       "examples": [
         {
-          "user": "postgres",
-          "password": "postgres",
-          "host": "localhost",
-          "port": 5432,
           "database": "postgres",
-          "schema": "public"
+          "host": "localhost",
+          "password": "postgres",
+          "port": 5432,
+          "schema": "public",
+          "user": "postgres"
         }
       ],
       "type": "object",
@@ -1757,16 +1762,16 @@
         {
           "details": {
             "access_key_id": "",
-            "secret_access_key": "",
+            "bucket_name": "",
             "region": "",
-            "bucket_name": ""
+            "secret_access_key": ""
           },
           "tables": [
             {
               "config": {
                 "CSV": {
-                  "path": "path/to/file",
-                  "extension": ".csv"
+                  "extension": ".csv",
+                  "path": "path/to/file"
                 }
               },
               "name": "table_name"
@@ -1862,15 +1867,15 @@
     "SnowflakeConfig": {
       "examples": [
         {
-          "server": "<account_name>.<region_id>.snowflakecomputing.com",
-          "port": "443",
-          "user": "bob",
-          "password": "password",
           "database": "database",
-          "schema": "schema",
-          "warehouse": "warehouse",
           "driver": "SnowflakeDSIIDriver",
-          "role": "role"
+          "password": "password",
+          "port": "443",
+          "role": "role",
+          "schema": "schema",
+          "server": "<account_name>.<region_id>.snowflakecomputing.com",
+          "user": "bob",
+          "warehouse": "warehouse"
         }
       ],
       "type": "object",
@@ -2133,20 +2138,20 @@
     "WebhookConfig": {
       "examples": [
         {
-          "host": "localhost",
-          "port": 50059,
           "endpoints": [
             {
               "path": "/ingest",
+              "schema": {
+                "Inline": "\n        {\n            \"users\": {\n              \"schema\": {\n                \"fields\": [\n                  {\n                    \"name\": \"id\",\n                    \"typ\": \"Int\",\n                    \"nullable\": false\n                  },\n                  {\n                    \"name\": \"name\",\n                    \"typ\": \"String\",\n                    \"nullable\": true\n                  },\n                  {\n                    \"name\": \"json\",\n                    \"typ\": \"Json\",\n                    \"nullable\": true\n                  }\n                ]\n              }\n            }\n          }\n        "
+              },
               "verbs": [
                 "POST",
                 "DELETE"
-              ],
-              "schema": {
-                "Inline": "\n        {\n            \"users\": {\n              \"schema\": {\n                \"fields\": [\n                  {\n                    \"name\": \"id\",\n                    \"typ\": \"Int\",\n                    \"nullable\": false\n                  },\n                  {\n                    \"name\": \"name\",\n                    \"typ\": \"String\",\n                    \"nullable\": true\n                  },\n                  {\n                    \"name\": \"json\",\n                    \"typ\": \"Json\",\n                    \"nullable\": true\n                  }\n                ]\n              }\n            }\n          }\n        "
-              }
+              ]
             }
-          ]
+          ],
+          "host": "localhost",
+          "port": 50059
         }
       ],
       "type": "object",
@@ -2208,13 +2213,13 @@
       "examples": [
         {
           "path": "/ingest",
+          "schema": {
+            "Inline": "\n        {\n            \"users\": {\n              \"schema\": {\n                \"fields\": [\n                  {\n                    \"name\": \"id\",\n                    \"typ\": \"Int\",\n                    \"nullable\": false\n                  },\n                  {\n                    \"name\": \"name\",\n                    \"typ\": \"String\",\n                    \"nullable\": true\n                  },\n                  {\n                    \"name\": \"json\",\n                    \"typ\": \"Json\",\n                    \"nullable\": true\n                  }\n                ]\n              }\n            }\n          }\n        "
+          },
           "verbs": [
             "POST",
             "DELETE"
-          ],
-          "schema": {
-            "Inline": "\n        {\n            \"users\": {\n              \"schema\": {\n                \"fields\": [\n                  {\n                    \"name\": \"id\",\n                    \"typ\": \"Int\",\n                    \"nullable\": false\n                  },\n                  {\n                    \"name\": \"name\",\n                    \"typ\": \"String\",\n                    \"nullable\": true\n                  },\n                  {\n                    \"name\": \"json\",\n                    \"typ\": \"Json\",\n                    \"nullable\": true\n                  }\n                ]\n              }\n            }\n          }\n        "
-          }
+          ]
         }
       ],
       "type": "object",

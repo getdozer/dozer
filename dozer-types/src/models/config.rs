@@ -19,6 +19,10 @@ pub struct Config {
     #[serde(default)]
     pub id: String,
 
+    /// Unique application Id
+    #[serde(default)]
+    pub company_id: String,
+
     /// name of the app
     pub app_name: String,
 

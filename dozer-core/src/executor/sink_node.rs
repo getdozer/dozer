@@ -1,10 +1,11 @@
 use crossbeam::channel::{Receiver, Sender, TryRecvError};
 use daggy::NodeIndex;
 use dozer_tracing::{
-    metrics::{
-        DOZER_METER_NAME, ENDPOINT_LABEL, OPERATION_TYPE_LABEL, PIPELINE_LATENCY_GAUGE_NAME,
-        SINK_OPERATION_COUNTER_NAME, TABLE_LABEL,
+    constants::{
+        ConnectorEntityType, DOZER_METER_NAME, ENDPOINT_LABEL, OPERATION_TYPE_LABEL,
+        PIPELINE_LATENCY_GAUGE_NAME, SINK_OPERATION_COUNTER_NAME, TABLE_LABEL,
     },
+    emit_event,
     opentelemetry_metrics::{Counter, Gauge},
     DozerMonitorContext,
 };
@@ -336,12 +337,24 @@ impl ReceiverLoop for SinkNode {
                     }
                 }
                 ExecutorOperation::SnapshottingStarted { connection_name } => {
+                    emit_event(
+                        &connection_name,
+                        &ConnectorEntityType::Connector,
+                        &self.labels,
+                        "snapshotting_started",
+                    );
                     self.on_snapshotting_started(connection_name)?;
                 }
                 ExecutorOperation::SnapshottingDone {
                     connection_name,
                     id,
                 } => {
+                    emit_event(
+                        &connection_name,
+                        &ConnectorEntityType::Connector,
+                        &self.labels,
+                        "snapshotting_done",
+                    );
                     self.on_snapshotting_done(connection_name, id)?;
                 }
             }
