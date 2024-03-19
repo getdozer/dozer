@@ -1,6 +1,7 @@
 use std::{
     borrow::Cow,
     fmt::{self, Display, Formatter},
+    io::{stderr, IsTerminal},
 };
 
 use dozer_types::indicatif::{MultiProgress, ProgressBar, ProgressDrawTarget, ProgressStyle};
@@ -83,7 +84,7 @@ pub struct LabelsAndProgress {
 
 impl LabelsAndProgress {
     pub fn new(labels: Labels, enable_progress: bool) -> Self {
-        let progress_draw_target = if enable_progress && atty::is(atty::Stream::Stderr) {
+        let progress_draw_target = if enable_progress && stderr().is_terminal() {
             ProgressDrawTarget::stderr()
         } else {
             ProgressDrawTarget::hidden()

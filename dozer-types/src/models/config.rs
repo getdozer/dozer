@@ -1,6 +1,6 @@
 use super::{
-    api_config::ApiConfig, app_config::AppConfig, cloud::Cloud, connection::Connection,
-    equal_default, flags::Flags, lambda_config::LambdaConfig, sink::Sink, source::Source,
+    api_config::ApiConfig, app_config::AppConfig, connection::Connection, equal_default,
+    flags::Flags, lambda_config::LambdaConfig, sink::Sink, source::Source,
     telemetry::TelemetryConfig,
 };
 use crate::constants::DEFAULT_HOME_DIR;
@@ -53,10 +53,6 @@ pub struct Config {
     #[serde(default, skip_serializing_if = "equal_default")]
     /// Instrument using Dozer
     pub telemetry: TelemetryConfig,
-
-    #[serde(default, skip_serializing_if = "equal_default")]
-    /// Dozer Cloud specific configuration
-    pub cloud: Cloud,
 
     /// UDF specific configuration (eg. !Onnx)
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

@@ -17,7 +17,6 @@ use std::{
     thread::current,
 };
 use tokio::task::JoinHandle;
-pub mod cloud;
 pub mod config_helper;
 pub mod console_helper;
 pub use dozer_core::shutdown;

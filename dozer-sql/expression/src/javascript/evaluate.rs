@@ -1,6 +1,6 @@
 use std::{num::NonZeroI32, sync::Arc};
 
-use dozer_deno::deno_runtime::deno_core::{self, error::AnyError, op2, Extension};
+use deno_core::{error::AnyError, *};
 use dozer_types::{
     errors::types::{DeserializationError, SerializationError},
     json_types::JsonValue,

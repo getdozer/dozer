@@ -2,8 +2,7 @@ use dozer_ingestion_connector::{
     dozer_types, retry_on_network_failure,
     tokio::{self, sync::mpsc::Receiver},
 };
-use mysql_async::{prelude::Queryable, BinlogRequest, BinlogStream, Params, Pool};
-use mysql_common::{prelude::FromRow, Row};
+use mysql_async::{prelude::*, BinlogStream, Params, Pool, Row};
 
 #[derive(Debug)]
 pub struct Conn {
@@ -34,7 +33,7 @@ impl Conn {
         )
     }
 
-    pub fn exec_iter(&mut self, query: String, params: Vec<mysql_common::Value>) -> QueryResult {
+    pub fn exec_iter(&mut self, query: String, params: Vec<mysql_async::Value>) -> QueryResult {
         exec_iter_impl(self.pool.clone(), query, params)
     }
 
@@ -66,12 +65,19 @@ impl Conn {
 
     pub async fn get_binlog_stream(
         self,
-        request: BinlogRequest<'_>,
+        server_id: u32,
+        filename: &[u8],
+        pos: u64,
     ) -> Result<BinlogStream, mysql_async::Error> {
         let mut inner = self.inner;
         retry_on_network_failure!(
             "get_binlog_stream",
-            inner.get_binlog_stream(request.clone()).await,
+            {
+                let request = mysql_async::BinlogStreamRequest::new(server_id)
+                    .with_filename(filename)
+                    .with_pos(pos);
+                inner.get_binlog_stream(request).await
+            },
             is_network_failure,
             inner = new_mysql_connection(&self.pool).await?
         )
@@ -111,7 +117,7 @@ fn add_query_offset(query: &str, offset: u64) -> String {
     }
 }
 
-fn exec_iter_impl(pool: Pool, query: String, params: Vec<mysql_common::Value>) -> QueryResult {
+fn exec_iter_impl(pool: Pool, query: String, params: Vec<mysql_async::Value>) -> QueryResult {
     // this is basically a generator/coroutine using a channel to communicate the results
     let (sender, receiver) = tokio::sync::mpsc::channel(10);
 

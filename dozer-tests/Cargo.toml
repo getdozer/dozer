@@ -3,6 +3,7 @@ name = "dozer-tests"
 version = "0.4.0"
 edition = "2021"
 authors = ["getdozer/dozer-dev"]
+license = "AGPL-3.0-or-later"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

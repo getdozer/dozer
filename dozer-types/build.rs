@@ -50,12 +50,5 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .file_descriptor_set_path(out_dir.join("generated_films.bin"))
         .compile(&["protos/films.proto"], &["protos"])?;
 
-    // Cloud Service & Types
-    tonic_build::configure()
-        .protoc_arg("--experimental_allow_proto3_optional")
-        .file_descriptor_set_path(out_dir.join("cloud.bin"))
-        .compile(&["protos/cloud.proto"], &["protos"])
-        .unwrap();
-
     Ok(())
 }

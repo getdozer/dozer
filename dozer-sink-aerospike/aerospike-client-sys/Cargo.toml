@@ -2,6 +2,7 @@
 name = "aerospike-client-sys"
 version = "0.1.0"
 edition = "2021"
+license = "AGPL-3.0-or-later"
 
 [lib]
 doctest = false
@@ -11,4 +12,4 @@ doctest = false
 [dependencies]
 
 [build-dependencies]
-bindgen = "0.65.1"
+bindgen = "0.69.4"

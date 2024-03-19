@@ -5,7 +5,7 @@ use std::{
     path::Path,
 };
 
-use deno_runtime::deno_crypto::rand;
+use deno_crypto::rand;
 
 /// Writes the file to the file system at a temporary path, then
 /// renames it to the destination in a single sys call in order

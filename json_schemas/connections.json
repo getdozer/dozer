@@ -7,12 +7,12 @@
       "description": "Configuration for a Postgres connection",
       "examples": [
         {
-          "user": "postgres",
-          "password": "postgres",
-          "host": "localhost",
-          "port": 5432,
           "database": "postgres",
-          "schema": "public"
+          "host": "localhost",
+          "password": "postgres",
+          "port": 5432,
+          "schema": "public",
+          "user": "postgres"
         }
       ],
       "type": "object",
@@ -97,11 +97,11 @@
         {
           "provider": {
             "Log": {
-              "wss_url": "",
               "filter": {
                 "from_block": 0,
                 "to_block": null
-              }
+              },
+              "wss_url": ""
             }
           }
         }
@@ -266,12 +266,12 @@
       "title": "GrpcConfig",
       "examples": [
         {
+          "adapter": "arrow",
           "host": "localhost",
           "port": 50051,
           "schemas": {
             "Path": "schema.json"
-          },
-          "adapter": "arrow"
+          }
         }
       ],
       "type": "object",
@@ -342,15 +342,15 @@
       "title": "SnowflakeConfig",
       "examples": [
         {
-          "server": "<account_name>.<region_id>.snowflakecomputing.com",
-          "port": "443",
-          "user": "bob",
-          "password": "password",
           "database": "database",
-          "schema": "schema",
-          "warehouse": "warehouse",
           "driver": "SnowflakeDSIIDriver",
-          "role": "role"
+          "password": "password",
+          "port": "443",
+          "role": "role",
+          "schema": "schema",
+          "server": "<account_name>.<region_id>.snowflakecomputing.com",
+          "user": "bob",
+          "warehouse": "warehouse"
         }
       ],
       "type": "object",
@@ -439,16 +439,16 @@
         {
           "details": {
             "access_key_id": "",
-            "secret_access_key": "",
+            "bucket_name": "",
             "region": "",
-            "bucket_name": ""
+            "secret_access_key": ""
           },
           "tables": [
             {
               "config": {
                 "CSV": {
-                  "path": "path/to/file",
-                  "extension": ".csv"
+                  "extension": ".csv",
+                  "path": "path/to/file"
                 }
               },
               "name": "table_name"
@@ -598,8 +598,8 @@
             {
               "config": {
                 "CSV": {
-                  "path": "path/to/table",
-                  "extension": ".csv"
+                  "extension": ".csv",
+                  "path": "path/to/table"
                 }
               },
               "name": "table_name"
@@ -732,8 +732,8 @@
         {
           "tables": [
             {
-              "path": "",
-              "name": ""
+              "name": "",
+              "path": ""
             }
           ]
         }
@@ -797,8 +797,8 @@
       "title": "MySQLConfig",
       "examples": [
         {
-          "url": "mysql://root:1234@localhost:3306/db_name",
-          "server_id": 1
+          "server_id": 1,
+          "url": "mysql://root:1234@localhost:3306/db_name"
         }
       ],
       "type": "object",

@@ -6,7 +6,7 @@ use dozer_ingestion_connector::dozer_types::{
     types::{DozerDuration, DozerPoint, Field, FieldType, TimeUnit},
 };
 use geozero::{wkb, GeomProcessor};
-use mysql_common::{Row, Value};
+use mysql_async::{Row, Value};
 use std::time::Duration;
 
 use crate::MySQLConnectorError;

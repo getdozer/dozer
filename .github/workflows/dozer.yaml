@@ -45,3 +45,6 @@ jobs:
       - name: Lint
         run: |
           cargo fmt -- --check
+
+      - name: Cargo Deny
+        uses: EmbarkStudios/cargo-deny-action@v1
