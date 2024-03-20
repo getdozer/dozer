@@ -888,6 +888,7 @@ fn as_util_fromval<T>(v: *mut as_val, typ: as_val_type_e) -> Option<NonNull<T>> 
 unsafe fn as_vector_reserve(vector: *mut as_vector) -> *mut c_void {
     if (*vector).size >= (*vector).capacity {
         as_vector_increase_capacity(vector);
+        check_alloc((*vector).list);
     }
     let item = (*vector)
         .list
@@ -1078,6 +1079,11 @@ struct AsBatchRecords(NonNull<as_batch_records>);
 
 impl AsBatchRecords {
     fn new(capacity: u32) -> Self {
+        // Capacity needs to be at least 1, otherwise growing the vector will fail
+        // because it uses naive doubling of the capacity. We use rustc's heuristic
+        // for the minimum size of the vector (4 if the size of the element <= 1024)
+        // to save some re-allocations for small vectors.
+        let capacity = capacity.max(4);
         unsafe { Self(NonNull::new(as_batch_records_create(capacity)).unwrap()) }
     }
 
