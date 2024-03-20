@@ -299,7 +299,7 @@ impl OracleSinkFactory {
         }
 
         if !(self.validate_table(connection, table, schema)?) {
-            let table_query = format!("CREATE TABLE {table} ({})", column_defs.join(",\n"));
+            let table_query = format!("CREATE TABLE {table} ({}, DST_INSERTED_AT TIMESTAMP DEFAULT CURRENT_TIMESTAMP)", column_defs.join(",\n"));
             info!("### CREATE TABLE ####\n{}", table_query);
             connection.execute(&table_query, &[])?;
         }
