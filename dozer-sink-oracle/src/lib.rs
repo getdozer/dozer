@@ -215,6 +215,7 @@ impl OracleSinkFactory {
             return Ok(false);
         }
 
+        cols.remove("DST_INSERTED_AT");
         for field in &schema.fields {
             let definition = cols
                 .remove(&field.name)
