@@ -167,6 +167,7 @@ pub struct AerospikeSinkTable {
     pub set_name: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub denormalize: Vec<AerospikeDenormalizations>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub write_denormalized_to: Option<AerospikeSet>,
     #[serde(default)]
     pub primary_key: Vec<String>,
