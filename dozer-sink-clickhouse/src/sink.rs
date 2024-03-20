@@ -59,6 +59,7 @@ impl ClickhouseSinkFactory {
                 &repl_metadata.schema.fields,
                 Some(create_table_options),
                 None,
+                HashMap::new(),
             )
             .await?;
 
@@ -107,6 +108,7 @@ impl SinkFactory for ClickhouseSinkFactory {
                     &schema.fields,
                     self.config.create_table_options.clone(),
                     None,
+                    HashMap::new(),
                 )
                 .await?;
         }

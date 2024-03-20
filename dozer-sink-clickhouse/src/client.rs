@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+
 use super::ddl::get_create_table_query;
 use super::types::ValueWrapper;
 use crate::errors::QueryError;
@@ -8,8 +9,13 @@ use clickhouse_rs::{ClientHandle, Pool};
 use dozer_types::log::{debug, info};
 use dozer_types::models::sink::{ClickhouseSinkConfig, ClickhouseTableOptions};
 use dozer_types::types::{Field, FieldDefinition};
+use std::collections::HashMap;
 pub struct SqlResult {
     pub rows: Vec<Vec<Field>>,
+}
+
+pub struct AggregationFunction {
+    pub aggregation: String,
 }
 
 #[derive(Clone)]
@@ -57,9 +63,10 @@ impl ClickhouseClient {
         fields: &[FieldDefinition],
         table_options: Option<ClickhouseTableOptions>,
         query_id: Option<String>,
+        aggregations: HashMap<String, AggregationFunction>,
     ) -> Result<(), QueryError> {
         let mut client = self.pool.get_handle().await?;
-        let ddl = get_create_table_query(datasource_name, fields, table_options);
+        let ddl = get_create_table_query(datasource_name, fields, table_options, aggregations);
         info!("Creating Clickhouse Table");
         info!("{ddl}");
         let query_id = query_id.unwrap_or("".to_string());
@@ -111,6 +118,12 @@ impl ClickhouseClient {
 
         // if error not found, table exists
         Ok(true)
+    }
+
+    pub async fn find_mv(&self, mv_name: &str) -> Result<bool, QueryError> {
+        let mut client = self.pool.get_handle().await?;
+        let query = format!("SELECT table_name FROM information_schema.tables WHERE table_type = 'VIEW' AND table_name = '{mv_name}'");
+        Ok(client.query(query).fetch_all().await?.row_count() > 0)
     }
 
     pub async fn insert(

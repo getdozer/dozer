@@ -223,7 +223,7 @@ impl ClickhouseSinkConfig {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone, Default)]
 #[serde(deny_unknown_fields)]
 pub struct ClickhouseTableOptions {
     pub engine: Option<String>,
