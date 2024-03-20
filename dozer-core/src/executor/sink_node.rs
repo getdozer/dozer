@@ -2,8 +2,8 @@ use crossbeam::channel::{Receiver, Sender, TryRecvError};
 use daggy::NodeIndex;
 use dozer_tracing::{
     constants::{
-        ConnectorEntityType, DOZER_METER_NAME, ENDPOINT_LABEL, OPERATION_TYPE_LABEL,
-        PIPELINE_LATENCY_GAUGE_NAME, SINK_OPERATION_COUNTER_NAME, TABLE_LABEL,
+        ConnectorEntityType, DOZER_METER_NAME, OPERATION_TYPE_LABEL, PIPELINE_LATENCY_GAUGE_NAME,
+        SINK_OPERATION_COUNTER_NAME, TABLE_LABEL,
     },
     emit_event,
     opentelemetry_metrics::{Counter, Gauge},
@@ -12,6 +12,7 @@ use dozer_tracing::{
 use dozer_types::{
     log::debug,
     node::{NodeHandle, OpIdentifier},
+    tracing::error,
     types::{Operation, TableOperation},
 };
 use std::{
@@ -404,16 +405,20 @@ impl ReceiverLoop for SinkNode {
         }
         self.last_op_if_commit = Some(epoch.clone());
 
-        if let Ok(duration) = epoch.decision_instant.elapsed() {
-            let mut labels = self.labels.attrs().clone();
-            labels.push(dozer_tracing::KeyValue::new(
-                ENDPOINT_LABEL,
-                self.node_handle.id.clone(),
-            ));
-
-            self.metrics
-                .latency_gauge
-                .record(duration.as_secs_f64(), &labels);
+        match epoch.decision_instant.elapsed() {
+            Ok(duration) => {
+                let mut labels = self.labels.attrs().clone();
+                labels.push(dozer_tracing::KeyValue::new(
+                    TABLE_LABEL,
+                    self.node_handle.id.clone(),
+                ));
+                self.metrics
+                    .latency_gauge
+                    .record(duration.as_secs_f64(), &labels);
+            }
+            Err(e) => {
+                error!("error recording pipeline_latench {:?}", e);
+            }
         }
 
         if self
@@ -448,6 +453,16 @@ impl ReceiverLoop for SinkNode {
         if let Err(e) = self.sink.on_source_snapshotting_done(connection_name, id) {
             self.error_manager.report(e);
         }
+
+        // record 0 as pipeline latency when snapshotting is done
+        // this is to initialize the value for metrics
+        let mut labels = self.labels.attrs().clone();
+        labels.push(dozer_tracing::KeyValue::new(
+            TABLE_LABEL,
+            self.node_handle.id.clone(),
+        ));
+        self.metrics.latency_gauge.record(0_f64, &labels);
+
         Ok(())
     }
 }
