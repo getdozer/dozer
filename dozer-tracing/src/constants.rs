@@ -9,7 +9,6 @@ pub const SOURCE_OPERATION_COUNTER_NAME: &str = "source_operation";
 
 //  Labels
 pub const OPERATION_TYPE_LABEL: &str = "operation_type";
-pub const ENDPOINT_LABEL: &str = "endpoint";
 pub const TABLE_LABEL: &str = "table";
 pub const CONNECTION_LABEL: &str = "connection";
 
