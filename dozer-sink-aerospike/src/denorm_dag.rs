@@ -530,11 +530,9 @@ pub(crate) struct DenormalizedTable {
 type DenormDag = daggy::Dag<Node, Edge>;
 
 fn bin_names_recursive(dag: &DenormDag, nid: NodeIndex, bins: &mut Vec<CString>) {
-    let mut neighbors = dag.neighbors_directed(nid, Direction::Outgoing).detach();
-    while let Some((edge, node)) = neighbors.next(dag.graph()) {
-        let edge = dag.edge_weight(edge).unwrap();
-        bins.extend_from_slice(edge.bins.names());
-        bin_names_recursive(dag, node, bins);
+    for edge in dag.edges_directed(nid, Direction::Outgoing) {
+        bins.extend_from_slice(edge.weight().bins.names());
+        bin_names_recursive(dag, edge.target(), bins);
     }
 }
 
@@ -669,9 +667,7 @@ impl DenormalizationState {
                 for (denorm_idx, lookup_idx) in key_idx.iter().zip(&from_schema.primary_index) {
                     let denorm_field = &schema.fields[*denorm_idx];
                     let lookup_field = &from_schema.fields[*lookup_idx];
-                    if denorm_field.typ != lookup_field.typ
-                        || denorm_field.nullable != lookup_field.nullable
-                    {
+                    if denorm_field.typ != lookup_field.typ {
                         return Err(mismatch_err());
                     }
                 }
@@ -1028,15 +1024,14 @@ impl DenormalizationState {
                 .map(|i| record[*i].clone())
                 .collect_vec()];
             for edge_result in results_per_edge {
-                let mut new_record_result = Vec::new();
-                for record in record_result {
-                    for additional_fields in &edge_result {
-                        let mut new_record = record.clone();
-                        new_record.extend_from_slice(additional_fields);
-                        new_record_result.push(new_record);
-                    }
-                }
-                record_result = new_record_result;
+                record_result = record_result
+                    .into_iter()
+                    .cartesian_product(edge_result)
+                    .map(|(mut old, mut new)| {
+                        old.append(&mut new);
+                        old
+                    })
+                    .collect_vec();
             }
             result.append(&mut record_result);
         }
@@ -1052,9 +1047,12 @@ impl DenormalizationState {
 mod tests {
     use std::ffi::CString;
 
-    use dozer_types::types::{
-        Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
-        TableOperation,
+    use dozer_types::{
+        models::sink::AerospikeSinkTable,
+        types::{
+            Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
+            TableOperation,
+        },
     };
 
     use crate::{aerospike::Client, denorm_dag::DenormalizedTable};
@@ -1077,7 +1075,7 @@ mod tests {
         };
     }
     macro_rules! schema {
-        ($($f:literal: $t:ident $($pk:ident)?),+) => {{
+        ($($f:literal: $t:ident $($pk:ident)?),+$(,)?) => {{
             let mut schema = Schema::new();
             $(schema_row!(schema, $f: $t $($pk)?));+;
             schema
@@ -1164,9 +1162,9 @@ mod tests {
         id: u64,
         account_id: u64,
         amount: &'static str,
-        customer_id: &'static str,
+        customer_id: Option<&'static str>,
         transaction_limit: Option<u64>,
-        phone_number: &'static str,
+        phone_number: Option<&'static str>,
     }
 
     impl Table for DenormResult {
@@ -1186,9 +1184,11 @@ mod tests {
                 Field::UInt(self.id),
                 Field::UInt(self.account_id),
                 Field::Decimal(self.amount.try_into().unwrap()),
-                Field::String(self.customer_id.to_owned()),
+                self.customer_id
+                    .map_or(Field::Null, |s| Field::String(s.to_owned())),
                 self.transaction_limit.map_or(Field::Null, Field::UInt),
-                Field::String(self.phone_number.to_owned()),
+                self.phone_number
+                    .map_or(Field::Null, |s| Field::String(s.to_owned())),
             ]
         }
     }
@@ -1234,72 +1234,181 @@ mod tests {
         client
     }
 
+    fn lookup_table(name: &str) -> (AerospikeSinkTable, Schema) {
+        let mut schema = Schema::new();
+        schema
+            .field(
+                FieldDefinition {
+                    name: "id".into(),
+                    typ: FieldType::UInt,
+                    nullable: false,
+                    source: SourceDefinition::Dynamic,
+                },
+                true,
+            )
+            .field(
+                FieldDefinition::new(
+                    format!("{name}_value"),
+                    FieldType::UInt,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            );
+        (
+            dozer_types::serde_yaml::from_str(&format!(
+                r#"
+                source_table_name: 
+                namespace: test
+                set_name: {name}
+                primary_key:
+                 - id
+                "#,
+            ))
+            .unwrap(),
+            schema,
+        )
+    }
+
     #[test]
     #[ignore]
-    fn test_denorm() {
+    fn test_denorm_order() {
         let tables = vec![
             (
                 dozer_types::serde_yaml::from_str(
                     r#"
                 source_table_name: 
                 namespace: test
-                set_name: customers
-                primary_key:
-                 - id
-                aggregate_by_pk: true
-                "#,
-                )
-                .unwrap(),
-                Customer::schema(),
-            ),
-            (
-                dozer_types::serde_yaml::from_str(
-                    r#"
-                source_table_name: 
-                namespace: test
-                set_name: accounts
-                primary_key:
-                 - account_id
-                denormalize:
-                 - from_namespace: test
-                   from_set: customers
-                   key: customer_id
-                   columns:
-                    - phone_number
-                "#,
-                )
-                .unwrap(),
-                AccountOwner::schema(),
-            ),
-            (
-                dozer_types::serde_yaml::from_str(
-                    r#"
-                source_table_name: 
-                namespace: test
-                set_name: transactions
+                set_name: base
                 primary_key:
                  - id
                 denormalize:
                  - from_namespace: test
-                   from_set: accounts
-                   key: account_id
-                   columns:
-                    - customer_id
-                    - transaction_limit
+                   from_set: lookup_0
+                   key: lookup_0_id
+                   columns: [lookup_0_value]
+                 - from_namespace: test
+                   from_set: lookup_1
+                   key: lookup_1_id
+                   columns: [lookup_1_value]
                 write_denormalized_to:
-                   namespace: test
-                   set: transactions_denorm
-                   primary_key: 
-                    - id
-                    - customer_id
+                  primary_key: [id]
+                  namespace: test
+                  set: denorm
                 "#,
                 )
                 .unwrap(),
-                Transaction::schema(),
+                schema! {
+                    "id": UInt PRIMARY_KEY,
+                    "base_value": UInt,
+                    "lookup_0_id": UInt,
+                    "lookup_1_id": UInt,
+                },
             ),
+            lookup_table("lookup_0"),
+            lookup_table("lookup_1"),
         ];
-        let client = client();
+
         let mut state = DenormalizationState::new(&tables).unwrap();
+        state
+            .process(TableOperation {
+                id: None,
+                op: Operation::Insert {
+                    new: Record::new(vec![
+                        Field::UInt(1),
+                        Field::UInt(1),
+                        Field::UInt(100),
+                        Field::UInt(200),
+                    ]),
+                },
+                port: 0,
+            })
+            .unwrap();
+        state
+            .process(TableOperation {
+                id: None,
+                op: Operation::Insert {
+                    new: Record::new(vec![Field::UInt(100), Field::UInt(1000)]),
+                },
+                port: 1,
+            })
+            .unwrap();
+        state
+            .process(TableOperation {
+                id: None,
+                op: Operation::Insert {
+                    new: Record::new(vec![Field::UInt(200), Field::UInt(2000)]),
+                },
+                port: 2,
+            })
+            .unwrap();
+
+        let client = &client();
+        assert_eq!(
+            state.perform_denorm(client).unwrap(),
+            vec![DenormalizedTable {
+                bin_names: vec![
+                    CString::new("id").unwrap(),
+                    CString::new("base_value").unwrap(),
+                    CString::new("lookup_0_id").unwrap(),
+                    CString::new("lookup_1_id").unwrap(),
+                    CString::new("lookup_1_value").unwrap(),
+                    CString::new("lookup_0_value").unwrap(),
+                ],
+                namespace: CString::new("test").unwrap(),
+                set: CString::new("denorm").unwrap(),
+                records: vec![vec![
+                    Field::UInt(1),
+                    Field::UInt(1),
+                    Field::UInt(100),
+                    Field::UInt(200),
+                    Field::UInt(2000),
+                    Field::UInt(1000),
+                ]],
+                pk: vec![0],
+            }]
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn test_denorm_missing() {
+        let mut state = state();
+        let client = client();
+
+        state
+            .process(TableOperation {
+                id: None,
+                op: Operation::Insert {
+                    new: Transaction {
+                        id: 0,
+                        account_id: 100,
+                        amount: "10.01",
+                    }
+                    .to_record(),
+                },
+                port: 2,
+            })
+            .unwrap();
+
+        assert_eq!(
+            state.perform_denorm(&client).unwrap(),
+            vec![vec![DenormResult {
+                id: 0,
+                account_id: 100,
+                amount: "10.01",
+                customer_id: None,
+                transaction_limit: None,
+                phone_number: None,
+            }]]
+        )
+    }
+
+    #[test]
+    #[ignore]
+    fn test_denorm() {
+        let mut state = state();
+        let client = client();
         // Customers
         state
             .process(TableOperation {
@@ -1351,11 +1460,11 @@ mod tests {
             res,
             vec![vec![DenormResult {
                 id: 1,
-                customer_id: "1001",
                 account_id: 101,
                 amount: "1.23",
+                customer_id: Some("1001"),
                 transaction_limit: None,
-                phone_number: "+1234567",
+                phone_number: Some("+1234567"),
             }]]
         );
         state.commit();
@@ -1429,28 +1538,94 @@ mod tests {
                     id: 2,
                     account_id: 101,
                     amount: "3.21",
-                    customer_id: "1001",
+                    customer_id: Some("1001"),
                     transaction_limit: None,
-                    phone_number: "+1234567"
+                    phone_number: Some("+1234567")
                 },
                 DenormResult {
                     id: 3,
                     account_id: 101,
                     amount: "1.23",
-                    customer_id: "1001",
+                    customer_id: Some("1001"),
                     transaction_limit: None,
-                    phone_number: "+7654321",
+                    phone_number: Some("+7654321"),
                 },
                 DenormResult {
                     id: 3,
                     account_id: 101,
                     amount: "1.23",
-                    customer_id: "1001",
+                    customer_id: Some("1001"),
                     transaction_limit: None,
-                    phone_number: "+2 123",
+                    phone_number: Some("+2 123"),
                 },
             ],]
         );
         state.persist(&client).unwrap();
+    }
+
+    fn state() -> DenormalizationState {
+        let tables = vec![
+            (
+                dozer_types::serde_yaml::from_str(
+                    r#"
+                source_table_name: 
+                namespace: test
+                set_name: customers
+                primary_key:
+                 - id
+                aggregate_by_pk: true
+                "#,
+                )
+                .unwrap(),
+                Customer::schema(),
+            ),
+            (
+                dozer_types::serde_yaml::from_str(
+                    r#"
+                source_table_name: 
+                namespace: test
+                set_name: accounts
+                primary_key:
+                 - account_id
+                denormalize:
+                 - from_namespace: test
+                   from_set: customers
+                   key: customer_id
+                   columns:
+                    - phone_number
+                "#,
+                )
+                .unwrap(),
+                AccountOwner::schema(),
+            ),
+            (
+                dozer_types::serde_yaml::from_str(
+                    r#"
+                source_table_name: 
+                namespace: test
+                set_name: transactions
+                primary_key:
+                 - id
+                denormalize:
+                 - from_namespace: test
+                   from_set: accounts
+                   key: account_id
+                   columns:
+                    - customer_id
+                    - transaction_limit
+                write_denormalized_to:
+                   namespace: test
+                   set: transactions_denorm
+                   primary_key: 
+                    - id
+                    - customer_id
+                "#,
+                )
+                .unwrap(),
+                Transaction::schema(),
+            ),
+        ];
+
+        DenormalizationState::new(&tables).unwrap()
     }
 }
