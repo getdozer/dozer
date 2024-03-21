@@ -760,6 +760,9 @@ pub(crate) fn map_value_to_field(
     mut value: Value,
     typ: FieldType,
 ) -> Result<Field, AerospikeConnectorError> {
+    if value.is_null() {
+        return Ok(Field::Null);
+    }
     let unsupported_type = || AerospikeConnectorError::UnsupportedTypeForFieldType {
         bin_type: bin_type.to_owned(),
         field_type: typ,
@@ -812,9 +815,15 @@ pub(crate) fn map_value_to_field(
                 value.as_bool().ok_or_else(unsupported_type)?,
             ))
         }
-        FieldType::String | FieldType::Text => {
+        FieldType::String => {
             check_type("str")?;
             Ok(Field::String(
+                value.as_str().ok_or_else(unsupported_type)?.to_owned(),
+            ))
+        }
+        FieldType::Text => {
+            check_type("str")?;
+            Ok(Field::Text(
                 value.as_str().ok_or_else(unsupported_type)?.to_owned(),
             ))
         }
