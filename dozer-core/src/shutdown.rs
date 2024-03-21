@@ -13,7 +13,9 @@ use tokio::{
 pub struct ShutdownSender(Receiver<()>);
 
 impl ShutdownSender {
-    pub fn shutdown(self) {}
+    pub fn shutdown(self) {
+        let _ = self.0;
+    }
 }
 
 #[derive(Debug, Clone)]
