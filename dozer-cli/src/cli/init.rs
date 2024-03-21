@@ -227,6 +227,7 @@ pub fn generate_config_repl() -> Result<(), OrchestrationError> {
                 let f = std::fs::OpenOptions::new()
                     .create(true)
                     .write(true)
+                    .truncate(false)
                     .open(yaml_path)
                     .map_err(|e| {
                         OrchestrationError::CliError(CliError::FileSystem(
