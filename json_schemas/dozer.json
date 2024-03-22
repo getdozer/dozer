@@ -409,6 +409,7 @@
     "ClickhouseSinkConfig": {
       "type": "object",
       "required": [
+        "options",
         "sink_table_name",
         "source_table_name"
       ],
@@ -430,6 +431,22 @@
         "host": {
           "default": "0.0.0.0",
           "type": "string"
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "maxItems": 2,
+            "minItems": 2
+          }
         },
         "password": {
           "default": null,
