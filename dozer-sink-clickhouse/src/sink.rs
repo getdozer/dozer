@@ -178,7 +178,7 @@ impl ClickhouseSink {
                 .insert(
                     REPLICA_METADATA_TABLE,
                     &self.metadata.schema.fields,
-                    &[
+                    vec![
                         Field::String(self.sink_table_name.clone()),
                         Field::UInt(txid),
                     ],
@@ -196,22 +196,17 @@ impl ClickhouseSink {
     }
 
     fn commit_batch(&mut self) -> Result<(), BoxedError> {
+        let batch = std::mem::take(&mut self.batch);
         self.runtime.block_on(async {
             //Insert batch
             self.client
-                .insert_multi(
-                    &self.sink_table_name,
-                    &self.schema.fields,
-                    &self.batch,
-                    None,
-                )
+                .insert_multi(&self.sink_table_name, &self.schema.fields, batch, None)
                 .await?;
 
             self.insert_metadata().await?;
             Ok::<(), BoxedError>(())
         })?;
 
-        self.batch.clear();
         Ok(())
     }
 

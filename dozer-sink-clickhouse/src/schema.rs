@@ -1,6 +1,5 @@
 use crate::client::ClickhouseClient;
 use crate::errors::ClickhouseSinkError::{self, SinkTableDoesNotExist};
-use crate::types::DECIMAL_SCALE;
 use clickhouse_rs::types::Complex;
 use clickhouse_rs::{Block, ClientHandle};
 use dozer_types::log::warn;
@@ -145,6 +144,7 @@ impl ClickhouseSchema {
 }
 
 pub fn map_field_to_type(field: &FieldDefinition) -> String {
+    const DECIMAL_SCALE: u8 = 4;
     let decimal = format!("Decimal(10, {})", DECIMAL_SCALE);
     let typ: &str = match field.typ {
         FieldType::UInt => "UInt64",
