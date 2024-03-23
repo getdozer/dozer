@@ -123,21 +123,21 @@ impl ClickhouseClient {
         &self,
         table_name: &str,
         fields: &[FieldDefinition],
-        values: &[Field],
+        values: Vec<Field>,
         query_id: Option<String>,
     ) -> Result<(), QueryError> {
         let client = self.pool.get_handle().await?;
-        insert_multi(client, table_name, fields, &[values.to_vec()], query_id).await
+        insert_multi(client, table_name, fields, vec![values], query_id).await
     }
 
     pub async fn insert_multi(
         &self,
         table_name: &str,
         fields: &[FieldDefinition],
-        values: &[Vec<Field>],
+        rows: Vec<Vec<Field>>,
         query_id: Option<String>,
     ) -> Result<(), QueryError> {
         let client = self.pool.get_handle().await?;
-        insert_multi(client, table_name, fields, values, query_id).await
+        insert_multi(client, table_name, fields, rows, query_id).await
     }
 }

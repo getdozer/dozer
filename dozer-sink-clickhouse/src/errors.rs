@@ -1,4 +1,7 @@
-use dozer_types::thiserror::{self, Error};
+use dozer_types::{
+    thiserror::{self, Error},
+    types::FieldType,
+};
 
 #[derive(Error, Debug)]
 pub enum ClickhouseSinkError {
@@ -32,8 +35,17 @@ pub enum QueryError {
     #[error("Clickhouse error: {0:?}")]
     DataFetchError(#[from] clickhouse_rs::errors::Error),
 
-    #[error("Unexpected field type for {0:?}, expected {0}")]
-    TypeMismatch(String, String),
+    #[error("Unexpected field type for {field_name:?}, expected {field_type:?}")]
+    TypeMismatch {
+        field_name: String,
+        field_type: FieldType,
+    },
+
+    #[error("Decimal overflow")]
+    DecimalOverflow,
+
+    #[error("Unsupported field type {0:?}")]
+    UnsupportedFieldType(FieldType),
 
     #[error("{0:?}")]
     CustomError(String),
