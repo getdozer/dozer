@@ -6,14 +6,12 @@ use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
 
 use dozer_types::log::debug;
-use dozer_types::models::sink::{ClickhouseSinkConfig, ClickhouseTableOptions};
+use dozer_types::models::sink::ClickhouseSinkConfig;
 use dozer_types::node::OpIdentifier;
 
 use crate::client::ClickhouseClient;
 use crate::errors::ClickhouseSinkError;
-use crate::metadata::{
-    ReplicationMetadata, META_TABLE_COL, META_TXN_ID_COL, REPLICA_METADATA_TABLE,
-};
+use crate::metadata::ReplicationMetadata;
 use crate::schema::{ClickhouseSchema, ClickhouseTable};
 use dozer_types::tonic::async_trait;
 use dozer_types::types::{Field, Operation, Schema, TableOperation};
@@ -32,37 +30,6 @@ pub struct ClickhouseSinkFactory {
 impl ClickhouseSinkFactory {
     pub fn new(config: ClickhouseSinkConfig, runtime: Arc<Runtime>) -> Self {
         Self { config, runtime }
-    }
-
-    pub async fn create_replication_metadata_table(&self) -> Result<(), BoxedError> {
-        let client = ClickhouseClient::new(self.config.clone());
-        let repl_metadata = ReplicationMetadata::get_metadata();
-
-        let primary_keys = repl_metadata.get_primary_keys();
-        let partition_by = format!("({})", primary_keys.join(","));
-        let create_table_options = ClickhouseTableOptions {
-            engine: Some("ReplacingMergeTree".to_string()),
-            primary_keys: Some(repl_metadata.get_primary_keys()),
-            partition_by: Some(partition_by),
-            // Replaced using this key
-            order_by: Some(repl_metadata.get_primary_keys()),
-            cluster: self
-                .config
-                .create_table_options
-                .as_ref()
-                .and_then(|o| o.cluster.clone()),
-            sample_by: None,
-        };
-        client
-            .create_table(
-                &repl_metadata.table_name,
-                &repl_metadata.schema.fields,
-                Some(create_table_options),
-                None,
-            )
-            .await?;
-
-        Ok(())
     }
 }
 
@@ -97,7 +64,14 @@ impl SinkFactory for ClickhouseSinkFactory {
         let config = &self.config;
 
         // Create Sink Table
-        self.create_replication_metadata_table().await?;
+        let metadata = ReplicationMetadata::new(
+            &client,
+            self.config
+                .create_table_options
+                .as_ref()
+                .and_then(|options| options.cluster.clone()),
+        )
+        .await?;
 
         // Create Sink Table
         if self.config.create_table_options.is_some() {
@@ -120,6 +94,7 @@ impl SinkFactory for ClickhouseSinkFactory {
             schema,
             self.runtime.clone(),
             table,
+            metadata,
         );
 
         Ok(Box::new(sink))
@@ -134,7 +109,7 @@ pub(crate) struct ClickhouseSink {
     pub(crate) table: ClickhouseTable,
     batch: Vec<Vec<Field>>,
     metadata: ReplicationMetadata,
-    latest_txid: Option<u64>,
+    latest_uncommited_op_id: Option<OpIdentifier>,
 }
 
 impl Debug for ClickhouseSink {
@@ -154,6 +129,7 @@ impl ClickhouseSink {
         schema: Schema,
         runtime: Arc<Runtime>,
         table: ClickhouseTable,
+        metadata: ReplicationMetadata,
     ) -> Self {
         Self {
             client,
@@ -162,29 +138,22 @@ impl ClickhouseSink {
             sink_table_name: config.sink_table_name,
             table,
             batch: Vec::new(),
-            latest_txid: None,
-            metadata: ReplicationMetadata::get_metadata(),
+            latest_uncommited_op_id: None,
+            metadata,
         }
     }
 
-    pub async fn insert_metadata(&self) -> Result<(), BoxedError> {
+    pub async fn insert_metadata(&mut self) -> Result<(), BoxedError> {
         debug!(
             "[Sink] Inserting metadata record {:?} {}",
-            self.latest_txid,
+            self.latest_uncommited_op_id,
             self.sink_table_name.clone()
         );
-        if let Some(txid) = self.latest_txid {
-            self.client
-                .insert(
-                    REPLICA_METADATA_TABLE,
-                    &self.metadata.schema.fields,
-                    vec![
-                        Field::String(self.sink_table_name.clone()),
-                        Field::UInt(txid),
-                    ],
-                    None,
-                )
+        if let Some(op_id) = self.latest_uncommited_op_id {
+            self.metadata
+                .set_op_id(&self.client, self.sink_table_name.clone(), op_id)
                 .await?;
+            self.latest_uncommited_op_id = None;
         }
         Ok(())
     }
@@ -197,7 +166,7 @@ impl ClickhouseSink {
 
     fn commit_batch(&mut self) -> Result<(), BoxedError> {
         let batch = std::mem::take(&mut self.batch);
-        self.runtime.block_on(async {
+        self.runtime.clone().block_on(async {
             //Insert batch
             self.client
                 .insert_multi(&self.sink_table_name, &self.schema.fields, batch, None)
@@ -208,28 +177,6 @@ impl ClickhouseSink {
         })?;
 
         Ok(())
-    }
-
-    fn _get_latest_op(&mut self) -> Result<Option<OpIdentifier>, BoxedError> {
-        let op = self.runtime.block_on(async {
-            let mut client = self.client.get_client_handle().await?;
-            let table_name = self.sink_table_name.clone();
-            let query = format!("SELECT \"{META_TXN_ID_COL}\" FROM \"{REPLICA_METADATA_TABLE}\" WHERE \"{META_TABLE_COL}\" = '\"{table_name}\"' ORDER BY \"{META_TXN_ID_COL}\" LIMIT 1");
-            let block = client
-                .query(query)
-                .fetch_all()
-                .await?;
-
-            let row = block.rows().next();
-            match row {
-                Some(row) => {
-                    let txid: u64 = row.get(META_TXN_ID_COL)?;
-                    Ok::<Option<dozer_types::node::OpIdentifier>, BoxedError>(Some(OpIdentifier { txid, seq_in_tx: 0 }))
-                },
-                None => Ok::<Option<dozer_types::node::OpIdentifier>, BoxedError>(None),
-            }
-        })?;
-        Ok(op)
     }
 }
 
@@ -244,7 +191,7 @@ impl Sink for ClickhouseSink {
     }
 
     fn process(&mut self, op: TableOperation) -> Result<(), BoxedError> {
-        self.latest_txid = op.id.map(|id| id.txid);
+        self.latest_uncommited_op_id = op.id;
         match op.op {
             Operation::Insert { new } => {
                 if self.table.engine == "CollapsingMergeTree" {
@@ -305,21 +252,42 @@ impl Sink for ClickhouseSink {
         _connection_name: String,
         id: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
-        self.latest_txid = id.map(|opid| opid.txid);
+        self.latest_uncommited_op_id = id;
         self.commit_batch()?;
         Ok(())
     }
 
     fn set_source_state(&mut self, _source_state: &[u8]) -> Result<(), BoxedError> {
-        Ok(())
+        self.runtime
+            .block_on(async {
+                self.metadata
+                    .set_source_state(
+                        &self.client,
+                        self.sink_table_name.clone(),
+                        _source_state.to_vec(),
+                    )
+                    .await
+            })
+            .map_err(Into::into)
     }
 
     fn get_source_state(&mut self) -> Result<Option<Vec<u8>>, BoxedError> {
-        Ok(None)
+        self.runtime
+            .block_on(async {
+                self.metadata
+                    .get_source_state(&self.client, &self.sink_table_name)
+                    .await
+            })
+            .map_err(Into::into)
     }
 
     fn get_latest_op_id(&mut self) -> Result<Option<OpIdentifier>, BoxedError> {
-        // self.get_latest_op()
-        Ok(None)
+        self.runtime
+            .block_on(async {
+                self.metadata
+                    .get_op_id(&self.client, &self.sink_table_name)
+                    .await
+            })
+            .map_err(Into::into)
     }
 }
