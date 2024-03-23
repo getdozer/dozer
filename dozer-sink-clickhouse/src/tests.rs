@@ -20,6 +20,7 @@ fn get_sink_config() -> ClickhouseSinkConfig {
         database: "default".to_string(),
         host: "localhost".to_string(),
         port: 9000,
+        options: vec![],
     }
 }
 

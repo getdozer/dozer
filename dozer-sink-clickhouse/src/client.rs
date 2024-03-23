@@ -30,8 +30,14 @@ impl ClickhouseClient {
             None => config.user.to_string(),
         };
 
+        let options = config
+            .options
+            .iter()
+            .map(|(k, v)| format!("{}={}", k, v))
+            .collect::<Vec<String>>()
+            .join("&");
         let url = format!(
-            "{}://{}@{}:{}/{}",
+            "{}://{}@{}:{}/{}?{options}",
             config.scheme, user_password, config.host, config.port, config.database
         );
         debug!("{url}");

@@ -200,6 +200,7 @@ pub struct ClickhouseSinkConfig {
     pub scheme: String,
     #[serde(default = "ClickhouseSinkConfig::default_database")]
     pub database: String,
+    pub options: Vec<(String, String)>,
     pub source_table_name: String,
     pub sink_table_name: String,
     pub create_table_options: Option<ClickhouseTableOptions>,
