@@ -4,6 +4,7 @@ use crate::conditional::{get_conditional_expr_type, ConditionalExpressionType};
 use crate::datetime::{get_datetime_function_type, DateTimeFunctionType};
 use crate::error::Error;
 use crate::geo::common::{get_geo_function_type, GeoFunctionType};
+use crate::is_null::{evaluate_is_not_null, evaluate_is_null};
 use crate::json_functions::JsonFunctionType;
 use crate::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::scalar::common::{get_scalar_function_type, ScalarFunctionType};
@@ -83,6 +84,12 @@ pub enum Expression {
         conditions: Vec<Expression>,
         results: Vec<Expression>,
         else_result: Option<Box<Expression>>,
+    },
+    IsNull {
+        arg: Box<Expression>,
+    },
+    IsNotNull {
+        arg: Box<Expression>,
     },
     #[cfg(feature = "python")]
     PythonUDF {
@@ -278,6 +285,8 @@ impl Expression {
             }
             #[cfg(feature = "javascript")]
             Expression::JavaScriptUdf(udf) => udf.to_string(schema),
+            Expression::IsNull { arg } => arg.to_string(schema) + " IS NULL ",
+            Expression::IsNotNull { arg } => arg.to_string(schema) + " IS NOT NULL ",
         }
     }
 }
@@ -365,6 +374,8 @@ impl Expression {
                 results,
                 else_result,
             } => evaluate_case(schema, operand, conditions, results, else_result, record),
+            Expression::IsNull { arg } => evaluate_is_null(schema, arg, record),
+            Expression::IsNotNull { arg } => evaluate_is_not_null(schema, arg, record),
             #[cfg(feature = "javascript")]
             Expression::JavaScriptUdf(udf) => udf.evaluate(record, schema),
         }
@@ -476,6 +487,18 @@ impl Expression {
             )),
             #[cfg(feature = "javascript")]
             Expression::JavaScriptUdf(udf) => Ok(udf.get_type()),
+            Expression::IsNull { arg: _ } => Ok(ExpressionType::new(
+                FieldType::Boolean,
+                false,
+                SourceDefinition::Dynamic,
+                false,
+            )),
+            Expression::IsNotNull { arg: _ } => Ok(ExpressionType::new(
+                FieldType::Boolean,
+                false,
+                SourceDefinition::Dynamic,
+                false,
+            )),
         }
     }
 }
