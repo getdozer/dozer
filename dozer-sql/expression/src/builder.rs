@@ -185,6 +185,14 @@ impl ExpressionBuilder {
                 )
                 .await
             }
+            SqlExpr::IsNull(expr) => {
+                self.parse_sql_isnull_operator(parse_aggregations, &false, expr, schema, udfs)
+                    .await
+            }
+            SqlExpr::IsNotNull(expr) => {
+                self.parse_sql_isnull_operator(parse_aggregations, &true, expr, schema, udfs)
+                    .await
+            }
             _ => Err(Error::UnsupportedExpression(expression.clone())),
         }
     }
@@ -1013,6 +1021,25 @@ impl ExpressionBuilder {
         };
 
         Ok(in_list_expression)
+    }
+
+    async fn parse_sql_isnull_operator(
+        &mut self,
+        parse_aggregations: bool,
+        negated: &bool,
+        expr: &Expr,
+        schema: &Schema,
+        udfs: &[UdfConfig],
+    ) -> Result<Expression, Error> {
+        let arg = self
+            .parse_sql_expression(parse_aggregations, expr, schema, udfs)
+            .await?;
+
+        if *negated {
+            Ok(Expression::IsNotNull { arg: Box::new(arg) })
+        } else {
+            Ok(Expression::IsNull { arg: Box::new(arg) })
+        }
     }
 }
 

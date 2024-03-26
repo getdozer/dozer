@@ -10,6 +10,7 @@ pub mod error;
 pub mod execution;
 mod geo;
 mod in_list;
+mod is_null;
 mod json_functions;
 mod logical;
 mod mathematical;
