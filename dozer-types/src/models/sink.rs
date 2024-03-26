@@ -156,6 +156,7 @@ pub struct AerospikeDenormalizations {
 pub struct AerospikeSet {
     pub namespace: String,
     pub set: String,
+    pub primary_key: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, PartialEq, Eq)]
@@ -166,9 +167,12 @@ pub struct AerospikeSinkTable {
     pub set_name: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub denormalize: Vec<AerospikeDenormalizations>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub write_denormalized_to: Option<AerospikeSet>,
     #[serde(default)]
     pub primary_key: Vec<String>,
+    #[serde(default)]
+    pub aggregate_by_pk: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone)]

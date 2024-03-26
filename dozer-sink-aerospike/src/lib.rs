@@ -5,7 +5,7 @@ use denorm_dag::DenormalizationState;
 use dozer_core::event::EventHub;
 use dozer_types::log::error;
 use dozer_types::models::connection::AerospikeConnection;
-use dozer_types::node::OpIdentifier;
+use dozer_types::node::{OpIdentifier, SourceState};
 use dozer_types::thiserror;
 use itertools::Itertools;
 
@@ -15,8 +15,7 @@ use std::mem::MaybeUninit;
 use std::ptr::NonNull;
 use std::sync::Arc;
 
-use crate::aerospike::AerospikeError;
-use crate::denorm_dag::RecordBatch;
+use crate::aerospike::{AerospikeError, WriteBatch};
 
 mod aerospike;
 mod denorm_dag;
@@ -239,7 +238,6 @@ impl Drop for AsRecord<'_> {
 struct AerospikeSink {
     config: AerospikeSinkConfig,
     replication_worker: AerospikeSinkWorker,
-    current_transaction: Option<u64>,
     metadata_namespace: CString,
     metadata_set: CString,
     client: Arc<Client>,
@@ -252,7 +250,7 @@ struct AerospikeMetadata {
     client: Arc<Client>,
     key: NonNull<as_key>,
     record: NonNull<as_record>,
-    last_base_transaction: Option<u64>,
+    last_denorm_transaction: Option<u64>,
     last_lookup_transaction: Option<u64>,
 }
 
@@ -302,7 +300,7 @@ impl AerospikeMetadata {
                 client,
                 key,
                 record: NonNull::new(record).unwrap(),
-                last_base_transaction: base,
+                last_denorm_transaction: base,
                 last_lookup_transaction: lookup,
             })
         }
@@ -317,8 +315,8 @@ impl AerospikeMetadata {
         Ok(())
     }
 
-    fn write_base(&mut self, txid: TxnId) -> Result<(), AerospikeSinkError> {
-        self.last_base_transaction = Some(txid);
+    fn write_denorm(&mut self, txid: TxnId) -> Result<(), AerospikeSinkError> {
+        self.last_denorm_transaction = Some(txid);
         self.write(txid, constants::META_BASE_TXN_ID_BIN)?;
         Ok(())
     }
@@ -365,7 +363,6 @@ impl AerospikeSink {
         Ok(Self {
             config,
             replication_worker: worker_instance,
-            current_transaction: None,
             metadata_namespace,
             metadata_set,
             client,
@@ -390,7 +387,7 @@ impl AerospikeSinkWorker {
     fn commit(&mut self, txid: Option<u64>) -> Result<(), AerospikeSinkError> {
         match (
             txid,
-            self.metadata_writer.last_base_transaction,
+            self.metadata_writer.last_denorm_transaction,
             self.metadata_writer.last_lookup_transaction,
         ) {
                 (Some(current), Some(last_denorm), Some(last_lookup)) => {
@@ -440,9 +437,10 @@ impl AerospikeSinkWorker {
             .map(|table| table.records.len())
             .sum();
         // Write denormed tables
-        let mut batch = RecordBatch::new(batch_size_est as u32, batch_size_est as u32);
+        let mut batch = WriteBatch::new(&self.client, batch_size_est as u32, None);
         for table in denormalized_tables {
-            for (key, record) in table.records {
+            for record in table.records {
+                let key = table.pk.iter().map(|i| record[*i].clone()).collect_vec();
                 batch.add_write(
                     &table.namespace,
                     &table.set,
@@ -453,11 +451,11 @@ impl AerospikeSinkWorker {
             }
         }
 
-        unsafe { self.client.write_batch(batch.as_mut_ptr())? };
+        batch.execute()?;
 
         // Write denormed txid
         if let Some(txid) = txid {
-            self.metadata_writer.write_base(txid)?;
+            self.metadata_writer.write_denorm(txid)?;
         }
 
         self.state.persist(&self.client)?;
@@ -475,17 +473,23 @@ impl Sink for AerospikeSink {
         Ok(())
     }
 
-    fn commit(&mut self, _epoch_details: &dozer_core::epoch::Epoch) -> Result<(), BoxedError> {
-        self.replication_worker
-            .commit(self.current_transaction.take())?;
+    fn commit(&mut self, epoch_details: &dozer_core::epoch::Epoch) -> Result<(), BoxedError> {
+        let source_states = &epoch_details.common_info.source_states;
+        assert_eq!(source_states.len(), 1);
+        let txid = source_states.values().next().and_then(|source_state| {
+            if let SourceState::Restartable(op_id) = source_state {
+                Some(op_id.txid)
+            } else {
+                None
+            }
+        });
+        self.replication_worker.commit(txid)?;
         Ok(())
     }
 
     fn process(&mut self, op: TableOperation) -> Result<(), BoxedError> {
         // Set current transaction before any error can be thrown, so we don't
         // get stuck in an error loop if this error gets ignored by the caller
-        self.current_transaction = op.id.map(|id| id.txid);
-
         self.replication_worker.process(op)?;
         Ok(())
     }
@@ -671,6 +675,7 @@ mod tests {
                     denormalize: vec![],
                     write_denormalized_to: None,
                     primary_key: vec![],
+                    aggregate_by_pk: false,
                 }],
                 max_batch_duration_ms: None,
                 preferred_batch_size: None,
