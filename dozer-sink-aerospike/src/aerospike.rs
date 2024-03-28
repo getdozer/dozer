@@ -1,3 +1,4 @@
+use std::time::Instant;
 use std::{
     alloc::{handle_alloc_error, Layout},
     ffi::{c_char, c_void, CStr, CString, NulError},
@@ -9,6 +10,7 @@ use std::{
 use itertools::Itertools;
 
 use aerospike_client_sys::*;
+use dozer_types::log::debug;
 use dozer_types::{
     chrono::{DateTime, NaiveDate},
     geo::{Coord, Point},
@@ -147,7 +149,9 @@ impl Client {
             as_config_init(config.as_mut_ptr());
             config.assume_init()
         };
-        config.policies.batch.base.total_timeout = 10000;
+
+        config.policies.batch.base.total_timeout = 30000;
+        config.policies.batch.base.socket_timeout = 30000;
         config.policies.write.key = as_policy_key_e_AS_POLICY_KEY_SEND;
         config.policies.batch_write.key = as_policy_key_e_AS_POLICY_KEY_SEND;
         unsafe {
@@ -185,6 +189,7 @@ impl Client {
         if let Some(filter) = filter {
             policy.base.filter_exp = filter.as_ptr();
         }
+
         as_try(|err| {
             aerospike_key_put(
                 self.inner.as_ptr(),
@@ -204,6 +209,7 @@ impl Client {
     ) -> Result<(), AerospikeError> {
         let mut policy = self.inner.as_ref().config.policies.write;
         policy.exists = as_policy_exists_e_AS_POLICY_EXISTS_CREATE;
+
         self.put(key, new, policy, filter)
     }
 
@@ -252,7 +258,20 @@ impl Client {
         &self,
         batch: *mut as_batch_records,
     ) -> Result<(), AerospikeError> {
-        as_try(|err| aerospike_batch_write(self.inner.as_ptr(), err, std::ptr::null(), batch))
+        debug!(target: "aerospike_sink", "Writing batch of size {}", batch.as_ref().unwrap().list.size);
+
+        let started = Instant::now();
+        let policy = self.inner.as_ref().config.policies.batch;
+        as_try(|err| {
+            aerospike_batch_write(
+                self.inner.as_ptr(),
+                err,
+                &policy as *const as_policy_batch,
+                batch,
+            )
+        })?;
+        debug!(target: "aerospike_sink", "Batch write took {:?}", started.elapsed());
+        Ok(())
     }
 
     pub(crate) unsafe fn _select(

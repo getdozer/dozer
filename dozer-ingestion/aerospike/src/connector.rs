@@ -506,7 +506,7 @@ impl Connector for AerospikeConnector {
                                         } else {
                                             FieldType::String
                                         },
-                                        nullable: true,
+                                        nullable: name != "PK",
                                         source: Default::default(),
                                     })
                                     .collect(),

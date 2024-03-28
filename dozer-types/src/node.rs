@@ -117,6 +117,16 @@ pub enum SourceState {
     Restartable(OpIdentifier),
 }
 
+impl SourceState {
+    pub fn op_id(&self) -> Option<&OpIdentifier> {
+        if let Self::Restartable(op_id) = self {
+            Some(op_id)
+        } else {
+            None
+        }
+    }
+}
+
 /// Map from a `Source` node's handle to it state.
 ///
 /// This uniquely identifies the state of the Dozer pipeline.

@@ -33,7 +33,7 @@ pub struct Connector {
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("oracle error: {0}")]
+    #[error("oracle error: {0:?}")]
     Oracle(#[from] oracle::Error),
     #[error("pdb not found: {0}")]
     PdbNotFound(String),
@@ -264,6 +264,7 @@ impl Connector {
             let columns = table.column_names.join(", ");
             let owner = table.schema.unwrap_or_else(|| self.username.clone());
             let sql = format!("SELECT {} FROM {}.{}", columns, owner, table.name);
+            debug!("{}", sql);
             let rows = self.connection.query(&sql, &[])?;
 
             let mut batch = Vec::with_capacity(self.batch_size);
