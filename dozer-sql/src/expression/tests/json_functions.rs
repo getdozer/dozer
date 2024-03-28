@@ -38,6 +38,34 @@ fn test_json_value() {
     );
 
     assert_eq!(f, Field::Json(String::from("Bristol").into()));
+
+    let town = "Bristol";
+    let f = run_fct(
+        "SELECT JSON_OBJECT('id: user.id', 'town: user.town', 'town_2: Bristol') as info FROM users",
+        Schema::default()
+            .field(
+                FieldDefinition::new(
+                    String::from("id"),
+                    FieldType::Int,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .field(
+                FieldDefinition::new(
+                    String::from("town"),
+                    FieldType::String,
+                    false,
+                    SourceDefinition::Dynamic,
+                ),
+                false,
+            )
+            .clone(),
+        vec![Field::Int(1), Field::String(town.to_string())],
+    );
+
+    assert_eq!(f, Field::Json(json!({"id": 1, "town": "Bristol", "town_2": "Bristol"})));
 }
 
 #[test]
