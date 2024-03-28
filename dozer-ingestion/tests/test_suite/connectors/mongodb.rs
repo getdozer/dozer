@@ -101,7 +101,7 @@ async fn create_mongodb_server() -> (mongodb::Database, MongodbConnectorTest, Mo
             None,
         )
         .await
-        .expect("Failed to initalize replSet");
+        .expect("Failed to initialize replSet");
 
     let client = mongodb::Client::with_options(connection_options.clone()).unwrap();
     let db = client.default_database().unwrap();

@@ -18,7 +18,7 @@ pub fn commit(
     transaction_forest.remove_subtree(xid, |_, ops| operations.extend(ops));
 
     if xid == pxid {
-        // This is a top level transaciton
+        // This is a top level transaction
         Some(Transaction {
             commit_scn: scn,
             commit_timestamp: timestamp,
