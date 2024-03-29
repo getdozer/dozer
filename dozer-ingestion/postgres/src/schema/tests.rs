@@ -152,12 +152,16 @@ async fn test_connector_view_cannot_be_used() {
     };
 
     let result = schema_helper.get_schemas(&[table_info]).await;
-    assert!(result.is_err(), "Result is not an error. Result: {:?}", result);
+    assert!(
+        result.is_err(),
+        "Result is not an error. Result: {:?}",
+        result
+    );
     assert!(matches!(
-        result.unwrap().get(0).unwrap(),
-        PostgresConnectorError::PostgresSchemaError(
+        result.unwrap().first().unwrap(),
+        Err(PostgresConnectorError::PostgresSchemaError(
             PostgresSchemaError::UnsupportedTableType(_, _)
-        )
+        ))
     ));
 
     let table_info = ListOrFilterColumns {
@@ -166,7 +170,7 @@ async fn test_connector_view_cannot_be_used() {
         columns: Some(vec![]),
     };
     let result = schema_helper.get_schemas(&[table_info]).await;
-    assert!(result.unwrap().get(0).is_ok());
+    assert!(result.unwrap().first().unwrap().is_ok());
 
     client.drop_schema(&schema).await;
 }
