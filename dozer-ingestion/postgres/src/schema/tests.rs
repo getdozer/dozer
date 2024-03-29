@@ -153,7 +153,7 @@ async fn test_connector_view_cannot_be_used() {
 
     let result = schema_helper.get_schemas(&[table_info]).await;
     assert!(
-        result.unwrap().first().is_err(),
+        result.as_ref().unwrap().first().unwrap().is_err(),
         "Result is not an error. Result: {:?}",
         result
     );
