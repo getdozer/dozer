@@ -2,8 +2,9 @@ use std::time::Instant;
 use std::{
     alloc::{handle_alloc_error, Layout},
     ffi::{c_char, c_void, CStr, CString, NulError},
+    fmt::Display,
     mem::MaybeUninit,
-    ptr::{addr_of, NonNull},
+    ptr::{addr_of, addr_of_mut, NonNull},
     slice,
 };
 
@@ -18,7 +19,7 @@ use dozer_types::{
     ordered_float::OrderedFloat,
     rust_decimal::prelude::*,
     thiserror,
-    types::{DozerDuration, DozerPoint, Field, Record, Schema},
+    types::{DozerDuration, DozerPoint, Field, Schema},
 };
 
 use crate::{denorm_dag::Error, AerospikeSinkError};
@@ -62,10 +63,10 @@ impl BinNames {
         &self.storage
     }
 
-    pub(crate) fn new<I: IntoIterator<Item = impl AsRef<str>>>(names: I) -> Result<Self, NulError> {
+    pub(crate) fn new<'a, I: IntoIterator<Item = &'a str>>(names: I) -> Result<Self, NulError> {
         let storage: Vec<CString> = names
             .into_iter()
-            .map(|name| CString::new(name.as_ref()))
+            .map(CString::new)
             .collect::<Result<_, _>>()?;
         let ptrs = Self::make_ptrs(&storage);
         Ok(Self {
@@ -312,7 +313,6 @@ impl Client {
         &self,
         batch: *mut as_batch_records,
     ) -> Result<(), AerospikeError> {
-        dbg!("Batch get {} records", (*batch).list.size);
         as_try(|err| aerospike_batch_read(self.inner.as_ptr(), err, std::ptr::null(), batch))
     }
 
@@ -476,9 +476,6 @@ unsafe fn init_key_single(
             Field::U128(v) => set_str_key(key, namespace, set, v.to_string(), allocated_strings),
             Field::I128(v) => set_str_key(key, namespace, set, v.to_string(), allocated_strings),
             Field::Decimal(v) => set_str_key(key, namespace, set, v.to_string(), allocated_strings),
-            // For keys, we need to allocate a new CString, because there is no
-            // API to set a key to a string that's not null-terminated. For bin
-            // values, we can. XXX: possible point for optimization
             Field::Text(string) | Field::String(string) => {
                 set_str_key(key, namespace, set, string.clone(), allocated_strings);
             }
@@ -516,98 +513,72 @@ unsafe fn init_key_single(
     Ok(())
 }
 
-unsafe fn rec_set_str(
-    record: *mut as_record,
-    name: *const c_char,
-    string: String,
+unsafe fn map_set_str(
+    map: *mut as_orderedmap,
+    key: *const as_val,
+    string: impl Display,
     allocated_strings: &mut Vec<String>,
 ) {
-    rec_set_bytes(
-        record,
-        name,
-        string.as_bytes(),
-        as_bytes_type_e_AS_BYTES_STRING,
-    );
+    let string = format!("{string}\0");
+
+    let cstr = CStr::from_bytes_with_nul(string.as_bytes()).unwrap();
+    let val =
+        as_string_new_wlen(cstr.as_ptr() as *mut c_char, string.len(), false) as *const as_val;
+    as_orderedmap_set(map, key, val);
     allocated_strings.push(string);
 }
 
-unsafe fn rec_set_bytes(
-    record: *mut as_record,
-    name: *const c_char,
-    bytes: &[u8],
-    type_: as_bytes_type,
-) {
-    let ptr = bytes.as_ptr();
-    let len = bytes.len();
-    as_record_set_raw_typep(record, name, ptr, len as u32, type_, false);
-}
-
-#[allow(unused)]
-pub(crate) unsafe fn init_record(
-    record: *mut as_record,
-    dozer_record: &Record,
+pub(crate) unsafe fn new_record_map(
+    dozer_record: &[Field],
     bin_names: &[CString],
-    n_extra_cols: u16,
     allocated_strings: &mut Vec<String>,
-) -> Result<(), AerospikeSinkError> {
-    as_record_init(
-        record,
-        dozer_record.values.len() as u16 + n_extra_cols /* denorm */ + 2, /* tx_id and seq */
-    );
-    for (def, field) in bin_names.iter().zip(&dozer_record.values) {
-        let name = def.as_ptr();
+) -> Result<*mut as_orderedmap, AerospikeSinkError> {
+    let map = check_alloc(as_orderedmap_new(bin_names.len().try_into().unwrap()));
+    for (def, field) in bin_names.iter().zip(dozer_record) {
+        let key = check_alloc(as_string_new_strdup(def.as_ptr())) as *const as_val;
         match field {
             Field::UInt(v) => {
-                as_record_set_int64(record, name, *v as i64);
-            }
-            Field::U128(v) => {
-                rec_set_str(record, name, v.to_string(), allocated_strings);
-            }
-            Field::Int(v) => {
-                as_record_set_int64(record, name, *v);
-            }
-            Field::I128(v) => {
-                rec_set_str(record, name, v.to_string(), allocated_strings);
-            }
-            Field::Float(OrderedFloat(v)) => {
-                as_record_set_double(record, name, *v);
-            }
-            Field::Boolean(v) => {
-                as_record_set_bool(record, name, *v);
-            }
-            Field::String(v) | Field::Text(v) => {
-                as_record_set_raw_typep(
-                    record,
-                    name,
-                    v.as_ptr(),
-                    v.len() as u32,
-                    as_bytes_type_e_AS_BYTES_STRING,
-                    false,
+                as_orderedmap_set(
+                    map,
+                    key,
+                    check_alloc(as_integer_new((*v).try_into().unwrap())) as *const as_val,
                 );
             }
+            Field::U128(v) => {
+                map_set_str(map, key, v, allocated_strings);
+            }
+            Field::Int(v) => {
+                as_orderedmap_set(map, key, check_alloc(as_integer_new(*v)) as *const as_val);
+            }
+            Field::I128(v) => {
+                map_set_str(map, key, v, allocated_strings);
+            }
+            Field::Float(OrderedFloat(v)) => {
+                as_orderedmap_set(map, key, check_alloc(as_double_new(*v)) as *const as_val);
+            }
+            Field::Boolean(v) => {
+                as_orderedmap_set(map, key, check_alloc(as_boolean_new(*v)) as *const as_val);
+            }
+            Field::String(v) | Field::Text(v) => {
+                map_set_str(map, key, v, allocated_strings);
+            }
             Field::Binary(v) => {
-                as_record_set_rawp(record, name, v.as_ptr(), v.len() as u32, false);
+                let bytes = check_alloc(as_bytes_new(v.len().try_into().unwrap()));
+                as_bytes_set(bytes, 0, v.as_ptr(), v.len().try_into().unwrap());
+                as_orderedmap_set(map, key, bytes as *const as_val);
             }
             Field::Decimal(v) => {
-                rec_set_str(record, name, v.to_string(), allocated_strings);
+                map_set_str(map, key, v, allocated_strings);
             }
             Field::Timestamp(v) => {
-                rec_set_str(record, name, v.to_rfc3339(), allocated_strings);
+                map_set_str(map, key, v.to_rfc3339(), allocated_strings);
             }
             // Date's display implementation is RFC3339 compatible
             Field::Date(v) => {
-                rec_set_str(record, name, v.to_string(), allocated_strings);
-            }
-            Field::Duration(DozerDuration(duration, _)) => {
-                rec_set_str(
-                    record,
-                    name,
-                    format!("PT{},{:09}S", duration.as_secs(), duration.subsec_nanos()),
-                    allocated_strings,
-                );
+                map_set_str(map, key, v, allocated_strings);
             }
             Field::Null => {
-                as_record_set_nil(record, name);
+                as_orderedmap_set(map, key, addr_of!(as_nil) as *const as_val);
             }
             // XXX: Geojson points have to have coordinates <90. Dozer points can
             // be arbitrary locations.
@@ -616,20 +587,34 @@ pub(crate) unsafe fn init_record(
                 // a plain string format. Instead, we just make sure we include a nul-byte
                 // in our regular string, as that is easiest to integration with the other
                 // string allocations.
-                let string = format!(
-                    r#"{{"type": "Point", "coordinates": [{}, {}]}}{}"#,
-                    x.0, y.0, '\0'
+                map_set_str(
+                    map,
+                    key,
+                    format_args!(r#"{{"type": "Point", "coordinates": [{}, {}]}}"#, x.0, y.0),
+                    allocated_strings,
                 );
-                as_record_set_geojson_strp(record, name, string.as_ptr().cast(), false);
-                allocated_strings.push(string);
+                // Parsing is unimplemented and it's better to fail early
+                unimplemented!();
             }
             Field::Json(v) => {
-                let value = convert_json(v)?;
-                as_record_set(record, name, value);
+                let val = convert_json(v)? as *const as_val;
+                as_orderedmap_set(map, key, val);
+                // Parsing is unimplemented and it's better to fail early
+                unimplemented!();
+            }
+            Field::Duration(DozerDuration(duration, _)) => {
+                map_set_str(
+                    map,
+                    key,
+                    format_args!("PT{},{:09}S", duration.as_secs(), duration.subsec_nanos()),
+                    allocated_strings,
+                );
+                // Parsing is unimplemented and it's better to fail early
+                unimplemented!();
             }
         }
     }
-    Ok(())
+    Ok(map)
 }
 
 unsafe fn set_operation_str(
@@ -741,6 +726,42 @@ fn map<T>(val: *mut as_val, typ: as_val_type_e, f: impl FnOnce(&T) -> Option<Fie
         .unwrap_or(Field::Null)
 }
 
+pub(crate) fn parse_record_many(
+    record: &as_record,
+    schema: &Schema,
+    list_bin: &CStr,
+    bin_names: &BinNames,
+) -> Result<Vec<Vec<Field>>, Error> {
+    unsafe {
+        let list = as_record_get_list(record, list_bin.as_ptr());
+        let n_recs = as_list_size(list);
+
+        let mut result = Vec::with_capacity(n_recs as usize);
+        for elem in (0..n_recs).map(|i| as_list_get_map(list, i)) {
+            if elem.is_null() {
+                continue;
+            }
+
+            let mut values = Vec::with_capacity(schema.fields.len());
+            for (field, name) in schema.fields.iter().zip(bin_names.names()) {
+                let mut string = MaybeUninit::uninit();
+                let key = as_string_init(string.as_mut_ptr(), name.as_ptr() as *mut c_char, false);
+                let val = as_map_get(elem, key as *const as_val);
+                as_string_destroy(&mut string.assume_init() as *mut as_string);
+                let v = parse_val(val, field)?;
+                values.push(v);
+            }
+            result.push(values);
+        }
+        Ok(result)
+    }
+}
+
+#[inline(always)]
+unsafe fn as_string_destroy(string: *mut as_string_s) {
+    as_val_val_destroy(string as *mut as_val);
+}
+
 pub(crate) fn parse_record(
     record: &as_record,
     schema: &Schema,
@@ -750,99 +771,106 @@ pub(crate) fn parse_record(
     let mut values = Vec::with_capacity(schema.fields.len());
     for (field, name) in schema.fields.iter().zip(bin_names.names()) {
         let val = unsafe { as_record_get(record, name.as_ptr()) as *mut as_val };
-        let v = if val.is_null() {
-            Field::Null
-        } else {
-            match field.typ {
-                dozer_types::types::FieldType::UInt => {
-                    map(val, as_val_type_e_AS_INTEGER, |v: &as_integer| {
-                        Some(Field::UInt(v.value.to_u64()?))
-                    })
-                }
-                dozer_types::types::FieldType::U128 => {
-                    map(val, as_val_type_e_AS_STRING, |v: &as_string| {
-                        Some(Field::U128(unsafe {
-                            CStr::from_ptr(v.value).to_str().ok()?.parse().ok()?
-                        }))
-                    })
-                }
-                dozer_types::types::FieldType::Int => {
-                    map(val, as_val_type_e_AS_INTEGER, |v: &as_integer| {
-                        Some(Field::Int(v.value))
-                    })
-                }
-                dozer_types::types::FieldType::I128 => {
-                    map(val, as_val_type_e_AS_STRING, |v: &as_string| {
-                        Some(Field::I128(unsafe {
-                            CStr::from_ptr(v.value).to_str().ok()?.parse().ok()?
-                        }))
-                    })
-                }
-                dozer_types::types::FieldType::Float => {
-                    map(val, as_val_type_e_AS_DOUBLE, |v: &as_double| {
-                        Some(Field::Float(OrderedFloat(v.value)))
-                    })
-                }
-                dozer_types::types::FieldType::Boolean => {
-                    map(val, as_val_type_e_AS_BOOLEAN, |v: &as_boolean| {
-                        Some(Field::Boolean(v.value))
-                    })
-                }
-                dozer_types::types::FieldType::String => {
-                    map(val, as_val_type_e_AS_STRING, |v: &as_string| {
-                        Some(Field::String(
-                            unsafe { CStr::from_ptr(v.value) }.to_str().ok()?.to_owned(),
-                        ))
-                    })
-                }
-                dozer_types::types::FieldType::Text => {
-                    map(val, as_val_type_e_AS_STRING, |v: &as_string| {
-                        Some(Field::Text(
-                            unsafe { CStr::from_ptr(v.value) }.to_str().ok()?.to_owned(),
-                        ))
-                    })
-                }
-                dozer_types::types::FieldType::Binary => {
-                    map(val, as_val_type_e_AS_BYTES, |v: &as_bytes| {
-                        Some(Field::Binary(unsafe {
-                            slice::from_raw_parts(v.value, v.size as usize).to_vec()
-                        }))
-                    })
-                }
-                dozer_types::types::FieldType::Decimal => {
-                    map(val, as_val_type_e_AS_STRING, |v: &as_string| {
-                        Some(Field::Decimal(unsafe {
-                            CStr::from_ptr(v.value).to_str().ok()?.parse().ok()?
-                        }))
-                    })
-                }
-                dozer_types::types::FieldType::Timestamp => {
-                    map(val, as_val_type_e_AS_STRING, |v: &as_string| {
-                        Some(Field::Timestamp(unsafe {
-                            DateTime::parse_from_rfc3339(CStr::from_ptr(v.value).to_str().ok()?)
-                                .ok()?
-                        }))
-                    })
-                }
-
-                dozer_types::types::FieldType::Date => {
-                    map(val, as_val_type_e_AS_STRING, |v: &as_string| {
-                        Some(Field::Date(unsafe {
-                            NaiveDate::from_str(CStr::from_ptr(v.value).to_str().ok()?).ok()?
-                        }))
-                    })
-                }
-                dozer_types::types::FieldType::Point => unimplemented!(),
-                dozer_types::types::FieldType::Duration => unimplemented!(),
-                dozer_types::types::FieldType::Json => unimplemented!(),
-            }
-        };
-        if !field.nullable && v == Field::Null {
-            return Err(Error::NotNullNotFound);
-        }
+        let v = parse_val(val, field)?;
         values.push(v);
     }
     Ok(values)
+}
+
+fn parse_val(
+    val: *mut as_val_s,
+    field: &dozer_types::types::FieldDefinition,
+) -> Result<Field, Error> {
+    let v = if val.is_null() {
+        Field::Null
+    } else {
+        match field.typ {
+            dozer_types::types::FieldType::UInt => {
+                map(val, as_val_type_e_AS_INTEGER, |v: &as_integer| {
+                    Some(Field::UInt(v.value.to_u64()?))
+                })
+            }
+            dozer_types::types::FieldType::U128 => {
+                map(val, as_val_type_e_AS_STRING, |v: &as_string| {
+                    Some(Field::U128(unsafe {
+                        CStr::from_ptr(v.value).to_str().ok()?.parse().ok()?
+                    }))
+                })
+            }
+            dozer_types::types::FieldType::Int => {
+                map(val, as_val_type_e_AS_INTEGER, |v: &as_integer| {
+                    Some(Field::Int(v.value))
+                })
+            }
+            dozer_types::types::FieldType::I128 => {
+                map(val, as_val_type_e_AS_STRING, |v: &as_string| {
+                    Some(Field::I128(unsafe {
+                        CStr::from_ptr(v.value).to_str().ok()?.parse().ok()?
+                    }))
+                })
+            }
+            dozer_types::types::FieldType::Float => {
+                map(val, as_val_type_e_AS_DOUBLE, |v: &as_double| {
+                    Some(Field::Float(OrderedFloat(v.value)))
+                })
+            }
+            dozer_types::types::FieldType::Boolean => {
+                map(val, as_val_type_e_AS_BOOLEAN, |v: &as_boolean| {
+                    Some(Field::Boolean(v.value))
+                })
+            }
+            dozer_types::types::FieldType::String => {
+                map(val, as_val_type_e_AS_STRING, |v: &as_string| {
+                    Some(Field::String(
+                        unsafe { CStr::from_ptr(v.value) }.to_str().ok()?.to_owned(),
+                    ))
+                })
+            }
+            dozer_types::types::FieldType::Text => {
+                map(val, as_val_type_e_AS_STRING, |v: &as_string| {
+                    Some(Field::Text(
+                        unsafe { CStr::from_ptr(v.value) }.to_str().ok()?.to_owned(),
+                    ))
+                })
+            }
+            dozer_types::types::FieldType::Binary => {
+                map(val, as_val_type_e_AS_BYTES, |v: &as_bytes| {
+                    Some(Field::Binary(unsafe {
+                        slice::from_raw_parts(v.value, v.size as usize).to_vec()
+                    }))
+                })
+            }
+            dozer_types::types::FieldType::Decimal => {
+                map(val, as_val_type_e_AS_STRING, |v: &as_string| {
+                    Some(Field::Decimal(unsafe {
+                        CStr::from_ptr(v.value).to_str().ok()?.parse().ok()?
+                    }))
+                })
+            }
+            dozer_types::types::FieldType::Timestamp => {
+                map(val, as_val_type_e_AS_STRING, |v: &as_string| {
+                    Some(Field::Timestamp(unsafe {
+                        DateTime::parse_from_rfc3339(CStr::from_ptr(v.value).to_str().ok()?).ok()?
+                    }))
+                })
+            }
+
+            dozer_types::types::FieldType::Date => {
+                map(val, as_val_type_e_AS_STRING, |v: &as_string| {
+                    Some(Field::Date(unsafe {
+                        NaiveDate::from_str(CStr::from_ptr(v.value).to_str().ok()?).ok()?
+                    }))
+                })
+            }
+            dozer_types::types::FieldType::Point => unimplemented!(),
+            dozer_types::types::FieldType::Duration => unimplemented!(),
+            dozer_types::types::FieldType::Json => unimplemented!(),
+        }
+    };
+    if !field.nullable && v == Field::Null {
+        return Err(Error::NotNullNotFound);
+    }
+    Ok(v)
 }
 
 #[inline(always)]
@@ -860,6 +888,7 @@ fn as_util_fromval<T>(v: *mut as_val, typ: as_val_type_e) -> Option<NonNull<T>> 
 unsafe fn as_vector_reserve(vector: *mut as_vector) -> *mut c_void {
     if (*vector).size >= (*vector).capacity {
         as_vector_increase_capacity(vector);
+        check_alloc((*vector).list);
     }
     let item = (*vector)
         .list
@@ -927,5 +956,266 @@ impl AsOperations {
 impl Drop for AsOperations {
     fn drop(&mut self) {
         unsafe { as_operations_destroy(self.0) }
+    }
+}
+
+macro_rules! as_util_hook {
+    ($hook:tt, $default:expr, $object:expr $(,$($arg:tt),*)?) => {{
+        if !$object.is_null() && !(*$object).hooks.is_null() && (*(*$object).hooks).$hook.is_some() {
+            (*(*$object).hooks).$hook.unwrap()($object, $($($arg)*)?)
+        } else {
+            $default
+        }
+        }};
+}
+
+#[inline(always)]
+unsafe fn as_list_size(list: *const as_list) -> u32 {
+    as_util_hook!(size, 0, list)
+}
+
+#[inline(always)]
+unsafe fn as_list_get(list: *const as_list, i: u32) -> *const as_val {
+    as_util_hook!(get, std::ptr::null(), list, i)
+}
+
+#[inline(always)]
+unsafe fn as_list_get_map(list: *const as_list, i: u32) -> *const as_map {
+    let val = as_list_get(list, i);
+    if !val.is_null() && (*val).type_ as u32 == as_val_type_e_AS_MAP {
+        val as *const as_map
+    } else {
+        std::ptr::null()
+    }
+}
+
+#[inline(always)]
+unsafe fn as_map_get(map: *const as_map, key: *const as_val) -> *mut as_val {
+    as_util_hook!(get, std::ptr::null_mut(), map, key)
+}
+
+pub(crate) struct ReadBatchResults {
+    recs: AsBatchRecords,
+}
+
+impl ReadBatchResults {
+    fn vector(&self) -> *const as_vector {
+        &self.recs.as_ref().list
+    }
+
+    pub(crate) fn get(&self, idx: usize) -> Result<Option<&as_record>, AerospikeError> {
+        let rec = unsafe {
+            assert!(idx < (*self.vector()).size as usize);
+            let rec = as_vector_get(self.vector(), idx) as *const as_batch_read_record;
+            rec.as_ref().unwrap()
+        };
+
+        #[allow(non_upper_case_globals)]
+        match rec.result {
+            as_status_e_AEROSPIKE_OK => Ok(Some(&rec.record)),
+            as_status_e_AEROSPIKE_ERR_RECORD_NOT_FOUND => Ok(None),
+            other => Err(AerospikeError::from_code(other)),
+        }
+    }
+}
+
+pub(crate) struct ReadBatch<'a> {
+    client: &'a Client,
+    inner: Option<AsBatchRecords>,
+    allocated_strings: Vec<String>,
+    read_ops: usize,
+}
+
+impl<'a> ReadBatch<'a> {
+    fn reserve_read(&mut self) -> *mut as_batch_read_record {
+        unsafe { check_alloc(as_batch_read_reserve(self.inner.as_mut().unwrap().as_ptr())) }
+    }
+
+    pub(crate) fn add_read_all(
+        &mut self,
+        namespace: &CStr,
+        set: &CStr,
+        key: &[Field],
+    ) -> Result<usize, AerospikeSinkError> {
+        let idx = self.read_ops;
+        let read_rec = self.reserve_read();
+        unsafe {
+            init_key(
+                addr_of_mut!((*read_rec).key),
+                namespace,
+                set,
+                key,
+                &mut self.allocated_strings,
+            )?;
+            (*read_rec).read_all_bins = true;
+        }
+        self.read_ops += 1;
+        Ok(idx)
+    }
+
+    pub(crate) fn execute(mut self) -> Result<ReadBatchResults, AerospikeError> {
+        unsafe { self.client.batch_get(self.inner.as_mut().unwrap().as_ptr()) }?;
+
+        Ok(ReadBatchResults {
+            recs: self.inner.take().unwrap(),
+        })
+    }
+
+    pub(crate) fn new(
+        client: &'a Client,
+        capacity: u32,
+        allocated_strings: Option<Vec<String>>,
+    ) -> Self {
+        Self {
+            client,
+            inner: Some(AsBatchRecords::new(capacity)),
+            allocated_strings: allocated_strings.unwrap_or_default(),
+            read_ops: 0,
+        }
+    }
+}
+
+struct AsBatchRecords(NonNull<as_batch_records>);
+
+impl AsBatchRecords {
+    fn new(capacity: u32) -> Self {
+        // Capacity needs to be at least 1, otherwise growing the vector will fail
+        // because it uses naive doubling of the capacity. We use rustc's heuristic
+        // for the minimum size of the vector (4 if the size of the element <= 1024)
+        // to save some re-allocations for small vectors.
+        let capacity = capacity.max(4);
+        unsafe { Self(NonNull::new(as_batch_records_create(capacity)).unwrap()) }
+    }
+
+    fn as_ref(&self) -> &as_batch_records {
+        unsafe { self.0.as_ref() }
+    }
+
+    fn as_ptr(&mut self) -> *mut as_batch_records {
+        self.0.as_ptr()
+    }
+}
+
+pub(crate) struct WriteBatch<'a> {
+    client: &'a Client,
+    inner: Option<AsBatchRecords>,
+    allocated_strings: Vec<String>,
+    operations: Vec<AsOperations>,
+}
+
+impl<'a> WriteBatch<'a> {
+    pub(crate) fn new(
+        client: &'a Client,
+        capacity: u32,
+        allocated_strings: Option<Vec<String>>,
+    ) -> Self {
+        Self {
+            client,
+            inner: Some(AsBatchRecords::new(capacity)),
+            allocated_strings: allocated_strings.unwrap_or_default(),
+            operations: Vec::with_capacity(capacity as usize),
+        }
+    }
+
+    fn batch_ptr(&mut self) -> *mut as_batch_records {
+        self.inner.as_mut().unwrap().as_ptr()
+    }
+
+    pub(crate) fn reserve_write(&mut self) -> *mut as_batch_write_record {
+        unsafe { check_alloc(as_batch_write_reserve(self.batch_ptr())) }
+    }
+
+    pub(crate) fn reserve_remove(&mut self) -> *mut as_batch_remove_record {
+        unsafe { check_alloc(as_batch_remove_reserve(self.batch_ptr())) }
+    }
+
+    pub(crate) fn add_write(
+        &mut self,
+        namespace: &CStr,
+        set: &CStr,
+        bin_names: &[CString],
+        key: &[Field],
+        values: &[Field],
+    ) -> Result<(), AerospikeSinkError> {
+        let write_rec = self.reserve_write();
+        unsafe {
+            init_key(
+                addr_of_mut!((*write_rec).key),
+                namespace,
+                set,
+                key,
+                &mut self.allocated_strings,
+            )?;
+            let mut ops = AsOperations::new(values.len().try_into().unwrap());
+            init_batch_write_operations(
+                ops.as_mut_ptr(),
+                values,
+                bin_names,
+                &mut self.allocated_strings,
+            )?;
+            (*write_rec).ops = ops.as_mut_ptr();
+            self.operations.push(ops);
+        }
+        Ok(())
+    }
+
+    pub(crate) fn add_write_list(
+        &mut self,
+        namespace: &CStr,
+        set: &CStr,
+        bin: &CStr,
+        key: &[Field],
+        bin_names: &[CString],
+        values: &[Vec<Field>],
+    ) -> Result<(), AerospikeSinkError> {
+        let write_rec = self.reserve_write();
+        unsafe {
+            init_key(
+                addr_of_mut!((*write_rec).key),
+                namespace,
+                set,
+                key,
+                &mut self.allocated_strings,
+            )?;
+            let mut ops = AsOperations::new(1);
+            let list = as_arraylist_new(values.len().try_into().unwrap(), 0);
+            for record in values {
+                let map = new_record_map(record, bin_names, &mut self.allocated_strings)?;
+                as_arraylist_append(list, map as *mut as_val);
+            }
+            as_operations_add_write(ops.as_mut_ptr(), bin.as_ptr(), list as *mut as_bin_value);
+            (*write_rec).ops = ops.as_mut_ptr();
+            self.operations.push(ops);
+        }
+        Ok(())
+    }
+
+    pub(crate) fn add_remove(
+        &mut self,
+        namespace: &CStr,
+        set: &CStr,
+        key: &[Field],
+    ) -> Result<(), AerospikeSinkError> {
+        let remove_rec = self.reserve_remove();
+        unsafe {
+            init_key(
+                addr_of_mut!((*remove_rec).key),
+                namespace,
+                set,
+                key,
+                &mut self.allocated_strings,
+            )?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn execute(mut self) -> Result<(), AerospikeError> {
+        unsafe { self.client.write_batch(self.inner.take().unwrap().as_ptr()) }
+    }
+}
+
+impl Drop for AsBatchRecords {
+    fn drop(&mut self) {
+        unsafe { as_batch_records_destroy(self.0.as_ptr()) }
     }
 }
