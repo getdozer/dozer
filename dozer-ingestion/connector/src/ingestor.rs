@@ -1,5 +1,11 @@
 use dozer_types::models::ingestion_types::IngestionMessage;
-use std::{error::Error, fmt::Display, time::Duration};
+use futures::Stream;
+use std::{
+    error::Error,
+    fmt::Display,
+    sync::{atomic::AtomicBool, Arc},
+    time::Duration,
+};
 use tokio::{
     sync::mpsc::{channel, Receiver, Sender},
     time::timeout,
@@ -28,6 +34,17 @@ impl Iterator for IngestionIterator {
     type Item = IngestionMessage;
     fn next(&mut self) -> Option<Self::Item> {
         self.receiver.blocking_recv()
+    }
+}
+
+impl Stream for IngestionIterator {
+    type Item = IngestionMessage;
+
+    fn poll_next(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        self.receiver.poll_recv(cx)
     }
 }
 
@@ -75,6 +92,17 @@ impl Ingestor {
 
     pub fn is_closed(&self) -> bool {
         self.sender.is_closed()
+    }
+
+    pub async fn closed(&self) -> Arc<AtomicBool> {
+        let bool = Arc::new(AtomicBool::new(false));
+        let sender = self.sender.clone();
+        let shared_bool = bool.clone();
+        tokio::spawn(async move {
+            sender.closed().await;
+            shared_bool.store(true, std::sync::atomic::Ordering::SeqCst);
+        });
+        bool
     }
 }
 

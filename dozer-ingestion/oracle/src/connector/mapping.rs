@@ -13,7 +13,7 @@ use dozer_ingestion_connector::{
 };
 use oracle::Row;
 
-use super::{join::Column, Error};
+use super::{join::Column, Error, Result};
 
 #[derive(Debug, Clone, Copy)]
 pub struct MappedColumn {
@@ -41,7 +41,7 @@ fn map_data_type(
     nullable: Option<&str>,
     precision: Option<i64>,
     scale: Option<i64>,
-) -> Result<MappedColumn, DataTypeError> {
+) -> Result<MappedColumn> {
     let data_type = data_type.ok_or_else(|| DataTypeError::ColumnDataTypeIsNull {
         schema: schema.to_string(),
         table_name: table_name.to_string(),
@@ -77,7 +77,7 @@ fn map_data_type(
     Ok(MappedColumn { typ, nullable })
 }
 
-pub fn map_row(schema: &Schema, row: Row) -> Result<Record, Error> {
+pub fn map_row(schema: &Schema, row: Row) -> Result<Record> {
     if schema.fields.len() != row.sql_values().len() {
         return Err(Error::ColumnCountMismatch {
             expected: schema.fields.len(),
@@ -90,11 +90,11 @@ pub fn map_row(schema: &Schema, row: Row) -> Result<Record, Error> {
         .iter()
         .enumerate()
         .map(|(index, field)| map_field(index, field, &row))
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect::<Result<Vec<_>>>()?;
     Ok(Record::new(values))
 }
 
-fn map_field(index: usize, field: &FieldDefinition, row: &Row) -> Result<Field, Error> {
+fn map_field(index: usize, field: &FieldDefinition, row: &Row) -> Result<Field> {
     Ok(match (field.typ, field.nullable) {
         (FieldType::Int, true) => row
             .get::<_, Option<i64>>(index)?
@@ -136,15 +136,15 @@ fn map_field(index: usize, field: &FieldDefinition, row: &Row) -> Result<Field, 
         (FieldType::Timestamp, false) => {
             Field::Timestamp(row.get::<_, DateTime<Utc>>(index)?.fixed_offset())
         }
-        _ => unreachable!(),
+        _ => unimplemented!(),
     })
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct MappedColumnResult {
     pub is_primary_key: bool,
     pub is_used: bool,
-    pub map_result: Result<MappedColumn, DataTypeError>,
+    pub map_result: Result<MappedColumn>,
 }
 
 pub type ColumnMap = HashMap<String, MappedColumnResult>;
@@ -192,7 +192,7 @@ pub fn decide_schema(
     table_name: String,
     column_names: &[String],
     mut columns: ColumnMap,
-) -> Result<SourceSchema, Error> {
+) -> Result<SourceSchema> {
     let mut fields = vec![];
     let mut primary_index = vec![];
     for column_name in column_names {
@@ -235,7 +235,7 @@ pub fn decide_schema(
                 },
                 description: None,
             }),
-            Err(err) => return Err(Error::DataType(err.clone())),
+            Err(err) => return Err(err.clone()),
         }
     }
 

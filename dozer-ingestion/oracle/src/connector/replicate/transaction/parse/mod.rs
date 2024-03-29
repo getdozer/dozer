@@ -6,16 +6,14 @@ use dozer_ingestion_connector::dozer_types::{
 };
 use fxhash::FxHashMap;
 
-use crate::connector::{
-    replicate::transaction::{map::map_row, parse::insert::DmlParser},
-    Error,
-};
+use crate::connector::replicate::transaction::{map::map_row, parse::insert::DmlParser};
 
 use super::{
     aggregate::{OperationKind, RawOperation, Transaction},
     ParsedTransaction,
 };
 pub type ParsedRow<'a> = Vec<Option<Cow<'a, str>>>;
+use crate::connector::{Error, Result};
 
 #[derive(Debug, Clone)]
 struct TableInfo {
@@ -59,14 +57,14 @@ impl Parser {
     pub fn process<'a>(
         &'a self,
         iterator: impl Iterator<Item = Transaction> + 'a,
-    ) -> impl Iterator<Item = Result<ParsedTransaction, Error>> + 'a {
+    ) -> impl Iterator<Item = Result<ParsedTransaction>> + 'a {
         Processor {
             iterator,
             parser: self,
         }
     }
 
-    fn parse(&self, operation: RawOperation) -> Result<Option<(usize, Operation)>, Error> {
+    fn parse(&self, operation: RawOperation) -> Result<Option<(usize, Operation)>> {
         let table_pair = (operation.seg_owner, operation.table_name);
         let Some(&table_info) = self.table_infos.get(&table_pair).as_ref() else {
             trace!(
@@ -118,7 +116,7 @@ struct Processor<'a, I: Iterator<Item = Transaction>> {
 }
 
 impl<'a, I: Iterator<Item = Transaction>> Iterator for Processor<'a, I> {
-    type Item = Result<ParsedTransaction, Error>;
+    type Item = Result<ParsedTransaction>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let transaction = self.iterator.next()?;

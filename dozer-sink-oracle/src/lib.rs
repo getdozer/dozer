@@ -861,6 +861,7 @@ impl Sink for OracleSink {
 mod tests {
     use super::*;
     use dozer_core::tokio;
+    use dozer_types::models::ingestion_types::LogMinerConfig;
 
     fn trim_str(s: impl AsRef<str>) -> String {
         s.as_ref()
@@ -925,10 +926,12 @@ mod tests {
                 pdb: Some("ORCLPDB1".into()),
                 schemas: vec![],
                 batch_size: None,
-                replicator: dozer_types::models::ingestion_types::OracleReplicator::LogMiner {
-                    poll_interval_in_milliseconds: 0,
-                    fetch_batch_size: None,
-                },
+                replicator: dozer_types::models::ingestion_types::OracleReplicator::LogMiner(
+                    LogMinerConfig {
+                        poll_interval_in_milliseconds: 0,
+                        ..Default::default()
+                    },
+                ),
             },
             OracleSinkConfig {
                 connection: "".into(),

@@ -1,152 +1,214 @@
-use dozer_ingestion_connector::dozer_types::log::{debug, warn};
-use oracle::Connection;
+use std::{collections::HashSet, time::Duration};
 
-use crate::connector::{Error, Scn};
+use dozer_ingestion_connector::dozer_types::log::debug;
+use oracle::{
+    sql_type::{FromSql, OracleType, ToSql},
+    Connection, RowValue, Statement,
+};
 
-#[derive(Debug, Clone)]
-pub struct ArchivedLog {
-    pub name: String,
-    pub sequence: u32,
-    pub first_change: Scn,
-    pub next_change: Scn,
+use crate::connector::{Error, Result, Scn};
+
+pub(super) struct LogCollector<'a> {
+    connection: &'a Connection,
 }
 
-impl ArchivedLog {
-    pub fn list(connection: &Connection, start_scn: Scn) -> Result<Vec<ArchivedLog>, Error> {
-        let sql = "SELECT NAME, SEQUENCE#, FIRST_CHANGE#, NEXT_CHANGE# FROM V$ARCHIVED_LOG WHERE NEXT_CHANGE# > :start_scn AND STATUS = 'A' ORDER BY SEQUENCE# ASC";
-        debug!("{}, {}", sql, start_scn);
-        let rows = connection
-            .query_as::<(String, u32, Scn, Scn)>(sql, &[&start_scn])
-            .unwrap();
+#[repr(u8)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub(super) enum LogType {
+    Online = 0,
+    Archived = 1,
+}
 
-        let mut result = vec![];
-        for row in rows {
-            let (name, sequence, first_change, next_change) = row?;
-            let log = ArchivedLog {
-                name,
-                sequence,
-                first_change,
-                next_change,
-            };
-            if is_continuous(result.last(), &log) {
-                result.push(log);
-            }
+impl FromSql for LogType {
+    fn from_sql(val: &oracle::SqlValue) -> oracle::Result<Self>
+    where
+        Self: Sized,
+    {
+        let v: u8 = val.get()?;
+        Ok(v.into())
+    }
+}
+
+impl ToSql for LogType {
+    fn oratype(&self, _conn: &Connection) -> oracle::Result<oracle::sql_type::OracleType> {
+        Ok(OracleType::Number(1, 0))
+    }
+
+    fn to_sql(&self, val: &mut oracle::SqlValue) -> oracle::Result<()> {
+        val.set(&(*self as u8))
+    }
+}
+
+impl From<u8> for LogType {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => Self::Online,
+            1 => Self::Archived,
+            _ => unreachable!("Invalid value for `LogType`: {value}"),
         }
-
-        Ok(result)
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct Log {
-    pub group: u32,
-    pub sequence: u32,
-    pub first_change: Scn,
-    pub next_change: Scn,
-}
-
-impl Log {
-    pub fn list(connection: &Connection, start_scn: Scn) -> Result<Vec<Log>, Error> {
-        let sql = "SELECT GROUP#, SEQUENCE#, FIRST_CHANGE#, NEXT_CHANGE# FROM V$LOG WHERE NEXT_CHANGE# > :start_scn ORDER BY SEQUENCE# ASC";
-        debug!("{}, {}", sql, start_scn);
-        let rows = connection
-            .query_as::<(u32, u32, Scn, Scn)>(sql, &[&start_scn])
-            .unwrap();
-
-        let mut result = vec![];
-        for row in rows {
-            let (group, sequence, first_change, next_change) = row?;
-            let log = Log {
-                group,
-                sequence,
-                first_change,
-                next_change,
-            };
-            if is_continuous(result.last(), &log) {
-                result.push(log);
-            }
-        }
-
-        Ok(result)
+impl<'a> LogCollector<'a> {
+    pub(super) fn new(connection: &'a Connection) -> Self {
+        Self { connection }
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct LogFile {
-    pub group: u32,
-    pub member: String,
+#[derive(Debug)]
+pub(super) struct Logs {
+    logs: Vec<ArchivedLog>,
+    sequences: HashSet<u32>,
 }
 
-impl LogFile {
-    pub fn list(connection: &Connection) -> Result<Vec<LogFile>, Error> {
-        let sql = "SELECT GROUP#, MEMBER FROM V$LOGFILE WHERE STATUS IS NULL";
-        debug!("{}", sql);
-        let rows = connection.query_as::<(u32, String)>(sql, &[]).unwrap();
+impl<'a> IntoIterator for &'a Logs {
+    type Item = &'a ArchivedLog;
 
-        let mut result = vec![];
-        for row in rows {
-            let (group, member) = row?;
-            let log_file = LogFile { group, member };
-            result.push(log_file);
-        }
+    type IntoIter = std::slice::Iter<'a, ArchivedLog>;
 
-        Ok(result)
+    fn into_iter(self) -> Self::IntoIter {
+        self.logs.iter()
     }
 }
 
-pub trait HasLogIdentifier {
-    fn sequence(&self) -> u32;
-    fn first_change(&self) -> Scn;
-    fn next_change(&self) -> Scn;
-}
-
-impl HasLogIdentifier for ArchivedLog {
-    fn sequence(&self) -> u32 {
-        self.sequence
-    }
-
-    fn first_change(&self) -> Scn {
-        self.first_change
-    }
-
-    fn next_change(&self) -> Scn {
-        self.next_change
+impl PartialEq for Logs {
+    fn eq(&self, other: &Self) -> bool {
+        self.sequences == other.sequences
     }
 }
 
-impl HasLogIdentifier for Log {
-    fn sequence(&self) -> u32 {
-        self.sequence
-    }
-
-    fn first_change(&self) -> Scn {
-        self.first_change
-    }
-
-    fn next_change(&self) -> Scn {
-        self.next_change
+impl Logs {
+    fn new(logs: Vec<ArchivedLog>) -> Self {
+        let sequences: HashSet<u32> = logs.iter().map(|log| log.sequence).collect();
+        // No duplicates allowed
+        assert_eq!(sequences.len(), logs.len());
+        Self { logs, sequences }
     }
 }
 
-pub fn is_continuous(
-    last_log: Option<&impl HasLogIdentifier>,
-    current_log: &impl HasLogIdentifier,
-) -> bool {
-    let Some(last_log) = last_log else {
-        return true;
-    };
+impl LogCollector<'_> {
+    fn get_logs_stmt(&self, start_scn: Scn) -> Result<Statement> {
+        let online_sql = r#"
+        select 
+            MIN(F.MEMBER)       as NAME,
+            LOG.FIRST_CHANGE#   as FIRST_CHANGE,
+            LOG.NEXT_CHANGE#    as NEXT_CHANGE,
+            :online_type        as TYPE,
+            LOG.SEQUENCE#       as SEQUENCE
+        from
+            V$LOG LOG
+        inner join V$LOGFILE F 
+            on LOG.GROUP# = F.GROUP#
+        left join V$ARCHIVED_LOG ALOG 
+            on 
+                ALOG.FIRST_CHANGE# = LOG.FIRST_CHANGE#
+                and
+                ALOG.NEXT_CHANGE# = LOG.NEXT_CHANGE#
+        where
+            LOG.STATUS != 'UNUSED'
+            and
+            (LOG.STATUS = 'CURRENT' or LOG.NEXT_CHANGE# >= :online_scn)
+            and
+            -- Exclude online logs that are also archived and get them
+            -- from the archive instead
+            (ALOG.STATUS <> 'A' OR ALOG.FIRST_CHANGE# IS NULL)
+        group by
+            LOG.GROUP#, LOG.FIRST_CHANGE#, LOG.NEXT_CHANGE#, LOG.STATUS, 
+            LOG.ARCHIVED, LOG.SEQUENCE#
+        "#;
 
-    let sequence_is_continuous = last_log.sequence() + 1 == current_log.sequence();
-    let scn_is_continuous = last_log.next_change() == current_log.first_change();
+        let archived_sql = r"
+        select 
+            NAME            as NAME,
+            FIRST_CHANGE#   as FIRST_CHANGE,
+            NEXT_CHANGE#    as NEXT_CHANGE,
+            :archive_type   as TYPE,
+            SEQUENCE#       as SEQUENCE
+        from
+            V$ARCHIVED_LOG
+        where
+            NAME is not null
+            and
+            STATUS = 'A'
+            and
+            NEXT_CHANGE# > :archive_scn
+            -- and
+            -- If the log is archived to multiple destinations, just take the 
+            -- first valid local one, to prevent duplicates
+            -- DEST_ID in (select DEST_ID from V$ARCHIVE_DEST_STATUS where STATUS = 'VALID' and TYPE = 'LOCAL' AND ROWNUM = 1)
+        ";
 
-    if sequence_is_continuous != scn_is_continuous {
-        warn!(
-            "Log {} has next change {}, but log {} has first change {}",
-            last_log.sequence(),
-            last_log.next_change(),
-            current_log.sequence(),
-            current_log.first_change()
+        let sql = format!(
+            r"
+        {online_sql} 
+        union 
+        {archived_sql} 
+        order by SEQUENCE"
         );
+
+        let mut stmt = self.connection.statement(&sql).build()?;
+        stmt.bind("online_scn", &start_scn)?;
+        stmt.bind("archive_scn", &start_scn)?;
+        stmt.bind("online_type", &LogType::Online)?;
+        stmt.bind("archive_type", &LogType::Archived)?;
+        Ok(stmt)
     }
-    sequence_is_continuous && scn_is_continuous
+
+    fn get_logs_inner(&self, start_scn: Scn) -> Result<Vec<ArchivedLog>> {
+        let mut stmt = self.get_logs_stmt(start_scn)?;
+        let values = stmt
+            .query_as::<ArchivedLog>(&[])?
+            .map(|v| v.map_err(Into::into))
+            .collect::<Result<Vec<_>>>()?;
+        let (mut online, mut archive) = values
+            .into_iter()
+            .partition::<Vec<_>, _>(|value| value.r#type == LogType::Online);
+        for online_log in &online {
+            archive.retain(|archive_log| archive_log.sequence != online_log.sequence);
+        }
+        online.append(&mut archive);
+        online.sort_unstable_by_key(|log| log.sequence);
+        // This is basically slice::array_windows::<2>(), but that is not stable
+        // yet
+        /*
+                for i in 0..online.len() - 1 {
+                    if online[i].sequence != online[i + 1].sequence {
+                        online.truncate(i+1);
+                        break;
+                    }
+                }
+        */
+        Ok(online)
+    }
+
+    pub(super) fn get_logs(&self, start_scn: Scn) -> Result<Logs> {
+        let mut delay = Duration::from_millis(10);
+        let max_time = Duration::from_secs(60);
+        let mut total = Duration::ZERO;
+        while total < max_time {
+            let logs = self.get_logs_inner(start_scn);
+            match logs {
+                Ok(logs) if !logs.is_empty() => {
+                    debug!("Found {} logs for SCN {start_scn}", logs.len());
+                    return Ok(Logs::new(logs));
+                }
+                Ok(_) => {
+                    debug!("No logs available for SCN {start_scn}. Retrying..");
+                    std::thread::sleep(delay);
+                    total += delay;
+                    delay *= 2;
+                }
+                Err(e) => return Err(e),
+            }
+        }
+        Err(Error::NoLogsFound(start_scn))
+    }
+}
+
+#[derive(Debug, Clone, RowValue)]
+pub(super) struct ArchivedLog {
+    pub(super) name: String,
+    pub(super) sequence: u32,
+    #[row_value(rename = "type")]
+    pub(super) r#type: LogType,
 }

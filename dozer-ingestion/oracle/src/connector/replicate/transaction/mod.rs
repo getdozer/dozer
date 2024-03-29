@@ -5,9 +5,9 @@ use dozer_ingestion_connector::dozer_types::{
     types::{Operation, Schema},
 };
 
-use crate::connector::{Error, Scn};
+use crate::connector::{Result, Scn};
 
-use super::log::LogManagerContent;
+use super::log::LogMinerContent;
 
 #[derive(Debug, Clone)]
 pub struct ParsedTransaction {
@@ -36,8 +36,8 @@ impl Processor {
 
     pub fn process<'a>(
         &'a self,
-        iterator: impl IntoIterator<Item = LogManagerContent> + 'a,
-    ) -> impl Iterator<Item = Result<ParsedTransaction, Error>> + 'a {
+        iterator: impl IntoIterator<Item = LogMinerContent> + 'a,
+    ) -> impl Iterator<Item = Result<ParsedTransaction>> + 'a {
         let csf = csf::process(iterator.into_iter());
         let transaction = self.aggregator.process(csf);
         self.parser.process(transaction)

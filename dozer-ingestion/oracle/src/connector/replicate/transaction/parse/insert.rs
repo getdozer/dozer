@@ -35,7 +35,6 @@ impl<'a> DmlParser<'a> {
     pub(super) fn parse_insert(&mut self) -> Option<ParsedRow> {
         self.remaining = self.remaining.get(INSERT_INTO.len()..)?;
         self.parse_table_name()?;
-
         let parsed_col_names = self.parse_column_names()?;
         self.parse_column_values(parsed_col_names)
     }

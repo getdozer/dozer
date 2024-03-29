@@ -1,10 +1,10 @@
 use oracle::Connection;
 
-use crate::connector::{Error, Scn};
+use crate::connector::{Result, Scn};
 
 /// Given a log file name, a redo reader emits `LogManagerContent` rows
-pub(crate) trait RedoReader {
-    type Iterator<'a>: Iterator<Item = Result<LogManagerContent, Error>>;
+pub trait RedoReader {
+    type Iterator<'a>: Iterator<Item = Result<LogMinerContent>>;
 
     /// Reads the `LogManagerContent` rows that have:
     ///
@@ -15,11 +15,11 @@ pub(crate) trait RedoReader {
         log_file_name: &str,
         last_scn: Option<Scn>,
         con_id: Option<u32>,
-    ) -> Result<Self::Iterator<'a>, Error>;
+    ) -> Result<Self::Iterator<'a>>;
 }
 
 mod log_miner;
 
-pub(crate) use log_miner::LogMiner;
+pub(super) use log_miner::{add_logfiles, LogMinerSession};
 
-use super::LogManagerContent;
+use super::LogMinerContent;

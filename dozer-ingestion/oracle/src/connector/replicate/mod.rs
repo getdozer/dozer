@@ -1,5 +1,5 @@
 mod log;
 pub mod transaction;
 
-pub use log::log_miner_loop;
-pub use transaction::Processor;
+pub(crate) use log::log_miner_loop;
+pub(crate) use transaction::Processor;

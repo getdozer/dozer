@@ -20,9 +20,17 @@ impl<Id, T: Default> Default for Node<Id, T> {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Forest<Id, T> {
     nodes: HashMap<Id, Node<Id, T>>,
+}
+
+impl<Id, T> Default for Forest<Id, T> {
+    fn default() -> Self {
+        Self {
+            nodes: HashMap::default(),
+        }
+    }
 }
 
 impl<Id: Eq + Hash, T> Forest<Id, T> {

@@ -1,38 +1,92 @@
-use std::time::Instant;
 use std::{sync::mpsc::SyncSender, time::Duration};
 
-use dozer_ingestion_connector::dozer_types::log::debug;
-use dozer_ingestion_connector::{
-    dozer_types::{
-        chrono::{DateTime, Utc},
-        log::{error, info},
-    },
-    Ingestor,
-};
-use oracle::Connection;
+use dozer_ingestion_connector::dozer_types::chrono::{DateTime, Utc};
+use dozer_ingestion_connector::dozer_types::models::ingestion_types::LogMinerConfig;
+use dozer_ingestion_connector::Ingestor;
 
-use crate::connector::{Error, Scn};
+use dozer_ingestion_connector::dozer_types::log::debug;
+
+use oracle::{sql_type::FromSql, Connection, RowValue};
+
+use crate::connector::{
+    replicate::log::{
+        listing::LogCollector,
+        redo::{add_logfiles, LogMinerSession},
+    },
+    Result, Scn,
+};
 
 mod listing;
-mod merge;
 mod redo;
 
-pub type TransactionId = [u8; 8];
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) struct TransactionId([u8; 8]);
 
-#[derive(Debug, Clone)]
+impl FromSql for TransactionId {
+    fn from_sql(val: &oracle::SqlValue) -> oracle::Result<Self>
+    where
+        Self: Sized,
+    {
+        let v: Vec<u8> = val.get()?;
+        Ok(Self(v.try_into().unwrap()))
+    }
+}
+
+const SCN_GAP_MIN_SIZE: Scn = 1_000_000;
+
+const OP_CODE_INSERT: u8 = 1;
+const OP_CODE_DELETE: u8 = 2;
+const OP_CODE_UPDATE: u8 = 3;
+const OP_CODE_DDL: u8 = 5;
+const OP_CODE_COMMIT: u8 = 7;
+const OP_CODE_MISSING_SCN: u8 = 34;
+const OP_CODE_ROLLBACK: u8 = 36;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub(crate) enum OperationType {
+    Insert = OP_CODE_INSERT,
+    Delete = OP_CODE_DELETE,
+    Update = OP_CODE_UPDATE,
+    Ddl = OP_CODE_DDL,
+    Commit = OP_CODE_COMMIT,
+    Rollback = OP_CODE_ROLLBACK,
+    MissingScn = OP_CODE_MISSING_SCN,
+    Unsupported,
+}
+
+impl FromSql for OperationType {
+    fn from_sql(val: &oracle::SqlValue) -> oracle::Result<Self>
+    where
+        Self: Sized,
+    {
+        let v: u8 = val.get()?;
+        Ok(match v {
+            OP_CODE_INSERT => Self::Insert,
+            OP_CODE_DELETE => Self::Delete,
+            OP_CODE_UPDATE => Self::Update,
+            OP_CODE_DDL => Self::Ddl,
+            OP_CODE_COMMIT => Self::Commit,
+            OP_CODE_MISSING_SCN => Self::MissingScn,
+            OP_CODE_ROLLBACK => Self::Rollback,
+            _ => Self::Unsupported,
+        })
+    }
+}
+
+#[derive(Debug, Clone, RowValue)]
 /// This is a raw row from V$LOGMNR_CONTENTS
-pub struct LogManagerContent {
+pub struct LogMinerContent {
     pub scn: Scn,
     pub timestamp: DateTime<Utc>,
     pub xid: TransactionId,
     pub pxid: TransactionId,
-    pub operation_code: u8,
+    #[row_value(rename = "operation_code")]
+    pub operation_type: OperationType,
     pub seg_owner: Option<String>,
     pub table_name: Option<String>,
-    pub rbasqn: u32,
     pub sql_redo: Option<String>,
     pub csf: u8,
-    pub received: Instant,
 }
 
 /// `ingestor` is only used for checking if ingestion has ended so we can break the loop.
@@ -40,122 +94,114 @@ pub fn log_miner_loop(
     connection: &Connection,
     start_scn: Scn,
     con_id: Option<u32>,
-    poll_interval: Duration,
-    fetch_batch_size: u32,
-    sender: SyncSender<LogManagerContent>,
+    config: LogMinerConfig,
+    sender: SyncSender<LogMinerContent>,
     ingestor: &Ingestor,
-) {
-    log_reader_loop(
-        connection,
-        start_scn,
-        con_id,
-        poll_interval,
-        redo::LogMiner { fetch_batch_size },
-        sender,
-        ingestor,
-    )
+) -> Result<()> {
+    log_reader_loop(connection, start_scn, con_id, config, sender, ingestor)
+}
+
+macro_rules! ora_try {
+    ($ingestor:expr, $expr:expr, $msg:literal $(,$param:expr)*) => {{
+        match $expr {
+            Ok(v) => v,
+            Err(e) => {
+                let e: crate::connector::Error = e.into();
+            if $ingestor.is_closed() {
+                return Ok(());
+            }
+            dozer_ingestion_connector::dozer_types::log::error!($msg, e, $($param),*);
+            continue;
+        }
+        }
+    }};
 }
 
 fn log_reader_loop(
     connection: &Connection,
     mut start_scn: Scn,
     con_id: Option<u32>,
-    poll_interval: Duration,
-    reader: impl redo::RedoReader,
-    sender: SyncSender<LogManagerContent>,
+    config: LogMinerConfig,
+    sender: SyncSender<LogMinerContent>,
     ingestor: &Ingestor,
-) {
-    let mut last_scn = start_scn - 1;
-
+) -> Result<()> {
+    let log_collector = LogCollector::new(connection);
+    let mut logs = log_collector.get_logs(start_scn)?;
+    let mut added_files = add_logfiles(connection, &logs)?;
+    let mut mining_session: LogMinerSession;
     loop {
-        debug!(target: "oracle_replication", "Listing logs starting from SCN {}", start_scn);
-        let mut logs = match list_logs(connection, start_scn) {
-            Ok(logs) => logs,
-            Err(e) => {
-                if ingestor.is_closed() {
-                    return;
-                }
-                error!("Error listing logs: {}. Retrying.", e);
-                continue;
-            }
+        if ingestor.is_closed() {
+            break;
+        }
+        let cur_scn: Scn = ora_try!(
+            ingestor,
+            connection.query_row_as("SELECT current_scn FROM V$DATABASE", &[]),
+            "Error getting current scn: {0}"
+        );
+
+        let end_scn = if cur_scn - start_scn > SCN_GAP_MIN_SIZE {
+            cur_scn
+        } else {
+            start_scn + config.scn_batch_size
         };
 
-        if logs.is_empty() {
-            if ingestor.is_closed() {
-                return;
-            }
-            info!("No logs found, retrying after {:?}", poll_interval);
-            std::thread::sleep(poll_interval);
-            continue;
-        }
-
-        'replicate_logs: while !logs.is_empty() {
-            let log = logs.remove(0);
-            debug!(target: "oracle_replication",
-                "Reading log {} ({}) ({}, {}), starting from {}",
-                log.name, log.sequence, log.first_change, log.next_change, last_scn
-            );
-
-            let iterator = {
-                match reader.read(connection, &log.name, Some(last_scn), con_id) {
-                    Ok(iterator) => iterator,
-                    Err(e) => {
-                        if ingestor.is_closed() {
-                            return;
-                        }
-                        error!("Error reading log {}: {}. Retrying.", log.name, e);
-                        break 'replicate_logs;
-                    }
-                }
-            };
-
-            for content in iterator {
-                let content = match content {
-                    Ok(content) => content,
-                    Err(e) => {
-                        if ingestor.is_closed() {
-                            return;
-                        }
-                        error!("Error reading log {}: {}. Retrying.", log.name, e);
-                        break 'replicate_logs;
-                    }
-                };
-                last_scn = content.scn;
-                if sender.send(content).is_err() {
-                    return;
-                }
-            }
-
-            if logs.is_empty() {
-                if ingestor.is_closed() {
-                    return;
-                }
-                debug!(target: "oracle_replication", "Read all logs, retrying after {:?}", poll_interval);
-                std::thread::sleep(poll_interval);
-            } else {
-                // If there are more logs, we need to start from the next log's first change.
-                start_scn = log.next_change;
-                last_scn = start_scn - 1;
-            }
-        }
-    }
-}
-
-fn list_logs(connection: &Connection, start_scn: Scn) -> Result<Vec<listing::ArchivedLog>, Error> {
-    let logs = merge::list_and_join_online_log(connection, start_scn)?;
-    if !log_contains_scn(logs.first(), start_scn) {
-        info!(
-            "Online log is empty or doesn't contain start scn {}, listing and merging archived logs",
-            start_scn
+        // Start logminer
+        debug!("Starting session");
+        mining_session = ora_try!(
+            ingestor,
+            LogMinerSession::start(
+                connection,
+                start_scn,
+                end_scn,
+                config.fetch_batch_size,
+                &added_files
+            ),
+            "Error creating log miner session: {}"
         );
-        merge::list_and_merge_archived_log(connection, start_scn, logs)
-    } else {
-        Ok(logs)
-    }
-}
 
-fn log_contains_scn(log: Option<&listing::ArchivedLog>, scn: Scn) -> bool {
-    log.map_or(false, |log| {
-        log.first_change <= scn && log.next_change > scn
-    })
+        let mut stmt = ora_try!(
+            ingestor,
+            mining_session.stmt(con_id),
+            "Error creating log miner statement: {}"
+        );
+        let results: oracle::ResultSet<LogMinerContent> = ora_try!(
+            ingestor,
+            stmt.query_as(&[]),
+            "Error fetching log contents: {0}"
+        );
+
+        for result in results {
+            let r = ora_try!(ingestor, result, "error reading log entry: {}");
+            if r.operation_type != OperationType::MissingScn {
+                start_scn = r.scn;
+            }
+
+            let Ok(_) = sender.send(r) else {
+                return Ok(());
+            };
+        }
+        std::thread::sleep(Duration::from_millis(config.poll_interval_in_milliseconds));
+
+        let new_logs = ora_try!(
+            ingestor,
+            log_collector.get_logs(start_scn),
+            "Error listing logs: {0}"
+        );
+
+        if new_logs != logs {
+            // We end the session here to do some clean up to avoid very
+            // long-running logminer sessions, which might leak resources.
+            let end_result = mining_session.end(added_files);
+            added_files = loop {
+                break ora_try!(
+                    ingestor,
+                    add_logfiles(connection, &new_logs),
+                    "Error adding log files: {}"
+                );
+            };
+            ora_try!(ingestor, end_result, "Error ending mining session: {}");
+            logs = new_logs;
+        }
+    }
+    Ok(())
 }

@@ -1325,6 +1325,31 @@
         }
       }
     },
+    "LogMinerConfig": {
+      "type": "object",
+      "required": [
+        "fetch_batch_size",
+        "poll_interval_in_milliseconds",
+        "scn_batch_size"
+      ],
+      "properties": {
+        "fetch_batch_size": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "poll_interval_in_milliseconds": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "scn_batch_size": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      }
+    },
     "MongodbConfig": {
       "examples": [
         {
@@ -1450,25 +1475,7 @@
           ],
           "properties": {
             "LogMiner": {
-              "type": "object",
-              "required": [
-                "poll_interval_in_milliseconds"
-              ],
-              "properties": {
-                "fetch_batch_size": {
-                  "type": [
-                    "integer",
-                    "null"
-                  ],
-                  "format": "uint32",
-                  "minimum": 0.0
-                },
-                "poll_interval_in_milliseconds": {
-                  "type": "integer",
-                  "format": "uint64",
-                  "minimum": 0.0
-                }
-              }
+              "$ref": "#/definitions/LogMinerConfig"
             }
           },
           "additionalProperties": false

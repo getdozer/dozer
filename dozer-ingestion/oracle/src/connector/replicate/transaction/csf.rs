@@ -1,24 +1,24 @@
 //! Handles the Continuation SQL flag in V$LOGMNR_CONTENTS.
 
-use crate::connector::replicate::log::LogManagerContent;
+use crate::connector::replicate::log::LogMinerContent;
 
 /// Output items is guaranteed to have CSF = 0.
 pub fn process(
-    iterator: impl Iterator<Item = LogManagerContent>,
-) -> impl Iterator<Item = LogManagerContent> {
+    iterator: impl Iterator<Item = LogMinerContent>,
+) -> impl Iterator<Item = LogMinerContent> {
     Processor {
         iterator,
         pending: None,
     }
 }
 
-struct Processor<I: Iterator<Item = LogManagerContent>> {
+struct Processor<I: Iterator<Item = LogMinerContent>> {
     iterator: I,
-    pending: Option<LogManagerContent>,
+    pending: Option<LogMinerContent>,
 }
 
-impl<I: Iterator<Item = LogManagerContent>> Iterator for Processor<I> {
-    type Item = LogManagerContent;
+impl<I: Iterator<Item = LogMinerContent>> Iterator for Processor<I> {
+    type Item = LogMinerContent;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {

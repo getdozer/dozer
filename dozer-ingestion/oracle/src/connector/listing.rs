@@ -2,7 +2,7 @@ use dozer_ingestion_connector::dozer_types::log::debug;
 use oracle::Connection;
 use std::collections::HashSet;
 
-use super::Error;
+use super::Result;
 
 #[derive(Debug, Clone)]
 pub struct TableColumn {
@@ -16,10 +16,7 @@ pub struct TableColumn {
 }
 
 impl TableColumn {
-    pub fn list(
-        connection: &Connection,
-        table_names: &[String],
-    ) -> Result<Vec<TableColumn>, Error> {
+    pub fn list(connection: &Connection, table_names: &[String]) -> Result<Vec<TableColumn>> {
         assert!(!table_names.is_empty());
         let sql = "
         SELECT OWNER, TABLE_NAME, COLUMN_NAME, DATA_TYPE, NULLABLE, DATA_PRECISION, DATA_SCALE
@@ -86,10 +83,7 @@ pub struct ConstraintColumn {
 }
 
 impl ConstraintColumn {
-    pub fn list(
-        connection: &Connection,
-        table_names: &[String],
-    ) -> Result<Vec<ConstraintColumn>, Error> {
+    pub fn list(connection: &Connection, table_names: &[String]) -> Result<Vec<ConstraintColumn>> {
         assert!(!table_names.is_empty());
         let sql = "
         SELECT
@@ -127,7 +121,7 @@ pub struct Constraint {
 }
 
 impl Constraint {
-    pub fn list(connection: &Connection, table_names: &[String]) -> Result<Vec<Constraint>, Error> {
+    pub fn list(connection: &Connection, table_names: &[String]) -> Result<Vec<Constraint>> {
         assert!(!table_names.is_empty());
         let sql = "
         SELECT

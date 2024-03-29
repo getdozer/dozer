@@ -7,11 +7,11 @@ use dozer_ingestion_connector::dozer_types::{
 };
 use memchr::memchr;
 
-use crate::connector::{Error, ParseDateError};
+use crate::connector::{Error, ParseDateError, Result};
 
 use super::parse::ParsedRow;
 
-pub fn map_row(row: ParsedRow, schema: &Schema) -> Result<Record, Error> {
+pub fn map_row(row: ParsedRow, schema: &Schema) -> Result<Record> {
     let mut values = vec![];
     for (field, value) in schema.fields.iter().zip(row) {
         if field.name == "INGESTED_AT" {
@@ -27,12 +27,7 @@ pub fn map_row(row: ParsedRow, schema: &Schema) -> Result<Record, Error> {
     Ok(Record::new(values))
 }
 
-fn map_value(
-    value: Option<Cow<str>>,
-    typ: FieldType,
-    nullable: bool,
-    name: &str,
-) -> Result<Field, Error> {
+fn map_value(value: Option<Cow<str>>, typ: FieldType, nullable: bool, name: &str) -> Result<Field> {
     let Some(string) = value else {
         if nullable {
             return Ok(Field::Null);
@@ -72,7 +67,7 @@ fn map_value(
     }
 }
 
-fn parse_date(string: &str) -> Result<NaiveDate, ParseDateError> {
+fn parse_date(string: &str) -> std::result::Result<NaiveDate, ParseDateError> {
     const TO_DATE: &str = "TO_DATE('";
 
     let date = string.get(TO_DATE.len()..).ok_or(ParseDateError::Oracle)?;
@@ -80,7 +75,7 @@ fn parse_date(string: &str) -> Result<NaiveDate, ParseDateError> {
     Ok(NaiveDate::parse_from_str(&date[..end], "%d-%m-%Y")?)
 }
 
-fn parse_date_time(string: &str) -> Result<DateTime<FixedOffset>, ParseDateError> {
+fn parse_date_time(string: &str) -> std::result::Result<DateTime<FixedOffset>, ParseDateError> {
     const TO_TIMESTAMP: &str = "TO_TIMESTAMP('";
 
     let date = string

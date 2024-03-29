@@ -5,7 +5,7 @@ use dozer_ingestion_connector::dozer_types::{
 use fxhash::FxHashSet;
 
 use crate::connector::{
-    replicate::log::{LogManagerContent, TransactionId},
+    replicate::log::{LogMinerContent, OperationType, TransactionId},
     Scn,
 };
 
@@ -50,7 +50,7 @@ impl Aggregator {
 
     pub fn process(
         &self,
-        iterator: impl Iterator<Item = LogManagerContent>,
+        iterator: impl Iterator<Item = LogMinerContent>,
     ) -> impl Iterator<Item = Transaction> {
         Processor {
             table_pairs: self.table_pairs.clone(),
@@ -64,21 +64,21 @@ impl Aggregator {
 type TransactionForest = forest::Forest<TransactionId, Vec<RawOperation>>;
 
 #[derive(Debug)]
-struct Processor<I: Iterator<Item = LogManagerContent>> {
+struct Processor<I: Iterator<Item = LogMinerContent>> {
     iterator: I,
     start_scn: Scn,
     table_pairs: FxHashSet<(String, String)>,
     transaction_forest: TransactionForest,
 }
 
-impl<I: Iterator<Item = LogManagerContent>> Iterator for Processor<I> {
+impl<I: Iterator<Item = LogMinerContent>> Iterator for Processor<I> {
     type Item = Transaction;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             let content = self.iterator.next()?;
 
-            if content.operation_code == OP_CODE_COMMIT {
+            if content.operation_type == OperationType::Commit {
                 if let Some(transaction) = commit::commit(
                     content.xid,
                     content.pxid,
@@ -93,7 +93,7 @@ impl<I: Iterator<Item = LogManagerContent>> Iterator for Processor<I> {
                 continue;
             }
 
-            if content.operation_code == OP_CODE_ROLLBACK {
+            if content.operation_type == OperationType::Rollback {
                 self.transaction_forest
                     .remove_subtree(content.xid, |_, _| ());
                 continue;
@@ -111,20 +111,20 @@ impl<I: Iterator<Item = LogManagerContent>> Iterator for Processor<I> {
             {
                 continue;
             }
-            let (kind, sql_redo) = match content.operation_code {
-                OP_CODE_INSERT => (
+            let (kind, sql_redo) = match content.operation_type {
+                OperationType::Insert => (
                     OperationKind::Insert,
                     content.sql_redo.expect("insert must have redo"),
                 ),
-                OP_CODE_DELETE => (
+                OperationType::Delete => (
                     OperationKind::Delete,
                     content.sql_redo.expect("delete must have redo"),
                 ),
-                OP_CODE_UPDATE => (
+                OperationType::Update => (
                     OperationKind::Update,
                     content.sql_redo.expect("update must have redo"),
                 ),
-                OP_CODE_DDL => {
+                OperationType::Ddl => {
                     warn!("Ignoring DDL operation: {:?}", content.sql_redo);
                     continue;
                 }
@@ -151,10 +151,3 @@ impl<I: Iterator<Item = LogManagerContent>> Iterator for Processor<I> {
 mod commit;
 mod forest;
 mod op;
-
-const OP_CODE_INSERT: u8 = 1;
-const OP_CODE_DELETE: u8 = 2;
-const OP_CODE_UPDATE: u8 = 3;
-const OP_CODE_DDL: u8 = 5;
-const OP_CODE_COMMIT: u8 = 7;
-const OP_CODE_ROLLBACK: u8 = 36;

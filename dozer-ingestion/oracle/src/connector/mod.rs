@@ -2,7 +2,6 @@ use std::{
     collections::{HashMap, HashSet},
     num::ParseFloatError,
     sync::Arc,
-    time::Duration,
 };
 
 use dozer_ingestion_connector::{
@@ -10,7 +9,9 @@ use dozer_ingestion_connector::{
         chrono,
         epoch::SourceTime,
         log::{debug, error},
-        models::ingestion_types::{IngestionMessage, OracleReplicator, TransactionInfo},
+        models::ingestion_types::{
+            IngestionMessage, LogMinerConfig, OracleReplicator, TransactionInfo,
+        },
         node::OpIdentifier,
         rust_decimal, thiserror,
         types::{Operation, Schema},
@@ -18,7 +19,7 @@ use dozer_ingestion_connector::{
     Ingestor, SourceSchema, TableIdentifier, TableInfo,
 };
 use oracle::{
-    sql_type::{Collection, ObjectType},
+    sql_type::{Collection, ObjectType, OracleType, ToSql},
     Connection,
 };
 
@@ -31,7 +32,8 @@ pub struct Connector {
     replicator: OracleReplicator,
 }
 
-#[derive(Debug, thiserror::Error)]
+type Result<T> = std::result::Result<T, Error>;
+#[derive(Debug, thiserror::Error, Clone)]
 pub(crate) enum ParseDateError {
     #[error("Invalid date format: {0}")]
     Chrono(#[from] chrono::ParseError),
@@ -39,10 +41,10 @@ pub(crate) enum ParseDateError {
     Oracle,
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, Clone)]
 pub(crate) enum Error {
     #[error("oracle error: {0:?}")]
-    Oracle(#[from] oracle::Error),
+    Oracle(Arc<oracle::Error>),
     #[error("pdb not found: {0}")]
     PdbNotFound(String),
     #[error("table not found: {0:?}")]
@@ -75,19 +77,28 @@ pub(crate) enum Error {
     ParseUIntFailed(String),
     #[error("got error when parsing int {0}")]
     ParseIntFailed(String),
+    #[error("No logs found for startscn {0}")]
+    NoLogsFound(u64),
+}
+
+impl From<oracle::Error> for Error {
+    fn from(value: oracle::Error) -> Self {
+        Self::Oracle(Arc::new(value))
+    }
 }
 
 /// `oracle`'s `ToSql` implementation for `&str` uses `NVARCHAR2` type, which Oracle expects to be UTF16 encoded by default.
 /// Here we use `VARCHAR2` type instead, which Oracle expects to be UTF8 encoded by default.
-/// This is a macro because it references a temporary `OracleType`.
-macro_rules! str_to_sql {
-    ($s:expr) => {
-        // `s.len()` is the upper bound of `s.chars().count()`
-        (
-            &$s,
-            &::oracle::sql_type::OracleType::Varchar2($s.len() as u32),
-        )
-    };
+struct OracleString<'a>(&'a str);
+impl ToSql for OracleString<'_> {
+    fn oratype(&self, _conn: &Connection) -> oracle::Result<OracleType> {
+        Ok(OracleType::Varchar2(self.0.len() as u32))
+    }
+
+    fn to_sql(&self, val: &mut oracle::SqlValue) -> oracle::Result<()> {
+        val.set(&self.0)?;
+        Ok(())
+    }
 }
 
 pub type Scn = u64;
@@ -100,29 +111,30 @@ impl Connector {
         connect_string: &str,
         batch_size: usize,
         replicator: OracleReplicator,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self> {
         let connection = Connection::connect(&username, password, connect_string)?;
 
-        Ok(Self {
+        let connector = Self {
             connection_name,
             connection: Arc::new(connection),
             username,
             batch_size,
             replicator,
-        })
+        };
+        Ok(connector)
     }
 
-    pub fn get_con_id(&mut self, pdb: &str) -> Result<u32, Error> {
+    pub fn get_con_id(&mut self, pdb: &str) -> Result<u32> {
         let sql = "SELECT CON_NAME_TO_ID(:1) FROM DUAL";
         let con_id = self
             .connection
-            .query_row_as::<Option<u32>>(sql, &[&str_to_sql!(pdb)])?
+            .query_row_as::<Option<u32>>(sql, &[&OracleString(pdb)])?
             .ok_or_else(|| Error::PdbNotFound(pdb.to_string()));
         self.connection.commit()?;
         con_id
     }
 
-    pub fn list_tables(&mut self, schemas: &[String]) -> Result<Vec<TableIdentifier>, Error> {
+    pub fn list_tables(&mut self, schemas: &[String]) -> Result<Vec<TableIdentifier>> {
         let rows = if schemas.is_empty() {
             let sql = "SELECT OWNER, TABLE_NAME FROM ALL_TABLES";
             debug!("{}", sql);
@@ -152,7 +164,7 @@ impl Connector {
         tables
     }
 
-    pub fn list_columns(&mut self, tables: Vec<TableIdentifier>) -> Result<Vec<TableInfo>, Error> {
+    pub fn list_columns(&mut self, tables: Vec<TableIdentifier>) -> Result<Vec<TableInfo>> {
         // List all tables and columns.
         let schemas = tables
             .iter()
@@ -193,7 +205,7 @@ impl Connector {
     pub fn get_schemas<'a>(
         &mut self,
         table_infos: impl IntoIterator<Item = &'a TableInfo>,
-    ) -> Result<Vec<Result<SourceSchema, Error>>, Error> {
+    ) -> Result<Vec<Result<SourceSchema>>> {
         let table_infos: Vec<_> = table_infos.into_iter().collect();
         // Collect all tables and columns.
         let table_names = table_infos
@@ -243,11 +255,11 @@ impl Connector {
         &mut self,
         ingestor: &Ingestor,
         tables: Vec<(usize, TableInfo)>,
-    ) -> Result<Scn, Error> {
+    ) -> Result<Scn> {
         let schemas = self
             .get_schemas(tables.iter().map(|(_, table)| table))?
             .into_iter()
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Result<Vec<_>>>()?;
 
         let sql = "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE";
         debug!("{}", sql);
@@ -303,7 +315,7 @@ impl Connector {
         self.get_scn_and_commit()
     }
 
-    pub(crate) fn get_scn_and_commit(&mut self) -> Result<Scn, Error> {
+    pub(crate) fn get_scn_and_commit(&mut self) -> Result<Scn> {
         let sql = "SELECT DBMS_FLASHBACK.GET_SYSTEM_CHANGE_NUMBER() FROM DUAL";
         let scn = self.connection.query_row_as::<Scn>(sql, &[])?;
         self.connection.commit()?;
@@ -317,20 +329,11 @@ impl Connector {
         schemas: Vec<Schema>,
         checkpoint: Scn,
         con_id: Option<u32>,
-    ) {
+    ) -> Result<()> {
         match self.replicator {
-            OracleReplicator::LogMiner {
-                poll_interval_in_milliseconds,
-                fetch_batch_size,
-            } => self.replicate_log_miner(
-                ingestor,
-                tables,
-                schemas,
-                checkpoint,
-                con_id,
-                Duration::from_millis(poll_interval_in_milliseconds),
-                fetch_batch_size.unwrap_or(1000),
-            ),
+            OracleReplicator::LogMiner(config) => {
+                self.replicate_log_miner(ingestor, tables, schemas, checkpoint, con_id, config)
+            }
             OracleReplicator::DozerLogReader => unimplemented!("dozer log reader"),
         }
     }
@@ -343,9 +346,8 @@ impl Connector {
         schemas: Vec<Schema>,
         checkpoint: Scn,
         con_id: Option<u32>,
-        poll_interval: Duration,
-        fetch_batch_size: u32,
-    ) {
+        config: LogMinerConfig,
+    ) -> Result<()> {
         let start_scn = checkpoint + 1;
         let table_pair_to_index = tables
             .into_iter()
@@ -361,15 +363,7 @@ impl Connector {
             let connection = self.connection.clone();
             let ingestor = ingestor.clone();
             std::thread::spawn(move || {
-                replicate::log_miner_loop(
-                    &connection,
-                    start_scn,
-                    con_id,
-                    poll_interval,
-                    fetch_batch_size,
-                    sender,
-                    &ingestor,
-                )
+                replicate::log_miner_loop(&connection, start_scn, con_id, config, sender, &ingestor)
             })
         };
 
@@ -391,7 +385,7 @@ impl Connector {
                     })
                     .is_err()
                 {
-                    return;
+                    return Ok(());
                 };
             }
 
@@ -407,11 +401,12 @@ impl Connector {
                 ))
                 .is_err()
             {
-                return;
+                return Ok(());
             }
         }
 
-        handle.join().unwrap();
+        handle.join().unwrap()?;
+        Ok(())
     }
 }
 
@@ -426,7 +421,7 @@ fn temp_varray_of_vchar2(
     connection: &Connection,
     num_strings: usize,
     max_num_chars: usize,
-) -> Result<ObjectType, Error> {
+) -> Result<ObjectType> {
     let sql = format!(
         "CREATE OR REPLACE TYPE {} AS VARRAY({}) OF VARCHAR2({})",
         TEMP_DOZER_TYPE_NAME, num_strings, max_num_chars
@@ -438,7 +433,7 @@ fn temp_varray_of_vchar2(
         .map_err(Into::into)
 }
 
-fn string_collection(connection: &Connection, strings: &[String]) -> Result<Collection, Error> {
+fn string_collection(connection: &Connection, strings: &[String]) -> Result<Collection> {
     let temp_type = temp_varray_of_vchar2(
         connection,
         strings.len(),
@@ -446,21 +441,23 @@ fn string_collection(connection: &Connection, strings: &[String]) -> Result<Coll
     )?;
     let mut collection = temp_type.new_collection()?;
     for string in strings {
-        collection.push(&str_to_sql!(*string))?;
+        collection.push(&OracleString(string))?;
     }
     Ok(collection)
 }
 
+#[cfg(test)]
 mod tests {
-    #[test]
+    use dozer_ingestion_connector::futures::{Stream, StreamExt};
+
+    #[tokio::test]
     #[ignore]
-    fn test_connector() {
-        use dozer_ingestion_connector::{
-            dozer_types::models::ingestion_types::OracleReplicator, IngestionConfig, Ingestor,
+    async fn test_connector() {
+        use dozer_ingestion_connector::dozer_types::{
+            models::ingestion_types::IngestionMessage, types::Operation,
         };
         use dozer_ingestion_connector::{
-            dozer_types::{models::ingestion_types::IngestionMessage, types::Operation},
-            IngestionIterator,
+            dozer_types::models::ingestion_types::OracleReplicator, IngestionConfig, Ingestor,
         };
         use std::time::Instant;
 
@@ -476,12 +473,12 @@ mod tests {
             }
         }
 
-        fn estimate_throughput(iterator: IngestionIterator) {
+        async fn estimate_throughput(mut iterator: impl Stream<Item = IngestionMessage> + Unpin) {
             let mut tic = None;
             let mut count = 0;
             let print_count_interval = 10_000;
             let mut count_mod_interval = 0;
-            for message in iterator {
+            while let Some(message) = iterator.next().await {
                 if tic.is_none() {
                     tic = Some(Instant::now());
                 }
@@ -525,11 +522,11 @@ mod tests {
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
         let handle = {
             let tables = tables.clone();
-            std::thread::spawn(move || connector.snapshot(&ingestor, tables))
+            tokio::task::spawn_blocking(move || connector.snapshot(&ingestor, tables))
         };
 
-        estimate_throughput(iterator);
-        let checkpoint = handle.join().unwrap().unwrap();
+        estimate_throughput(iterator).await;
+        let checkpoint = handle.await.unwrap().unwrap();
 
         let sid = "ORCLCDB";
         let mut connector = super::Connector::new(
@@ -538,19 +535,16 @@ mod tests {
             "123",
             &format!("{}:{}/{}", host, 1521, sid),
             1,
-            OracleReplicator::LogMiner {
-                poll_interval_in_milliseconds: 1000,
-                fetch_batch_size: None,
-            },
+            OracleReplicator::LogMiner(Default::default()),
         )
         .unwrap();
         let (ingestor, iterator) = Ingestor::initialize_channel(IngestionConfig::default());
         let schemas = schemas.into_iter().map(|schema| schema.schema).collect();
-        let handle = std::thread::spawn(move || {
+        let handle = tokio::spawn(async move {
             connector.replicate(&ingestor, tables, schemas, checkpoint, None)
         });
 
-        estimate_throughput(iterator);
-        handle.join().unwrap();
+        estimate_throughput(iterator).await;
+        handle.await.unwrap().unwrap();
     }
 }

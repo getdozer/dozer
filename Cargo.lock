@@ -3011,6 +3011,7 @@ dependencies = [
  "memchr",
  "oracle",
  "regex",
+ "tokio",
 ]
 
 [[package]]
