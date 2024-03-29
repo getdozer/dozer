@@ -212,50 +212,76 @@ impl SchemaHelper {
     ) -> Result<Vec<Result<SourceSchema, PostgresConnectorError>>, PostgresConnectorError> {
         let (results, tables_columns_map) = self.get_columns(Some(tables)).await?;
 
-        let mut columns_map: HashMap<SchemaTableIdentifier, PostgresTable> = HashMap::new();
+        let mut columns_map: HashMap<
+            SchemaTableIdentifier,
+            Result<PostgresTable, PostgresSchemaError>,
+        > = HashMap::new();
+
         results
             .iter()
-            .filter(|row| {
+            .filter_map(|row| {
                 let schema: String = row.get(8);
                 let table_name: String = row.get(0);
                 let column_name: String = row.get(1);
 
                 tables_columns_map
-                    .get(&(schema, table_name))
-                    .map_or(true, |columns| {
-                        columns.is_empty() || columns.contains(&column_name)
+                    .get(&(schema.clone(), table_name.clone()))
+                    .map_or(Some((schema.clone(), table_name.clone(), row)), |columns| {
+                        if columns.is_empty() || columns.contains(&column_name) {
+                            Some((schema, table_name, row))
+                        } else {
+                            None
+                        }
                     })
             })
-            .map(|r| self.convert_row(r))
-            .try_for_each(|table_row| -> Result<(), PostgresSchemaError> {
-                let row = table_row?;
-                columns_map
-                    .entry((row.schema, row.table_name))
-                    .and_modify(|table| {
-                        table.add_field(row.field.clone(), row.is_column_used_in_index)
-                    })
-                    .or_insert_with(|| {
-                        let mut table = PostgresTable::new(row.replication_type);
-                        table.add_field(row.field, row.is_column_used_in_index);
-                        table
-                    });
+            .map(|(schema, table_name, r)| (schema, table_name, self.convert_row(r)))
+            .try_for_each(
+                |(schema, table_name, table_row)| -> Result<(), PostgresSchemaError> {
+                    match table_row {
+                        Ok(row) => {
+                            columns_map
+                                .entry((row.schema, row.table_name))
+                                .and_modify(|table| {
+                                    if let Ok(ref mut t) = table {
+                                        t.add_field(row.field.clone(), row.is_column_used_in_index);
+                                    }
+                                })
+                                .or_insert_with(|| {
+                                    let mut table = PostgresTable::new(row.replication_type);
+                                    table.add_field(row.field, row.is_column_used_in_index);
+                                    Ok(table)
+                                });
+                        }
+                        Err(e) => {
+                            columns_map.insert((schema, table_name), Err(e));
+                        }
+                    }
 
-                Ok(())
-            })?;
+                    Ok(())
+                },
+            )?;
 
-        let columns_map = sort_schemas(tables, &columns_map)?;
-
-        Ok(Self::map_columns_to_schemas(columns_map))
+        Ok(Self::map_columns_to_schemas(sort_schemas(
+            tables,
+            columns_map,
+        )?))
     }
 
     fn map_columns_to_schemas(
-        postgres_tables: Vec<(SchemaTableIdentifier, PostgresTable)>,
+        postgres_tables: Vec<(
+            SchemaTableIdentifier,
+            Result<PostgresTable, PostgresSchemaError>,
+        )>,
     ) -> Vec<Result<SourceSchema, PostgresConnectorError>> {
         postgres_tables
             .into_iter()
             .map(|((_, table_name), table)| {
-                Self::map_schema(&table_name, table)
+                table
                     .map_err(PostgresConnectorError::PostgresSchemaError)
+                    .and_then(|table| {
+                        Self::map_schema(&table_name, table)
+                            .map_err(PostgresConnectorError::PostgresSchemaError)
+                    })
             })
             .collect()
     }
