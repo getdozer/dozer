@@ -152,9 +152,13 @@ async fn test_connector_view_cannot_be_used() {
     };
 
     let result = schema_helper.get_schemas(&[table_info]).await;
-    assert!(result.is_err());
+    assert!(
+        result.as_ref().unwrap().first().unwrap().is_err(),
+        "Result is not an error. Result: {:?}",
+        result
+    );
     assert!(matches!(
-        result,
+        result.unwrap().first().unwrap(),
         Err(PostgresConnectorError::PostgresSchemaError(
             PostgresSchemaError::UnsupportedTableType(_, _)
         ))
@@ -166,7 +170,7 @@ async fn test_connector_view_cannot_be_used() {
         columns: Some(vec![]),
     };
     let result = schema_helper.get_schemas(&[table_info]).await;
-    assert!(result.is_ok());
+    assert!(result.unwrap().first().unwrap().is_ok());
 
     client.drop_schema(&schema).await;
 }
