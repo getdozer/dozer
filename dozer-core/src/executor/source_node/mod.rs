@@ -98,7 +98,7 @@ impl<F: Future + Unpin> Node for SourceNode<F> {
                                 .send_op(TableOperation { op, id, port })?;
                         }
                         IngestionMessage::TransactionInfo(info) => match info {
-                            TransactionInfo::Commit { id } => {
+                            TransactionInfo::Commit { id, source_time } => {
                                 if let Some(id) = id {
                                     source.state = SourceState::Restartable(id);
                                 } else {
@@ -116,8 +116,11 @@ impl<F: Future + Unpin> Node for SourceNode<F> {
                                         })
                                         .collect(),
                                 );
-                                let epoch =
+                                let mut epoch =
                                     Epoch::new(self.epoch_id, source_states, SystemTime::now());
+                                if let Some(st) = source_time {
+                                    epoch = epoch.with_source_time(st);
+                                }
                                 send_to_all_nodes(
                                     &self.sources,
                                     ExecutorOperation::Commit { epoch },

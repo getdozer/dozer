@@ -440,6 +440,7 @@ impl BinlogIngestor<'_, '_, '_> {
                         .handle_message(IngestionMessage::TransactionInfo(
                             TransactionInfo::Commit {
                                 id: Some(encode_state(&transaction_pos)),
+                                source_time: None,
                             },
                         ))
                         .await

@@ -539,7 +539,10 @@ mod tests {
                 IngestionMessage::OperationEvent { id, .. } => {
                     *id = None;
                 }
-                IngestionMessage::TransactionInfo(TransactionInfo::Commit { id }) => {
+                IngestionMessage::TransactionInfo(TransactionInfo::Commit {
+                    id,
+                    source_time: None,
+                }) => {
                     *id = None;
                 }
                 _ => {}
@@ -736,7 +739,10 @@ mod tests {
                 },
                 id: None,
             },
-            IngestionMessage::TransactionInfo(TransactionInfo::Commit { id: None }),
+            IngestionMessage::TransactionInfo(TransactionInfo::Commit {
+                id: None,
+                source_time: None,
+            }),
         ];
 
         check_ingestion_messages(&mut iterator, expected_ingestion_messages).await;
@@ -754,7 +760,10 @@ mod tests {
                 },
                 id: None,
             },
-            IngestionMessage::TransactionInfo(TransactionInfo::Commit { id: None }),
+            IngestionMessage::TransactionInfo(TransactionInfo::Commit {
+                id: None,
+                source_time: None,
+            }),
         ];
 
         check_ingestion_messages(&mut iterator, expected_ingestion_messages).await;

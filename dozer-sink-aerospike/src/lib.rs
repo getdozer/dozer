@@ -468,6 +468,10 @@ impl AerospikeSinkWorker {
 }
 
 impl Sink for AerospikeSink {
+    fn supports_batching(&self) -> bool {
+        true
+    }
+
     fn flush_batch(&mut self) -> Result<(), BoxedError> {
         self.replication_worker.flush_batch()?;
         Ok(())

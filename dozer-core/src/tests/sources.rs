@@ -128,6 +128,7 @@ impl Source for GeneratorSource {
                     GENERATOR_SOURCE_OUTPUT_PORT,
                     IngestionMessage::TransactionInfo(TransactionInfo::Commit {
                         id: Some(OpIdentifier::new(0, n)),
+                        source_time: None,
                     }),
                 ))
                 .await?;
@@ -283,6 +284,7 @@ impl Source for DualPortGeneratorSource {
                     DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_1,
                     IngestionMessage::TransactionInfo(TransactionInfo::Commit {
                         id: Some(OpIdentifier::new(0, n)),
+                        source_time: None,
                     }),
                 ))
                 .await?;

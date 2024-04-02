@@ -121,6 +121,7 @@ async fn send(ingestor: Ingestor, val: JsMessage) -> Result<(), anyhow::Error> {
     let _ = ingestor
         .handle_message(IngestionMessage::TransactionInfo(TransactionInfo::Commit {
             id: None,
+            source_time: None,
         }))
         .await;
     Ok(())

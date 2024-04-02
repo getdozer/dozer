@@ -138,4 +138,10 @@ pub trait Sink: Send + Debug {
     fn flush_batch(&mut self) -> Result<(), BoxedError> {
         Ok(())
     }
+
+    /// If this returns `true`, [Sink::commit] is assumed to not commit the committed
+    /// transaction to the sink's remote
+    fn supports_batching(&self) -> bool {
+        false
+    }
 }
