@@ -245,6 +245,8 @@ pub struct OracleSinkConfig {
     pub connection: String,
     pub table_name: String,
     #[serde(default)]
+    pub unique_key: Vec<String>,
+    #[serde(default)]
     pub owner: Option<String>,
 }
 
