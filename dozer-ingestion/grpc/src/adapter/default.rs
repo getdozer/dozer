@@ -94,6 +94,7 @@ pub async fn handle_message(
     let _ = ingestor
         .handle_message(IngestionMessage::TransactionInfo(TransactionInfo::Commit {
             id: None,
+            source_time: None,
         }))
         .await;
     Ok(())

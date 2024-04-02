@@ -3,12 +3,13 @@ use daggy::NodeIndex;
 use dozer_tracing::{
     constants::{
         ConnectorEntityType, DOZER_METER_NAME, OPERATION_TYPE_LABEL, PIPELINE_LATENCY_GAUGE_NAME,
-        SINK_OPERATION_COUNTER_NAME, TABLE_LABEL,
+        SINK_OPERATION_COUNTER_NAME, TABLE_LABEL, TOTAL_LATENCY_HISTOGRAM_NAME,
     },
     emit_event,
-    opentelemetry_metrics::{Counter, Gauge},
+    opentelemetry_metrics::{Counter, Gauge, Histogram},
     DozerMonitorContext,
 };
+use dozer_types::{epoch::SourceTime, log::warn};
 use dozer_types::{
     log::debug,
     node::{NodeHandle, OpIdentifier},
@@ -115,6 +116,7 @@ pub struct SinkNode {
 
     event_sender: broadcast::Sender<Event>,
     metrics: SinkMetrics,
+    source_times: Option<Vec<SourceTime>>,
 }
 
 #[derive(Debug)]
@@ -122,6 +124,7 @@ pub struct SinkNode {
 pub struct SinkMetrics {
     sink_counter: Counter<u64>,
     latency_gauge: Gauge<f64>,
+    total_latency_hist: Histogram<u64>,
 }
 
 impl SinkNode {
@@ -147,6 +150,11 @@ impl SinkNode {
             .with_description("Mesasures latency between commits")
             .init();
 
+        let total_latency_hist = meter
+            .u64_histogram(TOTAL_LATENCY_HISTOGRAM_NAME)
+            .with_description("Measures total latency between commit on source and commit on sink")
+            .init();
+
         let max_flush_interval = sink
             .max_batch_duration_ms()
             .map_or(DEFAULT_FLUSH_INTERVAL, Duration::from_millis);
@@ -161,6 +169,7 @@ impl SinkNode {
         };
 
         std::thread::spawn(move || scheduler.run());
+        let source_times = sink.supports_batching().then(Vec::new);
 
         Self {
             node_handle,
@@ -177,9 +186,11 @@ impl SinkNode {
             event_sender: dag.event_hub().sender.clone(),
             max_flush_interval,
             ops_since_flush: 0,
+            source_times,
             metrics: SinkMetrics {
                 sink_counter,
                 latency_gauge,
+                total_latency_hist,
             },
         }
     }
@@ -200,6 +211,18 @@ impl SinkNode {
             node: self.node_handle.clone(),
             epoch,
         });
+        if let Some(source_times) = self.source_times.as_mut() {
+            let mut labels = self.labels.attrs().clone();
+            labels.push(dozer_tracing::KeyValue::new(
+                TABLE_LABEL,
+                self.node_handle.id.clone(),
+            ));
+            for time in source_times.drain(..) {
+                if let Some(elapsed) = time.elapsed_millis() {
+                    self.metrics.total_latency_hist.record(elapsed, &labels);
+                }
+            }
+        }
         Ok(())
     }
 }
@@ -418,6 +441,23 @@ impl ReceiverLoop for SinkNode {
             }
             Err(e) => {
                 error!("error recording pipeline_latench {:?}", e);
+            }
+        }
+
+        if let Some(source_time) = epoch.source_time {
+            if let Some(source_times) = self.source_times.as_mut() {
+                source_times.push(source_time);
+            } else {
+                let mut labels = self.labels.attrs().clone();
+                labels.push(dozer_tracing::KeyValue::new(
+                    TABLE_LABEL,
+                    self.node_handle.id.clone(),
+                ));
+                if let Some(elapsed) = source_time.elapsed_millis() {
+                    self.metrics.total_latency_hist.record(elapsed, &labels);
+                } else {
+                    warn!("Recorded total latency < 0. Source clock and system clock are out of sync.");
+                }
             }
         }
 

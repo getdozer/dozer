@@ -188,7 +188,10 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
             .unwrap();
         sender
             .send(Ok(Some(IngestionMessage::TransactionInfo(
-                TransactionInfo::Commit { id: None },
+                TransactionInfo::Commit {
+                    id: None,
+                    source_time: None,
+                },
             ))))
             .await
             .unwrap();

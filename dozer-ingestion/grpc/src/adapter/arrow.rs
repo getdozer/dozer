@@ -127,6 +127,7 @@ pub async fn handle_message(
     if ingestor
         .handle_message(IngestionMessage::TransactionInfo(TransactionInfo::Commit {
             id: None,
+            source_time: None,
         }))
         .await
         .is_err()

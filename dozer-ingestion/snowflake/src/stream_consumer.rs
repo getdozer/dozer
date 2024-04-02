@@ -137,6 +137,7 @@ impl StreamConsumer {
                     .blocking_handle_message(IngestionMessage::TransactionInfo(
                         TransactionInfo::Commit {
                             id: Some(OpIdentifier::new(iteration, idx as u64)),
+                            source_time: None,
                         },
                     ))
                     .is_err()

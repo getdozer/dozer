@@ -8,6 +8,7 @@ use std::{
 use dozer_ingestion_connector::{
     dozer_types::{
         chrono,
+        epoch::SourceTime,
         log::{debug, error},
         models::ingestion_types::{IngestionMessage, OracleReplicator, TransactionInfo},
         node::OpIdentifier,
@@ -393,6 +394,10 @@ impl Connector {
                 .blocking_handle_message(IngestionMessage::TransactionInfo(
                     TransactionInfo::Commit {
                         id: Some(OpIdentifier::new(transaction.commit_scn, 0)),
+                        source_time: Some(SourceTime::from_chrono(
+                            &transaction.commit_timestamp,
+                            1000,
+                        )),
                     },
                 ))
                 .is_err()

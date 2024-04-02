@@ -1,3 +1,4 @@
+use dozer_ingestion_connector::dozer_types::epoch::SourceTime;
 use dozer_ingestion_connector::dozer_types::errors::internal::BoxedError;
 use dozer_ingestion_connector::dozer_types::errors::types::DeserializationError;
 use dozer_ingestion_connector::dozer_types::event::Event;
@@ -227,6 +228,7 @@ impl AerospikeConnector {
 
 #[derive(Debug)]
 struct PendingMessage {
+    source_time: SourceTime,
     messages: Vec<IngestionMessage>,
     sender: oneshot::Sender<()>,
 }
@@ -260,6 +262,7 @@ async fn ingestor_loop(
         let _ = ingestor
             .handle_message(IngestionMessage::TransactionInfo(TransactionInfo::Commit {
                 id: Some(OpIdentifier::new(0, operation_id)),
+                source_time: Some(message.source_time),
             }))
             .await;
 
@@ -352,7 +355,8 @@ async fn event_request_handler(
         return HttpResponse::Ok().finish();
     }
 
-    let message = map_record(event, &state.tables_index_map).await;
+    let source_time = SourceTime::new(event.lut, 1);
+    let message = map_record(event, &state.tables_index_map);
 
     trace!(target: "aerospike_http_server", "Mapped message {:?}", message);
     match message {
@@ -360,6 +364,7 @@ async fn event_request_handler(
         Ok(Some(message)) => {
             let (sender, receiver) = oneshot::channel::<()>();
             if let Err(e) = state.sender.send(PendingMessage {
+                source_time,
                 messages: vec![message],
                 sender,
             }) {
@@ -385,30 +390,42 @@ async fn batch_event_request_handler(
     let events = json.into_inner();
     let state = data.into_inner();
 
-    let mut messages = vec![];
     debug!(target: "aerospike_http_server", "Aerospike events count {:?}", events.len());
     trace!(target: "aerospike_http_server", "Aerospike events {:?}", events);
 
-    for event in events {
-        match map_record(event, &state.tables_index_map).await {
-            Ok(None) => {}
-            Ok(Some(message)) => messages.push(message),
-            Err(e) => return map_error(e),
-        }
-    }
+    let mut min_lut = u64::MAX;
+    let messages = match events
+        .into_iter()
+        .filter_map(|e| {
+            let lut = e.lut;
+            let msg = map_record(e, &state.tables_index_map).transpose()?;
+            min_lut = min_lut.min(lut);
+            Some(msg)
+        })
+        .collect::<Result<Vec<_>, AerospikeConnectorError>>()
+    {
+        Ok(msgs) => msgs,
+        Err(e) => return map_error(e),
+    };
 
     debug!(target: "aerospike_http_server", "Mapped {:?} messages", messages.len());
     trace!(target: "aerospike_http_server", "Mapped messages {:?}", messages);
 
-    let (sender, receiver) = oneshot::channel::<()>();
-    if let Err(e) = state.sender.send(PendingMessage { messages, sender }) {
-        error!("Ingestor is down: {:?}", e);
-        return HttpResponse::InternalServerError().finish();
-    }
+    if !messages.is_empty() {
+        let (sender, receiver) = oneshot::channel::<()>();
+        if let Err(e) = state.sender.send(PendingMessage {
+            messages,
+            sender,
+            source_time: SourceTime::new(min_lut, 1),
+        }) {
+            error!("Ingestor is down: {:?}", e);
+            return HttpResponse::InternalServerError().finish();
+        }
 
-    if let Err(e) = receiver.await {
-        error!("Pipeline event processor is down: {:?}", e);
-        return HttpResponse::InternalServerError().finish();
+        if let Err(e) = receiver.await {
+            error!("Pipeline event processor is down: {:?}", e);
+            return HttpResponse::InternalServerError().finish();
+        }
     }
 
     HttpResponse::Ok().finish()
@@ -673,7 +690,7 @@ impl Connector for AerospikeConnector {
     }
 }
 
-async fn map_record(
+fn map_record(
     event: AerospikeEvent,
     tables_map: &HashMap<String, TableIndexMap>,
 ) -> Result<Option<IngestionMessage>, AerospikeConnectorError> {

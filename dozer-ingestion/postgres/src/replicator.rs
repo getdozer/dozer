@@ -123,6 +123,7 @@ impl<'a> CDCHandler<'a> {
                             .handle_message(IngestionMessage::TransactionInfo(
                                 TransactionInfo::Commit {
                                     id: Some(OpIdentifier::new(self.begin_lsn, 0)),
+                                    source_time: None,
                                 },
                             ))
                             .await

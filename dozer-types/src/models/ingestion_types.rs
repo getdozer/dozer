@@ -5,6 +5,7 @@ use std::{fmt::Debug, time::Duration};
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    epoch::SourceTime,
     helper::{deserialize_duration_secs_f64, f64_schema, serialize_duration_secs_f64},
     models::connection::SchemaExample,
     node::OpIdentifier,
@@ -35,6 +36,7 @@ pub enum TransactionInfo {
     Commit {
         /// If this connector supports restarting from after this commit, it should provide a `OpIdentifier`.
         id: Option<OpIdentifier>,
+        source_time: Option<SourceTime>,
     },
     /// A connector uses this message kind to notify Dozer that a initial snapshot of the source tables is started
     SnapshottingStarted,

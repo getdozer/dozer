@@ -713,6 +713,10 @@ impl Sink for OracleSink {
         Ok(())
     }
 
+    fn supports_batching(&self) -> bool {
+        true
+    }
+
     fn flush_batch(&mut self) -> Result<(), BoxedError> {
         self.exec_batch()?;
         if let Some(txid) = self.latest_txid {
