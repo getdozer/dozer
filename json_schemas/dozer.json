@@ -1478,6 +1478,13 @@
         },
         "table_name": {
           "type": "string"
+        },
+        "unique_key": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "additionalProperties": false
