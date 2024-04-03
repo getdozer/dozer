@@ -52,7 +52,7 @@ fn map_data_type(
     } else {
         match data_type {
             "VARCHAR2" => Ok(FieldType::String),
-            "NVARCHAR2" => unimplemented!("convert NVARCHAR2 to String"),
+            "NVARCHAR2" => Ok(FieldType::String),
             "INTEGER" => Ok(FieldType::I128),
             "NUMBER" => match (precision, scale) {
                 (Some(precision), Some(0)) if precision <= 19 => Ok(FieldType::Int),
