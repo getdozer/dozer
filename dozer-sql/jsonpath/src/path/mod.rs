@@ -8,7 +8,7 @@ use dozer_types::json_types::JsonValue;
 
 /// The module is in charge of processing [[JsonPathIndex]] elements
 mod index;
-/// The module is a helper module providing the set of helping funcitons to process a json elements
+/// The module is a helper module providing the set of helping functions to process a json elements
 mod json;
 /// The module is responsible for processing of the [[JsonPath]] elements
 mod top;
