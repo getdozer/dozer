@@ -362,6 +362,7 @@ pub fn convert_column_to_field(column: &Column) -> Result<FieldDefinition, Postg
         typ,
         nullable: true,
         source: SourceDefinition::Dynamic,
+        description: None,
     })
 }
 

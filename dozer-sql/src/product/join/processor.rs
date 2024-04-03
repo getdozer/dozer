@@ -147,6 +147,7 @@ mod tests {
                         connection: "test".into(),
                         name: table_name.into(),
                     },
+                    description: None,
                 },
                 true,
             )
@@ -159,6 +160,7 @@ mod tests {
                         connection: "test".into(),
                         name: table_name.into(),
                     },
+                    description: None,
                 },
                 false,
             );

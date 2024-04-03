@@ -82,6 +82,7 @@ pub fn map_schema(
                                 typ,
                                 nullable: f.optional.map_or(false, |o| o),
                                 source: SourceDefinition::Dynamic,
+                                description: None,
                             })
                         })
                         .collect(),
@@ -196,12 +197,14 @@ mod tests {
                     typ: FieldType::Int,
                     nullable: false,
                     source: SourceDefinition::Dynamic,
+                    description: None,
                 },
                 FieldDefinition {
                     name: "name".to_string(),
                     typ: FieldType::String,
                     nullable: true,
                     source: SourceDefinition::Dynamic,
+                    description: None,
                 },
             ],
             primary_index: vec![0],

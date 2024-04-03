@@ -51,6 +51,7 @@ impl SchemaRegistryBasic {
                     typ,
                     nullable,
                     source: SourceDefinition::Dynamic,
+                    description: None,
                 })
             })
             .collect();

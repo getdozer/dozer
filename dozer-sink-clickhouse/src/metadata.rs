@@ -29,6 +29,7 @@ impl ReplicationMetadata {
                         typ: FieldType::String,
                         nullable: false,
                         source: SourceDefinition::Dynamic,
+                        description: None,
                     },
                     true,
                 )
@@ -38,6 +39,7 @@ impl ReplicationMetadata {
                         typ: FieldType::UInt,
                         nullable: false,
                         source: SourceDefinition::Dynamic,
+                        description: None,
                     },
                     false,
                 )

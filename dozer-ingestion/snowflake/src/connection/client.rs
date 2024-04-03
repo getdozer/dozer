@@ -369,6 +369,7 @@ impl<'env> Client<'env> {
                             typ,
                             nullable: *nullable,
                             source: SourceDefinition::Dynamic,
+                            description: None,
                         });
                     }
                 }

@@ -516,6 +516,7 @@ impl SinkFactory for OracleSinkFactory {
                 typ: FieldType::UInt,
                 nullable: true,
                 source: dozer_types::types::SourceDefinition::Dynamic,
+                description: None,
             },
             false,
         );
@@ -525,6 +526,7 @@ impl SinkFactory for OracleSinkFactory {
                 typ: FieldType::UInt,
                 nullable: true,
                 source: dozer_types::types::SourceDefinition::Dynamic,
+                description: None,
             },
             false,
         );
@@ -558,6 +560,7 @@ impl SinkFactory for OracleSinkFactory {
                         typ: FieldType::String,
                         nullable: false,
                         source: SourceDefinition::Dynamic,
+                        description: None,
                     },
                     true,
                 )
@@ -567,6 +570,7 @@ impl SinkFactory for OracleSinkFactory {
                         typ: FieldType::UInt,
                         nullable: false,
                         source: SourceDefinition::Dynamic,
+                        description: None,
                     },
                     false,
                 ),
@@ -935,6 +939,7 @@ mod tests {
                 typ: FieldType::UInt,
                 nullable: false,
                 source: SourceDefinition::Dynamic,
+                description: None,
             },
             true,
         );
@@ -944,6 +949,7 @@ mod tests {
                 typ: FieldType::UInt,
                 nullable: false,
                 source: SourceDefinition::Dynamic,
+                description: None,
             },
             true,
         );
@@ -976,6 +982,7 @@ mod tests {
             typ: FieldType::String,
             nullable: false,
             source: SourceDefinition::Dynamic,
+            description: None,
         }
     }
 }

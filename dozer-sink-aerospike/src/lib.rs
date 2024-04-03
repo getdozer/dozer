@@ -589,6 +589,7 @@ mod tests {
             typ,
             nullable: false,
             source: dozer_types::types::SourceDefinition::Dynamic,
+            description: None,
         }
     }
 
@@ -654,6 +655,7 @@ mod tests {
                     typ: FieldType::UInt,
                     nullable: true,
                     source: dozer_types::types::SourceDefinition::Dynamic,
+                    description: None,
                 },
                 false,
             )

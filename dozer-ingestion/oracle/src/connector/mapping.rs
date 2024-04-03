@@ -215,6 +215,7 @@ pub fn decide_schema(
                     connection: connection.to_string(),
                     name: table_name.clone(),
                 },
+                description: None,
             }),
             Err(err) => return Err(Error::DataType(err.clone())),
         }
