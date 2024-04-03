@@ -67,6 +67,7 @@ impl Connector for JavaScriptConnector {
                     typ: FieldType::Json,
                     nullable: false,
                     source: SourceDefinition::Dynamic,
+                    description: None,
                 }],
                 primary_index: vec![],
             },

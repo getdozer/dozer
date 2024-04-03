@@ -9,12 +9,14 @@ pub fn records_without_primary_key() -> (FieldsAndPk, Vec<Vec<Field>>) {
             typ: FieldType::Int,
             nullable: false,
             source: Default::default(),
+            description: None,
         },
         FieldDefinition {
             name: "uint".to_string(),
             typ: FieldType::UInt,
             nullable: false,
             source: Default::default(),
+            description: None,
         },
     ];
 

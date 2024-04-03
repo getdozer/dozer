@@ -28,6 +28,7 @@ pub fn get_schema(columns: &[rusqlite::Column]) -> Schema {
                 },
                 nullable: true,
                 source: SourceDefinition::Dynamic,
+                description: None,
             }
         })
         .collect();

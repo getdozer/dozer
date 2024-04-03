@@ -133,6 +133,7 @@ impl SchemaRegistry {
                                 typ,
                                 nullable,
                                 source: SourceDefinition::Dynamic,
+                                description: None,
                             })
                         })
                         .collect();

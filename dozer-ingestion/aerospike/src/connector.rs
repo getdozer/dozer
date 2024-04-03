@@ -525,6 +525,7 @@ impl Connector for AerospikeConnector {
                                         },
                                         nullable: name != "PK",
                                         source: Default::default(),
+                                        description: None,
                                     })
                                     .collect(),
                                 primary_index,

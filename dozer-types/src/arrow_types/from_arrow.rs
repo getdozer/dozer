@@ -189,6 +189,7 @@ fn handle_with_dozer_schema(
             typ,
             nullable: field.is_nullable(),
             source: SourceDefinition::Dynamic,
+            description: None,
         });
     }
 

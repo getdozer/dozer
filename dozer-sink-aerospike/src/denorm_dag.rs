@@ -1243,6 +1243,7 @@ mod tests {
                     typ: FieldType::UInt,
                     nullable: false,
                     source: SourceDefinition::Dynamic,
+                    description: None,
                 },
                 true,
             )

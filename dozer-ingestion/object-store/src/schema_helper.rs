@@ -52,6 +52,7 @@ pub fn map_schema_to_dozer<'a, I: Iterator<Item = &'a Arc<Field>>>(
                 typ: mapped_field_type,
                 nullable: field.is_nullable(),
                 source: SourceDefinition::Dynamic,
+                description: None,
             })
         })
         .collect()

@@ -53,6 +53,7 @@ pub struct FieldDefinition {
     pub nullable: bool,
     #[serde(default)]
     pub source: SourceDefinition,
+    pub description: Option<String>,
 }
 
 impl FieldDefinition {
@@ -62,6 +63,7 @@ impl FieldDefinition {
             typ,
             nullable,
             source,
+            description: None,
         }
     }
 

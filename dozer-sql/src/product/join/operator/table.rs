@@ -205,6 +205,7 @@ mod tests {
                 typ: FieldType::Int,
                 nullable: false,
                 source: Default::default(),
+                description: None,
             }],
             primary_index: vec![0],
         };
