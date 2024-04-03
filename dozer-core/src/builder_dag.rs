@@ -6,7 +6,7 @@ use std::{
 use daggy::{petgraph::visit::IntoNodeIdentifiers, NodeIndex};
 use dozer_types::{
     log::warn,
-    node::{NodeHandle, OpIdentifier},
+    node::{NodeHandle, SourceState},
 };
 
 use crate::{
@@ -31,7 +31,7 @@ pub struct NodeType {
 pub enum NodeKind {
     Source {
         source: Box<dyn Source>,
-        last_checkpoint: Option<OpIdentifier>,
+        last_checkpoint: SourceState,
     },
     Processor(Box<dyn Processor>),
     Sink(Box<dyn Sink>),
@@ -76,8 +76,8 @@ impl BuilderDag {
         // Build the sinks and load checkpoint.
         let event_hub = EventHub::new(event_hub_capacity);
         let mut graph = daggy::Dag::new();
-        let mut source_states = HashMap::new();
-        let mut source_op_ids = HashMap::new();
+        let mut source_state_data = HashMap::new();
+        let mut source_states: HashMap<NodeHandle, SourceState> = HashMap::new();
         let mut source_id_to_sinks = HashMap::<NodeHandle, Vec<NodeIndex>>::new();
         let mut node_index_map: HashMap<NodeIndex, NodeIndex> = HashMap::new();
         for (node_index, node) in nodes.iter_mut().enumerate() {
@@ -99,9 +99,9 @@ impl BuilderDag {
                     .await
                     .map_err(ExecutionError::Factory)?;
 
-                let state = sink.get_source_state().map_err(ExecutionError::Sink)?;
+                let state = sink.get_source_state_data().map_err(ExecutionError::Sink)?;
                 if let Some(state) = state {
-                    match source_states.entry(source.clone()) {
+                    match source_state_data.entry(source.clone()) {
                         Entry::Occupied(entry) => {
                             if entry.get() != &state {
                                 return Err(ExecutionError::SourceStateConflict(source));
@@ -113,15 +113,17 @@ impl BuilderDag {
                     }
                 }
 
-                let op_id = sink.get_latest_op_id().map_err(ExecutionError::Sink)?;
-                if let Some(op_id) = op_id {
-                    match source_op_ids.entry(source.clone()) {
-                        Entry::Occupied(mut entry) => {
-                            *entry.get_mut() = op_id.min(*entry.get());
+                let resume_state = sink.get_source_state().map_err(ExecutionError::Sink)?;
+                match source_states.entry(source.clone()) {
+                    Entry::Occupied(mut entry) => {
+                        if let Some(merged) = entry.get().clone().merge(resume_state) {
+                            *entry.get_mut() = merged;
+                        } else {
+                            return Err(ExecutionError::ResumeStateConflict(source));
                         }
-                        Entry::Vacant(entry) => {
-                            entry.insert(op_id);
-                        }
+                    }
+                    Entry::Vacant(entry) => {
+                        entry.insert(resume_state);
                     }
                 }
 
@@ -151,7 +153,7 @@ impl BuilderDag {
                                 .remove(&node_index)
                                 .expect("we collected all output schemas"),
                             event_hub.clone(),
-                            source_states.remove(&node.handle),
+                            source_state_data.remove(&node.handle),
                         )
                         .map_err(ExecutionError::Factory)?;
 
@@ -163,23 +165,27 @@ impl BuilderDag {
                     let mut checkpoint = None;
                     for sink in source_id_to_sinks.remove(&node.handle).unwrap_or_default() {
                         let sink = &mut graph[sink];
-                        let sink_handle = &sink.handle;
                         let NodeKind::Sink(sink) = &mut sink.kind else {
                             unreachable!()
                         };
-                        sink.set_source_state(&state)
+                        sink.set_source_state_data(&state)
                             .map_err(ExecutionError::Sink)?;
-                        if let Some(sink_checkpoint) = source_op_ids.remove(sink_handle) {
-                            checkpoint =
-                                Some(checkpoint.unwrap_or(sink_checkpoint).min(sink_checkpoint));
-                        }
+                        let resume_state = source_states.remove(&node.handle);
+                        checkpoint =
+                            match (checkpoint, resume_state) {
+                                (None, new) => new,
+                                (old, None) => old,
+                                (Some(old), Some(new)) => Some(old.merge(new).ok_or(
+                                    ExecutionError::ResumeStateConflict(node.handle.clone()),
+                                )?),
+                            };
                     }
 
                     NodeType {
                         handle: node.handle,
                         kind: NodeKind::Source {
                             source,
-                            last_checkpoint: checkpoint,
+                            last_checkpoint: checkpoint.unwrap_or(SourceState::NotStarted),
                         },
                     }
                 }

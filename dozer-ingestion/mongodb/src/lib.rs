@@ -8,7 +8,7 @@ use dozer_ingestion_connector::{
         errors::{internal::BoxedError, types::DeserializationError},
         json_types::{serde_json_to_json_value, JsonValue},
         models::ingestion_types::{IngestionMessage, TransactionInfo},
-        node::OpIdentifier,
+        node::SourceState,
         thiserror::{self, Error},
         types::{Field, FieldDefinition, FieldType, Operation, Record, SourceDefinition},
     },
@@ -599,7 +599,7 @@ impl Connector for MongodbConnector {
         &mut self,
         ingestor: &Ingestor,
         tables: Vec<TableInfo>,
-        _last_checkpoint: Option<OpIdentifier>,
+        _last_checkpoint: SourceState,
     ) -> Result<(), BoxedError> {
         // Snapshot: find
         //

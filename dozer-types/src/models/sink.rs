@@ -248,6 +248,8 @@ pub struct OracleSinkConfig {
     pub unique_key: Vec<String>,
     #[serde(default)]
     pub owner: Option<String>,
+    #[serde(default)]
+    pub append_only: bool,
 }
 
 pub fn default_log_reader_batch_size() -> u32 {

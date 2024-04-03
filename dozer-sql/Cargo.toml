@@ -23,6 +23,7 @@ tokio = { version = "1", features = ["rt", "macros"] }
 
 [dev-dependencies]
 proptest = "1.3.1"
+dozer-core = { path = "../dozer-core" }
 
 [features]
 python = ["dozer-sql-expression/python"]

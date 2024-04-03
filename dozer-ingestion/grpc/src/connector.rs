@@ -4,7 +4,7 @@ use crate::Error;
 
 use super::adapter::{GrpcIngestor, IngestAdapter};
 use super::ingest::IngestorServiceImpl;
-use dozer_ingestion_connector::dozer_types::node::OpIdentifier;
+use dozer_ingestion_connector::dozer_types::node::SourceState;
 use dozer_ingestion_connector::schema_parser::SchemaParser;
 use dozer_ingestion_connector::utils::TableNotFound;
 use dozer_ingestion_connector::{
@@ -201,7 +201,7 @@ where
         &mut self,
         ingestor: &Ingestor,
         tables: Vec<TableInfo>,
-        _last_checkpoint: Option<OpIdentifier>,
+        _last_checkpoint: SourceState,
     ) -> Result<(), BoxedError> {
         self.serve(ingestor, tables).await.map_err(Into::into)
     }

@@ -17,7 +17,46 @@ pub mod shutdown;
 pub use tokio;
 
 #[cfg(test)]
-pub mod tests;
+mod tests;
+
+pub mod test_utils {
+    use std::sync::atomic::AtomicUsize;
+
+    use dozer_types::{models::ingestion_types::IngestionMessage, types::PortHandle};
+    use tokio::sync::mpsc::Sender;
+
+    use crate::node::SourceMessage;
+
+    pub struct CountingSender {
+        count: AtomicUsize,
+        sender: Sender<SourceMessage>,
+    }
+
+    impl CountingSender {
+        pub fn new(sender: Sender<SourceMessage>) -> Self {
+            Self {
+                count: 0.into(),
+                sender,
+            }
+        }
+
+        pub async fn send(
+            &self,
+            port: PortHandle,
+            message: IngestionMessage,
+        ) -> Result<(), tokio::sync::mpsc::error::SendError<SourceMessage>> {
+            let idx = self.count.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+            self.sender
+                .send(SourceMessage {
+                    id: idx,
+                    port,
+                    message,
+                })
+                .await?;
+            Ok(())
+        }
+    }
+}
 
 pub use daggy::{self, petgraph};
 pub use dozer_types::{epoch, event};

@@ -13,9 +13,8 @@ use dozer_ingestion_connector::{
     dozer_types::{
         errors::internal::BoxedError,
         log::info,
-        models::ingestion_types::IngestionMessage,
-        models::ingestion_types::TransactionInfo,
-        node::OpIdentifier,
+        models::ingestion_types::{IngestionMessage, TransactionInfo},
+        node::{OpIdentifier, SourceState},
         types::{FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition},
     },
     utils::TableNotFound,
@@ -200,9 +199,9 @@ impl Connector for MySQLConnector {
         &mut self,
         ingestor: &Ingestor,
         tables: Vec<TableInfo>,
-        last_checkpoint: Option<OpIdentifier>,
+        last_checkpoint: SourceState,
     ) -> Result<(), BoxedError> {
-        self.replicate(ingestor, tables, last_checkpoint)
+        self.replicate(ingestor, tables, last_checkpoint.op_id())
             .await
             .map_err(Into::into)
     }

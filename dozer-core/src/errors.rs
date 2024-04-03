@@ -39,6 +39,8 @@ pub enum ExecutionError {
     Sink(#[source] BoxedError),
     #[error("State of {0} is not consistent across sinks")]
     SourceStateConflict(NodeHandle),
+    #[error("Resume state of {0} is not consistent across sinks")]
+    ResumeStateConflict(NodeHandle),
     #[error("File system error {0:?}: {1}")]
     FileSystemError(PathBuf, #[source] std::io::Error),
     #[error("Checkpoint writer thread panicked")]

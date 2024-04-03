@@ -4,7 +4,7 @@ use dozer_ingestion_connector::{
         errors::internal::BoxedError,
         log::info,
         models::ingestion_types::{IngestionMessage, OracleConfig, TransactionInfo},
-        node::OpIdentifier,
+        node::{OpIdentifier, SourceState},
         types::FieldType,
     },
     tokio, Connector, Ingestor, SourceSchemaResult, TableIdentifier, TableInfo,
@@ -150,9 +150,9 @@ impl Connector for OracleConnector {
         &mut self,
         ingestor: &Ingestor,
         tables: Vec<TableInfo>,
-        last_checkpoint: Option<OpIdentifier>,
+        last_checkpoint: SourceState,
     ) -> Result<(), BoxedError> {
-        let checkpoint = if let Some(last_checkpoint) = last_checkpoint {
+        let checkpoint = if let SourceState::Restartable(last_checkpoint) = last_checkpoint {
             last_checkpoint.txid
         } else {
             info!("No checkpoint passed, starting snapshotting");

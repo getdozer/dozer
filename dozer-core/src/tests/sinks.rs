@@ -3,7 +3,7 @@ use crate::event::EventHub;
 use crate::node::{PortHandle, Sink, SinkFactory};
 use crate::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::node::OpIdentifier;
+use dozer_types::node::{OpIdentifier, SourceState};
 use dozer_types::types::{Schema, TableOperation};
 
 use dozer_types::log::debug;
@@ -99,16 +99,16 @@ impl Sink for CountingSink {
         Ok(())
     }
 
-    fn set_source_state(&mut self, _source_state: &[u8]) -> Result<(), BoxedError> {
+    fn set_source_state_data(&mut self, _source_state: &[u8]) -> Result<(), BoxedError> {
         Ok(())
     }
 
-    fn get_source_state(&mut self) -> Result<Option<Vec<u8>>, BoxedError> {
+    fn get_source_state_data(&mut self) -> Result<Option<Vec<u8>>, BoxedError> {
         Ok(None)
     }
 
-    fn get_latest_op_id(&mut self) -> Result<Option<OpIdentifier>, BoxedError> {
-        Ok(None)
+    fn get_source_state(&mut self) -> Result<SourceState, BoxedError> {
+        Ok(SourceState::NotStarted)
     }
 }
 

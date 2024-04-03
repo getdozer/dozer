@@ -7,7 +7,7 @@ use dozer_types::errors::internal::BoxedError;
 
 use dozer_types::log::debug;
 use dozer_types::models::sink::{ClickhouseSinkConfig, ClickhouseTableOptions};
-use dozer_types::node::OpIdentifier;
+use dozer_types::node::{OpIdentifier, SourceState};
 
 use crate::client::ClickhouseClient;
 use crate::errors::ClickhouseSinkError;
@@ -310,16 +310,16 @@ impl Sink for ClickhouseSink {
         Ok(())
     }
 
-    fn set_source_state(&mut self, _source_state: &[u8]) -> Result<(), BoxedError> {
+    fn set_source_state_data(&mut self, _source_state: &[u8]) -> Result<(), BoxedError> {
         Ok(())
     }
 
-    fn get_source_state(&mut self) -> Result<Option<Vec<u8>>, BoxedError> {
+    fn get_source_state_data(&mut self) -> Result<Option<Vec<u8>>, BoxedError> {
         Ok(None)
     }
 
-    fn get_latest_op_id(&mut self) -> Result<Option<OpIdentifier>, BoxedError> {
+    fn get_source_state(&mut self) -> Result<SourceState, BoxedError> {
         // self.get_latest_op()
-        Ok(None)
+        Ok(SourceState::NotStarted)
     }
 }

@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use dozer_types::errors::internal::BoxedError;
-use dozer_types::node::OpIdentifier;
+use dozer_types::node::SourceState;
 use dozer_types::serde;
 use dozer_types::serde::{Deserialize, Serialize};
 pub use dozer_types::tonic::async_trait;
@@ -107,7 +107,7 @@ pub trait Connector: Send + Sync + Debug {
         &mut self,
         ingestor: &Ingestor,
         tables: Vec<TableInfo>,
-        last_checkpoint: Option<OpIdentifier>,
+        last_checkpoint: SourceState,
     ) -> Result<(), BoxedError>;
 }
 

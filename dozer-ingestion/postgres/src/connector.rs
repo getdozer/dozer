@@ -1,4 +1,4 @@
-use dozer_ingestion_connector::dozer_types::node::OpIdentifier;
+use dozer_ingestion_connector::dozer_types::node::SourceState;
 use dozer_ingestion_connector::{
     async_trait,
     dozer_types::{errors::internal::BoxedError, types::FieldType},
@@ -171,9 +171,11 @@ impl Connector for PostgresConnector {
         &mut self,
         ingestor: &Ingestor,
         tables: Vec<TableInfo>,
-        last_checkpoint: Option<OpIdentifier>,
+        last_checkpoint: SourceState,
     ) -> Result<(), BoxedError> {
-        let lsn = last_checkpoint.map(|checkpoint| checkpoint.txid.into());
+        let lsn = last_checkpoint
+            .op_id()
+            .map(|checkpoint| checkpoint.txid.into());
 
         if lsn.is_none() {
             let client = helper::connect(self.replication_conn_config.clone()).await?;

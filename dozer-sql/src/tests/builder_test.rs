@@ -5,13 +5,15 @@ use dozer_core::event::EventHub;
 use dozer_core::executor::DagExecutor;
 use dozer_core::node::{
     OutputPortDef, OutputPortType, PortHandle, Sink, SinkFactory, Source, SourceFactory,
+    SourceMessage,
 };
+use dozer_core::test_utils::CountingSender;
 use dozer_core::DEFAULT_PORT_HANDLE;
 use dozer_types::chrono::DateTime;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::log::debug;
 use dozer_types::models::ingestion_types::IngestionMessage;
-use dozer_types::node::OpIdentifier;
+use dozer_types::node::{OpIdentifier, SourceState};
 use dozer_types::ordered_float::OrderedFloat;
 use dozer_types::tonic::async_trait;
 use dozer_types::types::{
@@ -111,12 +113,13 @@ impl Source for TestSource {
 
     async fn start(
         &mut self,
-        sender: Sender<(PortHandle, IngestionMessage)>,
-        _last_checkpoint: Option<OpIdentifier>,
+        sender: Sender<SourceMessage>,
+        _last_checkpoint: SourceState,
     ) -> Result<(), BoxedError> {
+        let sender = CountingSender::new(sender);
         for _ in 0..10 {
             sender
-                .send((
+                .send(
                     DEFAULT_PORT_HANDLE,
                     IngestionMessage::OperationEvent {
                         table_index: 0,
@@ -132,7 +135,7 @@ impl Source for TestSource {
                         },
                         id: None,
                     },
-                ))
+                )
                 .await
                 .unwrap();
         }
@@ -206,16 +209,16 @@ impl Sink for TestSink {
         Ok(())
     }
 
-    fn set_source_state(&mut self, _source_state: &[u8]) -> Result<(), BoxedError> {
+    fn set_source_state_data(&mut self, _source_state: &[u8]) -> Result<(), BoxedError> {
         Ok(())
     }
 
-    fn get_source_state(&mut self) -> Result<Option<Vec<u8>>, BoxedError> {
+    fn get_source_state_data(&mut self) -> Result<Option<Vec<u8>>, BoxedError> {
         Ok(None)
     }
 
-    fn get_latest_op_id(&mut self) -> Result<Option<OpIdentifier>, BoxedError> {
-        Ok(None)
+    fn get_source_state(&mut self) -> Result<SourceState, BoxedError> {
+        Ok(SourceState::NotStarted)
     }
 }
 

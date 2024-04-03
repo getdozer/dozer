@@ -104,6 +104,13 @@ impl OpIdentifier {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum ResumeState {
+    Resume,
+    ResumeFromOpid(OpIdentifier),
+    DontResume,
+}
+
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, bincode::Encode, bincode::Decode,
 )]
@@ -111,16 +118,47 @@ impl OpIdentifier {
 pub enum SourceState {
     /// This source hasn't been ingested.
     NotStarted,
-    /// This source has some data ingested, and it can't be restarted.
-    NonRestartable,
+    /// This source has some data ingested, but it doesn't supply OpIdentifiers
+    Started,
     /// This source has some data ingested, and it can be restarted if it's given the op id.
     Restartable(OpIdentifier),
 }
 
 impl SourceState {
-    pub fn op_id(&self) -> Option<&OpIdentifier> {
+    pub fn set(&mut self, new: SourceState) {
+        match (&self, &new) {
+            (_, Self::NotStarted) => {
+                panic!("Cannot go back from Started to NotStarted state")
+            }
+            // We can restart from the earlier one
+            (Self::Restartable(_), Self::Started) => {}
+            (Self::Restartable(old_id), Self::Restartable(new_id)) => {
+                assert!(
+                    new_id > old_id,
+                    "SourceState::Restartable op identifier cannot go backwards"
+                );
+            }
+            _ => {}
+        }
+        *self = new;
+    }
+
+    pub fn merge(self, new: SourceState) -> Option<SourceState> {
+        match (self, new) {
+            (Self::NotStarted, Self::NotStarted) => Some(Self::NotStarted),
+            (_, Self::NotStarted) => None,
+            // We can restart from the earlier one
+            (Self::Restartable(_), Self::Started) => None,
+            (Self::Restartable(old_id), Self::Restartable(new_id)) => {
+                Some(Self::Restartable(old_id.min(new_id)))
+            }
+            (_, new) => Some(new),
+        }
+    }
+
+    pub fn op_id(&self) -> Option<OpIdentifier> {
         if let Self::Restartable(op_id) = self {
-            Some(op_id)
+            Some(*op_id)
         } else {
             None
         }

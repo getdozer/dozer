@@ -4,7 +4,7 @@ use dozer_ingestion_connector::{
         errors::internal::BoxedError,
         log::{error, info, warn},
         models::ingestion_types::{default_batch_size, EthTraceConfig, IngestionMessage},
-        node::OpIdentifier,
+        node::SourceState,
         types::FieldType,
     },
     utils::TableNotFound,
@@ -106,7 +106,7 @@ impl Connector for EthTraceConnector {
         &mut self,
         ingestor: &Ingestor,
         _tables: Vec<TableInfo>,
-        _last_checkpoint: Option<OpIdentifier>,
+        _last_checkpoint: SourceState,
     ) -> Result<(), BoxedError> {
         let config = self.config.clone();
         let conn_name = self.conn_name.clone();

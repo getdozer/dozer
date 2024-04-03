@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use dozer_ingestion::dozer_types::event::EventHub;
+use dozer_ingestion::dozer_types::{event::EventHub, node::SourceState};
 use dozer_ingestion_connector::{
     dozer_types::{
         indicatif::{ProgressBar, ProgressStyle},
@@ -52,7 +52,9 @@ pub fn get_connection_iterator(runtime: Arc<Runtime>, config: TestConfig) -> Ing
     let tables = runtime.block_on(list_tables(&mut *connector));
     let (ingestor, iterator) = Ingestor::initialize_channel(Default::default());
     runtime.clone().spawn_blocking(move || async move {
-        if let Err(e) = runtime.block_on(connector.start(&ingestor, tables, None)) {
+        if let Err(e) =
+            runtime.block_on(connector.start(&ingestor, tables, SourceState::NotStarted))
+        {
             error!("Error starting connector: {:?}", e);
         }
     });

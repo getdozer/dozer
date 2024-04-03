@@ -5,7 +5,7 @@ use denorm_dag::DenormalizationState;
 use dozer_core::event::EventHub;
 use dozer_types::log::error;
 use dozer_types::models::connection::AerospikeConnection;
-use dozer_types::node::OpIdentifier;
+use dozer_types::node::{OpIdentifier, SourceState};
 use dozer_types::thiserror;
 use itertools::Itertools;
 
@@ -511,15 +511,15 @@ impl Sink for AerospikeSink {
         Ok(())
     }
 
-    fn set_source_state(&mut self, _source_state: &[u8]) -> Result<(), BoxedError> {
+    fn set_source_state_data(&mut self, _source_state: &[u8]) -> Result<(), BoxedError> {
         Ok(())
     }
 
-    fn get_source_state(&mut self) -> Result<Option<Vec<u8>>, BoxedError> {
+    fn get_source_state_data(&mut self) -> Result<Option<Vec<u8>>, BoxedError> {
         Ok(None)
     }
 
-    fn get_latest_op_id(&mut self) -> Result<Option<OpIdentifier>, BoxedError> {
+    fn get_source_state(&mut self) -> Result<SourceState, BoxedError> {
         let mut _k = MaybeUninit::uninit();
         let mut _r = std::ptr::null_mut();
         unsafe {
@@ -537,7 +537,7 @@ impl Sink for AerospikeSink {
                 Err(AerospikeError {
                     code: as_status_e_AEROSPIKE_ERR_RECORD_NOT_FOUND,
                     message: _,
-                }) => return Ok(None),
+                }) => return Ok(SourceState::NotStarted),
                 Err(e) => return Err(e.into()),
             }
             let record = AsRecord(_r.as_mut().unwrap());
@@ -547,12 +547,12 @@ impl Sink for AerospikeSink {
                 -1,
             );
             if txid > 0 {
-                Ok(Some(OpIdentifier {
+                Ok(SourceState::Restartable(OpIdentifier {
                     txid: txid as u64,
                     seq_in_tx: 0,
                 }))
             } else {
-                Ok(None)
+                Ok(SourceState::Started)
             }
         }
     }
