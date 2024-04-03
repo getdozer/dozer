@@ -66,9 +66,9 @@ fn map_data_type(
             "RAW" => Ok(FieldType::Binary),
             "ROWID" => Ok(FieldType::String),
             "CHAR" => Ok(FieldType::String),
-            "NCHAR" => unimplemented!("convert NCHAR to String"),
+            "NCHAR" => Ok(FieldType::String),
             "CLOB" => Ok(FieldType::String),
-            "NCLOB" => unimplemented!("convert NCLOB to String"),
+            "NCLOB" => Ok(FieldType::String),
             "BLOB" => Ok(FieldType::Binary),
             other => Err(DataTypeError::UnsupportedDataType(other.to_string())),
         }?
