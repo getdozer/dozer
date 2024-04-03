@@ -18,16 +18,14 @@ use dozer_ingestion_connector::{
     },
     Ingestor, SourceSchema, TableIdentifier, TableInfo,
 };
-use oracle::{
-    sql_type::{Collection, ObjectType},
-    Connection,
-};
+use oracle::{sql_type::Collection, Connection};
 
 #[derive(Debug, Clone)]
 pub struct Connector {
     connection_name: String,
     connection: Arc<Connection>,
     username: String,
+    string_collection_type_name: String,
     batch_size: usize,
     replicator: OracleReplicator,
 }
@@ -101,6 +99,7 @@ impl Connector {
         username: String,
         password: &str,
         connect_string: &str,
+        string_collection_type_name: String,
         batch_size: usize,
         replicator: OracleReplicator,
     ) -> Result<Self, Error> {
@@ -110,6 +109,7 @@ impl Connector {
             connection_name,
             connection: Arc::new(connection),
             username,
+            string_collection_type_name,
             batch_size,
             replicator,
         })
@@ -136,7 +136,8 @@ impl Connector {
             FROM ALL_TABLES
             WHERE OWNER IN (SELECT COLUMN_VALUE FROM TABLE(:2))
             ";
-            let owners = string_collection(&self.connection, schemas)?;
+            let owners =
+                string_collection(&self.connection, &self.string_collection_type_name, schemas)?;
             debug!("{}, {}", sql, owners);
             self.connection
                 .query_as::<(String, String)>(sql, &[&owners])?
@@ -166,8 +167,11 @@ impl Connector {
                     .unwrap_or_else(|| self.username.clone())
             })
             .collect::<HashSet<_>>();
-        let table_columns =
-            listing::TableColumn::list(&self.connection, &schemas.into_iter().collect::<Vec<_>>())?;
+        let table_columns = listing::TableColumn::list(
+            &self.connection,
+            &self.string_collection_type_name,
+            &schemas.into_iter().collect::<Vec<_>>(),
+        )?;
         let mut table_to_columns = HashMap::<(String, String), Vec<String>>::new();
         for table_column in table_columns {
             let table_pair = (table_column.owner, table_column.table_name);
@@ -214,10 +218,21 @@ impl Connector {
             .collect::<HashSet<_>>()
             .into_iter()
             .collect::<Vec<_>>();
-        let table_columns = listing::TableColumn::list(&self.connection, &schemas)?;
-        let constraint_columns =
-            listing::ConstraintColumn::list(&self.connection, &schemas).unwrap();
-        let constraints = listing::Constraint::list(&self.connection, &schemas).unwrap();
+        let table_columns = listing::TableColumn::list(
+            &self.connection,
+            &self.string_collection_type_name,
+            &schemas,
+        )?;
+        let constraint_columns = listing::ConstraintColumn::list(
+            &self.connection,
+            &self.string_collection_type_name,
+            &schemas,
+        )?;
+        let constraints = listing::Constraint::list(
+            &self.connection,
+            &self.string_collection_type_name,
+            &schemas,
+        )?;
         let table_columns =
             join::join_columns_constraints(table_columns, constraint_columns, constraints);
 
@@ -415,31 +430,13 @@ mod listing;
 mod mapping;
 mod replicate;
 
-const TEMP_DOZER_TYPE_NAME: &str = "TEMP_DOZER_TYPE";
-
-fn temp_varray_of_vchar2(
+fn string_collection(
     connection: &Connection,
-    num_strings: usize,
-    max_num_chars: usize,
-) -> Result<ObjectType, Error> {
-    let sql = format!(
-        "CREATE OR REPLACE TYPE {} AS VARRAY({}) OF VARCHAR2({})",
-        TEMP_DOZER_TYPE_NAME, num_strings, max_num_chars
-    );
-    debug!("{}", sql);
-    connection.execute(&sql, &[])?;
-    connection
-        .object_type(TEMP_DOZER_TYPE_NAME)
-        .map_err(Into::into)
-}
-
-fn string_collection(connection: &Connection, strings: &[String]) -> Result<Collection, Error> {
-    let temp_type = temp_varray_of_vchar2(
-        connection,
-        strings.len(),
-        strings.iter().map(|s| s.len()).max().unwrap(),
-    )?;
-    let mut collection = temp_type.new_collection()?;
+    string_collection_type_name: &str,
+    strings: &[String],
+) -> Result<Collection, Error> {
+    let object_type = connection.object_type(string_collection_type_name)?;
+    let mut collection = object_type.new_collection()?;
     for string in strings {
         collection.push(&str_to_sql!(*string))?;
     }
@@ -497,16 +494,17 @@ mod tests {
 
         env_logger::init();
 
-        let replicate_user = "DOZER";
-        let data_user = "DOZER";
-        let host = "database-1.cxtwfj9nkwtu.ap-southeast-1.rds.amazonaws.com";
-        let sid = "ORCL";
+        let replicate_user = "C##DOZER";
+        let data_user = "CHUBEI";
+        let host = "localhost";
+        let sid = "ORCLPDB1";
 
         let mut connector = super::Connector::new(
             "oracle".into(),
             replicate_user.into(),
             "123",
             &format!("{}:{}/{}", host, 1521, sid),
+            "SYS.DOZER_VARRAY_OF_VARCHAR2".to_string(),
             100_000,
             OracleReplicator::DozerLogReader,
         )
@@ -525,11 +523,14 @@ mod tests {
         estimate_throughput(iterator);
         let checkpoint = handle.join().unwrap().unwrap();
 
+        let sid = "ORCLCDB";
+
         let mut connector = super::Connector::new(
             "oracle".into(),
             replicate_user.into(),
             "123",
             &format!("{}:{}/{}", host, 1521, sid),
+            "SYS.DOZER_VARRAY_OF_VARCHAR2".to_string(),
             1,
             OracleReplicator::LogMiner {
                 poll_interval_in_milliseconds: 1000,

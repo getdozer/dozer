@@ -53,6 +53,7 @@ impl OracleConnector {
                         config.user.clone(),
                         &config.password,
                         &root_connect_string,
+                        config.string_collection_type_name.clone(),
                         batch_size,
                         config.replicator,
                     )?;
@@ -61,9 +62,10 @@ impl OracleConnector {
                         let pdb_connect_string = format!("{}:{}/{}", config.host, config.port, pdb);
                         let pdb_connector = connector::Connector::new(
                             connection_name,
-                            config.user.clone(),
+                            config.user,
                             &config.password,
                             &pdb_connect_string,
+                            config.string_collection_type_name,
                             batch_size,
                             config.replicator,
                         )?;

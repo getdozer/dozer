@@ -920,6 +920,7 @@ mod tests {
                 sid: "ORCLCDB".into(),
                 pdb: Some("ORCLPDB1".into()),
                 schemas: vec![],
+                string_collection_type_name: "DOZER_VAARY_OF_VARCHAR2".to_string(),
                 batch_size: None,
                 replicator: dozer_types::models::ingestion_types::OracleReplicator::LogMiner {
                     poll_interval_in_milliseconds: 0,

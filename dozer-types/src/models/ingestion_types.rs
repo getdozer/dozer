@@ -656,6 +656,8 @@ pub struct OracleConfig {
     /// The schemas to consider when listing tables. If empty, will list all schemas, which can be slow.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub schemas: Vec<String>,
+    /// A `VARRAY OF VARCHAR2` type that can be used by dozer.
+    pub string_collection_type_name: String,
     /// Batch size during snapshotting
     pub batch_size: Option<usize>,
     pub replicator: OracleReplicator,
