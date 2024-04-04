@@ -297,7 +297,35 @@ pub enum Operation {
     BatchInsert { new: Vec<Record> },
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum OperationKind {
+    Delete,
+    Insert,
+    Update,
+    BatchInsert,
+}
+
+impl Display for OperationKind {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            OperationKind::Delete => "DELETE",
+            OperationKind::Insert => "INSERT",
+            OperationKind::Update => "UPDATE",
+            OperationKind::BatchInsert => "INSERT",
+        })
+    }
+}
+
 impl Operation {
+    pub fn kind(&self) -> OperationKind {
+        match self {
+            Operation::Delete { .. } => OperationKind::Delete,
+            Operation::Insert { .. } => OperationKind::Insert,
+            Operation::Update { .. } => OperationKind::Update,
+            Operation::BatchInsert { .. } => OperationKind::BatchInsert,
+        }
+    }
+
     pub fn len(&self) -> usize {
         match self {
             Self::Delete { .. } | Self::Insert { .. } | Self::Update { .. } => 1,
