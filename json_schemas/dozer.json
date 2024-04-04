@@ -253,6 +253,14 @@
           "format": "uint64",
           "minimum": 0.0
         },
+        "snapshot_batch_size": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
+        },
         "tables": {
           "type": "array",
           "items": {

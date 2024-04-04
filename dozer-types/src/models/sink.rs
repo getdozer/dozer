@@ -184,6 +184,7 @@ pub struct AerospikeSinkConfig {
     pub tables: Vec<AerospikeSinkTable>,
     pub max_batch_duration_ms: Option<u64>,
     pub preferred_batch_size: Option<u64>,
+    pub snapshot_batch_size: Option<u64>,
     pub metadata_namespace: String,
     #[serde(default)]
     pub metadata_set: Option<String>,

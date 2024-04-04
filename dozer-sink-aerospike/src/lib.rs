@@ -1,7 +1,8 @@
 pub use crate::aerospike::Client;
 
 use aerospike_client_sys::*;
-use denorm_dag::DenormalizationState;
+use constants::SNAPSHOT_DEFAULT_BATCH_SIZE;
+use denorm_dag::{AerospikeSchema, DenormalizationState};
 use dozer_core::event::EventHub;
 use dozer_types::log::error;
 use dozer_types::models::connection::AerospikeConnection;
@@ -46,6 +47,8 @@ mod constants {
     pub(super) const META_KEY: &CStr = cstr(b"metadata\0");
     pub(super) const META_BASE_TXN_ID_BIN: &CStr = cstr(b"txn_id\0");
     pub(super) const META_LOOKUP_TXN_ID_BIN: &CStr = cstr(b"txn_id\0");
+
+    pub(super) const SNAPSHOT_DEFAULT_BATCH_SIZE: u64 = 20_000;
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -360,6 +363,10 @@ impl AerospikeSink {
             last_committed_transaction: None,
             snapshotting: false,
             snapshotting_batch_size: 0,
+            snapshotting_target_batch_size: config
+                .snapshot_batch_size
+                .or(config.preferred_batch_size)
+                .unwrap_or(SNAPSHOT_DEFAULT_BATCH_SIZE),
         };
 
         Ok(Self {
@@ -374,7 +381,8 @@ impl AerospikeSink {
 
 #[derive(Debug)]
 struct AerospikeSinkWorker {
-    snapshotting_batch_size: usize,
+    snapshotting_batch_size: u64,
+    snapshotting_target_batch_size: u64,
     client: Arc<Client>,
     state: DenormalizationState,
     last_committed_transaction: Option<u64>,
@@ -385,9 +393,11 @@ struct AerospikeSinkWorker {
 impl AerospikeSinkWorker {
     fn process(&mut self, op: TableOperation) -> Result<(), AerospikeSinkError> {
         if self.snapshotting {
-            self.snapshotting_batch_size += op.op.len();
+            self.snapshotting_batch_size = self
+                .snapshotting_batch_size
+                .saturating_add(op.op.len().try_into().unwrap_or(u64::MAX));
             self.state.process(op)?;
-            if self.snapshotting_batch_size >= 10_000 {
+            if self.snapshotting_batch_size >= self.snapshotting_target_batch_size {
                 self.state.persist(self.client.clone())?;
                 self.snapshotting_batch_size = 0;
             }
