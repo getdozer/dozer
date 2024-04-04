@@ -36,6 +36,7 @@ fn get_default_config() -> Config {
                 connection: grpc_conn.name.clone(),
                 schema: None,
                 refresh_config: Default::default(),
+                replication_mode: Default::default(),
             },
             Source {
                 name: "grpc_conn_customers".to_string(),
@@ -44,6 +45,7 @@ fn get_default_config() -> Config {
                 connection: grpc_conn.name,
                 schema: None,
                 refresh_config: Default::default(),
+                replication_mode: Default::default(),
             },
         ],
         ..Default::default()

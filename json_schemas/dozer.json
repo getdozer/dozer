@@ -1644,6 +1644,14 @@
         "RealTime"
       ]
     },
+    "ReplicationMode": {
+      "type": "string",
+      "enum": [
+        "SnapshotOnly",
+        "ReplicationOnly",
+        "Full"
+      ]
+    },
     "ReplicationSettings": {
       "type": "object",
       "properties": {
@@ -1921,6 +1929,14 @@
           "allOf": [
             {
               "$ref": "#/definitions/RefreshConfig"
+            }
+          ]
+        },
+        "replication_mode": {
+          "default": "Full",
+          "allOf": [
+            {
+              "$ref": "#/definitions/ReplicationMode"
             }
           ]
         },

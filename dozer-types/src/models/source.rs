@@ -3,6 +3,24 @@ use serde::{Deserialize, Serialize};
 
 use super::equal_default;
 
+#[derive(Debug, Default, Deserialize, Serialize, JsonSchema, PartialEq, Copy, Clone, Eq)]
+pub enum ReplicationMode {
+    SnapshotOnly,
+    ReplicationOnly,
+    #[default]
+    Full,
+}
+
+impl ReplicationMode {
+    pub fn snapshot(&self) -> bool {
+        matches!(self, Self::SnapshotOnly | Self::Full)
+    }
+
+    pub fn replicate(&self) -> bool {
+        matches!(self, Self::ReplicationOnly | Self::Full)
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Default, Eq, PartialEq, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct Source {
@@ -26,6 +44,9 @@ pub struct Source {
     #[serde(default, skip_serializing_if = "equal_default")]
     /// setting for how to refresh the data; Default: RealTime
     pub refresh_config: RefreshConfig,
+
+    #[serde(default)]
+    pub replication_mode: ReplicationMode,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Eq, PartialEq, Clone, Default)]

@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
 use dozer_types::errors::internal::BoxedError;
+use dozer_types::models::source::ReplicationMode;
 use dozer_types::node::OpIdentifier;
 use dozer_types::serde;
 use dozer_types::serde::{Deserialize, Serialize};
@@ -109,6 +110,26 @@ pub trait Connector: Send + Sync + Debug {
         tables: Vec<TableInfo>,
         last_checkpoint: Option<OpIdentifier>,
     ) -> Result<(), BoxedError>;
+
+    async fn start_with_replicationmode(
+        &mut self,
+        ingestor: &Ingestor,
+        tables: Vec<ReplicationTable>,
+        last_checkpoint: Option<OpIdentifier>,
+    ) -> Result<(), BoxedError> {
+        let mut simple_tables = Vec::new();
+        for table in tables {
+            if table.replication_mode != ReplicationMode::Full {
+                return Err(format!(
+                    "Replication mode {:?} is not supported for this connector",
+                    table.replication_mode
+                )
+                .into());
+            }
+            simple_tables.push(table.info);
+        }
+        self.start(ingestor, simple_tables, last_checkpoint).await
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -142,4 +163,10 @@ pub struct TableInfo {
     pub name: String,
     /// The column names to be mapped.
     pub column_names: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ReplicationTable {
+    pub info: TableInfo,
+    pub replication_mode: ReplicationMode,
 }

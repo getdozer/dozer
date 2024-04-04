@@ -11,6 +11,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 
+use super::connector_source::ConnectorSourceTable;
+
 pub struct SourceBuilder {
     grouped_connections: HashMap<Connection, Vec<Source>>,
     labels: DozerMonitorContext,
@@ -53,24 +55,25 @@ impl SourceBuilder {
 
         for (connection, sources_group) in &self.grouped_connections {
             let mut ports = HashMap::new();
-            let mut table_and_ports = vec![];
+            let mut tables = vec![];
             for source in sources_group {
                 ports.insert(source.name.clone(), port);
 
-                table_and_ports.push((
-                    TableInfo {
+                tables.push(ConnectorSourceTable {
+                    table: TableInfo {
                         schema: source.schema.clone(),
                         name: source.table_name.clone(),
                         column_names: source.columns.clone(),
                     },
                     port,
-                ));
+                    mode: source.replication_mode,
+                });
 
                 port += 1;
             }
 
             let source_factory = ConnectorSourceFactory::new(
-                table_and_ports,
+                tables,
                 connection.clone(),
                 runtime.clone(),
                 self.labels.clone(),

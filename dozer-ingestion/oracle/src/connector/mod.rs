@@ -302,7 +302,7 @@ impl Connector {
         self.get_scn_and_commit()
     }
 
-    fn get_scn_and_commit(&mut self) -> Result<Scn, Error> {
+    pub(crate) fn get_scn_and_commit(&mut self) -> Result<Scn, Error> {
         let sql = "SELECT DBMS_FLASHBACK.GET_SYSTEM_CHANGE_NUMBER() FROM DUAL";
         let scn = self.connection.query_row_as::<Scn>(sql, &[])?;
         self.connection.commit()?;

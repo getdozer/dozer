@@ -2,7 +2,8 @@ use dozer_core::event::EventHub;
 use dozer_core::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory};
 use dozer_core::shutdown::ShutdownReceiver;
 use dozer_ingestion::{
-    get_connector, CdcType, Connector, IngestionIterator, TableIdentifier, TableInfo,
+    get_connector, CdcType, Connector, IngestionIterator, ReplicationTable, TableIdentifier,
+    TableInfo,
 };
 use dozer_ingestion::{IngestionConfig, Ingestor};
 use dozer_tracing::constants::{
@@ -13,6 +14,7 @@ use dozer_tracing::{emit_event, DozerMonitorContext};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::models::connection::Connection;
 use dozer_types::models::ingestion_types::IngestionMessage;
+use dozer_types::models::source::ReplicationMode;
 use dozer_types::node::OpIdentifier;
 use dozer_types::thiserror::{self, Error};
 use dozer_types::tracing::info;
@@ -32,6 +34,7 @@ struct Table {
     schema: Schema,
     cdc_type: CdcType,
     port: PortHandle,
+    mode: ReplicationMode,
 }
 
 #[derive(Debug, Error)]
@@ -57,9 +60,15 @@ fn map_replication_type_to_output_port_type(_typ: &CdcType) -> OutputPortType {
     OutputPortType::Stateless
 }
 
+pub struct ConnectorSourceTable {
+    pub table: TableInfo,
+    pub mode: ReplicationMode,
+    pub port: PortHandle,
+}
+
 impl ConnectorSourceFactory {
     pub async fn new(
-        mut table_and_ports: Vec<(TableInfo, PortHandle)>,
+        mut table_and_ports: Vec<ConnectorSourceTable>,
         connection: Connection,
         runtime: Arc<Runtime>,
         labels: DozerMonitorContext,
@@ -72,13 +81,17 @@ impl ConnectorSourceFactory {
         // Fill column names if not provided.
         let table_identifiers = table_and_ports
             .iter()
-            .map(|(table, _)| TableIdentifier::new(table.schema.clone(), table.name.clone()))
+            .map(|ConnectorSourceTable { table, .. }| {
+                TableIdentifier::new(table.schema.clone(), table.name.clone())
+            })
             .collect();
         let all_columns = connector
             .list_columns(table_identifiers)
             .await
             .map_err(ConnectorSourceFactoryError::Connector)?;
-        for ((table, _), columns) in table_and_ports.iter_mut().zip(all_columns) {
+        for (ConnectorSourceTable { table, .. }, columns) in
+            table_and_ports.iter_mut().zip(all_columns)
+        {
             if table.column_names.is_empty() {
                 table.column_names = columns.column_names;
             }
@@ -86,7 +99,7 @@ impl ConnectorSourceFactory {
 
         let tables: Vec<TableInfo> = table_and_ports
             .iter()
-            .map(|(table, _)| table.clone())
+            .map(|ConnectorSourceTable { table, .. }| table.clone())
             .collect();
         let source_schemas = connector
             .get_schemas(&tables)
@@ -94,7 +107,9 @@ impl ConnectorSourceFactory {
             .map_err(ConnectorSourceFactoryError::Connector)?;
 
         let mut tables = vec![];
-        for ((table, port), source_schema) in table_and_ports.into_iter().zip(source_schemas) {
+        for (ConnectorSourceTable { table, mode, port }, source_schema) in
+            table_and_ports.into_iter().zip(source_schemas)
+        {
             let name = table.name;
             let columns = table.column_names;
             let source_schema = source_schema.map_err(ConnectorSourceFactoryError::Connector)?;
@@ -108,6 +123,7 @@ impl ConnectorSourceFactory {
                 schema,
                 cdc_type,
                 port,
+                mode,
             };
 
             tables.push(table);
@@ -179,10 +195,13 @@ impl SourceFactory for ConnectorSourceFactory {
         let tables = self
             .tables
             .iter()
-            .map(|table| TableInfo {
-                schema: table.schema_name.clone(),
-                name: table.name.clone(),
-                column_names: table.columns.clone(),
+            .map(|table| ReplicationTable {
+                info: TableInfo {
+                    schema: table.schema_name.clone(),
+                    name: table.name.clone(),
+                    column_names: table.columns.clone(),
+                },
+                replication_mode: table.mode,
             })
             .collect();
         let ports = self.tables.iter().map(|table| table.port).collect();
@@ -208,7 +227,7 @@ impl SourceFactory for ConnectorSourceFactory {
 
 #[derive(Debug)]
 pub struct ConnectorSource {
-    tables: Vec<TableInfo>,
+    tables: Vec<ReplicationTable>,
     ports: Vec<PortHandle>,
     connector: Box<dyn Connector>,
     connection_name: String,
@@ -230,14 +249,19 @@ impl Source for ConnectorSource {
     ) -> Result<(), BoxedError> {
         let (ingestor, iterator) = Ingestor::initialize_channel(self.ingestion_config.clone());
         let connection_name = self.connection_name.clone();
-        let tables = self.tables.clone();
         let ports = self.ports.clone();
         let labels = self.labels.clone();
+        let table_infos = self
+            .tables
+            .iter()
+            .cloned()
+            .map(|table| table.info)
+            .collect();
         let handle = tokio::spawn(forward_message_to_pipeline(
             iterator,
             sender,
             connection_name.clone(),
-            tables,
+            table_infos,
             ports,
             labels,
         ));
@@ -264,8 +288,11 @@ impl Source for ConnectorSource {
         );
 
         let result = Abortable::new(
-            self.connector
-                .start(&ingestor, self.tables.clone(), last_checkpoint),
+            self.connector.start_with_replicationmode(
+                &ingestor,
+                self.tables.clone(),
+                last_checkpoint,
+            ),
             abort_registration,
         )
         .await;
