@@ -297,6 +297,22 @@ pub enum Operation {
     BatchInsert { new: Vec<Record> },
 }
 
+impl Operation {
+    pub fn len(&self) -> usize {
+        match self {
+            Self::Delete { .. } | Self::Insert { .. } | Self::Update { .. } => 1,
+            Self::BatchInsert { new } => new.len(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Self::Delete { .. } | Self::Insert { .. } | Self::Update { .. } => false,
+            Self::BatchInsert { new } => new.is_empty(),
+        }
+    }
+}
+
 pub type PortHandle = u16;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, bincode::Encode, bincode::Decode)]

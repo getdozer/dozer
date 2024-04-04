@@ -1,8 +1,10 @@
 use std::collections::HashMap;
 use std::ffi::{CStr, CString, NulError};
+use std::sync::Arc;
 
 use dozer_core::daggy::petgraph::Direction;
 use dozer_core::daggy::{self, EdgeIndex, NodeIndex};
+use dozer_core::node::PortHandle;
 use dozer_core::petgraph::visit::{
     EdgeRef, IntoEdgesDirected, IntoNeighborsDirected, IntoNodeReferences,
 };
@@ -456,10 +458,10 @@ impl OneToOneBatch {
 }
 
 #[derive(Debug, Clone)]
-struct AerospikeSchema {
-    namespace: CString,
-    set: CString,
-    bins: BinNames,
+pub(crate) struct AerospikeSchema {
+    pub namespace: CString,
+    pub set: CString,
+    pub bins: BinNames,
 }
 
 #[derive(Debug, Clone)]
@@ -771,8 +773,8 @@ impl DenormalizationState {
             node.batch.clear();
         }
     }
-    pub(crate) fn persist(&mut self, client: &Client) -> Result<(), AerospikeSinkError> {
-        let mut read_batch = ReadBatch::new(client, 0, None);
+    pub(crate) fn persist(&mut self, client: Arc<Client>) -> Result<(), AerospikeSinkError> {
+        let mut read_batch = ReadBatch::new(client.clone(), 0, None);
         let mut lookups = Vec::new();
         self.add_manynode_base_lookups(&mut read_batch, &mut lookups)?;
         let read_results = read_batch.execute()?;
@@ -806,7 +808,7 @@ impl DenormalizationState {
 
     pub(crate) fn perform_denorm(
         &mut self,
-        client: &Client,
+        client: Arc<Client>,
     ) -> Result<Vec<DenormalizedTable>, AerospikeSinkError> {
         let mut lookups = Vec::new();
         for (nid, _, _) in &self.base_tables {
@@ -828,11 +830,12 @@ impl DenormalizationState {
         }
 
         let mut n_lookups = 0;
-        let mut batch = ReadBatch::new(client, 0, None);
+        let mut batch = ReadBatch::new(client.clone(), 0, None);
         while !lookups.is_empty() {
             let batch_results = batch.execute()?;
             let mut new_lookups = Vec::with_capacity(lookups.len());
-            let mut new_batch = ReadBatch::new(client, lookups.len().try_into().unwrap(), None);
+            let mut new_batch =
+                ReadBatch::new(client.clone(), lookups.len().try_into().unwrap(), None);
 
             // For persisting, we need all many-node baselines, so put them in the
             // first batch
@@ -931,7 +934,7 @@ impl DenormalizationState {
 
     fn add_manynode_base_lookups(
         &mut self,
-        read_batch: &mut ReadBatch<'_>,
+        read_batch: &mut ReadBatch,
         lookups: &mut Vec<BatchLookup>,
     ) -> Result<(), AerospikeSinkError> {
         for (i, node) in self.dag.node_references() {
@@ -1045,7 +1048,7 @@ impl DenormalizationState {
 
 #[cfg(test)]
 mod tests {
-    use std::ffi::CString;
+    use std::{ffi::CString, sync::Arc};
 
     use dozer_types::{
         models::sink::AerospikeSinkTable,
@@ -1223,7 +1226,7 @@ mod tests {
         }
     }
 
-    fn client() -> Client {
+    fn client() -> Arc<Client> {
         let client = Client::new(&CString::new("localhost:3000").unwrap()).unwrap();
         let mut response = std::ptr::null_mut();
         let request = "truncate-namespace:namespace=test";
@@ -1231,7 +1234,7 @@ mod tests {
         unsafe {
             client.info(&request, &mut response).unwrap();
         }
-        client
+        client.into()
     }
 
     fn lookup_table(name: &str) -> (AerospikeSinkTable, Schema) {
@@ -1344,9 +1347,9 @@ mod tests {
             })
             .unwrap();
 
-        let client = &client();
+        let client = client();
         assert_eq!(
-            state.perform_denorm(client).unwrap(),
+            state.perform_denorm(client.clone()).unwrap(),
             vec![DenormalizedTable {
                 bin_names: vec![
                     CString::new("id").unwrap(),
@@ -1393,7 +1396,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            state.perform_denorm(&client).unwrap(),
+            state.perform_denorm(client).unwrap(),
             vec![vec![DenormResult {
                 id: 0,
                 account_id: 100,
@@ -1439,8 +1442,8 @@ mod tests {
                 port: 1,
             })
             .unwrap();
-        state.persist(&client).unwrap();
-        assert_eq!(state.perform_denorm(&client).unwrap(), vec![vec![]]);
+        state.persist(client.clone()).unwrap();
+        assert_eq!(state.perform_denorm(client.clone()).unwrap(), vec![vec![]]);
         // Transactions
         state
             .process(TableOperation {
@@ -1456,7 +1459,7 @@ mod tests {
                 port: 2,
             })
             .unwrap();
-        let res = state.perform_denorm(&client).unwrap();
+        let res = state.perform_denorm(client.clone()).unwrap();
         assert_eq!(
             res,
             vec![vec![DenormResult {
@@ -1469,7 +1472,7 @@ mod tests {
             }]]
         );
         state.commit();
-        state.persist(&client).unwrap();
+        state.persist(client.clone()).unwrap();
         state
             .process(TableOperation {
                 id: None,
@@ -1531,7 +1534,7 @@ mod tests {
             })
             .unwrap();
         state.commit();
-        let res = state.perform_denorm(&client).unwrap();
+        let res = state.perform_denorm(client.clone()).unwrap();
         assert_eq!(
             res,
             vec![vec![
@@ -1561,7 +1564,7 @@ mod tests {
                 },
             ],]
         );
-        state.persist(&client).unwrap();
+        state.persist(client.clone()).unwrap();
     }
 
     fn state() -> DenormalizationState {

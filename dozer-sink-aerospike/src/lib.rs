@@ -358,6 +358,8 @@ impl AerospikeSink {
             state,
             metadata_writer,
             last_committed_transaction: None,
+            snapshotting: false,
+            snapshotting_batch_size: 0,
         };
 
         Ok(Self {
@@ -372,15 +374,26 @@ impl AerospikeSink {
 
 #[derive(Debug)]
 struct AerospikeSinkWorker {
+    snapshotting_batch_size: usize,
     client: Arc<Client>,
     state: DenormalizationState,
     last_committed_transaction: Option<u64>,
     metadata_writer: AerospikeMetadata,
+    snapshotting: bool,
 }
 
 impl AerospikeSinkWorker {
     fn process(&mut self, op: TableOperation) -> Result<(), AerospikeSinkError> {
-        self.state.process(op)?;
+        if self.snapshotting {
+            self.snapshotting_batch_size += op.op.len();
+            self.state.process(op)?;
+            if self.snapshotting_batch_size >= 10_000 {
+                self.state.persist(self.client.clone())?;
+                self.snapshotting_batch_size = 0;
+            }
+        } else {
+            self.state.process(op)?;
+        }
         Ok(())
     }
 
@@ -398,7 +411,7 @@ impl AerospikeSinkWorker {
                     }
                     if current <= last_denorm {
                         // Catching up between lookup and denorm. Only need to write lookup.
-                        self.state.persist(&self.client)?;
+                        self.state.persist(self.client.clone())?;
                         self.metadata_writer.write_lookup(current)?;
                         return Ok(());
                     }
@@ -410,7 +423,7 @@ impl AerospikeSinkWorker {
                     // the base table and writing the lookup tables during the first
                     // transaction after initial snapshotting. Only write the lookup
                     // tables
-                    self.state.persist(&self.client)?;
+                    self.state.persist(self.client.clone())?;
                     return Ok(());
                 }
                 // First transaction. No need to do anything special
@@ -431,13 +444,13 @@ impl AerospikeSinkWorker {
 
     fn flush_batch(&mut self) -> Result<(), AerospikeSinkError> {
         let txid = self.last_committed_transaction.take();
-        let denormalized_tables = self.state.perform_denorm(&self.client)?;
+        let denormalized_tables = self.state.perform_denorm(self.client.clone())?;
         let batch_size_est: usize = denormalized_tables
             .iter()
             .map(|table| table.records.len())
             .sum();
         // Write denormed tables
-        let mut batch = WriteBatch::new(&self.client, batch_size_est as u32, None);
+        let mut batch = WriteBatch::new(self.client.clone(), batch_size_est as u32, None);
         for table in denormalized_tables {
             for record in table.records {
                 let key = table.pk.iter().map(|i| record[*i].clone()).collect_vec();
@@ -458,7 +471,7 @@ impl AerospikeSinkWorker {
             self.metadata_writer.write_denorm(txid)?;
         }
 
-        self.state.persist(&self.client)?;
+        self.state.persist(self.client.clone())?;
 
         if let Some(txid) = txid {
             self.metadata_writer.write_lookup(txid)?;
@@ -500,14 +513,25 @@ impl Sink for AerospikeSink {
         &mut self,
         _connection_name: String,
     ) -> Result<(), BoxedError> {
+        self.replication_worker.snapshotting = true;
         Ok(())
     }
 
     fn on_source_snapshotting_done(
         &mut self,
         _connection_name: String,
-        _id: Option<OpIdentifier>,
+        id: Option<OpIdentifier>,
     ) -> Result<(), BoxedError> {
+        self.replication_worker.snapshotting = false;
+        if let Some(opid) = id {
+            self.replication_worker
+                .metadata_writer
+                .write_denorm(opid.txid)?;
+            self.replication_worker
+                .metadata_writer
+                .write_lookup(opid.txid)?;
+        }
+        self.replication_worker.flush_batch()?;
         Ok(())
     }
 
