@@ -1,5 +1,10 @@
 use dozer_types::models::ingestion_types::IngestionMessage;
-use std::{error::Error, fmt::Display, time::Duration};
+use std::{
+    error::Error,
+    fmt::Display,
+    sync::{atomic::AtomicUsize, Arc},
+    time::Duration,
+};
 use tokio::{
     sync::mpsc::{channel, Receiver, Sender},
     time::timeout,
@@ -19,21 +24,26 @@ impl Default for IngestionConfig {
 }
 
 #[derive(Debug)]
-/// `IngestionIterator` is the receiver side of a spsc channel. The sender side is `Ingestor`.
+/// `IngestionIterator` is the receiver side of a mpsc channel. The sender side is `Ingestor`.
 pub struct IngestionIterator {
-    pub receiver: Receiver<IngestionMessage>,
+    pub receiver: Receiver<(usize, IngestionMessage)>,
 }
 
 impl Iterator for IngestionIterator {
     type Item = IngestionMessage;
     fn next(&mut self) -> Option<Self::Item> {
-        self.receiver.blocking_recv()
+        let (_idx, msg) = self.receiver.blocking_recv()?;
+        Some(msg)
     }
 }
 
 impl IngestionIterator {
     pub async fn next_timeout(&mut self, duration: Duration) -> Option<IngestionMessage> {
-        timeout(duration, self.receiver.recv()).await.ok().flatten()
+        timeout(duration, self.receiver.recv())
+            .await
+            .ok()
+            .flatten()
+            .map(|(_id, msg)| msg)
     }
 }
 
@@ -42,7 +52,8 @@ impl IngestionIterator {
 ///
 /// `IngestionMessage` is the message type that is sent over the channel.
 pub struct Ingestor {
-    sender: Sender<IngestionMessage>,
+    msg_idx: Arc<AtomicUsize>,
+    sender: Sender<(usize, IngestionMessage)>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -59,18 +70,34 @@ impl Error for SendError {}
 impl Ingestor {
     pub fn initialize_channel(config: IngestionConfig) -> (Ingestor, IngestionIterator) {
         let (sender, receiver) = channel(config.forwarder_channel_cap);
-        let ingestor = Self { sender };
+        let ingestor = Self {
+            sender,
+            msg_idx: Arc::new(0.into()),
+        };
 
         let iterator = IngestionIterator { receiver };
         (ingestor, iterator)
     }
 
-    pub async fn handle_message(&self, message: IngestionMessage) -> Result<(), SendError> {
-        self.sender.send(message).await.map_err(|_| SendError)
+    pub async fn handle_message(&self, message: IngestionMessage) -> Result<usize, SendError> {
+        let idx = self
+            .msg_idx
+            .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+        self.sender
+            .send((idx, message))
+            .await
+            .map_err(|_| SendError)?;
+        Ok(idx)
     }
 
-    pub fn blocking_handle_message(&self, message: IngestionMessage) -> Result<(), SendError> {
-        self.sender.blocking_send(message).map_err(|_| SendError)
+    pub fn blocking_handle_message(&self, message: IngestionMessage) -> Result<usize, SendError> {
+        let idx = self
+            .msg_idx
+            .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+        self.sender
+            .blocking_send((idx, message))
+            .map_err(|_| SendError)?;
+        Ok(idx)
     }
 
     pub fn is_closed(&self) -> bool {
@@ -86,8 +113,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_message_handle() {
-        let (sender, mut rx) = tokio::sync::mpsc::channel(10);
-        let ingestor = Ingestor { sender };
+        let (ingestor, mut rx) = Ingestor::initialize_channel(crate::IngestionConfig {
+            forwarder_channel_cap: 10,
+        });
 
         // Expected seq no - 2
         let operation = Operation::Insert {
@@ -124,14 +152,17 @@ mod tests {
 
         let expected_op_event_message = vec![operation, operation2].into_iter();
 
-        for op in expected_op_event_message {
-            let msg = rx.recv().await.unwrap();
+        for (i, op) in expected_op_event_message.enumerate() {
+            let msg = rx.receiver.recv().await.unwrap();
             assert_eq!(
-                IngestionMessage::OperationEvent {
-                    table_index: 0,
-                    op,
-                    id: None
-                },
+                (
+                    i,
+                    IngestionMessage::OperationEvent {
+                        table_index: 0,
+                        op,
+                        id: None
+                    }
+                ),
                 msg
             );
         }

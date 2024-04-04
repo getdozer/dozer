@@ -4,7 +4,7 @@ use dozer_ingestion_connector::{
         errors::internal::BoxedError,
         log::{info, warn},
         models::ingestion_types::{default_snowflake_poll_interval, SnowflakeConfig},
-        node::OpIdentifier,
+        node::{OpIdentifier, SourceState},
         types::FieldType,
     },
     tokio, Connector, Ingestor, SourceSchema, SourceSchemaResult, TableIdentifier, TableInfo,
@@ -123,13 +123,14 @@ impl Connector for SnowflakeConnector {
         &mut self,
         ingestor: &Ingestor,
         tables: Vec<TableInfo>,
-        last_checkpoint: Option<OpIdentifier>,
+        last_checkpoint: SourceState,
     ) -> Result<(), BoxedError> {
+        let op_id = last_checkpoint.op_id();
         spawn_blocking({
             let name = self.name.clone();
             let config = self.config.clone();
             let ingestor = ingestor.clone();
-            move || run(name, config, tables, last_checkpoint, ingestor)
+            move || run(name, config, tables, op_id, ingestor)
         })
         .await
         .map_err(Into::into)

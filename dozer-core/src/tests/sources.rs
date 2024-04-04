@@ -1,9 +1,11 @@
 use crate::event::EventHub;
-use crate::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory};
+use crate::node::{
+    OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory, SourceMessage,
+};
 use crate::DEFAULT_PORT_HANDLE;
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::models::ingestion_types::{IngestionMessage, TransactionInfo};
-use dozer_types::node::OpIdentifier;
+use dozer_types::node::{OpIdentifier, SourceState};
 use dozer_types::tonic::async_trait;
 use dozer_types::types::{
     Field, FieldDefinition, FieldType, Operation, Record, Schema, SourceDefinition,
@@ -15,6 +17,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use std::time::Duration;
+
+use crate::test_utils::CountingSender;
 
 pub(crate) const GENERATOR_SOURCE_OUTPUT_PORT: PortHandle = 100;
 
@@ -101,15 +105,18 @@ impl Source for GeneratorSource {
 
     async fn start(
         &mut self,
-        sender: Sender<(PortHandle, IngestionMessage)>,
-        last_checkpoint: Option<OpIdentifier>,
+        sender: Sender<SourceMessage>,
+        last_checkpoint: SourceState,
     ) -> Result<(), BoxedError> {
-        let start = last_checkpoint
-            .map(|checkpoint| checkpoint.seq_in_tx + 1)
-            .unwrap_or(0);
+        let start = if let SourceState::Restartable(op_id) = last_checkpoint {
+            op_id.seq_in_tx + 1
+        } else {
+            0
+        };
+        let sender = CountingSender::new(sender);
         for n in start..(start + self.count) {
             sender
-                .send((
+                .send(
                     GENERATOR_SOURCE_OUTPUT_PORT,
                     IngestionMessage::OperationEvent {
                         table_index: 0,
@@ -121,16 +128,16 @@ impl Source for GeneratorSource {
                         },
                         id: Some(OpIdentifier::new(0, n)),
                     },
-                ))
+                )
                 .await?;
             sender
-                .send((
+                .send(
                     GENERATOR_SOURCE_OUTPUT_PORT,
                     IngestionMessage::TransactionInfo(TransactionInfo::Commit {
                         id: Some(OpIdentifier::new(0, n)),
                         source_time: None,
                     }),
-                ))
+                )
                 .await?;
         }
 
@@ -245,12 +252,13 @@ impl Source for DualPortGeneratorSource {
 
     async fn start(
         &mut self,
-        sender: Sender<(PortHandle, IngestionMessage)>,
-        _last_checkpoint: Option<OpIdentifier>,
+        sender: Sender<SourceMessage>,
+        _last_checkpoint: SourceState,
     ) -> Result<(), BoxedError> {
+        let sender = CountingSender::new(sender);
         for n in 1..(self.count + 1) {
             sender
-                .send((
+                .send(
                     DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_1,
                     IngestionMessage::OperationEvent {
                         table_index: 0,
@@ -262,10 +270,10 @@ impl Source for DualPortGeneratorSource {
                         },
                         id: Some(OpIdentifier::new(0, n)),
                     },
-                ))
+                )
                 .await?;
             sender
-                .send((
+                .send(
                     DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_2,
                     IngestionMessage::OperationEvent {
                         table_index: 0,
@@ -277,16 +285,16 @@ impl Source for DualPortGeneratorSource {
                         },
                         id: Some(OpIdentifier::new(0, n)),
                     },
-                ))
+                )
                 .await?;
             sender
-                .send((
+                .send(
                     DUAL_PORT_GENERATOR_SOURCE_OUTPUT_PORT_1,
                     IngestionMessage::TransactionInfo(TransactionInfo::Commit {
                         id: Some(OpIdentifier::new(0, n)),
                         source_time: None,
                     }),
-                ))
+                )
                 .await?;
         }
         loop {

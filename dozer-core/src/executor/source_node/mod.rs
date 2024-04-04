@@ -1,9 +1,7 @@
 use std::{fmt::Debug, future::Future, pin::pin, sync::Arc, time::SystemTime};
 
 use daggy::petgraph::visit::IntoNodeIdentifiers;
-use dozer_types::{
-    log::debug, models::ingestion_types::TransactionInfo, node::OpIdentifier, types::TableOperation,
-};
+use dozer_types::{log::debug, models::ingestion_types::TransactionInfo, types::TableOperation};
 use dozer_types::{models::ingestion_types::IngestionMessage, node::SourceState};
 use futures::{future::Either, StreamExt};
 use tokio::{
@@ -11,13 +9,10 @@ use tokio::{
     sync::mpsc::{channel, Receiver, Sender},
 };
 
+use crate::node::SourceMessage;
 use crate::{
-    builder_dag::NodeKind,
-    epoch::Epoch,
-    errors::ExecutionError,
-    executor_operation::ExecutorOperation,
-    forwarder::ChannelManager,
-    node::{PortHandle, Source},
+    builder_dag::NodeKind, epoch::Epoch, errors::ExecutionError,
+    executor_operation::ExecutorOperation, forwarder::ChannelManager, node::Source,
 };
 
 use super::{execution_dag::ExecutionDag, node::Node, ExecutorOptions};
@@ -30,7 +25,7 @@ pub struct SourceNode<F> {
     /// Structs for running a source.
     source_runners: Vec<SourceRunner>,
     /// Receivers from sources.
-    receivers: Vec<Receiver<(PortHandle, IngestionMessage)>>,
+    receivers: Vec<Receiver<SourceMessage>>,
     /// The current epoch id.
     epoch_id: u64,
     /// The shutdown future.
@@ -68,7 +63,12 @@ impl<F: Future + Unpin> Node for SourceNode<F> {
                     let next = next.expect("We return just when the stream ends");
                     self.shutdown = shutdown;
                     let index = next.0;
-                    let Some((port, message)) = next.1 else {
+                    let Some(SourceMessage {
+                        id: message_id,
+                        port,
+                        message,
+                    }) = next.1
+                    else {
                         debug!("[{}] quit", self.sources[index].channel_manager.owner().id);
                         match self.runtime.block_on(
                             handles[index]
@@ -92,7 +92,7 @@ impl<F: Future + Unpin> Node for SourceNode<F> {
                     let source = &mut self.sources[index];
                     match message {
                         IngestionMessage::OperationEvent { op, id, .. } => {
-                            source.state = SourceState::NonRestartable;
+                            source.state.set(SourceState::Started);
                             source
                                 .channel_manager
                                 .send_op(TableOperation { op, id, port })?;
@@ -100,9 +100,9 @@ impl<F: Future + Unpin> Node for SourceNode<F> {
                         IngestionMessage::TransactionInfo(info) => match info {
                             TransactionInfo::Commit { id, source_time } => {
                                 if let Some(id) = id {
-                                    source.state = SourceState::Restartable(id);
+                                    source.state.set(SourceState::Restartable(id));
                                 } else {
-                                    source.state = SourceState::NonRestartable;
+                                    source.state.set(SourceState::Started);
                                 }
 
                                 let source_states = Arc::new(
@@ -117,7 +117,8 @@ impl<F: Future + Unpin> Node for SourceNode<F> {
                                         .collect(),
                                 );
                                 let mut epoch =
-                                    Epoch::new(self.epoch_id, source_states, SystemTime::now());
+                                    Epoch::new(self.epoch_id, source_states, SystemTime::now())
+                                        .with_originating_msg(message_id);
                                 if let Some(st) = source_time {
                                     epoch = epoch.with_source_time(st);
                                 }
@@ -155,8 +156,8 @@ struct RunningSource {
 #[derive(Debug)]
 struct SourceRunner {
     source: Box<dyn Source>,
-    last_checkpoint: Option<OpIdentifier>,
-    sender: Sender<(PortHandle, IngestionMessage)>,
+    last_checkpoint: SourceState,
+    sender: Sender<SourceMessage>,
 }
 
 /// Returns if the operation is sent successfully.

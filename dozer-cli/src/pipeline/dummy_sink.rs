@@ -6,7 +6,6 @@ use dozer_core::{
     node::{PortHandle, Sink, SinkFactory},
     DEFAULT_PORT_HANDLE,
 };
-use dozer_types::log::debug;
 use dozer_types::{
     chrono::Local,
     errors::internal::BoxedError,
@@ -14,6 +13,7 @@ use dozer_types::{
     node::OpIdentifier,
     types::{FieldType, Operation, Schema, TableOperation},
 };
+use dozer_types::{log::debug, node::SourceState};
 
 use crate::async_trait::async_trait;
 
@@ -179,15 +179,15 @@ impl Sink for DummySink {
         Ok(())
     }
 
-    fn set_source_state(&mut self, _source_state: &[u8]) -> Result<(), BoxedError> {
+    fn set_source_state_data(&mut self, _source_state: &[u8]) -> Result<(), BoxedError> {
         Ok(())
     }
 
-    fn get_source_state(&mut self) -> Result<Option<Vec<u8>>, BoxedError> {
+    fn get_source_state_data(&mut self) -> Result<Option<Vec<u8>>, BoxedError> {
         Ok(None)
     }
 
-    fn get_latest_op_id(&mut self) -> Result<Option<OpIdentifier>, BoxedError> {
-        Ok(None)
+    fn get_source_state(&mut self) -> Result<SourceState, BoxedError> {
+        Ok(SourceState::NotStarted)
     }
 }

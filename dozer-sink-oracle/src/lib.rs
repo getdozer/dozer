@@ -1,6 +1,7 @@
 use dozer_types::{
     log::warn,
     models::sink::OracleSinkConfig,
+    node::SourceState,
     thiserror,
     types::{FieldDefinition, Operation, SourceDefinition, TableOperation},
 };
@@ -23,7 +24,7 @@ use dozer_types::{
 };
 use oracle::{
     sql_type::{OracleType, ToSql},
-    Connection,
+    Connection, RowValue,
 };
 
 const TXN_ID_COL: &str = "__txn_id";
@@ -86,26 +87,131 @@ struct BatchedOperation {
 }
 
 #[derive(Debug)]
-struct OracleSink {
-    conn: Connection,
-    insert_append: String,
-    pk: Vec<usize>,
-    field_types: Vec<FieldType>,
-    merge_statement: String,
-    batch_params: Vec<BatchedOperation>,
-    batch_size: usize,
+struct MetadataQueries {
     insert_metadata: String,
     update_metadata: String,
     select_metadata: String,
+}
+
+#[derive(Debug)]
+enum WriteStrategy {
+    AppendOnly {
+        insert_append_stmt: String,
+    },
+    Merge {
+        merge_stmt: String,
+        insert_stmt: String,
+        delete_stmt: String,
+    },
+}
+
+impl WriteStrategy {
+    fn write_batch(
+        &self,
+        connection: &Connection,
+        batch_values: &mut Vec<BatchedOperation>,
+        field_types: &[FieldType],
+    ) -> oracle::Result<()> {
+        match self {
+            WriteStrategy::AppendOnly { insert_append_stmt } => {
+                Self::do_write_appendonly(connection, batch_values, insert_append_stmt, field_types)
+            }
+            WriteStrategy::Merge {
+                merge_stmt,
+                insert_stmt,
+                delete_stmt,
+            } => Self::do_write_merge(
+                connection,
+                batch_values,
+                merge_stmt,
+                insert_stmt,
+                delete_stmt,
+                field_types,
+            ),
+        }
+    }
+
+    fn do_write_appendonly(
+        connection: &Connection,
+        batch_values: &mut Vec<BatchedOperation>,
+        insert_stmt: &str,
+        field_types: &[FieldType],
+    ) -> oracle::Result<()> {
+        let mut batch = connection.batch(insert_stmt, batch_values.len()).build()?;
+        for params in batch_values.drain(..) {
+            let mut bind_idx = 1..;
+            for ((field, typ), i) in params
+                .params
+                .values
+                .into_iter()
+                .zip(field_types)
+                .zip(&mut bind_idx)
+            {
+                batch.set(i, &OraField(field, *typ))?;
+            }
+            batch.append_row(&[])?;
+        }
+        batch.execute()?;
+
+        Ok(())
+    }
+
+    fn do_write_merge(
+        connection: &Connection,
+        batch_values: &mut Vec<BatchedOperation>,
+        merge_stmt: &str,
+        insert_stmt: &str,
+        delete_stmt: &str,
+        field_types: &[FieldType],
+    ) -> oracle::Result<()> {
+        let mut batch = connection.batch(insert_stmt, batch_values.len()).build()?;
+        for params in batch_values.drain(..) {
+            let mut bind_idx = 1..;
+            for ((field, typ), i) in params
+                .params
+                .values
+                .into_iter()
+                .zip(field_types)
+                .zip(&mut bind_idx)
+            {
+                batch.set(i, &OraField(field, *typ))?;
+            }
+            let (txid, seq_in_tx) = params.op_id.map(|opid| (opid.txid, opid.seq_in_tx)).unzip();
+            batch.set(bind_idx.next().unwrap(), &txid)?;
+            batch.set(bind_idx.next().unwrap(), &seq_in_tx)?;
+            batch.set(bind_idx.next().unwrap(), &(params.op_kind as u64))?;
+            batch.append_row(&[])?;
+        }
+        batch.execute()?;
+
+        connection.execute(merge_stmt, &[])?;
+
+        connection.execute(delete_stmt, &[])?;
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+struct OracleSink {
+    table: Table,
+    conn: Connection,
+    pk: Vec<usize>,
+    field_types: Vec<FieldType>,
+    batch_params: Vec<BatchedOperation>,
+    batch_size: usize,
+    metadata_queries: Option<MetadataQueries>,
     latest_txid: Option<u64>,
-    insert_statement: String,
-    delete_statement: String,
+    batch_insert_stmt: String,
+    append_only: bool,
+    write_strategy: WriteStrategy,
 }
 
 #[derive(Debug)]
 pub struct OracleSinkFactory {
     connection_config: OracleConfig,
     table: Table,
+    append_only: bool,
 }
 
 impl std::fmt::Display for Table {
@@ -126,6 +232,7 @@ impl OracleSinkFactory {
                 name: config.table_name,
                 unique_key: config.unique_key,
             },
+            append_only: config.append_only,
         }
     }
 }
@@ -188,133 +295,143 @@ fn parse_oracle_type(
     };
     Some(typ)
 }
+fn validate_table(connection: &Connection, table: &Table, schema: &Schema) -> Result<bool, Error> {
+    let err = |e| Error::IncompatibleSchema {
+        table: table.clone(),
+        inner: e,
+    };
 
-impl OracleSinkFactory {
-    fn validate_table(
-        &self,
-        connection: &Connection,
-        table: &Table,
-        schema: &Schema,
-    ) -> Result<bool, Error> {
-        let err = |e| Error::IncompatibleSchema {
-            table: table.clone(),
-            inner: e,
-        };
+    #[derive(RowValue)]
+    struct Column {
+        column_name: String,
+        data_type: String,
+        data_length: u32,
+        data_precision: Option<u8>,
+        data_scale: Option<i8>,
+        nullable: String,
+        data_default: Option<String>,
+    }
 
-        let results = connection.query_as::<(String, String, u32, Option<u8>, Option<i8>, String)>(
-            "SELECT COLUMN_NAME, DATA_TYPE, DATA_LENGTH, DATA_PRECISION, DATA_SCALE, NULLABLE FROM ALL_TAB_COLS WHERE table_name = :1 AND owner = :2",
+    let results = connection.query_as::<Column>(
+            "SELECT COLUMN_NAME, DATA_TYPE, DATA_LENGTH, DATA_PRECISION, DATA_SCALE, NULLABLE, DATA_DEFAULT FROM ALL_TAB_COLS WHERE table_name = :1 AND owner = :2",
             &[&table.name, &table.owner],
         )?;
 
-        let mut cols = HashMap::new();
-        for col in results {
-            let col = col?;
-            cols.insert(col.0.clone(), col);
-        }
+    let mut cols = HashMap::new();
+    for col in results {
+        let col = col?;
+        cols.insert(col.column_name.clone(), col);
+    }
 
-        // The table does not exist
-        if cols.is_empty() {
-            return Ok(false);
-        }
+    // The table does not exist
+    if cols.is_empty() {
+        return Ok(false);
+    }
 
-        for field in &schema.fields {
-            let definition = cols
-                .remove(&field.name)
-                .ok_or_else(|| err(SchemaValidationError::MissingColumn(field.name.clone())))?;
-            let (_, type_name, length, precision, scale, nullable) = definition;
-            let Some(typ) = parse_oracle_type(&type_name, length, precision, scale) else {
-                return Err(err(SchemaValidationError::UnsupportedType(
-                    type_name.clone(),
-                )));
-            };
-            match (field.typ, typ) {
-                (
-                    FieldType::String | FieldType::Text,
-                    OracleType::Varchar2(_) | OracleType::NVarchar2(_),
-                ) => {}
-                (FieldType::U128 | FieldType::I128, OracleType::Number(precision, 0))
-                    if precision >= 39 => {}
-                (FieldType::UInt | FieldType::Int, OracleType::Number(precision, 0))
-                    if precision >= 20 => {}
-                (FieldType::Float, OracleType::Number(38, 0) | OracleType::BinaryDouble) => {}
-                (FieldType::Boolean, OracleType::Number(_, 0)) => {}
-                (FieldType::Binary, OracleType::Raw(_)) => {}
-                (FieldType::Timestamp, OracleType::Timestamp(_) | OracleType::TimestampTZ(_)) => {}
-                (FieldType::Date, OracleType::Date) => {}
-                (FieldType::Decimal, OracleType::Number(_, _)) => {}
-                (dozer_type, remote_type) => {
-                    return Err(err(SchemaValidationError::IncompatibleType {
-                        field: field.name.clone(),
-                        dozer_type,
-                        remote_type,
-                    }))
-                }
-            }
-            if (field.nullable, nullable.as_str()) == (true, "N") {
-                return Err(err(SchemaValidationError::MismatchedNullability {
-                    src: field.nullable,
-                    sink: false,
-                }));
-            }
-        }
-
-        if !cols.is_empty() {
-            return Err(err(SchemaValidationError::ExtraColumns(
-                cols.keys().cloned().collect(),
+    for field in &schema.fields {
+        let definition = cols
+            .remove(&field.name)
+            .ok_or_else(|| err(SchemaValidationError::MissingColumn(field.name.clone())))?;
+        let Some(typ) = parse_oracle_type(
+            &definition.data_type,
+            definition.data_length,
+            definition.data_precision,
+            definition.data_scale,
+        ) else {
+            return Err(err(SchemaValidationError::UnsupportedType(
+                definition.data_type.clone(),
             )));
+        };
+        match (field.typ, typ) {
+            (
+                FieldType::String | FieldType::Text,
+                OracleType::Varchar2(_) | OracleType::NVarchar2(_),
+            ) => {}
+            (FieldType::U128 | FieldType::I128, OracleType::Number(precision, 0))
+                if precision >= 39 => {}
+            (FieldType::UInt | FieldType::Int, OracleType::Number(precision, 0))
+                if precision >= 20 => {}
+            (FieldType::Float, OracleType::Number(38, 0) | OracleType::BinaryDouble) => {}
+            (FieldType::Boolean, OracleType::Number(_, 0)) => {}
+            (FieldType::Binary, OracleType::Raw(_)) => {}
+            (FieldType::Timestamp, OracleType::Timestamp(_) | OracleType::TimestampTZ(_)) => {}
+            (FieldType::Date, OracleType::Date) => {}
+            (FieldType::Decimal, OracleType::Number(_, _)) => {}
+            (dozer_type, remote_type) => {
+                return Err(err(SchemaValidationError::IncompatibleType {
+                    field: field.name.clone(),
+                    dozer_type,
+                    remote_type,
+                }))
+            }
         }
-        Ok(true)
+        if (field.nullable, definition.nullable.as_str()) == (true, "N") {
+            return Err(err(SchemaValidationError::MismatchedNullability {
+                src: field.nullable,
+                sink: false,
+            }));
+        }
     }
 
-    fn validate_or_create_table(
-        &self,
-        connection: &Connection,
-        table: &Table,
-        temp_table: Option<&Table>,
-        schema: &Schema,
-    ) -> Result<(), Error> {
-        let mut column_defs = Vec::with_capacity(schema.fields.len());
-        for field in &schema.fields {
-            let name = &field.name;
-            let col_type = match field.typ {
-                FieldType::UInt => "NUMBER(20)",
-                FieldType::U128 => unimplemented!(),
-                FieldType::Int => "NUMBER(20)",
-                FieldType::I128 => unimplemented!(),
-                // Should this be BINARY_DOUBLE?
-                FieldType::Float => "NUMBER",
-                FieldType::Boolean => "NUMBER",
-                FieldType::String => "VARCHAR2(2000)",
-                FieldType::Text => "VARCHAR2(2000)",
-                FieldType::Binary => "RAW(1000)",
-                FieldType::Decimal => "NUMBER(29, 10)",
-                FieldType::Timestamp => "TIMESTAMP(9) WITH TIME ZONE",
-                FieldType::Date => "TIMESTAMP(0)",
-                FieldType::Json => unimplemented!(),
-                FieldType::Point => unimplemented!("Oracle Point"),
-                FieldType::Duration => unimplemented!(),
-            };
-            column_defs.push(format!(
-                "\"{name}\" {col_type}{}",
-                if field.nullable { "" } else { " NOT NULL" }
-            ));
-        }
+    let left_over: Vec<String> = cols
+        .into_values()
+        .filter(|col| (col.nullable == "N") && col.data_default.is_none())
+        .map(|col| col.column_name)
+        .collect();
+    if !left_over.is_empty() {
+        return Err(err(SchemaValidationError::ExtraColumns(left_over)));
+    }
+    Ok(true)
+}
 
-        if !(self.validate_table(connection, table, schema)?) {
-            let table_query = format!("CREATE TABLE {table} ({})", column_defs.join(",\n"));
-            info!("### CREATE TABLE ####\n{}", table_query);
-            connection.execute(&table_query, &[])?;
-        }
-
-        if let Some(temp_table) = temp_table {
-            let temp_table_query = format!("CREATE PRIVATE TEMPORARY TABLE {temp_table} ({},\n {OPKIND_COL} NUMBER(1)) ON COMMIT PRESERVE DEFINITION", column_defs.join(",\n")).replace("NOT NULL", "");
-            info!("### CREATE TEMPORARY TABLE ####\n{}", temp_table_query);
-            connection.execute(&temp_table_query, &[])?;
-        }
-
-        Ok(())
+fn validate_or_create_table(
+    connection: &Connection,
+    table: &Table,
+    temp_table: Option<&Table>,
+    schema: &Schema,
+) -> Result<(), Error> {
+    let mut column_defs = Vec::with_capacity(schema.fields.len());
+    for field in &schema.fields {
+        let name = &field.name;
+        let col_type = match field.typ {
+            FieldType::UInt => "NUMBER(20)",
+            FieldType::U128 => unimplemented!(),
+            FieldType::Int => "NUMBER(20)",
+            FieldType::I128 => unimplemented!(),
+            // Should this be BINARY_DOUBLE?
+            FieldType::Float => "NUMBER",
+            FieldType::Boolean => "NUMBER",
+            FieldType::String => "VARCHAR2(2000)",
+            FieldType::Text => "VARCHAR2(2000)",
+            FieldType::Binary => "RAW(1000)",
+            FieldType::Decimal => "NUMBER(29, 10)",
+            FieldType::Timestamp => "TIMESTAMP(9) WITH TIME ZONE",
+            FieldType::Date => "TIMESTAMP(0)",
+            FieldType::Json => unimplemented!(),
+            FieldType::Point => unimplemented!("Oracle Point"),
+            FieldType::Duration => unimplemented!(),
+        };
+        column_defs.push(format!(
+            "\"{name}\" {col_type}{}",
+            if field.nullable { "" } else { " NOT NULL" }
+        ));
     }
 
+    if !(validate_table(connection, table, schema)?) {
+        let table_query = format!("CREATE TABLE {table} ({})", column_defs.join(",\n"));
+        info!("### CREATE TABLE ####\n{}", table_query);
+        connection.execute(&table_query, &[])?;
+    }
+
+    if let Some(temp_table) = temp_table {
+        let temp_table_query = format!("CREATE PRIVATE TEMPORARY TABLE {temp_table} ({},\n {OPKIND_COL} NUMBER(1)) ON COMMIT PRESERVE DEFINITION", column_defs.join(",\n")).replace("NOT NULL", "");
+        info!("### CREATE TEMPORARY TABLE ####\n{}", temp_table_query);
+        connection.execute(&temp_table_query, &[])?;
+    }
+
+    Ok(())
+}
+impl OracleSinkFactory {
     fn create_index(
         &self,
         connection: &Connection,
@@ -510,26 +627,28 @@ impl SinkFactory for OracleSinkFactory {
         let schema = input_schemas.remove(&DEFAULT_PORT_HANDLE).unwrap();
 
         let mut amended_schema = schema.clone();
-        amended_schema.field(
-            dozer_types::types::FieldDefinition {
-                name: TXN_ID_COL.to_owned(),
-                typ: FieldType::UInt,
-                nullable: true,
-                source: dozer_types::types::SourceDefinition::Dynamic,
-                description: None,
-            },
-            false,
-        );
-        amended_schema.field(
-            dozer_types::types::FieldDefinition {
-                name: TXN_SEQ_COL.to_owned(),
-                typ: FieldType::UInt,
-                nullable: true,
-                source: dozer_types::types::SourceDefinition::Dynamic,
-                description: None,
-            },
-            false,
-        );
+        if !self.append_only {
+            amended_schema.field(
+                dozer_types::types::FieldDefinition {
+                    name: TXN_ID_COL.to_owned(),
+                    typ: FieldType::UInt,
+                    nullable: true,
+                    source: dozer_types::types::SourceDefinition::Dynamic,
+                    description: None,
+                },
+                false,
+            );
+            amended_schema.field(
+                dozer_types::types::FieldDefinition {
+                    name: TXN_SEQ_COL.to_owned(),
+                    typ: FieldType::UInt,
+                    nullable: true,
+                    source: dozer_types::types::SourceDefinition::Dynamic,
+                    description: None,
+                },
+                false,
+            );
+        }
 
         let temp_table = Table {
             owner: self.table.owner.clone(),
@@ -537,19 +656,21 @@ impl SinkFactory for OracleSinkFactory {
             unique_key: vec![],
         };
 
-        self.validate_or_create_table(
+        validate_or_create_table(
             &connection,
             &self.table,
-            Some(&temp_table),
+            (!self.append_only).then_some(&temp_table),
             &amended_schema,
         )?;
-        self.create_index(&connection, &self.table, &amended_schema)?;
+        if !self.append_only {
+            self.create_index(&connection, &self.table, &amended_schema)?;
+        }
         let meta_table = Table {
             owner: self.table.owner.clone(),
             name: METADATA_TABLE.to_owned(),
             unique_key: vec![],
         };
-        self.validate_or_create_table(
+        validate_or_create_table(
             &connection,
             &meta_table,
             None,
@@ -578,8 +699,14 @@ impl SinkFactory for OracleSinkFactory {
 
         let insert_append = format!(
             //"INSERT /*+ APPEND */ INTO \"{table_name}\" VALUES ({})",
-            "INSERT INTO {} VALUES ({})",
+            "INSERT INTO {} ({}) VALUES ({})",
             &self.table,
+            amended_schema
+                .fields
+                .iter()
+                .map(|field| format!("\"{}\"", field.name))
+                .collect::<Vec<_>>()
+                .join(", "),
             (1..=amended_schema.fields.len())
                 .map(|i| format!(":{i}"))
                 .collect::<Vec<_>>()
@@ -588,30 +715,31 @@ impl SinkFactory for OracleSinkFactory {
 
         let field_types = schema.fields.iter().map(|field| field.typ).collect();
 
-        let merge_statement = generate_merge_statement(&self.table, &temp_table, &schema);
-        info!(target: "oracle_sink", "Merge statement {}", merge_statement);
-
-        let insert_statement = generate_insert_statement(&temp_table, &schema);
-        info!(target: "oracle_sink", "Insert statement {}", insert_statement);
-
-        let delete_statement = generate_delete_statement(&temp_table);
-        info!(target: "oracle_sink", "Delete statement {}", delete_statement);
+        let write_strategy = if self.append_only {
+            WriteStrategy::AppendOnly {
+                insert_append_stmt: insert_append.clone(),
+            }
+        } else {
+            WriteStrategy::Merge {
+                merge_stmt: generate_merge_statement(&self.table, &temp_table, &schema),
+                insert_stmt: generate_insert_statement(&temp_table, &schema),
+                delete_stmt: generate_delete_statement(&temp_table),
+            }
+        };
 
         Ok(Box::new(OracleSink {
+            table: self.table.clone(),
             conn: connection,
-            insert_append,
-            merge_statement,
-            insert_statement,
-            delete_statement,
+            batch_insert_stmt: insert_append.clone(),
+            write_strategy,
             field_types,
             pk: schema.primary_index,
             batch_params: Vec::new(),
+            metadata_queries: None,
             //TODO: make this configurable
             batch_size: 10000,
-            insert_metadata: format!("INSERT INTO \"{METADATA_TABLE}\" (\"{META_TABLE_COL}\", \"{META_TXN_ID_COL}\") VALUES (q'\"{}_{}\"', :1)", &self.table.owner, &self.table.name),
-            update_metadata: format!("UPDATE \"{METADATA_TABLE}\" SET \"{META_TXN_ID_COL}\" = :1 WHERE \"{META_TABLE_COL}\" = q'\"{}_{}\"'", &self.table.owner, &self.table.name) ,
-            select_metadata: format!("SELECT \"{META_TXN_ID_COL}\" FROM \"{METADATA_TABLE}\" WHERE \"{META_TABLE_COL}\" = q'\"{}_{}\"'", &self.table.owner, &self.table.name),
             latest_txid: None,
+            append_only: self.append_only,
         }))
     }
 }
@@ -681,32 +809,8 @@ impl OracleSink {
         debug!(target: "oracle_sink", "Executing batch of size {}", self.batch_params.len());
         let started = std::time::Instant::now();
 
-        let mut batch = self
-            .conn
-            .batch(&self.insert_statement, self.batch_params.len())
-            .build()?;
-        for params in self.batch_params.drain(..) {
-            let mut bind_idx = 1..;
-            for ((field, typ), i) in params
-                .params
-                .values
-                .into_iter()
-                .zip(&self.field_types)
-                .zip(&mut bind_idx)
-            {
-                batch.set(i, &OraField(field, *typ))?;
-            }
-            let (txid, seq_in_tx) = params.op_id.map(|opid| (opid.txid, opid.seq_in_tx)).unzip();
-            batch.set(bind_idx.next().unwrap(), &txid)?;
-            batch.set(bind_idx.next().unwrap(), &seq_in_tx)?;
-            batch.set(bind_idx.next().unwrap(), &(params.op_kind as u64))?;
-            batch.append_row(&[])?;
-        }
-        batch.execute()?;
-
-        self.conn.execute(&self.merge_statement, &[])?;
-
-        self.conn.execute(&self.delete_statement, &[])?;
+        self.write_strategy
+            .write_batch(&self.conn, &mut self.batch_params, &self.field_types)?;
 
         debug!(target: "oracle_sink", "Execution took {:?}", started.elapsed());
         Ok(())
@@ -728,6 +832,49 @@ impl OracleSink {
         }
         Ok(())
     }
+
+    fn create_metadata_queries(&self) -> MetadataQueries {
+        MetadataQueries {
+            insert_metadata: format!("INSERT INTO \"{METADATA_TABLE}\" (\"{META_TABLE_COL}\", \"{META_TXN_ID_COL}\") VALUES (q'\"{}_{}\"', :1)", &self.table.owner, &self.table.name),
+            update_metadata: format!("UPDATE \"{METADATA_TABLE}\" SET \"{META_TXN_ID_COL}\" = :1 WHERE \"{META_TABLE_COL}\" = q'\"{}_{}\"'", &self.table.owner, &self.table.name) ,
+            select_metadata: format!("SELECT \"{META_TXN_ID_COL}\" FROM \"{METADATA_TABLE}\" WHERE \"{META_TABLE_COL}\" = q'\"{}_{}\"'", &self.table.owner, &self.table.name),
+        }
+    }
+    fn init_metadata_table(&mut self) -> Result<(), BoxedError> {
+        let queries = self.create_metadata_queries();
+        validate_or_create_table(
+            &self.conn,
+            &Table {
+                owner: self.table.owner.clone(),
+                name: METADATA_TABLE.to_owned(),
+                unique_key: vec![],
+            },
+            None,
+            Schema::new()
+                .field(
+                    FieldDefinition {
+                        name: META_TABLE_COL.to_owned(),
+                        typ: FieldType::String,
+                        nullable: false,
+                        source: SourceDefinition::Dynamic,
+                        description: None,
+                    },
+                    true,
+                )
+                .field(
+                    FieldDefinition {
+                        name: META_TXN_ID_COL.to_owned(),
+                        typ: FieldType::UInt,
+                        nullable: false,
+                        source: SourceDefinition::Dynamic,
+                        description: None,
+                    },
+                    false,
+                ),
+        )?;
+        self.metadata_queries = Some(queries);
+        Ok(())
+    }
 }
 
 impl Sink for OracleSink {
@@ -746,14 +893,19 @@ impl Sink for OracleSink {
     fn flush_batch(&mut self) -> Result<(), BoxedError> {
         self.exec_batch()?;
         if let Some(txid) = self.latest_txid {
+            if self.metadata_queries.is_none() {
+                self.init_metadata_table()?;
+            }
+            let queries = self.metadata_queries.as_ref().unwrap();
+
             // If the row_count == 0, we need to insert instead.
             if self
                 .conn
-                .execute(&self.update_metadata, &[&txid])?
+                .execute(&queries.update_metadata, &[&txid])?
                 .row_count()?
                 == 0
             {
-                self.conn.execute(&self.insert_metadata, &[&txid])?;
+                self.conn.execute(&queries.insert_metadata, &[&txid])?;
             }
         }
         self.conn.commit()?;
@@ -787,7 +939,7 @@ impl Sink for OracleSink {
             Operation::BatchInsert { mut new } => {
                 let mut batch = self
                     .conn
-                    .batch(&self.insert_append, self.batch_size)
+                    .batch(&self.batch_insert_stmt, self.batch_size)
                     .build()?;
                 for record in new.drain(..) {
                     let mut bind_idx = 1..;
@@ -799,9 +951,11 @@ impl Sink for OracleSink {
                     {
                         batch.set(i, &OraField(field, *typ))?;
                     }
-                    let (txid, seq_in_tx) = op.id.map(|id| (id.txid, id.seq_in_tx)).unzip();
-                    batch.set(bind_idx.next().unwrap(), &txid)?;
-                    batch.set(bind_idx.next().unwrap(), &seq_in_tx)?;
+                    if !self.append_only {
+                        let (txid, seq_in_tx) = op.id.map(|id| (id.txid, id.seq_in_tx)).unzip();
+                        batch.set(bind_idx.next().unwrap(), &txid)?;
+                        batch.set(bind_idx.next().unwrap(), &seq_in_tx)?;
+                    }
 
                     batch.append_row(&[])?;
                 }
@@ -828,28 +982,52 @@ impl Sink for OracleSink {
         Ok(())
     }
 
-    fn set_source_state(
+    fn set_source_state_data(
         &mut self,
         _source_state: &[u8],
     ) -> Result<(), dozer_types::errors::internal::BoxedError> {
         Ok(())
     }
 
-    fn get_source_state(
+    fn get_source_state_data(
         &mut self,
     ) -> Result<Option<Vec<u8>>, dozer_types::errors::internal::BoxedError> {
         Ok(None)
     }
 
-    fn get_latest_op_id(
+    fn get_source_state(
         &mut self,
-    ) -> Result<Option<dozer_types::node::OpIdentifier>, dozer_types::errors::internal::BoxedError>
-    {
-        match self.conn.query_row_as::<u64>(&self.select_metadata, &[]) {
-            Ok(txid) => Ok(Some(OpIdentifier { txid, seq_in_tx: 0 })),
-            Err(oracle::Error::NoDataFound) => Ok(None),
-            Err(e) => Err(e.into()),
+    ) -> Result<SourceState, dozer_types::errors::internal::BoxedError> {
+        let queries = self.create_metadata_queries();
+        match self.conn.query_row_as::<u64>(&queries.select_metadata, &[]) {
+            Ok(txid) => {
+                return Ok(SourceState::Restartable(OpIdentifier {
+                    txid,
+                    seq_in_tx: 0,
+                }));
+            }
+            // Not found...
+            Err(oracle::Error::NoDataFound) => {}
+            // ... or the table does not exist
+            Err(oracle::Error::OciError(e)) if e.code() == 942 => {}
+            // TODO: Check for data -> ResumeState::Resume
+            Err(e) => {
+                return Err(e.into());
+            }
+        };
+        // If we're here, we could not find a op_id. If there is data, we started,
+        // but the source did not supply an op_id.
+        match self.conn.query_row(
+            &format!("SELECT 1 FROM {} WHERE rownum = 1", self.table),
+            &[],
+        ) {
+            Ok(_) => return Ok(SourceState::Started),
+            Err(oracle::Error::NoDataFound) => {}
+            // ... or the table does not exist
+            Err(oracle::Error::OciError(e)) if e.code() == 942 => {}
+            Err(e) => return Err(e.into()),
         }
+        Ok(SourceState::NotStarted)
     }
 }
 
@@ -930,6 +1108,7 @@ mod tests {
                 table_name: "test".into(),
                 owner: None,
                 unique_key: vec![],
+                append_only: false,
             },
         );
         let mut schema = Schema::new();

@@ -4,6 +4,7 @@ use dozer_types::{
     constants::DEFAULT_CONFIG_PATH,
     log::error,
     models::{config::Config, connection::ConnectionConfig},
+    node::SourceState,
 };
 use futures::stream::{AbortHandle, Abortable};
 use tokio::runtime::Runtime;
@@ -28,8 +29,11 @@ pub fn spawn_connector(
     let (abort_handle, abort_registration) = AbortHandle::new_pair();
     runtime.clone().spawn_blocking(move || {
         runtime.block_on(async move {
-            if let Ok(Err(e)) =
-                Abortable::new(connector.start(&ingestor, tables, None), abort_registration).await
+            if let Ok(Err(e)) = Abortable::new(
+                connector.start(&ingestor, tables, SourceState::NotStarted),
+                abort_registration,
+            )
+            .await
             {
                 error!("Connector `start` returned error: {e}")
             }

@@ -58,6 +58,7 @@ pub struct Epoch {
     pub common_info: EpochCommonInfo,
     pub decision_instant: SystemTime,
     pub source_time: Option<SourceTime>,
+    pub originating_msg_id: Option<usize>,
 }
 
 impl Epoch {
@@ -66,11 +67,17 @@ impl Epoch {
             common_info: EpochCommonInfo { id, source_states },
             decision_instant,
             source_time: None,
+            originating_msg_id: None,
         }
     }
 
     pub fn with_source_time(mut self, source_time: SourceTime) -> Self {
         self.source_time = Some(source_time);
+        self
+    }
+
+    pub fn with_originating_msg(mut self, originating_msg_id: usize) -> Self {
+        self.originating_msg_id = Some(originating_msg_id);
         self
     }
 }

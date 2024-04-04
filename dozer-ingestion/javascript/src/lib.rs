@@ -5,7 +5,7 @@ use dozer_ingestion_connector::{
     dozer_types::{
         errors::internal::BoxedError,
         models::ingestion_types::{default_bootstrap_path, JavaScriptConfig},
-        node::OpIdentifier,
+        node::SourceState,
         types::{FieldDefinition, FieldType, Schema, SourceDefinition},
     },
     tokio::runtime::Runtime,
@@ -83,7 +83,7 @@ impl Connector for JavaScriptConnector {
         &mut self,
         ingestor: &Ingestor,
         _tables: Vec<TableInfo>,
-        _last_checkpoint: Option<OpIdentifier>,
+        _last_checkpoint: SourceState,
     ) -> Result<(), BoxedError> {
         let js_path = self
             .config

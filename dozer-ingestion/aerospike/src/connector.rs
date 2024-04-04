@@ -235,7 +235,7 @@ struct PendingMessage {
 
 #[derive(Debug)]
 struct PendingOperationId {
-    operation_id: u64,
+    commit_msg_id: usize,
     sender: oneshot::Sender<()>,
 }
 
@@ -245,28 +245,26 @@ async fn ingestor_loop(
     ingestor: Ingestor,
     operation_id_sender: mpsc::UnboundedSender<PendingOperationId>,
 ) {
-    let mut operation_id = 0;
     while let Some(message) = message_receiver.recv().await {
+        // Ignore the error, because the server can be down.
+        for message in message.messages {
+            let _ = ingestor.handle_message(message).await.unwrap();
+        }
+        let commit_msg_id = ingestor
+            .handle_message(IngestionMessage::TransactionInfo(TransactionInfo::Commit {
+                id: None,
+                source_time: Some(message.source_time),
+            }))
+            .await
+            .unwrap();
+
         let pending_operation_id = PendingOperationId {
-            operation_id,
+            commit_msg_id,
             sender: message.sender,
         };
 
         // Propagate panic in the pipeline event processor loop.
         operation_id_sender.send(pending_operation_id).unwrap();
-
-        // Ignore the error, because the server can be down.
-        for message in message.messages {
-            let _ = ingestor.handle_message(message).await;
-        }
-        let _ = ingestor
-            .handle_message(IngestionMessage::TransactionInfo(TransactionInfo::Commit {
-                id: Some(OpIdentifier::new(0, operation_id)),
-                source_time: Some(message.source_time),
-            }))
-            .await;
-
-        operation_id += 1;
     }
 }
 
@@ -282,7 +280,7 @@ async fn pipeline_event_processor(
         if operation_id_from_pipeline
             < pending_operation_id
                 .as_ref()
-                .map(|operation_id| operation_id.operation_id)
+                .map(|operation_id| operation_id.commit_msg_id)
         {
             // We have pending operation id, wait for pipeline event.
             let event = match event_receiver.recv().await {
@@ -296,7 +294,7 @@ async fn pipeline_event_processor(
                     continue;
                 }
             };
-            if let Some(operation_id) = get_operation_id_from_event(&event, &node_handle) {
+            if let Some(operation_id) = get_msg_id_from_event(&event, &node_handle) {
                 operation_id_from_pipeline = Some(operation_id);
             }
         } else if let Some(pending) = pending_operation_id.take() {
@@ -313,16 +311,10 @@ async fn pipeline_event_processor(
     }
 }
 
-fn get_operation_id_from_event(event: &Event, node_handle: &NodeHandle) -> Option<u64> {
+fn get_msg_id_from_event(event: &Event, node_handle: &NodeHandle) -> Option<usize> {
     match event {
-        Event::SinkFlushed { epoch, .. } => epoch
-            .common_info
-            .source_states
-            .get(node_handle)
-            .and_then(|state| match state {
-                SourceState::Restartable(id) => Some(id.seq_in_tx),
-                _ => None,
-            }),
+        Event::SinkFlushed { epoch, node } if node == node_handle => epoch.originating_msg_id,
+        _ => None,
     }
 }
 
@@ -604,12 +596,12 @@ impl Connector for AerospikeConnector {
         &mut self,
         ingestor: &Ingestor,
         tables: Vec<TableInfo>,
-        last_checkpoint: Option<OpIdentifier>,
+        last_checkpoint: SourceState,
     ) -> Result<(), BoxedError> {
         let hosts = CString::new(self.config.hosts.as_str())?;
         let client = Client::new(&hosts).map_err(Box::new)?;
 
-        if last_checkpoint.is_none() {
+        if let SourceState::NotStarted = last_checkpoint {
             let dc_name = self.config.replication.datacenter.clone();
             let namespace = self.config.namespace.clone();
 

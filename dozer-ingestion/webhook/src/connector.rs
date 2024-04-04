@@ -3,7 +3,7 @@ use dozer_ingestion_connector::{
     async_trait,
     dozer_types::{
         self, errors::internal::BoxedError, models::ingestion_types::WebhookConfig,
-        node::OpIdentifier,
+        node::SourceState,
     },
     utils::TableNotFound,
     Connector, Ingestor, SourceSchema, SourceSchemaResult, TableIdentifier, TableInfo,
@@ -145,7 +145,7 @@ impl Connector for WebhookConnector {
         &mut self,
         ingestor: &Ingestor,
         tables: Vec<TableInfo>,
-        _last_checkpoint: Option<OpIdentifier>,
+        _last_checkpoint: SourceState,
     ) -> Result<(), BoxedError> {
         let config = self.config.clone();
         let server = WebhookServer::new(config);

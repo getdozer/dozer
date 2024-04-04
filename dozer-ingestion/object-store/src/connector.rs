@@ -3,7 +3,7 @@ use dozer_ingestion_connector::dozer_types::log::error;
 use dozer_ingestion_connector::dozer_types::models::ingestion_types::{
     IngestionMessage, TransactionInfo,
 };
-use dozer_ingestion_connector::dozer_types::node::OpIdentifier;
+use dozer_ingestion_connector::dozer_types::node::SourceState;
 use dozer_ingestion_connector::dozer_types::types::FieldType;
 use dozer_ingestion_connector::futures::future::try_join_all;
 use dozer_ingestion_connector::tokio::sync::mpsc::channel;
@@ -103,9 +103,9 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
         &mut self,
         ingestor: &Ingestor,
         tables: Vec<TableInfo>,
-        last_checkpoint: Option<OpIdentifier>,
+        last_checkpoint: SourceState,
     ) -> Result<(), BoxedError> {
-        assert!(last_checkpoint.is_none());
+        assert!(!matches!(last_checkpoint, SourceState::Restartable(_)));
         let (sender, mut receiver) =
             channel::<Result<Option<IngestionMessage>, ObjectStoreConnectorError>>(100); // todo: increase buffer siz
         let ingestor_clone = ingestor.clone();
@@ -118,7 +118,9 @@ impl<T: DozerObjectStore> Connector for ObjectStoreConnector<T> {
                     .await
                     .ok_or(ObjectStoreConnectorError::RecvError)?;
                 match message {
-                    Ok(Some(evt)) => ingestor_clone.handle_message(evt).await?,
+                    Ok(Some(evt)) => {
+                        ingestor_clone.handle_message(evt).await?;
+                    }
                     Ok(None) => {
                         break;
                     }

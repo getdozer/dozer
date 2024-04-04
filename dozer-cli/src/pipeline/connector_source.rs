@@ -1,5 +1,7 @@
 use dozer_core::event::EventHub;
-use dozer_core::node::{OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory};
+use dozer_core::node::{
+    OutputPortDef, OutputPortType, PortHandle, Source, SourceFactory, SourceMessage,
+};
 use dozer_core::shutdown::ShutdownReceiver;
 use dozer_ingestion::{
     get_connector, CdcType, Connector, IngestionIterator, TableIdentifier, TableInfo,
@@ -13,7 +15,7 @@ use dozer_tracing::{emit_event, DozerMonitorContext};
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::models::connection::Connection;
 use dozer_types::models::ingestion_types::IngestionMessage;
-use dozer_types::node::OpIdentifier;
+use dozer_types::node::SourceState;
 use dozer_types::thiserror::{self, Error};
 use dozer_types::tracing::info;
 use dozer_types::types::{Operation, Schema, SourceDefinition};
@@ -225,8 +227,8 @@ impl Source for ConnectorSource {
 
     async fn start(
         &mut self,
-        sender: Sender<(PortHandle, IngestionMessage)>,
-        last_checkpoint: Option<OpIdentifier>,
+        sender: Sender<SourceMessage>,
+        last_checkpoint: SourceState,
     ) -> Result<(), BoxedError> {
         let (ingestor, iterator) = Ingestor::initialize_channel(self.ingestion_config.clone());
         let connection_name = self.connection_name.clone();
@@ -305,7 +307,7 @@ impl Source for ConnectorSource {
 
 async fn forward_message_to_pipeline(
     mut iterator: IngestionIterator,
-    sender: Sender<(PortHandle, IngestionMessage)>,
+    sender: Sender<SourceMessage>,
     connection_name: String,
     tables: Vec<TableInfo>,
     ports: Vec<PortHandle>,
@@ -325,7 +327,7 @@ async fn forward_message_to_pipeline(
         .init();
 
     let mut counter = vec![(0u64, 0u64); tables.len()];
-    while let Some(message) = iterator.receiver.recv().await {
+    while let Some((idx, message)) = iterator.receiver.recv().await {
         match &message {
             IngestionMessage::OperationEvent {
                 table_index, op, ..
@@ -374,13 +376,29 @@ async fn forward_message_to_pipeline(
                 }
 
                 // Send message to the pipeline
-                if sender.send((port, message)).await.is_err() {
+                if sender
+                    .send(SourceMessage {
+                        id: idx,
+                        port,
+                        message,
+                    })
+                    .await
+                    .is_err()
+                {
                     break;
                 }
             }
             IngestionMessage::TransactionInfo(_) => {
                 // For transaction level messages, we can send to any port.
-                if sender.send((ports[0], message)).await.is_err() {
+                if sender
+                    .send(SourceMessage {
+                        id: idx,
+                        port: ports[0],
+                        message,
+                    })
+                    .await
+                    .is_err()
+                {
                     break;
                 }
             }

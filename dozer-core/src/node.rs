@@ -4,7 +4,7 @@ use crate::event::EventHub;
 
 use dozer_types::errors::internal::BoxedError;
 use dozer_types::models::ingestion_types::IngestionMessage;
-use dozer_types::node::OpIdentifier;
+use dozer_types::node::{OpIdentifier, SourceState};
 use dozer_types::serde::{Deserialize, Serialize};
 use dozer_types::tonic::async_trait;
 use dozer_types::types::{Schema, TableOperation};
@@ -56,14 +56,20 @@ pub trait SourceFactory: Send + Sync + Debug {
     ) -> Result<Box<dyn Source>, BoxedError>;
 }
 
+pub struct SourceMessage {
+    pub id: usize,
+    pub port: PortHandle,
+    pub message: IngestionMessage,
+}
+
 #[async_trait]
 pub trait Source: Send + Sync + Debug {
     async fn serialize_state(&self) -> Result<Vec<u8>, BoxedError>;
 
     async fn start(
         &mut self,
-        sender: Sender<(PortHandle, IngestionMessage)>,
-        last_checkpoint: Option<OpIdentifier>,
+        sender: Sender<SourceMessage>,
+        last_checkpoint: SourceState,
     ) -> Result<(), BoxedError>;
 }
 
@@ -121,9 +127,9 @@ pub trait Sink: Send + Debug {
     ) -> Result<(), BoxedError>;
 
     // Pipeline state management.
-    fn set_source_state(&mut self, source_state: &[u8]) -> Result<(), BoxedError>;
-    fn get_source_state(&mut self) -> Result<Option<Vec<u8>>, BoxedError>;
-    fn get_latest_op_id(&mut self) -> Result<Option<OpIdentifier>, BoxedError>;
+    fn set_source_state_data(&mut self, source_state: &[u8]) -> Result<(), BoxedError>;
+    fn get_source_state_data(&mut self) -> Result<Option<Vec<u8>>, BoxedError>;
+    fn get_source_state(&mut self) -> Result<SourceState, BoxedError>;
 
     fn preferred_batch_size(&self) -> Option<u64> {
         None
