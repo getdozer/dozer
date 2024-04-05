@@ -64,6 +64,7 @@ fn main() {
         .allowlist_type("aerospike")
         .allowlist_function("(as|aerospike)_.*")
         .allowlist_var("(as|AS)_.*")
+        .allowlist_function("cf_free")
         .clang_arg(format!("-I{}", include_dir.to_str().unwrap()))
         .generate()
         .expect("Unable to generate bindings");

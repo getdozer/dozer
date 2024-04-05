@@ -368,6 +368,8 @@ impl Client {
 impl Drop for Client {
     fn drop(&mut self) {
         unsafe {
+            let mut err = MaybeUninit::uninit();
+            aerospike_close(self.inner.as_ptr(), err.as_mut_ptr());
             aerospike_destroy(self.inner.as_ptr());
         }
     }

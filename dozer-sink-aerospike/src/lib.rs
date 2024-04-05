@@ -790,8 +790,9 @@ mod tests {
         let request = CString::new(request).unwrap();
         unsafe {
             client.info(&request, &mut response).unwrap();
+            cf_free(response as *mut std::ffi::c_void);
         }
-        client.into()
+        Arc::new(client)
     }
 
     fn f(name: &str, typ: FieldType) -> FieldDefinition {
