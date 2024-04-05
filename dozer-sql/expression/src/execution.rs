@@ -10,6 +10,7 @@ use crate::operator::{BinaryOperatorType, UnaryOperatorType};
 use crate::scalar::common::{get_scalar_function_type, ScalarFunctionType};
 use crate::scalar::string::{evaluate_trim, validate_trim, TrimType};
 use std::iter::zip;
+use dozer_types::log::trace;
 
 use super::aggregate::AggregateFunctionType;
 use super::cast::CastOperatorType;
@@ -318,7 +319,10 @@ impl Expression {
     pub fn evaluate(&mut self, record: &Record, schema: &Schema) -> Result<Field, Error> {
         match self {
             Expression::Literal(field) => Ok(field.clone()),
-            Expression::Column { index } => Ok(record.values[*index].clone()),
+            Expression::Column { index } => {
+                trace!(target: "execution_sql", "Schema: {:?} record {:?} index {:?}", schema, record, index);
+                Ok(record.values[*index].clone())
+            },
             Expression::BinaryOperator {
                 left,
                 operator,
