@@ -3,7 +3,7 @@ use dozer_types::types::FieldDefinition;
 
 use crate::schema::map_field_to_type;
 
-const DEFAULT_TABLE_ENGINE: &str = "CollapsingMergeTree";
+const DEFAULT_TABLE_ENGINE: &str = "MergeTree()";
 
 pub fn get_create_table_query(
     table_name: &str,
