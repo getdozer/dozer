@@ -1048,7 +1048,7 @@ impl DenormalizationState {
 
 #[cfg(test)]
 mod tests {
-    use std::{ffi::CString, sync::Arc};
+    use std::ffi::CString;
 
     use dozer_types::{
         models::sink::AerospikeSinkTable,
@@ -1058,9 +1058,10 @@ mod tests {
         },
     };
 
-    use crate::{aerospike::Client, denorm_dag::DenormalizedTable};
+    use crate::denorm_dag::DenormalizedTable;
 
     use super::{AerospikeSchema, DenormalizationState};
+    use crate::tests::client;
 
     macro_rules! schema_row {
         ($schema:expr, $f:literal: $t:ident PRIMARY_KEY) => {
@@ -1227,17 +1228,6 @@ mod tests {
                     .eq(self.iter().map(|rec| rec.to_row()))
                 && pk == &DenormResult::schema().primary_index
         }
-    }
-
-    fn client() -> Arc<Client> {
-        let client = Client::new(&CString::new("localhost:3000").unwrap()).unwrap();
-        let mut response = std::ptr::null_mut();
-        let request = "truncate-namespace:namespace=test";
-        let request = CString::new(request).unwrap();
-        unsafe {
-            client.info(&request, &mut response).unwrap();
-        }
-        client.into()
     }
 
     fn lookup_table(name: &str) -> (AerospikeSinkTable, Schema) {

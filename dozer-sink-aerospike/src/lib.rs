@@ -537,6 +537,8 @@ impl SnapshotWriter {
     }
 
     fn join(self) -> Result<(), AerospikeSinkError> {
+        let final_batch = self.batch;
+        self.sender.send(final_batch).unwrap();
         drop(self.sender);
         self.receiver.into_iter().try_collect()?;
         Ok(())
@@ -766,17 +768,31 @@ impl Sink for AerospikeSink {
 #[cfg(test)]
 mod tests {
 
-    use dozer_core::tokio;
+    use std::{sync::Arc, time::SystemTime};
+
+    use dozer_core::{epoch::Epoch, tokio};
 
     use dozer_types::{
         chrono::{DateTime, NaiveDate},
         models::sink::AerospikeSinkTable,
+        node::{NodeHandle, SourceStates},
         ordered_float::OrderedFloat,
         rust_decimal::Decimal,
         types::{FieldDefinition, Operation, Record},
     };
 
     use super::*;
+
+    pub(crate) fn client() -> Arc<Client> {
+        let client = Client::new(&CString::new("localhost:3000").unwrap()).unwrap();
+        let mut response = std::ptr::null_mut();
+        let request = "truncate-namespace:namespace=test";
+        let request = CString::new(request).unwrap();
+        unsafe {
+            client.info(&request, &mut response).unwrap();
+        }
+        client.into()
+    }
 
     fn f(name: &str, typ: FieldType) -> FieldDefinition {
         FieldDefinition {
@@ -794,6 +810,7 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn test_inserts() {
+        let _ = client();
         let mut sink = sink("inserts").await;
         sink.on_source_snapshotting_started("inserts".into())
             .unwrap();
@@ -813,6 +830,7 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn test_inserts_batch() {
+        let _ = client();
         let mut batches = Vec::with_capacity(N_RECORDS / BATCH_SIZE);
         for i in 0..N_RECORDS / BATCH_SIZE {
             let mut batch = Vec::with_capacity(BATCH_SIZE);
@@ -933,5 +951,71 @@ mod tests {
                         })),
             */
         ])
+    }
+
+    #[tokio::test]
+    #[ignore = "Requires aerospike server"]
+    async fn test_txids() {
+        let _ = client();
+        let mut s = sink("resume").await;
+        s.on_source_snapshotting_started("resume".into()).unwrap();
+        s.process(TableOperation {
+            id: None,
+            op: Operation::Insert { new: record(1) },
+            port: 0,
+        })
+        .unwrap();
+        s.on_source_snapshotting_done(
+            "resume".into(),
+            Some(OpIdentifier {
+                txid: 6,
+                seq_in_tx: 2,
+            }),
+        )
+        .unwrap();
+        assert_eq!(
+            s.get_latest_op_id().unwrap(),
+            Some(OpIdentifier {
+                txid: 6,
+                seq_in_tx: 0
+            })
+        );
+        s.process(TableOperation {
+            id: Some(OpIdentifier {
+                txid: 7,
+                seq_in_tx: 0,
+            }),
+            op: Operation::Insert { new: record(7) },
+            port: 0,
+        })
+        .unwrap();
+
+        let mut source_states = SourceStates::new();
+        source_states.insert(
+            NodeHandle::new(None, "source".into()),
+            dozer_types::node::SourceState::Restartable(OpIdentifier {
+                txid: 8,
+                seq_in_tx: 0,
+            }),
+        );
+        s.commit(&Epoch::new(1, Arc::new(source_states), SystemTime::now()))
+            .unwrap();
+        s.flush_batch().unwrap();
+
+        assert_eq!(
+            s.get_latest_op_id().unwrap(),
+            Some(OpIdentifier {
+                txid: 8,
+                seq_in_tx: 0
+            })
+        );
+        let mut s = sink("resume").await;
+        assert_eq!(
+            s.get_latest_op_id().unwrap(),
+            Some(OpIdentifier {
+                txid: 8,
+                seq_in_tx: 0
+            })
+        );
     }
 }
